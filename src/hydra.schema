@@ -1,0 +1,9 @@
+create table builds (
+    id            integer primary key autoincrement,
+    timestamp     integer, -- time this build was added to the db (in Unix time)
+    name          text,
+    description   text,
+    drvPath       text,
+    outPath       text,
+    buildStatus   integer -- 0 = succeeded, 1 = failure, ...
+);
