@@ -1,9 +1,38 @@
 create table builds (
-    id            integer primary key autoincrement,
-    timestamp     integer, -- time this build was added to the db (in Unix time)
-    name          text,
+    id            integer primary key autoincrement not null,
+    timestamp     integer not null, -- time this build was added to the db (in Unix time)
+    name          text not null,
     description   text,
-    drvPath       text,
-    outPath       text,
+    drvPath       text not null,
+    outPath       text not null,
     buildStatus   integer -- 0 = succeeded, 1 = failure, ...
 );
+
+
+create table buildProducts (
+    buildId       integer not null,
+    type          text not null, -- "nix-build", "file", "doc", "report", ...
+    subtype       text not null, -- "sources", "rpm", ...
+    path          text not null,
+    primary key   (buildId, type, subType),
+    foreign key   (buildId) references builds(id) on delete cascade -- ignored by sqlite
+);
+
+
+create table buildLogs (
+    buildId       integer not null,
+    logPhase      text not null,
+    path          text not null,
+    type          text not null,
+    primary key   (buildId, logPhase),
+    foreign key   (buildId) references builds(id) on delete cascade -- ignored by sqlite
+);
+
+
+-- Emulate "on delete cascade" foreign key constraints.
+create trigger cascadeBuildDeletion
+  before delete on builds
+  for each row begin
+    delete from buildLogs where buildId = old.id;
+    delete from buildProducts where buildId = old.id;
+  end;
