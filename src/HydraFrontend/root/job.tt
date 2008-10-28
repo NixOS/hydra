@@ -1,0 +1,12 @@
+[% WRAPPER layout.tt title="Hydra Overview" %]
+
+<h1>All builds for job <tt>[% jobName %]</tt></h1>
+
+<table>
+  <tr><th></th><th>Id</th><th>Job</th><th>Timestamp</th><th>Description</th></tr>
+  [% FOREACH build IN builds -%]
+    [% INCLUDE "short-build-info.tt" %]
+  [% END -%]
+</table>
+
+[% END %]

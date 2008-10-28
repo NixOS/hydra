@@ -1,24 +1,31 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
-[% USE date %]
 
 <h1>Job status</h1>
 
-<table>
-  <tr><th></th><th>Id</th><th>Attribute name</th><th>Timestamp</th><th>Description</th></tr>
-  [% FOREACH build IN latestBuilds -%]
-    [% INCLUDE "short-build-info.tt" %]
-  [% END -%]
+<table class="tablesorter">
+  <thead>
+    <tr><th></th><th>Id</th><th>Job</th><th>Timestamp</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    [% FOREACH build IN latestBuilds -%]
+      [% INCLUDE "short-build-info.tt" %]
+    [% END -%]
+  </tbody>
 </table>
 
 <h1>All builds</h1>
 
 <p>Number of builds: [% allBuilds.size %]</p>
 
-<table>
-  <tr><th></th><th>Id</th><th>Attribute name</th><th>Timestamp</th><th>Description</th></tr>
-  [% FOREACH build IN allBuilds -%]
-    [% INCLUDE "short-build-info.tt" %]
-  [% END -%]
+<table class="tablesorter">
+  <thead>
+    <tr><th></th><th>#</th><th>Job</th><th>Timestamp</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    [% FOREACH build IN allBuilds -%]
+      [% INCLUDE "short-build-info.tt" %]
+    [% END -%]
+  </tbody>
 </table>
 
 [% END %]

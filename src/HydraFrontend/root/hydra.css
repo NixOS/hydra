@@ -151,3 +151,29 @@ pre.buildlog {
     border: 1px solid black;
     padding: 0.3em;
 }
+
+
+/* Sortable tables */
+
+table.tablesorter {
+    text-align: left;
+
+}
+table.tablesorter thead tr .header {
+    background-image: url(/static/js/tablesorter/themes/blue/bg.gif);
+    background-repeat: no-repeat;
+    background-position: center right;
+    cursor: pointer;
+}
+
+table.tablesorter thead tr .headerSortUp {
+    background-image: url(/static/js/tablesorter/themes/blue/asc.gif);
+}
+
+table.tablesorter thead tr .headerSortDown {
+    background-image: url(/static/js/tablesorter/themes/blue/desc.gif);
+}
+
+table.tablesorter thead tr .headerSortDown, table.tablesorter thead tr .headerSortUp {
+    background-color: #ffe000;
+}

@@ -1,0 +1,15 @@
+[% USE date %]
+
+<tr>
+  <td>
+    [% IF build.buildstatus == 0 %]
+      <img src="/static/images/success.gif" />
+    [% ELSE %]
+      <img src="/static/images/failure.gif" />
+    [% END %]
+  </td>
+  <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
+  <td><a href="[% c.uri_for('/job' build.name) %]"><tt>[% build.name %]</tt></a></td>
+  <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+  <td>[% build.description %]</td>
+</tr>

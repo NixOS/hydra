@@ -36,6 +36,14 @@ sub index :Path :Args(0) {
 }
 
 
+sub job :Local {
+    my ( $self, $c, $jobName ) = @_;
+    $c->stash->{template} = 'job.tt';
+    $c->stash->{jobName} = $jobName;
+    $c->stash->{builds} = [$c->model('DB::Builds')->search({name => $jobName}, {order_by => "timestamp DESC"})];
+}
+
+
 sub default :Path {
     my ( $self, $c ) = @_;
     error($c, "Page not found.");
