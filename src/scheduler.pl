@@ -30,35 +30,48 @@ foreach my $jobName (keys %{$jobs->{item}}) {
     my $outPath = $job->{outPath};
     my $drvPath = $job->{drvPath};
 
-    if (scalar(@{$dbh->selectall_arrayref("select * from builds where name = ? and outPath = ?", {}, $jobName, $outPath)}) > 0) {
+    if (scalar(@{$dbh->selectall_arrayref("select * from builds where jobName = ? and outPath = ?", {}, $jobName, $outPath)}) > 0) {
         print "  already done\n";
         next;
     }
 
-    my $res = system("nix-build $jobsFile --attr $jobName");
+    my $isCachedBuild = 1;
+    my $buildStatus = 0;
+    my $startTime = 0;
+    my $stopTime = 0;
+    
+    if (system("nix-store --check-validity $outPath 2> /dev/null") != 0) {
+        $isCachedBuild = 0;
 
-    my $buildStatus = $res == 0 ? 0 : 1;
+        $startTime = time();
+
+        my $res = system("nix-build $jobsFile --attr $jobName");
+
+        $stopTime = time();
+
+        $buildStatus = $res == 0 ? 0 : 1;
+    }
 
     $dbh->begin_work;
 
-    $dbh->prepare("insert into builds(timestamp, name, description, drvPath, outPath, buildStatus) values(?, ?, ?, ?, ?, ?)")
-        ->execute(time(), $jobName, $description, $drvPath, $outPath, $buildStatus);
+    $dbh->prepare("insert into builds(timestamp, jobName, description, drvPath, outPath, isCachedBuild, buildStatus, errorMsg, startTime, stopTime) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        ->execute(time(), $jobName, $description, $drvPath, $outPath, $isCachedBuild, $buildStatus, "", $startTime, $stopTime);
     
     my $buildId = $dbh->last_insert_id(undef, undef, undef, undef);
     print "  db id = $buildId\n";
+
+    my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
+    if (-e $logPath) {
+        print "  LOG $logPath\n";
+        $dbh->prepare("insert into buildLogs(buildId, logPhase, path, type) values(?, ?, ?, ?)")
+            ->execute($buildId, "full", $logPath, "raw");
+    }
 
     if ($buildStatus == 0) {
 
         $dbh->prepare("insert into buildProducts(buildId, type, subtype, path) values(?, ?, ?, ?)")
             ->execute($buildId, "nix-build", "", $outPath);
         
-        my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
-        if (-e $logPath) {
-            print "  LOG $logPath\n";
-            $dbh->prepare("insert into buildLogs(buildId, logPhase, path, type) values(?, ?, ?, ?)")
-                ->execute($buildId, "full", $logPath, "raw");
-        }
-
         if (-e "$outPath/log") {
             foreach my $logPath (glob "$outPath/log/*") {
                 print "  LOG $logPath\n";

@@ -12,7 +12,7 @@
   </tr>
   <tr>
     <th>Job name:</th>
-    <td>[% build.name %]</td>
+    <td>[% build.jobname %]</td>
   </tr>
   <tr>
     <th>Description:</th>
@@ -21,6 +21,16 @@
   <tr>
     <th>Time added:</th>
     <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+  </tr>
+  <tr>
+    <th>Duration (seconds):</th>
+    <td>
+      [% IF build.iscachedbuild %]
+        <em>(cached build)</em>
+      [% ELSE %]
+        [% build.stoptime - build.starttime %]
+      [% END %]
+    </td>
   </tr>
   <tr>
     <th>Derivation store path:</th>
