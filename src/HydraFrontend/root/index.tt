@@ -4,9 +4,16 @@
 <h1>All builds</h1>
 
 <table>
-  <tr><th>Id</th><th>Attribute name</th><th>Timestamp</th><th>Description</th></tr>
+  <tr><th></th><th>Id</th><th>Attribute name</th><th>Timestamp</th><th>Description</th></tr>
   [% FOREACH build IN builds -%]
   <tr>
+    <td>
+      [% IF build.buildstatus == 0 %]
+        <img src="static/images/success.gif" />
+      [% ELSE %]
+        <img src="static/images/failure.gif" />
+      [% END %]
+    </td>
     <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
     <td>[% build.name %]</td>
     <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
