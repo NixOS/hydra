@@ -1,0 +1,18 @@
+[% WRAPPER layout.tt title="Hydra Overview" %]
+[% USE date %]
+
+<h1>All builds</h1>
+
+<table>
+  <tr><th>Id</th><th>Attribute name</th><th>Timestamp</th><th>Description</th></tr>
+  [% FOREACH build IN builds -%]
+  <tr>
+    <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
+    <td>[% build.name %]</td>
+    <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+    <td>[% build.description %]</td>
+  </tr>
+  [% END -%]
+</table>
+
+[% END %]

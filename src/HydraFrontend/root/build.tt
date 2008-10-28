@@ -1,0 +1,65 @@
+[% WRAPPER layout.tt title="Hydra Overview" %]
+[% USE date %]
+
+<h1>Build [% id %]</h1>
+
+<h2>Information</h2>
+
+<table>
+  <tr>
+    <th>Build ID:</th>
+    <td>[% build.id %]</td>
+  </tr>
+  <tr>
+    <th>Job name:</th>
+    <td>[% build.name %]</td>
+  </tr>
+  <tr>
+    <th>Description:</th>
+    <td>[% build.description %]</td>
+  </tr>
+  <tr>
+    <th>Time added:</th>
+    <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+  </tr>
+  <tr>
+    <th>Derivation store path:</th>
+    <td><tt>[% build.drvpath %]</tt></td>
+  </tr>
+  <tr>
+    <th>Output store path:</th>
+    <td><tt>[% build.outpath %]</tt></td>
+  </tr>
+</table>
+
+
+<h2>Build products</h2>
+
+<ul>
+
+  [% FOREACH product IN build.buildproducts -%]
+  <li>
+    [% SWITCH product.type %]
+    [% CASE "nix-build" %]
+      Nix build of path <tt>[% product.path %]</tt>
+    [% END %]
+  </li>
+  [% END -%]
+  
+</ul>
+
+
+<h2>Logs</h2>
+
+<table>
+  <tr><th>Phase</th></tr>
+  [% FOREACH log IN build.buildlogs -%]
+  <tr>
+    <td><a href="[% c.uri_for('/log' build.id log.logphase) %]">[% log.logphase %]</a></td>
+  </tr>
+  [% END -%]
+</table>
+
+
+[% END %]
+

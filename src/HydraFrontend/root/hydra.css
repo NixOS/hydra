@@ -1,0 +1,153 @@
+body
+{
+    font-family: sans-serif;
+    background: white;
+    margin: 2em 1em 2em 1em;
+}
+
+h1, h2, h3 {
+    font-weight: bold;
+    color: #005aa0;
+}
+
+h1 {
+    font-size: 220%;
+}
+
+h2 {
+    font-size: 130%;
+}
+
+h3 {
+    font-size: 100%;
+}
+
+table {
+    empty-cells: show;
+    border-collapse: collapse;
+    border-spacing: 0px;
+}
+
+th {
+    text-align: center;
+    font-weight: bold;
+}
+
+td, th {
+    padding: 2px 5px;
+    border: solid black 1px;
+}
+
+th {
+    background: #ffffc0;
+}
+
+td.pkgname {
+    font-size: 140%;
+    font-weight: bold;
+    color: #005aa0;
+    background: #ffffe0;
+}
+
+td.pkgname table {
+    border: none;
+    border-spacing: 0px;
+}
+
+td.pkgname table td {
+    border: none;
+}
+
+td.pkgname td.pkgname {
+    width: 100%;
+}
+
+td.reltype {
+    font-weight: bold;
+    color: #400000;
+}
+
+td.date, span.date, span.svnrev {
+    color: #400000;
+}
+
+a:link { color: #0048b3; }
+a:visited { color: #002a6a; }
+a:hover { background: #ffffcd; }
+
+span.relname {
+    font-weight: bold;
+}
+
+span.filename, span.command {
+    font-family: monospace;
+}
+
+span.md5 {
+    font-family: monospace;
+    color: #400000;
+}
+
+.failurewarning {
+    font-weight: bold;
+    color: red;
+}
+
+p.failurewarning {
+    font-size: 120%;
+}
+
+span.system {
+    font-style: italic;
+}
+
+table.derivationList {
+    margin-left: 2em;
+    margin-right: 2em;
+}
+
+table.derivationList, table.derivationList td, table.derivationList th {
+    border: 1px solid #808080;
+}
+
+table.derivationList tr.odd {
+    background: #f0f0f0;
+}
+
+table.derivationList td {
+    vertical-align: top;
+}
+
+table.derivationList td.system {
+    font-style: italic;
+}
+
+a {
+    text-decoration: none; 
+}
+
+a:hover, a:visited:hover {
+    text-decoration: underline;
+}
+
+img {
+    border-style: none;
+}
+
+table.buildfarmResults td, table.buildfarmResults th {
+    border: none;
+}
+
+td.buildfarmMainColumn {
+    background-color: #E0E0E0;
+    border: solid;
+}
+
+span.error-msg {
+    color: red;
+}
+
+pre.buildlog {
+    border: 1px solid black;
+    padding: 0.3em;
+}

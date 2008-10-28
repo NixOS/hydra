@@ -1,0 +1,10 @@
+[% WRAPPER layout.tt title="Hydra Overview" %]
+
+<h1>Build log <tt>[% log.logphase %] of build ID [% id %]</h1>
+
+<!-- !!! escaping -->
+<pre class="buildlog">
+[% logtext -%]
+</pre>
+
+[% END %]
