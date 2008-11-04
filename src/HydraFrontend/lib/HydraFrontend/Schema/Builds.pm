@@ -12,7 +12,11 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 0, size => undef },
   "timestamp",
   { data_type => "integer", is_nullable => 0, size => undef },
-  "jobname",
+  "project",
+  { data_type => "text", is_nullable => 0, size => undef },
+  "jobset",
+  { data_type => "text", is_nullable => 0, size => undef },
+  "attrname",
   { data_type => "text", is_nullable => 0, size => undef },
   "description",
   { data_type => "text", is_nullable => 0, size => undef },
@@ -44,7 +48,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-10-28 17:59:29
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:gp6ZZpDA2VzgnNE9NX99dA
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-04 14:45:23
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Odp6qymLlNXbsD7VOQ7PAQ
 
 1;

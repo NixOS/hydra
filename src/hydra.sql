@@ -1,7 +1,15 @@
 create table builds (
     id            integer primary key autoincrement not null,
     timestamp     integer not null, -- time this build was added to the db (in Unix time)
-    jobName       text not null,
+
+    -- Info about the inputs.
+    project       text not null, -- !!! foreign key
+    jobSet        text not null, -- !!! foreign key
+    attrName      text not null,
+
+    -- !!! list all the inputs / arguments
+
+    -- Info about the build result.
     description   text,
     drvPath       text not null,
     outPath       text not null,
@@ -40,3 +48,36 @@ create trigger cascadeBuildDeletion
     delete from buildLogs where buildId = old.id;
     delete from buildProducts where buildId = old.id;
   end;
+
+
+create table projects (
+    name          text primary key not null 
+);
+
+
+-- A jobset consists of a set of inputs (e.g. SVN repositories), one
+-- of which contains a Nix expression containing an attribute set
+-- describing build jobs.
+create table jobSets (
+    name          text not null,
+    project       text not null,
+    description   text,
+    nixExprInput  text not null, -- name of the jobSetInput containing the Nix expression
+    nixExprPath   text not null, -- relative path of the Nix expression
+    primary key   (project, name),
+    foreign key   (project) references projects(name) on delete cascade, -- ignored by sqlite
+    foreign key   (project, name, nixExprInput) references jobSetInputs(project, job, name)
+);
+
+
+create table jobSetInputs (
+    project       text not null,
+    job           text not null,
+    name          text not null,
+    type          text not null, -- "svn", "cvs", "path", "file"
+    uri           text,
+    revision      integer, -- for svn
+    tag           text, -- for cvs
+    primary key   (project, job, name),
+    foreign key   (project, job) references jobSets(project, name) on delete cascade -- ignored by sqlite
+);

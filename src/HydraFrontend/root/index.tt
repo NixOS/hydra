@@ -6,7 +6,7 @@
 
 <table class="tablesorter">
   <thead>
-    <tr><th></th><th>Id</th><th>Job</th><th>Timestamp</th><th>Description</th></tr>
+    <tr><th></th><th>#</th><th>Job</th><th>Timestamp</th><th>Description</th></tr>
   </thead>
   <tbody>
     [% FOREACH build IN latestBuilds -%]
