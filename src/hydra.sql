@@ -21,6 +21,19 @@ create table builds (
 );
 
 
+create table buildInputs (
+    buildId       integer not null,
+    -- Copied from the jobSetInputs from which the build was created.
+    name          text not null,
+    type          text not null,
+    uri           text,
+    revision      integer,
+    tag           text,
+    primary key   (buildId, name),
+    foreign key   (buildId) references builds(id) on delete cascade -- ignored by sqlite
+);
+
+
 create table buildProducts (
     buildId       integer not null,
     type          text not null, -- "nix-build", "file", "doc", "report", ...
@@ -45,6 +58,7 @@ create table buildLogs (
 create trigger cascadeBuildDeletion
   before delete on builds
   for each row begin
+    delete from buildInputs where buildId = old.id;
     delete from buildLogs where buildId = old.id;
     delete from buildProducts where buildId = old.id;
   end;

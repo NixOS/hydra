@@ -3,6 +3,7 @@
 
 <h1>Build [% id %]</h1>
 
+
 <h2>Information</h2>
 
 <table>
@@ -48,6 +49,24 @@
     <th>Output store path:</th>
     <td><tt>[% build.outpath %]</tt></td>
   </tr>
+</table>
+
+
+<h2>Build inputs</h2>
+
+<table class="tablesorter">
+  <thead>
+    <tr><th>Name</th><th>type</th><th>Uri</th></tr>
+  </thead>
+  <tbody>
+    [% FOREACH input IN build.buildinputs -%]
+      <tr>
+        <td>[% input.name %]</td>
+        <td>[% input.type %]</td>
+        <td>[% input.uri %]</td>
+      </tr>
+    [% END -%]
+  </tbody>
 </table>
 
 

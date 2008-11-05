@@ -16,7 +16,7 @@ sub isValidPath {
 
 
 sub buildJob {
-    my ($project, $jobset, $jobName, $drvPath, $outPath) = @_;
+    my ($project, $jobset, $jobName, $drvPath, $outPath, $usedInputs) = @_;
 
     if (scalar($db->resultset('Builds')->search({project => $project->name, jobset => $jobset->name, attrname => $jobName, outPath => $outPath})) > 0) {
         print "      already done\n";
@@ -56,6 +56,17 @@ sub buildJob {
             , stoptime => $stopTime
             });
         print "      build ID = ", $build->id, "\n";
+
+        foreach my $input (keys %{$usedInputs}) {
+            $db->resultset('Buildinputs')->create(
+                { buildid => $build->id
+                , name => $usedInputs->{$input}->{orig}->name
+                , type => $usedInputs->{$input}->{orig}->type
+                , uri => $usedInputs->{$input}->{orig}->uri
+                , revision => $usedInputs->{$input}->{orig}->revision
+                , tag => $usedInputs->{$input}->{orig}->tag
+                });
+        }
 
         my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
         if (-e $logPath) {
@@ -105,7 +116,7 @@ sub fetchInput {
             or die "cannot copy path $uri to the Nix store";
         chomp $storePath;
         print "      copied to $storePath\n";
-        $$inputInfo{$input->name} = {storePath => $storePath};
+        $$inputInfo{$input->name} = {orig => $input, storePath => $storePath};
     }
 
     else {
@@ -151,19 +162,28 @@ sub checkJobSet {
 
         my $extraArgs = "";
 
+        my $usedInputs = {};
+
         # If the expression is a function, then look at its formal
         # arguments and see if we can supply them.
         if (defined $jobExpr->{function}->{attrspat}) {
+            
             foreach my $argName (keys(%{$jobExpr->{function}->{attrspat}->{attr}})) {
                 print "      needs input $argName\n";
+                
                 my $storePath;
+                
                 if (defined $inputInfo->{$argName}) {
                     # The argument name matches an input.
                     $storePath = $inputInfo->{$argName}->{storePath};
-                } else {
+                    $$usedInputs{$argName} = $inputInfo->{$argName};
+                }
+
+                else {
                     (my $prevBuild) = $db->resultset('Builds')->search(
                         {project => $project->name, jobset => $jobset->name, attrname => $argName},
                         {order_by => "timestamp DESC", rows => 1});
+                    
                     if (defined $prevBuild) {
                         # The argument name matches a previously built
                         # job in this jobset.  Pick the most recent
@@ -178,12 +198,12 @@ sub checkJobSet {
                         die "missing input `$argName'";
                     }
                 }
+                
                 $extraArgs .= " --arg $argName '{path = " . $storePath . ";}'";
             }
         }
 
         # Instantiate the store derivation.
-        print "$extraArgs\n";
         my $drvPath = `nix-instantiate $nixExprPath --attr $jobName $extraArgs`
             or die "cannot evaluate the Nix expression containing the job definitions: $?";
         chomp $drvPath;
@@ -202,7 +222,7 @@ sub checkJobSet {
         die unless $job->{drvPath} eq $drvPath;
         my $outPath = $job->{outPath};
 
-        buildJob($project, $jobset, $jobName, $drvPath, $outPath);
+        buildJob($project, $jobset, $jobName, $drvPath, $outPath, $usedInputs);
     }
 }
 

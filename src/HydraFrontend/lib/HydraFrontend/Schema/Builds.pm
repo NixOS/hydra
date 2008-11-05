@@ -46,9 +46,14 @@ __PACKAGE__->has_many(
   "HydraFrontend::Schema::Buildlogs",
   { "foreign.buildid" => "self.id" },
 );
+__PACKAGE__->has_many(
+  "buildinputs",
+  "HydraFrontend::Schema::Buildinputs",
+  { "foreign.buildid" => "self.id" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-04 14:45:23
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Odp6qymLlNXbsD7VOQ7PAQ
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-05 07:10:07
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uogJnVTVX17swfcbZgGQYg
 
 1;
