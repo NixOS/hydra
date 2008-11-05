@@ -65,7 +65,7 @@
         <td><tt>[% input.type %]</tt></td>
         <td>
           [% IF input.type == "build" %]
-            <a href="[% c.uri_for('/build' input.inputid) %]">Build [% input.inputid %]</a>
+            <a href="[% c.uri_for('/build' input.inputid) %]">Job <tt>[% input.build.project %]:[% input.build.attrname %]</tt> build [% input.inputid %]</a>
           [% ELSE %]
             <tt>[% input.uri %]</tt>
           [% END %]
