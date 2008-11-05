@@ -9,6 +9,12 @@ use HydraFrontend::Schema;
 my $db = HydraFrontend::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
 
 
+sub isValidPath {
+    my $path = shift;
+    return system("nix-store --check-validity $path 2> /dev/null") == 0;
+}
+
+
 sub buildJob {
     my ($project, $jobset, $jobName, $drvPath, $outPath) = @_;
 
@@ -22,7 +28,7 @@ sub buildJob {
     my $startTime = 0;
     my $stopTime = 0;
     
-    if (system("nix-store --check-validity $outPath 2> /dev/null") != 0) {
+    if (!isValidPath($outPath)) {
         $isCachedBuild = 0;
 
         $startTime = time();
@@ -150,12 +156,34 @@ sub checkJobSet {
         if (defined $jobExpr->{function}->{attrspat}) {
             foreach my $argName (keys(%{$jobExpr->{function}->{attrspat}->{attr}})) {
                 print "      needs input $argName\n";
-                die "missing input `$argName'" if !defined $inputInfo->{$argName};
-                $extraArgs .= " --arg $argName '{path = " . $inputInfo->{$argName}->{storePath} . ";}'";
+                my $storePath;
+                if (defined $inputInfo->{$argName}) {
+                    # The argument name matches an input.
+                    $storePath = $inputInfo->{$argName}->{storePath};
+                } else {
+                    (my $prevBuild) = $db->resultset('Builds')->search(
+                        {project => $project->name, jobset => $jobset->name, attrname => $argName},
+                        {order_by => "timestamp DESC", rows => 1});
+                    if (defined $prevBuild) {
+                        # The argument name matches a previously built
+                        # job in this jobset.  Pick the most recent
+                        # build.  !!! refine the selection criteria:
+                        # e.g., most recent successful build.
+                        if (!isValidPath($prevBuild->outpath)) {
+                            die "input path " . $prevBuild->outpath . " has been garbage-collected";
+                        }
+                        $storePath = $prevBuild->outpath;
+                    } else {
+                        # !!! reschedule?
+                        die "missing input `$argName'";
+                    }
+                }
+                $extraArgs .= " --arg $argName '{path = " . $storePath . ";}'";
             }
         }
 
         # Instantiate the store derivation.
+        print "$extraArgs\n";
         my $drvPath = `nix-instantiate $nixExprPath --attr $jobName $extraArgs`
             or die "cannot evaluate the Nix expression containing the job definitions: $?";
         chomp $drvPath;
