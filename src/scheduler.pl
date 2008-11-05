@@ -49,42 +49,43 @@ sub buildJob {
             , starttime => $startTime
             , stoptime => $stopTime
             });
-    });
+        print "      build ID = ", $build->id, "\n";
 
-    return 0;
+        my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
+        if (-e $logPath) {
+            print "      LOG $logPath\n";
+            $db->resultset('Buildlogs')->create(
+                { buildid => $build->id
+                , logphase => "full"
+                , path => $logPath
+                , type => "raw"
+                });
+        }
 
-    my $dbh, my $description, my $jobName;
+        if ($buildStatus == 0) {
 
-    $dbh->begin_work;
-
-    $dbh->prepare("insert into builds(timestamp, jobName, description, drvPath, outPath, isCachedBuild, buildStatus, errorMsg, startTime, stopTime) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        ->execute(time(), $jobName, $description, $drvPath, $outPath, $isCachedBuild, $buildStatus, "", $startTime, $stopTime);
-    
-    my $buildId = $dbh->last_insert_id(undef, undef, undef, undef);
-    print "  db id = $buildId\n";
-
-    my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
-    if (-e $logPath) {
-        print "  LOG $logPath\n";
-        $dbh->prepare("insert into buildLogs(buildId, logPhase, path, type) values(?, ?, ?, ?)")
-            ->execute($buildId, "full", $logPath, "raw");
-    }
-
-    if ($buildStatus == 0) {
-
-        $dbh->prepare("insert into buildProducts(buildId, type, subtype, path) values(?, ?, ?, ?)")
-            ->execute($buildId, "nix-build", "", $outPath);
-        
-        if (-e "$outPath/log") {
-            foreach my $logPath (glob "$outPath/log/*") {
-                print "  LOG $logPath\n";
-                $dbh->prepare("insert into buildLogs(buildId, logPhase, path, type) values(?, ?, ?, ?)")
-                    ->execute($buildId, basename($logPath), $logPath, "raw");
+            $db->resultset('Buildproducts')->create(
+                { buildid => $build->id
+                , type => "nix-build"
+                , subtype => ""
+                , path => $outPath
+                });
+            
+            if (-e "$outPath/log") {
+                foreach my $logPath (glob "$outPath/log/*") {
+                    print "      LOG $logPath\n";
+                    $db->resultset('Buildlogs')->create(
+                        { buildid => $build->id
+                        , logphase => basename($logPath)
+                        , path => $logPath
+                        , type => "raw"
+                        });
+                }
             }
         }
-    }
+        
+    });
 
-    $dbh->commit;
 }
 
 
