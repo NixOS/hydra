@@ -32,15 +32,15 @@ sub index :Path :Args(0) {
     $c->stash->{allBuilds} = [$c->model('DB::Builds')->all];
     # Get the latest build for each unique job.
     # select * from builds as x where timestamp == (select max(timestamp) from builds where jobName == x.jobName);
-    $c->stash->{latestBuilds} = [$c->model('DB::Builds')->search(undef, {order_by => "jobName", where => "timestamp == (select max(timestamp) from builds where jobName == me.jobName)"})];
+    $c->stash->{latestBuilds} = [$c->model('DB::Builds')->search(undef, {order_by => "project, attrName", where => "timestamp == (select max(timestamp) from builds where project == me.project and attrName == me.attrName)"})];
 }
 
 
 sub job :Local {
-    my ( $self, $c, $jobName ) = @_;
+    my ( $self, $c, $project, $jobName ) = @_;
     $c->stash->{template} = 'job.tt';
     $c->stash->{jobName} = $jobName;
-    $c->stash->{builds} = [$c->model('DB::Builds')->search({jobName => $jobName}, {order_by => "timestamp DESC"})];
+    $c->stash->{builds} = [$c->model('DB::Builds')->search({project => $project, attrName => $jobName}, {order_by => "timestamp DESC"})];
 }
 
 

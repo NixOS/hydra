@@ -11,8 +11,16 @@
     <td>[% build.id %]</td>
   </tr>
   <tr>
+    <th>Project:</th>
+    <td><tt>[% build.project %]</tt></td>
+  </tr>
+  <tr>
+    <th>Jobset:</th>
+    <td><tt>[% build.jobset %]</tt></td>
+  </tr>
+  <tr>
     <th>Job name:</th>
-    <td>[% build.jobname %]</td>
+    <td><tt>[% build.attrname %]</tt></td>
   </tr>
   <tr>
     <th>Description:</th>
