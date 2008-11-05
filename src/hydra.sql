@@ -23,14 +23,20 @@ create table builds (
 
 create table buildInputs (
     buildId       integer not null,
+    
     -- Copied from the jobSetInputs from which the build was created.
     name          text not null,
     type          text not null,
     uri           text,
     revision      integer,
     tag           text,
+    inputId       integer, -- build ID of the input, for type == 'build'
+
+    path          text not null,
+    
     primary key   (buildId, name),
     foreign key   (buildId) references builds(id) on delete cascade -- ignored by sqlite
+    foreign key   (inputId) references builds(id) -- ignored by sqlite
 );
 
 

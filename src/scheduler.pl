@@ -57,15 +57,27 @@ sub buildJob {
             });
         print "      build ID = ", $build->id, "\n";
 
-        foreach my $input (keys %{$usedInputs}) {
-            $db->resultset('Buildinputs')->create(
-                { buildid => $build->id
-                , name => $usedInputs->{$input}->{orig}->name
-                , type => $usedInputs->{$input}->{orig}->type
-                , uri => $usedInputs->{$input}->{orig}->uri
-                , revision => $usedInputs->{$input}->{orig}->revision
-                , tag => $usedInputs->{$input}->{orig}->tag
-                });
+        foreach my $inputName (keys %{$usedInputs}) {
+            my $input = $usedInputs->{$inputName};
+            if (defined $input->{orig}) {
+                $db->resultset('Buildinputs')->create(
+                    { buildid => $build->id
+                    , name => $inputName
+                    , type => $input->{orig}->type
+                    , uri => $input->{orig}->uri
+                    , revision => $input->{orig}->revision
+                    , tag => $input->{orig}->tag
+                    , path => $input->{storePath}
+                    });
+            } else {
+                $db->resultset('Buildinputs')->create(
+                    { buildid => $build->id
+                    , name => $inputName
+                    , type => "build"
+                    , inputid => $input->{id}
+                    , path => $input->{storePath}
+                    });
+            }
         }
 
         my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
@@ -197,6 +209,10 @@ sub checkJobSet {
                         # !!! reschedule?
                         die "missing input `$argName'";
                     }
+                    $$usedInputs{$argName} =
+                        { storePath => $storePath
+                        , id => $prevBuild->id
+                        };
                 }
                 
                 $extraArgs .= " --arg $argName '{path = " . $storePath . ";}'";

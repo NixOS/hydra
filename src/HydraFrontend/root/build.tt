@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
 [% USE date %]
 
-<h1>Build [% id %]</h1>
+<h1>Job <tt>[% build.project %]:[% build.attrname %]</tt> build [% id %]</h1>
 
 
 <h2>Information</h2>
@@ -56,14 +56,21 @@
 
 <table class="tablesorter">
   <thead>
-    <tr><th>Name</th><th>type</th><th>Uri</th></tr>
+    <tr><th>Name</th><th>Type</th><th>What</th><th>Store path</th></tr>
   </thead>
   <tbody>
     [% FOREACH input IN build.buildinputs -%]
       <tr>
-        <td>[% input.name %]</td>
-        <td>[% input.type %]</td>
-        <td>[% input.uri %]</td>
+        <td><tt>[% input.name %]</tt></td>
+        <td><tt>[% input.type %]</tt></td>
+        <td>
+          [% IF input.type == "build" %]
+            <a href="[% c.uri_for('/build' input.inputid) %]">Build [% input.inputid %]</a>
+          [% ELSE %]
+            <tt>[% input.uri %]</tt>
+          [% END %]
+        </td>
+        <td><tt>[% input.path %]</tt></td>
       </tr>
     [% END -%]
   </tbody>
