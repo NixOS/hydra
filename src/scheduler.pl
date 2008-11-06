@@ -193,7 +193,7 @@ sub checkJobSet {
 
                 else {
                     (my $prevBuild) = $db->resultset('Builds')->search(
-                        {project => $project->name, jobset => $jobset->name, attrname => $argName},
+                        {project => $project->name, jobset => $jobset->name, attrname => $argName, buildStatus => 0},
                         {order_by => "timestamp DESC", rows => 1});
                     
                     if (defined $prevBuild) {

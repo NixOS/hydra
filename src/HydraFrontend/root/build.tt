@@ -32,6 +32,14 @@
     <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
   </tr>
   <tr>
+    <th>Build started:</th>
+    <td>[% date.format(build.starttime, '%Y-%m-%d %H:%M:%S') %]</td>
+  </tr>
+  <tr>
+    <th>Build finished:</th>
+    <td>[% date.format(build.stoptime, '%Y-%m-%d %H:%M:%S') %]</td>
+  </tr>
+  <tr>
     <th>Duration (seconds):</th>
     <td>
       [% IF build.iscachedbuild %]
@@ -48,6 +56,16 @@
   <tr>
     <th>Output store path:</th>
     <td><tt>[% build.outpath %]</tt></td>
+  </tr>
+  <tr>
+    <th>Status:</th>
+    <td>
+      [% IF build.buildstatus == 0 %]
+        <img src="/static/images/success.gif" />
+      [% ELSE %]
+        <img src="/static/images/failure.gif" />
+      [% END %]
+    </td>
   </tr>
 </table>
 
