@@ -56,4 +56,6 @@ __PACKAGE__->has_many(
 # Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-05 23:48:14
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:bneV9O2uXIrg3Wuencuj+Q
 
+__PACKAGE__->has_many(dependentBuildInputs => 'HydraFrontend::Schema::Buildinputs', 'inputid');
+
 1;

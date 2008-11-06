@@ -105,5 +105,29 @@
 </table>
 
 
+[% IF build.dependentBuildInputs %]
+
+<h2>Used by</h2>
+
+<p>The following builds have used this build as an input:</p>
+
+<table class="tablesorter">
+  <thead>
+    <tr><th>Build</th><th>Input name</th><th>Timestamp</th></tr>
+  </thead>
+  <tbody>
+    [% FOREACH input IN build.dependentBuildInputs -%]
+      <tr>
+        <td><a href="[% c.uri_for('/build' input.buildid.id) %]">Job <tt>[% input.buildid.project %]:[% input.buildid.attrname %]</tt> build [% input.buildid.id %]</a></td>
+        <td><tt>[% input.name %]</tt></td>
+        <td>[% date.format(input.buildid.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+      </tr>
+    [% END -%]
+  </tbody>
+</table>
+
+[% END %]
+
+
 [% END %]
 
