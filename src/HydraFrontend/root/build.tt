@@ -60,6 +60,7 @@
   <tr>
     <th>System:</th>
     <td><tt>[% build.system %]</tt></td>
+  </tr>
   <tr>
     <th>Status:</th>
     <td>
@@ -88,7 +89,7 @@
           [% IF input.type == "build" %]
             <a href="[% c.uri_for('/build' input.inputid) %]">Job <tt>[% input.build.project %]:[% input.build.attrname %]</tt> build [% input.inputid %]</a>
           [% ELSIF input.type == "string" %]
-            <tt>"[% input.value %]"</tt></a>
+            <tt>"[% input.value %]"</tt>
           [% ELSE %]
             <tt>[% input.uri %]</tt>
           [% END %]
