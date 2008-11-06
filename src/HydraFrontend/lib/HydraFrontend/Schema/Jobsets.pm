@@ -33,12 +33,15 @@ __PACKAGE__->belongs_to(
 __PACKAGE__->has_many(
   "jobsetinputs",
   "HydraFrontend::Schema::Jobsetinputs",
-  { "foreign.job" => "self.name", "foreign.project" => "self.project" },
+  {
+    "foreign.jobset"  => "self.name",
+    "foreign.project" => "self.project",
+  },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-05 23:48:14
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:R+xsUdoLpQ7JnbZagpMqJQ
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-06 19:19:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:7JksbkRjqTKzHQkOvUkt2g
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

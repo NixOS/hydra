@@ -10,20 +10,14 @@ __PACKAGE__->table("jobSetInputs");
 __PACKAGE__->add_columns(
   "project",
   { data_type => "text", is_nullable => 0, size => undef },
-  "job",
+  "jobset",
   { data_type => "text", is_nullable => 0, size => undef },
   "name",
   { data_type => "text", is_nullable => 0, size => undef },
   "type",
   { data_type => "text", is_nullable => 0, size => undef },
-  "uri",
-  { data_type => "text", is_nullable => 0, size => undef },
-  "revision",
-  { data_type => "integer", is_nullable => 0, size => undef },
-  "tag",
-  { data_type => "text", is_nullable => 0, size => undef },
 );
-__PACKAGE__->set_primary_key("project", "job", "name");
+__PACKAGE__->set_primary_key("project", "jobset", "name");
 __PACKAGE__->has_many(
   "jobsets",
   "HydraFrontend::Schema::Jobsets",
@@ -36,12 +30,21 @@ __PACKAGE__->has_many(
 __PACKAGE__->belongs_to(
   "jobset",
   "HydraFrontend::Schema::Jobsets",
-  { name => "job", project => "project" },
+  { name => "jobset", project => "project" },
+);
+__PACKAGE__->has_many(
+  "jobsetinputalts",
+  "HydraFrontend::Schema::Jobsetinputalts",
+  {
+    "foreign.input"   => "self.name",
+    "foreign.jobset"  => "self.jobset",
+    "foreign.project" => "self.project",
+  },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-05 23:48:14
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fKqDK1YOZXl88jxNRwEvSA
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-06 19:19:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:H0KE/7kJ23s4RKFDVRIyUQ
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

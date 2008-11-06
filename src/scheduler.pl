@@ -16,7 +16,7 @@ sub isValidPath {
 
 
 sub buildJob {
-    my ($project, $jobset, $jobName, $drvPath, $outPath, $usedInputs) = @_;
+    my ($project, $jobset, $jobName, $drvPath, $outPath, $usedInputs, $system) = @_;
 
     if (scalar($db->resultset('Builds')->search({project => $project->name, jobset => $jobset->name, attrname => $jobName, outPath => $outPath})) > 0) {
         print "      already done\n";
@@ -54,30 +54,23 @@ sub buildJob {
             , buildstatus => $buildStatus
             , starttime => $startTime
             , stoptime => $stopTime
+            , system => $system
             });
         print "      build ID = ", $build->id, "\n";
 
         foreach my $inputName (keys %{$usedInputs}) {
             my $input = $usedInputs->{$inputName};
-            if (defined $input->{orig}) {
-                $db->resultset('Buildinputs')->create(
-                    { buildid => $build->id
-                    , name => $inputName
-                    , type => $input->{orig}->type
-                    , uri => $input->{orig}->uri
-                    , revision => $input->{orig}->revision
-                    , tag => $input->{orig}->tag
-                    , path => $input->{storePath}
-                    });
-            } else {
-                $db->resultset('Buildinputs')->create(
-                    { buildid => $build->id
-                    , name => $inputName
-                    , type => "build"
-                    , inputid => $input->{id}
-                    , path => $input->{storePath}
-                    });
-            }
+            $db->resultset('Buildinputs')->create(
+                { buildid => $build->id
+                , name => $inputName
+                , type => $input->{type}
+                , uri => $input->{uri}
+                #, revision => $input->{orig}->revision
+                #, tag => $input->{orig}->tag
+                , value => $input->{value}
+                , inputid => $input->{id}
+                , path => ($input->{storePath} or "") # !!! temporary hack
+                });
         }
 
         my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
@@ -119,34 +112,32 @@ sub buildJob {
 
 
 sub fetchInput {
-    my ($input, $inputInfo) = @_;
+    my ($input, $alt, $inputInfo) = @_;
     my $type = $input->type;
-    my $uri = $input->uri;
 
     if ($type eq "path") {
+        my $uri = $alt->uri;
         my $storePath = `nix-store --add "$uri"`
             or die "cannot copy path $uri to the Nix store";
         chomp $storePath;
         print "      copied to $storePath\n";
-        $$inputInfo{$input->name} = {orig => $input, storePath => $storePath};
+        $$inputInfo{$input->name} = {type => $type, uri => $uri, storePath => $storePath};
     }
 
+    elsif ($type eq "string") {
+        die unless defined $alt->value;
+        $$inputInfo{$input->name} = {type => $type, value => $alt->value};
+    }
+    
     else {
         die "input `" . $input->type . "' has unknown type `$type'";
     }
 }
 
 
-sub checkJobSet {
-    my ($project, $jobset) = @_;
-
-    my $inputInfo = {};
-
-    foreach my $input ($jobset->jobsetinputs) {
-        print "    INPUT ", $input->name, " (", $input->type, " ", $input->uri, ")\n";
-        fetchInput($input, $inputInfo);
-    }
-
+sub checkJobSetInstance {
+    my ($project, $jobset, $inputInfo) = @_;
+    
     die unless defined $inputInfo->{$jobset->nixexprinput};
 
     my $nixExprPath = $inputInfo->{$jobset->nixexprinput}->{storePath} . "/" . $jobset->nixexprpath;
@@ -183,43 +174,50 @@ sub checkJobSet {
             foreach my $argName (keys(%{$jobExpr->{function}->{attrspat}->{attr}})) {
                 print "      needs input $argName\n";
                 
-                my $storePath;
-                
                 if (defined $inputInfo->{$argName}) {
                     # The argument name matches an input.
-                    $storePath = $inputInfo->{$argName}->{storePath};
                     $$usedInputs{$argName} = $inputInfo->{$argName};
+                    if (defined $inputInfo->{$argName}->{storePath}) {
+                        # !!! escaping
+                        $extraArgs .= " --arg $argName '{path = builtins.toPath " . $inputInfo->{$argName}->{storePath} . ";}'";
+                    } elsif (defined $inputInfo->{$argName}->{value}) {
+                        $extraArgs .= " --argstr $argName '" . $inputInfo->{$argName}->{value} . "'";
+                    }
                 }
 
                 else {
                     (my $prevBuild) = $db->resultset('Builds')->search(
                         {project => $project->name, jobset => $jobset->name, attrname => $argName, buildStatus => 0},
                         {order_by => "timestamp DESC", rows => 1});
+
+                    my $storePath;
                     
-                    if (defined $prevBuild) {
-                        # The argument name matches a previously built
-                        # job in this jobset.  Pick the most recent
-                        # build.  !!! refine the selection criteria:
-                        # e.g., most recent successful build.
-                        if (!isValidPath($prevBuild->outpath)) {
-                            die "input path " . $prevBuild->outpath . " has been garbage-collected";
-                        }
-                        $storePath = $prevBuild->outpath;
-                    } else {
+                    if (!defined $prevBuild) {
                         # !!! reschedule?
                         die "missing input `$argName'";
                     }
+                    
+                    # The argument name matches a previously built
+                    # job in this jobset.  Pick the most recent
+                    # build.  !!! refine the selection criteria:
+                    # e.g., most recent successful build.
+                    if (!isValidPath($prevBuild->outpath)) {
+                        die "input path " . $prevBuild->outpath . " has been garbage-collected";
+                    }
+                    
                     $$usedInputs{$argName} =
-                        { storePath => $storePath
+                        { type => "build"
+                        , storePath => $prevBuild->outpath
                         , id => $prevBuild->id
                         };
+
+                    $extraArgs .= " --arg $argName '{path = builtins.toPath " . $prevBuild->outpath . ";}'";
                 }
-                
-                $extraArgs .= " --arg $argName '{path = " . $storePath . ";}'";
             }
         }
 
         # Instantiate the store derivation.
+        print $extraArgs, "\n";
         my $drvPath = `nix-instantiate $nixExprPath --attr $jobName $extraArgs`
             or die "cannot evaluate the Nix expression containing the job definitions: $?";
         chomp $drvPath;
@@ -232,14 +230,40 @@ sub checkJobSet {
             or die "cannot parse XML output";
 
         my $job = $info->{item};
-        die unless !defined $job || $job->{system} ne $jobName;
+        die if !defined $job || $job->{attrPath} ne $jobName;
         
         my $description = defined $job->{meta}->{description} ? $job->{meta}->{description}->{value} : "";
         die unless $job->{drvPath} eq $drvPath;
         my $outPath = $job->{outPath};
 
-        buildJob($project, $jobset, $jobName, $drvPath, $outPath, $usedInputs);
+        buildJob($project, $jobset, $jobName, $drvPath, $outPath, $usedInputs, $job->{system});
     }
+};
+
+
+sub checkJobSetAlts {
+    my ($project, $jobset, $inputs, $n, $inputInfo) = @_;
+
+    if ($n >= scalar @{$inputs}) {
+        checkJobSetInstance($project, $jobset, $inputInfo);
+        return;
+    }
+
+    my $input = @{$inputs}[$n];
+
+    foreach my $alt ($input->jobsetinputalts) {
+        print "    INPUT ", $input->name, " (type ", $input->type, ") alt ", $alt->altnr, "\n";
+        fetchInput($input, $alt, $inputInfo); # !!! caching
+        checkJobSetAlts($project, $jobset, $inputs, $n + 1, $inputInfo);
+    }
+};
+
+    
+sub checkJobSet {
+    my ($project, $jobset) = @_;
+    my $inputInfo = {};
+    my @jobsetinputs = $jobset->jobsetinputs;
+    checkJobSetAlts($project, $jobset, \@jobsetinputs, 0, $inputInfo);
 }
 
 

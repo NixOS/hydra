@@ -17,7 +17,8 @@ create table builds (
     buildStatus   integer, -- 0 = succeeded, 1 = Nix build failure, 2 = positive build failure
     errorMsg      text, -- error message in case of a Nix failure
     startTime     integer, -- in Unix time, 0 = used cached build result
-    stopTime      integer
+    stopTime      integer,
+    system        text not null
 );
 
 
@@ -30,9 +31,10 @@ create table buildInputs (
     uri           text,
     revision      integer,
     tag           text,
+    value         text,
     inputId       integer, -- build ID of the input, for type == 'build'
 
-    path          text not null,
+    path          text,
     
     primary key   (buildId, name),
     foreign key   (buildId) references builds(id) on delete cascade -- ignored by sqlite
@@ -92,12 +94,26 @@ create table jobSets (
 
 create table jobSetInputs (
     project       text not null,
-    job           text not null,
+    jobset        text not null,
     name          text not null,
-    type          text not null, -- "svn", "cvs", "path", "file"
+    type          text not null, -- "svn", "cvs", "path", "file", "string"
+    primary key   (project, jobset, name),
+    foreign key   (project, jobset) references jobSets(project, name) on delete cascade -- ignored by sqlite
+);
+
+
+create table jobSetInputAlts (
+    project       text not null,
+    jobset        text not null,
+    input         text not null,
+    altnr         integer,
+
+    -- urgh
     uri           text,
-    revision      integer, -- for svn
-    tag           text, -- for cvs
-    primary key   (project, job, name),
-    foreign key   (project, job) references jobSets(project, name) on delete cascade -- ignored by sqlite
+    revision      integer, -- for type == 'svn'
+    tag           text, -- for type == 'cvs'
+    value         text, -- for type == 'string'
+    
+    primary key   (project, jobset, input, altnr),
+    foreign key   (project, jobset, input) references jobSetInputs(project, jobset, name) on delete cascade -- ignored by sqlite
 );
