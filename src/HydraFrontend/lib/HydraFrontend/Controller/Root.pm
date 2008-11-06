@@ -36,9 +36,21 @@ sub index :Path :Args(0) {
 }
 
 
+sub project :Local {
+    my ( $self, $c, $projectName ) = @_;
+    $c->stash->{template} = 'project.tt';
+    (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
+    return error($c, "Project <tt>$projectName</tt> doesn't exist.") if !defined $project;
+    $c->stash->{project} = $project;
+    $c->stash->{jobNames} =
+        [$c->model('DB::Builds')->search({project => $projectName}, {select => [{distinct => 'attrname'}], as => ['attrname']})];
+}
+
+
 sub job :Local {
     my ( $self, $c, $project, $jobName ) = @_;
     $c->stash->{template} = 'job.tt';
+    $c->stash->{projectName} = $project;
     $c->stash->{jobName} = $jobName;
     $c->stash->{builds} = [$c->model('DB::Builds')->search({project => $project, attrName => $jobName}, {order_by => "timestamp DESC"})];
 }

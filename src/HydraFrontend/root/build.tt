@@ -13,7 +13,7 @@
   </tr>
   <tr>
     <th>Project:</th>
-    <td><tt>[% build.project %]</tt></td>
+    <td><a href="[% c.uri_for('/project' build.project) %]"><tt>[% build.project %]</tt></a></td>
   </tr>
   <tr>
     <th>Jobset:</th>
@@ -21,7 +21,7 @@
   </tr>
   <tr>
     <th>Job name:</th>
-    <td><tt>[% build.attrname %]</tt></td>
+    <td><a href="[% c.uri_for('/job' build.project build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
   </tr>
   <tr>
     <th>Description:</th>

@@ -177,3 +177,7 @@ table.tablesorter thead tr .headerSortDown {
 table.tablesorter thead tr .headerSortDown, table.tablesorter thead tr .headerSortUp {
     background-color: #ffe000;
 }
+
+table.tablesorter thead tr th {
+    padding-right: 1.5em;
+}
