@@ -120,7 +120,7 @@ sub fetchInput {
         my $storePath = `nix-store --add "$uri"`
             or die "cannot copy path $uri to the Nix store";
         chomp $storePath;
-        print "      copied to $storePath\n";
+        print "          copied to $storePath\n";
         $$inputInfo{$input->name} = {type => $type, uri => $uri, storePath => $storePath};
     }
 
@@ -135,11 +135,109 @@ sub fetchInput {
 }
 
 
-sub checkJobSetInstance {
-    my ($project, $jobset, $inputInfo) = @_;
+sub checkJob {
+    my ($project, $jobset, $inputInfo, $nixExprPath, $jobName, $jobExpr, $extraArgs) = @_;
     
-    die unless defined $inputInfo->{$jobset->nixexprinput};
+    # Instantiate the store derivation.
+    my $drvPath = `nix-instantiate $nixExprPath --attr $jobName $extraArgs`
+        or die "cannot evaluate the Nix expression containing the job definitions: $?";
+    chomp $drvPath;
 
+    # Call nix-env --xml to get info about this job (drvPath, outPath, meta attributes, ...).
+    my $infoXml = `nix-env -f $nixExprPath --query --available "*" --attr-path --out-path --drv-path --meta --xml --system-filter "*" --attr $jobName $extraArgs`
+        or die "cannot get information about the job: $?";
+
+    my $info = XMLin($infoXml, KeyAttr => ['attrPath', 'name'])
+        or die "cannot parse XML output";
+
+    my $job = $info->{item};
+    die if !defined $job || $job->{attrPath} ne $jobName;
+        
+    my $description = defined $job->{meta}->{description} ? $job->{meta}->{description}->{value} : "";
+    die unless $job->{drvPath} eq $drvPath;
+    my $outPath = $job->{outPath};
+
+    buildJob($project, $jobset, $jobName, $drvPath, $outPath, $inputInfo, $job->{system});
+};
+
+
+sub checkJobAlternatives {
+    my ($project, $jobset, $inputInfo, $nixExprPath, $jobName, $jobExpr, $extraArgs, $argsNeeded, $n) = @_;
+
+    if ($n >= scalar @{$argsNeeded}) {
+        checkJob($project, $jobset, $inputInfo, $nixExprPath, $jobName, $jobExpr, $extraArgs);
+        return;
+    }
+
+    my $argName = @{$argsNeeded}[$n];
+    print "      finding alternatives for argument $argName\n";
+
+    my ($input) = $jobset->jobsetinputs->search({name => $argName});
+
+    if (defined $input) {
+        
+        foreach my $alt ($input->jobsetinputalts) {
+            print "        INPUT ", $input->name, " (type ", $input->type, ") alt ", $alt->altnr, "\n";
+            fetchInput($input, $alt, $inputInfo); # !!! caching
+            my $newArgs = "";
+            if (defined $inputInfo->{$argName}->{storePath}) {
+                # !!! escaping
+                $newArgs = " --arg $argName '{path = " . $inputInfo->{$argName}->{storePath} . ";}'";
+            } elsif (defined $inputInfo->{$argName}->{value}) {
+                $newArgs = " --argstr $argName '" . $inputInfo->{$argName}->{value} . "'";
+            }
+            checkJobAlternatives(
+                $project, $jobset, $inputInfo, $nixExprPath,
+                $jobName, $jobExpr, $extraArgs . $newArgs, $argsNeeded, $n + 1);
+        }
+    }
+
+    else {
+
+        (my $prevBuild) = $db->resultset('Builds')->search(
+            {project => $project->name, jobset => $jobset->name, attrname => $argName, buildStatus => 0},
+            {order_by => "timestamp DESC", rows => 1});
+
+        if (!defined $prevBuild) {
+            # !!! reschedule?
+            die "missing input `$argName'";
+        }
+
+        # The argument name matches a previously built job in this
+        # jobset.  Pick the most recent build.  !!! refine the
+        # selection criteria: e.g., most recent successful build.
+        if (!isValidPath($prevBuild->outpath)) {
+            die "input path " . $prevBuild->outpath . " has been garbage-collected";
+        }
+                    
+        $$inputInfo{$argName} =
+            { type => "build"
+            , storePath => $prevBuild->outpath
+            , id => $prevBuild->id
+            };
+
+        checkJobAlternatives(
+            $project, $jobset, $inputInfo, $nixExprPath,
+            $jobName, $jobExpr,
+            $extraArgs . " --arg $argName '{path = " . $prevBuild->outpath . ";}'",
+            $argsNeeded, $n + 1);
+    }
+}
+
+    
+sub checkJobSet {
+    my ($project, $jobset) = @_;
+    my $inputInfo = {};
+
+    # Fetch the input containing the Nix expression.
+    (my $exprInput) = $jobset->jobsetinputs->search({name => $jobset->nixexprinput});
+    die unless defined $exprInput;
+
+    die "not supported yet" if scalar($exprInput->jobsetinputalts) != 1;
+
+    fetchInput($exprInput, $exprInput->jobsetinputalts->first, $inputInfo);
+
+    # Evaluate the Nix expression.
     my $nixExprPath = $inputInfo->{$jobset->nixexprinput}->{storePath} . "/" . $jobset->nixexprpath;
 
     print "    EVALUATING $nixExprPath\n";
@@ -147,8 +245,6 @@ sub checkJobSetInstance {
     my $jobsXml = `nix-instantiate $nixExprPath --eval-only --strict --xml`
         or die "cannot evaluate the Nix expression containing the jobs: $?";
 
-    #print "$jobsXml";
-    
     my $jobs = XMLin($jobsXml,
                      ForceArray => [qw(value)],
                      KeyAttr => ['name'],
@@ -158,112 +254,29 @@ sub checkJobSetInstance {
 
     die unless defined $jobs->{attrs};
 
+    # Iterate over the attributes listed in the Nix expression and
+    # perform the builds described by them.  If an attribute is a
+    # function, then fill in the function arguments with the
+    # (alternative) values supplied in the jobsetinputs table.
     foreach my $jobName (keys(%{$jobs->{attrs}->{attr}})) {
         print "    JOB $jobName\n";
 
+        my @argsNeeded = ();
+        
         my $jobExpr = $jobs->{attrs}->{attr}->{$jobName};
 
-        my $extraArgs = "";
-
-        my $usedInputs = {};
-
-        # If the expression is a function, then look at its formal
-        # arguments and see if we can supply them.
+        # !!! fix the case where there is only 1 attr, XML::Simple fucks up as usual
         if (defined $jobExpr->{function}->{attrspat}) {
-            
             foreach my $argName (keys(%{$jobExpr->{function}->{attrspat}->{attr}})) {
                 print "      needs input $argName\n";
-                
-                if (defined $inputInfo->{$argName}) {
-                    # The argument name matches an input.
-                    $$usedInputs{$argName} = $inputInfo->{$argName};
-                    if (defined $inputInfo->{$argName}->{storePath}) {
-                        # !!! escaping
-                        $extraArgs .= " --arg $argName '{path = builtins.toPath " . $inputInfo->{$argName}->{storePath} . ";}'";
-                    } elsif (defined $inputInfo->{$argName}->{value}) {
-                        $extraArgs .= " --argstr $argName '" . $inputInfo->{$argName}->{value} . "'";
-                    }
-                }
-
-                else {
-                    (my $prevBuild) = $db->resultset('Builds')->search(
-                        {project => $project->name, jobset => $jobset->name, attrname => $argName, buildStatus => 0},
-                        {order_by => "timestamp DESC", rows => 1});
-
-                    my $storePath;
-                    
-                    if (!defined $prevBuild) {
-                        # !!! reschedule?
-                        die "missing input `$argName'";
-                    }
-                    
-                    # The argument name matches a previously built
-                    # job in this jobset.  Pick the most recent
-                    # build.  !!! refine the selection criteria:
-                    # e.g., most recent successful build.
-                    if (!isValidPath($prevBuild->outpath)) {
-                        die "input path " . $prevBuild->outpath . " has been garbage-collected";
-                    }
-                    
-                    $$usedInputs{$argName} =
-                        { type => "build"
-                        , storePath => $prevBuild->outpath
-                        , id => $prevBuild->id
-                        };
-
-                    $extraArgs .= " --arg $argName '{path = builtins.toPath " . $prevBuild->outpath . ";}'";
-                }
-            }
+                push @argsNeeded, $argName;
+            }            
         }
 
-        # Instantiate the store derivation.
-        print $extraArgs, "\n";
-        my $drvPath = `nix-instantiate $nixExprPath --attr $jobName $extraArgs`
-            or die "cannot evaluate the Nix expression containing the job definitions: $?";
-        chomp $drvPath;
-
-        # Call nix-env --xml to get info about this job (drvPath, outPath, meta attributes, ...).
-        my $infoXml = `nix-env -f $nixExprPath --query --available "*" --attr-path --out-path --drv-path --meta --xml --system-filter "*" --attr $jobName $extraArgs`
-            or die "cannot get information about the job: $?";
-
-        my $info = XMLin($infoXml, KeyAttr => ['attrPath', 'name'])
-            or die "cannot parse XML output";
-
-        my $job = $info->{item};
-        die if !defined $job || $job->{attrPath} ne $jobName;
-        
-        my $description = defined $job->{meta}->{description} ? $job->{meta}->{description}->{value} : "";
-        die unless $job->{drvPath} eq $drvPath;
-        my $outPath = $job->{outPath};
-
-        buildJob($project, $jobset, $jobName, $drvPath, $outPath, $usedInputs, $job->{system});
+        checkJobAlternatives(
+            $project, $jobset, $inputInfo, $nixExprPath,
+            $jobName, $jobExpr, "", \@argsNeeded, 0);
     }
-};
-
-
-sub checkJobSetAlts {
-    my ($project, $jobset, $inputs, $n, $inputInfo) = @_;
-
-    if ($n >= scalar @{$inputs}) {
-        checkJobSetInstance($project, $jobset, $inputInfo);
-        return;
-    }
-
-    my $input = @{$inputs}[$n];
-
-    foreach my $alt ($input->jobsetinputalts) {
-        print "    INPUT ", $input->name, " (type ", $input->type, ") alt ", $alt->altnr, "\n";
-        fetchInput($input, $alt, $inputInfo); # !!! caching
-        checkJobSetAlts($project, $jobset, $inputs, $n + 1, $inputInfo);
-    }
-};
-
-    
-sub checkJobSet {
-    my ($project, $jobset) = @_;
-    my $inputInfo = {};
-    my @jobsetinputs = $jobset->jobsetinputs;
-    checkJobSetAlts($project, $jobset, \@jobsetinputs, 0, $inputInfo);
 }
 
 
