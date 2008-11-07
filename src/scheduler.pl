@@ -24,7 +24,7 @@ sub buildJob {
     }
 
     my $isCachedBuild = 1;
-    my $buildStatus = 0;
+    my $outputCreated = 1; # i.e., the Nix build succeeded (but it could be a positive failure)
     my $startTime = 0;
     my $stopTime = 0;
     
@@ -39,7 +39,17 @@ sub buildJob {
 
         $stopTime = time();
 
-        $buildStatus = $res == 0 ? 0 : 1;
+        $outputCreated = $res == 0;
+    }
+
+    my $buildStatus;
+    
+    if ($outputCreated) {
+        # "Positive" failures, e.g. the builder returned exit code 0
+        # but flagged some error condition.
+        $buildStatus = -e "$outPath/nix-support/failed" ? 2 : 0;
+    } else {
+        $buildStatus = 1; # = Nix failure
     }
 
     $db->txn_do(sub {
@@ -84,7 +94,7 @@ sub buildJob {
                 });
         }
 
-        if ($buildStatus == 0) {
+        if ($outputCreated) {
 
             $db->resultset('Buildproducts')->create(
                 { buildid => $build->id
@@ -173,6 +183,8 @@ sub checkJobAlternatives {
     print "      finding alternatives for argument $argName\n";
 
     my ($input) = $jobset->jobsetinputs->search({name => $argName});
+
+    my %newInputInfo = %{$inputInfo}; $inputInfo = \%newInputInfo; # clone
 
     if (defined $input) {
         
@@ -274,7 +286,7 @@ sub checkJobSet {
         }
 
         checkJobAlternatives(
-            $project, $jobset, $inputInfo, $nixExprPath,
+            $project, $jobset, {}, $nixExprPath,
             $jobName, $jobExpr, "", \@argsNeeded, 0);
     }
 }
