@@ -152,6 +152,11 @@ pre.buildlog {
     padding: 0.3em;
 }
 
+ul.productList {
+    list-style: none;
+    padding-left: 1em;
+}
+
 
 /* Sortable tables */
 

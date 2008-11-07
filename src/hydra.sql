@@ -7,8 +7,6 @@ create table builds (
     jobSet        text not null, -- !!! foreign key
     attrName      text not null,
 
-    -- !!! list all the inputs / arguments
-
     -- Info about the build result.
     description   text,
     drvPath       text not null,
@@ -44,10 +42,11 @@ create table buildInputs (
 
 create table buildProducts (
     buildId       integer not null,
+    productnr     integer not null,
     type          text not null, -- "nix-build", "file", "doc", "report", ...
-    subtype       text not null, -- "sources", "rpm", ...
+    subtype       text not null, -- "source-dist", "rpm", ...
     path          text not null,
-    primary key   (buildId, type, subType),
+    primary key   (buildId, productnr),
     foreign key   (buildId) references builds(id) on delete cascade -- ignored by sqlite
 );
 
@@ -116,4 +115,21 @@ create table jobSetInputAlts (
     
     primary key   (project, jobset, input, altnr),
     foreign key   (project, jobset, input) references jobSetInputs(project, jobset, name) on delete cascade -- ignored by sqlite
+);
+
+
+create table jobQueue (
+    id            integer primary key autoincrement not null,
+    timestamp     integer not null, -- time this build was added to the db (in Unix time)
+    
+    -- Info about the inputs.
+    project       text not null, -- !!! foreign key
+    jobSet        text not null, -- !!! foreign key
+    attrName      text not null,
+
+    -- What this job will build.
+    description   text,
+    drvPath       text not null,
+    outPath       text not null,
+    system        text not null
 );

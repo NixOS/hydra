@@ -96,13 +96,8 @@ sub buildJob {
 
         if ($outputCreated) {
 
-            $db->resultset('Buildproducts')->create(
-                { buildid => $build->id
-                , type => "nix-build"
-                , subtype => ""
-                , path => $outPath
-                });
-            
+            my $productnr = 0;
+
             if (-e "$outPath/log") {
                 foreach my $logPath (glob "$outPath/log/*") {
                     print "      LOG $logPath\n";
@@ -113,6 +108,33 @@ sub buildJob {
                         , type => "raw"
                         });
                 }
+            }
+
+            if (-e "$outPath/nix-support/hydra-build-products") {
+                open LIST, "$outPath/nix-support/hydra-build-products" or die;
+                while (<LIST>) {
+                    /^(\w+)\s+([\w-]+)\s+(\S+)$/ or die;
+                    my $type = $1;
+                    my $subtype = $2;
+                    my $path = $3;
+                    die unless -e $path;
+                    $db->resultset('Buildproducts')->create(
+                        { buildid => $build->id
+                        , productnr => $productnr++
+                        , type => $type
+                        , subtype => $subtype
+                        , path => $path
+                        });
+                }
+                close LIST;
+            } else {
+                $db->resultset('Buildproducts')->create(
+                    { buildid => $build->id
+                    , productnr => $productnr++
+                    , type => "nix-build"
+                    , subtype => ""
+                    , path => $outPath
+                    });
             }
         }
         

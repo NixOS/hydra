@@ -103,13 +103,24 @@
 
 <h2>Build products</h2>
 
-<ul>
+<ul class="productList">
 
   [% FOREACH product IN build.buildproducts -%]
   <li>
     [% SWITCH product.type %]
     [% CASE "nix-build" %]
       Nix build of path <tt>[% product.path %]</tt>
+    [% CASE "file" %]
+      [% SWITCH product.subtype %]
+      [% CASE "source-dist" %]
+        <img src="/static/images/source-dist.png" alt="Source" /> Source distribution <tt>[% product.path %]</tt>
+      [% CASE "rpm" %]
+        <img src="/static/images/rpm-fedora.png" alt="RPM" /> RPM package <tt>[% product.path %]</tt>
+      [% CASE DEFAULT %]
+        File <tt>[% product.path %]</tt> of type <tt>[% product.subtype %]</tt>
+      [% END %]
+    [% CASE DEFAULT %]
+      Something of type <tt>[% product.type %]</tt>
     [% END %]
   </li>
   [% END -%]

@@ -16,8 +16,10 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
   "path",
   { data_type => "text", is_nullable => 0, size => undef },
+  "productnr",
+  { data_type => "integer", is_nullable => 0, size => undef },
 );
-__PACKAGE__->set_primary_key("buildid", "type", "subtype");
+__PACKAGE__->set_primary_key("buildid", "productnr");
 __PACKAGE__->belongs_to(
   "buildid",
   "HydraFrontend::Schema::Builds",
@@ -25,8 +27,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-06 19:19:17
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:m2mxFOI2ZgjLoAzbNhiDlw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-07 17:44:37
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4exGa1a3mCSv3b8Lqwu7Hw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration
