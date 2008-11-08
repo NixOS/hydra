@@ -25,7 +25,7 @@ __PACKAGE__->add_columns(
   "path",
   { data_type => "text", is_nullable => 0, size => undef },
   "value",
-  { data_type => "VARCHAR", is_nullable => 0, size => undef },
+  { data_type => "text", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("buildid", "name");
 __PACKAGE__->belongs_to(
@@ -35,8 +35,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-07 17:44:37
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:GBvbApjpjiwkUQsdZg1PLg
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-08 23:34:46
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:2XeATQWeO3i3eSHlquS2QA
 
 __PACKAGE__->belongs_to(
   "build",

@@ -96,8 +96,6 @@ sub buildJob {
 
         if ($outputCreated) {
 
-            my $productnr = 0;
-
             if (-e "$outPath/log") {
                 foreach my $logPath (glob "$outPath/log/*") {
                     print "      LOG $logPath\n";
@@ -120,7 +118,6 @@ sub buildJob {
                     die unless -e $path;
                     $db->resultset('Buildproducts')->create(
                         { buildid => $build->id
-                        , productnr => $productnr++
                         , type => $type
                         , subtype => $subtype
                         , path => $path
@@ -130,7 +127,6 @@ sub buildJob {
             } else {
                 $db->resultset('Buildproducts')->create(
                     { buildid => $build->id
-                    , productnr => $productnr++
                     , type => "nix-build"
                     , subtype => ""
                     , path => $outPath

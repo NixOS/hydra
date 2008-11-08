@@ -42,11 +42,10 @@ create table buildInputs (
 
 create table buildProducts (
     buildId       integer not null,
-    productnr     integer not null,
+    path          text not null,
     type          text not null, -- "nix-build", "file", "doc", "report", ...
     subtype       text not null, -- "source-dist", "rpm", ...
-    path          text not null,
-    primary key   (buildId, productnr),
+    primary key   (buildId, path),
     foreign key   (buildId) references builds(id) on delete cascade -- ignored by sqlite
 );
 

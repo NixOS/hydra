@@ -39,6 +39,11 @@ __PACKAGE__->add_columns(
 );
 __PACKAGE__->set_primary_key("id");
 __PACKAGE__->has_many(
+  "buildinputs",
+  "HydraFrontend::Schema::Buildinputs",
+  { "foreign.buildid" => "self.id" },
+);
+__PACKAGE__->has_many(
   "buildproducts",
   "HydraFrontend::Schema::Buildproducts",
   { "foreign.buildid" => "self.id" },
@@ -48,15 +53,10 @@ __PACKAGE__->has_many(
   "HydraFrontend::Schema::Buildlogs",
   { "foreign.buildid" => "self.id" },
 );
-__PACKAGE__->has_many(
-  "buildinputs",
-  "HydraFrontend::Schema::Buildinputs",
-  { "foreign.buildid" => "self.id" },
-);
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-07 17:44:37
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:xsDBmgfas2tM/Dn9PE/eXQ
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-08 23:34:46
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:JRXGOLW2h+DOY7LZUdkCWQ
 
 __PACKAGE__->has_many(dependentBuildInputs => 'HydraFrontend::Schema::Buildinputs', 'inputid');
 
