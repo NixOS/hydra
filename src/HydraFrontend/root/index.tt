@@ -30,4 +30,12 @@
   </tbody>
 </table>
 
+<h1>Projects</h1>
+
+<ul>
+  [% FOREACH project IN projects -%]
+    <li><a href="[% c.uri_for('/project' project.name) %]"><tt>[% project.name %]</tt></a></li>
+  [% END -%]
+</ul>
+
 [% END %]

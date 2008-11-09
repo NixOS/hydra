@@ -20,8 +20,13 @@ create table builds (
 );
 
 
-create table buildInputs (
-    buildId       integer not null,
+-- Inputs of jobs/builds.
+create table inputs ( 
+    id            integer primary key autoincrement not null,
+
+    -- Which job or build this input belongs to.  Exactly one must be non-null.
+    build         integer,
+    job           integer,
     
     -- Copied from the jobSetInputs from which the build was created.
     name          text not null,
@@ -30,33 +35,33 @@ create table buildInputs (
     revision      integer,
     tag           text,
     value         text,
-    inputId       integer, -- build ID of the input, for type == 'build'
+    dependency    integer, -- build ID of the input, for type == 'build'
 
     path          text,
     
-    primary key   (buildId, name),
-    foreign key   (buildId) references builds(id) on delete cascade -- ignored by sqlite
-    foreign key   (inputId) references builds(id) -- ignored by sqlite
+    foreign key   (build) references builds(id) -- ignored by sqlite
+    foreign key   (job) references jobs(id) -- ignored by sqlite
+    foreign key   (dependency) references builds(id) -- ignored by sqlite
 );
 
 
 create table buildProducts (
-    buildId       integer not null,
+    build         integer not null,
     path          text not null,
     type          text not null, -- "nix-build", "file", "doc", "report", ...
     subtype       text not null, -- "source-dist", "rpm", ...
-    primary key   (buildId, path),
-    foreign key   (buildId) references builds(id) on delete cascade -- ignored by sqlite
+    primary key   (build, path),
+    foreign key   (build) references builds(id) on delete cascade -- ignored by sqlite
 );
 
 
 create table buildLogs (
-    buildId       integer not null,
+    build         integer not null,
     logPhase      text not null,
     path          text not null,
     type          text not null,
-    primary key   (buildId, logPhase),
-    foreign key   (buildId) references builds(id) on delete cascade -- ignored by sqlite
+    primary key   (build, logPhase),
+    foreign key   (build) references builds(id) on delete cascade -- ignored by sqlite
 );
 
 
@@ -64,9 +69,9 @@ create table buildLogs (
 create trigger cascadeBuildDeletion
   before delete on builds
   for each row begin
-    delete from buildInputs where buildId = old.id;
-    delete from buildLogs where buildId = old.id;
-    delete from buildProducts where buildId = old.id;
+    --delete from buildInputs where build = old.id;
+    delete from buildLogs where build = old.id;
+    delete from buildProducts where build = old.id;
   end;
 
 
@@ -117,9 +122,11 @@ create table jobSetInputAlts (
 );
 
 
-create table jobQueue (
+create table jobs (
     id            integer primary key autoincrement not null,
     timestamp     integer not null, -- time this build was added to the db (in Unix time)
+
+    priority      integer not null,
     
     -- Info about the inputs.
     project       text not null, -- !!! foreign key

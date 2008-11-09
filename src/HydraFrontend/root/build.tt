@@ -33,11 +33,11 @@
   </tr>
   <tr>
     <th>Build started:</th>
-    <td>[% date.format(build.starttime, '%Y-%m-%d %H:%M:%S') %]</td>
+    <td>[% IF build.starttime %][% date.format(build.starttime, '%Y-%m-%d %H:%M:%S') %][% ELSE %]<em>(cached build)</em>[% END %]</td>
   </tr>
   <tr>
     <th>Build finished:</th>
-    <td>[% date.format(build.stoptime, '%Y-%m-%d %H:%M:%S') %]</td>
+    <td>[% IF build.stoptime %][% date.format(build.stoptime, '%Y-%m-%d %H:%M:%S') %][% ELSE %]<em>(cached build)</em>[% END %]</td>
   </tr>
   <tr>
     <th>Duration (seconds):</th>
@@ -81,13 +81,13 @@
     <tr><th>Name</th><th>Type</th><th>What</th><th>Store path</th></tr>
   </thead>
   <tbody>
-    [% FOREACH input IN build.buildinputs -%]
+    [% FOREACH input IN build.inputs -%]
       <tr>
         <td><tt>[% input.name %]</tt></td>
         <td><tt>[% input.type %]</tt></td>
         <td>
           [% IF input.type == "build" %]
-            <a href="[% c.uri_for('/build' input.inputid) %]">Job <tt>[% input.build.project %]:[% input.build.attrname %]</tt> build [% input.inputid %]</a>
+            <a href="[% c.uri_for('/build' input.dependency.id) %]">Job <tt>[% input.dependency.project %]:[% input.dependency.attrname %]</tt> build [% input.dependency.id %]</a>
           [% ELSIF input.type == "string" %]
             <tt>"[% input.value %]"</tt>
           [% ELSE %]
@@ -140,7 +140,7 @@
 </table>
 
 
-[% IF build.dependentBuildInputs %]
+[% IF build.dependents %]
 
 <h2>Used by</h2>
 
@@ -151,12 +151,12 @@
     <tr><th>Build</th><th>Input name</th><th>System</th><th>Timestamp</th></tr>
   </thead>
   <tbody>
-    [% FOREACH input IN build.dependentBuildInputs -%]
+    [% FOREACH input IN build.dependents -%]
       <tr>
-        <td><a href="[% c.uri_for('/build' input.buildid.id) %]">Job <tt>[% input.buildid.project %]:[% input.buildid.attrname %]</tt> build [% input.buildid.id %]</a></td>
+        <td><a href="[% c.uri_for('/build' input.build.id) %]">Job <tt>[% input.build.project %]:[% input.build.attrname %]</tt> build [% input.build.id %]</a></td>
         <td><tt>[% input.name %]</tt></td>
-        <td><tt>[% input.buildid.system %]</tt></td>
-        <td>[% date.format(input.buildid.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+        <td><tt>[% input.build.system %]</tt></td>
+        <td>[% date.format(input.build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
       </tr>
     [% END -%]
   </tbody>

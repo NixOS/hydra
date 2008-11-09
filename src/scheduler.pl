@@ -70,15 +70,15 @@ sub buildJob {
 
         foreach my $inputName (keys %{$usedInputs}) {
             my $input = $usedInputs->{$inputName};
-            $db->resultset('Buildinputs')->create(
-                { buildid => $build->id
+            $db->resultset('Inputs')->create(
+                { build => $build->id
                 , name => $inputName
                 , type => $input->{type}
                 , uri => $input->{uri}
                 #, revision => $input->{orig}->revision
                 #, tag => $input->{orig}->tag
                 , value => $input->{value}
-                , inputid => $input->{id}
+                , dependency => $input->{id}
                 , path => ($input->{storePath} or "") # !!! temporary hack
                 });
         }
@@ -87,7 +87,7 @@ sub buildJob {
         if (-e $logPath) {
             print "      LOG $logPath\n";
             $db->resultset('Buildlogs')->create(
-                { buildid => $build->id
+                { build => $build->id
                 , logphase => "full"
                 , path => $logPath
                 , type => "raw"
@@ -100,7 +100,7 @@ sub buildJob {
                 foreach my $logPath (glob "$outPath/log/*") {
                     print "      LOG $logPath\n";
                     $db->resultset('Buildlogs')->create(
-                        { buildid => $build->id
+                        { build => $build->id
                         , logphase => basename($logPath)
                         , path => $logPath
                         , type => "raw"
@@ -117,7 +117,7 @@ sub buildJob {
                     my $path = $3;
                     die unless -e $path;
                     $db->resultset('Buildproducts')->create(
-                        { buildid => $build->id
+                        { build => $build->id
                         , type => $type
                         , subtype => $subtype
                         , path => $path
@@ -126,7 +126,7 @@ sub buildJob {
                 close LIST;
             } else {
                 $db->resultset('Buildproducts')->create(
-                    { buildid => $build->id
+                    { build => $build->id
                     , type => "nix-build"
                     , subtype => ""
                     , path => $outPath
@@ -193,7 +193,10 @@ sub checkJobAlternatives {
     my ($project, $jobset, $inputInfo, $nixExprPath, $jobName, $jobExpr, $extraArgs, $argsNeeded, $n) = @_;
 
     if ($n >= scalar @{$argsNeeded}) {
-        checkJob($project, $jobset, $inputInfo, $nixExprPath, $jobName, $jobExpr, $extraArgs);
+        eval {
+            checkJob($project, $jobset, $inputInfo, $nixExprPath, $jobName, $jobExpr, $extraArgs);
+        };
+        warn $@ if $@;
         return;
     }
 
@@ -303,9 +306,12 @@ sub checkJobSet {
             }            
         }
 
-        checkJobAlternatives(
-            $project, $jobset, {}, $nixExprPath,
-            $jobName, $jobExpr, "", \@argsNeeded, 0);
+        eval {
+            checkJobAlternatives(
+                $project, $jobset, {}, $nixExprPath,
+                $jobName, $jobExpr, "", \@argsNeeded, 0);
+        };
+        warn $@ if $@;
     }
 }
 

@@ -29,6 +29,7 @@ sub getBuild {
 sub index :Path :Args(0) {
     my ( $self, $c ) = @_;
     $c->stash->{template} = 'index.tt';
+    $c->stash->{projects} = [$c->model('DB::Projects')->all];
     $c->stash->{allBuilds} = [$c->model('DB::Builds')->search(undef, {order_by => "timestamp DESC"})];
     # Get the latest build for each unique job.
     # select * from builds as x where timestamp == (select max(timestamp) from builds where jobName == x.jobName);
