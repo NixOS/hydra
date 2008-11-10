@@ -280,7 +280,7 @@ sub checkJobSet {
         or die "cannot evaluate the Nix expression containing the jobs: $?";
 
     my $jobs = XMLin($jobsXml,
-                     ForceArray => [qw(value)],
+                     ForceArray => ['value', 'attr'],
                      KeyAttr => ['name'],
                      SuppressEmpty => '',
                      ValueAttr => [value => 'value'])
