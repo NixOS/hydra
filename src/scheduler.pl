@@ -2,7 +2,6 @@
 
 use strict;
 use XML::Simple;
-use File::Basename;
 use HydraFrontend::Schema;
 
 
@@ -12,131 +11,6 @@ my $db = HydraFrontend::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", ""
 sub isValidPath {
     my $path = shift;
     return system("nix-store --check-validity $path 2> /dev/null") == 0;
-}
-
-
-sub buildJob {
-    my ($project, $jobset, $jobName, $description, $drvPath, $outPath, $usedInputs, $system) = @_;
-
-    if (scalar($db->resultset('Builds')->search({project => $project->name, jobset => $jobset->name, attrname => $jobName, outPath => $outPath})) > 0) {
-        print "      already done\n";
-        return;
-    }
-
-    my $isCachedBuild = 1;
-    my $outputCreated = 1; # i.e., the Nix build succeeded (but it could be a positive failure)
-    my $startTime = 0;
-    my $stopTime = 0;
-    
-    if (!isValidPath($outPath)) {
-        $isCachedBuild = 0;
-
-        $startTime = time();
-
-        print "      BUILDING\n";
-
-        my $res = system("nix-store --realise $drvPath");
-
-        $stopTime = time();
-
-        $outputCreated = $res == 0;
-    }
-
-    my $buildStatus;
-    
-    if ($outputCreated) {
-        # "Positive" failures, e.g. the builder returned exit code 0
-        # but flagged some error condition.
-        $buildStatus = -e "$outPath/nix-support/failed" ? 2 : 0;
-    } else {
-        $buildStatus = 1; # = Nix failure
-    }
-
-    $db->txn_do(sub {
-        my $build = $db->resultset('Builds')->create(
-            { timestamp => time()
-            , project => $project->name
-            , jobset => $jobset->name
-            , attrname => $jobName
-            , description => $description
-            , drvpath => $drvPath
-            , outpath => $outPath
-            , iscachedbuild => $isCachedBuild
-            , buildstatus => $buildStatus
-            , starttime => $startTime
-            , stoptime => $stopTime
-            , system => $system
-            });
-        print "      build ID = ", $build->id, "\n";
-
-        foreach my $inputName (keys %{$usedInputs}) {
-            my $input = $usedInputs->{$inputName};
-            $db->resultset('Inputs')->create(
-                { build => $build->id
-                , name => $inputName
-                , type => $input->{type}
-                , uri => $input->{uri}
-                #, revision => $input->{orig}->revision
-                #, tag => $input->{orig}->tag
-                , value => $input->{value}
-                , dependency => $input->{id}
-                , path => ($input->{storePath} or "") # !!! temporary hack
-                });
-        }
-
-        my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
-        if (-e $logPath) {
-            print "      LOG $logPath\n";
-            $db->resultset('Buildlogs')->create(
-                { build => $build->id
-                , logphase => "full"
-                , path => $logPath
-                , type => "raw"
-                });
-        }
-
-        if ($outputCreated) {
-
-            if (-e "$outPath/log") {
-                foreach my $logPath (glob "$outPath/log/*") {
-                    print "      LOG $logPath\n";
-                    $db->resultset('Buildlogs')->create(
-                        { build => $build->id
-                        , logphase => basename($logPath)
-                        , path => $logPath
-                        , type => "raw"
-                        });
-                }
-            }
-
-            if (-e "$outPath/nix-support/hydra-build-products") {
-                open LIST, "$outPath/nix-support/hydra-build-products" or die;
-                while (<LIST>) {
-                    /^(\w+)\s+([\w-]+)\s+(\S+)$/ or die;
-                    my $type = $1;
-                    my $subtype = $2;
-                    my $path = $3;
-                    die unless -e $path;
-                    $db->resultset('Buildproducts')->create(
-                        { build => $build->id
-                        , type => $type
-                        , subtype => $subtype
-                        , path => $path
-                        });
-                }
-                close LIST;
-            } else {
-                $db->resultset('Buildproducts')->create(
-                    { build => $build->id
-                    , type => "nix-build"
-                    , subtype => ""
-                    , path => $outPath
-                    });
-            }
-        }
-        
-    });
-
 }
 
 
@@ -186,7 +60,53 @@ sub checkJob {
     die unless $job->{drvPath} eq $drvPath;
     my $outPath = $job->{outPath};
 
-    buildJob($project, $jobset, $jobName, $description, $drvPath, $outPath, $inputInfo, $job->{system});
+    $db->txn_do(sub {
+        if (scalar($db->resultset('Builds')->search(
+                { project => $project->name, jobset => $jobset->name
+                , attrname => $jobName, outPath => $outPath })) > 0)
+        {
+            print "      already done\n";
+            return;
+        }
+
+        if (scalar($db->resultset('Jobs')->search(
+                { project => $project->name, jobset => $jobset->name
+                , attrname => $jobName, outPath => $outPath })) > 0)
+        {
+            print "      already queued\n";
+            return;
+        }
+        
+        print "      adding to queue\n";
+        my $job = $db->resultset('Jobs')->create(
+            { timestamp => time()
+            , priority => 0
+            , busy => 0
+            , locker => ""
+            , project => $project->name
+            , jobset => $jobset->name
+            , attrname => $jobName
+            , description => $description
+            , drvpath => $drvPath
+            , outpath => $outPath
+            , system => $job->{system}
+            });
+
+        foreach my $inputName (keys %{$inputInfo}) {
+            my $input = $inputInfo->{$inputName};
+            $db->resultset('Inputs')->create(
+                { job => $job->id
+                , name => $inputName
+                , type => $input->{type}
+                , uri => $input->{uri}
+                #, revision => $input->{orig}->revision
+                #, tag => $input->{orig}->tag
+                , value => $input->{value}
+                , dependency => $input->{id}
+                , path => ($input->{storePath} or "") # !!! temporary hack
+                });
+        }
+    });
 };
 
 

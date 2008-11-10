@@ -129,10 +129,10 @@ create table jobs (
     id            integer primary key autoincrement not null,
     timestamp     integer not null, -- time this build was added to the db (in Unix time)
 
-    priority      integer not null,
+    priority      integer not null default 0,
 
-    busy          integer not null, -- true means someone is building this job now
-    locker        text not null, -- !!! hostname/pid of the process building this job?
+    busy          integer not null default 0, -- true means someone is building this job now
+    locker        text not null default '', -- !!! hostname/pid of the process building this job?
     
     -- Info about the inputs.
     project       text not null, -- !!! foreign key

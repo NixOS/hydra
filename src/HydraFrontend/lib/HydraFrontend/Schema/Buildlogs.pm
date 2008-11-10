@@ -21,8 +21,8 @@ __PACKAGE__->set_primary_key("build", "logphase");
 __PACKAGE__->belongs_to("build", "HydraFrontend::Schema::Builds", { id => "build" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-10 10:30:11
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:pt0CJFX1pP9Z2TjqrTjTkw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-10 14:25:07
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:eMNna7u2l0ec+OYuvtGRpg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

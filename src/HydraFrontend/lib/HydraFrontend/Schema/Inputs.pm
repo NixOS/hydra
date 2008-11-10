@@ -35,8 +35,8 @@ __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("build", "HydraFrontend::Schema::Builds", { id => "build" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-10 10:30:11
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:AzV6B/6CCrroPlO32n2p3A
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-10 14:25:07
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:A3Is4VTFkTl2DzrYjzdrZA
 
 __PACKAGE__->belongs_to("dependency", "HydraFrontend::Schema::Builds", { id => "dependency" });
 

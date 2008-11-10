@@ -9,7 +9,7 @@
   </thead>
   <tbody>
     [% FOREACH job IN jobs -%]
-      <tr>
+      <tr [% IF job.busy %]class="runningJob"[% END %] >
         <td>[% job.priority %]</td>
         <td><tt>[% job.project.name %]</tt></td>
         <td><tt>[% job.jobset.name %]</tt></td>

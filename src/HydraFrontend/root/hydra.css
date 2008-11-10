@@ -157,6 +157,11 @@ ul.productList {
     padding-left: 1em;
 }
 
+tr.runningJob {
+    background-color: #ff3030;
+    color: white;
+}
+
 
 /* Sortable tables */
 

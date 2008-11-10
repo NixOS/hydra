@@ -46,9 +46,13 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-10 10:30:11
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:GubRofAmJ/sbJbjyV3aKSQ
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-10 14:25:07
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZF8UB1MtbPuOk7wTSFJR5Q
 
+__PACKAGE__->has_many(
+  "inputs",
+  "HydraFrontend::Schema::Inputs",
+  { "foreign.job" => "self.id" },
+);
 
-# You can replace this text with custom content, and it will be preserved on regeneration
 1;

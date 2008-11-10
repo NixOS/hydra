@@ -1,0 +1,54 @@
+[% WRAPPER layout.tt title="Hydra Overview" %]
+
+<h1>Project <tt>[% project.name %]</tt></h1>
+
+
+<h2>Definition</h2>
+
+[% FOREACH jobset IN project.jobsets -%]
+
+  <h3>Jobset <tt>[% jobset.name %]</tt></h3>
+
+  <p>
+    Description: [% jobset.description %]
+    <br />
+    Nix expression: <tt>[% jobset.nixexprpath %]</tt> in input <tt>[% jobset.nixexprinput %]</tt>
+  </p>
+
+  <table class="tablesorter">
+    <thead>
+      <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
+    </thead>
+    <tbody>
+      [% FOREACH input IN jobset.jobsetinputs -%]
+        <tr>
+          <td><tt>[% input.name %]</tt></td>
+          <td><tt>[% input.type %]</tt></td>
+          <td>
+            [% FOREACH alt IN input.jobsetinputalts -%]
+              [% IF input.type == "string" %]
+                <tt>"[% alt.value %]"</tt>
+              [% ELSE %]
+                <tt>[% alt.uri %]</tt>
+              [% END %]
+            [% END %]
+          </td>
+        </tr>
+      [% END %]
+    </tbody>
+  </table>
+
+[% END -%]
+
+
+<h2>Jobs</h2>
+
+<ul>
+  [% FOREACH jobName IN jobNames -%]
+    <li><a href="[% c.uri_for('/job' project.name jobName.attrname) %]"><tt>[% jobName.attrname %]</tt></a></li>
+  [% END %]
+</ul>
+
+
+
+[% END %]
