@@ -6,7 +6,7 @@ use warnings;
 use base 'DBIx::Class';
 
 __PACKAGE__->load_components("Core");
-__PACKAGE__->table("jobSetInputs");
+__PACKAGE__->table("jobsetInputs");
 __PACKAGE__->add_columns(
   "project",
   { data_type => "text", is_nullable => 0, size => undef },
@@ -43,8 +43,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-09 01:36:21
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Lm2oIWEUSHFICYMX2qmTfw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-10 10:30:11
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:6hzbFjPWQ872UxFhhpxjFg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

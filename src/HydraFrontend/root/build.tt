@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
 [% USE date %]
 
-<h1>Job <tt>[% build.project %]:[% build.attrname %]</tt> build [% id %]</h1>
+<h1>Job <tt>[% build.project.name %]:[% build.attrname %]</tt> build [% id %]</h1>
 
 
 <h2>Information</h2>
@@ -13,11 +13,11 @@
   </tr>
   <tr>
     <th>Project:</th>
-    <td><a href="[% c.uri_for('/project' build.project) %]"><tt>[% build.project %]</tt></a></td>
+    <td><a href="[% c.uri_for('/project' build.project.name) %]"><tt>[% build.project.name %]</tt></a></td>
   </tr>
   <tr>
     <th>Jobset:</th>
-    <td><tt>[% build.jobset %]</tt></td>
+    <td><tt>[% build.jobset.name %]</tt></td>
   </tr>
   <tr>
     <th>Job name:</th>
@@ -87,7 +87,7 @@
         <td><tt>[% input.type %]</tt></td>
         <td>
           [% IF input.type == "build" %]
-            <a href="[% c.uri_for('/build' input.dependency.id) %]">Job <tt>[% input.dependency.project %]:[% input.dependency.attrname %]</tt> build [% input.dependency.id %]</a>
+            <a href="[% c.uri_for('/build' input.dependency.id) %]">Job <tt>[% input.dependency.project.name %]:[% input.dependency.attrname %]</tt> build [% input.dependency.id %]</a>
           [% ELSIF input.type == "string" %]
             <tt>"[% input.value %]"</tt>
           [% ELSE %]
@@ -153,7 +153,7 @@
   <tbody>
     [% FOREACH input IN build.dependents -%]
       <tr>
-        <td><a href="[% c.uri_for('/build' input.build.id) %]">Job <tt>[% input.build.project %]:[% input.build.attrname %]</tt> build [% input.build.id %]</a></td>
+        <td><a href="[% c.uri_for('/build' input.build.id) %]">Job <tt>[% input.build.project.name %]:[% input.build.attrname %]</tt> build [% input.build.id %]</a></td>
         <td><tt>[% input.name %]</tt></td>
         <td><tt>[% input.build.system %]</tt></td>
         <td>[% date.format(input.build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>

@@ -9,8 +9,8 @@
     [% END %]
   </td>
   <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
-  <td><a href="[% c.uri_for('/project' build.project) %]"><tt>[% build.project %]</tt></a></td>
-  <td><a href="[% c.uri_for('/job' build.project build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
+  <td><a href="[% c.uri_for('/project' build.project.name) %]"><tt>[% build.project.name %]</tt></a></td>
+  <td><a href="[% c.uri_for('/job' build.project.name build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
   <td><tt>[% build.system %]</tt></td>
   <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
   <td>[% build.description %]</td>

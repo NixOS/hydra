@@ -1,4 +1,25 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
+[% USE date %]
+
+<h1>Queue</h1>
+
+<table class="tablesorter">
+  <thead>
+    <tr><th>Priority</th><th>Project</th><th>Job</th><th>System</th><th>Timestamp</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    [% FOREACH job IN jobs -%]
+      <tr>
+        <td>[% job.priority %]</td>
+        <td><tt>[% job.project.name %]</tt></td>
+        <td><tt>[% job.jobset.name %]</tt></td>
+        <td><tt>[% job.system %]</tt></td>
+        <td>[% date.format(job.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+        <td>[% job.description %]</td>
+      </tr>
+    [% END -%]
+  </tbody>
+</table>
 
 <h1>Job status</h1>
 

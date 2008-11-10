@@ -16,7 +16,7 @@ sub isValidPath {
 
 
 sub buildJob {
-    my ($project, $jobset, $jobName, $drvPath, $outPath, $usedInputs, $system) = @_;
+    my ($project, $jobset, $jobName, $description, $drvPath, $outPath, $usedInputs, $system) = @_;
 
     if (scalar($db->resultset('Builds')->search({project => $project->name, jobset => $jobset->name, attrname => $jobName, outPath => $outPath})) > 0) {
         print "      already done\n";
@@ -58,6 +58,7 @@ sub buildJob {
             , project => $project->name
             , jobset => $jobset->name
             , attrname => $jobName
+            , description => $description
             , drvpath => $drvPath
             , outpath => $outPath
             , iscachedbuild => $isCachedBuild
@@ -175,17 +176,17 @@ sub checkJob {
     my $infoXml = `nix-env -f $nixExprPath --query --available "*" --attr-path --out-path --drv-path --meta --xml --system-filter "*" --attr $jobName $extraArgs`
         or die "cannot get information about the job: $?";
 
-    my $info = XMLin($infoXml, KeyAttr => ['attrPath', 'name'])
+    my $info = XMLin($infoXml, ForceArray => 1, KeyAttr => ['attrPath', 'name'])
         or die "cannot parse XML output";
 
-    my $job = $info->{item};
-    die if !defined $job || $job->{attrPath} ne $jobName;
+    my $job = $info->{item}->{$jobName};
+    die if !defined $job;
         
     my $description = defined $job->{meta}->{description} ? $job->{meta}->{description}->{value} : "";
     die unless $job->{drvPath} eq $drvPath;
     my $outPath = $job->{outPath};
 
-    buildJob($project, $jobset, $jobName, $drvPath, $outPath, $inputInfo, $job->{system});
+    buildJob($project, $jobset, $jobName, $description, $drvPath, $outPath, $inputInfo, $job->{system});
 };
 
 

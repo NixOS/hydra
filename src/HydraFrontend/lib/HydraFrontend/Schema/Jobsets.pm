@@ -6,7 +6,7 @@ use warnings;
 use base 'DBIx::Class';
 
 __PACKAGE__->load_components("Core");
-__PACKAGE__->table("jobSets");
+__PACKAGE__->table("jobsets");
 __PACKAGE__->add_columns(
   "name",
   { data_type => "text", is_nullable => 0, size => undef },
@@ -20,6 +20,14 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("project", "name");
+__PACKAGE__->has_many(
+  "builds",
+  "HydraFrontend::Schema::Builds",
+  {
+    "foreign.jobset"  => "self.name",
+    "foreign.project" => "self.project",
+  },
+);
 __PACKAGE__->belongs_to(
   "project",
   "HydraFrontend::Schema::Projects",
@@ -38,10 +46,18 @@ __PACKAGE__->has_many(
     "foreign.project" => "self.project",
   },
 );
+__PACKAGE__->has_many(
+  "jobs",
+  "HydraFrontend::Schema::Jobs",
+  {
+    "foreign.jobset"  => "self.name",
+    "foreign.project" => "self.project",
+  },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-09 01:36:21
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:EmATMMeNmMd2AI8lVzcLFA
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-10 10:30:11
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:oRV4yw0DWG5PI0agcM7QHA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration
