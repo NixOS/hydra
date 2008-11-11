@@ -59,6 +59,31 @@ create table BuildResultInfo (
 );
 
 
+create table BuildSteps (
+    id            integer not null,
+    stepnr        integer not null,
+
+    type          integer not null, -- 0 = build, 1 = substitution
+
+    drvPath       text, 
+    outPath       text,
+
+    logfile       text,
+
+    busy          integer not null,
+
+    status        integer,
+
+    errorMsg      text,
+
+    startTime     integer, -- in Unix time, 0 = used cached build result
+    stopTime      integer,
+
+    primary key   (id, stepnr),
+    foreign key   (id) references Builds(id) on delete cascade -- ignored by sqlite
+);
+
+
 -- Inputs of builds.
 create table BuildInputs ( 
     id            integer primary key autoincrement not null,

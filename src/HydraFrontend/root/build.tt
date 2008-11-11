@@ -33,10 +33,10 @@
           <strong>Success</strong>
         [% ELSIF build.resultInfo.buildstatus == 1 %]
           <img src="/static/images/failure.gif" />
-          <strong>Build returned a non-zero exit code</strong>
+          <strong class="error-msg">Build returned a non-zero exit code</strong>
         [% ELSE %]
           <img src="/static/images/failure.gif" />
-          <strong>Build failed</strong>
+          <strong class="error-msg">Build failed</strong>
         [% END %]
       [% ELSIF build.schedulingInfo.busy %]
         <strong>Build in progress</strong>
@@ -132,6 +132,39 @@
     [% END -%]
   </tbody>
 </table>
+
+
+[% IF build.buildsteps %]
+
+<h2>Build steps</h2>
+
+<table class="tablesorter">
+  <thead>
+    <tr><th>Nr</th><th>What</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    [% FOREACH step IN build.buildsteps -%]
+      <tr>
+        <td>[% step.stepnr %]</td>
+        <td>
+          Build of <tt>[% step.outpath %]</tt>
+        </td>
+        <td>
+          [% IF step.busy == 1 %]
+            <strong>Building</strong>
+          [% ELSIF step.status == 0 %]
+            Succeeded
+          [% ELSE %]
+            <strong class="error-msg">Failed: [% step.errormsg %]</strong>
+          [% END %]
+          (<a href="[% c.uri_for('/nixlog' build.id step.stepnr) %]">log</a>)
+        </td>
+      </tr>
+    [% END %]
+  </tbody>
+</table>
+
+[% END %]
 
 
 [% IF build.finished %]

@@ -37,7 +37,7 @@ sub index :Path :Args(0) {
     # Get the latest finished build for each unique job.
     $c->stash->{latestBuilds} = [$c->model('DB::Builds')->search(undef,
         { join => 'resultInfo'
-        , where => "finished != 0 and timestamp = (select max(timestamp) from Builds where project == me.project and attrName == me.attrName)"
+        , where => "finished != 0 and timestamp = (select max(timestamp) from Builds where project == me.project and attrName == me.attrName and finished != 0)"
         , order_by => "project, attrname"
         })];
 }
@@ -103,6 +103,24 @@ sub log :Local {
 
     # !!! should be done in the view (as a TT plugin).
     $c->stash->{logtext} = loadLog($log->path);
+}
+
+
+sub nixlog :Local {
+    my ( $self, $c, $id, $stepnr ) = @_;
+
+    my $build = getBuild($c, $id);
+    return error($c, "Build with ID $id doesn't exist.") if !defined $build;
+
+    my $step = $build->buildsteps->find({stepnr => $stepnr});
+    return error($c, "Build $id doesn't have a build step $stepnr.") if !defined $step;
+    
+    $c->stash->{template} = 'log.tt';
+    $c->stash->{id} = $id;
+    $c->stash->{step} = $step;
+
+    # !!! should be done in the view (as a TT plugin).
+    $c->stash->{logtext} = loadLog($step->logfile);
 }
 
 

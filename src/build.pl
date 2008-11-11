@@ -32,7 +32,66 @@ sub doBuild {
 
         $startTime = time();
 
-        my $res = system("nix-store --realise $drvPath");
+        # Run Nix to perform the build, and monitor the stderr output
+        # to get notifications about specific build steps, the
+        # associated log files, etc.
+        my $cmd = "nix-store --keep-going --no-build-output " .
+            "--log-type flat --print-build-trace --realise $drvPath 2>&1";
+
+        my $buildStepNr = 1;
+        
+        open OUT, "$cmd |" or die;
+
+        while (<OUT>) {
+            unless (/^@\s+/) {
+                print STDERR "$_";
+                next;
+            }
+            print STDERR "GOT $_";
+            
+            if (/^@\s+build-started\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/) {
+                $db->txn_do(sub {
+                    $db->resultset('Buildsteps')->create(
+                        { id => $build->id
+                        , stepnr => $buildStepNr++
+                        , type => 0 # = build
+                        , drvpath => $1
+                        , outpath => $2
+                        , logfile => $4
+                        , busy => 1
+                        });
+                });
+            }
+            
+            if (/^@\s+build-succeeded\s+(\S+)\s+(\S+)$/) {
+                $db->txn_do(sub {
+                    my $drvPath = $1;
+                    (my $step) = $db->resultset('Buildsteps')->search(
+                        {id => $build->id, type => 0, drvpath => $drvPath}, {});
+                    die unless $step;
+                    $step->busy(0);
+                    $step->status(0);
+                    $step->update;
+                });
+            }
+
+            if (/^@\s+build-failed\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/) {
+                $db->txn_do(sub {
+                    my $drvPath = $1;
+                    (my $step) = $db->resultset('Buildsteps')->search(
+                        {id => $build->id, type => 0, drvpath => $drvPath}, {});
+                    die unless $step;
+                    $step->busy(0);
+                    $step->status(1);
+                    $step->errormsg($4);
+                    $step->update;
+                });
+            }
+        }
+        
+        close OUT;
+
+        my $res = $?;
 
         $stopTime = time();
 
@@ -64,7 +123,7 @@ sub doBuild {
 
         my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
         if (-e $logPath) {
-            print "found log $logPath\n";
+            print STDERR "found log $logPath\n";
             $db->resultset('Buildlogs')->create(
                 { build => $build->id
                 , logphase => "full"
@@ -77,7 +136,7 @@ sub doBuild {
 
             if (-e "$outPath/log") {
                 foreach my $logPath (glob "$outPath/log/*") {
-                    print "found log $logPath\n";
+                    print STDERR "found log $logPath\n";
                     $db->resultset('Buildlogs')->create(
                         { build => $build->id
                         , logphase => basename($logPath)
@@ -119,7 +178,7 @@ sub doBuild {
 
 
 my $buildId = $ARGV[0] or die;
-print "performing build $buildId\n";
+print STDERR "performing build $buildId\n";
 
 # Lock the build.  If necessary, steal the lock from the parent
 # process (runner.pl).  This is so that if the runner dies, the

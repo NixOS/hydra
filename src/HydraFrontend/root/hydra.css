@@ -143,7 +143,7 @@ td.buildfarmMainColumn {
     border: solid;
 }
 
-span.error-msg {
+.error-msg {
     color: red;
 }
 

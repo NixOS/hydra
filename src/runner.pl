@@ -16,7 +16,6 @@ $db->txn_do(sub {
     my @jobs = $db->resultset('Builds')->search(
         {finished => 0, busy => 1}, {join => 'schedulingInfo'});
     foreach my $job (@jobs) {
-        print $job, "\n";
         my $pid = $job->schedulingInfo->locker;
         if (kill(0, $pid) != 1) { # see if we can signal the process
             print "job ", $job->id, " pid $pid died, unlocking\n";
