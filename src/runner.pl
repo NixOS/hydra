@@ -12,14 +12,16 @@ $db->storage->dbh->do("PRAGMA synchronous = OFF;");
 
 # Unlock jobs whose building process has died.
 $db->txn_do(sub {
-    my @jobs = $db->resultset('Jobs')->search({ busy => 1 });
+    my @jobs = $db->resultset('Builds')->search(
+        {finished => 0, busy => 1}, {join => 'schedulingInfo'});
     foreach my $job (@jobs) {
-        my $pid = $job->locker;
+        print $job, "\n";
+        my $pid = $job->schedulingInfo->locker;
         if (kill(0, $pid) != 1) { # see if we can signal the process
             print "job ", $job->id, " pid $pid died, unlocking\n";
-            $job->busy(0);
-            $job->locker("");
-            $job->update;
+            $job->schedulingInfo->busy(0);
+            $job->schedulingInfo->locker("");
+            $job->schedulingInfo->update;
         }
     }
 });
@@ -32,15 +34,17 @@ sub checkJobs {
 
     $db->txn_do(sub {
     
-        my @jobs = $db->resultset('Jobs')->search({ busy => 0 }, {order_by => ["priority", "timestamp"]});
+        my @jobs = $db->resultset('Builds')->search(
+            {finished => 0, busy => 0},
+            {join => 'schedulingInfo', order_by => ["priority", "timestamp"]});
 
         print "# of available jobs: ", scalar(@jobs), "\n";
 
         if (scalar @jobs > 0) {
             $job = $jobs[0];
-            $job->busy(1);
-            $job->locker($$);
-            $job->update;
+            $job->schedulingInfo->busy(1);
+            $job->schedulingInfo->locker($$);
+            $job->schedulingInfo->update;
         }
 
     });
@@ -66,9 +70,9 @@ sub checkJobs {
         if ($@) {
             warn $@;
             $db->txn_do(sub {
-                $job->busy(0);
-                $job->locker($$);
-                $job->update;
+                $job->schedulingInfo->busy(0);
+                $job->schedulingInfo->locker($$);
+                $job->schedulingInfo->update;
             });
         }
     }

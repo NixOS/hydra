@@ -2,7 +2,7 @@
 
 <tr>
   <td>
-    [% IF build.buildstatus == 0 %]
+    [% IF build.resultInfo.buildstatus == 0 %]
       <img src="/static/images/success.gif" />
     [% ELSE %]
       <img src="/static/images/failure.gif" />

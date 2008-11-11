@@ -16,11 +16,11 @@ sub isValidPath {
 }
 
 
-sub buildJob {
-    my ($job) = @_;
+sub doBuild {
+    my ($build) = @_;
 
-    my $drvPath = $job->drvpath;
-    my $outPath = $job->outpath;
+    my $drvPath = $build->drvpath;
+    my $outPath = $build->outpath;
 
     my $isCachedBuild = 1;
     my $outputCreated = 1; # i.e., the Nix build succeeded (but it could be a positive failure)
@@ -52,27 +52,17 @@ sub buildJob {
     }
 
     $db->txn_do(sub {
-        my $build = $db->resultset('Builds')->create(
-            { timestamp => time()
-            , project => $job->project->name
-            , jobset => $job->jobset->name
-            , attrname => $job->attrname
-            , description => $job->description
-            , drvpath => $drvPath
-            , outpath => $outPath
+        $build->finished(1);
+        $build->timestamp(time());
+        $build->update;
+
+        $db->resultset('Buildresultinfo')->create(
+            { id => $build->id
             , iscachedbuild => $isCachedBuild
             , buildstatus => $buildStatus
             , starttime => $startTime
             , stoptime => $stopTime
-            , system => $job->system
             });
-        print "      build ID = ", $build->id, "\n";
-
-        foreach my $input ($job->inputs) {
-            $input->job(undef);
-            $input->build($build->id);
-            $input->update;
-        }
 
         my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
         if (-e $logPath) {
@@ -125,47 +115,44 @@ sub buildJob {
             }
         }
 
-        $job->delete;
- 
+        $build->schedulingInfo->delete;
     });
-
-    print "STOP ", time, "\n";
 }
 
 
-my $jobId = $ARGV[0] or die;
-print "building job $jobId\n";
+my $buildId = $ARGV[0] or die;
+print "performing build $buildId\n";
 
-# Lock the job.  If necessary, steal the lock from the parent process
-# (runner.pl).  This is so that if the runner dies, the children
-# (i.e. the job builders) can continue to run and won't have the lock
-# taken away.
-my $job;
+# Lock the build.  If necessary, steal the lock from the parent
+# process (runner.pl).  This is so that if the runner dies, the
+# children (i.e. the build.pl instances) can continue to run and won't
+# have the lock taken away.
+my $build;
 $db->txn_do(sub {
-    ($job) = $db->resultset('Jobs')->search({ id => $jobId });
-    die "job $jobId doesn't exist" unless defined $job;
-    if ($job->busy != 0 && $job->locker != getppid) {
-        die "job $jobId is already being built";
+    ($build) = $db->resultset('Builds')->search({id => $buildId});
+    die "build $buildId doesn't exist" unless defined $build;
+    if ($build->schedulingInfo->busy != 0 && $build->schedulingInfo->locker != getppid) {
+        die "build $buildId is already being built";
     }
-    $job->busy(1);
-    $job->locker($$);
-    $job->update;
+    $build->schedulingInfo->busy(1);
+    $build->schedulingInfo->locker($$);
+    $build->schedulingInfo->update;
 });
 
-die unless $job;
+die unless $build;
 
-# Build the job.  If it throws an error, unlock the job so that it can
-# be retried.
+# Do the build.  If it throws an error, unlock the build so that it
+# can be retried.
 eval {
     print "BUILD\n";
-    buildJob $job;
+    doBuild $build;
     print "DONE\n";
 };
 if ($@) {
     warn $@;
     $db->txn_do(sub {
-        $job->busy(0);
-        $job->locker($$);
-        $job->update;
+        $build->schedulingInfo->busy(0);
+        $build->schedulingInfo->locker($$);
+        $build->schedulingInfo->update;
     });
 }

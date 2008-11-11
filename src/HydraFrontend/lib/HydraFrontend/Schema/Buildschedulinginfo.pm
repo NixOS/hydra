@@ -1,4 +1,4 @@
-package HydraFrontend::Schema::Buildproducts;
+package HydraFrontend::Schema::Buildschedulinginfo;
 
 use strict;
 use warnings;
@@ -6,23 +6,25 @@ use warnings;
 use base 'DBIx::Class';
 
 __PACKAGE__->load_components("Core");
-__PACKAGE__->table("BuildProducts");
+__PACKAGE__->table("BuildSchedulingInfo");
 __PACKAGE__->add_columns(
-  "build",
+  "id",
   { data_type => "integer", is_nullable => 0, size => undef },
-  "path",
+  "priority",
+  { data_type => "integer", is_nullable => 0, size => undef },
+  "busy",
+  { data_type => "integer", is_nullable => 0, size => undef },
+  "locker",
   { data_type => "text", is_nullable => 0, size => undef },
-  "type",
-  { data_type => "text", is_nullable => 0, size => undef },
-  "subtype",
+  "logfile",
   { data_type => "text", is_nullable => 0, size => undef },
 );
-__PACKAGE__->set_primary_key("build", "path");
-__PACKAGE__->belongs_to("build", "HydraFrontend::Schema::Builds", { id => "build" });
+__PACKAGE__->set_primary_key("id");
+__PACKAGE__->belongs_to("id", "HydraFrontend::Schema::Builds", { id => "id" });
 
 
 # Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-11 13:41:38
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:rZPTilX/PAiIoxffxc0nJw
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:rN7v2+MnC8TkrEHUzt2Gqg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

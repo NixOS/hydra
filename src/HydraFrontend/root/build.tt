@@ -1,7 +1,12 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
 [% USE date %]
 
-<h1>Job <tt>[% build.project.name %]:[% build.attrname %]</tt> build [% id %]</h1>
+<h1>
+  Job <tt>[% build.project.name %]:[% build.attrname %]</tt> build [% id %]
+  [% IF !build.finished %]
+    (scheduled)
+  [% END %]
+</h1>
 
 
 <h2>Information</h2>
@@ -10,6 +15,10 @@
   <tr>
     <th>Build ID:</th>
     <td>[% build.id %]</td>
+  </tr>
+  <tr>
+    <th>Time added:</th>
+    <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
   </tr>
   <tr>
     <th>Project:</th>
@@ -28,26 +37,8 @@
     <td>[% build.description %]</td>
   </tr>
   <tr>
-    <th>Time added:</th>
-    <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
-  </tr>
-  <tr>
-    <th>Build started:</th>
-    <td>[% IF build.starttime %][% date.format(build.starttime, '%Y-%m-%d %H:%M:%S') %][% ELSE %]<em>(cached build)</em>[% END %]</td>
-  </tr>
-  <tr>
-    <th>Build finished:</th>
-    <td>[% IF build.stoptime %][% date.format(build.stoptime, '%Y-%m-%d %H:%M:%S') %][% ELSE %]<em>(cached build)</em>[% END %]</td>
-  </tr>
-  <tr>
-    <th>Duration (seconds):</th>
-    <td>
-      [% IF build.iscachedbuild %]
-        <em>(cached build)</em>
-      [% ELSE %]
-        [% build.stoptime - build.starttime %]
-      [% END %]
-    </td>
+    <th>System:</th>
+    <td><tt>[% build.system %]</tt></td>
   </tr>
   <tr>
     <th>Derivation store path:</th>
@@ -57,20 +48,41 @@
     <th>Output store path:</th>
     <td><tt>[% build.outpath %]</tt></td>
   </tr>
+  [% IF build.finished %]
   <tr>
-    <th>System:</th>
-    <td><tt>[% build.system %]</tt></td>
+    <th>Build started:</th>
+    <td>[% IF build.resultInfo.starttime %][% date.format(build.resultInfo.starttime, '%Y-%m-%d %H:%M:%S') %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+  </tr>
+  <tr>
+    <th>Build finished:</th>
+    <td>[% IF build.resultInfo.stoptime %][% date.format(build.resultInfo.stoptime, '%Y-%m-%d %H:%M:%S') %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+  </tr>
+  <tr>
+    <th>Duration (seconds):</th>
+    <td>
+      [% IF build.resultInfo.iscachedbuild %]
+        <em>(cached build)</em>
+      [% ELSE %]
+        [% build.resultInfo.stoptime - build.resultInfo.starttime %]
+      [% END %]
+    </td>
   </tr>
   <tr>
     <th>Status:</th>
     <td>
-      [% IF build.buildstatus == 0 %]
+      [% IF build.resultInfo.buildstatus == 0 %]
         <img src="/static/images/success.gif" />
       [% ELSE %]
         <img src="/static/images/failure.gif" />
       [% END %]
     </td>
   </tr>
+  [% ELSE %]
+  <tr>
+    <th>Priority:</th>
+    <td>[% build.schedulingInfo.priority %]</td>
+  </tr>
+  [% END %]
 </table>
 
 
@@ -100,6 +112,8 @@
   </tbody>
 </table>
 
+
+[% IF build.finished %]
 
 <h2>Build products</h2>
 
@@ -161,6 +175,9 @@
     [% END -%]
   </tbody>
 </table>
+
+[% END %]
+
 
 [% END %]
 

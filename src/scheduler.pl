@@ -67,24 +67,15 @@ sub checkJob {
                 { project => $project->name, jobset => $jobset->name
                 , attrname => $jobName, outPath => $outPath })) > 0)
         {
-            print "      already done\n";
+            print "      already scheduled/done\n";
             return;
         }
 
-        if (scalar($db->resultset('Jobs')->search(
-                { project => $project->name, jobset => $jobset->name
-                , attrname => $jobName, outPath => $outPath })) > 0)
-        {
-            print "      already queued\n";
-            return;
-        }
-        
         print "      adding to queue\n";
-        my $job = $db->resultset('Jobs')->create(
-            { timestamp => time()
-            , priority => 0
-            , busy => 0
-            , locker => ""
+        
+        my $build = $db->resultset('Builds')->create(
+            { finished => 0
+            , timestamp => time()
             , project => $project->name
             , jobset => $jobset->name
             , attrname => $jobName
@@ -94,10 +85,17 @@ sub checkJob {
             , system => $job->{system}
             });
 
+        $db->resultset('Buildschedulinginfo')->create(
+            { id => $build->id
+            , priority => 0
+            , busy => 0
+            , locker => ""
+            });
+
         foreach my $inputName (keys %{$inputInfo}) {
             my $input = $inputInfo->{$inputName};
-            $db->resultset('Inputs')->create(
-                { job => $job->id
+            $db->resultset('Buildinputs')->create(
+                { build => $build->id
                 , name => $inputName
                 , type => $input->{type}
                 , uri => $input->{uri}
@@ -151,8 +149,8 @@ sub checkJobAlternatives {
     else {
 
         (my $prevBuild) = $db->resultset('Builds')->search(
-            {project => $project->name, jobset => $jobset->name, attrname => $argName, buildStatus => 0},
-            {order_by => "timestamp DESC", rows => 1});
+            {finished => 1, project => $project->name, jobset => $jobset->name, attrname => $argName, buildStatus => 0},
+            {join => 'resultInfo', order_by => "timestamp DESC", rows => 1});
 
         if (!defined $prevBuild) {
             # !!! reschedule?

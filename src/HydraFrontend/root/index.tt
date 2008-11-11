@@ -8,15 +8,15 @@
     <tr><th>#</th><th>Priority</th><th>Project</th><th>Job</th><th>System</th><th>Timestamp</th><th>Description</th></tr>
   </thead>
   <tbody>
-    [% FOREACH job IN jobs -%]
-      <tr [% IF job.busy %]class="runningJob"[% END %] >
-        <td>[% job.id %]</td>
-        <td>[% job.priority %]</td>
-        <td><tt>[% job.project.name %]</tt></td>
-        <td><tt>[% job.jobset.name %]</tt></td>
-        <td><tt>[% job.system %]</tt></td>
-        <td>[% date.format(job.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
-        <td>[% job.description %]</td>
+    [% FOREACH build IN scheduled -%]
+      <tr [% IF build.schedulingInfo.busy %]class="runningJob"[% END %] >
+        <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
+        <td>[% build.schedulingInfo.priority %]</td>
+        <td><tt>[% build.project.name %]</tt></td>
+        <td><tt>[% build.jobset.name %]</tt></td>
+        <td><tt>[% build.system %]</tt></td>
+        <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+        <td>[% build.description %]</td>
       </tr>
     [% END -%]
   </tbody>

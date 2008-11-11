@@ -29,12 +29,17 @@ sub getBuild {
 sub index :Path :Args(0) {
     my ( $self, $c ) = @_;
     $c->stash->{template} = 'index.tt';
-    $c->stash->{jobs} = [$c->model('DB::Jobs')->all];
     $c->stash->{projects} = [$c->model('DB::Projects')->all];
-    $c->stash->{allBuilds} = [$c->model('DB::Builds')->search(undef, {order_by => "timestamp DESC"})];
-    # Get the latest build for each unique job.
-    # select * from builds as x where timestamp == (select max(timestamp) from builds where jobName == x.jobName);
-    $c->stash->{latestBuilds} = [$c->model('DB::Builds')->search(undef, {order_by => "project, attrName", where => "timestamp == (select max(timestamp) from builds where project == me.project and attrName == me.attrName)"})];
+    $c->stash->{scheduled} = [$c->model('DB::Builds')->search(
+        {finished => 0}, {join => 'schedulingInfo'})]; # !!!
+    $c->stash->{allBuilds} = [$c->model('DB::Builds')->search(
+        {finished => 1}, {order_by => "timestamp DESC"})];
+    # Get the latest finished build for each unique job.
+    $c->stash->{latestBuilds} = [$c->model('DB::Builds')->search(undef,
+        { join => 'resultInfo'
+        , where => "finished != 0 and timestamp = (select max(timestamp) from Builds where project == me.project and attrName == me.attrName)"
+        , order_by => "project, attrname"
+        })];
 }
 
 
@@ -54,7 +59,9 @@ sub job :Local {
     $c->stash->{template} = 'job.tt';
     $c->stash->{projectName} = $project;
     $c->stash->{jobName} = $jobName;
-    $c->stash->{builds} = [$c->model('DB::Builds')->search({project => $project, attrName => $jobName}, {order_by => "timestamp DESC"})];
+    $c->stash->{builds} = [$c->model('DB::Builds')->search(
+        {finished => 1, project => $project, attrName => $jobName},
+        {order_by => "timestamp DESC"})];
 }
 
 
