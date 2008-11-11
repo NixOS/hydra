@@ -1,10 +1,13 @@
 #! @perl@ -w
 
 use strict;
+use POSIX qw(dup2);
 use HydraFrontend::Schema;
 
 
 my $db = HydraFrontend::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
+
+$db->storage->dbh->do("PRAGMA synchronous = OFF;");
 
 
 # Unlock jobs whose building process has died.
@@ -22,8 +25,7 @@ $db->txn_do(sub {
 });
 
 
-while (1) {
-
+sub checkJobs {
     print "looking for runnable jobs...\n";
 
     my $job;
@@ -46,9 +48,20 @@ while (1) {
     # Start the job.  We need to do this outside the transaction in
     # case it aborts or something.
     if (defined $job) {
-        print "starting job ", $job->id, "\n";
+        my $id = $job->id;
+        print "starting job $id\n";
         eval {
-            system("perl -I HydraFrontend/lib -w ./build.pl " . $job->id);
+            my $child = fork();
+            die unless defined $child;
+            if ($child == 0) {
+                open LOG, ">logs/$id" or die;
+                POSIX::dup2(fileno(LOG), 1) or die;
+                POSIX::dup2(fileno(LOG), 2) or die;
+                exec("perl", "-IHydraFrontend/lib", "-w",
+                     "./build.pl", $id);
+                warn "cannot start job " . $id;
+                _exit(1);
+            }
         };
         if ($@) {
             warn $@;
@@ -59,6 +72,14 @@ while (1) {
             });
         }
     }
+}
+
+
+while (1) {
+    eval {
+        checkJobs;
+    };
+    warn $@ if $@;
 
     print "sleeping...\n";
     sleep(10);

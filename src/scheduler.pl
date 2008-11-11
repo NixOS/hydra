@@ -7,6 +7,8 @@ use HydraFrontend::Schema;
 
 my $db = HydraFrontend::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
 
+$db->storage->dbh->do("PRAGMA synchronous = OFF;");
+
 
 sub isValidPath {
     my $path = shift;
@@ -250,4 +252,8 @@ sub checkJobs {
 }
 
 
-checkJobs;
+while (1) {
+    checkJobs;
+    print "sleeping...\n";
+    sleep 10;
+}

@@ -5,11 +5,12 @@
 
 <table class="tablesorter">
   <thead>
-    <tr><th>Priority</th><th>Project</th><th>Job</th><th>System</th><th>Timestamp</th><th>Description</th></tr>
+    <tr><th>#</th><th>Priority</th><th>Project</th><th>Job</th><th>System</th><th>Timestamp</th><th>Description</th></tr>
   </thead>
   <tbody>
     [% FOREACH job IN jobs -%]
       <tr [% IF job.busy %]class="runningJob"[% END %] >
+        <td>[% job.id %]</td>
         <td>[% job.priority %]</td>
         <td><tt>[% job.project.name %]</tt></td>
         <td><tt>[% job.jobset.name %]</tt></td>

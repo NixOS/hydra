@@ -7,6 +7,8 @@ use HydraFrontend::Schema;
 
 my $db = HydraFrontend::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
 
+$db->storage->dbh->do("PRAGMA synchronous = OFF;");
+
 
 sub isValidPath {
     my $path = shift;
@@ -124,7 +126,10 @@ sub buildJob {
         }
 
         $job->delete;
+ 
     });
+
+    print "STOP ", time, "\n";
 }
 
 
