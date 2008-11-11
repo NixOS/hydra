@@ -1,6 +1,7 @@
 #! @perl@ -w
 
 use strict;
+use Cwd;
 use POSIX qw(dup2);
 use HydraFrontend::Schema;
 
@@ -31,6 +32,7 @@ sub checkJobs {
     print "looking for runnable jobs...\n";
 
     my $job;
+    my $logfile;
 
     $db->txn_do(sub {
     
@@ -42,8 +44,11 @@ sub checkJobs {
 
         if (scalar @jobs > 0) {
             $job = $jobs[0];
+            $logfile = getcwd . "/logs/" . $job->id;
+            unlink $logfile;
             $job->schedulingInfo->busy(1);
             $job->schedulingInfo->locker($$);
+            $job->schedulingInfo->logfile($logfile);
             $job->schedulingInfo->update;
         }
 
@@ -58,7 +63,7 @@ sub checkJobs {
             my $child = fork();
             die unless defined $child;
             if ($child == 0) {
-                open LOG, ">logs/$id" or die;
+                open LOG, ">$logfile" or die;
                 POSIX::dup2(fileno(LOG), 1) or die;
                 POSIX::dup2(fileno(LOG), 2) or die;
                 exec("perl", "-IHydraFrontend/lib", "-w",

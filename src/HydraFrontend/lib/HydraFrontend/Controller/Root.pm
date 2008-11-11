@@ -80,6 +80,11 @@ sub build :Local {
     $c->stash->{template} = 'build.tt';
     $c->stash->{build} = $build;
     $c->stash->{id} = $id;
+
+    if (!$build->finished && $build->schedulingInfo->busy) {
+        my $logfile = $build->schedulingInfo->logfile;
+        $c->stash->{logtext} = `cat $logfile`;
+    }
 }
 
 

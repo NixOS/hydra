@@ -4,7 +4,11 @@
 <h1>
   Job <tt>[% build.project.name %]:[% build.attrname %]</tt> build [% id %]
   [% IF !build.finished %]
-    (scheduled)
+    [% IF build.schedulingInfo.busy %]
+      (currently building)
+    [% ELSE %]
+      (scheduled)
+    [% END %]
   [% END %]
 </h1>
 
@@ -19,6 +23,27 @@
   <tr>
     <th>Time added:</th>
     <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+  </tr>
+  <tr>
+    <th>Status:</th>
+    <td>
+      [% IF build.finished %]
+        [% IF build.resultInfo.buildstatus == 0 %]
+          <img src="/static/images/success.gif" />
+          <strong>Success</strong>
+        [% ELSIF build.resultInfo.buildstatus == 1 %]
+          <img src="/static/images/failure.gif" />
+          <strong>Build returned a non-zero exit code</strong>
+        [% ELSE %]
+          <img src="/static/images/failure.gif" />
+          <strong>Build failed</strong>
+        [% END %]
+      [% ELSIF build.schedulingInfo.busy %]
+        <strong>Build in progress</strong>
+      [% ELSE %]
+        <strong>Scheduled to be built</strong>
+      [% END %]
+    </td>
   </tr>
   <tr>
     <th>Project:</th>
@@ -67,21 +92,17 @@
       [% END %]
     </td>
   </tr>
-  <tr>
-    <th>Status:</th>
-    <td>
-      [% IF build.resultInfo.buildstatus == 0 %]
-        <img src="/static/images/success.gif" />
-      [% ELSE %]
-        <img src="/static/images/failure.gif" />
-      [% END %]
-    </td>
-  </tr>
   [% ELSE %]
   <tr>
     <th>Priority:</th>
     <td>[% build.schedulingInfo.priority %]</td>
   </tr>
+  [% IF build.schedulingInfo.busy %]
+  <tr>
+    <th>Logfile:</th>
+    <td>[% build.schedulingInfo.logfile %]</td>
+  </tr>
+  [% END %]
   [% END %]
 </table>
 
@@ -115,6 +136,10 @@
 
 [% IF build.finished %]
 
+
+[% IF build.buildproducts %]
+
+
 <h2>Build products</h2>
 
 <ul class="productList">
@@ -140,6 +165,8 @@
   [% END -%]
   
 </ul>
+
+[% END %]
 
 
 <h2>Logs</h2>
@@ -177,6 +204,17 @@
 </table>
 
 [% END %]
+
+
+[% ELSIF build.schedulingInfo.busy %]
+
+
+<h2>Log</h2>
+
+<!-- !!! escaping -->
+<pre class="buildlog">
+[% logtext -%]
+</pre>
 
 
 [% END %]

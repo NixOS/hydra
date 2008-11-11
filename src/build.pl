@@ -32,8 +32,6 @@ sub doBuild {
 
         $startTime = time();
 
-        print "      BUILDING\n";
-
         my $res = system("nix-store --realise $drvPath");
 
         $stopTime = time();
@@ -66,7 +64,7 @@ sub doBuild {
 
         my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
         if (-e $logPath) {
-            print "      LOG $logPath\n";
+            print "found log $logPath\n";
             $db->resultset('Buildlogs')->create(
                 { build => $build->id
                 , logphase => "full"
@@ -79,7 +77,7 @@ sub doBuild {
 
             if (-e "$outPath/log") {
                 foreach my $logPath (glob "$outPath/log/*") {
-                    print "      LOG $logPath\n";
+                    print "found log $logPath\n";
                     $db->resultset('Buildlogs')->create(
                         { build => $build->id
                         , logphase => basename($logPath)
@@ -105,7 +103,7 @@ sub doBuild {
                         });
                 }
                 close LIST;
-            } else {
+            } elsif ($buildStatus == 0) {
                 $db->resultset('Buildproducts')->create(
                     { build => $build->id
                     , type => "nix-build"
@@ -144,9 +142,7 @@ die unless $build;
 # Do the build.  If it throws an error, unlock the build so that it
 # can be retried.
 eval {
-    print "BUILD\n";
     doBuild $build;
-    print "DONE\n";
 };
 if ($@) {
     warn $@;

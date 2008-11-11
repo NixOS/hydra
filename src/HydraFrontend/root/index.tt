@@ -1,7 +1,14 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
 [% USE date %]
 
+
 <h1>Queue</h1>
+
+[% IF scheduled.size == 0 %]
+
+<p>The queue is empty.</p>
+
+[% ELSE %]
 
 <table class="tablesorter">
   <thead>
@@ -13,7 +20,7 @@
         <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
         <td>[% build.schedulingInfo.priority %]</td>
         <td><tt>[% build.project.name %]</tt></td>
-        <td><tt>[% build.jobset.name %]</tt></td>
+        <td><tt>[% build.attrname %]</tt></td>
         <td><tt>[% build.system %]</tt></td>
         <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
         <td>[% build.description %]</td>
@@ -21,6 +28,9 @@
     [% END -%]
   </tbody>
 </table>
+
+[% END %]
+
 
 <h1>Job status</h1>
 
@@ -37,6 +47,7 @@
   </tbody>
 </table>
 
+
 <h1>All builds</h1>
 
 <p>Number of builds: [% allBuilds.size %]</p>
@@ -52,6 +63,7 @@
   </tbody>
 </table>
 
+
 <h1>Projects</h1>
 
 <ul>
@@ -59,5 +71,6 @@
     <li><a href="[% c.uri_for('/project' project.name) %]"><tt>[% project.name %]</tt></a></li>
   [% END -%]
 </ul>
+
 
 [% END %]
