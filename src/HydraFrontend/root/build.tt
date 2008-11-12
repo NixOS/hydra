@@ -197,14 +197,16 @@
     [% CASE "nix-build" %]
       Nix build of path <tt>[% product.path %]</tt>
     [% CASE "file" %]
-      [% SWITCH product.subtype %]
-      [% CASE "source-dist" %]
-        <img src="/static/images/source-dist.png" alt="Source" /> Source distribution <tt>[% product.name %]</tt>
-      [% CASE "rpm" %]
-        <img src="/static/images/rpm-fedora.png" alt="RPM" /> RPM package <tt>[% product.name %]</tt>
-      [% CASE DEFAULT %]
-        File <tt>[% product.path %]</tt> of type <tt>[% product.subtype %]</tt>
-      [% END %]
+      <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
+        [% SWITCH product.subtype %]
+        [% CASE "source-dist" %]
+          <img src="/static/images/source-dist.png" alt="Source" /> Source distribution <tt>[% product.name %]</tt>
+        [% CASE "rpm" %]
+          <img src="/static/images/rpm-fedora.png" alt="RPM" /> RPM package <tt>[% product.name %]</tt>
+        [% CASE DEFAULT %]
+          File <tt>[% product.name %]</tt> of type <tt>[% product.subtype %]</tt>
+        [% END %]
+      </a>
       [<a href="javascript:" onclick="javascript:$('#foo-[% product.productnr %]').toggle()">details</a>]
       <div class="productDetails" id="foo-[% product.productnr %]">
         <table>

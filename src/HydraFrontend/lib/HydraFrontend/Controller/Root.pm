@@ -162,6 +162,21 @@ sub loadLog {
 }
 
 
+sub download :Local {
+    my ( $self, $c, $id, $productnr, $filename ) = @_;
+
+    my $build = getBuild($c, $id);
+    return error($c, "Build with ID $id doesn't exist.") if !defined $build;
+
+    my $product = $build->buildproducts->find({productnr => $productnr});
+    return error($c, "Build $id doesn't have a product $productnr.") if !defined $product;
+
+    return error($c, "File " . $product->path . " has disappeared.") unless -e $product->path;
+
+    $c->serve_static_file($product->path);
+}
+    
+    
 sub end : ActionClass('RenderView') {}
 
 
