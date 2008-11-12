@@ -147,7 +147,11 @@
       <tr>
         <td>[% step.stepnr %]</td>
         <td>
-          Build of <tt>[% step.outpath %]</tt>
+          [% IF step.type == 0 %]
+            Build of <tt>[% step.outpath %]</tt>
+          [% ELSE %]
+            Substitution of <tt>[% step.outpath %]</tt>
+          [% END %]
         </td>
         <td>
           [% IF step.busy == 0 %]
@@ -164,7 +168,9 @@
           [% ELSE %]
             <strong class="error-msg">Failed: [% step.errormsg %]</strong>
           [% END %]
-          (<a href="[% c.uri_for('/nixlog' build.id step.stepnr) %]">log</a>)
+          [% IF step.logfile %]
+            (<a href="[% c.uri_for('/nixlog' build.id step.stepnr) %]">log</a>)
+          [% END %]
         </td>
       </tr>
     [% END %]

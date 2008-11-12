@@ -47,7 +47,6 @@ sub doBuild {
                 print STDERR "$_";
                 next;
             }
-            print STDERR "GOT $_";
             
             if (/^@\s+build-started\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/) {
                 $db->txn_do(sub {
@@ -64,9 +63,9 @@ sub doBuild {
                 });
             }
             
-            if (/^@\s+build-succeeded\s+(\S+)\s+(\S+)$/) {
+            elsif (/^@\s+build-succeeded\s+(\S+)\s+(\S+)$/) {
+                my $drvPath = $1;
                 $db->txn_do(sub {
-                    my $drvPath = $1;
                     (my $step) = $db->resultset('Buildsteps')->search(
                         {id => $build->id, type => 0, drvpath => $drvPath}, {});
                     die unless $step;
@@ -77,9 +76,9 @@ sub doBuild {
                 });
             }
 
-            if (/^@\s+build-failed\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/) {
+            elsif (/^@\s+build-failed\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/) {
+                my $drvPath = $1;
                 $db->txn_do(sub {
-                    my $drvPath = $1;
                     (my $step) = $db->resultset('Buildsteps')->search(
                         {id => $build->id, type => 0, drvpath => $drvPath}, {});
                     if ($step) {
@@ -105,6 +104,51 @@ sub doBuild {
                             });
                     }
                 });
+            }
+
+            elsif (/^@\s+substituter-started\s+(\S+)\s+(\S+)$/) {
+                my $outPath = $1;
+                $db->txn_do(sub {
+                    $db->resultset('Buildsteps')->create(
+                        { id => $build->id
+                        , stepnr => $buildStepNr++
+                        , type => 1 # = substitution
+                        , outpath => $1
+                        , busy => 1
+                        , starttime => time
+                        });
+                });
+            }
+
+            elsif (/^@\s+substituter-succeeded\s+(\S+)$/) {
+                my $outPath = $1;
+                $db->txn_do(sub {
+                    (my $step) = $db->resultset('Buildsteps')->search(
+                        {id => $build->id, type => 1, outpath => $outPath}, {});
+                    die unless $step;
+                    $step->busy(0);
+                    $step->status(0);
+                    $step->stoptime(time);
+                    $step->update;
+                });
+            }
+
+            elsif (/^@\s+substituter-failed\s+(\S+)\s+(\S+)\s+(\S+)$/) {
+                my $outPath = $1;
+                $db->txn_do(sub {
+                    (my $step) = $db->resultset('Buildsteps')->search(
+                        {id => $build->id, type => 1, outpath => $outPath}, {});
+                    die unless $step;
+                    $step->busy(0);
+                    $step->status(1);
+                    $step->errormsg($3);
+                    $step->stoptime(time);
+                    $step->update;
+                });
+            }
+
+            else {
+                print STDERR "unknown Nix trace message: $_";
             }
         }
         

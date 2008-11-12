@@ -139,6 +139,8 @@ sub nixlog :Local {
 
     my $step = $build->buildsteps->find({stepnr => $stepnr});
     return error($c, "Build $id doesn't have a build step $stepnr.") if !defined $step;
+
+    return error($c, "Build step $stepnr of build $id does not have a log file.") if $step->logfile eq "";
     
     $c->stash->{template} = 'log.tt';
     $c->stash->{id} = $id;
