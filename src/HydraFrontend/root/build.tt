@@ -56,7 +56,11 @@
   </tr>
   <tr>
     <th>Job name:</th>
-    <td><a href="[% c.uri_for('/job' build.project build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
+    <td><a href="[% c.uri_for('/job' build.project.name build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
+  </tr>
+  <tr>
+    <th>Nix name:</th>
+    <td><tt>[% build.nixname %]</tt></td>
   </tr>
   <tr>
     <th>Description:</th>
@@ -101,7 +105,7 @@
   [% IF build.schedulingInfo.busy %]
   <tr>
     <th>Logfile:</th>
-    <td>[% build.schedulingInfo.logfile %]</td>
+    <td><tt>[% build.schedulingInfo.logfile %]</tt></td>
   </tr>
   [% END %]
   [% END %]
@@ -235,6 +239,17 @@
           Code coverage analysis report
         [% CASE DEFAULT %]
           Report of type <tt>[% product.subtype %]</tt>
+        [% END %]
+      </a>
+    
+    [% CASE "doc" %]
+
+      <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
+        [% SWITCH product.subtype %]
+        [% CASE "readme" %]
+          “README” file
+        [% CASE DEFAULT %]
+          Documentation of type <tt>[% product.subtype %]</tt>
         [% END %]
       </a>
     

@@ -80,6 +80,7 @@ sub checkJob {
             , jobset => $jobset->name
             , attrname => $jobName
             , description => $description
+            , nixname => $job->{name}
             , drvpath => $drvPath
             , outpath => $outPath
             , system => $job->{system}

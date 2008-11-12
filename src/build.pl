@@ -215,9 +215,9 @@ sub doBuild {
             if (-e "$outPath/nix-support/hydra-build-products") {
                 open LIST, "$outPath/nix-support/hydra-build-products" or die;
                 while (<LIST>) {
-                    /^(\w+)\s+([\w-]+)\s+(\S+)$/ or die;
+                    /^([\w\-]+)\s+([\w\-]+)\s+(\S+)$/ or next;
                     my $type = $1;
-                    my $subtype = $2;
+                    my $subtype = $2 eq "none" ? "" : $2;
                     my $path = $3;
                     die unless -e $path;
 
@@ -225,7 +225,7 @@ sub doBuild {
 
                     if (-f $path) {
                         my $st = stat($path) or die "cannot stat $path: $!";
-                        $fileSize = $st;
+                        $fileSize = $st->size;
                         
                         $sha1 = `nix-hash --flat --type sha1 $path`
                             or die "cannot hash $path: $?";;
@@ -258,6 +258,7 @@ sub doBuild {
                     , type => "nix-build"
                     , subtype => ""
                     , path => $outPath
+                    , name => $build->nixname
                     });
             }
         }

@@ -17,6 +17,7 @@ create table Builds (
     attrName      text not null,
 
     -- Info about the build result.
+    nixName       text, -- name attribute of the derivation
     description   text,
     drvPath       text not null,
     outPath       text not null,

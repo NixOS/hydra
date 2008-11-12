@@ -20,6 +20,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
   "attrname",
   { data_type => "text", is_nullable => 0, size => undef },
+  "nixname",
+  { data_type => "text", is_nullable => 0, size => undef },
   "description",
   { data_type => "text", is_nullable => 0, size => undef },
   "drvpath",
@@ -51,6 +53,11 @@ __PACKAGE__->has_many(
   { "foreign.id" => "self.id" },
 );
 __PACKAGE__->has_many(
+  "buildsteps",
+  "HydraFrontend::Schema::Buildsteps",
+  { "foreign.id" => "self.id" },
+);
+__PACKAGE__->has_many(
   "buildinputs_builds",
   "HydraFrontend::Schema::Buildinputs",
   { "foreign.build" => "self.id" },
@@ -61,24 +68,19 @@ __PACKAGE__->has_many(
   { "foreign.dependency" => "self.id" },
 );
 __PACKAGE__->has_many(
-  "buildlogs",
-  "HydraFrontend::Schema::Buildlogs",
-  { "foreign.build" => "self.id" },
-);
-__PACKAGE__->has_many(
-  "buildsteps",
-  "HydraFrontend::Schema::Buildsteps",
-  { "foreign.id" => "self.id" },
-);
-__PACKAGE__->has_many(
   "buildproducts",
   "HydraFrontend::Schema::Buildproducts",
   { "foreign.build" => "self.id" },
 );
+__PACKAGE__->has_many(
+  "buildlogs",
+  "HydraFrontend::Schema::Buildlogs",
+  { "foreign.build" => "self.id" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-12 15:09:21
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:1fLVr/70ZuAOfnMp3rMzxg
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-12 17:11:42
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:mfQ486yZBf8hAuPUAT3rNw
 
 __PACKAGE__->has_many(dependents => 'HydraFrontend::Schema::Buildinputs', 'dependency');
 

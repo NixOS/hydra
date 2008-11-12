@@ -180,7 +180,8 @@ sub download :Local {
         }
     }
     
-    my $path = $product->path . "/" . join("/", @path);
+    my $path = $product->path;
+    $path .= "/" . join("/", @path) if scalar @path > 0;
 
     # If this is a directory but no "/" is attached, then redirect.
     if (-d $path && substr($c->request->uri, -1) ne "/") {
