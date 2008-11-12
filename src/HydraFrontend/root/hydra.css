@@ -202,3 +202,90 @@ table.tablesorter thead tr .headerSortDown, table.tablesorter thead tr .headerSo
 table.tablesorter thead tr th {
     padding-right: 1.5em;
 }
+
+
+/* Navbar */
+
+#leftnavbar {
+    position: absolute;
+    left: 0px;
+    width: 13em;
+    border-right: 1px solid gray;
+}
+
+#content {
+    position: absolute;
+    left: 13em;
+    margin-left: 1em;
+    margin-right: 1em;
+}
+
+h1 {
+    margin-top: 0em;
+}
+
+#leftnavbar ul {
+    display: block;
+    padding: 0 0 0 0;
+    margin: 0 0 0 0;
+    margin-left: 1em;
+    margin-right: 1em;
+}
+
+#leftnavbar ul a {
+    color: #005aa0;
+}
+
+#leftnavbar li.section {
+    list-style: none;
+    margin: 0 0 0 0;
+    padding: 0 0 0 0;
+    margin-bottom: 1.5em;
+}
+
+#leftnavbar li.section > div.title {
+    text-align: center;
+    font-weight: bold;
+    border-width: 0px;
+    border-bottom-width: 1px;
+    border-style: solid;
+    border-color: #c0c0c0;
+    padding-bottom: 0.5em;
+}
+
+#leftnavbar li.section ul {
+    padding: 0 0 0 0;
+    margin-left: 0em;
+    margin-right: 0em;
+}
+
+#leftnavbar li.section ul li {
+    font-size: 90%;
+    list-style: none;
+    background-image: url(/static/images/arrow-right.gif);
+    background-repeat: no-repeat;
+    background-position: 0.3em center;
+    border-width: 0px;
+    border-bottom-width: 1px;
+    border-style: solid;
+    border-color: #c0c0c0;
+    margin: 0 0 0 0;
+    padding: 0 0 0 0;
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+}
+
+#leftnavbar li.section ul li.active {
+    background-image: url(/static/images/arrow-right-active.gif);
+    background-color: #eef2ff;
+    font-weight: bold;
+    color: #606060;
+}
+
+#leftnavbar li.section ul li > div.title {
+    margin-left: 1.3em;
+}
+
+#footer {
+    font-size: 80%;
+}

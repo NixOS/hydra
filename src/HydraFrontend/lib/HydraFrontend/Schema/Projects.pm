@@ -10,6 +10,10 @@ __PACKAGE__->table("Projects");
 __PACKAGE__->add_columns(
   "name",
   { data_type => "text", is_nullable => 0, size => undef },
+  "displayname",
+  { data_type => "text", is_nullable => 0, size => undef },
+  "description",
+  { data_type => "VARCHAR", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("name");
 __PACKAGE__->has_many(
@@ -24,8 +28,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-13 00:06:06
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:UEZU36sQSaNML/YCAtpGkg
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-13 00:41:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:z7XJulBG7643ilgAj1hDwg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

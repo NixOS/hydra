@@ -2,7 +2,10 @@
 [% USE date %]
 
 
-<h1>Queue</h1>
+<h1>Hydra Overview</h1>
+
+
+<h2>Queue</h2>
 
 [% IF scheduled.size == 0 %]
 
@@ -32,7 +35,7 @@
 [% END %]
 
 
-<h1>Job status</h1>
+<h2>Job status</h2>
 
 <p>Below are the latest builds for each job.</p>
 
@@ -48,7 +51,7 @@
 </table>
 
 
-<h1>All builds</h1>
+<h2>All builds</h2>
 
 <p>Number of builds: [% allBuilds.size %]</p>
 
@@ -64,7 +67,7 @@
 </table>
 
 
-<h1>Projects</h1>
+<h2>Projects</h2>
 
 <ul>
   [% FOREACH project IN projects -%]

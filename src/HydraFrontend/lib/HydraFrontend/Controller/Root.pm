@@ -29,7 +29,7 @@ sub getBuild {
 sub index :Path :Args(0) {
     my ( $self, $c ) = @_;
     $c->stash->{template} = 'index.tt';
-    $c->stash->{projects} = [$c->model('DB::Projects')->all];
+    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
     $c->stash->{scheduled} = [$c->model('DB::Builds')->search(
         {finished => 0}, {join => 'schedulingInfo'})]; # !!!
     $c->stash->{allBuilds} = [$c->model('DB::Builds')->search(

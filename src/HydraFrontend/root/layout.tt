@@ -21,13 +21,48 @@
   </head>
   
   <body>
-    <div class="content">
-      [% content %]
-    </div>
+    <div id="container">
 
-    <div class="footer">
-      <hr />
-      Generated at [% date.format %].
+      <div id="leftnavbar">
+        <ul>
+          <li class="section">
+            <div class="title">Hydra</div>
+            <ul>
+              <li><div class="title"><a href="/">Overview</a></div></li>
+              <li><div class="title"><a href="/queue">Queue</a></div></li>
+              <li><div class="title"><a href="/latest">Latest builds</a></div></li>
+            </ul>
+          </li>
+        </ul>
+        <ul>
+          <li class="section">
+            <div class="title">Projects</div>
+            <ul>
+              [% FOREACH project IN projects %]
+                <li><div class="title"><a href="[% c.uri_for('/project' project.name) %]">[% project.displayname %]</a></div></li>
+              [% END %]
+            </ul>
+          </li>
+        </ul>
+        <ul>
+          <li class="section">
+            <div class="title">Admin</div>
+            <ul>
+              <li><div class="title"><a href="/">Users</a></div></li>
+              <li><div class="title"><a href="/">Release definitions</a></div></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <div id="content">
+        [% content %]
+        <div id="footer">
+          <hr />
+          Generated at [% date.format %].
+        </div>
+      </div>
+
     </div>
   </body>
 

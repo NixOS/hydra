@@ -149,7 +149,9 @@ create trigger cascadeBuildDeletion
 
 
 create table Projects (
-    name          text primary key not null 
+    name          text primary key not null, -- project id, lowercase (e.g. "patchelf")
+    displayName   text not null, -- display name (e.g. "PatchELF")
+    description   text
 );
 
 

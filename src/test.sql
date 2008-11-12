@@ -1,4 +1,4 @@
-insert into projects(name) values('patchelf');
+insert into projects(name, displayName, description) values('patchelf', 'PatchELF', 'A tool for modifying ELF binaries');
 insert into jobSets(project, name, description, nixExprInput, nixExprPath) values('patchelf', 'trunk', 'PatchELF', 'patchelfSrc', 'release.nix');
 insert into jobSetInputs(project, jobset, name, type) values('patchelf', 'trunk', 'patchelfSrc', 'path');
 insert into jobSetInputAlts(project, jobset, input, altnr, uri) values('patchelf', 'trunk', 'patchelfSrc', 0, '/home/eelco/Dev/patchelf-wc');
@@ -9,6 +9,10 @@ insert into jobSetInputAlts(project, jobset, input, altnr, uri) values('patchelf
 insert into jobSetInputs(project, jobset, name, type) values('patchelf', 'trunk', 'system', 'string');
 insert into jobSetInputAlts(project, jobset, input, altnr, value) values('patchelf', 'trunk', 'system', 0, 'i686-linux');
 insert into jobSetInputAlts(project, jobset, input, altnr, value) values('patchelf', 'trunk', 'system', 1, 'x86_64-linux');
+
+insert into projects(name, displayName, description) values('nix', 'Nix', 'The Nix package manager');
+
+insert into projects(name, displayName, description) values('nixpkgs', 'Nixpkgs', 'The Nix Packages collection');
 
 --insert into projects(name) values('nixpkgs');
 --insert into jobSets(project, name) values('nixpkgs', 'trunk');
