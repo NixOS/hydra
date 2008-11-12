@@ -194,8 +194,10 @@
   [% FOREACH product IN build.buildproducts -%]
   <li>
     [% SWITCH product.type %]
+    
     [% CASE "nix-build" %]
       Nix build of path <tt>[% product.path %]</tt>
+      
     [% CASE "file" %]
       <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
         [% SWITCH product.subtype %]
@@ -224,8 +226,21 @@
           <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
         </table>
       </div>
+      
+    [% CASE "report" %]
+
+      <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
+        [% SWITCH product.subtype %]
+        [% CASE "coverage" %]
+          Code coverage analysis report
+        [% CASE DEFAULT %]
+          Report of type <tt>[% product.subtype %]</tt>
+        [% END %]
+      </a>
+    
     [% CASE DEFAULT %]
       Something of type <tt>[% product.type %]</tt>
+      
     [% END %]
   </li>
   [% END -%]

@@ -221,15 +221,20 @@ sub doBuild {
                     my $path = $3;
                     die unless -e $path;
 
-                    my $st = stat($path) or die "cannot stat $path: $!";
+                    my $fileSize, my $sha1, my $sha256;
 
-                    my $sha1 = `nix-hash --flat --type sha1 $path`
-                        or die "cannot hash $path: $?";;
-                    chomp $sha1;
+                    if (-f $path) {
+                        my $st = stat($path) or die "cannot stat $path: $!";
+                        $fileSize = $st;
+                        
+                        $sha1 = `nix-hash --flat --type sha1 $path`
+                            or die "cannot hash $path: $?";;
+                        chomp $sha1;
                     
-                    my $sha256 = `nix-hash --flat --type sha256 $path`
-                        or die "cannot hash $path: $?";;
-                    chomp $sha256;
+                        $sha256 = `nix-hash --flat --type sha256 $path`
+                            or die "cannot hash $path: $?";;
+                        chomp $sha256;
+                    }
                     
                     $db->resultset('Buildproducts')->create(
                         { build => $build->id
@@ -237,7 +242,7 @@ sub doBuild {
                         , type => $type
                         , subtype => $subtype
                         , path => $path
-                        , filesize => $st->size
+                        , filesize => $fileSize
                         , sha1hash => $sha1
                         , sha256hash => $sha256
                         , name => basename $path

@@ -163,7 +163,7 @@ sub loadLog {
 
 
 sub download :Local {
-    my ( $self, $c, $id, $productnr, $filename ) = @_;
+    my ( $self, $c, $id, $productnr, $filename, @path ) = @_;
 
     my $build = getBuild($c, $id);
     return error($c, "Build with ID $id doesn't exist.") if !defined $build;
@@ -171,9 +171,29 @@ sub download :Local {
     my $product = $build->buildproducts->find({productnr => $productnr});
     return error($c, "Build $id doesn't have a product $productnr.") if !defined $product;
 
-    return error($c, "File " . $product->path . " has disappeared.") unless -e $product->path;
+    return error($c, "Product " . $product->path . " has disappeared.") unless -e $product->path;
 
-    $c->serve_static_file($product->path);
+    # Security paranoia.
+    foreach my $elem (@path) {
+        if ($elem eq "." || $elem eq ".." || $elem !~ /^[\w\-\.]+$/) {
+            return error($c, "Invalid filename $elem.");
+        }
+    }
+    
+    my $path = $product->path . "/" . join("/", @path);
+
+    # If this is a directory but no "/" is attached, then redirect.
+    if (-d $path && substr($c->request->uri, -1) ne "/") {
+        return $c->res->redirect($c->request->uri . "/");
+    }
+    
+    $path = "$path/index.html" if -d $path && -e "$path/index.html";
+
+    if (!-e $path) {
+        return error($c, "File $path does not exist.");
+    }
+
+    $c->serve_static_file($path);
 }
     
     

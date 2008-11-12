@@ -178,8 +178,8 @@ tr.runningJob {
 
 table.tablesorter {
     text-align: left;
-
 }
+
 table.tablesorter thead tr .header {
     background-image: url(/static/js/tablesorter/themes/blue/bg.gif);
     background-repeat: no-repeat;
