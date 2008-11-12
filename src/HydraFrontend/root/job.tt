@@ -2,11 +2,15 @@
 
 <h1>All builds for job <tt>[% projectName %]:[% jobName %]</tt></h1>
 
-<table>
-  <tr><th></th><th>Id</th><th>Project</th><th>Job</th><th>System</th><th>Timestamp</th><th>Description</th></tr>
-  [% FOREACH build IN builds -%]
-    [% INCLUDE "short-build-info.tt" %]
-  [% END -%]
+<table class="tablesorter">
+  <thead>
+    <tr><th></th><th>Id</th><th>Project</th><th>Job</th><th>System</th><th>Timestamp</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    [% FOREACH build IN builds -%]
+      [% INCLUDE "short-build-info.tt" %]
+    [% END -%]
+  </tbody>
 </table>
 
 [% END %]

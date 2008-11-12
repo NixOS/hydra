@@ -46,9 +46,32 @@ sub index :Path :Args(0) {
 sub project :Local {
     my ( $self, $c, $projectName ) = @_;
     $c->stash->{template} = 'project.tt';
+    
     (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
     return error($c, "Project <tt>$projectName</tt> doesn't exist.") if !defined $project;
+    
     $c->stash->{project} = $project;
+        $c->model('DB::Builds')->search({project => $projectName}, {join => 'resultInfo', select => {sum => 'starttime'}});
+    
+    $c->stash->{finishedBuilds} = $c->model('DB::Builds')->search(
+        {project => $projectName, finished => 1});
+        
+    $c->stash->{succeededBuilds} = $c->model('DB::Builds')->search(
+        {project => $projectName, finished => 1, buildStatus => 0},
+        {join => 'resultInfo'});
+        
+    $c->stash->{scheduledBuilds} = $c->model('DB::Builds')->search(
+        {project => $projectName, finished => 0});
+        
+    $c->stash->{busyBuilds} = $c->model('DB::Builds')->search(
+        {project => $projectName, finished => 0, busy => 1},
+        {join => 'schedulingInfo'});
+        
+    $c->stash->{totalBuildTime} = $c->model('DB::Builds')->search(
+        {project => $projectName},
+        {join => 'resultInfo', select => {sum => 'stoptime - starttime'}, as => ['sum']})
+        ->first->get_column('sum');
+    
     $c->stash->{jobNames} =
         [$c->model('DB::Builds')->search({project => $projectName}, {select => [{distinct => 'attrname'}], as => ['attrname']})];
 }
@@ -80,6 +103,8 @@ sub build :Local {
     $c->stash->{template} = 'build.tt';
     $c->stash->{build} = $build;
     $c->stash->{id} = $id;
+
+    $c->stash->{curTime} = time;
 
     if (!$build->finished && $build->schedulingInfo->busy) {
         my $logfile = $build->schedulingInfo->logfile;

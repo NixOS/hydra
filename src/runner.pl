@@ -90,5 +90,5 @@ while (1) {
     warn $@ if $@;
 
     print "sleeping...\n";
-    sleep(10);
+    sleep(5);
 }

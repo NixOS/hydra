@@ -140,7 +140,7 @@
 
 <table class="tablesorter">
   <thead>
-    <tr><th>Nr</th><th>What</th><th>Status</th></tr>
+    <tr><th>Nr</th><th>What</th><th>Duration</th><th>Status</th></tr>
   </thead>
   <tbody>
     [% FOREACH step IN build.buildsteps -%]
@@ -148,6 +148,13 @@
         <td>[% step.stepnr %]</td>
         <td>
           Build of <tt>[% step.outpath %]</tt>
+        </td>
+        <td>
+          [% IF step.busy == 0 %]
+            [% step.stoptime - step.starttime %]s
+          [% ELSE %]
+            [% curTime - step.starttime %]s
+          [% END %]
         </td>
         <td>
           [% IF step.busy == 1 %]
@@ -202,6 +209,8 @@
 [% END %]
 
 
+[% IF build.buildlogs %]
+
 <h2>Logs</h2>
 
 <table>
@@ -212,6 +221,8 @@
   </tr>
   [% END -%]
 </table>
+
+[% END %]
 
 
 [% IF build.dependents %]

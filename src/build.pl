@@ -59,6 +59,7 @@ sub doBuild {
                         , outpath => $2
                         , logfile => $4
                         , busy => 1
+                        , starttime => time
                         });
                 });
             }
@@ -71,6 +72,7 @@ sub doBuild {
                     die unless $step;
                     $step->busy(0);
                     $step->status(0);
+                    $step->stoptime(time);
                     $step->update;
                 });
             }
@@ -80,11 +82,28 @@ sub doBuild {
                     my $drvPath = $1;
                     (my $step) = $db->resultset('Buildsteps')->search(
                         {id => $build->id, type => 0, drvpath => $drvPath}, {});
-                    die unless $step;
-                    $step->busy(0);
-                    $step->status(1);
-                    $step->errormsg($4);
-                    $step->update;
+                    if ($step) {
+                        die unless $step;
+                        $step->busy(0);
+                        $step->status(1);
+                        $step->errormsg($4);
+                        $step->stoptime(time);
+                        $step->update;
+                    } else {
+                        $db->resultset('Buildsteps')->create(
+                            { id => $build->id
+                            , stepnr => $buildStepNr++
+                            , type => 0 # = build
+                            , drvpath => $drvPath
+                            , outpath => $2
+                            , logfile => $4
+                            , busy => 0
+                            , status => 1
+                            , starttime => time
+                            , stoptime => time
+                            , errormsg => $4
+                            });
+                    }
                 });
             }
         }

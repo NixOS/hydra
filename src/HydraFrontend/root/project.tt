@@ -9,11 +9,20 @@
 
   <h3>Jobset <tt>[% jobset.name %]</tt></h3>
 
-  <p>
-    Description: [% jobset.description %]
-    <br />
-    Nix expression: <tt>[% jobset.nixexprpath %]</tt> in input <tt>[% jobset.nixexprinput %]</tt>
-  </p>
+  <h4>Information</h4>
+
+  <table>
+    <tr>
+      <th>Description:</th>
+      <td>[% jobset.description %]</td>
+    </tr>
+    <tr>
+      <th>Nix expression:</th>
+      <td><tt>[% jobset.nixexprpath %]</tt> in input <tt>[% jobset.nixexprinput %]</tt></td>
+    </tr>
+  </table>
+
+  <h4>Inputs</h4>
 
   <table class="tablesorter">
     <thead>
@@ -49,6 +58,35 @@
   [% END %]
 </ul>
 
+
+<h2>Statistics</h2>
+
+<table>
+  <tr>
+    <th>Finished builds:</th>
+    <td>[% finishedBuilds %]</td>
+  </tr>
+  <tr>
+    <th><img src="/static/images/success.gif" /> Succeeded builds:</th>
+    <td>[% succeededBuilds %]</td>
+  </tr>
+  <tr>
+    <th><img src="/static/images/failure.gif" /> Failed builds:</th>
+    <td>[% finishedBuilds - succeededBuilds %]</td>
+  </tr>
+  <tr>
+    <th>Total build time:</th>
+    <td>[% totalBuildTime %]s</td>
+  </tr>
+  <tr>
+    <th>Scheduled builds:</th>
+    <td>[% scheduledBuilds %]</td>
+  </tr>
+  <tr>
+    <th>Currently executing builds:</th>
+    <td>[% busyBuilds %]</td>
+  </tr>
+</table>
 
 
 [% END %]
