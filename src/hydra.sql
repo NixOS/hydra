@@ -103,6 +103,8 @@ create table BuildInputs (
 
     path          text,
     
+    sha256hash    text,
+    
     foreign key   (build) references Builds(id) on delete cascade, -- ignored by sqlite
     foreign key   (dependency) references Builds(id) -- ignored by sqlite
 );

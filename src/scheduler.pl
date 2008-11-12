@@ -16,6 +16,20 @@ sub isValidPath {
 }
 
 
+sub getStorePathHash {
+    my ($storePath) = @_;
+    my $hash = `nix-store --query --hash $storePath`
+        or die "cannot get hash of $storePath";
+    chomp $hash;
+    die unless $hash =~ /^sha256:(.*)$/;
+    $hash = $1;
+    $hash = `nix-hash --to-base16 --type sha256 $hash`
+        or die "cannot convert hash";
+    chomp $hash;
+    return $hash;    
+}
+
+
 sub fetchInput {
     my ($input, $alt, $inputInfo) = @_;
     my $type = $input->type;
@@ -26,7 +40,13 @@ sub fetchInput {
             or die "cannot copy path $uri to the Nix store";
         chomp $storePath;
         print "          copied to $storePath\n";
-        $$inputInfo{$input->name} = {type => $type, uri => $uri, storePath => $storePath};
+        
+        $$inputInfo{$input->name} =
+            { type => $type
+            , uri => $uri
+            , storePath => $storePath
+            , sha256hash => getStorePathHash $storePath
+            };
     }
 
     elsif ($type eq "string") {
@@ -105,6 +125,7 @@ sub checkJob {
                 , value => $input->{value}
                 , dependency => $input->{id}
                 , path => ($input->{storePath} or "") # !!! temporary hack
+                , sha256hash => $input->{sha256hash}
                 });
         }
     });
