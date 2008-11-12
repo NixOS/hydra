@@ -109,10 +109,16 @@ create table BuildInputs (
 
 create table BuildProducts (
     build         integer not null,
-    path          text not null,
+    productnr     integer not null,
     type          text not null, -- "nix-build", "file", "doc", "report", ...
     subtype       text not null, -- "source-dist", "rpm", ...
-    primary key   (build, path),
+    fileSize      integer,
+    sha1hash      text,
+    sha256hash    text,
+    path          text,
+    name          text not null, -- generally just the filename part of `path'
+    description   text, -- optionally, some description of this file/directory
+    primary key   (build, productnr),
     foreign key   (build) references Builds(id) on delete cascade -- ignored by sqlite
 );
 

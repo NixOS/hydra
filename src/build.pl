@@ -2,6 +2,7 @@
 
 use strict;
 use File::Basename;
+use File::stat;
 use HydraFrontend::Schema;
 
 
@@ -197,6 +198,8 @@ sub doBuild {
 
         if ($outputCreated) {
 
+            my $productnr = 1;
+
             if (-e "$outPath/log") {
                 foreach my $logPath (glob "$outPath/log/*") {
                     print STDERR "found log $logPath\n";
@@ -217,17 +220,36 @@ sub doBuild {
                     my $subtype = $2;
                     my $path = $3;
                     die unless -e $path;
+
+                    my $st = stat($path) or die "cannot stat $path: $!";
+
+                    my $sha1 = `nix-hash --flat --type sha1 $path`
+                        or die "cannot hash $path: $?";;
+                    chomp $sha1;
+                    
+                    my $sha256 = `nix-hash --flat --type sha256 $path`
+                        or die "cannot hash $path: $?";;
+                    chomp $sha256;
+                    
                     $db->resultset('Buildproducts')->create(
                         { build => $build->id
+                        , productnr => $productnr++
                         , type => $type
                         , subtype => $subtype
                         , path => $path
+                        , filesize => $st->size
+                        , sha1hash => $sha1
+                        , sha256hash => $sha256
+                        , name => basename $path
                         });
                 }
                 close LIST;
-            } elsif ($buildStatus == 0) {
+            }
+
+            elsif ($buildStatus == 0) {
                 $db->resultset('Buildproducts')->create(
                     { build => $build->id
+                    , productnr => $productnr++
                     , type => "nix-build"
                     , subtype => ""
                     , path => $outPath
@@ -265,6 +287,7 @@ die unless $build;
 # can be retried.
 eval {
     doBuild $build;
+    print "done\n";
 };
 if ($@) {
     warn $@;

@@ -1,5 +1,6 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
 [% USE date %]
+[% USE mibs=format("%.2f") %]
 
 <h1>
   Job <tt>[% build.project.name %]:[% build.attrname %]</tt> build [% id %]
@@ -198,12 +199,29 @@
     [% CASE "file" %]
       [% SWITCH product.subtype %]
       [% CASE "source-dist" %]
-        <img src="/static/images/source-dist.png" alt="Source" /> Source distribution <tt>[% product.path %]</tt>
+        <img src="/static/images/source-dist.png" alt="Source" /> Source distribution <tt>[% product.name %]</tt>
       [% CASE "rpm" %]
-        <img src="/static/images/rpm-fedora.png" alt="RPM" /> RPM package <tt>[% product.path %]</tt>
+        <img src="/static/images/rpm-fedora.png" alt="RPM" /> RPM package <tt>[% product.name %]</tt>
       [% CASE DEFAULT %]
         File <tt>[% product.path %]</tt> of type <tt>[% product.subtype %]</tt>
       [% END %]
+      [<a href="javascript:" onclick="javascript:$('#foo-[% product.productnr %]').toggle()">details</a>]
+      <div class="productDetails" id="foo-[% product.productnr %]">
+        <table>
+          <tr>
+            <th>URL:</th>
+            <td>
+              <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
+                <tt>[% c.uri_for('/download' build.id product.productnr product.name) %]</tt>
+              </a>
+            </td>
+          </tr>
+          <tr><th>File size:</th><td>[% product.filesize %] bytes ([% mibs(product.filesize / (1024 * 1024)) %] MiB)</td></tr>
+          <tr><th>SHA-1 hash:</th><td>[% product.sha1hash %]</td></tr>
+          <tr><th>SHA-256 hash:</th><td>[% product.sha256hash %]</td></tr>
+          <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
+        </table>
+      </div>
     [% CASE DEFAULT %]
       Something of type <tt>[% product.type %]</tt>
     [% END %]
@@ -216,6 +234,8 @@
 
 
 [% IF build.buildlogs %]
+ 
+<div id="bla">
 
 <h2>Logs</h2>
 
@@ -227,6 +247,8 @@
   </tr>
   [% END -%]
 </table>
+
+</div>
 
 [% END %]
 

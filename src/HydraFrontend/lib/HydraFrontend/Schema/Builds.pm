@@ -61,11 +61,6 @@ __PACKAGE__->has_many(
   { "foreign.dependency" => "self.id" },
 );
 __PACKAGE__->has_many(
-  "buildproducts",
-  "HydraFrontend::Schema::Buildproducts",
-  { "foreign.build" => "self.id" },
-);
-__PACKAGE__->has_many(
   "buildlogs",
   "HydraFrontend::Schema::Buildlogs",
   { "foreign.build" => "self.id" },
@@ -75,10 +70,15 @@ __PACKAGE__->has_many(
   "HydraFrontend::Schema::Buildsteps",
   { "foreign.id" => "self.id" },
 );
+__PACKAGE__->has_many(
+  "buildproducts",
+  "HydraFrontend::Schema::Buildproducts",
+  { "foreign.build" => "self.id" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-11 18:02:00
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:c8feWTpKijITXXSdJICuFg
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-12 15:09:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:1fLVr/70ZuAOfnMp3rMzxg
 
 __PACKAGE__->has_many(dependents => 'HydraFrontend::Schema::Buildinputs', 'dependency');
 

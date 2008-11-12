@@ -157,9 +157,20 @@ ul.productList {
     padding-left: 1em;
 }
 
+ul.productList li {
+    margin-top: 1em;
+}
+
 tr.runningJob {
     background-color: #ff3030;
     color: white;
+}
+
+.productDetails {
+    display: none;
+    margin-top: 1em; 
+    margin-bottom: 1em;
+    margin-left: 3em;
 }
 
 
