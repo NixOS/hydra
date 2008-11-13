@@ -225,7 +225,7 @@ h1 {
     margin-top: 0em;
 }
 
-#leftnavbar ul {
+#leftnavbar ul.menu {
     display: block;
     padding: 0 0 0 0;
     margin: 0 0 0 0;
@@ -233,18 +233,18 @@ h1 {
     margin-right: 1em;
 }
 
-#leftnavbar ul a {
+#leftnavbar ul.menu a {
     color: #005aa0;
 }
 
-#leftnavbar li.section {
+#leftnavbar ul.menu > li {
     list-style: none;
     margin: 0 0 0 0;
     padding: 0 0 0 0;
     margin-bottom: 1.5em;
 }
 
-#leftnavbar li.section > div.title {
+#leftnavbar ul.menu > li > div.title {
     text-align: center;
     font-weight: bold;
     border-width: 0px;
@@ -254,37 +254,68 @@ h1 {
     padding-bottom: 0.5em;
 }
 
-#leftnavbar li.section ul {
+#leftnavbar ul.submenu {
     padding: 0 0 0 0;
     margin-left: 0em;
     margin-right: 0em;
 }
 
-#leftnavbar li.section ul li {
+#leftnavbar ul.submenu > li {
     font-size: 90%;
     list-style: none;
-    background-image: url(/static/images/arrow-right.gif);
-    background-repeat: no-repeat;
-    background-position: 0.3em center;
     border-width: 0px;
     border-bottom-width: 1px;
     border-style: solid;
     border-color: #c0c0c0;
     margin: 0 0 0 0;
     padding: 0 0 0 0;
-    padding-top: 0.5em;
-    padding-bottom: 0.5em;
 }
 
-#leftnavbar li.section ul li.active {
+#leftnavbar ul.submenu > li > div.title {
+    padding-left: 1.3em;
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+    background-image: url(/static/images/arrow-right.gif);
+    background-repeat: no-repeat;
+    background-position: 0.3em center;
+}
+
+#leftnavbar ul.submenu > li.active > div.title {
     background-image: url(/static/images/arrow-right-active.gif);
     background-color: #eef2ff;
     font-weight: bold;
     color: #606060;
 }
 
-#leftnavbar li.section ul li > div.title {
-    margin-left: 1.3em;
+#leftnavbar ul.subsubmenu {
+    padding-left: 0;
+}
+
+#leftnavbar ul.subsubmenu > li {
+    font-size: 90%;
+    list-style: none;
+    margin: 0 0 0 0;
+    padding: 0 0 0 0;
+    border-width: 0px;
+    border-top-width: 1px;
+    border-style: solid;
+    border-color: #c0c0c0;
+}
+
+#leftnavbar ul.subsubmenu > li > div.title {
+    padding-left: 3.3em;
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+    background-image: url(/static/images/arrow-right.gif);
+    background-repeat: no-repeat;
+    background-position: 2.3em center;
+}
+
+#leftnavbar ul.subsubmenu > li.active > div.title {
+    background-image: url(/static/images/arrow-right-active.gif);
+    background-color: #eef2ff;
+    font-weight: bold;
+    color: #606060;
 }
 
 #footer {
