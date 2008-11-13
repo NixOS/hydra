@@ -61,8 +61,51 @@ sub updateProject {
     $project->name($projectName);
     $project->displayname($displayName);
     $project->description($c->request->params->{description});
-    
+
     $project->update;
+    
+    my %jobsetNames;
+
+    foreach my $param (keys %{$c->request->params}) {
+        next unless $param =~ /^jobset-(\w+)-name$/;
+        my $baseName = $1;
+        next if $baseName eq "template";
+
+        my $jobsetName = $c->request->params->{"jobset-$baseName-name"};
+        die "Invalid jobset name: $jobsetName" unless $jobsetName =~ /^[[:alpha:]]\w*$/;
+
+        my $nixExprPath = $c->request->params->{"jobset-$baseName-nixexprpath"};
+        die "Invalid Nix expression path: $nixExprPath" unless $nixExprPath =~ /^\w++$/; # !!! stricter
+
+        my $nixExprInput = $c->request->params->{"jobset-$baseName-nixexprinput"};
+        die "Invalid Nix expression input name: $nixExprInput" unless $nixExprInput =~ /^\w+$/;
+
+        $jobsetNames{$jobsetName} = 1;
+
+        if ($baseName =~ /^\d+$/) { # numeric base name is auto-generated, i.e. a new entry
+            my $jobset = $c->model('DB::Jobsets')->create(
+                { project => $project->name
+                , name => $jobsetName
+                , description => $c->request->params->{"jobset-$baseName-description"}
+                , nixexprpath => $nixExprPath
+                , nixexprinput => $nixExprInput
+                });
+        } else { # it's an existing jobset
+            (my $jobset) = $project->jobsets->search({name => $baseName});
+            die unless defined $jobset;
+            $jobset->name($jobsetName);
+            $jobset->description($c->request->params->{"jobset-$baseName-description"});
+            $jobset->nixexprpath($nixExprPath);
+            $jobset->nixexprinput($nixExprInput);
+            $jobset->update;
+        }
+    }
+
+    # Get rid of deleted jobsets, i.e., ones that are no longer submitted in the parameters.
+    my @jobsets = $project->jobsets->all;
+    foreach my $jobset (@jobsets) {
+        $jobset->delete unless defined $jobsetNames{$jobset->name};
+    }
 }
 
 

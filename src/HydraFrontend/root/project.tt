@@ -4,69 +4,34 @@
 
 [% BLOCK maybeEditString %]
   [% IF edit %]
-    <input type='text' class='string' [% HTML.attributes(name => param, value => value) %] />
+    <input type="text" class="string" [% HTML.attributes(id => param, name => param, value => value) %] />
   [% ELSE %]
     [% HTML.escape(value) %]
   [% END %]
 [% END %]
 
 
-[% IF edit %]
-  <form action="[% IF create %][% c.uri_for('/createproject/submit') %][% ELSE %][% c.uri_for('/project' curProject.name 'submit') %][% END %]" method="post">
-[% END %]
+[% BLOCK renderJobset %]
 
+  <div class="indent jobset">
 
-[% IF create %]
-  <h1>New Project</h1>
-[% ELSE %]
-  <h1>Project <tt>[% curProject.name %]</tt></h1>
-[% END %]
+  <h3>Jobset <tt>[% INCLUDE maybeEditString param="jobset-$baseName-name" value=jobset.name %]</tt></h3>
 
-
-<h2>General information</h2>
-
-<table>
-  [% IF edit %]
-  <tr>
-    <th>Identifier:</th>
-    <td><tt>[% INCLUDE maybeEditString param="name" value=curProject.name %]</tt></td>
-  </tr>
-  [% END %]
-  <tr>
-    <th>Display name:</th>
-    <td>[% INCLUDE maybeEditString param="displayname" value=curProject.displayname %]</td>
-  </tr>
-  <tr>
-    <th>Description:</th>
-    <td>[% INCLUDE maybeEditString param="description" value=curProject.description %]</td>
-  </tr>
-</table>
-
-
-<h2>Definition</h2>
-
-[% IF curProject.jobsets.size > 0 %]
-
-[% FOREACH jobset IN curProject.jobsets -%]
-
-  <h3>Jobset <tt>[% jobset.name %]</tt></h3>
+  <div class="indent">  
 
   <h4>Information</h4>
 
   <table>
-    [% IF edit %]
-    <tr>
-      <th>Identifier:</th>
-      <td><tt>[% INCLUDE maybeEditString value=jobset.name %]</tt></td>
-    </tr>
-    [% END %]
     <tr>
       <th>Description:</th>
-      <td>[% INCLUDE maybeEditString value=jobset.description %]</td>
+      <td>[% INCLUDE maybeEditString param="jobset-$baseName-description" value=jobset.description %]</td>
     </tr>
     <tr>
       <th>Nix expression:</th>
-      <td><tt>[% INCLUDE maybeEditString value=jobset.nixexprpath %]</tt> in input <tt>[% INCLUDE maybeEditString value=jobset.nixexprinput %]</tt></td>
+      <td>
+        <tt>[% INCLUDE maybeEditString param="jobset-$baseName-nixexprpath" value=jobset.nixexprpath %]</tt> in input
+        <tt>[% INCLUDE maybeEditString param="jobset-$baseName-nixexprinput" value=jobset.nixexprinput %]</tt>
+      </td>
     </tr>
   </table>
 
@@ -114,7 +79,76 @@
     </tbody>
   </table>
 
-[% END -%]
+  [% IF edit %]
+  <p><button onclick='$(this).parents(".jobset").remove()' id="jobset-[% baseName %]-delete">Delete this jobset</button></p>
+  [% END %]
+
+  </div>
+  </div>
+
+[% END %]
+
+
+[% IF edit %]
+  <form action="[% IF create %][% c.uri_for('/createproject/submit') %][% ELSE %][% c.uri_for('/project' curProject.name 'submit') %][% END %]" method="post">
+[% END %]
+
+
+[% IF create %]
+  <h1>New Project</h1>
+[% ELSE %]
+  <h1>Project <tt>[% curProject.name %]</tt></h1>
+[% END %]
+
+
+<h2>General information</h2>
+
+<table>
+  [% IF edit %]
+  <tr>
+    <th>Identifier:</th>
+    <td><tt>[% INCLUDE maybeEditString param="name" value=curProject.name %]</tt></td>
+  </tr>
+  [% END %]
+  <tr>
+    <th>Display name:</th>
+    <td>[% INCLUDE maybeEditString param="displayname" value=curProject.displayname %]</td>
+  </tr>
+  <tr>
+    <th>Description:</th>
+    <td>[% INCLUDE maybeEditString param="description" value=curProject.description %]</td>
+  </tr>
+</table>
+
+
+<h2>Jobsets</h2>
+
+[% IF curProject.jobsets && curProject.jobsets.size > 0 || edit %]
+
+  [% IF edit %]
+    <p><button id="add-jobset">Add a new jobset</button></p>
+
+    <div id="jobset-template" class="template">
+      [% INCLUDE renderJobset jobset="" baseName="template" %]
+    </div>
+    
+    <script>
+      var id = 0;
+      $("#add-jobset").click(function() {
+        var newid = "jobset-" + id++;
+        $("#jobset-template").clone(true).attr("id", newid).insertAfter($("#jobset-template")).show();
+        $("#jobset-template-name", $("#" + newid)).attr("name", newid + "-name").attr("value", newid);
+        $("#jobset-template-description", $("#" + newid)).attr("name", newid + "-description");
+        $("#jobset-template-nixexprpath", $("#" + newid)).attr("name", newid + "-nixexprpath");
+        $("#jobset-template-nixexprinput", $("#" + newid)).attr("name", newid + "-nixexprinput");
+        return false;
+      });
+    </script>
+  [% END %]
+
+  [% FOREACH jobset IN curProject.jobsets -%]
+    [% INCLUDE renderJobset jobset=jobset baseName=jobset.name %]
+  [% END -%]
 
 [% ELSE %]
 
@@ -128,7 +162,7 @@
 
 <h2>Jobs</h2>
 
-[% IF jobNames.size > 0 %]
+[% IF jobName && jobNames.size > 0 %]
 
 <ul>
   [% FOREACH jobName IN jobNames -%]
@@ -178,14 +212,26 @@
 
 [% IF edit %]
 
-  <p><input type="submit" value="Apply" /></p>
+  <hr />
+
+  <p><input type="submit" value="[% IF create %]Create[% ELSE %]Apply changes[% END %]" /></p>
 
   </form>
 
-  <form action="[% c.uri_for('/project' curProject.name 'delete') %]" method="post">
-    <p><input type="submit" value="Delete this project" /></p>
-  </form>
+  [% IF !create %]
+
+    <form action="[% c.uri_for('/project' curProject.name 'delete') %]" method="post">
+      <p><input id="delete-project" type="submit" value="Delete this project" /></p>
+    </form>
       
+    <script>
+      $("#delete-project").click(function() {
+        return confirm("Are you sure you want to delete this project?");
+      });
+    </script>
+
+  [% END %]
+    
 [% END %]
 
 
