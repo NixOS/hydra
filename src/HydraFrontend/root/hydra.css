@@ -150,6 +150,7 @@ td.buildfarmMainColumn {
 pre.buildlog {
     border: 1px solid black;
     padding: 0.3em;
+    white-space: pre-wrap;
 }
 
 ul.productList {

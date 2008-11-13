@@ -47,11 +47,12 @@ sub project :Local {
     my ( $self, $c, $projectName ) = @_;
     $c->stash->{template} = 'project.tt';
     
+    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
+    
     (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
     return error($c, "Project <tt>$projectName</tt> doesn't exist.") if !defined $project;
     
-    $c->stash->{project} = $project;
-        $c->model('DB::Builds')->search({project => $projectName}, {join => 'resultInfo', select => {sum => 'starttime'}});
+    $c->stash->{curProject} = $project;
     
     $c->stash->{finishedBuilds} = $c->model('DB::Builds')->search(
         {project => $projectName, finished => 1});
@@ -97,8 +98,12 @@ sub default :Path {
 sub build :Local {
     my ( $self, $c, $id ) = @_;
 
+    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
+    
     my $build = getBuild($c, $id);
     return error($c, "Build with ID $id doesn't exist.") if !defined $build;
+
+    $c->stash->{curProject} = $build->project;
 
     $c->stash->{template} = 'build.tt';
     $c->stash->{build} = $build;

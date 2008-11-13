@@ -1,11 +1,11 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
 
-<h1>Project <tt>[% project.name %]</tt></h1>
+<h1>Project <tt>[% curProject.name %]</tt></h1>
 
 
 <h2>Definition</h2>
 
-[% FOREACH jobset IN project.jobsets -%]
+[% FOREACH jobset IN curProject.jobsets -%]
 
   <h3>Jobset <tt>[% jobset.name %]</tt></h3>
 
@@ -54,7 +54,7 @@
 
 <ul>
   [% FOREACH jobName IN jobNames -%]
-    <li><a href="[% c.uri_for('/job' project.name jobName.attrname) %]"><tt>[% jobName.attrname %]</tt></a></li>
+    <li><a href="[% c.uri_for('/job' curProject.name jobName.attrname) %]"><tt>[% jobName.attrname %]</tt></a></li>
   [% END %]
 </ul>
 

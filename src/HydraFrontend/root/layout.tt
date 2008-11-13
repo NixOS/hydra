@@ -39,7 +39,7 @@
             <div class="title">Projects</div>
             <ul>
               [% FOREACH project IN projects %]
-                <li><div class="title"><a href="[% c.uri_for('/project' project.name) %]">[% project.displayname %]</a></div></li>
+                <li [% IF curProject.name == project.name %]class="active"[% END %]><div class="title"><a href="[% c.uri_for('/project' project.name) %]">[% project.displayname %]</a></div></li>
               [% END %]
             </ul>
           </li>
