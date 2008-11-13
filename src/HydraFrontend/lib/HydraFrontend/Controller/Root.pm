@@ -126,7 +126,7 @@ sub project :Local {
         $c->model('DB')->schema->txn_do(sub {
             updateProject($c, $project);
         });
-        return $c->res->redirect($c->uri_for("/project", $projectName));
+        return $c->res->redirect($c->uri_for("/project", $c->request->params->{name}));
     } elsif ($subcommand eq "delete" && $isPosted) {
         $c->model('DB')->schema->txn_do(sub {
             $project->delete;

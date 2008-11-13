@@ -13,15 +13,21 @@
 
 [% BLOCK renderJobset %]
 
-  <div class="indent jobset">
+  <div class="jobset">
 
-  <h3>Jobset <tt>[% INCLUDE maybeEditString param="jobset-$baseName-name" value=jobset.name %]</tt></h3>
+  <h3>[% IF jobset %]Jobset <tt>[% jobset.name %]</tt>[% ELSE %]New jobset[% END %]</h3>
 
-  <div class="indent">  
+  <div class="indent">
 
   <h4>Information</h4>
 
   <table>
+    [% IF edit %]
+    <tr>
+      <th>Identifier:</th>
+      <td>[% INCLUDE maybeEditString param="jobset-$baseName-name" value=jobset.name %]</td>
+    </tr>
+    [% END %]
     <tr>
       <th>Description:</th>
       <td>[% INCLUDE maybeEditString param="jobset-$baseName-description" value=jobset.description %]</td>
@@ -137,7 +143,7 @@
       $("#add-jobset").click(function() {
         var newid = "jobset-" + id++;
         $("#jobset-template").clone(true).attr("id", newid).insertAfter($("#jobset-template")).show();
-        $("#jobset-template-name", $("#" + newid)).attr("name", newid + "-name").attr("value", newid);
+        $("#jobset-template-name", $("#" + newid)).attr("name", newid + "-name").attr("value", "trunk");
         $("#jobset-template-description", $("#" + newid)).attr("name", newid + "-description");
         $("#jobset-template-nixexprpath", $("#" + newid)).attr("name", newid + "-nixexprpath");
         $("#jobset-template-nixexprinput", $("#" + newid)).attr("name", newid + "-nixexprinput");

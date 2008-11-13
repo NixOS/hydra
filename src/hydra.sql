@@ -155,6 +155,16 @@ create table Projects (
 );
 
 
+create trigger cascadeProjectUpdate
+  update of name on Projects
+  for each row begin
+    update Jobsets set project = new.name where project = old.name;
+    update JobsetInputs set project = new.name where project = old.name;
+    update JobsetInputAlts set project = new.name where project = old.name;
+    update Builds set project = new.name where project = old.name;
+  end;
+
+
 -- A jobset consists of a set of inputs (e.g. SVN repositories), one
 -- of which contains a Nix expression containing an attribute set
 -- describing build jobs.
@@ -168,6 +178,15 @@ create table Jobsets (
     foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
     foreign key   (project, name, nixExprInput) references JobsetInputs(project, job, name)
 );
+
+
+create trigger cascadeJobsetUpdate
+  update of name on jobsets
+  for each row begin
+    update JobsetInputs set jobset = new.name where jobset = old.name;
+    update JobsetInputAlts set jobset = new.name where jobset = old.name;
+    update Builds set jobset = new.name where jobset = old.name;
+  end;
 
 
 create table JobsetInputs (
