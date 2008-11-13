@@ -14,6 +14,7 @@ __PACKAGE__->config->{namespace} = '';
 sub begin :Private {
     my ( $self, $c ) = @_;
     $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
+    $c->stash->{curUri} = $c->request->uri;
 }
 
 
@@ -75,6 +76,7 @@ sub project :Local {
         {project => $projectName},
         {join => 'resultInfo', select => {sum => 'stoptime - starttime'}, as => ['sum']})
         ->first->get_column('sum');
+    $c->stash->{totalBuildTime} = 0 unless defined $c->stash->{totalBuildTime};
     
     $c->stash->{jobNames} =
         [$c->model('DB::Builds')->search({project => $projectName}, {select => [{distinct => 'attrname'}], as => ['attrname']})];

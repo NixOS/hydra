@@ -1,4 +1,11 @@
 [% USE date -%]
+
+[% BLOCK makeLink %]
+  <li [% IF curUri == uri %]class="active"[% END %]>
+    <div class="title"><a href="[% uri %]">[% title %]</a></div>
+  </li>
+[% END %]
+
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
@@ -28,9 +35,11 @@
           <li class="section">
             <div class="title">Hydra</div>
             <ul>
-              <li><div class="title"><a href="/">Overview</a></div></li>
-              <li><div class="title"><a href="/queue">Queue</a></div></li>
-              <li><div class="title"><a href="/latest">Latest builds</a></div></li>
+              [% INCLUDE makeLink uri = c.uri_for('/') title = "Overview" %]
+              [% INCLUDE makeLink uri = c.uri_for('/queue') title = "Queue" %]
+              [% INCLUDE makeLink uri = c.uri_for('/latest') title = "Latest builds" %]
+              [% INCLUDE makeLink uri = c.uri_for('/all') title = "All builds" %]
+              [% INCLUDE makeLink uri = c.uri_for('/search') title = "Search builds" %]
             </ul>
           </li>
         </ul>
@@ -39,7 +48,15 @@
             <div class="title">Projects</div>
             <ul>
               [% FOREACH project IN projects %]
-                <li [% IF curProject.name == project.name %]class="active"[% END %]><div class="title"><a href="[% c.uri_for('/project' project.name) %]">[% project.displayname %]</a></div></li>
+                [% IF curProject.name == project.name %]
+                  <li class="active">
+                    <div class="title"><a href="[% c.uri_for('/project' project.name) %]">[% project.displayname %]</a></div>
+                  </li>
+                [% ELSE %]
+                  <li>
+                    <div class="title"><a href="[% c.uri_for('/project' project.name) %]">[% project.displayname %]</a></div>
+                  </li>
+                [% END %]
               [% END %]
             </ul>
           </li>
@@ -48,8 +65,8 @@
           <li class="section">
             <div class="title">Admin</div>
             <ul>
-              <li><div class="title"><a href="/">Users</a></div></li>
-              <li><div class="title"><a href="/">Release definitions</a></div></li>
+              [% INCLUDE makeLink uri = c.uri_for('/users') title = "Users" %]
+              [% INCLUDE makeLink uri = c.uri_for('/create-project') title = "Create a project" %]
             </ul>
           </li>
         </ul>

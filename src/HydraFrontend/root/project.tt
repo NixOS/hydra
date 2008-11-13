@@ -3,7 +3,12 @@
 <h1>Project <tt>[% curProject.name %]</tt></h1>
 
 
+<p><strong>Description:</strong> [% curProject.description %]</p>
+
+
 <h2>Definition</h2>
+
+[% IF curProject.jobsets.size > 0 %]
 
 [% FOREACH jobset IN curProject.jobsets -%]
 
@@ -49,14 +54,28 @@
 
 [% END -%]
 
+[% ELSE %]
+
+<p>No jobsets have been defined yet.</p>
+
+[% END %]
+
 
 <h2>Jobs</h2>
+
+[% IF jobNames.size > 0 %]
 
 <ul>
   [% FOREACH jobName IN jobNames -%]
     <li><a href="[% c.uri_for('/job' curProject.name jobName.attrname) %]"><tt>[% jobName.attrname %]</tt></a></li>
   [% END %]
 </ul>
+
+[% ELSE %]
+
+<p>No builds have been performed or scheduled.</p>
+
+[% END %]
 
 
 <h2>Statistics</h2>
