@@ -1,9 +1,46 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
+[% USE HTML %]
 
-<h1>Project <tt>[% curProject.name %]</tt></h1>
+
+[% BLOCK maybeEditString %]
+  [% IF edit %]
+    <input type='text' class='string' [% HTML.attributes(name => param, value => value) %] />
+  [% ELSE %]
+    [% HTML.escape(value) %]
+  [% END %]
+[% END %]
 
 
-<p><strong>Description:</strong> [% curProject.description %]</p>
+[% IF edit %]
+  <form action="[% IF create %][% c.uri_for('/createproject/submit') %][% ELSE %][% c.uri_for('/project' curProject.name 'submit') %][% END %]" method="post">
+[% END %]
+
+
+[% IF create %]
+  <h1>New Project</h1>
+[% ELSE %]
+  <h1>Project <tt>[% curProject.name %]</tt></h1>
+[% END %]
+
+
+<h2>General information</h2>
+
+<table>
+  [% IF edit %]
+  <tr>
+    <th>Identifier:</th>
+    <td><tt>[% INCLUDE maybeEditString param="name" value=curProject.name %]</tt></td>
+  </tr>
+  [% END %]
+  <tr>
+    <th>Display name:</th>
+    <td>[% INCLUDE maybeEditString param="displayname" value=curProject.displayname %]</td>
+  </tr>
+  <tr>
+    <th>Description:</th>
+    <td>[% INCLUDE maybeEditString param="description" value=curProject.description %]</td>
+  </tr>
+</table>
 
 
 <h2>Definition</h2>
@@ -17,13 +54,19 @@
   <h4>Information</h4>
 
   <table>
+    [% IF edit %]
+    <tr>
+      <th>Identifier:</th>
+      <td><tt>[% INCLUDE maybeEditString value=jobset.name %]</tt></td>
+    </tr>
+    [% END %]
     <tr>
       <th>Description:</th>
-      <td>[% jobset.description %]</td>
+      <td>[% INCLUDE maybeEditString value=jobset.description %]</td>
     </tr>
     <tr>
       <th>Nix expression:</th>
-      <td><tt>[% jobset.nixexprpath %]</tt> in input <tt>[% jobset.nixexprinput %]</tt></td>
+      <td><tt>[% INCLUDE maybeEditString value=jobset.nixexprpath %]</tt> in input <tt>[% INCLUDE maybeEditString value=jobset.nixexprinput %]</tt></td>
     </tr>
   </table>
 
@@ -36,14 +79,33 @@
     <tbody>
       [% FOREACH input IN jobset.jobsetinputs -%]
         <tr>
-          <td><tt>[% input.name %]</tt></td>
-          <td><tt>[% input.type %]</tt></td>
+          <td><tt>[% INCLUDE maybeEditString value=input.name %]</tt></td>
+          <td><tt>
+            [% IF edit %]
+              <select>
+                <option>svn</option>
+                <option>cvs</option>
+                <option>uri</option>
+                <option>string</option>
+                <option>path</option>
+              </select>
+            [% ELSE %]
+              [% input.type %]
+            [% END %]
+          </tt></td>
           <td>
             [% FOREACH alt IN input.jobsetinputalts -%]
               [% IF input.type == "string" %]
-                <tt>"[% alt.value %]"</tt>
+                <tt>
+                  [% IF edit %]
+                    <input type='text' class='string' value='[% alt.value %]' />
+                    <br />
+                  [% ELSE %]
+                    "[% alt.value %]"
+                  [% END %]
+                </tt>
               [% ELSE %]
-                <tt>[% alt.uri %]</tt>
+                <tt>[% INCLUDE maybeEditString value=alt.uri %]</tt>
               [% END %]
             [% END %]
           </td>
@@ -59,6 +121,9 @@
 <p>No jobsets have been defined yet.</p>
 
 [% END %]
+
+
+[% IF !edit %]
 
 
 <h2>Jobs</h2>
@@ -106,6 +171,22 @@
     <td>[% busyBuilds %]</td>
   </tr>
 </table>
+
+
+[% END %]
+
+
+[% IF edit %]
+
+  <p><input type="submit" value="Apply" /></p>
+
+  </form>
+
+  <form action="[% c.uri_for('/project' curProject.name 'delete') %]" method="post">
+    <p><input type="submit" value="Delete this project" /></p>
+  </form>
+      
+[% END %]
 
 
 [% END %]

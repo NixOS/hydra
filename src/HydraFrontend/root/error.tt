@@ -1,7 +1,8 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
+[% USE HTML %]
 
 <h1>Error</h1>
 
-<p>I'm very sorry, but an error occurred:  <span class="error-msg">[% error %]</span></p>
+<p>I'm very sorry, but an error occurred: <span class="error-msg">[% HTML.escape(error) %]</span></p>
 
 [% END %]

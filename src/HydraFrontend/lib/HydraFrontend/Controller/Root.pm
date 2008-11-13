@@ -49,13 +49,51 @@ sub index :Path :Args(0) {
 }
 
 
+sub updateProject {
+    my ($c, $project) = @_;
+
+    my $projectName = $c->request->params->{name};
+    die "Invalid project name: $projectName" unless $projectName =~ /^[[:alpha:]]\w*$/;
+    
+    my $displayName = $c->request->params->{displayname};
+    die "Invalid display name: $displayName" unless $displayName =~ /^\w.*\w$/;
+    
+    $project->name($projectName);
+    $project->displayname($displayName);
+    $project->description($c->request->params->{description});
+    
+    $project->update;
+}
+
+
 sub project :Local {
-    my ( $self, $c, $projectName ) = @_;
+    my ( $self, $c, $projectName, $subcommand ) = @_;
     $c->stash->{template} = 'project.tt';
     
     (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
     return error($c, "Project <tt>$projectName</tt> doesn't exist.") if !defined $project;
-    
+
+    my $isPosted = $c->request->method eq "POST";
+
+    $subcommand = "" unless defined $subcommand;
+
+    if ($subcommand eq "edit") {
+        $c->stash->{edit} = 1;
+    } elsif ($subcommand eq "submit" && $isPosted) {
+        $c->model('DB')->schema->txn_do(sub {
+            updateProject($c, $project);
+        });
+        return $c->res->redirect($c->uri_for("/project", $projectName));
+    } elsif ($subcommand eq "delete" && $isPosted) {
+        $c->model('DB')->schema->txn_do(sub {
+            $project->delete;
+        });
+        return $c->res->redirect($c->uri_for("/"));
+    } elsif ($subcommand eq "") {
+    } else {
+        return error($c, "Unknown subcommand $subcommand.");
+    }
+
     $c->stash->{curProject} = $project;
     
     $c->stash->{finishedBuilds} = $c->model('DB::Builds')->search(
@@ -83,13 +121,43 @@ sub project :Local {
 }
 
 
+sub createproject :Local {
+    my ( $self, $c, $subcommand ) = @_;
+
+    if (defined $subcommand && $subcommand eq "submit") {
+        eval {
+            my $projectName = $c->request->params->{name};
+            $c->model('DB')->schema->txn_do(sub {
+                # Note: $projectName is validated in updateProject,
+                # which will abort the transaction if the name isn't
+                # valid.
+                my $project = $c->model('DB::Projects')->create({name => $projectName, displayname => ""});
+                updateProject($c, $project);
+            });
+            return $c->res->redirect($c->uri_for("/project", $projectName));
+        };
+        if ($@) {
+            return error($c, $@);
+        }
+    }
+    
+    $c->stash->{template} = 'project.tt';
+    $c->stash->{create} = 1;
+    $c->stash->{edit} = 1;
+}
+
+
 sub job :Local {
-    my ( $self, $c, $project, $jobName ) = @_;
+    my ( $self, $c, $projectName, $jobName ) = @_;
     $c->stash->{template} = 'job.tt';
-    $c->stash->{projectName} = $project;
+
+    (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
+    return error($c, "Project <tt>$projectName</tt> doesn't exist.") if !defined $project;
+    $c->stash->{curProject} = $project;
+
     $c->stash->{jobName} = $jobName;
     $c->stash->{builds} = [$c->model('DB::Builds')->search(
-        {finished => 1, project => $project, attrName => $jobName},
+        {finished => 1, project => $projectName, attrName => $jobName},
         {order_by => "timestamp DESC"})];
 }
 

@@ -50,6 +50,7 @@
                   <div class="title"><a href="[% c.uri_for('/project' project.name) %]">[% project.displayname %]</a></div>
                   [% IF curProject.name == project.name %]
                     <ul class="subsubmenu">
+                      [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'edit') title = "Edit" %]
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'status') title = "Status" %]
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'all') title = "All builds" %]
                     </ul>
@@ -63,7 +64,7 @@
             <div class="title">Admin</div>
             <ul class="submenu">
               [% INCLUDE makeLink uri = c.uri_for('/users') title = "Users" %]
-              [% INCLUDE makeLink uri = c.uri_for('/create-project') title = "Create a project" %]
+              [% INCLUDE makeLink uri = c.uri_for('/createproject') title = "Create a project" %]
             </ul>
           </li>
         </ul>
