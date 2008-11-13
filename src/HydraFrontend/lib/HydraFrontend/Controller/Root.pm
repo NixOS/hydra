@@ -11,6 +11,12 @@ use parent 'Catalyst::Controller';
 __PACKAGE__->config->{namespace} = '';
 
 
+sub begin :Private {
+    my ( $self, $c ) = @_;
+    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
+}
+
+
 sub error {
     my ($c, $msg) = @_;
     $c->stash->{template} = 'error.tt';
@@ -29,7 +35,6 @@ sub getBuild {
 sub index :Path :Args(0) {
     my ( $self, $c ) = @_;
     $c->stash->{template} = 'index.tt';
-    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
     $c->stash->{scheduled} = [$c->model('DB::Builds')->search(
         {finished => 0}, {join => 'schedulingInfo'})]; # !!!
     $c->stash->{allBuilds} = [$c->model('DB::Builds')->search(
@@ -46,8 +51,6 @@ sub index :Path :Args(0) {
 sub project :Local {
     my ( $self, $c, $projectName ) = @_;
     $c->stash->{template} = 'project.tt';
-    
-    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
     
     (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
     return error($c, "Project <tt>$projectName</tt> doesn't exist.") if !defined $project;
@@ -98,8 +101,6 @@ sub default :Path {
 sub build :Local {
     my ( $self, $c, $id ) = @_;
 
-    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
-    
     my $build = getBuild($c, $id);
     return error($c, "Build with ID $id doesn't exist.") if !defined $build;
 
