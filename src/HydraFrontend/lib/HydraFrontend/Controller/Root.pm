@@ -11,6 +11,11 @@ use parent 'Catalyst::Controller';
 __PACKAGE__->config->{namespace} = '';
 
 
+# Security checking of filenames.
+my $pathCompRE = "(?:[A-Za-z0-9-\+][A-Za-z0-9-\+\._]*)";
+my $relPathRE = "(?:$pathCompRE(?:\/$pathCompRE)*)";
+
+
 sub begin :Private {
     my ( $self, $c ) = @_;
     $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
@@ -74,8 +79,9 @@ sub updateProject {
         my $jobsetName = $c->request->params->{"jobset-$baseName-name"};
         die "Invalid jobset name: $jobsetName" unless $jobsetName =~ /^[[:alpha:]]\w*$/;
 
+        # The Nix expression path must be relative and can't contain ".." elements.
         my $nixExprPath = $c->request->params->{"jobset-$baseName-nixexprpath"};
-        die "Invalid Nix expression path: $nixExprPath" unless $nixExprPath =~ /^\w++$/; # !!! stricter
+        die "Invalid Nix expression path: $nixExprPath" if $nixExprPath !~ /^$relPathRE$/;
 
         my $nixExprInput = $c->request->params->{"jobset-$baseName-nixexprinput"};
         die "Invalid Nix expression input name: $nixExprInput" unless $nixExprInput =~ /^\w+$/;
@@ -294,9 +300,7 @@ sub download :Local {
 
     # Security paranoia.
     foreach my $elem (@path) {
-        if ($elem eq "." || $elem eq ".." || $elem !~ /^[\w\-\.]+$/) {
-            return error($c, "Invalid filename $elem.");
-        }
+        return error($c, "Invalid filename $elem.") if $elem !~ /^$pathCompRE$/;
     }
     
     my $path = $product->path;

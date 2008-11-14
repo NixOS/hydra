@@ -13,11 +13,9 @@
 
 [% BLOCK renderJobset %]
 
-  <div class="jobset">
+  <div class="jobset[% IF edit %] jobset-edit[% END %]">
 
   <h3>[% IF jobset %]Jobset <tt>[% jobset.name %]</tt>[% ELSE %]New jobset[% END %]</h3>
-
-  <div class="indent">
 
   <h4>Information</h4>
 
@@ -89,7 +87,6 @@
   <p><button onclick='$(this).parents(".jobset").remove()' id="jobset-[% baseName %]-delete">Delete this jobset</button></p>
   [% END %]
 
-  </div>
   </div>
 
 [% END %]

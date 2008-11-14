@@ -16,12 +16,11 @@ h1 {
 
 h2 {
     font-size: 130%;
-    margin-top: 2em;
+    margin-top: 1em;
 }
 
 h3 {
     font-size: 100%;
-    margin-top: 1.5em;
 }
 
 table {
@@ -181,12 +180,28 @@ tr.runningJob {
     margin-left: 3em;
 }
 
-div.indent {
-    padding-left: 2em;
-}
-
 div.template {
     display: none;
+}
+
+div.jobset {
+    border: solid black 1px;
+    padding-left: 1em;
+    padding-right: 1em;
+    padding-bottom: 1em;
+    margin-bottom: 1em;
+}
+
+div.jobset-edit {
+    border: solid black 1px;
+    background-color: #f8f8f8;
+    padding-left: 1em;
+    padding-right: 1em;
+    margin-bottom: 1em;
+}
+
+div.jobset-edit h3, div.jobset h3 {
+    margin-top: 0.5em;
 }
 
 
