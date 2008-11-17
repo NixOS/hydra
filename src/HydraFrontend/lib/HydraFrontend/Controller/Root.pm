@@ -106,6 +106,8 @@ sub updateProject {
             $jobset->nixexprinput($nixExprInput);
             $jobset->update;
         }
+
+        my %inputNames;
         
         # Process the inputs of this jobset.
         foreach my $param (keys %{$c->request->params}) {
@@ -122,8 +124,14 @@ sub updateProject {
                 $inputType eq "svn" || $inputType eq "cvs" || $inputType eq "tarball" ||
                 $inputType eq "string" || $inputType eq "path";
 
+            $inputNames{$inputName} = 1;
+            
             my $input;
             if ($baseName2 =~ /^\d+$/) { # numeric base name is auto-generated, i.e. a new entry
+                $input = $jobset->jobsetinputs->create(
+                    { name => $inputName
+                    , type => $inputType
+                    });
             } else { # it's an existing jobset
                 $input = ($jobset->jobsetinputs->search({name => $baseName2}))[0];
                 die unless defined $input;
@@ -143,6 +151,12 @@ sub updateProject {
                 print STDERR "VALUE: $value\n";
                 $input->jobsetinputalts->create({altnr => $altnr++, value => $value});
             }
+        }
+
+        # Get rid of deleted inputs/
+        my @inputs = $jobset->jobsetinputs->all;
+        foreach my $input (@inputs) {
+            $input->delete unless defined $inputNames{$input->name};
         }
     }
 

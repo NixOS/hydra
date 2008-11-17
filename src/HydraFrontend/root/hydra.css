@@ -184,6 +184,10 @@ tr.runningJob {
     display: none;
 }
 
+.template {
+    display: none;
+}
+
 div.jobset {
     border: solid black 1px;
     -moz-border-radius: 1em;
