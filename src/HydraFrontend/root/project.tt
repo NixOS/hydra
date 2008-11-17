@@ -57,14 +57,25 @@
 
   <h4>Inputs</h4>
 
+  [% IF edit %]
+  <p><button onclick='$(this).parents(".jobset").remove()'>Add a new input</button></p>
+  [% END %]
+  
   <table class="tablesorter">
     <thead>
-      <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
+      <tr>[% IF edit %]<th></th>[% END %]<th>Input name</th><th>Type</th><th>Values</th></tr>
     </thead>
     <tbody>
       [% FOREACH input IN jobset.jobsetinputs -%]
-        <tr>
-          <td><tt>[% INCLUDE maybeEditString param="jobset-$baseName-input-$input.name-name" value=input.name extraClass="shortString" %]</tt></td>
+        <tr class="input">
+          [% IF edit %]
+          <td>
+            [% IF edit %]<a href="javascript:" onclick='$(this).parents(".input").remove()'>[X]</a>[% END -%]
+          </td>
+          [% END %]
+          <td>
+            <tt>[% INCLUDE maybeEditString param="jobset-$baseName-input-$input.name-name" value=input.name extraClass="shortString" %]</tt>
+          </td>
           <td>
             [% IF edit %]
               <select name="[% "jobset-$baseName-input-$input.name-type" %]">
@@ -78,16 +89,18 @@
               [% INCLUDE renderInputType type=input.type %]
             [% END %]
           </td>
-          <td>
+          <td class="inputalts" id="[% "jobset-$baseName-input-$input.name" %]">
             [% FOREACH alt IN input.jobsetinputalts -%]
-              <tt>
+              <tt class="inputalt">
                 [% IF input.type == "string" && !edit %]
                   "[% HTML.escape(alt.value) %]"
                 [% ELSE %]
                   [% INCLUDE maybeEditString param="jobset-$baseName-input-$input.name-values" value=alt.value %]
+                  [% IF edit %]<a href="javascript:" onclick='$(this).parents(".inputalt").remove()'>[X]</a>[% END %]
                 [% END %]
               </tt>
             [% END %]
+            [% IF edit %]<a href="javascript:" class="addinputalt">[+]</a>[% END %]
           </td>
         </tr>
       [% END %]
@@ -95,7 +108,8 @@
   </table>
 
   [% IF edit %]
-  <p><button onclick='$(this).parents(".jobset").remove()' id="jobset-[% baseName %]-delete">Delete this jobset</button></p>
+  <hr />
+  <p><button onclick='$(this).parents(".jobset").remove()'>Delete this jobset</button></p>
   [% END %]
 
   </div>
@@ -145,17 +159,30 @@
     <div id="jobset-template" class="template">
       [% INCLUDE renderJobset jobset="" baseName="template" %]
     </div>
+
+    <tt id="inputalt-template" class="inputalt template">
+      <input type="text" class="string" />
+      <a href="javascript:" onclick='$(this).parents(".inputalt").remove()'>[X]</a>
+    </tt>
     
     <script>
-      var id = 0;
-      $("#add-jobset").click(function() {
-        var newid = "jobset-" + id++;
-        $("#jobset-template").clone(true).attr("id", newid).insertAfter($("#jobset-template")).show();
-        $("#jobset-template-name", $("#" + newid)).attr("name", newid + "-name");
-        $("#jobset-template-description", $("#" + newid)).attr("name", newid + "-description");
-        $("#jobset-template-nixexprpath", $("#" + newid)).attr("name", newid + "-nixexprpath");
-        $("#jobset-template-nixexprinput", $("#" + newid)).attr("name", newid + "-nixexprinput");
-        return false;
+      $(document).ready(function() {
+        var id = 0;
+      
+        $("#add-jobset").click(function() {
+          var newid = "jobset-" + id++;
+          $("#jobset-template").clone(true).attr("id", newid).insertAfter($("#jobset-template")).slideDown("fast");
+          $("#jobset-template-name", $("#" + newid)).attr("name", newid + "-name");
+          $("#jobset-template-description", $("#" + newid)).attr("name", newid + "-description");
+          $("#jobset-template-nixexprpath", $("#" + newid)).attr("name", newid + "-nixexprpath");
+          $("#jobset-template-nixexprinput", $("#" + newid)).attr("name", newid + "-nixexprinput");
+          return false;
+        });
+
+        $(".addinputalt").click(function() {
+          var x = $("#inputalt-template").clone(true).insertBefore($(this)).show();
+          $("input", x).attr("name", x.parent(".inputalts").attr("id") + "-values");
+        });
       });
     </script>
   [% END %]

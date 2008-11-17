@@ -196,7 +196,7 @@
 <ul class="productList">
 
   [% FOREACH product IN build.buildproducts -%]
-  <li>
+  <li class="product">
     [% SWITCH product.type %]
     
     [% CASE "nix-build" %]
@@ -213,8 +213,8 @@
           File <tt>[% product.name %]</tt> of type <tt>[% product.subtype %]</tt>
         [% END %]
       </a>
-      [<a href="javascript:" onclick="javascript:$('#foo-[% product.productnr %]').toggle()">details</a>]
-      <div class="productDetails" id="foo-[% product.productnr %]">
+      [<a class="productDetailsToggle" href="javascript:">details</a>]
+      <div class="productDetails">
         <table>
           <tr>
             <th>URL:</th>
@@ -262,12 +262,21 @@
   
 </ul>
 
+<script>
+  $(document).ready(function() {
+    $('.productDetailsToggle').toggle(
+      function () { $(".productDetails", $(this).parents(".product")).fadeIn(); },
+      function () { $(".productDetails", $(this).parents(".product")).hide(); }
+    );
+  });
+</script>
+
 [% END %]
 
 
 [% IF build.buildlogs %]
  
-<div id="bla">
+<div>
 
 <h2>Logs</h2>
 

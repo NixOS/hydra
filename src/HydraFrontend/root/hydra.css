@@ -26,6 +26,7 @@ table {
     empty-cells: show;
     border-collapse: collapse;
     border-spacing: 0px;
+    margin-bottom: 1em;
 }
 
 th {
@@ -179,24 +180,21 @@ tr.runningJob {
     margin-left: 3em;
 }
 
-div.template {
+.template {
     display: none;
 }
 
 div.jobset {
     border: solid black 1px;
+    -moz-border-radius: 1em;
+    border-radius: 1em;
     padding-left: 1em;
     padding-right: 1em;
-    padding-bottom: 1em;
     margin-bottom: 1em;
 }
 
 div.jobset-edit {
-    border: solid black 1px;
     background-color: #f8f8f8;
-    padding-left: 1em;
-    padding-right: 1em;
-    margin-bottom: 1em;
 }
 
 div.jobset-edit h3, div.jobset h3 {

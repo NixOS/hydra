@@ -35,7 +35,7 @@ sub fetchInput {
     my $type = $input->type;
 
     if ($type eq "path") {
-        my $uri = $alt->uri;
+        my $uri = $alt->value;
         my $storePath = `nix-store --add "$uri"`
             or die "cannot copy path $uri to the Nix store";
         chomp $storePath;

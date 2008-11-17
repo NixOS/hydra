@@ -14,7 +14,7 @@
   <head>
     <title>[% title %]</title>
     <link rel="stylesheet" href="/hydra.css" type="text/css" />
-    <script type="text/javascript" src="/static/js/tablesorter/jquery-latest.js"></script> 
+    <script type="text/javascript" src="/static/js/jquery-pack.js"></script> 
     <script type="text/javascript" src="/static/js/tablesorter/jquery.tablesorter.js"></script>
     <script type="text/javascript">
       $(document).ready(
