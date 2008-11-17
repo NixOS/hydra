@@ -1,5 +1,4 @@
-body
-{
+body {
     font-family: sans-serif;
     background: white;
     margin: 2em 1em 2em 1em;
@@ -360,4 +359,8 @@ input.string {
     font-size: 100%;
     background-color: #fffff0;
     width: 30em;
+}
+
+input.shortString {
+    width: 10em;
 }

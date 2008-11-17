@@ -16,13 +16,11 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
   "altnr",
   { data_type => "integer", is_nullable => 0, size => undef },
-  "uri",
+  "value",
   { data_type => "text", is_nullable => 0, size => undef },
   "revision",
   { data_type => "integer", is_nullable => 0, size => undef },
   "tag",
-  { data_type => "text", is_nullable => 0, size => undef },
-  "value",
   { data_type => "text", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("project", "jobset", "input", "altnr");
@@ -33,8 +31,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-13 00:41:19
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:GgHinSVpD7x20xFqfvau0Q
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-17 12:36:40
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:EVQbKQiSBV7xXLVym+lUxQ
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

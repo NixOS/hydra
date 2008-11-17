@@ -138,7 +138,7 @@ create table BuildLogs (
 
 -- Emulate "on delete cascade" foreign key constraints.
 create trigger cascadeBuildDeletion
-  before delete on builds
+  before delete on Builds
   for each row begin
     delete from BuildSchedulingInfo where id = old.id;
     delete from BuildResultInfo where id = old.id;
@@ -181,11 +181,11 @@ create table Jobsets (
 
 
 create trigger cascadeJobsetUpdate
-  update of name on jobsets
+  update of name on Jobsets
   for each row begin
-    update JobsetInputs set jobset = new.name where jobset = old.name;
-    update JobsetInputAlts set jobset = new.name where jobset = old.name;
-    update Builds set jobset = new.name where jobset = old.name;
+    update JobsetInputs set jobset = new.name where project = old.project and jobset = old.name;
+    update JobsetInputAlts set jobset = new.name where project = old.project and jobset = old.name;
+    update Builds set jobset = new.name where project = old.project and jobset = old.name;
   end;
 
 
@@ -199,17 +199,30 @@ create table JobsetInputs (
 );
 
 
+create trigger cascadeJobsetInputUpdate
+  update of name on JobsetInputs
+  for each row begin
+    update JobsetInputAlts set input = new.name where project = old.project and jobset = old.jobset and input = old.name;
+  end;
+
+
+create trigger cascadeJobsetInputDelete
+  before delete on JobsetInputs
+  for each row begin
+    delete from JobsetInputAlts where project = old.project and jobset = old.jobset and input = old.name;
+  end;
+
+
 create table JobsetInputAlts (
     project       text not null,
     jobset        text not null,
     input         text not null,
-    altnr         integer,
+    altnr         integer not null,
 
     -- urgh
-    uri           text,
+    value         text, -- for most types, a URI; for 'path', an absolute path; for 'string', an arbitrary value
     revision      integer, -- for type == 'svn'
     tag           text, -- for type == 'cvs'
-    value         text, -- for type == 'string'
     
     primary key   (project, jobset, input, altnr),
     foreign key   (project, jobset, input) references JobsetInputs(project, jobset, name) on delete cascade -- ignored by sqlite

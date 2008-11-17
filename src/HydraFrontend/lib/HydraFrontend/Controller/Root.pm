@@ -88,22 +88,60 @@ sub updateProject {
 
         $jobsetNames{$jobsetName} = 1;
 
+        my $jobset;
+
         if ($baseName =~ /^\d+$/) { # numeric base name is auto-generated, i.e. a new entry
-            my $jobset = $c->model('DB::Jobsets')->create(
-                { project => $project->name
-                , name => $jobsetName
+            $jobset = $project->jobsets->create(
+                { name => $jobsetName
                 , description => $c->request->params->{"jobset-$baseName-description"}
                 , nixexprpath => $nixExprPath
                 , nixexprinput => $nixExprInput
                 });
         } else { # it's an existing jobset
-            (my $jobset) = $project->jobsets->search({name => $baseName});
+            $jobset = ($project->jobsets->search({name => $baseName}))[0];
             die unless defined $jobset;
             $jobset->name($jobsetName);
             $jobset->description($c->request->params->{"jobset-$baseName-description"});
             $jobset->nixexprpath($nixExprPath);
             $jobset->nixexprinput($nixExprInput);
             $jobset->update;
+        }
+        
+        # Process the inputs of this jobset.
+        foreach my $param (keys %{$c->request->params}) {
+            next unless $param =~ /^jobset-$baseName-input-(\w+)-name$/;
+            my $baseName2 = $1;
+            next if $baseName2 eq "template";
+            print STDERR "GOT INPUT: $baseName2\n";
+
+            my $inputName = $c->request->params->{"jobset-$baseName-input-$baseName2-name"};
+            die "Invalid input name: $inputName" unless $inputName =~ /^[[:alpha:]]\w*$/;
+
+            my $inputType = $c->request->params->{"jobset-$baseName-input-$baseName2-type"};
+            die "Invalid input type: $inputType" unless
+                $inputType eq "svn" || $inputType eq "cvs" || $inputType eq "tarball" ||
+                $inputType eq "string" || $inputType eq "path";
+
+            my $input;
+            if ($baseName2 =~ /^\d+$/) { # numeric base name is auto-generated, i.e. a new entry
+            } else { # it's an existing jobset
+                $input = ($jobset->jobsetinputs->search({name => $baseName2}))[0];
+                die unless defined $input;
+                $input->name($inputName);
+                $input->type($inputType);
+                $input->update;
+            }
+
+            # Update the values for this input.  Just delete all the
+            # current ones, then create the new values.
+            $input->jobsetinputalts->delete_all;
+            my $values = $c->request->params->{"jobset-$baseName-input-$baseName2-values"};
+            $values = [$values] unless ref($values) eq 'ARRAY';
+            my $altnr = 0;
+            foreach my $value (@{$values}) {
+                print STDERR "VALUE: $value\n";
+                $input->jobsetinputalts->create({altnr => $altnr++, value => $value});
+            }
         }
     }
 

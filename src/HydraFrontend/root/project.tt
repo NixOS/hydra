@@ -4,10 +4,26 @@
 
 [% BLOCK maybeEditString %]
   [% IF edit %]
-    <input type="text" class="string" [% HTML.attributes(id => param, name => param, value => value) %] />
+    <input type="text" class="string [% extraClass %]" [% HTML.attributes(id => param, name => param, value => value) %] />
   [% ELSE %]
     [% HTML.escape(value) %]
   [% END %]
+[% END %]
+
+
+[% BLOCK renderInputType %]
+  [% SWITCH type %]
+    [% CASE "svn" %]Subversion checkout
+    [% CASE "cvs" %]CVS checkout
+    [% CASE "tarball" %]Download of a tarball
+    [% CASE "string" %]String value
+    [% CASE "path" %]Local path
+  [% END %]
+[% END %]
+
+
+[% BLOCK renderInputTypeOption %]
+  <option value="[% type %]" [% IF value == type %]selected="selected"[%END %]>[% INCLUDE renderInputType %]</option>
 [% END %]
 
 
@@ -33,8 +49,8 @@
     <tr>
       <th>Nix expression:</th>
       <td>
-        <tt>[% INCLUDE maybeEditString param="jobset-$baseName-nixexprpath" value=jobset.nixexprpath %]</tt> in input
-        <tt>[% INCLUDE maybeEditString param="jobset-$baseName-nixexprinput" value=jobset.nixexprinput %]</tt>
+        <tt>[% INCLUDE maybeEditString param="jobset-$baseName-nixexprpath" value=jobset.nixexprpath extraClass="shortString" %]</tt> in input
+        <tt>[% INCLUDE maybeEditString param="jobset-$baseName-nixexprinput" value=jobset.nixexprinput extraClass="shortString" %]</tt>
       </td>
     </tr>
   </table>
@@ -48,34 +64,29 @@
     <tbody>
       [% FOREACH input IN jobset.jobsetinputs -%]
         <tr>
-          <td><tt>[% INCLUDE maybeEditString value=input.name %]</tt></td>
-          <td><tt>
+          <td><tt>[% INCLUDE maybeEditString param="jobset-$baseName-input-$input.name-name" value=input.name extraClass="shortString" %]</tt></td>
+          <td>
             [% IF edit %]
-              <select>
-                <option>svn</option>
-                <option>cvs</option>
-                <option>uri</option>
-                <option>string</option>
-                <option>path</option>
+              <select name="[% "jobset-$baseName-input-$input.name-type" %]">
+                [% INCLUDE renderInputTypeOption value=input.type type="svn" %]
+                [% INCLUDE renderInputTypeOption value=input.type type="cvs" %]
+                [% INCLUDE renderInputTypeOption value=input.type type="tarball" %]
+                [% INCLUDE renderInputTypeOption value=input.type type="string" %]
+                [% INCLUDE renderInputTypeOption value=input.type type="path" %]
               </select>
             [% ELSE %]
-              [% input.type %]
+              [% INCLUDE renderInputType type=input.type %]
             [% END %]
-          </tt></td>
+          </td>
           <td>
             [% FOREACH alt IN input.jobsetinputalts -%]
-              [% IF input.type == "string" %]
-                <tt>
-                  [% IF edit %]
-                    <input type='text' class='string' value='[% alt.value %]' />
-                    <br />
-                  [% ELSE %]
-                    "[% alt.value %]"
-                  [% END %]
-                </tt>
-              [% ELSE %]
-                <tt>[% INCLUDE maybeEditString value=alt.uri %]</tt>
-              [% END %]
+              <tt>
+                [% IF input.type == "string" && !edit %]
+                  "[% HTML.escape(alt.value) %]"
+                [% ELSE %]
+                  [% INCLUDE maybeEditString param="jobset-$baseName-input-$input.name-values" value=alt.value %]
+                [% END %]
+              </tt>
             [% END %]
           </td>
         </tr>
@@ -140,7 +151,7 @@
       $("#add-jobset").click(function() {
         var newid = "jobset-" + id++;
         $("#jobset-template").clone(true).attr("id", newid).insertAfter($("#jobset-template")).show();
-        $("#jobset-template-name", $("#" + newid)).attr("name", newid + "-name").attr("value", "trunk");
+        $("#jobset-template-name", $("#" + newid)).attr("name", newid + "-name");
         $("#jobset-template-description", $("#" + newid)).attr("name", newid + "-description");
         $("#jobset-template-nixexprpath", $("#" + newid)).attr("name", newid + "-nixexprpath");
         $("#jobset-template-nixexprinput", $("#" + newid)).attr("name", newid + "-nixexprinput");
