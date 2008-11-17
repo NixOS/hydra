@@ -1,0 +1,9 @@
+[% inputTypes =
+    { "svn" = "Subversion checkout"
+    , "cvs" = "CVS checkout"
+    , "tarball" = "Download of a tarball"
+    , "string" = "String value"
+    , "path" = "Local path"
+    , "build" = "Build output"
+    }
+%]

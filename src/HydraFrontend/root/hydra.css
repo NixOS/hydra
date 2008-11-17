@@ -360,9 +360,17 @@ input.string {
     font-family: sans-serif;
     font-size: 100%;
     background-color: #fffff0;
-    width: 30em;
+    width: 13em;
 }
 
 input.shortString {
-    width: 10em;
+    width: 7em;
+}
+
+select {
+    background-color: #fffff0;
+}
+
+button {
+    background-color: #f0f0e0;
 }

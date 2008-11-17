@@ -66,6 +66,7 @@ sub updateProject {
     $project->name($projectName);
     $project->displayname($displayName);
     $project->description($c->request->params->{description});
+    $project->enabled($c->request->params->{enabled} eq "1" ? 1 : 0);
 
     $project->update;
     
@@ -371,6 +372,19 @@ sub download :Local {
     }
 
     $c->serve_static_file($path);
+}
+
+
+sub closure :Local {
+    my ( $self, $c, $buildId, $productnr ) = @_;
+
+    my $build = getBuild($c, $buildId);
+    return error($c, "Build with ID $buildId doesn't exist.") if !defined $build;
+
+    my $product = $build->buildproducts->find({productnr => $productnr});
+    return error($c, "Build $buildId doesn't have a product $productnr.") if !defined $product;
+
+    return error($c, "Not yet implemented.");
 }
     
     

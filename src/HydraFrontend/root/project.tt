@@ -1,5 +1,19 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
+[% PROCESS common.tt %]
 [% USE HTML %]
+
+
+[% BLOCK renderSelection %]
+  [% IF edit %]
+    <select [% HTML.attributes(id => param, name => param) %]>
+      [% FOREACH name IN options.keys.sort %]
+        <option [% HTML.attributes(value => name) %] [% IF name == curValue; "selected='selected'"; END %]>[% options.$name %]</option>
+      [% END %]
+    </select>
+  [% ELSE %]
+    [% options.$curValue %]
+  [% END %]
+[% END %]
 
 
 [% BLOCK maybeEditString %]
@@ -8,22 +22,6 @@
   [% ELSE %]
     [% HTML.escape(value) %]
   [% END %]
-[% END %]
-
-
-[% BLOCK renderInputType %]
-  [% SWITCH type %]
-    [% CASE "svn" %]Subversion checkout
-    [% CASE "cvs" %]CVS checkout
-    [% CASE "tarball" %]Download of a tarball
-    [% CASE "string" %]String value
-    [% CASE "path" %]Local path
-  [% END %]
-[% END %]
-
-
-[% BLOCK renderInputTypeOption %]
-  <option value="[% type %]" [% IF value == type %]selected="selected"[%END %]>[% INCLUDE renderInputType %]</option>
 [% END %]
 
 
@@ -39,17 +37,7 @@
       <tt>[% INCLUDE maybeEditString param="$baseName-name" value=input.name extraClass="shortString" %]</tt>
     </td>
     <td>
-      [% IF edit %]
-        <select id="[% "$baseName-type" %]" name="[% "$baseName-type" %]">
-          [% INCLUDE renderInputTypeOption value=input.type type="svn" %]
-          [% INCLUDE renderInputTypeOption value=input.type type="cvs" %]
-          [% INCLUDE renderInputTypeOption value=input.type type="tarball" %]
-          [% INCLUDE renderInputTypeOption value=input.type type="string" %]
-          [% INCLUDE renderInputTypeOption value=input.type type="path" %]
-        </select>
-      [% ELSE %]
-        [% INCLUDE renderInputType type=input.type %]
-      [% END %]
+      [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
     </td>
     <td class="inputalts" id="[% baseName %]">
       [% FOREACH alt IN input.jobsetinputalts -%]
@@ -58,7 +46,7 @@
             "[% HTML.escape(alt.value) %]"
           [% ELSE %]
             [% INCLUDE maybeEditString param="$baseName-values" value=alt.value %]
-            [% IF edit %]<a href="javascript:" onclick='$(this).parents(".inputalt").remove()'>[X]</a>[% END %]
+            [% IF edit %]<a href="javascript:" onclick='$(this).parents(".inputalt").remove()'>[X]</a><br />[% END %]
           [% END %]
         </tt>
       [% END %]
@@ -152,6 +140,12 @@
   <tr>
     <th>Description:</th>
     <td>[% INCLUDE maybeEditString param="description" value=curProject.description %]</td>
+  </tr>
+  <tr>
+    <th>Enabled:</th>
+    <td>
+      [% INCLUDE renderSelection param="enabled" curValue=curProject.enabled options={"1" = "Yes", "0" = "No"} %]
+    </td>
   </tr>
 </table>
 
@@ -278,14 +272,14 @@
 
   <hr />
 
-  <p><input type="submit" value="[% IF create %]Create[% ELSE %]Apply changes[% END %]" /></p>
+  <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
 
   </form>
 
   [% IF !create %]
 
     <form action="[% c.uri_for('/project' curProject.name 'delete') %]" method="post">
-      <p><input id="delete-project" type="submit" value="Delete this project" /></p>
+      <p><button id="delete-project" type="submit"><img src="/static/images/failure.gif" />Delete this project</button></p>
     </form>
       
     <script>
