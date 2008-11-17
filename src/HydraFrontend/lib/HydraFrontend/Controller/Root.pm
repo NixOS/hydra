@@ -136,6 +136,7 @@ sub updateProject {
             # current ones, then create the new values.
             $input->jobsetinputalts->delete_all;
             my $values = $c->request->params->{"jobset-$baseName-input-$baseName2-values"};
+            $values = [] unless defined $values;
             $values = [$values] unless ref($values) eq 'ARRAY';
             my $altnr = 0;
             foreach my $value (@{$values}) {
