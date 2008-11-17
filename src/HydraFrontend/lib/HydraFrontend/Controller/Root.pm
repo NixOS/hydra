@@ -153,7 +153,7 @@ sub updateProject {
             }
         }
 
-        # Get rid of deleted inputs/
+        # Get rid of deleted inputs.
         my @inputs = $jobset->jobsetinputs->all;
         foreach my $input (@inputs) {
             $input->delete unless defined $inputNames{$input->name};
