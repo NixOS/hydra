@@ -169,7 +169,7 @@
     <tt class="inputalt template" id="inputalt-template">
       [% INCLUDE renderInputAlt alt=alt %]
     </tt>
-    
+
     <script>
       $(document).ready(function() {
         var id = 0;

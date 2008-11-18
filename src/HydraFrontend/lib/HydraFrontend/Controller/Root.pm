@@ -31,6 +31,13 @@ sub error {
 }
 
 
+sub trim {
+    my $s = shift;
+    $s =~ s/^\s+|\s+$//g;
+    return $s;
+}
+
+
 sub getBuild {
     my ($c, $id) = @_;
     (my $build) = $c->model('DB::Builds')->search({ id => $id });
@@ -57,16 +64,16 @@ sub index :Path :Args(0) {
 sub updateProject {
     my ($c, $project) = @_;
 
-    my $projectName = $c->request->params->{name};
+    my $projectName = trim $c->request->params->{name};
     die "Invalid project name: $projectName" unless $projectName =~ /^[[:alpha:]]\w*$/;
     
-    my $displayName = $c->request->params->{displayname};
-    die "Invalid display name: $displayName" unless $displayName =~ /^\w.*\w$/;
+    my $displayName = trim $c->request->params->{displayname};
+    die "Invalid display name: $displayName" if $displayName eq "";
     
     $project->name($projectName);
     $project->displayname($displayName);
-    $project->description($c->request->params->{description});
-    $project->enabled($c->request->params->{enabled} eq "1" ? 1 : 0);
+    $project->description(trim $c->request->params->{description});
+    $project->enabled(trim($c->request->params->{enabled}) eq "1" ? 1 : 0);
 
     $project->update;
     
@@ -77,14 +84,14 @@ sub updateProject {
         my $baseName = $1;
         next if $baseName eq "template";
 
-        my $jobsetName = $c->request->params->{"jobset-$baseName-name"};
+        my $jobsetName = trim $c->request->params->{"jobset-$baseName-name"};
         die "Invalid jobset name: $jobsetName" unless $jobsetName =~ /^[[:alpha:]]\w*$/;
 
         # The Nix expression path must be relative and can't contain ".." elements.
-        my $nixExprPath = $c->request->params->{"jobset-$baseName-nixexprpath"};
+        my $nixExprPath = trim $c->request->params->{"jobset-$baseName-nixexprpath"};
         die "Invalid Nix expression path: $nixExprPath" if $nixExprPath !~ /^$relPathRE$/;
 
-        my $nixExprInput = $c->request->params->{"jobset-$baseName-nixexprinput"};
+        my $nixExprInput = trim $c->request->params->{"jobset-$baseName-nixexprinput"};
         die "Invalid Nix expression input name: $nixExprInput" unless $nixExprInput =~ /^\w+$/;
 
         $jobsetNames{$jobsetName} = 1;
@@ -94,7 +101,7 @@ sub updateProject {
         if ($baseName =~ /^\d+$/) { # numeric base name is auto-generated, i.e. a new entry
             $jobset = $project->jobsets->create(
                 { name => $jobsetName
-                , description => $c->request->params->{"jobset-$baseName-description"}
+                , description => trim $c->request->params->{"jobset-$baseName-description"}
                 , nixexprpath => $nixExprPath
                 , nixexprinput => $nixExprInput
                 });
@@ -102,7 +109,7 @@ sub updateProject {
             $jobset = ($project->jobsets->search({name => $baseName}))[0];
             die unless defined $jobset;
             $jobset->name($jobsetName);
-            $jobset->description($c->request->params->{"jobset-$baseName-description"});
+            $jobset->description(trim $c->request->params->{"jobset-$baseName-description"});
             $jobset->nixexprpath($nixExprPath);
             $jobset->nixexprinput($nixExprInput);
             $jobset->update;
@@ -117,10 +124,10 @@ sub updateProject {
             next if $baseName2 eq "template";
             print STDERR "GOT INPUT: $baseName2\n";
 
-            my $inputName = $c->request->params->{"jobset-$baseName-input-$baseName2-name"};
+            my $inputName = trim $c->request->params->{"jobset-$baseName-input-$baseName2-name"};
             die "Invalid input name: $inputName" unless $inputName =~ /^[[:alpha:]]\w*$/;
 
-            my $inputType = $c->request->params->{"jobset-$baseName-input-$baseName2-type"};
+            my $inputType = trim $c->request->params->{"jobset-$baseName-input-$baseName2-type"};
             die "Invalid input type: $inputType" unless
                 $inputType eq "svn" || $inputType eq "cvs" || $inputType eq "tarball" ||
                 $inputType eq "string" || $inputType eq "path";
@@ -150,7 +157,7 @@ sub updateProject {
             my $altnr = 0;
             foreach my $value (@{$values}) {
                 print STDERR "VALUE: $value\n";
-                $input->jobsetinputalts->create({altnr => $altnr++, value => $value});
+                $input->jobsetinputalts->create({altnr => $altnr++, value => trim $value});
             }
         }
 
@@ -174,7 +181,7 @@ sub project :Local {
     $c->stash->{template} = 'project.tt';
     
     (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
-    return error($c, "Project <tt>$projectName</tt> doesn't exist.") if !defined $project;
+    return error($c, "Project $projectName doesn't exist.") if !defined $project;
 
     my $isPosted = $c->request->method eq "POST";
 
@@ -186,7 +193,7 @@ sub project :Local {
         $c->model('DB')->schema->txn_do(sub {
             updateProject($c, $project);
         });
-        return $c->res->redirect($c->uri_for("/project", $c->request->params->{name}));
+        return $c->res->redirect($c->uri_for("/project", trim $c->request->params->{name}));
     } elsif ($subcommand eq "delete" && $isPosted) {
         $c->model('DB')->schema->txn_do(sub {
             $project->delete;
@@ -255,7 +262,7 @@ sub job :Local {
     $c->stash->{template} = 'job.tt';
 
     (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
-    return error($c, "Project <tt>$projectName</tt> doesn't exist.") if !defined $project;
+    return error($c, "Project $projectName doesn't exist.") if !defined $project;
     $c->stash->{curProject} = $project;
 
     $c->stash->{jobName} = $jobName;
@@ -299,7 +306,7 @@ sub log :Local {
     return error($c, "Build with ID $id doesn't exist.") if !defined $build;
 
     my $log = $build->buildlogs->find({logphase => $logPhase});
-    return error($c, "Build $id doesn't have a log phase named <tt>$logPhase</tt>.") if !defined $log;
+    return error($c, "Build $id doesn't have a log phase named $logPhase.") if !defined $log;
     
     $c->stash->{template} = 'log.tt';
     $c->stash->{id} = $id;

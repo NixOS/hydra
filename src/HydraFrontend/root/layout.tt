@@ -1,4 +1,5 @@
 [% USE date -%]
+[% USE HTML -%]
 <?xml version="1.0" encoding="UTF-8"?>
 
 [% BLOCK makeLink %]
@@ -17,12 +18,9 @@
     <script type="text/javascript" src="/static/js/jquery-pack.js"></script> 
     <script type="text/javascript" src="/static/js/tablesorter/jquery.tablesorter.js"></script>
     <script type="text/javascript">
-      $(document).ready(
-        function()
-        {
-          $("table.tablesorter").tablesorter();
-        }
-      );
+      $(document).ready(function() {
+        $("table.tablesorter").tablesorter();
+      });
     </script>
   </head>
   
@@ -47,7 +45,7 @@
             <ul class="submenu">
               [% FOREACH project IN projects %]
                 <li [% IF curUri == c.uri_for('/project' project.name) %]class="active"[% END %]>
-                  <div class="title"><a href="[% c.uri_for('/project' project.name) %]">[% project.displayname %]</a></div>
+                  <div class="title"><a href="[% c.uri_for('/project' project.name) %]">[% HTML.escape(project.displayname) %]</a></div>
                   [% IF curProject.name == project.name %]
                     <ul class="subsubmenu">
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'edit') title = "Edit" %]

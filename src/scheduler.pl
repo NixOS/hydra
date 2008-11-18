@@ -261,12 +261,15 @@ sub checkJobSet {
 
 sub checkJobs {
 
-    foreach my $project ($db->resultset('Projects')->all) {
+    foreach my $project ($db->resultset('Projects')->search({enabled => 1})) {
         print "PROJECT ", $project->name, "\n";
         foreach my $jobset ($project->jobsets->all) {
             print "  JOBSET ", $jobset->name, "\n";
-            checkJobSet($project, $jobset);
-        }
+            eval {
+                checkJobSet($project, $jobset);
+            }; 
+            warn $@ if $@;
+       }
     }
     
 }
