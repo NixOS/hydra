@@ -205,6 +205,17 @@ div.jobset-edit h3, div.jobset h3 {
     margin-top: 0.5em;
 }
 
+div.help {
+    border: solid black 1px;
+    padding-left: 1em;
+    padding-right: 1em;
+}
+
+div.help pre {
+    padding-left: 1.5em;
+    color: #400000;
+}
+
 
 /* Sortable tables */
 

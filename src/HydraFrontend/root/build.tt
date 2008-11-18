@@ -1,5 +1,6 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
 [% PROCESS common.tt %]
+[% USE HTML %]
 [% USE date %]
 [% USE mibs=format("%.2f") %]
 
@@ -205,6 +206,24 @@
         <img src="/static/images/nix-build.png" alt="Source" />
         Nix build of path <tt>[% product.path %]</tt>
       </a>
+      [<a class="productDetailsToggle" href="javascript:">help</a>]
+      <div class="help productDetails">
+        <p>If you have Nix installed on your machine, this build and all
+        its dependencies can be unpacked into your local Nix store by
+        doing:</p>
+        
+        <pre>$ gunzip < [% HTML.escape(build.nixname) %].closure.gz | nix-store --import</pre>
+
+        or to download and unpack in one command:
+
+        <pre>$ curl [% c.uri_for('/closure' build.id product.productnr) %] | gunzip | nix-store --import</pre>
+        
+        <p>The package can then be found in the path <tt>[%
+        product.path %]</tt>.  If you get the error message “imported
+        archive lacks a signature”, you should make sure that you have
+        sufficient access rights to the Nix store, e.g., run the
+        command as <tt>root</tt>.</p>
+      </div>
       
     [% CASE "file" %]
       <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">

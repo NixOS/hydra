@@ -13,7 +13,10 @@ use Catalyst qw/-Debug
                /;
 our $VERSION = '0.01';
 
-__PACKAGE__->config( name => 'HydraFrontend' );
+__PACKAGE__->config(
+    name => 'HydraFrontend',
+    default_view => "TT"
+    );
 
 __PACKAGE__->setup();
 
