@@ -25,15 +25,18 @@
 [% END %]
 
 
+[% BLOCK renderInputAlt %]
+  [% IF edit %]<button type="button" onclick='$(this).parents(".inputalt").remove()'><img src="/static/images/failure.gif" alt="Delete value" /></button>[% END -%]
+  [% INCLUDE maybeEditString param=param value=alt.value %]
+  [% IF edit %]<br />[% END %]
+[% END %]
+
+
 [% BLOCK renderInput %]
 
   <tr class="input [% extraClass %]" id="[% id %]">
-    [% IF edit %]
-      <td>
-        [% IF edit %]<a href="javascript:" onclick='$(this).parents(".input").remove()'>[X]</a>[% END -%]
-      </td>
-    [% END %]
     <td>
+      [% IF edit %]<button type="button" onclick='$(this).parents(".input").remove()'><img src="/static/images/failure.gif" alt="Delete input" /></button>[% END -%]
       <tt>[% INCLUDE maybeEditString param="$baseName-name" value=input.name extraClass="shortString" %]</tt>
     </td>
     <td>
@@ -45,12 +48,11 @@
           [% IF input.type == "string" && !edit %]
             "[% HTML.escape(alt.value) %]"
           [% ELSE %]
-            [% INCLUDE maybeEditString param="$baseName-values" value=alt.value %]
-            [% IF edit %]<a href="javascript:" onclick='$(this).parents(".inputalt").remove()'>[X]</a><br />[% END %]
+            [% INCLUDE renderInputAlt alt=alt param="$baseName-values" %]
           [% END %]
         </tt>
       [% END %]
-      [% IF edit %]<a href="javascript:" class="add-inputalt">[+]</a>[% END %]
+      [% IF edit %]<button type="button" onclick='return false' class="add-inputalt">+</button>[% END %]
     </td>
   </tr>
 
@@ -61,7 +63,10 @@
 
   <div class="jobset[% IF edit %] jobset-edit[% END %]" id="[% "jobset-$baseName" %]">
 
-  <h3>[% IF jobset %]Jobset <tt>[% jobset.name %]</tt>[% ELSE %]New jobset[% END %]</h3>
+  <h3>
+    [% IF edit %]<button type="button" onclick='$(this).parents(".jobset").remove()'><img src="/static/images/failure.gif" alt="Delete value" /></button>[% END %]
+    [% IF jobset %]Jobset <tt>[% jobset.name %]</tt>[% ELSE %]New jobset[% END %]
+  </h3>
 
   <h4>Information</h4>
 
@@ -87,25 +92,21 @@
 
   <h4>Inputs</h4>
 
-  [% IF edit %]
-  <p><button class="add-input">Add a new input</button></p>
-  [% END %]
-  
   <table class="tablesorter">
     <thead>
-      <tr>[% IF edit %]<th></th>[% END %]<th>Input name</th><th>Type</th><th>Values</th></tr>
+      <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
     </thead>
     <tbody class="inputs">
       [% FOREACH input IN jobset.jobsetinputs -%]
         [% INCLUDE renderInput input=input baseName="jobset-$baseName-input-$input.name" %]
       [% END %]
+      [% IF edit %]
+        <tr>
+          <td colspan="3"><button type="button" class="add-input">Add a new input</button></td>
+        </tr>
+      [% END %]
     </tbody>
   </table>
-
-  [% IF edit %]
-  <hr />
-  <p><button onclick='$(this).parents(".jobset").remove()'>Delete this jobset</button></p>
-  [% END %]
 
   </div>
 
@@ -155,7 +156,7 @@
 [% IF curProject.jobsets && curProject.jobsets.size > 0 || edit %]
 
   [% IF edit %]
-    <p><button id="add-jobset">Add a new jobset</button></p>
+    <p><button type="button" id="add-jobset">Add a new jobset</button></p>
 
     <div id="jobset-template" class="template">
       [% INCLUDE renderJobset jobset="" baseName="template" %]
@@ -165,9 +166,8 @@
       [% INCLUDE renderInput input="" extraClass="template" id="input-template" baseName="input-template" %]
     </table>
     
-    <tt id="inputalt-template" class="inputalt template">
-      <input type="text" class="string" />
-      <a href="javascript:" onclick='$(this).parents(".inputalt").remove()'>[X]</a>
+    <tt class="inputalt template" id="inputalt-template">
+      [% INCLUDE renderInputAlt alt=alt %]
     </tt>
     
     <script>
@@ -189,7 +189,7 @@
           var jobset = $(this).parents(".jobset");
           var inputid = jobset.attr("id");
           var newid = inputid + "-input-" + id++;
-          var x = $("#input-template").clone(true).attr("id", "").appendTo($(".inputs", jobset)).show();
+          var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
           $("#input-template-name", x).attr("name", newid + "-name");
           $("#input-template-type", x).attr("name", newid + "-type");
           $("#input-template", x).attr("id", newid);
