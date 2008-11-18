@@ -340,12 +340,12 @@ sub nixlog :Local {
 
 sub loadLog {
     my ($path) = @_;
-    # !!! all a quick hack
-    if ($path =~ /.bz2$/) {
-        return `cat $path | bzip2 -d`;
-    } else {
-        return `cat $path`;
-    }
+
+    # !!! quick hack
+    my $pipeline = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path")
+        . " | nix-log2xml | xsltproc xsl/mark-errors.xsl - | xsltproc xsl/log2html.xsl - | tail -n +2";
+
+    return `$pipeline`;
 }
 
 
@@ -400,8 +400,8 @@ sub closure :Local {
     $c->stash->{storePath} = $product->path;
     $c->stash->{name} = $build->nixname;
 }
-    
-    
+
+
 sub end : ActionClass('RenderView') {}
 
 

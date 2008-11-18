@@ -159,6 +159,11 @@ pre.buildlog {
     white-space: pre-wrap;
 }
 
+div.buildlog {
+    border: 1px solid black;
+    padding: 0.3em;
+}
+
 ul.productList {
     list-style: none;
     padding-left: 1em;
