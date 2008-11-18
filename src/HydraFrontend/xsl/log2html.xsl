@@ -7,6 +7,8 @@
               doctype-system="http://www.w3.org/TR/html4/strict.dtd" />
 
   <xsl:template match="logfile">
+    [<a href="javascript:" class="logTreeExpandAll">Expand all</a>]
+    [<a href="javascript:" class="logTreeCollapseAll">Collapse all</a>]
     <ul class='toplevel'>
       <xsl:for-each select='line|nest'>
         <li>
@@ -27,8 +29,12 @@
                   
     <xsl:variable name="style"><xsl:if test="$collapsed">display: none;</xsl:if></xsl:variable>
     <xsl:variable name="arg"><xsl:choose><xsl:when test="$collapsed">true</xsl:when><xsl:otherwise>false</xsl:otherwise></xsl:choose></xsl:variable>
+
+    <xsl:if test="line|nest">
+      <a href="javascript:" class="logTreeToggle"></a>
+      <xsl:text> </xsl:text>
+    </xsl:if>
     
-    <script type='text/javascript'>showTreeToggle(<xsl:value-of select="$collapsed"/>)</script>
     <xsl:apply-templates select='head'/>
 
     <!-- Be careful to only generate <ul>s if there are <li>s, otherwise it’s malformed. -->

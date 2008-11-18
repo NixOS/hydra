@@ -69,11 +69,8 @@ em.storeref:hover span.popup {
 }
 
 
-.toggle {
+.logTreeToggle {
     text-decoration: none;
-}
-
-.showTree, .hideTree {
     font-family: monospace;
     font-size: larger;
 }
