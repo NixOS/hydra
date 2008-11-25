@@ -1,4 +1,4 @@
-package Hydra::Schema::Buildschedulinginfo;
+package Hydra::Schema::Cachedsubversioninputs;
 
 use strict;
 use warnings;
@@ -6,25 +6,22 @@ use warnings;
 use base 'DBIx::Class';
 
 __PACKAGE__->load_components("Core");
-__PACKAGE__->table("BuildSchedulingInfo");
+__PACKAGE__->table("CachedSubversionInputs");
 __PACKAGE__->add_columns(
-  "id",
-  { data_type => "integer", is_nullable => 0, size => undef },
-  "priority",
-  { data_type => "integer", is_nullable => 0, size => undef },
-  "busy",
-  { data_type => "integer", is_nullable => 0, size => undef },
-  "locker",
+  "uri",
   { data_type => "text", is_nullable => 0, size => undef },
-  "logfile",
+  "revision",
+  { data_type => "integer", is_nullable => 0, size => undef },
+  "sha256hash",
+  { data_type => "text", is_nullable => 0, size => undef },
+  "storepath",
   { data_type => "text", is_nullable => 0, size => undef },
 );
-__PACKAGE__->set_primary_key("id");
-__PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" });
+__PACKAGE__->set_primary_key("uri", "revision");
 
 
 # Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-25 18:59:54
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+a/kUdHtdjxdAOBSWdUsVA
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:S62F6Z2wPT/+NoIApQcBmQ
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

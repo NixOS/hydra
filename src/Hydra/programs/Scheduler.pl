@@ -105,13 +105,65 @@ sub fetchInput {
             };
     }
 
+    elsif ($type eq "svn") {
+        my $uri = $alt->value;
+
+        my $sha256;
+        my $storePath;
+
+        # First figure out the last-modified revision of the URI.
+        my @cmd = (["svn", "ls", "-v", "--depth", "empty", $uri],
+                   "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
+        my $stdout; my $stderr;
+        die "cannot get head revision of Subversion repository at `$uri':\n$stderr"
+            unless IPC::Run::run(@cmd, \$stdout, \$stderr);
+        my $revision = $stdout; chomp $revision;
+        die unless $revision =~ /^\d+$/;
+
+        (my $cachedInput) = $db->resultset('Cachedsubversioninputs')->search(
+            {uri => $uri, revision => $revision});
+
+        if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+            $storePath = $cachedInput->storepath;
+            $sha256 = $cachedInput->sha256hash;
+        } else {
+            
+            # Then download this revision into the store.
+            print "checking out Subversion input ", $input->name, " from $uri revision $revision\n";
+            $ENV{"NIX_HASH_ALGO"} = "sha256";
+            $ENV{"PRINT_PATH"} = "1";
+            (my $res, $stdout, $stderr) = captureStdoutStderr(
+                "nix-prefetch-svn", $uri, $revision);
+            die "cannot check out Subversion repository `$uri':\n$stderr" unless $res;
+
+            ($sha256, $storePath) = split ' ', $stdout;
+
+            $db->txn_do(sub {
+                $db->resultset('Cachedsubversioninputs')->create(
+                    { uri => $uri
+                    , revision => $revision
+                    , sha256hash => $sha256
+                    , storepath => $storePath
+                    });
+            });
+        }
+        
+        $$inputInfo{$input->name} =
+            { type => $type
+            , uri => $uri
+            , storePath => $storePath
+            , sha256hash => $sha256
+            , revision => $revision
+            };
+    }
+    
     elsif ($type eq "string") {
         die unless defined $alt->value;
         $$inputInfo{$input->name} = {type => $type, value => $alt->value};
     }
     
     else {
-        die "input `" . $input->type . "' has unknown type `$type'";
+        die "input `" . $input->name . "' has unknown type `$type'";
     }
 }
 
@@ -346,7 +398,7 @@ sub checkJobs {
             };
             if ($@) {
                 print "error evaluating jobset ", $jobset->name, ": $@";
-                setProjectError($jobset, $@);
+                setJobsetError($jobset, $@);
             }
         }
     }

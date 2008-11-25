@@ -241,3 +241,12 @@ create table CachedPathInputs (
     storePath     text not null,
     primary key   (srcPath, sha256hash)
 );
+
+
+create table CachedSubversionInputs (
+    uri           text not null,
+    revision      integer not null,
+    sha256hash    text not null,
+    storePath     text not null,
+    primary key   (uri, revision)
+);
