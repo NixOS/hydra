@@ -61,6 +61,8 @@ create table BuildResultInfo (
     stopTime      integer,
 
     logfile       text, -- the path of the logfile
+
+    releaseName   text, -- e.g. "patchelf-0.5pre1234"
     
     foreign key   (id) references Builds(id) on delete cascade -- ignored by sqlite
 );

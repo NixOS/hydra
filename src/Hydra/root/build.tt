@@ -102,6 +102,12 @@
       [% END %]
     </td>
   </tr>
+  [% IF build.resultInfo.releasename %]
+    <tr>
+      <th>Release name:</th>
+      <td><tt>[% HTML.escape(build.resultInfo.releasename) %]</tt></td>
+    </tr>
+  [% END %]
   [% IF build.resultInfo.logfile %]
     <tr>
       <th>Logfile:</th>

@@ -56,7 +56,6 @@ sub fetchInput {
             {rows => 1, order_by => "lastseen DESC"});
 
         if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-            print "CACHED $uri $cachedInput ", $cachedInput->timestamp, " ", $cachedInput->timestamp, "\n";
             $storePath = $cachedInput->storepath;
             $sha256 = $cachedInput->sha256hash;
             $timestamp = $cachedInput->timestamp;
@@ -232,7 +231,7 @@ sub checkJobAlternatives {
             my @newArgs = @{$extraArgs};
             if (defined $inputInfo->{$argName}->{storePath}) {
                 push @newArgs, "--arg", $argName,
-                    "{path = " . $inputInfo->{$argName}->{storePath} . ";" .
+                    "{path = builtins.storePath " . $inputInfo->{$argName}->{storePath} . ";" .
                     " rev = \"" . $inputInfo->{$argName}->{revision} . "\";}";
             } elsif (defined $inputInfo->{$argName}->{value}) {
                 push @newArgs, "--argstr", $argName, $inputInfo->{$argName}->{value};
@@ -268,7 +267,7 @@ sub checkJobAlternatives {
             };
 
         my @newArgs = @{$extraArgs};
-        push @newArgs, "--arg", $argName, "{path = " . $prevBuild->outpath . ";}";
+        push @newArgs, "--arg", $argName, "{path = builtins.storePath " . $prevBuild->outpath . ";}";
         
         checkJobAlternatives(
             $project, $jobset, $inputInfo, $nixExprPath,

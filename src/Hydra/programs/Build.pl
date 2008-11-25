@@ -187,6 +187,14 @@ sub doBuild {
 
         my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
         $logPath = undef unless -e $logPath;
+
+        my $releaseName;
+        if (-e "$outPath/nix-support/hydra-release-name") {
+            open FILE, "$outPath/nix-support/hydra-release-name" or die;
+            $releaseName = <FILE>;
+            chomp $releaseName;
+            close FILE;
+        }
         
         $db->resultset('Buildresultinfo')->create(
             { id => $build->id
@@ -196,6 +204,7 @@ sub doBuild {
             , stoptime => $stopTime
             , logfile => $logPath
             , errormsg => $errormsg
+            , releasename => $releaseName
             });
 
         if ($buildStatus == 0) {
