@@ -1,4 +1,4 @@
-package HydraFrontend::Schema::Buildproducts;
+package Hydra::Schema::Buildproducts;
 
 use strict;
 use warnings;
@@ -30,11 +30,11 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("build", "productnr");
-__PACKAGE__->belongs_to("build", "HydraFrontend::Schema::Builds", { id => "build" });
+__PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-24 17:46:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:d85fCxlq/WDfQa20zXYuzw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-25 11:59:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:9b3ZNy73Cjat0gr5nQHIpA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

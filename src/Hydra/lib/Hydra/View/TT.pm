@@ -1,4 +1,4 @@
-package HydraFrontend::View::TT;
+package Hydra::View::TT;
 
 use strict;
 use base 'Catalyst::View::TT';

@@ -1,4 +1,4 @@
-package HydraFrontend::View::NixClosure;
+package Hydra::View::NixClosure;
 
 use strict;
 use base qw/Catalyst::View/;

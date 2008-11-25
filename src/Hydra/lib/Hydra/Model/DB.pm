@@ -1,10 +1,10 @@
-package HydraFrontend::Model::DB;
+package Hydra::Model::DB;
 
 use strict;
 use base 'Catalyst::Model::DBIC::Schema';
 
 __PACKAGE__->config(
-    schema_class => 'HydraFrontend::Schema',
+    schema_class => 'Hydra::Schema',
     connect_info => [
         'dbi:SQLite:../hydra.sqlite',
         
@@ -13,14 +13,14 @@ __PACKAGE__->config(
 
 =head1 NAME
 
-HydraFrontend::Model::DB - Catalyst DBIC Schema Model
+Hydra::Model::DB - Catalyst DBIC Schema Model
 =head1 SYNOPSIS
 
-See L<HydraFrontend>
+See L<Hydra>
 
 =head1 DESCRIPTION
 
-L<Catalyst::Model::DBIC::Schema> Model using schema L<HydraFrontend::Schema>
+L<Catalyst::Model::DBIC::Schema> Model using schema L<Hydra::Schema>
 
 =head1 AUTHOR
 

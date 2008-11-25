@@ -1,4 +1,4 @@
-package HydraFrontend::Schema::Jobsets;
+package Hydra::Schema::Jobsets;
 
 use strict;
 use warnings;
@@ -22,25 +22,21 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("project", "name");
 __PACKAGE__->has_many(
   "builds",
-  "HydraFrontend::Schema::Builds",
+  "Hydra::Schema::Builds",
   {
     "foreign.jobset"  => "self.name",
     "foreign.project" => "self.project",
   },
 );
-__PACKAGE__->belongs_to(
-  "project",
-  "HydraFrontend::Schema::Projects",
-  { name => "project" },
-);
+__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
 __PACKAGE__->belongs_to(
   "jobsetinput",
-  "HydraFrontend::Schema::Jobsetinputs",
+  "Hydra::Schema::Jobsetinputs",
   { job => "name", name => "nixexprinput", project => "project" },
 );
 __PACKAGE__->has_many(
   "jobsetinputs",
-  "HydraFrontend::Schema::Jobsetinputs",
+  "Hydra::Schema::Jobsetinputs",
   {
     "foreign.jobset"  => "self.name",
     "foreign.project" => "self.project",
@@ -48,8 +44,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-24 17:46:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:F3WF5YS/Yas12dK2Gyekpg
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-25 11:59:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:MYl8lWfWLCIAGSulR3m5zw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

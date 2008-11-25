@@ -52,9 +52,9 @@ if ( $debug ) {
 
 # This is require instead of use so that the above environment
 # variables can be set at runtime.
-require HydraFrontend;
+require Hydra;
 
-HydraFrontend->run( $port, $host, {
+Hydra->run( $port, $host, {
     argv              => \@argv,
     'fork'            => $fork,
     keepalive         => $keepalive,
@@ -69,11 +69,11 @@ HydraFrontend->run( $port, $host, {
 
 =head1 NAME
 
-hydrafrontend_server.pl - Catalyst Testserver
+hydra_server.pl - Catalyst Testserver
 
 =head1 SYNOPSIS
 
-hydrafrontend_server.pl [options]
+hydra_server.pl [options]
 
  Options:
    -d -debug          force debug mode

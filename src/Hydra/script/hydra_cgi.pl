@@ -6,15 +6,15 @@ use strict;
 use warnings;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use HydraFrontend;
+use Hydra;
 
-HydraFrontend->run;
+Hydra->run;
 
 1;
 
 =head1 NAME
 
-hydrafrontend_cgi.pl - Catalyst CGI
+hydra_cgi.pl - Catalyst CGI
 
 =head1 SYNOPSIS
 

@@ -1,4 +1,4 @@
-package HydraFrontend::Schema::Jobsetinputalts;
+package Hydra::Schema::Jobsetinputalts;
 
 use strict;
 use warnings;
@@ -26,13 +26,13 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("project", "jobset", "input", "altnr");
 __PACKAGE__->belongs_to(
   "jobsetinput",
-  "HydraFrontend::Schema::Jobsetinputs",
+  "Hydra::Schema::Jobsetinputs",
   { jobset => "jobset", name => "input", project => "project" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-24 17:46:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:x7OCv8YzB2L4H+RxEfwjbg
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-25 11:59:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:mG0ka8XxC3ZEs/KgGKe5Hg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

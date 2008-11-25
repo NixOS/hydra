@@ -2,8 +2,8 @@
 # expected.  you have been warned
 use inc::Module::Install;
 
-name 'HydraFrontend';
-all_from 'lib/HydraFrontend.pm';
+name 'Hydra';
+all_from 'lib/Hydra.pm';
 
 requires 'Catalyst::Runtime' => '5.7015';
 requires 'Catalyst::Plugin::ConfigLoader';

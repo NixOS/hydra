@@ -1,4 +1,4 @@
-package HydraFrontend;
+package Hydra;
 
 use strict;
 use warnings;
@@ -14,7 +14,7 @@ use Catalyst qw/-Debug
 our $VERSION = '0.01';
 
 __PACKAGE__->config(
-    name => 'HydraFrontend',
+    name => 'Hydra',
     default_view => "TT"
     );
 

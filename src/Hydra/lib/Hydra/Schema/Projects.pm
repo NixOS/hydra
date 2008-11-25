@@ -1,4 +1,4 @@
-package HydraFrontend::Schema::Projects;
+package Hydra::Schema::Projects;
 
 use strict;
 use warnings;
@@ -20,18 +20,18 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("name");
 __PACKAGE__->has_many(
   "builds",
-  "HydraFrontend::Schema::Builds",
+  "Hydra::Schema::Builds",
   { "foreign.project" => "self.name" },
 );
 __PACKAGE__->has_many(
   "jobsets",
-  "HydraFrontend::Schema::Jobsets",
+  "Hydra::Schema::Jobsets",
   { "foreign.project" => "self.name" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-24 17:46:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:M+HA5YEL1oKKTQlLvhb6dw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-25 11:59:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:tLlYQAkX5CeUR2GJir8ifg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

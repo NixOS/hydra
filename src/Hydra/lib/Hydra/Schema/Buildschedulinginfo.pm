@@ -1,4 +1,4 @@
-package HydraFrontend::Schema::Buildschedulinginfo;
+package Hydra::Schema::Buildschedulinginfo;
 
 use strict;
 use warnings;
@@ -20,11 +20,11 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("id");
-__PACKAGE__->belongs_to("id", "HydraFrontend::Schema::Builds", { id => "id" });
+__PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-24 17:46:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:vqJ7HEML5YNn5VIXEhZbnw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-25 11:59:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:kt5gBt14ay7/DiIaQpKopA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

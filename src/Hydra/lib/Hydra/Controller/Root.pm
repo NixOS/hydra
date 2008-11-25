@@ -1,9 +1,9 @@
-package HydraFrontend::Controller::Root;
+package Hydra::Controller::Root;
 
 use strict;
 use warnings;
 use parent 'Catalyst::Controller';
-use HydraFrontend::Helper::Nix;
+use Hydra::Helper::Nix;
 
 #
 # Sets the actions in this controller to be registered with no prefix
@@ -394,9 +394,9 @@ sub closure :Local {
 
     return error($c, "Product is not a Nix build.") if $product->type ne "nix-build";
 
-    return error($c, "Path " . $product->path . " is no longer available.") unless HydraFrontend::Helper::Nix::isValidPath($product->path);
+    return error($c, "Path " . $product->path . " is no longer available.") unless Hydra::Helper::Nix::isValidPath($product->path);
 
-    $c->stash->{current_view} = 'HydraFrontend::View::NixClosure';
+    $c->stash->{current_view} = 'Hydra::View::NixClosure';
     $c->stash->{storePath} = $product->path;
     $c->stash->{name} = $build->nixname;
 }

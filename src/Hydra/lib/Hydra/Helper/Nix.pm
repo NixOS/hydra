@@ -1,4 +1,4 @@
-package HydraFrontend::Helper::Nix;
+package Hydra::Helper::Nix;
 
 use strict;
 
