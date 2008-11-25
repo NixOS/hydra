@@ -263,6 +263,8 @@
           <img src="/static/images/source-dist.png" alt="Source" /> Source distribution <tt>[% product.name %]</tt>
         [% CASE "rpm" %]
           <img src="/static/images/rpm.png" alt="RPM" /> RPM package <tt>[% product.name %]</tt>
+        [% CASE "deb" %]
+          <img src="/static/images/debian.png" alt="RPM" /> Debian package <tt>[% product.name %]</tt>
         [% CASE DEFAULT %]
           File <tt>[% product.name %]</tt> of type <tt>[% product.subtype %]</tt>
         [% END %]
