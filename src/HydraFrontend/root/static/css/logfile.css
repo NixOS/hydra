@@ -79,3 +79,7 @@ em.storeref:hover span.popup {
     color: #ff0000;
     font-weight: bold;
 }
+
+.prio3 {
+    font-style: italic;
+}

@@ -328,7 +328,7 @@ sub nixlog :Local {
     return error($c, "Build step $stepnr of build $id does not have a log file.") if $step->logfile eq "";
     
     $c->stash->{template} = 'log.tt';
-    $c->stash->{id} = $id;
+    $c->stash->{build} = $build;
     $c->stash->{step} = $step;
 
     # !!! should be done in the view (as a TT plugin).
