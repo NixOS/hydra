@@ -100,10 +100,12 @@ sub updateProject {
 
         my $jobset;
 
+        my $description = trim $c->request->params->{"jobset-$baseName-description"};
+
         if ($baseName =~ /^\d+$/) { # numeric base name is auto-generated, i.e. a new entry
             $jobset = $project->jobsets->create(
                 { name => $jobsetName
-                , description => trim $c->request->params->{"jobset-$baseName-description"}
+                , description => $description
                 , nixexprpath => $nixExprPath
                 , nixexprinput => $nixExprInput
                 });
@@ -111,7 +113,7 @@ sub updateProject {
             $jobset = ($project->jobsets->search({name => $baseName}))[0];
             die unless defined $jobset;
             $jobset->name($jobsetName);
-            $jobset->description(trim $c->request->params->{"jobset-$baseName-description"});
+            $jobset->description($description);
             $jobset->nixexprpath($nixExprPath);
             $jobset->nixexprinput($nixExprInput);
             $jobset->update;
