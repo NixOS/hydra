@@ -2,10 +2,10 @@
 
 use strict;
 use XML::Simple;
-use HydraFrontend::Schema;
+use Hydra::Schema;
 
 
-my $db = HydraFrontend::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
+my $db = Hydra::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
 
 $db->storage->dbh->do("PRAGMA synchronous = OFF;");
 

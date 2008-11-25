@@ -3,10 +3,10 @@
 use strict;
 use Cwd;
 use POSIX qw(dup2);
-use HydraFrontend::Schema;
+use Hydra::Schema;
 
 
-my $db = HydraFrontend::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
+my $db = Hydra::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
 
 $db->storage->dbh->do("PRAGMA synchronous = OFF;");
 
@@ -49,6 +49,7 @@ sub checkJobs {
             $job->schedulingInfo->locker($$);
             $job->schedulingInfo->logfile($logfile);
             $job->schedulingInfo->update;
+            $job->buildsteps->delete_all;
         }
 
     });
@@ -65,8 +66,8 @@ sub checkJobs {
                 open LOG, ">$logfile" or die;
                 POSIX::dup2(fileno(LOG), 1) or die;
                 POSIX::dup2(fileno(LOG), 2) or die;
-                exec("perl", "-IHydraFrontend/lib", "-w",
-                     "./build.pl", $id);
+                exec("perl", "-IHydra/lib", "-w",
+                     "./Hydra/programs/Build.pl", $id);
                 warn "cannot start job " . $id;
                 _exit(1);
             }

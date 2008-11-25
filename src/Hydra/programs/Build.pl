@@ -3,10 +3,10 @@
 use strict;
 use File::Basename;
 use File::stat;
-use HydraFrontend::Schema;
+use Hydra::Schema;
 
 
-my $db = HydraFrontend::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
+my $db = Hydra::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
 
 $db->storage->dbh->do("PRAGMA synchronous = OFF;");
 

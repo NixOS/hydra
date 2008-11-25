@@ -112,7 +112,7 @@
         [% content %]
         <div id="footer">
           <hr />
-          Generated at [% date.format %].
+          Generated on [% date.format %].
         </div>
       </div>
 
