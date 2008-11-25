@@ -134,7 +134,7 @@ sub updateProject {
             my $inputType = trim $c->request->params->{"jobset-$baseName-input-$baseName2-type"};
             die "Invalid input type: $inputType" unless
                 $inputType eq "svn" || $inputType eq "cvs" || $inputType eq "tarball" ||
-                $inputType eq "string" || $inputType eq "path";
+                $inputType eq "string" || $inputType eq "path" || $inputType eq "boolean";
 
             $inputNames{$inputName} = 1;
             
@@ -161,7 +161,10 @@ sub updateProject {
             my $altnr = 0;
             foreach my $value (@{$values}) {
                 print STDERR "VALUE: $value\n";
-                $input->jobsetinputalts->create({altnr => $altnr++, value => trim $value});
+                my $value = trim $value;
+                die "Invalid Boolean value: $value" if
+                    $inputType eq "boolean" && !($value eq "true" || $value eq "false");
+                $input->jobsetinputalts->create({altnr => $altnr++, value => $value});
             }
         }
 

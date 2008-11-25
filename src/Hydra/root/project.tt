@@ -26,9 +26,13 @@
 
 
 [% BLOCK renderInputAlt %]
-  [% IF edit %]<button type="button" onclick='$(this).parents(".inputalt").remove()'><img src="/static/images/failure.gif" alt="Delete value" /></button>[% END -%]
-  [% INCLUDE maybeEditString param=param value=alt.value %]
-  [% IF edit %]<br />[% END %]
+  [% IF edit %]
+    <button type="button" onclick='$(this).parents(".inputalt").remove()'><img src="/static/images/failure.gif" alt="Delete value" /></button>
+    [% INCLUDE maybeEditString param=param value=alt.value %]
+    <br />  
+  [% ELSE %]
+    [% INCLUDE maybeEditString param=param value=alt.value %]
+  [% END %]
 [% END %]
 
 

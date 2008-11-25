@@ -193,7 +193,7 @@ create table JobsetInputs (
     project       text not null,
     jobset        text not null,
     name          text not null,
-    type          text not null, -- "svn", "cvs", "path", "uri", "string"
+    type          text not null, -- "svn", "cvs", "path", "uri", "string", "boolean"
     primary key   (project, jobset, name),
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade -- ignored by sqlite
 );

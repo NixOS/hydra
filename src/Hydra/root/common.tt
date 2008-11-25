@@ -3,6 +3,7 @@
     , "cvs" = "CVS checkout"
     , "tarball" = "Download of a tarball"
     , "string" = "String value"
+    , "boolean" = "Boolean"
     , "path" = "Local path"
     , "build" = "Build output"
     }

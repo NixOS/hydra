@@ -145,7 +145,7 @@
         <td>
           [% IF input.type == "build" %]
             <a href="[% c.uri_for('/build' input.dependency.id) %]">Job <tt>[% input.dependency.project.name %]:[% input.dependency.attrname %]</tt> build [% input.dependency.id %]</a>
-          [% ELSIF input.type == "string" %]
+          [% ELSIF input.type == "string" || input.type == "boolean" %]
             <tt>"[% input.value %]"</tt>
           [% ELSE %]
             <tt>[% input.uri %]</tt>

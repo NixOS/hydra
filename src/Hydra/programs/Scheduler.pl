@@ -162,6 +162,11 @@ sub fetchInput {
         $$inputInfo{$input->name} = {type => $type, value => $alt->value};
     }
     
+    elsif ($type eq "boolean") {
+        die unless defined $alt->value && ($alt->value eq "true" || $alt->value eq "false");
+        $$inputInfo{$input->name} = {type => $type, value => $alt->value};
+    }
+    
     else {
         die "input `" . $input->name . "' has unknown type `$type'";
     }
@@ -285,8 +290,10 @@ sub checkJobAlternatives {
                 push @newArgs, "--arg", $argName,
                     "{path = builtins.storePath " . $inputInfo->{$argName}->{storePath} . ";" .
                     " rev = \"" . $inputInfo->{$argName}->{revision} . "\";}";
-            } elsif (defined $inputInfo->{$argName}->{value}) {
+            } elsif ($inputInfo->{$argName}->{type} eq "string") {
                 push @newArgs, "--argstr", $argName, $inputInfo->{$argName}->{value};
+            } elsif ($inputInfo->{$argName}->{type} eq "boolean") {
+                push @newArgs, "--arg", $argName, $inputInfo->{$argName}->{value};
             }
             checkJobAlternatives(
                 $project, $jobset, $inputInfo, $nixExprPath,
@@ -382,7 +389,10 @@ sub checkJobSet {
                 $project, $jobset, {}, $nixExprPath,
                 $jobName, $jobExpr, [], \@argsNeeded, 0);
         };
-        warn $@ if $@;
+        if ($@) {
+            print "error checking job ", $jobName, ": $@";
+            setJobsetError($jobset, $@);
+        }
     }
 }
 
