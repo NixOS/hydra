@@ -16,13 +16,13 @@
 [% END %]
 
 
-[% BLOCK maybeEditString %]
-  [% IF edit %]
+[% BLOCK maybeEditString;
+  IF edit -%]
     <input type="text" class="string [% extraClass %]" [% HTML.attributes(id => param, name => param, value => value) %] />
-  [% ELSE %]
-    [% HTML.escape(value) %]
-  [% END %]
-[% END %]
+  [% ELSE;
+    HTML.escape(value);
+  END -%]
+[% END -%]
 
 
 [% BLOCK renderInputAlt %]
