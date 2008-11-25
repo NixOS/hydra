@@ -170,6 +170,8 @@ create table Jobsets (
     description   text,
     nixExprInput  text not null, -- name of the jobsetInput containing the Nix expression
     nixExprPath   text not null, -- relative path of the Nix expression
+    errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
+    errorTime     integer, -- timestamp associated with errorMsg
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
     foreign key   (project, name, nixExprInput) references JobsetInputs(project, job, name)

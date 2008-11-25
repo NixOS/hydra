@@ -18,6 +18,10 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
   "nixexprpath",
   { data_type => "text", is_nullable => 0, size => undef },
+  "errormsg",
+  { data_type => "text", is_nullable => 0, size => undef },
+  "errortime",
+  { data_type => "integer", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("project", "name");
 __PACKAGE__->has_many(
@@ -44,8 +48,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-25 11:59:19
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:MYl8lWfWLCIAGSulR3m5zw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-25 12:58:40
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:kEcdBc9XKVhz6zO/XEkAxg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

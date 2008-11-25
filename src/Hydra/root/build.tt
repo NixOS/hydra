@@ -1,7 +1,6 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
 [% PROCESS common.tt %]
 [% USE HTML %]
-[% USE date %]
 [% USE mibs=format("%.2f") %]
 
 <h1>
@@ -25,7 +24,7 @@
   </tr>
   <tr>
     <th>Time added:</th>
-    <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+    <td>[% PROCESS renderDateTime timestamp = build.timestamp %]</td>
   </tr>
   <tr>
     <th>Status:</th>
@@ -87,11 +86,11 @@
   [% IF build.finished %]
   <tr>
     <th>Build started:</th>
-    <td>[% IF build.resultInfo.starttime %][% date.format(build.resultInfo.starttime, '%Y-%m-%d %H:%M:%S') %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+    <td>[% IF build.resultInfo.starttime %][% PROCESS renderDateTime timestamp = build.resultInfo.starttime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
   </tr>
   <tr>
     <th>Build finished:</th>
-    <td>[% IF build.resultInfo.stoptime %][% date.format(build.resultInfo.stoptime, '%Y-%m-%d %H:%M:%S') %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+    <td>[% IF build.resultInfo.stoptime %][% PROCESS renderDateTime timestamp = build.resultInfo.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
   </tr>
   <tr>
     <th>Duration (seconds):</th>
@@ -348,7 +347,7 @@
         <td><a href="[% c.uri_for('/build' input.build.id) %]">Job <tt>[% input.build.project.name %]:[% input.build.attrname %]</tt> build [% input.build.id %]</a></td>
         <td><tt>[% input.name %]</tt></td>
         <td><tt>[% input.build.system %]</tt></td>
-        <td>[% date.format(input.build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+        <td>[% PROCESS renderDateTime timestamp = input.build.timestamp %]</td>
       </tr>
     [% END -%]
   </tbody>

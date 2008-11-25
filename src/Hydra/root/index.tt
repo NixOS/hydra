@@ -67,13 +67,4 @@
 </table>
 
 
-<h2>Projects</h2>
-
-<ul>
-  [% FOREACH project IN projects -%]
-    <li><a href="[% c.uri_for('/project' project.name) %]"><tt>[% project.name %]</tt></a></li>
-  [% END -%]
-</ul>
-
-
 [% END %]

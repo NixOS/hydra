@@ -7,3 +7,9 @@
     , "build" = "Build output"
     }
 %]
+
+[% USE date %]
+
+[% BLOCK renderDateTime %]
+  [% date.format(timestamp, '%Y-%m-%d %H:%M:%S') -%]
+[% END %]

@@ -44,6 +44,7 @@ td {
 }
 
 th {
+    vertical-align: top;
     background: #ffffc0;
 }
 
@@ -167,6 +168,12 @@ pre.buildlog {
 div.buildlog {
     border: 1px solid black;
     padding: 0.3em;
+}
+
+.multiLineMsg {
+    padding: 0em;
+    margin: 0em;
+    white-space: pre-wrap;
 }
 
 ul.productList {

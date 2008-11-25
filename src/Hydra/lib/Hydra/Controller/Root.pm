@@ -56,8 +56,9 @@ sub index :Path :Args(0) {
     # Get the latest finished build for each unique job.
     $c->stash->{latestBuilds} = [$c->model('DB::Builds')->search(undef,
         { join => 'resultInfo'
-        , where => "finished != 0 and timestamp = (select max(timestamp) from Builds where project == me.project and attrName == me.attrName and finished != 0)"
-        , order_by => "project, attrname"
+        , where => "finished != 0 and timestamp = (select max(timestamp) from Builds " .
+            "where project == me.project and attrName == me.attrName and finished != 0 and system == me.system)"
+        , order_by => "project, attrname, system"
         })];
 }
 
