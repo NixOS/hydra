@@ -2,8 +2,7 @@
 -- scheduled builds, additional info (such as the priority) can be
 -- found in the BuildSchedulingInfo table.  For finished builds,
 -- additional info (such as the logs, build products, etc.) can be
--- found in several tables, such as BuildResultInfo, BuildLogs and
--- BuildProducts.
+-- found in several tables, such as BuildResultInfo and BuildProducts.
 create table Builds (
     id            integer primary key autoincrement not null,
 
@@ -48,14 +47,21 @@ create table BuildResultInfo (
     id            integer primary key not null,
     
     isCachedBuild integer not null, -- boolean
-    
-    buildStatus   integer, -- 0 = succeeded, 1 = Nix build failure, 2 = positive build failure
+
+    -- Status codes:
+    --   0 = succeeded
+    --   1 = build of this derivation failed
+    --   2 = build of some dependency failed
+    --   3 = other failure (see errorMsg)
+    buildStatus   integer,
 
     errorMsg      text, -- error message in case of a Nix failure
     
     startTime     integer, -- in Unix time, 0 = used cached build result
     stopTime      integer,
 
+    logfile       text, -- the path of the logfile
+    
     foreign key   (id) references Builds(id) on delete cascade -- ignored by sqlite
 );
 
@@ -126,16 +132,6 @@ create table BuildProducts (
 );
 
 
-create table BuildLogs (
-    build         integer not null,
-    logPhase      text not null,
-    path          text not null,
-    type          text not null,
-    primary key   (build, logPhase),
-    foreign key   (build) references Builds(id) on delete cascade -- ignored by sqlite
-);
-
-
 -- Emulate "on delete cascade" foreign key constraints.
 create trigger cascadeBuildDeletion
   before delete on Builds
@@ -143,7 +139,6 @@ create trigger cascadeBuildDeletion
     delete from BuildSchedulingInfo where id = old.id;
     delete from BuildResultInfo where id = old.id;
     delete from BuildInputs where build = old.id;
-    delete from BuildLogs where build = old.id;
     delete from BuildProducts where build = old.id;
   end;
 

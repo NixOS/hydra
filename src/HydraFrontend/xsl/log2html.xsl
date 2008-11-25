@@ -63,7 +63,7 @@
   <xsl:template match="head|line">
     <code>
       <xsl:if test="@error">
-        <xsl:attribute name="class">error</xsl:attribute>
+        <xsl:attribute name="class">errorLine</xsl:attribute>
       </xsl:if>
       <xsl:apply-templates/>
     </code>

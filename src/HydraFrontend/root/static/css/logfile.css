@@ -75,7 +75,7 @@ em.storeref:hover span.popup {
     font-size: larger;
 }
 
-.error {
+.errorLine {
     color: #ff0000;
     font-weight: bold;
 }

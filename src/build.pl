@@ -27,12 +27,19 @@ sub doBuild {
     my $outputCreated = 1; # i.e., the Nix build succeeded (but it could be a positive failure)
     my $startTime = 0;
     my $stopTime = 0;
+
+    my $buildStatus = 0; # = succeeded
+
+    my $errormsg = undef;
     
     if (!isValidPath($outPath)) {
         $isCachedBuild = 0;
 
         $startTime = time();
 
+        my $thisBuildFailed = 0;
+        my $someBuildFailed = 0;
+        
         # Run Nix to perform the build, and monitor the stderr output
         # to get notifications about specific build steps, the
         # associated log files, etc.
@@ -44,6 +51,8 @@ sub doBuild {
         open OUT, "$cmd |" or die;
 
         while (<OUT>) {
+            $errormsg .= $_;
+            
             unless (/^@\s+/) {
                 print STDERR "$_";
                 next;
@@ -78,10 +87,12 @@ sub doBuild {
             }
 
             elsif (/^@\s+build-failed\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/) {
-                my $drvPath = $1;
+                my $drvPathStep = $1;
+                $someBuildFailed = 1;
+                $thisBuildFailed = 1 if $drvPath eq $drvPathStep;
                 $db->txn_do(sub {
                     (my $step) = $db->resultset('Buildsteps')->search(
-                        {id => $build->id, type => 0, drvpath => $drvPath}, {});
+                        {id => $build->id, type => 0, drvpath => $drvPathStep}, {});
                     if ($step) {
                         die unless $step;
                         $step->busy(0);
@@ -94,7 +105,7 @@ sub doBuild {
                             { id => $build->id
                             , stepnr => $buildStepNr++
                             , type => 0 # = build
-                            , drvpath => $drvPath
+                            , drvpath => $drvPathStep
                             , outpath => $2
                             , logfile => $4
                             , busy => 0
@@ -159,17 +170,14 @@ sub doBuild {
 
         $stopTime = time();
 
-        $outputCreated = $res == 0;
-    }
+        if ($res != 0) {
+            if ($thisBuildFailed) { $buildStatus = 1; }
+            elsif ($someBuildFailed) { $buildStatus = 2; }
+            else { $buildStatus = 3; }
+        }
 
-    my $buildStatus;
-    
-    if ($outputCreated) {
-        # "Positive" failures, e.g. the builder returned exit code 0
-        # but flagged some error condition.
-        $buildStatus = -e "$outPath/nix-support/failed" ? 2 : 0;
-    } else {
-        $buildStatus = 1; # = Nix failure
+        # Only store the output of running Nix if we have a miscellaneous error.
+        $errormsg = undef unless $buildStatus == 3;
     }
 
     $db->txn_do(sub {
@@ -177,40 +185,22 @@ sub doBuild {
         $build->timestamp(time());
         $build->update;
 
+        my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
+        $logPath = undef unless -e $logPath;
+        
         $db->resultset('Buildresultinfo')->create(
             { id => $build->id
             , iscachedbuild => $isCachedBuild
             , buildstatus => $buildStatus
             , starttime => $startTime
             , stoptime => $stopTime
+            , logfile => $logPath
+            , errormsg => $errormsg
             });
 
-        my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
-        if (-e $logPath) {
-            print STDERR "found log $logPath\n";
-            $db->resultset('Buildlogs')->create(
-                { build => $build->id
-                , logphase => "full"
-                , path => $logPath
-                , type => "raw"
-                });
-        }
-
-        if ($outputCreated) {
+        if ($buildStatus == 0) {
 
             my $productnr = 1;
-
-            if (-e "$outPath/log") {
-                foreach my $logPath (glob "$outPath/log/*") {
-                    print STDERR "found log $logPath\n";
-                    $db->resultset('Buildlogs')->create(
-                        { build => $build->id
-                        , logphase => basename($logPath)
-                        , path => $logPath
-                        , type => "raw"
-                        });
-                }
-            }
 
             if (-e "$outPath/nix-support/hydra-build-products") {
                 open LIST, "$outPath/nix-support/hydra-build-products" or die;
@@ -251,7 +241,7 @@ sub doBuild {
                 close LIST;
             }
 
-            elsif ($buildStatus == 0) {
+            else {
                 $db->resultset('Buildproducts')->create(
                     { build => $build->id
                     , productnr => $productnr++

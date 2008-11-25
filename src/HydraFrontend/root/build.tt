@@ -36,10 +36,14 @@
           <strong>Success</strong>
         [% ELSIF build.resultInfo.buildstatus == 1 %]
           <img src="/static/images/failure.gif" />
-          <strong class="error-msg">Build returned a non-zero exit code</strong>
+          <span class="error">Build returned a non-zero exit code</span>
+        [% ELSIF build.resultInfo.buildstatus == 2 %]
+          <img src="/static/images/failure.gif" />
+          <span class="error">A dependency of the build failed</span>
         [% ELSE %]
           <img src="/static/images/failure.gif" />
-          <strong class="error-msg">Build failed</strong>
+          <span class="error">Build failed</span>
+          (see <a href="#nix-error">below</a>)
         [% END %]
       [% ELSIF build.schedulingInfo.busy %]
         <strong>Build in progress</strong>
@@ -99,6 +103,14 @@
       [% END %]
     </td>
   </tr>
+  [% IF build.resultInfo.logfile %]
+    <tr>
+      <th>Logfile:</th>
+      <td>
+        <a href="[% c.uri_for('/log' build.id) %]"><strong>Available</strong></a>
+      </td>
+    </tr>
+  [% END %]
   [% ELSE %]
   <tr>
     <th>Priority:</th>
@@ -143,7 +155,7 @@
 
 [% IF build.buildsteps %]
 
-<h2>Build steps</h2>
+<h2 id="buildsteps">Build steps</h2>
 
 <table class="tablesorter">
   <thead>
@@ -164,16 +176,24 @@
           [% IF step.busy == 0 %]
             [% step.stoptime - step.starttime %]s
           [% ELSE %]
-            [% curTime - step.starttime %]s
+            [% IF build.finished %]
+              [% build.resultInfo.stoptime - step.starttime %]s
+            [% ELSE %]
+              [% curTime - step.starttime %]s
+            [% END %]
           [% END %]
         </td>
         <td>
           [% IF step.busy == 1 %]
-            <strong>Building</strong>
+            [% IF build.finished %]
+              <span class="error">Aborted</span>
+            [% ELSE %]
+              <strong>Building</strong>
+            [% END %]
           [% ELSIF step.status == 0 %]
             Succeeded
           [% ELSE %]
-            <strong class="error-msg">Failed: [% step.errormsg %]</strong>
+            <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
           [% END %]
           [% IF step.logfile %]
             (<a href="[% c.uri_for('/nixlog' build.id step.stepnr) %]">log</a>)
@@ -188,6 +208,17 @@
 
 
 [% IF build.finished %]
+
+
+[% IF build.resultInfo.errormsg %]
+
+<h2 id="nix-error">Nix error output</h2>
+
+<pre class="buildlog">
+[% HTML.escape(build.resultInfo.errormsg) -%]
+</pre>
+
+[% END %]
 
 
 [% IF build.buildproducts %]
@@ -299,26 +330,6 @@
 [% END %]
 
 
-[% IF build.buildlogs %]
- 
-<div>
-
-<h2>Logs</h2>
-
-<table>
-  <tr><th>Phase</th></tr>
-  [% FOREACH log IN build.buildlogs -%]
-  <tr>
-    <td><a href="[% c.uri_for('/log' build.id log.logphase) %]">[% log.logphase %]</a></td>
-  </tr>
-  [% END -%]
-</table>
-
-</div>
-
-[% END %]
-
-
 [% IF build.dependents %]
 
 <h2>Used by</h2>
@@ -349,9 +360,8 @@
 
 <h2>Log</h2>
 
-<!-- !!! escaping -->
 <pre class="buildlog">
-[% logtext -%]
+[% HTML.escape(logtext) -%]
 </pre>
 
 

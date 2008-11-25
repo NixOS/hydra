@@ -153,6 +153,11 @@ td.buildfarmMainColumn {
     white-space: pre;
 }
 
+.error {
+    color: red;
+    font-weight: bold;
+}
+
 pre.buildlog {
     border: 1px solid black;
     padding: 0.3em;

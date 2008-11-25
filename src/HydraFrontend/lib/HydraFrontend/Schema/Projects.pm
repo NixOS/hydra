@@ -13,7 +13,7 @@ __PACKAGE__->add_columns(
   "displayname",
   { data_type => "text", is_nullable => 0, size => undef },
   "description",
-  { data_type => "VARCHAR", is_nullable => 0, size => undef },
+  { data_type => "text", is_nullable => 0, size => undef },
   "enabled",
   { data_type => "integer", is_nullable => 0, size => undef },
 );
@@ -30,8 +30,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-17 17:09:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:XkQtF1ABmLxvxND62rBlCw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-24 17:46:46
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:M+HA5YEL1oKKTQlLvhb6dw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

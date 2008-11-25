@@ -301,20 +301,18 @@ sub build :Local {
 
 
 sub log :Local {
-    my ( $self, $c, $id, $logPhase ) = @_;
+    my ( $self, $c, $id ) = @_;
 
     my $build = getBuild($c, $id);
-    return error($c, "Build with ID $id doesn't exist.") if !defined $build;
+    return error($c, "Build $id doesn't exist.") if !defined $build;
 
-    my $log = $build->buildlogs->find({logphase => $logPhase});
-    return error($c, "Build $id doesn't have a log phase named $logPhase.") if !defined $log;
-    
+    return error($c, "Build $id didn't produce a log.") if !defined $build->resultInfo->logfile;
+
     $c->stash->{template} = 'log.tt';
-    $c->stash->{id} = $id;
-    $c->stash->{log} = $log;
+    $c->stash->{build} = $build;
 
     # !!! should be done in the view (as a TT plugin).
-    $c->stash->{logtext} = loadLog($log->path);
+    $c->stash->{logtext} = loadLog($build->resultInfo->logfile);
 }
 
 
@@ -340,6 +338,8 @@ sub nixlog :Local {
 
 sub loadLog {
     my ($path) = @_;
+
+    die unless defined $path;
 
     # !!! quick hack
     my $pipeline = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path")
