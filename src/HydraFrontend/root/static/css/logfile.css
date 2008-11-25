@@ -83,3 +83,7 @@ em.storeref:hover span.popup {
 .prio3 {
     font-style: italic;
 }
+
+code {
+    white-space: pre-wrap;
+}
