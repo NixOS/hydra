@@ -129,7 +129,7 @@
 
 <table class="tablesorter">
   <thead>
-    <tr><th>Name</th><th>Type</th><th>What</th><th>Store path</th></tr>
+    <tr><th>Name</th><th>Type</th><th>Value</th><th>Revision</th><th>Store path</th></tr>
   </thead>
   <tbody>
     [% FOREACH input IN build.inputs -%]
@@ -145,6 +145,7 @@
             <tt>[% input.uri %]</tt>
           [% END %]
         </td>
+        <td>[% IF input.revision %][% input.revision %][% END %]</td>
         <td><tt>[% input.path %]</tt></td>
       </tr>
     [% END -%]

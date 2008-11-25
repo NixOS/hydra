@@ -225,3 +225,17 @@ create table JobsetInputAlts (
     primary key   (project, jobset, input, altnr),
     foreign key   (project, jobset, input) references JobsetInputs(project, jobset, name) on delete cascade -- ignored by sqlite
 );
+
+
+-- Cache for inputs of type "path" (used for testing Hydra), storing
+-- the SHA-256 hash and store path for each source path.  Also stores
+-- the timestamp when we first saw the path have these contents, which
+-- may be used to generate release names.
+create table CachedPathInputs (
+    srcPath       text not null,
+    timestamp     integer not null, -- when we first saw this hash
+    lastSeen      integer not null, -- when we last saw this hash
+    sha256hash    text not null,
+    storePath     text not null,
+    primary key   (srcPath, sha256hash)
+);

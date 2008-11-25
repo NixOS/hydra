@@ -4,6 +4,7 @@ use strict;
 use XML::Simple;
 use Hydra::Schema;
 use IPC::Run;
+use POSIX qw(strftime);
 
 
 my $db = Hydra::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
@@ -44,17 +45,64 @@ sub fetchInput {
 
     if ($type eq "path") {
         my $uri = $alt->value;
-        print "copying input ", $input->name, " from $uri\n";
-        
-        my $storePath = `nix-store --add "$uri"`
-            or die "cannot copy path $uri to the Nix store";
-        chomp $storePath;
-        
+
+        my $timestamp = time;
+        my $sha256;
+        my $storePath;
+
+        # Some simple caching: don't check a path more than once every N seconds.
+        (my $cachedInput) = $db->resultset('Cachedpathinputs')->search(
+            {srcpath => $uri, lastseen => {">", $timestamp - 60}},
+            {rows => 1, order_by => "lastseen DESC"});
+
+        if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+            print "CACHED $uri $cachedInput ", $cachedInput->timestamp, " ", $cachedInput->timestamp, "\n";
+            $storePath = $cachedInput->storepath;
+            $sha256 = $cachedInput->sha256hash;
+            $timestamp = $cachedInput->timestamp;
+        } else {
+
+            print "copying input ", $input->name, " from $uri\n";
+            $storePath = `nix-store --add "$uri"`
+                or die "cannot copy path $uri to the Nix store";
+            chomp $storePath;
+
+            $sha256 = getStorePathHash $storePath;
+
+            ($cachedInput) = $db->resultset('Cachedpathinputs')->search(
+                {srcpath => $uri, sha256hash => $sha256});
+
+            # Path inputs don't have a natural notion of a "revision",
+            # so we simulate it by using the timestamp that we first
+            # saw this path have this SHA-256 hash.  So if the
+            # contents of the path changes, we get a new "revision",
+            # but if it doesn't change (or changes back), we don't get
+            # a new "revision".
+            if (!defined $cachedInput) {
+                $db->txn_do(sub {
+                    $db->resultset('Cachedpathinputs')->create(
+                        { srcpath => $uri
+                        , timestamp => $timestamp
+                        , lastseen => $timestamp
+                        , sha256hash => $sha256
+                        , storepath => $storePath
+                        });
+                });
+            } else {
+                $timestamp = $cachedInput->timestamp;
+                $db->txn_do(sub {
+                    $cachedInput->lastseen(time);
+                    $cachedInput->update;
+                });
+            }
+        }
+
         $$inputInfo{$input->name} =
             { type => $type
             , uri => $uri
             , storePath => $storePath
-            , sha256hash => getStorePathHash $storePath
+            , sha256hash => $sha256
+            , revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp)
             };
     }
 
@@ -132,8 +180,7 @@ sub checkJob {
                 , name => $inputName
                 , type => $input->{type}
                 , uri => $input->{uri}
-                #, revision => $input->{orig}->revision
-                #, tag => $input->{orig}->tag
+                , revision => $input->{revision}
                 , value => $input->{value}
                 , dependency => $input->{id}
                 , path => ($input->{storePath} or "") # !!! temporary hack
@@ -181,10 +228,12 @@ sub checkJobAlternatives {
         
         foreach my $alt ($input->jobsetinputalts) {
             #print "input ", $input->name, " (type ", $input->type, ") alt ", $alt->altnr, "\n";
-            fetchInput($input, $alt, $inputInfo); # !!! caching
+            fetchInput($input, $alt, $inputInfo);
             my @newArgs = @{$extraArgs};
             if (defined $inputInfo->{$argName}->{storePath}) {
-                push @newArgs, "--arg", $argName, "{path = " . $inputInfo->{$argName}->{storePath} . ";}";
+                push @newArgs, "--arg", $argName,
+                    "{path = " . $inputInfo->{$argName}->{storePath} . ";" .
+                    " rev = \"" . $inputInfo->{$argName}->{revision} . "\";}";
             } elsif (defined $inputInfo->{$argName}->{value}) {
                 push @newArgs, "--argstr", $argName, $inputInfo->{$argName}->{value};
             }
