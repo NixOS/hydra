@@ -61,8 +61,45 @@ sub index :Path :Args(0) {
 }
 
 
+sub login :Local {
+    my ($self, $c) = @_;
+    
+    my $username = $c->request->params->{username} || "";
+    my $password = $c->request->params->{password} || "";
+
+    if ($username && $password) {
+        if ($c->authenticate({username => $username, password => $password})) {
+            $c->response->redirect(
+                defined $c->flash->{afterLogin}
+                ? $c->flash->{afterLogin}
+                : $c->uri_for('/'));
+            $c->flash->{afterLogin} = undef;
+            return;
+        }     
+        $c->stash->{errorMsg} = "Bad username or password.";
+    }
+    
+    $c->stash->{template} = 'login.tt';
+}
+
+
+sub logout :Local {
+    my ($self, $c) = @_;
+    $c->logout;
+    $c->response->redirect($c->uri_for('/'));
+}
+
+
+sub requireLogin {
+    my ($c) = @_;
+    $c->flash->{afterLogin} = $c->request->uri;
+    $c->response->redirect($c->uri_for('/login'));
+}
+
+
 sub queue :Local {
-    my ($self, $c)  = @_;
+    my ($self, $c) = @_;
+    return requireLogin($c) if !$c->user_exists;
     $c->stash->{template} = 'queue.tt';
     $c->stash->{queue} = [$c->model('DB::Builds')->search(
         {finished => 0}, {join => 'schedulingInfo', order_by => ["priority DESC", "timestamp"]})];

@@ -109,8 +109,12 @@
           <li>
             <div class="title">Admin</div>
             <ul class="submenu">
-              [% INCLUDE makeLink uri = c.uri_for('/users') title = "Users" %]
-              [% INCLUDE makeLink uri = c.uri_for('/createproject') title = "Create a project" %]
+              [% IF c.user_exists %]
+                [% INCLUDE makeLink uri = c.uri_for('/logout') title = "Logout" %]
+              [% ELSE %]
+                [% INCLUDE makeLink uri = c.uri_for('/login') title = "Login" %]
+              [% END %]
+              [% INCLUDE makeLink uri = c.uri_for('/createproject') title = "Create project" %]
             </ul>
           </li>
         </ul>
@@ -121,6 +125,9 @@
         <div id="footer">
           <hr />
           Generated on [% date.format %].
+          [% IF c.user_exists %]
+          You are logged in as <tt>[% c.user.username %]</tt>.
+          [% END %]
         </div>
       </div>
 

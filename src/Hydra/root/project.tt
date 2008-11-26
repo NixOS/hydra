@@ -74,7 +74,7 @@
 
   <h4>Information</h4>
 
-  <table>
+  <table class="layoutTable">
     [% IF edit %]
     <tr>
       <th>Identifier:</th>
@@ -148,7 +148,7 @@
 
 <h2>General information</h2>
 
-<table>
+<table class="layoutTable">
   [% IF edit %]
   <tr>
     <th>Identifier:</th>
@@ -258,7 +258,7 @@
 
 <h2>Statistics</h2>
 
-<table>
+<table class="layoutTable">
   <tr>
     <th>Finished builds:</th>
     <td>[% finishedBuilds %]</td>

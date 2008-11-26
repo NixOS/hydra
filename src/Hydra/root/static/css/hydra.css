@@ -29,6 +29,10 @@ table {
     margin-bottom: 1em;
 }
 
+.layoutTable td, .layoutTable th {
+    border-style: none;
+}
+
 th {
     text-align: center;
     font-weight: bold;

@@ -17,7 +17,7 @@
 
 <h2>Information</h2>
 
-<table>
+<table class="layoutTable">
   <tr>
     <th>Build ID:</th>
     <td>[% build.id %]</td>

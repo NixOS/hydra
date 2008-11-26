@@ -261,3 +261,11 @@ create table SystemTypes (
     system        text primary key not null,
     maxConcurrent integer not null default 2
 );
+
+
+create table Users (
+    userName      text primary key not null,
+    fullName      text,
+    emailAddress  text not null,
+    password      text not null -- sha256 hash
+);
