@@ -30,33 +30,57 @@ $db->txn_do(sub {
 sub checkJobs {
     print "looking for runnable jobs...\n";
 
-    my $job;
+    my @jobsStarted;
     my $logfile;
 
     $db->txn_do(sub {
-    
-        my @jobs = $db->resultset('Builds')->search(
+
+        # Get the system types for the runnable builds.
+        my @systemTypes = $db->resultset('Builds')->search(
             {finished => 0, busy => 0},
-            {join => 'schedulingInfo', order_by => ["priority", "timestamp"]});
+            {join => 'schedulingInfo', select => [{distinct => 'system'}], as => ['system']});
 
-        print "# of available jobs: ", scalar(@jobs), "\n";
+        # For each system type, select up to the maximum number of
+        # concurrent build for that system type.  Choose the highest
+        # priority builds first, then the oldest builds.
+        foreach my $system (@systemTypes) {
+            # How many builds are already currently executing for this
+            # system type?
+            my $nrActive = $db->resultset('Builds')->search(
+                {finished => 0, busy => 1, system => $system->system},
+                {join => 'schedulingInfo'})->count;
 
-        if (scalar @jobs > 0) {
-            $job = $jobs[0];
-            $logfile = getcwd . "/logs/" . $job->id;
-            unlink $logfile;
-            $job->schedulingInfo->busy(1);
-            $job->schedulingInfo->locker($$);
-            $job->schedulingInfo->logfile($logfile);
-            $job->schedulingInfo->update;
-            $job->buildsteps->delete_all;
+            # How many extra builds can we start?
+            my $maxActive = 2;
+            my $extraAllowed = $maxActive - $nrActive;
+            $extraAllowed = 0 if $extraAllowed < 0;
+
+            # Select the highest-priority builds to start.
+            my @jobs = $extraAllowed == 0 ? () : $db->resultset('Builds')->search(
+                { finished => 0, busy => 0, system => $system->system },
+                { join => 'schedulingInfo', order_by => ["priority DESC", "timestamp"],
+                  rows => $extraAllowed });
+
+            print "system type `", $system->system,
+                "': $nrActive active, $maxActive allowed, ",
+                "starting ", scalar(@jobs), " builds\n";
+
+            foreach my $job (@jobs) {
+                $logfile = getcwd . "/logs/" . $job->id;
+                unlink $logfile;
+                $job->schedulingInfo->busy(1);
+                $job->schedulingInfo->locker($$);
+                $job->schedulingInfo->logfile($logfile);
+                $job->schedulingInfo->update;
+                $job->buildsteps->delete_all;
+                push @jobsStarted, $job;
+            }
         }
-
     });
 
-    # Start the job.  We need to do this outside the transaction in
-    # case it aborts or something.
-    if (defined $job) {
+    # Actually start the builds we just selected.  We need to do this
+    # outside the transaction in case it aborts or something.
+    foreach my $job (@jobsStarted) {
         my $id = $job->id;
         print "starting job $id\n";
         eval {
@@ -69,7 +93,7 @@ sub checkJobs {
                 exec("perl", "-IHydra/lib", "-w",
                      "./Hydra/programs/Build.pl", $id);
                 warn "cannot start job " . $id;
-                _exit(1);
+                POSIX::_exit(1);
             }
         };
         if ($@) {
