@@ -73,7 +73,6 @@ sub login :Local {
                 defined $c->flash->{afterLogin}
                 ? $c->flash->{afterLogin}
                 : $c->uri_for('/'));
-            $c->flash->{afterLogin} = undef;
             return;
         }     
         $c->stash->{errorMsg} = "Bad username or password.";
