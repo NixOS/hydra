@@ -74,7 +74,7 @@ sub login :Local {
                 ? $c->flash->{afterLogin}
                 : $c->uri_for('/'));
             return;
-        }     
+        }
         $c->stash->{errorMsg} = "Bad username or password.";
     }
     
@@ -98,7 +98,6 @@ sub requireLogin {
 
 sub queue :Local {
     my ($self, $c) = @_;
-    return requireLogin($c) if !$c->user_exists;
     $c->stash->{template} = 'queue.tt';
     $c->stash->{queue} = [$c->model('DB::Builds')->search(
         {finished => 0}, {join => 'schedulingInfo', order_by => ["priority DESC", "timestamp"]})];
@@ -118,6 +117,8 @@ sub updateProject {
     $project->displayname($displayName);
     $project->description(trim $c->request->params->{description});
     $project->enabled(trim($c->request->params->{enabled}) eq "1" ? 1 : 0);
+    $project->owner(trim($c->request->params->{owner}))
+        if $c->check_user_roles('admin');
 
     $project->update;
     
@@ -236,21 +237,35 @@ sub project :Local {
 
     $subcommand = "" unless defined $subcommand;
 
-    if ($subcommand eq "edit") {
-        $c->stash->{edit} = 1;
-    } elsif ($subcommand eq "submit" && $isPosted) {
-        $c->model('DB')->schema->txn_do(sub {
-            updateProject($c, $project);
-        });
-        return $c->res->redirect($c->uri_for("/project", trim $c->request->params->{name}));
-    } elsif ($subcommand eq "delete" && $isPosted) {
-        $c->model('DB')->schema->txn_do(sub {
-            $project->delete;
-        });
-        return $c->res->redirect($c->uri_for("/"));
-    } elsif ($subcommand eq "") {
-    } else {
-        return error($c, "Unknown subcommand $subcommand.");
+    if ($subcommand ne "") {
+
+        return requireLogin($c) if !$c->user_exists;
+        
+        if (!$c->check_user_roles('admin') && $c->user->username ne $project->owner) {
+            return error($c, "Only the project owner or the administrator can perform this operation.");
+        }
+        
+        if ($subcommand eq "edit") {
+            $c->stash->{edit} = 1;
+        }
+
+        elsif ($subcommand eq "submit" && $isPosted) {
+            $c->model('DB')->schema->txn_do(sub {
+                updateProject($c, $project);
+            });
+            return $c->res->redirect($c->uri_for("/project", trim $c->request->params->{name}));
+        }
+
+        elsif ($subcommand eq "delete" && $isPosted) {
+            $c->model('DB')->schema->txn_do(sub {
+                $project->delete;
+            });
+            return $c->res->redirect($c->uri_for("/"));
+        }
+
+        else {
+            return error($c, "Unknown subcommand $subcommand.");
+        }
     }
 
     $c->stash->{curProject} = $project;
@@ -282,6 +297,12 @@ sub project :Local {
 
 sub createproject :Local {
     my ($self, $c, $subcommand) = @_;
+
+    return requireLogin($c) if !$c->user_exists;
+    
+    if (!$c->check_user_roles('admin')) {
+        return error($c, "Only administrators can create projects.");
+    }
 
     if (defined $subcommand && $subcommand eq "submit") {
         eval {

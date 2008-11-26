@@ -1,0 +1,39 @@
+[% WRAPPER layout.tt title="Login to Hydra" %]
+[% PROCESS common.tt %]
+
+<h1>Login</h1>
+
+[% IF c.user_exists %]
+<p>
+You are already logged in as <tt>[% c.user.username %]</tt>.
+You can <a href="[% c.uri_for('/logout') %]">logout</a> here.
+</p>
+[% ELSE %]
+
+[% IF errorMsg %]
+<p class="error">Error: [% errorMsg %]</p>
+[% END %]
+
+<form method="post" action="[% c.uri_for('/login') %]">
+
+  <table class="layoutTable">
+    <tr>
+      <td>Username:</td>
+      <td><input type="text" name="username" /></td>
+    </tr>
+    <tr>
+      <td>Password:</td>
+      <td><input type="password" name="password" /></td>
+    </tr>
+    <tr colspan="2">
+      <td>
+        <input type="submit" name="login" value="Login" />
+      </td>
+    </tr>
+  </table>
+
+</form>
+
+[% END %]
+
+[% END %]

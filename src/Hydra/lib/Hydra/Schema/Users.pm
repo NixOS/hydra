@@ -18,10 +18,15 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("username");
+__PACKAGE__->has_many(
+  "userroles",
+  "Hydra::Schema::Userroles",
+  { "foreign.username" => "self.username" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-26 20:02:52
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:BgF6FK+9d7+cc72sp6pfCQ
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-27 00:07:44
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:wwRBfogrkKN2QdgmFjcUlA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

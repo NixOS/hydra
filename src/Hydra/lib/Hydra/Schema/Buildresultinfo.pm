@@ -29,8 +29,8 @@ __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-26 20:02:52
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:X5GXZRLAaCMl8OKBGjtztw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-27 00:07:44
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:CfJnTtjRXGV5dD/MWbrJxA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

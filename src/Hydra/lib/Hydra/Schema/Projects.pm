@@ -16,6 +16,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
   "enabled",
   { data_type => "integer", is_nullable => 0, size => undef },
+  "owner",
+  { data_type => "text", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("name");
 __PACKAGE__->has_many(
@@ -30,8 +32,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-26 20:02:52
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3YMBhMqCjtpUjoTx4JLTOw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-27 00:07:44
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:jdyfk3vHisJRyE+VNR6dNA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

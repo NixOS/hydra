@@ -164,6 +164,10 @@
     <td>[% INCLUDE maybeEditString param="description" value=curProject.description %]</td>
   </tr>
   <tr>
+    <th>Owner:</th>
+    <td><tt>[% INCLUDE maybeEditString param="owner" value=curProject.owner edit=(edit && c.check_user_roles('admin')) %]</tt></td>
+  </tr>
+  <tr>
     <th>Enabled:</th>
     <td>
       [% INCLUDE renderSelection param="enabled" curValue=curProject.enabled options={"1" = "Yes", "0" = "No"} %]

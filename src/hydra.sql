@@ -154,6 +154,8 @@ create table Projects (
     displayName   text not null, -- display name (e.g. "PatchELF")
     description   text,
     enabled       integer not null default 1
+    owner         text not null,
+    foreign key   (owner) references Users(userName) -- ignored by sqlite
 );
 
 
@@ -269,3 +271,18 @@ create table Users (
     emailAddress  text not null,
     password      text not null -- sha256 hash
 );
+
+
+create table UserRoles (
+    userName      text not null,
+    role          text not null,
+    primary key   (userName, role),
+    foreign key   (userName) references Users(userName) -- ignored by sqlite
+);
+
+
+create trigger cascadeUserDelete
+  before delete on Users
+  for each row begin
+    delete from UserRoles where userName = old.userName;
+  end;
