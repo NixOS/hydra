@@ -255,3 +255,9 @@ create table CachedSubversionInputs (
     storePath     text not null,
     primary key   (uri, revision)
 );
+
+
+create table SystemTypes (
+    system        text primary key not null,
+    maxConcurrent integer not null default 2
+);

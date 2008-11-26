@@ -51,8 +51,9 @@ sub checkJobs {
                 {join => 'schedulingInfo'})->count;
 
             # How many extra builds can we start?
-            my $maxActive = 2;
-            my $extraAllowed = $maxActive - $nrActive;
+            (my $systemTypeInfo) = $db->resultset('Systemtypes')->search({system => $system->system});
+            my $maxConcurrent = defined $systemTypeInfo ? $systemTypeInfo->maxconcurrent : 2;
+            my $extraAllowed = $maxConcurrent - $nrActive;
             $extraAllowed = 0 if $extraAllowed < 0;
 
             # Select the highest-priority builds to start.
@@ -62,7 +63,7 @@ sub checkJobs {
                   rows => $extraAllowed });
 
             print "system type `", $system->system,
-                "': $nrActive active, $maxActive allowed, ",
+                "': $nrActive active, $maxConcurrent allowed, ",
                 "starting ", scalar(@jobs), " builds\n";
 
             foreach my $job (@jobs) {
@@ -82,7 +83,7 @@ sub checkJobs {
     # outside the transaction in case it aborts or something.
     foreach my $job (@jobsStarted) {
         my $id = $job->id;
-        print "starting job $id\n";
+        print "starting job $id (", $job->project->name, ":", $job->attrname, ") on ", $job->system, "\n";
         eval {
             my $child = fork();
             die unless defined $child;
