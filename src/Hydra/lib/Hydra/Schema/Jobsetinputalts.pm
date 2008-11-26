@@ -22,6 +22,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 0, size => undef },
   "tag",
   { data_type => "text", is_nullable => 0, size => undef },
+  "boolean",
+  { data_type => "integer", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("project", "jobset", "input", "altnr");
 __PACKAGE__->belongs_to(
@@ -31,8 +33,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-25 19:24:09
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:B8hAt4GezVJ1/uo4ZQ3Q2g
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-26 14:37:07
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:eM2dwDI3lL5EHwUA5m2pDg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

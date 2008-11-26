@@ -338,6 +338,11 @@ sub checkJobAlternatives {
 sub checkJobSet {
     my ($project, $jobset) = @_;
     my $inputInfo = {};
+    
+    $db->txn_do(sub {
+        $jobset->lastcheckedtime(time);
+        $jobset->update;
+    });
 
     # Fetch the input containing the Nix expression.
     (my $exprInput) = $jobset->jobsetinputs->search({name => $jobset->nixexprinput});

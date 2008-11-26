@@ -37,6 +37,8 @@ create table BuildSchedulingInfo (
     locker        text not null default '', -- !!! hostname/pid of the process building this job?
 
     logfile       text, -- if busy, the path of the logfile
+
+    disabled      integer not null default 0, -- true means hold this job until its re-enabled
     
     foreign key   (id) references Builds(id) on delete cascade -- ignored by sqlite
 );
@@ -63,6 +65,8 @@ create table BuildResultInfo (
     logfile       text, -- the path of the logfile
 
     releaseName   text, -- e.g. "patchelf-0.5pre1234"
+
+    keep          integer not null default 0, -- true means never garbage-collect the build output
     
     foreign key   (id) references Builds(id) on delete cascade -- ignored by sqlite
 );
@@ -81,11 +85,11 @@ create table BuildSteps (
 
     busy          integer not null,
 
-    status        integer,
+    status        integer, -- 0 = success, 1 = failed
 
     errorMsg      text,
 
-    startTime     integer, -- in Unix time, 0 = used cached build result
+    startTime     integer,
     stopTime      integer,
 
     primary key   (id, stepnr),
@@ -174,6 +178,7 @@ create table Jobsets (
     nixExprPath   text not null, -- relative path of the Nix expression
     errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
     errorTime     integer, -- timestamp associated with errorMsg
+    lastCheckedTime integer, -- last time the scheduler looked at this jobset
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
     foreign key   (project, name, nixExprInput) references JobsetInputs(project, job, name)

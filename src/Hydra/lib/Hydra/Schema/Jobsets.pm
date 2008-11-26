@@ -22,6 +22,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
   "errortime",
   { data_type => "integer", is_nullable => 0, size => undef },
+  "lastcheckedtime",
+  { data_type => "integer", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("project", "name");
 __PACKAGE__->has_many(
@@ -48,8 +50,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-25 19:24:09
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:7kRl30K427lecYirFGBxew
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-26 14:37:07
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:BJwh19m9KHKZUMAiQ6fPAw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

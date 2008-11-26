@@ -92,6 +92,14 @@
         <tt>[% INCLUDE maybeEditString param="jobset-$baseName-nixexprinput" value=jobset.nixexprinput extraClass="shortString" %]</tt>
       </td>
     </tr>
+    [% IF !edit %]
+      <tr>
+        <th>Last checked:</th>
+        <td>
+          [% PROCESS renderDateTime timestamp = jobset.lastcheckedtime %]
+        </td>
+      </tr>
+    [% END %]
     [% IF !edit && jobset.errormsg %]
       <tr>
         <th>Last evaluation error:</th>
