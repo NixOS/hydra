@@ -113,12 +113,15 @@ sub updateProject {
     my $displayName = trim $c->request->params->{displayname};
     die "Invalid display name: $displayName" if $displayName eq "";
     
+    my $owner = trim $c->request->params->{owner};
+    die "Invalid owner: $owner"
+        unless defined $c->model('DB::Users')->find({username => $owner});
+    
     $project->name($projectName);
     $project->displayname($displayName);
     $project->description(trim $c->request->params->{description});
     $project->enabled(trim($c->request->params->{enabled}) eq "1" ? 1 : 0);
-    $project->owner(trim($c->request->params->{owner}))
-        if $c->check_user_roles('admin');
+    $project->owner($owner) if $c->check_user_roles('admin');
 
     $project->update;
     
@@ -240,10 +243,9 @@ sub project :Local {
     if ($subcommand ne "") {
 
         return requireLogin($c) if !$c->user_exists;
-        
-        if (!$c->check_user_roles('admin') && $c->user->username ne $project->owner) {
-            return error($c, "Only the project owner or the administrator can perform this operation.");
-        }
+
+        return error($c, "Only the project owner or the administrator can perform this operation.")
+            unless $c->check_user_roles('admin') || $c->user->username eq $project->owner;
         
         if ($subcommand eq "edit") {
             $c->stash->{edit} = 1;
@@ -299,10 +301,9 @@ sub createproject :Local {
     my ($self, $c, $subcommand) = @_;
 
     return requireLogin($c) if !$c->user_exists;
-    
-    if (!$c->check_user_roles('admin')) {
-        return error($c, "Only administrators can create projects.");
-    }
+
+    return error($c, "Only administrators can create projects.")
+        unless $c->check_user_roles('admin');
 
     if (defined $subcommand && $subcommand eq "submit") {
         eval {
