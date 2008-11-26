@@ -1,0 +1,18 @@
+[% WRAPPER layout.tt title="Hydra Queue" %]
+[% PROCESS common.tt %]
+
+<h1>Hydra Queue</h1>
+
+[% IF scheduled.size == 0 %]
+
+  <p>The queue is empty.</p>
+
+[% ELSE %]
+
+  <p>Note: jobs in <span class="runningJob">red</span> are currently executing.</p>
+
+  [% PROCESS renderBuildList builds=queue showSchedulingInfo=1 hideResultInfo=1 %]
+
+[% END %]
+
+[% END %]
