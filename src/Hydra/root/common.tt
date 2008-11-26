@@ -1,3 +1,6 @@
+[% USE date %]
+
+
 [% inputTypes =
     { "svn" = "Subversion checkout"
     , "cvs" = "CVS checkout"
@@ -9,8 +12,53 @@
     }
 %]
 
-[% USE date %]
 
 [% BLOCK renderDateTime %]
   [% date.format(timestamp, '%Y-%m-%d %H:%M:%S') -%]
+[% END %]
+
+
+[% BLOCK renderBuildList %]
+  <table class="tablesorter">
+    <thead>
+      <tr>
+        [% IF !hideResultInfo %]
+          <th></th>
+        [% END %]
+        <th>#</th>
+        [% IF showSchedulingInfo %]
+          <th>Priority</th>
+        [% END %]
+        <th>Project</th>
+        <th>Job</th>
+        <th>System</th>
+        <th>Timestamp</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      [% FOREACH build IN builds -%]
+        <tr [% IF build.schedulingInfo.busy %]class="runningJob"[% END %] >
+          [% IF !hideResultInfo %]
+            <td>
+              [% IF build.resultInfo.buildstatus == 0 %]
+                <img src="/static/images/success.gif" />
+              [% ELSE %]
+                <img src="/static/images/failure.gif" />
+              [% END %]
+            </td>
+          [% END %]
+          <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
+          [% IF showSchedulingInfo %]
+            <td>[% build.schedulingInfo.priority %]</td>
+          [% END %]
+          <td><a href="[% c.uri_for('/project' build.project.name) %]"><tt>[% build.project.name %]</tt></a></td>
+          <td><a href="[% c.uri_for('/job' build.project.name build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
+          <td><tt>[% build.system %]</tt></td>
+          <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+          <td>[% build.description %]</td>
+        </tr>
+      [% END -%]
+    </tbody>
+  </table>
 [% END %]

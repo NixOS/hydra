@@ -18,7 +18,7 @@ my $relPathRE = "(?:$pathCompRE(?:\/$pathCompRE)*)";
 
 
 sub begin :Private {
-    my ( $self, $c ) = @_;
+    my ($self, $c) = @_;
     $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
     $c->stash->{curUri} = $c->request->uri;
 }
@@ -47,10 +47,8 @@ sub getBuild {
 
 
 sub index :Path :Args(0) {
-    my ( $self, $c ) = @_;
+    my ($self, $c) = @_;
     $c->stash->{template} = 'index.tt';
-    $c->stash->{scheduled} = [$c->model('DB::Builds')->search(
-        {finished => 0}, {join => 'schedulingInfo'})]; # !!!
     $c->stash->{allBuilds} = [$c->model('DB::Builds')->search(
         {finished => 1}, {order_by => "timestamp DESC"})];
     # Get the latest finished build for each unique job.
@@ -60,6 +58,14 @@ sub index :Path :Args(0) {
             "where project == me.project and attrName == me.attrName and finished != 0 and system == me.system)"
         , order_by => "project, attrname, system"
         })];
+}
+
+
+sub queue :Local {
+    my ($self, $c)  = @_;
+    $c->stash->{template} = 'queue.tt';
+    $c->stash->{queue} = [$c->model('DB::Builds')->search(
+        {finished => 0}, {join => 'schedulingInfo', order_by => ["priority DESC", "timestamp"]})];
 }
 
 
@@ -184,7 +190,7 @@ sub updateProject {
 
 
 sub project :Local {
-    my ( $self, $c, $projectName, $subcommand ) = @_;
+    my ($self, $c, $projectName, $subcommand) = @_;
     $c->stash->{template} = 'project.tt';
     
     (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
@@ -239,7 +245,7 @@ sub project :Local {
 
 
 sub createproject :Local {
-    my ( $self, $c, $subcommand ) = @_;
+    my ($self, $c, $subcommand) = @_;
 
     if (defined $subcommand && $subcommand eq "submit") {
         eval {
@@ -265,7 +271,7 @@ sub createproject :Local {
 
 
 sub job :Local {
-    my ( $self, $c, $projectName, $jobName ) = @_;
+    my ($self, $c, $projectName, $jobName) = @_;
     $c->stash->{template} = 'job.tt';
 
     (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
@@ -280,13 +286,13 @@ sub job :Local {
 
 
 sub default :Path {
-    my ( $self, $c ) = @_;
+    my ($self, $c) = @_;
     error($c, "Page not found.");
 }
 
 
 sub build :Local {
-    my ( $self, $c, $id ) = @_;
+    my ($self, $c, $id) = @_;
 
     my $build = getBuild($c, $id);
     return error($c, "Build with ID $id doesn't exist.") if !defined $build;
@@ -307,7 +313,7 @@ sub build :Local {
 
 
 sub log :Local {
-    my ( $self, $c, $id ) = @_;
+    my ($self, $c, $id) = @_;
 
     my $build = getBuild($c, $id);
     return error($c, "Build $id doesn't exist.") if !defined $build;
@@ -323,7 +329,7 @@ sub log :Local {
 
 
 sub nixlog :Local {
-    my ( $self, $c, $id, $stepnr ) = @_;
+    my ($self, $c, $id, $stepnr) = @_;
 
     my $build = getBuild($c, $id);
     return error($c, "Build with ID $id doesn't exist.") if !defined $build;
@@ -356,7 +362,7 @@ sub loadLog {
 
 
 sub download :Local {
-    my ( $self, $c, $id, $productnr, $filename, @path ) = @_;
+    my ($self, $c, $id, $productnr, $filename, @path) = @_;
 
     my $build = getBuild($c, $id);
     return error($c, "Build with ID $id doesn't exist.") if !defined $build;
@@ -390,7 +396,7 @@ sub download :Local {
 
 
 sub closure :Local {
-    my ( $self, $c, $buildId, $productnr ) = @_;
+    my ($self, $c, $buildId, $productnr) = @_;
 
     my $build = getBuild($c, $buildId);
     return error($c, "Build with ID $buildId doesn't exist.") if !defined $build;

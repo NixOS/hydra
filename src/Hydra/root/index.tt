@@ -1,70 +1,22 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
-[% USE date %]
+[% PROCESS common.tt %]
 
 
 <h1>Hydra Overview</h1>
-
-
-<h2>Queue</h2>
-
-[% IF scheduled.size == 0 %]
-
-<p>The queue is empty.</p>
-
-[% ELSE %]
-
-<table class="tablesorter">
-  <thead>
-    <tr><th>#</th><th>Priority</th><th>Project</th><th>Job</th><th>System</th><th>Timestamp</th><th>Description</th></tr>
-  </thead>
-  <tbody>
-    [% FOREACH build IN scheduled -%]
-      <tr [% IF build.schedulingInfo.busy %]class="runningJob"[% END %] >
-        <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
-        <td>[% build.schedulingInfo.priority %]</td>
-        <td><tt>[% build.project.name %]</tt></td>
-        <td><tt>[% build.attrname %]</tt></td>
-        <td><tt>[% build.system %]</tt></td>
-        <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
-        <td>[% build.description %]</td>
-      </tr>
-    [% END -%]
-  </tbody>
-</table>
-
-[% END %]
 
 
 <h2>Job status</h2>
 
 <p>Below are the latest builds for each job.</p>
 
-<table class="tablesorter">
-  <thead>
-    <tr><th></th><th>#</th><th>Project</th><th>Job</th><th>System</th><th>Timestamp</th><th>Description</th></tr>
-  </thead>
-  <tbody>
-    [% FOREACH build IN latestBuilds -%]
-      [% INCLUDE "short-build-info.tt" %]
-    [% END -%]
-  </tbody>
-</table>
+[% PROCESS renderBuildList builds=latestBuilds %]
 
 
 <h2>All builds</h2>
 
 <p>Number of builds: [% allBuilds.size %]</p>
 
-<table class="tablesorter">
-  <thead>
-    <tr><th></th><th>#</th><th>Project</th><th>Job</th><th>System</th><th>Timestamp</th><th>Description</th></tr>
-  </thead>
-  <tbody>
-    [% FOREACH build IN allBuilds -%]
-      [% INCLUDE "short-build-info.tt" %]
-    [% END -%]
-  </tbody>
-</table>
+[% PROCESS renderBuildList builds=allBuilds %]
 
 
 [% END %]

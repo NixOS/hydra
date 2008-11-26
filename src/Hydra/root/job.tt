@@ -1,16 +1,8 @@
 [% WRAPPER layout.tt title="Hydra Overview" %]
+[% PROCESS common.tt %]
 
 <h1>All builds for job <tt>[% curProject.name %]:[% jobName %]</tt></h1>
 
-<table class="tablesorter">
-  <thead>
-    <tr><th></th><th>Id</th><th>Project</th><th>Job</th><th>System</th><th>Timestamp</th><th>Description</th></tr>
-  </thead>
-  <tbody>
-    [% FOREACH build IN builds -%]
-      [% INCLUDE "short-build-info.tt" %]
-    [% END -%]
-  </tbody>
-</table>
+[% PROCESS renderBuildList builds=builds %]
 
 [% END %]

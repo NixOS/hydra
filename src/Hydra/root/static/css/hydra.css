@@ -185,7 +185,7 @@ ul.productList li {
     margin-top: 1em;
 }
 
-tr.runningJob {
+.runningJob {
     background-color: #ff3030;
     color: white;
 }
