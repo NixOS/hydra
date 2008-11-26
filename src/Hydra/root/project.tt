@@ -245,7 +245,7 @@
 
 <h2>Jobs</h2>
 
-[% IF jobName && jobNames.size > 0 %]
+[% IF jobNames && jobNames.size > 0 %]
 
 <ul>
   [% FOREACH jobName IN jobNames -%]
@@ -262,32 +262,7 @@
 
 <h2>Statistics</h2>
 
-<table class="layoutTable">
-  <tr>
-    <th>Finished builds:</th>
-    <td>[% finishedBuilds %]</td>
-  </tr>
-  <tr>
-    <th><img src="/static/images/success.gif" /> Succeeded builds:</th>
-    <td>[% succeededBuilds %]</td>
-  </tr>
-  <tr>
-    <th><img src="/static/images/failure.gif" /> Failed builds:</th>
-    <td>[% finishedBuilds - succeededBuilds %]</td>
-  </tr>
-  <tr>
-    <th>Total build time:</th>
-    <td>[% totalBuildTime %]s</td>
-  </tr>
-  <tr>
-    <th>Scheduled builds:</th>
-    <td>[% scheduledBuilds %]</td>
-  </tr>
-  <tr>
-    <th>Currently executing builds:</th>
-    <td>[% busyBuilds %]</td>
-  </tr>
-</table>
+[% PROCESS showBuildStats %]
 
 
 [% END %]

@@ -5,6 +5,11 @@
 <h1>Hydra Overview</h1>
 
 
+<h2>Statistics</h2>
+
+[% PROCESS showBuildStats %]
+
+
 <h2>Job status</h2>
 
 <p>Below are the latest builds for each job.</p>

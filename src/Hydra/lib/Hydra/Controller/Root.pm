@@ -46,11 +46,36 @@ sub getBuild {
 }
 
 
+sub getBuildStats {
+    my ($c, $builds) = @_;
+    
+    $c->stash->{finishedBuilds} = $builds->search({finished => 1}) || 0;
+    
+    $c->stash->{succeededBuilds} = $builds->search(
+        {finished => 1, buildStatus => 0},
+        {join => 'resultInfo'}) || 0;
+        
+    $c->stash->{scheduledBuilds} = $builds->search({finished => 0}) || 0;
+        
+    $c->stash->{busyBuilds} = $builds->search(
+        {finished => 0, busy => 1},
+        {join => 'schedulingInfo'}) || 0;
+        
+    $c->stash->{totalBuildTime} = $builds->search({},
+        {join => 'resultInfo', select => {sum => 'stoptime - starttime'}, as => ['sum']})
+        ->first->get_column('sum') || 0;
+}
+
+
 sub index :Path :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'index.tt';
+    
+    getBuildStats($c, $c->model('DB::Builds'));
+    
     $c->stash->{allBuilds} = [$c->model('DB::Builds')->search(
         {finished => 1}, {order_by => "timestamp DESC"})];
+    
     # Get the latest finished build for each unique job.
     $c->stash->{latestBuilds} = [$c->model('DB::Builds')->search(undef,
         { join => 'resultInfo'
@@ -272,25 +297,7 @@ sub project :Local {
 
     $c->stash->{curProject} = $project;
     
-    $c->stash->{finishedBuilds} = $c->model('DB::Builds')->search(
-        {project => $projectName, finished => 1});
-        
-    $c->stash->{succeededBuilds} = $c->model('DB::Builds')->search(
-        {project => $projectName, finished => 1, buildStatus => 0},
-        {join => 'resultInfo'});
-        
-    $c->stash->{scheduledBuilds} = $c->model('DB::Builds')->search(
-        {project => $projectName, finished => 0});
-        
-    $c->stash->{busyBuilds} = $c->model('DB::Builds')->search(
-        {project => $projectName, finished => 0, busy => 1},
-        {join => 'schedulingInfo'});
-        
-    $c->stash->{totalBuildTime} = $c->model('DB::Builds')->search(
-        {project => $projectName},
-        {join => 'resultInfo', select => {sum => 'stoptime - starttime'}, as => ['sum']})
-        ->first->get_column('sum');
-    $c->stash->{totalBuildTime} = 0 unless defined $c->stash->{totalBuildTime};
+    getBuildStats($c, scalar $project->builds);
     
     $c->stash->{jobNames} =
         [$c->model('DB::Builds')->search({project => $projectName}, {select => [{distinct => 'attrname'}], as => ['attrname']})];
