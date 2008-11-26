@@ -198,6 +198,13 @@ sub checkJob {
     die unless $job->{drvPath} eq $drvPath;
     my $outPath = $job->{outPath};
 
+    my $priority = 100;
+    if (defined $job->{meta}->{schedulingPriority} &&
+        $job->{meta}->{schedulingPriority}->{value} =~ /^\d+$/)
+    {
+        $priority = int($job->{meta}->{schedulingPriority}->{value});
+    }
+
     $db->txn_do(sub {
         if (scalar($db->resultset('Builds')->search(
                 { project => $project->name, jobset => $jobset->name
@@ -224,7 +231,7 @@ sub checkJob {
 
         $db->resultset('Buildschedulinginfo')->create(
             { id => $build->id
-            , priority => 0
+            , priority => $priority
             , busy => 0
             , locker => ""
             });
