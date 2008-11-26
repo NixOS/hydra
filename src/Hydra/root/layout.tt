@@ -21,7 +21,13 @@
     
     <script type="text/javascript">
       $(document).ready(function() {
+
+          /*** Sortable tables. ***/
+          
           $("table.tablesorter").tablesorter();
+
+          
+          /*** Tree toggles in logfiles. ***/
 
           /* Set the appearance of the toggle depending on whether the
              corresponding subtree is initially shown or hidden. */
@@ -59,6 +65,8 @@
                   $(this).text("+");
               });
           });
+
+
       });
     </script>
     

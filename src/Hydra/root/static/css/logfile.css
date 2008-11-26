@@ -21,7 +21,7 @@ ul.nesting li.line {
 }
 
 ul.nesting li.lastline {
-    padding-left: 2.1em; // for the 0.1em border-left in .lastline > .lineconn
+    padding-left: 2.1em; /* for the 0.1em border-left in .lastline > .lineconn */
 }
 
 li.line {
