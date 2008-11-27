@@ -27,12 +27,6 @@ $db->txn_do(sub {
 });
 
 
-sub logfileForBuild {
-    my ($id) = @_;
-    return getcwd . "/logs/" . $id;
-}
-
-
 sub checkJobs {
     print "looking for runnable jobs...\n";
 
@@ -72,7 +66,8 @@ sub checkJobs {
                 "starting ", scalar(@jobs), " builds\n";
 
             foreach my $job (@jobs) {
-                unlink(logfileForBuild $job->id);
+                my $logfile = getcwd . "/logs/" . $job->id;
+                unlink($logfile);
                 $job->schedulingInfo->busy(1);
                 $job->schedulingInfo->locker($$);
                 $job->schedulingInfo->logfile($logfile);
@@ -90,10 +85,10 @@ sub checkJobs {
         my $id = $job->id;
         print "starting job $id (", $job->project->name, ":", $job->attrname, ") on ", $job->system, "\n";
         eval {
+            my $logfile = $job->schedulingInfo->logfile;
             my $child = fork();
             die unless defined $child;
             if ($child == 0) {
-                my $logfile = logfileForBuild $job->id;
                 open LOG, ">$logfile" or die;
                 POSIX::dup2(fileno(LOG), 1) or die;
                 POSIX::dup2(fileno(LOG), 2) or die;
