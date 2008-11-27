@@ -180,6 +180,27 @@ sub releasesets :Local {
 }
 
 
+sub attrsToSQL {
+    my ($attrs, $id) = @_;
+    my @attrs = split / /, $attrs;
+
+    my $query = "1 = 1";
+
+    foreach my $attr (@attrs) {
+        $attr =~ /^([\w-]+)=([\w-]*)$/ or die "invalid attribute in release set: $attr";
+        my $name = $1;
+        my $value = $2;
+        # !!! Yes, this is horribly injection-prone... (though
+        # name/value are filtered above).  Should use SQL::Abstract,
+        # but it can't deal with subqueries.  At least we should use
+        # placeholders.
+        $query .= " and (select count(*) from buildinputs where build = $id and name = '$name' and value = '$value') = 1";
+    }
+
+    return $query;
+}
+
+
 sub releases :Local {
     my ($self, $c, $projectName, $releaseName) = @_;
     $c->stash->{template} = 'releases.tt';
@@ -196,10 +217,13 @@ sub releases :Local {
     return error($c, "Release set $releaseName doesn't have a primary job.") if !defined $primaryJob;
 
     $c->stash->{jobs} = [$releaseSet->releasesetjobs->search({}, {order_by => "isprimary DESC"})];
-    
+
     my @primaryBuilds = $project->builds->search(
         { attrname => $primaryJob->job, finished => 1 },
-        { join => 'resultInfo', order_by => "timestamp DESC", '+select' => ["resultInfo.releasename"], '+as' => ["releasename"] });
+        { join => 'resultInfo', order_by => "timestamp DESC"
+        , '+select' => ["resultInfo.releasename"], '+as' => ["releasename"]
+        , where => \ attrsToSQL($primaryJob->attrs, "me.id")
+        });
 
     my @releases = ();
 
@@ -220,7 +244,9 @@ sub releases :Local {
                 ($thisBuild) = $primaryBuild->dependentBuilds->search(
                     { attrname => $job->job, finished => 1 },
                     { join => 'resultInfo', rows => 1
-                    , order_by => ["buildstatus", "timestamp"] });
+                    , order_by => ["buildstatus", "timestamp"]
+                    , where => \ attrsToSQL($job->attrs, "build.id")
+                    });
             }
 
             if ($job->mayfail != 1) {

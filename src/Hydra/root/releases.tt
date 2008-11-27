@@ -1,10 +1,8 @@
-[% WRAPPER layout.tt title="Releases" %]
+[% WRAPPER layout.tt title="Release Set ‘$releaseSet.project.name:$releaseSet.name’" %]
 [% PROCESS common.tt %]
 [% USE HTML %]
 
-<h1>Releases</h1>
-
-<!-- <p>Description: [% releaseSet.description %]</p> -->
+<h1>Release Set <tt>[% releaseSet.project.name %]:[% releaseSet.name %]</tt></h1>
 
 <table class="tablesorter">
   <thead>
