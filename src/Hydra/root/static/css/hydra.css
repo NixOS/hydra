@@ -29,6 +29,10 @@ table {
     margin-bottom: 1em;
 }
 
+table.buildList tr:hover {
+    background-color: #a0a0f0;
+}
+
 .layoutTable td, .layoutTable th {
     border-style: none;
 }

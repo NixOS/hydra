@@ -19,7 +19,7 @@
 
 
 [% BLOCK renderBuildList %]
-  <table class="tablesorter">
+  <table class="buildList tablesorter">
     <thead>
       <tr>
         [% IF !hideResultInfo %]
@@ -38,7 +38,8 @@
     </thead>
     <tbody>
       [% FOREACH build IN builds -%]
-        <tr [% IF build.schedulingInfo.busy %]class="runningJob"[% END %] >
+        <tr [% IF build.schedulingInfo.busy %]class="runningJob"[% END %]
+            onclick="window.location = '[% c.uri_for('/build' build.id) %]'">
           [% IF !hideResultInfo %]
             <td>
               [% IF build.resultInfo.buildstatus == 0 %]
