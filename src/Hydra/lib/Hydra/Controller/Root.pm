@@ -118,42 +118,58 @@ sub queue :Local {
 }
 
 
-sub jobstatus :Local {
-    my ($self, $c) = @_;
+sub showJobStatus :Local {
+    my ($c, $builds) = @_;
     $c->stash->{template} = 'jobstatus.tt';
 
     # Get the latest finished build for each unique job.
-    $c->stash->{latestBuilds} = [$c->model('DB::Builds')->search(undef,
+    $c->stash->{latestBuilds} = [$builds->search({},
         { join => 'resultInfo'
-        , where => "finished != 0 and timestamp = (select max(timestamp) from Builds " .
-            "where project == me.project and attrName == me.attrName and finished != 0 and system == me.system)"
+        , where => {
+            finished => { "!=", 0 },
+            timestamp => \ (
+                "= (select max(timestamp) from Builds " .
+                "where project == me.project and attrName == me.attrName and finished != 0 and system == me.system)"),
+          }
         , order_by => "project, attrname, system"
         })];
 }
 
 
-sub all :Local {
-    my ($self, $c, $page) = @_;
+sub jobstatus :Local {
+    my ($self, $c) = @_;
+    showJobStatus($c, $c->model('DB::Builds'));
+}
+
+
+sub showAllBuilds {
+    my ($c, $baseUri, $page, $builds) = @_;
     $c->stash->{template} = 'all.tt';
 
     $page = int($page) || 1;
 
     my $resultsPerPage = 50;
 
-    my $nrBuilds = scalar($c->model('DB::Builds')->search({finished => 1}));
+    my $nrBuilds = scalar($builds->search({finished => 1}));
 
+    $c->stash->{baseUri} = $baseUri;
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{totalBuilds} = $nrBuilds;
 
-    $c->stash->{builds} = [$c->model('DB::Builds')->search(
+    $c->stash->{builds} = [$builds->search(
         {finished => 1}, {order_by => "timestamp DESC", rows => $resultsPerPage, page => $page})];
+}
+
+
+sub all :Local {
+    my ($self, $c, $page) = @_;
+    showAllBuilds($c, $c->uri_for("/all"), $page, $c->model('DB::Builds'));
 }
 
 
 sub updateProject {
     my ($c, $project) = @_;
-
     my $projectName = trim $c->request->params->{name};
     die "Invalid project name: $projectName" unless $projectName =~ /^[[:alpha:]]\w*$/;
     
@@ -277,7 +293,7 @@ sub updateProject {
 
 
 sub project :Local {
-    my ($self, $c, $projectName, $subcommand) = @_;
+    my ($self, $c, $projectName, $subcommand, $arg) = @_;
     $c->stash->{template} = 'project.tt';
     
     (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
@@ -285,9 +301,20 @@ sub project :Local {
 
     my $isPosted = $c->request->method eq "POST";
 
+    $c->stash->{curProject} = $project;
+    
     $subcommand = "" unless defined $subcommand;
 
-    if ($subcommand ne "") {
+    if ($subcommand eq "jobstatus") {
+        return showJobStatus($c, scalar $project->builds);
+    }
+
+    elsif ($subcommand eq "all") {
+        return showAllBuilds($c, $c->uri_for("/project", $projectName, "all"),
+            $arg, scalar $project->builds);
+    }
+
+    elsif ($subcommand ne "") {
 
         return requireLogin($c) if !$c->user_exists;
 
@@ -317,8 +344,6 @@ sub project :Local {
         }
     }
 
-    $c->stash->{curProject} = $project;
-    
     getBuildStats($c, scalar $project->builds);
     
     $c->stash->{jobNames} =

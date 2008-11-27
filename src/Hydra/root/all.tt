@@ -1,20 +1,20 @@
 [% WRAPPER layout.tt title="All Builds" %]
 [% PROCESS common.tt %]
 
-<h1>All Builds</h1>
+<h1>All Builds[% IF curProject %] in Project <tt>[% curProject.name %]</tt>[% END %]</h1>
 
 <p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %]
 out of [% totalBuilds %] in order of descending timestamp.</p>
 
 [% PROCESS renderBuildList %]
 
-[<a href="[% c.uri_for('/all' 1) %]">First</a>]
+[<a href="[% "$baseUri/1" %]">First</a>]
 [% IF page > 1 %]
-  [<a href="[% c.uri_for('/all' (page - 1)) %]">Prev</a>]
+  [<a href="[% "$baseUri/"; (page - 1) %]">Prev</a>]
 [% END %]
 [% IF page * resultsPerPage < totalBuilds %]
-  [<a href="[% c.uri_for('/all' (page + 1)) %]">Next</a>]
+  [<a href="[% "$baseUri/"; (page + 1) %]">Next</a>]
 [% END %]
-[<a href="[% c.uri_for('/all' (totalBuilds - 1) div resultsPerPage + 1) %]">Last</a>]
+[<a href="[% "$baseUri/"; (totalBuilds - 1) div resultsPerPage + 1 %]">Last</a>]
 
 [% END %]
