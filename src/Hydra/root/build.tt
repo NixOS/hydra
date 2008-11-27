@@ -170,7 +170,8 @@
   </thead>
   <tbody>
     [% FOREACH step IN build.buildsteps -%]
-      <tr>
+      <tr class="[% IF step.logfile %]clickable[% END %]"
+          [% IF step.logfile %] onclick="window.location = '[% c.uri_for('/nixlog' build.id step.stepnr) %]'" [% END %]>
         <td>[% step.stepnr %]</td>
         <td>
           [% IF step.type == 0 %]

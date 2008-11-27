@@ -38,7 +38,7 @@
     </thead>
     <tbody>
       [% FOREACH build IN builds -%]
-        <tr [% IF build.schedulingInfo.busy %]class="runningJob"[% END %]
+        <tr class="clickable [% IF build.schedulingInfo.busy %]runningJob[% END %]"
             onclick="window.location = '[% c.uri_for('/build' build.id) %]'">
           [% IF !hideResultInfo %]
             <td>
