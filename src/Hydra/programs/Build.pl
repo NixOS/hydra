@@ -276,7 +276,7 @@ print STDERR "performing build $buildId\n";
 # have the lock taken away.
 my $build;
 $db->txn_do(sub {
-    ($build) = $db->resultset('Builds')->search({id => $buildId});
+    $build = $db->resultset('Builds')->find($buildId);
     die "build $buildId doesn't exist" unless defined $build;
     if ($build->schedulingInfo->busy != 0 && $build->schedulingInfo->locker != getppid) {
         die "build $buildId is already being built";

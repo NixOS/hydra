@@ -41,7 +41,7 @@ sub trim {
 
 sub getBuild {
     my ($c, $id) = @_;
-    (my $build) = $c->model('DB::Builds')->search({ id => $id });
+    my $build = $c->model('DB::Builds')->find($id);
     return $build;
 }
 
@@ -165,6 +165,84 @@ sub showAllBuilds {
 sub all :Local {
     my ($self, $c, $page) = @_;
     showAllBuilds($c, $c->uri_for("/all"), $page, $c->model('DB::Builds'));
+}
+
+
+sub releasesets :Local {
+    my ($self, $c, $projectName) = @_;
+    $c->stash->{template} = 'releasesets.tt';
+
+    my $project = $c->model('DB::Projects')->find($projectName);
+    return error($c, "Project $projectName doesn't exist.") if !defined $project;
+    $c->stash->{curProject} = $project;
+
+    $c->stash->{releaseSets} = [$project->releasesets->all];
+}
+
+
+sub releases :Local {
+    my ($self, $c, $projectName, $releaseName) = @_;
+    $c->stash->{template} = 'releases.tt';
+
+    my $project = $c->model('DB::Projects')->find($projectName);
+    return error($c, "Project $projectName doesn't exist.") if !defined $project;
+    $c->stash->{curProject} = $project;
+
+    (my $releaseSet) = $c->model('DB::Releasesets')->find($projectName, $releaseName);
+    return error($c, "Release set $releaseName doesn't exist.") if !defined $releaseSet;
+    $c->stash->{releaseSet} = $releaseSet;
+
+    (my $primaryJob) = $releaseSet->releasesetjobs->search({isprimary => 1});
+    return error($c, "Release set $releaseName doesn't have a primary job.") if !defined $primaryJob;
+
+    $c->stash->{jobs} = [$releaseSet->releasesetjobs->search({}, {order_by => "isprimary DESC"})];
+    
+    my @primaryBuilds = $project->builds->search(
+        { attrname => $primaryJob->job, finished => 1 },
+        { join => 'resultInfo', order_by => "timestamp DESC", '+select' => ["resultInfo.releasename"], '+as' => ["releasename"] });
+
+    my @releases = ();
+
+    foreach my $primaryBuild (@primaryBuilds) {
+        my @jobs = ();
+
+        my $status = 0; # = okay
+        
+        foreach my $job (@{$c->stash->{jobs}}) {
+            my $thisBuild;
+            
+            if ($job->isprimary == 1) {
+                $thisBuild = $primaryBuild;
+            } else {
+                # Find a build of this job that had the primary build
+                # as input.  If there are multiple, prefer successful
+                # ones, and then oldest.  !!! order_by buildstatus is hacky
+                ($thisBuild) = $primaryBuild->dependentBuilds->search(
+                    { attrname => $job->job, finished => 1 },
+                    { join => 'resultInfo', rows => 1
+                    , order_by => ["buildstatus", "timestamp"] });
+            }
+
+            if ($job->mayfail != 1) {
+                if (!defined $thisBuild) {
+                    $status = 2 if $status == 0; # = unfinished
+                } elsif ($thisBuild->resultInfo->buildstatus != 0) {
+                    $status = 1; # = failed
+                }
+            }
+            
+            push @jobs, { build => $thisBuild };
+        }
+        
+        push @releases,
+            { id => $primaryBuild->id
+            , releasename => $primaryBuild->get_column('releasename')
+            , jobs => [@jobs]
+            , status => $status
+            };
+    }
+
+    $c->stash->{releases} = [@releases];
 }
 
 
@@ -296,7 +374,7 @@ sub project :Local {
     my ($self, $c, $projectName, $subcommand, $arg) = @_;
     $c->stash->{template} = 'project.tt';
     
-    (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
+    my $project = $c->model('DB::Projects')->find($projectName);
     return error($c, "Project $projectName doesn't exist.") if !defined $project;
 
     my $isPosted = $c->request->method eq "POST";
@@ -386,7 +464,7 @@ sub job :Local {
     my ($self, $c, $projectName, $jobName) = @_;
     $c->stash->{template} = 'job.tt';
 
-    (my $project) = $c->model('DB::Projects')->search({ name => $projectName });
+    my $project = $c->model('DB::Projects')->find($projectName);
     return error($c, "Project $projectName doesn't exist.") if !defined $project;
     $c->stash->{curProject} = $project;
 

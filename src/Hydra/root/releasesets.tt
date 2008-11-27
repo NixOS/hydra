@@ -1,0 +1,14 @@
+[% WRAPPER layout.tt title="Release Sets" %]
+[% PROCESS common.tt %]
+
+<h1>Release Sets</h1>
+
+<p>Project <tt>[% curProject.name %]</tt> has the following release sets:</p>
+
+<ul>
+  [% FOREACH releaseSet IN releaseSets %]
+    <li><a href="[% c.uri_for('/releases' curProject.name releaseSet.name) %]"><tt>[% releaseSet.name %]</tt></a></li>
+  [% END %]
+</ul>
+
+[% END %]

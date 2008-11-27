@@ -70,10 +70,12 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-27 03:26:23
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:p67v2RE44sAk2yGFoTpPww
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-27 14:48:09
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uRSa4YkaRG0K6vK/qhGI9w
 
 __PACKAGE__->has_many(dependents => 'Hydra::Schema::Buildinputs', 'dependency');
+
+__PACKAGE__->many_to_many(dependentBuilds => 'dependents', 'build');
 
 __PACKAGE__->has_many(inputs => 'Hydra::Schema::Buildinputs', 'build');
 

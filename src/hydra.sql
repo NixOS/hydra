@@ -168,6 +168,8 @@ create trigger cascadeProjectUpdate
     update JobsetInputs set project = new.name where project = old.name;
     update JobsetInputAlts set project = new.name where project = old.name;
     update Builds set project = new.name where project = old.name;
+    update ReleaseSets set project = new.name where project = old.name;
+    update ReleaseSetJobs set project = new.name where project = old.name;
   end;
 
 
@@ -288,3 +290,64 @@ create trigger cascadeUserDelete
   for each row begin
     delete from UserRoles where userName = old.userName;
   end;
+
+
+-- Release sets are a mechanism to automatically group related builds
+-- together.  A release set defines what an individual release
+-- consists of, namely: a release consists of a build of some
+-- "primary" job, plus all builds of the other jobs named in
+-- ReleaseSetJobs that have that build as an input.  If there are
+-- multiple builds matching a ReleaseSetJob, then we take the *oldest*
+-- successful build (for release stability), or the *newest*
+-- unsuccessful build if there is no succesful build.  A release is
+-- itself considered successful if all builds (except those for jobs
+-- that have mayFail set) are successful.
+--
+-- Note that individual releases aren't separately stored in the
+-- database, so they're really just a dynamic view on the universe of
+-- builds, defined by a ReleaseSet.
+create table ReleaseSets (
+    project       text not null,
+    name          text not null,
+    
+    description   text,
+
+    -- If true, don't garbage-collect builds belonging to the releases
+    -- defined by this row.
+    keep          integer not null default 0, 
+
+    primary key   (project, name),
+    foreign key   (project) references Projects(name) on delete cascade -- ignored by sqlite
+);
+
+
+create trigger cascadeReleaseSetDelete
+  before delete on ReleaseSets
+  for each row begin
+    delete from ReleaseSetJobs where project = old.project and release = old.release;
+  end;
+
+
+create table ReleaseSetJobs (
+    project       text not null,
+    release       text not null,
+
+    job           text not null,
+
+    -- A constraint on the job consisting of `name=value' pairs,
+    -- e.g. "system=i686-linux officialRelease=true".  Should really
+    -- be a separate table but I'm lazy.
+    attrs         text not null,
+
+    -- If set, this is the primary job for the release.  There can be
+    -- onlyt one such job per release set.
+    isPrimary     integer not null default 0,
+    
+    mayFail       integer not null default 0,
+
+    description   text,
+    
+    primary key   (project, release, job, attrs),
+    foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
+    foreign key   (project, release) references ReleaseSets(project, name) on delete cascade -- ignored by sqlite
+);

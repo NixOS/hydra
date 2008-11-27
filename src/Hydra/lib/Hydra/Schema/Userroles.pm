@@ -17,8 +17,8 @@ __PACKAGE__->set_primary_key("username", "role");
 __PACKAGE__->belongs_to("username", "Hydra::Schema::Users", { username => "username" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-27 03:26:23
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:g2EVNE74pSi9teIFqIA92Q
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-27 14:48:09
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:WxjgPLWPvXpQ3nmxmlU7Dw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

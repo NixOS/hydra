@@ -1,0 +1,60 @@
+[% WRAPPER layout.tt title="Releases" %]
+[% PROCESS common.tt %]
+[% USE HTML %]
+
+<h1>Releases</h1>
+
+<!-- <p>Description: [% releaseSet.description %]</p> -->
+
+<table class="tablesorter">
+  <thead>
+    <tr>
+      <th></th>
+      <th>#</th>
+      <th>Release</th>
+      [% FOREACH job IN jobs %]
+        <th>[% IF job.description; HTML.escape(job.description); ELSE %]<tt>[% job.job %]</tt> ([% job.attrs %])[% END %]</th>
+      [% END %]
+    </tr>
+  </thead>
+  
+  <tbody>
+    [% FOREACH release IN releases %] 
+      <tr>
+        <td>
+          [% IF release.status == 0 %]
+            <img src="/static/images/success.gif" />
+          [% ELSIF release.status == 1 %]
+            <img src="/static/images/failure.gif" />
+          [% ELSIF release.status == 2 %]
+            <img src="/static/images/question-mark.png" />
+          [% END %]
+        </td>
+        <td>[% release.id %]</td>
+        <td>
+          [% IF release.releasename %]
+            <tt>[% release.releasename %]</tt>
+          [% ELSE %]
+            <em>No name</em>
+          [% END %]
+        </td>
+        [% FOREACH job IN release.jobs %]
+          <td>
+            [% IF job.build %]
+              <a href="[% c.uri_for('/build' job.build.id) %]">
+                [% IF job.build.resultInfo.buildstatus == 0 %]
+                  <img src="/static/images/success.gif" />
+                [% ELSE %]
+                  <img src="/static/images/failure.gif" />
+                [% END %]
+                [% job.build.id %]
+              </a>
+            [% END %]
+          </td>
+        [% END %]
+      </tr> 
+   [% END %]
+  </tbody>
+</table>
+
+[% END %]

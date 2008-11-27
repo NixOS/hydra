@@ -96,7 +96,11 @@
       <tr>
         <th>Last checked:</th>
         <td>
-          [% PROCESS renderDateTime timestamp = jobset.lastcheckedtime %]
+          [% IF jobset.lastcheckedtime %]
+            [% PROCESS renderDateTime timestamp = jobset.lastcheckedtime %]
+          [% ELSE %]
+            <em>never</em>
+          [% END %]
         </td>
       </tr>
     [% END %]
