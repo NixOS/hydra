@@ -213,7 +213,7 @@ sub getReleaseSet {
     $c->stash->{releaseSet} = $releaseSet;
 
     (my $primaryJob) = $releaseSet->releasesetjobs->search({isprimary => 1});
-    die "Release set $releaseSetName doesn't have a primary job." if !defined $primaryJob;
+    #die "Release set $releaseSetName doesn't have a primary job." if !defined $primaryJob;
 
     $c->stash->{jobs} = [$releaseSet->releasesetjobs->search({},
         {order_by => ["isprimary DESC", "job", "attrs"]})];
@@ -275,6 +275,26 @@ sub updateReleaseSet {
     $releaseSet->name($releaseSetName);
     $releaseSet->description(trim $c->request->params->{description});
     $releaseSet->update;
+
+    $releaseSet->releasesetjobs->delete_all;
+
+    foreach my $param (keys %{$c->request->params}) {
+        next unless $param =~ /^job-(\d+)-name$/;
+        my $baseName = $1;
+
+        my $name = trim $c->request->params->{"job-$baseName-name"};
+        my $description = trim $c->request->params->{"job-$baseName-description"};
+        my $attrs = trim $c->request->params->{"job-$baseName-attrs"};
+
+        $releaseSet->releasesetjobs->create(
+            { job => $name
+            , description => $description
+            , attrs => $attrs
+            , isprimary => $c->request->params->{"primary"} eq $baseName
+            });
+    }
+
+    die "There must be one primary job." if $releaseSet->releasesetjobs->search({isprimary => 1})->count != 1;
 }
 
     

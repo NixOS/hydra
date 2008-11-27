@@ -17,6 +17,30 @@
     </tr>
   </table>
 
+  <table class="tablesorter">
+    <thead>
+      <tr>
+        <th>Primary job</th>
+        <th>Job name</th>
+        <th>Description</th>
+        <th>Constraint</th>
+      </tr>
+    </thead>
+    <tbody>
+      [% n = 0 %]
+      [% FOREACH job IN jobs %]
+        <tr>
+          <td><input type="radio" name="primary" [% IF job.isprimary %]
+            checked="checked" [% END %] [% HTML.attributes(value => "$n") %] /> [% n %]</td>
+          <td><input type="text" class="string" [% HTML.attributes(name => "job-$n-name", value => job.job) %] /></td>
+          <td><input type="text" class="string" [% HTML.attributes(name => "job-$n-description", value => job.description) %] /></td>
+          <td><input type="text" class="string" [% HTML.attributes(name => "job-$n-attrs", value => job.attrs) %] /></td>
+        </tr>
+        [% n = n + 1 %]
+      [% END %]
+    </tbody>
+  </table>
+
   <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
   
 </form>
