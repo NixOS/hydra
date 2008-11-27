@@ -40,6 +40,8 @@ create table BuildSchedulingInfo (
 
     disabled      integer not null default 0, -- true means hold this job until its re-enabled
     
+    startTime     integer, -- if busy, time we started
+    
     foreign key   (id) references Builds(id) on delete cascade -- ignored by sqlite
 );
 

@@ -46,6 +46,7 @@
         [% END %]
       [% ELSIF build.schedulingInfo.busy %]
         <strong>Build in progress</strong>
+        since [% PROCESS renderDateTime timestamp = build.schedulingInfo.starttime %]
       [% ELSE %]
         <strong>Scheduled to be built</strong>
       [% END %]

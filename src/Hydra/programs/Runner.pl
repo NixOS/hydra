@@ -72,6 +72,7 @@ sub checkJobs {
                 $job->schedulingInfo->busy(1);
                 $job->schedulingInfo->locker($$);
                 $job->schedulingInfo->logfile($logfile);
+                $job->schedulingInfo->starttime(time);
                 $job->schedulingInfo->update;
                 $job->buildsteps->delete_all;
                 push @jobsStarted, $job;
