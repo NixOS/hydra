@@ -76,6 +76,8 @@
     <div id="container">
 
       <div id="leftnavbar">
+        <div id="logo"><img src="/static/images/hydra.png" /></div>
+        
         <ul class="menu">
           <li>
             <div class="title">Hydra</div>

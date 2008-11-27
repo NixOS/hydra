@@ -277,6 +277,15 @@ table.tablesorter thead tr th {
     border-right: 1px solid gray;
 }
 
+#logo {
+    text-align: center;
+}
+
+#logo img {
+    width: 11em;
+    border: 1px;
+}
+
 #content {
     position: absolute;
     left: 13em;
