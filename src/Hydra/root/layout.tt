@@ -76,7 +76,7 @@
     <div id="container">
 
       <div id="leftnavbar">
-        <div id="logo"><img src="/static/images/hydra.png" /></div>
+        <div id="logo"><img src="/static/images/hydra.png" alt="Hydra" /></div>
         
         <ul class="menu">
           <li>
@@ -85,9 +85,7 @@
               [% INCLUDE makeLink uri = c.uri_for('/') title = "Overview" %]
               [% INCLUDE makeLink uri = c.uri_for('/queue') title = "Queue" %]
               [% INCLUDE makeLink uri = c.uri_for('/jobstatus') title = "Job status" %]
-              [% INCLUDE makeLink uri = c.uri_for('/latest') title = "Latest builds" %]
               [% INCLUDE makeLink uri = c.uri_for('/all') title = "All builds" %]
-              [% INCLUDE makeLink uri = c.uri_for('/search') title = "Search builds" %]
             </ul>
           </li>
 
