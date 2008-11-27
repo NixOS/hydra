@@ -101,6 +101,7 @@
                     <ul class="subsubmenu">
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'jobstatus') title = "Job status" %]
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'all') title = "All builds" %]
+                      [% INCLUDE makeLink uri = c.uri_for('/releasesets' project.name) title = "Releases" %]
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'edit') title = "Edit" %]
                     </ul>
                   [% END %]

@@ -95,3 +95,8 @@
   </table>
 
 [% END %]
+
+
+[% BLOCK renderReleaseJobName -%]
+[% IF job.description; HTML.escape(job.description); ELSE %]<tt>[% job.job %]</tt> ([% job.attrs %])[% END -%]
+[% END -%]

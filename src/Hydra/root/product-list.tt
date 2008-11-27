@@ -1,0 +1,109 @@
+[% BLOCK renderProductList -%]
+
+  <ul class="productList">
+
+    [% FOREACH product IN build.buildproducts -%]
+    <li class="product">
+      [% SWITCH product.type %]
+
+      [% CASE "nix-build" %]
+        <a href="[% c.uri_for('/closure' build.id product.productnr) %]">
+          <img src="/static/images/nix-build.png" alt="Source" />
+          Nix build of path <tt>[% product.path %]</tt>
+        </a>
+        [<a class="productDetailsToggle" href="javascript:">help</a>]
+        <div class="help productDetails">
+          <p>If you have Nix installed on your machine, this build and all
+          its dependencies can be unpacked into your local Nix store by
+          doing:</p>
+
+          <pre>$ gunzip < [% HTML.escape(build.nixname) %].closure.gz | nix-store --import</pre>
+
+          or to download and unpack in one command:
+
+          <pre>$ curl [% c.uri_for('/closure' build.id product.productnr) %] | gunzip | nix-store --import</pre>
+
+          <p>The package can then be found in the path <tt>[%
+          product.path %]</tt>.  If you get the error message “imported
+          archive lacks a signature”, you should make sure that you have
+          sufficient access rights to the Nix store, e.g., run the
+          command as <tt>root</tt>.</p>
+        </div>
+
+      [% CASE "file" %]
+        <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
+          [% SWITCH product.subtype %]
+          [% CASE "source-dist" %]
+            <img src="/static/images/source-dist.png" alt="Source" /> Source distribution <tt>[% product.name %]</tt>
+          [% CASE "rpm" %]
+            <img src="/static/images/rpm.png" alt="RPM" /> RPM package <tt>[% product.name %]</tt>
+          [% CASE "deb" %]
+            <img src="/static/images/debian.png" alt="RPM" /> Debian package <tt>[% product.name %]</tt>
+          [% CASE DEFAULT %]
+            File <tt>[% product.name %]</tt> of type <tt>[% product.subtype %]</tt>
+          [% END %]
+        </a>
+        [<a class="productDetailsToggle" href="javascript:">details</a>]
+        <div class="productDetails">
+          <table>
+            <tr>
+              <th>URL:</th>
+              <td>
+                <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
+                  <tt>[% c.uri_for('/download' build.id product.productnr product.name) %]</tt>
+                </a>
+              </td>
+            </tr>
+            <tr><th>File size:</th><td>[% product.filesize %] bytes ([% mibs(product.filesize / (1024 * 1024)) %] MiB)</td></tr>
+            <tr><th>SHA-1 hash:</th><td>[% product.sha1hash %]</td></tr>
+            <tr><th>SHA-256 hash:</th><td>[% product.sha256hash %]</td></tr>
+            <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
+          </table>
+        </div>
+
+      [% CASE "report" %]
+
+        <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
+          <img src="/static/images/report.png" alt="Report" />
+          [% SWITCH product.subtype %]
+          [% CASE "coverage" %]
+            Code coverage analysis report
+          [% CASE DEFAULT %]
+            Report of type <tt>[% product.subtype %]</tt>
+          [% END %]
+        </a>
+
+      [% CASE "doc" %]
+
+        <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
+          <img src="/static/images/document.png" alt="Document" />
+          [% SWITCH product.subtype %]
+          [% CASE "readme" %]
+            “README” file
+          [% CASE "manual" %]
+            Manual
+          [% CASE DEFAULT %]
+            Documentation of type <tt>[% product.subtype %]</tt>
+          [% END %]
+        </a>
+
+      [% CASE DEFAULT %]
+        Something of type <tt>[% product.type %]</tt>
+
+      [% END %]
+    </li>
+    [% END -%]
+
+  </ul>
+
+[% END %]
+
+<script>
+  $(document).ready(function() {
+    $('.productDetailsToggle').toggle(
+      function () { $(".productDetails", $(this).parents(".product")).fadeIn(); },
+      function () { $(".productDetails", $(this).parents(".product")).hide(); }
+    );
+  });
+</script>
+

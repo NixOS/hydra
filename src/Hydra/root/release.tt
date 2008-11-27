@@ -1,0 +1,43 @@
+[% releaseName = (release.releasename || "(No name)") -%]
+[% WRAPPER layout.tt title="Release $releaseName" %]
+[% PROCESS common.tt %]
+[% PROCESS "product-list.tt" %]
+[% USE HTML %]
+
+<h1>Release <tt>[% releaseName %]</tt></h1>
+
+[% IF release.status == 1 %]
+<p class="error">This is a failed release.  One of its jobs has failed.  See below for details.</p>
+[% ELSIF release.status == 2 %]
+<p class="error">This is an incomplete release.  One of its jobs has not been built (yet).  See below for details.</p>
+[% END %]
+
+[% FOREACH job IN release.jobs %]
+
+  <h2>
+    [% IF job.build %]<a href="[% c.uri_for('/build' job.build.id) %]">[% END %]
+    [% INCLUDE renderReleaseJobName job=job.job %]
+    [% IF job.build %]</a>[% END %]
+  </h2>
+
+  [% IF job.build %]
+
+    [% IF job.build.resultInfo.buildstatus == 0 %]
+
+      [% INCLUDE renderProductList build=job.build %]
+
+    [% ELSE %]
+
+      <p class="error">Build failed</p>
+      
+    [% END %]
+
+  [% ELSE %]
+
+    <p class="error">Build not (yet) performed.</p>
+
+  [% END %]
+
+[% END %]
+
+[% END %]

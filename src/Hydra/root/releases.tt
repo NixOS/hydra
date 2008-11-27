@@ -11,14 +11,15 @@
       <th>#</th>
       <th>Release</th>
       [% FOREACH job IN jobs %]
-        <th>[% IF job.description; HTML.escape(job.description); ELSE %]<tt>[% job.job %]</tt> ([% job.attrs %])[% END %]</th>
+        <th class="releaseSetJobName">[% PROCESS renderReleaseJobName %]</th>
       [% END %]
     </tr>
   </thead>
   
   <tbody>
-    [% FOREACH release IN releases %] 
-      <tr>
+    [% FOREACH release IN releases %]
+      [% link = c.uri_for('/release' releaseSet.project.name releaseSet.name release.id) %]
+      <tr class="clickable" onclick="window.location = '[% link %]'">
         <td>
           [% IF release.status == 0 %]
             <img src="/static/images/success.gif" />
@@ -28,7 +29,7 @@
             <img src="/static/images/question-mark.png" />
           [% END %]
         </td>
-        <td>[% release.id %]</td>
+        <td><a href="[% link %]">[% release.id %]</a></td>
         <td>
           [% IF release.releasename %]
             <tt>[% release.releasename %]</tt>
@@ -37,7 +38,7 @@
           [% END %]
         </td>
         [% FOREACH job IN release.jobs %]
-          <td>
+          <td class="centered">
             [% IF job.build %]
               <a href="[% c.uri_for('/build' job.build.id) %]">
                 [% IF job.build.resultInfo.buildstatus == 0 %]
@@ -45,7 +46,6 @@
                 [% ELSE %]
                   <img src="/static/images/failure.gif" />
                 [% END %]
-                [% job.build.id %]
               </a>
             [% END %]
           </td>
