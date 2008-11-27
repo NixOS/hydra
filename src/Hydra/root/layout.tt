@@ -2,6 +2,8 @@
 [% USE HTML -%]
 <?xml version="1.0" encoding="UTF-8"?>
 
+[% PROCESS common.tt %]
+
 [% BLOCK makeLink %]
   <li [% IF curUri == uri %]class="active"[% END %]>
     <div class="title"><a href="[% uri %]">[% title %]</a></div>
@@ -125,7 +127,7 @@
         [% content %]
         <div id="footer">
           <hr />
-          Generated on [% date.format %].
+          Generated on [% PROCESS renderDateTime %].
           [% IF c.user_exists %]
           You are logged in as <tt>[% c.user.username %]</tt>.
           [% END %]
