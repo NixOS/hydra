@@ -286,6 +286,8 @@ sub updateReleaseSet {
         my $description = trim $c->request->params->{"job-$baseName-description"};
         my $attrs = trim $c->request->params->{"job-$baseName-attrs"};
 
+        die "Invalid job name: $name" unless $name =~ /^\w+$/;
+        
         $releaseSet->releasesetjobs->create(
             { job => $name
             , description => $description

@@ -4,6 +4,23 @@
 
 <h1>Release Set <tt>[% curProject.name %]:[% releaseSet.name %]</tt></h1>
 
+
+[% BLOCK renderJob %]
+  <tr id="[% id %]" >
+    <td>
+      <button type="button" onclick='$(this).parents("tr").remove()'>
+        <img src="/static/images/failure.gif" alt="Delete job" />
+      </button>
+    </td>
+    <td><input type="radio" id="[% "$baseName-primary" %]" name="primary" [% IF job.isprimary %]
+      checked="checked" [% END %] [% HTML.attributes(value => "$n") %] /> [% n %]</td>
+    <td><input type="text" class="string" [% HTML.attributes(id => "$baseName-name", name => "$baseName-name", value => job.job) %] /></td>
+    <td><input type="text" class="string" [% HTML.attributes(id => "$baseName-description", name => "$baseName-description", value => job.description) %] /></td>
+    <td><input type="text" class="string" [% HTML.attributes(id => "$baseName-attrs", name => "$baseName-attrs", value => job.attrs) %] /></td>
+  </tr>
+[% END %]
+
+
 <form action="[% IF create %][% ELSE %][% c.uri_for('/releases' curProject.name releaseSet.name 'submit') %][% END %]" method="post">
 
   <table class="layoutTable">
@@ -20,6 +37,7 @@
   <table class="tablesorter">
     <thead>
       <tr>
+        <th></th>
         <th>Primary job</th>
         <th>Job name</th>
         <th>Description</th>
@@ -29,21 +47,41 @@
     <tbody>
       [% n = 0 %]
       [% FOREACH job IN jobs %]
-        <tr>
-          <td><input type="radio" name="primary" [% IF job.isprimary %]
-            checked="checked" [% END %] [% HTML.attributes(value => "$n") %] /> [% n %]</td>
-          <td><input type="text" class="string" [% HTML.attributes(name => "job-$n-name", value => job.job) %] /></td>
-          <td><input type="text" class="string" [% HTML.attributes(name => "job-$n-description", value => job.description) %] /></td>
-          <td><input type="text" class="string" [% HTML.attributes(name => "job-$n-attrs", value => job.attrs) %] /></td>
-        </tr>
+        [% INCLUDE renderJob baseName="job-$n" %]
         [% n = n + 1 %]
       [% END %]
+      <tr>
+        <td colspan="5"><button type="button" class="add-job">Add a new job</button></td>
+      </tr>
     </tbody>
   </table>
 
   <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
   
 </form>
+
+
+<table class="template"> <!-- dummy wrapper needed because “hidden” trs are visible anyway -->
+  [% INCLUDE renderJob job="" id="job-template" baseName="job-template" %]
+</table>
+
+
+<script>
+  $(document).ready(function() {
+    var id = [% n %];
+    
+    $(".add-job").click(function() {
+      var newnr = id++;
+      var newid = "job-" + newnr;
+      var x = $("#job-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
+      $("#job-template-name", x).attr("name", newid + "-name");
+      $("#job-template-description", x).attr("name", newid + "-description");
+      $("#job-template-attrs", x).attr("name", newid + "-attrs");
+      $("#job-template-primary", x).attr("value", newnr);
+      return false;
+    });
+  });
+</script>
 
 
 [% END %]
