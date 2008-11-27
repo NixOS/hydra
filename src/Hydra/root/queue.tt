@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title="Hydra Queue" %]
+[% WRAPPER layout.tt title="Queue" %]
 [% PROCESS common.tt %]
 
 <h1>Hydra Queue</h1>

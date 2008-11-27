@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title="Hydra Overview" %]
+[% WRAPPER layout.tt title=(edit ? (create ? "New Project" : "Editing Project ‘$curProject.name’") : "Project ‘$curProject.name’") %]
 [% PROCESS common.tt %]
 [% USE HTML %]
 
@@ -176,6 +176,15 @@
 </table>
 
 
+[% IF !edit %]
+
+<h2>Statistics</h2>
+
+[% PROCESS showBuildStats %]
+
+[% END %]
+
+
 <h2>Jobsets</h2>
 
 [% IF curProject.jobsets && curProject.jobsets.size > 0 || edit %]
@@ -236,34 +245,6 @@
 [% ELSE %]
 
 <p>No jobsets have been defined yet.</p>
-
-[% END %]
-
-
-[% IF !edit %]
-
-
-<h2>Jobs</h2>
-
-[% IF jobNames && jobNames.size > 0 %]
-
-<ul>
-  [% FOREACH jobName IN jobNames -%]
-    <li><a href="[% c.uri_for('/job' curProject.name jobName.attrname) %]"><tt>[% jobName.attrname %]</tt></a></li>
-  [% END %]
-</ul>
-
-[% ELSE %]
-
-<p>No builds have been performed or scheduled.</p>
-
-[% END %]
-
-
-<h2>Statistics</h2>
-
-[% PROCESS showBuildStats %]
-
 
 [% END %]
 

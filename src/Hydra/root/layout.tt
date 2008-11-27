@@ -13,7 +13,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
   
   <head>
-    <title>[% title %]</title>
+    <title>Hydra - [% title %]</title>
     <link rel="stylesheet" href="/static/css/hydra.css" type="text/css" />
     <link rel="stylesheet" href="/static/css/logfile.css" type="text/css" />
     <script type="text/javascript" src="/static/js/jquery-pack.js"></script> 
@@ -82,6 +82,7 @@
             <ul class="submenu">
               [% INCLUDE makeLink uri = c.uri_for('/') title = "Overview" %]
               [% INCLUDE makeLink uri = c.uri_for('/queue') title = "Queue" %]
+              [% INCLUDE makeLink uri = c.uri_for('/jobstatus') title = "Job status" %]
               [% INCLUDE makeLink uri = c.uri_for('/latest') title = "Latest builds" %]
               [% INCLUDE makeLink uri = c.uri_for('/all') title = "All builds" %]
               [% INCLUDE makeLink uri = c.uri_for('/search') title = "Search builds" %]

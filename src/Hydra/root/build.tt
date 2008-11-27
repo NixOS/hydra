@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title="Hydra Overview" %]
+[% WRAPPER layout.tt title="Build Information" %]
 [% PROCESS common.tt %]
 [% USE HTML %]
 [% USE mibs=format("%.2f") %]

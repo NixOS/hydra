@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title="Hydra Overview" %]
+[% WRAPPER layout.tt title="Job ‘$curProject.name:$jobName’" %]
 [% PROCESS common.tt %]
 
 <h1>All builds for job <tt>[% curProject.name %]:[% jobName %]</tt></h1>

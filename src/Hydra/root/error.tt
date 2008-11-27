@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title="Hydra Overview" %]
+[% WRAPPER layout.tt title="Error" %]
 [% USE HTML %]
 
 <h1>Error</h1>

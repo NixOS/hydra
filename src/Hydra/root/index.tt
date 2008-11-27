@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title="Hydra Overview" %]
+[% WRAPPER layout.tt title="Overview" %]
 [% PROCESS common.tt %]
 
 
@@ -8,20 +8,6 @@
 <h2>Statistics</h2>
 
 [% PROCESS showBuildStats %]
-
-
-<h2>Job status</h2>
-
-<p>Below are the latest builds for each job.</p>
-
-[% PROCESS renderBuildList builds=latestBuilds %]
-
-
-<h2>All builds</h2>
-
-<p>Number of builds: [% allBuilds.size %]</p>
-
-[% PROCESS renderBuildList builds=allBuilds %]
 
 
 [% END %]

@@ -72,17 +72,6 @@ sub index :Path :Args(0) {
     $c->stash->{template} = 'index.tt';
     
     getBuildStats($c, $c->model('DB::Builds'));
-    
-    $c->stash->{allBuilds} = [$c->model('DB::Builds')->search(
-        {finished => 1}, {order_by => "timestamp DESC"})];
-    
-    # Get the latest finished build for each unique job.
-    $c->stash->{latestBuilds} = [$c->model('DB::Builds')->search(undef,
-        { join => 'resultInfo'
-        , where => "finished != 0 and timestamp = (select max(timestamp) from Builds " .
-            "where project == me.project and attrName == me.attrName and finished != 0 and system == me.system)"
-        , order_by => "project, attrname, system"
-        })];
 }
 
 
@@ -126,6 +115,39 @@ sub queue :Local {
     $c->stash->{template} = 'queue.tt';
     $c->stash->{queue} = [$c->model('DB::Builds')->search(
         {finished => 0}, {join => 'schedulingInfo', order_by => ["priority DESC", "timestamp"]})];
+}
+
+
+sub jobstatus :Local {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'jobstatus.tt';
+
+    # Get the latest finished build for each unique job.
+    $c->stash->{latestBuilds} = [$c->model('DB::Builds')->search(undef,
+        { join => 'resultInfo'
+        , where => "finished != 0 and timestamp = (select max(timestamp) from Builds " .
+            "where project == me.project and attrName == me.attrName and finished != 0 and system == me.system)"
+        , order_by => "project, attrname, system"
+        })];
+}
+
+
+sub all :Local {
+    my ($self, $c, $page) = @_;
+    $c->stash->{template} = 'all.tt';
+
+    $page = int($page) || 1;
+
+    my $resultsPerPage = 50;
+
+    my $nrBuilds = scalar($c->model('DB::Builds')->search({finished => 1}));
+
+    $c->stash->{page} = $page;
+    $c->stash->{resultsPerPage} = $resultsPerPage;
+    $c->stash->{totalBuilds} = $nrBuilds;
+
+    $c->stash->{builds} = [$c->model('DB::Builds')->search(
+        {finished => 1}, {order_by => "timestamp DESC", rows => $resultsPerPage, page => $page})];
 }
 
 
