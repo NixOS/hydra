@@ -328,6 +328,13 @@ create trigger cascadeReleaseSetDelete
   end;
 
 
+create trigger cascadeReleaseSetUpdate
+  update of name on ReleaseSets
+  for each row begin
+    update ReleaseSetJobs set release = new.name where project = old.project and release = old.name;
+  end;
+
+
 create table ReleaseSetJobs (
     project       text not null,
     release       text not null,

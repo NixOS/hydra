@@ -1,0 +1,25 @@
+[% WRAPPER layout.tt title="Release Sets ‘$curProject.name:$releaseSet.name’" %]
+[% PROCESS common.tt %]
+[% USE HTML %]
+
+<h1>Release Set <tt>[% curProject.name %]:[% releaseSet.name %]</tt></h1>
+
+<form action="[% IF create %][% ELSE %][% c.uri_for('/releases' curProject.name releaseSet.name 'submit') %][% END %]" method="post">
+
+  <table class="layoutTable">
+    <tr>
+      <th>Identifier:</th>
+      <td><input type="text" class="string" name="name" [% HTML.attributes(value => releaseSet.name) %] /></td>
+    </tr>
+    <tr>
+      <th>Description:</th>
+      <td><input type="text" class="string" name="description" [% HTML.attributes(value => releaseSet.description) %] /></td>
+    </tr>
+  </table>
+
+  <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
+  
+</form>
+
+
+[% END %]

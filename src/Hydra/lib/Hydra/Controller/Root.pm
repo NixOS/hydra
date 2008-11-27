@@ -202,18 +202,18 @@ sub attrsToSQL {
 
 
 sub getReleaseSet {
-    my ($c, $projectName, $releaseName) = @_;
+    my ($c, $projectName, $releaseSetName) = @_;
     
     my $project = $c->model('DB::Projects')->find($projectName);
     die "Project $projectName doesn't exist." if !defined $project;
     $c->stash->{curProject} = $project;
 
-    (my $releaseSet) = $c->model('DB::Releasesets')->find($projectName, $releaseName);
-    die "Release set $releaseName doesn't exist." if !defined $releaseSet;
+    (my $releaseSet) = $c->model('DB::Releasesets')->find($projectName, $releaseSetName);
+    die "Release set $releaseSetName doesn't exist." if !defined $releaseSet;
     $c->stash->{releaseSet} = $releaseSet;
 
     (my $primaryJob) = $releaseSet->releasesetjobs->search({isprimary => 1});
-    die "Release set $releaseName doesn't have a primary job." if !defined $primaryJob;
+    die "Release set $releaseSetName doesn't have a primary job." if !defined $primaryJob;
 
     $c->stash->{jobs} = [$releaseSet->releasesetjobs->search({},
         {order_by => ["isprimary DESC", "job", "attrs"]})];
@@ -266,12 +266,46 @@ sub getRelease {
 }
 
 
+sub updateReleaseSet {
+    my ($c, $releaseSet) = @_;
+    
+    my $releaseSetName = trim $c->request->params->{name};
+    die "Invalid release set name: $releaseSetName" unless $releaseSetName =~ /^[[:alpha:]]\w*$/;
+    
+    $releaseSet->name($releaseSetName);
+    $releaseSet->description(trim $c->request->params->{description});
+    $releaseSet->update;
+}
+
+    
 sub releases :Local {
-    my ($self, $c, $projectName, $releaseName) = @_;
+    my ($self, $c, $projectName, $releaseSetName, $subcommand) = @_;
+
+    my ($project, $releaseSet, $primaryJob) = getReleaseSet($c, $projectName, $releaseSetName);
+
+    if ($subcommand ne "") {
+
+        return requireLogin($c) if !$c->user_exists;
+
+        return error($c, "Only the project owner or the administrator can perform this operation.")
+            unless $c->check_user_roles('admin') || $c->user->username eq $project->owner;
+
+        if ($subcommand eq "edit") {
+            $c->stash->{template} = 'edit-releaseset.tt';
+            return;
+        }
+
+        elsif ($subcommand eq "submit") {
+            $c->model('DB')->schema->txn_do(sub {
+                updateReleaseSet($c, $releaseSet);
+            });
+            return $c->res->redirect($c->uri_for("/releases", $projectName, $releaseSet->name));
+        }
+
+        else { return error($c, "Unknown subcommand."); }
+    }
+    
     $c->stash->{template} = 'releases.tt';
-
-    my ($project, $releaseSet, $primaryJob) = getReleaseSet($c, $projectName, $releaseName);
-
     my @primaryBuilds = $project->builds->search(
         { attrname => $primaryJob->job, finished => 1 },
         { join => 'resultInfo', order_by => "timestamp DESC"
@@ -287,10 +321,10 @@ sub releases :Local {
 
 
 sub release :Local {
-    my ($self, $c, $projectName, $releaseName, $releaseId) = @_;
+    my ($self, $c, $projectName, $releaseSetName, $releaseId) = @_;
     $c->stash->{template} = 'release.tt';
 
-    my ($project, $releaseSet, $primaryJob) = getReleaseSet($c, $projectName, $releaseName);
+    my ($project, $releaseSet, $primaryJob) = getReleaseSet($c, $projectName, $releaseSetName);
 
     # Note: we don't actually check whether $releaseId is a primary
     # build, but who cares?
@@ -463,7 +497,7 @@ sub project :Local {
             $c->model('DB')->schema->txn_do(sub {
                 updateProject($c, $project);
             });
-            return $c->res->redirect($c->uri_for("/project", trim $c->request->params->{name}));
+            return $c->res->redirect($c->uri_for("/project", $project->name));
         }
 
         elsif ($subcommand eq "delete" && $isPosted) {
