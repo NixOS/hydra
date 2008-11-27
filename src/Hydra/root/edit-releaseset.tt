@@ -13,7 +13,7 @@
       </button>
     </td>
     <td><input type="radio" id="[% "$baseName-primary" %]" name="primary" [% IF job.isprimary %]
-      checked="checked" [% END %] [% HTML.attributes(value => "$n") %] /> [% n %]</td>
+      checked="checked" [% END %] [% HTML.attributes(value => "$n") %] /></td>
     <td><input type="text" class="string" [% HTML.attributes(id => "$baseName-name", name => "$baseName-name", value => job.job) %] /></td>
     <td><input type="text" class="string" [% HTML.attributes(id => "$baseName-description", name => "$baseName-description", value => job.description) %] /></td>
     <td><input type="text" class="string" [% HTML.attributes(id => "$baseName-attrs", name => "$baseName-attrs", value => job.attrs) %] /></td>
