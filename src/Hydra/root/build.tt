@@ -2,7 +2,6 @@
 [% PROCESS common.tt %]
 [% PROCESS "product-list.tt" %]
 [% USE HTML %]
-[% USE mibs=format("%.2f") %]
 
 <h1>
   Job <tt>[% build.project.name %]:[% build.attrname %]</tt> build [% id %]
