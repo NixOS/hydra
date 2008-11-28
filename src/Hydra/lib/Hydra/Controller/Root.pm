@@ -310,7 +310,7 @@ sub releases :Local {
         return requireLogin($c) if !$c->user_exists;
 
         return error($c, "Only the project owner or the administrator can perform this operation.")
-            unless $c->check_user_roles('admin') || $c->user->username eq $project->owner;
+            unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
 
         if ($subcommand eq "edit") {
             $c->stash->{template} = 'edit-releaseset.tt';
@@ -359,7 +359,7 @@ sub create_releaseset :Local {
     return requireLogin($c) if !$c->user_exists;
 
     return error($c, "Only the project owner or the administrator can perform this operation.")
-        unless $c->check_user_roles('admin') || $c->user->username eq $project->owner;
+        unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
 
     if (defined $subcommand && $subcommand eq "submit") {
         eval {
@@ -552,7 +552,7 @@ sub project :Local {
         return requireLogin($c) if !$c->user_exists;
 
         return error($c, "Only the project owner or the administrator can perform this operation.")
-            unless $c->check_user_roles('admin') || $c->user->username eq $project->owner;
+            unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
         
         if ($subcommand eq "edit") {
             $c->stash->{edit} = 1;
@@ -594,12 +594,13 @@ sub createproject :Local {
 
     if (defined $subcommand && $subcommand eq "submit") {
         eval {
-            my $projectName = $c->request->params->{name};
+            my $projectName = trim $c->request->params->{name};
             $c->model('DB')->schema->txn_do(sub {
                 # Note: $projectName is validated in updateProject,
                 # which will abort the transaction if the name isn't
-                # valid.
-                my $project = $c->model('DB::Projects')->create({name => $projectName, displayname => ""});
+                # valid.  Idem for the owner.
+                my $project = $c->model('DB::Projects')->create(
+                    {name => $projectName, displayname => "", owner => trim $c->request->params->{owner}});
                 updateProject($c, $project);
             });
             return $c->res->redirect($c->uri_for("/project", $projectName));

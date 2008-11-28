@@ -25,6 +25,7 @@ __PACKAGE__->has_many(
   "Hydra::Schema::Builds",
   { "foreign.project" => "self.name" },
 );
+__PACKAGE__->belongs_to("owner", "Hydra::Schema::Users", { username => "owner" });
 __PACKAGE__->has_many(
   "jobsets",
   "Hydra::Schema::Jobsets",
@@ -42,8 +43,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-27 14:48:09
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:70/Br6966ZZ+p8n6lF1hcw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-28 18:56:45
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:I8vNdExrfd/eGfHeZRQ21A
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

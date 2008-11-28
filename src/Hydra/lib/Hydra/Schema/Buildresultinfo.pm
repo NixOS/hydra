@@ -24,13 +24,15 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
   "releasename",
   { data_type => "text", is_nullable => 0, size => undef },
+  "keep",
+  { data_type => "integer", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-27 14:48:09
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:QahlwGdZKC7mL7fvwNxWjA
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-11-28 18:56:45
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:cl2tJxeh476i1qzp28BB4g
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration
