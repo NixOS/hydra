@@ -11,28 +11,28 @@ my $db = Hydra::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
 $db->storage->dbh->do("PRAGMA synchronous = OFF;");
 
 
-sub unlockDeadJobs {
-    # Unlock jobs whose building process has died.
+sub unlockDeadBuilds {
+    # Unlock builds whose building process has died.
     $db->txn_do(sub {
-        my @jobs = $db->resultset('Builds')->search(
+        my @builds = $db->resultset('Builds')->search(
             {finished => 0, busy => 1}, {join => 'schedulingInfo'});
-        foreach my $job (@jobs) {
-            my $pid = $job->schedulingInfo->locker;
+        foreach my $build (@builds) {
+            my $pid = $build->schedulingInfo->locker;
             if (kill(0, $pid) != 1) { # see if we can signal the process
-                print "job ", $job->id, " pid $pid died, unlocking\n";
-                $job->schedulingInfo->busy(0);
-                $job->schedulingInfo->locker("");
-                $job->schedulingInfo->update;
+                print "build ", $build->id, " pid $pid died, unlocking\n";
+                $build->schedulingInfo->busy(0);
+                $build->schedulingInfo->locker("");
+                $build->schedulingInfo->update;
             }
         }
     });
 }
 
 
-sub checkJobs {
-    print "looking for runnable jobs...\n";
+sub checkBuilds {
+    print "looking for runnable builds...\n";
 
-    my @jobsStarted;
+    my @buildsStarted;
 
     $db->txn_do(sub {
 
@@ -58,36 +58,36 @@ sub checkJobs {
             $extraAllowed = 0 if $extraAllowed < 0;
 
             # Select the highest-priority builds to start.
-            my @jobs = $extraAllowed == 0 ? () : $db->resultset('Builds')->search(
+            my @builds = $extraAllowed == 0 ? () : $db->resultset('Builds')->search(
                 { finished => 0, busy => 0, system => $system->system },
                 { join => 'schedulingInfo', order_by => ["priority DESC", "timestamp"],
                   rows => $extraAllowed });
 
             print "system type `", $system->system,
                 "': $nrActive active, $maxConcurrent allowed, ",
-                "starting ", scalar(@jobs), " builds\n";
+                "starting ", scalar(@builds), " builds\n";
 
-            foreach my $job (@jobs) {
-                my $logfile = getcwd . "/logs/" . $job->id;
+            foreach my $build (@builds) {
+                my $logfile = getcwd . "/logs/" . $build->id;
                 unlink($logfile);
-                $job->schedulingInfo->busy(1);
-                $job->schedulingInfo->locker($$);
-                $job->schedulingInfo->logfile($logfile);
-                $job->schedulingInfo->starttime(time);
-                $job->schedulingInfo->update;
-                $job->buildsteps->delete_all;
-                push @jobsStarted, $job;
+                $build->schedulingInfo->busy(1);
+                $build->schedulingInfo->locker($$);
+                $build->schedulingInfo->logfile($logfile);
+                $build->schedulingInfo->starttime(time);
+                $build->schedulingInfo->update;
+                $build->buildsteps->delete_all;
+                push @buildsStarted, $build;
             }
         }
     });
 
     # Actually start the builds we just selected.  We need to do this
     # outside the transaction in case it aborts or something.
-    foreach my $job (@jobsStarted) {
-        my $id = $job->id;
-        print "starting job $id (", $job->project->name, ":", $job->attrname, ") on ", $job->system, "\n";
+    foreach my $build (@buildsStarted) {
+        my $id = $build->id;
+        print "starting build $id (", $build->project->name, ":", $build->attrname, ") on ", $build->system, "\n";
         eval {
-            my $logfile = $job->schedulingInfo->logfile;
+            my $logfile = $build->schedulingInfo->logfile;
             my $child = fork();
             die unless defined $child;
             if ($child == 0) {
@@ -96,16 +96,16 @@ sub checkJobs {
                 POSIX::dup2(fileno(LOG), 2) or die;
                 exec("perl", "-IHydra/lib", "-w",
                      "./Hydra/programs/Build.pl", $id);
-                warn "cannot start job " . $id;
+                warn "cannot start build " . $id;
                 POSIX::_exit(1);
             }
         };
         if ($@) {
             warn $@;
             $db->txn_do(sub {
-                $job->schedulingInfo->busy(0);
-                $job->schedulingInfo->locker($$);
-                $job->schedulingInfo->update;
+                $build->schedulingInfo->busy(0);
+                $build->schedulingInfo->locker($$);
+                $build->schedulingInfo->update;
             });
         }
     }
@@ -114,8 +114,8 @@ sub checkJobs {
 
 while (1) {
     eval {
-        unlockDeadJobs;
-        checkJobs;
+        unlockDeadBuilds;
+        checkBuilds;
     };
     warn $@ if $@;
 
