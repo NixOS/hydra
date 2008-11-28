@@ -1,4 +1,4 @@
-#! @perl@ -w
+#! /var/run/current-system/sw/bin/perl -w
 
 use strict;
 use XML::Simple;

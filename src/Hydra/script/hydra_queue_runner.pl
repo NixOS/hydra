@@ -1,4 +1,4 @@
-#! @perl@ -w
+#! /var/run/current-system/sw/bin/perl -w
 
 use strict;
 use Cwd;
@@ -100,7 +100,7 @@ sub checkBuilds {
                     open LOG, ">$logfile" or die "cannot create logfile $logfile";
                     POSIX::dup2(fileno(LOG), 1) or die;
                     POSIX::dup2(fileno(LOG), 2) or die;
-                    exec("perl", "-I$hydraHome/lib", "-w", "$ENV{'HYDRA_HOME'}/programs/Build.pl", $id);
+                    exec("hydra_build.pl", $id);
                 };
                 warn "cannot start build $id: $@";
                 POSIX::_exit(1);
