@@ -73,20 +73,30 @@ let
           src=$(ls ${tarball.path}/tarballs/*.tar.bz2)
         ''; # */
 
+        hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") [
+          libxslt sqlite subversion nixUnstable coreutils
+          gzip bzip2 gnused
+        ]);
+
         installPhase = ''
           ensureDir $out/libexec
           cp -prd src/Hydra $out/libexec/hydra
 
-
           mv $out/libexec/hydra/script $out/bin
+
+          cp ${nixpkgs.path + "/pkgs/build-support/fetchsvn/nix-prefetch-svn"} $out/bin/nix-prefetch-svn
 
           for i in $out/bin/*; do
               wrapProgram $i \
                   --prefix PERL5LIB ':' $out/libexec/hydra/lib:$PERL5LIB \
-                  --prefix PATH ':' $out/bin:${libxslt}/bin:${sqlite}/bin \
+                  --set PATH $out/bin:$hydraPath \
                   --set HYDRA_HOME $out/libexec/hydra
           done
         ''; # */
+
+        meta = {
+          description = "Build of Hydra on ${system}";
+        };
       };
 
   };
