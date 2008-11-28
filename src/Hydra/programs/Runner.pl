@@ -11,20 +11,22 @@ my $db = Hydra::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
 $db->storage->dbh->do("PRAGMA synchronous = OFF;");
 
 
-# Unlock jobs whose building process has died.
-$db->txn_do(sub {
-    my @jobs = $db->resultset('Builds')->search(
-        {finished => 0, busy => 1}, {join => 'schedulingInfo'});
-    foreach my $job (@jobs) {
-        my $pid = $job->schedulingInfo->locker;
-        if (kill(0, $pid) != 1) { # see if we can signal the process
-            print "job ", $job->id, " pid $pid died, unlocking\n";
-            $job->schedulingInfo->busy(0);
-            $job->schedulingInfo->locker("");
-            $job->schedulingInfo->update;
+sub unlockDeadJobs {
+    # Unlock jobs whose building process has died.
+    $db->txn_do(sub {
+        my @jobs = $db->resultset('Builds')->search(
+            {finished => 0, busy => 1}, {join => 'schedulingInfo'});
+        foreach my $job (@jobs) {
+            my $pid = $job->schedulingInfo->locker;
+            if (kill(0, $pid) != 1) { # see if we can signal the process
+                print "job ", $job->id, " pid $pid died, unlocking\n";
+                $job->schedulingInfo->busy(0);
+                $job->schedulingInfo->locker("");
+                $job->schedulingInfo->update;
+            }
         }
-    }
-});
+    });
+}
 
 
 sub checkJobs {
@@ -112,6 +114,7 @@ sub checkJobs {
 
 while (1) {
     eval {
+        unlockDeadJobs;
         checkJobs;
     };
     warn $@ if $@;
