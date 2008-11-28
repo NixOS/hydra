@@ -232,7 +232,7 @@ sub getRelease {
     foreach my $job (@{$c->stash->{jobs}}) {
         my $thisBuild;
 
-        if ($job->isprimary == 1) {
+        if ($job->isprimary) {
             $thisBuild = $primaryBuild;
         } else {
             # Find a build of this job that had the primary build
@@ -305,7 +305,7 @@ sub releases :Local {
 
     my ($project, $releaseSet, $primaryJob) = getReleaseSet($c, $projectName, $releaseSetName);
 
-    if ($subcommand ne "") {
+    if (defined $subcommand && $subcommand ne "") {
 
         return requireLogin($c) if !$c->user_exists;
 
