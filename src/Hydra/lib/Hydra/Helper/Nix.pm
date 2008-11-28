@@ -15,7 +15,7 @@ sub isValidPath {
 
 
 sub getHydraPath {
-    my $dir = $ENV{HYDRA_DATA};
+    my $dir = $ENV{"HYDRA_DATA"};
     die "The HYDRA_DATA environment variable is not set!\n" unless defined $dir;
     die "The HYDRA_DATA directory does not exist!\n" unless -d $dir;
     return $dir;

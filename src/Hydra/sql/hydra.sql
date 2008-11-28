@@ -155,7 +155,7 @@ create table Projects (
     name          text primary key not null, -- project id, lowercase (e.g. "patchelf")
     displayName   text not null, -- display name (e.g. "PatchELF")
     description   text,
-    enabled       integer not null default 1
+    enabled       integer not null default 1,
     owner         text not null,
     foreign key   (owner) references Users(userName) -- ignored by sqlite
 );
