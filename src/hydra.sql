@@ -324,7 +324,7 @@ create table ReleaseSets (
 create trigger cascadeReleaseSetDelete
   before delete on ReleaseSets
   for each row begin
-    delete from ReleaseSetJobs where project = old.project and release = old.release;
+    delete from ReleaseSetJobs where project = old.project and release = old.name;
   end;
 
 
