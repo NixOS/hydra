@@ -65,6 +65,8 @@ let
           perlCatalystPluginStackTrace
           perlCatalystPluginAuthenticationStoreDBIxClass
           perlCatalystViewTT
+          perlXMLSimple
+          perlIPCRun
         ];
 
         preUnpack = ''
