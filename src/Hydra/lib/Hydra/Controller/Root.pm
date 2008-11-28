@@ -146,7 +146,7 @@ sub showAllBuilds {
     my ($c, $baseUri, $page, $builds) = @_;
     $c->stash->{template} = 'all.tt';
 
-    $page = int($page) || 1;
+    $page = (defined $page ? int($page) : 1) || 1;
 
     my $resultsPerPage = 50;
 
@@ -756,6 +756,12 @@ sub closure :Local {
     $c->stash->{current_view} = 'Hydra::View::NixClosure';
     $c->stash->{storePath} = $product->path;
     $c->stash->{name} = $build->nixname;
+
+    # !!! quick hack; this is to make HEAD requests return the right
+    # MIME type.  This is set in the view as well, but the view isn't
+    # called for HEAD requests.  There should be a cleaner solution...
+    $c->response->content_type('application/x-nix-export');
+    $c->response->header('Content-Disposition' => 'attachment; filename=' . $c->stash->{name} . '.closure.gz');
 }
 
 
