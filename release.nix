@@ -42,7 +42,7 @@ let
         name = "hydra-build";
 
         buildInputs = [
-          perl makeWrapper
+          perl makeWrapper unzip
           perlCatalystDevel
           perlCatalystPluginAuthenticationStoreDBIC
           perlCatalystPluginSessionStoreFastMmap
@@ -55,9 +55,22 @@ let
           src=$(ls ${tarball.path}/tarballs/*.tar.bz2)
         ''; # */
 
+        jquery = fetchurl {
+          url = http://jqueryjs.googlecode.com/files/jquery-1.2.6.pack.js;
+          sha1 = "c10dbe0c2b23444d0794f3376398702d84f41583";
+        };
+
+        tablesorter = fetchurl {
+          url = http://tablesorter.com/jquery.tablesorter.zip;
+          sha256 = "013zgglvifvy0yg0ybjrl823sswy9v1ihf5nmighmcyigfd6nrhb";
+        };
+
         installPhase = ''
           ensureDir $out/libexec
           cp -prd src/Hydra $out/libexec/hydra
+
+          cp $jquery $out/libexec/hydra/root/static/js/jquery-pack.js
+          unzip -d $out/libexec/hydra/root/static/js $tablesorter
 
           mv $out/libexec/hydra/script $out/bin
 
