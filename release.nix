@@ -81,7 +81,7 @@ let
           for i in $out/bin/*; do
               wrapProgram $i \
                   --prefix PERL5LIB ':' $out/libexec/hydra/lib:$PERL5LIB \
-                  --prefix PATH ':' $out/bin \
+                  --prefix PATH ':' $out/bin:${libxslt}/bin:${sqlite}/bin \
                   --set HYDRA_HOME $out/libexec/hydra
           done
         ''; # */
