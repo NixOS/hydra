@@ -3,6 +3,8 @@
 
 <h1>Release Sets</h1>
 
+[% IF releaseSets.size > 0 %]
+
 <p>Project <tt>[% curProject.name %]</tt> has the following release sets:</p>
 
 <ul>
@@ -13,6 +15,13 @@
     </li>
   [% END %]
 </ul>
+
+[% ELSE %]
+
+<p>Project <tt>[% curProject.name %]</tt> has no release sets.</p>
+
+[% END %]
+
 
 <p>[<a href="[% c.uri_for('/create_releaseset' curProject.name) %]">Create a new release set</a>]</p>
 

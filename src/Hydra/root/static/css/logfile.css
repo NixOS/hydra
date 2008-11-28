@@ -66,6 +66,7 @@ em.storeref:hover {
 
 em.storeref:hover span.popup {
     display: inline;
+    width: 40em;
 }
 
 
