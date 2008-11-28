@@ -2,6 +2,7 @@ package Hydra;
 
 use strict;
 use warnings;
+use Hydra::Helper::Nix;
 
 use Catalyst::Runtime '5.70';
 
@@ -20,8 +21,11 @@ our $VERSION = '0.01';
 
 __PACKAGE__->config(
     name => 'Hydra',
-    default_view => "TT"
-    );
+    default_view => "TT",
+    session => {
+        storage => getHydraPath . "/session_data"
+    }
+);
 
 __PACKAGE__->setup();
 

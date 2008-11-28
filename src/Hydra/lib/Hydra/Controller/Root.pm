@@ -751,7 +751,7 @@ sub closure :Local {
 
     return error($c, "Product is not a Nix build.") if $product->type ne "nix-build";
 
-    return error($c, "Path " . $product->path . " is no longer available.") unless Hydra::Helper::Nix::isValidPath($product->path);
+    return error($c, "Path " . $product->path . " is no longer available.") unless isValidPath($product->path);
 
     $c->stash->{current_view} = 'Hydra::View::NixClosure';
     $c->stash->{storePath} = $product->path;

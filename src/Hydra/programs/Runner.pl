@@ -2,13 +2,17 @@
 
 use strict;
 use Cwd;
+use File::Basename;
 use POSIX qw(dup2);
 use Hydra::Schema;
+use Hydra::Helper::Nix;
 
 
-my $db = Hydra::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
+chdir getHydraPath or die;
+my $db = openHydraDB;
 
-$db->storage->dbh->do("PRAGMA synchronous = OFF;");
+my $hydraHome = $ENV{"HYDRA_HOME"};
+die "The HYDRA_HOME environment variable is not set!\n" unless defined $hydraHome;
 
 
 sub unlockDeadBuilds {
@@ -69,6 +73,7 @@ sub checkBuilds {
 
             foreach my $build (@builds) {
                 my $logfile = getcwd . "/logs/" . $build->id;
+                mkdir(dirname $logfile);
                 unlink($logfile);
                 $build->schedulingInfo->busy(1);
                 $build->schedulingInfo->locker($$);
@@ -91,12 +96,13 @@ sub checkBuilds {
             my $child = fork();
             die unless defined $child;
             if ($child == 0) {
-                open LOG, ">$logfile" or die;
-                POSIX::dup2(fileno(LOG), 1) or die;
-                POSIX::dup2(fileno(LOG), 2) or die;
-                exec("perl", "-IHydra/lib", "-w",
-                     "./Hydra/programs/Build.pl", $id);
-                warn "cannot start build " . $id;
+                eval {
+                    open LOG, ">$logfile" or die "cannot create logfile $logfile";
+                    POSIX::dup2(fileno(LOG), 1) or die;
+                    POSIX::dup2(fileno(LOG), 2) or die;
+                    exec("perl", "-I$hydraHome/lib", "-w", "$ENV{'HYDRA_HOME'}/programs/Build.pl", $id);
+                };
+                warn "cannot start build $id: $@";
                 POSIX::_exit(1);
             }
         };

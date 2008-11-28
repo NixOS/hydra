@@ -3,19 +3,12 @@
 use strict;
 use XML::Simple;
 use Hydra::Schema;
+use Hydra::Helper::Nix;
 use IPC::Run;
 use POSIX qw(strftime);
 
 
-my $db = Hydra::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
-
-$db->storage->dbh->do("PRAGMA synchronous = OFF;");
-
-
-sub isValidPath {
-    my $path = shift;
-    return system("nix-store --check-validity $path 2> /dev/null") == 0;
-}
+my $db = openHydraDB;
 
 
 sub captureStdoutStderr {

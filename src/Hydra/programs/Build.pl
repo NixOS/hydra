@@ -4,17 +4,10 @@ use strict;
 use File::Basename;
 use File::stat;
 use Hydra::Schema;
+use Hydra::Helper::Nix;
 
 
-my $db = Hydra::Schema->connect("dbi:SQLite:dbname=hydra.sqlite", "", "", {});
-
-$db->storage->dbh->do("PRAGMA synchronous = OFF;");
-
-
-sub isValidPath {
-    my $path = shift;
-    return system("nix-store --check-validity $path 2> /dev/null") == 0;
-}
+my $db = openHydraDB;
 
 
 sub doBuild {

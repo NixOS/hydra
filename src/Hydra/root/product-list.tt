@@ -26,7 +26,13 @@
           <pre>$ curl [% c.uri_for('/closure' build.id product.productnr) %] | gunzip | nix-store --import</pre>
 
           <p>The package can then be found in the path <tt>[%
-          product.path %]</tt>.  If you get the error message “imported
+          product.path %]</tt>.  You’ll probably also want to do
+
+          <pre>nix-env -i [% product.path %]</pre>
+
+          to actually install the package in your Nix user environment.</p>
+
+          <p>If you get the error message “imported
           archive lacks a signature”, you should make sure that you have
           sufficient access rights to the Nix store, e.g., run the
           command as <tt>root</tt>.</p>

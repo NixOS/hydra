@@ -2,13 +2,11 @@ package Hydra::Model::DB;
 
 use strict;
 use base 'Catalyst::Model::DBIC::Schema';
+use Hydra::Helper::Nix;
 
 __PACKAGE__->config(
     schema_class => 'Hydra::Schema',
-    connect_info => [
-        'dbi:SQLite:../hydra.sqlite',
-        
-    ],
+    connect_info => [getHydraDBPath],
 );
 
 =head1 NAME
