@@ -14,4 +14,6 @@
   [% END %]
 </ul>
 
+<p>[<a href="[% c.uri_for('/create_releaseset' curProject.name) %]">Create a new release set</a>]</p>
+
 [% END %]

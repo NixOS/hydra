@@ -324,6 +324,13 @@ sub releases :Local {
             return $c->res->redirect($c->uri_for("/releases", $projectName, $releaseSet->name));
         }
 
+        elsif ($subcommand eq "delete") {
+            $c->model('DB')->schema->txn_do(sub {
+                $releaseSet->delete;
+            });
+            return $c->res->redirect($c->uri_for("/releasesets", $projectName));
+        }
+
         else { return error($c, "Unknown subcommand."); }
     }
     
@@ -339,6 +346,40 @@ sub releases :Local {
     push @releases, getRelease($c, $_) foreach @primaryBuilds;
 
     $c->stash->{releases} = [@releases];
+}
+
+
+sub create_releaseset :Local {
+    my ($self, $c, $projectName, $subcommand) = @_;
+
+    my $project = $c->model('DB::Projects')->find($projectName);
+    die "Project $projectName doesn't exist." if !defined $project;
+    $c->stash->{curProject} = $project;
+
+    return requireLogin($c) if !$c->user_exists;
+
+    return error($c, "Only the project owner or the administrator can perform this operation.")
+        unless $c->check_user_roles('admin') || $c->user->username eq $project->owner;
+
+    if (defined $subcommand && $subcommand eq "submit") {
+        eval {
+            my $releaseSetName = $c->request->params->{name};
+            $c->model('DB')->schema->txn_do(sub {
+                # Note: $releaseSetName is validated in updateProject,
+                # which will abort the transaction if the name isn't
+                # valid.
+                my $releaseSet = $project->releasesets->create({name => $releaseSetName});
+                updateReleaseSet($c, $releaseSet);
+                return $c->res->redirect($c->uri_for("/releases", $projectName, $releaseSet->name));
+            });
+        };
+        if ($@) {
+            return error($c, $@);
+        }
+    }
+    
+    $c->stash->{template} = 'edit-releaseset.tt';
+    $c->stash->{create} = 1;
 }
 
 
