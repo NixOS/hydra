@@ -669,7 +669,7 @@ sub log :Local {
     $c->stash->{build} = $build;
 
     # !!! should be done in the view (as a TT plugin).
-    $c->stash->{logtext} = loadLog($build->resultInfo->logfile);
+    $c->stash->{logtext} = loadLog($c, $build->resultInfo->logfile);
 }
 
 
@@ -689,18 +689,19 @@ sub nixlog :Local {
     $c->stash->{step} = $step;
 
     # !!! should be done in the view (as a TT plugin).
-    $c->stash->{logtext} = loadLog($step->logfile);
+    $c->stash->{logtext} = loadLog($c, $step->logfile);
 }
 
 
 sub loadLog {
-    my ($path) = @_;
+    my ($c, $path) = @_;
 
     die unless defined $path;
 
     # !!! quick hack
     my $pipeline = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path")
-        . " | nix-log2xml | xsltproc xsl/mark-errors.xsl - | xsltproc xsl/log2html.xsl - | tail -n +2";
+        . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
+        . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " - | tail -n +2";
 
     return `$pipeline`;
 }
