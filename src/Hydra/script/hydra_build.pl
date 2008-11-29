@@ -211,7 +211,7 @@ sub doBuild {
                     my $type = $1;
                     my $subtype = $2 eq "none" ? "" : $2;
                     my $path = $3;
-                    die unless -e $path;
+                    next unless -e $path;
 
                     my $fileSize, my $sha1, my $sha256;
 
