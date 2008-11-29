@@ -29,10 +29,10 @@ sub unlockDeadBuilds {
                 # Work around sqlite locking timeouts: if the child
                 # barfed because of a locked DB before updating the
                 # `locker' field, then `locker' is still set to $$.
-                # So if after 2 minutes it hasn't been updated,
+                # So if after a minute it hasn't been updated,
                 # unlock the build.  !!! need a better fix for those
                 # locking timeouts.
-                if ($build->schedulingInfo->starttime + 10 < time) {
+                if ($build->schedulingInfo->starttime + 60 < time) {
                     $unlock = 1;
                 }
             } elsif (kill(0, $pid) != 1) { # see if we can signal the process
