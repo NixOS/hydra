@@ -28,7 +28,7 @@
           <p>The package can then be found in the path <tt>[%
           product.path %]</tt>.  You’ll probably also want to do
 
-          <pre>nix-env -i [% product.path %]</pre>
+          <pre>$ nix-env -i [% product.path %]</pre>
 
           to actually install the package in your Nix user environment.</p>
 
@@ -90,6 +90,8 @@
             “README” file
           [% CASE "manual" %]
             Manual
+          [% CASE "release-notes" %]
+            Release notes
           [% CASE DEFAULT %]
             Documentation of type <tt>[% product.subtype %]</tt>
           [% END %]

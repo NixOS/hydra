@@ -346,9 +346,10 @@ sub checkJobSet {
 
     # Fetch the input containing the Nix expression.
     (my $exprInput) = $jobset->jobsetinputs->search({name => $jobset->nixexprinput});
-    die unless defined $exprInput;
+    die "No input named " . $jobset->nixexprinput unless defined $exprInput;
 
-    die "not supported yet" if scalar($exprInput->jobsetinputalts) != 1;
+    die "Multiple alternatives for the Nix expression input not supported yet"
+        if scalar($exprInput->jobsetinputalts) != 1;
 
     fetchInput($exprInput, $exprInput->jobsetinputalts->first, $inputInfo);
 
