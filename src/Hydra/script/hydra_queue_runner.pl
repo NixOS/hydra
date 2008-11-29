@@ -3,7 +3,7 @@
 use strict;
 use Cwd;
 use File::Basename;
-use POSIX qw(dup2);
+use POSIX qw(dup2 :sys_wait_h);
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 
@@ -14,7 +14,7 @@ my $db = openHydraDB;
 my $hydraHome = $ENV{"HYDRA_HOME"};
 die "The HYDRA_HOME environment variable is not set!\n" unless defined $hydraHome;
 
-$SIG{CHLD} = 'IGNORE';
+#$SIG{CHLD} = 'IGNORE';
 
 
 sub unlockDeadBuilds {
@@ -24,7 +24,21 @@ sub unlockDeadBuilds {
             {finished => 0, busy => 1}, {join => 'schedulingInfo'});
         foreach my $build (@builds) {
             my $pid = $build->schedulingInfo->locker;
-            if (kill(0, $pid) != 1) { # see if we can signal the process
+            my $unlock = 0;
+            if ($pid == $$) {
+                # Work around sqlite locking timeouts: if the child
+                # barfed because of a locked DB before updating the
+                # `locker' field, then `locker' is still set to $$.
+                # So if after 2 minutes it hasn't been updated,
+                # unlock the build.  !!! need a better fix for those
+                # locking timeouts.
+                if ($build->schedulingInfo->starttime + 10 < time) {
+                    $unlock = 1;
+                }
+            } elsif (kill(0, $pid) != 1) { # see if we can signal the process
+                $unlock = 1;
+            }
+            if ($unlock) {
                 print "build ", $build->id, " pid $pid died, unlocking\n";
                 $build->schedulingInfo->busy(0);
                 $build->schedulingInfo->locker("");
@@ -122,7 +136,11 @@ sub checkBuilds {
 
 while (1) {
     eval {
+        # Clean up zombies.
+        while ((waitpid(-1, &WNOHANG)) > 0) { };
+        
         unlockDeadBuilds;
+        
         checkBuilds;
     };
     warn $@ if $@;

@@ -425,5 +425,5 @@ sub checkJobs {
 while (1) {
     checkJobs;
     print "sleeping...\n";
-    sleep 10;
+    sleep 30;
 }
