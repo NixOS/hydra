@@ -11,7 +11,7 @@
   [% FOREACH releaseSet IN releaseSets %]
     <li>
       <a href="[% c.uri_for('/releases' curProject.name releaseSet.name) %]"><tt>[% releaseSet.name %]</tt></a>
-      (<a href="[% c.uri_for('/releases' curProject.name releaseSet.name "edit") %]">edit</a>)
+      [<a href="[% c.uri_for('/releases' curProject.name releaseSet.name "edit") %]">Edit</a>]
     </li>
   [% END %]
 </ul>

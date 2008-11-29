@@ -377,6 +377,37 @@ h1 {
     color: #606060;
 }
 
+#leftnavbar ul.subsubsubmenu {
+    padding-left: 0;
+}
+
+#leftnavbar ul.subsubsubmenu > li {
+    font-size: 80%;
+    list-style: none;
+    margin: 0 0 0 0;
+    padding: 0 0 0 0;
+    border-width: 0px;
+    border-top-width: 1px;
+    border-style: solid;
+    border-color: #c0c0c0;
+}
+
+#leftnavbar ul.subsubsubmenu > li > div.title {
+    padding-left: 5.3em;
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+    background-image: url(/static/images/arrow-right.gif);
+    background-repeat: no-repeat;
+    background-position: 4.3em center;
+}
+
+#leftnavbar ul.subsubsubmenu > li.active > div.title {
+    background-image: url(/static/images/arrow-right-active.gif);
+    background-color: #eef2ff;
+    font-weight: bold;
+    color: #606060;
+}
+
 #footer {
     font-size: 80%;
 }

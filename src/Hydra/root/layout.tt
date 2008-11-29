@@ -102,6 +102,20 @@
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'jobstatus') title = "Job status" %]
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'all') title = "All builds" %]
                       [% INCLUDE makeLink uri = c.uri_for('/releasesets' project.name) title = "Releases" %]
+                      
+                      [% IF project.releasesets.size > 0 %]
+                        <ul class="subsubsubmenu">
+                          [% FOREACH releaseset IN project.releasesets %]
+                            [% myUri = c.uri_for('/releases' project.name releaseset.name) %]
+                            <li [% IF curUri == myUri %]class="active"[% END %]>
+                              <div class="title"><a href="[% myUri %]">
+                                [% HTML.escape(releaseset.description ? releaseset.description : releaseset.name) %]
+                              </a></div>
+                            </li>
+                          [% END %]
+                        </ul>
+                      [% END %]
+
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'edit') title = "Edit" %]
                     </ul>
                   [% END %]

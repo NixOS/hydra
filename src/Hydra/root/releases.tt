@@ -4,6 +4,8 @@
 
 <h1>Release Set <tt>[% releaseSet.project.name %]:[% releaseSet.name %]</tt></h1>
 
+<p>[<a href="[% c.uri_for('/releases' curProject.name releaseSet.name "edit") %]">Edit</a>]</p>
+
 <table class="tablesorter">
   <thead>
     <tr>
