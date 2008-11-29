@@ -24,6 +24,25 @@ __PACKAGE__->config(
     default_view => "TT",
     session => {
         storage => getHydraPath . "/session_data"
+    },
+    authentication => {
+        default_realm => "dbic",
+        realms => {
+            dbic => {
+                credential => {
+                    class => "Password",
+                    password_field => "password",
+                    password_type => "hashed",
+                    password_hash_type => "SHA-1",
+                },
+                store => {
+                    class => "DBIx::Class",
+                    user_class => "DB::Users",
+                    role_relation => "userroles",
+                    role_field => "role",
+                },
+            },
+        },
     }
 );
 
