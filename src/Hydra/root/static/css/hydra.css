@@ -172,9 +172,13 @@ ul.productList li {
     margin-top: 1em;
 }
 
-.runningJob {
+.runningBuild {
     background-color: #ff3030;
     color: white;
+}
+
+.disabledBuild {
+    background-color: #b0b0b0;
 }
 
 .productDetails {

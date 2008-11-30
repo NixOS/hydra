@@ -58,8 +58,8 @@ sub checkBuilds {
 
         # Get the system types for the runnable builds.
         my @systemTypes = $db->resultset('Builds')->search(
-            {finished => 0, busy => 0},
-            {join => 'schedulingInfo', select => [{distinct => 'system'}], as => ['system']});
+            { finished => 0, busy => 0, enabled => 1, disabled => 0 },
+            { join => ['schedulingInfo', 'project'], select => [{distinct => 'system'}], as => ['system'] });
 
         # For each system type, select up to the maximum number of
         # concurrent build for that system type.  Choose the highest
@@ -79,8 +79,8 @@ sub checkBuilds {
 
             # Select the highest-priority builds to start.
             my @builds = $extraAllowed == 0 ? () : $db->resultset('Builds')->search(
-                { finished => 0, busy => 0, system => $system->system },
-                { join => 'schedulingInfo', order_by => ["priority DESC", "timestamp"],
+                { finished => 0, busy => 0, system => $system->system, enabled => 1, disabled => 0 },
+                { join => ['schedulingInfo', 'project'], order_by => ["priority DESC", "timestamp"],
                   rows => $extraAllowed });
 
             print "system type `", $system->system,

@@ -9,7 +9,9 @@
 
 [% ELSE %]
 
-  <p>Note: jobs in <span class="runningJob">red</span> are currently executing.</p>
+  <p>Note: Builds in <span class="runningBuild">red</span> are
+  currently executing. Builds in <span
+  class="disabledBuild">grey</span> are currently disabled.</p>
 
   [% PROCESS renderBuildList builds=queue showSchedulingInfo=1 hideResultInfo=1 %]
 
