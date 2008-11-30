@@ -297,11 +297,11 @@ create trigger cascadeUserDelete
 -- consists of, namely: a release consists of a build of some
 -- "primary" job, plus all builds of the other jobs named in
 -- ReleaseSetJobs that have that build as an input.  If there are
--- multiple builds matching a ReleaseSetJob, then we take the *oldest*
--- successful build (for release stability), or the *newest*
--- unsuccessful build if there is no succesful build.  A release is
--- itself considered successful if all builds (except those for jobs
--- that have mayFail set) are successful.
+-- multiple builds matching a ReleaseSetJob, then we take the oldest
+-- successful build, or the oldest unsuccessful build if there is no
+-- successful build.  A release is itself considered successful if all
+-- builds (except those for jobs that have mayFail set) are
+-- successful.
 --
 -- Note that individual releases aren't separately stored in the
 -- database, so they're really just a dynamic view on the universe of

@@ -12,6 +12,7 @@
       <th></th>
       <th>#</th>
       <th>Release</th>
+      <th>Date</th>
       [% FOREACH job IN jobs %]
         <th class="releaseSetJobName">[% PROCESS renderReleaseJobName %]</th>
       [% END %]
@@ -39,6 +40,7 @@
             <em>No name</em>
           [% END %]
         </td>
+        <td>[% INCLUDE renderDateTime timestamp=release.timestamp %]</td>
         [% FOREACH job IN release.jobs %]
           <td class="centered">
             [% IF job.build %]

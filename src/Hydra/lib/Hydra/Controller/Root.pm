@@ -228,6 +228,10 @@ sub getRelease {
     my @jobs = ();
 
     my $status = 0; # = okay
+
+    # The timestamp of the release is the highest timestamp of all
+    # constitutent builds.
+    my $timestamp = 0;
         
     foreach my $job (@{$c->stash->{jobs}}) {
         my $thisBuild;
@@ -254,6 +258,9 @@ sub getRelease {
             }
         }
 
+        $timestamp = $thisBuild->timestamp
+            if defined $thisBuild && $thisBuild->timestamp > $timestamp;
+
         push @jobs, { build => $thisBuild, job => $job };
     }
 
@@ -262,6 +269,7 @@ sub getRelease {
         , releasename => $primaryBuild->get_column('releasename')
         , jobs => [@jobs]
         , status => $status
+        , timestamp => $timestamp
         };
 }
 
