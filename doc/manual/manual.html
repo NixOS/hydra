@@ -272,12 +272,12 @@ link to create a new project.
 <h3>3.1. General information</h3>
 
 A project definition consists of some general information and a set of
-jobsets. We start with the general information.
+jobsets.  The general information identifies a project, its owner, and
+current state of activity.
 
-The general information of a project are mainly its name and
-owner. Here's what we fill in for the patchelf project:
+Here's what we fill in for the patchelf project:
 
-<pre class="programlisting">
+<pre>
   Identifier:    patchelf
   Display name:  Patchelf
   Description:   A tool for modifying ELF binaries
@@ -285,7 +285,7 @@ owner. Here's what we fill in for the patchelf project:
   Enabled:       Yes
 </pre>
 
-The <code>Identifier</code> should be a unique name (it is the primary
+The <strong>identifier</strong> should be a unique name (it is the primary
 database key for the project table in the database). If you try to
 create a project with an already existing identifier you'd get an
 error message such as:
@@ -301,10 +301,9 @@ Jobsets can be added once the project has been created.
 
 <p/>
 
-Once create there should be an entry for the project in the sidebar. Go to
-the project page for the 
-<a href="http://localhost:3000/project/patchelf">Patchelf</a>
-project.
+Once created there should be an entry for the project in the
+sidebar. Go to the project page for the <a
+href="http://localhost:3000/project/patchelf">Patchelf</a> project.
 
 <h3>Jobsets</h3>
 
