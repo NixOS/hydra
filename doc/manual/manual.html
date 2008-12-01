@@ -45,7 +45,34 @@ system.
 
 <p/>
 
-<h3>1.2. Hydra at nixos.org</h3>
+<h3>1.2. About Us</h3>
+
+Hydra is the successor of the Nix Buildfarm, which was developed in
+tandem with the Nix software deployment system. Nix was originally
+developed at the Department of Information and Computing Sciences,
+Utrecht University by the TraCE project (2003-2008). The project was
+funded by the Software Engineering Research Program Jacquard to
+improve the support for variability in software systems.  Funding for
+the development of Nix and Hydra is now provided by the NIRICT LaQuSo
+Build Farm project.
+
+<h3>1.3. About this Manual</h3>
+
+This manual tells you how to install the Hydra buildfarm software on
+your own server and how to operate that server using its web
+interface.
+
+<h3>1.4. License</h3>
+
+Hydra is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the
+Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version. Hydra is distributed in the hope that
+it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See
+the GNU Lesser General Public License for more details.
+
+<h3>1.5. Hydra at nixos.org</h3>
 
 The nixos.org installation of Hydra runs at 
 
@@ -74,7 +101,7 @@ Hydra server, it may actually be eligible. We are in the process of
 setting up a large buildfarm that should be able to support open
 source and academic software projects. Get in touch.
 
-<h3>1.3. Hydra on your own buildfarm</h3>
+<h3>1.6. Hydra on your own buildfarm</h3>
 
 If you need to run your own Hydra installation, Chapter 2 explains
 how to download and install the system on your own server.
@@ -83,13 +110,22 @@ how to download and install the system on your own server.
 <h2>Chapter 2. Installation and Configuration</h2>
 
 This chapter explains how to install Hydra on your own buildfarm server.
-We assume that you have 
 
 <h3>2.1. Platform Requirements</h3>
 
-To run Hydra you need a Linux server with at least a considerable
-amount of diskspace to store builds. A multi-core machine is not a
-waste since Hydra can schedule multiple simultaneous build jobs.
+To run Hydra you need a Linux server.  For small projects, Hydra can
+be run on any reasonably modern machine. For individual projects you
+can even run Hydra on a laptop. However, the charm of a buildfarm
+server is usually that it operates without disturbing the developer's
+working environment and can serve releases over the internet. In
+conjunction you should typically have your source code administered in
+a version management system, such as subversion. Therefore, you will
+probably want to install a server that is connected to the
+internet. To scale up to large and/or many projects, you will need at
+least a considerable amount of diskspace to store builds. Since Hydra
+can schedule multiple simultaneous build jobs, it can be useful to
+have a multi-core machine, and/or attach multiple build machines in a
+network to the central Hydra server.
 
 <p/>
 
@@ -235,7 +271,8 @@ link to create a new project.
 
 <h3>3.1. General information</h3>
 
-A project definition consists of some general information 
+A project definition consists of some general information and a set of
+jobsets. We start with the general information.
 
 The general information of a project are mainly its name and
 owner. Here's what we fill in for the patchelf project:
