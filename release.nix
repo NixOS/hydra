@@ -79,6 +79,8 @@ let
         ]);
 
         installPhase = ''
+          ensureDir $out/nix-support
+          
           ensureDir $out/libexec
           cp -prd src/Hydra $out/libexec/hydra
 
@@ -92,6 +94,12 @@ let
                   --set PATH $out/bin:$hydraPath \
                   --set HYDRA_HOME $out/libexec/hydra
           done
+
+          ensureDir $out/share/doc/hydra/manual
+          set -x
+          cp doc/manual/* $out/share/doc/hydra/manual/
+          ln -s manual.html $out/share/doc/hydra/manual/index.html
+          echo "doc manual $out/share/doc/hydra/manual" >> $out/nix-support/hydra-build-products
         ''; # */
 
         meta = {
