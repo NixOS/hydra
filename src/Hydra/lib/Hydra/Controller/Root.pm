@@ -300,7 +300,7 @@ sub updateReleaseSet {
             { job => $name
             , description => $description
             , attrs => $attrs
-            , isprimary => $c->request->params->{"primary"} eq $baseName
+            , isprimary => $c->request->params->{"primary"} eq $baseName ? 1 : 0
             });
     }
 
