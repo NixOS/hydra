@@ -1,0 +1,361 @@
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+</head>
+<body>
+
+<hr>
+
+<h1>The Hydra Buildfarm User Manual</h1>
+
+
+<h2>Draft (Version 0.1)</h2>
+
+<p/>
+
+<h3>Eelco Dolstra and Eelco Visser</h3>
+
+<p/>
+Delft University of Technology
+<p/>
+Department of Software Technology
+
+<p/>
+Copyright 2008 Eelco Dolstra
+
+<hr>
+
+<h2>Chapter 1. Introduction</h2>
+
+
+<h3>1.1. About Hydra</h3>
+
+Hydra is a buildfarm system based on the Nix software deployment
+system.
+
+<p/>
+
+... advantages ...
+
+
+<p/>
+
+<p/>
+
+
+<p/>
+
+<h3>1.2. Hydra at nixos.org</h3>
+
+The nixos.org installation of Hydra runs at 
+
+<blockquote>
+  <a href="http://hydra.nixos.org/">http://hydra.nixos.org</a>
+</blockquote>
+
+That installation is used to build software components from the 
+<a href="http://nixos.org">Nix</a>, 
+<a href="http://nixos.org/nixos">NixOS</a>, 
+<a href="http://strategoxt.org">Stratego/XT</a>, 
+and related projects. 
+
+If you are one of the developers on those projects, it is likely that
+you will be using the NixOS Hydra server in some way. If you need to
+administer automatic builds for your project, you should pull the
+right strings to get an account on the server. This manual will tell
+you how to set up new projects and build jobs within those projects
+and write a release.nix file to describe the build process of your
+project to Hydra. You can skip Chapter 2.
+
+<p/>
+
+If your project does not yet have automatic builds within the NixOS
+Hydra server, it may actually be eligible. We are in the process of
+setting up a large buildfarm that should be able to support open
+source and academic software projects. Get in touch.
+
+<h3>1.3. Hydra on your own buildfarm</h3>
+
+If you need to run your own Hydra installation, Chapter 2 explains
+how to download and install the system on your own server.
+
+
+<h2>Chapter 2. Installation and Configuration</h2>
+
+This chapter explains how to install Hydra on your own buildfarm server.
+We assume that you have 
+
+<h3>2.1. Platform Requirements</h3>
+
+To run Hydra you need a Linux server with at least a considerable
+amount of diskspace to store builds. A multi-core machine is not a
+waste since Hydra can schedule multiple simultaneous build jobs.
+
+<p/>
+
+Of course we think it is a good idea to use the <a
+href="http://nixos.org/nixos">NixOS</a> Linux distribution for your
+buildfarm server. But this is not a requirement. The Nix software
+deployment system can be installed on any Linux distribution in
+parallel to the regular package management system. Thus, you can use
+Hydra on a Suse, Fedora, or Ubuntu system.
+
+<p/>
+
+Hydra on Windows??
+
+
+<h3>2.2. Getting Nix</h3>
+
+If your server runs NixOS you are all set to continue with
+installation of Hydra. Otherwise you first need to install Nix.
+The <a href="http://nixos.org/releases/nix/nix-0.12">latest stable release</a> is Nix 0.12.
+Installation instructions can be found in the 
+<a href="http://nixos.org/releases/nix/nix-0.12/manual/">Nix User's Guide</a>.
+
+<p/>
+
+Why Nix ...
+
+<h3>2.3. Installation</h2>
+
+To install Hydra, get the most recent 'closure' available from
+
+<blockquote>
+  <a href="http://hydra.nixos.org/releases/hydra/unstable">http://hydra.nixos.org/releases/hydra/unstable</a>
+</blockquote>
+
+And follow the instructions that are revealed by clicking [help].
+
+<pre class="programlisting">
+$ gunzip < hydra-build.closure.gz | nix-store --import
+</pre>
+
+This unpacks the closure and imports its components into the Nix store.
+
+<pre class="programlisting">
+$ nix-env -i /nix/store/...-hydra-build
+</pre>
+
+This makes the tools in the Hydra package available in your Nix user
+environment.
+
+<p/>
+
+Command completion should then reveal a number of tools related to
+hydra installed:
+
+<pre class="programlisting">
+$ hydra_&lt;tab&gt;
+hydra_build.pl         hydra_fastcgi.pl       hydra_scheduler.pl
+hydra_cgi.pl           hydra_init.pl          hydra_server.pl
+hydra_create.pl        hydra_queue_runner.pl  hydra_test.pl
+</pre>
+
+
+<h3>2.4. Configuration</h3>
+
+The Hydra software is installed in the Nix store, but to run it needs
+a directory for storing the database, logs, and session data. In your
+<code>.bashrc</code> or similar configuration file define:
+
+<pre class="programlisting">
+ export HYDRA_DATA=/usr/local/hydra
+</pre>
+
+and make sure that you actually create that directory. (Of course, you
+can use another directory, but then remember to also substitute that
+name in the commands below.)
+
+<p/>
+
+Run <code>hydra_init.pl</code> to initialize the database
+
+<pre class="programlisting">
+$ hydra_init.pl
+</pre>
+
+Run <code>hydra_server.pl</code> to start the webserver at <a href="http://localhost:3000">http://localhost:3000</a>
+
+<pre class="programlisting">
+$ hydra_server.pl
+</pre>
+
+Also start the scheduler, which monitors the source repositories and
+adds builds to the queue, and the runner, which executes jobs in the
+queue.
+
+<pre class="programlisting">
+$ hydra_scheduler.pl
+$ hydra_queue_runner.pl
+</pre>
+
+Now your Hydra server should be up and running and the web interface
+operational.
+
+<h3>2.5. User Administration</h3>
+
+To be able to add jobs and create projects you need to register users
+in the Hydra database. In the current version, the web interface does
+not yet support user administration. Use the following command to add
+a new user to the database.
+
+<pre class="programlisting">
+$ sqlite3 /usr/local/hydra/hydra.sqlite "insert into Users(userName, emailAddress, password) values('eelco', 'blablah@example.org', '$(echo -n foobar | sha1sum | cut -c1-40)');"
+</pre>
+
+where <code>eelco</code> is the username, and <code>foobar</code> the
+password. (Make sure to use other values!)
+
+<p/>
+
+To give this user administrator privileges, follow this up by:
+
+<pre class="programlisting">
+$ sqlite3 /usr/local/hydra/hydra.sqlite "insert into UserRoles(userName, role) values('eelco', 'admin');"
+</pre>
+
+Now you should be able to create a project using the Hydra web interface.
+
+<h2>Chapter 3. Creating Projects</h2>
+
+The next step is to add projects to the buildfarm. We follow the
+example of the patchelf project at hydra.nixos.org. Note that the
+error messages provided as feedback by the webinterface can be
+somewhat unfriendly in the current version.
+
+<p/>
+
+<a href="http://localhost:3000/login">Login</a> 
+to the webinterface of your Hydra installation using 
+the username and password you inserted in the database. 
+Then follow the 
+'<a href="http://localhost:3000/createproject">Create Project</a>' 
+link to create a new project.
+
+<h3>3.1. General information</h3>
+
+A project definition consists of some general information 
+
+The general information of a project are mainly its name and
+owner. Here's what we fill in for the patchelf project:
+
+<pre class="programlisting">
+  Identifier:    patchelf
+  Display name:  Patchelf
+  Description:   A tool for modifying ELF binaries
+  Owner:         eelco
+  Enabled:       Yes
+</pre>
+
+The <code>Identifier</code> should be a unique name (it is the primary
+database key for the project table in the database). If you try to
+create a project with an already existing identifier you'd get an
+error message such as:
+
+<pre>
+I'm very sorry, but an error occurred: 
+DBIx::Class::ResultSet::create(): DBI Exception: DBD::SQLite::st execute failed: column name is not unique(19) at dbdimp.c line 402
+</pre>
+
+So try to create the project after entering just the general
+information to figure out if you have chosen a unique name. 
+Jobsets can be added once the project has been created.
+
+<p/>
+
+Once create there should be an entry for the project in the sidebar. Go to
+the project page for the 
+<a href="http://localhost:3000/project/patchelf">Patchelf</a>
+project.
+
+<h3>Jobsets</h3>
+
+A project can consist of multiple `jobsets', separate tasks that can
+be built separately, but may depend on each other (without cyclic
+dependencies, of course). Go to the 
+<a href="http://localhost:3000/project/patchelf/edit">Edit</a> 
+page of the Patchelf project and 'Add a new jobset' 
+by providing the following 'Information':
+
+<pre>
+  Identifier:     trunk
+  Description:    Trunk
+  Nix expression: release.nix in input patchelfSrc
+</pre>
+
+This states that in order to build the 'Trunk' jobset, the Nix
+expression in the file 'release.nix', which can be obtained from input
+'patchelfSrc', should be evaluated. (We'll have a look at release.nix
+later.)
+
+<p/>
+
+To realize a job we probably need a number of inputs, which can be
+declared in the table below. As many inputs as required can be added. 
+For patchelf we declare the following inputs.
+
+<pre>
+  nixpkgs 'CVS checkout' https://svn.nixos.org/repos/nix/nixpkgs/trunk
+</pre>
+
+<pre>
+  officialRelease   Boolean false
+</pre>
+
+
+<pre>
+  patchelfSrc Subversion checkout https://svn.nixos.org/repos/nix/patchelf/trunk
+</pre>
+
+
+<pre>
+  system String value "i686-linux" 
+</pre>
+
+nixpkgs
+
+officialRelease
+
+patchelfSrc
+
+system 
+
+<h3>Release Set</h3>
+
+there must be one primary job
+
+check the radio button of exactly one job
+
+https://svn.nixos.org/repos/nix/nixpkgs/trunk
+
+<h3>Building Jobs</h3>
+
+
+<h3>release.nix</h3>
+
+
+
+- Voorbeelden van Nix expressies voor Hydra:
+
+
+
+https://svn.nixos.org/repos/nix/patchelf/trunk/release.nix
+https://svn.nixos.org/repos/nix/nix/trunk/release.nix
+https://svn.nixos.org/repos/nix/hydra/trunk/release.nix
+
+<h3>Building on the command line</h3>
+
+Overigens zijn die helemaal niet Hydra-specifiek, je kunt ze gewoon vanaf de
+command line bouwen, bijv. als je een patchelf checkout hebt (met een nixpkgs
+checkout in ../nixpkgs):
+
+$ nix-build release.nix -A rpm_fedora10i386
+
+
+<h3>Release Set</h3>
+
+
+
+</body>
+</html>
