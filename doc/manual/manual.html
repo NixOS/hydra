@@ -277,18 +277,19 @@ current state of activity.
 
 Here's what we fill in for the patchelf project:
 
-<pre>
-  Identifier:    patchelf
-  Display name:  Patchelf
-  Description:   A tool for modifying ELF binaries
-  Owner:         eelco
-  Enabled:       Yes
+<pre class="programlisting">
+  Identifier: patchelf
 </pre>
 
-The <strong>identifier</strong> should be a unique name (it is the primary
-database key for the project table in the database). If you try to
-create a project with an already existing identifier you'd get an
-error message such as:
+The <strong>identifier</strong> is the identity of the project. It is
+used in URLs and in the names of build results.
+
+<p/>
+
+The identifier should be a unique name (it is the
+primary database key for the project table in the database). If you
+try to create a project with an already existing identifier you'd get
+an error message such as:
 
 <pre>
 I'm very sorry, but an error occurred: 
@@ -298,6 +299,32 @@ DBIx::Class::ResultSet::create(): DBI Exception: DBD::SQLite::st execute failed:
 So try to create the project after entering just the general
 information to figure out if you have chosen a unique name. 
 Jobsets can be added once the project has been created.
+
+
+<pre class="programlisting">
+  Display name: Patchelf
+</pre>
+
+The <strong>display name</strong> is used in menus.
+
+<pre class="programlisting">
+  Description: A tool for modifying ELF binaries
+</pre>
+
+The <strong>description</strong> is used as short documentation of the
+nature of the project.
+
+<pre class="programlisting">
+  Owner: eelco
+</pre>
+
+The <strong>owner</strong> of a project can create and edit jobsets.
+
+<pre class="programlisting">
+  Enabled: Yes
+</pre>
+
+Only if the project is <strong>enabled</strong> are builds performed.
 
 <p/>
 
@@ -314,7 +341,7 @@ dependencies, of course). Go to the
 page of the Patchelf project and 'Add a new jobset' 
 by providing the following 'Information':
 
-<pre>
+<pre class="programlisting">
   Identifier:     trunk
   Description:    Trunk
   Nix expression: release.nix in input patchelfSrc
@@ -331,29 +358,30 @@ To realize a job we probably need a number of inputs, which can be
 declared in the table below. As many inputs as required can be added. 
 For patchelf we declare the following inputs.
 
-<pre>
+<pre class="programlisting">
+  patchelfSrc 
+    'Subversion checkout' https://svn.nixos.org/repos/nix/patchelf/trunk
+</pre>
+
+patchelfSrc
+
+<pre class="programlisting">
   nixpkgs 'CVS checkout' https://svn.nixos.org/repos/nix/nixpkgs/trunk
-</pre>
-
-<pre>
-  officialRelease   Boolean false
-</pre>
-
-
-<pre>
-  patchelfSrc Subversion checkout https://svn.nixos.org/repos/nix/patchelf/trunk
-</pre>
-
-
-<pre>
-  system String value "i686-linux" 
 </pre>
 
 nixpkgs
 
+<pre class="programlisting">
+  officialRelease   Boolean false
+</pre>
+
 officialRelease
 
-patchelfSrc
+
+
+<pre class="programlisting">
+  system String value "i686-linux" 
+</pre>
 
 system 
 
