@@ -100,6 +100,7 @@ let
           cp doc/manual/* $out/share/doc/hydra/manual/
           ln -s manual.html $out/share/doc/hydra/manual/index.html
           echo "doc manual $out/share/doc/hydra/manual" >> $out/nix-support/hydra-build-products
+          echo "nix-build none $out" >> $out/nix-support/hydra-build-products
         ''; # */
 
         meta = {
