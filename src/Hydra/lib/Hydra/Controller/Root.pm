@@ -307,6 +307,18 @@ sub updateReleaseSet {
     die "There must be one primary job." if $releaseSet->releasesetjobs->search({isprimary => 1})->count != 1;
 }
 
+
+sub getPrimaryBuildsForReleaseSet {
+    my ($project, $primaryJob) = @_;
+    my @primaryBuilds = $project->builds->search(
+        { attrname => $primaryJob->job, finished => 1 },
+        { join => 'resultInfo', order_by => "timestamp DESC"
+        , '+select' => ["resultInfo.releasename"], '+as' => ["releasename"]
+        , where => \ attrsToSQL($primaryJob->attrs, "me.id")
+        });
+    return @primaryBuilds;
+}
+
     
 sub releases :Local {
     my ($self, $c, $projectName, $releaseSetName, $subcommand) = @_;
@@ -343,16 +355,9 @@ sub releases :Local {
     }
     
     $c->stash->{template} = 'releases.tt';
-    my @primaryBuilds = $project->builds->search(
-        { attrname => $primaryJob->job, finished => 1 },
-        { join => 'resultInfo', order_by => "timestamp DESC"
-        , '+select' => ["resultInfo.releasename"], '+as' => ["releasename"]
-        , where => \ attrsToSQL($primaryJob->attrs, "me.id")
-        });
 
     my @releases = ();
-    push @releases, getRelease($c, $_) foreach @primaryBuilds;
-
+    push @releases, getRelease($c, $_) foreach getPrimaryBuildsForReleaseSet($project, $primaryJob);
     $c->stash->{releases} = [@releases];
 }
 
@@ -397,6 +402,21 @@ sub release :Local {
 
     my ($project, $releaseSet, $primaryJob) = getReleaseSet($c, $projectName, $releaseSetName);
 
+    if ($releaseId eq "latest") {
+        # Redirect to the latest successful release.
+        my $latest;
+        foreach my $release (getPrimaryBuildsForReleaseSet($project, $primaryJob)) {
+            if (getRelease($c, $release)->{status} == 0) {
+                $latest = $release;
+                last;
+            }
+        }
+
+        return error($c, "This release set has no successful releases yet.") if !defined $latest;
+
+        return $c->res->redirect($c->uri_for("/release", $projectName, $releaseSetName, $latest->id));
+    }
+    
     # Note: we don't actually check whether $releaseId is a primary
     # build, but who cares?
     my $primaryBuild = $project->builds->find($releaseId,
