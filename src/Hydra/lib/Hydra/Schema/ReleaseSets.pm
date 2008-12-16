@@ -1,4 +1,4 @@
-package Hydra::Schema::Releasesets;
+package Hydra::Schema::ReleaseSets;
 
 use strict;
 use warnings;
@@ -21,7 +21,7 @@ __PACKAGE__->set_primary_key("project", "name");
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
 __PACKAGE__->has_many(
   "releasesetjobs",
-  "Hydra::Schema::Releasesetjobs",
+  "Hydra::Schema::ReleaseSetJobs",
   {
     "foreign.project" => "self.project",
     "foreign.release" => "self.name",
@@ -29,8 +29,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 15:42:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uNeiMopmw7TNICoiL0ttaA
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 17:19:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:z/OOijrjmVRCC4FYZL8qFA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

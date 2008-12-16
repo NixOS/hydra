@@ -44,54 +44,54 @@ __PACKAGE__->belongs_to(
 );
 __PACKAGE__->has_many(
   "buildschedulinginfoes",
-  "Hydra::Schema::Buildschedulinginfo",
+  "Hydra::Schema::BuildSchedulingInfo",
   { "foreign.id" => "self.id" },
 );
 __PACKAGE__->has_many(
   "buildresultinfoes",
-  "Hydra::Schema::Buildresultinfo",
+  "Hydra::Schema::BuildResultInfo",
   { "foreign.id" => "self.id" },
 );
 __PACKAGE__->has_many(
   "buildsteps",
-  "Hydra::Schema::Buildsteps",
+  "Hydra::Schema::BuildSteps",
   { "foreign.id" => "self.id" },
 );
 __PACKAGE__->has_many(
   "buildinputs_builds",
-  "Hydra::Schema::Buildinputs",
+  "Hydra::Schema::BuildInputs",
   { "foreign.build" => "self.id" },
 );
 __PACKAGE__->has_many(
   "buildinputs_dependencies",
-  "Hydra::Schema::Buildinputs",
+  "Hydra::Schema::BuildInputs",
   { "foreign.dependency" => "self.id" },
 );
 __PACKAGE__->has_many(
   "buildproducts",
-  "Hydra::Schema::Buildproducts",
+  "Hydra::Schema::BuildProducts",
   { "foreign.build" => "self.id" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 15:42:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+1cH3km/2qF9kVXzvuLCpQ
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 17:19:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OLYzmcCXrq4g1ja5mFS1uA
 
-__PACKAGE__->has_many(dependents => 'Hydra::Schema::Buildinputs', 'dependency');
+__PACKAGE__->has_many(dependents => 'Hydra::Schema::BuildInputs', 'dependency');
 
 __PACKAGE__->many_to_many(dependentBuilds => 'dependents', 'build');
 
-__PACKAGE__->has_many(inputs => 'Hydra::Schema::Buildinputs', 'build');
+__PACKAGE__->has_many(inputs => 'Hydra::Schema::BuildInputs', 'build');
 
 __PACKAGE__->belongs_to(
   "schedulingInfo",
-  "Hydra::Schema::Buildschedulinginfo",
+  "Hydra::Schema::BuildSchedulingInfo",
   { id => "id" },
 );
 
 __PACKAGE__->belongs_to(
   "resultInfo",
-  "Hydra::Schema::Buildresultinfo",
+  "Hydra::Schema::BuildResultInfo",
   { id => "id" },
 );
 

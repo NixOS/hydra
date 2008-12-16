@@ -208,7 +208,7 @@ sub getReleaseSet {
     die "Project $projectName doesn't exist." if !defined $project;
     $c->stash->{curProject} = $project;
 
-    (my $releaseSet) = $c->model('DB::Releasesets')->find($projectName, $releaseSetName);
+    (my $releaseSet) = $c->model('DB::ReleaseSets')->find($projectName, $releaseSetName);
     die "Release set $releaseSetName doesn't exist." if !defined $releaseSet;
     $c->stash->{releaseSet} = $releaseSet;
 

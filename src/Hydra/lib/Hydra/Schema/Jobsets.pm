@@ -37,12 +37,12 @@ __PACKAGE__->has_many(
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
 __PACKAGE__->belongs_to(
   "jobsetinput",
-  "Hydra::Schema::Jobsetinputs",
+  "Hydra::Schema::JobsetInputs",
   { job => "name", name => "nixexprinput", project => "project" },
 );
 __PACKAGE__->has_many(
   "jobsetinputs",
-  "Hydra::Schema::Jobsetinputs",
+  "Hydra::Schema::JobsetInputs",
   {
     "foreign.jobset"  => "self.name",
     "foreign.project" => "self.project",
@@ -50,8 +50,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 15:42:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:suzwQtkvBtH9i3i7fkNObA
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 17:19:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:tzPEPlQXvjE7XzmjTkQ97A
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

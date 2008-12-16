@@ -1,4 +1,4 @@
-package Hydra::Schema::Releasesetjobs;
+package Hydra::Schema::JobsetInputAlts;
 
 use strict;
 use warnings;
@@ -6,34 +6,33 @@ use warnings;
 use base 'DBIx::Class';
 
 __PACKAGE__->load_components("Core");
-__PACKAGE__->table("ReleaseSetJobs");
+__PACKAGE__->table("JobsetInputAlts");
 __PACKAGE__->add_columns(
   "project",
   { data_type => "text", is_nullable => 0, size => undef },
-  "release",
+  "jobset",
   { data_type => "text", is_nullable => 0, size => undef },
-  "job",
+  "input",
   { data_type => "text", is_nullable => 0, size => undef },
-  "attrs",
-  { data_type => "text", is_nullable => 0, size => undef },
-  "isprimary",
+  "altnr",
   { data_type => "integer", is_nullable => 0, size => undef },
-  "mayfail",
+  "value",
+  { data_type => "text", is_nullable => 0, size => undef },
+  "revision",
   { data_type => "integer", is_nullable => 0, size => undef },
-  "description",
+  "tag",
   { data_type => "text", is_nullable => 0, size => undef },
 );
-__PACKAGE__->set_primary_key("project", "release", "job", "attrs");
-__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
+__PACKAGE__->set_primary_key("project", "jobset", "input", "altnr");
 __PACKAGE__->belongs_to(
-  "releaseset",
-  "Hydra::Schema::Releasesets",
-  { name => "release", project => "project" },
+  "jobsetinput",
+  "Hydra::Schema::JobsetInputs",
+  { jobset => "jobset", name => "input", project => "project" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 15:42:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:EA4dBRNNk3CgUVosyClVUQ
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 17:19:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Q3wBn9LdHsDDkQ1rgFgfSA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

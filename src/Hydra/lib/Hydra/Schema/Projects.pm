@@ -33,18 +33,18 @@ __PACKAGE__->has_many(
 );
 __PACKAGE__->has_many(
   "releasesets",
-  "Hydra::Schema::Releasesets",
+  "Hydra::Schema::ReleaseSets",
   { "foreign.project" => "self.name" },
 );
 __PACKAGE__->has_many(
   "releasesetjobs",
-  "Hydra::Schema::Releasesetjobs",
+  "Hydra::Schema::ReleaseSetJobs",
   { "foreign.project" => "self.name" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 15:42:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+IOm0ORfmn7N/ujS8axubw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 17:19:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:VErTJlFT79ncSgQRHbxRBg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

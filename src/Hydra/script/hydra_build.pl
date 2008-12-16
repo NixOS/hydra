@@ -53,7 +53,7 @@ sub doBuild {
             
             if (/^@\s+build-started\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/) {
                 $db->txn_do(sub {
-                    $db->resultset('Buildsteps')->create(
+                    $db->resultset('BuildSteps')->create(
                         { id => $build->id
                         , stepnr => $buildStepNr++
                         , type => 0 # = build
@@ -69,7 +69,7 @@ sub doBuild {
             elsif (/^@\s+build-succeeded\s+(\S+)\s+(\S+)$/) {
                 my $drvPath = $1;
                 $db->txn_do(sub {
-                    (my $step) = $db->resultset('Buildsteps')->search(
+                    (my $step) = $db->resultset('BuildSteps')->search(
                         {id => $build->id, type => 0, drvpath => $drvPath}, {});
                     die unless $step;
                     $step->busy(0);
@@ -84,7 +84,7 @@ sub doBuild {
                 $someBuildFailed = 1;
                 $thisBuildFailed = 1 if $drvPath eq $drvPathStep;
                 $db->txn_do(sub {
-                    (my $step) = $db->resultset('Buildsteps')->search(
+                    (my $step) = $db->resultset('BuildSteps')->search(
                         {id => $build->id, type => 0, drvpath => $drvPathStep}, {});
                     if ($step) {
                         die unless $step;
@@ -94,7 +94,7 @@ sub doBuild {
                         $step->stoptime(time);
                         $step->update;
                     } else {
-                        $db->resultset('Buildsteps')->create(
+                        $db->resultset('BuildSteps')->create(
                             { id => $build->id
                             , stepnr => $buildStepNr++
                             , type => 0 # = build
@@ -114,7 +114,7 @@ sub doBuild {
             elsif (/^@\s+substituter-started\s+(\S+)\s+(\S+)$/) {
                 my $outPath = $1;
                 $db->txn_do(sub {
-                    $db->resultset('Buildsteps')->create(
+                    $db->resultset('BuildSteps')->create(
                         { id => $build->id
                         , stepnr => $buildStepNr++
                         , type => 1 # = substitution
@@ -128,7 +128,7 @@ sub doBuild {
             elsif (/^@\s+substituter-succeeded\s+(\S+)$/) {
                 my $outPath = $1;
                 $db->txn_do(sub {
-                    (my $step) = $db->resultset('Buildsteps')->search(
+                    (my $step) = $db->resultset('BuildSteps')->search(
                         {id => $build->id, type => 1, outpath => $outPath}, {});
                     die unless $step;
                     $step->busy(0);
@@ -141,7 +141,7 @@ sub doBuild {
             elsif (/^@\s+substituter-failed\s+(\S+)\s+(\S+)\s+(\S+)$/) {
                 my $outPath = $1;
                 $db->txn_do(sub {
-                    (my $step) = $db->resultset('Buildsteps')->search(
+                    (my $step) = $db->resultset('BuildSteps')->search(
                         {id => $build->id, type => 1, outpath => $outPath}, {});
                     die unless $step;
                     $step->busy(0);
@@ -189,7 +189,7 @@ sub doBuild {
             close FILE;
         }
         
-        $db->resultset('Buildresultinfo')->create(
+        $db->resultset('BuildResultInfo')->create(
             { id => $build->id
             , iscachedbuild => $isCachedBuild
             , buildstatus => $buildStatus
@@ -228,7 +228,7 @@ sub doBuild {
                         chomp $sha256;
                     }
                     
-                    $db->resultset('Buildproducts')->create(
+                    $db->resultset('BuildProducts')->create(
                         { build => $build->id
                         , productnr => $productnr++
                         , type => $type
@@ -244,7 +244,7 @@ sub doBuild {
             }
 
             else {
-                $db->resultset('Buildproducts')->create(
+                $db->resultset('BuildProducts')->create(
                     { build => $build->id
                     , productnr => $productnr++
                     , type => "nix-build"

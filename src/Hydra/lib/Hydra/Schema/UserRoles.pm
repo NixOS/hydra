@@ -1,4 +1,4 @@
-package Hydra::Schema::Userroles;
+package Hydra::Schema::UserRoles;
 
 use strict;
 use warnings;
@@ -17,8 +17,8 @@ __PACKAGE__->set_primary_key("username", "role");
 __PACKAGE__->belongs_to("username", "Hydra::Schema::Users", { username => "username" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 15:42:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:hXmj8AaIhROVYgDJdV+N9A
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 17:19:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Qvo2+AyVdqY8ML6dVJ8Mxg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

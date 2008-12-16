@@ -1,4 +1,4 @@
-package Hydra::Schema::Cachedpathinputs;
+package Hydra::Schema::CachedPathInputs;
 
 use strict;
 use warnings;
@@ -22,8 +22,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("srcpath", "sha256hash");
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 15:42:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:dxVJXTU+q0fJeFyrBqvlDg
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 17:19:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uF9YsqaK0c9U4lSSMcWPQg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

@@ -1,4 +1,4 @@
-package Hydra::Schema::Buildproducts;
+package Hydra::Schema::BuildProducts;
 
 use strict;
 use warnings;
@@ -33,8 +33,8 @@ __PACKAGE__->set_primary_key("build", "productnr");
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 15:42:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:JlRwZ3f5MO3NKdiUoKdPHg
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 17:19:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OJQ5uOiLpUxyUyAJtcZq7Q
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

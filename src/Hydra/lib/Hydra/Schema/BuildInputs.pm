@@ -1,4 +1,4 @@
-package Hydra::Schema::Buildinputs;
+package Hydra::Schema::BuildInputs;
 
 use strict;
 use warnings;
@@ -36,8 +36,8 @@ __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
 __PACKAGE__->belongs_to("dependency", "Hydra::Schema::Builds", { id => "dependency" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 15:42:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:mm8nqCVrUNaV+QbK9xDYpw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 17:19:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:p7rmvFgJAx+g7z5F7ecVVg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

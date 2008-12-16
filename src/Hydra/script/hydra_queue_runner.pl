@@ -72,7 +72,7 @@ sub checkBuilds {
                 {join => 'schedulingInfo'})->count;
 
             # How many extra builds can we start?
-            (my $systemTypeInfo) = $db->resultset('Systemtypes')->search({system => $system->system});
+            (my $systemTypeInfo) = $db->resultset('SystemTypes')->search({system => $system->system});
             my $maxConcurrent = defined $systemTypeInfo ? $systemTypeInfo->maxconcurrent : 2;
             my $extraAllowed = $maxConcurrent - $nrActive;
             $extraAllowed = 0 if $extraAllowed < 0;

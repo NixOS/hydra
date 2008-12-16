@@ -44,7 +44,7 @@ sub fetchInput {
         my $storePath;
 
         # Some simple caching: don't check a path more than once every N seconds.
-        (my $cachedInput) = $db->resultset('Cachedpathinputs')->search(
+        (my $cachedInput) = $db->resultset('CachedPathInputs')->search(
             {srcpath => $uri, lastseen => {">", $timestamp - 60}},
             {rows => 1, order_by => "lastseen DESC"});
 
@@ -61,7 +61,7 @@ sub fetchInput {
 
             $sha256 = getStorePathHash $storePath;
 
-            ($cachedInput) = $db->resultset('Cachedpathinputs')->search(
+            ($cachedInput) = $db->resultset('CachedPathInputs')->search(
                 {srcpath => $uri, sha256hash => $sha256});
 
             # Path inputs don't have a natural notion of a "revision",
@@ -72,7 +72,7 @@ sub fetchInput {
             # a new "revision".
             if (!defined $cachedInput) {
                 $db->txn_do(sub {
-                    $db->resultset('Cachedpathinputs')->create(
+                    $db->resultset('CachedPathInputs')->create(
                         { srcpath => $uri
                         , timestamp => $timestamp
                         , lastseen => $timestamp
@@ -113,7 +113,7 @@ sub fetchInput {
         my $revision = $stdout; chomp $revision;
         die unless $revision =~ /^\d+$/;
 
-        (my $cachedInput) = $db->resultset('Cachedsubversioninputs')->search(
+        (my $cachedInput) = $db->resultset('CachedSubversionInputs')->search(
             {uri => $uri, revision => $revision});
 
         if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
@@ -132,7 +132,7 @@ sub fetchInput {
             ($sha256, $storePath) = split ' ', $stdout;
 
             $db->txn_do(sub {
-                $db->resultset('Cachedsubversioninputs')->create(
+                $db->resultset('CachedSubversionInputs')->create(
                     { uri => $uri
                     , revision => $revision
                     , sha256hash => $sha256
@@ -227,7 +227,7 @@ sub checkJob {
             , system => $job->{system}
             });
 
-        $db->resultset('Buildschedulinginfo')->create(
+        $db->resultset('BuildSchedulingInfo')->create(
             { id => $build->id
             , priority => $priority
             , busy => 0
@@ -236,7 +236,7 @@ sub checkJob {
 
         foreach my $inputName (keys %{$inputInfo}) {
             my $input = $inputInfo->{$inputName};
-            $db->resultset('Buildinputs')->create(
+            $db->resultset('BuildInputs')->create(
                 { build => $build->id
                 , name => $inputName
                 , type => $input->{type}
