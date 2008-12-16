@@ -188,6 +188,9 @@ sub checkJob {
     die if !defined $job;
         
     my $description = defined $job->{meta}->{description} ? $job->{meta}->{description}->{value} : "";
+    my $longDescription = defined $job->{meta}->{longDescription} ? $job->{meta}->{longDescription}->{value} : "";
+    my $license = defined $job->{meta}->{license} ? $job->{meta}->{license}->{value} : "";
+    
     die unless $job->{drvPath} eq $drvPath;
     my $outPath = $job->{outPath};
 
@@ -216,6 +219,8 @@ sub checkJob {
             , jobset => $jobset->name
             , attrname => $jobName
             , description => $description
+            , longdescription => $longDescription
+            , license => $license
             , nixname => $job->{name}
             , drvpath => $drvPath
             , outpath => $outPath

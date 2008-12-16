@@ -69,8 +69,16 @@
     <td><tt>[% build.nixname %]</tt></td>
   </tr>
   <tr>
-    <th>Description:</th>
-    <td>[% build.description %]</td>
+    <th>Short description:</th>
+    <td>[% IF build.description %][% HTML.escape(build.description) %][% ELSE %]<em>(not given)</em>[% END %]</td>
+  </tr>
+  <tr>
+    <th>Long description:</th>
+    <td>[% IF build.longdescription %][% HTML.escape(build.longdescription) %][% ELSE %]<em>(not given)</em>[% END %]</td>
+  </tr>
+  <tr>
+    <th>License:</th>
+    <td>[% IF build.license %][% HTML.escape(build.license) %][% ELSE %]<em>(not given)</em>[% END %]</td>
   </tr>
   <tr>
     <th>System:</th>

@@ -17,10 +17,13 @@ create table Builds (
 
     -- Info about the build result.
     nixName       text, -- name attribute of the derivation
-    description   text,
+    description   text, -- meta.description
     drvPath       text not null,
     outPath       text not null,
     system        text not null,
+
+    longDescription text, -- meta.longDescription
+    license       text, -- meta.license
     
     foreign key   (project) references Projects(name), -- ignored by sqlite
     foreign key   (project, jobset) references Jobsets(project, name) -- ignored by sqlite
