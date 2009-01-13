@@ -2,6 +2,7 @@ package Hydra::Helper::Nix;
 
 use strict;
 use Exporter;
+use File::Basename;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(isValidPath getHydraPath getHydraDBPath openHydraDB);
@@ -9,8 +10,11 @@ our @EXPORT = qw(isValidPath getHydraPath getHydraDBPath openHydraDB);
 
 sub isValidPath {
     my $path = shift;
-    $SIG{CHLD} = 'DEFAULT'; # !!! work around system() failing if SIGCHLD is ignored
-    return system("nix-store --check-validity $path 2> /dev/null") == 0;
+    #$SIG{CHLD} = 'DEFAULT'; # !!! work around system() failing if SIGCHLD is ignored
+    #return system("nix-store --check-validity $path 2> /dev/null") == 0;
+
+    # This is faster than calling nix-store, but it breaks abstraction...
+    return -e ("/nix/var/nix/db/info/" . basename $path);
 }
 
 

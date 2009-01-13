@@ -679,6 +679,8 @@ sub build :Local {
 
     $c->stash->{curTime} = time;
 
+    $c->stash->{available} = isValidPath $build->outpath;
+
     if (!$build->finished && $build->schedulingInfo->busy) {
         my $logfile = $build->schedulingInfo->logfile;
         $c->stash->{logtext} = `cat $logfile`;

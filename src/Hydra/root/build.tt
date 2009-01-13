@@ -241,6 +241,10 @@
 
 <h2>Build products</h2>
 
+[% IF !available %]
+  <p class="error">Note: this build is no longer available.</p>
+[% END %]
+
 [% PROCESS renderProductList %]
 
 [% END %]
