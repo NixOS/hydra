@@ -103,7 +103,7 @@
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'all') title = "All builds" %]
                       [% INCLUDE makeLink uri = c.uri_for('/releasesets' project.name) title = "Releases" %]
                       
-                      [% IF project.releasesets.size > 0 %]
+                      [% IF project.releasesets && project.releasesets.size > 0 %]
                         <ul class="subsubsubmenu">
                           [% FOREACH releaseset IN project.releasesets %]
                             [% myUri = c.uri_for('/releases' project.name releaseset.name) %]
