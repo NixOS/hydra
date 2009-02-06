@@ -248,6 +248,9 @@ sub checkJob {
                 , sha256hash => $input->{sha256hash}
                 });
         }
+
+        # !!! this should really by done by nix-instantiate to prevent a GC race.
+        registerRoot $drvPath;
     });
 };
 

@@ -2,11 +2,13 @@ package Hydra::Helper::Nix;
 
 use strict;
 use Exporter;
+use File::Path;
 use File::Basename;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     isValidPath getHydraPath getHydraDBPath openHydraDB
+    registerRoot getGCRootsDir
     getPrimaryBuildsForReleaseSet getRelease getLatestSuccessfulRelease );
 
 
@@ -39,6 +41,28 @@ sub openHydraDB {
     my $db = Hydra::Schema->connect(getHydraDBPath, "", "", {});
     $db->storage->dbh->do("PRAGMA synchronous = OFF;");
     return $db;
+}
+
+
+sub getGCRootsDir {
+    die unless defined $ENV{LOGNAME};
+    return "/nix/var/nix/gcroots/per-user/$ENV{LOGNAME}/hydra-roots";
+}
+
+
+sub registerRoot {
+    my ($path) = @_;
+
+    my $gcRootsDir = getGCRootsDir;
+    
+    mkpath($gcRootsDir) if !-e $gcRootsDir;
+
+    my $link = "$gcRootsDir/" . basename $path;
+        
+    if (!-l $link) {
+        symlink($path, $link)
+            or die "cannot create symlink in $gcRootsDir to $path";
+    }
 }
 
 

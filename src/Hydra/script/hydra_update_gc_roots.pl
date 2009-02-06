@@ -9,25 +9,12 @@ use POSIX qw(strftime);
 
 my $db = openHydraDB;
 
-die unless defined $ENV{LOGNAME};
-my $gcRootsDir = "/nix/var/nix/gcroots/per-user/$ENV{LOGNAME}/hydra-roots";
-
 
 my %roots;
 
 sub registerRoot {
     my ($path) = @_;
-    #print "$path\n";
-
-    mkpath($gcRootsDir) if !-e $gcRootsDir;
-
-    my $link = "$gcRootsDir/" . basename $path;
-        
-    if (!-l $link) {
-        symlink($path, $link)
-            or die "cannot create symlink in $gcRootsDir to $path";
-    }
-
+    Hydra::Helper::Nix::registerRoot($path);
     $roots{$path} = 1;
 }
 
@@ -97,11 +84,14 @@ my @buildsToKeep = $db->resultset('Builds')->search({finished => 1, keep => 1}, 
 keepBuild $_ foreach @buildsToKeep;
 
 
-# For scheduled builds, we register the derivation as a GC root.
+# For scheduled builds, we register the derivation and the output as a GC root.
 print "*** looking for scheduled builds\n";
 foreach my $build ($db->resultset('Builds')->search({finished => 0}, {join => 'schedulingInfo'})) {
     if (isValidPath($build->drvpath)) {
+        print "keeping scheduled build ", $build->id, " (",
+            strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
         registerRoot $build->drvpath;
+        registerRoot $build->outpath;
     } else {
         print STDERR "warning: derivation ", $build->drvpath, " has disappeared\n";
     }
@@ -109,6 +99,10 @@ foreach my $build ($db->resultset('Builds')->search({finished => 0}, {join => 's
 
 
 # Remove existing roots that are no longer wanted.  !!! racy
+print "*** removing unneeded GC roots\n";
+
+my $gcRootsDir = getGCRootsDir;
+
 opendir DIR, $gcRootsDir or die;
 
 foreach my $link (readdir DIR) {

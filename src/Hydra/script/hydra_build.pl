@@ -25,6 +25,8 @@ sub doBuild {
 
     my $errormsg = undef;
     
+    registerRoot $outPath;
+    
     if (!isValidPath($outPath)) {
         $isCachedBuild = 0;
 
