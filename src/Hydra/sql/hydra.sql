@@ -340,6 +340,7 @@ create trigger cascadeReleaseSetUpdate
 
 create table ReleaseSetJobs (
     project       text not null,
+    -- !!! urgh: "release" is a reserved keyword in sqlite >= 3.6.8!
     release       text not null,
 
     job           text not null,
