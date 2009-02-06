@@ -44,14 +44,16 @@ sub keepBuild {
 }
 
 
-# Go over all jobs in all projects.
+# Go over all projects.
 
 foreach my $project ($db->resultset('Projects')->all) {
+
+    # Go over all jobs in this project.
 
     foreach my $job ($project->builds->search({},
         {select => [{distinct => 'attrname'}], as => ['attrname']}))
     {
-        print "*** looking for builds to keep in ", $project->name, ":", $job->attrname, "\n";
+        print "*** looking for builds to keep in job ", $project->name, ":", $job->attrname, "\n";
 
         # Keep the N most recent successful builds for each job and
         # platform.
@@ -64,9 +66,28 @@ foreach my $project ($db->resultset('Projects')->all) {
             , order_by => 'timestamp DESC'
             , rows => 3 # !!! should make this configurable
             });
-
+        
         keepBuild $_ foreach @recentBuilds;
+
     }
+
+    # Go over all releases in this project.
+
+    foreach my $releaseSet ($project->releasesets->all) {
+        print "*** looking for builds to keep in release set ", $project->name, ":", $releaseSet->name, "\n";
+
+        (my $primaryJob) = $releaseSet->releasesetjobs->search({isprimary => 1});
+        my $jobs = [$releaseSet->releasesetjobs->all];
+
+        # Keep all builds belonging to the most recent successful release.
+        my $latest = getLatestSuccessfulRelease($project, $primaryJob, $jobs);
+        if (defined $latest) {
+            print "keeping latest successful release ", $latest->id, " (", $latest->get_column('releasename'), ")\n";
+            my $release = getRelease($latest, $jobs);
+            keepBuild $_->{build} foreach @{$release->{jobs}};
+        }
+    }
+    
 }
 
 
