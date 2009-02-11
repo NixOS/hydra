@@ -347,6 +347,7 @@ sub updateProject {
     $project->name($projectName);
     $project->displayname($displayName);
     $project->description(trim $c->request->params->{description});
+    $project->homepage(trim $c->request->params->{homepage});
     $project->enabled(trim($c->request->params->{enabled}) eq "1" ? 1 : 0);
 
     if ($c->check_user_roles('admin')) {

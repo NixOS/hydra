@@ -160,6 +160,7 @@ create table Projects (
     description   text,
     enabled       integer not null default 1,
     owner         text not null,
+    homepage      text, -- URL for the project
     foreign key   (owner) references Users(userName) -- ignored by sqlite
 );
 

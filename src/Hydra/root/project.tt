@@ -168,6 +168,20 @@
     <td>[% INCLUDE maybeEditString param="description" value=curProject.description %]</td>
   </tr>
   <tr>
+    <th>Homepage:</th>
+    <td>
+      [% IF edit %]
+        [% INCLUDE maybeEditString param="homepage" value=curProject.homepage %]
+      [% ELSE %]
+        [% IF curProject.homepage %]
+          <a [% HTML.attributes(href => curProject.homepage) %]>[% HTML.escape(curProject.homepage) %]</a>
+        [% ELSE %]
+          <em>(not specified)</em>
+        [% END %]
+      [% END %]
+    </td>
+  </tr>
+  <tr>
     <th>Owner:</th>
     <td><tt>[% INCLUDE maybeEditString param="owner" value=curProject.owner.username edit=(edit && c.check_user_roles('admin')) %]</tt></td>
   </tr>

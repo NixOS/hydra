@@ -74,8 +74,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2008-12-16 17:19:59
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OLYzmcCXrq4g1ja5mFS1uA
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-02-11 23:16:48
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+5YWpNShfJeY0rZxT6NFXg
 
 __PACKAGE__->has_many(dependents => 'Hydra::Schema::BuildInputs', 'dependency');
 
