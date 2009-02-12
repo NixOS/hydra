@@ -1,10 +1,10 @@
 #!/var/run/current-system/sw/bin/perl -w
 
-BEGIN { 
+BEGIN {
     $ENV{CATALYST_ENGINE} ||= 'HTTP';
-    $ENV{CATALYST_SCRIPT_GEN} = 31;
+    $ENV{CATALYST_SCRIPT_GEN} = 32;
     require Catalyst::Engine::HTTP;
-}  
+}
 
 use strict;
 use warnings;
@@ -17,9 +17,9 @@ my $debug             = 0;
 my $fork              = 0;
 my $help              = 0;
 my $host              = undef;
-my $port              = $ENV{HYDRAFRONTEND_PORT} || $ENV{CATALYST_PORT} || 3000;
+my $port              = $ENV{HYDRA_PORT} || $ENV{CATALYST_PORT} || 3000;
 my $keepalive         = 0;
-my $restart           = $ENV{HYDRAFRONTEND_RELOAD} || $ENV{CATALYST_RELOAD} || 0;
+my $restart           = $ENV{HYDRA_RELOAD} || $ENV{CATALYST_RELOAD} || 0;
 my $restart_delay     = 1;
 my $restart_regex     = '(?:/|^)(?!\.#).+(?:\.yml$|\.yaml$|\.conf|\.pm)$';
 my $restart_directory = undef;
