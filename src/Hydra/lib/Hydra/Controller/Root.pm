@@ -707,6 +707,17 @@ sub closure :Local {
 }
 
 
+sub manifest :Local {
+    my ($self, $c, $buildId) = @_;
+
+    my $build = getBuild($c, $buildId);
+    return error($c, "Build with ID $buildId doesn't exist.") if !defined $build;
+
+    $c->stash->{current_view} = 'Hydra::View::NixManifest';
+    $c->stash->{storePath} = $build->outpath;
+}
+
+
 sub end : ActionClass('RenderView') {}
 
 
