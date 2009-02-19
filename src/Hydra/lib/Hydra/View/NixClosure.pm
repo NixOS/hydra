@@ -3,7 +3,6 @@ package Hydra::View::NixClosure;
 use strict;
 use base qw/Catalyst::View/;
 use IO::Pipe;
-use POSIX qw(dup2);
 
 sub process {
     my ( $self, $c ) = @_;

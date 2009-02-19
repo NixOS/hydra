@@ -12,7 +12,7 @@ sub captureStdoutStderr {
     return ($res, $stdout, $stderr);
 }
 
-    
+
 sub process {
     my ($self, $c) = @_;
 
@@ -41,10 +41,10 @@ sub process {
         
         $manifest .=
             "{\n" .
-            "  StorePath: $path\n" .
+            "  StorePath: ${path}y\n" .
             "  NarURL: $url\n" .
             "  References: @refs\n" .
-            "  Hash: $hash\n" .
+            "  NarHash: $hash\n" .
             "}\n";
     }
 

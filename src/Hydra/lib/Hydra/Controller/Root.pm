@@ -712,9 +712,22 @@ sub manifest :Local {
 
     my $build = getBuild($c, $buildId);
     return error($c, "Build with ID $buildId doesn't exist.") if !defined $build;
-
+    return error($c, "Path " . $build->outpath . " is no longer available.") unless isValidPath($build->outpath);
+    
     $c->stash->{current_view} = 'Hydra::View::NixManifest';
     $c->stash->{storePath} = $build->outpath;
+}
+
+
+sub nar :Local {
+    my ($self, $c, @rest) = @_;
+
+    my $path .= "/" . join("/", @rest);
+
+    return error($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
+
+    $c->stash->{current_view} = 'Hydra::View::NixNAR';
+    $c->stash->{storePath} = $path;
 }
 
 
