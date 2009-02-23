@@ -9,7 +9,7 @@
       [% SWITCH product.type %]
 
       [% CASE "nix-build" %]
-        <a href="[% c.uri_for('/closure' build.id product.productnr) %]">
+        <a href="[% c.uri_for('/closure' build.id) %]">
           <img src="/static/images/nix-build.png" alt="Source" />
           Nix build of path <tt>[% product.path %]</tt>
         </a>
@@ -23,7 +23,7 @@
 
           or to download and unpack in one command:
 
-          <pre>$ curl [% c.uri_for('/closure' build.id product.productnr) %] | gunzip | nix-store --import</pre>
+          <pre>$ curl [% c.uri_for('/closure' build.id) %] | gunzip | nix-store --import</pre>
 
           <p>The package can then be found in the path <tt>[%
           product.path %]</tt>.  You’ll probably also want to do

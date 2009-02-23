@@ -118,7 +118,7 @@ sub queue :Local {
 }
 
 
-sub showJobStatus :Local {
+sub showJobStatus {
     my ($c, $builds) = @_;
     $c->stash->{template} = 'jobstatus.tt';
 
@@ -683,20 +683,18 @@ sub download :Local {
 
 
 sub closure :Local {
-    my ($self, $c, $buildId, $productnr) = @_;
+    my ($self, $c, $buildId) = @_;
 
     my $build = getBuild($c, $buildId);
-    return error($c, "Build with ID $buildId doesn't exist.") if !defined $build;
+    return error($c, "Build $buildId doesn't exist.") if !defined $build;
 
-    my $product = $build->buildproducts->find({productnr => $productnr});
-    return error($c, "Build $buildId doesn't have a product $productnr.") if !defined $product;
+    return error($c, "Build $buildId cannot be downloaded as a closure.")
+        if !$build->buildproducts->find({type => "nix-build"});
 
-    return error($c, "Product is not a Nix build.") if $product->type ne "nix-build";
-
-    return error($c, "Path " . $product->path . " is no longer available.") unless isValidPath($product->path);
+    return error($c, "Path " . $build->outpath . " is no longer available.") unless isValidPath($build->outpath);
 
     $c->stash->{current_view} = 'Hydra::View::NixClosure';
-    $c->stash->{storePath} = $product->path;
+    $c->stash->{storePath} = $build->outpath;
     $c->stash->{name} = $build->nixname;
 
     # !!! quick hack; this is to make HEAD requests return the right
