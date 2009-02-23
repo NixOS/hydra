@@ -5,21 +5,53 @@
   <ul class="productList">
 
     [% FOREACH product IN build.buildproducts -%]
-    <li class="product">
+    
       [% SWITCH product.type %]
 
       [% CASE "nix-build" %]
-        <a href="[% c.uri_for('/closure' build.id) %]">
+      
+      <li class="product">
+        <a href="[% c.uri_for('/nixpkg' build.id) %]">
           <img src="/static/images/nix-build.png" alt="Source" />
-          Nix build of path <tt>[% product.path %]</tt>
+          One-click install of Nix package <tt>[% build.nixname %]</tt>
         </a>
         [<a class="productDetailsToggle" href="javascript:">help</a>]
         <div class="help productDetails">
-          <p>If you have Nix installed on your machine, this build and all
-          its dependencies can be unpacked into your local Nix store by
-          doing:</p>
+          <p>If you have Nix installed on your machine, you can
+          install this package and all its dependencies automatically
+          by clicking on the link above.  This requires that you have
+          the <tt>application/nix-package</tt> MIME type associated
+          with the <tt>nix-install-package</tt> program in your web
+          browser.  Alternatively, you can install it from the
+          command-line:
+          
+          <pre>$ nix-install-package --non-interactive --url [% c.uri_for('/nixpkg' build.id) %]</pre>
+          
+          </p>
 
-          <pre>$ gunzip < [% HTML.escape(build.nixname) %].closure.gz | nix-store --import</pre>
+          <p>If you get an error message “Permission denied”, you
+          should make sure that you have sufficient access rights to
+          the Nix store, e.g., run the command as <tt>root</tt>.
+          
+          </p>
+        </div>
+
+      </li>
+
+      <li class="product">
+
+        <a href="[% c.uri_for('/closure' build.id) %]">
+          <img src="/static/images/nix-build.png" alt="Source" />
+          Nix closure of path <tt>[% product.path %]</tt>
+        </a>
+        
+        [<a class="productDetailsToggle" href="javascript:">help</a>]
+        <div class="help productDetails">
+          <p>If you have Nix installed on your machine, this build and
+          all its dependencies can be unpacked into your local Nix
+          store by doing:</p>
+
+          <pre>$ gunzip &lt; [% HTML.escape(build.nixname) %].closure.gz | nix-store --import</pre>
 
           or to download and unpack in one command:
 
@@ -36,9 +68,15 @@
           archive lacks a signature”, you should make sure that you have
           sufficient access rights to the Nix store, e.g., run the
           command as <tt>root</tt>.</p>
+          -->
         </div>
 
+      </li>
+
+
       [% CASE "file" %]
+      
+      <li class="product">
         <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
           [% SWITCH product.subtype %]
           [% CASE "source-dist" %]
@@ -70,9 +108,11 @@
             <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
           </table>
         </div>
+      </li>
 
       [% CASE "report" %]
-
+      
+      <li class="product">
         <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
           <img src="/static/images/report.png" alt="Report" />
           [% SWITCH product.subtype %]
@@ -82,9 +122,11 @@
             Report of type <tt>[% product.subtype %]</tt>
           [% END %]
         </a>
+      </li>
 
       [% CASE "doc" %]
 
+      <li class="product">
         <a href="[% c.uri_for('/download' build.id product.productnr product.name) %]">
           <img src="/static/images/document.png" alt="Document" />
           [% SWITCH product.subtype %]
@@ -98,12 +140,16 @@
             Documentation of type <tt>[% product.subtype %]</tt>
           [% END %]
         </a>
+      </li>
 
       [% CASE DEFAULT %]
+      
+      <li class="product">
         Something of type <tt>[% product.type %]</tt>
+      </li>
 
       [% END %]
-    </li>
+
     [% END -%]
 
   </ul>

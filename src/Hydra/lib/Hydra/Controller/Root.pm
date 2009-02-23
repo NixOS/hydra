@@ -710,10 +710,29 @@ sub manifest :Local {
 
     my $build = getBuild($c, $buildId);
     return error($c, "Build with ID $buildId doesn't exist.") if !defined $build;
+    
     return error($c, "Path " . $build->outpath . " is no longer available.") unless isValidPath($build->outpath);
     
     $c->stash->{current_view} = 'Hydra::View::NixManifest';
     $c->stash->{storePath} = $build->outpath;
+}
+
+
+sub nixpkg :Local {
+    my ($self, $c, $buildId) = @_;
+
+    my $build = getBuild($c, $buildId);
+    return error($c, "Build $buildId doesn't exist.") if !defined $build;
+
+    return error($c, "Build $buildId cannot be downloaded as a Nix package.")
+        if !$build->buildproducts->find({type => "nix-build"});
+
+    return error($c, "Path " . $build->outpath . " is no longer available.") unless isValidPath($build->outpath);
+
+    $c->stash->{current_view} = 'Hydra::View::NixPkg';
+    $c->stash->{build} = $build;
+
+    $c->response->content_type('application/nix-package');
 }
 
 

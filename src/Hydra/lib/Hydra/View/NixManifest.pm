@@ -38,12 +38,17 @@ sub process {
         chomp $hash;
 
         my $url = $c->uri_for('/nar' . $path);
+
+        my $deriver = `nix-store --query --deriver $path`
+            or die "cannot query deriver of `$path': $?";
+        chomp $deriver;
         
         $manifest .=
             "{\n" .
-            "  StorePath: ${path}y\n" .
+            "  StorePath: $path\n" .
+            (scalar @refs > 0 ? "  References: @refs\n" : "") .
+            ($deriver ne "unknown-deriver" ? "  Deriver: $deriver\n" : "") .
             "  NarURL: $url\n" .
-            "  References: @refs\n" .
             "  NarHash: $hash\n" .
             "}\n";
     }
