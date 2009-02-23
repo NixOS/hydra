@@ -68,7 +68,6 @@
           archive lacks a signature”, you should make sure that you have
           sufficient access rights to the Nix store, e.g., run the
           command as <tt>root</tt>.</p>
-          -->
         </div>
 
       </li>
