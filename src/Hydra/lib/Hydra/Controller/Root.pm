@@ -2,7 +2,7 @@ package Hydra::Controller::Root;
 
 use strict;
 use warnings;
-use base 'Catalyst::Controller';
+use base 'Hydra::Base::Controller::Nix';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
@@ -97,12 +97,10 @@ sub queue :Local {
 }
 
 
-sub showJobStatus {
+# Return the latest build for each job.
+sub getLatestBuilds {
     my ($c, $builds) = @_;
-    $c->stash->{template} = 'jobstatus.tt';
-
-    # Get the latest finished build for each unique job.
-    $c->stash->{latestBuilds} = [$builds->search({},
+    return $builds->search({},
         { join => 'resultInfo'
         , where => {
             finished => { "!=", 0 },
@@ -111,7 +109,16 @@ sub showJobStatus {
                 "where project == me.project and attrName == me.attrName and finished != 0 and system == me.system)"),
           }
         , order_by => "project, attrname, system"
-        })];
+        });
+}
+
+
+sub showJobStatus {
+    my ($c, $builds) = @_;
+    $c->stash->{template} = 'jobstatus.tt';
+
+    # Get the latest finished build for each unique job.
+    $c->stash->{latestBuilds} = [getLatestBuilds($c, $builds)];
 }
 
 
@@ -538,6 +545,20 @@ sub job :Local {
 }
 
 
+sub nix : Chained('/') PathPart('nix') CaptureArgs(0) {
+    my ($self, $c) = @_;
+
+    my @builds = getLatestBuilds($c, $c->model('DB::Builds'));
+
+    my @storePaths = ();
+    foreach my $build (@builds) {
+        push @storePaths, $build->outpath if isValidPath($build->outpath);
+    };
+
+    $c->stash->{storePaths} = [@storePaths];
+}
+
+
 sub default :Path {
     my ($self, $c) = @_;
     notFound($c, "Page not found.");
@@ -550,6 +571,10 @@ sub end : ActionClass('RenderView') {
     if (scalar @{$c->error}) {
         $c->stash->{template} = 'error.tt';
         $c->stash->{errors} = $c->error;
+        if ($c->response->status >= 300) {
+            $c->stash->{httpStatus} =
+                $c->response->status . " " . HTTP::Status::status_message($c->response->status);
+        }
         $c->clear_errors;
     }
 }

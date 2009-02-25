@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Error" %]
 [% USE HTML %]
 
-<h1>Error</h1>
+<h1>[% IF httpStatus %][% httpStatus %][% ELSE %]Error[% END %]</h1>
 
 <p>I'm very sorry, but an error occurred: <span class="error-msg">[% FOREACH error IN errors %] [% HTML.escape(error) %] [% END %]</span></p>
 

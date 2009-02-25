@@ -122,8 +122,8 @@ sub nix : Chained('build') PathPart('nix') CaptureArgs(0) {
     error($c, "Path " . $build->outpath . " is no longer available.")
         unless isValidPath($build->outpath);
     
-    $c->stash->{name} = $build->nixname;
     $c->stash->{storePaths} = [$build->outpath];
+    
     my $pkgName = $build->nixname . "-" . $build->system . ".nixpkg";
     $c->stash->{nixPkgs} = {$pkgName => $build};
 }
