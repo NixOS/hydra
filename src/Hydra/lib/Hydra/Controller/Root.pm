@@ -544,24 +544,6 @@ sub default :Path {
 }
 
 
-sub nixpkg :Local {
-    my ($self, $c, $buildId) = @_;
-
-    my $build = getBuild($c, $buildId);
-    notFound($c, "Build $buildId doesn't exist.") if !defined $build;
-
-    error($c, "Build $buildId cannot be downloaded as a Nix package.")
-        if !$build->buildproducts->find({type => "nix-build"});
-
-    error($c, "Path " . $build->outpath . " is no longer available.") unless isValidPath($build->outpath);
-
-    $c->stash->{current_view} = 'Hydra::View::NixPkg';
-    $c->stash->{build} = $build;
-
-    $c->response->content_type('application/nix-package');
-}
-
-
 sub end : ActionClass('RenderView') {
     my ($self, $c) = @_;
 

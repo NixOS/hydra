@@ -39,4 +39,20 @@ sub nar : Chained('nix') PathPart {
 }
 
 
+sub pkg : Chained('nix') PathPart Args(1) {
+    my ($self, $c, $pkgName) = @_;
+
+    my $pkg = $c->stash->{nixPkgs}->{$pkgName};
+
+    notFound($c, "Unknown Nix package `$pkgName'.")
+        unless defined $pkg;
+
+    $c->stash->{build} = $pkg;
+
+    $c->stash->{current_view} = 'Hydra::View::NixPkg';
+
+    $c->response->content_type('application/nix-package');
+}
+
+
 1;
