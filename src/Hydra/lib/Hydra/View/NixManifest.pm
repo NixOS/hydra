@@ -37,7 +37,7 @@ sub process {
             or die "cannot query hash of `$path': $?";
         chomp $hash;
 
-        my $url = $c->uri_for('/nar' . $path);
+        my $url = $c->stash->{narBase} . $path;
 
         my $deriver = `nix-store --query --deriver $path`
             or die "cannot query deriver of `$path': $?";

@@ -21,6 +21,21 @@ sub closure : Chained('nix') PathPart {
 sub manifest : Chained('nix') PathPart Args(0) {
     my ($self, $c) = @_;
     $c->stash->{current_view} = 'Hydra::View::NixManifest';
+    $c->stash->{narBase} = $c->uri_for($self->action_for("nar"), $c->req->captures);
+}
+
+
+sub nar : Chained('nix') PathPart {
+    my ($self, $c, @rest) = @_;
+
+    my $path .= "/" . join("/", @rest);
+
+    error($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
+
+    # !!! check that $path is in the closure of $c->stash->{storePaths}.
+
+    $c->stash->{current_view} = 'Hydra::View::NixNAR';
+    $c->stash->{storePath} = $path;
 }
 
 

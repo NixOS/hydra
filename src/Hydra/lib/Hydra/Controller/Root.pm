@@ -562,18 +562,6 @@ sub nixpkg :Local {
 }
 
 
-sub nar :Local {
-    my ($self, $c, @rest) = @_;
-
-    my $path .= "/" . join("/", @rest);
-
-    error($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
-
-    $c->stash->{current_view} = 'Hydra::View::NixNAR';
-    $c->stash->{storePath} = $path;
-}
-
-
 sub end : ActionClass('RenderView') {
     my ($self, $c) = @_;
 
