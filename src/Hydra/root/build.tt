@@ -121,7 +121,7 @@
     <tr>
       <th>Logfile:</th>
       <td>
-        <a href="[% c.uri_for('/log' build.id) %]"><strong>Available</strong></a>
+        <a href="[% c.uri_for('build' build.id 'log') %]"><strong>Available</strong></a>
       </td>
     </tr>
   [% END %]
@@ -178,8 +178,9 @@
   </thead>
   <tbody>
     [% FOREACH step IN build.buildsteps -%]
+      [% log = c.uri_for('build' build.id 'nixlog' step.stepnr) %]
       <tr class="[% IF step.logfile %]clickable[% END %]"
-          [% IF step.logfile %] onclick="window.location = '[% c.uri_for('/nixlog' build.id step.stepnr) %]'" [% END %]>
+          [% IF step.logfile %] onclick="window.location = '[% log %]'" [% END %]>
         <td>[% step.stepnr %]</td>
         <td>
           [% IF step.type == 0 %]
@@ -212,7 +213,7 @@
             <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
           [% END %]
           [% IF step.logfile %]
-            (<a href="[% c.uri_for('/nixlog' build.id step.stepnr) %]">log</a>)
+            (<a href="[% log %]">log</a>)
           [% END %]
         </td>
       </tr>

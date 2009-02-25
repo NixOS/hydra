@@ -5,10 +5,8 @@ use warnings;
 use parent 'Catalyst::Controller';
 use Hydra::Helper::Nix;
 
-#
-# Sets the actions in this controller to be registered with no prefix
-# so they function identically to actions created in MyApp.pm
-#
+
+# Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
 
 
@@ -26,9 +24,8 @@ sub begin :Private {
 
 sub error {
     my ($c, $msg) = @_;
-    $c->stash->{template} = 'error.tt';
-    $c->stash->{error} = $msg;
-    $c->response->status(404);
+    $c->error($msg);
+    $c->detach;
 }
 
 
@@ -572,23 +569,34 @@ sub job :Local {
 sub default :Path {
     my ($self, $c) = @_;
     error($c, "Page not found.");
+    $c->response->status(404);
 }
 
 
-sub build :Local {
+sub build : Chained('/') PathPart CaptureArgs(1) {
     my ($self, $c, $id) = @_;
-
-    my $build = getBuild($c, $id);
-    return error($c, "Build with ID $id doesn't exist.") if !defined $build;
-
-    $c->stash->{curProject} = $build->project;
-
-    $c->stash->{template} = 'build.tt';
-    $c->stash->{build} = $build;
+    
     $c->stash->{id} = $id;
+    
+    $c->stash->{build} = getBuild($c, $id);
+    
+    if (!defined $c->stash->{build}) {
+        error($c, "Build with ID $id doesn't exist.");
+        $c->response->status(404);
+        return;
+    }
 
+    $c->stash->{curProject} = $c->stash->{build}->project;
+}
+
+
+sub view_build : Chained('build') PathPart('') Args(0) {
+    my ($self, $c) = @_;
+
+    my $build = $c->stash->{build};
+    
+    $c->stash->{template} = 'build.tt';
     $c->stash->{curTime} = time;
-
     $c->stash->{available} = isValidPath $build->outpath;
 
     if (!$build->finished && $build->schedulingInfo->busy) {
@@ -598,39 +606,29 @@ sub build :Local {
 }
 
 
-sub log :Local {
-    my ($self, $c, $id) = @_;
+sub view_nixlog : Chained('build') PathPart('nixlog') Args(1) {
+    my ($self, $c, $stepnr) = @_;
 
-    my $build = getBuild($c, $id);
-    return error($c, "Build $id doesn't exist.") if !defined $build;
-
-    return error($c, "Build $id didn't produce a log.") if !defined $build->resultInfo->logfile;
+    my $step = $c->stash->{build}->buildsteps->find({stepnr => $stepnr});
+    return error($c, "Build doesn't have a build step $stepnr.") if !defined $step;
 
     $c->stash->{template} = 'log.tt';
-    $c->stash->{build} = $build;
-
-    # !!! should be done in the view (as a TT plugin).
-    $c->stash->{logtext} = loadLog($c, $build->resultInfo->logfile);
-}
-
-
-sub nixlog :Local {
-    my ($self, $c, $id, $stepnr) = @_;
-
-    my $build = getBuild($c, $id);
-    return error($c, "Build with ID $id doesn't exist.") if !defined $build;
-
-    my $step = $build->buildsteps->find({stepnr => $stepnr});
-    return error($c, "Build $id doesn't have a build step $stepnr.") if !defined $step;
-
-    return error($c, "Build step $stepnr of build $id does not have a log file.") if $step->logfile eq "";
-    
-    $c->stash->{template} = 'log.tt';
-    $c->stash->{build} = $build;
     $c->stash->{step} = $step;
 
     # !!! should be done in the view (as a TT plugin).
     $c->stash->{logtext} = loadLog($c, $step->logfile);
+}
+
+
+sub view_log : Chained('build') PathPart('log') Args(0) {
+    my ($self, $c) = @_;
+
+    return error($c, "Build didn't produce a log.") if !defined $c->stash->{build}->resultInfo->logfile;
+
+    $c->stash->{template} = 'log.tt';
+
+    # !!! should be done in the view (as a TT plugin).
+    $c->stash->{logtext} = loadLog($c, $c->stash->{build}->resultInfo->logfile);
 }
 
 
@@ -648,14 +646,11 @@ sub loadLog {
 }
 
 
-sub download :Local {
-    my ($self, $c, $id, $productnr, $filename, @path) = @_;
+sub download : Chained('build') PathPart('download') {
+    my ($self, $c, $productnr, $filename, @path) = @_;
 
-    my $build = getBuild($c, $id);
-    return error($c, "Build with ID $id doesn't exist.") if !defined $build;
-
-    my $product = $build->buildproducts->find({productnr => $productnr});
-    return error($c, "Build $id doesn't have a product $productnr.") if !defined $product;
+    my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
+    return error($c, "Build doesn't have a product $productnr.") if !defined $product;
 
     return error($c, "Product " . $product->path . " has disappeared.") unless -e $product->path;
 
@@ -748,7 +743,15 @@ sub nar :Local {
 }
 
 
-sub end : ActionClass('RenderView') {}
+sub end : ActionClass('RenderView') {
+    my ($self, $c) = @_;
+
+    if (scalar @{$c->error}) {
+        $c->stash->{template} = 'error.tt';
+        $c->stash->{errors} = $c->error;
+        $c->clear_errors;
+    }
+}
 
 
 1;
