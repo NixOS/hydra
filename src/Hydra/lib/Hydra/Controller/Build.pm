@@ -2,7 +2,7 @@ package Hydra::Controller::Build;
 
 use strict;
 use warnings;
-use parent 'Catalyst::Controller';
+use base 'Hydra::Base::Controller::Nix';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
@@ -18,12 +18,9 @@ sub build : Chained('/') PathPart CaptureArgs(1) {
     $c->stash->{id} = $id;
     
     $c->stash->{build} = getBuild($c, $id);
-    
-    if (!defined $c->stash->{build}) {
-        error($c, "Build with ID $id doesn't exist.");
-        $c->response->status(404);
-        return;
-    }
+
+    notFound($c, "Build with ID $id doesn't exist.")
+        if !defined $c->stash->{build};
 
     $c->stash->{curProject} = $c->stash->{build}->project;
 }
@@ -49,7 +46,7 @@ sub view_nixlog : Chained('build') PathPart('nixlog') Args(1) {
     my ($self, $c, $stepnr) = @_;
 
     my $step = $c->stash->{build}->buildsteps->find({stepnr => $stepnr});
-    return error($c, "Build doesn't have a build step $stepnr.") if !defined $step;
+    notFound($c, "Build doesn't have a build step $stepnr.") if !defined $step;
 
     $c->stash->{template} = 'log.tt';
     $c->stash->{step} = $step;
@@ -62,7 +59,7 @@ sub view_nixlog : Chained('build') PathPart('nixlog') Args(1) {
 sub view_log : Chained('build') PathPart('log') Args(0) {
     my ($self, $c) = @_;
 
-    return error($c, "Build didn't produce a log.") if !defined $c->stash->{build}->resultInfo->logfile;
+    error($c, "Build didn't produce a log.") if !defined $c->stash->{build}->resultInfo->logfile;
 
     $c->stash->{template} = 'log.tt';
 
@@ -89,13 +86,13 @@ sub download : Chained('build') PathPart('download') {
     my ($self, $c, $productnr, $filename, @path) = @_;
 
     my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
-    return error($c, "Build doesn't have a product $productnr.") if !defined $product;
+    notFound($c, "Build doesn't have a product $productnr.") if !defined $product;
 
-    return error($c, "Product " . $product->path . " has disappeared.") unless -e $product->path;
+    error($c, "Product " . $product->path . " has disappeared.") unless -e $product->path;
 
     # Security paranoia.
     foreach my $elem (@path) {
-        return error($c, "Invalid filename $elem.") if $elem !~ /^$pathCompRE$/;
+        error($c, "Invalid filename $elem.") if $elem !~ /^$pathCompRE$/;
     }
     
     my $path = $product->path;
@@ -108,11 +105,25 @@ sub download : Chained('build') PathPart('download') {
     
     $path = "$path/index.html" if -d $path && -e "$path/index.html";
 
-    if (!-e $path) {
-        return error($c, "File $path does not exist.");
-    }
+    notFound($c, "File $path does not exist.") if !-e $path;
 
     $c->serve_static_file($path);
+}
+
+
+sub nix : Chained('build') PathPart('nix') CaptureArgs(0) {
+    my ($self, $c) = @_;
+
+    my $build = $c->stash->{build};
+
+    error($c, "Build cannot be downloaded as a closure or Nix package.")
+        if !$build->buildproducts->find({type => "nix-build"});
+
+    error($c, "Path " . $build->outpath . " is no longer available.")
+        unless isValidPath($build->outpath);
+    
+    $c->stash->{name} = $build->nixname;
+    $c->stash->{storePaths} = [$build->outpath];
 }
 
 

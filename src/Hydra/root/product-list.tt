@@ -43,7 +43,10 @@
 
       <li class="product">
 
-        <a href="[% c.uri_for('/closure' build.id) %]">
+        [% filename = "${build.nixname}.closure.gz" %]
+        [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
+        
+        <a href="[% uri %]">
           <img src="/static/images/nix-build.png" alt="Source" />
           Nix closure of path <tt>[% product.path %]</tt>
         </a>
@@ -54,11 +57,11 @@
           all its dependencies can be unpacked into your local Nix
           store by doing:</p>
 
-          <pre>$ gunzip &lt; [% HTML.escape(build.nixname) %].closure.gz | nix-store --import</pre>
+          <pre>$ gunzip &lt; [% filename %] | nix-store --import</pre>
 
           or to download and unpack in one command:
 
-          <pre>$ curl [% c.uri_for('/closure' build.id) %] | gunzip | nix-store --import</pre>
+          <pre>$ curl [% uri %] | gunzip | nix-store --import</pre>
 
           <p>The package can then be found in the path <tt>[%
           product.path %]</tt>.  You’ll probably also want to do

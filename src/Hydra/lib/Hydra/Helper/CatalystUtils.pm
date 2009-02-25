@@ -4,7 +4,7 @@ use strict;
 use Exporter;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(getBuild error);
+our @EXPORT = qw(getBuild error notFound);
 
 
 sub getBuild {
@@ -18,6 +18,13 @@ sub error {
     my ($c, $msg) = @_;
     $c->error($msg);
     $c->detach;
+}
+
+
+sub notFound {
+    my ($c, $msg) = @_;
+    $c->response->status(404);
+    error($c, $msg);
 }
 
 

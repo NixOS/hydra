@@ -2,7 +2,7 @@ package Hydra::Controller::Root;
 
 use strict;
 use warnings;
-use parent 'Catalyst::Controller';
+use base 'Catalyst::Controller';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
@@ -152,7 +152,7 @@ sub releasesets :Local {
     $c->stash->{template} = 'releasesets.tt';
 
     my $project = $c->model('DB::Projects')->find($projectName);
-    return error($c, "Project $projectName doesn't exist.") if !defined $project;
+    notFound($c, "Project $projectName doesn't exist.") if !defined $project;
     $c->stash->{curProject} = $project;
 
     $c->stash->{releaseSets} = [$project->releasesets->all];
@@ -225,7 +225,7 @@ sub releases :Local {
 
         return requireLogin($c) if !$c->user_exists;
 
-        return error($c, "Only the project owner or the administrator can perform this operation.")
+        error($c, "Only the project owner or the administrator can perform this operation.")
             unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
 
         if ($subcommand eq "edit") {
@@ -247,7 +247,7 @@ sub releases :Local {
             return $c->res->redirect($c->uri_for("/releasesets", $projectName));
         }
 
-        else { return error($c, "Unknown subcommand."); }
+        else { error($c, "Unknown subcommand."); }
     }
     
     $c->stash->{template} = 'releases.tt';
@@ -267,24 +267,19 @@ sub create_releaseset :Local {
 
     return requireLogin($c) if !$c->user_exists;
 
-    return error($c, "Only the project owner or the administrator can perform this operation.")
+    error($c, "Only the project owner or the administrator can perform this operation.")
         unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
 
     if (defined $subcommand && $subcommand eq "submit") {
-        eval {
-            my $releaseSetName = $c->request->params->{name};
-            $c->model('DB')->schema->txn_do(sub {
-                # Note: $releaseSetName is validated in updateProject,
-                # which will abort the transaction if the name isn't
-                # valid.
-                my $releaseSet = $project->releasesets->create({name => $releaseSetName});
-                updateReleaseSet($c, $releaseSet);
-                return $c->res->redirect($c->uri_for("/releases", $projectName, $releaseSet->name));
-            });
-        };
-        if ($@) {
-            return error($c, $@);
-        }
+        my $releaseSetName = $c->request->params->{name};
+        $c->model('DB')->schema->txn_do(sub {
+            # Note: $releaseSetName is validated in updateProject,
+            # which will abort the transaction if the name isn't
+            # valid.
+            my $releaseSet = $project->releasesets->create({name => $releaseSetName});
+            updateReleaseSet($c, $releaseSet);
+            return $c->res->redirect($c->uri_for("/releases", $projectName, $releaseSet->name));
+        });
     }
     
     $c->stash->{template} = 'edit-releaseset.tt';
@@ -301,7 +296,7 @@ sub release :Local {
     if ($releaseId eq "latest") {
         # Redirect to the latest successful release.
         my $latest = getLatestSuccessfulRelease($project, $primaryJob, $jobs);
-        return error($c, "This release set has no successful releases yet.") if !defined $latest;
+        error($c, "This release set has no successful releases yet.") if !defined $latest;
         return $c->res->redirect($c->uri_for("/release", $projectName, $releaseSetName, $latest->id));
     }
     
@@ -309,7 +304,7 @@ sub release :Local {
     # build, but who cares?
     my $primaryBuild = $project->builds->find($releaseId,
         { join => 'resultInfo', '+select' => ["resultInfo.releasename"], '+as' => ["releasename"] });
-    return error($c, "Release $releaseId doesn't exist.") if !defined $primaryBuild;
+    error($c, "Release $releaseId doesn't exist.") if !defined $primaryBuild;
     
     $c->stash->{release} = getRelease($primaryBuild, $jobs);
 }
@@ -447,7 +442,7 @@ sub project :Local {
     $c->stash->{template} = 'project.tt';
     
     my $project = $c->model('DB::Projects')->find($projectName);
-    return error($c, "Project $projectName doesn't exist.") if !defined $project;
+    notFound($c, "Project $projectName doesn't exist.") if !defined $project;
 
     my $isPosted = $c->request->method eq "POST";
 
@@ -468,7 +463,7 @@ sub project :Local {
 
         return requireLogin($c) if !$c->user_exists;
 
-        return error($c, "Only the project owner or the administrator can perform this operation.")
+        error($c, "Only the project owner or the administrator can perform this operation.")
             unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
         
         if ($subcommand eq "edit") {
@@ -490,7 +485,7 @@ sub project :Local {
         }
 
         else {
-            return error($c, "Unknown subcommand $subcommand.");
+            error($c, "Unknown subcommand $subcommand.");
         }
     }
 
@@ -506,25 +501,20 @@ sub createproject :Local {
 
     return requireLogin($c) if !$c->user_exists;
 
-    return error($c, "Only administrators can create projects.")
+    error($c, "Only administrators can create projects.")
         unless $c->check_user_roles('admin');
 
     if (defined $subcommand && $subcommand eq "submit") {
-        eval {
-            my $projectName = trim $c->request->params->{name};
-            $c->model('DB')->schema->txn_do(sub {
-                # Note: $projectName is validated in updateProject,
-                # which will abort the transaction if the name isn't
-                # valid.  Idem for the owner.
-                my $project = $c->model('DB::Projects')->create(
-                    {name => $projectName, displayname => "", owner => trim $c->request->params->{owner}});
-                updateProject($c, $project);
-            });
-            return $c->res->redirect($c->uri_for("/project", $projectName));
-        };
-        if ($@) {
-            return error($c, $@);
-        }
+        my $projectName = trim $c->request->params->{name};
+        $c->model('DB')->schema->txn_do(sub {
+            # Note: $projectName is validated in updateProject,
+            # which will abort the transaction if the name isn't
+            # valid.  Idem for the owner.
+            my $project = $c->model('DB::Projects')->create(
+                {name => $projectName, displayname => "", owner => trim $c->request->params->{owner}});
+            updateProject($c, $project);
+        });
+        return $c->res->redirect($c->uri_for("/project", $projectName));
     }
     
     $c->stash->{template} = 'project.tt';
@@ -538,7 +528,7 @@ sub job :Local {
     $c->stash->{template} = 'job.tt';
 
     my $project = $c->model('DB::Projects')->find($projectName);
-    return error($c, "Project $projectName doesn't exist.") if !defined $project;
+    notFound($c, "Project $projectName doesn't exist.") if !defined $project;
     $c->stash->{curProject} = $project;
 
     $c->stash->{jobName} = $jobName;
@@ -550,44 +540,7 @@ sub job :Local {
 
 sub default :Path {
     my ($self, $c) = @_;
-    error($c, "Page not found.");
-    $c->response->status(404);
-}
-
-
-sub closure :Local {
-    my ($self, $c, $buildId) = @_;
-
-    my $build = getBuild($c, $buildId);
-    return error($c, "Build $buildId doesn't exist.") if !defined $build;
-
-    return error($c, "Build $buildId cannot be downloaded as a closure.")
-        if !$build->buildproducts->find({type => "nix-build"});
-
-    return error($c, "Path " . $build->outpath . " is no longer available.") unless isValidPath($build->outpath);
-
-    $c->stash->{current_view} = 'Hydra::View::NixClosure';
-    $c->stash->{storePath} = $build->outpath;
-    $c->stash->{name} = $build->nixname;
-
-    # !!! quick hack; this is to make HEAD requests return the right
-    # MIME type.  This is set in the view as well, but the view isn't
-    # called for HEAD requests.  There should be a cleaner solution...
-    $c->response->content_type('application/x-nix-export');
-    $c->response->header('Content-Disposition' => 'attachment; filename=' . $c->stash->{name} . '.closure.gz');
-}
-
-
-sub manifest :Local {
-    my ($self, $c, $buildId) = @_;
-
-    my $build = getBuild($c, $buildId);
-    return error($c, "Build with ID $buildId doesn't exist.") if !defined $build;
-    
-    return error($c, "Path " . $build->outpath . " is no longer available.") unless isValidPath($build->outpath);
-    
-    $c->stash->{current_view} = 'Hydra::View::NixManifest';
-    $c->stash->{storePath} = $build->outpath;
+    notFound($c, "Page not found.");
 }
 
 
@@ -595,12 +548,12 @@ sub nixpkg :Local {
     my ($self, $c, $buildId) = @_;
 
     my $build = getBuild($c, $buildId);
-    return error($c, "Build $buildId doesn't exist.") if !defined $build;
+    notFound($c, "Build $buildId doesn't exist.") if !defined $build;
 
-    return error($c, "Build $buildId cannot be downloaded as a Nix package.")
+    error($c, "Build $buildId cannot be downloaded as a Nix package.")
         if !$build->buildproducts->find({type => "nix-build"});
 
-    return error($c, "Path " . $build->outpath . " is no longer available.") unless isValidPath($build->outpath);
+    error($c, "Path " . $build->outpath . " is no longer available.") unless isValidPath($build->outpath);
 
     $c->stash->{current_view} = 'Hydra::View::NixPkg';
     $c->stash->{build} = $build;
@@ -614,7 +567,7 @@ sub nar :Local {
 
     my $path .= "/" . join("/", @rest);
 
-    return error($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
+    error($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
 
     $c->stash->{current_view} = 'Hydra::View::NixNAR';
     $c->stash->{storePath} = $path;

@@ -16,12 +16,12 @@ sub captureStdoutStderr {
 sub process {
     my ($self, $c) = @_;
 
-    my $storePath = $c->stash->{storePath};
+    my @storePaths = @{$c->stash->{storePaths}};
     
     $c->response->content_type('text/x-nix-manifest');
 
-    my @paths = split '\n', `nix-store --query --requisites $storePath`
-        or die "cannot query dependencies of `$storePath': $?";
+    my @paths = split '\n', `nix-store --query --requisites @storePaths`
+        or die "cannot query dependencies of path(s) @storePaths: $?";
 
     my $manifest =
         "version {\n" .

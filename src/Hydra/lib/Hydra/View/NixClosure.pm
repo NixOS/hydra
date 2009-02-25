@@ -5,14 +5,13 @@ use base qw/Catalyst::View/;
 use IO::Pipe;
 
 sub process {
-    my ( $self, $c ) = @_;
+    my ($self, $c) = @_;
     
     $c->response->content_type('application/x-nix-export');
-    $c->response->header('Content-Disposition' => 'attachment; filename=' . $c->stash->{name} . '.closure.gz');
 
-    my $storePath = $c->stash->{storePath};
+    my @storePaths = @{$c->stash->{storePaths}};
 
-    open(OUTPUT, "nix-store --export `nix-store -qR $storePath` | gzip |");
+    open(OUTPUT, "nix-store --export `nix-store -qR @storePaths` | gzip |");
 
     my $fh = new IO::Handle;
     $fh->fdopen(fileno(OUTPUT), "r") or die;
