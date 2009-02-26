@@ -2,8 +2,7 @@ package Hydra::View::NixManifest;
 
 use strict;
 use base qw/Catalyst::View/;
-use IO::Pipe;
-use POSIX qw(dup2);
+use Hydra::Helper::Nix;
 
 
 sub process {
@@ -22,24 +21,15 @@ sub process {
         "}\n";
     
     foreach my $path (@paths) {
-        my @refs = split '\n', `nix-store --query --references $path`;
-        die "cannot query references of `$path': $?" if $? != 0;
+        my ($hash, $deriver, $refs) = queryPathInfo $path;
         
-        my $hash = `nix-store --query --hash $path`
-            or die "cannot query hash of `$path': $?";
-        chomp $hash;
-
         my $url = $c->stash->{narBase} . $path;
 
-        my $deriver = `nix-store --query --deriver $path`
-            or die "cannot query deriver of `$path': $?";
-        chomp $deriver;
-        
         $manifest .=
             "{\n" .
             "  StorePath: $path\n" .
-            (scalar @refs > 0 ? "  References: @refs\n" : "") .
-            ($deriver ne "unknown-deriver" ? "  Deriver: $deriver\n" : "") .
+            (scalar @{$refs} > 0 ? "  References: @{$refs}\n" : "") .
+            (defined $deriver ? "  Deriver: $deriver\n" : "") .
             "  NarURL: $url\n" .
             "  NarHash: $hash\n" .
             "}\n";

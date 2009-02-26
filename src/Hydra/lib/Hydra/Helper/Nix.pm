@@ -7,7 +7,8 @@ use File::Basename;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    isValidPath getHydraPath getHydraDBPath openHydraDB
+    isValidPath queryPathInfo
+    getHydraPath getHydraDBPath openHydraDB
     registerRoot getGCRootsDir
     getPrimaryBuildsForReleaseSet getRelease getLatestSuccessfulRelease );
 
@@ -19,6 +20,39 @@ sub isValidPath {
 
     # This is faster than calling nix-store, but it breaks abstraction...
     return -e ("/nix/var/nix/db/info/" . basename $path);
+}
+
+
+sub queryPathInfo {
+    my $path = shift;
+
+    # !!! like above, this breaks abstraction.  What we really need is
+    # Perl bindings for libstore :-)
+
+    open FH, "</nix/var/nix/db/info/" . basename $path
+        or die "cannot open info file for $path";
+
+    my $hash;
+    my $deriver;
+    my @refs = ();
+
+    while (<FH>) {
+        if (/^Hash: (\S+)$/) {
+            $hash = $1;
+        }
+        elsif (/^Deriver: (\S+)$/) {
+            $deriver = $1;
+        }
+        elsif (/^References: (.*)$/) {
+            @refs = split / /, $1;
+        }
+    }
+
+    close FH;
+
+    die unless defined $hash;
+
+    return ($hash, $deriver, \@refs);
 }
 
 
