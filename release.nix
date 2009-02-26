@@ -63,7 +63,7 @@ let
           perlCatalystPluginAuthenticationStoreDBIC
           perlCatalystPluginSessionStoreFastMmap
           perlCatalystPluginStackTrace
-          perlCatalystPluginAuthenticationStoreDBIxClass
+          perlCatalystAuthenticationStoreDBIxClass
           perlCatalystViewTT
           perlXMLSimple
           perlIPCRun
