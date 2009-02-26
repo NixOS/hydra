@@ -10,7 +10,7 @@ sub process {
 
     my $build = $c->stash->{build};
 
-    my $s = "NIXPKG1 " . $c->uri_for("manifest", $build->id)
+    my $s = "NIXPKG1 " . $c->stash->{manifestUri}
         . " " . $build->nixname . " " . $build->system
         . " " . $build->drvpath . " " . $build->outpath;
     

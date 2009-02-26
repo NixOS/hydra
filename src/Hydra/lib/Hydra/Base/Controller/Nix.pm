@@ -49,6 +49,8 @@ sub pkg : Chained('nix') PathPart Args(1) {
 
     $c->stash->{build} = $pkg;
 
+    $c->stash->{manifestUri} = $c->uri_for($self->action_for("manifest"), $c->req->captures);
+
     $c->stash->{current_view} = 'Hydra::View::NixPkg';
 
     $c->response->content_type('application/nix-package');
