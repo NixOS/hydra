@@ -17,7 +17,7 @@ sub process {
 
     my $manifest =
         "version {\n" .
-        "  ManifestVersion: 3\n" .
+        "  ManifestVersion: 4\n" .
         "}\n";
     
     foreach my $path (@paths) {

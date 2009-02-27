@@ -552,6 +552,8 @@ sub nix : Chained('/') PathPart('nix') CaptureArgs(0) {
 
     my @storePaths = ();
     foreach my $build (@builds) {
+        # !!! better do this in getLatestBuilds with a join.
+        next unless $build->buildproducts->find({type => "nix-build"}); 
         push @storePaths, $build->outpath if isValidPath($build->outpath);
     };
 

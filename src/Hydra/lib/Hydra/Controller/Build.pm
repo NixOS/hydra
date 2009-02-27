@@ -116,10 +116,10 @@ sub nix : Chained('build') PathPart('nix') CaptureArgs(0) {
 
     my $build = $c->stash->{build};
 
-    error($c, "Build cannot be downloaded as a closure or Nix package.")
+    notFound($c, "Build cannot be downloaded as a closure or Nix package.")
         if !$build->buildproducts->find({type => "nix-build"});
 
-    error($c, "Path " . $build->outpath . " is no longer available.")
+    notFound($c, "Path " . $build->outpath . " is no longer available.")
         unless isValidPath($build->outpath);
     
     $c->stash->{storePaths} = [$build->outpath];
