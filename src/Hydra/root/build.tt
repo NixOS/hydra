@@ -86,11 +86,21 @@
   </tr>
   <tr>
     <th>Derivation store path:</th>
-    <td><tt>[% build.drvpath %]</tt></td>
+    <td>
+      <tt>[% build.drvpath %]</tt>
+      [% IF drvAvailable %]
+        (<a href="[% c.uri_for('/build' build.id 'buildtime-deps') %]">build-time dependencies</a>)
+      [% END %]
+    </td>
   </tr>
   <tr>
     <th>Output store path:</th>
-    <td><tt>[% build.outpath %]</tt></td>
+    <td>
+      <tt>[% build.outpath %]</tt>
+      [% IF available %]
+        (<a href="[% c.uri_for('/build' build.id 'runtime-deps') %]">runtime dependencies</a>)
+      [% END %]
+    </td>
   </tr>
   [% IF build.finished %]
   <tr>

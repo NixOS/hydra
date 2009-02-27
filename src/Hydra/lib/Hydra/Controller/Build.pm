@@ -34,6 +34,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     $c->stash->{template} = 'build.tt';
     $c->stash->{curTime} = time;
     $c->stash->{available} = isValidPath $build->outpath;
+    $c->stash->{drvAvailable} = isValidPath $build->drvpath;
 
     if (!$build->finished && $build->schedulingInfo->busy) {
         my $logfile = $build->schedulingInfo->logfile;
@@ -88,7 +89,7 @@ sub download : Chained('build') PathPart('download') {
     my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
     notFound($c, "Build doesn't have a product $productnr.") if !defined $product;
 
-    error($c, "Product " . $product->path . " has disappeared.") unless -e $product->path;
+    notFound($c, "Product " . $product->path . " has disappeared.") unless -e $product->path;
 
     # Security paranoia.
     foreach my $elem (@path) {
@@ -108,6 +109,36 @@ sub download : Chained('build') PathPart('download') {
     notFound($c, "File $path does not exist.") if !-e $path;
 
     $c->serve_static_file($path);
+}
+
+
+sub runtimedeps : Chained('build') PathPart('runtime-deps') {
+    my ($self, $c) = @_;
+    
+    my $build = $c->stash->{build};
+    
+    notFound($c, "Path " . $build->outpath . " is no longer available.")
+        unless isValidPath($build->outpath);
+    
+    $c->stash->{current_view} = 'Hydra::View::NixDepGraph';
+    $c->stash->{storePaths} = [$build->outpath];
+    
+    $c->response->content_type('image/png'); # !!!
+}
+
+
+sub buildtimedeps : Chained('build') PathPart('buildtime-deps') {
+    my ($self, $c) = @_;
+    
+    my $build = $c->stash->{build};
+    
+    notFound($c, "Path " . $build->drvpath . " is no longer available.")
+        unless isValidPath($build->drvpath);
+    
+    $c->stash->{current_view} = 'Hydra::View::NixDepGraph';
+    $c->stash->{storePaths} = [$build->drvpath];
+    
+    $c->response->content_type('image/png'); # !!!
 }
 
 
