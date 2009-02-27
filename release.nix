@@ -75,7 +75,7 @@ let
 
         hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") [
           libxslt sqlite subversion nixUnstable coreutils
-          gzip bzip2 gnused
+          gzip bzip2 gnused graphviz
         ]);
 
         installPhase = ''
