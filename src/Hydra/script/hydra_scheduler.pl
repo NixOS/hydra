@@ -297,6 +297,7 @@ sub checkJobAlternatives {
             if (defined $inputInfo->{$argName}->{storePath}) {
                 push @newArgs, "--arg", $argName,
                     "{path = builtins.storePath " . $inputInfo->{$argName}->{storePath} . ";" .
+                    " outPath = builtins.storePath " . $inputInfo->{$argName}->{storePath} . ";" .
                     " rev = \"" . $inputInfo->{$argName}->{revision} . "\";}";
             } elsif ($inputInfo->{$argName}->{type} eq "string") {
                 push @newArgs, "--argstr", $argName, $inputInfo->{$argName}->{value};
@@ -333,8 +334,18 @@ sub checkJobAlternatives {
             , id => $prevBuild->id
             };
 
+        my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
+        my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
+
+        my $relName = ($prevBuild->resultInfo->releasename or $prevBuild->nixname);
+        my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
+
         my @newArgs = @{$extraArgs};
-        push @newArgs, "--arg", $argName, "{path = builtins.storePath " . $prevBuild->outpath . ";}";
+        push @newArgs, "--arg", $argName,
+            "{ path = builtins.storePath " . $prevBuild->outpath . "; " .
+            "  outPath = builtins.storePath " . $prevBuild->outpath . "; " .
+            ($version ? "  version = \"$version\"; " : "") . # !!! escape
+            "}";
         
         checkJobAlternatives(
             $project, $jobset, $inputInfo, $nixExprPath,
