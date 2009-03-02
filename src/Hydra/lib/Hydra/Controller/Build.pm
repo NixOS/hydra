@@ -30,6 +30,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     $c->stash->{curTime} = time;
     $c->stash->{available} = isValidPath $build->outpath;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
+    $c->stash->{flashMsg} = $c->flash->{afterRestart};
 
     if (!$build->finished && $build->schedulingInfo->busy) {
         my $logfile = $build->schedulingInfo->logfile;
@@ -152,6 +153,37 @@ sub nix : Chained('build') PathPart('nix') CaptureArgs(0) {
     
     my $pkgName = $build->nixname . "-" . $build->system . ".nixpkg";
     $c->stash->{nixPkgs} = {$pkgName => $build};
+}
+
+
+sub restart : Chained('build') PathPart('restart') Args(0) {
+    my ($self, $c) = @_;
+
+    my $build = $c->stash->{build};
+
+    requireProjectOwner($c, $build->project);
+
+    error($c, "This build cannot be restarted.")
+        unless $build->finished && $build->resultInfo->buildstatus == 3;
+
+    $c->model('DB')->schema->txn_do(sub {
+        $build->finished(0);
+        $build->timestamp(time());
+        $build->update;
+
+        $build->resultInfo->delete;
+
+        $c->model('DB::BuildSchedulingInfo')->create(
+            { id => $build->id
+            , priority => 0 # don't know the original priority anymore...
+            , busy => 0
+            , locker => ""
+            });
+    });
+
+    $c->flash->{afterRestart} = "Build has been restarted.";
+    
+    $c->response->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
 }
 
 

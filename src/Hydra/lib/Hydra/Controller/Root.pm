@@ -82,13 +82,6 @@ sub logout :Local {
 }
 
 
-sub requireLogin {
-    my ($c) = @_;
-    $c->flash->{afterLogin} = $c->request->uri;
-    $c->response->redirect($c->uri_for('/login'));
-}
-
-
 sub queue :Local {
     my ($self, $c) = @_;
     $c->stash->{template} = 'queue.tt';
@@ -230,10 +223,7 @@ sub releases :Local {
 
     if (defined $subcommand && $subcommand ne "") {
 
-        return requireLogin($c) if !$c->user_exists;
-
-        error($c, "Only the project owner or the administrator can perform this operation.")
-            unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
+        requireProjectOwner($c, $project);
 
         if ($subcommand eq "edit") {
             $c->stash->{template} = 'edit-releaseset.tt';
@@ -272,10 +262,7 @@ sub create_releaseset :Local {
     die "Project $projectName doesn't exist." if !defined $project;
     $c->stash->{curProject} = $project;
 
-    return requireLogin($c) if !$c->user_exists;
-
-    error($c, "Only the project owner or the administrator can perform this operation.")
-        unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
+    requireProjectOwner($c, $project);
 
     if (defined $subcommand && $subcommand eq "submit") {
         my $releaseSetName = $c->request->params->{name};
@@ -468,10 +455,7 @@ sub project :Local {
 
     elsif ($subcommand ne "") {
 
-        return requireLogin($c) if !$c->user_exists;
-
-        error($c, "Only the project owner or the administrator can perform this operation.")
-            unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
+        requireProjectOwner($c, $project);
         
         if ($subcommand eq "edit") {
             $c->stash->{edit} = 1;
@@ -506,7 +490,7 @@ sub project :Local {
 sub createproject :Local {
     my ($self, $c, $subcommand) = @_;
 
-    return requireLogin($c) if !$c->user_exists;
+    requireLogin($c) if !$c->user_exists;
 
     error($c, "Only administrators can create projects.")
         unless $c->check_user_roles('admin');

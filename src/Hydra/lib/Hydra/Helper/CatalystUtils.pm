@@ -7,6 +7,7 @@ use Readonly;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     getBuild error notFound
+    requireLogin requireProjectOwner
     $pathCompRE $relPathRE
 );
 
@@ -21,7 +22,7 @@ sub getBuild {
 sub error {
     my ($c, $msg) = @_;
     $c->error($msg);
-    $c->detach;
+    $c->detach; # doesn't return
 }
 
 
@@ -29,6 +30,24 @@ sub notFound {
     my ($c, $msg) = @_;
     $c->response->status(404);
     error($c, $msg);
+}
+
+
+sub requireLogin {
+    my ($c) = @_;
+    $c->flash->{afterLogin} = $c->request->uri;
+    $c->response->redirect($c->uri_for('/login'));
+    $c->detach; # doesn't return
+}
+
+
+sub requireProjectOwner {
+    my ($c, $project) = @_;
+    
+    requireLogin($c) if !$c->user_exists;
+    
+    error($c, "Only the project owner or the administrator can perform this operation.")
+        unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
 }
 
 

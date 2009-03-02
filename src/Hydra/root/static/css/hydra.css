@@ -437,3 +437,7 @@ select {
 button {
     background-color: #f0f0e0;
 }
+
+form.inline {
+    display: inline;
+}

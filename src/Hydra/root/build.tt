@@ -15,6 +15,11 @@
 </h1>
 
 
+[% IF flashMsg %]
+<p class="error">[% flashMsg %]</p>
+[% END %]
+
+
 <h2>Information</h2>
 
 <table class="layoutTable">
@@ -31,7 +36,7 @@
           <strong>Success</strong>
         [% ELSIF build.resultInfo.buildstatus == 1 %]
           <img src="/static/images/failure.gif" />
-          <span class="error">Build returned a non-zero exit code</span>
+          <span class="error">Build returned a non-zero exit code</span>          
         [% ELSIF build.resultInfo.buildstatus == 2 %]
           <img src="/static/images/failure.gif" />
           <span class="error">A dependency of the build failed</span>
@@ -39,6 +44,9 @@
           <img src="/static/images/failure.gif" />
           <span class="error">Build failed</span>
           (see <a href="#nix-error">below</a>)
+          <form action="[% c.uri_for('/build' build.id 'restart') %]" method="post" class="inline">
+            <button id="delete-project" type="submit">Restart</button>
+          </form>
         [% END %]
       [% ELSIF build.schedulingInfo.busy %]
         <strong>Build in progress</strong>
