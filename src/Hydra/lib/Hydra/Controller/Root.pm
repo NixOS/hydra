@@ -352,7 +352,7 @@ sub updateProject {
 
         # The Nix expression path must be relative and can't contain ".." elements.
         my $nixExprPath = trim $c->request->params->{"jobset-$baseName-nixexprpath"};
-        die "Invalid Nix expression path: $nixExprPath" if $nixExprPath !~ /^$Build::relPathRE$/;
+        die "Invalid Nix expression path: $nixExprPath" if $nixExprPath !~ /^$relPathRE$/;
 
         my $nixExprInput = trim $c->request->params->{"jobset-$baseName-nixexprinput"};
         die "Invalid Nix expression input name: $nixExprInput" unless $nixExprInput =~ /^\w+$/;

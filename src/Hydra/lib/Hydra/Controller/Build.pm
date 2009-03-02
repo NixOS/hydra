@@ -7,11 +7,6 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
 
-# Security checking of filenames.
-my $pathCompRE = "(?:[A-Za-z0-9-\+][A-Za-z0-9-\+\._]*)";
-my $relPathRE = "(?:$pathCompRE(?:\/$pathCompRE)*)";
-
-
 sub build : Chained('/') PathPart CaptureArgs(1) {
     my ($self, $c, $id) = @_;
     
