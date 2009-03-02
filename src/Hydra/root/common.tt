@@ -31,6 +31,7 @@
         [% END %]
         <th>Project</th>
         <th>Job</th>
+        <th>Name</th>
         <th>System</th>
         <th>Timestamp</th>
         <th>Description</th>
@@ -57,6 +58,7 @@
           [% END %]
           <td><a href="[% c.uri_for('/project' build.project.name) %]"><tt>[% build.project.name %]</tt></a></td>
           <td><a href="[% c.uri_for('/job' build.project.name build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
+          <td>[% build.resultInfo.releasename ? build.resultInfo.releasename : build.nixname %]</td>
           <td><tt>[% build.system %]</tt></td>
           <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
           <td>[% build.description %]</td>

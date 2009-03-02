@@ -23,10 +23,6 @@
     <td>[% build.id %]</td>
   </tr>
   <tr>
-    <th>Time added:</th>
-    <td>[% PROCESS renderDateTime timestamp = build.timestamp %]</td>
-  </tr>
-  <tr>
     <th>Status:</th>
     <td>
       [% IF build.finished %]
@@ -68,6 +64,12 @@
     <th>Nix name:</th>
     <td><tt>[% build.nixname %]</tt></td>
   </tr>
+  [% IF build.resultInfo.releasename %]
+    <tr>
+      <th>Release name:</th>
+      <td><tt>[% HTML.escape(build.resultInfo.releasename) %]</tt></td>
+    </tr>
+  [% END %]
   <tr>
     <th>Short description:</th>
     <td>[% IF build.description %][% HTML.escape(build.description) %][% ELSE %]<em>(not given)</em>[% END %]</td>
@@ -102,6 +104,10 @@
       [% END %]
     </td>
   </tr>
+  <tr>
+    <th>Time added:</th>
+    <td>[% PROCESS renderDateTime timestamp = build.timestamp %]</td>
+  </tr>
   [% IF build.finished %]
   <tr>
     <th>Build started:</th>
@@ -121,12 +127,6 @@
       [% END %]
     </td>
   </tr>
-  [% IF build.resultInfo.releasename %]
-    <tr>
-      <th>Release name:</th>
-      <td><tt>[% HTML.escape(build.resultInfo.releasename) %]</tt></td>
-    </tr>
-  [% END %]
   [% IF build.resultInfo.logfile %]
     <tr>
       <th>Logfile:</th>
