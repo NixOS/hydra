@@ -532,13 +532,16 @@ sub job :Local {
 sub nix : Chained('/') PathPart('nix') CaptureArgs(0) {
     my ($self, $c) = @_;
 
-    my @builds = getLatestBuilds($c, $c->model('DB::Builds'));
+    my @builds = getLatestBuilds($c, $c->model('DB::Builds')); # !!! this includes failed builds
 
     my @storePaths = ();
     foreach my $build (@builds) {
         # !!! better do this in getLatestBuilds with a join.
         next unless $build->buildproducts->find({type => "nix-build"}); 
         push @storePaths, $build->outpath if isValidPath($build->outpath);
+
+        my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id . ".nixpkg";
+        $c->stash->{nixPkgs}->{$pkgName} = $build;
     };
 
     $c->stash->{storePaths} = [@storePaths];
