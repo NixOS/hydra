@@ -67,6 +67,7 @@ let
           perlCatalystViewTT
           perlXMLSimple
           perlIPCRun
+          perlIOCompressBzip2
         ];
 
         preUnpack = ''
