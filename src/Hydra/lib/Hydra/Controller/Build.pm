@@ -68,8 +68,8 @@ sub view_log : Chained('build') PathPart('log') Args(0) {
 sub loadLog {
     my ($c, $path) = @_;
 
-    die unless defined $path;
-
+    notFound($c, "Log file $path no longer exists.") unless -f $path;
+    
     # !!! quick hack
     my $pipeline = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path")
         . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
