@@ -68,6 +68,7 @@ let
           perlXMLSimple
           perlIPCRun
           perlIOCompressBzip2
+          perlReadonly
         ];
 
         preUnpack = ''
