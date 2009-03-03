@@ -42,7 +42,7 @@ sub process {
     $res .= "]\n";
 
     my $tar = Archive::Tar->new;
-    $tar->add_data("channel/default.nix", $res);
+    $tar->add_data("channel/default.nix", $res, {mtime => 0});
 
     my $tardata = $tar->write;
     my $bzip2data;
