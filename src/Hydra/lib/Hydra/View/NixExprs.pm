@@ -42,6 +42,7 @@ sub process {
     $res .= "]\n";
 
     my $tar = Archive::Tar->new;
+    $tar->add_data("channel/channel-name", ($c->stash->{channelName} or "unnamed-channel"), {mtime => 0});
     $tar->add_data("channel/default.nix", $res, {mtime => 0});
 
     my $tardata = $tar->write;

@@ -532,6 +532,8 @@ sub job :Local {
 sub nix : Chained('/') PathPart('channel/latest') CaptureArgs(0) {
     my ($self, $c) = @_;
 
+    $c->stash->{channelName} = "hydra-all-latest";
+
     my @builds = getLatestBuilds($c, $c->model('DB::Builds')); # !!! this includes failed builds
 
     my @storePaths = ();
