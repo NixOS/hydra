@@ -5,6 +5,15 @@ use base qw/Catalyst::View/;
 use Hydra::Helper::Nix;
 
 
+sub escape {
+    my ($s) = @_;
+    $s =~ s|\\|\\\\|g;
+    $s =~ s|\"|\\\"|g;
+    $s =~ s|\$|\\\$|g;
+    return "\"" . $s . "\"";
+}
+
+
 sub process {
     my ($self, $c) = @_;
 
@@ -14,15 +23,15 @@ sub process {
         my $build = $c->stash->{nixPkgs}->{$name};
         $res .= "  # $name\n";
         $res .= "  { type = \"derivation\";\n";
-        $res .= "    name = \"" . ($build->resultInfo->releasename or $build->nixname) . "\";\n"; # !!! escaping?
-        $res .= "    system = \"" . $build->system . "\";\n"; # idem
+        $res .= "    name = " . escape ($build->resultInfo->releasename or $build->nixname) . ";\n";
+        $res .= "    system = " . (escape $build->system) . ";\n";
         $res .= "    outPath = " . $build->outpath . ";\n";
         $res .= "    meta = {\n";
-        $res .= "      description = \"" . $build->description . "\";\n"
+        $res .= "      description = " . (escape $build->description) . ";\n"
             if $build->description;
-        $res .= "      longDescription = \"" . $build->longdescription . "\";\n"
+        $res .= "      longDescription = " . (escape $build->longdescription) . ";\n"
             if $build->longdescription;
-        $res .= "      license = \"" . $build->license . "\";\n"
+        $res .= "      license = " . (escape $build->license) . ";\n"
             if $build->license;
         $res .= "    };\n";
         $res .= "  }\n";
