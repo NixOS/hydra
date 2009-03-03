@@ -92,17 +92,25 @@ sub queue :Local {
 
 # Return the latest build for each job.
 sub getLatestBuilds {
-    my ($c, $builds) = @_;
-    return $builds->search({},
-        { join => 'resultInfo'
-        , where => {
-            finished => { "!=", 0 },
-            timestamp => \ (
-                "= (select max(timestamp) from Builds " .
-                "where project == me.project and attrName == me.attrName and finished != 0 and system == me.system)"),
-          }
-        , order_by => "project, attrname, system"
-        });
+    my ($c, $builds, $extraAttrs) = @_;
+
+    my @res = ();
+
+    foreach my $job ($builds->search({},
+        {group_by => ['project', 'attrname', 'system']}))
+    {
+        my $attrs =
+            { project => $job->get_column('project')
+            , attrname => $job->attrname
+            , system => $job->system
+            , finished => 1
+            };
+        my ($build) = $builds->search({ %$attrs, %$extraAttrs },
+            { join => 'resultInfo', order_by => 'timestamp DESC', rows => 1 } );
+        push @res, $build if defined $build;
+    }
+
+    return [@res];
 }
 
 
@@ -111,7 +119,7 @@ sub showJobStatus {
     $c->stash->{template} = 'jobstatus.tt';
 
     # Get the latest finished build for each unique job.
-    $c->stash->{latestBuilds} = [getLatestBuilds($c, $builds)];
+    $c->stash->{latestBuilds} = getLatestBuilds($c, $builds, {});
 }
 
 
@@ -534,14 +542,14 @@ sub nix : Chained('/') PathPart('channel/latest') CaptureArgs(0) {
 
     $c->stash->{channelName} = "hydra-all-latest";
 
-    my @builds = getLatestBuilds($c, $c->model('DB::Builds')); # !!! this includes failed builds
+    my @builds = @{getLatestBuilds($c, $c->model('DB::Builds'), {buildStatus => 0})};
 
     my @storePaths = ();
     foreach my $build (@builds) {
         # !!! better do this in getLatestBuilds with a join.
-        next unless $build->buildproducts->find({type => "nix-build"}); 
-        push @storePaths, $build->outpath if isValidPath($build->outpath);
-
+        next unless $build->buildproducts->find({type => "nix-build"});
+        next unless isValidPath($build->outpath);
+        push @storePaths, $build->outpath;
         my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id . ".nixpkg";
         $c->stash->{nixPkgs}->{$pkgName} = $build;
     };

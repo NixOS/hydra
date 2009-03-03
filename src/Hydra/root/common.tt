@@ -56,8 +56,8 @@
           [% IF showSchedulingInfo %]
             <td>[% build.schedulingInfo.priority %]</td>
           [% END %]
-          <td><a href="[% c.uri_for('/project' build.project.name) %]"><tt>[% build.project.name %]</tt></a></td>
-          <td><a href="[% c.uri_for('/job' build.project.name build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
+          <td><a href="[% c.uri_for('/project' build.get_column("project")) %]"><tt>[% build.get_column("project") %]</tt></a></td>
+          <td><a href="[% c.uri_for('/job' build.get_column("project") build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
           <td>[% build.resultInfo.releasename ? build.resultInfo.releasename : build.nixname %]</td>
           <td><tt>[% build.system %]</tt></td>
           <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
