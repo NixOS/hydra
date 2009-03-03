@@ -18,7 +18,7 @@ sub closure : Chained('nix') PathPart {
 }
 
 
-sub manifest : Chained('nix') PathPart Args(0) {
+sub manifest : Chained('nix') PathPart("MANIFEST") Args(0) {
     my ($self, $c) = @_;
     $c->stash->{current_view} = 'Hydra::View::NixManifest';
     $c->stash->{narBase} = $c->uri_for($self->action_for("nar"), $c->req->captures);

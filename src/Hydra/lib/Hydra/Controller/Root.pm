@@ -529,7 +529,7 @@ sub job :Local {
 }
 
 
-sub nix : Chained('/') PathPart('nix') CaptureArgs(0) {
+sub nix : Chained('/') PathPart('channel/latest') CaptureArgs(0) {
     my ($self, $c) = @_;
 
     my @builds = getLatestBuilds($c, $c->model('DB::Builds')); # !!! this includes failed builds
