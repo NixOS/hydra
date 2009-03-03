@@ -3,6 +3,8 @@ package Hydra::View::NixExprs;
 use strict;
 use base qw/Catalyst::View/;
 use Hydra::Helper::Nix;
+use Archive::Tar;
+use IO::Compress::Bzip2 qw(bzip2);
 
 
 sub escape {
@@ -38,9 +40,16 @@ sub process {
     }
 
     $res .= "]\n";
-    
-    $c->response->content_type('text/plain');
-    $c->response->body($res);
+
+    my $tar = Archive::Tar->new;
+    $tar->add_data("channel/default.nix", $res);
+
+    my $tardata = $tar->write;
+    my $bzip2data;
+    bzip2(\$tardata => \$bzip2data);
+
+    $c->response->content_type('application/x-bzip2');
+    $c->response->body($bzip2data);
 
     return 1;
 }

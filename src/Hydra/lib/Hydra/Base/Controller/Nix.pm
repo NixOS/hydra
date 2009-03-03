@@ -57,7 +57,7 @@ sub pkg : Chained('nix') PathPart Args(1) {
 }
 
 
-sub nixexprs : Chained('nix') PathPart Args(0) {
+sub nixexprs : Chained('nix') PathPart('nixexprs.tar.bz2') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{current_view} = 'Hydra::View::NixExprs';
 }
