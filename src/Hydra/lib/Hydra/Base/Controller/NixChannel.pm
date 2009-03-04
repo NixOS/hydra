@@ -68,10 +68,20 @@ sub name {
     return $build->resultInfo->releasename || $build->nixname;
 }
 
+
+sub sortPkgs {
+    # Sort by name, then timestamp.
+    return sort
+      { lc(name($a->{build})) cmp lc(name($b->{build}))
+            or $a->{build}->timestamp <=> $b->{build}->timestamp
+      } @_;
+}
+
+
 sub channel_contents : Chained('nix') PathPart('') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'channel-contents.tt';
-    $c->stash->{nixPkgs} = [sort { lc(name($a->{build})) cmp lc(name($b->{build})) } (values %{$c->stash->{nixPkgs}})];
+    $c->stash->{nixPkgs} = [sortPkgs (values %{$c->stash->{nixPkgs}})];
 }
 
 
