@@ -1,7 +1,9 @@
 [% WRAPPER layout.tt title="All Builds" %]
 [% PROCESS common.tt %]
 
-<h1>All Builds[% IF curProject %] in Project <tt>[% curProject.name %]</tt>[% END %]</h1>
+<h1>All Builds
+  [% IF jobName %]for Job [% curProject.name %]:[% jobName %][% ELSE %]
+  [% IF curProject %] for Project <tt>[% curProject.name %]</tt>[% END %][% END %]</h1>
 
 <p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %]
 out of [% totalBuilds %] in order of descending timestamp.</p>

@@ -9,6 +9,7 @@ use Hydra::Helper::CatalystUtils;
 
 sub jobstatus : Chained('get_builds') PathPart Args(0) {
     my ($self, $c) = @_;
+    $c->stash->{template} = 'jobstatus.tt';
     $c->stash->{latestBuilds} = getLatestBuilds($c, $c->stash->{allBuilds}, {});
 }
 

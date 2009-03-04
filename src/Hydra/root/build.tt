@@ -66,7 +66,7 @@
   </tr>
   <tr>
     <th>Job name:</th>
-    <td><a href="[% c.uri_for('/job' build.project.name build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
+    <td><a href="[% c.uri_for('/project' build.project.name 'job' build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
   </tr>
   <tr>
     <th>Nix name:</th>

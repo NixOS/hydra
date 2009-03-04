@@ -1,8 +1,0 @@
-[% WRAPPER layout.tt title="Job ‘$curProject.name:$jobName’" %]
-[% PROCESS common.tt %]
-
-<h1>All builds for job <tt>[% curProject.name %]:[% jobName %]</tt></h1>
-
-[% PROCESS renderBuildList builds=builds %]
-
-[% END %]

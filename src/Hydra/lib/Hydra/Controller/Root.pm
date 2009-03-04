@@ -219,21 +219,6 @@ sub release :Local {
 }
 
 
-sub job :Local {
-    my ($self, $c, $projectName, $jobName) = @_;
-    $c->stash->{template} = 'job.tt';
-
-    my $project = $c->model('DB::Projects')->find($projectName);
-    notFound($c, "Project $projectName doesn't exist.") if !defined $project;
-    $c->stash->{curProject} = $project;
-
-    $c->stash->{jobName} = $jobName;
-    $c->stash->{builds} = [$c->model('DB::Builds')->search(
-        {finished => 1, project => $projectName, attrName => $jobName},
-        {order_by => "timestamp DESC"})];
-}
-
-
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
