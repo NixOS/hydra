@@ -3,6 +3,12 @@
 
 <h1>[% IF httpStatus %][% httpStatus %][% ELSE %]Error[% END %]</h1>
 
-<p>I'm very sorry, but an error occurred: <span class="error-msg">[% FOREACH error IN errors %][% HTML.escape(error) %][% END %]</span></p>
+<p>I'm very sorry, but the following error(s) occurred:</p>
+
+<ul>
+[% FOREACH error IN errors %]
+<li><div class="error-msg">[% HTML.escape(error) %]</div></li>
+[% END %]
+</ul>
 
 [% END %]

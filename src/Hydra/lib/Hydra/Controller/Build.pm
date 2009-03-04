@@ -119,7 +119,7 @@ sub runtimedeps : Chained('build') PathPart('runtime-deps') {
     $c->stash->{current_view} = 'Hydra::View::NixDepGraph';
     $c->stash->{storePaths} = [$build->outpath];
     
-    $c->response->content_type('image/png'); # !!!
+    $c->res->content_type('image/png'); # !!!
 }
 
 
@@ -134,7 +134,7 @@ sub buildtimedeps : Chained('build') PathPart('buildtime-deps') {
     $c->stash->{current_view} = 'Hydra::View::NixDepGraph';
     $c->stash->{storePaths} = [$build->drvpath];
     
-    $c->response->content_type('image/png'); # !!!
+    $c->res->content_type('image/png'); # !!!
 }
 
 
@@ -183,7 +183,7 @@ sub restart : Chained('build') PathPart('restart') Args(0) {
 
     $c->flash->{afterRestart} = "Build has been restarted.";
     
-    $c->response->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
+    $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
 }
 
 

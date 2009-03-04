@@ -6,8 +6,10 @@ use Readonly;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getBuild error notFound
-    requireLogin requireProjectOwner
+    getBuild getBuildStats getLatestBuilds
+    error notFound
+    requireLogin requireProjectOwner requireAdmin
+    trim
     $pathCompRE $relPathRE
 );
 
@@ -16,6 +18,51 @@ sub getBuild {
     my ($c, $id) = @_;
     my $build = $c->model('DB::Builds')->find($id);
     return $build;
+}
+
+
+sub getBuildStats {
+    my ($c, $builds) = @_;
+    
+    $c->stash->{finishedBuilds} = $builds->search({finished => 1}) || 0;
+    
+    $c->stash->{succeededBuilds} = $builds->search(
+        {finished => 1, buildStatus => 0},
+        {join => 'resultInfo'}) || 0;
+        
+    $c->stash->{scheduledBuilds} = $builds->search({finished => 0}) || 0;
+        
+    $c->stash->{busyBuilds} = $builds->search(
+        {finished => 0, busy => 1},
+        {join => 'schedulingInfo'}) || 0;
+        
+    $c->stash->{totalBuildTime} = $builds->search({},
+        {join => 'resultInfo', select => {sum => 'stoptime - starttime'}, as => ['sum']})
+        ->first->get_column('sum') || 0;
+}
+
+
+# Return the latest build for each job.
+sub getLatestBuilds {
+    my ($c, $builds, $extraAttrs) = @_;
+
+    my @res = ();
+
+    foreach my $job ($builds->search({},
+        {group_by => ['project', 'attrname', 'system']}))
+    {
+        my $attrs =
+            { project => $job->get_column('project')
+            , attrname => $job->attrname
+            , system => $job->system
+            , finished => 1
+            };
+        my ($build) = $builds->search({ %$attrs, %$extraAttrs },
+            { join => 'resultInfo', order_by => 'timestamp DESC', rows => 1 } );
+        push @res, $build if defined $build;
+    }
+
+    return [@res];
 }
 
 
@@ -46,8 +93,25 @@ sub requireProjectOwner {
     
     requireLogin($c) if !$c->user_exists;
     
-    error($c, "Only the project owner or the administrator can perform this operation.")
+    error($c, "Only the project owner or administrators can perform this operation.")
         unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
+}
+
+
+sub requireAdmin {
+    my ($c) = @_;
+
+    requireLogin($c) if !$c->user_exists;
+    
+    error($c, "Only administrators can perform this operation.")
+        unless $c->check_user_roles('admin');
+}
+
+
+sub trim {
+    my $s = shift;
+    $s =~ s/^\s+|\s+$//g;
+    return $s;
 }
 
 

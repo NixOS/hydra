@@ -139,7 +139,7 @@
 
 
 [% IF edit %]
-  <form action="[% IF create %][% c.uri_for('/createproject/submit') %][% ELSE %][% c.uri_for('/project' curProject.name 'submit') %][% END %]" method="post">
+  <form action="[% IF create %][% c.uri_for('/create-project/submit') %][% ELSE %][% c.uri_for('/project' curProject.name 'submit') %][% END %]" method="post">
 [% END %]
 
 

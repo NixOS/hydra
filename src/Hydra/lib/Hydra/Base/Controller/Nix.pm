@@ -2,7 +2,7 @@ package Hydra::Base::Controller::Nix;
 
 use strict;
 use warnings;
-use parent 'Catalyst::Controller';
+use base 'Catalyst::Controller';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 

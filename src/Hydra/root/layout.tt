@@ -132,7 +132,7 @@
               [% ELSE %]
                 [% INCLUDE makeLink uri = c.uri_for('/login') title = "Login" %]
               [% END %]
-              [% INCLUDE makeLink uri = c.uri_for('/createproject') title = "Create project" %]
+              [% INCLUDE makeLink uri = c.uri_for('/create-project') title = "Create project" %]
             </ul>
           </li>
         </ul>
