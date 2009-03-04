@@ -70,10 +70,8 @@ sub getLatestBuilds {
 sub getChannelData {
     my ($c, $builds) = @_;
     
-    my @builds = @{getLatestBuilds($c, $builds, {buildStatus => 0})};
-
     my @storePaths = ();
-    foreach my $build (@builds) {
+    foreach my $build (@{$builds}) {
         # !!! better do this in getLatestBuilds with a join.
         next unless $build->buildproducts->find({type => "nix-build"});
         next unless isValidPath($build->outpath);

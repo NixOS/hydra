@@ -3,7 +3,6 @@ package Hydra::Controller::Project;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
-use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
@@ -225,21 +224,11 @@ sub updateProject {
 }
 
 
-# Hydra::Base::Controller::NixChannel needs this.
-sub nix : Chained('project') PathPart('channel/latest') CaptureArgs(0) {
-    my ($self, $c) = @_;
-    eval {
-        $c->stash->{channelName} = $c->stash->{curProject}->name . "-latest";
-        getChannelData($c, scalar $c->stash->{curProject}->builds);
-    };
-    error($c, $@) if $@;
-}
-
-
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('project') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->stash->{curProject}->builds;
+    $c->stash->{channelBaseName} = $c->stash->{curProject}->name;
 }
 
 

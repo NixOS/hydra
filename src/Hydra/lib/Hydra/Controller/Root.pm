@@ -2,7 +2,6 @@ package Hydra::Controller::Root;
 
 use strict;
 use warnings;
-use base 'Hydra::Base::Controller::NixChannel';
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
@@ -235,20 +234,11 @@ sub job :Local {
 }
 
 
-sub nix : Chained('/') PathPart('channel/latest') CaptureArgs(0) {
-    my ($self, $c) = @_;
-    eval {
-        $c->stash->{channelName} = "hydra-all-latest";
-        getChannelData($c, $c->model('DB::Builds'));
-    };
-    error($c, $@) if $@;
-}
-
-
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->model('DB::Builds');
+    $c->stash->{channelBaseName} = "everything";
 }
 
     

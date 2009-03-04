@@ -2,7 +2,7 @@ package Hydra::Base::Controller::ListBuilds;
 
 use strict;
 use warnings;
-use base 'Catalyst::Controller';
+use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
@@ -32,6 +32,25 @@ sub all : Chained('get_builds') PathPart {
 
     $c->stash->{builds} = [$c->stash->{allBuilds}->search(
         {finished => 1}, {order_by => "timestamp DESC", rows => $resultsPerPage, page => $page})];
+}
+
+
+sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
+    my ($self, $c, $channelName) = @_;
+    eval {
+        if ($channelName eq "latest") {
+            $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
+            getChannelData($c, getLatestBuilds($c, $c->stash->{allBuilds}, {buildStatus => 0}));
+        }
+        elsif ($channelName eq "all") {
+            $c->stash->{channelName} = $c->stash->{channelBaseName} . "-all";
+            getChannelData($c, [$c->stash->{allBuilds}->all]);
+        }
+        else {
+            error($c, "Unknown channel `$channelName'.");
+        }
+    };
+    error($c, $@) if $@;
 }
 
 
