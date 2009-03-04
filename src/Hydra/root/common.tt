@@ -38,9 +38,13 @@
       </tr>
     </thead>
     <tbody>
+      [% odd = 0 %]
       [% FOREACH build IN builds -%]
-        <tr class="clickable [% IF showSchedulingInfo -%]
-                   [% IF build.schedulingInfo.busy %]runningBuild[% END %] [% IF build.schedulingInfo.disabled == 1 || build.project.enabled == 0 %]disabledBuild[% END -%]
+        <tr class="clickable
+                   [% IF showSchedulingInfo -%]
+                     [% IF build.schedulingInfo.busy %]runningBuild[% END %] [% IF build.schedulingInfo.disabled == 1 || build.project.enabled == 0 %]disabledBuild[% END -%]
+                   [% ELSE -%]
+                     [% IF odd %] odd [% END; odd = !odd -%]
                    [% END %]"
             onclick="window.location = '[% c.uri_for('/build' build.id) %]'">
           [% IF !hideResultInfo %]
