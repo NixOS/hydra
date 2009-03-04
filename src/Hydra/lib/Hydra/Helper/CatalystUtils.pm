@@ -3,10 +3,11 @@ package Hydra::Helper::CatalystUtils;
 use strict;
 use Exporter;
 use Readonly;
+use Hydra::Helper::Nix;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getBuild getBuildStats getLatestBuilds
+    getBuild getBuildStats getLatestBuilds getChannelData
     error notFound
     requireLogin requireProjectOwner requireAdmin
     trim
@@ -63,6 +64,25 @@ sub getLatestBuilds {
     }
 
     return [@res];
+}
+
+
+sub getChannelData {
+    my ($c, $builds) = @_;
+    
+    my @builds = @{getLatestBuilds($c, $builds, {buildStatus => 0})};
+
+    my @storePaths = ();
+    foreach my $build (@builds) {
+        # !!! better do this in getLatestBuilds with a join.
+        next unless $build->buildproducts->find({type => "nix-build"});
+        next unless isValidPath($build->outpath);
+        push @storePaths, $build->outpath;
+        my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id . ".nixpkg";
+        $c->stash->{nixPkgs}->{$pkgName} = $build;
+    };
+
+    $c->stash->{storePaths} = [@storePaths];
 }
 
 

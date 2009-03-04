@@ -3,6 +3,7 @@ package Hydra::Controller::Project;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
+use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
@@ -221,6 +222,17 @@ sub updateProject {
     foreach my $jobset (@jobsets) {
         $jobset->delete unless defined $jobsetNames{$jobset->name};
     }
+}
+
+
+# Hydra::Base::Controller::NixChannel needs this.
+sub nix : Chained('project') PathPart('channel/latest') CaptureArgs(0) {
+    my ($self, $c) = @_;
+    eval {
+        $c->stash->{channelName} = $c->stash->{curProject}->name . "-latest";
+        getChannelData($c, scalar $c->stash->{curProject}->builds);
+    };
+    error($c, $@) if $@;
 }
 
 

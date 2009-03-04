@@ -237,22 +237,11 @@ sub job :Local {
 
 sub nix : Chained('/') PathPart('channel/latest') CaptureArgs(0) {
     my ($self, $c) = @_;
-
-    $c->stash->{channelName} = "hydra-all-latest";
-
-    my @builds = @{getLatestBuilds($c, $c->model('DB::Builds'), {buildStatus => 0})};
-
-    my @storePaths = ();
-    foreach my $build (@builds) {
-        # !!! better do this in getLatestBuilds with a join.
-        next unless $build->buildproducts->find({type => "nix-build"});
-        next unless isValidPath($build->outpath);
-        push @storePaths, $build->outpath;
-        my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id . ".nixpkg";
-        $c->stash->{nixPkgs}->{$pkgName} = $build;
+    eval {
+        $c->stash->{channelName} = "hydra-all-latest";
+        getChannelData($c, $c->model('DB::Builds'));
     };
-
-    $c->stash->{storePaths} = [@storePaths];
+    error($c, $@) if $@;
 }
 
 
