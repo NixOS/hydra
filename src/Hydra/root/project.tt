@@ -38,7 +38,7 @@
 
 [% BLOCK renderInput %]
 
-  <tr class="input [% extraClass %]" id="[% id %]">
+  <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
     <td>
       [% IF edit %]<button type="button" onclick='$(this).parents(".input").remove()'><img src="/static/images/failure.gif" alt="Delete input" /></button>[% END -%]
       <tt>[% INCLUDE maybeEditString param="$baseName-name" value=input.name extraClass="shortString" %]</tt>
@@ -222,7 +222,7 @@
       [% INCLUDE renderInputAlt alt=alt %]
     </tt>
 
-    <script>
+    <script type="text/javascript">
       $(document).ready(function() {
         var id = 0;
       
@@ -281,7 +281,7 @@
       <p><button id="delete-project" type="submit"><img src="/static/images/failure.gif" />Delete this project</button></p>
     </form>
       
-    <script>
+    <script type="text/javascript">
       $("#delete-project").click(function() {
         return confirm("Are you sure you want to delete this project?");
       });

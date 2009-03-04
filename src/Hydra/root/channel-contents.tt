@@ -4,11 +4,30 @@
 
 <h1>Channel <tt>[% channelName %]</tt></h1>
 
-<p>You can subscribe to this channel by doing
+<p>This page provides a <em>channel</em> for the <a
+href="http://nixos.org/">Nix package manager</a>.  If you have Nix
+installed, you can subscribe to this channel by once executing</p>
 
-<pre>$ nix-channel --add [% curUri %]</pre>
+<pre>
+$ nix-channel --add [% curUri %]
+$ nix-channel --update</pre>
 
-</p>
+<p>You can then query and install packages in the normal way, e.g.,</p>
+
+<pre>
+$ nix-env -qa '*'
+$ nix-env -i foo</pre>
+
+<p>You can update to the latest versions of the packages in this channel by executing</p>
+
+<pre>
+$ nix-channel --update 
+$ nix-env -u '*'</pre>
+
+<p>Alternatively, if youhave associated the
+<tt>application/nix-package</tt> MIME type with the
+<tt>nix-install-package</tt> program in your web browser, you can
+install the package simply by clicking on the packages below.</p>
 
 
 <h2>Packages</h2>

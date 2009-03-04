@@ -32,16 +32,16 @@
     <td>
       [% IF build.finished %]
         [% IF build.resultInfo.buildstatus == 0 %]
-          <img src="/static/images/success.gif" />
+          <img src="/static/images/success.gif" alt="Succeeded" />
           <strong>Success</strong>
         [% ELSIF build.resultInfo.buildstatus == 1 %]
-          <img src="/static/images/failure.gif" />
+          <img src="/static/images/failure.gif" alt="Failed" />
           <span class="error">Build returned a non-zero exit code</span>          
         [% ELSIF build.resultInfo.buildstatus == 2 %]
-          <img src="/static/images/failure.gif" />
+          <img src="/static/images/failure.gif" alt="Failed" />
           <span class="error">A dependency of the build failed</span>
         [% ELSE %]
-          <img src="/static/images/failure.gif" />
+          <img src="/static/images/failure.gif" alt="Failed" />
           <span class="error">Build failed</span>
           (see <a href="#nix-error">below</a>)
           <form action="[% c.uri_for('/build' build.id 'restart') %]" method="post" class="inline">

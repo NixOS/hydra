@@ -46,9 +46,9 @@
           [% IF !hideResultInfo %]
             <td>
               [% IF build.resultInfo.buildstatus == 0 %]
-                <img src="/static/images/success.gif" />
+                <img src="/static/images/success.gif" alt="Succeeded" />
               [% ELSE %]
-                <img src="/static/images/failure.gif" />
+                <img src="/static/images/failure.gif" alt="Failed" />
               [% END %]
             </td>
           [% END %]
@@ -77,11 +77,11 @@
       <td>[% finishedBuilds %]</td>
     </tr>
     <tr>
-      <th><img src="/static/images/success.gif" /> Succeeded builds:</th>
+      <th><img src="/static/images/success.gif" alt="Succeeded" /> Succeeded builds:</th>
       <td>[% succeededBuilds %]</td>
     </tr>
     <tr>
-      <th><img src="/static/images/failure.gif" /> Failed builds:</th>
+      <th><img src="/static/images/failure.gif" alt="Failed" /> Failed builds:</th>
       <td>[% finishedBuilds - succeededBuilds %]</td>
     </tr>
     <tr>
