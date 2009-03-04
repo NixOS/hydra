@@ -7,9 +7,6 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
 
-__PACKAGE__->config->{namespace} = '';
-
-
 sub project : Chained('/') PathPart('project') CaptureArgs(1) {
     my ($self, $c, $projectName) = @_;
     
@@ -69,7 +66,7 @@ sub delete : Chained('project') PathPart Args(0) {
 }
 
 
-sub create : Path('create-project') {
+sub create : Path('/create-project') {
     my ($self, $c) = @_;
 
     requireAdmin($c);
@@ -80,7 +77,7 @@ sub create : Path('create-project') {
 }
 
 
-sub create_submit : Path('create-project/submit') {
+sub create_submit : Path('/create-project/submit') {
     my ($self, $c) = @_;
 
     requireAdmin($c);
