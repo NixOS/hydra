@@ -1,0 +1,57 @@
+[% WRAPPER layout.tt title="Channel ${channelName}" %]
+[% PROCESS common.tt %]
+[% USE HTML %]
+
+<h1>Channel <tt>[% channelName %]</tt></h1>
+
+<p>You can subscribe to this channel by doing
+
+<pre>$ nix-channel --add [% curUri %]</pre>
+
+</p>
+
+
+<h2>Packages</h2>
+
+<p>This channel contains the following packages.</p>
+
+<table class="tablesorter">
+  
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Name</th>
+      <th>System</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  
+  <tbody>
+
+    [% FOREACH pkg IN nixPkgs %]
+
+      [% build = pkg.build %]
+      [% uri = "${curUri}/pkg/${pkg.name}.nixpkg" %]
+
+      <tr class="clickable" onclick="window.location = '[% uri %]'">
+        <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
+        <td><a href="[% uri %]"><tt>[% build.resultInfo.releasename || build.nixname %]</tt></a></td>
+        <td><tt>[% build.system %]</tt></td>
+        <td>
+          [% IF build.homepage -%]
+            <a [% HTML.attributes(href => build.homepage) %]>[% HTML.escape(build.description) %]</a>
+          [% ELSE -%]
+            [% HTML.escape(build.description) -%]
+          [% END -%]
+        </td>
+      </tr>
+
+    [% END %]
+
+      
+  </tbody>
+  
+</table>
+
+
+[% END %]

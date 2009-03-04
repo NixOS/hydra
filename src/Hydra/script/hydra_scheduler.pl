@@ -190,6 +190,7 @@ sub checkJob {
     my $description = defined $job->{meta}->{description} ? $job->{meta}->{description}->{value} : "";
     my $longDescription = defined $job->{meta}->{longDescription} ? $job->{meta}->{longDescription}->{value} : "";
     my $license = defined $job->{meta}->{license} ? $job->{meta}->{license}->{value} : "";
+    my $homepage = defined $job->{meta}->{homepage} ? $job->{meta}->{homepage}->{value} : "";
     
     die unless $job->{drvPath} eq $drvPath;
     my $outPath = $job->{outPath};

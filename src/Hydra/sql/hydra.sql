@@ -24,6 +24,7 @@ create table Builds (
 
     longDescription text, -- meta.longDescription
     license       text, -- meta.license
+    homepage      text, -- meta.homepage
     
     foreign key   (project) references Projects(name), -- ignored by sqlite
     foreign key   (project, jobset) references Jobsets(project, name) -- ignored by sqlite

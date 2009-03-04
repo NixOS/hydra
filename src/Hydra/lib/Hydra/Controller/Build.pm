@@ -151,8 +151,8 @@ sub nix : Chained('build') PathPart('nix') CaptureArgs(0) {
     
     $c->stash->{storePaths} = [$build->outpath];
     
-    my $pkgName = $build->nixname . "-" . $build->system . ".nixpkg";
-    $c->stash->{nixPkgs} = {$pkgName => $build};
+    my $pkgName = $build->nixname . "-" . $build->system;
+    $c->stash->{nixPkgs} = {"${pkgName}.nixpkg" => {build => $build, name => $pkgName}};
 }
 
 

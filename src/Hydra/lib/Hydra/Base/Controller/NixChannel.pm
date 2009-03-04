@@ -47,7 +47,7 @@ sub pkg : Chained('nix') PathPart Args(1) {
     notFound($c, "Unknown Nix package `$pkgName'.")
         unless defined $pkg;
 
-    $c->stash->{build} = $pkg;
+    $c->stash->{build} = $pkg->{build};
 
     $c->stash->{manifestUri} = $c->uri_for($self->action_for("manifest"), $c->req->captures);
 
@@ -60,6 +60,18 @@ sub pkg : Chained('nix') PathPart Args(1) {
 sub nixexprs : Chained('nix') PathPart('nixexprs.tar.bz2') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{current_view} = 'Hydra::View::NixExprs';
+}
+
+
+sub name {
+    my ($build) = @_;
+    return $build->resultInfo->releasename || $build->nixname;
+}
+
+sub channel_contents : Chained('nix') PathPart('') Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'channel-contents.tt';
+    $c->stash->{nixPkgs} = [sort { lc(name($a->{build})) cmp lc(name($b->{build})) } (values %{$c->stash->{nixPkgs}})];
 }
 
 

@@ -34,6 +34,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
   "license",
   { data_type => "text", is_nullable => 0, size => undef },
+  "homepage",
+  { data_type => "text", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
@@ -74,8 +76,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-02-11 23:16:48
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+5YWpNShfJeY0rZxT6NFXg
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-04 14:50:30
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fGOOscNFEgDZpeVpA6HH0w
 
 __PACKAGE__->has_many(dependents => 'Hydra::Schema::BuildInputs', 'dependency');
 

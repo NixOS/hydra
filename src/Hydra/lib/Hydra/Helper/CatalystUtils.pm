@@ -78,8 +78,8 @@ sub getChannelData {
         next unless $build->buildproducts->find({type => "nix-build"});
         next unless isValidPath($build->outpath);
         push @storePaths, $build->outpath;
-        my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id . ".nixpkg";
-        $c->stash->{nixPkgs}->{$pkgName} = $build;
+        my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id;
+        $c->stash->{nixPkgs}->{"${pkgName}.nixpkg"} = {build => $build, name => $pkgName};
     };
 
     $c->stash->{storePaths} = [@storePaths];
