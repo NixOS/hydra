@@ -35,7 +35,7 @@ tr.clickable:hover {
 }
 
 tr.odd {
-    background: #f4f4f4;
+    background: #f4f4ff;
 }
 
 .layoutTable td, .layoutTable th {
