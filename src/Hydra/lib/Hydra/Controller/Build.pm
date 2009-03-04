@@ -2,7 +2,7 @@ package Hydra::Controller::Build;
 
 use strict;
 use warnings;
-use base 'Hydra::Base::Controller::Nix';
+use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 

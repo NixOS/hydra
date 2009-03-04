@@ -1,4 +1,4 @@
-package Hydra::Base::Controller::Nix;
+package Hydra::Base::Controller::NixChannel;
 
 use strict;
 use warnings;
