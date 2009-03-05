@@ -442,6 +442,16 @@ sub checkJobs {
 }
 
 
+# For testing: evaluate a single jobset, then exit.
+if (scalar @ARGV == 2) {
+    my $projectName = $ARGV[0];
+    my $jobsetName = $ARGV[1];
+    my $jobset = $db->resultset('Jobsets')->find($projectName, $jobsetName) or die;
+    checkJobSet($jobset->project, $jobset);
+    exit 0;
+}
+
+
 while (1) {
     checkJobs;
     print "sleeping...\n";
