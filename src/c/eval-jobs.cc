@@ -26,9 +26,50 @@ Expr evalAttr(EvalState & state, Expr e)
 
 
 static void findJobs(EvalState & state, XMLWriter & doc,
+    const ATermMap & argsUsed, const ATermMap & argsLeft,
+    Expr e, const string & attrPath);
+
+
+static void tryJobAlts(EvalState & state, XMLWriter & doc,
+    const ATermMap & argsUsed, const ATermMap & argsLeft,
+    const string & attrPath, Expr fun,
+    ATermList formals, const ATermMap & actualArgs)
+{
+    if (formals == ATempty) {
+        findJobs(state, doc, argsUsed, argsLeft,
+            makeCall(fun, makeAttrs(actualArgs)), attrPath);
+        return;
+    }
+
+    Expr name, def; ATerm def2; ATermList values;
+    if (!matchFormal(ATgetFirst(formals), name, def2)) abort();
+    
+    if ((values = (ATermList) argsLeft.get(name))) {
+
+        for (ATermIterator i(ATreverse(values)); i; ++i) {
+            ATermMap actualArgs2(actualArgs);
+            ATermMap argsUsed2(argsUsed);
+            ATermMap argsLeft2(argsLeft);
+            actualArgs2.set(name, makeAttrRHS(*i, makeNoPos()));
+            argsUsed2.set(name, *i);
+            argsLeft2.remove(name);
+            tryJobAlts(state, doc, argsUsed2, argsLeft2, attrPath, fun, ATgetNext(formals), actualArgs2);
+        }
+        
+    }
+    else if (!matchDefaultValue(def2, def)) 
+        throw TypeError(format("cannot auto-call a function that has an argument without a default value (`%1%')")
+            % aterm2String(name));
+    else
+        tryJobAlts(state, doc, argsUsed, argsLeft, attrPath, fun, ATgetNext(formals), actualArgs);
+}
+
+    
+static void findJobs(EvalState & state, XMLWriter & doc,
+    const ATermMap & argsUsed, const ATermMap & argsLeft,
     Expr e, const string & attrPath)
 {
-    std::cerr << "at `" << attrPath << "'\n";
+    debug(format("at path `%1%'") % attrPath);
     
     e = evalExpr(state, e);
 
@@ -45,8 +86,6 @@ static void findJobs(EvalState & state, XMLWriter & doc,
         DrvInfo drv;
         
         if (getDerivation(state, e, drv)) {
-            std::cerr << "derivation\n";
-            
             XMLAttrs xmlAttrs;
             Path outPath, drvPath;
 
@@ -60,29 +99,28 @@ static void findJobs(EvalState & state, XMLWriter & doc,
             xmlAttrs["homepage"] = drv.queryMetaInfo(state, "homepage");
         
             XMLOpenElement _(doc, "job", xmlAttrs);
+
+            foreach (ATermMap::const_iterator, i, argsUsed) {
+                XMLAttrs xmlAttrs2;
+                xmlAttrs2["name"] = aterm2String(i->key);
+                xmlAttrs2["value"] = showValue(i->value);
+                doc.writeEmptyElement("arg", xmlAttrs2);
+            }
         }
 
         else {
-            std::cerr << "attrset\n";
             foreach (ATermMap::const_iterator, i, attrs)
-                findJobs(state, doc, i->value,
+                findJobs(state, doc, argsUsed, argsLeft, i->value,
                     (attrPath.empty() ? "" : attrPath + ".") + aterm2String(i->key));
         }
     }
 
     else if (matchFunction(e, pat, body, pos) && matchAttrsPat(pat, formals, ellipsis)) {
-        std::cerr << "function\n";
-
-        ATermMap actualArgs(ATgetLength(formals));
-        
-        for (ATermIterator i(formals); i; ++i) {
-            Expr name, def, value; ATerm def2;
-            if (!matchFormal(*i, name, def2)) abort();
-        }
+        tryJobAlts(state, doc, argsUsed, argsLeft, attrPath, e, formals, ATermMap());
     }
-        
-    else 
-        std::cerr << showValue(e) << "\n";
+
+    else
+        printMsg(lvlError, format("unknown value: %1%") % showValue(e));
 }
 
 
@@ -90,10 +128,25 @@ void run(Strings args)
 {
     EvalState state;
     Path releaseExpr;
+    ATermMap autoArgs;
     
     for (Strings::iterator i = args.begin(); i != args.end(); ) {
         string arg = *i++;
-        if (arg[0] == '-')
+        if (arg == "--arg") {
+            /* This is like --arg in nix-instantiate, except that it
+               supports multiple versions for the same argument.
+               That is, autoArgs is a mapping from variable names to
+               *lists* of values. */
+            if (i == args.end()) throw UsageError("missing argument");
+            string name = *i++;
+            if (i == args.end()) throw UsageError("missing argument");
+            string value = *i++;
+            Expr e = parseExprFromString(state, value, absPath("."));
+            autoArgs.set(toATerm(name), (ATerm) ATinsert(autoArgs.get(toATerm(name))
+                    ? (ATermList) autoArgs.get(toATerm(name))
+                    : ATempty, e));
+        }
+        else if (arg[0] == '-')
             throw UsageError(format("unknown flag `%1%'") % arg);
         else
             releaseExpr = arg;
@@ -105,7 +158,7 @@ void run(Strings args)
 
     XMLWriter doc(true, std::cout);
     XMLOpenElement root(doc, "jobs");
-    findJobs(state, doc, e, "");
+    findJobs(state, doc, ATermMap(), autoArgs, e, "");
 }
 
 
