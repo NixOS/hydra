@@ -14,6 +14,7 @@ let
 
       releaseTools.makeSourceTarball {
         name = "hydra-tarball";
+        version = "0.1";
         src = hydraSrc;
         inherit officialRelease;
 
@@ -47,7 +48,7 @@ let
 
 
     build = 
-      { tarball ? {path = jobs.tarball {};}
+      { tarball ? jobs.tarball {}
       , nixpkgs ? {path = ../nixpkgs;}
       , system ? "i686-linux"
       }:
@@ -55,7 +56,7 @@ let
       with import nixpkgs.path {inherit system;};
 
       stdenvNew.mkDerivation {
-        name = "hydra-build";
+        name = "hydra" + (if tarball ? version then "-" + tarball.version else "");
 
         buildInputs = [
           perl makeWrapper
@@ -72,7 +73,7 @@ let
         ];
 
         preUnpack = ''
-          src=$(ls ${tarball.path}/tarballs/*.tar.bz2)
+          src=$(ls ${tarball}/tarballs/*.tar.bz2)
         ''; # */
 
         hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") [
