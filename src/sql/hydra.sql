@@ -61,6 +61,7 @@ create table BuildResultInfo (
     --   1 = build of this derivation failed
     --   2 = build of some dependency failed
     --   3 = other failure (see errorMsg)
+    --   4 = build cancelled (removed from queue; never built)
     buildStatus   integer,
 
     errorMsg      text, -- error message in case of a Nix failure

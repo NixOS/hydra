@@ -40,12 +40,17 @@
         [% ELSIF build.resultInfo.buildstatus == 2 %]
           <img src="/static/images/failure.gif" alt="Failed" />
           <span class="error">A dependency of the build failed</span>
+        [% ELSIF build.resultInfo.buildstatus == 4 %]
+          <img src="/static/images/failure.gif" alt="Failed" />
+          <span class="error">Cancelled by user</span>
         [% ELSE %]
           <img src="/static/images/failure.gif" alt="Failed" />
           <span class="error">Build failed</span>
           (see <a href="#nix-error">below</a>)
+        [% END %]
+        [% IF build.resultInfo.buildstatus == 3 || build.resultInfo.buildstatus == 4 %]
           <form action="[% c.uri_for('/build' build.id 'restart') %]" method="post" class="inline">
-            <button id="delete-project" type="submit">Restart</button>
+            <button id="restart" type="submit">Restart</button>
           </form>
         [% END %]
       [% ELSIF build.schedulingInfo.busy %]
@@ -53,6 +58,11 @@
         since [% PROCESS renderDateTime timestamp = build.schedulingInfo.starttime %]
       [% ELSE %]
         <strong>Scheduled to be built</strong>
+        [% IF c.user_exists %]
+          <form action="[% c.uri_for('/build' build.id 'cancel') %]" method="post" class="inline">
+            <button id="cancel" type="submit">Cancel</button>
+          </form>
+        [% END %]
       [% END %]
     </td>
   </tr>
@@ -116,44 +126,45 @@
     <th>Time added:</th>
     <td>[% PROCESS renderDateTime timestamp = build.timestamp %]</td>
   </tr>
-  [% IF build.finished %]
-  <tr>
-    <th>Build started:</th>
-    <td>[% IF build.resultInfo.starttime %][% PROCESS renderDateTime timestamp = build.resultInfo.starttime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
-  </tr>
-  <tr>
-    <th>Build finished:</th>
-    <td>[% IF build.resultInfo.stoptime %][% PROCESS renderDateTime timestamp = build.resultInfo.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
-  </tr>
-  <tr>
-    <th>Duration (seconds):</th>
-    <td>
-      [% IF build.resultInfo.iscachedbuild %]
-        <em>(cached build)</em>
-      [% ELSE %]
-        [% build.resultInfo.stoptime - build.resultInfo.starttime %]
-      [% END %]
-    </td>
-  </tr>
-  [% IF build.resultInfo.logfile %]
+  [% IF build.finished && build.resultInfo.buildstatus != 4 %]
     <tr>
-      <th>Logfile:</th>
+      <th>Build started:</th>
+      <td>[% IF build.resultInfo.starttime %][% PROCESS renderDateTime timestamp = build.resultInfo.starttime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+    </tr>
+    <tr>
+      <th>Build finished:</th>
+      <td>[% IF build.resultInfo.stoptime %][% PROCESS renderDateTime timestamp = build.resultInfo.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+    </tr>
+    <tr>
+      <th>Duration (seconds):</th>
       <td>
-        <a href="[% c.uri_for('/build' build.id 'log') %]"><strong>Available</strong></a>
+        [% IF build.resultInfo.iscachedbuild %]
+          <em>(cached build)</em>
+        [% ELSE %]
+          [% build.resultInfo.stoptime - build.resultInfo.starttime %]
+        [% END %]
       </td>
     </tr>
+    [% IF build.resultInfo.logfile %]
+      <tr>
+        <th>Logfile:</th>
+        <td>
+          <a href="[% c.uri_for('/build' build.id 'log') %]"><strong>Available</strong></a>
+        </td>
+      </tr>
+    [% END %]
   [% END %]
-  [% ELSE %]
-  <tr>
-    <th>Priority:</th>
-    <td>[% build.schedulingInfo.priority %]</td>
-  </tr>
-  [% IF build.schedulingInfo.busy %]
-  <tr>
-    <th>Logfile:</th>
-    <td><tt>[% build.schedulingInfo.logfile %]</tt></td>
-  </tr>
-  [% END %]
+  [% IF !build.finished %]
+    <tr>
+      <th>Priority:</th>
+      <td>[% build.schedulingInfo.priority %]</td>
+    </tr>
+    [% IF build.schedulingInfo.busy %]
+    <tr>
+      <th>Logfile:</th>
+      <td><tt>[% build.schedulingInfo.logfile %]</tt></td>
+    </tr>
+    [% END %]
   [% END %]
 </table>
 

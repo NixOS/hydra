@@ -30,7 +30,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     $c->stash->{curTime} = time;
     $c->stash->{available} = isValidPath $build->outpath;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
-    $c->stash->{flashMsg} = $c->flash->{afterRestart};
+    $c->stash->{flashMsg} = $c->flash->{buildMsg};
 
     if (!$build->finished && $build->schedulingInfo->busy) {
         my $logfile = $build->schedulingInfo->logfile;
@@ -156,17 +156,19 @@ sub nix : Chained('build') PathPart('nix') CaptureArgs(0) {
 }
 
 
-sub restart : Chained('build') PathPart('restart') Args(0) {
+sub restart : Chained('build') PathPart Args(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
 
     requireProjectOwner($c, $build->project);
 
-    error($c, "This build cannot be restarted.")
-        unless $build->finished && $build->resultInfo->buildstatus == 3;
-
     $c->model('DB')->schema->txn_do(sub {
+        error($c, "This build cannot be restarted.")
+            unless $build->finished &&
+              ($build->resultInfo->buildstatus == 3 ||
+               $build->resultInfo->buildstatus == 4);
+
         $build->finished(0);
         $build->timestamp(time());
         $build->update;
@@ -181,7 +183,41 @@ sub restart : Chained('build') PathPart('restart') Args(0) {
             });
     });
 
-    $c->flash->{afterRestart} = "Build has been restarted.";
+    $c->flash->{buildMsg} = "Build has been restarted.";
+    
+    $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
+}
+
+
+sub cancel : Chained('build') PathPart Args(0) {
+    my ($self, $c) = @_;
+
+    my $build = $c->stash->{build};
+
+    requireProjectOwner($c, $build->project);
+
+    $c->model('DB')->schema->txn_do(sub {
+        error($c, "This build cannot be cancelled.")
+            if $build->finished || $build->schedulingInfo->busy;
+
+        # !!! Actually, it would be nice to be able to cancel busy
+        # builds as well, but we would have to send a signal or
+        # something to the build process.
+
+        $build->finished(1);
+        $build->timestamp(time());
+        $build->update;
+
+        $c->model('DB::BuildResultInfo')->create(
+            { id => $build->id
+            , iscachedbuild => 0
+            , buildstatus => 4 # = cancelled
+            });
+
+        $build->schedulingInfo->delete;
+    });
+
+    $c->flash->{buildMsg} = "Build has been cancelled.";
     
     $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
 }
