@@ -31,8 +31,8 @@ let
 
         # Since we don't have a `make dist', just tar everything.
         distPhase = ''
-          cp $jquery src/Hydra/root/static/js/jquery-pack.js
-          unzip -d src/Hydra/root/static/js $tablesorter
+          cp $jquery src/root/static/js/jquery-pack.js
+          unzip -d src/root/static/js $tablesorter
         
           releaseName=hydra-0.1$VERSION_SUFFIX;
           ensureDir $out/tarballs
@@ -84,7 +84,7 @@ let
           ensureDir $out/nix-support
           
           ensureDir $out/libexec
-          cp -prd src/Hydra $out/libexec/hydra
+          cp -prd src $out/libexec/hydra
 
           mv $out/libexec/hydra/script $out/bin
 
@@ -98,7 +98,6 @@ let
           done
 
           ensureDir $out/share/doc/hydra/manual
-          set -x
           cp doc/manual/* $out/share/doc/hydra/manual/
           ln -s manual.html $out/share/doc/hydra/manual/index.html
           echo "doc manual $out/share/doc/hydra/manual" >> $out/nix-support/hydra-build-products
