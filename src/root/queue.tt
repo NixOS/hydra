@@ -3,7 +3,7 @@
 
 <h1>Hydra Queue</h1>
 
-[% IF scheduled.size == 0 %]
+[% IF queue.size == 0 %]
 
   <p>The queue is empty.</p>
 
