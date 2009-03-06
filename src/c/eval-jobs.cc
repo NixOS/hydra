@@ -32,7 +32,8 @@ static void findJobs(EvalState & state, XMLWriter & doc,
     
     e = evalExpr(state, e);
 
-    ATermList as, es;
+    ATermList as, es, formals;
+    ATermBool ellipsis;
     ATerm pat, body, pos;
     string s;
     PathSet context;
@@ -69,8 +70,15 @@ static void findJobs(EvalState & state, XMLWriter & doc,
         }
     }
 
-    else if (matchFunction(e, pat, body, pos)) {
+    else if (matchFunction(e, pat, body, pos) && matchAttrsPat(pat, formals, ellipsis)) {
         std::cerr << "function\n";
+
+        ATermMap actualArgs(ATgetLength(formals));
+        
+        for (ATermIterator i(formals); i; ++i) {
+            Expr name, def, value; ATerm def2;
+            if (!matchFormal(*i, name, def2)) abort();
+        }
     }
         
     else 
