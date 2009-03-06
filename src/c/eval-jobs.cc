@@ -8,6 +8,7 @@
 #include "nixexpr-ast.hh"
 #include "util.hh"
 #include "xml-writer.hh"
+#include "get-drvs.hh"
 
 using namespace nix;
 
@@ -40,21 +41,23 @@ static void findJobs(EvalState & state, XMLWriter & doc,
         ATermMap attrs;
         queryAllAttrs(e, attrs);
 
-        Expr a = evalAttr(state, attrs.get(toATerm("type")));
-        if (a && matchStr(a, s, context) && s == "derivation") {
+        DrvInfo drv;
+        
+        if (getDerivation(state, e, drv)) {
             std::cerr << "derivation\n";
-
+            
             XMLAttrs xmlAttrs;
             Path outPath, drvPath;
 
             xmlAttrs["name"] = attrPath;
-            
-            a = evalAttr(state, attrs.get(toATerm("drvPath")));
-            if (matchStr(a, drvPath, context)) xmlAttrs["drvPath"] = drvPath;
+            xmlAttrs["system"] = drv.system;
+            xmlAttrs["drvPath"] = drv.queryDrvPath(state);
+            xmlAttrs["outPath"] = drv.queryOutPath(state);
+            xmlAttrs["description"] = drv.queryMetaInfo(state, "description");
+            xmlAttrs["longDescription"] = drv.queryMetaInfo(state, "longDescription");
+            xmlAttrs["license"] = drv.queryMetaInfo(state, "license");
+            xmlAttrs["homepage"] = drv.queryMetaInfo(state, "homepage");
         
-            a = evalAttr(state, attrs.get(toATerm("outPath")));
-            if (matchStr(a, outPath, context)) xmlAttrs["outPath"] = outPath;
-
             XMLOpenElement _(doc, "job", xmlAttrs);
         }
 
