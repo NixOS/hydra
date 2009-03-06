@@ -209,13 +209,16 @@ sub doBuild {
             if (-e "$outPath/nix-support/hydra-build-products") {
                 open LIST, "$outPath/nix-support/hydra-build-products" or die;
                 while (<LIST>) {
-                    /^([\w\-]+)\s+([\w\-]+)\s+(\S+)$/ or next;
+                    /^([\w\-]+)\s+([\w\-]+)\s+(\S+)(\s+(\S+))?$/ or next;
                     my $type = $1;
                     my $subtype = $2 eq "none" ? "" : $2;
                     my $path = $3;
+                    my $defaultPath = $5;
                     next unless -e $path;
 
                     my $fileSize, my $sha1, my $sha256;
+
+                    # !!! validate $path, $defaultPath
 
                     if (-f $path) {
                         my $st = stat($path) or die "cannot stat $path: $!";
@@ -229,6 +232,8 @@ sub doBuild {
                             or die "cannot hash $path: $?";;
                         chomp $sha256;
                     }
+
+                    my $name = $path eq $outPath ? "" : basename $path;
                     
                     $db->resultset('BuildProducts')->create(
                         { build => $build->id
@@ -239,7 +244,8 @@ sub doBuild {
                         , filesize => $fileSize
                         , sha1hash => $sha1
                         , sha256hash => $sha256
-                        , name => basename $path
+                        , name => $name
+                        , defaultpath => $defaultPath
                         });
                 }
                 close LIST;
@@ -273,12 +279,15 @@ my $build;
 $db->txn_do(sub {
     $build = $db->resultset('Builds')->find($buildId);
     die "build $buildId doesn't exist" unless defined $build;
+    die "build $buildId already done" if defined $build->resultInfo;
     if ($build->schedulingInfo->busy != 0 && $build->schedulingInfo->locker != getppid) {
         die "build $buildId is already being built";
     }
     $build->schedulingInfo->busy(1);
     $build->schedulingInfo->locker($$);
     $build->schedulingInfo->update;
+    $build->buildsteps->delete_all;
+    $build->buildproducts->delete_all;
 });
 
 die unless $build;

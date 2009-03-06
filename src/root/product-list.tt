@@ -6,7 +6,9 @@
 
     [% FOREACH product IN build.buildproducts -%]
 
-      [% uri = c.uri_for('/build' build.id 'download' product.productnr product.name) %]
+      [% uri = "${c.uri_for('/build' build.id 'download' product.productnr)}"
+          _ (product.name ? "/" _ product.name : "")
+          _ (product.defaultpath ? "/" _ product.defaultpath : "") %]
       
       [% SWITCH product.type %]
 

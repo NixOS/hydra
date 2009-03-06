@@ -42,7 +42,7 @@
       [% FOREACH build IN builds -%]
         <tr class="clickable
                    [% IF showSchedulingInfo -%]
-                     [% IF build.schedulingInfo.busy %]runningBuild[% END %] [% IF build.schedulingInfo.disabled == 1 || build.project.enabled == 0 %]disabledBuild[% END -%]
+                     [% IF build.schedulingInfo.busy %]runningBuild[% ELSIF build.schedulingInfo.disabled == 1 || build.project.enabled == 0 %]disabledBuild[% END %]
                    [% ELSE -%]
                      [% IF odd %] odd [% END; odd = !odd -%]
                    [% END %]"

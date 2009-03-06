@@ -80,13 +80,17 @@ sub loadLog {
 
 
 sub download : Chained('build') PathPart('download') {
-    my ($self, $c, $productnr, $filename, @path) = @_;
+    my ($self, $c, $productnr, @path) = @_;
 
     my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
     notFound($c, "Build doesn't have a product $productnr.") if !defined $product;
 
     notFound($c, "Product " . $product->path . " has disappeared.") unless -e $product->path;
 
+    # If the product has a name, then the first path element can be
+    # ignored (it's the name included in the URL for informational purposes).
+    shift @path if $product->name; 
+    
     # Security paranoia.
     foreach my $elem (@path) {
         error($c, "Invalid filename $elem.") if $elem !~ /^$pathCompRE$/;
@@ -103,6 +107,8 @@ sub download : Chained('build') PathPart('download') {
     $path = "$path/index.html" if -d $path && -e "$path/index.html";
 
     notFound($c, "File $path does not exist.") if !-e $path;
+
+    notFound($c, "Path $path is a directory.") if -d $path;
 
     $c->serve_static_file($path);
 }
