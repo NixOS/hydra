@@ -64,8 +64,19 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
         tryJobAlts(state, doc, argsUsed, argsLeft, attrPath, fun, ATgetNext(formals), actualArgs);
 }
 
+
+static void showArgsUsed(XMLWriter & doc, const ATermMap & argsUsed)
+{
+    foreach (ATermMap::const_iterator, i, argsUsed) {
+        XMLAttrs xmlAttrs2;
+        xmlAttrs2["name"] = aterm2String(i->key);
+        xmlAttrs2["value"] = showValue(i->value);
+        doc.writeEmptyElement("arg", xmlAttrs2);
+    }
+}
+
     
-static void findJobs(EvalState & state, XMLWriter & doc,
+static void findJobsWrapped(EvalState & state, XMLWriter & doc,
     const ATermMap & argsUsed, const ATermMap & argsLeft,
     Expr e, const string & attrPath)
 {
@@ -99,13 +110,7 @@ static void findJobs(EvalState & state, XMLWriter & doc,
             xmlAttrs["homepage"] = drv.queryMetaInfo(state, "homepage");
         
             XMLOpenElement _(doc, "job", xmlAttrs);
-
-            foreach (ATermMap::const_iterator, i, argsUsed) {
-                XMLAttrs xmlAttrs2;
-                xmlAttrs2["name"] = aterm2String(i->key);
-                xmlAttrs2["value"] = showValue(i->value);
-                doc.writeEmptyElement("arg", xmlAttrs2);
-            }
+            showArgsUsed(doc, argsUsed);
         }
 
         else {
@@ -120,7 +125,23 @@ static void findJobs(EvalState & state, XMLWriter & doc,
     }
 
     else
-        printMsg(lvlError, format("unknown value: %1%") % showValue(e));
+        throw TypeError(format("unknown value: %1%") % showValue(e));
+}
+
+
+static void findJobs(EvalState & state, XMLWriter & doc,
+    const ATermMap & argsUsed, const ATermMap & argsLeft,
+    Expr e, const string & attrPath)
+{
+    try {
+        findJobsWrapped(state, doc, argsUsed, argsLeft, e, attrPath);
+    } catch (Error & e) {
+        XMLAttrs xmlAttrs;
+        xmlAttrs["location"] = attrPath;
+        xmlAttrs["msg"] = e.msg();
+        XMLOpenElement _(doc, "error", xmlAttrs);
+        showArgsUsed(doc, argsUsed);
+    }
 }
 
 
@@ -132,7 +153,7 @@ void run(Strings args)
     
     for (Strings::iterator i = args.begin(); i != args.end(); ) {
         string arg = *i++;
-        if (arg == "--arg") {
+        if (arg == "--arg" || arg == "--argstr") {
             /* This is like --arg in nix-instantiate, except that it
                supports multiple versions for the same argument.
                That is, autoArgs is a mapping from variable names to
@@ -141,7 +162,9 @@ void run(Strings args)
             string name = *i++;
             if (i == args.end()) throw UsageError("missing argument");
             string value = *i++;
-            Expr e = parseExprFromString(state, value, absPath("."));
+            Expr e = arg == "--arg"
+                ? parseExprFromString(state, value, absPath("."))
+                : makeStr(value);
             autoArgs.set(toATerm(name), (ATerm) ATinsert(autoArgs.get(toATerm(name))
                     ? (ATermList) autoArgs.get(toATerm(name))
                     : ATempty, e));
