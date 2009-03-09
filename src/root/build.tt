@@ -136,12 +136,12 @@
       <td>[% IF build.resultInfo.stoptime %][% PROCESS renderDateTime timestamp = build.resultInfo.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
     </tr>
     <tr>
-      <th>Duration (seconds):</th>
+      <th>Duration:</th>
       <td>
         [% IF build.resultInfo.iscachedbuild %]
           <em>(cached build)</em>
         [% ELSE %]
-          [% build.resultInfo.stoptime - build.resultInfo.starttime %]
+          [% build.resultInfo.stoptime - build.resultInfo.starttime %]s
         [% END %]
       </td>
     </tr>

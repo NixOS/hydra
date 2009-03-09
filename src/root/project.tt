@@ -97,19 +97,13 @@
         <th>Last checked:</th>
         <td>
           [% IF jobset.lastcheckedtime %]
-            [% PROCESS renderDateTime timestamp = jobset.lastcheckedtime %]
+            [% PROCESS renderDateTime timestamp = jobset.lastcheckedtime -%][% IF jobset.errormsg -%]<em>, evaluation error</em>:
+              <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
+            [% ELSE %], <em>no errors</em>
+            [% END %]
           [% ELSE %]
             <em>never</em>
           [% END %]
-        </td>
-      </tr>
-    [% END %]
-    [% IF !edit && jobset.errormsg %]
-      <tr>
-        <th>Last evaluation error:</th>
-        <td>
-          <em>On [% PROCESS renderDateTime timestamp = jobset.errortime %]:</em>
-          <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
         </td>
       </tr>
     [% END %]

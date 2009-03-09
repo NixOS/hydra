@@ -329,7 +329,7 @@ sub checkJobSet {
     $nixExprPath .= "/" . $jobset->nixexprpath;
 
     (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(
-        "eval-jobs", $nixExprPath, inputsToArgs($inputInfo));
+        "hydra_eval_jobs", $nixExprPath, inputsToArgs($inputInfo));
     die "cannot evaluate the Nix expression containing the jobs:\n$stderr" unless $res;
 
     my $jobs = XMLin($jobsXml,
@@ -338,16 +338,18 @@ sub checkJobSet {
                      SuppressEmpty => '')
         or die "cannot parse XML output";
 
-    # Store the errors messages for jobs that failed to evaluate.
-    foreach my $error (@{$jobs->{error}}) {
-        print "error at " . $error->{location} . ": " . $error->{msg} . "\n";
-    }
-
     # Schedule each successfully evaluated job.
     foreach my $job (@{$jobs->{job}}) {
         print "considering job " . $job->{jobName} . "\n";
         checkJob($project, $jobset, $inputInfo, $job);
     }
+
+    # Store the errors messages for jobs that failed to evaluate.
+    my $msg = "";
+    foreach my $error (@{$jobs->{error}}) {
+        $msg .= "at `" . $error->{location} . "': " . $error->{msg} . "\n";
+    }
+    setJobsetError($jobset, $msg);
 }
 
 
