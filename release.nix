@@ -5,12 +5,12 @@ let
 
 
     tarball =
-      { hydraSrc ? {path = ./.; rev = 1234;}
-      , nixpkgs ? {path = ../nixpkgs;}
+      { hydraSrc ? {outPath = ./.; rev = 1234;}
+      , nixpkgs ? ../nixpkgs
       , officialRelease ? false
       }:
 
-      with import nixpkgs.path {};
+      with import nixpkgs {};
 
       releaseTools.makeSourceTarball {
         name = "hydra-tarball";
@@ -49,11 +49,13 @@ let
 
     build = 
       { tarball ? jobs.tarball {}
-      , nixpkgs ? {path = ../nixpkgs;}
+      , nixpkgs ? ../nixpkgs
       , system ? "i686-linux"
       }:
 
-      with import nixpkgs.path {inherit system;};
+      with import nixpkgs {inherit system;};
+
+      let nix = nixUnstable.override { supportOldDBs = false; }; in
 
       stdenvNew.mkDerivation {
         name = "hydra" + (if tarball ? version then "-" + tarball.version else "");
@@ -70,6 +72,7 @@ let
           perlIPCRun
           perlIOCompressBzip2
           perlReadonly
+          libtool
         ];
 
         preUnpack = ''
@@ -77,7 +80,7 @@ let
         ''; # */
 
         hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") [
-          libxslt sqlite subversion nixUnstable coreutils
+          libxslt sqlite subversion nix coreutils
           gzip bzip2 gnused graphviz
         ]);
 
@@ -89,7 +92,10 @@ let
 
           mv $out/libexec/hydra/script $out/bin
 
-          cp ${nixpkgs.path + "/pkgs/build-support/fetchsvn/nix-prefetch-svn"} $out/bin/nix-prefetch-svn
+          cp ${"${nixpkgs}/pkgs/build-support/fetchsvn/nix-prefetch-svn"} $out/bin/nix-prefetch-svn
+
+          make -C src/c NIX=${nix} ATERM=${aterm242fixes}
+          cp src/c/hydra_eval_jobs $out/bin
 
           for i in $out/bin/*; do
               wrapProgram $i \
