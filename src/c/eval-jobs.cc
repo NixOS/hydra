@@ -46,12 +46,13 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
     
     if ((values = (ATermList) argsLeft.get(name))) {
 
-        for (ATermIterator i(ATreverse(values)); i; ++i) {
+        int n = 0;
+        for (ATermIterator i(ATreverse(values)); i; ++i, ++n) {
             ATermMap actualArgs2(actualArgs);
             ATermMap argsUsed2(argsUsed);
             ATermMap argsLeft2(argsLeft);
             actualArgs2.set(name, makeAttrRHS(*i, makeNoPos()));
-            argsUsed2.set(name, *i);
+            argsUsed2.set(name, (ATerm) ATmakeList2(*i, (ATerm) ATmakeInt(n)));
             argsLeft2.remove(name);
             tryJobAlts(state, doc, argsUsed2, argsLeft2, attrPath, fun, ATgetNext(formals), actualArgs2);
         }
@@ -70,7 +71,8 @@ static void showArgsUsed(XMLWriter & doc, const ATermMap & argsUsed)
     foreach (ATermMap::const_iterator, i, argsUsed) {
         XMLAttrs xmlAttrs2;
         xmlAttrs2["name"] = aterm2String(i->key);
-        xmlAttrs2["value"] = showValue(i->value);
+        xmlAttrs2["value"] = showValue(ATelementAt((ATermList) i->value, 0));
+        xmlAttrs2["altnr"] = int2String(ATgetInt((ATermInt) ATelementAt((ATermList) i->value, 1)));
         doc.writeEmptyElement("arg", xmlAttrs2);
     }
 }
