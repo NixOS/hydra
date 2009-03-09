@@ -22,7 +22,7 @@ sub process {
     my $res = "[\n";
 
     foreach my $name (keys %{$c->stash->{nixPkgs}}) {
-        my $build = $c->stash->{nixPkgs}->{$name};
+        my $build = $c->stash->{nixPkgs}->{$name}->{build};
         $res .= "  # $name\n";
         $res .= "  { type = \"derivation\";\n";
         $res .= "    name = " . escape ($build->resultInfo->releasename or $build->nixname) . ";\n";
