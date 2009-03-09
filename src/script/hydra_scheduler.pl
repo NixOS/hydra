@@ -34,7 +34,7 @@ sub getStorePathHash {
 
 
 sub fetchInputAlt {
-    my ($input, $alt) = @_;
+    my ($project, $jobset, $input, $alt) = @_;
     my $type = $input->type;
 
     if ($type eq "path") {
@@ -150,6 +150,33 @@ sub fetchInputAlt {
             , revision => $revision
             };
     }
+
+    elsif ($type eq "build") {
+        my $jobName = $alt->value or die;
+
+        # Pick the most recent successful build of the specified job.
+        (my $prevBuild) = $db->resultset('Builds')->search(
+            {finished => 1, project => $project->name, jobset => $jobset->name, attrname => $jobName, buildStatus => 0},
+            {join => 'resultInfo', order_by => "timestamp DESC", rows => 1});
+
+        if (!defined $prevBuild || !isValidPath($prevBuild->outpath)) {
+            print STDERR "no previous build available for `$jobName'";
+            return undef;
+        }
+
+        my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
+        my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
+
+        my $relName = ($prevBuild->resultInfo->releasename or $prevBuild->nixname);
+        my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
+        
+        return 
+            { type => "build"
+            , storePath => $prevBuild->outpath
+            , id => $prevBuild->id
+            , version => $version
+            };
+    }
     
     elsif ($type eq "string") {
         die unless defined $alt->value;
@@ -168,10 +195,11 @@ sub fetchInputAlt {
 
 
 sub fetchInputs {
-    my ($jobset, $inputInfo) = @_;
+    my ($project, $jobset, $inputInfo) = @_;
     foreach my $input ($jobset->jobsetinputs->all) {
         foreach my $alt ($input->jobsetinputalts->all) {
-            push @{$$inputInfo{$input->name}}, fetchInputAlt($input, $alt);
+            my $info = fetchInputAlt($project, $jobset, $input, $alt);
+            push @{$$inputInfo{$input->name}}, $info if defined $info;
         }
     }
 }
@@ -267,10 +295,11 @@ sub inputsToArgs {
                 when ("boolean") {
                     push @res, "--arg", $input, $alt->{value};
                 }
-                when (["svn", "path"]) {
+                when (["svn", "path", "build"]) {
                     push @res, "--arg", $input, (
                         "{ outPath = builtins.storePath " . $alt->{storePath} . "" .
-                        "; rev = \"" . $alt->{revision} . "\"" .
+                        (defined $alt->{revision} ? "; rev = \"" . $alt->{revision} . "\"" : "") .
+                        (defined $alt->{version} ? "; version = \"" . $alt->{version} . "\"" : "") .
                         ";}"
                     );
                 }
@@ -292,7 +321,7 @@ sub checkJobSet {
     });
 
     # Fetch all values for all inputs.
-    fetchInputs($jobset, $inputInfo);
+    fetchInputs($project, $jobset, $inputInfo);
 
     # Evaluate the job expression.
     my $nixExprPath = $inputInfo->{$jobset->nixexprinput}->[0]->{storePath}

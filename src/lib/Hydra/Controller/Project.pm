@@ -175,7 +175,8 @@ sub updateProject {
             my $inputType = trim $c->request->params->{"jobset-$baseName-input-$baseName2-type"};
             error($c, "Invalid input type: $inputType") unless
                 $inputType eq "svn" || $inputType eq "cvs" || $inputType eq "tarball" ||
-                $inputType eq "string" || $inputType eq "path" || $inputType eq "boolean";
+                $inputType eq "string" || $inputType eq "path" || $inputType eq "boolean" ||
+                $inputType eq "build";
 
             $inputNames{$inputName} = 1;
             
