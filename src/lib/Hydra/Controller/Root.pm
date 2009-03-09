@@ -103,9 +103,9 @@ sub updateReleaseSet {
     my $releaseSetName = trim $c->request->params->{name};
     die "Invalid release set name: $releaseSetName" unless $releaseSetName =~ /^[[:alpha:]]\w*$/;
     
-    $releaseSet->name($releaseSetName);
-    $releaseSet->description(trim $c->request->params->{description});
-    $releaseSet->update;
+    $releaseSet->update(
+        { name => $releaseSetName
+        , description => trim $c->request->params->{description} });
 
     $releaseSet->releasesetjobs->delete_all;
 

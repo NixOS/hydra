@@ -153,11 +153,9 @@ sub updateProject {
         } else { # it's an existing jobset
             $jobset = ($project->jobsets->search({name => $baseName}))[0];
             die unless defined $jobset;
-            $jobset->name($jobsetName);
-            $jobset->description($description);
-            $jobset->nixexprpath($nixExprPath);
-            $jobset->nixexprinput($nixExprInput);
-            $jobset->update;
+            $jobset->update(
+                { name => $jobsetName, description => $description
+                , nixexprpath => $nixExprPath, nixexprinput => $nixExprInput });
         }
 
         my %inputNames;
@@ -189,9 +187,7 @@ sub updateProject {
             } else { # it's an existing jobset
                 $input = ($jobset->jobsetinputs->search({name => $baseName2}))[0];
                 die unless defined $input;
-                $input->name($inputName);
-                $input->type($inputType);
-                $input->update;
+                $input->update({name => $inputName, type => $inputType});
             }
 
             # Update the values for this input.  Just delete all the

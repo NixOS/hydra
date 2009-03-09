@@ -84,8 +84,7 @@ sub fetchInputAlt {
             } else {
                 $timestamp = $cachedInput->timestamp;
                 $db->txn_do(sub {
-                    $cachedInput->lastseen(time);
-                    $cachedInput->update;
+                    $cachedInput->update({lastseen => time});
                 });
             }
         }
@@ -274,9 +273,7 @@ sub setJobsetError {
     my ($jobset, $errorMsg) = @_;
     eval {
         $db->txn_do(sub {
-            $jobset->errormsg($errorMsg);
-            $jobset->errortime(time);
-            $jobset->update;
+            $jobset->update({errormsg => $errorMsg, errortime => time});
         });
     };
 }
@@ -316,8 +313,7 @@ sub checkJobSet {
     my $inputInfo = {};
     
     $db->txn_do(sub {
-        $jobset->lastcheckedtime(time);
-        $jobset->update;
+        $jobset->update({lastcheckedtime => time});
     });
 
     # Fetch all values for all inputs.

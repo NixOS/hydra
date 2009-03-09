@@ -30,6 +30,7 @@ sub doBuild {
     if (!isValidPath($outPath)) {
         $isCachedBuild = 0;
 
+        # Do the build.
         $startTime = time();
 
         my $thisBuildFailed = 0;
@@ -74,10 +75,7 @@ sub doBuild {
                     (my $step) = $db->resultset('BuildSteps')->search(
                         {id => $build->id, type => 0, drvpath => $drvPath}, {});
                     die unless $step;
-                    $step->busy(0);
-                    $step->status(0);
-                    $step->stoptime(time);
-                    $step->update;
+                    $step->update({busy => 0, status => 0, time => 0});
                 });
             }
 
@@ -89,12 +87,7 @@ sub doBuild {
                     (my $step) = $db->resultset('BuildSteps')->search(
                         {id => $build->id, type => 0, drvpath => $drvPathStep}, {});
                     if ($step) {
-                        die unless $step;
-                        $step->busy(0);
-                        $step->status(1);
-                        $step->errormsg($4);
-                        $step->stoptime(time);
-                        $step->update;
+                        $step->update({busy => 0, status => 1, errormsg => $4, stoptime => time});
                     } else {
                         $db->resultset('BuildSteps')->create(
                             { id => $build->id
@@ -133,10 +126,7 @@ sub doBuild {
                     (my $step) = $db->resultset('BuildSteps')->search(
                         {id => $build->id, type => 1, outpath => $outPath}, {});
                     die unless $step;
-                    $step->busy(0);
-                    $step->status(0);
-                    $step->stoptime(time);
-                    $step->update;
+                    $step->update({busy => 0, status => 0, stoptime => time});
                 });
             }
 
@@ -146,11 +136,7 @@ sub doBuild {
                     (my $step) = $db->resultset('BuildSteps')->search(
                         {id => $build->id, type => 1, outpath => $outPath}, {});
                     die unless $step;
-                    $step->busy(0);
-                    $step->status(1);
-                    $step->errormsg($3);
-                    $step->stoptime(time);
-                    $step->update;
+                    $step->update({busy => 0, status => 1, errormsg => $3, stoptime => time});
                 });
             }
 
@@ -176,9 +162,7 @@ sub doBuild {
     }
 
     $db->txn_do(sub {
-        $build->finished(1);
-        $build->timestamp(time());
-        $build->update;
+        $build->({finished => 1, timestamp => time});
 
         my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
         $logPath = undef unless -e $logPath;
@@ -283,9 +267,7 @@ $db->txn_do(sub {
     if ($build->schedulingInfo->busy != 0 && $build->schedulingInfo->locker != getppid) {
         die "build $buildId is already being built";
     }
-    $build->schedulingInfo->busy(1);
-    $build->schedulingInfo->locker($$);
-    $build->schedulingInfo->update;
+    $build->schedulingInfo->update({busy => 1, locker => $$});
     $build->buildsteps->delete_all;
     $build->buildproducts->delete_all;
 });
@@ -301,8 +283,6 @@ eval {
 if ($@) {
     warn $@;
     $db->txn_do(sub {
-        $build->schedulingInfo->busy(0);
-        $build->schedulingInfo->locker($$);
-        $build->schedulingInfo->update;
+        $build->schedulingInfo->update({busy => 0, locker => $$});
     });
 }

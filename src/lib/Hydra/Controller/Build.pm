@@ -175,9 +175,7 @@ sub restart : Chained('build') PathPart Args(0) {
               ($build->resultInfo->buildstatus == 3 ||
                $build->resultInfo->buildstatus == 4);
 
-        $build->finished(0);
-        $build->timestamp(time());
-        $build->update;
+        $build->update({finished => 0, timestamp => time});
 
         $build->resultInfo->delete;
 
