@@ -58,11 +58,9 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
         }
         
     }
-    else if (!matchDefaultValue(def2, def)) 
-        throw TypeError(format("cannot auto-call a function that has an argument without a default value (`%1%')")
-            % aterm2String(name));
     else
-        tryJobAlts(state, doc, argsUsed, argsLeft, attrPath, fun, ATgetNext(formals), actualArgs);
+        throw TypeError(format("job `%1%' requires an argument named `%2%'")
+            % attrPath % aterm2String(name));
 }
 
 
@@ -165,7 +163,7 @@ void run(Strings args)
             if (i == args.end()) throw UsageError("missing argument");
             string value = *i++;
             Expr e = arg == "--arg"
-                ? parseExprFromString(state, value, absPath("."))
+                ? evalExpr(state, parseExprFromString(state, value, absPath(".")))
                 : makeStr(value);
             autoArgs.set(toATerm(name), (ATerm) ATinsert(autoArgs.get(toATerm(name))
                     ? (ATermList) autoArgs.get(toATerm(name))
