@@ -1,6 +1,7 @@
 #! /var/run/current-system/sw/bin/perl -w
 
 use strict;
+use feature 'switch';
 use XML::Simple;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
@@ -32,8 +33,8 @@ sub getStorePathHash {
 }
 
 
-sub fetchInput {
-    my ($input, $alt, $inputInfo) = @_;
+sub fetchInputAlt {
+    my ($input, $alt) = @_;
     my $type = $input->type;
 
     if ($type eq "path") {
@@ -89,7 +90,7 @@ sub fetchInput {
             }
         }
 
-        $$inputInfo{$input->name} =
+        return
             { type => $type
             , uri => $uri
             , storePath => $storePath
@@ -140,8 +141,8 @@ sub fetchInput {
                     });
             });
         }
-        
-        $$inputInfo{$input->name} =
+
+        return 
             { type => $type
             , uri => $uri
             , storePath => $storePath
@@ -152,12 +153,12 @@ sub fetchInput {
     
     elsif ($type eq "string") {
         die unless defined $alt->value;
-        $$inputInfo{$input->name} = {type => $type, value => $alt->value};
+        return {type => $type, value => $alt->value};
     }
     
     elsif ($type eq "boolean") {
         die unless defined $alt->value && ($alt->value eq "true" || $alt->value eq "false");
-        $$inputInfo{$input->name} = {type => $type, value => $alt->value};
+        return {type => $type, value => $alt->value};
     }
     
     else {
@@ -166,41 +167,26 @@ sub fetchInput {
 }
 
 
+sub fetchInputs {
+    my ($jobset, $inputInfo) = @_;
+    foreach my $input ($jobset->jobsetinputs->all) {
+        foreach my $alt ($input->jobsetinputalts->all) {
+            push @{$$inputInfo{$input->name}}, fetchInputAlt($input, $alt);
+        }
+    }
+}
+
+
 sub checkJob {
-    my ($project, $jobset, $inputInfo, $nixExprPath, $jobName, $jobExpr, $extraArgs) = @_;
-    
-    # Instantiate the store derivation.
-    (my $res, my $drvPath, my $stderr) = captureStdoutStderr(
-        "nix-instantiate", $nixExprPath, "--attr", $jobName, @{$extraArgs});
-    die "cannot evaluate the Nix expression for job `$jobName':\n$stderr" unless $res;
-    chomp $drvPath;
+    my ($project, $jobset, $inputInfo, $job) = @_;
 
-    # Call nix-env --xml to get info about this job (drvPath, outPath, meta attributes, ...). 
-    ($res, my $infoXml, $stderr) = captureStdoutStderr(
-        qw(nix-env --query --available * --attr-path --out-path --drv-path --meta --xml --system-filter *),
-        "-f", $nixExprPath, "--attr", $jobName, @{$extraArgs});
-    die "cannot get information about the job `$jobName':\n$stderr" unless $res;
-
-    my $info = XMLin($infoXml, ForceArray => 1, KeyAttr => ['attrPath', 'name'])
-        or die "cannot parse XML output";
-
-    my $job = $info->{item}->{$jobName};
-    die if !defined $job;
-        
-    my $description = defined $job->{meta}->{description} ? $job->{meta}->{description}->{value} : "";
-    my $longDescription = defined $job->{meta}->{longDescription} ? $job->{meta}->{longDescription}->{value} : "";
-    my $license = defined $job->{meta}->{license} ? $job->{meta}->{license}->{value} : "";
-    my $homepage = defined $job->{meta}->{homepage} ? $job->{meta}->{homepage}->{value} : "";
-    
-    die unless $job->{drvPath} eq $drvPath;
+    my $jobName = $job->{jobName};
+    my $drvPath = $job->{drvPath};
     my $outPath = $job->{outPath};
 
     my $priority = 100;
-    if (defined $job->{meta}->{schedulingPriority} &&
-        $job->{meta}->{schedulingPriority}->{value} =~ /^\d+$/)
-    {
-        $priority = int($job->{meta}->{schedulingPriority}->{value});
-    }
+    $priority = int($job->{schedulingPriority})
+        if $job->{schedulingPriority} =~ /^\d+$/;
 
     $db->txn_do(sub {
         if (scalar($db->resultset('Builds')->search(
@@ -219,10 +205,10 @@ sub checkJob {
             , project => $project->name
             , jobset => $jobset->name
             , attrname => $jobName
-            , description => $description
-            , longdescription => $longDescription
-            , license => $license
-            , nixname => $job->{name}
+            , description => $job->{description}
+            , longdescription => $job->{longDescription}
+            , license => $job->{license}
+            , nixname => $job->{nixName}
             , drvpath => $drvPath
             , outpath => $outPath
             , system => $job->{system}
@@ -235,11 +221,11 @@ sub checkJob {
             , locker => ""
             });
 
-        foreach my $inputName (keys %{$inputInfo}) {
-            my $input = $inputInfo->{$inputName};
+        foreach my $arg (@{$job->{arg}}) {
+            my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}] or die "invalid input";
             $db->resultset('BuildInputs')->create(
                 { build => $build->id
-                , name => $inputName
+                , name => $arg->{name}
                 , type => $input->{type}
                 , uri => $input->{uri}
                 , revision => $input->{revision}
@@ -249,7 +235,7 @@ sub checkJob {
                 , sha256hash => $input->{sha256hash}
                 });
         }
-
+        
         # !!! this should really by done by nix-instantiate to prevent a GC race.
         registerRoot $drvPath;
     });
@@ -268,90 +254,31 @@ sub setJobsetError {
 }
 
 
-sub checkJobAlternatives {
-    my ($project, $jobset, $inputInfo, $nixExprPath, $jobName, $jobExpr, $extraArgs, $argsNeeded, $n) = @_;
+sub inputsToArgs {
+    my ($inputInfo) = @_;
+    my @res = ();
 
-    if ($n >= scalar @{$argsNeeded}) {
-        eval {
-            checkJob($project, $jobset, $inputInfo, $nixExprPath, $jobName, $jobExpr, $extraArgs);
-        };
-        if ($@) {
-            print "error evaluating job `", $jobName, "': $@";
-            setJobsetError($jobset, $@);
-        }
-        return;
-    }
-
-    my $argName = @{$argsNeeded}[$n];
-    #print "finding alternatives for argument $argName\n";
-
-    my ($input) = $jobset->jobsetinputs->search({name => $argName});
-
-    my %newInputInfo = %{$inputInfo}; $inputInfo = \%newInputInfo; # clone
-
-    if (defined $input) {
-        
-        foreach my $alt ($input->jobsetinputalts) {
-            #print "input ", $input->name, " (type ", $input->type, ") alt ", $alt->altnr, "\n";
-            fetchInput($input, $alt, $inputInfo);
-            my @newArgs = @{$extraArgs};
-            if (defined $inputInfo->{$argName}->{storePath}) {
-                push @newArgs, "--arg", $argName,
-                    "{path = builtins.storePath " . $inputInfo->{$argName}->{storePath} . ";" .
-                    " outPath = builtins.storePath " . $inputInfo->{$argName}->{storePath} . ";" .
-                    " rev = \"" . $inputInfo->{$argName}->{revision} . "\";}";
-            } elsif ($inputInfo->{$argName}->{type} eq "string") {
-                push @newArgs, "--argstr", $argName, $inputInfo->{$argName}->{value};
-            } elsif ($inputInfo->{$argName}->{type} eq "boolean") {
-                push @newArgs, "--arg", $argName, $inputInfo->{$argName}->{value};
+    foreach my $input (keys %{$inputInfo}) {
+        foreach my $alt (@{$inputInfo->{$input}}) {
+            given ($alt->{type}) {
+                when ("string") {
+                    push @res, "--argstr", $input, $alt->{value};
+                }
+                when ("boolean") {
+                    push @res, "--arg", $input, $alt->{value};
+                }
+                when (["svn", "path"]) {
+                    push @res, "--arg", $input, (
+                        "{ outPath = builtins.storePath " . $alt->{storePath} . "" .
+                        "; rev = \"" . $alt->{revision} . "\"" .
+                        ";}"
+                    );
+                }
             }
-            checkJobAlternatives(
-                $project, $jobset, $inputInfo, $nixExprPath,
-                $jobName, $jobExpr, \@newArgs, $argsNeeded, $n + 1);
         }
     }
 
-    else {
-
-        (my $prevBuild) = $db->resultset('Builds')->search(
-            {finished => 1, project => $project->name, jobset => $jobset->name, attrname => $argName, buildStatus => 0},
-            {join => 'resultInfo', order_by => "timestamp DESC", rows => 1});
-
-        if (!defined $prevBuild) {
-            # !!! reschedule?
-            die "missing input `$argName'";
-        }
-
-        # The argument name matches a previously built job in this
-        # jobset.  Pick the most recent build.  !!! refine the
-        # selection criteria: e.g., most recent successful build.
-        if (!isValidPath($prevBuild->outpath)) {
-            die "input path " . $prevBuild->outpath . " has been garbage-collected";
-        }
-                    
-        $$inputInfo{$argName} =
-            { type => "build"
-            , storePath => $prevBuild->outpath
-            , id => $prevBuild->id
-            };
-
-        my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
-        my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
-
-        my $relName = ($prevBuild->resultInfo->releasename or $prevBuild->nixname);
-        my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
-
-        my @newArgs = @{$extraArgs};
-        push @newArgs, "--arg", $argName,
-            "{ path = builtins.storePath " . $prevBuild->outpath . "; " .
-            "  outPath = builtins.storePath " . $prevBuild->outpath . "; " .
-            ($version ? "  version = \"$version\"; " : "") . # !!! escape
-            "}";
-        
-        checkJobAlternatives(
-            $project, $jobset, $inputInfo, $nixExprPath,
-            $jobName, $jobExpr, \@newArgs, $argsNeeded, $n + 1);
-    }
+    return @res;
 }
 
 
@@ -364,61 +291,33 @@ sub checkJobSet {
         $jobset->update;
     });
 
-    # Fetch the input containing the Nix expression.
-    (my $exprInput) = $jobset->jobsetinputs->search({name => $jobset->nixexprinput});
-    die "No input named " . $jobset->nixexprinput unless defined $exprInput;
+    # Fetch all values for all inputs.
+    fetchInputs($jobset, $inputInfo);
 
-    die "Multiple alternatives for the Nix expression input not supported yet"
-        if scalar($exprInput->jobsetinputalts) != 1;
-
-    fetchInput($exprInput, $exprInput->jobsetinputalts->first, $inputInfo);
-
-    # Evaluate the Nix expression.
-    my $nixExprPath = $inputInfo->{$jobset->nixexprinput}->{storePath} . "/" . $jobset->nixexprpath;
-
-    print "evaluating $nixExprPath\n";
+    # Evaluate the job expression.
+    my $nixExprPath = $inputInfo->{$jobset->nixexprinput}->[0]->{storePath}
+        or die "cannot find the input containing the job expression";
+    $nixExprPath .= "/" . $jobset->nixexprpath;
 
     (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(
-        "nix-instantiate", $nixExprPath, "--eval-only", "--strict", "--xml");
+        "eval-jobs", $nixExprPath, inputsToArgs($inputInfo));
     die "cannot evaluate the Nix expression containing the jobs:\n$stderr" unless $res;
 
     my $jobs = XMLin($jobsXml,
-                     ForceArray => ['value', 'attr'],
-                     KeyAttr => ['name'],
-                     SuppressEmpty => '',
-                     ValueAttr => [value => 'value'])
+                     ForceArray => ['error', 'job', 'arg'],
+                     KeyAttr => [],
+                     SuppressEmpty => '')
         or die "cannot parse XML output";
 
-    die unless defined $jobs->{attrs};
+    # Store the errors messages for jobs that failed to evaluate.
+    foreach my $error (@{$jobs->{error}}) {
+        print "error at " . $error->{location} . ": " . $error->{msg} . "\n";
+    }
 
-    # Iterate over the attributes listed in the Nix expression and
-    # perform the builds described by them.  If an attribute is a
-    # function, then fill in the function arguments with the
-    # (alternative) values supplied in the jobsetinputs table.
-    foreach my $jobName (keys(%{$jobs->{attrs}->{attr}})) {
-        print "considering job $jobName\n";
-
-        my @argsNeeded = ();
-        
-        my $jobExpr = $jobs->{attrs}->{attr}->{$jobName};
-
-        # !!! fix the case where there is only 1 attr, XML::Simple fucks up as usual
-        if (defined $jobExpr->{function}->{attrspat}) {
-            foreach my $argName (keys(%{$jobExpr->{function}->{attrspat}->{attr}})) {
-                #print "needs input $argName\n";
-                push @argsNeeded, $argName;
-            }            
-        }
-
-        eval {
-            checkJobAlternatives(
-                $project, $jobset, {}, $nixExprPath,
-                $jobName, $jobExpr, [], \@argsNeeded, 0);
-        };
-        if ($@) {
-            print "error checking job ", $jobName, ": $@";
-            setJobsetError($jobset, $@);
-        }
+    # Schedule each successfully evaluated job.
+    foreach my $job (@{$jobs->{job}}) {
+        print "considering job " . $job->{jobName} . "\n";
+        checkJob($project, $jobset, $inputInfo, $job);
     }
 }
 

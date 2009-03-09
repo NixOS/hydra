@@ -45,7 +45,6 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
     if (!matchFormal(ATgetFirst(formals), name, def2)) abort();
     
     if ((values = (ATermList) argsLeft.get(name))) {
-
         int n = 0;
         for (ATermIterator i(ATreverse(values)); i; ++i, ++n) {
             ATermMap actualArgs2(actualArgs);
@@ -56,8 +55,8 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
             argsLeft2.remove(name);
             tryJobAlts(state, doc, argsUsed2, argsLeft2, attrPath, fun, ATgetNext(formals), actualArgs2);
         }
-        
     }
+    
     else
         throw TypeError(format("job `%1%' requires an argument named `%2%'")
             % attrPath % aterm2String(name));
@@ -100,7 +99,8 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             XMLAttrs xmlAttrs;
             Path outPath, drvPath;
 
-            xmlAttrs["name"] = attrPath;
+            xmlAttrs["jobName"] = attrPath;
+            xmlAttrs["nixName"] = drv.name;
             xmlAttrs["system"] = drv.system;
             xmlAttrs["drvPath"] = drv.queryDrvPath(state);
             xmlAttrs["outPath"] = drv.queryOutPath(state);
@@ -108,6 +108,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             xmlAttrs["longDescription"] = drv.queryMetaInfo(state, "longDescription");
             xmlAttrs["license"] = drv.queryMetaInfo(state, "license");
             xmlAttrs["homepage"] = drv.queryMetaInfo(state, "homepage");
+            xmlAttrs["schedulingPriority"] = drv.queryMetaInfo(state, "schedulingPriority");
         
             XMLOpenElement _(doc, "job", xmlAttrs);
             showArgsUsed(doc, argsUsed);
@@ -175,6 +176,8 @@ void run(Strings args)
             releaseExpr = arg;
     }
 
+    if (releaseExpr == "") throw UsageError("no expression specified");
+    
     store = openStore();
 
     Expr e = parseExprFromFile(state, releaseExpr);
