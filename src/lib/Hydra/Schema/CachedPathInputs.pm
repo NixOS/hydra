@@ -22,8 +22,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("srcpath", "sha256hash");
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-06 14:20:12
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+F3EiYsvXuOjnGDrkhLxng
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-09 18:05:06
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zvTGb3qhlacSWzc0H+7dfg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

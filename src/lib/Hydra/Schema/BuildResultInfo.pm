@@ -26,14 +26,22 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
   "keep",
   { data_type => "integer", is_nullable => 0, size => undef },
+  "faileddepbuild",
+  { data_type => "integer", is_nullable => 0, size => undef },
+  "faileddepstepnr",
+  { data_type => "integer", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-06 14:20:12
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:wmL9881G+dZrgHKM83dHXw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-09 18:05:06
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:o1XAUgKd15pN76Rs8aX+IA
 
+__PACKAGE__->belongs_to(
+  "failedDep",
+  "Hydra::Schema::BuildSteps",
+  { id => "faileddepbuild", stepnr => "faileddepstepnr" },
+);
 
-# You can replace this text with custom content, and it will be preserved on regeneration
 1;

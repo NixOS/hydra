@@ -36,13 +36,18 @@
           <strong>Success</strong>
         [% ELSIF build.resultInfo.buildstatus == 1 %]
           <img src="/static/images/failure.gif" alt="Failed" />
-          <span class="error">Build returned a non-zero exit code</span>          
+          <span class="error">Build returned a non-zero exit code</span>
         [% ELSIF build.resultInfo.buildstatus == 2 %]
           <img src="/static/images/failure.gif" alt="Failed" />
           <span class="error">A dependency of the build failed</span>
         [% ELSIF build.resultInfo.buildstatus == 4 %]
           <img src="/static/images/failure.gif" alt="Failed" />
           <span class="error">Cancelled by user</span>
+        [% ELSIF build.resultInfo.buildstatus == 5 %]
+          <img src="/static/images/failure.gif" alt="Failed" />
+          <span class="error">Build inhibited because a dependency previously failed to build</span>
+          [% failedDep = build.resultInfo.failedDep %]
+          (namely, <a href="[% c.uri_for('/build' failedDep.id.id 'nixlog' failedDep.stepnr) %]"><tt>[% failedDep.outpath %]</tt></a>)
         [% ELSE %]
           <img src="/static/images/failure.gif" alt="Failed" />
           <span class="error">Build failed</span>
@@ -256,7 +261,7 @@
 [% IF build.finished %]
 
 
-[% IF build.resultInfo.errormsg %]
+[% IF build.resultInfo.errormsg && build.resultInfo.buildstatus != 5 %]
 
 <h2 id="nix-error">Nix error output</h2>
 

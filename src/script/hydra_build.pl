@@ -24,12 +24,47 @@ sub doBuild {
     my $buildStatus = 0; # = succeeded
 
     my $errormsg = undef;
+
+    my $failedDepBuild;
+    my $failedDepStepNr;
     
     registerRoot $outPath;
     
     if (!isValidPath($outPath)) {
         $isCachedBuild = 0;
 
+        # Check whether a dependency of this build has previously
+        # failed.  If so, don't even bother to build, since it will
+        # fail anyway.  !!! Once Nix has negative caching, this code
+        # can go.
+
+        my @drvDeps = split '\n', `nix-store --query --requisites --include-outputs $drvPath`;
+        die "cannot query dependencies of `$drvPath': $?" if $? != 0;
+
+        @drvDeps = grep { $_ =~ /.drv$/ } @drvDeps;
+
+        my @drvOutputs = split '\n', `nix-store --query --outputs @drvDeps`;
+        die "cannot query outputs of the dependencies of `$drvPath': $?" if $? != 0;
+
+        foreach my $dep (@drvOutputs) {
+            # !!! This checks more than it has to, namely
+            # build-time-only dependencies of dependencies (which
+            # don't need to be built).  However, it shouldn't matter:
+            # if the dependency was built, then presumably *its*
+            # dependencies were built as well.
+            # !!! should disregard fixed-output derivations (?)
+            if (!isValidPath($dep)) {
+                my ($step) = $db->resultset('BuildSteps')->search(
+                    {outPath => $dep}, {rows => 1, order_by => "stopTime DESC"});
+                if (defined $step && $step->status != 0) {
+                    $buildStatus = 5;
+                    $failedDepBuild = $step->id->id;
+                    $failedDepStepNr = $step->stepnr;
+                    goto done;
+                }
+            }
+        }
+        
         # Do the build.
         $startTime = time();
 
@@ -161,8 +196,10 @@ sub doBuild {
         $errormsg = undef unless $buildStatus == 3;
     }
 
+  done:
+
     $db->txn_do(sub {
-        $build->({finished => 1, timestamp => time});
+        $build->update({finished => 1, timestamp => time});
 
         my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
         $logPath = undef unless -e $logPath;
@@ -184,6 +221,8 @@ sub doBuild {
             , logfile => $logPath
             , errormsg => $errormsg
             , releasename => $releaseName
+            , faileddepbuild => $failedDepBuild
+            , faileddepstepnr => $failedDepStepNr
             });
 
         if ($buildStatus == 0) {
