@@ -55,8 +55,8 @@ sub doBuild {
             # !!! should disregard fixed-output derivations (?)
             if (!isValidPath($dep)) {
                 my ($step) = $db->resultset('BuildSteps')->search(
-                    {outPath => $dep}, {rows => 1, order_by => "stopTime DESC"});
-                if (defined $step && $step->status != 0) {
+                    {outPath => $dep}, {rows => 1, order_by => "stopTime DESC", busy => 0});
+                if ($step && $step->status != 0) {
                     $buildStatus = 5;
                     $failedDepBuild = $step->id->id;
                     $failedDepStepNr = $step->stepnr;
@@ -110,7 +110,7 @@ sub doBuild {
                     (my $step) = $db->resultset('BuildSteps')->search(
                         {id => $build->id, type => 0, drvpath => $drvPath}, {});
                     die unless $step;
-                    $step->update({busy => 0, status => 0, time => 0});
+                    $step->update({busy => 0, status => 0, stoptime => time});
                 });
             }
 
