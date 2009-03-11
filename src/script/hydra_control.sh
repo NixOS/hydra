@@ -9,7 +9,7 @@ fi
 
 if test "$action" = "start"; then
 
-    hydra_server.pl -fork > $HYDRA_DATA/server.log 2>&1 &
+    hydra_server.pl > $HYDRA_DATA/server.log 2>&1 &
     echo $! > $HYDRA_DATA/server.pid
 
     hydra_scheduler.pl > $HYDRA_DATA/scheduler.log 2>&1 &
