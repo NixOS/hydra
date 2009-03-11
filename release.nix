@@ -68,6 +68,7 @@ let
           perlCatalystPluginStackTrace
           perlCatalystAuthenticationStoreDBIxClass
           perlCatalystViewTT
+          perlCatalystEngineHTTPPrefork
           perlXMLSimple
           perlIPCRun
           perlIOCompressBzip2

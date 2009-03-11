@@ -1,7 +1,7 @@
 #!/var/run/current-system/sw/bin/perl -w
 
 BEGIN {
-    $ENV{CATALYST_ENGINE} ||= 'HTTP';
+    $ENV{CATALYST_ENGINE} ||= 'HTTP::Prefork';
     $ENV{CATALYST_SCRIPT_GEN} = 32;
     require Catalyst::Engine::HTTP;
 }
@@ -63,6 +63,10 @@ Hydra->run( $port, $host, {
     restart_regex     => qr/$restart_regex/,
     restart_directory => $restart_directory,
     follow_symlinks   => $follow_symlinks,
+    min_servers       => 2,
+    max_servers       => 10,
+    min_spare_servers => 2,
+    max_spare_servers => 5,
 } );
 
 1;
