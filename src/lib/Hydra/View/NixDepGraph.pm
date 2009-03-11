@@ -11,10 +11,9 @@ sub process {
 
     my @storePaths = @{$c->stash->{storePaths}};
 
-    open(OUTPUT, "nix-store --query --graph @storePaths | dot -Tpng -Gbgcolor=transparent |");
-
     my $fh = new IO::Handle;
-    $fh->fdopen(fileno(OUTPUT), "r") or die;
+    
+    open $fh, "nix-store --query --graph @storePaths | dot -Tpng -Gbgcolor=transparent |";
 
     $c->response->body($fh);
     

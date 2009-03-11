@@ -11,10 +11,9 @@ sub process {
 
     my @storePaths = @{$c->stash->{storePaths}};
 
-    open(OUTPUT, "nix-store --export `nix-store -qR @storePaths` | gzip |");
-
     my $fh = new IO::Handle;
-    $fh->fdopen(fileno(OUTPUT), "r") or die;
+    
+    open $fh, "nix-store --export `nix-store -qR @storePaths` | gzip |";
 
     $c->response->body($fh);
     
