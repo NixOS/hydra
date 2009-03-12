@@ -10,7 +10,7 @@ __PACKAGE__->table("ReleaseSetJobs");
 __PACKAGE__->add_columns(
   "project",
   { data_type => "text", is_nullable => 0, size => undef },
-  "release",
+  "release_",
   { data_type => "text", is_nullable => 0, size => undef },
   "job",
   { data_type => "text", is_nullable => 0, size => undef },
@@ -23,17 +23,17 @@ __PACKAGE__->add_columns(
   "description",
   { data_type => "text", is_nullable => 0, size => undef },
 );
-__PACKAGE__->set_primary_key("project", "release", "job", "attrs");
+__PACKAGE__->set_primary_key("project", "release_", "job", "attrs");
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
 __PACKAGE__->belongs_to(
   "releaseset",
   "Hydra::Schema::ReleaseSets",
-  { name => "release", project => "project" },
+  { name => "release_", project => "project" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-09 18:05:06
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:GdOtS3nLs7dwpArSdGob0w
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:17:32
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:YC+cgQcuvO4TxC5UpU7u4A
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

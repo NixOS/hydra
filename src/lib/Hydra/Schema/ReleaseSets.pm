@@ -23,14 +23,14 @@ __PACKAGE__->has_many(
   "releasesetjobs",
   "Hydra::Schema::ReleaseSetJobs",
   {
-    "foreign.project" => "self.project",
-    "foreign.release" => "self.name",
+    "foreign.project"  => "self.project",
+    "foreign.release_" => "self.name",
   },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-09 18:05:06
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:lQymTkBv/Av2y6iYjvP5PQ
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:17:32
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Sv+5cdtqHDjWM0Zmmu0PSg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

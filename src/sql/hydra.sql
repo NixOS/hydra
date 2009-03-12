@@ -337,21 +337,23 @@ create table ReleaseSets (
 create trigger cascadeReleaseSetDelete
   before delete on ReleaseSets
   for each row begin
-    delete from ReleaseSetJobs where project = old.project and release = old.name;
+    delete from ReleaseSetJobs where project = old.project and release_ = old.name;
   end;
 
 
 create trigger cascadeReleaseSetUpdate
   update of name on ReleaseSets
   for each row begin
-    update ReleaseSetJobs set release = new.name where project = old.project and release = old.name;
+    update ReleaseSetJobs set release_ = new.name where project = old.project and release_ = old.name;
   end;
 
 
 create table ReleaseSetJobs (
     project       text not null,
-    -- !!! urgh: "release" is a reserved keyword in sqlite >= 3.6.8!
-    release       text not null,
+    -- `release' is a reserved keyword in sqlite >= 3.6.8.  We could
+    -- quote them ("release") here, but since the Perl bindings don't
+    -- do that it still wouldn't work.  So use `release_' instead.
+    release_      text not null,
 
     job           text not null,
 
@@ -368,7 +370,7 @@ create table ReleaseSetJobs (
 
     description   text,
     
-    primary key   (project, release, job, attrs),
+    primary key   (project, release_, job, attrs),
     foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
-    foreign key   (project, release) references ReleaseSets(project, name) on delete cascade -- ignored by sqlite
+    foreign key   (project, release_) references ReleaseSets(project, name) on delete cascade -- ignored by sqlite
 );
