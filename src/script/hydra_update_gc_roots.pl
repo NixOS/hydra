@@ -38,14 +38,14 @@ foreach my $project ($db->resultset('Projects')->all) {
     # Go over all jobs in this project.
 
     foreach my $job ($project->builds->search({},
-        {select => [{distinct => 'attrname'}], as => ['attrname']}))
+        {select => [{distinct => 'job'}], as => ['job']}))
     {
-        print "*** looking for builds to keep in job ", $project->name, ":", $job->attrname, "\n";
+        print "*** looking for builds to keep in job ", $project->name, ":", $job->job, "\n";
 
         # Keep the N most recent successful builds for each job and
         # platform.
         my @recentBuilds = $project->builds->search(
-            { attrname => $job->attrname
+            { job => $job->job
             , finished => 1
             , buildStatus => 0 # == success
             },

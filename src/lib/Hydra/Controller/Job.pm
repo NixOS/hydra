@@ -26,7 +26,7 @@ sub index : Chained('job') PathPart('') Args(0) {
 sub get_builds : Chained('job') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} =
-        $c->stash->{curProject}->builds->search({attrName => $c->stash->{jobName}});
+        $c->stash->{curProject}->builds->search({job => $c->stash->{jobName}});
     $c->stash->{channelBaseName} =
         $c->stash->{curProject}->name . "-" . $c->stash->{jobName};
 }

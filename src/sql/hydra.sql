@@ -11,9 +11,9 @@ create table Builds (
     timestamp     integer not null, -- time this build was scheduled / finished building
 
     -- Info about the inputs.
-    project       text not null, -- !!! foreign key
-    jobset        text not null, -- !!! foreign key
-    attrName      text not null,
+    project       text not null,
+    jobset        text not null,
+    job           text not null,
 
     -- Info about the build result.
     nixName       text, -- name attribute of the derivation
@@ -85,7 +85,7 @@ create table BuildResultInfo (
 
 
 create table BuildSteps (
-    id            integer not null, -- !!! rename to "build"
+    build         integer not null,
     stepnr        integer not null,
 
     type          integer not null, -- 0 = build, 1 = substitution
@@ -104,8 +104,8 @@ create table BuildSteps (
     startTime     integer,
     stopTime      integer,
 
-    primary key   (id, stepnr),
-    foreign key   (id) references Builds(id) on delete cascade -- ignored by sqlite
+    primary key   (build, stepnr),
+    foreign key   (build) references Builds(id) on delete cascade -- ignored by sqlite
 );
 
 
@@ -370,7 +370,10 @@ create table ReleaseSetJobs (
 
     description   text,
     
+    jobset        text not null,
+    
     primary key   (project, release_, job, attrs),
     foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
     foreign key   (project, release_) references ReleaseSets(project, name) on delete cascade -- ignored by sqlite
+    foreign key   (project, jobset) references Jobsets(project, name) on delete restrict -- ignored by sqlite
 );

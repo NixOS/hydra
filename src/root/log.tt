@@ -1,6 +1,6 @@
 [% WRAPPER layout.tt title="Logfile" %]
 
-<h1>Logfile for <tt>[% build.project.name %]:[% build.attrname %]</tt> build [% build.id %][%IF step %], step [% step.stepnr %] (<tt>[% step.outpath %]</tt>)[% END %]</h1>
+<h1>Logfile for <tt>[% build.project.name %]:[% build.job %]</tt> build [% build.id %][%IF step %], step [% step.stepnr %] (<tt>[% step.outpath %]</tt>)[% END %]</h1>
 
 <div class="buildlog">
 [% logtext -%]

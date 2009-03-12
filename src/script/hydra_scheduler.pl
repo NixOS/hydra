@@ -155,7 +155,7 @@ sub fetchInputAlt {
 
         # Pick the most recent successful build of the specified job.
         (my $prevBuild) = $db->resultset('Builds')->search(
-            {finished => 1, project => $project->name, jobset => $jobset->name, attrname => $jobName, buildStatus => 0},
+            {finished => 1, project => $project->name, jobset => $jobset->name, job => $jobName, buildStatus => 0},
             {join => 'resultInfo', order_by => "timestamp DESC", rows => 1});
 
         if (!defined $prevBuild || !isValidPath($prevBuild->outpath)) {
@@ -218,7 +218,7 @@ sub checkJob {
     $db->txn_do(sub {
         if (scalar($db->resultset('Builds')->search(
                 { project => $project->name, jobset => $jobset->name
-                , attrname => $jobName, outPath => $outPath })) > 0)
+                , job => $jobName, outPath => $outPath })) > 0)
         {
             print "already scheduled/done\n";
             return;
@@ -231,7 +231,7 @@ sub checkJob {
             , timestamp => time()
             , project => $project->name
             , jobset => $jobset->name
-            , attrname => $jobName
+            , job => $jobName
             , description => $job->{description}
             , longdescription => $job->{longDescription}
             , license => $job->{license}

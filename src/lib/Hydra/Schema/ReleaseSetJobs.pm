@@ -22,6 +22,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 0, size => undef },
   "description",
   { data_type => "text", is_nullable => 0, size => undef },
+  "jobset",
+  { data_type => "text", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("project", "release_", "job", "attrs");
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
@@ -32,8 +34,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:17:32
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:YC+cgQcuvO4TxC5UpU7u4A
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:55:11
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OM2joIa3Bj6t9BhVrOjN8Q
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

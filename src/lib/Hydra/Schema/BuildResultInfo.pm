@@ -35,13 +35,13 @@ __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:17:32
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:xvSDu+FkyKp5wTAEGmiKOw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:55:11
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ieF3JOI4N3XZUyMboZhrjg
 
 __PACKAGE__->belongs_to(
   "failedDep",
   "Hydra::Schema::BuildSteps",
-  { id => "faileddepbuild", stepnr => "faileddepstepnr" },
+  { build => "faileddepbuild", stepnr => "faileddepstepnr" },
 );
 
 1;

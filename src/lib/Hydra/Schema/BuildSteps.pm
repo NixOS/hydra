@@ -8,7 +8,7 @@ use base 'DBIx::Class';
 __PACKAGE__->load_components("Core");
 __PACKAGE__->table("BuildSteps");
 __PACKAGE__->add_columns(
-  "id",
+  "build",
   { data_type => "integer", is_nullable => 0, size => undef },
   "stepnr",
   { data_type => "integer", is_nullable => 0, size => undef },
@@ -31,11 +31,11 @@ __PACKAGE__->add_columns(
   "stoptime",
   { data_type => "integer", is_nullable => 0, size => undef },
 );
-__PACKAGE__->set_primary_key("id", "stepnr");
-__PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" });
+__PACKAGE__->set_primary_key("build", "stepnr");
+__PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:17:32
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Ne+uSrfxnk+wK60IrVoTww
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:55:11
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+nb1zsYcv9WziZ6IHcc/yw
 
 1;

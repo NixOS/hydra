@@ -106,7 +106,7 @@ sub checkBuilds {
     # outside the transaction in case it aborts or something.
     foreach my $build (@buildsStarted) {
         my $id = $build->id;
-        print "starting build $id (", $build->project->name, ":", $build->attrname, ") on ", $build->system, "\n";
+        print "starting build $id (", $build->project->name, ":", $build->job, ") on ", $build->system, "\n";
         eval {
             my $logfile = $build->schedulingInfo->logfile;
             my $child = fork();
@@ -131,6 +131,12 @@ sub checkBuilds {
             });
         }
     }
+}
+
+
+if (scalar(@ARGV) == 1 && $ARGV[0] eq "--unlock") {
+    unlockDeadBuilds;
+    exit 0;
 }
 
 

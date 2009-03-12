@@ -124,7 +124,7 @@ sub attrsToSQL {
 sub getPrimaryBuildsForReleaseSet {
     my ($project, $primaryJob) = @_;
     my @primaryBuilds = $project->builds->search(
-        { attrname => $primaryJob->job, finished => 1 },
+        { job => $primaryJob->job, finished => 1 },
         { join => 'resultInfo', order_by => "timestamp DESC"
         , '+select' => ["resultInfo.releasename"], '+as' => ["releasename"]
         , where => \ attrsToSQL($primaryJob->attrs, "me.id")
@@ -154,7 +154,7 @@ sub getRelease {
             # as input.  If there are multiple, prefer successful
             # ones, and then oldest.  !!! order_by buildstatus is hacky
             ($thisBuild) = $primaryBuild->dependentBuilds->search(
-                { attrname => $job->job, finished => 1 },
+                { job => $job->job, finished => 1 },
                 { join => 'resultInfo', rows => 1
                 , order_by => ["buildstatus", "timestamp"]
                 , where => \ attrsToSQL($job->attrs, "build.id")

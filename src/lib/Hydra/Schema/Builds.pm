@@ -18,7 +18,7 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0, size => undef },
   "jobset",
   { data_type => "text", is_nullable => 0, size => undef },
-  "attrname",
+  "job",
   { data_type => "text", is_nullable => 0, size => undef },
   "nixname",
   { data_type => "text", is_nullable => 0, size => undef },
@@ -57,7 +57,7 @@ __PACKAGE__->has_many(
 __PACKAGE__->has_many(
   "buildsteps",
   "Hydra::Schema::BuildSteps",
-  { "foreign.id" => "self.id" },
+  { "foreign.build" => "self.id" },
 );
 __PACKAGE__->has_many(
   "buildinputs_builds",
@@ -76,8 +76,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:17:32
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:iwt05CKHqfd33lW+wAC2mw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:55:11
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:UahvxjBmn7b70IK+QcnKHA
 
 __PACKAGE__->has_many(dependents => 'Hydra::Schema::BuildInputs', 'dependency');
 

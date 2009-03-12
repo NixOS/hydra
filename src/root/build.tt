@@ -4,7 +4,7 @@
 [% USE HTML %]
 
 <h1>
-  Job <tt>[% build.project.name %]:[% build.attrname %]</tt> build [% id %]
+  Job <tt>[% build.project.name %]:[% build.job %]</tt> build [% id %]
   [% IF !build.finished %]
     [% IF build.schedulingInfo.busy %]
       (currently building)
@@ -47,7 +47,7 @@
           <img src="/static/images/failure.gif" alt="Failed" />
           <span class="error">Build inhibited because a dependency previously failed to build</span>
           [% failedDep = build.resultInfo.failedDep %]
-          (namely, <a href="[% c.uri_for('/build' failedDep.id.id 'nixlog' failedDep.stepnr) %]"><tt>[% failedDep.outpath %]</tt></a>)
+          (namely, <a href="[% c.uri_for('/build' failedDep.build.id 'nixlog' failedDep.stepnr) %]"><tt>[% failedDep.outpath %]</tt></a>)
         [% ELSE %]
           <img src="/static/images/failure.gif" alt="Failed" />
           <span class="error">Build failed</span>
@@ -81,7 +81,7 @@
   </tr>
   <tr>
     <th>Job name:</th>
-    <td><a href="[% c.uri_for('/project' build.project.name 'job' build.attrname) %]"><tt>[% build.attrname %]</tt></a></td>
+    <td><a href="[% c.uri_for('/project' build.project.name 'job' build.job) %]"><tt>[% build.job %]</tt></a></td>
   </tr>
   <tr>
     <th>Nix name:</th>
@@ -187,7 +187,7 @@
         <td><tt>[% type = input.type; inputTypes.$type %]</tt></td>
         <td>
           [% IF input.type == "build" %]
-            <a href="[% c.uri_for('/build' input.dependency.id) %]">Job <tt>[% input.dependency.project.name %]:[% input.dependency.attrname %]</tt> build [% input.dependency.id %]</a>
+            <a href="[% c.uri_for('/build' input.dependency.id) %]">Job <tt>[% input.dependency.project.name %]:[% input.dependency.job %]</tt> build [% input.dependency.id %]</a>
           [% ELSIF input.type == "string" || input.type == "boolean" %]
             <tt>"[% input.value %]"</tt>
           [% ELSE %]
@@ -298,7 +298,7 @@
   <tbody>
     [% FOREACH input IN build.dependents -%]
       <tr>
-        <td><a href="[% c.uri_for('/build' input.build.id) %]">Job <tt>[% input.build.project.name %]:[% input.build.attrname %]</tt> build [% input.build.id %]</a></td>
+        <td><a href="[% c.uri_for('/build' input.build.id) %]">Job <tt>[% input.build.project.name %]:[% input.build.job %]</tt> build [% input.build.id %]</a></td>
         <td><tt>[% input.name %]</tt></td>
         <td><tt>[% input.build.system %]</tt></td>
         <td>[% PROCESS renderDateTime timestamp = input.build.timestamp %]</td>

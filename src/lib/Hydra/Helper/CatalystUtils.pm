@@ -49,13 +49,13 @@ sub getLatestBuilds {
 
     my @res = ();
 
-    foreach my $job ($builds->search({},
-        {group_by => ['project', 'attrname', 'system']}))
+    foreach my $build ($builds->search({},
+        {group_by => ['project', 'job', 'system']}))
     {
         my $attrs =
-            { project => $job->get_column('project')
-            , attrname => $job->attrname
-            , system => $job->system
+            { project => $build->get_column('project')
+            , job => $build->job
+            , system => $build->system
             , finished => 1
             };
         my ($build) = $builds->search({ %$attrs, %$extraAttrs },
