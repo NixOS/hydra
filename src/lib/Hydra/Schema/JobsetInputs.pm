@@ -22,7 +22,7 @@ __PACKAGE__->has_many(
   "jobsets",
   "Hydra::Schema::Jobsets",
   {
-    "foreign.name"         => "self.job",
+    "foreign.name"         => "self.jobset",
     "foreign.nixexprinput" => "self.name",
     "foreign.project"      => "self.project",
   },
@@ -43,8 +43,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:55:11
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:earsp0XPWppy5/VOJkQ/PA
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 17:44:15
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:S8AQqv8/GkLkXpPutV4N0A
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

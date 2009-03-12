@@ -235,6 +235,7 @@ sub checkJob {
             , description => $job->{description}
             , longdescription => $job->{longDescription}
             , license => $job->{license}
+            , homepage => $job->{homepage}
             , nixname => $job->{nixName}
             , drvpath => $drvPath
             , outpath => $outPath

@@ -10,8 +10,8 @@ use Hydra::Helper::CatalystUtils;
 sub project : Chained('/') PathPart('project') CaptureArgs(1) {
     my ($self, $c, $projectName) = @_;
     
-    my $project = $c->model('DB::Projects')->find($projectName);
-    notFound($c, "Project $projectName doesn't exist.") unless defined $project;
+    my $project = $c->model('DB::Projects')->find($projectName)
+        or notFound($c, "Project $projectName doesn't exist.");
 
     $c->stash->{curProject} = $project;
 }

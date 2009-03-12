@@ -200,7 +200,7 @@ create table Jobsets (
     lastCheckedTime integer, -- last time the scheduler looked at this jobset
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
-    foreign key   (project, name, nixExprInput) references JobsetInputs(project, job, name)
+    foreign key   (project, name, nixExprInput) references JobsetInputs(project, jobset, name)
 );
 
 

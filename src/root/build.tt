@@ -3,8 +3,12 @@
 [% PROCESS "product-list.tt" %]
 [% USE HTML %]
 
+[% project = build.get_column('project') %]
+[% jobset = build.get_column('jobset') %]
+[% job = build.get_column('job') %]
+
 <h1>
-  Job <tt>[% build.project.name %]:[% build.job %]</tt> build [% id %]
+  Job <tt>[% project %]:[% jobset %]:[% job %]</tt> build [% id %]
   [% IF !build.finished %]
     [% IF build.schedulingInfo.busy %]
       (currently building)
@@ -73,15 +77,15 @@
   </tr>
   <tr>
     <th>Project:</th>
-    <td><a href="[% c.uri_for('/project' build.project.name) %]"><tt>[% build.project.name %]</tt></a></td>
+    <td>[% PROCESS renderProjectName %]</td>
   </tr>
   <tr>
     <th>Jobset:</th>
-    <td><tt>[% build.jobset.name %]</tt></td>
+    <td>[% PROCESS renderJobsetName %]</td>
   </tr>
   <tr>
     <th>Job name:</th>
-    <td><a href="[% c.uri_for('/project' build.project.name 'job' build.job) %]"><tt>[% build.job %]</tt></a></td>
+    <td>[% PROCESS renderJobName %]</td>
   </tr>
   <tr>
     <th>Nix name:</th>
@@ -104,6 +108,10 @@
   <tr>
     <th>License:</th>
     <td>[% IF build.license %][% HTML.escape(build.license) %][% ELSE %]<em>(not given)</em>[% END %]</td>
+  </tr>
+  <tr>
+    <th>Homepage:</th>
+    <td>[% IF build.homepage %]<a [% HTML.attributes(href => build.homepage) %]>[% HTML.escape(build.homepage) %]</a>[% ELSE %]<em>(not given)</em>[% END %]</td>
   </tr>
   <tr>
     <th>System:</th>

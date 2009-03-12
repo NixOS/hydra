@@ -35,7 +35,7 @@ __PACKAGE__->set_primary_key("build", "stepnr");
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 14:55:11
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+nb1zsYcv9WziZ6IHcc/yw
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 17:44:15
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zuyAJq4T5Ynsq920Pd7hLg
 
 1;

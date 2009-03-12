@@ -18,6 +18,25 @@
 [% END %]
 
 
+[% BLOCK renderProjectName -%]
+<a href="[% c.uri_for('/project' project) %]"><tt>[% project %]</tt></a>[% END -%]
+
+
+[% BLOCK renderJobsetName -%]
+<a href="[% c.uri_for('/jobset' project jobset) %]"><tt>[% jobset %]</tt></a>[% END -%]
+
+
+[% BLOCK renderJobName -%]
+<a href="[% c.uri_for('/job' project jobset job) %]"><tt>[% job %]</tt></a>[% END -%]
+
+
+[% BLOCK renderFullJobName %]
+  <tt>
+  [% PROCESS renderProjectName %]:[% PROCESS renderJobsetName %]:[% PROCESS renderJobName %]
+  </a>
+[% END %]
+
+
 [% BLOCK renderBuildList %]
   <table class="buildList tablesorter">
     <thead>
@@ -29,9 +48,8 @@
         [% IF showSchedulingInfo %]
           <th>Priority</th>
         [% END %]
-        <th>Project</th>
         <th>Job</th>
-        <th>Name</th>
+        <th>Release Name</th>
         <th>System</th>
         <th>Timestamp</th>
         <th>Description</th>
@@ -60,8 +78,9 @@
           [% IF showSchedulingInfo %]
             <td>[% build.schedulingInfo.priority %]</td>
           [% END %]
-          <td><a href="[% c.uri_for('/project' build.get_column("project")) %]"><tt>[% build.get_column("project") %]</tt></a></td>
-          <td><a href="[% c.uri_for('/project' build.get_column("project") 'job' build.job) %]"><tt>[% build.job %]</tt></a></td>
+          <td>
+            [% PROCESS renderFullJobName project=build.get_column("project") jobset = build.get_column("jobset") job = build.job %]
+          </td>
           <td>[% build.resultInfo.releasename ? build.resultInfo.releasename : build.nixname %]</td>
           <td><tt>[% build.system %]</tt></td>
           <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
