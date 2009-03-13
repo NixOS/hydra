@@ -13,7 +13,7 @@
   currently executing. Builds in <span
   class="disabledBuild">grey</span> are currently disabled.</p>
 
-  [% PROCESS renderBuildList builds=queue showSchedulingInfo=1 hideResultInfo=1 %]
+  [% INCLUDE renderBuildList builds=queue showSchedulingInfo=1 hideResultInfo=1 %]
 
 [% END %]
 

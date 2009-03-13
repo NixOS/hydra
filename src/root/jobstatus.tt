@@ -5,6 +5,6 @@
 
 <p>Below are the latest builds for each job.</p>
 
-[% PROCESS renderBuildList builds=latestBuilds %]
+[% INCLUDE renderBuildList builds=latestBuilds %]
 
 [% END %]

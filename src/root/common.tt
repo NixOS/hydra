@@ -32,14 +32,14 @@
 
 [% BLOCK renderFullJobName %]
   <tt>
-  [% PROCESS renderProjectName %]:[% PROCESS renderJobsetName %]:[% PROCESS renderJobName %]
+  [% INCLUDE renderProjectName %]:[% INCLUDE renderJobsetName %]:[% INCLUDE renderJobName %]
   </a>
 [% END %]
 
 
 [% BLOCK renderFullJobNameOfBuild %]
   <tt>
-  [% PROCESS renderFullJobName project=build.get_column("project") jobset = build.get_column("jobset") job = build.get_column("job") %]
+  [% INCLUDE renderFullJobName project=build.get_column("project") jobset = build.get_column("jobset") job = build.get_column("job") %]
   </a>
 [% END %]
 
@@ -86,7 +86,7 @@
             <td>[% build.schedulingInfo.priority %]</td>
           [% END %]
           <td>
-            [% PROCESS renderFullJobNameOfBuild %]
+            [% INCLUDE renderFullJobNameOfBuild %]
           </td>
           <td>[% build.resultInfo.releasename ? build.resultInfo.releasename : build.nixname %]</td>
           <td><tt>[% build.system %]</tt></td>
