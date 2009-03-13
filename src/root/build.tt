@@ -154,7 +154,7 @@
         [% IF build.resultInfo.iscachedbuild %]
           <em>(cached build)</em>
         [% ELSE %]
-          [% build.resultInfo.stoptime - build.resultInfo.starttime %]s
+          [% INCLUDE renderDuration duration = build.resultInfo.stoptime - build.resultInfo.starttime %]
         [% END %]
       </td>
     </tr>
@@ -227,12 +227,12 @@
         </td>
         <td>
           [% IF step.busy == 0 %]
-            [% step.stoptime - step.starttime %]s
+            [% INCLUDE renderDuration duration = step.stoptime - step.starttime %]
           [% ELSE %]
             [% IF build.finished %]
-              [% build.resultInfo.stoptime - step.starttime %]s
+              [% INCLUDE renderDuration duration = build.resultInfo.stoptime - step.starttime %]
             [% ELSE %]
-              [% curTime - step.starttime %]s
+              [% INCLUDE renderDuration duration = curTime - step.starttime %]
             [% END %]
           [% END %]
         </td>

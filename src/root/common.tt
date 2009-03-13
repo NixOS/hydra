@@ -44,6 +44,14 @@
 [% END %]
 
 
+[% BLOCK renderDuration -%]
+[% IF duration >= 24 * 60 * 60 %][% duration div (24 * 60 * 60) %]d[% END %]
+[% IF duration >= 60 * 60 %][% duration div (60 * 60) % 24 %]h[% END %]
+[% IF duration >= 60 %][% duration div 60 % 60 %]m[% END %]
+[% duration % 60 %]s
+[% END %]
+
+
 [% BLOCK renderBuildList %]
   <table class="buildList tablesorter">
     <thead>
@@ -116,7 +124,7 @@
     </tr>
     <tr>
       <th>Total build time:</th>
-      <td>[% totalBuildTime %]s</td>
+      <td>[% INCLUDE renderDuration duration = totalBuildTime %]</td>
     </tr>
     <tr>
       <th>Scheduled builds:</th>
