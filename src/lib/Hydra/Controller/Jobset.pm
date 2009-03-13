@@ -1,4 +1,4 @@
-package Hydra::Controller::Job;
+package Hydra::Controller::Jobset;
 
 use strict;
 use warnings;
@@ -7,10 +7,9 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
 
-sub job : Chained('/') PathPart('job') CaptureArgs(3) {
-    my ($self, $c, $projectName, $jobsetName, $jobName) = @_;
+sub jobset : Chained('/') PathPart('jobset') CaptureArgs(2) {
+    my ($self, $c, $projectName, $jobsetName) = @_;
 
-    # !!! cut&paste from Project::project.
     my $project = $c->model('DB::Projects')->find($projectName)
         or notFound($c, "Project $projectName doesn't exist.");
 
@@ -18,24 +17,22 @@ sub job : Chained('/') PathPart('job') CaptureArgs(3) {
     
     $c->stash->{jobset} = $project->jobsets->find({name => $jobsetName})
         or notFound($c, "Jobset $jobsetName doesn't exist.");
-    
-    $c->stash->{jobName} = $jobName;
 }
 
 
-sub index : Chained('job') PathPart('') Args(0) {
+sub index : Chained('jobset') PathPart('') Args(0) {
     my ($self, $c) = @_;
     $c->go($self->action_for("all"));
 }
 
 
 # Hydra::Base::Controller::ListBuilds needs this.
-sub get_builds : Chained('job') PathPart('') CaptureArgs(0) {
+sub get_builds : Chained('jobset') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} =
-        $c->stash->{jobset}->builds->search({job => $c->stash->{jobName}});
+        $c->stash->{jobset}->builds;
     $c->stash->{channelBaseName} =
-        $c->stash->{curProject}->name . "-" . $c->stash->{jobset}->name . "-" . $c->stash->{jobName};
+        $c->stash->{curProject}->name . "-" . $c->stash->{jobset}->name;
 }
 
 
