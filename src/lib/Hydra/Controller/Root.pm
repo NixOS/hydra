@@ -223,6 +223,7 @@ sub release :Local {
 sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->model('DB::Builds');
+    $c->stash->{allJobs} = $c->model('DB::Jobs');
     $c->stash->{channelBaseName} = "everything";
 }
 

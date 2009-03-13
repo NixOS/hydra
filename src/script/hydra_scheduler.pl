@@ -355,7 +355,6 @@ sub checkJobSet {
     
     $db->txn_do(sub {
         foreach my $jobInDB ($jobset->jobs->all) {
-            print $jobInDB->name, "\n";
             $jobInDB->update({active => $jobNames{$jobInDB->name} || $failedJobNames{$jobInDB->name} ? 1 : 0});
 
             if ($failedJobNames{$jobInDB->name}) {

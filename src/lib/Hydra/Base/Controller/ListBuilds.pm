@@ -10,7 +10,9 @@ use Hydra::Helper::CatalystUtils;
 sub jobstatus : Chained('get_builds') PathPart Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'jobstatus.tt';
-    $c->stash->{latestBuilds} = getLatestBuilds($c, $c->stash->{allBuilds}, {});
+    my $jobs = $c->stash->{allJobs};
+    $c->stash->{latestBuilds} =
+        getLatestBuilds($c, ref $jobs eq "ARRAY" ? $jobs : scalar $jobs->search({active => 1}), {});
 }
 
     
@@ -41,7 +43,7 @@ sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
     eval {
         if ($channelName eq "latest") {
             $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
-            getChannelData($c, getLatestBuilds($c, $c->stash->{allBuilds}, {buildStatus => 0}));
+            getChannelData($c, getLatestBuilds($c, scalar $c->stash->{allJobs}->search({active => 1}), {buildStatus => 0}));
         }
         elsif ($channelName eq "all") {
             $c->stash->{channelName} = $c->stash->{channelBaseName} . "-all";

@@ -45,22 +45,19 @@ sub getBuildStats {
 
 # Return the latest build for each job.
 sub getLatestBuilds {
-    my ($c, $builds, $extraAttrs) = @_;
+    my ($c, $jobs, $extraAttrs) = @_;
 
     my @res = ();
 
-    foreach my $build ($builds->search({},
-        {group_by => ['project', 'job', 'system']}))
-    {
-        my $attrs =
-            { project => $build->get_column('project')
-            , job => $build->get_column('job')
-            , system => $build->system
-            , finished => 1
-            };
-        my ($build) = $builds->search({ %$attrs, %$extraAttrs },
-            { join => 'resultInfo', order_by => 'timestamp DESC', rows => 1 } );
-        push @res, $build if defined $build;
+    # !!! this could be done more efficiently.
+
+    foreach my $job (ref $jobs eq "ARRAY" ? @{$jobs} : $jobs->all) {
+        foreach my $system ($job->builds->search({}, {select => ['system'], distinct => 1})) {
+            my ($build) = $job->builds->search(
+                { finished => 1, system => $system->system, %$extraAttrs },
+                { join => 'resultInfo', order_by => 'timestamp DESC', rows => 1 });
+            push @res, $build if defined $build;
+        }
     }
 
     return [@res];
