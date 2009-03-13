@@ -2,9 +2,9 @@
 [% PROCESS common.tt %]
 
 <h1>All Builds
-  [% IF jobName %]for Job [% curProject.name %]:[% jobset.name %]:[% jobName %]
-  [% ELSIF jobset %]for Jobset [% curProject.name %]:[% jobset.name %]
-  [% ELSIF curProject %] for Project <tt>[% curProject.name %]</tt>[% END %]</h1>
+  [% IF job %]for Job [% project.name %]:[% jobset.name %]:[% job.name %]
+  [% ELSIF jobset %]for Jobset [% project.name %]:[% jobset.name %]
+  [% ELSIF project %] for Project <tt>[% project.name %]</tt>[% END %]</h1>
 
 <p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %]
 out of [% totalBuilds %] in order of descending timestamp.</p>

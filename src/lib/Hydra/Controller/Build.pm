@@ -17,7 +17,7 @@ sub build : Chained('/') PathPart CaptureArgs(1) {
     notFound($c, "Build with ID $id doesn't exist.")
         if !defined $c->stash->{build};
 
-    $c->stash->{curProject} = $c->stash->{build}->project;
+    $c->stash->{project} = $c->stash->{build}->project;
 }
 
 

@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title=(edit ? (create ? "New Project" : "Editing Project ‘$curProject.name’") : "Project ‘$curProject.name’") %]
+[% WRAPPER layout.tt title=(edit ? (create ? "New Project" : "Editing Project ‘$project.name’") : "Project ‘$project.name’") %]
 [% PROCESS common.tt %]
 [% USE HTML %]
 
@@ -133,14 +133,14 @@
 
 
 [% IF edit %]
-  <form action="[% IF create %][% c.uri_for('/create-project/submit') %][% ELSE %][% c.uri_for('/project' curProject.name 'submit') %][% END %]" method="post">
+  <form action="[% IF create %][% c.uri_for('/create-project/submit') %][% ELSE %][% c.uri_for('/project' project.name 'submit') %][% END %]" method="post">
 [% END %]
 
 
 [% IF create %]
   <h1>New Project</h1>
 [% ELSE %]
-  <h1>Project <tt>[% curProject.name %]</tt></h1>
+  <h1>Project <tt>[% project.name %]</tt></h1>
 [% END %]
 
 
@@ -150,25 +150,25 @@
   [% IF edit %]
   <tr>
     <th>Identifier:</th>
-    <td><tt>[% INCLUDE maybeEditString param="name" value=curProject.name %]</tt></td>
+    <td><tt>[% INCLUDE maybeEditString param="name" value=project.name %]</tt></td>
   </tr>
   [% END %]
   <tr>
     <th>Display name:</th>
-    <td>[% INCLUDE maybeEditString param="displayname" value=curProject.displayname %]</td>
+    <td>[% INCLUDE maybeEditString param="displayname" value=project.displayname %]</td>
   </tr>
   <tr>
     <th>Description:</th>
-    <td>[% INCLUDE maybeEditString param="description" value=curProject.description %]</td>
+    <td>[% INCLUDE maybeEditString param="description" value=project.description %]</td>
   </tr>
   <tr>
     <th>Homepage:</th>
     <td>
       [% IF edit %]
-        [% INCLUDE maybeEditString param="homepage" value=curProject.homepage %]
+        [% INCLUDE maybeEditString param="homepage" value=project.homepage %]
       [% ELSE %]
-        [% IF curProject.homepage %]
-          <a [% HTML.attributes(href => curProject.homepage) %]>[% HTML.escape(curProject.homepage) %]</a>
+        [% IF project.homepage %]
+          <a [% HTML.attributes(href => project.homepage) %]>[% HTML.escape(project.homepage) %]</a>
         [% ELSE %]
           <em>(not specified)</em>
         [% END %]
@@ -177,12 +177,12 @@
   </tr>
   <tr>
     <th>Owner:</th>
-    <td><tt>[% INCLUDE maybeEditString param="owner" value=curProject.owner.username edit=(edit && c.check_user_roles('admin')) %]</tt></td>
+    <td><tt>[% INCLUDE maybeEditString param="owner" value=project.owner.username edit=(edit && c.check_user_roles('admin')) %]</tt></td>
   </tr>
   <tr>
     <th>Enabled:</th>
     <td>
-      [% INCLUDE renderSelection param="enabled" curValue=curProject.enabled options={"1" = "Yes", "0" = "No"} %]
+      [% INCLUDE renderSelection param="enabled" curValue=project.enabled options={"1" = "Yes", "0" = "No"} %]
     </td>
   </tr>
 </table>
@@ -199,7 +199,7 @@
 
 <h2>Jobsets</h2>
 
-[% IF curProject.jobsets && curProject.jobsets.size > 0 || edit %]
+[% IF project.jobsets && project.jobsets.size > 0 || edit %]
 
   [% IF edit %]
     <p><button type="button" id="add-jobset">Add a new jobset</button></p>
@@ -250,7 +250,7 @@
     </script>
   [% END %]
 
-  [% FOREACH jobset IN curProject.jobsets -%]
+  [% FOREACH jobset IN project.jobsets -%]
     [% INCLUDE renderJobset jobset=jobset baseName=jobset.name %]
   [% END -%]
 
@@ -271,7 +271,7 @@
 
   [% IF !create %]
 
-    <form action="[% c.uri_for('/project' curProject.name 'delete') %]" method="post">
+    <form action="[% c.uri_for('/project' project.name 'delete') %]" method="post">
       <p><button id="delete-project" type="submit"><img src="/static/images/failure.gif" />Delete this project</button></p>
     </form>
       

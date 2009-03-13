@@ -68,7 +68,7 @@ sub releasesets :Local {
 
     my $project = $c->model('DB::Projects')->find($projectName);
     notFound($c, "Project $projectName doesn't exist.") if !defined $project;
-    $c->stash->{curProject} = $project;
+    $c->stash->{project} = $project;
 
     $c->stash->{releaseSets} = [$project->releasesets->all];
 }
@@ -79,7 +79,7 @@ sub getReleaseSet {
     
     my $project = $c->model('DB::Projects')->find($projectName);
     die "Project $projectName doesn't exist." if !defined $project;
-    $c->stash->{curProject} = $project;
+    $c->stash->{project} = $project;
 
     (my $releaseSet) = $c->model('DB::ReleaseSets')->find($projectName, $releaseSetName);
     die "Release set $releaseSetName doesn't exist." if !defined $releaseSet;
@@ -175,7 +175,7 @@ sub create_releaseset :Local {
 
     my $project = $c->model('DB::Projects')->find($projectName);
     die "Project $projectName doesn't exist." if !defined $project;
-    $c->stash->{curProject} = $project;
+    $c->stash->{project} = $project;
 
     requireProjectOwner($c, $project);
 

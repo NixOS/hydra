@@ -13,7 +13,7 @@ sub project : Chained('/') PathPart('project') CaptureArgs(1) {
     my $project = $c->model('DB::Projects')->find($projectName)
         or notFound($c, "Project $projectName doesn't exist.");
 
-    $c->stash->{curProject} = $project;
+    $c->stash->{project} = $project;
 }
 
 
@@ -22,14 +22,14 @@ sub view : Chained('project') PathPart('') Args(0) {
 
     $c->stash->{template} = 'project.tt';
 
-    getBuildStats($c, scalar $c->stash->{curProject}->builds);
+    getBuildStats($c, scalar $c->stash->{project}->builds);
 }
 
 
 sub edit : Chained('project') PathPart Args(0) {
     my ($self, $c) = @_;
 
-    requireProjectOwner($c, $c->stash->{curProject});
+    requireProjectOwner($c, $c->stash->{project});
 
     $c->stash->{template} = 'project.tt';
     $c->stash->{edit} = 1;
@@ -39,12 +39,12 @@ sub edit : Chained('project') PathPart Args(0) {
 sub submit : Chained('project') PathPart Args(0) {
     my ($self, $c) = @_;
 
-    requireProjectOwner($c, $c->stash->{curProject});
+    requireProjectOwner($c, $c->stash->{project});
 
     error($c, "Request must be POSTed.") if $c->request->method ne "POST";
     
     $c->model('DB')->schema->txn_do(sub {
-        updateProject($c, $c->stash->{curProject});
+        updateProject($c, $c->stash->{project});
     });
     
     $c->res->redirect($c->uri_for($self->action_for("view"), $c->req->captures));
@@ -54,12 +54,12 @@ sub submit : Chained('project') PathPart Args(0) {
 sub delete : Chained('project') PathPart Args(0) {
     my ($self, $c) = @_;
 
-    requireProjectOwner($c, $c->stash->{curProject});
+    requireProjectOwner($c, $c->stash->{project});
 
     error($c, "Request must be POSTed.") if $c->request->method ne "POST";
     
     $c->model('DB')->schema->txn_do(sub {
-        $c->stash->{curProject}->delete;
+        $c->stash->{project}->delete;
     });
     
     $c->res->redirect($c->uri_for("/"));
@@ -224,8 +224,8 @@ sub updateProject {
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('project') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
-    $c->stash->{allBuilds} = $c->stash->{curProject}->builds;
-    $c->stash->{channelBaseName} = $c->stash->{curProject}->name;
+    $c->stash->{allBuilds} = $c->stash->{project}->builds;
+    $c->stash->{channelBaseName} = $c->stash->{project}->name;
 }
 
 

@@ -5,24 +5,24 @@
 
 [% IF releaseSets.size > 0 %]
 
-<p>Project <tt>[% curProject.name %]</tt> has the following release sets:</p>
+<p>Project <tt>[% project.name %]</tt> has the following release sets:</p>
 
 <ul>
   [% FOREACH releaseSet IN releaseSets %]
     <li>
-      <a href="[% c.uri_for('/releases' curProject.name releaseSet.name) %]"><tt>[% releaseSet.name %]</tt></a>
-      [<a href="[% c.uri_for('/releases' curProject.name releaseSet.name "edit") %]">Edit</a>]
+      <a href="[% c.uri_for('/releases' project.name releaseSet.name) %]"><tt>[% releaseSet.name %]</tt></a>
+      [<a href="[% c.uri_for('/releases' project.name releaseSet.name "edit") %]">Edit</a>]
     </li>
   [% END %]
 </ul>
 
 [% ELSE %]
 
-<p>Project <tt>[% curProject.name %]</tt> has no release sets.</p>
+<p>Project <tt>[% project.name %]</tt> has no release sets.</p>
 
 [% END %]
 
 
-<p>[<a href="[% c.uri_for('/create_releaseset' curProject.name) %]">Create a new release set</a>]</p>
+<p>[<a href="[% c.uri_for('/create_releaseset' project.name) %]">Create a new release set</a>]</p>
 
 [% END %]

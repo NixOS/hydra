@@ -1,8 +1,8 @@
-[% WRAPPER layout.tt title=(create ? "New Release Set" : "Release Set ‘$curProject.name:$releaseSet.name’") %]
+[% WRAPPER layout.tt title=(create ? "New Release Set" : "Release Set ‘$project.name:$releaseSet.name’") %]
 [% PROCESS common.tt %]
 [% USE HTML %]
 
-<h1>[% IF create %]New Release Set[% ELSE %]Release Set <tt>[% curProject.name %]:[% releaseSet.name %]</tt>[% END %]</h1>
+<h1>[% IF create %]New Release Set[% ELSE %]Release Set <tt>[% project.name %]:[% releaseSet.name %]</tt>[% END %]</h1>
 
 
 [% BLOCK renderJob %]
@@ -21,7 +21,7 @@
 [% END %]
 
 
-<form action="[% IF create %][% c.uri_for('/create_releaseset' curProject.name 'submit') %][% ELSE %][% c.uri_for('/releases' curProject.name releaseSet.name 'submit') %][% END %]" method="post">
+<form action="[% IF create %][% c.uri_for('/create_releaseset' project.name 'submit') %][% ELSE %][% c.uri_for('/releases' project.name releaseSet.name 'submit') %][% END %]" method="post">
 
   <table class="layoutTable">
     <tr>
@@ -86,7 +86,7 @@
 
 [% IF !create %]
 
-  <form action="[% c.uri_for('/releases' curProject.name releaseSet.name 'delete') %]" method="post">
+  <form action="[% c.uri_for('/releases' project.name releaseSet.name 'delete') %]" method="post">
     <p><button id="delete-project" type="submit"><img src="/static/images/failure.gif" />Delete this release set</button></p>
   </form>
 

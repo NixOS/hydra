@@ -13,7 +13,7 @@ sub jobset : Chained('/') PathPart('jobset') CaptureArgs(2) {
     my $project = $c->model('DB::Projects')->find($projectName)
         or notFound($c, "Project $projectName doesn't exist.");
 
-    $c->stash->{curProject} = $project;
+    $c->stash->{project} = $project;
     
     $c->stash->{jobset} = $project->jobsets->find({name => $jobsetName})
         or notFound($c, "Jobset $jobsetName doesn't exist.");
@@ -32,7 +32,7 @@ sub get_builds : Chained('jobset') PathPart('') CaptureArgs(0) {
     $c->stash->{allBuilds} =
         $c->stash->{jobset}->builds;
     $c->stash->{channelBaseName} =
-        $c->stash->{curProject}->name . "-" . $c->stash->{jobset}->name;
+        $c->stash->{project}->name . "-" . $c->stash->{jobset}->name;
 }
 
 

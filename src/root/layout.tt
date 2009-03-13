@@ -99,10 +99,10 @@
           <li>
             <div class="title">Projects</div>
             <ul class="submenu">
-              [% FOREACH project IN projects %]
-                <li [% IF curUri == c.uri_for('/project' project.name) %]class="active"[% END %]>
-                  <div class="title"><a href="[% c.uri_for('/project' project.name) %]">[% HTML.escape(project.displayname) %]</a></div>
-                  [% IF curProject.name == project.name %]
+              [% FOREACH project_ IN projects %]
+                <li [% IF curUri == c.uri_for('/project' project_.name) %]class="active"[% END %]>
+                  <div class="title"><a href="[% c.uri_for('/project' project_.name) %]">[% HTML.escape(project_.displayname) %]</a></div>
+                  [% IF project.name == project_.name %]
                     <ul class="subsubmenu">
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'jobstatus') title = "Job status" %]
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'all') title = "All builds" %]
@@ -120,8 +120,6 @@
                           </ul>
                         [% END %]
                       [% END %]
-                      
-
                       [% INCLUDE makeLink uri = c.uri_for('/project' project.name 'edit') title = "Edit" %]
                     </ul>
                   [% END %]
