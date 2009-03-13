@@ -142,7 +142,7 @@ img {
 
 .error-msg {
     color: red;
-    white-space: pre;
+    white-space: pre-wrap;
 }
 
 .error {
