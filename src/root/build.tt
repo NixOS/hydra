@@ -172,12 +172,6 @@
       <th>Priority:</th>
       <td>[% build.schedulingInfo.priority %]</td>
     </tr>
-    [% IF build.schedulingInfo.busy %]
-    <tr>
-      <th>Logfile:</th>
-      <td><tt>[% build.schedulingInfo.logfile %]</tt></td>
-    </tr>
-    [% END %]
   [% END %]
 </table>
 
