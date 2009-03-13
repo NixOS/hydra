@@ -54,7 +54,7 @@ sub getLatestBuilds {
     {
         my $attrs =
             { project => $build->get_column('project')
-            , job => $build->job
+            , job => $build->get_column('job')
             , system => $build->system
             , finished => 1
             };

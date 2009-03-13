@@ -27,7 +27,8 @@ create table Builds (
     homepage      text, -- meta.homepage
     
     foreign key   (project) references Projects(name), -- ignored by sqlite
-    foreign key   (project, jobset) references Jobsets(project, name) -- ignored by sqlite
+    foreign key   (project, jobset) references Jobsets(project, name), -- ignored by sqlite
+    foreign key   (project, jobset, job) references Jobs(project, jobset, name) -- ignored by sqlite
 );
 
 
@@ -250,6 +251,27 @@ create table JobsetInputAlts (
     
     primary key   (project, jobset, input, altnr),
     foreign key   (project, jobset, input) references JobsetInputs(project, jobset, name) on delete cascade -- ignored by sqlite
+);
+
+
+create table Jobs (
+    project       text not null,
+    jobset        text not null,
+    name          text not null,
+
+    -- `active' means the Nix expression for the jobset currently
+    -- contains this job.  Otherwise it's a job that has been removed
+    -- from the expression.
+    active        integer not null default 1,
+
+    errorMsg      text, -- evalution error for this job
+
+    firstEvalTime integer, -- first time the scheduler saw this job
+    lastEvalTime  integer, -- last time the scheduler saw this job
+
+    primary key   (project, jobset, name),
+    foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
+    foreign key   (project, jobset) references Jobsets(project, name) on delete cascade -- ignored by sqlite
 );
 
 

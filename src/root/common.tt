@@ -37,6 +37,13 @@
 [% END %]
 
 
+[% BLOCK renderFullJobNameOfBuild %]
+  <tt>
+  [% PROCESS renderFullJobName project=build.get_column("project") jobset = build.get_column("jobset") job = build.get_column("job") %]
+  </a>
+[% END %]
+
+
 [% BLOCK renderBuildList %]
   <table class="buildList tablesorter">
     <thead>
@@ -79,7 +86,7 @@
             <td>[% build.schedulingInfo.priority %]</td>
           [% END %]
           <td>
-            [% PROCESS renderFullJobName project=build.get_column("project") jobset = build.get_column("jobset") job = build.job %]
+            [% PROCESS renderFullJobNameOfBuild %]
           </td>
           <td>[% build.resultInfo.releasename ? build.resultInfo.releasename : build.nixname %]</td>
           <td><tt>[% build.system %]</tt></td>

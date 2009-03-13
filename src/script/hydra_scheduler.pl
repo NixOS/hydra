@@ -216,22 +216,28 @@ sub checkJob {
         if $job->{schedulingPriority} =~ /^\d+$/;
 
     $db->txn_do(sub {
-        if (scalar($db->resultset('Builds')->search(
-                { project => $project->name, jobset => $jobset->name
-                , job => $jobName, outPath => $outPath })) > 0)
-        {
+        # Mark this job as active in the database.
+        my $jobInDB = $jobset->jobs->update_or_create(
+            { name => $jobName
+            , active => 1
+            , lastevaltime => time
+            });
+
+        $jobInDB->update({firstevaltime => time})
+            unless defined $jobInDB->firstevaltime;
+
+        # Have we already done this build (in this job)?
+        if (scalar($jobInDB->builds->search({outPath => $outPath})) > 0) {
             print "already scheduled/done\n";
             return;
         }
 
+        # Nope, so add it.
         print "adding to queue\n";
         
-        my $build = $db->resultset('Builds')->create(
+        my $build = $jobInDB->builds->create(
             { finished => 0
             , timestamp => time()
-            , project => $project->name
-            , jobset => $jobset->name
-            , job => $jobName
             , description => $job->{description}
             , longdescription => $job->{longDescription}
             , license => $job->{license}
@@ -242,18 +248,16 @@ sub checkJob {
             , system => $job->{system}
             });
 
-        $db->resultset('BuildSchedulingInfo')->create(
-            { id => $build->id
-            , priority => $priority
+        $build->buildschedulinginfoes->create(
+            { priority => $priority
             , busy => 0
             , locker => ""
             });
 
         foreach my $arg (@{$job->{arg}}) {
             my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}] or die "invalid input";
-            $db->resultset('BuildInputs')->create(
-                { build => $build->id
-                , name => $arg->{name}
+            $build->buildinputs_builds->create(
+                { name => $arg->{name}
                 , type => $input->{type}
                 , uri => $input->{uri}
                 , revision => $input->{revision}
@@ -337,10 +341,31 @@ sub checkJobSet {
 
     # Schedule each successfully evaluated job.
     foreach my $job (@{$jobs->{job}}) {
+        next if $job->{jobName} eq "";
         print "considering job " . $job->{jobName} . "\n";
         checkJob($project, $jobset, $inputInfo, $job);
     }
 
+    # Mark all existing jobs that we haven't seen as inactive.
+    my %jobNames;
+    $jobNames{$_->{jobName}}++ foreach @{$jobs->{job}};
+    
+    my %failedJobNames;
+    push @{$failedJobNames{$_->{location}}}, $_->{msg} foreach @{$jobs->{error}};
+    
+    $db->txn_do(sub {
+        foreach my $jobInDB ($jobset->jobs->all) {
+            print $jobInDB->name, "\n";
+            $jobInDB->update({active => $jobNames{$jobInDB->name} || $failedJobNames{$jobInDB->name} ? 1 : 0});
+
+            if ($failedJobNames{$jobInDB->name}) {
+                $jobInDB->update({errormsg => join '\n', @{$failedJobNames{$jobInDB->name}}});
+            } else {
+                $jobInDB->update({errormsg => undef});
+            }
+        }
+    });
+        
     # Store the errors messages for jobs that failed to evaluate.
     my $msg = "";
     foreach my $error (@{$jobs->{error}}) {

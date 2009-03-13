@@ -189,7 +189,7 @@
         <td><tt>[% type = input.type; inputTypes.$type %]</tt></td>
         <td>
           [% IF input.type == "build" %]
-            <a href="[% c.uri_for('/build' input.dependency.id) %]">Job <tt>[% input.dependency.project.name %]:[% input.dependency.job %]</tt> build [% input.dependency.id %]</a>
+            Job [% PROCESS renderFullJobNameOfBuild build=input.dependency %] <a href="[% c.uri_for('/build' input.dependency.id) %]">build [% input.dependency.id %]</a>
           [% ELSIF input.type == "string" || input.type == "boolean" %]
             <tt>"[% input.value %]"</tt>
           [% ELSE %]
@@ -300,7 +300,7 @@
   <tbody>
     [% FOREACH input IN build.dependents -%]
       <tr>
-        <td><a href="[% c.uri_for('/build' input.build.id) %]">Job <tt>[% input.build.project.name %]:[% input.build.job %]</tt> build [% input.build.id %]</a></td>
+        <td>Job [% PROCESS renderFullJobNameOfBuild build=input.build %] <a href="[% c.uri_for('/build' input.build.id) %]">build [% input.build.id %]</a></td>
         <td><tt>[% input.name %]</tt></td>
         <td><tt>[% input.build.system %]</tt></td>
         <td>[% PROCESS renderDateTime timestamp = input.build.timestamp %]</td>

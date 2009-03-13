@@ -44,6 +44,11 @@ __PACKAGE__->belongs_to(
   "Hydra::Schema::Jobsets",
   { name => "jobset", project => "project" },
 );
+__PACKAGE__->belongs_to(
+  "job",
+  "Hydra::Schema::Jobs",
+  { jobset => "jobset", name => "job", project => "project" },
+);
 __PACKAGE__->has_many(
   "buildschedulinginfoes",
   "Hydra::Schema::BuildSchedulingInfo",
@@ -76,8 +81,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-12 17:44:15
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:6taCYZNB0HaY+fvDjUhrYQ
+# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:xqKyjCWVdoTyQJC28K3WXA
 
 __PACKAGE__->has_many(dependents => 'Hydra::Schema::BuildInputs', 'dependency');
 
