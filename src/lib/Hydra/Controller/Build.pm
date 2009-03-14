@@ -214,9 +214,7 @@ sub cancel : Chained('build') PathPart Args(0) {
         # builds as well, but we would have to send a signal or
         # something to the build process.
 
-        $build->finished(1);
-        $build->timestamp(time());
-        $build->update;
+        $build->update({finished => 1, timestamp => time});
 
         $c->model('DB::BuildResultInfo')->create(
             { id => $build->id
@@ -228,6 +226,26 @@ sub cancel : Chained('build') PathPart Args(0) {
     });
 
     $c->flash->{buildMsg} = "Build has been cancelled.";
+    
+    $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
+}
+
+
+sub keep : Chained('build') PathPart Args(1) {
+    my ($self, $c, $newStatus) = @_;
+
+    my $build = $c->stash->{build};
+
+    requireProjectOwner($c, $build->project);
+
+    die unless $newStatus == 0 || $newStatus == 1;
+
+    $c->model('DB')->schema->txn_do(sub {
+        $build->resultInfo->update({keep => int $newStatus});
+    });
+
+    $c->flash->{buildMsg} =
+        $newStatus == 0 ? "Build will not be kept." : "Build will be kept.";
     
     $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
 }

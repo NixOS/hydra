@@ -57,7 +57,7 @@
           <span class="error">Build failed</span>
           (see <a href="#nix-error">below</a>)
         [% END %]
-        [% IF build.resultInfo.buildstatus == 3 || build.resultInfo.buildstatus == 4 %]
+        [% IF c.user_exists && (build.resultInfo.buildstatus == 3 || build.resultInfo.buildstatus == 4) %]
           <form action="[% c.uri_for('/build' build.id 'restart') %]" method="post" class="inline">
             <button id="restart" type="submit">Restart</button>
           </form>
@@ -172,6 +172,30 @@
     <tr>
       <th>Priority:</th>
       <td>[% build.schedulingInfo.priority %]</td>
+    </tr>
+  [% END %]
+  [% IF build.finished && build.buildproducts %]
+    <tr>
+      <th>Availability:</th>
+      <td>
+        [% IF !available %]
+          <em>Build output is no longer available</em>
+        [% ELSIF build.resultInfo.keep %]
+          <em>Build output will be kept permanently</em>
+          [% IF c.user_exists %]
+            <form action="[% c.uri_for('/build' build.id 'keep' 0) %]" method="post" class="inline">
+              <button id="unkeep" type="submit">Unkeep</button>
+            </form>
+          [% END %]
+        [% ELSE %]
+          <em>Build output is available, but may be garbage-collected</em>
+          [% IF c.user_exists %]
+            <form action="[% c.uri_for('/build' build.id 'keep' 1) %]" method="post" class="inline">
+              <button id="keep" type="submit">Keep</button>
+            </form>
+          [% END %]
+        [% END %]
+      </td>
     </tr>
   [% END %]
 </table>

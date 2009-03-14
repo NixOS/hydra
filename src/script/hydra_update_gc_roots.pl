@@ -21,7 +21,7 @@ sub registerRoot {
 
 sub keepBuild {
     my ($build) = @_;
-    print "keeping build ", $build->id, " (",
+    print STDERR "keeping build ", $build->id, " (",
             strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
     if (isValidPath($build->outpath)) {
         registerRoot $build->outpath;
@@ -37,16 +37,16 @@ foreach my $project ($db->resultset('Projects')->all) {
 
     # Go over all jobs in this project.
 
-    foreach my $job ($project->builds->search({},
-        {select => [{distinct => 'job'}], as => ['job']}))
-    {
-        print "*** looking for builds to keep in job ", $project->name, ":", $job->job, "\n";
+    foreach my $job ($project->jobs->all) {
+        print STDERR "*** looking for builds to keep in job ",
+            $project->name, ":", $job->jobset->name, ":", $job->name, "\n";
 
         # Keep the N most recent successful builds for each job and
         # platform.
-        my @recentBuilds = $project->builds->search(
-            { job => $job->job
-            , finished => 1
+        # !!! Take time into account? E.g. don't delete builds that
+        # are younger than N days.
+        my @recentBuilds = $job->builds->search(
+            { finished => 1
             , buildStatus => 0 # == success
             },
             { join => 'resultInfo'
@@ -55,13 +55,12 @@ foreach my $project ($db->resultset('Projects')->all) {
             });
         
         keepBuild $_ foreach @recentBuilds;
-
     }
 
     # Go over all releases in this project.
 
     foreach my $releaseSet ($project->releasesets->all) {
-        print "*** looking for builds to keep in release set ", $project->name, ":", $releaseSet->name, "\n";
+        print STDERR "*** looking for builds to keep in release set ", $project->name, ":", $releaseSet->name, "\n";
 
         (my $primaryJob) = $releaseSet->releasesetjobs->search({isprimary => 1});
         my $jobs = [$releaseSet->releasesetjobs->all];
@@ -69,7 +68,7 @@ foreach my $project ($db->resultset('Projects')->all) {
         # Keep all builds belonging to the most recent successful release.
         my $latest = getLatestSuccessfulRelease($project, $primaryJob, $jobs);
         if (defined $latest) {
-            print "keeping latest successful release ", $latest->id, " (", $latest->get_column('releasename'), ")\n";
+            print STDERR "keeping latest successful release ", $latest->id, " (", $latest->get_column('releasename'), ")\n";
             my $release = getRelease($latest, $jobs);
             keepBuild $_->{build} foreach @{$release->{jobs}};
         }
@@ -79,16 +78,16 @@ foreach my $project ($db->resultset('Projects')->all) {
 
 
 # Keep all builds that have been marked as "keep".
-print "*** looking for kept builds\n";
+print STDERR "*** looking for kept builds\n";
 my @buildsToKeep = $db->resultset('Builds')->search({finished => 1, keep => 1}, {join => 'resultInfo'});
 keepBuild $_ foreach @buildsToKeep;
 
 
 # For scheduled builds, we register the derivation and the output as a GC root.
-print "*** looking for scheduled builds\n";
+print STDERR "*** looking for scheduled builds\n";
 foreach my $build ($db->resultset('Builds')->search({finished => 0}, {join => 'schedulingInfo'})) {
     if (isValidPath($build->drvpath)) {
-        print "keeping scheduled build ", $build->id, " (",
+        print STDERR "keeping scheduled build ", $build->id, " (",
             strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
         registerRoot $build->drvpath;
         registerRoot $build->outpath;
@@ -99,7 +98,7 @@ foreach my $build ($db->resultset('Builds')->search({finished => 0}, {join => 's
 
 
 # Remove existing roots that are no longer wanted.  !!! racy
-print "*** removing unneeded GC roots\n";
+print STDERR "*** removing unneeded GC roots\n";
 
 my $gcRootsDir = getGCRootsDir;
 
