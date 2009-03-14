@@ -39,43 +39,49 @@ sub view_build : Chained('build') PathPart('') Args(0) {
 }
 
 
-sub view_nixlog : Chained('build') PathPart('nixlog') Args(1) {
-    my ($self, $c, $stepnr) = @_;
+sub view_nixlog : Chained('build') PathPart('nixlog') {
+    my ($self, $c, $stepnr, $mode) = @_;
 
     my $step = $c->stash->{build}->buildsteps->find({stepnr => $stepnr});
     notFound($c, "Build doesn't have a build step $stepnr.") if !defined $step;
 
-    $c->stash->{template} = 'log.tt';
     $c->stash->{step} = $step;
 
-    # !!! should be done in the view (as a TT plugin).
-    $c->stash->{logtext} = loadLog($c, $step->logfile);
+    showLog($c, $step->logfile, $mode);
 }
 
 
-sub view_log : Chained('build') PathPart('log') Args(0) {
-    my ($self, $c) = @_;
+sub view_log : Chained('build') PathPart('log') {
+    my ($self, $c, $mode) = @_;
 
     error($c, "Build didn't produce a log.") if !defined $c->stash->{build}->resultInfo->logfile;
 
-    $c->stash->{template} = 'log.tt';
-
-    # !!! should be done in the view (as a TT plugin).
-    $c->stash->{logtext} = loadLog($c, $c->stash->{build}->resultInfo->logfile);
+    showLog($c, $c->stash->{build}->resultInfo->logfile, $mode);
 }
 
 
-sub loadLog {
-    my ($c, $path) = @_;
+sub showLog {
+    my ($c, $path, $mode) = @_;
 
     notFound($c, "Log file $path no longer exists.") unless -f $path;
-    
-    # !!! quick hack
-    my $pipeline = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path")
-        . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
-        . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " - | tail -n +2";
 
-    return `$pipeline`;
+    if ($mode eq "") {
+        # !!! quick hack
+        my $pipeline = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path")
+            . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
+            . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " - | tail -n +2";
+
+        $c->stash->{template} = 'log.tt';
+        $c->stash->{logtext} = `$pipeline`;
+    }
+
+    elsif ($mode eq "raw") {
+        $c->serve_static_file($path);
+    }
+
+    else {
+        error($c, "Unknown log display mode `$mode'.");
+    }
 }
 
 

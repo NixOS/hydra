@@ -33,14 +33,12 @@
 [% BLOCK renderFullJobName %]
   <tt>
   [% INCLUDE renderProjectName %]:[% INCLUDE renderJobsetName %]:[% INCLUDE renderJobName %]
-  </a>
+  </tt>
 [% END %]
 
 
 [% BLOCK renderFullJobNameOfBuild %]
-  <tt>
   [% INCLUDE renderFullJobName project=build.get_column("project") jobset = build.get_column("jobset") job = build.get_column("job") %]
-  </a>
 [% END %]
 
 

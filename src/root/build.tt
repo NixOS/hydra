@@ -163,6 +163,7 @@
         <th>Logfile:</th>
         <td>
           <a href="[% c.uri_for('/build' build.id 'log') %]"><strong>Available</strong></a>
+          (<a href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>)
         </td>
       </tr>
     [% END %]
@@ -249,7 +250,7 @@
             <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
           [% END %]
           [% IF step.logfile %]
-            (<a href="[% log %]">log</a>)
+            (<a href="[% log %]">log</a>, <a href="[% "$log/raw" %]">raw</a>)
           [% END %]
         </td>
       </tr>
