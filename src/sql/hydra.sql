@@ -43,7 +43,7 @@ create table BuildSchedulingInfo (
 
     logfile       text, -- if busy, the path of the logfile
 
-    disabled      integer not null default 0, -- true means hold this job until its re-enabled
+    disabled      integer not null default 0,
     
     startTime     integer, -- if busy, time we started
     
@@ -268,6 +268,8 @@ create table Jobs (
 
     firstEvalTime integer, -- first time the scheduler saw this job
     lastEvalTime  integer, -- last time the scheduler saw this job
+
+    disabled      integer not null default 0,
 
     primary key   (project, jobset, name),
     foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite

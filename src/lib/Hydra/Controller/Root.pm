@@ -117,10 +117,20 @@ sub updateReleaseSet {
         my $description = trim $c->request->params->{"job-$baseName-description"};
         my $attrs = trim $c->request->params->{"job-$baseName-attrs"};
 
-        die "Invalid job name: $name" unless $name =~ /^\w+$/;
+        $name =~ /^(\w+):(\w+)$/ or error($c, "Invalid job name: $name");
+        my $jobsetName = $1;
+        my $jobName = $2;
+
+        error($c, "Jobset `$jobsetName' doesn't exist.")
+            unless $releaseSet->project->jobsets->find({name => $jobsetName});
+
+        # !!! We could check whether the job exists, but that would
+        # require the scheduler to have seen the job, which may not be
+        # the case.
         
         $releaseSet->releasesetjobs->create(
-            { job => $name
+            { jobset => $jobsetName
+            , job => $jobName
             , description => $description
             , attrs => $attrs
             , isprimary => $c->request->params->{"primary"} eq $baseName ? 1 : 0
