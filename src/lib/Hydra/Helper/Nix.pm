@@ -9,7 +9,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(
     isValidPath queryPathInfo
     getHydraPath getHydraDBPath openHydraDB
-    registerRoot getGCRootsDir
+    registerRoot getGCRootsDir gcRootFor
     getPrimaryBuildsForReleaseSet getRelease getLatestSuccessfulRelease );
 
 
@@ -80,22 +80,26 @@ sub openHydraDB {
 
 sub getGCRootsDir {
     die unless defined $ENV{LOGNAME};
-    return "/nix/var/nix/gcroots/per-user/$ENV{LOGNAME}/hydra-roots";
+    my $dir = "/nix/var/nix/gcroots/per-user/$ENV{LOGNAME}/hydra-roots";
+    mkpath $dir if !-e $dir;
+    return $dir;
+}
+
+
+sub gcRootFor {
+    my ($path) = @_;
+    return getGCRootsDir . basename $path;
 }
 
 
 sub registerRoot {
     my ($path) = @_;
-
-    my $gcRootsDir = getGCRootsDir;
     
-    mkpath($gcRootsDir) if !-e $gcRootsDir;
-
-    my $link = "$gcRootsDir/" . basename $path;
-        
+    my $link = gcRootFor $path;
+    
     if (!-l $link) {
         symlink($path, $link)
-            or die "cannot create symlink in $gcRootsDir to $path";
+            or die "cannot create GC root `$link' to `$path'";
     }
 }
 

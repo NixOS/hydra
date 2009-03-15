@@ -83,14 +83,14 @@ my @buildsToKeep = $db->resultset('Builds')->search({finished => 1, keep => 1}, 
 keepBuild $_ foreach @buildsToKeep;
 
 
-# For scheduled builds, we register the derivation and the output as a GC root.
+# For scheduled builds, we register the derivation as a GC root.
 print STDERR "*** looking for scheduled builds\n";
 foreach my $build ($db->resultset('Builds')->search({finished => 0}, {join => 'schedulingInfo'})) {
     if (isValidPath($build->drvpath)) {
         print STDERR "keeping scheduled build ", $build->id, " (",
             strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
         registerRoot $build->drvpath;
-        registerRoot $build->outpath;
+        registerRoot $build->outpath if -e $build->outpath;
     } else {
         print STDERR "warning: derivation ", $build->drvpath, " has disappeared\n";
     }

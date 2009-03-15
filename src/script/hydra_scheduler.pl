@@ -267,9 +267,6 @@ sub checkJob {
                 , sha256hash => $input->{sha256hash}
                 });
         }
-        
-        # !!! this should really by done by nix-instantiate to prevent a GC race.
-        registerRoot $drvPath;
     });
 };
 
@@ -330,8 +327,11 @@ sub checkJobSet {
     $nixExprPath .= "/" . $jobset->nixexprpath;
 
     (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(
-        "hydra_eval_jobs", $nixExprPath, inputsToArgs($inputInfo));
+        "hydra_eval_jobs", $nixExprPath, "--gc-roots-dir", getGCRootsDir,
+        inputsToArgs($inputInfo));
     die "cannot evaluate the Nix expression containing the jobs:\n$stderr" unless $res;
+
+    print STDERR "$stderr";
 
     my $jobs = XMLin($jobsXml,
                      ForceArray => ['error', 'job', 'arg'],

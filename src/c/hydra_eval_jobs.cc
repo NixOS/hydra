@@ -19,6 +19,9 @@ void printHelp()
 }
 
 
+static Path gcRootsDir;
+
+
 Expr evalAttr(EvalState & state, Expr e)
 {
     return e ? evalExpr(state, e) : e;
@@ -97,12 +100,12 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
         
         if (getDerivation(state, e, drv)) {
             XMLAttrs xmlAttrs;
-            Path outPath, drvPath;
+            Path drvPath;
 
             xmlAttrs["jobName"] = attrPath;
             xmlAttrs["nixName"] = drv.name;
             xmlAttrs["system"] = drv.system;
-            xmlAttrs["drvPath"] = drv.queryDrvPath(state);
+            xmlAttrs["drvPath"] = drvPath = drv.queryDrvPath(state);
             xmlAttrs["outPath"] = drv.queryOutPath(state);
             xmlAttrs["description"] = drv.queryMetaInfo(state, "description");
             xmlAttrs["longDescription"] = drv.queryMetaInfo(state, "longDescription");
@@ -110,6 +113,12 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             xmlAttrs["homepage"] = drv.queryMetaInfo(state, "homepage");
             xmlAttrs["schedulingPriority"] = drv.queryMetaInfo(state, "schedulingPriority");
         
+            /* Register the derivation as a GC root.  !!! This
+               registers roots for jobs that we may have already
+               done. */
+            Path root = gcRootsDir + "/" + baseNameOf(drvPath);
+            if (!pathExists(root)) addPermRoot(drvPath, root, false);
+            
             XMLOpenElement _(doc, "job", xmlAttrs);
             showArgsUsed(doc, argsUsed);
         }
@@ -170,6 +179,10 @@ void run(Strings args)
                     ? (ATermList) autoArgs.get(toATerm(name))
                     : ATempty, e));
         }
+        else if (arg == "--gc-roots-dir") {
+            if (i == args.end()) throw UsageError("missing argument");
+            gcRootsDir = *i++;
+        }
         else if (arg[0] == '-')
             throw UsageError(format("unknown flag `%1%'") % arg);
         else
@@ -177,6 +190,8 @@ void run(Strings args)
     }
 
     if (releaseExpr == "") throw UsageError("no expression specified");
+    
+    if (gcRootsDir == "") throw UsageError("--gc-roots-dir not specified");
     
     store = openStore();
 

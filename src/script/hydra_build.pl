@@ -28,8 +28,6 @@ sub doBuild {
     my $failedDepBuild;
     my $failedDepStepNr;
     
-    registerRoot $outPath;
-    
     if (!isValidPath($outPath)) {
         $isCachedBuild = 0;
 
@@ -75,7 +73,8 @@ sub doBuild {
         # to get notifications about specific build steps, the
         # associated log files, etc.
         my $cmd = "nix-store --max-silent-time 1800 --keep-going --no-build-output " .
-            "--log-type flat --print-build-trace --realise $drvPath 2>&1";
+            "--log-type flat --print-build-trace --realise $drvPath " .
+            "--add-root " . gcRootFor $outPath . " 2>&1";
 
         my $buildStepNr = 1;
         
