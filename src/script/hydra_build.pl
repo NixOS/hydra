@@ -76,7 +76,10 @@ sub doBuild {
             "--log-type flat --print-build-trace --realise $drvPath " .
             "--add-root " . gcRootFor $outPath . " 2>&1";
 
-        my $buildStepNr = 1;
+        my $buildStepNr = $build->buildsteps->find({},
+            {select => {max => 'stepnr + 1'}, as => ['max']})->get_column('max') || 1;
+
+        my %buildSteps;
         
         open OUT, "$cmd |" or die;
 
@@ -91,7 +94,7 @@ sub doBuild {
             if (/^@\s+build-started\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/) {
                 $db->txn_do(sub {
                     $build->buildsteps->create(
-                        { stepnr => $buildStepNr++
+                        { stepnr => ($buildSteps{$drvPath} = $buildStepNr++)
                         , type => 0 # = build
                         , drvpath => $1
                         , outpath => $2
@@ -105,9 +108,7 @@ sub doBuild {
             elsif (/^@\s+build-succeeded\s+(\S+)\s+(\S+)$/) {
                 my $drvPath = $1;
                 $db->txn_do(sub {
-                    (my $step) = $build->buildsteps->search(
-                        {type => 0, drvpath => $drvPath}, {});
-                    die unless $step;
+                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPath}}) or die;
                     $step->update({busy => 0, status => 0, stoptime => time});
                 });
             }
@@ -117,9 +118,8 @@ sub doBuild {
                 $someBuildFailed = 1;
                 $thisBuildFailed = 1 if $drvPath eq $drvPathStep;
                 $db->txn_do(sub {
-                    (my $step) = $build->buildsteps->search(
-                        {type => 0, drvpath => $drvPathStep}, {});
-                    if ($step) {
+                    if ($buildSteps{$drvPathStep}) {
+                        my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
                         $step->update({busy => 0, status => 1, errormsg => $4, stoptime => time});
                     } else {
                         $build->buildsteps->create(
@@ -142,7 +142,7 @@ sub doBuild {
                 my $outPath = $1;
                 $db->txn_do(sub {
                     $build->buildsteps->create(
-                        { stepnr => $buildStepNr++
+                        { stepnr => ($buildSteps{$outPath} = $buildStepNr++)
                         , type => 1 # = substitution
                         , outpath => $1
                         , busy => 1
@@ -154,9 +154,7 @@ sub doBuild {
             elsif (/^@\s+substituter-succeeded\s+(\S+)$/) {
                 my $outPath = $1;
                 $db->txn_do(sub {
-                    (my $step) = $build->buildsteps->search(
-                        {type => 1, outpath => $outPath}, {});
-                    die unless $step;
+                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$outPath}}) or die;
                     $step->update({busy => 0, status => 0, stoptime => time});
                 });
             }
@@ -164,9 +162,7 @@ sub doBuild {
             elsif (/^@\s+substituter-failed\s+(\S+)\s+(\S+)\s+(\S+)$/) {
                 my $outPath = $1;
                 $db->txn_do(sub {
-                    (my $step) = $build->buildsteps->search(
-                        {type => 1, outpath => $outPath}, {});
-                    die unless $step;
+                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$outPath}}) or die;
                     $step->update({busy => 0, status => 1, errormsg => $3, stoptime => time});
                 });
             }
@@ -303,7 +299,7 @@ $db->txn_do(sub {
         die "build $buildId is already being built";
     }
     $build->schedulingInfo->update({busy => 1, locker => $$});
-    $build->buildsteps->delete_all;
+    $build->buildsteps->search({busy => 1})->delete_all;
     $build->buildproducts->delete_all;
 });
 
