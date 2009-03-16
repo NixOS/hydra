@@ -65,7 +65,7 @@ sub showLog {
 
     notFound($c, "Log file $path no longer exists.") unless -f $path;
 
-    if ($mode eq "") {
+    if (!$mode) {
         # !!! quick hack
         my $pipeline = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path")
             . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
@@ -77,6 +77,11 @@ sub showLog {
 
     elsif ($mode eq "raw") {
         $c->serve_static_file($path);
+    }
+
+    elsif ($mode eq "tail") {
+        $c->stash->{'plain'} = { data => scalar `tail -n 50 $path` };
+        $c->forward('Hydra::View::Plain');
     }
 
     else {

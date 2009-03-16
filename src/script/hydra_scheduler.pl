@@ -368,7 +368,7 @@ sub checkJobSet {
     # Store the errors messages for jobs that failed to evaluate.
     my $msg = "";
     foreach my $error (@{$jobs->{error}}) {
-        $msg .= "at `" . $error->{location} . "': " . $error->{msg} . "\n";
+        $msg .= "at `" . $error->{location} . "': " . $error->{msg} . "\n\n";
     }
     setJobsetError($jobset, $msg);
 }
