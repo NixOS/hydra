@@ -240,6 +240,8 @@ sub keep : Chained('build') PathPart Args(1) {
 
     die unless $newStatus == 0 || $newStatus == 1;
 
+    registerRoot $build->outpath if $newStatus == 1;
+
     $c->model('DB')->schema->txn_do(sub {
         $build->resultInfo->update({keep => int $newStatus});
     });
