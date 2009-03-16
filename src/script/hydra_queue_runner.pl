@@ -96,7 +96,6 @@ sub checkBuilds {
                 $build->schedulingInfo->logfile($logfile);
                 $build->schedulingInfo->starttime(time);
                 $build->schedulingInfo->update;
-                $build->buildsteps->delete_all;
                 push @buildsStarted, $build;
             }
         }
