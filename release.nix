@@ -69,6 +69,7 @@ let
           perlCatalystAuthenticationStoreDBIxClass
           perlCatalystViewTT
           perlCatalystEngineHTTPPrefork
+          perlCatalystViewDownload
           perlXMLSimple
           perlIPCRun
           perlIOCompressBzip2
