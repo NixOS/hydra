@@ -92,11 +92,12 @@ sub doBuild {
             }
             
             if (/^@\s+build-started\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/) {
+		my $drvPathStep = $1;
                 $db->txn_do(sub {
                     $build->buildsteps->create(
-                        { stepnr => ($buildSteps{$drvPath} = $buildStepNr++)
+                        { stepnr => ($buildSteps{$drvPathStep} = $buildStepNr++)
                         , type => 0 # = build
-                        , drvpath => $1
+                        , drvpath => $drvPathStep
                         , outpath => $2
                         , logfile => $4
                         , busy => 1
@@ -106,9 +107,9 @@ sub doBuild {
             }
             
             elsif (/^@\s+build-succeeded\s+(\S+)\s+(\S+)$/) {
-                my $drvPath = $1;
+                my $drvPathStep = $1;
                 $db->txn_do(sub {
-                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPath}}) or die;
+                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
                     $step->update({busy => 0, status => 0, stoptime => time});
                 });
             }
