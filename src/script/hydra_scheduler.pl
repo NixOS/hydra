@@ -156,7 +156,7 @@ sub fetchInputAlt {
         # Pick the most recent successful build of the specified job.
         (my $prevBuild) = $db->resultset('Builds')->search(
             {finished => 1, project => $project->name, jobset => $jobset->name, job => $jobName, buildStatus => 0},
-            {join => 'resultInfo', order_by => "timestamp DESC", rows => 1});
+            {join => 'resultInfo', order_by => "id DESC", rows => 1});
 
         if (!defined $prevBuild || !isValidPath($prevBuild->outpath)) {
             print STDERR "no previous build available for `$jobName'";
