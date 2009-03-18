@@ -82,8 +82,10 @@ let
         ''; # */
 
         hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") [
-          libxslt sqlite subversion nix coreutils
-          gzip bzip2 gnused graphviz
+          libxslt sqlite subversion nix coreutils findutils
+          gzip bzip2 lzma gnutar unzip
+          gnused graphviz
+          rpm dpkg
         ]);
 
         installPhase = ''

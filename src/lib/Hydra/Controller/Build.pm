@@ -90,7 +90,7 @@ sub showLog {
 }
 
 
-sub download : Chained('build') PathPart('download') {
+sub download : Chained('build') PathPart {
     my ($self, $c, $productnr, @path) = @_;
 
     my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
@@ -122,6 +122,60 @@ sub download : Chained('build') PathPart('download') {
     notFound($c, "Path $path is a directory.") if -d $path;
 
     $c->serve_static_file($path);
+}
+
+
+sub contents : Chained('build') PathPart {
+    my ($self, $c, $productnr, @path) = @_;
+
+    my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
+    notFound($c, "Build doesn't have a product $productnr.") if !defined $product;
+
+    my $path = $product->path;
+    
+    notFound($c, "Product $path has disappeared.") unless -e $path;
+
+    my $res;
+
+    if ($product->type eq "nix-build") {
+        $res = `cd $path && find . -print0 | xargs -0 ls -ld --`;
+        error($c, "`ls -lR' error: $?") if $? != 0;
+    }
+
+    elsif ($path =~ /\.rpm$/) {
+        $res = `rpm --query --info --package "$path"`;
+        error($c, "RPM error: $?") if $? != 0;
+        $res .= "===\n";
+        $res .= `rpm --query --list --verbose --package "$path"`;
+        error($c, "RPM error: $?") if $? != 0;
+    }
+
+    elsif ($path =~ /\.deb$/) {
+        $res = `dpkg-deb --info "$path"`;
+        error($c, "`dpkg-deb' error: $?") if $? != 0;
+        $res .= "===\n";
+        $res .= `dpkg-deb --contents "$path"`;
+        error($c, "`dpkg-deb' error: $?") if $? != 0;
+    }
+
+    elsif ($path =~ /\.tar(\.gz|\.bz2|\.lzma)?$/ ) {
+        $res = `tar tvfa "$path"`;
+        error($c, "`tar' error: $?") if $? != 0;
+    }
+
+    elsif ($path =~ /\.zip$/ ) {
+        $res = `unzip -v "$path"`;
+        error($c, "`unzip' error: $?") if $? != 0;
+    }
+
+    else {
+        error($c, "Unsupported file type.");
+    }
+
+    die unless $res;
+    
+    $c->stash->{'plain'} = { data => $res };
+    $c->forward('Hydra::View::Plain');
 }
 
 
