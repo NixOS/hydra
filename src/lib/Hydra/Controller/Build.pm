@@ -125,8 +125,8 @@ sub download : Chained('build') PathPart {
 }
 
 
-sub contents : Chained('build') PathPart {
-    my ($self, $c, $productnr, @path) = @_;
+sub contents : Chained('build') PathPart Args(1) {
+    my ($self, $c, $productnr) = @_;
 
     my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
     notFound($c, "Build doesn't have a product $productnr.") if !defined $product;

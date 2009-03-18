@@ -224,7 +224,7 @@ sub release :Local {
     my $primaryBuild = $project->builds->find($releaseId,
         { join => 'resultInfo', '+select' => ["resultInfo.releasename"], '+as' => ["releasename"] });
     error($c, "Release $releaseId doesn't exist.") if !defined $primaryBuild;
-    
+
     $c->stash->{release} = getRelease($primaryBuild, $jobs);
 }
 
