@@ -100,7 +100,7 @@ sub create_submit : Path('/create-project/submit') {
 sub updateProject {
     my ($c, $project) = @_;
     my $projectName = trim $c->request->params->{name};
-    error($c, "Invalid project name: " . ($projectName || "(empty)")) unless $projectName =~ /^[[:alpha:]]\w*$/;
+    error($c, "Invalid project name: " . ($projectName || "(empty)")) unless $projectName =~ /^[[:alpha:]][\w\-]*$/;
     
     my $displayName = trim $c->request->params->{displayname};
     error($c, "Invalid display name: $displayName") if $displayName eq "";
@@ -128,7 +128,7 @@ sub updateProject {
         next if $baseName eq "template";
 
         my $jobsetName = trim $c->request->params->{"jobset-$baseName-name"};
-        error($c, "Invalid jobset name: $jobsetName") unless $jobsetName =~ /^[[:alpha:]]\w*$/;
+        error($c, "Invalid jobset name: $jobsetName") unless $jobsetName =~ /^[[:alpha:]][\w\-]*$/;
 
         # The Nix expression path must be relative and can't contain ".." elements.
         my $nixExprPath = trim $c->request->params->{"jobset-$baseName-nixexprpath"};
