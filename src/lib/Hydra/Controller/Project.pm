@@ -151,8 +151,8 @@ sub updateProject {
                 , nixexprinput => $nixExprInput
                 });
         } else { # it's an existing jobset
-            $jobset = ($project->jobsets->search({name => $baseName}))[0];
-            die unless defined $jobset;
+            my $oldName = trim $c->request->params->{"jobset-$baseName-oldName"};
+            $jobset = ($project->jobsets->search({name => $oldName}))[0] or die;
             $jobset->update(
                 { name => $jobsetName, description => $description
                 , nixexprpath => $nixExprPath, nixexprinput => $nixExprInput });

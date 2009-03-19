@@ -67,6 +67,8 @@
 
   <div class="jobset[% IF edit %] jobset-edit[% END %]" id="[% "jobset-$baseName" %]">
 
+  <input type="hidden" [% HTML.attributes(name => "jobset-$baseName-oldName", value => jobset.name) %] />
+  
   <h3>
     [% IF edit %]<button type="button" onclick='$(this).parents(".jobset").remove()'><img src="/static/images/failure.gif" alt="Delete value" /></button>[% END %]
     [% IF jobset %]Jobset <tt>[% jobset.name %]</tt>[% ELSE %]New jobset[% END %]
@@ -250,8 +252,8 @@
     </script>
   [% END %]
 
-  [% FOREACH jobset IN project.jobsets -%]
-    [% INCLUDE renderJobset jobset=jobset baseName=jobset.name %]
+  [% n = 0; FOREACH jobset IN project.jobsets -%]
+    [% INCLUDE renderJobset jobset=jobset baseName="e$n"; n = n + 1 %]
   [% END -%]
 
 [% ELSE %]
