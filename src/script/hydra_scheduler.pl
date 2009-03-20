@@ -33,6 +33,45 @@ sub getStorePathHash {
 }
 
 
+sub parseJobName {
+    # Parse a job specification of the form `<project>:<jobset>:<job>
+    # [attrs]'.  The project, jobset and attrs may be omitted.  The
+    # attrs have the form `name = "value"'.
+    my ($s) = @_;
+    our $key;
+    our %attrs = ();
+    # hm, maybe I should stop programming Perl before it's too late...
+    $s =~ / ^ (?: (?: ([\w\-]+) : )? ([\w\-]+) : )? ([\w\-]+) \s*
+            (\[ \s* (
+              ([\w]+) (?{ $key = $^N; }) \s* = \s* \"
+              ([\w\-]+) (?{ $attrs{$key} = $^N; }) \"
+            \s* )* \])? $
+          /x
+        or die "invalid job specifier `$s'";
+    return ($1, $2, $3, \%attrs);
+}
+
+
+sub attrsToSQL {
+    my ($attrs, $id) = @_;
+
+    my $query = "1 = 1";
+
+    foreach my $name (keys %{$attrs}) {
+        my $value = $attrs->{$name};
+        $name =~ /^[\w\-]+$/ or die;
+        $value =~ /^[\w\-]+$/ or die;
+        # !!! Yes, this is horribly injection-prone... (though
+        # name/value are filtered above).  Should use SQL::Abstract,
+        # but it can't deal with subqueries.  At least we should use
+        # placeholders.
+        $query .= " and exists (select 1 from buildinputs where build = $id and name = '$name' and value = '$value')";
+    }
+
+    return $query;
+}
+
+
 sub fetchInputAlt {
     my ($project, $jobset, $input, $alt) = @_;
     my $type = $input->type;
@@ -151,17 +190,23 @@ sub fetchInputAlt {
     }
 
     elsif ($type eq "build") {
-        my $jobName = $alt->value or die;
+        my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($alt->value);
+        $projectName ||= $project->name;
+        $jobsetName ||= $jobset->name;
 
         # Pick the most recent successful build of the specified job.
         (my $prevBuild) = $db->resultset('Builds')->search(
-            {finished => 1, project => $project->name, jobset => $jobset->name, job => $jobName, buildStatus => 0},
-            {join => 'resultInfo', order_by => "me.id DESC", rows => 1});
+            { finished => 1, project => $projectName, jobset => $jobsetName
+            , job => $jobName, buildStatus => 0 },
+            { join => 'resultInfo', order_by => "me.id DESC", rows => 1
+            , where => \ attrsToSQL($attrs, "me.id") });
 
         if (!defined $prevBuild || !isValidPath($prevBuild->outpath)) {
-            print STDERR "no previous build available for `$jobName'";
+            print STDERR "input `", $input->name, "': no previous build available\n";
             return undef;
         }
+
+        #print STDERR "input `", $input->name, "': using build ", $prevBuild->id, "\n";
 
         my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
         my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
@@ -310,14 +355,10 @@ sub inputsToArgs {
 }
 
 
-sub checkJobSet {
+sub checkJobset {
     my ($project, $jobset) = @_;
     my $inputInfo = {};
     
-    $db->txn_do(sub {
-        $jobset->update({lastcheckedtime => time});
-    });
-
     # Fetch all values for all inputs.
     fetchInputs($project, $jobset, $inputInfo);
 
@@ -354,6 +395,8 @@ sub checkJobSet {
     push @{$failedJobNames{$_->{location}}}, $_->{msg} foreach @{$jobs->{error}};
     
     $db->txn_do(sub {
+        $jobset->update({lastcheckedtime => time});
+        
         foreach my $jobInDB ($jobset->jobs->all) {
             $jobInDB->update({active => $jobNames{$jobInDB->name} || $failedJobNames{$jobInDB->name} ? 1 : 0});
 
@@ -374,22 +417,31 @@ sub checkJobSet {
 }
 
 
-sub checkJobs {
+sub checkJobsetWrapped {
+    my ($project, $jobset) = @_;
+    
+    print "considering jobset ", $jobset->name, " in ", $project->name, "\n";
+    
+    eval {
+        checkJobset($project, $jobset);
+    };
+    
+    if ($@) {
+        my $msg = $@;
+        print "error evaluating jobset ", $jobset->name, ": $msg";
+        $db->txn_do(sub {
+            $jobset->update({lastcheckedtime => time});
+            setJobsetError($jobset, $msg);
+        });
+    }
+}
 
+
+sub checkJobs {
     foreach my $project ($db->resultset('Projects')->search({enabled => 1})) {
         print "considering project ", $project->name, "\n";
-        foreach my $jobset ($project->jobsets->all) {
-            print "considering jobset ", $jobset->name, " in ", $project->name, "\n";
-            eval {
-                checkJobSet($project, $jobset);
-            };
-            if ($@) {
-                print "error evaluating jobset ", $jobset->name, ": $@";
-                setJobsetError($jobset, $@);
-            }
-        }
+        checkJobsetWrapped($project, $_) foreach $project->jobsets->all;
     }
-    
 }
 
 
@@ -398,7 +450,7 @@ if (scalar @ARGV == 2) {
     my $projectName = $ARGV[0];
     my $jobsetName = $ARGV[1];
     my $jobset = $db->resultset('Jobsets')->find($projectName, $jobsetName) or die;
-    checkJobSet($jobset->project, $jobset);
+    checkJobsetWrapped($jobset->project, $jobset);
     exit 0;
 }
 

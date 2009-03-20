@@ -118,7 +118,7 @@ sub attrsToSQL {
         # name/value are filtered above).  Should use SQL::Abstract,
         # but it can't deal with subqueries.  At least we should use
         # placeholders.
-        $query .= " and (select count(*) from buildinputs where build = $id and name = '$name' and value = '$value') = 1";
+        $query .= " and exists (select 1 from buildinputs where build = $id and name = '$name' and value = '$value')";
     }
 
     return $query;
