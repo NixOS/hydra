@@ -80,7 +80,7 @@ sub showLog {
     }
 
     elsif ($mode eq "tail") {
-        $c->stash->{'plain'} = { data => scalar `tail -n 50 $path` };
+        $c->stash->{'plain'} = { data => (scalar `tail -n 50 /tmp/z`) || " " };
         $c->forward('Hydra::View::Plain');
     }
 
