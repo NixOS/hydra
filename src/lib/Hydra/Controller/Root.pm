@@ -101,7 +101,7 @@ sub updateReleaseSet {
     my ($c, $releaseSet) = @_;
     
     my $releaseSetName = trim $c->request->params->{name};
-    die "Invalid release set name: $releaseSetName" unless $releaseSetName =~ /^[[:alpha:]]\w*$/;
+    die "Invalid release set name: $releaseSetName" unless $releaseSetName =~ /^[[:alpha:]][\w\-]*$/;
     
     $releaseSet->update(
         { name => $releaseSetName
@@ -117,7 +117,7 @@ sub updateReleaseSet {
         my $description = trim $c->request->params->{"job-$baseName-description"};
         my $attrs = trim $c->request->params->{"job-$baseName-attrs"};
 
-        $name =~ /^(\w+):(\w+)$/ or error($c, "Invalid job name: $name");
+        $name =~ /^([\w\-]+):([\w\-]+)$/ or error($c, "Invalid job name: $name");
         my $jobsetName = $1;
         my $jobName = $2;
 
