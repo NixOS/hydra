@@ -160,7 +160,7 @@ create trigger cascadeBuildDeletion
     delete from BuildResultInfo where id = old.id;
     delete from BuildInputs where build = old.id;
     delete from BuildProducts where build = old.id;
-    delete from BuildSteps where id = old.id;
+    delete from BuildSteps where build = old.id;
   end;
 
 
