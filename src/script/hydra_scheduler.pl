@@ -411,7 +411,18 @@ sub checkJobset {
     # Store the errors messages for jobs that failed to evaluate.
     my $msg = "";
     foreach my $error (@{$jobs->{error}}) {
-        $msg .= "at `" . $error->{location} . "': " . $error->{msg} . "\n\n";
+        my $bindings = "";
+        foreach my $arg (@{$error->{arg}}) {
+            my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}] or die "invalid input";
+            $bindings .= ", " if $bindings ne "";
+            $bindings .= $arg->{name} . " = ";
+            given ($input->{type}) {
+                when ("string") { $bindings .= "\"" . $input->{value} . "\""; }
+                when ("boolean") { $bindings .= $input->{value}; }
+                default { $bindings .= "..."; }
+            }
+        }
+        $msg .= "at `" . $error->{location} . "' [$bindings]:\n" . $error->{msg} . "\n\n";
     }
     setJobsetError($jobset, $msg);
 }
