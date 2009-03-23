@@ -250,7 +250,7 @@ sub fetchInputs {
 
 
 sub checkJob {
-    my ($project, $jobset, $inputInfo, $job) = @_;
+    my ($project, $jobset, $inputInfo, $nixExprInput, $job) = @_;
 
     my $jobName = $job->{jobName};
     my $drvPath = $job->{drvPath};
@@ -299,16 +299,23 @@ sub checkJob {
             , locker => ""
             });
 
+        my %inputs;
+        $inputs{$jobset->nixexprinput} = $nixExprInput;
         foreach my $arg (@{$job->{arg}}) {
-            my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}] or die "invalid input";
+            $inputs{$arg->{name}} = $inputInfo->{$arg->{name}}->[$arg->{altnr}]
+                || die "invalid input";
+        }
+
+        foreach my $name (keys %inputs) {
+            my $input = $inputs{$name};
             $build->buildinputs_builds->create(
-                { name => $arg->{name}
+                { name => $name
                 , type => $input->{type}
                 , uri => $input->{uri}
                 , revision => $input->{revision}
                 , value => $input->{value}
                 , dependency => $input->{id}
-                , path => ($input->{storePath} or "") # !!! temporary hack
+                , path => $input->{storePath} || "" # !!! temporary hack
                 , sha256hash => $input->{sha256hash}
                 });
         }
@@ -363,9 +370,10 @@ sub checkJobset {
     fetchInputs($project, $jobset, $inputInfo);
 
     # Evaluate the job expression.
-    my $nixExprPath = $inputInfo->{$jobset->nixexprinput}->[0]->{storePath}
+    die "not supported" if scalar @{$inputInfo->{$jobset->nixexprinput}} != 1;
+    my $nixExprInput = $inputInfo->{$jobset->nixexprinput}->[0]
         or die "cannot find the input containing the job expression";
-    $nixExprPath .= "/" . $jobset->nixexprpath;
+    my $nixExprPath = $nixExprInput->{storePath} . "/" . $jobset->nixexprpath;
 
     (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(
         "hydra_eval_jobs", $nixExprPath, "--gc-roots-dir", getGCRootsDir,
@@ -384,7 +392,7 @@ sub checkJobset {
     foreach my $job (@{$jobs->{job}}) {
         next if $job->{jobName} eq "";
         print "considering job " . $job->{jobName} . "\n";
-        checkJob($project, $jobset, $inputInfo, $job);
+        checkJob($project, $jobset, $inputInfo, $nixExprInput, $job);
     }
 
     # Mark all existing jobs that we haven't seen as inactive.
