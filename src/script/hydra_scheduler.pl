@@ -467,7 +467,10 @@ if (scalar @ARGV == 2) {
 
 
 while (1) {
-    checkJobs;
+    eval {
+        checkJobs;
+    };
+    if ($@) { print "$@"; }
     print "sleeping...\n";
     sleep 30;
 }
