@@ -15,6 +15,7 @@ sub begin :Private {
     my ($self, $c) = @_;
     $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
     $c->stash->{curUri} = $c->request->uri;
+    $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
 }
 
 
@@ -78,11 +79,11 @@ sub getReleaseSet {
     my ($c, $projectName, $releaseSetName) = @_;
     
     my $project = $c->model('DB::Projects')->find($projectName);
-    die "Project $projectName doesn't exist." if !defined $project;
+    notFound($c, "Project $projectName doesn't exist.") if !defined $project;
     $c->stash->{project} = $project;
 
     (my $releaseSet) = $c->model('DB::ReleaseSets')->find($projectName, $releaseSetName);
-    die "Release set $releaseSetName doesn't exist." if !defined $releaseSet;
+    notFound($c, "Release set $releaseSetName doesn't exist.") if !defined $releaseSet;
     $c->stash->{releaseSet} = $releaseSet;
 
     (my $primaryJob) = $releaseSet->releasesetjobs->search({isprimary => 1});
@@ -101,7 +102,8 @@ sub updateReleaseSet {
     my ($c, $releaseSet) = @_;
     
     my $releaseSetName = trim $c->request->params->{name};
-    die "Invalid release set name: $releaseSetName" unless $releaseSetName =~ /^[[:alpha:]][\w\-]*$/;
+    error($c, "Invalid release set name: $releaseSetName")
+        unless $releaseSetName =~ /^[[:alpha:]][\w\-]*$/;
     
     $releaseSet->update(
         { name => $releaseSetName
@@ -137,7 +139,8 @@ sub updateReleaseSet {
             });
     }
 
-    die "There must be one primary job." if $releaseSet->releasesetjobs->search({isprimary => 1})->count != 1;
+    error($c, "There must be one primary job.")
+        if $releaseSet->releasesetjobs->search({isprimary => 1})->count != 1;
 }
 
 
@@ -184,7 +187,7 @@ sub create_releaseset :Local {
     my ($self, $c, $projectName, $subcommand) = @_;
 
     my $project = $c->model('DB::Projects')->find($projectName);
-    die "Project $projectName doesn't exist." if !defined $project;
+    error($c, "Project $projectName doesn't exist.") if !defined $project;
     $c->stash->{project} = $project;
 
     requireProjectOwner($c, $project);
@@ -222,8 +225,10 @@ sub release :Local {
     # Note: we don't actually check whether $releaseId is a primary
     # build, but who cares?
     my $primaryBuild = $project->builds->find($releaseId,
-        { join => 'resultInfo', '+select' => ["resultInfo.releasename"], '+as' => ["releasename"] });
-    error($c, "Release $releaseId doesn't exist.") if !defined $primaryBuild;
+        { join => 'resultInfo',
+        , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
+        , '+as' => ["releasename", "buildstatus"] })
+        or error($c, "Release $releaseId doesn't exist.");
 
     $c->stash->{release} = getRelease($primaryBuild, $jobs);
 }

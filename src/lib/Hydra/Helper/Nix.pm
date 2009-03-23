@@ -130,7 +130,8 @@ sub getPrimaryBuildsForReleaseSet {
     my @primaryBuilds = $project->builds->search(
         { jobset => $primaryJob->get_column('jobset'), job => $primaryJob->get_column('job'), finished => 1 },
         { join => 'resultInfo', order_by => "timestamp DESC"
-        , '+select' => ["resultInfo.releasename"], '+as' => ["releasename"]
+        , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
+        , '+as' => ["releasename", "buildstatus"]
         , where => \ attrsToSQL($primaryJob->attrs, "me.id")
         });
     return @primaryBuilds;
@@ -158,17 +159,19 @@ sub getRelease {
             # as input.  If there are multiple, prefer successful
             # ones, and then oldest.  !!! order_by buildstatus is hacky
             ($thisBuild) = $primaryBuild->dependentBuilds->search(
-                { jobset => $job->get_column('jobset'), job => $job->get_column('job'), finished => 1 },
+                { project => $job->get_column('project'), jobset => $job->get_column('jobset')
+                , job => $job->get_column('job'), finished => 1 },
                 { join => 'resultInfo', rows => 1
                 , order_by => ["buildstatus", "timestamp"]
                 , where => \ attrsToSQL($job->attrs, "build.id")
+                , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
                 });
         }
 
         if ($job->mayfail != 1) {
             if (!defined $thisBuild) {
                 $status = 2 if $status == 0; # = unfinished
-            } elsif ($thisBuild->resultInfo->buildstatus != 0) {
+            } elsif ($thisBuild->get_column('buildstatus') != 0) {
                 $status = 1; # = failed
             }
         }

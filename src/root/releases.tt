@@ -48,7 +48,7 @@
           <td class="centered">
             [% IF job.build %]
               <a href="[% c.uri_for('/build' job.build.id) %]">
-                [% IF job.build.resultInfo.buildstatus == 0 %]
+                [% IF job.build.get_column('buildstatus') == 0 %]
                   <img src="/static/images/success.gif" />
                 [% ELSE %]
                   <img src="/static/images/failure.gif" />

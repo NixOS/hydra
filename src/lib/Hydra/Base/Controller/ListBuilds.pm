@@ -34,7 +34,13 @@ sub all : Chained('get_builds') PathPart {
     $c->stash->{totalBuilds} = $nrBuilds;
 
     $c->stash->{builds} = [$c->stash->{allBuilds}->search(
-        {finished => 1}, {order_by => "timestamp DESC", rows => $resultsPerPage, page => $page})];
+        { finished => 1 },
+        { join => 'resultInfo'
+        , '+select' => ["resultInfo.buildstatus", "resultInfo.releasename"]
+        , '+as' => ["buildstatus", "releasename"]
+        , order_by => "timestamp DESC"
+        , rows => $resultsPerPage
+        , page => $page })];
 }
 
 

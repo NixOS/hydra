@@ -55,7 +55,10 @@ sub getLatestBuilds {
         foreach my $system ($job->builds->search({}, {select => ['system'], distinct => 1})) {
             my ($build) = $job->builds->search(
                 { finished => 1, system => $system->system, %$extraAttrs },
-                { join => 'resultInfo', order_by => 'timestamp DESC', rows => 1 });
+                { join => 'resultInfo', order_by => 'timestamp DESC', rows => 1
+                , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
+                , '+as' => ["releasename", "buildstatus"]
+                });
             push @res, $build if defined $build;
         }
     }

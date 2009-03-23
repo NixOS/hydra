@@ -146,7 +146,8 @@
         [% content %]
         <div id="footer">
           <hr />
-          Generated on [% INCLUDE renderDateTime %].
+          <em>Hydra [% HTML.escape(version) %].</em>
+          Page generated on [% INCLUDE renderDateTime %].
           [% IF c.user_exists %]
           You are logged in as <tt>[% c.user.username %]</tt>.
           [% END %]

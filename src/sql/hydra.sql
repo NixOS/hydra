@@ -401,3 +401,8 @@ create table ReleaseSetJobs (
     foreign key   (project, release_) references ReleaseSets(project, name) on delete cascade -- ignored by sqlite
     foreign key   (project, jobset) references Jobsets(project, name) on delete restrict -- ignored by sqlite
 );
+
+
+-- Some indices.
+create index IndexBuildInputsByBuild on BuildInputs(build);
+create index IndexBuildInputsByDependency on BuildInputs(dependency);
