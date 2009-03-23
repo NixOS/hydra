@@ -94,7 +94,7 @@
           <td>
             [% INCLUDE renderFullJobNameOfBuild %]
           </td>
-          <td>[% build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
+          <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
           <td><tt>[% build.system %]</tt></td>
           <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
           <td>[% build.description %]</td>
