@@ -179,7 +179,7 @@
   </tr>
   <tr>
     <th>Owner:</th>
-    <td><tt>[% INCLUDE maybeEditString param="owner" value=project.owner.username edit=(edit && c.check_user_roles('admin')) %]</tt></td>
+    <td><tt>[% INCLUDE maybeEditString param="owner" value=(project.owner.username || c.user.username) edit=(edit && c.check_user_roles('admin')) %]</tt></td>
   </tr>
   <tr>
     <th>Enabled:</th>

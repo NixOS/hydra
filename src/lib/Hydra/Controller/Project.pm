@@ -66,10 +66,20 @@ sub delete : Chained('project') PathPart Args(0) {
 }
 
 
+sub requireMayCreateProjects {
+    my ($c) = @_;
+ 
+    requireLogin($c) if !$c->user_exists;
+
+    error($c, "Only administrators or authorised users can perform this operation.")
+        unless $c->check_user_roles('admin') || $c->check_user_roles('create-projects');
+}
+
+
 sub create : Path('/create-project') {
     my ($self, $c) = @_;
 
-    requireAdmin($c);
+    requireMayCreateProjects($c);
 
     $c->stash->{template} = 'project.tt';
     $c->stash->{create} = 1;
@@ -80,7 +90,7 @@ sub create : Path('/create-project') {
 sub create_submit : Path('/create-project/submit') {
     my ($self, $c) = @_;
 
-    requireAdmin($c);
+    requireMayCreateProjects($c);
 
     my $projectName = trim $c->request->params->{name};
     
@@ -88,8 +98,10 @@ sub create_submit : Path('/create-project/submit') {
         # Note: $projectName is validated in updateProject,
         # which will abort the transaction if the name isn't
         # valid.  Idem for the owner.
+        my $owner = $c->check_user_roles('admin')
+            ? trim $c->request->params->{owner} : $c->user->username;
         my $project = $c->model('DB::Projects')->create(
-            {name => $projectName, displayname => "", owner => trim $c->request->params->{owner}});
+            {name => $projectName, displayname => "", owner => $owner});
         updateProject($c, $project);
     });
     
