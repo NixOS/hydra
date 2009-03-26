@@ -10,6 +10,13 @@ use Hydra::Helper::Nix;
 my $db = openHydraDB;
 
 
+sub getBuildLog {
+    my ($drvPath) = @_;
+    my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
+    return -e $logPath ? $logPath : undef;
+}
+
+
 sub doBuild {
     my ($build) = @_;
 
@@ -31,38 +38,6 @@ sub doBuild {
     if (!isValidPath($outPath)) {
         $isCachedBuild = 0;
 
-        # Check whether a dependency of this build has previously
-        # failed.  If so, don't even bother to build, since it will
-        # fail anyway.  !!! Once Nix has negative caching, this code
-        # can go.
-
-        my @drvDeps = split '\n', `nix-store --query --requisites --include-outputs $drvPath`;
-        die "cannot query dependencies of `$drvPath': $?" if $? != 0;
-
-        @drvDeps = grep { $_ =~ /.drv$/ } @drvDeps;
-
-        my @drvOutputs = split '\n', `nix-store --query --outputs @drvDeps`;
-        die "cannot query outputs of the dependencies of `$drvPath': $?" if $? != 0;
-
-        foreach my $dep (@drvOutputs) {
-            # !!! This checks more than it has to, namely
-            # build-time-only dependencies of dependencies (which
-            # don't need to be built).  However, it shouldn't matter:
-            # if the dependency was built, then presumably *its*
-            # dependencies were built as well.
-            # !!! should disregard fixed-output derivations (?)
-            if (!isValidPath($dep)) {
-                my ($step) = $db->resultset('BuildSteps')->search(
-                    {outPath => $dep}, {rows => 1, order_by => "stopTime DESC", type => 0, busy => 0});
-                if ($step && $step->status != 0) {
-                    $buildStatus = 5;
-                    $failedDepBuild = $step->build->id;
-                    $failedDepStepNr = $step->stepnr;
-                    goto done;
-                }
-            }
-        }
-        
         # Do the build.
         $startTime = time();
 
@@ -118,22 +93,24 @@ sub doBuild {
                 my $drvPathStep = $1;
                 $someBuildFailed = 1;
                 $thisBuildFailed = 1 if $drvPath eq $drvPathStep;
+                my $errorMsg = $4;
+                $errorMsg = "build failed previously (cached)" if $3 eq "cached";
                 $db->txn_do(sub {
                     if ($buildSteps{$drvPathStep}) {
                         my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
-                        $step->update({busy => 0, status => 1, errormsg => $4, stoptime => time});
+                        $step->update({busy => 0, status => 1, errormsg => $errorMsg, stoptime => time});
                     } else {
                         $build->buildsteps->create(
-                            { stepnr => $buildStepNr++
+                            { stepnr => ($buildSteps{$drvPathStep} = $buildStepNr++)
                             , type => 0 # = build
                             , drvpath => $drvPathStep
                             , outpath => $2
-                            , logfile => $4
+                            , logfile => getBuildLog($drvPathStep)
                             , busy => 0
                             , status => 1
                             , starttime => time
                             , stoptime => time
-                            , errormsg => $4
+                            , errormsg => $errorMsg
                             });
                     }
                 });
@@ -194,9 +171,6 @@ sub doBuild {
     $db->txn_do(sub {
         $build->update({finished => 1, timestamp => time});
 
-        my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
-        $logPath = undef unless -e $logPath;
-
         my $releaseName;
         if (-e "$outPath/nix-support/hydra-release-name") {
             open FILE, "$outPath/nix-support/hydra-release-name" or die;
@@ -211,7 +185,7 @@ sub doBuild {
             , buildstatus => $buildStatus
             , starttime => $startTime
             , stoptime => $stopTime
-            , logfile => $logPath
+            , logfile => getBuildLog $drvPath
             , errormsg => $errormsg
             , releasename => $releaseName
             , faileddepbuild => $failedDepBuild
