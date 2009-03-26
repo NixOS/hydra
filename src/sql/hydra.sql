@@ -63,7 +63,7 @@ create table BuildResultInfo (
     --   2 = build of some dependency failed
     --   3 = other failure (see errorMsg)
     --   4 = build cancelled (removed from queue; never built)
-    --   5 = build not done because a dependency failed previously
+    --   5 = build not done because a dependency failed previously (obsolete)
     buildStatus   integer,
 
     errorMsg      text, -- error message in case of a Nix failure
@@ -77,9 +77,8 @@ create table BuildResultInfo (
 
     keep          integer not null default 0, -- true means never garbage-collect the build output
 
-    -- If buildStatus == 5, the primary key of the failed build step.
-    failedDepBuild  integer,
-    failedDepStepNr integer,
+    failedDepBuild  integer, -- obsolete
+    failedDepStepNr integer, -- obsolete
     
     foreign key   (id) references Builds(id) on delete cascade -- ignored by sqlite
 );

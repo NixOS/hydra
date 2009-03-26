@@ -32,9 +32,6 @@ sub doBuild {
 
     my $errormsg = undef;
 
-    my $failedDepBuild;
-    my $failedDepStepNr;
-    
     if (!isValidPath($outPath)) {
         $isCachedBuild = 0;
 
@@ -185,11 +182,9 @@ sub doBuild {
             , buildstatus => $buildStatus
             , starttime => $startTime
             , stoptime => $stopTime
-            , logfile => getBuildLog $drvPath
+            , logfile => getBuildLog($drvPath)
             , errormsg => $errormsg
             , releasename => $releaseName
-            , faileddepbuild => $failedDepBuild
-            , faileddepstepnr => $failedDepStepNr
             });
 
         if ($buildStatus == 0) {
