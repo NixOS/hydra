@@ -254,11 +254,11 @@ sub robots_txt : Path('robots.txt') {
     sub channelUris {
         my ($controller, $bindings) = @_;
         return
-            ( "Disallow: " . uri_for($controller, 'closure', $bindings, "*")
-            , "Disallow: " . uri_for($controller, 'manifest', $bindings)
-            , "Disallow: " . uri_for($controller, 'nar', $bindings, "*")
-            , "Disallow: " . uri_for($controller, 'pkg', $bindings, "*")
-            , "Disallow: " . uri_for($controller, 'nixexprs', $bindings)
+            ( uri_for($controller, 'closure', $bindings, "*")
+            , uri_for($controller, 'manifest', $bindings)
+            , uri_for($controller, 'nar', $bindings, "*")
+            , uri_for($controller, 'pkg', $bindings, "*")
+            , uri_for($controller, 'nixexprs', $bindings)
             );
     }
 
@@ -266,10 +266,9 @@ sub robots_txt : Path('robots.txt') {
     # robots.txt.  Note: wildcards are not universally supported in
     # robots.txt, but apparently Google supports them.
     my @rules =
-        ( "User-agent: *"
-        , "Disallow: " . uri_for('Build', 'buildtimedeps', ["*"])
-        , "Disallow: " . uri_for('Build', 'runtimedeps', ["*"])
-        , "Disallow: " . uri_for('Build', 'view_nixlog', ["*"], "*/tail")
+        ( uri_for('Build', 'buildtimedeps', ["*"])
+        , uri_for('Build', 'runtimedeps', ["*"])
+        , uri_for('Build', 'view_nixlog', ["*"], "*/tail")
         , channelUris('Root', ["*"])
         , channelUris('Project', ["*", "*"])
         , channelUris('Jobset', ["*", "*", "*"])
@@ -277,7 +276,7 @@ sub robots_txt : Path('robots.txt') {
         , channelUris('Build', ["*"])
         );
     
-    $c->stash->{'plain'} = { data => join("\n", @rules) };
+    $c->stash->{'plain'} = { data => "User-agent: *\n" . join('', map { "Disallow: $_\n" } @rules) };
     $c->forward('Hydra::View::Plain');
 }
 
