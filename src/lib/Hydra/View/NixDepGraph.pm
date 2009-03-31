@@ -7,13 +7,13 @@ use IO::Pipe;
 sub process {
     my ($self, $c) = @_;
     
-    $c->response->content_type('image/png');
+    $c->response->content_type('image/svg+xml');
 
     my @storePaths = @{$c->stash->{storePaths}};
 
     my $fh = new IO::Handle;
     
-    open $fh, "nix-store --query --graph @storePaths | dot -Tpng -Gbgcolor=transparent |";
+    open $fh, "nix-store --query --graph @storePaths | dot -Tsvg:cairo -Gdpi=100 -Gsize=20,20 -Gbgcolor=transparent |";
 
     $c->response->body($fh);
     
