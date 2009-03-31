@@ -242,6 +242,28 @@ sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {
     $c->stash->{channelBaseName} = "everything";
 }
 
+
+sub robots_txt : Path('robots.txt') {
+    my ($self, $c) = @_;
+
+    # Put actions that are expensive or not useful for indexing in
+    # robots.txt.  Note: wildcards are not universally supported in
+    # robots.txt, but apparently Google supports them.
+    my @rules =
+        ( "User-agent: *"
+        , "Disallow: /*/nix/closure/*" 
+        , "Disallow: /*/channel/*/MANIFEST.bz2" 
+        , "Disallow: /*/nar/*" 
+        , "Disallow: /*.nixpkg" 
+        , "Disallow: /build/*/buildtime-deps" 
+        , "Disallow: /build/*/runtime-deps" 
+        , "Disallow: /build/*/nixlog/*/tail" 
+        );
+    
+    $c->stash->{'plain'} = { data => join("\n", @rules) };
+    $c->forward('Hydra::View::Plain');
+}
+
     
 sub default :Path {
     my ($self, $c) = @_;
