@@ -88,7 +88,7 @@ sub getGCRootsDir {
 
 sub gcRootFor {
     my ($path) = @_;
-    return getGCRootsDir . basename $path;
+    return getGCRootsDir . "/" . basename $path;
 }
 
 
