@@ -17,7 +17,16 @@ sub job : Chained('/') PathPart('job') CaptureArgs(3) {
 }
 
 
-sub index : Chained('job') PathPart('') Args(0) {
+sub overview : Chained('job') PathPart('') Args(0) {
+    my ($self, $c) = @_;
+
+    $c->stash->{template} = 'job.tt';
+
+    getBuildStats($c, scalar $c->stash->{job}->builds);
+}
+
+
+sub all : Chained('job') PathPart Args(0) {
     my ($self, $c) = @_;
     $c->go($self->action_for("all"));
 }

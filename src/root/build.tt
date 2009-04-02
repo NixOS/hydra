@@ -3,12 +3,12 @@
 [% PROCESS "product-list.tt" %]
 [% USE HTML %]
 
-[% project = build.get_column('project') %]
-[% jobset = build.get_column('jobset') %]
-[% job = build.get_column('job') %]
+[% project = build.project %]
+[% jobset = build.jobset %]
+[% job = build.job %]
 
 <h1>
-  Job <tt>[% project %]:[% jobset %]:[% job %]</tt> build [% id %]
+  Job <tt>[% project.name %]:[% jobset.name %]:[% job.name %]</tt> build [% id %]
   [% IF !build.finished %]
     [% IF build.schedulingInfo.busy %]
       (currently building)
@@ -77,15 +77,15 @@
   </tr>
   <tr>
     <th>Project:</th>
-    <td>[% INCLUDE renderProjectName %]</td>
+    <td>[% INCLUDE renderProjectName project=project.name %]</td>
   </tr>
   <tr>
     <th>Jobset:</th>
-    <td>[% INCLUDE renderJobsetName %]</td>
+    <td>[% INCLUDE renderJobsetName project=project.name jobset=jobset.name %]</td>
   </tr>
   <tr>
     <th>Job name:</th>
-    <td>[% INCLUDE renderJobName %]</td>
+    <td>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=job.name %]</td>
   </tr>
   <tr>
     <th>Nix name:</th>

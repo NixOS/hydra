@@ -65,7 +65,6 @@ td.centered {
 }
 
 th {
-    vertical-align: center;
     background: #ffffc0;
 }
 
@@ -101,6 +100,7 @@ td.date, span.date, span.svnrev {
 a:link { color: #0048b3; }
 a:visited { color: #002a6a; }
 a:hover { background: #ffffcd; }
+a.no-hover:hover { background: none; }
 
 span.relname {
     font-weight: bold;
@@ -134,6 +134,11 @@ a {
 
 a:hover, a:visited:hover {
     text-decoration: underline;
+}
+
+a.smallLink {
+    font-size: 60%;
+    vertical-align: top;
 }
 
 img {
@@ -194,23 +199,6 @@ ul.productList li {
 
 .template {
     display: none;
-}
-
-div.jobset {
-    border: solid black 1px;
-    -moz-border-radius: 1em;
-    border-radius: 1em;
-    padding-left: 1em;
-    padding-right: 1em;
-    margin-bottom: 1em;
-}
-
-div.jobset-edit {
-    background-color: #f8f8f8;
-}
-
-div.jobset-edit h3, div.jobset h3 {
-    margin-top: 0.5em;
 }
 
 div.help {
@@ -314,17 +302,35 @@ h1 {
 #leftnavbar ul.menu > li > div.title {
     text-align: center;
     font-weight: bold;
+    color: black;
     border-width: 0px;
     border-bottom-width: 1px;
     border-style: solid;
     border-color: #c0c0c0;
     padding-bottom: 0.5em;
+    background-image: url(/static/images/arrow-down.gif);
+    background-repeat: no-repeat;
+    background-position: 0.3em center;
+}
+
+#leftnavbar ul.menu > li > div.title > a {
+    display: block;
+    background: none;
+    color: black;
+}
+
+#leftnavbar ul.menu > li > div.title > a:focus {
+    outline: none;
 }
 
 #leftnavbar ul.submenu {
     padding: 0 0 0 0;
     margin-left: 0em;
     margin-right: 0em;
+}
+
+#leftnavbar ul.collapsed {
+    display: none;
 }
 
 #leftnavbar ul.submenu > li {
@@ -414,6 +420,10 @@ h1 {
     background-color: #eef2ff;
     font-weight: bold;
     color: #606060;
+}
+
+.hidden {
+    display: none;
 }
 
 #footer {

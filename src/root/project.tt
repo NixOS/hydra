@@ -1,137 +1,5 @@
 [% WRAPPER layout.tt title=(edit ? (create ? "New Project" : "Editing Project ‘$project.name’") : "Project ‘$project.name’") %]
 [% PROCESS common.tt %]
-[% USE HTML %]
-
-
-[% BLOCK renderSelection %]
-  [% IF edit %]
-    <select [% HTML.attributes(id => param, name => param) %]>
-      [% FOREACH name IN options.keys.sort %]
-        <option [% HTML.attributes(value => name) %] [% IF name == curValue; "selected='selected'"; END %]>[% options.$name %]</option>
-      [% END %]
-    </select>
-  [% ELSE %]
-    [% options.$curValue %]
-  [% END %]
-[% END %]
-
-
-[% BLOCK maybeEditString;
-  IF edit -%]
-    <input type="text" class="string [% extraClass %]" [% HTML.attributes(id => param, name => param, value => value) %] />
-  [% ELSE;
-    HTML.escape(value);
-  END -%]
-[% END -%]
-
-
-[% BLOCK renderInputAlt %]
-  [% IF edit %]
-    <button type="button" onclick='$(this).parents(".inputalt").remove()'><img src="/static/images/failure.gif" alt="Delete value" /></button>
-    [% INCLUDE maybeEditString param=param value=alt.value %]
-    <br />  
-  [% ELSE %]
-    [% INCLUDE maybeEditString param=param value=alt.value %]
-  [% END %]
-[% END %]
-
-
-[% BLOCK renderInput %]
-
-  <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
-    <td>
-      [% IF edit %]<button type="button" onclick='$(this).parents(".input").remove()'><img src="/static/images/failure.gif" alt="Delete input" /></button>[% END -%]
-      <tt>[% INCLUDE maybeEditString param="$baseName-name" value=input.name extraClass="shortString" %]</tt>
-    </td>
-    <td>
-      [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
-    </td>
-    <td class="inputalts" id="[% baseName %]">
-      [% FOREACH alt IN input.jobsetinputalts -%]
-        <tt class="inputalt">
-          [% IF input.type == "string" && !edit %]
-            "[% HTML.escape(alt.value) %]"
-          [% ELSE %]
-            [% INCLUDE renderInputAlt alt=alt param="$baseName-values" %]
-          [% END %]
-        </tt>
-      [% END %]
-      [% IF edit %]<button type="button" onclick='return false' class="add-inputalt">+</button>[% END %]
-    </td>
-  </tr>
-
-[% END %]
-
-
-[% BLOCK renderJobset %]
-
-  <div class="jobset[% IF edit %] jobset-edit[% END %]" id="[% "jobset-$baseName" %]">
-
-  <input type="hidden" [% HTML.attributes(name => "jobset-$baseName-oldName", value => jobset.name) %] />
-  
-  <h3>
-    [% IF edit %]<button type="button" onclick='$(this).parents(".jobset").remove()'><img src="/static/images/failure.gif" alt="Delete value" /></button>[% END %]
-    [% IF jobset %]Jobset <tt>[% jobset.name %]</tt>[% ELSE %]New jobset[% END %]
-  </h3>
-
-  <h4>Information</h4>
-
-  <table class="layoutTable">
-    [% IF edit %]
-    <tr>
-      <th>Identifier:</th>
-      <td>[% INCLUDE maybeEditString param="jobset-$baseName-name" value=jobset.name %]</td>
-    </tr>
-    [% END %]
-    <tr>
-      <th>Description:</th>
-      <td>[% INCLUDE maybeEditString param="jobset-$baseName-description" value=jobset.description %]</td>
-    </tr>
-    <tr>
-      <th>Nix expression:</th>
-      <td>
-        <tt>[% INCLUDE maybeEditString param="jobset-$baseName-nixexprpath" value=jobset.nixexprpath extraClass="shortString" %]</tt> in input
-        <tt>[% INCLUDE maybeEditString param="jobset-$baseName-nixexprinput" value=jobset.nixexprinput extraClass="shortString" %]</tt>
-      </td>
-    </tr>
-    [% IF !edit %]
-      <tr>
-        <th>Last checked:</th>
-        <td>
-          [% IF jobset.lastcheckedtime %]
-            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime -%][% IF jobset.errormsg -%]<em>, evaluation error</em>:
-              <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
-            [% ELSE %], <em>no errors</em>
-            [% END %]
-          [% ELSE %]
-            <em>never</em>
-          [% END %]
-        </td>
-      </tr>
-    [% END %]
-  </table>
-
-  <h4>Inputs</h4>
-
-  <table class="tablesorter">
-    <thead>
-      <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
-    </thead>
-    <tbody class="inputs">
-      [% FOREACH input IN jobset.jobsetinputs -%]
-        [% INCLUDE renderInput input=input baseName="jobset-$baseName-input-$input.name" %]
-      [% END %]
-      [% IF edit %]
-        <tr>
-          <td colspan="3"><button type="button" class="add-input">Add a new input</button></td>
-        </tr>
-      [% END %]
-    </tbody>
-  </table>
-
-  </div>
-
-[% END %]
 
 
 [% IF edit %]
@@ -146,7 +14,7 @@
 [% END %]
 
 
-<h2>General information</h2>
+<h2>Information[% IF !edit %] <a class="smallLink" href="[% c.uri_for('/project' project.name 'edit') %]">[Edit]</a>[% END %]</h2>
 
 <table class="layoutTable">
   [% IF edit %]
@@ -190,71 +58,36 @@
 </table>
 
 
+
 [% IF !edit %]
-
-<h2>Statistics</h2>
-
-[% INCLUDE showBuildStats %]
-
-[% END %]
 
 
 <h2>Jobsets</h2>
 
-[% IF project.jobsets && project.jobsets.size > 0 || edit %]
+[% IF project.jobsets.size > 0 %]
 
-  [% IF edit %]
-    <p><button type="button" id="add-jobset">Add a new jobset</button></p>
+<p>This project has the following jobsets:</p>
 
-    <div id="jobset-template" class="template">
-      [% INCLUDE renderJobset jobset="" baseName="template" %]
-    </div>
+<table class="tablesorter">
+  <thead>
+    <tr>
+      <th>Id</th>
+      <th>Description</th>
+      <th>Last evaluated</th>
+    </tr>
+  </thead>
+  <tbody>
+    [% FOREACH j IN project.jobsets %]
+    <tr class="clickable [% IF odd %] odd [% END; odd = !odd %]"
+        onclick="window.location = '[% c.uri_for('/jobset' project.name j.name) %]'">
+      <td>[% INCLUDE renderJobsetName project = project.name jobset = j.name %]</td>
+      <td>[% HTML.escape(j.description) %]</td>
+      <td>[% INCLUDE renderDateTime timestamp = j.lastcheckedtime %]</td>
+    </tr>
+    [% END %]
+  </tbody>
+</table>
 
-    <table class="template"> <!-- dummy wrapper needed because “hidden” trs are visible anyway -->
-      [% INCLUDE renderInput input="" extraClass="template" id="input-template" baseName="input-template" %]
-    </table>
-    
-    <tt class="inputalt template" id="inputalt-template">
-      [% INCLUDE renderInputAlt alt=alt %]
-    </tt>
-
-    <script type="text/javascript">
-      $(document).ready(function() {
-        var id = 0;
-      
-        $("#add-jobset").click(function() {
-          var newid = "jobset-" + id++;
-          var x = $("#jobset-template").clone(true).attr("id", newid).insertAfter($("#jobset-template")).slideDown("fast");
-          $("#jobset-template", x).attr("id", newid);
-          $("#jobset-template-name", x).attr("name", newid + "-name");
-          $("#jobset-template-description", x).attr("name", newid + "-description");
-          $("#jobset-template-nixexprpath", x).attr("name", newid + "-nixexprpath");
-          $("#jobset-template-nixexprinput", x).attr("name", newid + "-nixexprinput");
-          return false;
-        });
-
-        $(".add-input").click(function() {
-          var jobset = $(this).parents(".jobset");
-          var inputid = jobset.attr("id");
-          var newid = inputid + "-input-" + id++;
-          var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
-          $("#input-template-name", x).attr("name", newid + "-name");
-          $("#input-template-type", x).attr("name", newid + "-type");
-          $("#input-template", x).attr("id", newid);
-          return false;
-        });
-
-        $(".add-inputalt").click(function() {
-          var x = $("#inputalt-template").clone(true).insertBefore($(this)).attr("id", "").show();
-          $("input", x).attr("name", x.parents(".inputalts").attr("id") + "-values");
-        });
-      });
-    </script>
-  [% END %]
-
-  [% n = 0; FOREACH jobset IN project.jobsets -%]
-    [% INCLUDE renderJobset jobset=jobset baseName="e$n"; n = n + 1 %]
-  [% END -%]
 
 [% ELSE %]
 
@@ -262,10 +95,60 @@
 
 [% END %]
 
+<a href="[% c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) %]">[Create a new jobset]</a>
+
+
+
+<h2>Releases</h2>
+
+[% IF releaseSets.size > 0 %]
+
+<p>Project <tt>[% project.name %]</tt> has the following release sets:</p>
+
+<ul>
+  [% FOREACH releaseSet IN releaseSets %]
+    <li>
+      <a href="[% c.uri_for('/releases' project.name releaseSet.name) %]"><tt>[% releaseSet.name %]</tt></a>
+      [<a href="[% c.uri_for('/releases' project.name releaseSet.name "edit") %]">Edit</a>]
+    </li>
+  [% END %]
+</ul>
+
+[% ELSE %]
+
+<p>Project <tt>[% project.name %]</tt> has no release sets.</p>
+
+[% END %]
+
+<p><a href="[% c.uri_for('/create_releaseset' project.name) %]">[Create a new release set]</a></p>
+
+
+<h2>Channels</h2>
+
+<p>This project provides the following Nix channels:</p>
+
+<ul>
+  <li>
+    <a href="[% c.uri_for('/project' project.name 'channel' 'latest') %]"><tt>latest</tt></a> —
+    contains the latest successful build of every job in this project.
+  </li>
+  <li>
+    <a href="[% c.uri_for('/project' project.name 'channel' 'all') %]"><tt>all</tt></a> —
+    contains every successful, non-garbage-collected build of every
+    job in this project.
+  </li>
+</ul>
+
+
+<h2>Statistics</h2>
+
+[% INCLUDE showBuildStats %]
+
+
+[% END %]
+
 
 [% IF edit %]
-
-  <hr />
 
   <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
 

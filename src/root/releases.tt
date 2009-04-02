@@ -16,8 +16,8 @@
       <th>#</th>
       <th>Release</th>
       <th>Date</th>
-      [% FOREACH job IN jobs %]
-        <th class="releaseSetJobName">[% INCLUDE renderReleaseJobName %]</th>
+      [% FOREACH j IN jobs %]
+        <th class="releaseSetJobName">[% INCLUDE renderReleaseJobName job=j %]</th>
       [% END %]
     </tr>
   </thead>
@@ -44,11 +44,11 @@
           [% END %]
         </td>
         <td>[% INCLUDE renderDateTime timestamp=release.timestamp %]</td>
-        [% FOREACH job IN release.jobs %]
+        [% FOREACH j IN release.jobs %]
           <td class="centered">
-            [% IF job.build %]
-              <a href="[% c.uri_for('/build' job.build.id) %]">
-                [% IF job.build.get_column('buildstatus') == 0 %]
+            [% IF j.build %]
+              <a href="[% c.uri_for('/build' j.build.id) %]">
+                [% IF j.build.get_column('buildstatus') == 0 %]
                   <img src="/static/images/success.gif" />
                 [% ELSE %]
                   <img src="/static/images/failure.gif" />

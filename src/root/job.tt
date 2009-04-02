@@ -1,0 +1,31 @@
+[% WRAPPER layout.tt title="Job ‘$project.name:$jobset.name:$job.name’" %]
+[% PROCESS common.tt %]
+
+
+<h1>Job <tt>[% project.name %]:[% jobset.name %]:[% job.name %]</tt></h1>
+
+
+<h2>Channels</h2>
+
+<p>This job provides the following Nix channels:</p>
+
+<ul>
+  <li>
+    <a href="[% c.uri_for('/job' project.name jobset.name job.name
+    'channel' 'latest') %]"><tt>latest</tt></a> — contains the latest
+    successful build for each platform.
+  </li>
+  <li>
+    <a href="[% c.uri_for('/job' project.name jobset.name job.name
+    'channel' 'all') %]"><tt>all</tt></a> — contains every successful
+    build of this job.
+  </li>
+</ul>
+
+
+<h2>Statistics</h2>
+
+[% INCLUDE showBuildStats %]
+
+
+[% END %]

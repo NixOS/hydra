@@ -1,0 +1,212 @@
+[% WRAPPER layout.tt title=(edit ? (create ? "New Jobset in Project ‘$project.name’" : "Editing Jobset ‘$project.name:$jobset.name’") : "Jobset ‘$project.name:$jobset.name’") %]
+[% PROCESS common.tt %]
+
+
+[% IF edit %]
+  <form action="[% IF create %][% c.uri_for('/project' project.name 'create-jobset/submit') %][% ELSE %][% c.uri_for('/jobset' project.name jobset.name 'submit') %][% END %]" method="post">
+[% END %]
+
+
+[% IF create %]
+  <h1>New Jobset in Project <tt>[% project.name %]</tt></h1>
+[% ELSE %]
+  <h1>Jobset <tt>[% project.name %]:[% jobset.name %]</tt></h1>
+[% END %]
+
+
+[% BLOCK renderInputAlt %]
+  [% IF edit %]
+    <button type="button" onclick='$(this).parents(".inputalt").remove()'><img src="/static/images/failure.gif" alt="Delete value" /></button>
+    [% INCLUDE maybeEditString param=param value=alt.value %]
+    <br />  
+  [% ELSE %]
+    [% INCLUDE maybeEditString param=param value=alt.value %]
+  [% END %]
+[% END %]
+
+
+[% BLOCK renderInput %]
+
+  <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
+    <td>
+      [% IF edit %]<button type="button" onclick='$(this).parents(".input").remove()'><img src="/static/images/failure.gif" alt="Delete input" /></button>[% END -%]
+      <tt>[% INCLUDE maybeEditString param="$baseName-name" value=input.name extraClass="shortString" %]</tt>
+    </td>
+    <td>
+      [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
+    </td>
+    <td class="inputalts" id="[% baseName %]">
+      [% FOREACH alt IN input.jobsetinputalts -%]
+        <tt class="inputalt">
+          [% IF input.type == "string" && !edit %]
+            "[% HTML.escape(alt.value) %]"
+          [% ELSE %]
+            [% INCLUDE renderInputAlt alt=alt param="$baseName-values" %]
+          [% END %]
+        </tt>
+      [% END %]
+      [% IF edit %]<button type="button" onclick='return false' class="add-inputalt">+</button>[% END %]
+    </td>
+  </tr>
+
+[% END %]
+
+
+<h2>Information[% IF !edit %] <a class="smallLink" href="[% c.uri_for('/jobset' project.name jobset.name 'edit') %]">[Edit]</a>[% END %]</h2>
+
+<table class="layoutTable">
+  [% IF edit %]
+  <tr>
+    <th>Identifier:</th>
+    <td>[% INCLUDE maybeEditString param="name" value=jobset.name %]</td>
+  </tr>
+  [% END %]
+  <tr>
+    <th>Description:</th>
+    <td>[% INCLUDE maybeEditString param="description" value=jobset.description %]</td>
+  </tr>
+  <tr>
+    <th>Nix expression:</th>
+    <td>
+      <tt>[% INCLUDE maybeEditString param="nixexprpath" value=jobset.nixexprpath extraClass="shortString" %]</tt> in input
+      <tt>[% INCLUDE maybeEditString param="nixexprinput" value=jobset.nixexprinput extraClass="shortString" %]</tt>
+    </td>
+  </tr>
+  [% IF !edit %]
+  <tr>
+    <th>Last checked:</th>
+    <td>
+      [% IF jobset.lastcheckedtime %]
+        [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime -%][% IF jobset.errormsg -%]<em>, evaluation error</em>:
+          <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
+        [% ELSE %], <em>no errors</em>
+        [% END %]
+      [% ELSE %]
+        <em>never</em>
+      [% END %]
+    </td>
+  </tr>
+  [% END %]
+</table>
+
+
+<h3>Inputs</h3>
+
+<table class="tablesorter">
+  <thead>
+    <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
+  </thead>
+  <tbody class="inputs">
+    [% FOREACH input IN jobset.jobsetinputs -%]
+      [% INCLUDE renderInput input=input baseName="input-$input.name" %]
+    [% END %]
+    [% IF edit %]
+      <tr>
+        <td colspan="3"><button type="button" class="add-input">Add a new input</button></td>
+      </tr>
+    [% END %]
+  </tbody>
+</table>
+
+
+[% IF !edit %]
+
+
+<h2>Jobs</h2>
+
+<p>This jobset currently contains the following [% activeJobs.size %] jobs:
+
+  <blockquote>
+    [% IF activeJobs.size == 0 %]<em>(none)</em>[% END %]
+    [% FOREACH j IN activeJobs %] [% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.name %] [% END %]
+  </blockquote>
+</p>
+
+<p>This jobset used to contain the following [% inactiveJobs.size %] jobs:
+
+  <blockquote>
+    [% IF inactiveJobs.size == 0 %]<em>(none)</em>[% END %]
+    [% FOREACH j IN inactiveJobs %] [% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.name %] [% END %]
+  </blockquote>
+
+</p>
+
+
+<h2>Channels</h2>
+
+<p>This jobset provides the following Nix channels:</p>
+
+<ul>
+  <li>
+    <a href="[% c.uri_for('/jobset' project.name jobset.name 'channel'
+    'latest') %]"><tt>latest</tt></a> — contains the latest successful
+    build of every job in this jobset.
+  </li>
+  <li>
+    <a href="[% c.uri_for('/jobset' project.name jobset.name 'channel'
+    'all') %]"><tt>all</tt></a> — contains every successful,
+    non-garbage-collected build of every job in this project.
+  </li>
+</ul>
+
+
+<h2>Statistics</h2>
+
+[% INCLUDE showBuildStats %]
+
+
+[% END %]
+
+
+[% IF edit %]
+
+  <table class="template"> <!-- dummy wrapper needed because “hidden” trs are visible anyway -->
+    [% INCLUDE renderInput input="" extraClass="template" id="input-template" baseName="input-template" %]
+  </table>
+    
+  <tt class="inputalt template" id="inputalt-template">
+    [% INCLUDE renderInputAlt alt=alt %]
+  </tt>
+
+  <script type="text/javascript">
+    $(document).ready(function() {
+      var id = 0;
+
+      $(".add-input").click(function() {
+        var newid = "input-" + id++;
+        var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
+        $("#input-template-name", x).attr("name", newid + "-name");
+        $("#input-template-type", x).attr("name", newid + "-type");
+        $("#input-template", x).attr("id", newid);
+        return false;
+      });
+
+      $(".add-inputalt").click(function() {
+        var x = $("#inputalt-template").clone(true).insertBefore($(this)).attr("id", "").show();
+        $("input", x).attr("name", x.parents(".inputalts").attr("id") + "-values");
+      });
+    });
+  </script>
+    
+  <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
+
+  </form>
+
+  [% IF !create %]
+
+    <form action="[% c.uri_for('/jobset' project.name jobset.name 'delete') %]" method="post">
+      <p><button id="delete-jobset" type="submit"><img src="/static/images/failure.gif" />Delete this jobset</button></p>
+    </form>
+      
+    <script type="text/javascript">
+      $("#delete-jobset").click(function() {
+        return confirm("Are you sure you want to delete this jobset?");
+      });
+    </script>
+
+  [% END %]
+    
+[% END %]
+
+
+[% END %]

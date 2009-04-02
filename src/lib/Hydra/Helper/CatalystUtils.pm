@@ -9,7 +9,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(
     getBuild getBuildStats getLatestBuilds getChannelData
     error notFound
-    requireLogin requireProjectOwner requireAdmin
+    requireLogin requireProjectOwner requireAdmin requirePost
     trim
     $pathCompRE $relPathRE
 );
@@ -123,6 +123,12 @@ sub requireAdmin {
     
     error($c, "Only administrators can perform this operation.")
         unless $c->check_user_roles('admin');
+}
+
+
+sub requirePost {
+    my ($c) = @_;
+    error($c, "Request must be POSTed.") if $c->request->method ne "POST";
 }
 
 

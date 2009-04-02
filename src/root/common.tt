@@ -1,4 +1,5 @@
 [% USE date %]
+[% USE HTML %]
 
 
 [% inputTypes =
@@ -139,4 +140,31 @@
 
 [% BLOCK renderReleaseJobName -%]
 [% IF job.description; HTML.escape(job.description); ELSE %]<tt>[% job.job %]</tt> ([% job.attrs %])[% END -%]
+[% END -%]
+
+
+[% BLOCK maybeLink -%]
+  [% IF uri %]<a [% HTML.attributes(href => uri) %]>[% content %]</a>[% ELSE; content; END -%]
+[% END -%]
+
+
+[% BLOCK renderSelection %]
+  [% IF edit %]
+    <select [% HTML.attributes(id => param, name => param) %]>
+      [% FOREACH name IN options.keys.sort %]
+        <option [% HTML.attributes(value => name) %] [% IF name == curValue; "selected='selected'"; END %]>[% options.$name %]</option>
+      [% END %]
+    </select>
+  [% ELSE %]
+    [% options.$curValue %]
+  [% END %]
+[% END %]
+
+
+[% BLOCK maybeEditString;
+  IF edit -%]
+    <input type="text" class="string [% extraClass %]" [% HTML.attributes(id => param, name => param, value => value) %] />
+  [% ELSE;
+    HTML.escape(value);
+  END -%]
 [% END -%]

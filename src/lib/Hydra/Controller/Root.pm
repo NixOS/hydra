@@ -13,7 +13,6 @@ __PACKAGE__->config->{namespace} = '';
 
 sub begin :Private {
     my ($self, $c) = @_;
-    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
     $c->stash->{curUri} = $c->request->uri;
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
 }
@@ -21,8 +20,8 @@ sub begin :Private {
 
 sub index :Path :Args(0) {
     my ($self, $c) = @_;
-    $c->stash->{template} = 'index.tt';
-    
+    $c->stash->{template} = 'overview.tt';
+    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
     getBuildStats($c, $c->model('DB::Builds'));
 }
 
@@ -60,18 +59,6 @@ sub queue :Local {
     $c->stash->{template} = 'queue.tt';
     $c->stash->{queue} = [$c->model('DB::Builds')->search(
         {finished => 0}, {join => 'schedulingInfo', order_by => ["priority DESC", "timestamp"]})];
-}
-
-
-sub releasesets :Local {
-    my ($self, $c, $projectName) = @_;
-    $c->stash->{template} = 'releasesets.tt';
-
-    my $project = $c->model('DB::Projects')->find($projectName);
-    notFound($c, "Project $projectName doesn't exist.") if !defined $project;
-    $c->stash->{project} = $project;
-
-    $c->stash->{releaseSets} = [$project->releasesets->all];
 }
 
 

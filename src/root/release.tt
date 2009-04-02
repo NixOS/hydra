@@ -14,19 +14,19 @@
 <p class="error">This is an incomplete release.  One of its jobs has not been built (yet).  See below for details.</p>
 [% END %]
 
-[% FOREACH job IN release.jobs %]
+[% FOREACH j IN release.jobs %]
 
   <h2>
-    [% IF job.build %]<a href="[% c.uri_for('/build' job.build.id) %]">[% END %]
-    [% INCLUDE renderReleaseJobName job=job.job %]
-    [% IF job.build %]</a>[% END %]
+    [% IF j.build %]<a href="[% c.uri_for('/build' job.build.id) %]">[% END %]
+    [% INCLUDE renderReleaseJobName job=j.job %]
+    [% IF j.build %]</a>[% END %]
   </h2>
 
-  [% IF job.build %]
+  [% IF j.build %]
 
-    [% IF job.build.resultInfo.buildstatus == 0 %]
+    [% IF j.build.resultInfo.buildstatus == 0 %]
 
-      [% INCLUDE renderProductList build=job.build %]
+      [% INCLUDE renderProductList build=j.build %]
 
     [% ELSE %]
 
