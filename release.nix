@@ -65,6 +65,7 @@ let
           perlCatalystDevel
           perlCatalystPluginSessionStoreFastMmap
           perlCatalystPluginStackTrace
+          perlCatalystPluginAuthorizationRoles
           perlCatalystAuthenticationStoreDBIxClass
           perlCatalystViewTT
           perlCatalystEngineHTTPPrefork
