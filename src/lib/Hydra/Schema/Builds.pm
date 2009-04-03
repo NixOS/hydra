@@ -102,4 +102,26 @@ __PACKAGE__->belongs_to(
   { id => "id" },
 );
 
+
+sub makeSource {
+    my ($name, $query) = @_;
+    my $source = __PACKAGE__->result_source_instance();
+    my $new_source = $source->new($source);
+    $new_source->source_name($name);
+    $new_source->name(\ "($query)");
+    Hydra::Schema->register_extra_source($name => $new_source);
+}
+
+sub makeQueries {
+    my ($name, $constraint) = @_;
+    makeSource('JobStatus' . $name, "select * from (select project, jobset, job, system, max(timestamp) timestamp from Builds where finished = 1 $constraint group by project, jobset, job, system) natural join Builds");
+    makeSource('LatestSucceeded' . $name, "select * from (select project, jobset, job, system, max(timestamp) timestamp from Builds natural join BuildResultInfo where finished = 1 and buildStatus = 0 $constraint group by project, jobset, job, system) natural join Builds");
+}
+
+makeQueries('', "");
+makeQueries('ForProject', "and project = ?");
+makeQueries('ForJobset', "and project = ? and jobset = ?");
+makeQueries('ForJob', "and project = ? and jobset = ? and job = ?");
+
+
 1;

@@ -36,7 +36,10 @@ sub index : Chained('jobset') PathPart('') Args(0) {
 sub get_builds : Chained('jobset') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->stash->{jobset}->builds;
-    $c->stash->{allJobs} = $c->stash->{jobset}->jobs;
+    $c->stash->{jobStatus} = $c->model('DB')->resultset('JobStatusForJobset')
+        ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]});
+    $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJobset')
+        ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]});
     $c->stash->{channelBaseName} =
         $c->stash->{project}->name . "-" . $c->stash->{jobset}->name;
 }

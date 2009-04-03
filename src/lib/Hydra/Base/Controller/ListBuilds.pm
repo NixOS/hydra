@@ -10,9 +10,8 @@ use Hydra::Helper::CatalystUtils;
 sub jobstatus : Chained('get_builds') PathPart Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'jobstatus.tt';
-    my $jobs = $c->stash->{allJobs};
     $c->stash->{latestBuilds} =
-        getLatestBuilds($c, ref $jobs eq "ARRAY" ? $jobs : scalar $jobs->search({active => 1}), {});
+        [joinWithResultInfo($c, $c->stash->{jobStatus})->all];
 }
 
     
@@ -33,12 +32,9 @@ sub all : Chained('get_builds') PathPart {
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{totalBuilds} = $nrBuilds;
 
-    $c->stash->{builds} = [$c->stash->{allBuilds}->search(
+    $c->stash->{builds} = [joinWithResultInfo($c, $c->stash->{allBuilds})->search(
         { finished => 1 },
-        { join => 'resultInfo'
-        , '+select' => ["resultInfo.buildstatus", "resultInfo.releasename"]
-        , '+as' => ["buildstatus", "releasename"]
-        , order_by => "timestamp DESC"
+        { order_by => "timestamp DESC"
         , rows => $resultsPerPage
         , page => $page })];
 }
@@ -49,11 +45,11 @@ sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
     eval {
         if ($channelName eq "latest") {
             $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
-            getChannelData($c, getLatestBuilds($c, scalar $c->stash->{allJobs}->search({active => 1}), {buildStatus => 0}));
+            getChannelData($c, scalar($c->stash->{latestSucceeded}));
         }
         elsif ($channelName eq "all") {
             $c->stash->{channelName} = $c->stash->{channelBaseName} . "-all";
-            getChannelData($c, [$c->stash->{allBuilds}->all]);
+            getChannelData($c, scalar($c->stash->{allBuilds}));
         }
         else {
             error($c, "Unknown channel `$channelName'.");

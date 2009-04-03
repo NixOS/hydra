@@ -65,7 +65,7 @@ sub nixexprs : Chained('nix') PathPart('nixexprs.tar.bz2') Args(0) {
 
 sub name {
     my ($build) = @_;
-    return $build->resultInfo->releasename || $build->nixname;
+    return $build->get_column('releasename') || $build->nixname;
 }
 
 

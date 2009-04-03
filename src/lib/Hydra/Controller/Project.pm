@@ -170,7 +170,10 @@ sub updateProject {
 sub get_builds : Chained('project') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->stash->{project}->builds;
-    $c->stash->{allJobs} = $c->stash->{project}->jobs;
+    $c->stash->{jobStatus} = $c->model('DB')->resultset('JobStatusForProject')
+        ->search({}, {bind => [$c->stash->{project}->name]});
+    $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForProject')
+        ->search({}, {bind => [$c->stash->{project}->name]});
     $c->stash->{channelBaseName} = $c->stash->{project}->name;
 }
 

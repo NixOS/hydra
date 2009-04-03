@@ -405,3 +405,5 @@ create table ReleaseSetJobs (
 -- Some indices.
 create index IndexBuildInputsByBuild on BuildInputs(build);
 create index IndexBuildInputsByDependency on BuildInputs(dependency);
+create index IndexBuildsByTimestamp on Builds(timestamp);
+--create index IndexBuildsByJobAndSystem on Builds(project, jobset, job, system);

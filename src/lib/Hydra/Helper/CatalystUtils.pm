@@ -7,7 +7,7 @@ use Hydra::Helper::Nix;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getBuild getBuildStats getLatestBuilds getChannelData
+    getBuild getBuildStats joinWithResultInfo getChannelData
     error notFound
     requireLogin requireProjectOwner requireAdmin requirePost
     trim
@@ -43,37 +43,28 @@ sub getBuildStats {
 }
 
 
-# Return the latest build for each job.
-sub getLatestBuilds {
-    my ($c, $jobs, $extraAttrs) = @_;
+# Add the releaseName and buildStatus attributes from the
+# BuildResultInfo table for each build.
+sub joinWithResultInfo {
+    my ($c, $source) = @_;
 
-    my @res = ();
-
-    # !!! this could be done more efficiently.
-
-    foreach my $job (ref $jobs eq "ARRAY" ? @{$jobs} : $jobs->all) {
-        foreach my $system ($job->builds->search({}, {select => ['system'], distinct => 1})) {
-            my ($build) = $job->builds->search(
-                { finished => 1, system => $system->system, %$extraAttrs },
-                { join => 'resultInfo', order_by => 'timestamp DESC', rows => 1
-                , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
-                , '+as' => ["releasename", "buildstatus"]
-                });
-            push @res, $build if defined $build;
-        }
-    }
-
-    return [@res];
+    return $source->search(
+        { },
+        { join => 'resultInfo'
+        , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
+        , '+as' => ["releasename", "buildstatus"]
+        });
 }
 
 
 sub getChannelData {
     my ($c, $builds) = @_;
+
+    my @builds2 = joinWithResultInfo($c, $builds)
+        ->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')");
     
     my @storePaths = ();
-    foreach my $build (@{$builds}) {
-        # !!! better do this in getLatestBuilds with a join.
-        next unless $build->buildproducts->find({type => "nix-build"});
+    foreach my $build (@builds2) {
         next unless isValidPath($build->outpath);
         push @storePaths, $build->outpath;
         my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id;
