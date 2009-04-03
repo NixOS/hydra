@@ -26,12 +26,6 @@ sub overview : Chained('job') PathPart('') Args(0) {
 }
 
 
-sub all : Chained('job') PathPart Args(0) {
-    my ($self, $c) = @_;
-    $c->go($self->action_for("all"));
-}
-
-
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('job') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
