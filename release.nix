@@ -63,7 +63,6 @@ let
         buildInputs = [
           perl makeWrapper
           perlCatalystDevel
-          perlCatalystPluginAuthenticationStoreDBIC
           perlCatalystPluginSessionStoreFastMmap
           perlCatalystPluginStackTrace
           perlCatalystAuthenticationStoreDBIxClass
