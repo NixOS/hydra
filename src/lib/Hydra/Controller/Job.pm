@@ -23,6 +23,8 @@ sub overview : Chained('job') PathPart('') Args(0) {
     $c->stash->{template} = 'job.tt';
 
     getBuildStats($c, scalar $c->stash->{job}->builds);
+
+    $c->stash->{systems} = [$c->stash->{job}->builds->search({}, {select => ["system"], distinct => 1})];
 }
 
 

@@ -23,6 +23,19 @@
 </ul>
 
 
+<h2>Latest builds</h2>
+
+<ul>
+  <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
+  'latest') %]">Latest successful build.</a></li>
+  [% FOREACH system IN systems %]
+    <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
+    'latest-for' system.system) %]">Latest successful build for <tt>[%
+    system.system %]</tt>.</a></li>
+  [% END %]
+</ul>
+
+
 <h2>Statistics</h2>
 
 [% INCLUDE showBuildStats %]
