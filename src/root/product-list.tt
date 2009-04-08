@@ -108,10 +108,10 @@
             <tr>              
               <th>Links to latest:</th>
               <td>
-                [% uri2 = "${c.uri_for('/job' build.project.name build.jobset.name build.job.name 'latest' 'download-by-type' product.type product.subtype)}" %]
+                [% uri2 = "${c.uri_for(latestRoot.join('/') 'download-by-type' product.type product.subtype)}" %]
                 <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
                 <br />
-                [% uri2 = "${c.uri_for('/job' build.project.name build.jobset.name build.job.name 'latest' 'download' product.productnr)}" %]
+                [% uri2 = "${c.uri_for(latestRoot.join('/') 'download' product.productnr)}" %]
                 <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
               </td>
             </tr>

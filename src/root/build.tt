@@ -308,7 +308,7 @@
   <p class="error">Note: this build is no longer available.</p>
 [% END %]
 
-[% INCLUDE renderProductList %]
+[% INCLUDE renderProductList latestRoot=['/job' build.project.name build.jobset.name build.job.name 'latest'] %]
 
 [% END %]
 

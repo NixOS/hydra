@@ -197,7 +197,7 @@ sub create_releaseset :Local {
 
 
 sub release :Local {
-    my ($self, $c, $projectName, $releaseSetName, $releaseId) = @_;
+    my ($self, $c, $projectName, $releaseSetName, $releaseId, @args) = @_;
     $c->stash->{template} = 'release.tt';
 
     my ($project, $releaseSet, $primaryJob, $jobs) = getReleaseSet($c, $projectName, $releaseSetName);
@@ -206,9 +206,9 @@ sub release :Local {
         # Redirect to the latest successful release.
         my $latest = getLatestSuccessfulRelease($project, $primaryJob, $jobs);
         error($c, "This release set has no successful releases yet.") if !defined $latest;
-        return $c->res->redirect($c->uri_for("/release", $projectName, $releaseSetName, $latest->id));
+        return $c->res->redirect($c->uri_for("/release", $projectName, $releaseSetName, $latest->id, @args));
     }
-    
+
     # Note: we don't actually check whether $releaseId is a primary
     # build, but who cares?
     my $primaryBuild = $project->builds->find($releaseId,
@@ -218,6 +218,22 @@ sub release :Local {
         or error($c, "Release $releaseId doesn't exist.");
 
     $c->stash->{release} = getRelease($primaryBuild, $jobs);
+
+    # Provide a redirect to the specified job of this release.  !!!
+    # This isn't uniquely defined if there are multiple jobs with the
+    # same name (e.g. builds for different platforms).  However, this
+    # mechanism is primarily to allow linking to resources of which
+    # there is only one build, such as the manual of the latest
+    # release.
+    if (scalar @args != 0) {
+        my $jobName = shift @args;
+        (my $build, my @others) = grep { $_->{job}->job eq $jobName } @{$c->stash->{release}->{jobs}};
+        notFound($c, "Release doesn't have a job named `$jobName'")
+            unless defined $build;
+        error($c, "Job `$jobName' isn't unique.") if @others;
+        return $c->res->redirect($c->uri_for($c->controller('Build')->action_for('view_build'),
+            [$build->{build}->id], @args));
+    }
 }
 
 

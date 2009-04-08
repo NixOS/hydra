@@ -17,7 +17,7 @@
 [% FOREACH j IN release.jobs %]
 
   <h2>
-    [% IF j.build %]<a href="[% c.uri_for('/build' job.build.id) %]">[% END %]
+    [% IF j.build %]<a href="[% c.uri_for('/build' j.build.id) %]">[% END %]
     [% INCLUDE renderReleaseJobName job=j.job %]
     [% IF j.build %]</a>[% END %]
   </h2>
@@ -26,7 +26,7 @@
 
     [% IF j.build.resultInfo.buildstatus == 0 %]
 
-      [% INCLUDE renderProductList build=j.build %]
+      [% INCLUDE renderProductList build=j.build latestRoot=['/release' project.name releaseSet.name 'latest' j.job.job] %]
 
     [% ELSE %]
 
