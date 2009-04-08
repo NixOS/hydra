@@ -1,0 +1,82 @@
+[% WRAPPER layout.tt title="Errors" %]
+[% PROCESS common.tt %]
+
+<h1>Errors</h1>
+
+<p>This page provides a quick way to see how FUBARed your packages
+are.  It shows job expressions that don’t evaluate properly and jobs
+that don’t build.</p>
+
+
+[% haveErrors = 0 %]
+
+
+[% IF brokenJobsets && brokenJobsets.size > 0; haveErrors = 1 %]
+
+<h2>Evaluation errors in jobsets</h2>
+
+<table class="buildList tablesorter">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Error</th>
+    </tr>
+  </thead>
+  <tdata>
+    [% FOREACH j IN brokenJobsets %]
+      <tr>
+        <td>[% INCLUDE renderFullJobsetName project=j.project.name jobset=j.name %]</td>
+        <td>
+          <pre class="multiLineMsg error">[% HTML.escape(j.errormsg) %]</pre>
+        </td>
+      </tr>
+    [% END %]
+  </tdata>
+</table>
+
+[% END %]
+
+
+[% IF brokenJobs && brokenJobs.size > 0; haveErrors = 1 %]
+
+<h2>Evaluation errors in jobs</h2>
+
+<table class="buildList tablesorter">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Error</th>
+    </tr>
+  </thead>
+  <tdata>
+    [% FOREACH j IN brokenJobs %]
+      <tr>
+        <td>[% INCLUDE renderFullJobName project=j.project.name jobset=j.jobset.name job=j.name %]</td>
+        <td>
+          <pre class="multiLineMsg error">[% HTML.escape(j.errormsg) %]</pre>
+        </td>
+      </tr>
+    [% END %]
+  </tdata>
+</table>
+
+[% END %]
+
+
+[% IF brokenBuilds && brokenBuilds.size > 0; haveErrors = 1 %]
+
+<h2>Broken builds</h2>
+
+[% INCLUDE renderBuildList builds=brokenBuilds %]
+
+[% END %]
+
+
+[% IF !haveErrors %]
+
+<p><strong>There are currently no problems.</strong></p>
+
+[% END %]
+
+
+[% END %]

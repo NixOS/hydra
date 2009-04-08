@@ -15,7 +15,8 @@ sub jobset : Chained('/') PathPart('jobset') CaptureArgs(2) {
 
     $c->stash->{project} = $project;
     
-    $c->stash->{jobset} = $project->jobsets->find({name => $jobsetName})
+    $c->stash->{jobset_} = $project->jobsets->search({name => $jobsetName});
+    $c->stash->{jobset} = $c->stash->{jobset_}->single
         or notFound($c, "Jobset $jobsetName doesn't exist.");
 }
 
@@ -38,6 +39,8 @@ sub get_builds : Chained('jobset') PathPart('') CaptureArgs(0) {
     $c->stash->{allBuilds} = $c->stash->{jobset}->builds;
     $c->stash->{jobStatus} = $c->model('DB')->resultset('JobStatusForJobset')
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]});
+    $c->stash->{allJobsets} = $c->stash->{jobset_};
+    $c->stash->{allJobs} = $c->stash->{jobset}->jobs;
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJobset')
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]});
     $c->stash->{channelBaseName} =

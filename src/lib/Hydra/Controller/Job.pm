@@ -10,7 +10,8 @@ use Hydra::Helper::CatalystUtils;
 sub job : Chained('/') PathPart('job') CaptureArgs(3) {
     my ($self, $c, $projectName, $jobsetName, $jobName) = @_;
 
-    $c->stash->{job} = $c->model('DB::Jobs')->find({project => $projectName, jobset => $jobsetName, name => $jobName})
+    $c->stash->{job_} = $c->model('DB::Jobs')->search({project => $projectName, jobset => $jobsetName, name => $jobName});
+    $c->stash->{job} = $c->stash->{job_}->single
         or notFound($c, "Job $projectName:$jobsetName:$jobName doesn't exist.");
     $c->stash->{project} = $c->stash->{job}->project;
     $c->stash->{jobset} = $c->stash->{job}->jobset;
@@ -34,6 +35,7 @@ sub get_builds : Chained('job') PathPart('') CaptureArgs(0) {
     $c->stash->{allBuilds} = $c->stash->{job}->builds;
     $c->stash->{jobStatus} = $c->model('DB')->resultset('JobStatusForJob')
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name, $c->stash->{job}->name]});
+    $c->stash->{allJobs} = $c->stash->{job_};
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJob')
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name, $c->stash->{job}->name]});
     $c->stash->{channelBaseName} =

@@ -14,6 +14,22 @@ sub jobstatus : Chained('get_builds') PathPart Args(0) {
         [joinWithResultInfo($c, $c->stash->{jobStatus})->all];
 }
 
+
+# A convenient way to see all the errors - i.e. things demanding
+# attention - at a glance. 
+sub errors : Chained('get_builds') PathPart Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'errors.tt';
+    $c->stash->{brokenJobsets} =
+        [$c->stash->{allJobsets}->search({errormsg => {'!=' => ''}})]
+        if defined $c->stash->{allJobsets};
+    $c->stash->{brokenJobs} =
+        [$c->stash->{allJobs}->search({errormsg => {'!=' => ''}})]
+        if defined $c->stash->{allJobs};
+    $c->stash->{brokenBuilds} =
+        [joinWithResultInfo($c, $c->stash->{jobStatus})->search({buildstatus => {'!=' => 0}})];
+}
+
     
 sub all : Chained('get_builds') PathPart {
     my ($self, $c, $page) = @_;

@@ -37,6 +37,9 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Root').action_for('jobstatus'))
         title = "Job status" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Root').action_for('errors'))
+        title = "Errors" %]
   [% END %]
 
 
@@ -51,6 +54,9 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Project').action_for('jobstatus'), [project.name])
         title = "Job status" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Project').action_for('errors'), [project.name])
+        title = "Errors" %]
     [% END %]
   [% END %]
   
@@ -66,6 +72,9 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Jobset').action_for('jobstatus'), [project.name, jobset.name])
         title = "Job status" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Jobset').action_for('errors'), [project.name, jobset.name])
+        title = "Errors" %]
     [% END %]
   [% END %]
   
@@ -81,6 +90,9 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Job').action_for('jobstatus'), [project.name, jobset.name, job.name])
         title = "Job status" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Job').action_for('errors'), [project.name, jobset.name, job.name])
+        title = "Errors" %]
     [% END %]
   [% END %]
   
