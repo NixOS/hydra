@@ -61,21 +61,21 @@ sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
 
 # Redirect to the latest successful build.
 sub latest : Chained('get_builds') PathPart('latest') {
-    my ($self, $c) = @_;
+    my ($self, $c, @rest) = @_;
 
     my ($latest) = joinWithResultInfo($c, $c->stash->{allBuilds})
         ->search({finished => 1, buildstatus => 0}, {order_by => ["timestamp DESC"]});
 
     notFound "There is no successful build to redirect to." unless defined $latest;
     
-    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("view_build"), [$latest->id]));
+    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("view_build"), [$latest->id], @rest));
     
 }
 
 
 # Redirect to the latest successful build for a specific platform.
 sub latest_for : Chained('get_builds') PathPart('latest-for') {
-    my ($self, $c, $system) = @_;
+    my ($self, $c, $system, @rest) = @_;
 
     notFound($c, "You need to specify a platform type in the URL.") unless defined $system;
     
@@ -84,8 +84,7 @@ sub latest_for : Chained('get_builds') PathPart('latest-for') {
 
     notFound($c, "There is no successful build for platform `$system' to redirect to.") unless defined $latest;
     
-    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("view_build"), [$latest->id]));
-    
+    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("view_build"), [$latest->id], @rest));
 }
 
 

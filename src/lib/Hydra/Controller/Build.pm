@@ -90,6 +90,15 @@ sub showLog {
 }
 
 
+sub defaultUriForProduct {
+    my ($self, $c, $product, @path) = @_;
+    my $x = $product->productnr
+        . ($product->name ? "/" . $product->name : "")
+        . ($product->defaultpath ? "/" . $product->defaultpath : ""); 
+    return $c->uri_for($self->action_for("download"), $c->req->captures, $x, @path);
+}
+
+
 sub download : Chained('build') PathPart {
     my ($self, $c, $productnr, @path) = @_;
 
@@ -98,6 +107,9 @@ sub download : Chained('build') PathPart {
 
     notFound($c, "Product " . $product->path . " has disappeared.") unless -e $product->path;
 
+    return $c->res->redirect(defaultUriForProduct($self, $c, $product, @path))
+        if scalar @path == 0 && ($product->name || $product->defaultpath);
+    
     # If the product has a name, then the first path element can be
     # ignored (it's the name included in the URL for informational purposes).
     shift @path if $product->name; 
@@ -122,6 +134,24 @@ sub download : Chained('build') PathPart {
     notFound($c, "Path $path is a directory.") if -d $path;
 
     $c->serve_static_file($path);
+}
+
+
+# Redirect to a download with the given type.  Useful when you want to
+# link to some build product of the latest build (i.e. in conjunction
+# with the .../latest redirect).
+sub download_by_type : Chained('build') PathPart('download-by-type') {
+    my ($self, $c, $type, $subtype, @path) = @_;
+
+    notFound($c, "You need to specify a type and a subtype in the URI.")
+        unless defined $type && defined $subtype;
+
+    (my $product) = $c->stash->{build}->buildproducts->search(
+        {type => $type, subtype => $subtype});
+    notFound($c, "Build doesn't have a build product with type $type/$subtype.")
+        if !defined $product;
+
+    $c->res->redirect(defaultUriForProduct($self, $c, $product, @path));
 }
 
 
