@@ -2,6 +2,10 @@
 
 [% BLOCK renderProductList -%]
 
+  [% # Work around a strange bug: build.buildproducts.size returns 3 when the actual size is 1. 
+     nrProducts = 0; FOREACH product IN build.buildproducts; nrProducts = nrProducts + 1; END
+  %]
+
   <ul class="productList">
 
     [% FOREACH product IN build.buildproducts -%]
@@ -108,11 +112,16 @@
             <tr>              
               <th>Links to latest:</th>
               <td>
-                [% uri2 = "${c.uri_for(latestRoot.join('/') 'download-by-type' product.type product.subtype)}" %]
-                <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
-                <br />
-                [% uri2 = "${c.uri_for(latestRoot.join('/') 'download' product.productnr)}" %]
-                <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
+                [% IF nrProducts > 1 %]
+                  [% uri2 = "${c.uri_for(latestRoot.join('/') 'download-by-type' product.type product.subtype)}" %]
+                  <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
+                  <br />
+                  [% uri2 = "${c.uri_for(latestRoot.join('/') 'download' product.productnr)}" %]
+                  <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
+                [% ELSE %]
+                  [% uri2 = "${c.uri_for(latestRoot.join('/') 'download')}" %]
+                  <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
+                [% END %]
               </td>
             </tr>
             <tr><th>File size:</th><td>[% product.filesize %] bytes ([% mibs(product.filesize / (1024 * 1024)) %] MiB)</td></tr>

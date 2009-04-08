@@ -102,8 +102,10 @@ sub defaultUriForProduct {
 sub download : Chained('build') PathPart {
     my ($self, $c, $productnr, @path) = @_;
 
+    $productnr = 1 if !defined $productnr;
+
     my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
-    notFound($c, "Build doesn't have a product $productnr.") if !defined $product;
+    notFound($c, "Build doesn't have a product #$productnr.") if !defined $product;
 
     notFound($c, "Product " . $product->path . " has disappeared.") unless -e $product->path;
 
