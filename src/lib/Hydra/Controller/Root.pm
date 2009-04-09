@@ -156,7 +156,7 @@ sub releases :Local {
             $c->model('DB')->schema->txn_do(sub {
                 $releaseSet->delete;
             });
-            return $c->res->redirect($c->uri_for("/releasesets", $projectName));
+            return $c->res->redirect($c->uri_for($c->controller('Project')->action_for('view'), [$project->name]));
         }
 
         else { error($c, "Unknown subcommand."); }
