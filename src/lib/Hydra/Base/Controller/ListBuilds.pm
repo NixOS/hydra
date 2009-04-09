@@ -82,7 +82,7 @@ sub latest : Chained('get_builds') PathPart('latest') {
     my ($latest) = joinWithResultInfo($c, $c->stash->{allBuilds})
         ->search({finished => 1, buildstatus => 0}, {order_by => ["timestamp DESC"]});
 
-    notFound "There is no successful build to redirect to." unless defined $latest;
+    notFound($c, "There is no successful build to redirect to.") unless defined $latest;
     
     $c->res->redirect($c->uri_for($c->controller('Build')->action_for("view_build"), [$latest->id], @rest));
     
