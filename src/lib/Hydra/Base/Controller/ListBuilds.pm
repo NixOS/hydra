@@ -7,11 +7,27 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
 
+sub getJobStatus {
+    my ($self, $c) = @_;
+
+    my $latest = joinWithResultInfo($c, $c->stash->{jobStatus});
+
+    $latest = $latest->search(
+        { active => 1 },
+        { join => 'job'
+        , '+select' => ["job.active"]
+        , '+as' => ["active"]
+        })
+        unless defined $c->stash->{showInactiveJobs};
+
+    return $latest;
+}
+
+
 sub jobstatus : Chained('get_builds') PathPart Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'jobstatus.tt';
-    $c->stash->{latestBuilds} =
-        [joinWithResultInfo($c, $c->stash->{jobStatus})->all];
+    $c->stash->{latestBuilds} = [getJobStatus($self, $c)->all];
 }
 
 
@@ -27,7 +43,7 @@ sub errors : Chained('get_builds') PathPart Args(0) {
         [$c->stash->{allJobs}->search({errormsg => {'!=' => ''}})]
         if defined $c->stash->{allJobs};
     $c->stash->{brokenBuilds} =
-        [joinWithResultInfo($c, $c->stash->{jobStatus})->search({buildstatus => {'!=' => 0}})];
+        [getJobStatus($self, $c)->search({buildstatus => {'!=' => 0}})];
 }
 
     
