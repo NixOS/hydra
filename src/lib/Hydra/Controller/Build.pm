@@ -5,6 +5,7 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use File::stat;
 
 
 sub build : Chained('/') PathPart CaptureArgs(1) {
@@ -64,6 +65,12 @@ sub showLog {
     my ($c, $path, $mode) = @_;
 
     notFound($c, "Log file $path no longer exists.") unless -f $path;
+
+    # Don't do pretty printing for large logs, because the XSLT
+    # processing is rather slow.
+    if (!$mode && stat($path)->size >= (256 * 1024)) {
+        $mode = "raw";
+    }
 
     if (!$mode) {
         # !!! quick hack
