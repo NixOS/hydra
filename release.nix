@@ -33,6 +33,7 @@ let
         # Since we don't have a `make dist', just tar everything.
         distPhase = ''
           cp $jquery src/root/static/js/jquery-pack.js
+          rm -rf src/root/static/js/tablesorter
           unzip -d src/root/static/js $tablesorter
         
           releaseName=hydra-0.1$VERSION_SUFFIX;
@@ -62,18 +63,18 @@ let
 
         buildInputs = [
           perl makeWrapper
-          perlCatalystDevel
-          perlCatalystPluginSessionStoreFastMmap
-          perlCatalystPluginStackTrace
-          perlCatalystPluginAuthorizationRoles
-          perlCatalystAuthenticationStoreDBIxClass
-          perlCatalystViewTT
-          perlCatalystEngineHTTPPrefork
-          perlCatalystViewDownload
-          perlXMLSimple
-          perlIPCRun
-          perlIOCompressBzip2
-          perlReadonly
+          perlPackages.CatalystDevel
+          perlPackages.CatalystPluginSessionStoreFastMmap
+          perlPackages.CatalystPluginStackTrace
+          perlPackages.CatalystPluginAuthorizationRoles
+          perlPackages.CatalystAuthenticationStoreDBIxClass
+          perlPackages.CatalystViewTT
+          perlPackages.CatalystEngineHTTPPrefork
+          perlPackages.CatalystViewDownload
+          perlPackages.XMLSimple
+          perlPackages.IPCRun
+          perlPackages.IOCompressBzip2
+          perlPackages.Readonly
           libtool
         ];
 
