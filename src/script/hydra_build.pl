@@ -96,7 +96,11 @@ sub doBuild {
                     if ($buildSteps{$drvPathStep}) {
                         my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
                         $step->update({busy => 0, status => 1, errormsg => $errorMsg, stoptime => time});
-                    } else {
+                    }
+                    # Don't write a record if this derivation already
+                    # failed previously.  This can happen if this is a
+                    # restarted build.
+                    elsif (scalar $build->buildsteps->search({drvpath => $drvPathStep, type => 0, busy => 0, status => 1}) == 0) {
                         $build->buildsteps->create(
                             { stepnr => ($buildSteps{$drvPathStep} = $buildStepNr++)
                             , type => 0 # = build
