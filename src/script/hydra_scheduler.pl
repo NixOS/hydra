@@ -9,6 +9,8 @@ use IPC::Run;
 use POSIX qw(strftime);
 
 
+STDOUT->autoflush();
+
 my $db = openHydraDB;
 
 

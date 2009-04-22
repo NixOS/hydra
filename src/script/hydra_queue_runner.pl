@@ -14,6 +14,8 @@ my $db = openHydraDB;
 my $hydraHome = $ENV{"HYDRA_HOME"};
 die "The HYDRA_HOME environment variable is not set!\n" unless defined $hydraHome;
 
+STDOUT->autoflush();
+
 #$SIG{CHLD} = 'IGNORE';
 
 

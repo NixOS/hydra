@@ -7,6 +7,8 @@ use Hydra::Schema;
 use Hydra::Helper::Nix;
 
 
+STDOUT->autoflush();
+
 my $db = openHydraDB;
 
 
