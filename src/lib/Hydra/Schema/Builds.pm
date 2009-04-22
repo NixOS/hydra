@@ -114,8 +114,8 @@ sub makeSource {
 
 sub makeQueries {
     my ($name, $constraint) = @_;
-    makeSource('JobStatus' . $name, "select * from (select project, jobset, job, system, max(timestamp) timestamp from Builds where finished = 1 $constraint group by project, jobset, job, system) natural join Builds");
-    makeSource('LatestSucceeded' . $name, "select * from (select project, jobset, job, system, max(timestamp) timestamp from Builds natural join BuildResultInfo where finished = 1 and buildStatus = 0 $constraint group by project, jobset, job, system) natural join Builds");
+    makeSource('JobStatus' . $name, "select * from (select project, jobset, job, system, max(id) id from Builds where finished = 1 $constraint group by project, jobset, job, system) natural join Builds");
+    makeSource('LatestSucceeded' . $name, "select * from (select project, jobset, job, system, max(id) id from Builds natural join BuildResultInfo where finished = 1 and buildStatus = 0 $constraint group by project, jobset, job, system) natural join Builds");
 }
 
 makeQueries('', "");
