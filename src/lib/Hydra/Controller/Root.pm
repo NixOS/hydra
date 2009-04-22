@@ -146,14 +146,14 @@ sub releases :Local {
         }
 
         elsif ($subcommand eq "submit") {
-            $c->model('DB')->schema->txn_do(sub {
+            txn_do($c->model('DB')->schema, sub {
                 updateReleaseSet($c, $releaseSet);
             });
             return $c->res->redirect($c->uri_for("/releases", $projectName, $releaseSet->name));
         }
 
         elsif ($subcommand eq "delete") {
-            $c->model('DB')->schema->txn_do(sub {
+            txn_do($c->model('DB')->schema, sub {
                 $releaseSet->delete;
             });
             return $c->res->redirect($c->uri_for($c->controller('Project')->action_for('view'), [$project->name]));
@@ -181,7 +181,7 @@ sub create_releaseset :Local {
 
     if (defined $subcommand && $subcommand eq "submit") {
         my $releaseSetName = $c->request->params->{name};
-        $c->model('DB')->schema->txn_do(sub {
+        txn_do($c->model('DB')->schema, sub {
             # Note: $releaseSetName is validated in updateProject,
             # which will abort the transaction if the name isn't
             # valid.

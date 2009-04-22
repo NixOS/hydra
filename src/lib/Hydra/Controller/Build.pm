@@ -273,7 +273,7 @@ sub restart : Chained('build') PathPart Args(0) {
 
     requireProjectOwner($c, $build->project);
 
-    $c->model('DB')->schema->txn_do(sub {
+    txn_do($c->model('DB')->schema, sub {
         error($c, "This build cannot be restarted.")
             unless $build->finished &&
               ($build->resultInfo->buildstatus == 3 ||
@@ -304,7 +304,7 @@ sub cancel : Chained('build') PathPart Args(0) {
 
     requireProjectOwner($c, $build->project);
 
-    $c->model('DB')->schema->txn_do(sub {
+    txn_do($c->model('DB')->schema, sub {
         error($c, "This build cannot be cancelled.")
             if $build->finished || $build->schedulingInfo->busy;
 
@@ -340,7 +340,7 @@ sub keep : Chained('build') PathPart Args(1) {
 
     registerRoot $build->outpath if $newStatus == 1;
 
-    $c->model('DB')->schema->txn_do(sub {
+    txn_do($c->model('DB')->schema, sub {
         $build->resultInfo->update({keep => int $newStatus});
     });
 

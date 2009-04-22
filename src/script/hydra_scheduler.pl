@@ -111,7 +111,7 @@ sub fetchInputAlt {
             # but if it doesn't change (or changes back), we don't get
             # a new "revision".
             if (!defined $cachedInput) {
-                $db->txn_do(sub {
+                txn_do($db, sub {
                     $db->resultset('CachedPathInputs')->create(
                         { srcpath => $uri
                         , timestamp => $timestamp
@@ -122,7 +122,7 @@ sub fetchInputAlt {
                 });
             } else {
                 $timestamp = $cachedInput->timestamp;
-                $db->txn_do(sub {
+                txn_do($db, sub {
                     $cachedInput->update({lastseen => time});
                 });
             }
@@ -170,7 +170,7 @@ sub fetchInputAlt {
 
             ($sha256, $storePath) = split ' ', $stdout;
 
-            $db->txn_do(sub {
+            txn_do($db, sub {
                 $db->resultset('CachedSubversionInputs')->create(
                     { uri => $uri
                     , revision => $revision
@@ -260,7 +260,7 @@ sub checkJob {
     $priority = int($job->{schedulingPriority})
         if $job->{schedulingPriority} =~ /^\d+$/;
 
-    $db->txn_do(sub {
+    txn_do($db, sub {
         # Mark this job as active in the database.
         my $jobInDB = $jobset->jobs->update_or_create(
             { name => $jobName
@@ -326,7 +326,7 @@ sub checkJob {
 sub setJobsetError {
     my ($jobset, $errorMsg) = @_;
     eval {
-        $db->txn_do(sub {
+        txn_do($db, sub {
             $jobset->update({errormsg => $errorMsg, errortime => time});
         });
     };
@@ -370,9 +370,10 @@ sub checkJobset {
     fetchInputs($project, $jobset, $inputInfo);
 
     # Evaluate the job expression.
-    die "not supported" if scalar @{$inputInfo->{$jobset->nixexprinput}} != 1;
     my $nixExprInput = $inputInfo->{$jobset->nixexprinput}->[0]
         or die "cannot find the input containing the job expression";
+    die "multiple alternatives for the input containing the Nix expression are not supported"
+        if scalar @{$inputInfo->{$jobset->nixexprinput}} != 1;
     my $nixExprPath = $nixExprInput->{storePath} . "/" . $jobset->nixexprpath;
 
     (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(
@@ -402,7 +403,7 @@ sub checkJobset {
     my %failedJobNames;
     push @{$failedJobNames{$_->{location}}}, $_->{msg} foreach @{$jobs->{error}};
     
-    $db->txn_do(sub {
+    txn_do($db, sub {
         $jobset->update({lastcheckedtime => time});
         
         foreach my $jobInDB ($jobset->jobs->all) {
@@ -448,7 +449,7 @@ sub checkJobsetWrapped {
     if ($@) {
         my $msg = $@;
         print "error evaluating jobset ", $jobset->name, ": $msg";
-        $db->txn_do(sub {
+        txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
             setJobsetError($jobset, $msg);
         });

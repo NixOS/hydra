@@ -19,7 +19,7 @@ die "The HYDRA_HOME environment variable is not set!\n" unless defined $hydraHom
 
 sub unlockDeadBuilds {
     # Unlock builds whose building process has died.
-    $db->txn_do(sub {
+    txn_do($db, sub {
         my @builds = $db->resultset('Builds')->search(
             {finished => 0, busy => 1}, {join => 'schedulingInfo'});
         foreach my $build (@builds) {
@@ -54,7 +54,7 @@ sub checkBuilds {
 
     my @buildsStarted;
 
-    $db->txn_do(sub {
+    txn_do($db, sub {
 
         # Get the system types for the runnable builds.
         my @systemTypes = $db->resultset('Builds')->search(
@@ -123,7 +123,7 @@ sub checkBuilds {
         };
         if ($@) {
             warn $@;
-            $db->txn_do(sub {
+            txn_do($db, sub {
                 $build->schedulingInfo->busy(0);
                 $build->schedulingInfo->locker($$);
                 $build->schedulingInfo->update;

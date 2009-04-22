@@ -8,7 +8,7 @@ use File::Basename;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     isValidPath queryPathInfo
-    getHydraPath getHydraDBPath openHydraDB
+    getHydraPath getHydraDBPath openHydraDB txn_do
     registerRoot getGCRootsDir gcRootFor
     getPrimaryBuildsForReleaseSet getRelease getLatestSuccessfulRelease );
 
@@ -75,6 +75,21 @@ sub openHydraDB {
     my $db = Hydra::Schema->connect(getHydraDBPath, "", "", {});
     $db->storage->dbh->do("PRAGMA synchronous = OFF;");
     return $db;
+}
+
+
+# Awful hack to handle timeouts in SQLite: just retry the transaction.
+# DBD::SQLite *has* a 30 second retry window, but apparently it
+# doesn't work.
+sub txn_do {
+    my ($db, $coderef) = @_;
+    while (1) {
+        eval {
+            $db->txn_do($coderef);
+        };
+        last if !$@;
+        die $@ unless $@ =~ "database is locked";
+    }
 }
 
 

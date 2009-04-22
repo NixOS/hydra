@@ -65,7 +65,7 @@ sub doBuild {
             
             if (/^@\s+build-started\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/) {
 		my $drvPathStep = $1;
-                $db->txn_do(sub {
+                txn_do($db, sub {
                     $build->buildsteps->create(
                         { stepnr => ($buildSteps{$drvPathStep} = $buildStepNr++)
                         , type => 0 # = build
@@ -80,7 +80,7 @@ sub doBuild {
             
             elsif (/^@\s+build-succeeded\s+(\S+)\s+(\S+)$/) {
                 my $drvPathStep = $1;
-                $db->txn_do(sub {
+                txn_do($db, sub {
                     my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
                     $step->update({busy => 0, status => 0, stoptime => time});
                 });
@@ -92,7 +92,7 @@ sub doBuild {
                 $thisBuildFailed = 1 if $drvPath eq $drvPathStep;
                 my $errorMsg = $4;
                 $errorMsg = "build failed previously (cached)" if $3 eq "cached";
-                $db->txn_do(sub {
+                txn_do($db, sub {
                     if ($buildSteps{$drvPathStep}) {
                         my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
                         $step->update({busy => 0, status => 1, errormsg => $errorMsg, stoptime => time});
@@ -119,7 +119,7 @@ sub doBuild {
 
             elsif (/^@\s+substituter-started\s+(\S+)\s+(\S+)$/) {
                 my $outPath = $1;
-                $db->txn_do(sub {
+                txn_do($db, sub {
                     $build->buildsteps->create(
                         { stepnr => ($buildSteps{$outPath} = $buildStepNr++)
                         , type => 1 # = substitution
@@ -132,7 +132,7 @@ sub doBuild {
 
             elsif (/^@\s+substituter-succeeded\s+(\S+)$/) {
                 my $outPath = $1;
-                $db->txn_do(sub {
+                txn_do($db, sub {
                     my $step = $build->buildsteps->find({stepnr => $buildSteps{$outPath}}) or die;
                     $step->update({busy => 0, status => 0, stoptime => time});
                 });
@@ -140,7 +140,7 @@ sub doBuild {
 
             elsif (/^@\s+substituter-failed\s+(\S+)\s+(\S+)\s+(\S+)$/) {
                 my $outPath = $1;
-                $db->txn_do(sub {
+                txn_do($db, sub {
                     my $step = $build->buildsteps->find({stepnr => $buildSteps{$outPath}}) or die;
                     $step->update({busy => 0, status => 1, errormsg => $3, stoptime => time});
                 });
@@ -169,7 +169,7 @@ sub doBuild {
 
   done:
 
-    $db->txn_do(sub {
+    txn_do($db, sub {
         $build->update({finished => 1, timestamp => time});
 
         my $releaseName;
@@ -265,7 +265,7 @@ print STDERR "performing build $buildId\n";
 # children (i.e. the build.pl instances) can continue to run and won't
 # have the lock taken away.
 my $build;
-$db->txn_do(sub {
+txn_do($db, sub {
     $build = $db->resultset('Builds')->find($buildId);
     die "build $buildId doesn't exist" unless defined $build;
     die "build $buildId already done" if defined $build->resultInfo;
@@ -287,7 +287,7 @@ eval {
 };
 if ($@) {
     warn $@;
-    $db->txn_do(sub {
+    txn_do($db, sub {
         $build->schedulingInfo->update({busy => 0, locker => $$});
     });
 }

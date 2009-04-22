@@ -64,7 +64,7 @@ sub submit : Chained('jobset') PathPart Args(0) {
     requireProjectOwner($c, $c->stash->{project});
     requirePost($c);
     
-    $c->model('DB')->schema->txn_do(sub {
+    txn_do($c->model('DB')->schema, sub {
         updateJobset($c, $c->stash->{jobset});
     });
 
@@ -79,7 +79,7 @@ sub delete : Chained('jobset') PathPart Args(0) {
     requireProjectOwner($c, $c->stash->{project});
     requirePost($c);
     
-    $c->model('DB')->schema->txn_do(sub {
+    txn_do($c->model('DB')->schema, sub {
         $c->stash->{jobset}->delete;
     });
     

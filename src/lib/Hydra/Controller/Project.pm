@@ -44,7 +44,7 @@ sub submit : Chained('project') PathPart Args(0) {
     requireProjectOwner($c, $c->stash->{project});
     requirePost($c);
     
-    $c->model('DB')->schema->txn_do(sub {
+    txn_do($c->model('DB')->schema, sub {
         updateProject($c, $c->stash->{project});
     });
     
@@ -58,7 +58,7 @@ sub delete : Chained('project') PathPart Args(0) {
     requireProjectOwner($c, $c->stash->{project});
     requirePost($c);
     
-    $c->model('DB')->schema->txn_do(sub {
+    txn_do($c->model('DB')->schema, sub {
         $c->stash->{project}->delete;
     });
     
@@ -94,7 +94,7 @@ sub create_submit : Path('/create-project/submit') {
 
     my $projectName = trim $c->request->params->{name};
     
-    $c->model('DB')->schema->txn_do(sub {
+    txn_do($c->model('DB')->schema, sub {
         # Note: $projectName is validated in updateProject,
         # which will abort the transaction if the name isn't
         # valid.  Idem for the owner.
@@ -127,7 +127,7 @@ sub create_jobset_submit : Chained('project') PathPart('create-jobset/submit') A
     
     my $jobsetName = trim $c->request->params->{name};
 
-    $c->model('DB')->schema->txn_do(sub {
+    txn_do($c->model('DB')->schema, sub {
         # Note: $jobsetName is validated in updateProject, which will
         # abort the transaction if the name isn't valid.
         my $jobset = $c->stash->{project}->jobsets->create(
