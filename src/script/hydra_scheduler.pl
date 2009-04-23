@@ -364,6 +364,17 @@ sub inputsToArgs {
 }
 
 
+sub permute {
+    my @list = @_;
+    print scalar @list, "\n";
+    for (my $n = scalar @list - 1; $n > 0; $n--) {
+        my $k = int(rand($n + 1)); # 0 <= $k <= $n 
+        @list[$n, $k] = @list[$k, $n];
+    }
+    return @list;
+}
+
+
 sub checkJobset {
     my ($project, $jobset) = @_;
     my $inputInfo = {};
@@ -392,7 +403,7 @@ sub checkJobset {
         or die "cannot parse XML output";
 
     # Schedule each successfully evaluated job.
-    foreach my $job (@{$jobs->{job}}) {
+    foreach my $job (permute @{$jobs->{job}}) {
         next if $job->{jobName} eq "";
         print "considering job " . $job->{jobName} . "\n";
         checkJob($project, $jobset, $inputInfo, $nixExprInput, $job);
