@@ -7,17 +7,23 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
 
-sub getJobStatus {
-    my ($self, $c) = @_;
-
-    my $latest = joinWithResultInfo($c, $c->stash->{jobStatus});
-
-    $latest = $latest->search(
+sub filterInactiveJobs {
+    my ($build) = @_;
+    return $build->search(
         { active => 1 },
         { join => 'job'
         , '+select' => ["job.active"]
         , '+as' => ["active"]
         })
+}
+
+
+sub getJobStatus {
+    my ($self, $c) = @_;
+
+    my $latest = joinWithResultInfo($c, $c->stash->{jobStatus});
+
+    $latest = filterInactiveJobs($latest)
         unless defined $c->stash->{showInactiveJobs};
 
     return $latest;
@@ -77,7 +83,7 @@ sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
     eval {
         if ($channelName eq "latest") {
             $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
-            getChannelData($c, scalar($c->stash->{latestSucceeded}));
+            getChannelData($c, scalar(filterInactiveJobs($c->stash->{latestSucceeded})));
         }
         elsif ($channelName eq "all") {
             $c->stash->{channelName} = $c->stash->{channelBaseName} . "-all";
