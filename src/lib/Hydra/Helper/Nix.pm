@@ -73,7 +73,8 @@ sub getHydraDBPath {
 
 sub openHydraDB {
     my $db = Hydra::Schema->connect(getHydraDBPath, "", "", {});
-    $db->storage->dbh->do("PRAGMA synchronous = OFF;");
+    $db->storage->dbh->do("PRAGMA synchronous = OFF;")
+        if defined $ENV{'HYDRA_NO_FSYNC'};
     return $db;
 }
 
