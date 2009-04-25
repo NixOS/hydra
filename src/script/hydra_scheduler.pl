@@ -366,7 +366,6 @@ sub inputsToArgs {
 
 sub permute {
     my @list = @_;
-    print scalar @list, "\n";
     for (my $n = scalar @list - 1; $n > 0; $n--) {
         my $k = int(rand($n + 1)); # 0 <= $k <= $n 
         @list[$n, $k] = @list[$k, $n];

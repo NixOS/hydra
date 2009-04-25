@@ -50,7 +50,7 @@ sub queryPathInfo {
 
     close FH;
 
-    die unless defined $hash;
+    die "path $path does not have a hash" unless defined $hash;
 
     return ($hash, $deriver, \@refs);
 }
