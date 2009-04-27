@@ -58,7 +58,7 @@ let
 
       let nix = nixUnstable.override { supportOldDBs = false; }; in
 
-      stdenvNew.mkDerivation {
+      stdenv.mkDerivation {
         name = "hydra" + (if tarball ? version then "-" + tarball.version else "");
 
         buildInputs = [
