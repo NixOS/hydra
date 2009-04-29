@@ -65,9 +65,15 @@ sub getHydraPath {
 
 
 sub getHydraDBPath {
-    my $path = getHydraPath . '/hydra.sqlite';
-    die "The Hydra database ($path) not exist!\n" unless -f $path;
-    return "dbi:SQLite:$path";
+    my $db = $ENV{"HYDRA_DBI"};
+    if ($db ne "") {
+      return $db ;
+    }
+    else {
+        my $path = getHydraPath . '/hydra.sqlite';
+        die "The Hydra database ($path) not exist!\n" unless -f $path;
+        return "dbi:SQLite:$path";
+    }
 }
 
 
