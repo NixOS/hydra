@@ -1,0 +1,115 @@
+* Recreating the schema bindings:
+
+  $ rm tmp.sqlite
+  $ sqlite3 tmp.sqlite < sql/hydra.sql
+  # $ ~/bin/genfkey tmp.sqlite > sql/fk-triggers.sql
+  $ perl -MDBIx::Class::Schema::Loader=make_schema_at,dump_to_dir:./lib -e 'make_schema_at("Hydra::Schema", { relationships => 1, moniker_map => sub {return $_;} }, ["dbi:SQLite:tmp.sqlite"])'
+
+* Running the test server:
+
+  $ DBIC_TRACE=1 ./script/hydra_server.pl
+
+* Setting the maximum number of concurrent builds per system type:
+
+  $ sqlite3 hydra.sqlite "insert into SystemTypes(system, maxConcurrent) values('i686-linux', 3);"
+
+* Creating a user:
+
+  $ sqlite3 hydra.sqlite "insert into Users(userName, emailAddress, password) values('root', 'e.dolstra@tudelft.nl', '$(echo -n foobar | sha1sum | cut -c1-40)');"
+
+  (Replace "foobar" with the desired password.)
+
+  To make the user an admin:
+
+  $ sqlite3 hydra.sqlite "insert into UserRoles(userName, role) values('root', 'admin');"
+
+  To enable a non-admin user to create projects:
+  
+  $ sqlite3 hydra.sqlite "insert into UserRoles(userName, role) values('alice', 'create-projects');"
+  
+* Creating a release set:
+
+  insert into ReleaseSets(project, name) values('patchelf', 'unstable');
+  insert into ReleaseSetJobs(isPrimary, project, release, job, attrs, description) values(1, 'patchelf', 'unstable', 'tarball', 'officialRelease=false', 'Source distribution');
+  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'unstable', 'build', 'system=i686-linux', 'Build on i686-linux');
+  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'unstable', 'build', 'system=x86_64-linux', 'Build on x86_64-linux');
+  insert into ReleaseSetJobs(project, release, job, attrs, description, mayFail) values('patchelf', 'unstable', 'rpm_fedora9i386', '', 'Fedora 9 (i386)', 1);
+  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'unstable', 'rpm_fedora10i386', '', 'Fedora 10 (i386)');
+  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'unstable', 'deb_ubuntu804i386', '', 'Ubuntu 8.04 (i386)');
+
+  insert into ReleaseSets(project, name) values('patchelf', 'stable');
+  insert into ReleaseSetJobs(isPrimary, project, release, job, attrs, description) values(1, 'patchelf', 'stable', 'tarball', 'officialRelease=true', 'Source distribution');
+  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'stable', 'build', 'system=i686-linux', 'Build on i686-linux');
+  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'stable', 'build', 'system=x86_64-linux', 'Build on x86_64-linux');
+  insert into ReleaseSetJobs(project, release, job, attrs, description, mayFail) values('patchelf', 'stable', 'rpm_fedora9i386', '', 'Fedora 9 (i386)', 1);
+  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'stable', 'rpm_fedora10i386', '', 'Fedora 10 (i386)');
+  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'stable', 'deb_ubuntu804i386', '', 'Ubuntu 8.04 (i386)');
+
+* Changing the priority of a scheduled build:
+
+  update buildschedulinginfo set priority = 200 where id = <ID>;
+  
+
+* Steps to install:
+
+  - Install the Hydra closure.
+
+  - Set HYDRA_DATA to /somewhere.
+  
+  - Run hydra_init.pl
+
+  - Start hydra_server
+
+  - Visit http://localhost:3000/
+
+  - Create a user (see above)
+
+  - Create a project, jobset etc.
+
+  - Start hydra_scheduler and hydra_runner
+
+
+* Upgrade notes:
+
+  alter table builds add column longDescription text;
+  alter table builds add column license text;
+  alter table projects add column homepage text;
+  alter table builds add column homepage text;
+  alter table BuildProducts add column defaultPath text;
+  alter table BuildResultInfo add column failedDepBuild integer;
+  alter table BuildResultInfo add column failedDepStepNr integer;
+  alter table ReleaseSetJobs add column jobset text not null default "trunk";
+  === (DB dump/load needed after Sqlite upgrade) ===
+  insert into jobs(project, jobset, name, active) select distinct project, jobset, job, 0 from builds b where not exists (select 1 from jobs where project = b.project and jobset = b.jobset and name = b.job);
+
+  create index IndexBuildInputsByBuild on BuildInputs(build);
+  create index IndexBuildInputsByDependency on BuildInputs(dependency);
+  
+  create index IndexBuildsByTimestamp on Builds(timestamp);
+  
+  
+* Job selection:
+  
+    php-sat:build [system = "i686-linux"]
+    php-sat:build [same system]
+    tarball [same patchelfSrc]
+    --if system i686-linux --arg build {...}
+
+
+* Restarting a bunch of failed builds:
+
+  $ sqlite3 hydra.sqlite "select x.id from builds x join buildresultinfo r on r.id = x.id where project = 'nixpkgs' and jobset = 'stdenv' and exists (select 1 from buildinputs where build = x.id and revision = 14806) and finished = 1 and buildstatus = 3" > ids
+
+  $ for i in $(cat ids); do echo $i; sqlite3 hydra.sqlite "begin transaction; insert into buildschedulinginfo (id, priority, busy, locker) values($i, 100, 0, ''); delete from buildresultinfo where id = $i; update builds set finished = 0 where id = $i; commit transaction;"; done
+
+
+* select * from (select project, jobset, job, system, max(timestamp) timestamp from builds where finished = 1 group by project, jobset, job, system) x join builds y on x.timestamp = y.timestamp and x.project = y.project and x.jobset = y.jobset and x.job = y.job and x.system = y.system;
+
+  select * from (select project, jobset, job, system, max(timestamp) timestamp from builds where finished = 1 group by project, jobset, job, system) natural join builds;
+
+* nix-env -f . -u --leq sqlite perl-Catalyst-Engine-HTTP-Prefork perl-Catalyst-View-Download perl-DBD-SQLite perl-IO-Compress-Bzip2 perl-IPC-Run perl-Task-Catalyst-Tutorial perl-XML-Simple
+
+
+* Delete all scheduled builds that are not already building:
+
+  delete from builds where finished = 0 and not exists (select 1 from buildschedulinginfo s where s.id = builds.id and busy = 1);
