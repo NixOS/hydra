@@ -35,6 +35,9 @@ __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
 __PACKAGE__->belongs_to("dependency", "Hydra::Schema::Builds", { id => "dependency" });
 
+if ($ENV{"HYDRA_DBI"} =~ m/^dbi:Pg/) {
+  __PACKAGE__->sequence('builds_id_seq');
+}
 
 # Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uxfS8+GnU06sbx6nvWzTSQ

@@ -102,6 +102,9 @@ __PACKAGE__->belongs_to(
   { id => "id" },
 );
 
+if ($ENV{"HYDRA_DBI"} =~ m/^dbi:Pg/) {
+  __PACKAGE__->sequence('builds_id_seq');
+}
 
 sub makeSource {
     my ($name, $query) = @_;
