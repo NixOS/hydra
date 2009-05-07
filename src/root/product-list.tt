@@ -146,11 +146,15 @@
         </a>
       </li>
 
-      [% CASE "doc" %]
+      [% CASE ["doc", "doc-pdf"] %]
 
       <li class="product">
         <a href="[% uri %]">
-          <img src="/static/images/document.png" alt="Document" />
+          [% IF product.type == "doc-pdf" %]
+            <img src="/static/images/pdf.png" alt="PDF document" />
+          [% ELSE %]
+            <img src="/static/images/document.png" alt="Document" />
+          [% END %]
           [% SWITCH product.subtype %]
           [% CASE "readme" %]
             “README” file
