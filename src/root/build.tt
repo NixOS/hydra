@@ -202,6 +202,19 @@
 </table>
 
 
+[% IF build.buildproducts %]
+
+<h2>Build products</h2>
+
+[% IF !available %]
+  <p class="error">Note: this build is no longer available.</p>
+[% END %]
+
+[% INCLUDE renderProductList latestRoot=['/job' build.project.name build.jobset.name build.job.name 'latest'] %]
+
+[% END %]
+
+
 <h2>Build inputs</h2>
 
 <table class="tablesorter">
@@ -296,19 +309,6 @@
 <pre class="buildlog">
 [% HTML.escape(build.resultInfo.errormsg) -%]
 </pre>
-
-[% END %]
-
-
-[% IF build.buildproducts %]
-
-<h2>Build products</h2>
-
-[% IF !available %]
-  <p class="error">Note: this build is no longer available.</p>
-[% END %]
-
-[% INCLUDE renderProductList latestRoot=['/job' build.project.name build.jobset.name build.job.name 'latest'] %]
 
 [% END %]
 
