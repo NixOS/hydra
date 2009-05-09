@@ -75,6 +75,7 @@ let
           perlPackages.IPCRun
           perlPackages.IOCompressBzip2
           perlPackages.Readonly
+          perlPackages.DBDPg
           libtool
         ];
 
