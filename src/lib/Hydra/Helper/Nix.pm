@@ -66,7 +66,7 @@ sub getHydraPath {
 
 sub getHydraDBPath {
     my $db = $ENV{"HYDRA_DBI"};
-    if ($db ne "") {
+    if ( defined $db ) {
       return $db ;
     }
     else {
