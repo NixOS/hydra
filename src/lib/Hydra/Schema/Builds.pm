@@ -84,6 +84,8 @@ __PACKAGE__->has_many(
 # Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:xqKyjCWVdoTyQJC28K3WXA
 
+use Hydra::Helper::Nix;
+
 __PACKAGE__->has_many(dependents => 'Hydra::Schema::BuildInputs', 'dependency');
 
 __PACKAGE__->many_to_many(dependentBuilds => 'dependents', 'build');
@@ -102,7 +104,7 @@ __PACKAGE__->belongs_to(
   { id => "id" },
 );
 
-if ($ENV{"HYDRA_DBI"} =~ m/^dbi:Pg/) {
+if (getHydraPath  =~ m/^dbi:Pg/) {
   __PACKAGE__->sequence('builds_id_seq');
 }
 

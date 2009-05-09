@@ -35,7 +35,9 @@ __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
 __PACKAGE__->belongs_to("dependency", "Hydra::Schema::Builds", { id => "dependency" });
 
-if ($ENV{"HYDRA_DBI"} =~ m/^dbi:Pg/) {
+use Hydra::Helper::Nix;
+
+if (getHydraDBPath =~ m/^dbi:Pg/) {
   __PACKAGE__->sequence('builds_id_seq');
 }
 
