@@ -37,13 +37,18 @@ __PACKAGE__->belongs_to("dependency", "Hydra::Schema::Builds", { id => "dependen
 
 use Hydra::Helper::Nix;
 
-if (getHydraDBPath =~ m/^dbi:Pg/) {
-  __PACKAGE__->sequence('builds_id_seq');
-}
 
 # Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uxfS8+GnU06sbx6nvWzTSQ
 
+sub addSequence {
+  my $hydradbi = getHydraDBPath ;
+  if ($hydradbi =~ m/^dbi:Pg/) {
+    __PACKAGE__->sequence('builds_id_seq');
+  }
+} 
+
+addSequence ;
 
 # You can replace this text with custom content, and it will be preserved on regeneration
 1;

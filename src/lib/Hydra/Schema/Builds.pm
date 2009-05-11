@@ -104,8 +104,11 @@ __PACKAGE__->belongs_to(
   { id => "id" },
 );
 
-if (getHydraPath  =~ m/^dbi:Pg/) {
-  __PACKAGE__->sequence('builds_id_seq');
+sub addSequence {
+   my $hydradbi = getHydraDBPath ;
+   if ($hydradbi =~ m/^dbi:Pg/) {
+      __PACKAGE__->sequence('builds_id_seq');
+  }
 }
 
 sub makeSource {
@@ -122,6 +125,8 @@ sub makeQueries {
     makeSource('JobStatus' . $name, "select * from (select project, jobset, job, system, max(id) as id from Builds where finished = 1 $constraint group by project, jobset, job, system) as a natural join Builds");
     makeSource('LatestSucceeded' . $name, "select * from (select project, jobset, job, system, max(id) as id from Builds natural join BuildResultInfo where finished = 1 and buildStatus = 0 $constraint group by project, jobset, job, system) as a natural join Builds");
 }
+
+addSequence;
 
 makeQueries('', "");
 makeQueries('ForProject', "and project = ?");
