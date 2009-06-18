@@ -202,7 +202,7 @@ sub contents : Chained('build') PathPart Args(1) {
         error($c, "`tar' error: $?") if $? != 0;
     }
 
-    elsif ($path =~ /\.zip$/ ) {
+    elsif ($path =~ /\.(zip|jar)$/ ) {
         $res = `unzip -v "$path"`;
         error($c, "`unzip' error: $?") if $? != 0;
     }
@@ -276,7 +276,8 @@ sub restart : Chained('build') PathPart Args(0) {
     txn_do($c->model('DB')->schema, sub {
         error($c, "This build cannot be restarted.")
             unless $build->finished &&
-              ($build->resultInfo->buildstatus == 3 ||
+              ($build->resultInfo->buildstatus == 2 ||
+               $build->resultInfo->buildstatus == 3 ||
                $build->resultInfo->buildstatus == 4);
 
         $build->update({finished => 0, timestamp => time});
