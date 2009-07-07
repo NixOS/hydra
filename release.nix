@@ -54,30 +54,18 @@ let
       , system ? "i686-linux"
       }:
 
-      with import nixpkgs {inherit system;};
+      let pkgs = import nixpkgs {inherit system;}; in
+      
+      with pkgs;
 
       let nix = nixUnstable.override { supportOldDBs = false; }; in
 
       stdenv.mkDerivation {
         name = "hydra" + (if tarball ? version then "-" + tarball.version else "");
 
-        buildInputs = [
-          perl makeWrapper
-          perlPackages.CatalystDevel
-          perlPackages.CatalystPluginSessionStoreFastMmap
-          perlPackages.CatalystPluginStackTrace
-          perlPackages.CatalystPluginAuthorizationRoles
-          perlPackages.CatalystAuthenticationStoreDBIxClass
-          perlPackages.CatalystViewTT
-          perlPackages.CatalystEngineHTTPPrefork
-          perlPackages.CatalystViewDownload
-          perlPackages.XMLSimple
-          perlPackages.IPCRun
-          perlPackages.IOCompressBzip2
-          perlPackages.Readonly
-          perlPackages.DBDPg
-          libtool
-        ];
+        buildInputs =
+          [ perl makeWrapper libtool ]
+          ++ (import ./deps.nix) { inherit pkgs; };
 
         preUnpack = ''
           src=$(ls ${tarball}/tarballs/*.tar.bz2)
