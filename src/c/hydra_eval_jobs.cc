@@ -135,6 +135,18 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             int prio = queryMetaFieldInt(meta, "schedulingPriority", 100);
             xmlAttrs["schedulingPriority"] = int2String(prio);
 
+            string maintainers;
+            MetaValue value = meta["maintainers"];
+            if (value.type == MetaValue::tpString)
+                maintainers = value.stringValue;
+            else if (value.type == MetaValue::tpStrings) {
+                foreach (Strings::const_iterator, i, value.stringValues) {
+                    if (maintainers.size() != 0) maintainers += ", ";
+                    maintainers += *i;
+                }
+            }
+            xmlAttrs["maintainers"] = maintainers;
+
             /* Register the derivation as a GC root.  !!! This
                registers roots for jobs that we may have already
                done. */

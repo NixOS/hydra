@@ -114,6 +114,10 @@
     <td>[% IF build.homepage %]<a [% HTML.attributes(href => build.homepage) %]>[% HTML.escape(build.homepage) %]</a>[% ELSE %]<em>(not given)</em>[% END %]</td>
   </tr>
   <tr>
+    <th>Maintainer(s):</th>
+    <td>[% IF build.maintainers %]<tt>[% HTML.escape(build.maintainers) %]</tt>[% ELSE %]<em>(not given)</em>[% END %]</td>
+  </tr>
+  <tr>
     <th>System:</th>
     <td><tt>[% build.system %]</tt></td>
   </tr>
