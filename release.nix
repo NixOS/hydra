@@ -75,7 +75,7 @@ let
           libxslt sqlite subversion openssh nix coreutils findutils
           gzip bzip2 lzma gnutar unzip
           gnused graphviz
-          rpm dpkg
+          rpm dpkg cdrkit
         ]);
 
         installPhase = ''

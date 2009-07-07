@@ -207,6 +207,11 @@ sub contents : Chained('build') PathPart Args(1) {
         error($c, "`unzip' error: $?") if $? != 0;
     }
 
+    elsif ($path =~ /\.iso$/ ) {
+        $res = `isoinfo -d -i "$path" && isoinfo -l -R -i "$path"`;
+        error($c, "`isoinfo' error: $?") if $? != 0;
+    }
+
     else {
         error($c, "Unsupported file type.");
     }
