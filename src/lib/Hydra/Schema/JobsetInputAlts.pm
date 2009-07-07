@@ -9,19 +9,57 @@ __PACKAGE__->load_components("Core");
 __PACKAGE__->table("JobsetInputAlts");
 __PACKAGE__->add_columns(
   "project",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 0,
+    size => undef,
+  },
   "jobset",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 0,
+    size => undef,
+  },
   "input",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 0,
+    size => undef,
+  },
   "altnr",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "value",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "revision",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "tag",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
 );
 __PACKAGE__->set_primary_key("project", "jobset", "input", "altnr");
 __PACKAGE__->belongs_to(
@@ -31,8 +69,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:V8h/34X4hs4PKhxKsFgy9w
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-07-07 14:36:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:kcIcgSux+SzIH7FQs2cnAw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

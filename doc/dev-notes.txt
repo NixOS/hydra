@@ -86,6 +86,9 @@
   create index IndexBuildInputsByDependency on BuildInputs(dependency);
   
   create index IndexBuildsByTimestamp on Builds(timestamp);
+
+  alter table jobs add column disabled integer not null default 0;
+  alter table builds add column maintainers text;
   
   
 * Job selection:
@@ -102,6 +105,13 @@
 
   $ for i in $(cat ids); do echo $i; sqlite3 hydra.sqlite "begin transaction; insert into buildschedulinginfo (id, priority, busy, locker) values($i, 100, 0, ''); delete from buildresultinfo where id = $i; update builds set finished = 0 where id = $i; commit transaction;"; done
 
+  Or with Postgres:
+
+  (restarting all aborted builds with ID > 42000)
+  $ psql -h buildfarm.st.ewi.tudelft.nl -U hydra hydra -t -c 'select x.id from builds x join buildresultinfo r on r.id = x.id where finished = 1 and buildstatus = 3 and x.id > 42000' > ids
+
+  $ for i in $(cat ids); do echo $i; PGPASSWORD=... psql -h buildfarm.st.ewi.tudelft.nl -U hydra hydra -t -c "begin transaction; insert into buildschedulinginfo (id, priority, busy, locker) values($i, 100, 0, ''); delete from buildresultinfo where id = $i; update builds set finished = 0 where id = $i; commit transaction;"; done
+  
 
 * select * from (select project, jobset, job, system, max(timestamp) timestamp from builds where finished = 1 group by project, jobset, job, system) x join builds y on x.timestamp = y.timestamp and x.project = y.project and x.jobset = y.jobset and x.job = y.job and x.system = y.system;
 

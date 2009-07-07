@@ -9,33 +9,113 @@ __PACKAGE__->load_components("Core");
 __PACKAGE__->table("Builds");
 __PACKAGE__->add_columns(
   "id",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "finished",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "timestamp",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "project",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 0,
+    size => undef,
+  },
   "jobset",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 0,
+    size => undef,
+  },
   "job",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 0,
+    size => undef,
+  },
   "nixname",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "description",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "drvpath",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "outpath",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "system",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "longdescription",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "license",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "homepage",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
+  "maintainers",
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
 );
 __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
@@ -49,13 +129,13 @@ __PACKAGE__->belongs_to(
   "Hydra::Schema::Jobs",
   { jobset => "jobset", name => "job", project => "project" },
 );
-__PACKAGE__->has_many(
-  "buildschedulinginfoes",
+__PACKAGE__->might_have(
+  "buildschedulinginfo",
   "Hydra::Schema::BuildSchedulingInfo",
   { "foreign.id" => "self.id" },
 );
-__PACKAGE__->has_many(
-  "buildresultinfoes",
+__PACKAGE__->might_have(
+  "buildresultinfo",
   "Hydra::Schema::BuildResultInfo",
   { "foreign.id" => "self.id" },
 );
@@ -81,16 +161,24 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:xqKyjCWVdoTyQJC28K3WXA
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-07-07 14:36:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:mTc++yn7RST163jLNJkXaw
 
 use Hydra::Helper::Nix;
 
-__PACKAGE__->has_many(dependents => 'Hydra::Schema::BuildInputs', 'dependency');
+__PACKAGE__->has_many(
+  "dependents",
+  "Hydra::Schema::BuildInputs",
+  { "foreign.dependency" => "self.id" },
+);
 
 __PACKAGE__->many_to_many(dependentBuilds => 'dependents', 'build');
 
-__PACKAGE__->has_many(inputs => 'Hydra::Schema::BuildInputs', 'build');
+__PACKAGE__->has_many(
+  "inputs",
+  "Hydra::Schema::BuildInputs",
+  { "foreign.build" => "self.id" },
+);
 
 __PACKAGE__->belongs_to(
   "schedulingInfo",

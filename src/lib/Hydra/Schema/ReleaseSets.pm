@@ -9,13 +9,29 @@ __PACKAGE__->load_components("Core");
 __PACKAGE__->table("ReleaseSets");
 __PACKAGE__->add_columns(
   "project",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 0,
+    size => undef,
+  },
   "name",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "description",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "keep",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("project", "name");
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
@@ -29,8 +45,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:eeWkr8kYyCvFVDZ3YzpI1Q
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-07-07 14:36:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:sYojSdWhlGMAL7Vj/UynBw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

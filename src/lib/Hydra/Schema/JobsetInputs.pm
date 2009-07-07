@@ -9,13 +9,35 @@ __PACKAGE__->load_components("Core");
 __PACKAGE__->table("JobsetInputs");
 __PACKAGE__->add_columns(
   "project",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 0,
+    size => undef,
+  },
   "jobset",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 0,
+    size => undef,
+  },
   "name",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "type",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
 );
 __PACKAGE__->set_primary_key("project", "jobset", "name");
 __PACKAGE__->has_many(
@@ -43,8 +65,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:1XdnQh4HnXU/iOyNvv8QWg
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-07-07 14:36:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SkF1SaumgGAQvR9mUbPV+Q
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

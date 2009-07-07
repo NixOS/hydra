@@ -9,13 +9,33 @@ __PACKAGE__->load_components("Core");
 __PACKAGE__->table("Users");
 __PACKAGE__->add_columns(
   "username",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "fullname",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "emailaddress",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "password",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
 );
 __PACKAGE__->set_primary_key("username");
 __PACKAGE__->has_many(
@@ -30,8 +50,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Gw6X/Et2+whq/S7o63zF8Q
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-07-07 14:36:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZH7GmAkTPdZm7G5aCp746A
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

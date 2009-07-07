@@ -9,37 +9,104 @@ __PACKAGE__->load_components("Core");
 __PACKAGE__->table("BuildInputs");
 __PACKAGE__->add_columns(
   "id",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "build",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 1,
+    size => undef,
+  },
   "name",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "type",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "uri",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "revision",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "tag",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "value",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "dependency",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 1,
+    size => undef,
+  },
   "path",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "sha256hash",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
 );
 __PACKAGE__->set_primary_key("id");
-__PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
-__PACKAGE__->belongs_to("dependency", "Hydra::Schema::Builds", { id => "dependency" });
+__PACKAGE__->belongs_to(
+  "build",
+  "Hydra::Schema::Builds",
+  { id => "build" },
+  { join_type => "LEFT OUTER" },
+);
+__PACKAGE__->belongs_to(
+  "dependency",
+  "Hydra::Schema::Builds",
+  { id => "dependency" },
+  { join_type => "LEFT OUTER" },
+);
+
+
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-07-07 14:36:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:02BDWXRn4LMcb0LFjHXqjg
 
 use Hydra::Helper::Nix;
-
-
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uxfS8+GnU06sbx6nvWzTSQ
 
 sub addSequence {
   my $hydradbi = getHydraDBPath ;

@@ -9,17 +9,43 @@ __PACKAGE__->load_components("Core");
 __PACKAGE__->table("Projects");
 __PACKAGE__->add_columns(
   "name",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "displayname",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "description",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "enabled",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  { data_type => "integer", default_value => 1, is_nullable => 0, size => undef },
   "owner",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 0,
+    size => undef,
+  },
   "homepage",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
 );
 __PACKAGE__->set_primary_key("name");
 __PACKAGE__->has_many(
@@ -50,8 +76,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:z+RXYaHk0RXJfFirBe175A
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-07-07 14:36:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:lDNoBncP2KhnrfbQIg+Usw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

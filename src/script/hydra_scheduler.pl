@@ -295,7 +295,7 @@ sub checkJob {
             , system => $job->{system}
             });
 
-        $build->buildschedulinginfoes->create(
+        $build->create_related('buildschedulinginfo',
             { priority => $priority
             , busy => 0
             , locker => ""

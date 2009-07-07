@@ -9,33 +9,89 @@ __PACKAGE__->load_components("Core");
 __PACKAGE__->table("BuildSteps");
 __PACKAGE__->add_columns(
   "build",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_foreign_key => 1,
+    is_nullable => 0,
+    size => undef,
+  },
   "stepnr",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "type",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "drvpath",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "outpath",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "logfile",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "busy",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "status",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "errormsg",
-  { data_type => "text", is_nullable => 0, size => undef },
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "starttime",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
   "stoptime",
-  { data_type => "integer", is_nullable => 0, size => undef },
+  {
+    data_type => "integer",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
 );
 __PACKAGE__->set_primary_key("build", "stepnr");
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04005 @ 2009-03-13 13:33:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:TtcOwOIZHO0vLSJ1CXF1bA
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-07-07 14:36:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:7z14GDq6a8ndBoj3Mx/3TQ
 
 1;
