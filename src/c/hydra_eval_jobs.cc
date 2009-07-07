@@ -44,7 +44,7 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
         return;
     }
 
-    Expr name, def; ATerm def2; ATermList values;
+    Expr name; ATerm def2; ATermList values;
     if (!matchFormal(ATgetFirst(formals), name, def2)) abort();
     
     if ((values = (ATermList) argsLeft.get(name))) {
@@ -77,6 +77,26 @@ static void showArgsUsed(XMLWriter & doc, const ATermMap & argsUsed)
     }
 }
 
+
+static string queryMetaFieldString(MetaInfo & meta, const string & name)
+{
+    MetaValue value = meta[name];
+    if (value.type != MetaValue::tpString) return "";
+    return value.stringValue;
+}
+
+    
+static int queryMetaFieldInt(MetaInfo & meta, const string & name, int def)
+{
+    MetaValue value = meta[name];
+    if (value.type == MetaValue::tpInt) return value.intValue;
+    if (value.type == MetaValue::tpString) {
+        int n;
+        if (string2Int(value.stringValue, n)) return n;
+    }
+    return def;
+}
+
     
 static void findJobsWrapped(EvalState & state, XMLWriter & doc,
     const ATermMap & argsUsed, const ATermMap & argsLeft,
@@ -86,7 +106,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
     
     e = evalExpr(state, e);
 
-    ATermList as, es, formals;
+    ATermList as, formals;
     ATermBool ellipsis;
     ATerm pat, body, pos;
     string s;
@@ -107,12 +127,14 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             xmlAttrs["system"] = drv.system;
             xmlAttrs["drvPath"] = drvPath = drv.queryDrvPath(state);
             xmlAttrs["outPath"] = drv.queryOutPath(state);
-            xmlAttrs["description"] = drv.queryMetaInfo(state, "description");
-            xmlAttrs["longDescription"] = drv.queryMetaInfo(state, "longDescription");
-            xmlAttrs["license"] = drv.queryMetaInfo(state, "license");
-            xmlAttrs["homepage"] = drv.queryMetaInfo(state, "homepage");
-            xmlAttrs["schedulingPriority"] = drv.queryMetaInfo(state, "schedulingPriority");
-        
+            MetaInfo meta = drv.queryMetaInfo(state);
+            xmlAttrs["description"] = queryMetaFieldString(meta, "description");
+            xmlAttrs["longDescription"] = queryMetaFieldString(meta, "longDescription");
+            xmlAttrs["license"] = queryMetaFieldString(meta, "license");
+            xmlAttrs["homepage"] = queryMetaFieldString(meta, "homepage");
+            int prio = queryMetaFieldInt(meta, "schedulingPriority", 100);
+            xmlAttrs["schedulingPriority"] = int2String(prio);
+
             /* Register the derivation as a GC root.  !!! This
                registers roots for jobs that we may have already
                done. */
