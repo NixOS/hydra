@@ -15,5 +15,7 @@ with pkgs;
   perlPackages.IOCompressBzip2
   perlPackages.Readonly
   perlPackages.DBDPg
-  perlPackages.EmailSend
+  perlPackages.EmailSender
+  perlPackages.EmailSimpleCreator
+  perlPackages.ModulePluggable
 ]

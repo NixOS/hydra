@@ -123,3 +123,9 @@
 * Delete all scheduled builds that are not already building:
 
   delete from builds where finished = 0 and not exists (select 1 from buildschedulinginfo s where s.id = builds.id and busy = 1);
+
+
+* Installing deps.nix in a profile for testing:
+
+  $ nix-env -p /nix/var/nix/profiles/per-user/eelco/hydra-deps -f deps.nix -i \* --arg pkgs 'import /home/eelco/Dev/nixpkgs {}'
+  

@@ -5,6 +5,10 @@ use File::Basename;
 use File::stat;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
+use Email::Sender::Simple qw(sendmail);
+use Email::Sender::Transport::SMTP;
+use Email::Simple;
+use Email::Simple::Creator;
 
 
 STDOUT->autoflush();
@@ -16,6 +20,28 @@ sub getBuildLog {
     my ($drvPath) = @_;
     my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
     return -e $logPath ? $logPath : undef;
+}
+
+
+sub sendEmailNotification {
+    my ($build) = @_;
+
+    print $build, " ", $build->maintainers, "\n";
+
+    return if !$build->maintainers;
+
+    my $email = Email::Simple->create(
+        header => [
+            To      => $build->maintainers,
+            From    => "Hydra <e.dolstra\@tudelft.nl>",
+            Subject => "Build " . $build->id . " finished",
+        ],
+        body => "Build finished!\n",
+    );
+
+    print $email->as_string;
+
+    sendmail($email);
 }
 
 
@@ -256,11 +282,16 @@ sub doBuild {
 
         $build->schedulingInfo->delete;
     });
+
+    #sendEmailNotification $build;
 }
 
 
 my $buildId = $ARGV[0] or die;
 print STDERR "performing build $buildId\n";
+
+#sendEmailNotification $db->resultset('Builds')->find($buildId);
+#exit 0;
 
 # Lock the build.  If necessary, steal the lock from the parent
 # process (runner.pl).  This is so that if the runner dies, the
