@@ -9,6 +9,7 @@ use Email::Sender::Simple qw(sendmail);
 use Email::Sender::Transport::SMTP;
 use Email::Simple;
 use Email::Simple::Creator;
+use Sys::Hostname::Long;
 
 
 STDOUT->autoflush();
@@ -26,20 +27,53 @@ sub getBuildLog {
 sub sendEmailNotification {
     my ($build) = @_;
 
-    print $build, " ", $build->maintainers, "\n";
-
+    die unless defined $build->resultInfo;
+        
     return if !$build->maintainers;
+
+    # Do we want to send mail?
+
+    if ($build->resultInfo->buildstatus == 0) {
+        # Build succeeded.  Only send mail if the previous build for
+        # the same platform failed.
+        return; # TODO
+    }
+
+    # Send mail.
+
+    # !!! should use the Template Toolkit here.
+
+    print STDERR "sending mail notification to ", $build->maintainers, "\n";
+
+    my $jobName = $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
+
+    my $status =
+        $build->resultInfo->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
+
+    my $sender = ($ENV{'USER'} || "hydra") .  "@" . hostname_long . "\n";
+
+    my $selfURI = $ENV{'HYDRA_BASE_URI'} || "http://localhost:3000/";
+
+    my $body = "Hi,\n"
+        . "\n"
+        . "This is to let you know that Hydra build " . $build->id
+        . " of job " . $jobName . " has $status.\n"
+        . "\n"
+        . "The build information page can be found here: "
+        . "$selfURI/build/" . $build->id . "\n"
+        . "\n"
+        . "Regards,\n\nThe Hydra build daemon.\n";
 
     my $email = Email::Simple->create(
         header => [
             To      => $build->maintainers,
-            From    => "Hydra <e.dolstra\@tudelft.nl>",
-            Subject => "Build " . $build->id . " finished",
+            From    => "Hydra Build Daemon <$sender>",
+            Subject => "Hydra job $jobName build " . $build->id . " $status",
         ],
-        body => "Build finished!\n",
+        body => $body,
     );
 
-    print $email->as_string;
+    print $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
 
     sendmail($email);
 }
@@ -283,15 +317,17 @@ sub doBuild {
         $build->schedulingInfo->delete;
     });
 
-    #sendEmailNotification $build;
+    sendEmailNotification $build;
 }
 
 
 my $buildId = $ARGV[0] or die;
 print STDERR "performing build $buildId\n";
 
-#sendEmailNotification $db->resultset('Builds')->find($buildId);
-#exit 0;
+if ($ENV{'HYDRA_MAIL_TEST'}) {
+    sendEmailNotification $db->resultset('Builds')->find($buildId);
+    exit 0;
+}
 
 # Lock the build.  If necessary, steal the lock from the parent
 # process (runner.pl).  This is so that if the runner dies, the
