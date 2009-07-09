@@ -193,10 +193,10 @@ __PACKAGE__->belongs_to(
 );
 
 sub addSequence {
-   my $hydradbi = getHydraDBPath ;
-   if ($hydradbi =~ m/^dbi:Pg/) {
-      __PACKAGE__->sequence('builds_id_seq');
-  }
+    my $hydradbi = getHydraDBPath;
+    if ($hydradbi =~ m/^dbi:Pg/) {
+        __PACKAGE__->sequence('builds_id_seq');
+    }
 }
 
 sub makeSource {
@@ -210,8 +210,14 @@ sub makeSource {
 
 sub makeQueries {
     my ($name, $constraint) = @_;
-    makeSource('JobStatus' . $name, "select * from (select project, jobset, job, system, max(id) as id from Builds where finished = 1 $constraint group by project, jobset, job, system) as a natural join Builds");
-    makeSource('LatestSucceeded' . $name, "select * from (select project, jobset, job, system, max(id) as id from Builds natural join BuildResultInfo where finished = 1 and buildStatus = 0 $constraint group by project, jobset, job, system) as a natural join Builds");
+    my $joinWithStatusChange =
+        "natural join BuildResultInfo r " .
+        "left join Builds b on b.id = " .
+        "(select max(id) from builds c natural join buildresultinfo r2 " .
+        "  where x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system and " .
+        "    x.id > c.id and r.buildstatus != r2.buildstatus)";
+    makeSource('JobStatus' . $name, "select *, b.id statusChangeId, b.timestamp statusChangeTime from (select project, jobset, job, system, max(id) as id from Builds where finished = 1 $constraint group by project, jobset, job, system) as latest natural join Builds x $joinWithStatusChange");
+    makeSource('LatestSucceeded' . $name, "select * from (select project, jobset, job, system, max(id) as id from Builds natural join BuildResultInfo where finished = 1 and buildStatus = 0 $constraint group by project, jobset, job, system) as latest natural join Builds x $joinWithStatusChange");
 }
 
 addSequence;

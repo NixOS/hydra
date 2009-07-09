@@ -73,6 +73,9 @@
         <th>Release Name</th>
         <th>System</th>
         <th>Timestamp</th>
+        [% IF showStatusChange %]
+          <th class="headerSortUp">Last status change</th>
+        [% END %]
         <th>Description</th>
       </tr>
     </thead>
@@ -105,6 +108,17 @@
           <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
           <td><tt>[% build.system %]</tt></td>
           <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+          [% IF showStatusChange %]
+          <td>
+            [% IF build.get_column('statusChangeTime') %]
+              <a href="[% c.uri_for('/build' build.get_column('statusChangeId')) %]">
+                [% date.format(build.get_column('statusChangeTime'), '%Y-%m-%d %H:%M:%S') %]
+              </a>
+            [% ELSE %]
+              <em>never</em>
+            [% END %]
+          </td>
+          [% END %]
           <td>[% build.description %]</td>
         </tr>
       [% END -%]

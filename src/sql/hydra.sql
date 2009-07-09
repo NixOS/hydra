@@ -407,4 +407,5 @@ create table ReleaseSetJobs (
 create index IndexBuildInputsByBuild on BuildInputs(build);
 create index IndexBuildInputsByDependency on BuildInputs(dependency);
 create index IndexBuildsByTimestamp on Builds(timestamp);
---create index IndexBuildsByJobAndSystem on Builds(project, jobset, job, system);
+create index IndexBuildsByJobAndSystem on Builds(project, jobset, job, system);
+create index IndexBuildResultInfo on BuildResultInfo(id); -- primary key index, not created automatically by PostgreSQL

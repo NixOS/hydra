@@ -129,3 +129,13 @@
 
   $ nix-env -p /nix/var/nix/profiles/per-user/eelco/hydra-deps -f deps.nix -i \* --arg pkgs 'import /home/eelco/Dev/nixpkgs {}'
   
+
+* select x.project, x.jobset, x.job, x.system, x.id, x.timestamp, r.buildstatus, b.id, b.timestamp
+  from (select project, jobset, job, system, max(id) as id from Builds where finished = 1 group by project, jobset, job, system) as a_
+  natural join Builds x
+  natural join BuildResultInfo r
+  left join Builds b on b.id =
+    (select max(id) from builds c
+     natural join buildresultinfo r2
+     where x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system
+           and x.id > c.id and r.buildstatus != r2.buildstatus);

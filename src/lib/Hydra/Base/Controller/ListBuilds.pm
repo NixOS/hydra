@@ -14,7 +14,7 @@ sub filterInactiveJobs {
         { join => 'job'
         , '+select' => ["job.active"]
         , '+as' => ["active"]
-        })
+        });
 }
 
 
@@ -25,6 +25,13 @@ sub getJobStatus {
 
     $latest = filterInactiveJobs($latest)
         unless defined $c->stash->{showInactiveJobs};
+
+    $latest = $latest->search(
+        {},
+        { '+select' => ["me.statusChangeId", "me.statusChangeTime"]
+        , '+as' => ["statusChangeId", "statusChangeTime"]
+        , order_by => "statusChangeTime DESC"
+        });
 
     return $latest;
 }
@@ -49,7 +56,7 @@ sub errors : Chained('get_builds') PathPart Args(0) {
         [$c->stash->{allJobs}->search({errormsg => {'!=' => ''}})]
         if defined $c->stash->{allJobs};
     $c->stash->{brokenBuilds} =
-        [getJobStatus($self, $c)->search({buildstatus => {'!=' => 0}})];
+        [getJobStatus($self, $c)->search({'me.buildstatus' => {'!=' => 0}})];
 }
 
     

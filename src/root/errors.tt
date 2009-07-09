@@ -67,7 +67,7 @@ that don’t build.</p>
 
 <h2>Broken builds</h2>
 
-[% INCLUDE renderBuildList builds=brokenBuilds %]
+[% INCLUDE renderBuildList builds=brokenBuilds showStatusChange=1 %]
 
 [% END %]
 
