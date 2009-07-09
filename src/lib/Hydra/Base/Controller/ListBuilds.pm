@@ -30,7 +30,7 @@ sub getJobStatus {
         {},
         { '+select' => ["me.statusChangeId", "me.statusChangeTime"]
         , '+as' => ["statusChangeId", "statusChangeTime"]
-        , order_by => "statusChangeTime DESC"
+        , order_by => "coalesce(statusChangeTime, 0) desc"
         });
 
     return $latest;
