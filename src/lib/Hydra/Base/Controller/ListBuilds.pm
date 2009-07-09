@@ -56,7 +56,7 @@ sub errors : Chained('get_builds') PathPart Args(0) {
         [$c->stash->{allJobs}->search({errormsg => {'!=' => ''}})]
         if defined $c->stash->{allJobs};
     $c->stash->{brokenBuilds} =
-        [getJobStatus($self, $c)->search({'me.buildstatus' => {'!=' => 0}})];
+        [getJobStatus($self, $c)->search({'resultInfo.buildstatus' => {'!=' => 0}})];
 }
 
     
