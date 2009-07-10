@@ -10,11 +10,15 @@ use Email::Sender::Transport::SMTP;
 use Email::Simple;
 use Email::Simple::Creator;
 use Sys::Hostname::Long;
+use Config::General;
 
 
 STDOUT->autoflush();
 
 my $db = openHydraDB;
+
+
+my %config = new Config::General($ENV{"HYDRA_CONF"})->getall;
 
 
 sub getBuildLog {
@@ -52,7 +56,7 @@ sub sendEmailNotification {
 
     my $sender = ($ENV{'USER'} || "hydra") .  "@" . hostname_long . "\n";
 
-    my $selfURI = $ENV{'HYDRA_BASE_URI'} || "http://localhost:3000/";
+    my $selfURI = $config{'base_uri'} || "http://localhost:3000";
 
     my $body = "Hi,\n"
         . "\n"
