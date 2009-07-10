@@ -18,7 +18,7 @@ STDOUT->autoflush();
 my $db = openHydraDB;
 
 
-my %config = new Config::General($ENV{"HYDRA_CONF"})->getall;
+my %config = new Config::General($ENV{"HYDRA_CONFIG"})->getall;
 
 
 sub getBuildLog {
