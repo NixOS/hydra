@@ -110,7 +110,7 @@ sub doBuild {
         # Run Nix to perform the build, and monitor the stderr output
         # to get notifications about specific build steps, the
         # associated log files, etc.
-        my $cmd = "nix-store --max-silent-time 1800 --keep-going --no-build-output " .
+        my $cmd = "nix-store --max-silent-time 3600 --keep-going --no-build-output " .
             "--log-type flat --print-build-trace --realise $drvPath " .
             "--add-root " . gcRootFor $outPath . " 2>&1";
 
