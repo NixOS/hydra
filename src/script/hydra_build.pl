@@ -54,7 +54,8 @@ sub sendEmailNotification {
     my $status =
         $build->resultInfo->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
 
-    my $sender = ($ENV{'USER'} || "hydra") .  "@" . hostname_long . "\n";
+    my $sender = $config{'notification_sender'} ||
+        (($ENV{'USER'} || "hydra") .  "@" . hostname_long . "\n");
 
     my $selfURI = $config{'base_uri'} || "http://localhost:3000";
 
