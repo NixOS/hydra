@@ -6,7 +6,7 @@ let
 
     tarball =
       { hydraSrc ? {outPath = ./.; rev = 1234;}
-      , nixpkgs ? ../nixpkgs
+      , nixpkgs ? ../../nixpkgs
       , officialRelease ? false
       }:
 
@@ -50,7 +50,7 @@ let
 
     build = 
       { tarball ? jobs.tarball {}
-      , nixpkgs ? ../nixpkgs
+      , nixpkgs ? ../../nixpkgs
       , system ? "i686-linux"
       }:
 
@@ -71,12 +71,11 @@ let
           src=$(ls ${tarball}/tarballs/*.tar.bz2)
         ''; # */
 
-        hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") [
+        hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [
           libxslt sqlite subversion openssh nix coreutils findutils
           gzip bzip2 lzma gnutar unzip
           gnused graphviz
-          rpm dpkg cdrkit
-        ]);
+        ] ++ ( if stdenv.isLinux then [rpm dpkg cdrkit] else [] )));
 
         installPhase = ''
           ensureDir $out/nix-support
