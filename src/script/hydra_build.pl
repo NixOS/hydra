@@ -11,6 +11,8 @@ use Email::Simple;
 use Email::Simple::Creator;
 use Sys::Hostname::Long;
 use Config::General;
+use Text::Table;
+use POSIX qw(strftime);
 
 
 STDOUT->autoflush();
@@ -55,17 +57,65 @@ sub sendEmailNotification {
         $build->resultInfo->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
 
     my $sender = $config{'notification_sender'} ||
-        (($ENV{'USER'} || "hydra") .  "@" . hostname_long . "\n");
+        (($ENV{'USER'} || "hydra") .  "@" . hostname_long);
 
     my $selfURI = $config{'base_uri'} || "http://localhost:3000";
+
+    sub showTime { my ($x) = @_; return strftime('%Y-%m-%d %H:%M:%S', localtime($x)); }
+
+    my $infoTable = Text::Table->new({ align => "left" }, \" | ", { align => "left" });
+    my @lines = (
+        [ "Build ID:", $build->id ],
+        [ "Nix name:", $build->nixname ],
+        [ "Short description:", $build->description || '(not given)' ],
+        [ "Maintainer(s):", $build->maintainers ],
+        [ "System:", $build->system ],
+        [ "Derivation store path:", $build->drvpath ],
+        [ "Output store path:", $build->outpath ],
+        [ "Time added:", showTime $build->timestamp ],
+        );
+    push @lines, (
+        [ "Build started:", showTime $build->resultInfo->starttime ],
+        [ "Build finished:", showTime $build->resultInfo->stoptime ],
+        [ "Duration:", $build->resultInfo->stoptime - $build->resultInfo->starttime . "s" ],
+    ) if $build->resultInfo->starttime;
+    $infoTable->load(@lines);
+
+    my $inputsTable = Text::Table->new(
+        { title => "Name", align => "left" }, \" | ",
+        { title => "Type", align => "left" }, \" | ",
+        { title => "Value", align => "left" });
+    @lines = ();
+    foreach my $input ($build->inputs) {
+        my $type = $input->type;
+        push @lines,
+            [ $input->name
+            , $input->type
+            , $input->type eq "build"
+              ? $input->dependency->id
+              : ($input->type eq "string" || $input->type eq "boolean")
+              ? $input->value : ($input->uri . ':' . $input->revision)
+            ];
+    }
+    $inputsTable->load(@lines);
 
     my $body = "Hi,\n"
         . "\n"
         . "This is to let you know that Hydra build " . $build->id
         . " of job " . $jobName . " has $status.\n"
         . "\n"
-        . "The build information page can be found here: "
+        . "Complete build information page can be found here: "
         . "$selfURI/build/" . $build->id . "\n"
+        . "\n"
+        . "A summary of the build information follows:\n"
+        . "\n"
+        . $infoTable->body
+        . "\n"
+        . "The build inputs were:\n"
+        . "\n"
+        . $inputsTable->title
+        . $inputsTable->rule('-', '+')
+        . $inputsTable->body
         . "\n"
         . "Regards,\n\nThe Hydra build daemon.\n";
 

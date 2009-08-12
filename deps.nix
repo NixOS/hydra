@@ -17,5 +17,6 @@ with pkgs;
   perlPackages.DBDPg
   perlPackages.EmailSender
   perlPackages.EmailSimpleCreator
-  perlPackages.ModulePluggable
+  perlPackages.TextTable
 ]
+
