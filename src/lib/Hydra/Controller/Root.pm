@@ -15,6 +15,7 @@ sub begin :Private {
     my ($self, $c) = @_;
     $c->stash->{curUri} = $c->request->uri;
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
+    $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
 }
 
 
