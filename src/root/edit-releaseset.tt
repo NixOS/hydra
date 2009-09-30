@@ -46,8 +46,8 @@
     </thead>
     <tbody>
       [% n = 0 %]
-      [% FOREACH job IN jobs %]
-        [% INCLUDE renderJob baseName="job-$n" %]
+      [% FOREACH j IN jobs %]
+        [% INCLUDE renderJob baseName="job-$n" job=j %]
         [% n = n + 1 %]
       [% END %]
       <tr>
