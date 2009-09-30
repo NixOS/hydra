@@ -409,3 +409,6 @@ create index IndexBuildInputsByDependency on BuildInputs(dependency);
 create index IndexBuildsByTimestamp on Builds(timestamp);
 create index IndexBuildsByJobAndSystem on Builds(project, jobset, job, system);
 create index IndexBuildResultInfo on BuildResultInfo(id); -- primary key index, not created automatically by PostgreSQL
+
+create index indexbuild on buildproducts(build)
+create index indexbuildtype on buildproducts(build, type)
