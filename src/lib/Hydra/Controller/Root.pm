@@ -266,6 +266,7 @@ sub robots_txt : Path('robots.txt') {
             , uri_for($controller, 'nar', $bindings, "*")
             , uri_for($controller, 'pkg', $bindings, "*")
             , uri_for($controller, 'nixexprs', $bindings)
+            , uri_for($controller, 'channel_contents', $bindings)
             );
     }
 
