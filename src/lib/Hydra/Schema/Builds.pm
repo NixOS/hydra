@@ -116,6 +116,8 @@ __PACKAGE__->add_columns(
     is_nullable => 1,
     size => undef,
   },
+  "iscurrent",
+  { data_type => "integer", default_value => 0, is_nullable => 1, size => undef },
 );
 __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
@@ -161,8 +163,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-07-07 14:36:17
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:mTc++yn7RST163jLNJkXaw
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-02 15:59:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:8r7Yv4O8WF2YU4sOjn0Q8w
 
 use Hydra::Helper::Nix;
 
@@ -217,7 +219,7 @@ sub makeQueries {
         "  where x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system and " .
         "    x.id > c.id and r.buildstatus != r2.buildstatus)";
     # Urgh, can't use "*" in the "select" here because of the status change join.
-    makeSource('JobStatus' . $name, "select x.id, x.finished, x.timestamp, x.project, x.jobset, x.job, x.nixname, x.description, x.drvpath, x.outpath, x.system, x.longdescription, x.license, x.homepage, x.maintainers, b.id as statusChangeId, b.timestamp as statusChangeTime from (select project, jobset, job, system, max(id) as id from Builds where finished = 1 $constraint group by project, jobset, job, system) as latest natural join Builds x $joinWithStatusChange");
+    makeSource('JobStatus' . $name, "select x.id, x.finished, x.timestamp, x.project, x.jobset, x.job, x.nixname, x.description, x.drvpath, x.outpath, x.system, x.longdescription, x.license, x.homepage, x.maintainers, x.isCurrent, b.id as statusChangeId, b.timestamp as statusChangeTime from (select project, jobset, job, system, max(id) as id from Builds where finished = 1 $constraint group by project, jobset, job, system) as latest natural join Builds x $joinWithStatusChange");
     makeSource('LatestSucceeded' . $name, "select * from (select project, jobset, job, system, max(id) as id from Builds natural join BuildResultInfo where finished = 1 and buildStatus = 0 $constraint group by project, jobset, job, system) as latest natural join Builds x");
 }
 

@@ -26,7 +26,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
 
     getBuildStats($c, scalar $c->stash->{job}->builds);
 
-    $c->stash->{systems} = [$c->stash->{job}->builds->search({}, {select => ["system"], distinct => 1})];
+    $c->stash->{systems} = [$c->stash->{job}->builds->search({iscurrent => 1}, {select => ["system"], distinct => 1})];
 }
 
 

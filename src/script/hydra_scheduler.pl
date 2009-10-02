@@ -252,7 +252,7 @@ sub fetchInputs {
 
 
 sub checkJob {
-    my ($project, $jobset, $inputInfo, $nixExprInput, $job) = @_;
+    my ($project, $jobset, $inputInfo, $nixExprInput, $job, $currentBuilds) = @_;
 
     my $jobName = $job->{jobName};
     my $drvPath = $job->{drvPath};
@@ -273,15 +273,36 @@ sub checkJob {
         $jobInDB->update({firstevaltime => time})
             unless defined $jobInDB->firstevaltime;
 
-        # Have we already done this build (in this job)?
-        if (scalar($jobInDB->builds->search({outPath => $outPath})) > 0) {
-            print "already scheduled/done\n";
-            return;
+        # Have we already done this build (in this job)?  Don't do it
+        # again unless it has been garbage-collected.  The latest
+        # builds for each platforms are GC roots, so they shouldn't be
+        # GCed.  However, if a job has reverted to a previous state,
+        # it's possible that a GCed build becomes current again.  In
+        # that case we have to rebuild it to ensure that it appears in
+        # channels etc.
+        my @previousBuilds = $jobInDB->builds->search({outPath => $outPath}, {order_by => "id"});
+        if (scalar(@previousBuilds) > 0) {
+            foreach my $build (@previousBuilds) {
+                if (!$build->finished) {
+                    print "already scheduled as build ", $build->id, "\n";
+                    $currentBuilds->{$build->id} = 1;
+                    return;
+                }
+            }
+            if (isValidPath($outPath)) {
+                print "already done as build ", $previousBuilds[0]->id, "\n";
+                # Mark the previous build as "current" so that it will
+                # appear in the "latest" channel for this
+                # project/jobset/job.
+                $previousBuilds[0]->update({iscurrent => 1});
+                $currentBuilds->{$previousBuilds[0]->id} = 1;
+                return;
+            }
+            print "already done as build ", $previousBuilds[0]->id,
+                "; rebuilding because it was garbage-collected\n";
         }
 
         # Nope, so add it.
-        print "adding to queue\n";
-        
         my $build = $jobInDB->builds->create(
             { finished => 0
             , timestamp => time()
@@ -294,8 +315,13 @@ sub checkJob {
             , drvpath => $drvPath
             , outpath => $outPath
             , system => $job->{system}
+            , iscurrent => 1
             });
 
+        print "added to queue as build ", $build->id, "\n";
+        
+        $currentBuilds->{$build->id} = 1;
+        
         $build->create_related('buildschedulinginfo',
             { priority => $priority
             , busy => 0
@@ -403,20 +429,22 @@ sub checkJobset {
         or die "cannot parse XML output";
 
     # Schedule each successfully evaluated job.
+    my %currentBuilds;
     foreach my $job (permute @{$jobs->{job}}) {
         next if $job->{jobName} eq "";
         print "considering job " . $job->{jobName} . "\n";
-        checkJob($project, $jobset, $inputInfo, $nixExprInput, $job);
+        checkJob($project, $jobset, $inputInfo, $nixExprInput, $job, \%currentBuilds);
     }
 
-    # Mark all existing jobs that we haven't seen as inactive.
-    my %jobNames;
-    $jobNames{$_->{jobName}}++ foreach @{$jobs->{job}};
-    
-    my %failedJobNames;
-    push @{$failedJobNames{$_->{location}}}, $_->{msg} foreach @{$jobs->{error}};
-    
     txn_do($db, sub {
+        
+        # Mark all existing jobs that we haven't seen as inactive.
+        my %jobNames;
+        $jobNames{$_->{jobName}}++ foreach @{$jobs->{job}};
+    
+        my %failedJobNames;
+        push @{$failedJobNames{$_->{location}}}, $_->{msg} foreach @{$jobs->{error}};
+
         $jobset->update({lastcheckedtime => time});
         
         foreach my $jobInDB ($jobset->jobs->all) {
@@ -428,8 +456,16 @@ sub checkJobset {
                 $jobInDB->update({errormsg => undef});
             }
         }
-    });
+
+        # Clear the "current" flag on all builds that are no longer
+        # current.
+        foreach my $build ($jobset->builds->search({iscurrent => 1})) {
+            print "current is ", $build->id, "\n";
+            $build->update({iscurrent => 0}) unless $currentBuilds{$build->id};
+        }
         
+    });
+       
     # Store the errors messages for jobs that failed to evaluate.
     my $msg = "";
     foreach my $error (@{$jobs->{error}}) {

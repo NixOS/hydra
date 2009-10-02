@@ -26,6 +26,8 @@ create table Builds (
     license       text, -- meta.license
     homepage      text, -- meta.homepage
     maintainers   text, -- meta.maintainers (concatenated, comma-separated)
+
+    isCurrent     integer default 0,
     
     foreign key   (project) references Projects(name), -- ignored by sqlite
     foreign key   (project, jobset) references Jobsets(project, name), -- ignored by sqlite
@@ -409,6 +411,5 @@ create index IndexBuildInputsByDependency on BuildInputs(dependency);
 create index IndexBuildsByTimestamp on Builds(timestamp);
 create index IndexBuildsByJobAndSystem on Builds(project, jobset, job, system);
 create index IndexBuildResultInfo on BuildResultInfo(id); -- primary key index, not created automatically by PostgreSQL
-
-create index indexbuild on buildproducts(build)
-create index indexbuildtype on buildproducts(build, type)
+create index IndexBuild on BuildProducts(build);
+create index IndexBuildType on BuildProducts(build, type);
