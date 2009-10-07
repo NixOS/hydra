@@ -212,15 +212,50 @@ sub makeSource {
 
 sub makeQueries {
     my ($name, $constraint) = @_;
+    
     my $joinWithStatusChange =
-        "natural join BuildResultInfo r " .
-        "left join Builds b on b.id = " .
-        "(select max(id) from builds c natural join buildresultinfo r2 " .
-        "  where x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system and " .
-        "    x.id > c.id and r.buildstatus != r2.buildstatus)";
-    # Urgh, can't use "*" in the "select" here because of the status change join.
-    makeSource('JobStatus' . $name, "select x.id, x.finished, x.timestamp, x.project, x.jobset, x.job, x.nixname, x.description, x.drvpath, x.outpath, x.system, x.longdescription, x.license, x.homepage, x.maintainers, x.isCurrent, b.id as statusChangeId, b.timestamp as statusChangeTime from (select project, jobset, job, system, max(id) as id from Builds where finished = 1 $constraint group by project, jobset, job, system) as latest natural join Builds x $joinWithStatusChange");
-    makeSource('LatestSucceeded' . $name, "select * from (select project, jobset, job, system, max(id) as id from Builds natural join BuildResultInfo where finished = 1 and buildStatus = 0 $constraint group by project, jobset, job, system) as latest natural join Builds x");
+        <<QUERY;
+          natural join BuildResultInfo r
+          left join Builds b on
+            b.id =
+              (select max(id)
+               from builds c natural join buildresultinfo r2
+               where
+                 x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system and
+                 x.id > c.id and r.buildstatus != r2.buildstatus)
+QUERY
+
+    makeSource(
+        "JobStatus$name",
+        # Urgh, can't use "*" in the "select" here because of the status change join.
+        <<QUERY
+          select 
+            x.id, x.finished, x.timestamp, x.project, x.jobset, x.job, x.nixname,
+            x.description, x.drvpath, x.outpath, x.system, x.longdescription,
+            x.license, x.homepage, x.maintainers, x.isCurrent,
+            b.id as statusChangeId, b.timestamp as statusChangeTime
+          from
+            (select project, jobset, job, system, max(id) as id
+             from Builds where finished = 1 $constraint group by project, jobset, job, system)
+            as latest
+          natural join Builds x
+          $joinWithStatusChange
+QUERY
+    );
+    
+    makeSource(
+        "LatestSucceeded$name",
+        <<QUERY
+          select *
+          from
+            (select project, jobset, job, system, max(id) as id
+             from Builds natural join BuildResultInfo
+             where finished = 1 and buildStatus = 0 $constraint
+             group by project, jobset, job, system
+            ) as latest
+          natural join Builds
+QUERY
+    );
 }
 
 addSequence;
