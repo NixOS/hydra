@@ -15,7 +15,6 @@ sub job : Chained('/') PathPart('job') CaptureArgs(3) {
         or notFound($c, "Job $projectName:$jobsetName:$jobName doesn't exist.");
     $c->stash->{project} = $c->stash->{job}->project;
     $c->stash->{jobset} = $c->stash->{job}->jobset;
-    $c->stash->{showInactiveJobs} = 1;
 }
 
 

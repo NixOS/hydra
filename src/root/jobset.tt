@@ -118,7 +118,7 @@
 
   <blockquote>
     [% IF activeJobs.size == 0 %]<em>(none)</em>[% END %]
-    [% FOREACH j IN activeJobs %] [% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.name %] [% END %]
+    [% FOREACH j IN activeJobs %] [% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.get_column('job') %] [% END %]
   </blockquote>
 </p>
 

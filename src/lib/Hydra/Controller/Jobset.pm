@@ -28,7 +28,7 @@ sub index : Chained('jobset') PathPart('') Args(0) {
     
     getBuildStats($c, scalar $c->stash->{jobset}->builds);
 
-    $c->stash->{activeJobs} = [$c->stash->{jobset}->jobs->search({active => 1})];
+    $c->stash->{activeJobs} = [$c->stash->{jobset}->builds->search({isCurrent => 1}, {select => ["job"], distinct => 1})];
     $c->stash->{inactiveJobs} = [$c->stash->{jobset}->jobs->search({active => 0})];
 }
 

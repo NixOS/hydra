@@ -227,6 +227,8 @@ sub makeQueries {
                     (r.buildstatus != 0 and r2.buildstatus = 0)))
 QUERY
 
+    my $activeJobs = "(select distinct project, jobset, job, system from Builds where isCurrent = 1 $constraint)";
+
     makeSource(
         "JobStatus$name",
         # Urgh, can't use "*" in the "select" here because of the status change join.
@@ -238,7 +240,10 @@ QUERY
             b.id as statusChangeId, b.timestamp as statusChangeTime
           from
             (select project, jobset, job, system, max(id) as id
-             from Builds where finished = 1 $constraint group by project, jobset, job, system)
+             from $activeJobs as activeJobs
+             natural join Builds
+             where finished = 1
+             group by project, jobset, job, system)
             as latest
           natural join Builds x
           $joinWithStatusChange
@@ -251,8 +256,10 @@ QUERY
           select *
           from
             (select project, jobset, job, system, max(id) as id
-             from Builds natural join BuildResultInfo
-             where finished = 1 and buildStatus = 0 $constraint
+             from $activeJobs as activeJobs
+             natural join Builds
+             natural join BuildResultInfo
+             where finished = 1 and buildStatus = 0
              group by project, jobset, job, system
             ) as latest
           natural join Builds

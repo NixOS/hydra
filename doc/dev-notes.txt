@@ -90,7 +90,9 @@
   alter table jobs add column disabled integer not null default 0;
   alter table builds add column maintainers text;
 
+  # Add the isCurrent column to Builds and use the obsolete Jobs.active to fill it in.
   alter table builds add column isCurrent integer default 0;
+  update builds set isCurrent = 1 where id in (select max(id) from builds natural join (select distinct b.project, b.jobset, b.job, b.system from builds b join (select project, jobset, name from jobs where active = 1) j on b.project = j.project and b.jobset = j.jobset and b.job = j.name) b2 group by project, jobset, job, system);
   
   
 * Job selection:
