@@ -89,6 +89,8 @@
 
   alter table jobs add column disabled integer not null default 0;
   alter table builds add column maintainers text;
+
+  alter table builds add column isCurrent integer default 0;
   
   
 * Job selection:

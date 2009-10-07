@@ -273,35 +273,24 @@ sub checkJob {
         $jobInDB->update({firstevaltime => time})
             unless defined $jobInDB->firstevaltime;
 
-        # Have we already done this build (in this job)?  Don't do it
-        # again unless it has been garbage-collected.  The latest
-        # builds for each platforms are GC roots, so they shouldn't be
-        # GCed.  However, if a job has reverted to a previous state,
-        # it's possible that a GCed build becomes current again.  In
-        # that case we have to rebuild it to ensure that it appears in
-        # channels etc.
-        my @previousBuilds = $jobInDB->builds->search({outPath => $outPath}, {order_by => "id"});
+        # Don't add a build that has already been scheduled for this
+        # job, or has been built but is still a "current" build for
+        # this job.  Note that this means that if the sources of a job
+        # are changed from A to B and then reverted to A, three builds
+        # will be performed (though the last one will probably use the
+        # cached result from the first).  This ensures that the builds
+        # with the highest ID will always be the ones that we want in
+        # the channels.
+        # !!! Checking $drvPath doesn't take meta-attributes into
+        # account.  For instance, do we want a new build to be
+        # scheduled if the meta.maintainers field is changed?
+        my @previousBuilds = $jobInDB->builds->search({drvPath => $drvPath, isCurrent => 1});
         if (scalar(@previousBuilds) > 0) {
-            foreach my $build (@previousBuilds) {
-                if (!$build->finished) {
-                    print "already scheduled as build ", $build->id, "\n";
-                    $currentBuilds->{$build->id} = 1;
-                    return;
-                }
-            }
-            if (isValidPath($outPath)) {
-                print "already done as build ", $previousBuilds[0]->id, "\n";
-                # Mark the previous build as "current" so that it will
-                # appear in the "latest" channel for this
-                # project/jobset/job.
-                $previousBuilds[0]->update({iscurrent => 1});
-                $currentBuilds->{$previousBuilds[0]->id} = 1;
-                return;
-            }
-            print "already done as build ", $previousBuilds[0]->id,
-                "; rebuilding because it was garbage-collected\n";
+            print "already scheduled/built\n";
+            $currentBuilds->{$_->id} = 1 foreach @previousBuilds;
+            return;
         }
-
+        
         # Nope, so add it.
         my $build = $jobInDB->builds->create(
             { finished => 0
@@ -460,7 +449,6 @@ sub checkJobset {
         # Clear the "current" flag on all builds that are no longer
         # current.
         foreach my $build ($jobset->builds->search({iscurrent => 1})) {
-            print "current is ", $build->id, "\n";
             $build->update({iscurrent => 0}) unless $currentBuilds{$build->id};
         }
         
