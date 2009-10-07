@@ -222,7 +222,9 @@ sub makeQueries {
                from builds c natural join buildresultinfo r2
                where
                  x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system and
-                 x.id > c.id and r.buildstatus != r2.buildstatus)
+                 x.id > c.id and
+                   ((r.buildstatus = 0 and r2.buildstatus != 0) or
+                    (r.buildstatus != 0 and r2.buildstatus = 0)))
 QUERY
 
     makeSource(
