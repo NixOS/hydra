@@ -263,10 +263,9 @@ sub checkJob {
         if $job->{schedulingPriority} =~ /^\d+$/;
 
     txn_do($db, sub {
-        # Mark this job as active in the database.
+        # Update the last evaluation time in the database.
         my $jobInDB = $jobset->jobs->update_or_create(
             { name => $jobName
-            , active => 1
             , lastevaltime => time
             });
 
@@ -427,18 +426,14 @@ sub checkJobset {
 
     txn_do($db, sub {
         
-        # Mark all existing jobs that we haven't seen as inactive.
-        my %jobNames;
-        $jobNames{$_->{jobName}}++ foreach @{$jobs->{job}};
-    
+        # Update the last checked times and error messages for each
+        # job.
         my %failedJobNames;
         push @{$failedJobNames{$_->{location}}}, $_->{msg} foreach @{$jobs->{error}};
 
         $jobset->update({lastcheckedtime => time});
         
         foreach my $jobInDB ($jobset->jobs->all) {
-            $jobInDB->update({active => $jobNames{$jobInDB->name} || $failedJobNames{$jobInDB->name} ? 1 : 0});
-
             if ($failedJobNames{$jobInDB->name}) {
                 $jobInDB->update({errormsg => join '\n', @{$failedJobNames{$jobInDB->name}}});
             } else {

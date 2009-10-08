@@ -143,3 +143,7 @@
      natural join buildresultinfo r2
      where x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system
            and x.id > c.id and r.buildstatus != r2.buildstatus);
+
+* Using PostgreSQL:
+
+  $ HYDRA_DBI="dbi:Pg:dbname=hydra;" hydra_server.pl

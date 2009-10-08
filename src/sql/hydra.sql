@@ -261,10 +261,7 @@ create table Jobs (
     jobset        text not null,
     name          text not null,
 
-    -- `active' means the Nix expression for the jobset currently
-    -- contains this job.  Otherwise it's a job that has been removed
-    -- from the expression.
-    active        integer not null default 1,
+    active        integer not null default 1, -- !!! obsolete, remove
 
     errorMsg      text, -- evalution error for this job
 
