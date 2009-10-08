@@ -492,7 +492,8 @@ sub checkJobsetWrapped {
 sub checkJobs {
     foreach my $project ($db->resultset('Projects')->search({enabled => 1})) {
         print "considering project ", $project->name, "\n";
-        checkJobsetWrapped($project, $_) foreach $project->jobsets->all;
+        checkJobsetWrapped($project, $_)
+            foreach $project->jobsets->search({enabled => 1});
     }
 }
 

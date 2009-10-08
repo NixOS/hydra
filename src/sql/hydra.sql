@@ -201,6 +201,7 @@ create table Jobsets (
     errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
     errorTime     integer, -- timestamp associated with errorMsg
     lastCheckedTime integer, -- last time the scheduler looked at this jobset
+    enabled       integer not null default 1,
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
     foreign key   (project, name, nixExprInput) references JobsetInputs(project, jobset, name)
@@ -268,7 +269,7 @@ create table Jobs (
     firstEvalTime integer, -- first time the scheduler saw this job
     lastEvalTime  integer, -- last time the scheduler saw this job
 
-    disabled      integer not null default 0,
+    disabled      integer not null default 0, -- !!! not currently used
 
     primary key   (project, jobset, name),
     foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite

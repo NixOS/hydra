@@ -114,6 +114,7 @@ sub updateJobset {
         , description => trim($c->request->params->{"description"})
         , nixexprpath => $nixExprPath
         , nixexprinput => $nixExprInput
+        , enabled => trim($c->request->params->{enabled}) eq "1" ? 1 : 0
         });
 
     my %inputNames;

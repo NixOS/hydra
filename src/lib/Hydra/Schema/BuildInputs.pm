@@ -103,8 +103,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-02 15:59:19
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3l2Qu/wpPEb/xsXoyeRviQ
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-08 13:25:04
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:yodYRloko+NdaEVy+IL5JA
 
 use Hydra::Helper::Nix;
 

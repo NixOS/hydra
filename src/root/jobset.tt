@@ -72,6 +72,12 @@
       <tt>[% INCLUDE maybeEditString param="nixexprinput" value=jobset.nixexprinput extraClass="shortString" %]</tt>
     </td>
   </tr>
+  <tr>
+    <th>Enabled:</th>
+    <td>
+      [% INCLUDE renderSelection param="enabled" curValue=jobset.enabled options={"1" = "Yes", "0" = "No"} %]
+    </td>
+  </tr>
   [% IF !edit %]
   <tr>
     <th>Last checked:</th>
