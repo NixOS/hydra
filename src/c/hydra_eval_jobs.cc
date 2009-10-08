@@ -179,7 +179,7 @@ static void findJobs(EvalState & state, XMLWriter & doc,
 {
     try {
         findJobsWrapped(state, doc, argsUsed, argsLeft, e, attrPath);
-    } catch (Error & e) {
+    } catch (EvalError & e) {
         XMLAttrs xmlAttrs;
         xmlAttrs["location"] = attrPath;
         xmlAttrs["msg"] = e.msg();
