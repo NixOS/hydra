@@ -156,7 +156,7 @@ sub download_by_type : Chained('build') PathPart('download-by-type') {
         unless defined $type && defined $subtype;
 
     (my $product) = $c->stash->{build}->buildproducts->search(
-        {type => $type, subtype => $subtype});
+        {type => $type, subtype => $subtype}, {order_by => "productnr"});
     notFound($c, "Build doesn't have a build product with type $type/$subtype.")
         if !defined $product;
 
