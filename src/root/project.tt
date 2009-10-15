@@ -99,28 +99,28 @@
 
 
 
-<h2>Releases</h2>
+<h2>Views</h2>
 
-[% IF releaseSets.size > 0 %]
+[% IF views.size > 0 %]
 
-<p>Project <tt>[% project.name %]</tt> has the following release sets:</p>
+<p>Project <tt>[% project.name %]</tt> has the following views:</p>
 
 <ul>
-  [% FOREACH releaseSet IN releaseSets %]
+  [% FOREACH view IN views %]
     <li>
-      <a href="[% c.uri_for('/releases' project.name releaseSet.name) %]"><tt>[% releaseSet.name %]</tt></a>
-      [<a href="[% c.uri_for('/releases' project.name releaseSet.name "edit") %]">Edit</a>]
+      <a href="[% c.uri_for('/view' project.name view.name) %]"><tt>[% view.name %]</tt></a>
+      [<a href="[% c.uri_for('/view' project.name view.name "edit") %]">Edit</a>]
     </li>
   [% END %]
 </ul>
 
 [% ELSE %]
 
-<p>Project <tt>[% project.name %]</tt> has no release sets.</p>
+<p>Project <tt>[% project.name %]</tt> has no views.</p>
 
 [% END %]
 
-<p><a href="[% c.uri_for('/create_releaseset' project.name) %]">[Create a new release set]</a></p>
+<p><a href="[% c.uri_for('/project' project.name 'create-view') %]">[Create a new view]</a></p>
 
 
 <h2>Channels</h2>

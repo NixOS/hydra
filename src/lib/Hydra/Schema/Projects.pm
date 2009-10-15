@@ -65,19 +65,19 @@ __PACKAGE__->has_many(
   { "foreign.project" => "self.name" },
 );
 __PACKAGE__->has_many(
-  "releasesets",
-  "Hydra::Schema::ReleaseSets",
+  "views",
+  "Hydra::Schema::Views",
   { "foreign.project" => "self.name" },
 );
 __PACKAGE__->has_many(
-  "releasesetjobs",
-  "Hydra::Schema::ReleaseSetJobs",
+  "viewjobs",
+  "Hydra::Schema::ViewJobs",
   { "foreign.project" => "self.name" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-08 13:25:04
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Dru36PNUe9iYHEwhhHKJ3A
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-15 23:14:39
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:N6NPLJfc1gKM4zz6dS5PJw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

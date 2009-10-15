@@ -1,8 +1,8 @@
-[% WRAPPER layout.tt title=(create ? "New Release Set" : "Release Set ‘$project.name:$releaseSet.name’") %]
+[% WRAPPER layout.tt title=(create ? "New View" : "View ‘$project.name:$view.name’") %]
 [% PROCESS common.tt %]
 [% USE HTML %]
 
-<h1>[% IF create %]New Release Set[% ELSE %]Release Set <tt>[% project.name %]:[% releaseSet.name %]</tt>[% END %]</h1>
+<h1>[% IF create %]New View[% ELSE %]View <tt>[% project.name %]:[% view.name %]</tt>[% END %]</h1>
 
 
 [% BLOCK renderJob %]
@@ -21,16 +21,16 @@
 [% END %]
 
 
-<form action="[% IF create %][% c.uri_for('/create_releaseset' project.name 'submit') %][% ELSE %][% c.uri_for('/releases' project.name releaseSet.name 'submit') %][% END %]" method="post">
+<form action="[% IF create %][% c.uri_for('/create-view' project.name 'submit') %][% ELSE %][% c.uri_for('/view' project.name view.name 'submit') %][% END %]" method="post">
 
   <table class="layoutTable">
     <tr>
       <th>Identifier:</th>
-      <td><input type="text" class="string" name="name" [% HTML.attributes(value => releaseSet.name) %] /></td>
+      <td><input type="text" class="string" name="name" [% HTML.attributes(value => view.name) %] /></td>
     </tr>
     <tr>
       <th>Description:</th>
-      <td><input type="text" class="string" name="description" [% HTML.attributes(value => releaseSet.description) %] /></td>
+      <td><input type="text" class="string" name="description" [% HTML.attributes(value => view.description) %] /></td>
     </tr>
   </table>
 
@@ -86,13 +86,13 @@
 
 [% IF !create %]
 
-  <form action="[% c.uri_for('/releases' project.name releaseSet.name 'delete') %]" method="post">
-    <p><button id="delete-project" type="submit"><img src="/static/images/failure.gif" />Delete this release set</button></p>
+  <form action="[% c.uri_for('/view' project.name view.name 'delete') %]" method="post">
+    <p><button id="delete-project" type="submit"><img src="/static/images/failure.gif" />Delete this view</button></p>
   </form>
 
   <script type="text/javascript">
     $("#delete-project").click(function() {
-      return confirm("Are you sure you want to delete this release set?");
+      return confirm("Are you sure you want to delete this view?");
     });
   </script>
 

@@ -239,12 +239,10 @@ sub getRelease {
             $thisBuild = findLastJobForPrimaryBuild($primaryBuild, $job) ;
         }
 
-        if ($job->mayfail != 1) {
-            if (!defined $thisBuild) {
-                $status = 2 if $status == 0; # = unfinished
-            } elsif ($thisBuild->get_column('buildstatus') != 0) {
-                $status = 1; # = failed
-            }
+        if (!defined $thisBuild) {
+            $status = 2 if $status == 0; # = unfinished
+        } elsif ($thisBuild->get_column('buildstatus') != 0) {
+            $status = 1; # = failed
         }
 
         $timestamp = $thisBuild->timestamp

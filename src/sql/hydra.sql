@@ -184,8 +184,8 @@ create trigger cascadeProjectUpdate
     update JobsetInputs set project = new.name where project = old.name;
     update JobsetInputAlts set project = new.name where project = old.name;
     update Builds set project = new.name where project = old.name;
-    update ReleaseSets set project = new.name where project = old.name;
-    update ReleaseSetJobs set project = new.name where project = old.name;
+    update Views set project = new.name where project = old.name;
+    update ViewJobs set project = new.name where project = old.name;
   end;
 
 
@@ -329,28 +329,19 @@ create trigger cascadeUserDelete
   end;
 
 
--- Release sets are a mechanism to automatically group related builds
--- together.  A release set defines what an individual release
--- consists of, namely: a release consists of a build of some
--- "primary" job, plus all builds of the other jobs named in
--- ReleaseSetJobs that have that build as an input.  If there are
--- multiple builds matching a ReleaseSetJob, then we take the oldest
--- successful build, or the oldest unsuccessful build if there is no
--- successful build.  A release is itself considered successful if all
--- builds (except those for jobs that have mayFail set) are
--- successful.
---
--- Note that individual releases aren't separately stored in the
--- database, so they're really just a dynamic view on the universe of
--- builds, defined by a ReleaseSet.
-create table ReleaseSets (
+-- Views are a mechanism to automatically group related builds
+-- together.  A view definition consists of a build of some "primary"
+-- job, plus all builds of the other jobs named in ViewJobs that have
+-- that build as an input.  If there are multiple builds matching a
+-- ViewJob, then we take the oldest successful build, or the oldest
+-- unsuccessful build if there is no successful build.
+create table Views (
     project       text not null,
     name          text not null,
     
     description   text,
 
-    -- If true, don't garbage-collect builds belonging to the releases
-    -- defined by this row.
+    -- If true, don't garbage-collect builds included in this view.
     keep          integer not null default 0, 
 
     primary key   (project, name),
@@ -358,26 +349,23 @@ create table ReleaseSets (
 );
 
 
-create trigger cascadeReleaseSetDelete
-  before delete on ReleaseSets
+create trigger cascadeViewDelete
+  before delete on Views
   for each row begin
-    delete from ReleaseSetJobs where project = old.project and release_ = old.name;
+    delete from ViewJobs where project = old.project and view_ = old.name;
   end;
 
 
-create trigger cascadeReleaseSetUpdate
-  update of name on ReleaseSets
+create trigger cascadeViewUpdate
+  update of name on Views
   for each row begin
-    update ReleaseSetJobs set release_ = new.name where project = old.project and release_ = old.name;
+    update ViewJobs set view_ = new.name where project = old.project and view_ = old.name;
   end;
 
 
-create table ReleaseSetJobs (
+create table ViewJobs (
     project       text not null,
-    -- `release' is a reserved keyword in sqlite >= 3.6.8.  We could
-    -- quote them ("release") here, but since the Perl bindings don't
-    -- do that it still wouldn't work.  So use `release_' instead.
-    release_      text not null,
+    view_         text not null,
 
     job           text not null,
 
@@ -386,19 +374,23 @@ create table ReleaseSetJobs (
     -- be a separate table but I'm lazy.
     attrs         text not null,
 
-    -- If set, this is the primary job for the release.  There can be
-    -- onlyt one such job per release set.
+    -- If set, this is the primary job for the view.  There can be
+    -- only one such job per view.
     isPrimary     integer not null default 0,
     
-    mayFail       integer not null default 0,
-
     description   text,
     
     jobset        text not null,
+
+    -- If set, once there is a successful build for every job
+    -- associated with a build of the view's primary job, that set of
+    -- builds is automatically added as a release to the Releases
+    -- table.
+    autoRelease   integer not null default 0,
     
-    primary key   (project, release_, job, attrs),
+    primary key   (project, view_, job, attrs),
     foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
-    foreign key   (project, release_) references ReleaseSets(project, name) on delete cascade -- ignored by sqlite
+    foreign key   (project, view_) references Views(project, name) on delete cascade -- ignored by sqlite
     foreign key   (project, jobset) references Jobsets(project, name) on delete restrict -- ignored by sqlite
 );
 

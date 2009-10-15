@@ -96,6 +96,15 @@
 
   alter table Jobsets add column enabled integer not null default 1;
 
+  # Releases -> Views.
+  alter table ReleaseSets rename to Views;
+  alter table Views rename column name to view_;
+  alter table ReleaseSetJobs rename to ViewJobs;
+  alter table ViewJobs rename column release_ to view_;
+  alter table ViewJobs drop column mayFail;
+  alter table ViewJobs add column autorelease integer not null default 0;
+
+
   
 * Job selection:
   

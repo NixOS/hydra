@@ -1,0 +1,76 @@
+[% WRAPPER layout.tt title="View ‘$view.project.name:$view.name’" %]
+[% PROCESS common.tt %]
+[% USE HTML %]
+
+<h1>View <tt>[% view.project.name %]:[% view.name %]</tt></h1>
+
+<p>
+[<a href="[% c.uri_for('/view' project.name view.name "edit") %]">Edit</a>]
+[<a href="[% c.uri_for('/view' project.name view.name "latest") %]">Latest</a>]
+</p>
+
+<p>Showing results [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + results.size %] out of [% totalResults %].</p>
+
+<table class="tablesorter">
+  <thead>
+    <tr>
+      <th></th>
+      <th>#</th>
+      <th>Name</th>
+      <th>Date</th>
+      [% FOREACH j IN jobs %]
+        <th class="releaseSetJobName">[% INCLUDE renderReleaseJobName job=j %]</th>
+      [% END %]
+    </tr>
+  </thead>
+  
+  <tbody>
+    [% FOREACH result IN results %]
+      [% link = c.uri_for('/view' project.name view.name result.id) %]
+      <tr class="clickable" onclick="window.location = '[% link %]'">
+        <td>
+          [% IF result.status == 0 %]
+            <img src="/static/images/success.gif" />
+          [% ELSIF result.status == 1 %]
+            <img src="/static/images/failure.gif" />
+          [% ELSIF result.status == 2 %]
+            <img src="/static/images/question-mark.png" />
+          [% END %]
+        </td>
+        <td><a href="[% link %]">[% result.id %]</a></td>
+        <td>
+          [% IF result.releasename %]
+            <tt>[% result.releasename %]</tt>
+          [% ELSE %]
+            <em>No name</em>
+          [% END %]
+        </td>
+        <td>[% INCLUDE renderDateTime timestamp=result.timestamp %]</td>
+        [% FOREACH j IN result.jobs %]
+          <td class="centered">
+            [% IF j.build %]
+              <a href="[% c.uri_for('/build' j.build.id) %]">
+                [% IF j.build.get_column('buildstatus') == 0 %]
+                  <img src="/static/images/success.gif" />
+                [% ELSE %]
+                  <img src="/static/images/failure.gif" />
+                [% END %]
+              </a>
+            [% END %]
+          </td>
+        [% END %]
+      </tr> 
+   [% END %]
+  </tbody>
+</table>
+
+[<a href="[% "$baseUri?page=1" %]">First</a>]
+[% IF page > 1 %]
+  [<a href="[% "$baseUri?page="; (page - 1) %]">Prev</a>]
+[% END %]
+[% IF page * resultsPerPage < totalResults %]
+  [<a href="[% "$baseUri?page="; (page + 1) %]">Next</a>]
+[% END %]
+[<a href="[% "$baseUri?page="; (totalResults - 1) div resultsPerPage + 1 %]">Last</a>]
+
+[% END %]

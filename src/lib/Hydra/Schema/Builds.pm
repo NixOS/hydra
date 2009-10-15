@@ -163,8 +163,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-08 13:25:04
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:luxYxoOAtLoCgl5iFTYdJA
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-15 23:14:39
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:CcYlMej7OPRUJn6375Qlqw
 
 use Hydra::Helper::Nix;
 

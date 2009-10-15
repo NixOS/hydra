@@ -1,4 +1,4 @@
-package Hydra::Schema::ReleaseSetJobs;
+package Hydra::Schema::ViewJobs;
 
 use strict;
 use warnings;
@@ -6,7 +6,7 @@ use warnings;
 use base 'DBIx::Class';
 
 __PACKAGE__->load_components("Core");
-__PACKAGE__->table("ReleaseSetJobs");
+__PACKAGE__->table("ViewJobs");
 __PACKAGE__->add_columns(
   "project",
   {
@@ -16,7 +16,7 @@ __PACKAGE__->add_columns(
     is_nullable => 0,
     size => undef,
   },
-  "release_",
+  "view_",
   {
     data_type => "text",
     default_value => undef,
@@ -40,8 +40,6 @@ __PACKAGE__->add_columns(
   },
   "isprimary",
   { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
-  "mayfail",
-  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
   "description",
   {
     data_type => "text",
@@ -56,18 +54,20 @@ __PACKAGE__->add_columns(
     is_nullable => 0,
     size => undef,
   },
+  "autorelease",
+  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
 );
-__PACKAGE__->set_primary_key("project", "release_", "job", "attrs");
+__PACKAGE__->set_primary_key("project", "view_", "job", "attrs");
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
 __PACKAGE__->belongs_to(
-  "releaseset",
-  "Hydra::Schema::ReleaseSets",
-  { name => "release_", project => "project" },
+  "view",
+  "Hydra::Schema::Views",
+  { name => "view_", project => "project" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-08 13:25:04
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qSQjyHzxQp0qO3CbRdcXmw
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-15 23:14:39
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:LkiGAkZOiLNJk6oDY0+zNw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

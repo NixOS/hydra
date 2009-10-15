@@ -24,7 +24,7 @@ sub view : Chained('project') PathPart('') Args(0) {
 
     getBuildStats($c, scalar $c->stash->{project}->builds);
 
-    $c->stash->{releaseSets} = [$c->stash->{project}->releasesets->all];
+    $c->stash->{views} = [$c->stash->{project}->views->all];
 }
 
 
