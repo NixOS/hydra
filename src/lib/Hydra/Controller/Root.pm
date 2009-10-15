@@ -137,7 +137,13 @@ sub releases :Local {
 
     my ($project, $releaseSet, $primaryJob, $jobs) = getReleaseSet($c, $projectName, $releaseSetName);
 
-    if (defined $subcommand && $subcommand ne "") {
+    my $resultsPerPage = 10;
+    my $page = 1;
+
+    if (defined $subcommand && $subcommand =~ /^\d+$/ ) {
+      $page = int($subcommand) 
+    } 
+    elsif (defined $subcommand && $subcommand ne "") {
 
         requireProjectOwner($c, $project);
 
@@ -166,8 +172,13 @@ sub releases :Local {
     $c->stash->{template} = 'releases.tt';
 
     my @releases = ();
-    push @releases, getRelease($_, $jobs) foreach getPrimaryBuildsForReleaseSet($project, $primaryJob);
+    push @releases, getRelease($_, $jobs) foreach getPrimaryBuildsForReleaseSet($project, $primaryJob, $page, $resultsPerPage);
+
+    $c->stash->{baseUri} = $c->uri_for($self->action_for("releases"), $projectName, $releaseSetName);
     $c->stash->{releases} = [@releases];
+    $c->stash->{page} = $page;
+    $c->stash->{totalReleases} = getPrimaryBuildTotal($project, $primaryJob);
+    $c->stash->{resultsPerPage} = $resultsPerPage;
 }
 
 

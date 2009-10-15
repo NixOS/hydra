@@ -9,6 +9,8 @@
 [<a href="[% c.uri_for('/release' project.name releaseSet.name "latest") %]">Latest</a>]
 </p>
 
+<p>Showing releases [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + releases.size %] out of [% totalReleases %].</p>
+
 <table class="tablesorter">
   <thead>
     <tr>
@@ -61,5 +63,13 @@
    [% END %]
   </tbody>
 </table>
+
+[% IF page > 1 %]
+  [<a href="[% "$baseUri/"; (page - 1) %]">Prev</a>]
+[% END %]
+[% IF page * resultsPerPage < totalReleases %]
+  [<a href="[% "$baseUri/"; (page + 1) %]">Next</a>]
+[% END %]
+[<a href="[% "$baseUri/"; (totalReleases - 1) div resultsPerPage + 1 %]">Last</a>]
 
 [% END %]

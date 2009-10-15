@@ -10,7 +10,9 @@ our @EXPORT = qw(
     isValidPath queryPathInfo
     getHydraPath getHydraDBPath openHydraDB txn_do
     registerRoot getGCRootsDir gcRootFor
-    getPrimaryBuildsForReleaseSet getRelease getLatestSuccessfulRelease );
+    getPrimaryBuildsForReleaseSet 
+    getPrimaryBuildTotal
+    getRelease getLatestSuccessfulRelease );
 
 
 sub isValidPath {
@@ -146,19 +148,76 @@ sub attrsToSQL {
     return $query;
 }
 
+sub allPrimaryBuilds {
+  my ($project, $primaryJob) = @_;
+  my $allPrimaryBuilds = $project->builds->search(
+    { jobset => $primaryJob->get_column('jobset'), job => $primaryJob->get_column('job'), finished => 1 },
+    { join => 'resultInfo', order_by => "timestamp DESC"
+    , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
+    , '+as' => ["releasename", "buildstatus"]
+    , where => \ attrsToSQL($primaryJob->attrs, "me.id")
+    });
+  return $allPrimaryBuilds; 
+}
+
+sub getPrimaryBuildTotal {
+    my ($project, $primaryJob) = @_;
+    return scalar(allPrimaryBuilds($project, $primaryJob)) ;
+}
 
 sub getPrimaryBuildsForReleaseSet {
-    my ($project, $primaryJob) = @_;
-    my @primaryBuilds = $project->builds->search(
-        { jobset => $primaryJob->get_column('jobset'), job => $primaryJob->get_column('job'), finished => 1 },
-        { join => 'resultInfo', order_by => "timestamp DESC"
-        , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
-        , '+as' => ["releasename", "buildstatus"]
-        , where => \ attrsToSQL($primaryJob->attrs, "me.id")
+    my ($project, $primaryJob, $page, $resultsPerPage) = @_;
+    $page = (defined $page ? int($page) : 1) || 1;
+    $resultsPerPage = (defined $resultsPerPage ? int($resultsPerPage) : 20) || 20;
+
+    my @primaryBuilds = allPrimaryBuilds($project, $primaryJob)->search( {},
+        { rows => $resultsPerPage
+        , page => $page
         });
+
     return @primaryBuilds;
 }
 
+sub findLastJobForBuilds {
+    my ($builds, $job) = @_;
+    my $thisBuild;
+
+    # Find a build of this job that had the primary build
+    # as input.  If there are multiple, prefer successful
+    # ones, and then oldest.  !!! order_by buildstatus is hacky
+    ($thisBuild) = $builds->search(
+             { project => $job->get_column('project'), jobset => $job->get_column('jobset')
+             , job => $job->get_column('job'), finished => 1 
+             }
+           , { join => 'resultInfo', rows => 1
+             , order_by => ["buildstatus", "timestamp"]
+             , where => \ attrsToSQL($job->attrs, "build.id")
+             , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
+             });
+  return $thisBuild ;
+    
+}
+
+sub findLastJobForPrimaryBuild {
+    my ($primaryBuild, $job) = @_;
+    my $thisBuild;
+    my $depBuilds;
+    $depBuilds = $primaryBuild->dependentBuilds;
+    $thisBuild = findLastJobForBuilds($depBuilds, $job) ;
+
+# don't do recursive yet
+#    if (!defined $thisBuild) {
+#        
+#        foreach my $build ($depBuilds->all) {
+#            $thisBuild = findLastJobForPrimaryBuild($build, $job) ;
+#            if (defined $thisBuild) {
+#                last ;
+#            }
+#        }
+#    } 
+
+    return $thisBuild;
+}
 
 sub getRelease {
     my ($primaryBuild, $jobs) = @_;
@@ -177,17 +236,7 @@ sub getRelease {
         if ($job->isprimary) {
             $thisBuild = $primaryBuild;
         } else {
-            # Find a build of this job that had the primary build
-            # as input.  If there are multiple, prefer successful
-            # ones, and then oldest.  !!! order_by buildstatus is hacky
-            ($thisBuild) = $primaryBuild->dependentBuilds->search(
-                { project => $job->get_column('project'), jobset => $job->get_column('jobset')
-                , job => $job->get_column('job'), finished => 1 },
-                { join => 'resultInfo', rows => 1
-                , order_by => ["buildstatus", "timestamp"]
-                , where => \ attrsToSQL($job->attrs, "build.id")
-                , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
-                });
+            $thisBuild = findLastJobForPrimaryBuild($primaryBuild, $job) ;
         }
 
         if ($job->mayfail != 1) {
