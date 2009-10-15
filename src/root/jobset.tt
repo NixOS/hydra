@@ -115,6 +115,24 @@
 </table>
 
 
+<h2>Channels</h2>
+
+<p>This jobset provides the following Nix channels:</p>
+
+<ul>
+  <li>
+    <a href="[% c.uri_for('/jobset' project.name jobset.name 'channel'
+    'latest') %]"><tt>latest</tt></a> — contains the latest successful
+    build of every job in this jobset.
+  </li>
+  <li>
+    <a href="[% c.uri_for('/jobset' project.name jobset.name 'channel'
+    'all') %]"><tt>all</tt></a> — contains every successful,
+    non-garbage-collected build of every job in this project.
+  </li>
+</ul>
+
+
 [% IF !edit %]
 
 
@@ -136,24 +154,6 @@
   </blockquote>
 
 </p>
-
-
-<h2>Channels</h2>
-
-<p>This jobset provides the following Nix channels:</p>
-
-<ul>
-  <li>
-    <a href="[% c.uri_for('/jobset' project.name jobset.name 'channel'
-    'latest') %]"><tt>latest</tt></a> — contains the latest successful
-    build of every job in this jobset.
-  </li>
-  <li>
-    <a href="[% c.uri_for('/jobset' project.name jobset.name 'channel'
-    'all') %]"><tt>all</tt></a> — contains every successful,
-    non-garbage-collected build of every job in this project.
-  </li>
-</ul>
 
 
 <h2>Statistics</h2>
