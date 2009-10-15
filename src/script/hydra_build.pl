@@ -45,7 +45,8 @@ sub sendTwitterNotification {
 
     my $nt = Net::Twitter::Lite->new(
         username => $ENV{'TWITTER_USER'},
-        password => $ENV{'TWITTER_PASS'}
+        password => $ENV{'TWITTER_PASS'},
+        clientname => "Hydra Build Daemon"
       );
 
     my $tag = $build->project->name;
