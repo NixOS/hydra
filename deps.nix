@@ -18,5 +18,6 @@ with pkgs;
   perlPackages.EmailSender
   perlPackages.EmailSimpleCreator
   perlPackages.TextTable
+  perlPackages.NetTwitterLite
 ]
 
