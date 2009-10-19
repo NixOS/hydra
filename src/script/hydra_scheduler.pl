@@ -280,10 +280,10 @@ sub checkJob {
         # cached result from the first).  This ensures that the builds
         # with the highest ID will always be the ones that we want in
         # the channels.
-        # !!! Checking $drvPath doesn't take meta-attributes into
+        # !!! Checking $outPath doesn't take meta-attributes into
         # account.  For instance, do we want a new build to be
         # scheduled if the meta.maintainers field is changed?
-        my @previousBuilds = $jobInDB->builds->search({drvPath => $drvPath, isCurrent => 1});
+        my @previousBuilds = $jobInDB->builds->search({outPath => $outPath, isCurrent => 1});
         if (scalar(@previousBuilds) > 0) {
             print "already scheduled/built\n";
             $currentBuilds->{$_->id} = 1 foreach @previousBuilds;
