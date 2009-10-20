@@ -57,20 +57,20 @@ foreach my $project ($db->resultset('Projects')->all) {
         keepBuild $_ foreach @recentBuilds;
     }
 
-    # Go over all releases in this project.
+    # Go over all views in this project.
 
-    foreach my $releaseSet ($project->releasesets->all) {
-        print STDERR "*** looking for builds to keep in release set ", $project->name, ":", $releaseSet->name, "\n";
+    foreach my $view ($project->views->all) {
+        print STDERR "*** looking for builds to keep in view ", $project->name, ":", $view->name, "\n";
 
-        (my $primaryJob) = $releaseSet->releasesetjobs->search({isprimary => 1});
-        my $jobs = [$releaseSet->releasesetjobs->all];
+        (my $primaryJob) = $view->viewjobs->search({isprimary => 1});
+        my $jobs = [$view->viewjobs->all];
 
-        # Keep all builds belonging to the most recent successful release.
-        my $latest = getLatestSuccessfulRelease($project, $primaryJob, $jobs);
+        # Keep all builds belonging to the most recent successful view result.
+        my $latest = getLatestSuccessfulViewResult($project, $primaryJob, $jobs);
         if (defined $latest) {
-            print STDERR "keeping latest successful release ", $latest->id, " (", $latest->get_column('releasename'), ")\n";
-            my $release = getRelease($latest, $jobs);
-            keepBuild $_->{build} foreach @{$release->{jobs}};
+            print STDERR "keeping latest successful view result ", $latest->id, " (", $latest->get_column('releasename'), ")\n";
+            my $result = getViewResult($latest, $jobs);
+            keepBuild $_->{build} foreach @{$result->{jobs}};
         }
     }
     

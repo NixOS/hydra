@@ -10,9 +10,9 @@ our @EXPORT = qw(
     isValidPath queryPathInfo
     getHydraPath getHydraDBPath openHydraDB txn_do
     registerRoot getGCRootsDir gcRootFor
-    getPrimaryBuildsForReleaseSet 
+    getPrimaryBuildsForView 
     getPrimaryBuildTotal
-    getRelease getLatestSuccessfulRelease );
+    getViewResult getLatestSuccessfulViewResult );
 
 
 sub isValidPath {
@@ -135,7 +135,7 @@ sub attrsToSQL {
     my $query = "1 = 1";
 
     foreach my $attr (@attrs) {
-        $attr =~ /^([\w-]+)=([\w-]*)$/ or die "invalid attribute in release set: $attr";
+        $attr =~ /^([\w-]+)=([\w-]*)$/ or die "invalid attribute in view: $attr";
         my $name = $1;
         my $value = $2;
         # !!! Yes, this is horribly injection-prone... (though
@@ -149,23 +149,25 @@ sub attrsToSQL {
 }
 
 sub allPrimaryBuilds {
-  my ($project, $primaryJob) = @_;
-  my $allPrimaryBuilds = $project->builds->search(
-    { jobset => $primaryJob->get_column('jobset'), job => $primaryJob->get_column('job'), finished => 1 },
-    { join => 'resultInfo', order_by => "timestamp DESC"
-    , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
-    , '+as' => ["releasename", "buildstatus"]
-    , where => \ attrsToSQL($primaryJob->attrs, "me.id")
-    });
-  return $allPrimaryBuilds; 
+    my ($project, $primaryJob) = @_;
+    my $allPrimaryBuilds = $project->builds->search(
+        { jobset => $primaryJob->get_column('jobset'), job => $primaryJob->get_column('job'), finished => 1 },
+        { join => 'resultInfo', order_by => "timestamp DESC"
+        , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
+        , '+as' => ["releasename", "buildstatus"]
+        , where => \ attrsToSQL($primaryJob->attrs, "me.id")
+        });
+    return $allPrimaryBuilds; 
 }
+
 
 sub getPrimaryBuildTotal {
     my ($project, $primaryJob) = @_;
-    return scalar(allPrimaryBuilds($project, $primaryJob)) ;
+    return scalar(allPrimaryBuilds($project, $primaryJob));
 }
 
-sub getPrimaryBuildsForReleaseSet {
+
+sub getPrimaryBuildsForView {
     my ($project, $primaryJob, $page, $resultsPerPage) = @_;
     $page = (defined $page ? int($page) : 1) || 1;
     $resultsPerPage = (defined $resultsPerPage ? int($resultsPerPage) : 20) || 20;
@@ -177,6 +179,7 @@ sub getPrimaryBuildsForReleaseSet {
 
     return @primaryBuilds;
 }
+
 
 sub findLastJobForBuilds {
     my ($builds, $job) = @_;
@@ -197,6 +200,7 @@ sub findLastJobForBuilds {
   return $thisBuild ;
     
 }
+
 
 sub findLastJobForPrimaryBuild {
     my ($primaryBuild, $job) = @_;
@@ -219,14 +223,15 @@ sub findLastJobForPrimaryBuild {
     return $thisBuild;
 }
 
-sub getRelease {
+
+sub getViewResult {
     my ($primaryBuild, $jobs) = @_;
     
     my @jobs = ();
 
     my $status = 0; # = okay
 
-    # The timestamp of the release is the highest timestamp of all
+    # The timestamp of the view result is the highest timestamp of all
     # constitutent builds.
     my $timestamp = 0;
         
@@ -261,11 +266,11 @@ sub getRelease {
 }
 
 
-sub getLatestSuccessfulRelease {
+sub getLatestSuccessfulViewResult {
     my ($project, $primaryJob, $jobs) = @_;
     my $latest;
-    foreach my $build (getPrimaryBuildsForReleaseSet($project, $primaryJob)) {
-        return $build if getRelease($build, $jobs)->{status} == 0;
+    foreach my $build (getPrimaryBuildsForView($project, $primaryJob)) {
+        return $build if getViewResult($build, $jobs)->{status} == 0;
     }
     return undef;
     

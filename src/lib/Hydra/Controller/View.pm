@@ -95,8 +95,8 @@ sub view_view : Chained('view') PathPart('') Args(0) {
     my $page = int($c->req->param('page')) || 1;
 
     my @results = ();
-    push @results, getRelease($_, $c->stash->{jobs}) foreach
-        getPrimaryBuildsForReleaseSet($c->stash->{project}, $c->stash->{primaryJob}, $page, $resultsPerPage);
+    push @results, getViewResult($_, $c->stash->{jobs}) foreach
+        getPrimaryBuildsForView($c->stash->{project}, $c->stash->{primaryJob}, $page, $resultsPerPage);
 
     $c->stash->{baseUri} = $c->uri_for($self->action_for("view_view"), $c->req->captures);
     $c->stash->{results} = [@results];
@@ -138,7 +138,7 @@ sub latest : Chained('view') PathPart('latest') {
     
     # Redirect to the latest result in the view in which every build
     # is successful.
-    my $latest = getLatestSuccessfulRelease(
+    my $latest = getLatestSuccessfulViewResult(
         $c->stash->{project}, $c->stash->{primaryJob}, $c->stash->{jobs});
     error($c, "This view set has no successful results yet.") if !defined $latest;
     $c->res->redirect($c->uri_for($self->action_for("view_view"), $c->req->captures, $latest->id, @args));
@@ -158,7 +158,7 @@ sub result : Chained('view') PathPart('') {
         , '+as' => ["releasename", "buildstatus"] })
         or error($c, "Build $id doesn't exist.");
 
-    $c->stash->{result} = getRelease($primaryBuild, $c->stash->{jobs});
+    $c->stash->{result} = getViewResult($primaryBuild, $c->stash->{jobs});
 
     # Provide a redirect to the specified job of this view result.
     # !!!  This isn't uniquely defined if there are multiple jobs with
