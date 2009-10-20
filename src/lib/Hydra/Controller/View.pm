@@ -30,18 +30,18 @@ sub getView {
 }
 
 
-sub updateReleaseSet {
-    my ($c, $releaseSet) = @_;
+sub updateView {
+    my ($c, $view) = @_;
     
-    my $releaseSetName = trim $c->request->params->{name};
-    error($c, "Invalid release set name: $releaseSetName")
-        unless $releaseSetName =~ /^[[:alpha:]][\w\-]*$/;
+    my $viewName = trim $c->request->params->{name};
+    error($c, "Invalid view name: $viewName")
+        unless $viewName =~ /^[[:alpha:]][\w\-]*$/;
     
-    $releaseSet->update(
-        { name => $releaseSetName
+    $view->update(
+        { name => $viewName
         , description => trim $c->request->params->{description} });
 
-    $releaseSet->releasesetjobs->delete_all;
+    $view->viewjobs->delete_all;
 
     foreach my $param (keys %{$c->request->params}) {
         next unless $param =~ /^job-(\d+)-name$/;
@@ -56,13 +56,13 @@ sub updateReleaseSet {
         my $jobName = $2;
 
         error($c, "Jobset `$jobsetName' doesn't exist.")
-            unless $releaseSet->project->jobsets->find({name => $jobsetName});
+            unless $view->project->jobsets->find({name => $jobsetName});
 
         # !!! We could check whether the job exists, but that would
         # require the scheduler to have seen the job, which may not be
         # the case.
         
-        $releaseSet->releasesetjobs->create(
+        $view->viewjobs->create(
             { jobset => $jobsetName
             , job => $jobName
             , description => $description
@@ -72,7 +72,7 @@ sub updateReleaseSet {
     }
 
     error($c, "There must be one primary job.")
-        if $releaseSet->releasesetjobs->search({isprimary => 1})->count != 1;
+        if $view->viewjobs->search({isprimary => 1})->count != 1;
 }
 
 
@@ -98,7 +98,7 @@ sub view_view : Chained('view') PathPart('') Args(0) {
     push @results, getRelease($_, $c->stash->{jobs}) foreach
         getPrimaryBuildsForReleaseSet($c->stash->{project}, $c->stash->{primaryJob}, $page, $resultsPerPage);
 
-    $c->stash->{baseUri} = $c->uri_for($self->action_for("view"), $c->stash->{project}->name, $c->stash->{view}->name);
+    $c->stash->{baseUri} = $c->uri_for($self->action_for("view_view"), $c->req->captures);
     $c->stash->{results} = [@results];
     $c->stash->{page} = $page;
     $c->stash->{totalResults} = getPrimaryBuildTotal($c->stash->{project}, $c->stash->{primaryJob});
@@ -113,6 +113,26 @@ sub edit : Chained('view') PathPart('edit') Args(0) {
 }
 
     
+sub submit : Chained('view') PathPart('submit') Args(0) {
+    my ($self, $c) = @_;
+    requireProjectOwner($c, $c->stash->{project});
+    txn_do($c->model('DB')->schema, sub {
+        updateView($c, $c->stash->{view});
+    });
+    $c->res->redirect($c->uri_for($self->action_for("view_view"), $c->req->captures));
+}
+
+    
+sub delete : Chained('view') PathPart('delete') Args(0) {
+    my ($self, $c) = @_;
+    requireProjectOwner($c, $c->stash->{project});
+    txn_do($c->model('DB')->schema, sub {
+        $c->stash->{view}->delete;
+    });
+    $c->res->redirect($c->uri_for($c->controller('Project')->action_for('view'), [$c->stash->{project}->name]));
+}
+
+    
 sub latest : Chained('view') PathPart('latest') {
     my ($self, $c, @args) = @_;
     
@@ -121,14 +141,14 @@ sub latest : Chained('view') PathPart('latest') {
     my $latest = getLatestSuccessfulRelease(
         $c->stash->{project}, $c->stash->{primaryJob}, $c->stash->{jobs});
     error($c, "This view set has no successful results yet.") if !defined $latest;
-    return $c->res->redirect($c->uri_for("/view", $c->stash->{project}->name, $c->stash->{view}->name, $latest->id, @args));
+    $c->res->redirect($c->uri_for($self->action_for("view_view"), $c->req->captures, $latest->id, @args));
 }
 
 
 sub result : Chained('view') PathPart('') {
     my ($self, $c, $id, @args) = @_;
     
-    $c->stash->{template} = 'release.tt';
+    $c->stash->{template} = 'view-result.tt';
 
     # Note: we don't actually check whether $id is a primary build,
     # but who cares?
@@ -138,18 +158,18 @@ sub result : Chained('view') PathPart('') {
         , '+as' => ["releasename", "buildstatus"] })
         or error($c, "Build $id doesn't exist.");
 
-    $c->stash->{release} = getRelease($primaryBuild, $c->stash->{jobs});
+    $c->stash->{result} = getRelease($primaryBuild, $c->stash->{jobs});
 
-    # Provide a redirect to the specified job of this release.  !!!
-    # This isn't uniquely defined if there are multiple jobs with the
-    # same name (e.g. builds for different platforms).  However, this
-    # mechanism is primarily to allow linking to resources of which
-    # there is only one build, such as the manual of the latest
-    # release.
+    # Provide a redirect to the specified job of this view result.
+    # !!!  This isn't uniquely defined if there are multiple jobs with
+    # the same name (e.g. builds for different platforms).  However,
+    # this mechanism is primarily to allow linking to resources of
+    # which there is only one build, such as the manual of the latest
+    # view result.
     if (scalar @args != 0) {
         my $jobName = shift @args;
-        (my $build, my @others) = grep { $_->{job}->job eq $jobName } @{$c->stash->{release}->{jobs}};
-        notFound($c, "Release doesn't have a job named `$jobName'")
+        (my $build, my @others) = grep { $_->{job}->job eq $jobName } @{$c->stash->{result}->{jobs}};
+        notFound($c, "View doesn't have a job named `$jobName'")
             unless defined $build;
         error($c, "Job `$jobName' isn't unique.") if @others;
         return $c->res->redirect($c->uri_for($c->controller('Build')->action_for('view_build'),

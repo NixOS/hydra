@@ -1,0 +1,45 @@
+[% releaseName = (result.releasename || "(No name)") -%]
+[% WRAPPER layout.tt title="View $releaseName" %]
+[% PROCESS common.tt %]
+[% PROCESS "product-list.tt" %]
+[% USE HTML %]
+
+<h1>View <tt>[% view.project.name %]:[% view.name %]</tt> result [% result.id %][% IF result.releasename %] (<tt>[% result.releasename %]</tt>)[% END %]</h1>
+
+<p><em>Finished building on [% INCLUDE renderDateTime timestamp = result.timestamp %].</em></p>
+
+[% IF result.status == 1 %]
+<p class="error">Note: One or more of the jobs in the view did not build correctly.  See below for details.</p>
+[% ELSIF result.status == 2 %]
+<p class="error">Note: One or more of the jobs in the view have not been built (yet).  See below for details.</p>
+[% END %]
+
+[% FOREACH j IN result.jobs %]
+
+  <h2>
+    [% IF j.build %]<a href="[% c.uri_for('/build' j.build.id) %]">[% END %]
+    [% INCLUDE renderViewJobName job=j.job %]
+    [% IF j.build %]</a>[% END %]
+  </h2>
+
+  [% IF j.build %]
+
+    [% IF j.build.resultInfo.buildstatus == 0 %]
+
+      [% INCLUDE renderProductList build=j.build latestRoot=['/view' project.name view.name 'latest' j.job.job] %]
+
+    [% ELSE %]
+
+      <p class="error">Build failed</p>
+      
+    [% END %]
+
+  [% ELSE %]
+
+    <p class="error">Build not (yet) performed.</p>
+
+  [% END %]
+
+[% END %]
+
+[% END %]

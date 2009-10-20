@@ -159,7 +159,7 @@
 [% END %]
 
 
-[% BLOCK renderReleaseJobName -%]
+[% BLOCK renderViewJobName -%]
 [% IF job.description; HTML.escape(job.description); ELSE %]<tt>[% job.job %]</tt> ([% job.attrs %])[% END -%]
 [% END -%]
 

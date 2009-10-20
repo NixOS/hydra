@@ -180,4 +180,34 @@ sub get_builds : Chained('project') PathPart('') CaptureArgs(0) {
 }
 
 
+sub create_view_submit : Chained('project') PathPart('create-view/submit') Args(0) {
+    my ($self, $c) = @_;
+
+    requireProjectOwner($c, $c->stash->{project});
+    
+    my $viewName = $c->request->params->{name};
+
+    my $view;
+    txn_do($c->model('DB')->schema, sub {
+        # Note: $viewName is validated in updateView, which will abort
+        # the transaction if the name isn't valid.
+        $view = $c->stash->{project}->views->create({name => $viewName});
+        Hydra::Controller::View::updateView($c, $view);
+    });
+
+    $c->res->redirect($c->uri_for($c->controller('View')->action_for('view_view'),
+        [$c->stash->{project}->name, $view->name]));
+}
+
+
+sub create_view : Chained('project') PathPart('create-view') Args(0) {
+    my ($self, $c) = @_;
+
+    requireProjectOwner($c, $c->stash->{project});
+
+    $c->stash->{template} = 'edit-view.tt';
+    $c->stash->{create} = 1;
+}
+
+
 1;

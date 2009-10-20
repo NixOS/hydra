@@ -19,7 +19,7 @@
       <th>Name</th>
       <th>Date</th>
       [% FOREACH j IN jobs %]
-        <th class="releaseSetJobName">[% INCLUDE renderReleaseJobName job=j %]</th>
+        <th class="releaseSetJobName">[% INCLUDE renderViewJobName job=j %]</th>
       [% END %]
     </tr>
   </thead>

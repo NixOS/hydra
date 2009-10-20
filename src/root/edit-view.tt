@@ -21,7 +21,7 @@
 [% END %]
 
 
-<form action="[% IF create %][% c.uri_for('/create-view' project.name 'submit') %][% ELSE %][% c.uri_for('/view' project.name view.name 'submit') %][% END %]" method="post">
+<form action="[% IF create %][% c.uri_for('/project' project.name 'create-view/submit') %][% ELSE %][% c.uri_for('/view' project.name view.name 'submit') %][% END %]" method="post">
 
   <table class="layoutTable">
     <tr>
