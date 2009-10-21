@@ -39,19 +39,19 @@ __PACKAGE__->add_columns(
 );
 __PACKAGE__->set_primary_key("username");
 __PACKAGE__->has_many(
-  "projects",
-  "Hydra::Schema::Projects",
-  { "foreign.owner" => "self.username" },
-);
-__PACKAGE__->has_many(
   "userroles",
   "Hydra::Schema::UserRoles",
   { "foreign.username" => "self.username" },
 );
+__PACKAGE__->has_many(
+  "projects",
+  "Hydra::Schema::Projects",
+  { "foreign.owner" => "self.username" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-15 23:14:39
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qH+qBI3xxQgTNf3v7E3sDw
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 14:17:55
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4Lj9iNcQhOG5VzUXkQFzkg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

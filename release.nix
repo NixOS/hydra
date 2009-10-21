@@ -35,6 +35,8 @@ let
           cp $jquery src/root/static/js/jquery-pack.js
           rm -rf src/root/static/js/tablesorter
           unzip -d src/root/static/js $tablesorter
+
+          make -C src/sql
         
           releaseName=hydra-0.1$VERSION_SUFFIX;
           ensureDir $out/tarballs

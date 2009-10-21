@@ -1,9 +1,6 @@
 * Recreating the schema bindings:
 
-  $ rm tmp.sqlite
-  $ sqlite3 tmp.sqlite < sql/hydra.sql
-  # $ ~/bin/genfkey tmp.sqlite > sql/fk-triggers.sql
-  $ perl -MDBIx::Class::Schema::Loader=make_schema_at,dump_to_dir:./lib -e 'make_schema_at("Hydra::Schema", { relationships => 1, moniker_map => sub {return $_;} }, ["dbi:SQLite:tmp.sqlite"])'
+  $ make -C src/sql update-dbix
 
 * Running the test server:
 

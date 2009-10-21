@@ -1,10 +1,116 @@
+create table Users (
+    userName      text primary key not null,
+    fullName      text,
+    emailAddress  text not null,
+    password      text not null -- sha256 hash
+);
+
+
+create table UserRoles (
+    userName      text not null,
+    role          text not null,
+    primary key   (userName, role),
+    foreign key   (userName) references Users(userName) on delete cascade on update cascade
+);
+
+
+create table Projects (
+    name          text primary key not null, -- project id, lowercase (e.g. "patchelf")
+    displayName   text not null, -- display name (e.g. "PatchELF")
+    description   text,
+    enabled       integer not null default 1,
+    owner         text not null,
+    homepage      text, -- URL for the project
+    foreign key   (owner) references Users(userName) on update cascade
+);
+
+
+-- A jobset consists of a set of inputs (e.g. SVN repositories), one
+-- of which contains a Nix expression containing an attribute set
+-- describing build jobs.
+create table Jobsets (
+    name          text not null,
+    project       text not null,
+    description   text,
+    nixExprInput  text not null, -- name of the jobsetInput containing the Nix expression
+    nixExprPath   text not null, -- relative path of the Nix expression
+    errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
+    errorTime     integer, -- timestamp associated with errorMsg
+    lastCheckedTime integer, -- last time the scheduler looked at this jobset
+    enabled       integer not null default 1,
+    primary key   (project, name),
+    foreign key   (project) references Projects(name) on delete cascade on update cascade
+#ifdef SQLITE
+    ,
+    foreign key   (project, name, nixExprInput) references JobsetInputs(project, jobset, name)
+#endif
+);
+
+
+create table JobsetInputs (
+    project       text not null,
+    jobset        text not null,
+    name          text not null,
+    type          text not null, -- "svn", "cvs", "path", "uri", "string", "boolean"
+    primary key   (project, jobset, name),
+    foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
+);
+
+
+#ifdef POSTGRESQL
+alter table Jobsets
+  add foreign key (project, name, nixExprInput)
+    references JobsetInputs(project, jobset, name);
+#endif
+
+
+create table JobsetInputAlts (
+    project       text not null,
+    jobset        text not null,
+    input         text not null,
+    altnr         integer not null,
+
+    -- urgh
+    value         text, -- for most types, a URI; for 'path', an absolute path; for 'string', an arbitrary value
+    revision      integer, -- for type == 'svn'
+    tag           text, -- for type == 'cvs'
+    
+    primary key   (project, jobset, input, altnr),
+    foreign key   (project, jobset, input) references JobsetInputs(project, jobset, name) on delete cascade on update cascade
+);
+
+
+create table Jobs (
+    project       text not null,
+    jobset        text not null,
+    name          text not null,
+
+    active        integer not null default 1, -- !!! obsolete, remove
+
+    errorMsg      text, -- evalution error for this job
+
+    firstEvalTime integer, -- first time the scheduler saw this job
+    lastEvalTime  integer, -- last time the scheduler saw this job
+
+    disabled      integer not null default 0, -- !!! not currently used
+
+    primary key   (project, jobset, name),
+    foreign key   (project) references Projects(name) on delete cascade on update cascade,
+    foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
+);
+
+
 -- This table contains all builds, either scheduled or finished.  For
 -- scheduled builds, additional info (such as the priority) can be
 -- found in the BuildSchedulingInfo table.  For finished builds,
 -- additional info (such as the logs, build products, etc.) can be
 -- found in several tables, such as BuildResultInfo and BuildProducts.
 create table Builds (
+#ifdef POSTGRESQL
+    id            serial primary key not null,
+#else
     id            integer primary key autoincrement not null,
+#endif
 
     finished      integer not null, -- 0 = scheduled, 1 = finished
     
@@ -29,9 +135,9 @@ create table Builds (
 
     isCurrent     integer default 0,
     
-    foreign key   (project) references Projects(name), -- ignored by sqlite
-    foreign key   (project, jobset) references Jobsets(project, name), -- ignored by sqlite
-    foreign key   (project, jobset, job) references Jobs(project, jobset, name) -- ignored by sqlite
+    foreign key   (project) references Projects(name) on update cascade,
+    foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
+    foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade
 );
 
 
@@ -50,7 +156,7 @@ create table BuildSchedulingInfo (
     
     startTime     integer, -- if busy, time we started
     
-    foreign key   (id) references Builds(id) on delete cascade -- ignored by sqlite
+    foreign key   (id) references Builds(id) on delete cascade
 );
 
 
@@ -83,7 +189,7 @@ create table BuildResultInfo (
     failedDepBuild  integer, -- obsolete
     failedDepStepNr integer, -- obsolete
     
-    foreign key   (id) references Builds(id) on delete cascade -- ignored by sqlite
+    foreign key   (id) references Builds(id) on delete cascade
 );
 
 
@@ -108,13 +214,17 @@ create table BuildSteps (
     stopTime      integer,
 
     primary key   (build, stepnr),
-    foreign key   (build) references Builds(id) on delete cascade -- ignored by sqlite
+    foreign key   (build) references Builds(id) on delete cascade
 );
 
 
 -- Inputs of builds.
-create table BuildInputs ( 
+create table BuildInputs (
+#ifdef POSTGRESQL
+    id            serial primary key not null,
+#else
     id            integer primary key autoincrement not null,
+#endif
 
     -- Which build this input belongs to.
     build         integer,
@@ -132,8 +242,8 @@ create table BuildInputs (
     
     sha256hash    text,
     
-    foreign key   (build) references Builds(id) on delete cascade, -- ignored by sqlite
-    foreign key   (dependency) references Builds(id) -- ignored by sqlite
+    foreign key   (build) references Builds(id) on delete cascade,
+    foreign key   (dependency) references Builds(id)
 );
 
 
@@ -150,130 +260,7 @@ create table BuildProducts (
     description   text, -- optionally, some description of this file/directory
     defaultPath   text, -- if `path' is a directory, the default file relative to `path' to be served
     primary key   (build, productnr),
-    foreign key   (build) references Builds(id) on delete cascade -- ignored by sqlite
-);
-
-
--- Emulate "on delete cascade" foreign key constraints.
-create trigger cascadeBuildDeletion
-  before delete on Builds
-  for each row begin
-    delete from BuildSchedulingInfo where id = old.id;
-    delete from BuildResultInfo where id = old.id;
-    delete from BuildInputs where build = old.id;
-    delete from BuildProducts where build = old.id;
-    delete from BuildSteps where build = old.id;
-  end;
-
-
-create table Projects (
-    name          text primary key not null, -- project id, lowercase (e.g. "patchelf")
-    displayName   text not null, -- display name (e.g. "PatchELF")
-    description   text,
-    enabled       integer not null default 1,
-    owner         text not null,
-    homepage      text, -- URL for the project
-    foreign key   (owner) references Users(userName) -- ignored by sqlite
-);
-
-
-create trigger cascadeProjectUpdate
-  update of name on Projects
-  for each row begin
-    update Jobsets set project = new.name where project = old.name;
-    update JobsetInputs set project = new.name where project = old.name;
-    update JobsetInputAlts set project = new.name where project = old.name;
-    update Builds set project = new.name where project = old.name;
-    update Views set project = new.name where project = old.name;
-    update ViewJobs set project = new.name where project = old.name;
-  end;
-
-
--- A jobset consists of a set of inputs (e.g. SVN repositories), one
--- of which contains a Nix expression containing an attribute set
--- describing build jobs.
-create table Jobsets (
-    name          text not null,
-    project       text not null,
-    description   text,
-    nixExprInput  text not null, -- name of the jobsetInput containing the Nix expression
-    nixExprPath   text not null, -- relative path of the Nix expression
-    errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
-    errorTime     integer, -- timestamp associated with errorMsg
-    lastCheckedTime integer, -- last time the scheduler looked at this jobset
-    enabled       integer not null default 1,
-    primary key   (project, name),
-    foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
-    foreign key   (project, name, nixExprInput) references JobsetInputs(project, jobset, name)
-);
-
-
-create trigger cascadeJobsetUpdate
-  update of name on Jobsets
-  for each row begin
-    update JobsetInputs set jobset = new.name where project = old.project and jobset = old.name;
-    update JobsetInputAlts set jobset = new.name where project = old.project and jobset = old.name;
-    update Builds set jobset = new.name where project = old.project and jobset = old.name;
-  end;
-
-
-create table JobsetInputs (
-    project       text not null,
-    jobset        text not null,
-    name          text not null,
-    type          text not null, -- "svn", "cvs", "path", "uri", "string", "boolean"
-    primary key   (project, jobset, name),
-    foreign key   (project, jobset) references Jobsets(project, name) on delete cascade -- ignored by sqlite
-);
-
-
-create trigger cascadeJobsetInputUpdate
-  update of name on JobsetInputs
-  for each row begin
-    update JobsetInputAlts set input = new.name where project = old.project and jobset = old.jobset and input = old.name;
-  end;
-
-
-create trigger cascadeJobsetInputDelete
-  before delete on JobsetInputs
-  for each row begin
-    delete from JobsetInputAlts where project = old.project and jobset = old.jobset and input = old.name;
-  end;
-
-
-create table JobsetInputAlts (
-    project       text not null,
-    jobset        text not null,
-    input         text not null,
-    altnr         integer not null,
-
-    -- urgh
-    value         text, -- for most types, a URI; for 'path', an absolute path; for 'string', an arbitrary value
-    revision      integer, -- for type == 'svn'
-    tag           text, -- for type == 'cvs'
-    
-    primary key   (project, jobset, input, altnr),
-    foreign key   (project, jobset, input) references JobsetInputs(project, jobset, name) on delete cascade -- ignored by sqlite
-);
-
-
-create table Jobs (
-    project       text not null,
-    jobset        text not null,
-    name          text not null,
-
-    active        integer not null default 1, -- !!! obsolete, remove
-
-    errorMsg      text, -- evalution error for this job
-
-    firstEvalTime integer, -- first time the scheduler saw this job
-    lastEvalTime  integer, -- last time the scheduler saw this job
-
-    disabled      integer not null default 0, -- !!! not currently used
-
-    primary key   (project, jobset, name),
-    foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
-    foreign key   (project, jobset) references Jobsets(project, name) on delete cascade -- ignored by sqlite
+    foreign key   (build) references Builds(id) on delete cascade
 );
 
 
@@ -306,29 +293,6 @@ create table SystemTypes (
 );
 
 
-create table Users (
-    userName      text primary key not null,
-    fullName      text,
-    emailAddress  text not null,
-    password      text not null -- sha256 hash
-);
-
-
-create table UserRoles (
-    userName      text not null,
-    role          text not null,
-    primary key   (userName, role),
-    foreign key   (userName) references Users(userName) -- ignored by sqlite
-);
-
-
-create trigger cascadeUserDelete
-  before delete on Users
-  for each row begin
-    delete from UserRoles where userName = old.userName;
-  end;
-
-
 -- Views are a mechanism to automatically group related builds
 -- together.  A view definition consists of a build of some "primary"
 -- job, plus all builds of the other jobs named in ViewJobs that have
@@ -345,22 +309,8 @@ create table Views (
     keep          integer not null default 0, 
 
     primary key   (project, name),
-    foreign key   (project) references Projects(name) on delete cascade -- ignored by sqlite
+    foreign key   (project) references Projects(name) on delete cascade on update cascade
 );
-
-
-create trigger cascadeViewDelete
-  before delete on Views
-  for each row begin
-    delete from ViewJobs where project = old.project and view_ = old.name;
-  end;
-
-
-create trigger cascadeViewUpdate
-  update of name on Views
-  for each row begin
-    update ViewJobs set view_ = new.name where project = old.project and view_ = old.name;
-  end;
 
 
 create table ViewJobs (
@@ -389,9 +339,8 @@ create table ViewJobs (
     autoRelease   integer not null default 0,
     
     primary key   (project, view_, job, attrs),
-    foreign key   (project) references Projects(name) on delete cascade, -- ignored by sqlite
-    foreign key   (project, view_) references Views(project, name) on delete cascade -- ignored by sqlite
-    foreign key   (project, jobset) references Jobsets(project, name) on delete restrict -- ignored by sqlite
+    foreign key   (project) references Projects(name) on delete cascade on update cascade,
+    foreign key   (project, view_) references Views(project, name) on delete cascade on update cascade
 );
 
 
@@ -404,3 +353,79 @@ create index IndexBuildsByIsCurrent on Builds(isCurrent);
 create index IndexBuildResultInfo on BuildResultInfo(id); -- primary key index, not created automatically by PostgreSQL
 create index IndexBuild on BuildProducts(build);
 create index IndexBuildType on BuildProducts(build, type);
+
+
+#ifdef SQLITE
+
+-- Emulate some "on delete/update cascade" foreign key constraints,
+-- which SQLite doesn't support yet.
+
+
+create trigger cascadeBuildDeletion
+  before delete on Builds
+  for each row begin
+    delete from BuildSchedulingInfo where id = old.id;
+    delete from BuildResultInfo where id = old.id;
+    delete from BuildInputs where build = old.id;
+    delete from BuildProducts where build = old.id;
+    delete from BuildSteps where build = old.id;
+  end;
+
+
+create trigger cascadeProjectUpdate
+  update of name on Projects
+  for each row begin
+    update Jobsets set project = new.name where project = old.name;
+    update JobsetInputs set project = new.name where project = old.name;
+    update JobsetInputAlts set project = new.name where project = old.name;
+    update Builds set project = new.name where project = old.name;
+    update Views set project = new.name where project = old.name;
+    update ViewJobs set project = new.name where project = old.name;
+  end;
+
+
+create trigger cascadeJobsetUpdate
+  update of name on Jobsets
+  for each row begin
+    update JobsetInputs set jobset = new.name where project = old.project and jobset = old.name;
+    update JobsetInputAlts set jobset = new.name where project = old.project and jobset = old.name;
+    update Builds set jobset = new.name where project = old.project and jobset = old.name;
+  end;
+
+
+create trigger cascadeJobsetInputUpdate
+  update of name on JobsetInputs
+  for each row begin
+    update JobsetInputAlts set input = new.name where project = old.project and jobset = old.jobset and input = old.name;
+  end;
+
+
+create trigger cascadeJobsetInputDelete
+  before delete on JobsetInputs
+  for each row begin
+    delete from JobsetInputAlts where project = old.project and jobset = old.jobset and input = old.name;
+  end;
+
+
+create trigger cascadeUserDelete
+  before delete on Users
+  for each row begin
+    delete from UserRoles where userName = old.userName;
+  end;
+
+  
+create trigger cascadeViewDelete
+  before delete on Views
+  for each row begin
+    delete from ViewJobs where project = old.project and view_ = old.name;
+  end;
+
+
+create trigger cascadeViewUpdate
+  update of name on Views
+  for each row begin
+    update ViewJobs set view_ = new.name where project = old.project and view_ = old.name;
+  end;
+
+  
+#endif

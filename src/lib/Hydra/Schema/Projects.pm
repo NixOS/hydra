@@ -48,11 +48,6 @@ __PACKAGE__->add_columns(
   },
 );
 __PACKAGE__->set_primary_key("name");
-__PACKAGE__->has_many(
-  "builds",
-  "Hydra::Schema::Builds",
-  { "foreign.project" => "self.name" },
-);
 __PACKAGE__->belongs_to("owner", "Hydra::Schema::Users", { username => "owner" });
 __PACKAGE__->has_many(
   "jobsets",
@@ -62,6 +57,11 @@ __PACKAGE__->has_many(
 __PACKAGE__->has_many(
   "jobs",
   "Hydra::Schema::Jobs",
+  { "foreign.project" => "self.name" },
+);
+__PACKAGE__->has_many(
+  "builds",
+  "Hydra::Schema::Builds",
   { "foreign.project" => "self.name" },
 );
 __PACKAGE__->has_many(
@@ -76,8 +76,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-15 23:14:39
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:N6NPLJfc1gKM4zz6dS5PJw
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 14:17:55
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:XcrLhOH+WuO24UFulGft1w
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

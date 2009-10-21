@@ -71,14 +71,6 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 1, is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("project", "name");
-__PACKAGE__->has_many(
-  "builds",
-  "Hydra::Schema::Builds",
-  {
-    "foreign.jobset"  => "self.name",
-    "foreign.project" => "self.project",
-  },
-);
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
 __PACKAGE__->belongs_to(
   "jobsetinput",
@@ -101,10 +93,18 @@ __PACKAGE__->has_many(
     "foreign.project" => "self.project",
   },
 );
+__PACKAGE__->has_many(
+  "builds",
+  "Hydra::Schema::Builds",
+  {
+    "foreign.jobset"  => "self.name",
+    "foreign.project" => "self.project",
+  },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-15 23:14:39
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:CB5lPsrozpvO8gLXHTyMrQ
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 14:17:55
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:vaCDa6WBFdcLMG23Nlr27g
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration
