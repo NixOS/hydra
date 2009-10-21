@@ -95,7 +95,6 @@
 
   # Releases -> Views.
   alter table ReleaseSets rename to Views;
-  alter table Views rename column name to view_;
   alter table ReleaseSetJobs rename to ViewJobs;
   alter table ViewJobs rename column release_ to view_;
   alter table ViewJobs drop column mayFail;
@@ -128,8 +127,6 @@
 * select * from (select project, jobset, job, system, max(timestamp) timestamp from builds where finished = 1 group by project, jobset, job, system) x join builds y on x.timestamp = y.timestamp and x.project = y.project and x.jobset = y.jobset and x.job = y.job and x.system = y.system;
 
   select * from (select project, jobset, job, system, max(timestamp) timestamp from builds where finished = 1 group by project, jobset, job, system) natural join builds;
-
-* nix-env -f . -u --leq sqlite perl-Catalyst-Engine-HTTP-Prefork perl-Catalyst-View-Download perl-DBD-SQLite perl-IO-Compress-Bzip2 perl-IPC-Run perl-Task-Catalyst-Tutorial perl-XML-Simple
 
 
 * Delete all scheduled builds that are not already building:

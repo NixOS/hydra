@@ -91,8 +91,8 @@ __PACKAGE__->set_primary_key("build", "productnr");
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 14:17:55
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:8wtm75jCRmcyWInKMO826g
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 17:40:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uVdvtQkCkZXqjpLhIB6OjQ
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

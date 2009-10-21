@@ -1,0 +1,28 @@
+[% WRAPPER layout.tt title="Releases for Project ‘$project.name’" %]
+[% PROCESS common.tt %]
+[% USE HTML %]
+
+<h1>Releases for Project <tt>[% project.name %]</tt></h1>
+
+[% IF c.user_exists %]
+<p>
+[<a href="[% c.uri_for('/project' project.name 'releases' 'create') %]">Create a release</a>]
+</p>
+[% END %]
+
+[% IF releases.size == 0 %]
+
+<p><em>This project has no releases yet.</em></p>
+
+[% ELSE %]
+
+<ul>
+  [% FOREACH release IN releases %]
+    <li><tt>[% release.name %]</tt></li>
+  [% END %]
+</ul>
+
+[% END %]
+
+
+[% END %]

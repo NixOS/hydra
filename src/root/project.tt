@@ -98,7 +98,6 @@
 <a href="[% c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) %]">[Create a new jobset]</a>
 
 
-
 <h2>Views</h2>
 
 [% IF views.size > 0 %]

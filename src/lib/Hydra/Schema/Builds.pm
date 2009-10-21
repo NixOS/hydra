@@ -161,10 +161,15 @@ __PACKAGE__->has_many(
   "Hydra::Schema::BuildProducts",
   { "foreign.build" => "self.id" },
 );
+__PACKAGE__->has_many(
+  "releasemembers",
+  "Hydra::Schema::ReleaseMembers",
+  { "foreign.build" => "self.id" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 14:17:55
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:eJS7WCbSjwylQuAbQtB24w
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 17:40:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:otgQGRHBbSwp3Tb2UBW1Xg
 
 use Hydra::Helper::Nix;
 

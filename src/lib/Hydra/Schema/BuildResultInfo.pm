@@ -86,8 +86,8 @@ __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 14:17:55
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3P0UuNHhdA8VfALMfwssTA
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 17:40:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:HbQGfeYtXVLhEofMmXgq9A
 
 __PACKAGE__->belongs_to(
   "failedDep",

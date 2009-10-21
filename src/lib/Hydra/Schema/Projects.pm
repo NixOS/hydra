@@ -74,10 +74,20 @@ __PACKAGE__->has_many(
   "Hydra::Schema::ViewJobs",
   { "foreign.project" => "self.name" },
 );
+__PACKAGE__->has_many(
+  "releases",
+  "Hydra::Schema::Releases",
+  { "foreign.project" => "self.name" },
+);
+__PACKAGE__->has_many(
+  "releasemembers",
+  "Hydra::Schema::ReleaseMembers",
+  { "foreign.project" => "self.name" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 14:17:55
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:XcrLhOH+WuO24UFulGft1w
+# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 17:40:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:XnlHCaAVSobU9lrUhuViXQ
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

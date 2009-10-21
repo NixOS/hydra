@@ -344,6 +344,35 @@ create table ViewJobs (
 );
 
 
+-- A release is a named set of builds.  The ReleaseMembers table lists
+-- the builds that constitute each release.
+create table Releases (
+    project       text not null,
+    name          text not null,
+
+    timestamp     integer not null,
+
+    description   text,
+
+    primary key   (project, name),
+    foreign key   (project) references Projects(name) on delete cascade
+);
+
+
+create table ReleaseMembers (
+    project       text not null,
+    release_      text not null,
+    build         integer not null,
+
+    description   text,
+
+    primary key   (project, release_, build),
+    foreign key   (project) references Projects(name) on delete cascade on update cascade,
+    foreign key   (project, release_) references Releases(project, name) on delete cascade on update cascade,
+    foreign key   (build) references Builds(id)
+);
+
+
 -- Some indices.
 create index IndexBuildInputsByBuild on BuildInputs(build);
 create index IndexBuildInputsByDependency on BuildInputs(dependency);
