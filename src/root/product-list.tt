@@ -94,6 +94,8 @@
             <img src="/static/images/source-dist.png" alt="Source" /> Source distribution <tt>[% product.name %]</tt>
           [% CASE "rpm" %]
             <img src="/static/images/rpm.png" alt="RPM" /> RPM package <tt>[% product.name %]</tt>
+          [% CASE "srpm" %]
+            <img src="/static/images/rpm.png" alt="Source RPM" /> Source RPM package <tt>[% product.name %]</tt>
           [% CASE "deb" %]
             <img src="/static/images/debian.png" alt="RPM" /> Debian package <tt>[% product.name %]</tt>
           [% CASE "iso" %]
