@@ -357,4 +357,28 @@ sub keep : Chained('build') PathPart Args(1) {
 }
 
 
+sub add_to_release : Chained('build') PathPart('add-to-release') Args(0) {
+    my ($self, $c) = @_;
+
+    my $build = $c->stash->{build};
+    
+    requireProjectOwner($c, $build->project);
+
+    my $releaseName = trim $c->request->params->{name};
+
+    my $release = $build->project->releases->find({name => $releaseName});
+    
+    error($c, "This project has no release named `$releaseName'.") unless $release;
+
+    error($c, "This build is already a part of release `$releaseName'.")
+        if $release->releasemembers->find({build => $build->id});
+
+    $release->releasemembers->create({build => $build->id, description => $build->description});
+    
+    $c->flash->{buildMsg} = "Build added to project <tt>$releaseName</tt>.";
+    
+    $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
+}
+
+
 1;

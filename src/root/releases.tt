@@ -4,17 +4,13 @@
 
 <h1>Releases for Project <tt>[% project.name %]</tt></h1>
 
-[% IF c.user_exists %]
-<p>
-[<a href="[% c.uri_for('/project' project.name 'create-release') %]">Create a release</a>]
-</p>
-[% END %]
-
 [% IF releases.size == 0 %]
 
 <p><em>This project has no releases yet.</em></p>
 
 [% ELSE %]
+
+<p>This project has made the following releases:</p>
 
 <ul>
   [% FOREACH release IN releases %]
@@ -24,5 +20,10 @@
 
 [% END %]
 
+[% IF c.user_exists %]
+<p>
+[<a href="[% c.uri_for('/project' project.name 'create-release') %]">Create a release</a>]
+</p>
+[% END %]
 
 [% END %]

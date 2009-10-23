@@ -1,10 +1,32 @@
 [% WRAPPER layout.tt title="Release ‘$release.name’" %]
 [% PROCESS common.tt %]
+[% PROCESS "product-list.tt" %]
 [% USE HTML %]
 
 <h1>Release <tt>[% release.name %]</tt> <a
 class="smallLink" href="[% c.uri_for('/release' project.name release.name "edit") %]">[Edit]</a></h1>
 
-<p><em>Released on [% INCLUDE renderDateTime timestamp = release.timestamp %].</em></p>
+<p><em>Released on [% INCLUDE renderDateTime timestamp =
+release.timestamp %].</em></p>
+
+[% IF !release.releasemembers %]
+
+<p><em>No builds have been added to this release yet.</em></p>
+
+[% ELSE %]
+
+[% FOREACH m IN release.releasemembers %]
+
+  <h2>
+    <a href="[% c.uri_for('/build' m.build.id) %]">
+      [% HTML.escape(m.description) %]
+    </a>
+  </h2>
+
+  [% INCLUDE renderProductList build=m.build latestRoot=['/view!!!' project.name view.name 'latest' j.job.job] %]
+
+[% END %]
+
+[% END %]
 
 [% END %]

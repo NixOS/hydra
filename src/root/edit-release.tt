@@ -17,6 +17,9 @@
     </tr>
   </table>
 
+  <p><em>Note:</em> to add a build to this release, go to the build’s
+  information page and click on “Add to release”.</p>
+
   <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
   
 </form>
@@ -24,7 +27,7 @@
 [% IF !create %]
 
   <form action="[% c.uri_for('/release' project.name release.name 'delete') %]" method="post">
-    <p><button id="delete-release" type="submit"><img src="/static/images/failure.gif" />Delete this release</button></p>
+    <p><a id="delete-release" type="submit"><img src="/static/images/failure.gif" />Delete this release</button></p>
   </form>
 
   <script type="text/javascript">
