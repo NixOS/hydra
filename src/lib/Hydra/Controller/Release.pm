@@ -9,8 +9,12 @@ use Hydra::Helper::CatalystUtils;
 
 sub release : Chained('/') PathPart('release') CaptureArgs(2) {
     my ($self, $c, $projectName, $releaseName) = @_;
-    #$c->stash->{project} = $project;
-    #$c->stash->{release} = $view;
+
+    $c->stash->{project} = $c->model('DB::Projects')->find($projectName)
+        or notFound($c, "Project $projectName doesn't exist.");
+
+    $c->stash->{release} = $c->stash->{project}->releases->find({name => $releaseName})
+        or notFound($c, "Release $releaseName doesn't exist.");
 }
 
 
@@ -25,7 +29,7 @@ sub updateRelease {
     
     my $releaseName = trim $c->request->params->{name};
     error($c, "Invalid release name: $releaseName")
-        unless $releaseName =~ /^[[:alpha:]][\w\-]*$/;
+        unless $releaseName =~ /^$relNameRE$/;
     
     $release->update(
         { name => $releaseName
@@ -34,4 +38,33 @@ sub updateRelease {
 }
 
 
+sub edit : Chained('release') PathPart('edit') Args(0) {
+    my ($self, $c) = @_;
+    requireProjectOwner($c, $c->stash->{project});
+    $c->stash->{template} = 'edit-release.tt';
+}
+
+
+sub submit : Chained('release') PathPart('submit') Args(0) {
+    my ($self, $c) = @_;
+    requireProjectOwner($c, $c->stash->{project});
+    txn_do($c->model('DB')->schema, sub {
+        updateRelease($c, $c->stash->{release});
+    });
+    $c->res->redirect($c->uri_for($self->action_for("view"),
+        [$c->stash->{project}->name, $c->stash->{release}->name]));
+}
+
+
+sub delete : Chained('release') PathPart('delete') Args(0) {
+    my ($self, $c) = @_;
+    requireProjectOwner($c, $c->stash->{project});
+    txn_do($c->model('DB')->schema, sub {
+        $c->stash->{release}->delete;
+    });
+    $c->res->redirect($c->uri_for($c->controller('Project')->action_for('releases'),
+        [$c->stash->{project}->name]));
+}
+
+    
 1;

@@ -129,7 +129,8 @@ sub delete : Chained('view') PathPart('delete') Args(0) {
     txn_do($c->model('DB')->schema, sub {
         $c->stash->{view}->delete;
     });
-    $c->res->redirect($c->uri_for($c->controller('Project')->action_for('view'), [$c->stash->{project}->name]));
+    $c->res->redirect($c->uri_for($c->controller('Project')->action_for('view'),
+        [$c->stash->{project}->name]));
 }
 
     

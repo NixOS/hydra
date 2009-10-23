@@ -2,9 +2,9 @@
 [% PROCESS common.tt %]
 [% USE HTML %]
 
-<h1>New Release</h1>
+<h1>[% IF create %]New Release[% ELSE %]Release <tt>[% release.name %]</tt>[% END %]</h1>
 
-<form action="[% IF create %][% c.uri_for('/project' project.name 'create-release/submit') %][% ELSE %][% c.uri_for('/project' project.name 'release' release.name 'submit') %][% END %]" method="post">
+<form action="[% IF create %][% c.uri_for('/project' project.name 'create-release/submit') %][% ELSE %][% c.uri_for('/release' project.name release.name 'submit') %][% END %]" method="post">
 
   <table class="layoutTable">
     <tr>
@@ -21,4 +21,18 @@
   
 </form>
 
+[% IF !create %]
+
+  <form action="[% c.uri_for('/release' project.name release.name 'delete') %]" method="post">
+    <p><button id="delete-release" type="submit"><img src="/static/images/failure.gif" />Delete this release</button></p>
+  </form>
+
+  <script type="text/javascript">
+    $("#delete-release").click(function() {
+      return confirm("Are you sure you want to delete this release?");
+    });
+  </script>
+
+[% END %]
+  
 [% END %]

@@ -11,7 +11,7 @@ our @EXPORT = qw(
     error notFound
     requireLogin requireProjectOwner requireAdmin requirePost
     trim
-    $pathCompRE $relPathRE
+    $pathCompRE $relPathRE $relNameRE
 );
 
 
@@ -133,6 +133,7 @@ sub trim {
 # Security checking of filenames.
 Readonly::Scalar our $pathCompRE => "(?:[A-Za-z0-9-\+][A-Za-z0-9-\+\._]*)";
 Readonly::Scalar our $relPathRE  => "(?:$pathCompRE(?:\/$pathCompRE)*)";
+Readonly::Scalar our $relNameRE  =>"(?:[A-Za-z0-9-][A-Za-z0-9-\.]*)";
 
 
 1;

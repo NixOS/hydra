@@ -18,7 +18,7 @@
 
 <ul>
   [% FOREACH release IN releases %]
-    <li><tt>[% release.name %]</tt></li>
+    <li><a href="[% c.uri_for('/release' project.name release.name) %]"><tt>[% release.name %]</tt></a></li>
   [% END %]
 </ul>
 

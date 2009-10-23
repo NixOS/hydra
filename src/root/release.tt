@@ -1,0 +1,10 @@
+[% WRAPPER layout.tt title="Release ‘$release.name’" %]
+[% PROCESS common.tt %]
+[% USE HTML %]
+
+<h1>Release <tt>[% release.name %]</tt> <a
+class="smallLink" href="[% c.uri_for('/release' project.name release.name "edit") %]">[Edit]</a></h1>
+
+<p><em>Released on [% INCLUDE renderDateTime timestamp = release.timestamp %].</em></p>
+
+[% END %]
