@@ -1,5 +1,8 @@
 package Hydra::Schema::ReleaseMembers;
 
+# Created by DBIx::Class::Schema::Loader
+# DO NOT MODIFY THE FIRST PART OF THIS FILE
+
 use strict;
 use warnings;
 
@@ -50,8 +53,8 @@ __PACKAGE__->belongs_to(
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 17:40:21
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:wBLLjLvDq9RWmybMfJiDtQ
+# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-10-23 16:56:03
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DvQQfFaVP0ci1LMKfbl3tg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

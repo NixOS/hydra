@@ -1,5 +1,8 @@
 package Hydra::Schema::CachedSubversionInputs;
 
+# Created by DBIx::Class::Schema::Loader
+# DO NOT MODIFY THE FIRST PART OF THIS FILE
+
 use strict;
 use warnings;
 
@@ -40,8 +43,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_06 @ 2009-10-21 17:40:21
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:g3iZG160pb+oYl3LeM0duA
+# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-10-23 16:56:03
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3hG0+UX3MJMLjSTN29Le4Q
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration
