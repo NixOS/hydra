@@ -1,0 +1,24 @@
+[% WRAPPER layout.tt title=(create ? "New Release" : "Edit Release") %]
+[% PROCESS common.tt %]
+[% USE HTML %]
+
+<h1>New Release</h1>
+
+<form action="[% IF create %][% c.uri_for('/project' project.name 'create-release/submit') %][% ELSE %][% c.uri_for('/project' project.name 'release' release.name 'submit') %][% END %]" method="post">
+
+  <table class="layoutTable">
+    <tr>
+      <th>Identifier:</th>
+      <td><input type="text" class="string" name="name" [% HTML.attributes(value => release.name) %] /></td>
+    </tr>
+    <tr>
+      <th>Description:</th>
+      <td><input type="text" class="string" name="description" [% HTML.attributes(value => release.description) %] /></td>
+    </tr>
+  </table>
+
+  <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
+  
+</form>
+
+[% END %]

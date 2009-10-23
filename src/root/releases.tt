@@ -6,7 +6,7 @@
 
 [% IF c.user_exists %]
 <p>
-[<a href="[% c.uri_for('/project' project.name 'releases' 'create') %]">Create a release</a>]
+[<a href="[% c.uri_for('/project' project.name 'create-release') %]">Create a release</a>]
 </p>
 [% END %]
 

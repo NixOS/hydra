@@ -217,9 +217,34 @@ sub releases : Chained('project') PathPart('releases') Args(0) {
 }
 
 
-sub create_release : Chained('project') PathPart('releases/create') {
+sub create_release : Chained('project') PathPart('create-release') Args(0) {
     my ($self, $c) = @_;
-    $c->stash->{template} = 'create-release.tt';
+    requireProjectOwner($c, $c->stash->{project});
+    $c->stash->{template} = 'edit-release.tt';
+    $c->stash->{create} = 1;
+}
+
+
+sub create_release_submit : Chained('project') PathPart('create-release/submit') Args(0) {
+    my ($self, $c) = @_;
+    
+    requireProjectOwner($c, $c->stash->{project});
+
+    my $releaseName = $c->request->params->{name};
+
+    my $release;
+    txn_do($c->model('DB')->schema, sub {
+        # Note: $releaseName is validated in updateRelease, which will
+        # abort the transaction if the name isn't valid.
+        $release = $c->stash->{project}->releases->create(
+            { name => $releaseName
+            , timestamp => time
+            });
+        Hydra::Controller::Release::updateRelease($c, $release);
+    });
+
+    $c->res->redirect($c->uri_for($c->controller('Release')->action_for('view'),
+        [$c->stash->{project}->name, $release->name]));
 }
 
 
