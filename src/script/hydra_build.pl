@@ -30,6 +30,7 @@ sub getBuildLog {
     return -e $logPath ? $logPath : undef;
 }
 
+
 sub sendTwitterNotification {
     my ($build) = @_;
 
@@ -60,6 +61,7 @@ sub sendTwitterNotification {
     };
     warn "$@\n" if $@;
 }
+
 
 sub sendEmailNotification {
     my ($build) = @_;
@@ -197,8 +199,9 @@ sub doBuild {
             "--no-build-output --log-type flat --print-build-trace " .
             "--add-root " . gcRootFor $outPath . " 2>&1";
 
-        my $buildStepNr = $build->buildsteps->find({},
-            {select => {max => 'stepnr + 1'}, as => ['max']})->get_column('max') || 1;
+        my $max = $build->buildsteps->find(
+            {}, {select => {max => 'stepnr + 1'}, as => ['max']});
+        my $buildStepNr = defined $max ? $max->get_column('max') : 1;
 
         my %buildSteps;
         
