@@ -26,7 +26,6 @@ table {
     empty-cells: show;
     border-collapse: collapse;
     border-spacing: 0px;
-    margin-bottom: 1em;
 }
 
 tr.odd {

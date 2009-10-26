@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title="Build Information" %]
+[% WRAPPER layout.tt title="Job ‘$project.name:$jobset.name:$job.name’ build $id" %]
 [% PROCESS common.tt %]
 [% PROCESS "product-list.tt" %]
 [% USE HTML %]
@@ -87,6 +87,12 @@
     <th>Job name:</th>
     <td>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=job.name %]</td>
   </tr>
+  [% IF build.nixexprinput %]
+  <tr>
+    <th>Nix expression:</th>
+    <td>file <tt>[% HTML.escape(build.nixexprpath) %]</tt> in input <tt>[% HTML.escape(build.nixexprinput) %]</tt></td>
+  </tr>
+  [% END %]
   <tr>
     <th>Nix name:</th>
     <td><tt>[% build.nixname %]</tt></td>
