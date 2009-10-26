@@ -59,11 +59,12 @@
             [% END %]
           </td>
         [% END %]
-      </tr> 
+      </tr>
    [% END %]
   </tbody>
 </table>
 
+<p>
 [<a href="[% "$baseUri?page=1" %]">First</a>]
 [% IF page > 1 %]
   [<a href="[% "$baseUri?page="; (page - 1) %]">Prev</a>]
@@ -72,5 +73,6 @@
   [<a href="[% "$baseUri?page="; (page + 1) %]">Next</a>]
 [% END %]
 [<a href="[% "$baseUri?page="; (totalResults - 1) div resultsPerPage + 1 %]">Last</a>]
+</p>
 
 [% END %]

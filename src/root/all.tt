@@ -11,6 +11,7 @@ out of [% totalBuilds %] in order of descending timestamp.</p>
 
 [% INCLUDE renderBuildList %]
 
+<p>
 [<a href="[% "$baseUri?page=1" %]">First</a>]
 [% IF page > 1 %]
   [<a href="[% "$baseUri?page="; (page - 1) %]">Prev</a>]
@@ -19,5 +20,6 @@ out of [% totalBuilds %] in order of descending timestamp.</p>
   [<a href="[% "$baseUri?page="; (page + 1) %]">Next</a>]
 [% END %]
 [<a href="[% "$baseUri?page="; (totalBuilds - 1) div resultsPerPage + 1 %]">Last</a>]
+</p>
 
 [% END %]

@@ -259,7 +259,8 @@ QUERY
           select 
             x.id, x.finished, x.timestamp, x.project, x.jobset, x.job, x.nixname,
             x.description, x.drvpath, x.outpath, x.system, x.longdescription,
-            x.license, x.homepage, x.maintainers, x.isCurrent,
+            x.license, x.homepage, x.maintainers, x.isCurrent, x.nixExprInput,
+            x.nixExprPath,
             b.id as statusChangeId, b.timestamp as statusChangeTime
           from
             (select project, jobset, job, system, max(id) as id
