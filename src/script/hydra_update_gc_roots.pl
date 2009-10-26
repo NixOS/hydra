@@ -21,7 +21,7 @@ sub registerRoot {
 
 sub keepBuild {
     my ($build) = @_;
-    print STDERR "keeping build ", $build->id, " (",
+    print STDERR "  keeping build ", $build->id, " (",
             strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
     if (isValidPath($build->outpath)) {
         registerRoot $build->outpath;
@@ -73,7 +73,14 @@ foreach my $project ($db->resultset('Projects')->all) {
             keepBuild $_->{build} foreach @{$result->{jobs}};
         }
     }
-    
+
+    # Keep every build in every release in this project.
+    print STDERR "*** keeping releases in project ", $project->name, "\n"
+        if scalar $project->releases > 0;
+    foreach my $release ($project->releases->all) {
+        print STDERR "keeping release ", $release->name, "\n";
+        keepBuild $_->build foreach $release->releasemembers;
+    }
 }
 
 
