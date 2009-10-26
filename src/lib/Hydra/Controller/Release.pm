@@ -35,6 +35,14 @@ sub updateRelease {
         { name => $releaseName
         , description => trim $c->request->params->{description}
         });
+
+    $release->releasemembers->delete_all;
+    foreach my $param (keys %{$c->request->params}) {
+        next unless $param =~ /^member-(\d+)-description$/;
+        my $buildId = $1;
+        my $description = trim $c->request->params->{"member-$buildId-description"};
+        $release->releasemembers->create({ build => $buildId, description => $description });
+    }
 }
 
 
@@ -50,7 +58,7 @@ sub submit : Chained('release') PathPart('submit') Args(0) {
     
     requireProjectOwner($c, $c->stash->{project});
 
-    if ($c->request->params->{action} eq "delete") {
+    if (($c->request->params->{action} || "") eq "delete") {
         txn_do($c->model('DB')->schema, sub {
             $c->stash->{release}->delete;
         });

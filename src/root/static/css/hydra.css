@@ -139,6 +139,10 @@ input.shortString {
     width: 7em;
 }
 
+input.longString {
+    width: 40em;
+}
+
 select {
     background-color: #fffff0;
 }

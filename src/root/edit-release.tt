@@ -19,10 +19,27 @@
 
   <h3>Release Members</h3>
 
-  <p><button type="button" class="add-member">Add a build</button></p>
+  <p><em>Note:</em> to add a build to this release, go to the build’s
+  information page and click on “Add to release”.</p>
 
-  <p><em>Note:</em> to add a build to this release, you can also go to
-  the build’s information page and click on “Add to release”.</p>
+  [% FOREACH m IN release.releasemembers %]
+
+    <div class="releaseMember">
+
+    <h4>Build [% m.build.id %] <button type="button" onclick='$(this).parents(".releaseMember").remove()'><img src="/static/images/failure.gif" alt="Delete input" /></button></h4>
+
+    <table class="layoutTable">
+      <tr>
+        <th>Label:</th>
+        <td><input type="text" class="string longString" name="member-[% m.build.id %]-description" [% HTML.attributes(value => m.description) %] /></td>
+      </tr>
+    </table>
+
+    </div>
+
+  [% END %]
+
+  <hr />
 
   <p>
     <button type="submit"><img alt="Apply" src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button>
