@@ -60,6 +60,7 @@ sub queue :Local {
     $c->stash->{template} = 'queue.tt';
     $c->stash->{queue} = [$c->model('DB::Builds')->search(
         {finished => 0}, {join => 'schedulingInfo', order_by => ["priority DESC", "timestamp"]})];
+    $c->stash->{flashMsg} = $c->flash->{buildMsg};
 }
 
 

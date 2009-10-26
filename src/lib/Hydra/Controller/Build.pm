@@ -385,4 +385,28 @@ sub add_to_release : Chained('build') PathPart('add-to-release') Args(0) {
 }
 
 
+sub clone : Chained('build') PathPart('clone') Args(0) {
+    my ($self, $c) = @_;
+
+    my $build = $c->stash->{build};
+    
+    requireProjectOwner($c, $build->project);
+
+    $c->stash->{template} = 'clone-build.tt';
+}
+
+
+sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
+    my ($self, $c) = @_;
+
+    my $build = $c->stash->{build};
+    
+    requireProjectOwner($c, $build->project);
+
+    $c->flash->{buildMsg} = "Build XXX added to the queue.";
+    
+    $c->res->redirect($c->uri_for($c->controller('Root')->action_for('queue')));
+}
+
+
 1;

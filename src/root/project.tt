@@ -95,7 +95,7 @@
 
 [% END %]
 
-<a href="[% c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) %]">[Create a new jobset]</a>
+<p><a href="[% c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) %]">[Create a new jobset]</a></p>
 
 
 <h2>Views</h2>

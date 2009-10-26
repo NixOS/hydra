@@ -1,0 +1,48 @@
+[% WRAPPER layout.tt title="Clone Build" %]
+[% PROCESS common.tt %]
+[% USE HTML %]
+[% edit=1 %]
+
+<h1>Clone Build</h1>
+
+<p>Cloning allows you to perform a build with modified inputs.</p>
+
+<form action="[% c.uri_for('/build' build.id 'clone' 'submit') %]" method="post">
+
+  <h2>Nix expression</h2>
+
+  <p>Evaluate job <tt><input type="text" class="string"
+  name="jobname" [% HTML.attributes(value => build.job.name) %]
+  /></tt> in Nix expression <tt><input type="text" class="string"
+  name="nixexprpath" [% HTML.attributes(value => build.nixexprpath) %]
+  /></tt> in input <tt><input type="text" class="string"
+  name="nixexprinput" [% HTML.attributes(value => build.nixexprinput)
+  %] /></tt>.</p>
+
+  <h2>Build inputs</h2>
+
+  <table class="tablesorter">
+    <thead>
+      <tr><th>Name</th><th>Type</th><th>Value</th></tr>
+    </thead>
+    <tbody>
+      [% FOREACH input IN build.inputs -%]
+        <tr>
+          <td><tt>[% input.name %]</tt></td>
+          <td>
+            [% INCLUDE renderSelection curValue=input.type param="input-$input.name-type" options=inputTypes %]
+          </td>
+          <td>
+            <tt><input type="text" class="string" name="input-[% input.name %]-value"
+              [% HTML.attributes(value => input.value || input.uri || input.dependency.id) %] /></tt>
+          </td>
+        </tr>
+      [% END -%]
+    </tbody>
+  </table>
+  
+  <p><button type="submit"><img alt="Add" src="/static/images/success.gif" />Add to queue</button></p>
+
+</form>
+
+[% END %]

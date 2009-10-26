@@ -3,6 +3,10 @@
 
 <h1>Hydra Queue</h1>
 
+[% IF flashMsg %]
+<p class="error">[% flashMsg %]</p>
+[% END %]
+
 [% IF queue.size == 0 %]
 
   <p>The queue is empty.</p>
