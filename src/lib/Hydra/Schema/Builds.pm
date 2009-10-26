@@ -122,6 +122,20 @@ __PACKAGE__->add_columns(
   },
   "iscurrent",
   { data_type => "integer", default_value => 0, is_nullable => 1, size => undef },
+  "nixexprinput",
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
+  "nixexprpath",
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
 );
 __PACKAGE__->set_primary_key("id");
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
@@ -172,8 +186,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-10-23 16:56:03
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:L+BuQvxJL8gG7jib1AAIrw
+# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-10-26 14:22:27
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qbNPA5NkENlZXILuE3OGkA
 
 use Hydra::Helper::Nix;
 

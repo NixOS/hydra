@@ -304,6 +304,8 @@ sub checkJob {
             , outpath => $outPath
             , system => $job->{system}
             , iscurrent => 1
+            , nixexprinput => $jobset->nixexprinput
+            , nixexprpath => $jobset->nixexprpath
             });
 
         print "added to queue as build ", $build->id, "\n";

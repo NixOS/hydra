@@ -100,6 +100,8 @@
   alter table ViewJobs drop column mayFail;
   alter table ViewJobs add column autorelease integer not null default 0;
 
+  alter table Builds add column nixExprInput text;
+  alter table Builds add column nixExprPath text;
 
   
 * Job selection:

@@ -134,6 +134,12 @@ create table Builds (
     maintainers   text, -- meta.maintainers (concatenated, comma-separated)
 
     isCurrent     integer default 0,
+
+    -- Copy of the nixExprInput/nixExprPath fields of the jobset that
+    -- instantiated this build.  Needed if we want to clone this
+    -- build.
+    nixExprInput  text,
+    nixExprPath   text,
     
     foreign key   (project) references Projects(name) on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
