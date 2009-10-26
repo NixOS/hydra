@@ -32,26 +32,27 @@ sub fetchInputs {
 }
 
 
-sub checkJob {
-    my ($project, $jobset, $inputInfo, $nixExprInput, $job, $currentBuilds) = @_;
+# Check whether to add the build described by $buildInfo.
+sub checkBuild {
+    my ($project, $jobset, $inputInfo, $nixExprInput, $buildInfo, $currentBuilds) = @_;
 
-    my $jobName = $job->{jobName};
-    my $drvPath = $job->{drvPath};
-    my $outPath = $job->{outPath};
+    my $jobName = $buildInfo->{jobName};
+    my $drvPath = $buildInfo->{drvPath};
+    my $outPath = $buildInfo->{outPath};
 
     my $priority = 100;
-    $priority = int($job->{schedulingPriority})
-        if $job->{schedulingPriority} =~ /^\d+$/;
+    $priority = int($buildInfo->{schedulingPriority})
+        if $buildInfo->{schedulingPriority} =~ /^\d+$/;
 
     txn_do($db, sub {
         # Update the last evaluation time in the database.
-        my $jobInDB = $jobset->jobs->update_or_create(
+        my $job = $jobset->jobs->update_or_create(
             { name => $jobName
             , lastevaltime => time
             });
 
-        $jobInDB->update({firstevaltime => time})
-            unless defined $jobInDB->firstevaltime;
+        $job->update({firstevaltime => time})
+            unless defined $job->firstevaltime;
 
         # Don't add a build that has already been scheduled for this
         # job, or has been built but is still a "current" build for
@@ -64,7 +65,7 @@ sub checkJob {
         # !!! Checking $outPath doesn't take meta-attributes into
         # account.  For instance, do we want a new build to be
         # scheduled if the meta.maintainers field is changed?
-        my @previousBuilds = $jobInDB->builds->search({outPath => $outPath, isCurrent => 1});
+        my @previousBuilds = $job->builds->search({outPath => $outPath, isCurrent => 1});
         if (scalar(@previousBuilds) > 0) {
             print "already scheduled/built\n";
             $currentBuilds->{$_->id} = 1 foreach @previousBuilds;
@@ -72,18 +73,18 @@ sub checkJob {
         }
         
         # Nope, so add it.
-        my $build = $jobInDB->builds->create(
+        my $build = $job->builds->create(
             { finished => 0
             , timestamp => time()
-            , description => $job->{description}
-            , longdescription => $job->{longDescription}
-            , license => $job->{license}
-            , homepage => $job->{homepage}
-            , maintainers => $job->{maintainers}
-            , nixname => $job->{nixName}
+            , description => $buildInfo->{description}
+            , longdescription => $buildInfo->{longDescription}
+            , license => $buildInfo->{license}
+            , homepage => $buildInfo->{homepage}
+            , maintainers => $buildInfo->{maintainers}
+            , nixname => $buildInfo->{nixName}
             , drvpath => $drvPath
             , outpath => $outPath
-            , system => $job->{system}
+            , system => $buildInfo->{system}
             , iscurrent => 1
             , nixexprinput => $jobset->nixexprinput
             , nixexprpath => $jobset->nixexprpath
@@ -101,7 +102,7 @@ sub checkJob {
 
         my %inputs;
         $inputs{$jobset->nixexprinput} = $nixExprInput;
-        foreach my $arg (@{$job->{arg}}) {
+        foreach my $arg (@{$buildInfo->{arg}}) {
             $inputs{$arg->{name}} = $inputInfo->{$arg->{name}}->[$arg->{altnr}]
                 || die "invalid input";
         }
@@ -204,7 +205,7 @@ sub checkJobset {
     foreach my $job (permute @{$jobs->{job}}) {
         next if $job->{jobName} eq "";
         print "considering job " . $job->{jobName} . "\n";
-        checkJob($project, $jobset, $inputInfo, $nixExprInput, $job, \%currentBuilds);
+        checkBuild($project, $jobset, $inputInfo, $nixExprInput, $job, \%currentBuilds);
     }
 
     txn_do($db, sub {
@@ -216,11 +217,11 @@ sub checkJobset {
 
         $jobset->update({lastcheckedtime => time});
         
-        foreach my $jobInDB ($jobset->jobs->all) {
-            if ($failedJobNames{$jobInDB->name}) {
-                $jobInDB->update({errormsg => join '\n', @{$failedJobNames{$jobInDB->name}}});
+        foreach my $job ($jobset->jobs->all) {
+            if ($failedJobNames{$job->name}) {
+                $job->update({errormsg => join '\n', @{$failedJobNames{$job->name}}});
             } else {
-                $jobInDB->update({errormsg => undef});
+                $job->update({errormsg => undef});
             }
         }
 
@@ -272,7 +273,7 @@ sub checkJobsetWrapped {
 }
 
 
-sub checkJobs {
+sub checkProjects {
     foreach my $project ($db->resultset('Projects')->search({enabled => 1})) {
         print "considering project ", $project->name, "\n";
         checkJobsetWrapped($project, $_)
@@ -293,7 +294,7 @@ if (scalar @ARGV == 2) {
 
 while (1) {
     eval {
-        checkJobs;
+        checkProjects;
     };
     if ($@) { print "$@"; }
     print "sleeping...\n";
