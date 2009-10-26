@@ -1,11 +1,14 @@
 package Hydra::Helper::AddBuilds;
 
 use strict;
+use feature 'switch';
+use XML::Simple;
 use POSIX qw(strftime);
+use IPC::Run;
 use Hydra::Helper::Nix;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(fetchInput);
+our @EXPORT = qw(fetchInput evalJobs checkBuild);
 
 
 sub getStorePathHash {
@@ -224,3 +227,162 @@ sub fetchInput {
         die "Input `" . $name . "' has unknown type `$type'.";
     }
 }
+
+
+sub inputsToArgs {
+    my ($inputInfo) = @_;
+    my @res = ();
+
+    foreach my $input (keys %{$inputInfo}) {
+        foreach my $alt (@{$inputInfo->{$input}}) {
+            given ($alt->{type}) {
+                when ("string") {
+                    push @res, "--argstr", $input, $alt->{value};
+                }
+                when ("boolean") {
+                    push @res, "--arg", $input, $alt->{value};
+                }
+                when (["svn", "path", "build"]) {
+                    push @res, "--arg", $input, (
+                        "{ outPath = builtins.storePath " . $alt->{storePath} . "" .
+                        (defined $alt->{revision} ? "; rev = \"" . $alt->{revision} . "\"" : "") .
+                        (defined $alt->{version} ? "; version = \"" . $alt->{version} . "\"" : "") .
+                        ";}"
+                    );
+                }
+            }
+        }
+    }
+
+    return @res;
+}
+
+
+sub captureStdoutStderr {
+    my $stdin = ""; my $stdout; my $stderr;
+    my $res = IPC::Run::run(\@_, \$stdin, \$stdout, \$stderr);
+    return ($res, $stdout, $stderr);
+}
+
+    
+sub evalJobs {
+    my ($inputInfo, $nixExprInputName, $nixExprPath) = @_;
+
+    my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
+        or die "Cannot find the input containing the job expression.\n";
+    die "Multiple alternatives for the input containing the Nix expression are not supported.\n"
+        if scalar @{$inputInfo->{$nixExprInputName}} != 1;
+    my $nixExprFullPath = $nixExprInput->{storePath} . "/" . $nixExprPath;
+    
+    (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(
+        "hydra_eval_jobs", $nixExprFullPath, "--gc-roots-dir", getGCRootsDir,
+        inputsToArgs($inputInfo));
+    die "Cannot evaluate the Nix expression containing the jobs:\n$stderr" unless $res;
+
+    print STDERR "$stderr";
+
+    my $jobs = XMLin(
+        $jobsXml,
+        ForceArray => ['error', 'job', 'arg'],
+        KeyAttr => [],
+        SuppressEmpty => '')
+        or die "cannot parse XML output";
+
+    return ($jobs, $nixExprInput);
+}
+
+
+# Check whether to add the build described by $buildInfo.
+sub checkBuild {
+    my ($db, $project, $jobset, $inputInfo, $nixExprInput, $buildInfo, $currentBuilds) = @_;
+
+    my $jobName = $buildInfo->{jobName};
+    my $drvPath = $buildInfo->{drvPath};
+    my $outPath = $buildInfo->{outPath};
+
+    my $priority = 100;
+    $priority = int($buildInfo->{schedulingPriority})
+        if $buildInfo->{schedulingPriority} =~ /^\d+$/;
+
+    my $build;
+
+    txn_do($db, sub {
+        # Update the last evaluation time in the database.
+        my $job = $jobset->jobs->update_or_create(
+            { name => $jobName
+            , lastevaltime => time
+            });
+
+        $job->update({firstevaltime => time})
+            unless defined $job->firstevaltime;
+
+        # Don't add a build that has already been scheduled for this
+        # job, or has been built but is still a "current" build for
+        # this job.  Note that this means that if the sources of a job
+        # are changed from A to B and then reverted to A, three builds
+        # will be performed (though the last one will probably use the
+        # cached result from the first).  This ensures that the builds
+        # with the highest ID will always be the ones that we want in
+        # the channels.
+        # !!! Checking $outPath doesn't take meta-attributes into
+        # account.  For instance, do we want a new build to be
+        # scheduled if the meta.maintainers field is changed?
+        my @previousBuilds = $job->builds->search({outPath => $outPath, isCurrent => 1});
+        if (scalar(@previousBuilds) > 0) {
+            print STDERR "already scheduled/built\n";
+            $currentBuilds->{$_->id} = 1 foreach @previousBuilds;
+            return;
+        }
+        
+        # Nope, so add it.
+        $build = $job->builds->create(
+            { finished => 0
+            , timestamp => time()
+            , description => $buildInfo->{description}
+            , longdescription => $buildInfo->{longDescription}
+            , license => $buildInfo->{license}
+            , homepage => $buildInfo->{homepage}
+            , maintainers => $buildInfo->{maintainers}
+            , nixname => $buildInfo->{nixName}
+            , drvpath => $drvPath
+            , outpath => $outPath
+            , system => $buildInfo->{system}
+            , iscurrent => 1
+            , nixexprinput => $jobset->nixexprinput
+            , nixexprpath => $jobset->nixexprpath
+            });
+
+        print STDERR "added to queue as build ", $build->id, "\n";
+        
+        $currentBuilds->{$build->id} = 1;
+        
+        $build->create_related('buildschedulinginfo',
+            { priority => $priority
+            , busy => 0
+            , locker => ""
+            });
+
+        my %inputs;
+        $inputs{$jobset->nixexprinput} = $nixExprInput;
+        foreach my $arg (@{$buildInfo->{arg}}) {
+            $inputs{$arg->{name}} = $inputInfo->{$arg->{name}}->[$arg->{altnr}]
+                || die "invalid input";
+        }
+
+        foreach my $name (keys %inputs) {
+            my $input = $inputs{$name};
+            $build->buildinputs_builds->create(
+                { name => $name
+                , type => $input->{type}
+                , uri => $input->{uri}
+                , revision => $input->{revision}
+                , value => $input->{value}
+                , dependency => $input->{id}
+                , path => $input->{storePath} || "" # !!! temporary hack
+                , sha256hash => $input->{sha256hash}
+                });
+        }
+    });
+
+    return $build;
+};

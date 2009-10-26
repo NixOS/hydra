@@ -404,10 +404,12 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
     
     requireProjectOwner($c, $build->project);
 
-    my ($nixExprPath, $nixExprInput) = Hydra::Controller::Jobset::nixExprPathFromParams $c;
+    my ($nixExprPath, $nixExprInputName) = Hydra::Controller::Jobset::nixExprPathFromParams $c;
 
     my $jobName = trim $c->request->params->{"jobname"};
     error($c, "Invalid job name: $jobName") if $jobName !~ /^$jobNameRE$/;
+
+    my $inputInfo = {};
 
     foreach my $param (keys %{$c->request->params}) {
         next unless $param =~ /^input-(\w+)-name$/;
@@ -417,14 +419,40 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
         my $inputValue = Hydra::Controller::Jobset::checkInputValue(
             $c, $inputType, $c->request->params->{"input-$baseName-value"});
         eval {
-            fetchInput(
+            # !!! fetchInput can take a long time, which might cause
+            # the current HTTP request to time out.  So maybe this
+            # should be done asynchronously.  But then error reporting
+            # becomes harder.
+            my $info = fetchInput(
                 $c->model('DB'), $build->project, $build->jobset,
                 $inputName, $inputType, $inputValue);
+            push @{$$inputInfo{$inputName}}, $info if defined $info;
         };
         error($c, $@) if $@;
     }
 
-    $c->flash->{buildMsg} = "Build XXX added to the queue.";
+    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $nixExprInputName, $nixExprPath);
+
+    my $job;
+    foreach my $j (@{$jobs->{job}}) {
+        print STDERR $j->{jobName}, "\n";
+        if ($j->{jobName} eq $jobName) {
+            error($c, "Nix expression returned multiple builds for job $jobName.")
+                if $job;
+            $job = $j;
+        }
+    }
+
+    error($c, "Nix expression did not return a job named $jobName.") unless $job;
+
+    my %currentBuilds;
+    my $newBuild = checkBuild(
+        $c->model('DB'), $build->project, $build->jobset,
+        $inputInfo, $nixExprInput, $job, \%currentBuilds);
+
+    error($c, "This build has already been performed.") unless $newBuild;
+    
+    $c->flash->{buildMsg} = "Build " . $newBuild->id . " added to the queue.";
     
     $c->res->redirect($c->uri_for($c->controller('Root')->action_for('queue')));
 }
