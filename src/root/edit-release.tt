@@ -17,25 +17,25 @@
     </tr>
   </table>
 
-  <p><em>Note:</em> to add a build to this release, go to the build’s
-  information page and click on “Add to release”.</p>
+  <h3>Release Members</h3>
 
-  <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
+  <p><button type="button" class="add-member">Add a build</button></p>
+
+  <p><em>Note:</em> to add a build to this release, you can also go to
+  the build’s information page and click on “Add to release”.</p>
+
+  <p>
+    <button type="submit"><img alt="Apply" src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button>
+    [% IF !create %]
+    <button id="delete-release" type="submit" name="action" value="delete"><img alt="Delete" src="/static/images/failure.gif" />Delete this release</button>
+    <script type="text/javascript">
+      $("#delete-release").click(function() {
+        return confirm("Are you sure you want to delete this release?");
+      });
+    </script>
+    [% END %]
+  </p>
   
 </form>
 
-[% IF !create %]
-
-  <form action="[% c.uri_for('/release' project.name release.name 'delete') %]" method="post">
-    <p><a id="delete-release" type="submit"><img src="/static/images/failure.gif" />Delete this release</button></p>
-  </form>
-
-  <script type="text/javascript">
-    $("#delete-release").click(function() {
-      return confirm("Are you sure you want to delete this release?");
-    });
-  </script>
-
-[% END %]
-  
 [% END %]

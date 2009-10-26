@@ -47,24 +47,23 @@ sub edit : Chained('release') PathPart('edit') Args(0) {
 
 sub submit : Chained('release') PathPart('submit') Args(0) {
     my ($self, $c) = @_;
-    requireProjectOwner($c, $c->stash->{project});
-    txn_do($c->model('DB')->schema, sub {
-        updateRelease($c, $c->stash->{release});
-    });
-    $c->res->redirect($c->uri_for($self->action_for("view"),
-        [$c->stash->{project}->name, $c->stash->{release}->name]));
-}
-
-
-sub delete : Chained('release') PathPart('delete') Args(0) {
-    my ($self, $c) = @_;
-    requireProjectOwner($c, $c->stash->{project});
-    txn_do($c->model('DB')->schema, sub {
-        $c->stash->{release}->delete;
-    });
-    $c->res->redirect($c->uri_for($c->controller('Project')->action_for('releases'),
-        [$c->stash->{project}->name]));
-}
-
     
+    requireProjectOwner($c, $c->stash->{project});
+
+    if ($c->request->params->{action} eq "delete") {
+        txn_do($c->model('DB')->schema, sub {
+            $c->stash->{release}->delete;
+        });
+        $c->res->redirect($c->uri_for($c->controller('Project')->action_for('releases'),
+            [$c->stash->{project}->name]));
+    } else {
+        txn_do($c->model('DB')->schema, sub {
+            updateRelease($c, $c->stash->{release});
+        });
+        $c->res->redirect($c->uri_for($self->action_for("view"),
+            [$c->stash->{project}->name, $c->stash->{release}->name]));
+    }
+}
+
+
 1;
