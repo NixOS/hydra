@@ -372,6 +372,10 @@ sub add_to_release : Chained('build') PathPart('add-to-release') Args(0) {
 
     error($c, "This build is already a part of release `$releaseName'.")
         if $release->releasemembers->find({build => $build->id});
+ 
+    registerRoot $build->outpath;
+    
+    error($c, "This build is no longer available.") unless isValidPath $build->outpath;
 
     $release->releasemembers->create({build => $build->id, description => $build->description});
     

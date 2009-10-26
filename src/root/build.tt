@@ -206,7 +206,7 @@
 </table>
 
 
-[% IF c.user_exists %]
+[% IF c.user_exists && available %]
 <form action="[% c.uri_for('/build' build.id 'add-to-release') %]" method="post">
   <p>Add to release: <input type="text" class="string" name="name" />
   <button type="submit"><img src="/static/images/success.gif" />Apply</button></p>
