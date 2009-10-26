@@ -5,6 +5,7 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::AddBuilds;
 use File::stat;
 
 
@@ -402,6 +403,26 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
     my $build = $c->stash->{build};
     
     requireProjectOwner($c, $build->project);
+
+    my ($nixExprPath, $nixExprInput) = Hydra::Controller::Jobset::nixExprPathFromParams $c;
+
+    my $jobName = trim $c->request->params->{"jobname"};
+    error($c, "Invalid job name: $jobName") if $jobName !~ /^$jobNameRE$/;
+
+    foreach my $param (keys %{$c->request->params}) {
+        next unless $param =~ /^input-(\w+)-name$/;
+        my $baseName = $1;
+        my ($inputName, $inputType) =
+            Hydra::Controller::Jobset::checkInput($c, $baseName);
+        my $inputValue = Hydra::Controller::Jobset::checkInputValue(
+            $c, $inputType, $c->request->params->{"input-$baseName-value"});
+        eval {
+            fetchInput(
+                $c->model('DB'), $build->project, $build->jobset,
+                $inputName, $inputType, $inputValue);
+        };
+        error($c, $@) if $@;
+    }
 
     $c->flash->{buildMsg} = "Build XXX added to the queue.";
     

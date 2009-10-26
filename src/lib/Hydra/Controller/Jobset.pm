@@ -96,18 +96,52 @@ sub delete : Chained('jobset') PathPart Args(0) {
 }
 
 
-sub updateJobset {
-    my ($c, $jobset) = @_;
-
-    my $jobsetName = trim $c->request->params->{"name"};
-    error($c, "Invalid jobset name: $jobsetName") unless $jobsetName =~ /^[[:alpha:]][\w\-]*$/;
-
+sub nixExprPathFromParams {
+    my ($c) = @_;
+    
     # The Nix expression path must be relative and can't contain ".." elements.
     my $nixExprPath = trim $c->request->params->{"nixexprpath"};
     error($c, "Invalid Nix expression path: $nixExprPath") if $nixExprPath !~ /^$relPathRE$/;
 
     my $nixExprInput = trim $c->request->params->{"nixexprinput"};
     error($c, "Invalid Nix expression input name: $nixExprInput") unless $nixExprInput =~ /^\w+$/;
+
+    return ($nixExprPath, $nixExprInput);
+}
+
+
+sub checkInput {
+    my ($c, $baseName) = @_;
+
+    my $inputName = trim $c->request->params->{"input-$baseName-name"};
+    error($c, "Invalid input name: $inputName") unless $inputName =~ /^[[:alpha:]]\w*$/;
+
+    my $inputType = trim $c->request->params->{"input-$baseName-type"};
+    error($c, "Invalid input type: $inputType") unless
+        $inputType eq "svn" || $inputType eq "cvs" || $inputType eq "tarball" ||
+        $inputType eq "string" || $inputType eq "path" || $inputType eq "boolean" ||
+        $inputType eq "build";
+
+    return ($inputName, $inputType);
+}
+
+
+sub checkInputValue {
+    my ($c, $type, $value) = @_;
+    $value = trim $value;
+    error($c, "Invalid Boolean value: $value") if
+        $type eq "boolean" && !($value eq "true" || $value eq "false");
+    return $value;
+}
+
+
+sub updateJobset {
+    my ($c, $jobset) = @_;
+
+    my $jobsetName = trim $c->request->params->{"name"};
+    error($c, "Invalid jobset name: $jobsetName") unless $jobsetName =~ /^[[:alpha:]][\w\-]*$/;
+
+    my ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
 
     $jobset->update(
         { name => $jobsetName
@@ -122,29 +156,21 @@ sub updateJobset {
     # Process the inputs of this jobset.
     foreach my $param (keys %{$c->request->params}) {
         next unless $param =~ /^input-(\w+)-name$/;
-        my $baseName2 = $1;
-        next if $baseName2 eq "template";
-        print STDERR "GOT INPUT: $baseName2\n";
+        my $baseName = $1;
+        next if $baseName eq "template";
 
-        my $inputName = trim $c->request->params->{"input-$baseName2-name"};
-        error($c, "Invalid input name: $inputName") unless $inputName =~ /^[[:alpha:]]\w*$/;
-
-        my $inputType = trim $c->request->params->{"input-$baseName2-type"};
-        error($c, "Invalid input type: $inputType") unless
-            $inputType eq "svn" || $inputType eq "cvs" || $inputType eq "tarball" ||
-            $inputType eq "string" || $inputType eq "path" || $inputType eq "boolean" ||
-            $inputType eq "build";
+        my ($inputName, $inputType) = checkInput($c, $baseName);
 
         $inputNames{$inputName} = 1;
             
         my $input;
-        if ($baseName2 =~ /^\d+$/) { # numeric base name is auto-generated, i.e. a new entry
+        if ($baseName =~ /^\d+$/) { # numeric base name is auto-generated, i.e. a new entry
             $input = $jobset->jobsetinputs->create(
                 { name => $inputName
                 , type => $inputType
                 });
         } else { # it's an existing input
-            $input = ($jobset->jobsetinputs->search({name => $baseName2}))[0];
+            $input = ($jobset->jobsetinputs->search({name => $baseName}))[0];
             die unless defined $input;
             $input->update({name => $inputName, type => $inputType});
         }
@@ -152,15 +178,12 @@ sub updateJobset {
         # Update the values for this input.  Just delete all the
         # current ones, then create the new values.
         $input->jobsetinputalts->delete_all;
-        my $values = $c->request->params->{"input-$baseName2-values"};
+        my $values = $c->request->params->{"input-$baseName-values"};
         $values = [] unless defined $values;
         $values = [$values] unless ref($values) eq 'ARRAY';
         my $altnr = 0;
         foreach my $value (@{$values}) {
-            print STDERR "VALUE: $value\n";
-            my $value = trim $value;
-            error($c, "Invalid Boolean value: $value") if
-                $inputType eq "boolean" && !($value eq "true" || $value eq "false");
+            $value = checkInputValue($c, $inputType, $value);
             $input->jobsetinputalts->create({altnr => $altnr++, value => $value});
         }
     }

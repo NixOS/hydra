@@ -28,7 +28,7 @@
     <tbody>
       [% FOREACH input IN build.inputs -%]
         <tr>
-          <td><tt>[% input.name %]</tt></td>
+          <td><tt>[% input.name %]<input type="hidden" [% HTML.attributes(name => "input-$input.name-name" value => input.name) %] /></tt></td>
           <td>
             [% INCLUDE renderSelection curValue=input.type param="input-$input.name-type" options=inputTypes %]
           </td>

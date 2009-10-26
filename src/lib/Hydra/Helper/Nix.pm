@@ -273,7 +273,6 @@ sub getLatestSuccessfulViewResult {
         return $build if getViewResult($build, $jobs)->{status} == 0;
     }
     return undef;
-    
 }
 
     
