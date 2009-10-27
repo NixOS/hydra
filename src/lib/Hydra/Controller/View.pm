@@ -159,7 +159,38 @@ sub result : Chained('view') PathPart('') {
         , '+as' => ["releasename", "buildstatus"] })
         or error($c, "Build $id doesn't exist.");
 
-    $c->stash->{result} = getViewResult($primaryBuild, $c->stash->{jobs});
+    my $result = getViewResult($primaryBuild, $c->stash->{jobs});
+    $c->stash->{result} = $result;
+
+    if (scalar @args == 1 && $args[0] eq "release") {
+        requireProjectOwner($c, $c->stash->{project});
+
+        error($c, "The primary build of this view result did not provide a release name.")
+            unless $result->{releasename};
+
+        error($c, "A release named `" . $result->{releasename} . "' already exists.")
+            if $c->stash->{project}->releases->find({name => $result->{releasename}});
+
+        my $release;
+
+        txn_do($c->model('DB')->schema, sub {
+
+            $release = $c->stash->{project}->releases->create(
+                { name => $result->{releasename}
+                , timestamp => time
+                });
+
+            foreach my $job (@{$result->{jobs}}) {
+                $release->releasemembers->create(
+                    { build => $job->{build}->id
+                    , description => $job->{job}->description
+                    });
+            }
+        });
+
+        $c->res->redirect($c->uri_for($c->controller('Release')->action_for('view'),
+            [$c->stash->{project}->name, $release->name]));
+    }
 
     # Provide a redirect to the specified job of this view result.
     # !!!  This isn't uniquely defined if there are multiple jobs with
@@ -167,9 +198,9 @@ sub result : Chained('view') PathPart('') {
     # this mechanism is primarily to allow linking to resources of
     # which there is only one build, such as the manual of the latest
     # view result.
-    if (scalar @args != 0) {
+    elsif (scalar @args != 0) {
         my $jobName = shift @args;
-        (my $build, my @others) = grep { $_->{job}->job eq $jobName } @{$c->stash->{result}->{jobs}};
+        (my $build, my @others) = grep { $_->{job}->job eq $jobName } @{$result->{jobs}};
         notFound($c, "View doesn't have a job named `$jobName'")
             unless defined $build;
         error($c, "Job `$jobName' isn't unique.") if @others;

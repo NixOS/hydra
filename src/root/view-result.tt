@@ -42,4 +42,10 @@
 
 [% END %]
 
+[% IF c.user_exists %]
+<p>
+[<a href="[% c.uri_for('/view' project.name view.name result.id 'release') %]">Release</a>]
+</p>
+[% END %]
+
 [% END %]

@@ -23,7 +23,7 @@ release.timestamp %].</em></p>
     </a>
   </h2>
 
-  [% INCLUDE renderProductList build=m.build latestRoot=['/view!!!' project.name view.name 'latest' j.job.job] %]
+  [% INCLUDE renderProductList build=m.build %]
 
 [% END %]
 
