@@ -161,7 +161,7 @@
           [% END %]
           [% SWITCH product.subtype %]
           [% CASE "readme" %]
-            “README” file
+            Read Me!
           [% CASE "manual" %]
             Manual
           [% CASE "release-notes" %]
