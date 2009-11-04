@@ -12,11 +12,23 @@
 
 <p>This project has made the following releases:</p>
 
-<ul>
-  [% FOREACH release IN releases %]
-    <li><a href="[% c.uri_for('/release' project.name release.name) %]"><tt>[% release.name %]</tt></a></li>
-  [% END %]
-</ul>
+<table class="tablesorter">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    [% FOREACH release IN releases %]
+      [% link = c.uri_for('/release' project.name release.name) %]
+      <tr class="clickable" onclick="window.location = '[% link %]'">
+        <td><a href="[% link %]"><tt>[% release.name %]</tt></a></td>
+        <td>[% INCLUDE renderDateTime timestamp = release.timestamp %]</td>
+      </tr>
+    [% END %]
+  </tbody>
+</table>
 
 [% END %]
 
