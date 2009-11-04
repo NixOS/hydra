@@ -9,13 +9,13 @@ class="smallLink" href="[% c.uri_for('/release' project.name release.name "edit"
 <p><em>Released on [% INCLUDE renderDateTime timestamp =
 release.timestamp %].</em></p>
 
-[% IF !release.releasemembers %]
+[% IF !members %]
 
 <p><em>No builds have been added to this release yet.</em></p>
 
 [% ELSE %]
 
-[% FOREACH m IN release.releasemembers %]
+[% FOREACH m IN members %]
 
   <h2>
     <a href="[% c.uri_for('/build' m.build.id) %]">

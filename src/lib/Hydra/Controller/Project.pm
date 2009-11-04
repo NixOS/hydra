@@ -213,7 +213,8 @@ sub create_view : Chained('project') PathPart('create-view') Args(0) {
 sub releases : Chained('project') PathPart('releases') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'releases.tt';
-    $c->stash->{releases} = [$c->stash->{project}->releases->all];
+    $c->stash->{releases} = [$c->stash->{project}->releases->search({},
+        {order_by => ["timestamp DESC"]})];
 }
 
 

@@ -21,6 +21,8 @@ sub release : Chained('/') PathPart('release') CaptureArgs(2) {
 sub view : Chained('release') PathPart('') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'release.tt';
+    $c->stash->{members} = [$c->stash->{release}->releasemembers->search({},
+        {order_by => ["description"]})];
 }
 
 
