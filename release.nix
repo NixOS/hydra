@@ -75,7 +75,7 @@ let
 
         hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [
           libxslt sqlite subversion openssh nix coreutils findutils
-          gzip bzip2 lzma gnutar unzip
+          gzip bzip2 lzma gnutar unzip git
           gnused graphviz
         ] ++ ( if stdenv.isLinux then [rpm dpkg cdrkit] else [] )));
 
