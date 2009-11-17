@@ -104,10 +104,18 @@ __PACKAGE__->has_many(
     "foreign.project" => "self.project",
   },
 );
+__PACKAGE__->has_many(
+  "jobsetinputhashes",
+  "Hydra::Schema::JobsetInputHashes",
+  {
+    "foreign.jobset"  => "self.name",
+    "foreign.project" => "self.project",
+  },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-10-23 16:56:03
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:M+eetraKtSfF8q3cqJhEPw
+# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 14:04:55
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:xWsqXneZw90uEw/vcEXc4w
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

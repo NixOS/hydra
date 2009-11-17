@@ -5,6 +5,7 @@ use feature 'switch';
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
+use Digest::SHA qw(sha256_hex);
 
 
 STDOUT->autoflush();
@@ -50,6 +51,20 @@ sub checkJobset {
     # Fetch all values for all inputs.
     fetchInputs($project, $jobset, $inputInfo);
 
+    # Hash the arguments to hydra_eval_jobs and check the
+    # JobsetInputHashes to see if we've already evaluated this set of
+    # inputs.  If so, bail out.
+    my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo));
+    my $argsHash = sha256_hex("@args");
+
+    if ($jobset->jobsetinputhashes->find({hash => $argsHash})) {
+        print "  already evaluated, skipping\n";
+        txn_do($db, sub {
+            $jobset->update({lastcheckedtime => time});
+        });
+        return;
+    }
+    
     # Evaluate the job expression.
     my ($jobs, $nixExprInput) = evalJobs($inputInfo, $jobset->nixexprinput, $jobset->nixexprpath);
 
@@ -83,6 +98,8 @@ sub checkJobset {
         foreach my $build ($jobset->builds->search({iscurrent => 1})) {
             $build->update({iscurrent => 0}) unless $currentBuilds{$build->id};
         }
+
+        $jobset->jobsetinputhashes->create({hash => $argsHash, timestamp => time});
         
     });
        

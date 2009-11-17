@@ -379,6 +379,24 @@ create table ReleaseMembers (
 );
 
 
+-- This table is used to prevent repeated Nix expression evaluation
+-- for the same set of inputs for a jobset.  In the scheduler, after
+-- obtaining the current inputs for a jobset, we hash the inputs
+-- together, and if the resulting hash already appears in this table,
+-- we can skip the jobset.  Otherwise it's added to the table, and the
+-- Nix expression for the jobset is evaluated.  The hash is computed
+-- over the command-line arguments to hydra_eval_jobs.
+create table JobsetInputHashes (
+    project       text not null,
+    jobset        text not null,
+    hash          text not null,
+    timestamp     integer not null,
+    primary key   (project, jobset, hash),
+    foreign key   (project) references Projects(name) on delete cascade on update cascade,
+    foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
+);
+
+
 -- Some indices.
 create index IndexBuildInputsByBuild on BuildInputs(build);
 create index IndexBuildInputsByDependency on BuildInputs(dependency);
