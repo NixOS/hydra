@@ -88,6 +88,7 @@ let
           mv $out/libexec/hydra/script $out/bin
 
           cp ${"${nixpkgs}/pkgs/build-support/fetchsvn/nix-prefetch-svn"} $out/bin/nix-prefetch-svn
+          cp ${"${nixpkgs}/pkgs/build-support/fetchgit/nix-prefetch-git"} $out/bin/nix-prefetch-git
 
           make -C src/c NIX=${nix} ATERM=${aterm242fixes}
           cp src/c/hydra_eval_jobs $out/bin

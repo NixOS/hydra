@@ -50,7 +50,7 @@ __PACKAGE__->add_columns(
   },
   "revision",
   {
-    data_type => "integer",
+    data_type => "text",
     default_value => undef,
     is_nullable => 1,
     size => undef,
@@ -107,8 +107,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-10-23 16:56:03
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:RTeBJCvspGfTdHUR/TxFsg
+# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 16:04:13
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:skn8HFEXTvEiL4/6Q+ulvw
 
 use Hydra::Helper::Nix;
 

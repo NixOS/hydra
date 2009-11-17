@@ -72,7 +72,7 @@ create table JobsetInputAlts (
 
     -- urgh
     value         text, -- for most types, a URI; for 'path', an absolute path; for 'string', an arbitrary value
-    revision      integer, -- for type == 'svn'
+    revision      text, -- for type == 'svn'
     tag           text, -- for type == 'cvs'
     
     primary key   (project, jobset, input, altnr),
@@ -239,7 +239,7 @@ create table BuildInputs (
     name          text not null,
     type          text not null,
     uri           text,
-    revision      integer,
+    revision      text,
     tag           text,
     value         text,
     dependency    integer, -- build ID of the input, for type == 'build'
@@ -290,6 +290,26 @@ create table CachedSubversionInputs (
     sha256hash    text not null,
     storePath     text not null,
     primary key   (uri, revision)
+);
+
+create table CachedGitInputs (
+    uri           text not null,
+    timestamp     integer not null, -- when we first saw this hash
+    lastSeen      integer not null, -- when we last saw this hash
+    sha256hash    text not null,
+    storePath     text not null,
+    primary key   (uri, sha256hash)
+);
+
+create table CachedCVSInputs (
+    uri           text not null,
+    module        text not null,
+    revision      integer not null,
+    timestamp     integer not null, -- when we first saw this hash
+    lastSeen      integer not null, -- when we last saw this hash
+    sha256hash    text not null,
+    storePath     text not null,
+    primary key   (uri, module, sha256hash)
 );
 
 

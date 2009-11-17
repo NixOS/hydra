@@ -63,11 +63,9 @@ sub attrsToSQL {
     return $query;
 }
 
-
-sub fetchInput {
+sub fetchInputPath {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
 
-    if ($type eq "path") {
         my $uri = $value;
 
         my $timestamp = time;
@@ -126,9 +124,11 @@ sub fetchInput {
             , sha256hash => $sha256
             , revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp)
             };
-    }
+}
 
-    elsif ($type eq "svn") {
+sub fetchInputSVN {
+    my ($db, $project, $jobset, $name, $type, $value) = @_;
+
         my $uri = $value;
 
         my $sha256;
@@ -178,9 +178,11 @@ sub fetchInput {
             , sha256hash => $sha256
             , revision => $revision
             };
-    }
+}
 
-    elsif ($type eq "build") {
+sub fetchInputBuild {
+    my ($db, $project, $jobset, $name, $type, $value) = @_;
+
         my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
         $projectName ||= $project->name;
         $jobsetName ||= $jobset->name;
@@ -211,6 +213,86 @@ sub fetchInput {
             , id => $prevBuild->id
             , version => $version
             };
+}
+
+sub fetchInputGit {
+    my ($db, $project, $jobset, $name, $type, $value) = @_;
+
+    my $uri = $value;
+    my $timestamp = time;
+    my $sha256;
+    my $storePath;
+
+    # Some simple caching: don't check a path more than once every N seconds.
+    (my $cachedInput) = $db->resultset('CachedGitInputs')->search(
+	{uri => $uri, lastseen => {">", $timestamp - 3600}},
+	{rows => 1, order_by => "lastseen DESC"});
+
+    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+	$storePath = $cachedInput->storepath;
+	$sha256 = $cachedInput->sha256hash;
+	$timestamp = $cachedInput->timestamp;
+    } else {
+
+	# Then download this revision into the store.
+	print STDERR "checking out Git input from $uri";
+	$ENV{"NIX_HASH_ALGO"} = "sha256";
+	$ENV{"PRINT_PATH"} = "1";
+        my $stdout; my $stderr;
+	(my $res, $stdout, $stderr) = captureStdoutStderr(
+	    "nix-prefetch-git", $uri);
+	die "Cannot check out Git repository `$uri':\n$stderr" unless $res;
+
+	($sha256, $storePath) = split ' ', $stdout;
+	($cachedInput) = $db->resultset('CachedGitInputs')->search(
+	    {uri => $uri, sha256hash => $sha256});
+
+	if (!defined $cachedInput) {
+	    txn_do($db, sub {
+		$db->resultset('CachedGitInputs')->create(
+		    { uri => $uri
+                    , timestamp => $timestamp
+                    , lastseen => $timestamp
+                    , sha256hash => $sha256
+                    , storepath => $storePath
+                    });
+		   });
+	} else {
+	    $timestamp = $cachedInput->timestamp;
+	    txn_do($db, sub {
+		$cachedInput->update({lastseen => time});
+	    });
+	}
+    }
+
+    return
+       { type => $type
+       , uri => $uri
+       , storePath => $storePath
+       , sha256hash => $sha256
+       , revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp)
+       };
+
+}
+
+sub fetchInputCVS {
+    my ($db, $project, $jobset, $name, $type, $value) = @_;
+}
+
+sub fetchInput {
+    my ($db, $project, $jobset, $name, $type, $value) = @_;
+
+    if ($type eq "path") {
+	return fetchInputPath($db, $project, $jobset, $name, $type, $value);
+    }
+    elsif ($type eq "svn") {
+	return fetchInputSVN($db, $project, $jobset, $name, $type, $value);
+    }
+    elsif ($type eq "build") {
+	return fetchInputBuild($db, $project, $jobset, $name, $type, $value);
+    }
+    elsif ($type eq "git") {
+	return fetchInputGit($db, $project, $jobset, $name, $type, $value);
     }
     
     elsif ($type eq "string") {
@@ -242,7 +324,7 @@ sub inputsToArgs {
                 when ("boolean") {
                     push @res, "--arg", $input, $alt->{value};
                 }
-                when (["svn", "path", "build"]) {
+                when (["svn", "path", "build", "git", "cvs"]) {
                     push @res, "--arg", $input, (
                         "{ outPath = builtins.storePath " . $alt->{storePath} . "" .
                         (defined $alt->{revision} ? "; rev = \"" . $alt->{revision} . "\"" : "") .

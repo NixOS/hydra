@@ -43,8 +43,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-10-23 16:56:03
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3hG0+UX3MJMLjSTN29Le4Q
+# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 16:04:13
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:f3ZEnsrXJUjcpGkLNl24Rw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

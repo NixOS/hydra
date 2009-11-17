@@ -51,7 +51,7 @@ __PACKAGE__->add_columns(
   },
   "revision",
   {
-    data_type => "integer",
+    data_type => "text",
     default_value => undef,
     is_nullable => 1,
     size => undef,
@@ -72,8 +72,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-10-23 16:56:03
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:XPfPlym2UDd6gUr1aKrXhg
+# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 16:04:13
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:B2BMIuiQ3IAoqEJ18pHCeQ
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

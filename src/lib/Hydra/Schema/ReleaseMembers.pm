@@ -53,8 +53,8 @@ __PACKAGE__->belongs_to(
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" });
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-10-23 16:56:03
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DvQQfFaVP0ci1LMKfbl3tg
+# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 16:04:13
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fu21YcmM1U76pcgFY1qZ5A
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration
