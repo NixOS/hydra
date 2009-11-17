@@ -304,7 +304,6 @@ create table CachedGitInputs (
 create table CachedCVSInputs (
     uri           text not null,
     module        text not null,
-    revision      integer not null,
     timestamp     integer not null, -- when we first saw this hash
     lastSeen      integer not null, -- when we last saw this hash
     sha256hash    text not null,
