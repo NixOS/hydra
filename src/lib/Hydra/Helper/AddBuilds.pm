@@ -238,7 +238,12 @@ sub fetchInputGit {
 	print STDERR "checking out Git input from $uri";
 	$ENV{"NIX_HASH_ALGO"} = "sha256";
 	$ENV{"PRINT_PATH"} = "1";
-	$ENV{"NIX_PREFETCH_GIT_CHECKOUT_HOOK"} = "git describe > .git-version";
+
+	# Checked out code often wants to be able to run `git
+	# describe', e.g., code that uses Gnulib's `git-version-gen'
+	# script.  Thus, we leave `.git' in there.
+	$ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
+
         my $stdout; my $stderr;
 	(my $res, $stdout, $stderr) = captureStdoutStderr(
 	    "nix-prefetch-git", $uri);
