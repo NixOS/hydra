@@ -36,10 +36,14 @@ sub getBuildStats {
     $c->stash->{busyBuilds} = $builds->search(
         {finished => 0, busy => 1},
         {join => 'schedulingInfo'}) || 0;
-        
-    $c->stash->{totalBuildTime} = $builds->search({},
+
+    my $res;
+    $res = $builds->search({},
         {join => 'resultInfo', select => {sum => 'stoptime - starttime'}, as => ['sum']})
-        ->first->get_column('sum') || 0;
+        ->first ;        
+        
+    $c->stash->{totalBuildTime} = defined ($res) ? $res->get_column('sum') : 0 ;
+
 }
 
 
