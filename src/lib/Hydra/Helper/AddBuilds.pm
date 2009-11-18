@@ -238,6 +238,7 @@ sub fetchInputGit {
 	print STDERR "checking out Git input from $uri";
 	$ENV{"NIX_HASH_ALGO"} = "sha256";
 	$ENV{"PRINT_PATH"} = "1";
+	$ENV{"NIX_PREFETCH_GIT_CHECKOUT_HOOK"} = "git describe > .git-version";
         my $stdout; my $stderr;
 	(my $res, $stdout, $stderr) = captureStdoutStderr(
 	    "nix-prefetch-git", $uri);
