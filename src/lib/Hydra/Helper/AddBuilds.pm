@@ -223,15 +223,33 @@ sub fetchInputGit {
     my $sha256;
     my $storePath;
 
-    # Some simple caching: don't check a path more than once every N seconds.
-    (my $cachedInput) = $db->resultset('CachedGitInputs')->search(
-	{uri => $uri, lastseen => {">", $timestamp - 3600}},
-	{rows => 1, order_by => "lastseen DESC"});
+    my $branch = "master"; 
+
+    # First figure out the last-modified revision of the URI.
+    my $stdout; my $stderr;
+    (my $res, $stdout, $stderr) = captureStdoutStderr(
+	    "git", "ls-remote", $uri, $branch);
+    die "Cannot get head revision of Git branch '$branch' at `$uri':\n$stderr" unless $res;
+
+    (my $revision, my $ref) = split ' ', $stdout;
+    die unless $revision =~ /^[0-9a-fA-F]+$/;
+
+    # Some simple caching: don't check a uri/branch more than once every hour, but prefer exact match on uri/branch/revision.
+    my $cachedInput ;
+    ($cachedInput) = $db->resultset('CachedGitInputs')->search(
+	{uri => $uri, branch => $branch, revision => $revision},
+	{rows => 1});
+    if (! defined $cachedInput ) {
+	($cachedInput) = $db->resultset('CachedGitInputs')->search(
+	    {uri => $uri, branch => $branch, lastseen => {">", $timestamp - 3600}},
+	    {rows => 1, order_by => "lastseen DESC"});
+    }
 
     if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
 	$storePath = $cachedInput->storepath;
 	$sha256 = $cachedInput->sha256hash;
 	$timestamp = $cachedInput->timestamp;
+	$revision = $cachedInput->revision;
     } else {
 
 	# Then download this revision into the store.
@@ -244,19 +262,20 @@ sub fetchInputGit {
 	# script.  Thus, we leave `.git' in there.
 	$ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
 
-        my $stdout; my $stderr;
 	(my $res, $stdout, $stderr) = captureStdoutStderr(
-	    "nix-prefetch-git", $uri);
-	die "Cannot check out Git repository `$uri':\n$stderr" unless $res;
+	    "nix-prefetch-git", $uri, $revision);
+	die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
 
 	($sha256, $storePath) = split ' ', $stdout;
 	($cachedInput) = $db->resultset('CachedGitInputs')->search(
-	    {uri => $uri, sha256hash => $sha256});
+	    {uri => $uri, branch => $branch, sha256hash => $sha256});
 
 	if (!defined $cachedInput) {
 	    txn_do($db, sub {
 		$db->resultset('CachedGitInputs')->create(
 		    { uri => $uri
+                    , branch => $branch
+                    , revision => $revision
                     , timestamp => $timestamp
                     , lastseen => $timestamp
                     , sha256hash => $sha256
@@ -276,7 +295,7 @@ sub fetchInputGit {
        , uri => $uri
        , storePath => $storePath
        , sha256hash => $sha256
-       , revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp)
+       , revision => $revision
        };
 
 }

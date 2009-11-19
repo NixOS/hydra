@@ -18,6 +18,20 @@ __PACKAGE__->add_columns(
     is_nullable => 0,
     size => undef,
   },
+  "branch",
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
+  "revision",
+  {
+    data_type => "text",
+    default_value => undef,
+    is_nullable => 0,
+    size => undef,
+  },
   "timestamp",
   {
     data_type => "integer",
@@ -47,11 +61,11 @@ __PACKAGE__->add_columns(
     size => undef,
   },
 );
-__PACKAGE__->set_primary_key("uri", "sha256hash");
+__PACKAGE__->set_primary_key("uri", "branch", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 16:04:13
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:WzfB4qf6XqvIll/gPFZE6Q
+# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-18 21:46:00
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:K9P4pi33P54ZB8D/6WzAYw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration
