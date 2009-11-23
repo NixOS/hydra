@@ -218,12 +218,12 @@ sub fetchInputBuild {
 sub fetchInputGit {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
 
-    my $uri = $value;
+    (my $uri, my $branch) = split ' ', $value;
+    $branch = defined $branch ? $branch : "master"; 
+
     my $timestamp = time;
     my $sha256;
     my $storePath;
-
-    my $branch = "master"; 
 
     # First figure out the last-modified revision of the URI.
     my $stdout; my $stderr;
