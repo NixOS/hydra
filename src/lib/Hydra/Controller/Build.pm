@@ -67,12 +67,6 @@ sub showLog {
 
     notFound($c, "Log file $path no longer exists.") unless -f $path;
 
-    # Don't do pretty printing for large logs, because the XSLT
-    # processing is rather slow.
-    if (!$mode && stat($path)->size >= (256 * 1024)) {
-        $mode = "raw";
-    }
-
     if (!$mode) {
         # !!! quick hack
         my $pipeline = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path")
