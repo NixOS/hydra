@@ -60,7 +60,7 @@ let
       
       with pkgs;
 
-      let nix = nixUnstable.override { supportOldDBs = false; }; in
+      let nix = nixUnstable; in
 
       stdenv.mkDerivation {
         name = "hydra" + (if tarball ? version then "-" + tarball.version else "");
