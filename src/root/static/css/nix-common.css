@@ -61,9 +61,25 @@ a:hover, a:visited:hover {
 
 a:link { color: #0048b3; }
 a:visited { color: #002a6a; }
-a:hover { background: #ffffcd; }
 a.no-hover:hover { background: none; }
 
 img {
     border-style: none;
+}
+
+li {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+}
+
+pre {
+    margin-left: 1.5em;
+    margin-right: 1.5em;
+}
+
+pre.code {
+    border: 1px solid #6185a0;
+    padding: 6px 6px;
+    color: #600000;
+    background: #f4f4f8;
 }
