@@ -13,6 +13,7 @@
       <xsl:if test="contains(text(), ' *** ') or
                     contains(text(), 'LaTeX Error') or
                     contains(text(), 'FAIL:') or
+                    contains(text(), 'FAILURE') or
                     contains(text(), ' error: ') or
                     true">
          <xsl:attribute name="error"></xsl:attribute>
