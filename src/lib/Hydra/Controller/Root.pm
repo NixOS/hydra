@@ -63,6 +63,21 @@ sub queue :Local {
     $c->stash->{flashMsg} = $c->flash->{buildMsg};
 }
 
+sub timeline :Local {
+    my ($self, $c) = @_;
+    my $pit = time()-(24*60*60)-1;
+    $pit = 1258469400 - (24*60*60)-1;
+
+    $c->stash->{template} = 'timeline.tt';
+    $c->stash->{pit} = $pit; 
+    $c->stash->{builds} = [$c->model('DB::Builds')->search(
+        {finished => 1, stoptime => { '>' => $pit } }
+      , { join => 'resultInfo'
+        , order_by => ["starttime"]
+        , '+select' => [ 'resultInfo.starttime', 'resultInfo.stoptime', 'resultInfo.buildstatus' ]   
+        , '+as' => [ 'starttime', 'stoptime', 'buildstatus' ]   
+        })];
+}
 
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {
