@@ -65,11 +65,11 @@ sub queue :Local {
 
 sub timeline :Local {
     my ($self, $c) = @_;
-    my $pit = time()-(24*60*60)-1;
-    $pit = 1258469400 - (24*60*60)-1;
+    my $pit = time();
+    $c->stash->{pit} = $pit; 
+    $pit = $pit-(24*60*60)-1;
 
     $c->stash->{template} = 'timeline.tt';
-    $c->stash->{pit} = $pit; 
     $c->stash->{builds} = [$c->model('DB::Builds')->search(
         {finished => 1, stoptime => { '>' => $pit } }
       , { join => 'resultInfo'
