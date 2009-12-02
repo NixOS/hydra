@@ -7,9 +7,9 @@
 <h1>Hydra timeline of last 24 hours</h1>
 
 <script type="text/javascript">
-Timeline_urlPrefix="http://simile.mit.edu/timeline/api/"; 
+Timeline_urlPrefix="http://simile.mit.edu/timeline/api/";
 </script>
-<script src="http://simile.mit.edu/timeline/api/timeline-api.js" type="text/javascript"></script>
+<script src="http://simile.mit.edu/timeline/api/timeline-api.js" type="text/javascript"></script> 
 
 
 <script type="text/javascript">  
@@ -58,7 +58,7 @@ Timeline_urlPrefix="http://simile.mit.edu/timeline/api/";
  }
 </script>
 
-<div id="my-timeline" style="height: 700px; border: 1px solid #aaa"></div>
+<div id="my-timeline" style="height: 700px; width: 100%;border: 1px solid #aaa"></div>
 <noscript>
 This page uses Javascript to show you a Timeline. Please enable Javascript in your browser to see the full page. Thank you.
 </noscript>
