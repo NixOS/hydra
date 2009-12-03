@@ -259,8 +259,10 @@ sub fetchInputGit {
 
 	# Checked out code often wants to be able to run `git
 	# describe', e.g., code that uses Gnulib's `git-version-gen'
-	# script.  Thus, we leave `.git' in there.
+	# script.  Thus, we leave `.git' in there.  Same for
+	# Subversion (e.g., libgcrypt's build system uses that.)
 	$ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
+	$ENV{"NIX_PREFETCH_SVN_LEAVE_DOT_SVN"} = "1";
 
 	(my $res, $stdout, $stderr) = captureStdoutStderr(
 	    "nix-prefetch-git", $uri, $revision);
