@@ -2,7 +2,8 @@ create table Users (
     userName      text primary key not null,
     fullName      text,
     emailAddress  text not null,
-    password      text not null -- sha256 hash
+    password      text not null, -- sha256 hash
+    emailOnError  integer not null default 0
 );
 
 

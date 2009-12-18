@@ -7,11 +7,18 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
 use Digest::SHA qw(sha256_hex);
 
+use Email::Sender::Simple qw(sendmail);
+use Email::Sender::Transport::SMTP;
+use Email::Simple;
+use Email::Simple::Creator;
+use Sys::Hostname::Long;
+use Config::General;
+
 
 STDOUT->autoflush();
 
 my $db = openHydraDB;
-
+my %config = new Config::General($ENV{"HYDRA_CONFIG"})->getall;
 
 sub fetchInputs {
     my ($project, $jobset, $inputInfo) = @_;
@@ -31,8 +38,42 @@ sub setJobsetError {
             $jobset->update({errormsg => $errorMsg, errortime => time});
         });
     };
+    sendJobsetErrorNotification($jobset, $errorMsg); 
 }
 
+sub sendJobsetErrorNotification() {
+    my ($jobset, $errorMsg) = @_;
+
+    return if $jobset->project->owner->emailonerror == 0;
+
+    my $projectName = $jobset->project->name;
+    my $jobsetName = $jobset->name;
+
+    my $sender = $config{'notification_sender'} ||
+        (($ENV{'USER'} || "hydra") .  "@" . hostname_long);
+
+    my $body = "Hi,\n"
+        . "\n"
+        . "This is to let you know that Hydra jobset evalation of $projectName:$jobsetName "
+        . "resulted in the following error:\n"
+        . "\n"
+        . "$errorMsg"
+        . "\n"
+        . "Regards,\n\nThe Hydra build daemon.\n";
+
+    my $email = Email::Simple->create(
+        header => [
+            To      => $jobset->project->owner->emailaddress,
+            From    => "Hydra Build Daemon <$sender>",
+            Subject => "Hydra $projectName:$jobsetName evaluation error",
+        ],
+        body => $body,
+    );
+
+    print $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
+
+    sendmail($email);
+}
 
 sub permute {
     my @list = @_;

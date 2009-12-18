@@ -39,6 +39,8 @@ __PACKAGE__->add_columns(
     is_nullable => 0,
     size => undef,
   },
+  "emailonerror",
+  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("username");
 __PACKAGE__->has_many(
@@ -53,8 +55,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 16:04:13
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:oBiKpCxHGZcGujhY/ZbbxA
+# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-12-18 12:57:04
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:/AWZnceSVTAlb5Tru9T1+g
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration
