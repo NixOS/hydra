@@ -39,6 +39,8 @@ create table Jobsets (
     errorTime     integer, -- timestamp associated with errorMsg
     lastCheckedTime integer, -- last time the scheduler looked at this jobset
     enabled       integer not null default 1,
+    enableEmail   integer not null default 1,
+    emailOverride text not null,
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade
 #ifdef SQLITE

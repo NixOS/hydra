@@ -62,32 +62,46 @@ sub sendTwitterNotification {
     warn "$@\n" if $@;
 }
 
-
 sub sendEmailNotification {
     my ($build) = @_;
 
     die unless defined $build->resultInfo;
         
-    return if !$build->maintainers;
+    return if !($build->maintainers || $build->jobset->enableemail);
 
     # Do we want to send mail?
 
-    if ($build->resultInfo->buildstatus == 0) {
-        # Build succeeded.  Only send mail if the previous build for
-        # the same platform failed.
-        return; # TODO
+    my $prevBuild;
+    ($prevBuild) = $db->resultset('Builds')->search(
+	{ project => $build->project->name
+        , jobset => $build->jobset->name
+        , job => $build->job->name
+        , system => $build->system 
+        , finished => 1
+        , id => { '!=', $build->id } 
+	}, { order_by => ["timestamp DESC"] }
+
+        );
+
+    if (defined $prevBuild && ($build->resultInfo->buildstatus == $prevBuild->resultInfo->buildstatus)) {
+        return; 
     }
 
     # Send mail.
-
     # !!! should use the Template Toolkit here.
 
     print STDERR "sending mail notification to ", $build->maintainers, "\n";
 
     my $jobName = $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
 
-    my $status =
-        $build->resultInfo->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
+    my $status =  $build->resultInfo->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
+    my $statusMsg;
+    if(defined $prevBuild) {
+      my $prevStatus =  $prevBuild->resultInfo->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
+      $statusMsg = "changed from $prevStatus to $status";
+    } else {
+      $statusMsg = $status;
+    }
 
     my $sender = $config{'notification_sender'} ||
         (($ENV{'USER'} || "hydra") .  "@" . hostname_long);
@@ -134,8 +148,8 @@ sub sendEmailNotification {
 
     my $body = "Hi,\n"
         . "\n"
-        . "This is to let you know that Hydra build " . $build->id
-        . " of job " . $jobName . " has $status.\n"
+        . "This is to let you know that Hydra build" . $build->id
+        . " of job " . $jobName . " has $statusMsg.\n"
         . "\n"
         . "Complete build information can be found on this page: "
         . "$selfURI/build/" . $build->id . "\n"
@@ -151,10 +165,13 @@ sub sendEmailNotification {
         . $inputsTable->body
         . "\n"
         . "Regards,\n\nThe Hydra build daemon.\n";
+    # stripping trailing spaces from lines
+    $body =~ s/[\ ]+$//gm;
 
+    my $to = (!$build->jobset->emailoverride eq "") ? $build->jobset->emailoverride : $build->maintainers;
     my $email = Email::Simple->create(
         header => [
-            To      => $build->maintainers,
+            To      => $to,
             From    => "Hydra Build Daemon <$sender>",
             Subject => "Hydra job $jobName build " . $build->id . " $status",
         ],
@@ -198,7 +215,7 @@ sub doBuild {
             "--max-silent-time 3600 --keep-going --fallback " .
             "--no-build-output --log-type flat --print-build-trace " .
             "--add-root " . gcRootFor $outPath . " 2>&1";
-
+print STDERR $cmd;
         my $max = $build->buildsteps->find(
             {}, {select => {max => 'stepnr + 1'}, as => ['max']});
         my $buildStepNr = defined $max ? $max->get_column('max') : 1;

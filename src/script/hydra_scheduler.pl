@@ -160,7 +160,9 @@ sub checkJobset {
         }
         $msg .= "at `" . $error->{location} . "' [$bindings]:\n" . $error->{msg} . "\n\n";
     }
-    setJobsetError($jobset, $msg);
+    if( !($msg eq "") ) {
+      setJobsetError($jobset, $msg);
+    }
 }
 
 
@@ -178,7 +180,9 @@ sub checkJobsetWrapped {
         print "error evaluating jobset ", $jobset->name, ": $msg";
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
-            setJobsetError($jobset, $msg);
+            if( !($msg eq "") ) {
+              setJobsetError($jobset, $msg);
+            }
         });
     }
 }
