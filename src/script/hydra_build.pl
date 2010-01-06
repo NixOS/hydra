@@ -146,6 +146,10 @@ sub sendEmailNotification {
     }
     $inputsTable->load(@lines);
 
+    my $loglines = 50;
+    my $logfile = $build->resultInfo->logfile;
+    my $logtext = `tail -$loglines $logfile` if -e $logfile;
+
     my $body = "Hi,\n"
         . "\n"
         . "This is to let you know that Hydra build" . $build->id
@@ -153,6 +157,7 @@ sub sendEmailNotification {
         . "\n"
         . "Complete build information can be found on this page: "
         . "$selfURI/build/" . $build->id . "\n"
+        . ($build->resultInfo->buildstatus != 0 ? "\nThe last $loglines lines of the build log are shown at the bottom of this email.\n" : "")
         . "\n"
         . "A summary of the build information follows:\n"
         . "\n"
@@ -164,7 +169,9 @@ sub sendEmailNotification {
         . $inputsTable->rule('-', '+')
         . $inputsTable->body
         . "\n"
-        . "Regards,\n\nThe Hydra build daemon.\n";
+        . "Regards,\n\nThe Hydra build daemon.\n"
+        . ($build->resultInfo->buildstatus != 0 ? "\n---\n$logtext" : ""); 
+
     # stripping trailing spaces from lines
     $body =~ s/[\ ]+$//gm;
 
@@ -215,7 +222,7 @@ sub doBuild {
             "--max-silent-time 3600 --keep-going --fallback " .
             "--no-build-output --log-type flat --print-build-trace " .
             "--add-root " . gcRootFor $outPath . " 2>&1";
-print STDERR $cmd;
+
         my $max = $build->buildsteps->find(
             {}, {select => {max => 'stepnr + 1'}, as => ['max']});
         my $buildStepNr = defined $max ? $max->get_column('max') : 1;
