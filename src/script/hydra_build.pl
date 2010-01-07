@@ -182,8 +182,9 @@ sub sendEmailNotification {
             From    => "Hydra Build Daemon <$sender>",
             Subject => "Hydra job $jobName build " . $build->id . " $status",
         ],
-        body => $body,
+        body => "",
     );
+    $email->body_set($body);
 
     print $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
 

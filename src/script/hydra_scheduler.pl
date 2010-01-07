@@ -67,8 +67,9 @@ sub sendJobsetErrorNotification() {
             From    => "Hydra Build Daemon <$sender>",
             Subject => "Hydra $projectName:$jobsetName evaluation error",
         ],
-        body => $body,
+        body => ""
     );
+    $email->body_set($body);
 
     print $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
 
