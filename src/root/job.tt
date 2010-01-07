@@ -2,7 +2,11 @@
 [% PROCESS common.tt %]
 
 
-<h1>Job <tt>[% project.name %]:[% jobset.name %]:[% job.name %]</tt></h1>
+<h1>Job <tt>[% INCLUDE renderLink
+      uri = c.uri_for(c.controller('Project').action_for('view'), [project.name])
+       title = project.name %]:[% INCLUDE renderLink
+      uri = c.uri_for(c.controller('Jobset').action_for('index'), [project.name, jobset.name])
+       title = jobset.name %]:[% job.name %]</tt></h1>
 
 
 <h2>Channels</h2>

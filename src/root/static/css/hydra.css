@@ -1,5 +1,5 @@
 #logo img {
-    width: 11em;
+    width: 8em;
 }
 
 tr.clickable:hover {
@@ -154,3 +154,4 @@ button {
 form.inline {
     display: inline;
 }
+

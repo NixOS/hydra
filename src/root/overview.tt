@@ -34,6 +34,14 @@ href="http://nixos.org/hydra"><em>[Read more...]</em></a></p>
   </tbody>
 </table>
 
+[% IF c.user_exists %]
+<p>
+  [ [% INCLUDE maybeLink
+          uri = c.uri_for(c.controller('Project').action_for('create'))
+          content = "Create project" %] ]
+</p>
+[% END %]
+
 
 <h2>Channels</h2>
 

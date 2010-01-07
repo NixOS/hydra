@@ -53,7 +53,7 @@ sub all : Chained('get_builds') PathPart {
 
     my $page = int($c->req->param('page')) || 1;
 
-    my $resultsPerPage = 50;
+    my $resultsPerPage = 20;
 
     my $nrBuilds = scalar($c->stash->{allBuilds}->search({finished => 1}));
 

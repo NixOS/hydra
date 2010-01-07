@@ -11,8 +11,8 @@
   <head>
     <title>Hydra - [% title %]</title>
     <link rel="stylesheet" href="/static/css/hydra.css" type="text/css" />
-    <link rel="stylesheet" href="/static/css/navbar.css" type="text/css" />
     <link rel="stylesheet" href="/static/css/nix-common.css" type="text/css" />
+    <link rel="stylesheet" href="/static/css/nixos-site.css" type="text/css" />
     <link rel="stylesheet" href="/static/css/logfile.css" type="text/css" />
     <script type="text/javascript" src="/static/js/jquery-pack.js"></script> 
     <script type="text/javascript" src="/static/js/tablesorter/jquery.tablesorter.js"></script>
@@ -71,24 +71,29 @@
   </head>
   
   <body>
-    <div id="container">
-
-      <div id="leftnavbar">
-        <div id="logo"><a class="no-hover" href="/"><img src="/static/images/hydra.png" alt="Hydra" /></a></div>
+    <div id="page"> 
+ 
+      <div id="header"> 
+        <div id="logo"><a class="no-hover" href="/"><img src="/static/images/hydra.png" alt="Hydra Logo" /></a></div> 
+          [% PROCESS topbar.tt %]        
+          [% PROCESS contextbar.tt %]
+      </div>
+      <div id="main"> 
         [% PROCESS navbar.tt %]        
-      </div>
 
-      <div id="content">
-        [% content %]
-        <div id="footer">
-          <hr />
-          <em>Hydra [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
-          Page generated on [% INCLUDE renderDateTime %].
-          [% IF c.user_exists %]
-          You are logged in as <tt>[% c.user.username %]</tt>.
-          [% END %]
+        <div id="content">
+          [% content %]
         </div>
+
       </div>
+      <div id="footer">
+        <div id="last-modified">
+        <em>Hydra [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
+        Page generated on [% INCLUDE renderDateTime %].
+        [% IF c.user_exists %]
+        You are logged in as <tt>[% c.user.username %]</tt>.
+        [% END %]
+        </div>
 
     </div>
   </body>

@@ -1,0 +1,40 @@
+[% BLOCK makeLinkWrapped %]
+  <li [% IF curUri == uri %]class="active"[% END %]>
+    <a href="[% uri %]">[% title %]</a>
+    [% content %]
+  </li>
+[% END %]
+
+[% BLOCK makeLink -%]
+[% INCLUDE makeLinkWrapped content="" -%]
+[% END %]
+
+[% BLOCK makeSubMenu %]
+    <ul class="short-menu" id="context-menu">
+      [% content %]
+    </ul>
+[% END %]
+
+
+
+[% IF project %]
+[% WRAPPER makeSubMenu %]
+    [% INCLUDE makeLink
+      uri = c.uri_for(c.controller('Project').action_for('view'), [project.name])
+       title = project.name %]
+
+  [% IF jobset %]
+    [% INCLUDE makeLink
+      uri = c.uri_for(c.controller('Jobset').action_for('index'), [project.name, jobset.name])
+      title = jobset.name %]
+  [% END %]
+
+  [% IF job %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Job').action_for('index'), [project.name, jobset.name, job.name])
+        title = job.name %]
+
+  [% END %]
+[% END %]
+[% END %]
+

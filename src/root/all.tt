@@ -9,8 +9,7 @@
 <p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %]
 out of [% totalBuilds %] in order of descending timestamp.</p>
 
-[% INCLUDE renderBuildList %]
-
+[% BLOCK renderNav %]
 <p>
 [<a href="[% "$baseUri?page=1" %]">First</a>]
 [% IF page > 1 %]
@@ -21,5 +20,13 @@ out of [% totalBuilds %] in order of descending timestamp.</p>
 [% END %]
 [<a href="[% "$baseUri?page="; (totalBuilds - 1) div resultsPerPage + 1 %]">Last</a>]
 </p>
+[% END %]
+
+
+[% INCLUDE renderNav %]
+[% INCLUDE renderBuildList %]
+[% INCLUDE renderNav %]
+
+
 
 [% END %]

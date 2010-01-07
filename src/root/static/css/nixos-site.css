@@ -1,0 +1,170 @@
+body {
+    background-color: gray;
+    margin: 0;
+}
+
+/* The main container element. */
+div#page {
+    max-width: 80em; 
+    min-width: 50em;
+    min-height: 20em;
+    margin: 1em auto;
+    background-color: white;
+    
+    /* Put a rounded border around the page. */
+    border: 1px solid black;
+    padding: 1em;
+    border-radius: 1em;
+    -moz-border-radius: 1em;
+    -webkit-border-radius: 1em;
+    -moz-box-shadow: #404040 0px 5px 50px;
+    -webkit-box-shadow: #404040 0px 5px 50px;
+}
+
+/* The header. */
+div#header {
+    border-bottom: 1px solid black;
+    position: relative;
+    padding-bottom: 1em;
+}
+
+div#logo {
+    display: inline;
+}
+
+ul#top-menu {
+    top: 0em;
+}
+
+ul#context-menu {
+    bottom: 1em;
+}
+
+
+/* The footer. */
+div#footer {
+    margin-top: 1em;
+    border-top: 1px solid black;
+    position: relative;
+}
+
+div#last-modified {
+    font-size: 80%;
+    font-style: italic;   
+}
+
+ul#bottom-menu {
+    bottom: 0em;
+}
+
+/* The top and bottom menus. */
+ul.short-menu {
+    display: block;
+    position: absolute;
+    right: 0em;
+    margin: 0;
+    padding: 0;
+}
+
+ul.short-menu li {
+    display: inline;
+
+    /* Put a ">" in front of the menu item. */
+    margin-left: 0.5em;
+    padding-left: 1.3em;
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+    background-image: url(../images/arrow-right.gif);
+    background-repeat: no-repeat;
+    background-position: 0.3em center;
+}
+
+ul.short-menu li a {
+    color: black;
+    text-decoration: none;
+}
+
+ul.short-menu li a:hover {
+    text-decoration: none;
+    border-bottom: 1px dotted black;
+    background: white;
+}
+
+/* The left menu. */
+div#main {
+    position: relative;
+    min-height: 10em;
+}
+
+div#left-bar {
+    position: absolute;
+    left: 0em;
+    width: 8em;
+    min-height: 10em;
+}
+
+div#left-title {
+    font-weight: bold;
+    padding-bottom: 0.5em;
+    margin-bottom: 0.5em;
+    border-bottom: 1px dotted black;
+}
+
+ul#left-menu {
+    padding: 0 0 0 0;
+    margin: 0 0 0 0;
+}
+
+ul#left-menu li {
+    font-size: 90%;
+    list-style: none;
+    padding-left: 1.3em;
+    margin-bottom: 0.5em;
+}
+
+ul#left-menu li {
+    background-image: url(../images/arrow-right.gif);
+    background-repeat: no-repeat;
+    background-position: 0 center;
+}
+
+ul#left-menu li.active {
+    background-image: url(../images/arrow-right-active.gif);
+    background-color: #eef2ff;
+    font-weight: bold;
+    color: #606060;
+}
+
+/* The content. */
+div#left-bar + div#content {
+    margin-left: 9em;
+}
+
+/* Inline (floating) images. */
+img.inline, img.inlineNoBorder {
+    float: right;
+    margin-left: 1em;
+    margin-bottom: 1em;
+}
+
+/* Release tables. */
+.reldate {
+    font-style: italic;   
+}
+
+table.releases td {
+    border: 0px;
+}
+
+/* Screenshot table. */
+table.screenshots {
+    border-style: hidden;
+}
+
+table.screenshots td {
+    vertical-align: middle;
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+    border: 0px;
+    border-bottom: 1px dotted black;
+}
