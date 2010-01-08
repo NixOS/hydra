@@ -20,7 +20,7 @@
   [% WRAPPER makeSubMenu title="Hydra" %]
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Root').action_for('index'))
-        title = "Overview" %]
+        title = "Projects" %]
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Root').action_for('queue'))
         title = "Queue" %]
