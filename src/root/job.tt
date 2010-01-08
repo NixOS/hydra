@@ -9,6 +9,10 @@
        title = jobset.name %]:[% job.name %]</tt></h1>
 
 
+<h2>Status</h2>
+
+[% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
+
 <h2>Channels</h2>
 
 <p>This job provides the following Nix channels:</p>
