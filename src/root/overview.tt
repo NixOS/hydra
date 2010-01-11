@@ -59,9 +59,4 @@ href="http://nixos.org/hydra"><em>[Read more...]</em></a></p>
 </ul>
 
 
-<h2>Statistics</h2>
-
-[% INCLUDE showBuildStats %]
-
-
 [% END %]

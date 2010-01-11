@@ -23,7 +23,6 @@ sub index :Path :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'overview.tt';
     $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'displayname'})];
-    getBuildStats($c, $c->model('DB::Builds'));
 }
 
 
