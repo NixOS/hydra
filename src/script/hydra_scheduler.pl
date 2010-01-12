@@ -44,7 +44,11 @@ sub setJobsetError {
 sub sendJobsetErrorNotification() {
     my ($jobset, $errorMsg) = @_;
 
+print STDERR "\n" ;
+print STDERR $errorMsg ;
+print STDERR "\n" ;
     return if $jobset->project->owner->emailonerror == 0;
+    return if $errorMsg eq ""; 
 
     my $projectName = $jobset->project->name;
     my $jobsetName = $jobset->name;
@@ -161,9 +165,7 @@ sub checkJobset {
         }
         $msg .= "at `" . $error->{location} . "' [$bindings]:\n" . $error->{msg} . "\n\n";
     }
-    if( !($msg eq "") ) {
-      setJobsetError($jobset, $msg);
-    }
+    setJobsetError($jobset, $msg);
 }
 
 
@@ -181,9 +183,7 @@ sub checkJobsetWrapped {
         print "error evaluating jobset ", $jobset->name, ": $msg";
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
-            if( !($msg eq "") ) {
-              setJobsetError($jobset, $msg);
-            }
+            setJobsetError($jobset, $msg);
         });
     }
 }
