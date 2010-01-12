@@ -44,9 +44,6 @@ sub setJobsetError {
 sub sendJobsetErrorNotification() {
     my ($jobset, $errorMsg) = @_;
 
-print STDERR "\n" ;
-print STDERR $errorMsg ;
-print STDERR "\n" ;
     return if $jobset->project->owner->emailonerror == 0;
     return if $errorMsg eq ""; 
 
