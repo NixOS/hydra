@@ -34,7 +34,12 @@
           </td>
           <td>
             <tt><input type="text" class="string" name="input-[% input.name %]-value"
-              [% HTML.attributes(value => input.value || input.uri || input.dependency.id) %] /></tt>
+              [% IF input.type == "build" %]
+                [% build = input.dependency %]
+                [% HTML.attributes(value => build.project.name _ ':' _ build.jobset.name _ ':' _ build.job.name _ '[id="'_ build.id _ '"]' ) %]
+              [% ELSE %]
+                [% HTML.attributes(value => input.value || input.uri) %]
+              [% END %] /></tt>
           </td>
         </tr>
       [% END -%]
