@@ -5,9 +5,9 @@ body {
 
 /* The main container element. */
 div#page {
-    max-width: 80em; 
+    max-width: 120em; 
     min-width: 50em;
-    min-height: 20em;
+    min-height: 30em;
     margin: 1em auto;
     background-color: white;
     
