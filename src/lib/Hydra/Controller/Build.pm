@@ -38,6 +38,12 @@ sub view_build : Chained('build') PathPart('') Args(0) {
         my $logfile = $build->schedulingInfo->logfile;
         $c->stash->{logtext} = `cat $logfile` if -e $logfile;
     }
+
+    if (defined $build->resultInfo && $build->resultInfo->iscachedbuild) {
+        (my $cachedBuildStep) = $c->model('DB::BuildSteps')->search({ outpath => $build->outpath }, {}) ;
+        $c->stash->{cachedBuild} = $cachedBuildStep->build;
+    }
+
 }
 
 
