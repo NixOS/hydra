@@ -265,7 +265,7 @@ sub nix : Chained('build') PathPart('nix') CaptureArgs(0) {
     notFound($c, "Path " . $build->outpath . " is no longer available.")
         unless isValidPath($build->outpath);
     
-    $c->stash->{storePaths} = [$build->outpath];
+    $c->stash->{storePaths} = [$build->drvpath];
     
     my $pkgName = $build->nixname . "-" . $build->system;
     $c->stash->{nixPkgs} = {"${pkgName}.nixpkg" => {build => $build, name => $pkgName}};

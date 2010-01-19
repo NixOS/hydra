@@ -70,7 +70,13 @@ sub getChannelData {
     my @storePaths = ();
     foreach my $build (@builds2) {
         next unless isValidPath($build->outpath);
-        push @storePaths, $build->outpath;
+        if (isValidPath($build->drvpath)) {
+            # Adding `drvpath' implies adding `outpath' because of the
+            # `--include-outputs' flag passed to `nix-store'.
+            push @storePaths, $build->drvpath;
+        } else {
+            push @storePaths, $build->outpath;
+        }
         my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id;
         $c->stash->{nixPkgs}->{"${pkgName}.nixpkg"} = {build => $build, name => $pkgName};
     };

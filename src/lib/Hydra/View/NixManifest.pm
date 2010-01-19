@@ -12,7 +12,7 @@ sub process {
     
     $c->response->content_type('text/x-nix-manifest');
 
-    my @paths = split '\n', `nix-store --query --requisites @storePaths`;
+    my @paths = split '\n', `nix-store --query --requisites --include-outputs @storePaths`;
     die "cannot query dependencies of path(s) @storePaths: $?" if $? != 0;
 
     my $manifest =
