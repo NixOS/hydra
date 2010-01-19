@@ -41,7 +41,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
 
     if (defined $build->resultInfo && $build->resultInfo->iscachedbuild) {
         (my $cachedBuildStep) = $c->model('DB::BuildSteps')->search({ outpath => $build->outpath }, {}) ;
-        $c->stash->{cachedBuild} = $cachedBuildStep->build;
+        $c->stash->{cachedBuild} = $cachedBuildStep->build if defined $cachedBuildStep;
     }
 
 }

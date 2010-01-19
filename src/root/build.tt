@@ -150,7 +150,7 @@
     <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
   </tr>
   [% IF build.finished && build.resultInfo.buildstatus != 4 %]
-    [% IF build.resultInfo.iscachedbuild %]
+    [% IF build.resultInfo.iscachedbuild && cachedBuild %]
       <tr>
         <th>Cached build:</th>
         <td><a href="[% c.uri_for('/build' cachedBuild.id ) %]">[% cachedBuild.id %]</a></td>
