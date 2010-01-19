@@ -428,6 +428,7 @@ create index IndexBuildsByTimestamp on Builds(timestamp);
 create index IndexBuildsByJobAndSystem on Builds(project, jobset, job, system);
 create index IndexBuildsByIsCurrent on Builds(isCurrent);
 create index IndexBuildResultInfo on BuildResultInfo(id); -- primary key index, not created automatically by PostgreSQL
+create index IndexBuildSchedulingInfoByBuild on BuildSchedulingInfo(id); -- idem
 create index IndexBuild on BuildProducts(build);
 create index IndexBuildType on BuildProducts(build, type);
 
