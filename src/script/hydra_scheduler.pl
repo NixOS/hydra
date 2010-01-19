@@ -13,7 +13,7 @@ use Email::Simple;
 use Email::Simple::Creator;
 use Sys::Hostname::Long;
 use Config::General;
-
+use Data::Dump qw(dump);
 
 STDOUT->autoflush();
 
@@ -24,8 +24,15 @@ sub fetchInputs {
     my ($project, $jobset, $inputInfo) = @_;
     foreach my $input ($jobset->jobsetinputs->all) {
         foreach my $alt ($input->jobsetinputalts->all) {
-            my $info = fetchInput($db, $project, $jobset, $input->name, $input->type, $alt->value);
-            push @{$$inputInfo{$input->name}}, $info if defined $info;
+        	if($input->type eq "sysbuild") {
+              my @info = fetchInput($db, $project, $jobset, $input->name, $input->type, $alt->value);
+              foreach my $info_el (@info) {
+              	push @{$$inputInfo{$input->name}}, $info_el if defined $info_el;
+              }
+        	} else {
+              my $info = fetchInput($db, $project, $jobset, $input->name, $input->type, $alt->value);
+              push @{$$inputInfo{$input->name}}, $info if defined $info;
+        	}
         }
     }
 }

@@ -120,7 +120,7 @@ sub checkInput {
     error($c, "Invalid input type: $inputType") unless
         $inputType eq "svn" || $inputType eq "cvs" || $inputType eq "tarball" ||
         $inputType eq "string" || $inputType eq "path" || $inputType eq "boolean" ||
-        $inputType eq "git" || $inputType eq "build";
+        $inputType eq "git" || $inputType eq "build" || $inputType eq "sysbuild" ;
 
     return ($inputName, $inputType);
 }

@@ -215,6 +215,48 @@ sub fetchInputBuild {
             };
 }
 
+sub fetchInputSystemBuild {
+    my ($db, $project, $jobset, $name, $type, $value) = @_;
+
+        my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
+        $projectName ||= $project->name;
+        $jobsetName ||= $jobset->name;
+
+        my @latestBuilds = $db->resultset('LatestSucceededForJob')
+          ->search({}, {bind => [$projectName, $jobsetName, $jobName]});
+
+        my @validBuilds = ();
+        foreach my $build (@latestBuilds) {
+        	if(isValidPath($build->outpath)) {
+        		push(@validBuilds,$build);
+        	}
+        }
+        
+        if (scalar(@validBuilds) == 0) {
+            print STDERR "input `", $name, "': no previous build available\n";
+            return undef;
+        }
+
+		my @inputs = ();
+        foreach my $prevBuild (@validBuilds) {
+	        my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
+	        my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
+	
+	        my $relName = ($prevBuild->resultInfo->releasename or $prevBuild->nixname);
+	        my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
+	        
+	        my $input =
+	            { type => "sysbuild"
+	            , storePath => $prevBuild->outpath
+	            , id => $prevBuild->id
+	            , version => $version
+	            , system => $prevBuild->system
+	            };
+	        push(@inputs, $input);
+		}
+		return @inputs;		        
+}
+
 sub fetchInputGit {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
 
@@ -318,6 +360,9 @@ sub fetchInput {
     elsif ($type eq "build") {
 	return fetchInputBuild($db, $project, $jobset, $name, $type, $value);
     }
+    elsif ($type eq "sysbuild") {
+	return fetchInputSystemBuild($db, $project, $jobset, $name, $type, $value);
+    }
     elsif ($type eq "git") {
 	return fetchInputGit($db, $project, $jobset, $name, $type, $value);
     }
@@ -351,7 +396,7 @@ sub inputsToArgs {
                 when ("boolean") {
                     push @res, "--arg", $input, $alt->{value};
                 }
-                when (["svn", "path", "build", "git", "cvs"]) {
+                when (["svn", "path", "build", "git", "cvs", "sysbuild"]) {
                     push @res, "--arg", $input, (
                         "{ outPath = builtins.storePath " . $alt->{storePath} . "" .
                         (defined $alt->{revision} ? "; rev = \"" . $alt->{revision} . "\"" : "") .
@@ -397,6 +442,21 @@ sub evalJobs {
         SuppressEmpty => '')
         or die "cannot parse XML output";
 
+    my @filteredJobs = ();
+    foreach my $job (@{$jobs->{job}}) {
+    	my $validJob = 1;
+  		foreach my $arg (@{$job->{arg}}) {
+  			my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}] ;
+  			if($input->{type} eq "sysbuild" && ! ($input->{system} eq $job->{system}) ) {
+  				$validJob = 0 ;
+  			}
+    	}
+    	if($validJob) {
+    	  push(@filteredJobs, $job);
+    	}    	
+    }
+    $jobs->{job} = \@filteredJobs;
+    
     return ($jobs, $nixExprInput);
 }
 

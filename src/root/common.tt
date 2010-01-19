@@ -11,6 +11,7 @@
     , "boolean" = "Boolean"
     , "path" = "Local path"
     , "build" = "Build output"
+    , "sysbuild" = "Build output (same system)"
     }
 %]
 

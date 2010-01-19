@@ -19,5 +19,7 @@ with pkgs;
   perlPackages.EmailSimpleCreator
   perlPackages.TextTable
   perlPackages.NetTwitterLite
+  perlPackages.PadWalker
+  perlPackages.DataDump
 ]
 

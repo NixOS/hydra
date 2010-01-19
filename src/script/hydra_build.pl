@@ -14,7 +14,7 @@ use Config::General;
 use Text::Table;
 use POSIX qw(strftime);
 use Net::Twitter::Lite;
-
+use Data::Dump qw(dump);
 
 STDOUT->autoflush();
 
@@ -138,7 +138,7 @@ sub sendEmailNotification {
         push @lines,
             [ $input->name
             , $input->type
-            , $input->type eq "build"
+            , ( $input->type eq "build" || $input->type eq "sysbuild")
               ? $input->dependency->id
               : ($input->type eq "string" || $input->type eq "boolean")
               ? $input->value : ($input->uri . ':' . $input->revision)

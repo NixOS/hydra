@@ -255,7 +255,7 @@
         <td><tt>[% input.name %]</tt></td>
         <td><tt>[% type = input.type; inputTypes.$type %]</tt></td>
         <td>
-          [% IF input.type == "build" %]
+          [% IF input.type == "build" || input.type == "sysbuild" %]
             Job [% INCLUDE renderFullJobNameOfBuild build=input.dependency %] <a href="[% c.uri_for('/build' input.dependency.id) %]">build [% input.dependency.id %]</a>
           [% ELSIF input.type == "string" || input.type == "boolean" %]
             <tt>"[% input.value %]"</tt>
