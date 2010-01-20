@@ -31,7 +31,7 @@
 
   [% IF job %]
       [% INCLUDE makeLink
-        uri = c.uri_for(c.controller('Job').action_for('index'), [project.name, jobset.name, job.name])
+        uri = c.uri_for(c.controller('Job').action_for('overview'), [project.name, jobset.name, job.name])
         title = job.name %]
 
   [% END %]
