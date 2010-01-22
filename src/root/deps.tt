@@ -1,0 +1,46 @@
+[% WRAPPER layout.tt title="Job ‘$project.name:$jobset.name:$job.name’ build $id" %]
+[% PROCESS common.tt %]
+[% USE HTML %]
+
+[% project = build.project %]
+[% jobset = build.jobset %]
+[% job = build.job %]
+
+<a name="runtime"></a>
+[% IF available %]
+<h1>Runtime dependencies for [% build.outpath %]</h1>
+<ul>
+[% FOREACH dep IN runtimedeps -%]
+  <li>
+    [% IF dep.buildstep %] 
+      <a href="[% c.uri_for('/build' dep.buildstep.get_column('build') 'nixlog' dep.buildstep.stepnr) %]">[% dep.path %]</a>
+    [% ELSE %]
+      [% dep.path %]
+    [% END %]
+  </li>
+[% END %]
+</ul>
+[% ELSE %]
+Path not available anymore!<br />
+[% END %]
+
+<a name="buildtime"></a>
+[% IF drvAvailable %]
+<h1>Build time dependencies for [% build.drvpath %]</h1>
+<ul>
+[% FOREACH dep IN buildtimedeps -%]
+  <li>
+    [% IF dep.buildstep %] 
+      <a href="[% c.uri_for('/build' dep.buildstep.get_column('build') 'nixlog' dep.buildstep.stepnr) %]">[% dep.path %]</a>
+    [% ELSE %]
+      [% dep.path %]
+    [% END %]
+  </li>
+[% END %]
+</ul>
+[% ELSE %]
+Derivation not available anymore!<br />
+[% END %]
+
+[% END %]
+

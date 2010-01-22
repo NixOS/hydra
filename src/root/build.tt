@@ -132,7 +132,7 @@
     <td>
       <tt>[% build.drvpath %]</tt>
       [% IF drvAvailable %]
-        (<a href="[% c.uri_for('/build' build.id 'buildtime-deps') %]">build-time dependencies</a>)
+        (build-time dependencies: <a href="[% c.uri_for('/build' build.id 'buildtime-deps') %]">graph</a> | <a href="[% c.uri_for('/build' build.id 'deps') %]#buildtime">list</a>)
       [% END %]
     </td>
   </tr>
@@ -141,7 +141,7 @@
     <td>
       <tt>[% build.outpath %]</tt>
       [% IF available %]
-        (<a href="[% c.uri_for('/build' build.id 'runtime-deps') %]">runtime dependencies</a>)
+        (runtime dependencies: <a href="[% c.uri_for('/build' build.id 'runtime-deps') %]">graph</a> | <a href="[% c.uri_for('/build' build.id 'deps') %]#runtime">list</a>)
       [% END %]
     </td>
   </tr>

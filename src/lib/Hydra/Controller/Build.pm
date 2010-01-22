@@ -7,7 +7,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::AddBuilds;
 use File::stat;
-
+use Data::Dump qw(dump);
 
 sub build : Chained('/') PathPart CaptureArgs(1) {
     my ($self, $c, $id) = @_;
@@ -251,6 +251,45 @@ sub buildtimedeps : Chained('build') PathPart('buildtime-deps') {
     $c->stash->{storePaths} = [$build->drvpath];
     
     $c->res->content_type('image/png'); # !!!
+}
+
+sub deps : Chained('build') PathPart('deps') {
+    my ($self, $c) = @_;
+    
+    my $build = $c->stash->{build};
+    $c->stash->{available} = isValidPath $build->outpath;
+    $c->stash->{drvAvailable} = isValidPath $build->drvpath;
+
+    my $drvpath = $build->drvpath;
+    my $outpath = $build->outpath;
+    
+    my @buildtimepaths = ();
+    my @buildtimedeps = ();
+    @buildtimepaths = split '\n', `nix-store --query --requisites --include-outputs $drvpath` if isValidPath($build->drvpath);
+    
+    my @runtimepaths = ();
+    my @runtimedeps = ();
+    @runtimepaths = split '\n', `nix-store --query --requisites --include-outputs $outpath` if isValidPath($build->outpath);
+    
+    foreach my $p (@buildtimepaths) {
+    	my $buildStep;
+    	($buildStep) = $c->model('DB::BuildSteps')->search({ outpath => $p }, {}) ;
+    	my %dep = ( buildstep => $buildStep,  path => $p ) ;
+    	push(@buildtimedeps, \%dep);
+    }
+
+    foreach my $p (@runtimepaths) {
+    	my $buildStep;
+    	($buildStep) = $c->model('DB::BuildSteps')->search({ outpath => $p }, {}) ;
+    	my %dep = ( buildstep => $buildStep,  path => $p ) ;
+    	push(@runtimedeps, \%dep);
+    }
+
+    
+    $c->stash->{buildtimedeps} = \@buildtimedeps;
+    $c->stash->{runtimedeps} = \@runtimedeps;
+    
+    $c->stash->{template} = 'deps.tt';
 }
 
 
