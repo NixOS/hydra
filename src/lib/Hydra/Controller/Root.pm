@@ -116,6 +116,7 @@ sub robots_txt : Path('robots.txt') {
     my @rules =
         ( uri_for('Build', 'buildtimedeps', ["*"])
         , uri_for('Build', 'runtimedeps', ["*"])
+        , uri_for('Build', 'deps', ["*"])
         , uri_for('Build', 'view_nixlog', ["*"], "*")
         , channelUris('Root', ["*"])
         , channelUris('Project', ["*", "*"])
