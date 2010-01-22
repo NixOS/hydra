@@ -58,7 +58,7 @@ sub queue :Local {
     my ($self, $c) = @_;
     $c->stash->{template} = 'queue.tt';
     $c->stash->{queue} = [$c->model('DB::Builds')->search(
-        {finished => 0}, {join => 'schedulingInfo', order_by => ["priority DESC", "timestamp"]})];
+        {finished => 0}, {join => ['schedulingInfo', 'project'] , order_by => ["priority DESC", "timestamp"], '+select' => ['project.enabled', 'schedulingInfo.priority', 'schedulingInfo.disabled', 'schedulingInfo.busy'], '+as' => ['enabled', 'priority', 'disabled', 'busy']  })];
     $c->stash->{flashMsg} = $c->flash->{buildMsg};
 }
 
