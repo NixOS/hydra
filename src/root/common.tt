@@ -88,7 +88,7 @@
       [% FOREACH build IN builds -%]
         <tr class="clickable
                    [% IF showSchedulingInfo -%]
-                     [% IF build.schedulingInfo.busy %]runningBuild[% ELSIF build.schedulingInfo.disabled == 1 || build.project.enabled == 0 %]disabledBuild[% END %]
+                     [% IF build.get_column('busy') %]runningBuild[% ELSIF build.get_column('disabled') == 1 || build.get_column('enabled') == 0 %]disabledBuild[% END %]
                    [% ELSE -%]
                      [% IF odd %] odd [% END; odd = !odd -%]
                    [% END %]"
@@ -104,7 +104,7 @@
           [% END %]
           <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
           [% IF showSchedulingInfo %]
-            <td>[% build.schedulingInfo.priority %]</td>
+            <td>[% build.get_column('priority') %]</td>
           [% END %]
           <td>
             [% INCLUDE renderFullJobNameOfBuild %]
