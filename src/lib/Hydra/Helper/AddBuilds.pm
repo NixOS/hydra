@@ -306,6 +306,12 @@ sub fetchInputGit {
 	$ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
 	$ENV{"NIX_PREFETCH_SVN_LEAVE_DOT_SVN"} = "1";
 
+	# Ask for a "deep clone" to allow "git describe" and similar
+	# tools to work.  See
+	# http://thread.gmane.org/gmane.linux.distributions.nixos/3569
+	# for a discussion.
+	$ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
+
 	(my $res, $stdout, $stderr) = captureStdoutStderr(
 	    "nix-prefetch-git", $uri, $revision);
 	die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
