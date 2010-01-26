@@ -431,6 +431,7 @@ create index IndexBuildResultInfo on BuildResultInfo(id); -- primary key index, 
 create index IndexBuildSchedulingInfoByBuild on BuildSchedulingInfo(id); -- idem
 create index IndexBuild on BuildProducts(build);
 create index IndexBuildType on BuildProducts(build, type);
+create index IndexBuildStepsByBuild on BuildSteps(build);
 
 
 #ifdef SQLITE
