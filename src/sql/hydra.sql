@@ -425,9 +425,12 @@ create table JobsetInputHashes (
 create index IndexBuildInputsByBuild on BuildInputs(build);
 create index IndexBuildInputsByDependency on BuildInputs(dependency);
 create index IndexBuildsByTimestamp on Builds(timestamp);
-create index IndexBuildsByJobAndSystem on Builds(project, jobset, job, system);
 create index IndexBuildsByIsCurrent on Builds(isCurrent);
 create index IndexBuildsByFinished on Builds(finished);
+create index IndexBuildsByProject on Builds(project);
+create index IndexBuildsByJobset on Builds(project, jobset);
+create index IndexBuildsByJob on Builds(project, jobset, job);
+create index IndexBuildsByJobAndSystem on Builds(project, jobset, job, system);
 create index IndexBuildResultInfo on BuildResultInfo(id); -- primary key index, not created automatically by PostgreSQL
 create index IndexBuildSchedulingInfoByBuild on BuildSchedulingInfo(id); -- idem
 create index IndexBuildProductsByBuild on BuildProducts(build);
