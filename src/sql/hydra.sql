@@ -427,10 +427,11 @@ create index IndexBuildInputsByDependency on BuildInputs(dependency);
 create index IndexBuildsByTimestamp on Builds(timestamp);
 create index IndexBuildsByJobAndSystem on Builds(project, jobset, job, system);
 create index IndexBuildsByIsCurrent on Builds(isCurrent);
+create index IndexBuildsByFinished on Builds(finished);
 create index IndexBuildResultInfo on BuildResultInfo(id); -- primary key index, not created automatically by PostgreSQL
 create index IndexBuildSchedulingInfoByBuild on BuildSchedulingInfo(id); -- idem
-create index IndexBuild on BuildProducts(build);
-create index IndexBuildType on BuildProducts(build, type);
+create index IndexBuildProductsByBuild on BuildProducts(build);
+create index IndexBuildProducstByBuildAndType on BuildProducts(build, type);
 create index IndexBuildStepsByBuild on BuildSteps(build);
 
 
