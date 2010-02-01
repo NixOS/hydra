@@ -21,8 +21,8 @@ let
         buildInputs = [zip unzip];
 
         jquery = fetchurl {
-          url = http://jqueryjs.googlecode.com/files/jquery-1.2.6.pack.js;
-          sha1 = "c10dbe0c2b23444d0794f3376398702d84f41583";
+          url = http://jqueryui.com/download/jquery-ui-1.7.2.custom.zip;
+          sha256 = "1l9dwaaqvdysmzlkg1vb8j0s0xn63d475gh53pjjwxw85668krdh";
         };
 
         tablesorter = fetchurl {
@@ -32,7 +32,8 @@ let
 
         # Since we don't have a `make dist', just tar everything.
         distPhase = ''
-          cp $jquery src/root/static/js/jquery-pack.js
+          ensureDir src/root/static/js/jquery
+          unzip -d src/root/static/js/jquery $jquery
           rm -rf src/root/static/js/tablesorter
           unzip -d src/root/static/js $tablesorter
 
