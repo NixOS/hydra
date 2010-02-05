@@ -83,7 +83,7 @@ sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
             getChannelData($c, scalar($c->stash->{allBuilds}));
         }
         else {
-            error($c, "Unknown channel `$channelName'.");
+            notFound($c, "Unknown channel `$channelName'.");
         }
     };
     error($c, $@) if $@;

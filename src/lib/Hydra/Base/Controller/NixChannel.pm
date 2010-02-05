@@ -30,7 +30,10 @@ sub nar : Chained('nix') PathPart {
 
     my $path .= "/" . join("/", @rest);
 
-    error($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
+    if (!isValidPath($path)) {
+        $c->response->status(410); "Gone"
+        error($c, "Path " . $path . " is no longer available.");
+    }
 
     # !!! check that $path is in the closure of $c->stash->{storePaths}.
 
