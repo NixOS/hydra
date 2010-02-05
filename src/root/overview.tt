@@ -1,15 +1,6 @@
 [% WRAPPER layout.tt title="Overview" %]
 [% PROCESS common.tt %]
 
-
-<h1>Hydra Overview</h1>
-
-<p>Welcome to Hydra, the <a href="http://nixos.org/">Nix-based</a>
-continuous build system.  Hydra continuously builds, tests and
-releases software packages from source repositories. <a
-href="http://nixos.org/hydra"><em>[Read more...]</em></a></p>
-
-
 <h2>Projects</h2>
 
 <p>The following projects are hosted on this server:</p>

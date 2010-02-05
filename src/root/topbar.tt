@@ -33,6 +33,9 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Root').action_for('errors'))
         title = "Errors" %]
+      [% INCLUDE makeLink
+        uri = "http://nixos.org/hydra"
+        title = "About" %]
       [% IF c.user_exists %]
         [% INCLUDE makeLink
           uri = c.uri_for(c.controller('Root').action_for('logout'))

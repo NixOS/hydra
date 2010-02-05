@@ -93,14 +93,18 @@ ul.short-menu li a:hover {
 /* The left menu. */
 div#main {
     position: relative;
-    min-height: 10em;
+    min-height: 20em;
+}
+
+div#content {
+    min-height: 20em;
 }
 
 div#left-bar {
     position: absolute;
     left: 0em;
     width: 8em;
-    min-height: 10em;
+    min-height: 20em;
 }
 
 div#left-title {

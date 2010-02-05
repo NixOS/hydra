@@ -1,5 +1,20 @@
+#generic-tabs li {
+	height : 30px;
+	font-size : 90%;
+}
+#generic-tabs {
+    min-height: 30em;
+}
+#generic-tabs div {
+	font-size : 90%;
+}
+
 #logo img {
     width: 8em;
+}
+
+.statusTable td, .statusTable th {
+    border-style: none;
 }
 
 tr.clickable:hover {
@@ -9,10 +24,19 @@ tr.clickable:hover {
 
 .layoutTable td, .layoutTable th {
     border-style: none;
+    text-align: left;
 }
 
 .layoutTable th {
     vertical-align: top;
+}
+
+.activeJobsStatus td, .activeJobsStatus th {
+    border-style: 1px dotted #CCCCCC;
+}
+
+.activeJobsStatus tbody tr td {
+    align: center;
 }
 
 a.smallLink {
@@ -124,7 +148,6 @@ th.releaseSetJobName {
     font-size: 60%;
     padding: 0 0 0 0;
 }
-
 
 /* Editing */
 

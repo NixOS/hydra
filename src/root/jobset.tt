@@ -53,129 +53,202 @@
 [% END %]
 
 
-<h2>Information[% IF !edit %] <a class="smallLink" href="[% c.uri_for('/jobset' project.name jobset.name 'edit') %]">[Edit]</a>[% END %]</h2>
-
-<table class="layoutTable">
-  [% IF edit %]
-  <tr>
-    <th>Identifier:</th>
-    <td>[% INCLUDE maybeEditString param="name" value=jobset.name %]</td>
-  </tr>
-  [% END %]
-  <tr>
-    <th>Description:</th>
-    <td>[% INCLUDE maybeEditString param="description" value=jobset.description %]</td>
-  </tr>
-  <tr>
-    <th>Nix expression:</th>
-    <td>
-      <tt>[% INCLUDE maybeEditString param="nixexprpath" value=jobset.nixexprpath extraClass="shortString" %]</tt> in input
-      <tt>[% INCLUDE maybeEditString param="nixexprinput" value=jobset.nixexprinput extraClass="shortString" %]</tt>
-    </td>
-  </tr>
-  <tr>
-    <th>Enabled:</th>
-    <td>
-      [% INCLUDE renderSelection param="enabled" curValue=jobset.enabled options={"1" = "Yes", "0" = "No"} %]
-    </td>
-  </tr>
-  <tr>
-    <th>Enable email notification:</th>
-    <td>
-      [% INCLUDE renderSelection param="enableemail" curValue=jobset.enableemail options={"1" = "Yes", "0" = "No"} %]
-    </td>
-  </tr>
-  <tr>
-    <th>Email override:</th>
-    <td>
-      [% INCLUDE maybeEditString param="emailoverride" value=jobset.emailoverride %]
-    </td>
-  </tr>
-  [% IF !edit %]
-  <tr>
-    <th>Last checked:</th>
-    <td>
-      [% IF jobset.lastcheckedtime %]
-        [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime -%][% IF jobset.errormsg -%]<em>, evaluation error</em>:
-          <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
-        [% ELSE %], <em>no errors</em>
-        [% END %]
-      [% ELSE %]
-        <em>never</em>
-      [% END %]
-    </td>
-  </tr>
-  [% END %]
-</table>
-
-
-<h3>Inputs</h3>
-
-<table class="tablesorter">
-  <thead>
-    <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
-  </thead>
-  <tbody class="inputs">
-    [% FOREACH input IN jobset.jobsetinputs -%]
-      [% INCLUDE renderInput input=input baseName="input-$input.name" %]
-    [% END %]
-    [% IF edit %]
-      <tr>
-        <td colspan="3"><button type="button" class="add-input">Add a new input</button></td>
-      </tr>
-    [% END %]
-  </tbody>
-</table>
-
-
-<h2>Channels</h2>
-
-<p>This jobset provides the following Nix channels:</p>
-
-<ul>
-  <li>
-    <a href="[% c.uri_for('/jobset' project.name jobset.name 'channel'
-    'latest') %]"><tt>latest</tt></a> — contains the latest successful
-    build of every job in this jobset.
-  </li>
-  <li>
-    <a href="[% c.uri_for('/jobset' project.name jobset.name 'channel'
-    'all') %]"><tt>all</tt></a> — contains every successful,
-    non-garbage-collected build of every job in this project.
-  </li>
-</ul>
-
-
-[% IF !edit %]
-
-
-<h2>Jobs</h2>
-
-<p>This jobset currently contains the following [% activeJobs.size %] jobs:
-
-  <blockquote>
-    [% IF activeJobs.size == 0 %]<em>(none)</em>[% END %]
-    [% FOREACH j IN activeJobs %] [% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.get_column('job') %] [% END %]
-  </blockquote>
-</p>
-
-<p>This jobset used to contain the following [% inactiveJobs.size %] jobs:
-
-  <blockquote>
-    [% IF inactiveJobs.size == 0 %]<em>(none)</em>[% END %]
-    [% FOREACH j IN inactiveJobs %] [% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.get_column('job') %] [% END %]
-  </blockquote>
-
-</p>
-
-
-<h2>Statistics</h2>
-
-[% INCLUDE showBuildStats %]
-
+[% BLOCK renderInputs %]
+		<h3>Inputs</h3>
+		
+		<table class="tablesorter">
+		  <thead>
+		    <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
+		  </thead>
+		  <tbody class="inputs">
+		    [% FOREACH input IN jobset.jobsetinputs -%]
+		      [% INCLUDE renderInput input=input baseName="input-$input.name" %]
+		    [% END %]
+		    [% IF edit %]
+		      <tr>
+		        <td colspan="3"><button type="button" class="add-input">Add a new input</button></td>
+		      </tr>
+		    [% END %]
+		  </tbody>
+		</table>
 
 [% END %]
 
+
+<div id="generic-tabs">
+	<ul>
+		[% IF !edit -%]
+ 			<li><a href="#tabs-information">Jobset</a></li>
+	        [% IF jobset.errormsg -%]<li><a href="#tabs-errors">Errors</a></li>[% END %]
+			<li><a href="#tabs-jobs">Jobs ([% activeJobs.size %])</a></li>
+		[% END %]
+		<li><a href="#tabs-setup">Setup</a></li>
+		[% IF !edit -%]
+			<li><a href="#tabs-channels">Channels</a></li>
+			<li><a href="#tabs-statistics">Statistics</a></li>
+		[% END %]
+	</ul>
+	<div id="tabs-information">
+	    [% IF lastBuilds %]
+	    	<h2>Most recent builds</h2>
+	    	[% INCLUDE renderBuildList builds=lastBuilds %]
+	    [% END %]
+	
+		[% IF !edit && activeJobsStatus -%]
+		    <h2>Status</h2>
+		    <table class="activeJobsStatus">
+		      <thead><tr><th>Job</th>[% FOREACH s IN systems %]<th>[% s.system %]</th>[% END %]</tr></thead>
+		      <tbody>
+                [% odd = 0 %]
+		      	[% FOREACH j IN activeJobsStatus %] 
+		      	  <tr class="[% IF odd %] odd [% END; odd = !odd -%]">
+		      	     <td>[% INCLUDE renderJobName project=project.name jobset = jobset.name job = j.get_column('job') %]</td> 
+		      	     [% FOREACH s IN systems %]
+                       [% system = s.system %]
+                       [% systemStatus = j.get_column(system) %]
+		      	       <td>
+		      	          [% IF systemStatus != undef %]
+		      	             <a href="[% c.uri_for('/build' j.get_column(system _ '-build') ) %]">
+			      	         [% IF systemStatus == 0 %]
+	                           <img src="/static/images/success.gif" alt="Succeeded" />
+	                         [% ELSE %]
+	                           <img src="/static/images/failure.gif" alt="Failed" />
+	                         [% END %]
+	                         </a>
+	                       [% END %]
+		      	       </td>
+		      	     [% END %]
+  		      	  </tr> 
+		      	[% END %]
+		      </tbody>
+		    </table>
+		[% END %]
+
+	</div>
+	[% IF !edit -%]
+	
+		[% IF jobset.errormsg -%]
+		<div id="tabs-errors">
+		  <h3>Evaluation error</h3>
+		  <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
+		</div>
+		[% END %]
+	[% END %]
+		<div id="tabs-setup">
+			<h2>Information[% IF !edit %] <a class="smallLink" href="[% c.uri_for('/jobset' project.name jobset.name 'edit') %]">[Edit]</a>[% END %]</h2>
+			
+			<table class="layoutTable">
+			  [% IF edit %]
+			  <tr>
+			    <th>Identifier:</th>
+			    <td>[% INCLUDE maybeEditString param="name" value=jobset.name %]</td>
+			  </tr>
+			  [% END %]
+			  <tr>
+			    <th>Description:</th>
+			    <td>[% INCLUDE maybeEditString param="description" value=jobset.description %]</td>
+			  </tr>
+			  <tr>
+			    <th>Nix expression:</th>
+			    <td>
+			      <tt>[% INCLUDE maybeEditString param="nixexprpath" value=jobset.nixexprpath extraClass="shortString" %]</tt> in input
+			      <tt>[% INCLUDE maybeEditString param="nixexprinput" value=jobset.nixexprinput extraClass="shortString" %]</tt>
+			    </td>
+			  </tr>
+			  <tr>
+			    <th>Enabled:</th>
+			    <td>
+			      [% INCLUDE renderSelection param="enabled" curValue=jobset.enabled options={"1" = "Yes", "0" = "No"} %]
+			    </td>
+			  </tr>
+			  <tr>
+			    <th>Enable email notification:</th>
+			    <td>
+			      [% INCLUDE renderSelection param="enableemail" curValue=jobset.enableemail options={"1" = "Yes", "0" = "No"} %]
+			    </td>
+			  </tr>
+			  <tr>
+			    <th>Email override:</th>
+			    <td>
+			      [% INCLUDE maybeEditString param="emailoverride" value=jobset.emailoverride %]
+			    </td>
+			  </tr>
+			  [% IF !edit %]
+			  <tr>
+			    <th>Last checked:</th>
+			    <td>
+			      [% IF jobset.lastcheckedtime %]
+			        [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime -%][% IF jobset.errormsg -%]<em>, with errors!</em>
+			        [% ELSE %], <em>no errors</em>
+			        [% END %]
+			      [% ELSE %]
+			        <em>never</em>
+			      [% END %]
+			    </td>
+			  </tr>
+			  [% END %]
+			</table>
+
+		
+			[% INCLUDE renderInputs %]
+		</div>
+	[% IF !edit -%]
+		<div id="tabs-channels">
+		
+			<h2>Channels</h2>
+			
+			<p>This jobset provides the following Nix channels:</p>
+			
+			<ul>
+			  <li>
+			    <a href="[% c.uri_for('/jobset' project.name jobset.name 'channel'
+			    'latest') %]"><tt>latest</tt></a> — contains the latest successful
+			    build of every job in this jobset.
+			  </li>
+			  <li>
+			    <a href="[% c.uri_for('/jobset' project.name jobset.name 'channel'
+			    'all') %]"><tt>all</tt></a> — contains every successful,
+			    non-garbage-collected build of every job in this project.
+			  </li>
+			</ul>
+			
+		</div>
+	
+		<div id="tabs-jobs">
+		
+			<h2>Jobs</h2>
+			
+			<p>This jobset currently contains the following [% activeJobs.size %] jobs:
+			
+			  <blockquote>
+			    [% IF activeJobs.size == 0 %]<em>(none)</em>[% END %]
+			    [% FOREACH j IN activeJobs %] [% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.get_column('job') %] [% END %]
+			  </blockquote>
+			</p>
+			
+			<p>This jobset used to contain the following [% inactiveJobs.size %] jobs:
+			
+			  <blockquote>
+			    [% IF inactiveJobs.size == 0 %]<em>(none)</em>[% END %]
+			    [% FOREACH j IN inactiveJobs %] [% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.get_column('job') %] [% END %]
+			  </blockquote>
+			
+			</p>
+		
+		</div>
+		<div id="tabs-statistics">
+		
+			<h2>Statistics</h2>
+			
+			[% INCLUDE showBuildStats %]
+		</div>
+	[% END %]
+
+</div>
+
+<script type="text/javascript">
+	$("#generic-tabs").tabs();
+</script>
 
 [% IF edit %]
 

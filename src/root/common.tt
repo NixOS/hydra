@@ -196,3 +196,72 @@
     HTML.escape(value);
   END -%]
 [% END -%]
+
+[% BLOCK renderFullBuildLink; %] 
+	Job [% INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]
+[% END %]
+
+[% BLOCK renderBuildStatusIcon; %] 
+ 		 [% IF build.finished %]
+		        [% IF build.resultInfo.buildstatus == 0 %]
+		          <img src="/static/images/checkmark_[% size %].png" alt="Succeeded" />
+		        [% ELSIF build.resultInfo.buildstatus == 1 %]
+		          <img src="/static/images/error_[% size %].png" alt="Failed" />
+		        [% ELSIF build.resultInfo.buildstatus == 2 %]
+		          <img src="/static/images/error_[% size %].png" alt="Failed" />
+		        [% ELSIF build.resultInfo.buildstatus == 4 %]
+		          <img src="/static/images/error_[% size %].png" alt="Failed" />
+		        [% ELSIF build.resultInfo.buildstatus == 5 %]
+		          <img src="/static/images/error_[% size %].png" alt="Failed" />
+		        [% ELSE %]
+		          <img src="/static/images/error_[% size %].png" alt="Failed" />
+		        [% END %]  
+	      [% ELSIF build.schedulingInfo.busy %]
+		          <img src="/static/images/help_[% size %].png" alt="Budy" />
+	      [% ELSE %]
+		          <img src="/static/images/help_[% size %].png" alt="Scheduled" />
+          [% END %] 
+[% END %]
+
+[% BLOCK renderStatus; %] 
+ 		 [% IF build.finished %]
+		        [% IF build.resultInfo.buildstatus == 0 %]
+		          <img src="/static/images/success.gif" alt="Succeeded" />
+		          <strong>Success</strong>
+		        [% ELSIF build.resultInfo.buildstatus == 1 %]
+		          <img src="/static/images/failure.gif" alt="Failed" />
+		          <span class="error">Build returned a non-zero exit code</span>
+		        [% ELSIF build.resultInfo.buildstatus == 2 %]
+		          <img src="/static/images/failure.gif" alt="Failed" />
+		          <span class="error">A dependency of the build failed</span>
+		        [% ELSIF build.resultInfo.buildstatus == 4 %]
+		          <img src="/static/images/failure.gif" alt="Failed" />
+		          <span class="error">Cancelled by user</span>
+		        [% ELSIF build.resultInfo.buildstatus == 5 %]
+		          <img src="/static/images/failure.gif" alt="Failed" />
+		          <span class="error">Build inhibited because a dependency previously failed to build</span>
+		          [% failedDep = build.resultInfo.failedDep %]
+		          (namely, <a href="[% c.uri_for('/build' failedDep.build.id 'nixlog' failedDep.stepnr) %]"><tt>[% failedDep.outpath %]</tt></a>)
+		        [% ELSE %]
+		          <img src="/static/images/failure.gif" alt="Failed" />
+		          <span class="error">Build failed</span>
+		          (see <a href="#nix-error">below</a>)
+		        [% END %]  
+		        [% IF c.user_exists && (build.resultInfo.buildstatus == 3 || build.resultInfo.buildstatus == 4) %]
+		          <form action="[% c.uri_for('/build' build.id 'restart') %]" method="post" class="inline">
+		            <button id="restart" type="submit">Restart</button>
+		          </form>
+		        [% END %]
+	      [% ELSIF build.schedulingInfo.busy %]
+	        <strong>Build in progress</strong>
+	        since [% INCLUDE renderDateTime timestamp = build.schedulingInfo.starttime %]
+	      [% ELSE %]
+	        <strong>Scheduled to be built</strong>
+	        [% IF c.user_exists %]
+	          <form action="[% c.uri_for('/build' build.id 'cancel') %]" method="post" class="inline">
+	            <button id="cancel" type="submit">Cancel</button>
+	          </form>
+	        [% END %]
+          [% END %] 
+[% END -%]
+

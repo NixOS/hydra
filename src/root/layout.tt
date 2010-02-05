@@ -10,11 +10,11 @@
   
   <head>
     <title>Hydra - [% title %]</title>
+    <link type="text/css" href="/static/js/jquery/css/smoothness/jquery-ui-1.7.2.custom.css" rel="Stylesheet" />
     <link rel="stylesheet" href="/static/css/hydra.css" type="text/css" />
     <link rel="stylesheet" href="/static/css/nix-common.css" type="text/css" />
     <link rel="stylesheet" href="/static/css/nixos-site.css" type="text/css" />
     <link rel="stylesheet" href="/static/css/logfile.css" type="text/css" />
-    <link type="text/css" href="/static/js/jquery/css/smoothness/jquery-ui-1.7.2.custom.css" rel="Stylesheet" />
     <script type="text/javascript" src="/static/js/jquery/js/jquery-1.3.2.min.js"></script> 
     <script type="text/javascript" src="/static/js/jquery/js/jquery-ui-1.7.2.custom.min.js"></script> 
     <script type="text/javascript" src="/static/js/tablesorter/jquery.tablesorter.js"></script>

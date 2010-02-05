@@ -9,44 +9,55 @@
        title = jobset.name %]:[% job.name %]</tt></h1>
 
 
-<h2>Status</h2>
-
-[% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
-
-<h2>Channels</h2>
-
-<p>This job provides the following Nix channels:</p>
-
-<ul>
-  <li>
-    <a href="[% c.uri_for('/job' project.name jobset.name job.name
-    'channel' 'latest') %]"><tt>latest</tt></a> — contains the latest
-    successful build for each platform.
-  </li>
-  <li>
-    <a href="[% c.uri_for('/job' project.name jobset.name job.name
-    'channel' 'all') %]"><tt>all</tt></a> — contains every successful
-    build of this job.
-  </li>
-</ul>
-
-
-<h2>Latest builds</h2>
-
-<ul>
-  <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
-  'latest') %]">Latest successful build.</a></li>
-  [% FOREACH system IN systems %]
-    <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
-    'latest-for' system.system) %]">Latest successful build for <tt>[%
-    system.system %]</tt>.</a></li>
-  [% END %]
-</ul>
-
-
-<h2>Statistics</h2>
-
-[% INCLUDE showBuildStats %]
+<div id="generic-tabs">
+	<ul>
+		<li><a href="#tabs-status">Status</a></li>
+		<li><a href="#tabs-channels">Channels</a></li>
+		<li><a href="#tabs-latestbuilds">Latest builds</a></li>
+		<li><a href="#tabs-statistics">Statistics</a></li>
+	</ul>
+	<div id="tabs-status">
+	    <h2>Finished builds</h2>
+		[% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
+		[% IF runningBuilds %]
+		    <h2>Running builds</h2>
+			[% INCLUDE renderBuildList builds=runningBuilds showStatusChange=0 %]
+		[% END %]
+	</div>
+	<div id="tabs-channels">
+		<p>This job provides the following Nix channels:</p>
+		
+		<ul>
+		  <li>
+		    <a href="[% c.uri_for('/job' project.name jobset.name job.name
+		    'channel' 'latest') %]"><tt>latest</tt></a> — contains the latest
+		    successful build for each platform.
+		  </li>
+		  <li>
+		    <a href="[% c.uri_for('/job' project.name jobset.name job.name
+		    'channel' 'all') %]"><tt>all</tt></a> — contains every successful
+		    build of this job.
+		  </li>
+		</ul>
+	</div>
+	<div id="tabs-latestbuilds">
+		<ul>
+		  <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
+		  'latest') %]">Latest successful build.</a></li>
+		  [% FOREACH system IN systems %]
+		    <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
+		    'latest-for' system.system) %]">Latest successful build for <tt>[%
+		    system.system %]</tt>.</a></li>
+		  [% END %]
+		</ul>
+	</div>
+	<div id="tabs-statistics">
+		[% INCLUDE showBuildStats %]
+    </div>
+</div>
+<script type="text/javascript">
+	$("#generic-tabs").tabs();
+</script>
 
 
 [% END %]

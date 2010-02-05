@@ -1,173 +1,194 @@
 [% WRAPPER layout.tt title=(edit ? (create ? "New Project" : "Editing Project ‘$project.name’") : "Project ‘$project.name’") %]
 [% PROCESS common.tt %]
 
-
-[% IF edit %]
-  <form action="[% IF create %][% c.uri_for('/create-project/submit') %][% ELSE %][% c.uri_for('/project' project.name 'submit') %][% END %]" method="post">
-[% END %]
-
-
 [% IF create %]
   <h1>New Project</h1>
 [% ELSE %]
   <h1>Project <tt>[% project.name %]</tt></h1>
 [% END %]
 
+<div id="generic-tabs">
+	<ul>
+		[% IF !edit %]
+			<li><a href="#tabs-project">Project</a></li>
+		[% END %]
+		<li><a href="#tabs-settings">Settings</a></li>
+		[% IF !edit %]
+			<li><a href="#tabs-views">Views</a></li>
+			<li><a href="#tabs-channels">Channels</a></li>
+			<li><a href="#tabs-statistics">Statistics</a></li>
+		[% END %]
+	</ul>
 
-<h2>Information[% IF !edit %] <a class="smallLink" href="[% c.uri_for('/project' project.name 'edit') %]">[Edit]</a>[% END %]</h2>
+	[% IF !edit %]
+		<div id="tabs-project">
+			<h2>Jobsets</h2>
+			
+			[% IF project.jobsets.size > 0 %]
+			
+			<p>This project has the following jobsets:</p>
+			
+			<table class="tablesorter">
+			  <thead>
+			    <tr>
+			      <th>Id</th>
+			      <th>Description</th>
+			      <th>Last evaluated</th>
+			    </tr>
+			  </thead>
+			  <tbody>
+			    [% FOREACH j IN project.jobsets %]
+			    <tr class="clickable [% IF odd %] odd [% END; odd = !odd %]"
+			        onclick="window.location = '[% c.uri_for('/jobset' project.name j.name) %]'">
+			      <td>[% INCLUDE renderJobsetName project = project.name jobset = j.name %]</td>
+			      <td>[% HTML.escape(j.description) %]</td>
+			      <td>[% INCLUDE renderDateTime timestamp = j.lastcheckedtime %]</td>
+			    </tr>
+			    [% END %]
+			  </tbody>
+			</table>
+			
+			[% ELSE %]
+			
+			<p>No jobsets have been defined yet.</p>
+			
+			[% END %]
+			
+			<p><a href="[% c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) %]">[Create a new jobset]</a></p>
+	
+		</div>
+	[% END %]
+	<div id="tabs-settings">
+		[% IF edit %]
+		  <form action="[% IF create %][% c.uri_for('/create-project/submit') %][% ELSE %][% c.uri_for('/project' project.name 'submit') %][% END %]" method="post">
+		[% END %]
+		
+		
+		<h2>Information[% IF !edit %] <a class="smallLink" href="[% c.uri_for('/project' project.name 'edit') %]">[Edit]</a>[% END %]</h2>
+		
+		<table class="layoutTable">
+		  [% IF edit %]
+		  <tr>
+		    <th>Identifier:</th>
+		    <td><tt>[% INCLUDE maybeEditString param="name" value=project.name %]</tt></td>
+		  </tr>
+		  [% END %]
+		  <tr>
+		    <th>Display name:</th>
+		    <td>[% INCLUDE maybeEditString param="displayname" value=project.displayname %]</td>
+		  </tr>
+		  <tr>
+		    <th>Description:</th>
+		    <td>[% INCLUDE maybeEditString param="description" value=project.description %]</td>
+		  </tr>
+		  <tr>
+		    <th>Homepage:</th>
+		    <td>
+		      [% IF edit %]
+		        [% INCLUDE maybeEditString param="homepage" value=project.homepage %]
+		      [% ELSE %]
+		        [% IF project.homepage %]
+		          <a [% HTML.attributes(href => project.homepage) %]>[% HTML.escape(project.homepage) %]</a>
+		        [% ELSE %]
+		          <em>(not specified)</em>
+		        [% END %]
+		      [% END %]
+		    </td>
+		  </tr>
+		  <tr>
+		    <th>Owner:</th>
+		    <td><tt>[% INCLUDE maybeEditString param="owner" value=(project.owner.username || c.user.username) edit=(edit && c.check_user_roles('admin')) %]</tt></td>
+		  </tr>
+		  <tr>
+		    <th>Enabled:</th>
+		    <td>
+		      [% INCLUDE renderSelection param="enabled" curValue=project.enabled options={"1" = "Yes", "0" = "No"} %]
+		    </td>
+		  </tr>
+		</table>
+		
+		[% IF edit %]
+		
+		  <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
+		
+		  </form>
+		
+		  [% IF !create %]
+		
+		    <form action="[% c.uri_for('/project' project.name 'delete') %]" method="post">
+		      <p><button id="delete-project" type="submit"><img src="/static/images/failure.gif" />Delete this project</button></p>
+		    </form>
+		      
+		    <script type="text/javascript">
+		      $("#delete-project").click(function() {
+		        return confirm("Are you sure you want to delete this project?");
+		      });
+		    </script>
+		
+		  [% END %]
+		    
+		[% END %]		
+		
+	</div>
 
-<table class="layoutTable">
-  [% IF edit %]
-  <tr>
-    <th>Identifier:</th>
-    <td><tt>[% INCLUDE maybeEditString param="name" value=project.name %]</tt></td>
-  </tr>
-  [% END %]
-  <tr>
-    <th>Display name:</th>
-    <td>[% INCLUDE maybeEditString param="displayname" value=project.displayname %]</td>
-  </tr>
-  <tr>
-    <th>Description:</th>
-    <td>[% INCLUDE maybeEditString param="description" value=project.description %]</td>
-  </tr>
-  <tr>
-    <th>Homepage:</th>
-    <td>
-      [% IF edit %]
-        [% INCLUDE maybeEditString param="homepage" value=project.homepage %]
-      [% ELSE %]
-        [% IF project.homepage %]
-          <a [% HTML.attributes(href => project.homepage) %]>[% HTML.escape(project.homepage) %]</a>
-        [% ELSE %]
-          <em>(not specified)</em>
-        [% END %]
-      [% END %]
-    </td>
-  </tr>
-  <tr>
-    <th>Owner:</th>
-    <td><tt>[% INCLUDE maybeEditString param="owner" value=(project.owner.username || c.user.username) edit=(edit && c.check_user_roles('admin')) %]</tt></td>
-  </tr>
-  <tr>
-    <th>Enabled:</th>
-    <td>
-      [% INCLUDE renderSelection param="enabled" curValue=project.enabled options={"1" = "Yes", "0" = "No"} %]
-    </td>
-  </tr>
-</table>
+	[% IF !edit %]
+		<div id="tabs-views">	
+			
+			<h2>Views</h2>
+			
+			[% IF views.size > 0 %]
+			
+			<p>Project <tt>[% project.name %]</tt> has the following views:</p>
+			
+			<ul>
+			  [% FOREACH view IN views %]
+			    <li>
+			      <a href="[% c.uri_for('/view' project.name view.name) %]"><tt>[% view.name %]</tt></a>
+			      [<a href="[% c.uri_for('/view' project.name view.name "edit") %]">Edit</a>]
+			    </li>
+			  [% END %]
+			</ul>
+			
+			[% ELSE %]
+			
+			<p>Project <tt>[% project.name %]</tt> has no views.</p>
+			
+			[% END %]
+			
+			<p><a href="[% c.uri_for('/project' project.name 'create-view') %]">[Create a new view]</a></p>
+			
+		</div>
+		<div id="tabs-channels">	
+			
+			<h2>Channels</h2>
+			
+			<p>This project provides the following Nix channels:</p>
+			
+			<ul>
+			  <li>
+			    <a href="[% c.uri_for('/project' project.name 'channel' 'latest') %]"><tt>latest</tt></a> —
+			    contains the latest successful build of every job in this project.
+			  </li>
+			  <li>
+			    <a href="[% c.uri_for('/project' project.name 'channel' 'all') %]"><tt>all</tt></a> —
+			    contains every successful, non-garbage-collected build of every
+			    job in this project.
+			  </li>
+			</ul>
+			
+		</div>
+		<div id="tabs-statistics">	
+			<h2>Statistics</h2>
+			
+			[% INCLUDE showBuildStats %]
+			
+		</div>
+	[% END %]
+</div>
 
-
-
-[% IF !edit %]
-
-
-<h2>Jobsets</h2>
-
-[% IF project.jobsets.size > 0 %]
-
-<p>This project has the following jobsets:</p>
-
-<table class="tablesorter">
-  <thead>
-    <tr>
-      <th>Id</th>
-      <th>Description</th>
-      <th>Last evaluated</th>
-    </tr>
-  </thead>
-  <tbody>
-    [% FOREACH j IN project.jobsets %]
-    <tr class="clickable [% IF odd %] odd [% END; odd = !odd %]"
-        onclick="window.location = '[% c.uri_for('/jobset' project.name j.name) %]'">
-      <td>[% INCLUDE renderJobsetName project = project.name jobset = j.name %]</td>
-      <td>[% HTML.escape(j.description) %]</td>
-      <td>[% INCLUDE renderDateTime timestamp = j.lastcheckedtime %]</td>
-    </tr>
-    [% END %]
-  </tbody>
-</table>
-
-
-[% ELSE %]
-
-<p>No jobsets have been defined yet.</p>
-
-[% END %]
-
-<p><a href="[% c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) %]">[Create a new jobset]</a></p>
-
-
-<h2>Views</h2>
-
-[% IF views.size > 0 %]
-
-<p>Project <tt>[% project.name %]</tt> has the following views:</p>
-
-<ul>
-  [% FOREACH view IN views %]
-    <li>
-      <a href="[% c.uri_for('/view' project.name view.name) %]"><tt>[% view.name %]</tt></a>
-      [<a href="[% c.uri_for('/view' project.name view.name "edit") %]">Edit</a>]
-    </li>
-  [% END %]
-</ul>
-
-[% ELSE %]
-
-<p>Project <tt>[% project.name %]</tt> has no views.</p>
-
-[% END %]
-
-<p><a href="[% c.uri_for('/project' project.name 'create-view') %]">[Create a new view]</a></p>
-
-
-<h2>Channels</h2>
-
-<p>This project provides the following Nix channels:</p>
-
-<ul>
-  <li>
-    <a href="[% c.uri_for('/project' project.name 'channel' 'latest') %]"><tt>latest</tt></a> —
-    contains the latest successful build of every job in this project.
-  </li>
-  <li>
-    <a href="[% c.uri_for('/project' project.name 'channel' 'all') %]"><tt>all</tt></a> —
-    contains every successful, non-garbage-collected build of every
-    job in this project.
-  </li>
-</ul>
-
-
-<h2>Statistics</h2>
-
-[% INCLUDE showBuildStats %]
-
-
-[% END %]
-
-
-[% IF edit %]
-
-  <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
-
-  </form>
-
-  [% IF !create %]
-
-    <form action="[% c.uri_for('/project' project.name 'delete') %]" method="post">
-      <p><button id="delete-project" type="submit"><img src="/static/images/failure.gif" />Delete this project</button></p>
-    </form>
-      
-    <script type="text/javascript">
-      $("#delete-project").click(function() {
-        return confirm("Are you sure you want to delete this project?");
-      });
-    </script>
-
-  [% END %]
-    
-[% END %]
+<script type="text/javascript">
+	$("#generic-tabs").tabs();
+</script>
 
 
 [% END %]

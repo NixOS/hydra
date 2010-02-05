@@ -191,6 +191,14 @@ __PACKAGE__->has_many(
 
 use Hydra::Helper::Nix;
 
+# order buildsteps
+__PACKAGE__->has_many(
+  "buildsteps",
+  "Hydra::Schema::BuildSteps",
+  { "foreign.build" => "self.id" },
+  { order_by => "stepnr" },
+);
+
 __PACKAGE__->has_many(
   "dependents",
   "Hydra::Schema::BuildInputs",
@@ -273,6 +281,8 @@ QUERY
           $joinWithStatusChange
 QUERY
     );
+
+    makeSource("ActiveJobs$name", "(select distinct project, jobset, job from Builds where isCurrent = 1 $constraint)");
     
     makeSource(
         "LatestSucceeded$name",
