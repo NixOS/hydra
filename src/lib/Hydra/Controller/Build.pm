@@ -177,7 +177,7 @@ sub contents : Chained('build') PathPart Args(1) {
 
     my $res;
 
-    if ($product->type eq "nix-build") {
+    if ($product->type eq "nix-build" && -d $path) {
         $res = `cd $path && find . -print0 | xargs -0 ls -ld --`;
         error($c, "`ls -lR' error: $?") if $? != 0;
     }
