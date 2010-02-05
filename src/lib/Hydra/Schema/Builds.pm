@@ -191,14 +191,6 @@ __PACKAGE__->has_many(
 
 use Hydra::Helper::Nix;
 
-# order buildsteps
-__PACKAGE__->has_many(
-  "buildsteps",
-  "Hydra::Schema::BuildSteps",
-  { "foreign.build" => "self.id" },
-  { order_by => "stepnr" },
-);
-
 __PACKAGE__->has_many(
   "dependents",
   "Hydra::Schema::BuildInputs",

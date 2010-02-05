@@ -10,7 +10,7 @@
 
 [% BLOCK renderBuildSteps %]
 
-	<h2 id="buildsteps">Build steps</h2>
+	<h2 id="buildsteps">[% IF onlyFailed == 1 %]Failed build steps[% ELSE %]Build steps[% END%]</h2>
 	<table class="tablesorter">
 	  <thead>
 	    <tr><th>Nr</th><th>What</th><th>Duration</th><th>Status</th></tr>
