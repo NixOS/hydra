@@ -189,7 +189,8 @@
 				[% HTML.escape(build.resultInfo.errormsg) -%]
 				</pre>
 			[% END %]
-		[% ELSIF build.schedulingInfo.busy %]
+		[% END %]
+		[% IF logtext %]
 			<h2>Log</h2>
 			
 			<pre class="buildlog">

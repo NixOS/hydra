@@ -43,6 +43,12 @@ sub view_build : Chained('build') PathPart('') Args(0) {
         (my $cachedBuildStep) = $c->model('DB::BuildSteps')->search({ outpath => $build->outpath }, {}) ;
         $c->stash->{cachedBuild} = $cachedBuildStep->build if defined $cachedBuildStep;
     }
+    
+    (my $lastBuildStep) = $build->buildsteps->search({},{order_by => "stepnr", rows => 1});
+ 	if ($build->resultInfo->buildstatus == 1 && $lastBuildStep && isValidPath($lastBuildStep->logfile)) {
+ 		my $path = $lastBuildStep->logfile;
+		$c->stash->{logtext} = `tail -n 50 $path`;
+	}
 
 }
 
