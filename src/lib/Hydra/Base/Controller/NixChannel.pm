@@ -31,7 +31,7 @@ sub nar : Chained('nix') PathPart {
     my $path .= "/" . join("/", @rest);
 
     if (!isValidPath($path)) {
-        $c->response->status(410); "Gone"
+        $c->response->status(410); # "Gone"
         error($c, "Path " . $path . " is no longer available.");
     }
 
