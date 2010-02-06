@@ -16,7 +16,6 @@ with pkgs;
   perlPackages.Readonly
   perlPackages.DBDPg
   perlPackages.EmailSender
-  perlPackages.EmailSimpleCreator
   perlPackages.TextTable
   perlPackages.NetTwitterLite
   perlPackages.PadWalker
