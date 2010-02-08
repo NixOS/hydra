@@ -45,10 +45,10 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     }
     
     (my $lastBuildStep) = $build->buildsteps->search({},{order_by => "stepnr DESC", rows => 1});
- 	if (defined $build->resultInfo && $build->resultInfo->buildstatus == 1 && $lastBuildStep && isValidPath($lastBuildStep->logfile)) {
- 		my $path = $lastBuildStep->logfile;
-		$c->stash->{logtext} = `tail -n 50 $path`;
-	}
+    my $path = defined $lastBuildStep ? $lastBuildStep->logfile : "" ;
+    if (defined $build->resultInfo && $build->resultInfo->buildstatus == 1 && !($path eq "") && isValidPath($lastBuildStep->logfile)) {
+	$c->stash->{logtext} = `tail -n 50 $path`;
+    }
 
 }
 
