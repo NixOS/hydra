@@ -185,17 +185,13 @@
 		
 				<h2 id="nix-error">Nix error output</h2>
 				
-				<pre class="buildlog">
-				[% HTML.escape(build.resultInfo.errormsg) -%]
-				</pre>
+				<pre class="buildlog">[% HTML.escape(build.resultInfo.errormsg) -%]</pre>
 			[% END %]
 		[% END %]
 		[% IF logtext %]
 			<h2>Log</h2>
 			
-			<pre class="buildlog">
-			[% HTML.escape(logtext) -%]
-			</pre>
+			<pre class="buildlog">[% HTML.escape(logtext) -%]</pre>
 		[% END %]
 	</div>
 	<div id="tabs-information">
