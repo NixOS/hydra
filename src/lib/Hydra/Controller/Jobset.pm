@@ -23,8 +23,6 @@ sub jobset : Chained('/') PathPart('jobset') CaptureArgs(2) {
 sub jobsetIndex {
     my ($self, $c, $forceStatus) = @_;
 
-    print STDERR "index\n";    
-    
     $c->stash->{template} = 'jobset.tt';
     
     #getBuildStats($c, scalar $c->stash->{jobset}->builds);
