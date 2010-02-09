@@ -49,6 +49,8 @@ sub errors : Chained('get_builds') PathPart Args(0) {
 sub all : Chained('get_builds') PathPart {
     my ($self, $c) = @_;
 
+    $c->stash->{template} = 'all.tt';
+
     my $page = int($c->req->param('page') || "1") || 1;
 
     my $resultsPerPage = 20;
