@@ -22,8 +22,15 @@ sub process {
     
     foreach my $path (@paths) {
         my ($hash, $deriver, $refs) = queryPathInfo $path;
+
+        # Escape the characters that are allowed to appear in a Nix
+        # path name but have special meaning in a URI.
+        my $escaped = $path;
+        $escaped =~ s/\+/%2b/g;
+        $escaped =~ s/\=/%3d/g;
+        $escaped =~ s/\?/%3f/g;
         
-        my $url = $c->stash->{narBase} . $path;
+        my $url = $c->stash->{narBase} . $escaped;
 
         $manifest .=
             "{\n" .
