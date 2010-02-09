@@ -27,16 +27,30 @@ sub jobsetIndex {
     
     #getBuildStats($c, scalar $c->stash->{jobset}->builds);
 
-    $c->stash->{activeJobs} = [
-        $c->stash->{jobset}->builds->search(
-            {isCurrent => 1},
-            {select => ["job"], order_by => ["job"], distinct => 1}
-        )];
-    $c->stash->{inactiveJobs} = [
-        $c->stash->{jobset}->builds->search(
-            {},
-            {select => ["job"], order_by => ["job"], group_by => ["job"], having => { 'sum(isCurrent)' => 0 }}
-        )];
+    my $projectName = $c->stash->{project}->name;
+    my $jobsetName = $c->stash->{jobset}->name;
+
+    # Get the active / inactive jobs in this jobset.
+    my @jobs = $c->stash->{jobset}->jobs->search(
+        { },
+        { select => [
+            "name",
+            \("exists (select 1 from builds where project = '$projectName' and jobset = '$jobsetName' and job = me.name and isCurrent = 1) as active")
+          ]
+        , as => ["name", "active"]
+        , order_by => ["name"] });
+
+    $c->stash->{activeJobs} = [];
+    $c->stash->{inactiveJobs} = [];
+    foreach my $job (@jobs) {
+        print STDERR $job->get_column('active'), "\n";
+        if ($job->get_column('active')) {
+            push @{$c->stash->{activeJobs}}, $job->name;
+        } else {
+            push @{$c->stash->{inactiveJobs}}, $job->name;
+        }
+    }
+    
     $c->stash->{systems} = [$c->stash->{jobset}->builds->search({iscurrent => 1}, {select => ["system"], distinct => 1})];
         
     # status per system
@@ -46,23 +60,24 @@ sub jobsetIndex {
     }
     
     if($forceStatus || scalar(@{$c->stash->{activeJobs}}) <= 20) {
-	    my @select = ();
-	    my @as = ();
-	    push(@select, "job"); push(@as, "job");
-	    foreach my $system (@systems) {
-	    	push(@select, "(SELECT buildstatus FROM BuildResultInfo bri NATURAL JOIN Builds b WHERE b.id = (SELECT MAX(id) FROM Builds t WHERE t.project = me.project AND t.jobset = me.jobset AND t.job = me.job AND t.system = '$system'))");
-	    	push(@as, $system);
-	    	push(@select, "(SELECT b.id FROM BuildResultInfo bri NATURAL JOIN Builds b WHERE b.id = (SELECT MAX(id) FROM Builds t WHERE t.project = me.project AND t.jobset = me.jobset AND t.job = me.job AND t.system = '$system'))");
-	    	push(@as, $system."-build");
-	    }
-	 	$c->stash->{activeJobsStatus} = [$c->model('DB')->resultset('ActiveJobsForJobset')
-	        ->search( {}
-	                , { bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]
-	                  , select => \@select
-	                  , as => \@as
-	                  , order_by => ["job"]
-	                  })];
-	}
+        my @select = ();
+        my @as = ();
+        push(@select, "job"); push(@as, "job");
+        foreach my $system (@systems) {
+            push(@select, "(SELECT buildstatus FROM BuildResultInfo bri NATURAL JOIN Builds b WHERE b.id = (SELECT MAX(id) FROM Builds t WHERE t.project = me.project AND t.jobset = me.jobset AND t.job = me.job AND t.system = '$system'))");
+            push(@as, $system);
+            push(@select, "(SELECT b.id FROM BuildResultInfo bri NATURAL JOIN Builds b WHERE b.id = (SELECT MAX(id) FROM Builds t WHERE t.project = me.project AND t.jobset = me.jobset AND t.job = me.job AND t.system = '$system'))");
+            push(@as, $system."-build");
+        }
+        $c->stash->{activeJobsStatus} =
+            [ $c->model('DB')->resultset('ActiveJobsForJobset')->search(
+                  {},
+                  { bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]
+	          , select => \@select
+	          , as => \@as
+	          , order_by => ["job"]
+	          })];
+    }
 	
     # last builds for jobset
     my $tmp = $c->stash->{jobset}->builds;

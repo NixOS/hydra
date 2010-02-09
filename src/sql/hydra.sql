@@ -422,20 +422,22 @@ create table JobsetInputHashes (
 
 
 -- Some indices.
-create index IndexBuildInputsByBuild on BuildInputs(build);
-create index IndexBuildInputsByDependency on BuildInputs(dependency);
-create index IndexBuildsByTimestamp on Builds(timestamp);
-create index IndexBuildsByIsCurrent on Builds(isCurrent);
-create index IndexBuildsByFinished on Builds(finished);
-create index IndexBuildsByProject on Builds(project);
-create index IndexBuildsByJobset on Builds(project, jobset);
-create index IndexBuildsByJob on Builds(project, jobset, job);
-create index IndexBuildsByJobAndSystem on Builds(project, jobset, job, system);
+create index IndexBuildInputsOnBuild on BuildInputs(build);
+create index IndexBuildInputsOnDependency on BuildInputs(dependency);
+create index IndexBuildProducstOnBuildAndType on BuildProducts(build, type);
+create index IndexBuildProductsOnBuild on BuildProducts(build);
 create index IndexBuildResultInfo on BuildResultInfo(id); -- primary key index, not created automatically by PostgreSQL
-create index IndexBuildSchedulingInfoByBuild on BuildSchedulingInfo(id); -- idem
-create index IndexBuildProductsByBuild on BuildProducts(build);
-create index IndexBuildProducstByBuildAndType on BuildProducts(build, type);
-create index IndexBuildStepsByBuild on BuildSteps(build);
+create index IndexBuildSchedulingInfoOnBuild on BuildSchedulingInfo(id); -- idem
+create index IndexBuildStepsOnBuild on BuildSteps(build);
+create index IndexBuildsOnFinished on Builds(finished);
+create index IndexBuildsOnIsCurrent on Builds(isCurrent);
+create index IndexBuildsOnJob on Builds(project, jobset, job);
+create index IndexBuildsOnJobAndIsCurrent on Builds(project, jobset, job, isCurrent);
+create index IndexBuildsOnJobAndSystem on Builds(project, jobset, job, system);
+create index IndexBuildsOnJobset on Builds(project, jobset);
+create index IndexBuildsOnProject on Builds(project);
+create index IndexBuildsOnTimestamp on Builds(timestamp);
+create index IndexJobsetAltsOnJobset on JobsetInputAlts(project, jobset);
 
 
 #ifdef SQLITE
