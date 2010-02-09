@@ -49,6 +49,10 @@ a.smallLink {
     white-space: pre-wrap;
 }
 
+a#error-link { 
+    color: red;
+}
+
 .error {
     color: red;
     font-weight: bold;

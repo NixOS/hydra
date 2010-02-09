@@ -79,7 +79,7 @@
 	<ul>
 		[% IF !edit -%]
  			<li><a href="#tabs-information">Jobset</a></li>
-	        [% IF jobset.errormsg -%]<li><a href="#tabs-errors">Errors</a></li>[% END %]
+	        [% IF jobset.errormsg -%]<li><a href="#tabs-errors">Evaluation errors</a></li>[% END %]
 			<li><a href="#tabs-jobs">Jobs ([% activeJobs.size %])</a></li>
 		[% END %]
 		<li><a href="#tabs-setup">Setup</a></li>
@@ -89,6 +89,16 @@
 		[% END %]
 	</ul>
 	<div id="tabs-information">
+	    [% IF jobset.errormsg && !edit -%]
+	    <table class="layoutTable"><tr><td><img src="/static/images/failure.gif" /></td><td><a href="#tabs-errors" id="error-link">There are evaluation errors!</a></td></tr></table>
+	    <script type="text/javascript">
+	    	$('#error-link').click(function() { 
+    			$("#generic-tabs").tabs('select', 1);
+    			return false;
+			});
+		</script>
+	    [% END %]
+	    
 	    [% IF lastBuilds %]
 	    	<h2>Most recent builds</h2>
 	    	[% INCLUDE renderBuildList builds=lastBuilds %]
@@ -122,6 +132,12 @@
 		      	[% END %]
 		      </tbody>
 		    </table>
+		[% END %]
+		[% IF !edit && !activeJobsStatus -%]
+		    <h2>Status</h2>
+			<p>
+				[ <a href="[% c.uri_for('/jobset' project.name jobset.name 'with-status' ) %]">Show status overview</a> ]
+			</p>
 		[% END %]
 
 	</div>

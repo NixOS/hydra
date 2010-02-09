@@ -20,9 +20,10 @@ sub jobset : Chained('/') PathPart('jobset') CaptureArgs(2) {
         or notFound($c, "Jobset $jobsetName doesn't exist.");
 }
 
+sub jobsetIndex {
+    my ($self, $c, $forceStatus) = @_;
 
-sub index : Chained('jobset') PathPart('') Args(0) {
-    my ($self, $c) = @_;
+    print STDERR "index\n";    
     
     $c->stash->{template} = 'jobset.tt';
     
@@ -46,7 +47,7 @@ sub index : Chained('jobset') PathPart('') Args(0) {
     	push(@systems, $system->system);
     }
     
-    if(scalar(@{$c->stash->{activeJobs}}) <= 20) {
+    if($forceStatus || scalar(@{$c->stash->{activeJobs}}) <= 20) {
 	    my @select = ();
 	    my @as = ();
 	    push(@select, "job"); push(@as, "job");
@@ -69,6 +70,16 @@ sub index : Chained('jobset') PathPart('') Args(0) {
     my $tmp = $c->stash->{jobset}->builds;
     $c->stash->{lastBuilds} = [joinWithResultInfo($c, $tmp)
         ->search({finished => 1}, {order_by => "timestamp DESC", rows => 5 })] ;
+}
+
+sub index : Chained('jobset') PathPart('') Args(0) {
+  my ($self, $c) = @_;
+  jobsetIndex($self, $c, 0);
+}
+
+sub indexWithStatus : Chained('jobset') PathPart('') Args(1) {
+  my ($self, $c, $forceStatus) = @_;
+  jobsetIndex($self, $c, 1);
 }
 
 
