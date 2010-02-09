@@ -85,7 +85,7 @@
 		<li><a href="#tabs-setup">Setup</a></li>
 		[% IF !edit -%]
 			<li><a href="#tabs-channels">Channels</a></li>
-			<li><a href="#tabs-statistics">Statistics</a></li>
+			<!-- <li><a href="#tabs-statistics">Statistics</a></li> -->
 		[% END %]
 	</ul>
 	<div id="tabs-information">
@@ -129,7 +129,7 @@
 	
 		[% IF jobset.errormsg -%]
 		<div id="tabs-errors">
-		  <h3>Evaluation error</h3>
+		  <h3>Evaluation errors</h3>
 		  <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
 		</div>
 		[% END %]
@@ -236,12 +236,14 @@
 			</p>
 		
 		</div>
+                [%#
 		<div id="tabs-statistics">
 		
 			<h2>Statistics</h2>
 			
-			[% INCLUDE showBuildStats %]
+			[% INCLUDE showBuildStats % ]
 		</div>
+                %]
 	[% END %]
 
 </div>

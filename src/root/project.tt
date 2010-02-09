@@ -16,7 +16,7 @@
 		[% IF !edit %]
 			<li><a href="#tabs-views">Views</a></li>
 			<li><a href="#tabs-channels">Channels</a></li>
-			<li><a href="#tabs-statistics">Statistics</a></li>
+			<!-- <li><a href="#tabs-statistics">Statistics</a></li> -->
 		[% END %]
 	</ul>
 
@@ -177,12 +177,12 @@
 			</ul>
 			
 		</div>
-		<div id="tabs-statistics">	
+                [%#
+		<div id="tabs-statistics">
 			<h2>Statistics</h2>
-			
-			[% INCLUDE showBuildStats %]
-			
+			[% INCLUDE showBuildStats % ]
 		</div>
+                %]
 	[% END %]
 </div>
 

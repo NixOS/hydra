@@ -14,7 +14,7 @@
 		<li><a href="#tabs-status">Status</a></li>
 		<li><a href="#tabs-channels">Channels</a></li>
 		<li><a href="#tabs-latestbuilds">Latest builds</a></li>
-		<li><a href="#tabs-statistics">Statistics</a></li>
+		<!-- <li><a href="#tabs-statistics">Statistics</a></li> -->
 	</ul>
 	<div id="tabs-status">
 	    <h2>Finished builds</h2>
@@ -51,9 +51,11 @@
 		  [% END %]
 		</ul>
 	</div>
+        [%#
 	<div id="tabs-statistics">
-		[% INCLUDE showBuildStats %]
-    </div>
+		[% INCLUDE showBuildStats % ]
+        </div>
+        %]
 </div>
 <script type="text/javascript">
 	$("#generic-tabs").tabs();

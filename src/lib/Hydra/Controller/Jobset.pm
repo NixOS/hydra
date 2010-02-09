@@ -26,7 +26,7 @@ sub index : Chained('jobset') PathPart('') Args(0) {
     
     $c->stash->{template} = 'jobset.tt';
     
-    getBuildStats($c, scalar $c->stash->{jobset}->builds);
+    #getBuildStats($c, scalar $c->stash->{jobset}->builds);
 
     $c->stash->{activeJobs} = [
         $c->stash->{jobset}->builds->search(
