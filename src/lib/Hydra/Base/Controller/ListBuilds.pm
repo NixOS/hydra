@@ -49,13 +49,11 @@ sub errors : Chained('get_builds') PathPart Args(0) {
 sub all : Chained('get_builds') PathPart {
     my ($self, $c) = @_;
 
-    $c->stash->{template} = 'all.tt';
-
     my $page = int($c->req->param('page')) || 1;
 
     my $resultsPerPage = 20;
 
-    my $nrBuilds = scalar($c->stash->{allBuilds}->search({finished => 1}));
+    my $nrBuilds = $c->stash->{allBuilds}->search({finished => 1})->count;
 
     $c->stash->{baseUri} = $c->uri_for($self->action_for("all"), $c->req->captures);
 
