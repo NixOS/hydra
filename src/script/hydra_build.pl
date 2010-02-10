@@ -152,7 +152,7 @@ sub sendEmailNotification {
 
     my $body = "Hi,\n"
         . "\n"
-        . "This is to let you know that Hydra build" . $build->id
+        . "This is to let you know that Hydra build " . $build->id
         . " of job " . $jobName . " has $statusMsg.\n"
         . "\n"
         . "Complete build information can be found on this page: "
