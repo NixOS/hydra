@@ -30,12 +30,18 @@ let
           sha256 = "013zgglvifvy0yg0ybjrl823sswy9v1ihf5nmighmcyigfd6nrhb";
         };
 
+        flot = fetchurl {
+          url = http://flot.googlecode.com/files/flot-0.6.zip;
+          sha256 = "1k2mfijvr1jwga65wcd78lp9ia17v99f1cfm5nlmc0k8glllbj5a";
+        };
+
         # Since we don't have a `make dist', just tar everything.
         distPhase = ''
           ensureDir src/root/static/js/jquery
           unzip -d src/root/static/js/jquery $jquery
           rm -rf src/root/static/js/tablesorter
           unzip -d src/root/static/js $tablesorter
+          unzip -d src/root/static/js $flot
 
           make -C src/sql
         

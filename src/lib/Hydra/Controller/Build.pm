@@ -50,6 +50,20 @@ sub view_build : Chained('build') PathPart('') Args(0) {
 	$c->stash->{logtext} = `tail -n 50 $path`;
     }
 
+    if($build->finished) {
+        $c->stash->{prevBuilds} = [joinWithResultInfo($c, $c->model('DB::Builds'))->search(
+            { project => $c->stash->{project}->name
+            , jobset => $c->stash->{build}->jobset->name
+            , job => $c->stash->{build}->job->name
+            , system => $build->system 
+            , finished => 1
+            , buildstatus => 0
+            }
+          , { order_by => "id DESC", rows => 20 }
+          )
+        ];
+    }
+
 }
 
 
