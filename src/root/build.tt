@@ -10,14 +10,14 @@
 
 [% BLOCK renderBuildSteps %]
 
-	<h2 id="buildsteps">[% IF onlyFailed == 1 %]Failed build steps[% ELSE %]Build steps[% END%]</h2>
+	<h2 id="buildsteps">[% type %] build steps</h2>
 	<table class="tablesorter">
 	  <thead>
 	    <tr><th>Nr</th><th>What</th><th>Duration</th><th>Status</th></tr>
 	  </thead>
 	  <tbody>
 	    [% FOREACH step IN build.buildsteps -%]
-			[% IF (onlyFailed != 1) || (step.status != 0) -%]
+			[% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) -%]
 		      [% log = c.uri_for('/build' build.id 'nixlog' step.stepnr) %]
 		      <tr class="[% IF step.logfile %]clickable[% END %]"
 		          [% IF step.logfile %] onclick="window.location = '[% log %]'" [% END %]>
@@ -175,11 +175,13 @@
 			
 		[% END %]
 
-
+                [% IF !build.finished %]
+                    [% INCLUDE renderBuildSteps type="Running" %]
+		[% END %]
 
 		[% IF build.finished %]
 			[% IF build.buildsteps && (build.resultInfo.buildstatus == 2 || build.resultInfo.buildstatus == 5)%]
-				[% INCLUDE renderBuildSteps onlyFailed=1 %]
+				[% INCLUDE renderBuildSteps type="Failed" %]
 			[% END %]
 
 			[% IF build.resultInfo.errormsg && build.resultInfo.buildstatus != 5 %]
@@ -386,7 +388,7 @@
 
 [% IF build.buildsteps %]
 	<div id="tabs-buildsteps">
-		[% INCLUDE renderBuildSteps onlyFailed=0 %]
+		[% INCLUDE renderBuildSteps type="All" %]
 	</div>
 [% END %]
 	
