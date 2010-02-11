@@ -217,6 +217,14 @@ __PACKAGE__->belongs_to(
   { id => "id" },
 );
 
+__PACKAGE__->has_one(
+  "actualBuildStep",
+  "Hydra::Schema::BuildSteps",
+  { 'foreign.outpath' => 'self.outpath' 
+  , 'foreign.build' => 'self.id'
+  },
+);
+
 sub addSequence {
     my $hydradbi = getHydraDBPath;
     if ($hydradbi =~ m/^dbi:Pg/) {

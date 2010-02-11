@@ -431,6 +431,7 @@ create index IndexBuildSchedulingInfoOnBuild on BuildSchedulingInfo(id); -- idem
 create index IndexBuildStepsOnBuild on BuildSteps(build);
 create index IndexBuildStepsOnDrvpathTypeBusyStatus on BuildSteps(drvpath, type, busy, status);
 create index IndexBuildStepsOnOutpath on BuildSteps(outpath);
+create index IndexBuildStepsOnOutpathBuild on BuildSteps (outpath, build);
 create index IndexBuildsOnFinished on Builds(finished);
 create index IndexBuildsOnIsCurrent on Builds(isCurrent);
 create index IndexBuildsOnJob on Builds(project, jobset, job);

@@ -58,8 +58,14 @@ sub view_build : Chained('build') PathPart('') Args(0) {
             , system => $build->system 
             , finished => 1
             , buildstatus => 0
+            , 'me.id' =>  { '<=' => $build->id }
             }
-          , { order_by => "id DESC", rows => 100 }
+          , { join => "actualBuildStep"
+            , "+select" => ["actualBuildStep.stoptime - actualBuildStep.starttime"]
+            , "+as" => ["actualBuildTime"]
+            , order_by => "id DESC"
+            , rows => 50
+            }
           )
         ];
     }

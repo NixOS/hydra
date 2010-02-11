@@ -430,7 +430,7 @@
     var d = [];
     var ids = [];
     [% FOREACH prevbuild IN prevBuilds %][% IF prevbuild.resultInfo.starttime != 0 %]
-      d.push([[% prevbuild.resultInfo.starttime * 1000 %],[% prevbuild.resultInfo.stoptime - prevbuild.resultInfo.starttime %]]);
+      d.push([[% prevbuild.resultInfo.starttime * 1000 %],[% prevbuild.get_column('actualBuildTime') %]]);
       ids[[% prevbuild.resultInfo.starttime * 1000 %]] = [% prevbuild.id %] ;
     [% END %][% END %] 
 
