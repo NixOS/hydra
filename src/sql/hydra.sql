@@ -429,6 +429,8 @@ create index IndexBuildProductsOnBuild on BuildProducts(build);
 create index IndexBuildResultInfo on BuildResultInfo(id); -- primary key index, not created automatically by PostgreSQL
 create index IndexBuildSchedulingInfoOnBuild on BuildSchedulingInfo(id); -- idem
 create index IndexBuildStepsOnBuild on BuildSteps(build);
+create index IndexBuildStepsOnDrvpathTypeBusyStatus on BuildSteps(drvpath, type, busy, status);
+create index IndexBuildStepsOnOutpath on BuildSteps(outpath);
 create index IndexBuildsOnFinished on Builds(finished);
 create index IndexBuildsOnIsCurrent on Builds(isCurrent);
 create index IndexBuildsOnJob on Builds(project, jobset, job);
@@ -437,7 +439,12 @@ create index IndexBuildsOnJobAndSystem on Builds(project, jobset, job, system);
 create index IndexBuildsOnJobset on Builds(project, jobset);
 create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);
-create index IndexJobsetAltsOnJobset on JobsetInputAlts(project, jobset);
+create index IndexCachedGitInputsOnHash on CachedGitInputs(uri, branch, sha256hash);
+create index IndexCachedGitInputsOnLastSeen on CachedGitInputs(uri, branch, lastSeen);
+create index IndexCachedSubversionInputsOnUriRevision on CachedSubversionInputs(uri, revision);
+create index IndexJobsetInputAltsOnInput on JobsetInputAlts(project, jobset, input);
+create index IndexJobsetInputAltsOnJobset on JobsetInputAlts(project, jobset);
+create index IndexProjectsOnEnabled on Projects(enabled);
 
 
 #ifdef SQLITE
