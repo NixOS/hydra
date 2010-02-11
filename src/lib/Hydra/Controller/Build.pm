@@ -59,7 +59,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
             , finished => 1
             , buildstatus => 0
             }
-          , { order_by => "id DESC", rows => 20 }
+          , { order_by => "id DESC", rows => 100 }
           )
         ];
     }
