@@ -289,14 +289,17 @@ QUERY
         <<QUERY
           select *
           from
-            (select project, jobset, job, system, max(id) as id
+            (select  
+               (select max(id) from builds b
+                where 
+                  project = activeJobs.project and jobset = activeJobs.jobset 
+                  and job = activeJobs.job and system = activeJobs.system 
+                  and finished = 1
+                  and exists (select 1 from buildresultinfo where id = b.id and buildstatus = 0)
+               ) as id
              from $activeJobs as activeJobs
-             natural join Builds
-             natural join BuildResultInfo
-             where finished = 1 and buildStatus = 0
-             group by project, jobset, job, system
             ) as latest
-          natural join Builds
+          join Builds using (id)
 QUERY
     );
 }

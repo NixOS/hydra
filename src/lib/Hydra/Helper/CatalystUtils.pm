@@ -65,7 +65,7 @@ sub getChannelData {
     my ($c, $builds) = @_;
 
     my @builds2 = joinWithResultInfo($c, $builds)
-        ->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')");
+        ->search_literal("exists (select 1 from buildproducts where build = resultInfo.id and type = 'nix-build')");
     
     my @storePaths = ();
     foreach my $build (@builds2) {
