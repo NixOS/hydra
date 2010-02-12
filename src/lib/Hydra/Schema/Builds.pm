@@ -271,13 +271,16 @@ QUERY
             x.nixExprPath,
             b.id as statusChangeId, b.timestamp as statusChangeTime
           from
-            (select project, jobset, job, system, max(id) as id
+            (select  
+               (select max(id) from builds b
+                where 
+                  project = activeJobs.project and jobset = activeJobs.jobset 
+                  and job = activeJobs.job and system = activeJobs.system 
+                  and finished = 1
+               ) as id
              from $activeJobs as activeJobs
-             natural join Builds
-             where finished = 1
-             group by project, jobset, job, system)
-            as latest
-          natural join Builds x
+            ) as latest
+          join Builds x using (id)
           $joinWithStatusChange
 QUERY
     );
