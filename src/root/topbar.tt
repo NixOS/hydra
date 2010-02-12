@@ -23,7 +23,7 @@
         title = "Projects" %]
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Root').action_for('queue'))
-        title = "Queue" %]
+        title = "Queue" %] ([% nrRunningBuilds %]/[% nrQueuedBuilds %])
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Root').action_for('all'))
         title = "All builds" %]
