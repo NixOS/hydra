@@ -22,7 +22,8 @@ sub registerRoot {
 sub keepBuild {
     my ($build) = @_;
     print STDERR "  keeping build ", $build->id, " (",
-            strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
+        $build->system, "; ",
+        strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
     if (isValidPath($build->outpath)) {
         registerRoot $build->outpath;
     } else {
@@ -45,16 +46,20 @@ foreach my $project ($db->resultset('Projects')->all) {
         # platform.
         # !!! Take time into account? E.g. don't delete builds that
         # are younger than N days.
-        my @recentBuilds = $job->builds->search(
-            { finished => 1
-            , buildStatus => 0 # == success
-            },
-            { join => 'resultInfo'
-            , order_by => 'timestamp DESC'
-            , rows => 3 # !!! should make this configurable
-            });
-        
-        keepBuild $_ foreach @recentBuilds;
+	my @systems = $job->builds->search({ }, { select => ["system"], distinct => 1 })->all;
+
+	foreach my $system (@systems) {
+            my @recentBuilds = $job->builds->search(
+		{ finished => 1
+                , buildStatus => 0 # == success
+                , system => $system->system
+                },
+                { join => 'resultInfo'
+                , order_by => 'id DESC'
+                , rows => 3 # !!! should make this configurable
+                });
+	    keepBuild $_ foreach @recentBuilds;
+	}
     }
 
     # Go over all views in this project.
