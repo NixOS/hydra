@@ -15,13 +15,14 @@ sub build : Chained('/') PathPart CaptureArgs(1) {
     $c->stash->{id} = $id;
     
     $c->stash->{build} = getBuild($c, $id);
+    $c->stash->{prevBuild} = getPreviousBuild($c, $c->stash->{build});
+    $c->stash->{prevSuccessfulBuild} = getPreviousSuccessfulBuild($c, $c->stash->{build});
 
     notFound($c, "Build with ID $id doesn't exist.")
         if !defined $c->stash->{build};
 
     $c->stash->{project} = $c->stash->{build}->project;
 }
-
 
 sub view_build : Chained('build') PathPart('') Args(0) {
     my ($self, $c) = @_;

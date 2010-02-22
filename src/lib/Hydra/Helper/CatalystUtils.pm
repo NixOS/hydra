@@ -7,7 +7,7 @@ use Hydra::Helper::Nix;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getBuild getBuildStats joinWithResultInfo getChannelData
+    getBuild getPreviousBuild getPreviousSuccessfulBuild getBuildStats joinWithResultInfo getChannelData
     error notFound
     requireLogin requireProjectOwner requireAdmin requirePost
     trim
@@ -21,6 +21,34 @@ sub getBuild {
     return $build;
 }
 
+sub getPreviousBuild {
+    my ($c, $build) = @_;
+    (my $prevBuild) = $c->model('DB::Builds')->search(
+      { finished => 1
+      , system => $build->system
+      , project => $build->project->name
+      , jobset => $build->jobset->name
+      , job => $build->job->name
+      , 'me.id' =>  { '<' => $build->id } 
+      }, {rows => 1, order_by => "id DESC"});
+    
+    return $prevBuild;
+}
+
+sub getPreviousSuccessfulBuild {
+    my ($c, $build) = @_;
+    (my $prevBuild) = joinWithResultInfo($c, $c->model('DB::Builds'))->search(
+      { finished => 1
+      , system => $build->system
+      , project => $build->project->name
+      , jobset => $build->jobset->name
+      , job => $build->job->name
+      , buildstatus => 0
+      , 'me.id' =>  { '<' => $build->id } 
+      }, {rows => 1, order_by => "id DESC"});
+    
+    return $prevBuild;
+}
 
 sub getBuildStats {
     my ($c, $builds) = @_;

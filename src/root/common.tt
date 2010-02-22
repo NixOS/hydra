@@ -265,3 +265,48 @@
           [% END %] 
 [% END -%]
 
+[% BLOCK renderInputValue %]
+    [% IF input.type == "build" || input.type == "sysbuild" %]
+        [% INCLUDE renderFullBuildLink build=input.dependency %]</a>
+    [% ELSIF input.type == "string" || input.type == "boolean" %]
+        <tt>"[% input.value %]"</tt>
+    [% ELSE %]
+        <tt>[% input.uri %][% IF input.revision %] (r. [% input.revision %])[% END %]</tt>
+    [% END %]
+[% END %]
+
+[% BLOCK renderInputDiff; %]
+
+<table class="tablesorter">
+    <thead>
+        <tr><th>Name</th><th>Change</th></tr>
+    </thead>
+    <tbody>
+    [% FOREACH bi1 IN build1.inputs %]
+        [% deletedInput = 1 %]
+        [% FOREACH bi2 IN build2.inputs %]
+            [% IF bi1.name == bi2.name %]
+                <tr>
+                [% IF bi1.type == bi2.type %]
+                    [% IF bi1.value != bi2.value || bi1.uri != bi2.uri || bi1.revision != bi2.revision || bi1.path != bi2.path || bi1.dependency != bi2.dependency %]
+                        <td>[% bi1.name %]</td>
+                        <td>
+                            [% INCLUDE renderInputValue input=bi1 %] to [% INCLUDE renderInputValue input=bi2 %]
+                        </td>
+                    [% END %]
+                [% ELSE %]                  
+                    <td>[% bi1.name %]</td>
+                    <td>Changed input type from '[% type = bi1.type; inputTypes.$type %]' to '[% type = bi2.type; inputTypes.$type %]'</td>
+                [% END %]
+                </tr>
+                [% deletedInput = 0 %]
+            [% END %]
+        [% END %]
+        [% IF deletedInput == 1 %]
+            <tr><td>[% bi1.name %]</td><td>Input not present in this build.</td></tr>
+        [% END %]
+    [% END %]
+    </tbody>
+</table>
+[% END %]
+

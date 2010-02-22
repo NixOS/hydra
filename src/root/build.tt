@@ -175,7 +175,7 @@
 			
 		[% END %]
 
-                [% IF !build.finished %]
+        [% IF !build.finished %]
                     [% INCLUDE renderBuildSteps type="Running" %]
 		[% END %]
 
@@ -383,6 +383,17 @@
 		    [% END -%]
 		  </tbody>
 		</table>
+
+        [% IF prevBuild %]
+            <h2>Changes since previous build : [% INCLUDE renderFullBuildLink build=prevBuild %]</h2>
+            [% INCLUDE renderInputDiff build2=build , build1=prevBuild %]
+        [% END %]
+
+        [% IF prevBuild && prevSuccessfulBuild.id != prevBuild.id %]
+            <h2>Changes since previous successful build : [% INCLUDE renderFullBuildLink build=prevSuccessfulBuild %]</h2>
+            [% INCLUDE renderInputDiff build2=build , build1=prevSuccessfulBuild %]
+        [% END %]
+        
 	</div>
 
 
