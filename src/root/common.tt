@@ -198,7 +198,7 @@
 [% END -%]
 
 [% BLOCK renderFullBuildLink; %] 
-	Job [% INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]
+	[% INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>
 [% END %]
 
 [% BLOCK renderBuildStatusIcon; %] 

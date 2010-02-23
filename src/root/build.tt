@@ -176,13 +176,22 @@
 		[% END %]
 
         [% IF !build.finished %]
-                    [% INCLUDE renderBuildSteps type="Running" %]
+            [% INCLUDE renderBuildSteps type="Running" %]
 		[% END %]
 
 		[% IF build.finished %]
-			[% IF build.buildsteps && (build.resultInfo.buildstatus == 2 || build.resultInfo.buildstatus == 5)%]
+			[% IF build.buildsteps && build.resultInfo.buildstatus != 0 %]
 				[% INCLUDE renderBuildSteps type="Failed" %]
 			[% END %]
+
+            [% IF build.resultInfo.buildstatus != 0 && prevSuccessfulBuild %]
+                <h2>Changes</h2>
+                <p>
+                    The previous successful build of this job was [% INCLUDE renderFullBuildLink build=prevSuccessfulBuild %]. The 
+                    following changes were made since:
+                </p>
+                [% INCLUDE renderInputDiff build2=build , build1=prevSuccessfulBuild %]
+            [% END %]
 
 			[% IF build.resultInfo.errormsg && build.resultInfo.buildstatus != 5 %]
 		
@@ -384,16 +393,13 @@
 		  </tbody>
 		</table>
 
+        <p/>
+
         [% IF prevBuild %]
-            <h2>Changes since previous build : [% INCLUDE renderFullBuildLink build=prevBuild %]</h2>
+            <h3>Changes since previous build : [% INCLUDE renderFullBuildLink build=prevBuild %]</h3>
             [% INCLUDE renderInputDiff build2=build , build1=prevBuild %]
         [% END %]
-
-        [% IF prevBuild && prevSuccessfulBuild.id != prevBuild.id %]
-            <h2>Changes since previous successful build : [% INCLUDE renderFullBuildLink build=prevSuccessfulBuild %]</h2>
-            [% INCLUDE renderInputDiff build2=build , build1=prevSuccessfulBuild %]
-        [% END %]
-        
+       
 	</div>
 
 
