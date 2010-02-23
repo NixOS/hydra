@@ -89,7 +89,7 @@
 		<li><a href="#tabs-buildinputs">Build Inputs</a></li>
 		[% IF build.buildsteps %]<li><a href="#tabs-buildsteps">Build Steps</a></li>[% END %]
                 [% IF build.dependents %]<li><a href="#tabs-usedby">Used by</a></li>[% END%]
-		<li><a href="#tabs-history">History chart</a></li>
+		[% IF prevBuilds %]<li><a href="#tabs-history">History chart</a></li>[% END %]
 	</ul>
 	<div id="tabs-summary">
 
@@ -434,7 +434,7 @@
 		</table>
     </div>
 [% END %]
-
+[% IF prevBuilds %]
     <div id="tabs-history">
         <h2>Build time history (in seconds)</h2>
         <div id="placeholder" style="width:800px;height:400px;"></div> 
@@ -513,6 +513,7 @@
 
         
     </div>
+[% END %]
 
 </div>
 
