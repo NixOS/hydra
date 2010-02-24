@@ -6,7 +6,7 @@
      nrProducts = 0; FOREACH product IN build.buildproducts; nrProducts = nrProducts + 1; END
   %]
 
-  <ul class="productList">
+  <table class="productList layoutTable">
 
     [% FOREACH product IN build.buildproducts -%]
 
@@ -20,7 +20,8 @@
 
       [% CASE "nix-build" %]
       
-      <li class="product">
+      <tr class="product">
+        <td>
         [% uri = c.uri_for('/build' build.id 'nix' 'pkg' "${build.nixname}-${build.system}.nixpkg") %]
         <a href="[% uri %]">
           <img src="/static/images/nix-build.png" alt="Source" />
@@ -45,9 +46,11 @@
           </p>
         </div>
 
-      </li>
+        </td>
+      </tr>
 
-      <li class="product">
+      <tr class="product">
+        <td>
 
         [% filename = "${build.nixname}.closure.gz" %]
         [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
@@ -82,12 +85,14 @@
           command as <tt>root</tt>.</p>
         </div>
 
-      </li>
+        </td>
+      </tr>
 
 
       [% CASE "file" %]
       
-      <li class="product">
+      <tr class="product">
+        <td>
         <a href="[% uri %]">
           [% SWITCH product.subtype %]
           [% CASE "source-dist" %]
@@ -134,11 +139,14 @@
             <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
           </table>
         </div>
-      </li>
+        
+        </td>
+      </tr>
 
       [% CASE "report" %]
       
-      <li class="product">
+      <tr class="product">
+        <td>
         <a href="[% uri %]">
           <img src="/static/images/report.png" alt="Report" />
           [% SWITCH product.subtype %]
@@ -148,11 +156,13 @@
             Report of type <tt>[% product.subtype %]</tt>
           [% END %]
         </a>
-      </li>
+        </td>
+      </tr>
 
       [% CASE ["doc", "doc-pdf"] %]
 
-      <li class="product">
+      <tr class="product">
+        <td>
         <a href="[% uri %]">
           [% IF product.type == "doc-pdf" %]
             <img src="/static/images/pdf.png" alt="PDF document" />
@@ -170,19 +180,22 @@
             Documentation of type <tt>[% product.subtype %]</tt>
           [% END %]
         </a>
-      </li>
+        </td>
+      </tr>
 
       [% CASE DEFAULT %]
       
-      <li class="product">
+      <tr class="product">
+        <td>
         Something of type <tt>[% product.type %]</tt>
-      </li>
+        </td>
+      </tr>
 
       [% END %]
 
     [% END -%]
 
-  </ul>
+  </table>
 
 [% END %]
 

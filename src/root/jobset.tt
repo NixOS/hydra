@@ -106,7 +106,7 @@
 	
 		[% IF !edit && activeJobsStatus -%]
 		    <h2>Status</h2>
-		    <table class="activeJobsStatus">
+		    <table>
 		      <thead><tr><th>Job</th>[% FOREACH s IN systems %]<th>[% s.system %]</th>[% END %]</tr></thead>
 		      <tbody>
                 [% odd = 0 %]
@@ -116,7 +116,7 @@
 		      	     [% FOREACH s IN systems %]
                        [% system = s.system %]
                        [% systemStatus = j.get_column(system) %]
-		      	       <td>
+		      	       <td class="centered">
 		      	          [% IF systemStatus != undef %]
 		      	             <a href="[% c.uri_for('/build' j.get_column(system _ '-build') ) %]">
 			      	         [% IF systemStatus == 0 %]

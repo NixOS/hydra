@@ -93,7 +93,7 @@
 	</ul>
 	<div id="tabs-summary">
 
-	    <table class="statusTable">
+	    <table class="layoutTable">
 	      <tr>
 	      	<td>
 				[% INCLUDE renderBuildStatusIcon size=128, build=build %]

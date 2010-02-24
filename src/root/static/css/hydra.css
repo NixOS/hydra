@@ -1,47 +1,120 @@
-#generic-tabs li {
-	height : 30px;
-	font-size : 90%;
-}
-#generic-tabs {
-    min-height: 30em;
-}
-#generic-tabs div {
-	font-size : 90%;
+body {
+    font-family: sans-serif;
+    background: white;
+    margin: 2em 1em 2em 1em;
 }
 
 #logo img {
-    width: 8em;
+	width: 8em;
 }
 
-.statusTable td, .statusTable th {
+img {
     border-style: none;
 }
 
-tr.clickable:hover {
-    background-color: #a0a0f0;
-    cursor: pointer;
-}
-
-.layoutTable td, .layoutTable th {
-    border-style: none;
-    text-align: left;
-}
-
-.layoutTable th {
-    vertical-align: top;
-}
-
-.activeJobsStatus td, .activeJobsStatus th {
-    border-style: 1px dotted #CCCCCC;
-}
-
-.activeJobsStatus tbody tr td {
-    align: center;
-}
-
+a { text-decoration: none;}
+a:link { color: #0048b3; }
+a:visited { color: #002a6a; }
+a.no-hover:hover { background: none; }
+a:hover, a:visited:hover { text-decoration: underline;}
 a.smallLink {
     font-size: 60%;
     vertical-align: top;
+}
+a#error-link { 
+    color: red;
+}
+
+
+table {
+    empty-cells: show;
+    border-spacing: 1px;
+    text-align: left;
+}
+
+th, td {
+    border: 1px solid #dddddd;
+}
+
+th {
+    background-color:#E6EEEE;
+}
+
+table.tablesorter tr:nth-child(even) {
+    background-color: #efefef;
+}
+
+tr.clickable:hover {
+    background-color: #E6EEFF;
+    cursor: pointer;
+}
+td.centered {
+    text-align: center;
+}
+
+
+.layoutTable td, .layoutTable th {
+    border-style: none;
+}
+
+table.tablesorter thead tr .header {
+    background-image: url(/static/js/tablesorter/themes/blue/bg.gif);
+    background-repeat: no-repeat;
+    background-position: center right;
+    cursor: pointer;
+}
+
+table.tablesorter thead tr .headerSortUp {
+    background-image: url(/static/js/tablesorter/themes/blue/asc.gif);
+}
+
+table.tablesorter thead tr .headerSortDown {
+    background-image: url(/static/js/tablesorter/themes/blue/desc.gif);
+}
+
+table.tablesorter thead tr .headerSortDown, table.tablesorter thead tr .headerSortUp {
+    background-color: #D6DDDD;
+}
+
+table.tablesorter thead tr th {
+    padding-right: 1.5em;
+}
+
+#generic-tabs li {
+    height : 30px;
+    font-size : 90%;
+}
+#generic-tabs div {
+    font-size : 90%;
+}
+
+h1, h2, h3 {
+    font-weight: bold;
+    color: #002a70;
+}
+
+ul.productList {
+    list-style: none;
+    padding-left: 1em;
+}
+
+ul.productList li {
+    margin-top: 1em;
+}
+
+.productDetails {
+    display: none;
+    margin-top: 1em; 
+    margin-bottom: 1em;
+    margin-left: 3em;
+}
+
+.runningBuild {
+    color: #ff9900;
+}
+
+.disabledBuild {
+    color: #b0b0b0;
 }
 
 .error-msg {
@@ -49,13 +122,14 @@ a.smallLink {
     white-space: pre-wrap;
 }
 
-a#error-link { 
-    color: red;
-}
-
 .error {
     color: red;
     font-weight: bold;
+}
+
+pre {
+    margin-left: 1.5em;
+    margin-right: 1.5em;
 }
 
 pre.buildlog {
@@ -75,31 +149,6 @@ div.buildlog {
     white-space: pre-wrap;
 }
 
-ul.productList {
-    list-style: none;
-    padding-left: 1em;
-}
-
-ul.productList li {
-    margin-top: 1em;
-}
-
-.runningBuild {
-    background-color: #ff3030;
-    color: white;
-}
-
-.disabledBuild {
-    background-color: #b0b0b0;
-}
-
-.productDetails {
-    display: none;
-    margin-top: 1em; 
-    margin-bottom: 1em;
-    margin-left: 3em;
-}
-
 .template {
     display: none;
 }
@@ -115,45 +164,10 @@ div.help pre {
     color: #400000;
 }
 
-
-/* Sortable tables */
-
-table.tablesorter {
-    text-align: left;
-}
-
-table.tablesorter thead tr .header {
-    background-image: url(/static/js/tablesorter/themes/blue/bg.gif);
-    background-repeat: no-repeat;
-    background-position: center right;
-    cursor: pointer;
-}
-
-table.tablesorter thead tr .headerSortUp {
-    background-image: url(/static/js/tablesorter/themes/blue/asc.gif);
-}
-
-table.tablesorter thead tr .headerSortDown {
-    background-image: url(/static/js/tablesorter/themes/blue/desc.gif);
-}
-
-table.tablesorter thead tr .headerSortDown, table.tablesorter thead tr .headerSortUp {
-    background-color: #ffe000;
-}
-
-table.tablesorter thead tr th {
-    padding-right: 1.5em;
-}
-
-
-/* Overriding tablesorter... */
-
 th.releaseSetJobName {
     font-size: 60%;
     padding: 0 0 0 0;
 }
-
-/* Editing */
 
 input.string {
     font-family: sans-serif;

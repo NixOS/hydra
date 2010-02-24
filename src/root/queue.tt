@@ -13,10 +13,6 @@
 
 [% ELSE %]
 
-  <p>Note: Builds in <span class="runningBuild">red</span> are
-  currently executing. Builds in <span
-  class="disabledBuild">grey</span> are currently disabled.</p>
-
   [% INCLUDE renderBuildList builds=queue showSchedulingInfo=1 hideResultInfo=1 %]
 
 [% END %]

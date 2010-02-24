@@ -7,18 +7,12 @@ body {
 div#page {
     max-width: 120em; 
     min-width: 50em;
-    min-height: 30em;
     margin: 1em auto;
     background-color: white;
     
     /* Put a rounded border around the page. */
     border: 1px solid black;
     padding: 1em;
-    border-radius: 1em;
-    -moz-border-radius: 1em;
-    -webkit-border-radius: 1em;
-    -moz-box-shadow: #404040 0px 5px 50px;
-    -webkit-box-shadow: #404040 0px 5px 50px;
 }
 
 /* The header. */
@@ -93,18 +87,16 @@ ul.short-menu li a:hover {
 /* The left menu. */
 div#main {
     position: relative;
-    min-height: 20em;
 }
 
 div#content {
-    min-height: 20em;
+    min-height: 35em;
 }
 
 div#left-bar {
     position: absolute;
     left: 0em;
     width: 8em;
-    min-height: 20em;
 }
 
 div#left-title {

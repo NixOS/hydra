@@ -61,7 +61,7 @@
 
 
 [% BLOCK renderBuildList %]
-  <table class="buildList tablesorter">
+  <table class="buildList tablesorter[% IF !showSchedulingInfo %] queue[% END %]">
     <thead>
       <tr>
         [% IF !hideResultInfo %]
@@ -69,6 +69,7 @@
         [% END %]
         <th>#</th>
         [% IF showSchedulingInfo %]
+          <th></th>
           <th>P</th>
         [% END %]
         <th>Job</th>
@@ -104,6 +105,7 @@
           [% END %]
           <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
           [% IF showSchedulingInfo %]
+            <td>[% IF build.get_column('busy') %]<img src="/static/images/running.gif" alt="Running" />[% ELSIF build.get_column('disabled') == 1 || build.get_column('enabled') == 0 %]Disabled[% END %]</td>
             <td>[% build.get_column('priority') %]</td>
           [% END %]
           <td>
