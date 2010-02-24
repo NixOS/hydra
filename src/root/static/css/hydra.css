@@ -110,11 +110,9 @@ ul.productList li {
 }
 
 .runningBuild {
-    color: #ff9900;
 }
 
 .disabledBuild {
-    color: #b0b0b0;
 }
 
 .error-msg {
