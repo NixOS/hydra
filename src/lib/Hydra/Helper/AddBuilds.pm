@@ -288,56 +288,56 @@ sub fetchInputGit {
     }
 
     if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-	$storePath = $cachedInput->storepath;
-	$sha256 = $cachedInput->sha256hash;
-	$timestamp = $cachedInput->timestamp;
-	$revision = $cachedInput->revision;
+        $storePath = $cachedInput->storepath;
+    	$sha256 = $cachedInput->sha256hash;
+    	$timestamp = $cachedInput->timestamp;
+    	$revision = $cachedInput->revision;
     } else {
-
-	# Then download this revision into the store.
-	print STDERR "checking out Git input from $uri";
-	$ENV{"NIX_HASH_ALGO"} = "sha256";
-	$ENV{"PRINT_PATH"} = "1";
-
-	# Checked out code often wants to be able to run `git
-	# describe', e.g., code that uses Gnulib's `git-version-gen'
-	# script.  Thus, we leave `.git' in there.  Same for
-	# Subversion (e.g., libgcrypt's build system uses that.)
-	$ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
-	$ENV{"NIX_PREFETCH_SVN_LEAVE_DOT_SVN"} = "1";
-
-	# Ask for a "deep clone" to allow "git describe" and similar
-	# tools to work.  See
-	# http://thread.gmane.org/gmane.linux.distributions.nixos/3569
-	# for a discussion.
-	$ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
-
-	(my $res, $stdout, $stderr) = captureStdoutStderr(
-	    "nix-prefetch-git", $uri, $revision);
-	die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
-
-	($sha256, $storePath) = split ' ', $stdout;
-	($cachedInput) = $db->resultset('CachedGitInputs')->search(
-	    {uri => $uri, branch => $branch, sha256hash => $sha256});
-
-	if (!defined $cachedInput) {
-	    txn_do($db, sub {
-		$db->resultset('CachedGitInputs')->create(
-		    { uri => $uri
-                    , branch => $branch
-                    , revision => $revision
-                    , timestamp => $timestamp
-                    , lastseen => $timestamp
-                    , sha256hash => $sha256
-                    , storepath => $storePath
-                    });
-		   });
-	} else {
-	    $timestamp = $cachedInput->timestamp;
-	    txn_do($db, sub {
-		$cachedInput->update({lastseen => time});
-	    });
-	}
+    
+    	# Then download this revision into the store.
+    	print STDERR "checking out Git input from $uri";
+    	$ENV{"NIX_HASH_ALGO"} = "sha256";
+    	$ENV{"PRINT_PATH"} = "1";
+    
+    	# Checked out code often wants to be able to run `git
+    	# describe', e.g., code that uses Gnulib's `git-version-gen'
+    	# script.  Thus, we leave `.git' in there.  Same for
+    	# Subversion (e.g., libgcrypt's build system uses that.)
+    	$ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
+    	$ENV{"NIX_PREFETCH_SVN_LEAVE_DOT_SVN"} = "1";
+    
+    	# Ask for a "deep clone" to allow "git describe" and similar
+    	# tools to work.  See
+    	# http://thread.gmane.org/gmane.linux.distributions.nixos/3569
+    	# for a discussion.
+    	$ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
+    
+    	(my $res, $stdout, $stderr) = captureStdoutStderr(
+    	    "nix-prefetch-git", $uri, $revision);
+    	die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
+    
+    	($sha256, $storePath) = split ' ', $stdout;
+    	($cachedInput) = $db->resultset('CachedGitInputs')->search(
+    	    {uri => $uri, branch => $branch, sha256hash => $sha256});
+    
+    	if (!defined $cachedInput) {
+    	    txn_do($db, sub {
+        		$db->resultset('CachedGitInputs')->update_or_create(
+        		    { uri => $uri
+                            , branch => $branch
+                            , revision => $revision
+                            , timestamp => $timestamp
+                            , lastseen => $timestamp
+                            , sha256hash => $sha256
+                            , storepath => $storePath
+                            });
+    		   });
+    	} else {
+    	    $timestamp = $cachedInput->timestamp;
+    	    txn_do($db, sub {
+                $cachedInput->update({lastseen => time});
+    	    });
+    	}
     }
 
     return
