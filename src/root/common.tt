@@ -278,38 +278,41 @@
 [% END %]
 
 [% BLOCK renderInputDiff; %]
-<ul class="inputdiff">
+<table class="tablesorter clean">
+    [% IF !nestedDiff %]
+        <tr><th>Input</th><th>Changes</th></tr>
+    [% END %]
     [% FOREACH bi1 IN build1.inputs %]
         [% deletedInput = 1 %]
         [% FOREACH bi2 IN build2.inputs %]
             [% IF bi1.name == bi2.name %]
                 [% IF bi1.type == bi2.type %]
                     [% IF bi1.value != bi2.value || bi1.uri != bi2.uri %]
-                        <li><b>[% bi1.name %]</b>: [% INCLUDE renderInputValue input=bi1 %] to [% INCLUDE renderInputValue input=bi2 %]</li>
+                        <tr><td><b>[% bi1.name %]</b></td><td>[% INCLUDE renderInputValue input=bi1 %] to [% INCLUDE renderInputValue input=bi2 %]</td></tr>
                     [% ELSIF bi1.uri == bi2.uri && bi1.revision != bi2.revision %]
-                        <li>
-                            <b>[% bi1.name %]</b>: [% bi1.uri %] revision changed from [% bi1.revision %] to [% bi2.revision %].
-                        </li>
+                        <tr><td>
+                            <b>[% bi1.name %]</b></td><td>[% bi1.uri %] revision changed from [% bi1.revision %] to [% bi2.revision %].
+                        </td></tr>
                     [% ELSIF bi1.dependency.id != bi2.dependency.id || bi1.path != bi2.path %]
-                        <li>
-                            <b>[% bi1.name %]</b>: [% INCLUDE renderInputValue input=bi1 %] to [% INCLUDE renderInputValue input=bi2 %]
+                        <tr><td>
+                            <b>[% bi1.name %]</b></td><td>[% INCLUDE renderInputValue input=bi1 %] to [% INCLUDE renderInputValue input=bi2 %]
                             <br/>
                             <br/>
-                            [% INCLUDE renderInputDiff build1=bi1.dependency, build2=bi2.dependency %]
-                        </li>
+                            [% INCLUDE renderInputDiff build1=bi1.dependency, build2=bi2.dependency, nestedDiff=1 %]
+                        </td></tr>
                     [% END %]
                 [% ELSE %]                  
-                    <li><b>[% bi1.name %]</b>: Changed input type from '[% type = bi1.type; inputTypes.$type %]' to '[% type = bi2.type; inputTypes.$type %]'</li>
+                    <tr><td><b>[% bi1.name %]</b></td><td>Changed input type from '[% type = bi1.type; inputTypes.$type %]' to '[% type = bi2.type; inputTypes.$type %]'</td></tr>
                 [% END %]
                 
                 [% deletedInput = 0 %]
             [% END %]
         [% END %]
         [% IF deletedInput == 1 %]
-            <li><b>[% bi1.name %]</b>: Input not present in this build.</li>
+            <tr><td><b>[% bi1.name %]</b></td><td>Input not present in this build.</td></tr>
         [% END %]
     [% END %]
-</ul>
+</table>
 
 [% END %]
 

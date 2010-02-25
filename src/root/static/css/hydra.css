@@ -34,6 +34,7 @@ table {
 
 th, td {
     border: 1px solid #dddddd;
+    vertical-align: top;
 }
 
 th {
@@ -42,6 +43,10 @@ th {
 
 table.tablesorter tr:nth-child(even) {
     background-color: #efefef;
+}
+
+table.tablesorter tr:nth-child(odd) {
+    background-color: #ffffff;
 }
 
 tr.clickable:hover {
