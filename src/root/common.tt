@@ -61,7 +61,7 @@
 
 
 [% BLOCK renderBuildList %]
-  <table class="buildList tablesorter[% IF !showSchedulingInfo %] queue[% END %]">
+  <table class="buildList tablesorter[% IF !showSchedulingInfo %] clean[% END %]">
     <thead>
       <tr>
         [% IF !hideResultInfo %]

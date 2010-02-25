@@ -41,11 +41,11 @@ th {
     background-color:#E6EEEE;
 }
 
-table.tablesorter tr:nth-child(even) {
+table.tablesorter:not(.clean) tr:nth-child(even) {
     background-color: #efefef;
 }
 
-table.tablesorter tr:nth-child(odd) {
+table.tablesorter:not(.clean) tr:nth-child(odd) {
     background-color: #ffffff;
 }
 
