@@ -6,10 +6,51 @@ package Hydra::Schema::JobsetInputHashes;
 use strict;
 use warnings;
 
-use base 'DBIx::Class';
+use base 'DBIx::Class::Core';
 
-__PACKAGE__->load_components("Core");
+
+=head1 NAME
+
+Hydra::Schema::JobsetInputHashes
+
+=cut
+
 __PACKAGE__->table("JobsetInputHashes");
+
+=head1 ACCESSORS
+
+=head2 project
+
+  data_type: text
+  default_value: undef
+  is_foreign_key: 1
+  is_nullable: 0
+  size: undef
+
+=head2 jobset
+
+  data_type: text
+  default_value: undef
+  is_foreign_key: 1
+  is_nullable: 0
+  size: undef
+
+=head2 hash
+
+  data_type: text
+  default_value: undef
+  is_nullable: 0
+  size: undef
+
+=head2 timestamp
+
+  data_type: integer
+  default_value: undef
+  is_nullable: 0
+  size: undef
+
+=cut
+
 __PACKAGE__->add_columns(
   "project",
   {
@@ -43,17 +84,36 @@ __PACKAGE__->add_columns(
   },
 );
 __PACKAGE__->set_primary_key("project", "jobset", "hash");
-__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
+
+=head1 RELATIONS
+
+=head2 project
+
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Projects>
+
+=cut
+
+__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
+
+=head2 jobset
+
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Jobsets>
+
+=cut
+
 __PACKAGE__->belongs_to(
   "jobset",
   "Hydra::Schema::Jobsets",
   { name => "jobset", project => "project" },
+  {},
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 14:04:55
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:f8/4vTSQJbmAh/0PZHeFDg
+# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:dK9vFHXInejDW/rl1i/kFA
 
-
-# You can replace this text with custom content, and it will be preserved on regeneration
 1;

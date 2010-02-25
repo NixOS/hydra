@@ -6,10 +6,51 @@ package Hydra::Schema::JobsetInputs;
 use strict;
 use warnings;
 
-use base 'DBIx::Class';
+use base 'DBIx::Class::Core';
 
-__PACKAGE__->load_components("Core");
+
+=head1 NAME
+
+Hydra::Schema::JobsetInputs
+
+=cut
+
 __PACKAGE__->table("JobsetInputs");
+
+=head1 ACCESSORS
+
+=head2 project
+
+  data_type: text
+  default_value: undef
+  is_foreign_key: 1
+  is_nullable: 0
+  size: undef
+
+=head2 jobset
+
+  data_type: text
+  default_value: undef
+  is_foreign_key: 1
+  is_nullable: 0
+  size: undef
+
+=head2 name
+
+  data_type: text
+  default_value: undef
+  is_nullable: 0
+  size: undef
+
+=head2 type
+
+  data_type: text
+  default_value: undef
+  is_nullable: 0
+  size: undef
+
+=cut
+
 __PACKAGE__->add_columns(
   "project",
   {
@@ -43,6 +84,17 @@ __PACKAGE__->add_columns(
   },
 );
 __PACKAGE__->set_primary_key("project", "jobset", "name");
+
+=head1 RELATIONS
+
+=head2 jobsets
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Jobsets>
+
+=cut
+
 __PACKAGE__->has_many(
   "jobsets",
   "Hydra::Schema::Jobsets",
@@ -52,11 +104,30 @@ __PACKAGE__->has_many(
     "foreign.project"      => "self.project",
   },
 );
+
+=head2 jobset
+
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Jobsets>
+
+=cut
+
 __PACKAGE__->belongs_to(
   "jobset",
   "Hydra::Schema::Jobsets",
   { name => "jobset", project => "project" },
+  {},
 );
+
+=head2 jobsetinputalts
+
+Type: has_many
+
+Related object: L<Hydra::Schema::JobsetInputAlts>
+
+=cut
+
 __PACKAGE__->has_many(
   "jobsetinputalts",
   "Hydra::Schema::JobsetInputAlts",
@@ -68,9 +139,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 16:04:13
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:srhHJGx+LAdeo++jv1RmMg
+# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:eThDu6WyuCUmDMEDlXyPkA
 
-
-# You can replace this text with custom content, and it will be preserved on regeneration
 1;

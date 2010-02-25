@@ -6,10 +6,50 @@ package Hydra::Schema::Views;
 use strict;
 use warnings;
 
-use base 'DBIx::Class';
+use base 'DBIx::Class::Core';
 
-__PACKAGE__->load_components("Core");
+
+=head1 NAME
+
+Hydra::Schema::Views
+
+=cut
+
 __PACKAGE__->table("Views");
+
+=head1 ACCESSORS
+
+=head2 project
+
+  data_type: text
+  default_value: undef
+  is_foreign_key: 1
+  is_nullable: 0
+  size: undef
+
+=head2 name
+
+  data_type: text
+  default_value: undef
+  is_nullable: 0
+  size: undef
+
+=head2 description
+
+  data_type: text
+  default_value: undef
+  is_nullable: 1
+  size: undef
+
+=head2 keep
+
+  data_type: integer
+  default_value: 0
+  is_nullable: 0
+  size: undef
+
+=cut
+
 __PACKAGE__->add_columns(
   "project",
   {
@@ -37,7 +77,27 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("project", "name");
-__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" });
+
+=head1 RELATIONS
+
+=head2 project
+
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Projects>
+
+=cut
+
+__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
+
+=head2 viewjobs
+
+Type: has_many
+
+Related object: L<Hydra::Schema::ViewJobs>
+
+=cut
+
 __PACKAGE__->has_many(
   "viewjobs",
   "Hydra::Schema::ViewJobs",
@@ -45,9 +105,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 16:04:13
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:BnM3PKkdJXAaT4rPR8gJsQ
+# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Ziocg+WjpiRs3lmlPJL4YA
 
-
-# You can replace this text with custom content, and it will be preserved on regeneration
 1;

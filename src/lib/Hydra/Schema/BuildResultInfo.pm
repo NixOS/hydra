@@ -6,10 +6,99 @@ package Hydra::Schema::BuildResultInfo;
 use strict;
 use warnings;
 
-use base 'DBIx::Class';
+use base 'DBIx::Class::Core';
 
-__PACKAGE__->load_components("Core");
+
+=head1 NAME
+
+Hydra::Schema::BuildResultInfo
+
+=cut
+
 __PACKAGE__->table("BuildResultInfo");
+
+=head1 ACCESSORS
+
+=head2 id
+
+  data_type: integer
+  default_value: undef
+  is_foreign_key: 1
+  is_nullable: 0
+  size: undef
+
+=head2 iscachedbuild
+
+  data_type: integer
+  default_value: undef
+  is_nullable: 0
+  size: undef
+
+=head2 buildstatus
+
+  data_type: integer
+  default_value: undef
+  is_nullable: 1
+  size: undef
+
+=head2 errormsg
+
+  data_type: text
+  default_value: undef
+  is_nullable: 1
+  size: undef
+
+=head2 starttime
+
+  data_type: integer
+  default_value: undef
+  is_nullable: 1
+  size: undef
+
+=head2 stoptime
+
+  data_type: integer
+  default_value: undef
+  is_nullable: 1
+  size: undef
+
+=head2 logfile
+
+  data_type: text
+  default_value: undef
+  is_nullable: 1
+  size: undef
+
+=head2 releasename
+
+  data_type: text
+  default_value: undef
+  is_nullable: 1
+  size: undef
+
+=head2 keep
+
+  data_type: integer
+  default_value: 0
+  is_nullable: 0
+  size: undef
+
+=head2 faileddepbuild
+
+  data_type: integer
+  default_value: undef
+  is_nullable: 1
+  size: undef
+
+=head2 faileddepstepnr
+
+  data_type: integer
+  default_value: undef
+  is_nullable: 1
+  size: undef
+
+=cut
+
 __PACKAGE__->add_columns(
   "id",
   {
@@ -86,11 +175,22 @@ __PACKAGE__->add_columns(
   },
 );
 __PACKAGE__->set_primary_key("id");
-__PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" });
+
+=head1 RELATIONS
+
+=head2 id
+
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Builds>
+
+=cut
+
+__PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" }, {});
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 16:04:13
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:K+kKzTgAlKSXevJWtLIwGA
+# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Vg+v2gK8l7iqBqQGtZJ1cA
 
 __PACKAGE__->belongs_to(
   "failedDep",

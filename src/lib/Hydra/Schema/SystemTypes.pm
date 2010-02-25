@@ -6,10 +6,35 @@ package Hydra::Schema::SystemTypes;
 use strict;
 use warnings;
 
-use base 'DBIx::Class';
+use base 'DBIx::Class::Core';
 
-__PACKAGE__->load_components("Core");
+
+=head1 NAME
+
+Hydra::Schema::SystemTypes
+
+=cut
+
 __PACKAGE__->table("SystemTypes");
+
+=head1 ACCESSORS
+
+=head2 system
+
+  data_type: text
+  default_value: undef
+  is_nullable: 0
+  size: undef
+
+=head2 maxconcurrent
+
+  data_type: integer
+  default_value: 2
+  is_nullable: 0
+  size: undef
+
+=cut
+
 __PACKAGE__->add_columns(
   "system",
   {
@@ -24,9 +49,7 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("system");
 
 
-# Created by DBIx::Class::Schema::Loader v0.04999_09 @ 2009-11-17 16:04:13
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:QtiooD8Th7dBKknK5IRhMQ
+# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:cY3UlAd8a/jARP5klFLP6g
 
-
-# You can replace this text with custom content, and it will be preserved on regeneration
 1;
