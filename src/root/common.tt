@@ -1,4 +1,5 @@
 [% USE date %]
+[% USE String %]
 [% USE HTML %]
 
 
@@ -277,6 +278,22 @@
     [% END %]
 [% END %]
 
+[% BLOCK renderDiffUri; %]
+    [% nouri = 1 %]
+    [% FOREACH m IN mappers %]
+        [% base = m.baseuri %]
+        [% url = bi1.uri %]
+        [% path = url.replace(base, '') %]
+        [% IF url.match(base) %]
+          <a target="_new" href="[% m.uri.replace('_path_', path).replace('_1_', bi1.revision).replace('_2_', bi2.revision) %]">[% contents %]</a>
+          [% nouri = 0 %]
+        [% END %]
+    [% END %]
+    [% IF nouri %]
+      [% contents %]
+    [% END %]
+[% END %]
+
 [% BLOCK renderInputDiff; %]
 <table class="tablesorter clean">
     [% IF !nestedDiff %]
@@ -291,7 +308,7 @@
                         <tr><td><b>[% bi1.name %]</b></td><td>[% INCLUDE renderInputValue input=bi1 %] to [% INCLUDE renderInputValue input=bi2 %]</td></tr>
                     [% ELSIF bi1.uri == bi2.uri && bi1.revision != bi2.revision %]
                         <tr><td>
-                            <b>[% bi1.name %]</b></td><td>Revision changed from [% bi1.revision %] to [% bi2.revision %].
+                            <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=('Revision changed from ' _ bi1.revision _ ' to ' _ bi2.revision) %]</tt>
                         </td></tr>
                     [% ELSIF bi1.dependency.id != bi2.dependency.id || bi1.path != bi2.path %]
                         <tr><td>

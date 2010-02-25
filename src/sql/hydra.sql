@@ -420,6 +420,11 @@ create table JobsetInputHashes (
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );
 
+create table UriRevMapper (
+    baseuri       text not null,
+    uri           text not null,
+    primary key   (baseuri)
+);
 
 -- Some indices.
 create index IndexBuildInputsOnBuild on BuildInputs(build);

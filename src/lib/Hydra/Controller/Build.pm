@@ -18,6 +18,9 @@ sub build : Chained('/') PathPart CaptureArgs(1) {
     $c->stash->{prevBuild} = getPreviousBuild($c, $c->stash->{build});
     $c->stash->{prevSuccessfulBuild} = getPreviousSuccessfulBuild($c, $c->stash->{build});
 
+    $c->stash->{mappers} = [$c->model('DB::UriRevMapper')->all];
+
+
     notFound($c, "Build with ID $id doesn't exist.")
         if !defined $c->stash->{build};
 
