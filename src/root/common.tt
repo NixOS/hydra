@@ -291,7 +291,7 @@
                         <tr><td><b>[% bi1.name %]</b></td><td>[% INCLUDE renderInputValue input=bi1 %] to [% INCLUDE renderInputValue input=bi2 %]</td></tr>
                     [% ELSIF bi1.uri == bi2.uri && bi1.revision != bi2.revision %]
                         <tr><td>
-                            <b>[% bi1.name %]</b></td><td>[% bi1.uri %] revision changed from [% bi1.revision %] to [% bi2.revision %].
+                            <b>[% bi1.name %]</b></td><td>Revision changed from [% bi1.revision %] to [% bi2.revision %].
                         </td></tr>
                     [% ELSIF bi1.dependency.id != bi2.dependency.id || bi1.path != bi2.path %]
                         <tr><td>
