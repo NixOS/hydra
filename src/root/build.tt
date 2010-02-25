@@ -81,7 +81,6 @@
 <p class="error">[% flashMsg %]</p>
 [% END %]
 
-
 <div id="generic-tabs">
 	<ul>
 		<li><a href="#tabs-summary">Summary</a></li>
@@ -191,6 +190,8 @@
                     following changes were made since:
                 </p>
                 [% INCLUDE renderInputDiff build2=build , build1=prevSuccessfulBuild %]
+                <br />
+                <p/>
             [% END %]
 
 			[% IF build.resultInfo.errormsg && build.resultInfo.buildstatus != 5 %]
