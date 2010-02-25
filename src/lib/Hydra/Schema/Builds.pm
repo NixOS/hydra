@@ -421,8 +421,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:dsXIx+mh+etSD7zKQJ6I3A
+# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 11:19:24
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:oCkX9bughWPZg6JKaOxDJA
 
 use Hydra::Helper::Nix;
 
@@ -450,6 +450,14 @@ __PACKAGE__->belongs_to(
   "resultInfo",
   "Hydra::Schema::BuildResultInfo",
   { id => "id" },
+);
+
+__PACKAGE__->has_one(
+  "actualBuildStep",
+  "Hydra::Schema::BuildSteps",
+  { 'foreign.outpath' => 'self.outpath' 
+  , 'foreign.build' => 'self.id'
+  },
 );
 
 sub addSequence {
@@ -498,30 +506,38 @@ QUERY
             x.nixExprPath,
             b.id as statusChangeId, b.timestamp as statusChangeTime
           from
-            (select project, jobset, job, system, max(id) as id
+            (select  
+               (select max(id) from builds b
+                where 
+                  project = activeJobs.project and jobset = activeJobs.jobset 
+                  and job = activeJobs.job and system = activeJobs.system 
+                  and finished = 1
+               ) as id
              from $activeJobs as activeJobs
-             natural join Builds
-             where finished = 1
-             group by project, jobset, job, system)
-            as latest
-          natural join Builds x
+            ) as latest
+          join Builds x using (id)
           $joinWithStatusChange
 QUERY
     );
+
+    makeSource("ActiveJobs$name", "(select distinct project, jobset, job from Builds where isCurrent = 1 $constraint)");
     
     makeSource(
         "LatestSucceeded$name",
         <<QUERY
           select *
           from
-            (select project, jobset, job, system, max(id) as id
+            (select  
+               (select max(id) from builds b
+                where 
+                  project = activeJobs.project and jobset = activeJobs.jobset 
+                  and job = activeJobs.job and system = activeJobs.system 
+                  and finished = 1
+                  and exists (select 1 from buildresultinfo where id = b.id and buildstatus = 0)
+               ) as id
              from $activeJobs as activeJobs
-             natural join Builds
-             natural join BuildResultInfo
-             where finished = 1 and buildStatus = 0
-             group by project, jobset, job, system
             ) as latest
-          natural join Builds
+          join Builds using (id)
 QUERY
     );
 }
@@ -532,5 +548,6 @@ makeQueries('', "");
 makeQueries('ForProject', "and project = ?");
 makeQueries('ForJobset', "and project = ? and jobset = ?");
 makeQueries('ForJob', "and project = ? and jobset = ? and job = ?");
+
 
 1;
