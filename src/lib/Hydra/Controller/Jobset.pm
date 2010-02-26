@@ -51,7 +51,7 @@ sub jobsetIndex {
         }
     }
     
-    $c->stash->{systems} = [$c->stash->{jobset}->builds->search({iscurrent => 1}, {select => ["system"], distinct => 1})];
+    $c->stash->{systems} = [$c->stash->{jobset}->builds->search({iscurrent => 1}, {select => ["system"], distinct => 1, order_by => "system" })];
         
     # status per system
     my @systems = ();
