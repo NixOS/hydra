@@ -3,6 +3,7 @@ package Hydra::View::NixManifest;
 use strict;
 use base qw/Catalyst::View/;
 use Hydra::Helper::Nix;
+use Nix;
 
 
 sub process {
@@ -12,8 +13,7 @@ sub process {
     
     $c->response->content_type('text/x-nix-manifest');
 
-    my @paths = split '\n', `nix-store --query --requisites --include-outputs @storePaths`;
-    die "cannot query dependencies of path(s) @storePaths: $?" if $? != 0;
+    my @paths = Nix::computeFSClosure(0, 1, @storePaths);
 
     my $manifest =
         "version {\n" .
