@@ -6,7 +6,7 @@ let
 
     tarball =
       { hydraSrc ? {outPath = ./.; rev = 1234;}
-      , nixpkgs ? ../../nixpkgs
+      , nixpkgs ? ../nixpkgs
       , officialRelease ? false
       }:
 
@@ -59,15 +59,15 @@ let
 
     build = 
       { tarball ? jobs.tarball {}
-      , nixpkgs ? ../../nixpkgs
-      , system ? "i686-linux"
+      , nixpkgs ? ../nixpkgs
+      , system ? "x86_64-linux"
       }:
 
       let pkgs = import nixpkgs {inherit system;}; in
       
       with pkgs;
 
-      let nix = nixUnstable; in
+      let nix = nixSqlite; in
 
       stdenv.mkDerivation {
         name = "hydra" + (if tarball ? version then "-" + tarball.version else "");
