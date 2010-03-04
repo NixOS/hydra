@@ -9,6 +9,7 @@
 #include "util.hh"
 #include "xml-writer.hh"
 #include "get-drvs.hh"
+#include "aterm.hh"
 
 using namespace nix;
 
