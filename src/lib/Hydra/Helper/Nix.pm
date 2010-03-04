@@ -4,6 +4,7 @@ use strict;
 use Exporter;
 use File::Path;
 use File::Basename;
+use Nix;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -17,42 +18,16 @@ our @EXPORT = qw(
 
 sub isValidPath {
     my $path = shift;
-    #$SIG{CHLD} = 'DEFAULT'; # !!! work around system() failing if SIGCHLD is ignored
-    #return system("nix-store --check-validity $path 2> /dev/null") == 0;
-
-    # This is faster than calling nix-store, but it breaks abstraction...
-    return -e ("/nix/var/nix/db/info/" . basename $path);
+    return Nix::isValidPath($path);
 }
 
 
 sub queryPathInfo {
     my $path = shift;
 
-    # !!! like above, this breaks abstraction.  What we really need is
-    # Perl bindings for libstore :-)
-
-    open FH, "</nix/var/nix/db/info/" . basename $path
-        or die "cannot open info file for $path";
-
-    my $hash;
-    my $deriver;
-    my @refs = ();
-
-    while (<FH>) {
-        if (/^Hash: (\S+)$/) {
-            $hash = $1;
-        }
-        elsif (/^Deriver: (\S+)$/) {
-            $deriver = $1;
-        }
-        elsif (/^References: (.*)$/) {
-            @refs = split / /, $1;
-        }
-    }
-
-    close FH;
-
-    die "path $path does not have a hash" unless defined $hash;
+    my $hash = Nix::queryPathHash($path);
+    my $deriver = Nix::queryDeriver($path);
+    my @refs = Nix::queryReferences($path);
 
     return ($hash, $deriver, \@refs);
 }
