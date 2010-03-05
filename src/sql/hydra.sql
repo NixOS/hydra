@@ -420,11 +420,13 @@ create table JobsetInputHashes (
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );
 
+
 create table UriRevMapper (
     baseuri       text not null,
     uri           text not null,
     primary key   (baseuri)
 );
+
 
 -- Some indices.
 create index IndexBuildInputsOnBuild on BuildInputs(build);
@@ -452,79 +454,3 @@ create index IndexCachedSubversionInputsOnUriRevision on CachedSubversionInputs(
 create index IndexJobsetInputAltsOnInput on JobsetInputAlts(project, jobset, input);
 create index IndexJobsetInputAltsOnJobset on JobsetInputAlts(project, jobset);
 create index IndexProjectsOnEnabled on Projects(enabled);
-
-
-#ifdef SQLITE
-
--- Emulate some "on delete/update cascade" foreign key constraints,
--- which SQLite doesn't support yet.
-
-
-create trigger cascadeBuildDeletion
-  before delete on Builds
-  for each row begin
-    delete from BuildSchedulingInfo where id = old.id;
-    delete from BuildResultInfo where id = old.id;
-    delete from BuildInputs where build = old.id;
-    delete from BuildProducts where build = old.id;
-    delete from BuildSteps where build = old.id;
-  end;
-
-
-create trigger cascadeProjectUpdate
-  update of name on Projects
-  for each row begin
-    update Jobsets set project = new.name where project = old.name;
-    update JobsetInputs set project = new.name where project = old.name;
-    update JobsetInputAlts set project = new.name where project = old.name;
-    update Builds set project = new.name where project = old.name;
-    update Views set project = new.name where project = old.name;
-    update ViewJobs set project = new.name where project = old.name;
-  end;
-
-
-create trigger cascadeJobsetUpdate
-  update of name on Jobsets
-  for each row begin
-    update JobsetInputs set jobset = new.name where project = old.project and jobset = old.name;
-    update JobsetInputAlts set jobset = new.name where project = old.project and jobset = old.name;
-    update Builds set jobset = new.name where project = old.project and jobset = old.name;
-  end;
-
-
-create trigger cascadeJobsetInputUpdate
-  update of name on JobsetInputs
-  for each row begin
-    update JobsetInputAlts set input = new.name where project = old.project and jobset = old.jobset and input = old.name;
-  end;
-
-
-create trigger cascadeJobsetInputDelete
-  before delete on JobsetInputs
-  for each row begin
-    delete from JobsetInputAlts where project = old.project and jobset = old.jobset and input = old.name;
-  end;
-
-
-create trigger cascadeUserDelete
-  before delete on Users
-  for each row begin
-    delete from UserRoles where userName = old.userName;
-  end;
-
-  
-create trigger cascadeViewDelete
-  before delete on Views
-  for each row begin
-    delete from ViewJobs where project = old.project and view_ = old.name;
-  end;
-
-
-create trigger cascadeViewUpdate
-  update of name on Views
-  for each row begin
-    update ViewJobs set view_ = new.name where project = old.project and view_ = old.name;
-  end;
-
-  
-#endif
