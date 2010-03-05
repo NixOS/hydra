@@ -43,7 +43,6 @@ sub jobsetIndex {
     $c->stash->{activeJobs} = [];
     $c->stash->{inactiveJobs} = [];
     foreach my $job (@jobs) {
-        print STDERR $job->get_column('active'), "\n";
         if ($job->get_column('active')) {
             push @{$c->stash->{activeJobs}}, $job->name;
         } else {
