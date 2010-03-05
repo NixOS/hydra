@@ -63,199 +63,203 @@ sub attrsToSQL {
     return $query;
 }
 
+
 sub fetchInputPath {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
 
-        my $uri = $value;
+    my $uri = $value;
 
-        my $timestamp = time;
-        my $sha256;
-        my $storePath;
+    my $timestamp = time;
+    my $sha256;
+    my $storePath;
 
-        # Some simple caching: don't check a path more than once every N seconds.
-        (my $cachedInput) = $db->resultset('CachedPathInputs')->search(
-            {srcpath => $uri, lastseen => {">", $timestamp - 30}},
-            {rows => 1, order_by => "lastseen DESC"});
+    # Some simple caching: don't check a path more than once every N seconds.
+    (my $cachedInput) = $db->resultset('CachedPathInputs')->search(
+        {srcpath => $uri, lastseen => {">", $timestamp - 30}},
+        {rows => 1, order_by => "lastseen DESC"});
 
-        if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-            $storePath = $cachedInput->storepath;
-            $sha256 = $cachedInput->sha256hash;
-            $timestamp = $cachedInput->timestamp;
+    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+        $storePath = $cachedInput->storepath;
+        $sha256 = $cachedInput->sha256hash;
+        $timestamp = $cachedInput->timestamp;
+    } else {
+
+        print STDERR "copying input ", $name, " from $uri\n";
+        $storePath = `nix-store --add "$uri"`
+            or die "Cannot copy path $uri to the Nix store.\n";
+        chomp $storePath;
+
+        $sha256 = getStorePathHash $storePath;
+
+        ($cachedInput) = $db->resultset('CachedPathInputs')->search(
+            {srcpath => $uri, sha256hash => $sha256});
+
+        # Path inputs don't have a natural notion of a "revision", so
+        # we simulate it by using the timestamp that we first saw this
+        # path have this SHA-256 hash.  So if the contents of the path
+        # changes, we get a new "revision", but if it doesn't change
+        # (or changes back), we don't get a new "revision".
+        if (!defined $cachedInput) {
+            txn_do($db, sub {
+                $db->resultset('CachedPathInputs')->create(
+                    { srcpath => $uri
+                    , timestamp => $timestamp
+                    , lastseen => $timestamp
+                    , sha256hash => $sha256
+                    , storepath => $storePath
+                    });
+                });
         } else {
-
-            print STDERR "copying input ", $name, " from $uri\n";
-            $storePath = `nix-store --add "$uri"`
-                or die "Cannot copy path $uri to the Nix store.\n";
-            chomp $storePath;
-
-            $sha256 = getStorePathHash $storePath;
-
-            ($cachedInput) = $db->resultset('CachedPathInputs')->search(
-                {srcpath => $uri, sha256hash => $sha256});
-
-            # Path inputs don't have a natural notion of a "revision",
-            # so we simulate it by using the timestamp that we first
-            # saw this path have this SHA-256 hash.  So if the
-            # contents of the path changes, we get a new "revision",
-            # but if it doesn't change (or changes back), we don't get
-            # a new "revision".
-            if (!defined $cachedInput) {
-                txn_do($db, sub {
-                    $db->resultset('CachedPathInputs')->create(
-                        { srcpath => $uri
-                        , timestamp => $timestamp
-                        , lastseen => $timestamp
-                        , sha256hash => $sha256
-                        , storepath => $storePath
-                        });
-                });
-            } else {
-                $timestamp = $cachedInput->timestamp;
-                txn_do($db, sub {
-                    $cachedInput->update({lastseen => time});
-                });
-            }
+            $timestamp = $cachedInput->timestamp;
+            txn_do($db, sub {
+                $cachedInput->update({lastseen => time});
+            });
         }
+    }
 
-        return
-            { type => $type
-            , uri => $uri
-            , storePath => $storePath
-            , sha256hash => $sha256
-            , revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp)
-            };
+    return
+        { type => $type
+        , uri => $uri
+        , storePath => $storePath
+        , sha256hash => $sha256
+        , revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp)
+        };
 }
+
 
 sub fetchInputSVN {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
 
-        my $uri = $value;
+    my $uri = $value;
 
-        my $sha256;
-        my $storePath;
+    my $sha256;
+    my $storePath;
 
-        # First figure out the last-modified revision of the URI.
-        my @cmd = (["svn", "ls", "-v", "--depth", "empty", $uri],
-                   "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
-        my $stdout; my $stderr;
-        die "Cannot get head revision of Subversion repository at `$uri':\n$stderr"
-            unless IPC::Run::run(@cmd, \$stdout, \$stderr);
-        my $revision = $stdout; chomp $revision;
-        die unless $revision =~ /^\d+$/;
+    # First figure out the last-modified revision of the URI.
+    my @cmd = (["svn", "ls", "-v", "--depth", "empty", $uri],
+               "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
+    my $stdout; my $stderr;
+    die "Cannot get head revision of Subversion repository at `$uri':\n$stderr"
+        unless IPC::Run::run(@cmd, \$stdout, \$stderr);
+    my $revision = $stdout; chomp $revision;
+    die unless $revision =~ /^\d+$/;
 
-        (my $cachedInput) = $db->resultset('CachedSubversionInputs')->search(
-            {uri => $uri, revision => $revision});
+    (my $cachedInput) = $db->resultset('CachedSubversionInputs')->search(
+        {uri => $uri, revision => $revision});
 
-        if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-            $storePath = $cachedInput->storepath;
-            $sha256 = $cachedInput->sha256hash;
-        } else {
+    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+        $storePath = $cachedInput->storepath;
+        $sha256 = $cachedInput->sha256hash;
+    } else {
             
-            # Then download this revision into the store.
-            print STDERR "checking out Subversion input ", $name, " from $uri revision $revision\n";
-            $ENV{"NIX_HASH_ALGO"} = "sha256";
-            $ENV{"PRINT_PATH"} = "1";
-            (my $res, $stdout, $stderr) = captureStdoutStderr(
-                "nix-prefetch-svn", $uri, $revision);
-            die "Cannot check out Subversion repository `$uri':\n$stderr" unless $res;
+        # Then download this revision into the store.
+        print STDERR "checking out Subversion input ", $name, " from $uri revision $revision\n";
+        $ENV{"NIX_HASH_ALGO"} = "sha256";
+        $ENV{"PRINT_PATH"} = "1";
+        (my $res, $stdout, $stderr) = captureStdoutStderr(
+            "nix-prefetch-svn", $uri, $revision);
+        die "Cannot check out Subversion repository `$uri':\n$stderr" unless $res;
 
-            ($sha256, $storePath) = split ' ', $stdout;
+        ($sha256, $storePath) = split ' ', $stdout;
 
-            txn_do($db, sub {
-                $db->resultset('CachedSubversionInputs')->create(
-                    { uri => $uri
-                    , revision => $revision
-                    , sha256hash => $sha256
-                    , storepath => $storePath
-                    });
+        txn_do($db, sub {
+            $db->resultset('CachedSubversionInputs')->create(
+                { uri => $uri
+                , revision => $revision
+                , sha256hash => $sha256
+                , storepath => $storePath
+                });
             });
-        }
+    }
 
-        return 
-            { type => $type
-            , uri => $uri
-            , storePath => $storePath
-            , sha256hash => $sha256
-            , revision => $revision
-            };
+    return 
+        { type => $type
+        , uri => $uri
+        , storePath => $storePath
+        , sha256hash => $sha256
+        , revision => $revision
+        };
 }
+
 
 sub fetchInputBuild {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
 
-        my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
-        $projectName ||= $project->name;
-        $jobsetName ||= $jobset->name;
+    my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
+    $projectName ||= $project->name;
+    $jobsetName ||= $jobset->name;
 
-        # Pick the most recent successful build of the specified job.
-        (my $prevBuild) = $db->resultset('Builds')->search(
-            { finished => 1, project => $projectName, jobset => $jobsetName
-            , job => $jobName, buildStatus => 0 },
-            { join => 'resultInfo', order_by => "me.id DESC", rows => 1
-            , where => \ attrsToSQL($attrs, "me.id") });
+    # Pick the most recent successful build of the specified job.
+    (my $prevBuild) = $db->resultset('Builds')->search(
+        { finished => 1, project => $projectName, jobset => $jobsetName
+        , job => $jobName, buildStatus => 0 },
+        { join => 'resultInfo', order_by => "me.id DESC", rows => 1
+        , where => \ attrsToSQL($attrs, "me.id") });
 
-        if (!defined $prevBuild || !isValidPath($prevBuild->outpath)) {
-            print STDERR "input `", $name, "': no previous build available\n";
-            return undef;
-        }
+    if (!defined $prevBuild || !isValidPath($prevBuild->outpath)) {
+        print STDERR "input `", $name, "': no previous build available\n";
+        return undef;
+    }
 
-        #print STDERR "input `", $name, "': using build ", $prevBuild->id, "\n";
+    #print STDERR "input `", $name, "': using build ", $prevBuild->id, "\n";
 
-        my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
-        my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
+    my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
+    my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
 
-        my $relName = ($prevBuild->resultInfo->releasename or $prevBuild->nixname);
-        my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
+    my $relName = ($prevBuild->resultInfo->releasename or $prevBuild->nixname);
+    my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
         
-        return 
-            { type => "build"
-            , storePath => $prevBuild->outpath
-            , id => $prevBuild->id
-            , version => $version
-            };
+    return 
+        { type => "build"
+        , storePath => $prevBuild->outpath
+        , id => $prevBuild->id
+        , version => $version
+        };
 }
+
 
 sub fetchInputSystemBuild {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
 
-        my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
-        $projectName ||= $project->name;
-        $jobsetName ||= $jobset->name;
+    my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
+    $projectName ||= $project->name;
+    $jobsetName ||= $jobset->name;
 
-        my @latestBuilds = $db->resultset('LatestSucceededForJob')
-          ->search({}, {bind => [$projectName, $jobsetName, $jobName]});
+    my @latestBuilds = $db->resultset('LatestSucceededForJob')
+        ->search({}, {bind => [$projectName, $jobsetName, $jobName]});
 
-        my @validBuilds = ();
-        foreach my $build (@latestBuilds) {
-        	if(isValidPath($build->outpath)) {
-        		push(@validBuilds,$build);
-        	}
-        }
+    my @validBuilds = ();
+    foreach my $build (@latestBuilds) {
+        push(@validBuilds, $build) if isValidPath($build->outpath);
+    }
         
-        if (scalar(@validBuilds) == 0) {
-            print STDERR "input `", $name, "': no previous build available\n";
-            return undef;
-        }
-
-		my @inputs = ();
-        foreach my $prevBuild (@validBuilds) {
-	        my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
-	        my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
-	
-	        my $relName = ($prevBuild->resultInfo->releasename or $prevBuild->nixname);
-	        my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
-	        
-	        my $input =
-	            { type => "sysbuild"
-	            , storePath => $prevBuild->outpath
-	            , id => $prevBuild->id
-	            , version => $version
-	            , system => $prevBuild->system
-	            };
-	        push(@inputs, $input);
-		}
-		return @inputs;		        
+    if (scalar(@validBuilds) == 0) {
+        print STDERR "input `", $name, "': no previous build available\n";
+        return undef;
+    }
+    
+    my @inputs = ();
+    
+    foreach my $prevBuild (@validBuilds) {
+        my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
+        my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
+        
+        my $relName = ($prevBuild->resultInfo->releasename or $prevBuild->nixname);
+        my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
+                
+        my $input =
+            { type => "sysbuild"
+            , storePath => $prevBuild->outpath
+            , id => $prevBuild->id
+            , version => $version
+            , system => $prevBuild->system
+            };
+        push(@inputs, $input);
+    }
+    
+    return @inputs;                     
 }
+
 
 sub fetchInputGit {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
@@ -270,7 +274,7 @@ sub fetchInputGit {
     # First figure out the last-modified revision of the URI.
     my $stdout; my $stderr;
     (my $res, $stdout, $stderr) = captureStdoutStderr(
-	    "git", "ls-remote", $uri, $branch);
+        "git", "ls-remote", $uri, $branch);
     die "Cannot get head revision of Git branch '$branch' at `$uri':\n$stderr" unless $res;
 
     (my $revision, my $ref) = split ' ', $stdout;
@@ -279,98 +283,99 @@ sub fetchInputGit {
     # Some simple caching: don't check a uri/branch more than once every hour, but prefer exact match on uri/branch/revision.
     my $cachedInput ;
     ($cachedInput) = $db->resultset('CachedGitInputs')->search(
-	{uri => $uri, branch => $branch, revision => $revision},
-	{rows => 1});
+        {uri => $uri, branch => $branch, revision => $revision},
+        {rows => 1});
     if (! defined $cachedInput ) {
-	($cachedInput) = $db->resultset('CachedGitInputs')->search(
-	    {uri => $uri, branch => $branch, lastseen => {">", $timestamp - 3600}},
-	    {rows => 1, order_by => "lastseen DESC"});
+        ($cachedInput) = $db->resultset('CachedGitInputs')->search(
+            {uri => $uri, branch => $branch, lastseen => {">", $timestamp - 3600}},
+            {rows => 1, order_by => "lastseen DESC"});
     }
 
     if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
-    	$sha256 = $cachedInput->sha256hash;
-    	$timestamp = $cachedInput->timestamp;
-    	$revision = $cachedInput->revision;
+        $sha256 = $cachedInput->sha256hash;
+        $timestamp = $cachedInput->timestamp;
+        $revision = $cachedInput->revision;
     } else {
     
-    	# Then download this revision into the store.
-    	print STDERR "checking out Git input from $uri";
-    	$ENV{"NIX_HASH_ALGO"} = "sha256";
-    	$ENV{"PRINT_PATH"} = "1";
+        # Then download this revision into the store.
+        print STDERR "checking out Git input from $uri";
+        $ENV{"NIX_HASH_ALGO"} = "sha256";
+        $ENV{"PRINT_PATH"} = "1";
     
-    	# Checked out code often wants to be able to run `git
-    	# describe', e.g., code that uses Gnulib's `git-version-gen'
-    	# script.  Thus, we leave `.git' in there.  Same for
-    	# Subversion (e.g., libgcrypt's build system uses that.)
-    	$ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
-    	$ENV{"NIX_PREFETCH_SVN_LEAVE_DOT_SVN"} = "1";
+        # Checked out code often wants to be able to run `git
+        # describe', e.g., code that uses Gnulib's `git-version-gen'
+        # script.  Thus, we leave `.git' in there.  Same for
+        # Subversion (e.g., libgcrypt's build system uses that.)
+        $ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
+        $ENV{"NIX_PREFETCH_SVN_LEAVE_DOT_SVN"} = "1";
     
-    	# Ask for a "deep clone" to allow "git describe" and similar
-    	# tools to work.  See
-    	# http://thread.gmane.org/gmane.linux.distributions.nixos/3569
-    	# for a discussion.
-    	$ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
+        # Ask for a "deep clone" to allow "git describe" and similar
+        # tools to work.  See
+        # http://thread.gmane.org/gmane.linux.distributions.nixos/3569
+        # for a discussion.
+        $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
     
-    	(my $res, $stdout, $stderr) = captureStdoutStderr(
-    	    "nix-prefetch-git", $uri, $revision);
-    	die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
+        (my $res, $stdout, $stderr) = captureStdoutStderr(
+            "nix-prefetch-git", $uri, $revision);
+        die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
     
-    	($sha256, $storePath) = split ' ', $stdout;
-    	($cachedInput) = $db->resultset('CachedGitInputs')->search(
-    	    {uri => $uri, branch => $branch, sha256hash => $sha256});
+        ($sha256, $storePath) = split ' ', $stdout;
+        ($cachedInput) = $db->resultset('CachedGitInputs')->search(
+            {uri => $uri, branch => $branch, sha256hash => $sha256});
     
-    	if (!defined $cachedInput) {
-    	    txn_do($db, sub {
-        		$db->resultset('CachedGitInputs')->update_or_create(
-        		    { uri => $uri
-                            , branch => $branch
-                            , revision => $revision
-                            , timestamp => $timestamp
-                            , lastseen => $timestamp
-                            , sha256hash => $sha256
-                            , storepath => $storePath
-                            });
-    		   });
-    	} else {
-    	    $timestamp = $cachedInput->timestamp;
-    	    txn_do($db, sub {
+        if (!defined $cachedInput) {
+            txn_do($db, sub {
+                $db->resultset('CachedGitInputs')->update_or_create(
+                    { uri => $uri
+                    , branch => $branch
+                    , revision => $revision
+                    , timestamp => $timestamp
+                    , lastseen => $timestamp
+                    , sha256hash => $sha256
+                    , storepath => $storePath
+                    });
+                });
+        } else {
+            $timestamp = $cachedInput->timestamp;
+            txn_do($db, sub {
                 $cachedInput->update({lastseen => time});
-    	    });
-    	}
+            });
+        }
     }
 
     return
-       { type => $type
-       , uri => $uri
-       , storePath => $storePath
-       , sha256hash => $sha256
-       , revision => $revision
-       };
-
+        { type => $type
+        , uri => $uri
+        , storePath => $storePath
+        , sha256hash => $sha256
+        , revision => $revision
+        };
 }
+
 
 sub fetchInputCVS {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
 }
 
+
 sub fetchInput {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
 
     if ($type eq "path") {
-	return fetchInputPath($db, $project, $jobset, $name, $type, $value);
+        return fetchInputPath($db, $project, $jobset, $name, $type, $value);
     }
     elsif ($type eq "svn") {
-	return fetchInputSVN($db, $project, $jobset, $name, $type, $value);
+        return fetchInputSVN($db, $project, $jobset, $name, $type, $value);
     }
     elsif ($type eq "build") {
-	return fetchInputBuild($db, $project, $jobset, $name, $type, $value);
+        return fetchInputBuild($db, $project, $jobset, $name, $type, $value);
     }
     elsif ($type eq "sysbuild") {
-	return fetchInputSystemBuild($db, $project, $jobset, $name, $type, $value);
+        return fetchInputSystemBuild($db, $project, $jobset, $name, $type, $value);
     }
     elsif ($type eq "git") {
-	return fetchInputGit($db, $project, $jobset, $name, $type, $value);
+        return fetchInputGit($db, $project, $jobset, $name, $type, $value);
     }
     
     elsif ($type eq "string") {
@@ -450,16 +455,16 @@ sub evalJobs {
 
     my @filteredJobs = ();
     foreach my $job (@{$jobs->{job}}) {
-    	my $validJob = 1;
-  		foreach my $arg (@{$job->{arg}}) {
-  			my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}] ;
-  			if($input->{type} eq "sysbuild" && ! ($input->{system} eq $job->{system}) ) {
-  				$validJob = 0 ;
-  			}
-    	}
-    	if($validJob) {
-    	  push(@filteredJobs, $job);
-    	}    	
+        my $validJob = 1;
+        foreach my $arg (@{$job->{arg}}) {
+            my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}] ;
+            if ($input->{type} eq "sysbuild" && $input->{system} ne $job->{system}) {
+                $validJob = 0;
+            }
+        }
+        if ($validJob) {
+            push(@filteredJobs, $job);
+        }
     }
     $jobs->{job} = \@filteredJobs;
     
