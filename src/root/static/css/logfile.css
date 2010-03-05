@@ -81,7 +81,7 @@ em.storeref:hover span.popup {
     font-weight: bold;
 }
 
-.errorLine {
+.warningLine {
     color: darkorange;
     font-weight: bold;
 }
