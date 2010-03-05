@@ -81,6 +81,11 @@ em.storeref:hover span.popup {
     font-weight: bold;
 }
 
+.errorLine {
+    color: darkorange;
+    font-weight: bold;
+}
+
 .prio3 {
     font-style: italic;
 }
