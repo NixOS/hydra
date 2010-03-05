@@ -151,7 +151,7 @@ sub checkJobset {
         # Clear the "current" flag on all builds that are no longer
         # current.
         foreach my $build ($jobset->builds->search({iscurrent => 1})) {
-            $build->update({iscurrent => 0}) unless $currentBuilds{$build->id};
+            $build->update({iscurrent => 0}) unless defined $currentBuilds{$build->id};
         }
 
         my $hasNewBuilds = 0;
