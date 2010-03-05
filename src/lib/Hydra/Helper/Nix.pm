@@ -164,37 +164,15 @@ sub findLastJobForBuilds {
     # as input.  If there are multiple, prefer successful
     # ones, and then oldest.  !!! order_by buildstatus is hacky
     ($thisBuild) = $builds->search(
-             { project => $job->get_column('project'), jobset => $job->get_column('jobset')
-             , job => $job->get_column('job'), finished => 1 
-             }
-           , { join => 'resultInfo', rows => 1
-             , order_by => ["buildstatus", "timestamp"]
-             , where => \ attrsToSQL($job->attrs, "build.id")
-             , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
-             });
-  return $thisBuild ;
+        { project => $job->get_column('project'), jobset => $job->get_column('jobset')
+        , job => $job->get_column('job'), finished => 1 
+        },
+        { join => 'resultInfo', rows => 1
+        , order_by => ["buildstatus", "timestamp"]
+        , where => \ attrsToSQL($job->attrs, "build.id")
+        , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
+        });
     
-}
-
-
-sub findLastJobForPrimaryBuild {
-    my ($primaryBuild, $job) = @_;
-    my $thisBuild;
-    my $depBuilds;
-    $depBuilds = $primaryBuild->dependentBuilds;
-    $thisBuild = findLastJobForBuilds($depBuilds, $job) ;
-
-# don't do recursive yet
-#    if (!defined $thisBuild) {
-#        
-#        foreach my $build ($depBuilds->all) {
-#            $thisBuild = findLastJobForPrimaryBuild($build, $job) ;
-#            if (defined $thisBuild) {
-#                last ;
-#            }
-#        }
-#    } 
-
     return $thisBuild;
 }
 
@@ -211,13 +189,9 @@ sub getViewResult {
     my $timestamp = 0;
         
     foreach my $job (@{$jobs}) {
-        my $thisBuild;
-
-        if ($job->isprimary) {
-            $thisBuild = $primaryBuild;
-        } else {
-            $thisBuild = findLastJobForPrimaryBuild($primaryBuild, $job) ;
-        }
+        my $thisBuild = $job->isprimary
+            ? $primaryBuild
+            : findLastJobForBuilds(scalar $primaryBuild->dependentBuilds, $job);
 
         if (!defined $thisBuild) {
             $status = 2 if $status == 0; # = unfinished
