@@ -65,6 +65,9 @@
       <xsl:if test="@error">
         <xsl:attribute name="class">errorLine</xsl:attribute>
       </xsl:if>
+      <xsl:if test="@warning">
+        <xsl:attribute name="class">warningLine</xsl:attribute>
+      </xsl:if>
       <xsl:if test="@priority = 3">
         <xsl:attribute name="class">prio3</xsl:attribute>
       </xsl:if>
