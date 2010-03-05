@@ -74,7 +74,7 @@ sub fetchInputPath {
 
         # Some simple caching: don't check a path more than once every N seconds.
         (my $cachedInput) = $db->resultset('CachedPathInputs')->search(
-            {srcpath => $uri, lastseen => {">", $timestamp - 60}},
+            {srcpath => $uri, lastseen => {">", $timestamp - 30}},
             {rows => 1, order_by => "lastseen DESC"});
 
         if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
@@ -505,7 +505,7 @@ sub checkBuild {
         my @previousBuilds = $job->builds->search({outPath => $outPath, isCurrent => 1});
         if (scalar(@previousBuilds) > 0) {
             print STDERR "already scheduled/built\n";
-            $currentBuilds->{$_->id} = 1 foreach @previousBuilds;
+            $currentBuilds->{$_->id} = 0 foreach @previousBuilds;
             return;
         }
         

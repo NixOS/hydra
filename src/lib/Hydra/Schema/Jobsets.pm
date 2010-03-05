@@ -253,17 +253,17 @@ __PACKAGE__->has_many(
   },
 );
 
-=head2 jobsetinputhashes
+=head2 jobsetevals
 
 Type: has_many
 
-Related object: L<Hydra::Schema::JobsetInputHashes>
+Related object: L<Hydra::Schema::JobsetEvals>
 
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetinputhashes",
-  "Hydra::Schema::JobsetInputHashes",
+  "jobsetevals",
+  "Hydra::Schema::JobsetEvals",
   {
     "foreign.jobset"  => "self.name",
     "foreign.project" => "self.project",
@@ -271,7 +271,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ORCZ73BJrscvmyf/4ds0UQ
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-03-05 13:07:46
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Z0HutYxnzYVuQc3W51mq5Q
 
 1;

@@ -403,21 +403,44 @@ create table ReleaseMembers (
 );
 
 
--- This table is used to prevent repeated Nix expression evaluation
--- for the same set of inputs for a jobset.  In the scheduler, after
--- obtaining the current inputs for a jobset, we hash the inputs
--- together, and if the resulting hash already appears in this table,
--- we can skip the jobset.  Otherwise it's added to the table, and the
--- Nix expression for the jobset is evaluated.  The hash is computed
--- over the command-line arguments to hydra_eval_jobs.
-create table JobsetInputHashes (
+create table JobsetEvals (
+#ifdef POSTGRESQL
+    id            serial primary key not null,
+#else
+    id            integer primary key autoincrement not null,
+#endif
+
     project       text not null,
     jobset        text not null,
+    
+    timestamp     integer not null, -- when this entry was added
+    checkoutTime  integer not null, -- how long obtaining the inputs took (in seconds)
+    evalTime      integer not null, -- how long evaluation took (in seconds)
+
+    -- If 0, then the evaluation of this jobset did not cause any new
+    -- builds to be added to the database.  Otherwise, *all* the
+    -- builds resulting from the evaluation of the jobset (including
+    -- existing ones) can be found in the JobsetEvalMembers table.
+    hasNewBuilds  integer not null,
+
+    -- Used to prevent repeated Nix expression evaluation for the same
+    -- set of inputs for a jobset.  In the scheduler, after obtaining
+    -- the current inputs for a jobset, we hash the inputs together,
+    -- and if the resulting hash already appears in this table, we can
+    -- skip the jobset.  Otherwise we proceed.  The hash is computed
+    -- over the command-line arguments to hydra_eval_jobs.
     hash          text not null,
-    timestamp     integer not null,
-    primary key   (project, jobset, hash),
+
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
+);
+
+
+create table JobsetEvalMembers (
+    eval          integer not null references JobsetEvals(id) on delete cascade,
+    build         integer not null references Builds(id) on delete cascade,
+    isNew         integer not null,
+    primary key   (eval, build)
 );
 
 

@@ -44,7 +44,7 @@ __PACKAGE__->table("BuildSchedulingInfo");
 =head2 locker
 
   data_type: text
-  default_value: (empty string)
+  default_value: ''
   is_nullable: 0
   size: undef
 
@@ -85,7 +85,7 @@ __PACKAGE__->add_columns(
   "busy",
   { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
   "locker",
-  { data_type => "text", default_value => "", is_nullable => 0, size => undef },
+  { data_type => "text", default_value => "''", is_nullable => 0, size => undef },
   "logfile",
   {
     data_type => "text",
@@ -118,8 +118,8 @@ Related object: L<Hydra::Schema::Builds>
 __PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" }, {});
 
 
-# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:yEhHeANRynKf72dp5URvZA
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-03-05 13:07:46
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qOU/YGv3fgPynBXovV6gfg
 
 # You can replace this text with custom content, and it will be preserved on regeneration
 1;

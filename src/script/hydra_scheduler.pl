@@ -20,6 +20,7 @@ STDOUT->autoflush();
 my $db = openHydraDB;
 my %config = new Config::General($ENV{"HYDRA_CONFIG"})->getall;
 
+
 sub fetchInputs {
     my ($project, $jobset, $inputInfo) = @_;
     foreach my $input ($jobset->jobsetinputs->all) {
@@ -99,7 +100,9 @@ sub checkJobset {
     my $inputInfo = {};
     
     # Fetch all values for all inputs.
+    my $checkoutStart = time;
     fetchInputs($project, $jobset, $inputInfo);
+    my $checkoutStop = time;
 
     # Hash the arguments to hydra_eval_jobs and check the
     # JobsetInputHashes to see if we've already evaluated this set of
@@ -107,7 +110,7 @@ sub checkJobset {
     my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo));
     my $argsHash = sha256_hex("@args");
 
-    if ($jobset->jobsetinputhashes->find({hash => $argsHash})) {
+    if ($jobset->jobsetevals->find({hash => $argsHash})) {
         print "  already evaluated, skipping\n";
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
@@ -116,18 +119,20 @@ sub checkJobset {
     }
     
     # Evaluate the job expression.
+    my $evalStart = time;
     my ($jobs, $nixExprInput) = evalJobs($inputInfo, $jobset->nixexprinput, $jobset->nixexprpath);
-
-    # Schedule each successfully evaluated job.
-    my %currentBuilds;
-    foreach my $job (permute @{$jobs->{job}}) {
-        next if $job->{jobName} eq "";
-        print "considering job " . $job->{jobName} . "\n";
-        checkBuild($db, $project, $jobset, $inputInfo, $nixExprInput, $job, \%currentBuilds);
-    }
+    my $evalStop = time;
 
     txn_do($db, sub {
         
+        # Schedule each successfully evaluated job.
+        my %currentBuilds;
+        foreach my $job (permute @{$jobs->{job}}) {
+            next if $job->{jobName} eq "";
+            print "considering job " . $job->{jobName} . "\n";
+            checkBuild($db, $project, $jobset, $inputInfo, $nixExprInput, $job, \%currentBuilds);
+        }
+
         # Update the last checked times and error messages for each
         # job.
         my %failedJobNames;
@@ -149,8 +154,24 @@ sub checkJobset {
             $build->update({iscurrent => 0}) unless $currentBuilds{$build->id};
         }
 
-        $jobset->jobsetinputhashes->create({hash => $argsHash, timestamp => time});
-        
+        my $hasNewBuilds = 0;
+        while (my ($id, $new) = each %currentBuilds) {
+            $hasNewBuilds = 1 if $new;
+        }
+
+        my $ev = $jobset->jobsetevals->create(
+            { hash => $argsHash
+            , timestamp => time
+            , checkouttime => abs($checkoutStop - $checkoutStart)
+            , evaltime => abs($evalStop - $evalStart)
+            , hasnewbuilds => $hasNewBuilds
+            });
+
+        if ($hasNewBuilds) {
+            while (my ($id, $new) = each %currentBuilds) {
+                $ev->jobsetevalmembers->create({ build => $id, isnew => $new });
+            }
+        }
     });
        
     # Store the errors messages for jobs that failed to evaluate.

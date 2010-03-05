@@ -45,6 +45,10 @@
 * Changing the priority of a scheduled build:
 
   update buildschedulinginfo set priority = 200 where id = <ID>;
+
+* Changing the priority of all builds for a jobset:
+
+  update buildschedulinginfo set priority = 20 where id in (select id from builds where finished = 0 and project = 'nixpkgs' and jobset = 'trunk');
   
 
 * Steps to install:
@@ -103,6 +107,10 @@
   alter table Builds add column nixExprInput text;
   alter table Builds add column nixExprPath text;
 
+  # Adding JobsetEvals.
+  drop table JobsetInputHashes;
+  (add JobsetEvals, JobsetEvalMembers)
+
   
 * Job selection:
   
@@ -138,7 +146,7 @@
 
 * Installing deps.nix in a profile for testing:
 
-  $ nix-env -p /nix/var/nix/profiles/per-user/eelco/hydra-deps -f deps.nix -i \* --arg pkgs 'import /home/eelco/Dev/nixpkgs {}'
+  $ nix-env -p $NIX_USER_PROFILE_DIR/hydra-deps -f deps.nix -i \* --arg pkgs 'import /etc/nixos/nixpkgs {}'
   
 
 * select x.project, x.jobset, x.job, x.system, x.id, x.timestamp, r.buildstatus, b.id, b.timestamp
@@ -154,3 +162,8 @@
 * Using PostgreSQL:
 
   $ HYDRA_DBI="dbi:Pg:dbname=hydra;" hydra_server.pl
+
+
+* Find the builds with the highest number of build steps:
+
+  select id, (select count(*) from buildsteps where build = x.id) as n from builds x order by n desc;

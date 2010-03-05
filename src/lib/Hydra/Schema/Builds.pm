@@ -420,9 +420,23 @@ __PACKAGE__->has_many(
   { "foreign.build" => "self.id" },
 );
 
+=head2 jobsetevalmembers
 
-# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 11:19:24
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:oCkX9bughWPZg6JKaOxDJA
+Type: has_many
+
+Related object: L<Hydra::Schema::JobsetEvalMembers>
+
+=cut
+
+__PACKAGE__->has_many(
+  "jobsetevalmembers",
+  "Hydra::Schema::JobsetEvalMembers",
+  { "foreign.build" => "self.id" },
+);
+
+
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-03-05 13:07:46
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:sE2/zTcfETC8Eahh6NQDZA
 
 use Hydra::Helper::Nix;
 
