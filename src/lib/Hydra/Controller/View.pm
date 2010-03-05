@@ -51,7 +51,7 @@ sub updateView {
         my $description = trim $c->request->params->{"job-$baseName-description"};
         my $attrs = trim $c->request->params->{"job-$baseName-attrs"};
 
-        $name =~ /^([\w\-]+):([\w\-]+)$/ or error($c, "Invalid job name: $name");
+        $name =~ /^([\w\-]+):($jobNameRE)$/ or error($c, "Invalid job name: $name");
         my $jobsetName = $1;
         my $jobName = $2;
 
