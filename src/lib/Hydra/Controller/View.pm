@@ -92,7 +92,7 @@ sub view_view : Chained('view') PathPart('') Args(0) {
     $c->stash->{template} = 'view.tt';
 
     my $resultsPerPage = 10;
-    my $page = int($c->req->param('page')) || 1;
+    my $page = int($c->req->param('page') || "1") || 1;
 
     my @results = ();
     push @results, getViewResult($_, $c->stash->{jobs}) foreach

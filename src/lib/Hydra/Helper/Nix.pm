@@ -157,21 +157,41 @@ sub getPrimaryBuildsForView {
 
 
 sub findLastJobForBuilds {
-    my ($builds, $job) = @_;
+    my ($ev, $depBuilds, $job) = @_;
     my $thisBuild;
 
-    # Find a build of this job that had the primary build
-    # as input.  If there are multiple, prefer successful
-    # ones, and then oldest.  !!! order_by buildstatus is hacky
-    ($thisBuild) = $builds->search(
-        { project => $job->get_column('project'), jobset => $job->get_column('jobset')
+    my $project = $job->get_column('project');
+    my $jobset = $job->get_column('jobset');
+
+    # If the job is in the same jobset as the primary build, then
+    # search for a build of the job among the members of the jobset
+    # evaluation ($ev) that produced the primary build.
+    if (defined $ev && $project eq $ev->get_column('project')
+        && $jobset eq $ev->get_column('jobset'))
+    {
+        $thisBuild = $ev->builds->find(
+            { job => $job->get_column('job'), finished => 1 },
+            { join => 'resultInfo', rows => 1
+            , order_by => ["id"]
+            , where => \ attrsToSQL($job->attrs, "build.id")
+            , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
+            });
+    }
+
+    # As backwards compatibility, find a build of this job that had
+    # the primary build as input.  If there are multiple, prefer
+    # successful ones, and then oldest.  !!! order_by buildstatus is
+    # hacky
+    $thisBuild = $depBuilds->find(
+        { project => $project, jobset => $jobset
         , job => $job->get_column('job'), finished => 1 
         },
         { join => 'resultInfo', rows => 1
         , order_by => ["buildstatus", "timestamp"]
         , where => \ attrsToSQL($job->attrs, "build.id")
         , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
-        });
+        })
+        unless defined $thisBuild;
     
     return $thisBuild;
 }
@@ -184,6 +204,13 @@ sub getViewResult {
 
     my $status = 0; # = okay
 
+    # Get the jobset evaluation of which the primary build is a
+    # member.  If there are multiple, pick the oldest one (i.e. the
+    # lowest id).  (Note that for old builds in the database there
+    # might not be a evaluation record, so $ev may be undefined.)
+    my $ev = $primaryBuild->jobsetevalmembers->find({}, { rows => 1, order_by => "eval" });
+    $ev = $ev->eval if defined $ev;
+    
     # The timestamp of the view result is the highest timestamp of all
     # constitutent builds.
     my $timestamp = 0;
@@ -191,7 +218,7 @@ sub getViewResult {
     foreach my $job (@{$jobs}) {
         my $thisBuild = $job->isprimary
             ? $primaryBuild
-            : findLastJobForBuilds(scalar $primaryBuild->dependentBuilds, $job);
+            : findLastJobForBuilds($ev, scalar $primaryBuild->dependentBuilds, $job);
 
         if (!defined $thisBuild) {
             $status = 2 if $status == 0; # = unfinished

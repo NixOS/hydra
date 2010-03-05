@@ -196,5 +196,13 @@ if ($hydradbi =~ m/^dbi:Pg/) {
     __PACKAGE__->sequence('jobsetevals_id_seq');
 }
 
+__PACKAGE__->has_many(
+  "buildIds",
+  "Hydra::Schema::JobsetEvalMembers",
+  { "foreign.eval" => "self.id" },
+);
+
+__PACKAGE__->many_to_many(builds => 'buildIds', 'build');
+
 # You can replace this text with custom content, and it will be preserved on regeneration
 1;
