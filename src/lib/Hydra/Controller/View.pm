@@ -162,6 +162,10 @@ sub result : Chained('view') PathPart('') {
     my $result = getViewResult($primaryBuild, $c->stash->{jobs});
     $c->stash->{result} = $result;
 
+    my %jobNames;
+    $jobNames{$_->{job}->job}++ foreach @{$result->{jobs}};
+    $c->stash->{jobNames} = \%jobNames;
+
     if (scalar @args == 1 && $args[0] eq "release") {
         requireProjectOwner($c, $c->stash->{project});
 
