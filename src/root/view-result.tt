@@ -27,7 +27,7 @@
     [% IF j.build.resultInfo.buildstatus == 0 %]
 
       [% IF j.build.buildproducts %]
-        [% INCLUDE renderProductList build=j.build latestRoot=['/view' project.name view.name 'latest' j.job.job] %]
+        [% INCLUDE renderProductList build=j.build latestRoot=['/view' project.name view.name 'latest' "${j.job.job}-${j.build.system}"] %]
       [% ELSE %]
         <p><em>Succeeded.</em></p>
       [% END %]

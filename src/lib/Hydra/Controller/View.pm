@@ -192,16 +192,21 @@ sub result : Chained('view') PathPart('') {
             [$c->stash->{project}->name, $release->name]));
     }
 
-    # Provide a redirect to the specified job of this view result.
-    # !!!  This isn't uniquely defined if there are multiple jobs with
-    # the same name (e.g. builds for different platforms).  However,
-    # this mechanism is primarily to allow linking to resources of
-    # which there is only one build, such as the manual of the latest
-    # view result.
+    # Provide a redirect to the specified job of this view result
+    # through `http://.../view/$project/$viewName/$viewResult/$jobName'. 
+    # Optionally, you can append `-$system' to the $jobName to get a
+    # build for a specific platform.
     elsif (scalar @args != 0) {
         my $jobName = shift @args;
-        (my $build, my @others) = grep { $_->{job}->job eq $jobName } @{$result->{jobs}};
-        notFound($c, "View doesn't have a job named `$jobName'")
+        my $system;
+        if ($jobName =~ /^($jobNameRE)-($systemRE)$/) {
+            $jobName = $1;
+            $system = $2;
+        }
+        (my $build, my @others) =
+            grep { $_->{job}->job eq $jobName && (!defined $system || ($_->{build} && $_->{build}->system eq $system)) }
+            @{$result->{jobs}};
+        notFound($c, "View doesn't have a job named ‘$jobName’" . ($system ? " for ‘$system’" : "") . ".")
             unless defined $build;
         error($c, "Job `$jobName' isn't unique.") if @others;
         return $c->res->redirect($c->uri_for($c->controller('Build')->action_for('view_build'),

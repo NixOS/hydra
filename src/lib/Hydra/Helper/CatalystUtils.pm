@@ -11,7 +11,7 @@ our @EXPORT = qw(
     error notFound
     requireLogin requireProjectOwner requireAdmin requirePost
     trim
-    $pathCompRE $relPathRE $relNameRE $jobNameRE
+    $pathCompRE $relPathRE $relNameRE $jobNameRE $systemRE
 );
 
 
@@ -174,6 +174,7 @@ Readonly::Scalar our $relPathRE  => "(?:$pathCompRE(?:/$pathCompRE)*)";
 Readonly::Scalar our $relNameRE  => "(?:[A-Za-z0-9-][A-Za-z0-9-\.]*)";
 Readonly::Scalar our $attrNameRE => "(?:[A-Za-z_][A-Za-z0-9_]*)";
 Readonly::Scalar our $jobNameRE  => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
+Readonly::Scalar our $systemRE   => "(?:[a-z0-9_]+-[a-z0-9_]+)";
 
 
 1;
