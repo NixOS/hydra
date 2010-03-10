@@ -42,7 +42,7 @@ rec {
 
         make -C src/sql
 
-        releaseName=hydra-0.1$VERSION_SUFFIX;
+        releaseName=hydra-0.1$VERSION_SUFFIX
         ensureDir $out/tarballs
         mkdir ../$releaseName
         cp -prd . ../$releaseName
@@ -108,11 +108,14 @@ rec {
         ln -s manual.html $out/share/doc/hydra/manual/index.html
         echo "doc manual $out/share/doc/hydra/manual" >> $out/nix-support/hydra-build-products
         echo "nix-build none $out" >> $out/nix-support/hydra-build-products
+
+        ensureDir $out/share/hydra/sql
+        cp src/sql/*.sql $out/share/hydra/sql/
       ''; # */
 
       meta = {
         description = "Build of Hydra on ${system}";
       };
     };
-
+    
 }
