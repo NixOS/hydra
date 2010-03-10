@@ -1,5 +1,5 @@
 { nixpkgs ? ../nixpkgs
-, hydraSrc ? {outPath = ./.; rev = 1234;}
+, hydraSrc ? {outPath = ../hydra-wc; rev = 1234;}
 , officialRelease ? false
 }:
 
@@ -117,5 +117,44 @@ rec {
         description = "Build of Hydra on ${system}";
       };
     };
+
+
+  tests =
+    { nixos ? ../nixos, system ? "x86_64-linux" }:
+
+    let hydra = build { inherit system; }; in
+
+    with import "${nixos}/lib/testing.nix" { inherit nixpkgs system; services = null; };
+
+    {
     
+      install = simpleTest {
+
+        machine = 
+          { config, pkgs, ... }:
+          { services.postgresql.enable = true;
+            environment.systemPackages = [ hydra ];
+          };
+
+        testScript =
+          ''
+            $machine->waitForJob("postgresql");
+
+            # Initialise the database and the state.
+            $machine->mustSucceed
+                ( "createdb -O root hydra",
+                , "psql hydra -f ${hydra}/share/hydra/sql/hydra-postgresql.sql"
+                , "mkdir /var/lib/hydra"
+                );
+
+            # Start the web interface.
+            #$machine->mustSucceed("HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=hydra;' hydra_server.pl >&2 &");
+            #$machine->waitForOpenPort("3000");
+          '';
+          
+      };
+      
+    };
+
+
 }
