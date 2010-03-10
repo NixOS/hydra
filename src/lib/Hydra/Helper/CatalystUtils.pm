@@ -139,9 +139,9 @@ sub requireProjectOwner {
     my ($c, $project) = @_;
     
     requireLogin($c) if !$c->user_exists;
-    
-    error($c, "Only the project owner or administrators can perform this operation.")
-        unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username;
+
+    error($c, "Only the project members or administrators can perform this operation.")
+        unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username || defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username });
 }
 
 
