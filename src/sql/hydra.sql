@@ -25,6 +25,14 @@ create table Projects (
     foreign key   (owner) references Users(userName) on update cascade
 );
 
+create table ProjectMembers (
+    project       text not null,
+    userName      text not null,
+    primary key   (project, userName),
+    foreign key   (project) references Projects(name) on delete cascade on update cascade,
+    foreign key   (userName) references Users(userName) on delete cascade on update cascade
+);
+
 
 -- A jobset consists of a set of inputs (e.g. SVN repositories), one
 -- of which contains a Nix expression containing an attribute set
