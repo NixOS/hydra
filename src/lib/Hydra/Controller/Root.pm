@@ -122,6 +122,8 @@ sub robots_txt : Path('robots.txt') {
         , uri_for('Build', 'runtimedeps', ["*"])
         , uri_for('Build', 'deps', ["*"])
         , uri_for('Build', 'view_nixlog', ["*"], "*")
+        , uri_for('Build', 'view_log', ["*"], "*")
+        , uri_for('Build', 'view_log', ["*"])
         , channelUris('Root', ["*"])
         , channelUris('Project', ["*", "*"])
         , channelUris('Jobset', ["*", "*", "*"])
