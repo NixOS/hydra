@@ -274,7 +274,7 @@ sub fetchInputGit {
     # First figure out the last-modified revision of the URI.
     my $stdout; my $stderr;
     (my $res, $stdout, $stderr) = captureStdoutStderr(
-        "git", "ls-remote", $uri, $branch);
+        "git", "ls-remote", $uri, "refs/heads/".$branch);
     die "Cannot get head revision of Git branch '$branch' at `$uri':\n$stderr" unless $res;
 
     (my $revision, my $ref) = split ' ', $stdout;
