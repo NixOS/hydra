@@ -34,20 +34,4 @@
 [% END %]
 
 
-<h2>Channels</h2>
-
-<p>This server provides the following global Nix channels:</p>
-
-<ul>
-  <li>
-    <a href="[% c.uri_for('channel' 'latest') %]"><tt>latest</tt></a> —
-    contains the latest successful build of every job.
-  </li>
-  <li>
-    <a href="[% c.uri_for('channel' 'all') %]"><tt>all</tt></a> —
-    contains every successful, non-garbage-collected build of every job.
-  </li>
-</ul>
-
-
 [% END %]
