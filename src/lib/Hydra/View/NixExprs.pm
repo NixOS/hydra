@@ -27,7 +27,7 @@ sub process {
         $res .= "  { type = \"derivation\";\n";
         $res .= "    name = " . escape ($build->resultInfo->releasename or $build->nixname) . ";\n";
         $res .= "    system = " . (escape $build->system) . ";\n";
-        $res .= "    outPath = " . $build->outpath . ";\n";
+        $res .= "    outPath = " . (escape $build->outpath) . ";\n";
         $res .= "    meta = {\n";
         $res .= "      description = " . (escape $build->description) . ";\n"
             if $build->description;
