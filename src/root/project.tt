@@ -1,6 +1,5 @@
 [% WRAPPER layout.tt title=(edit ? (create ? "New Project" : "Editing Project ‘$project.name’") : "Project ‘$project.name’") %]
 [% PROCESS common.tt %]
-
 [% IF create %]
   <h1>New Project</h1>
 [% ELSE %]
@@ -31,6 +30,7 @@
 			<table class="tablesorter">
 			  <thead>
 			    <tr>
+                  <th></th>
 			      <th>Id</th>
 			      <th>Description</th>
 			      <th>Last evaluated</th>
@@ -40,9 +40,20 @@
 			    [% FOREACH j IN jobsets %]
 			    <tr class="clickable [% IF odd %] odd [% END; odd = !odd %]"
 			        onclick="window.location = '[% c.uri_for('/jobset' project.name j.name) %]'">
+                  <td>
+                      [% IF j.get_column('nrscheduled') > 0 %]
+                          <img src="/static/images/question-mark.png" alt="Scheduled" />
+                      [% ELSIF j.get_column('nrfailed') == 0  %]
+                          <img src="/static/images/success.gif" alt="Succeeded" />
+                      [% ELSIF j.get_column('nrfailed') > 0 && j.get_column('nrsucceeded') > 0 %]
+                          <img src="/static/images/failure-some.gif" alt="Some Failed" />
+                      [% ELSE %]
+                          <img src="/static/images/failure.gif" alt="All Failed" />
+                      [% END %]
+                  </td>
 			      <td>[% INCLUDE renderJobsetName project = project.name jobset = j.name %]</td>
 			      <td>[% HTML.escape(j.description) %]</td>
-			      <td>[% INCLUDE renderDateTime timestamp = j.lastcheckedtime %]</td>
+                  <td>[% INCLUDE renderDateTime timestamp = j.lastcheckedtime %]</td>
 			    </tr>
 			    [% END %]
 			  </tbody>

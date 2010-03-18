@@ -14,7 +14,7 @@ sub project : Chained('/') PathPart('project') CaptureArgs(1) {
         or notFound($c, "Project $projectName doesn't exist.");
 
     $c->stash->{project} = $project;
-    $c->stash->{jobsets} = [$project->jobsets->search({},{ order_by => "name" })];
+     
 }
 
 
@@ -26,6 +26,15 @@ sub view : Chained('project') PathPart('') Args(0) {
     #getBuildStats($c, scalar $c->stash->{project}->builds);
 
     $c->stash->{views} = [$c->stash->{project}->views->all];
+    $c->stash->{jobsets} = [$c->stash->{project}->jobsets->search({},
+      { order_by => "name" 
+      , "+select" => [
+         "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildSchedulingInfo WHERE me.project = a.project AND me.name = a.jobset AND a.isCurrent = 1 )"
+       , "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildResultInfo WHERE me.project = a.project AND me.name = a.jobset AND buildstatus <> 0 AND a.isCurrent = 1 )"
+       , "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildResultInfo WHERE me.project = a.project AND me.name = a.jobset AND buildstatus = 0 AND a.isCurrent = 1 )"
+       ]
+      , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded"]          
+      })];
 }
 
 
