@@ -14,6 +14,7 @@ sub project : Chained('/') PathPart('project') CaptureArgs(1) {
         or notFound($c, "Project $projectName doesn't exist.");
 
     $c->stash->{project} = $project;
+    $c->stash->{jobsets} = [$project->jobsets->search({},{ order_by => "name" })];
 }
 
 

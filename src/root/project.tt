@@ -37,7 +37,7 @@
 			    </tr>
 			  </thead>
 			  <tbody>
-			    [% FOREACH j IN project.jobsets %]
+			    [% FOREACH j IN jobsets %]
 			    <tr class="clickable [% IF odd %] odd [% END; odd = !odd %]"
 			        onclick="window.location = '[% c.uri_for('/jobset' project.name j.name) %]'">
 			      <td>[% INCLUDE renderJobsetName project = project.name jobset = j.name %]</td>
