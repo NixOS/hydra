@@ -67,7 +67,7 @@
                       [% class = 'green' %]
                     [% END %]
                   [% END %]
-                  <td>
+                  <td align="right">
                       <div class="[% class %]">[% successrate FILTER format('%d') %]%</div>
                       [% IF j.get_column('nrscheduled') > 0 %]
                           [% j.get_column('nrscheduled') %] builds still running
