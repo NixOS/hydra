@@ -34,6 +34,7 @@
 			      <th>Id</th>
 			      <th>Description</th>
 			      <th>Last evaluated</th>
+                  <th colspan="2">Success</th>
 			    </tr>
 			  </thead>
 			  <tbody>
@@ -54,6 +55,27 @@
 			      <td>[% INCLUDE renderJobsetName project = project.name jobset = j.name %]</td>
 			      <td>[% HTML.escape(j.description) %]</td>
                   <td>[% INCLUDE renderDateTime timestamp = j.lastcheckedtime %]</td>
+                  [% IF j.get_column('nrtotal') > 0 %]
+                    [% successrate = ( j.get_column('nrsucceeded') / j.get_column('nrtotal') )*100 %]
+                    [% IF j.get_column('nrscheduled') > 0 %]
+                      [% class = '' %]
+                    [% ELSIF successrate < 25 %]
+                      [% class = 'red' %]
+                    [% ELSIF successrate < 75 %]
+                      [% class = 'orange' %]
+                    [% ELSIF successrate <= 100 %]green
+                      [% class = 'green' %]
+                    [% END %]
+                  [% END %]
+                  <td>
+                      <div class="[% class %]">[% successrate FILTER format('%d') %]%</div>
+                      [% IF j.get_column('nrscheduled') > 0 %]
+                          [% j.get_column('nrscheduled') %] builds still running
+                      [% END %]
+                  </td>
+                  <td align="right">
+                      <div class="[% class %]">[% j.get_column('nrsucceeded') %]/[% j.get_column('nrtotal') %]</div>
+                  </td>
 			    </tr>
 			    [% END %]
 			  </tbody>

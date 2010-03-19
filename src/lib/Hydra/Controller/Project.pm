@@ -32,8 +32,9 @@ sub view : Chained('project') PathPart('') Args(0) {
          "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildSchedulingInfo WHERE me.project = a.project AND me.name = a.jobset AND a.isCurrent = 1 )"
        , "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildResultInfo WHERE me.project = a.project AND me.name = a.jobset AND buildstatus <> 0 AND a.isCurrent = 1 )"
        , "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildResultInfo WHERE me.project = a.project AND me.name = a.jobset AND buildstatus = 0 AND a.isCurrent = 1 )"
+       , "(SELECT COUNT(*) FROM Builds AS a WHERE me.project = a.project AND me.name = a.jobset AND a.isCurrent = 1 )"
        ]
-      , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded"]          
+      , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]          
       })];
 }
 
