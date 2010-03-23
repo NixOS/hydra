@@ -1,0 +1,97 @@
+<chapter xmlns="http://docbook.org/ns/docbook"
+         xmlns:xlink="http://www.w3.org/1999/xlink"
+         xml:id="chap-installation">
+
+    <title>Installation</title>
+
+    <section>
+        <title>Prerequisites</title>
+        <para>
+	        To install and use Hydra you need to have installed the following dependencies:
+	        <itemizedlist>
+	            <listitem><para>Nix</para></listitem>
+	            <listitem><para>PostgreSQL</para></listitem>
+	        </itemizedlist>
+	        At the moment, Hydra runs only on 32 bit and 64 bit Linux (<emphasis>i686-linux</emphasis> and <emphasis>x86_64_linux</emphasis>).
+        </para>
+        
+    </section>
+
+    <section>
+        <title>Installation</title>
+        <para>
+            Hydra can be installed by visiting the URL, 
+<screen>
+http://hydra.nixos.org/view/hydra/unstable</screen>
+            and use the one-click install available at one of the build pages. You could also  
+            install Hydra through the channel by performing the following commands:
+
+<screen>
+nix-channel --add http://hydra.nixos.org/jobset/hydra/trunk/channel/latest
+nix-channel --update
+nix-env -i hydra</screen>
+
+        </para>
+    </section>
+
+    <section>
+        <title>Creating database</title>
+        <para>
+            Hydra stores its results in a PostgreSQL database. To setup a database with <emphasis>hydra</emphasis> as database name and username, issue the following commands:
+            <screen>
+createdb hydra
+echo "CREATE USER hydra WITH PASSWORD '&lt;your-password&gt;' ;" | psql hydra
+cat $prefix/share/hydra/sql/hydra-postgresql.sql | psql hydra
+echo "GRANT ALL ON DATABASE hydra TO hydra;" | psql hydra</screen>
+            Note that <emphasis>$prefix</emphasis> is the location of Hydra in the nix store.
+        </para>
+        <para>
+            To add a user <emphasis>root</emphasis> with <emphasis>admin</emphasis> privileges, execute:            
+            <screen>
+echo "INSERT INTO Users(userName, emailAddress, password) VALUES ('root', 'some@email.adress.com', '$(echo -n foobar | sha1sum | cut -c1-40)');" | psql hydra
+echo "INSERT INTO UserRoles(userName, role) values('root', 'admin');" | psql hydra</screen>
+
+            Hydra uses an environment variable to know which database should be used, and a variable which point to a location that holds some state. To set these 
+            variables, add the following to the <emphasis>.profile</emphasis> of the user running the Hydra services.
+            <screen>
+export HYDRA_DBI="dbi:Pg:dbname=hydra;host=localhost;"
+export HYDRA_DATA=/var/lib/hydra</screen> 
+
+            Make sure that the <emphasis>HYDRA_DATA</emphasis> directory exists and is writable for the user which will run the Hydra services.
+        </para>
+    </section>
+
+    <section>
+        <title>Getting started</title>
+        <para>
+            To start the Hydra webserver, execute:            
+            <screen>
+hydra_server.pl</screen>
+
+            When the server is started, you can browse to <ulink>http://localhost:3000/</ulink> to start configuring your Hydra instance.
+        </para>
+    </section>
+
+    <section>
+        <title>Example: PatchELF</title>
+        <para>
+        </para>
+        
+        <subsection>
+            <title>Defining jobsets</title>
+            <para>
+            </para>
+        </subsection>
+
+        <subsection>
+            <title>Creating views</title>
+            <para>
+            </para>
+        </subsection>
+        
+        
+    </section>
+
+
+
+</chapter>
