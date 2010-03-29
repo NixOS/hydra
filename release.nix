@@ -1,5 +1,5 @@
 { nixpkgs ? ../nixpkgs
-, hydraSrc ? {outPath = ../hydra-wc; rev = 1234;}
+, hydraSrc ? {outPath = ./.; rev = 1234;}
 , officialRelease ? false
 }:
 
@@ -67,7 +67,7 @@ rec {
       name = "hydra-${tarball.version}";
 
       buildInputs =
-        [ perl makeWrapper libtool ]
+        [ perl makeWrapper libtool dblatex ]
         ++ (import ./deps.nix) { inherit pkgs; };
 
       preUnpack = ''
@@ -105,8 +105,8 @@ rec {
 
         ensureDir $out/share/doc/hydra/manual
         cp doc/manual/* $out/share/doc/hydra/manual/
-        ln -s manual.html $out/share/doc/hydra/manual/index.html
-        echo "doc manual $out/share/doc/hydra/manual" >> $out/nix-support/hydra-build-products
+        make -C doc/manual manual.pdf
+        echo "doc-pdf manual $out/share/doc/hydra/manual/manual.pdf" >> $out/nix-support/hydra-build-products
         echo "nix-build none $out" >> $out/nix-support/hydra-build-products
 
         ensureDir $out/share/hydra/sql
