@@ -72,7 +72,7 @@ rec {
 
       preUnpack = ''
         src=$(ls ${tarball}/tarballs/*.tar.bz2)
-      ''; # */
+      ''; 
 
       hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [
         libxslt sqlite subversion openssh nix coreutils findutils
