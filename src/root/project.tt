@@ -63,7 +63,7 @@
                       [% class = 'red' %]
                     [% ELSIF successrate < 75 %]
                       [% class = 'orange' %]
-                    [% ELSIF successrate <= 100 %]green
+                    [% ELSIF successrate <= 100 %]
                       [% class = 'green' %]
                     [% END %]
                   [% END %]
