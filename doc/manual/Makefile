@@ -6,4 +6,3 @@ dblatex_opts = \
 
 manual.pdf : $(DOCBOOK_FILES)
 	dblatex $(dblatex_opts) manual.xml
-
