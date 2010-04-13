@@ -6,7 +6,7 @@ use File::Basename;
 use POSIX qw(dup2 :sys_wait_h);
 use Hydra::Schema;
 use Hydra::Helper::Nix;
-
+use Nix;
 
 chdir getHydraPath or die;
 my $db = openHydraDB;
@@ -50,6 +50,21 @@ sub unlockDeadBuilds {
     });
 }
 
+sub findBuildDependencyInQueue {
+    my ($build) = @_;
+    my $drvpath = $build->drvpath;
+    my @paths = reverse(split '\n', `nix-store -qR $drvpath`);
+    
+    foreach my $path (@paths) {
+        if($path ne $drvpath) {
+            (my $depBuild) = $db->resultset('Builds')->search(
+                 { drvpath => $path, finished => 0, busy => 0, enabled => 1, disabled => 0 },
+                 { join => ['schedulingInfo', 'project'], rows => 1 } ) ;
+            return $depBuild if defined $depBuild;
+        }
+    }    
+    return $build ;           
+}
 
 sub checkBuilds {
     print "looking for runnable builds...\n";
@@ -62,7 +77,7 @@ sub checkBuilds {
         my @systemTypes = $db->resultset('Builds')->search(
             { finished => 0, busy => 0, enabled => 1, disabled => 0 },
             { join => ['schedulingInfo', 'project'], select => ['system'], as => ['system'], distinct => 1 });
-
+            
         # For each system type, select up to the maximum number of
         # concurrent build for that system type.  Choose the highest
         # priority builds first, then the oldest builds.
@@ -90,6 +105,8 @@ sub checkBuilds {
                 "starting ", scalar(@builds), " builds\n";
 
             foreach my $build (@builds) {
+                $build = findBuildDependencyInQueue($build); 
+
                 my $logfile = getcwd . "/logs/" . $build->id;
                 mkdir(dirname $logfile);
                 unlink($logfile);
