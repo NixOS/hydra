@@ -148,7 +148,7 @@ sub sendEmailNotification {
 
     my $loglines = 50;
     my $logfile = $build->resultInfo->logfile;
-    my $logtext = `tail -$loglines $logfile` if -e $logfile;
+    my $logtext = defined $logfile && -e $logfile ? `tail -$loglines $logfile` : "No logfile available.\n";
 
     my $body = "Hi,\n"
         . "\n"
