@@ -54,16 +54,17 @@ sub findBuildDependencyInQueue {
     my ($build) = @_;
     my $drvpath = $build->drvpath;
     my @paths = reverse(split '\n', `nix-store -qR $drvpath`);
-    
+
+    my $depBuild;    
     foreach my $path (@paths) {
         if($path ne $drvpath) {
-            (my $depBuild) = $db->resultset('Builds')->search(
+            ($depBuild) = $db->resultset('Builds')->search(
                  { drvpath => $path, finished => 0, busy => 0, enabled => 1, disabled => 0 },
                  { join => ['schedulingInfo', 'project'], rows => 1 } ) ;
             return $depBuild if defined $depBuild;
         }
     }    
-    return $build ;           
+    return $depBuild;           
 }
 
 sub checkBuilds {
@@ -105,7 +106,10 @@ sub checkBuilds {
                 "starting ", scalar(@builds), " builds\n";
 
             foreach my $build (@builds) {
-                $build = findBuildDependencyInQueue($build); 
+                my $depbuild = findBuildDependencyInQueue($build);
+                if(defined $depbuild) {
+                    $build = $depbuild;
+                } 
 
                 my $logfile = getcwd . "/logs/" . $build->id;
                 mkdir(dirname $logfile);
