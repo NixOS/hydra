@@ -17,12 +17,19 @@
 		<!-- <li><a href="#tabs-statistics">Statistics</a></li> -->
 	</ul>
 	<div id="tabs-status">
-	    <h2>Finished builds</h2>
+            [% IF currentBuilds.size != 0 %]
+	        <h2>Finished builds</h2>
 		[% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
-		[% IF runningBuilds %]
-		    <h2>Running builds</h2>
-			[% INCLUDE renderBuildList builds=runningBuilds showStatusChange=0 %]
-		[% END %]
+	    [% ELSE %]
+                 [% IF lastBuilds.size != 0 %]
+	            <h2>Last 5 builds</h2>
+		    [% INCLUDE renderBuildList builds=lastBuilds showStatusChange=0 %]
+    	        [% END %]
+            [% END %]
+            [% IF runningBuilds.size != 0 %]
+	        <h2>Running builds</h2>
+	        [% INCLUDE renderBuildList builds=runningBuilds showSchedulingInfo=1 hideResultInfo=1 %]
+	    [% END %]
 	</div>
 	<div id="tabs-channels">
 		<p>This job provides the following Nix channels:</p>
