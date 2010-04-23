@@ -151,7 +151,13 @@
 		[% END %]
 	[% END %]
 		<div id="tabs-setup">
-			<h2>Information[% IF !edit %] <a class="smallLink" href="[% c.uri_for('/jobset' project.name jobset.name 'edit') %]">[Edit]</a>[% END %]</h2>
+			<h2>Information</h2>
+			
+			 [% IF !edit && c.user_exists %]
+			     <p>
+			         [ <a href="[% c.uri_for('/jobset' project.name jobset.name 'edit') %]">Edit</a> | <a href="[% c.uri_for('/jobset' project.name jobset.name 'clone') %]">Clone</a> ]
+			     </p>
+	         [% END %]
 			
 			<table class="layoutTable">
 			  [% IF edit %]
