@@ -55,11 +55,12 @@ sub sendJobsetErrorNotification() {
     return if $jobset->project->owner->emailonerror == 0;
     return if $errorMsg eq ""; 
 
+    my $url = hostname_long;
     my $projectName = $jobset->project->name;
     my $jobsetName = $jobset->name;
 
     my $sender = $config{'notification_sender'} ||
-        (($ENV{'USER'} || "hydra") .  "@" . hostname_long);
+        (($ENV{'USER'} || "hydra") .  "@" . $url);
 
     my $body = "Hi,\n"
         . "\n"
@@ -75,7 +76,11 @@ sub sendJobsetErrorNotification() {
             To      => $jobset->project->owner->emailaddress,
             From    => "Hydra Build Daemon <$sender>",
             Subject => "Hydra $projectName:$jobsetName evaluation error",
-        ],
+
+            'X-Hydra-Instance' => $url,
+            'X-Hydra-Project' => $projectName,
+            'X-Hydra-Jobset'  => $jobsetName
+        ], 
         body => ""
     );
     $email->body_set($body);

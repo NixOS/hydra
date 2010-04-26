@@ -15,6 +15,7 @@ use Text::Table;
 use POSIX qw(strftime);
 use Net::Twitter::Lite;
 use Data::Dump qw(dump);
+use Switch;
 
 STDOUT->autoflush();
 
@@ -62,6 +63,20 @@ sub sendTwitterNotification {
     warn "$@\n" if $@;
 }
 
+sub statusDescription {
+    my ($buildstatus) = @_;
+
+    my $status = "Unknown failure";
+    switch ($buildstatus) {     
+        case 0 { $status = "Success"; }
+        case 1 { $status = "Failed with non-zero exit code"; }
+        case 2 { $status = "Dependency failed"; }
+        case 4 { $status = "Cancelled"; }
+    }
+    
+   return $status;
+}
+
 sub sendEmailNotification {
     my ($build) = @_;
 
@@ -94,17 +109,11 @@ sub sendEmailNotification {
 
     my $jobName = $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
 
-    my $status =  $build->resultInfo->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
-    my $statusMsg;
-    if(defined $prevBuild) {
-      my $prevStatus =  $prevBuild->resultInfo->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
-      $statusMsg = "changed from $prevStatus to $status";
-    } else {
-      $statusMsg = $status;
-    }
+    my $status =  statusDescription($build->resultInfo->buildstatus);
 
+    my $url = hostname_long ;
     my $sender = $config{'notification_sender'} ||
-        (($ENV{'USER'} || "hydra") .  "@" . hostname_long);
+        (($ENV{'USER'} || "hydra") .  "@" . $url);
 
     my $selfURI = $config{'base_uri'} || "http://localhost:3000";
 
@@ -153,7 +162,7 @@ sub sendEmailNotification {
     my $body = "Hi,\n"
         . "\n"
         . "This is to let you know that Hydra build " . $build->id
-        . " of job " . $jobName . " has $statusMsg.\n"
+        . " of job " . $jobName . " "  . (defined $prevBuild ? "has changed from '".statusDescription($prevBuild->resultInfo->buildstatus)."' to '$status'" : "has succeeded" ) .".\n"
         . "\n"
         . "Complete build information can be found on this page: "
         . "$selfURI/build/" . $build->id . "\n"
@@ -180,7 +189,12 @@ sub sendEmailNotification {
         header => [
             To      => $to,
             From    => "Hydra Build Daemon <$sender>",
-            Subject => "Hydra job $jobName build " . $build->id . " $status",
+            Subject => "Hydra job $jobName build " . $build->id . ": $status",
+
+            'X-Hydra-Instance' => $url,
+            'X-Hydra-Project'  => $build->project->name,
+            'X-Hydra-Jobset'   => $build->jobset->name,
+            'X-Hydra-Job'      => $build->job->name
         ],
         body => "",
     );
@@ -188,7 +202,7 @@ sub sendEmailNotification {
 
     print $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
 
-    sendmail($email);
+   sendmail($email);
 }
 
 
