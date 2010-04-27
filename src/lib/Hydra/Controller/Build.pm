@@ -8,6 +8,7 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::AddBuilds;
 use File::stat;
 use Data::Dump qw(dump);
+use Nix;
 
 sub build : Chained('/') PathPart CaptureArgs(1) {
     my ($self, $c, $id) = @_;
@@ -37,6 +38,9 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     $c->stash->{available} = isValidPath $build->outpath;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
     $c->stash->{flashMsg} = $c->flash->{buildMsg};
+
+    my $pathHash = $c->stash->{available} ? Nix::queryPathHash($build->outpath) : "Not available";
+    $c->stash->{pathHash} = $pathHash;
 
     if (!$build->finished && $build->schedulingInfo->busy) {
         my $logfile = $build->schedulingInfo->logfile;

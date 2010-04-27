@@ -293,6 +293,12 @@
 		    </td>
 		  </tr>
 		  <tr>
+		    <th>Output store path hash:</th>
+		    <td>
+		      <tt>[% pathHash %]</tt>
+		    </td>
+		  </tr>
+		  <tr>
 		    <th>Time added:</th>
 		    <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
 		  </tr>
