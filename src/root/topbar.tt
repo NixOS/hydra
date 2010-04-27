@@ -36,7 +36,7 @@
       [% IF c.user_exists %]
         [% IF c.check_user_roles('admin') %]
             [% INCLUDE makeLink
-              uri = c.uri_for(c.controller('Admin').action_for('admin'))
+              uri = c.uri_for(c.controller('Admin').action_for('index'))
               title = "Admin" %]
         [% END %]
         [% INCLUDE makeLink
