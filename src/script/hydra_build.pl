@@ -111,9 +111,9 @@ sub sendEmailNotification {
 
     my $status =  statusDescription($build->resultInfo->buildstatus);
 
-    my $url = hostname_long ;
+    my $baseurl = hostname_long ;
     my $sender = $config{'notification_sender'} ||
-        (($ENV{'USER'} || "hydra") .  "@" . $url);
+        (($ENV{'USER'} || "hydra") .  "@" . $baseurl);
 
     my $selfURI = $config{'base_uri'} || "http://localhost:3000";
 
@@ -191,7 +191,7 @@ sub sendEmailNotification {
             From    => "Hydra Build Daemon <$sender>",
             Subject => "Hydra job $jobName build " . $build->id . ": $status",
 
-            'X-Hydra-Instance' => $url,
+            'X-Hydra-Instance' => $baseurl,
             'X-Hydra-Project'  => $build->project->name,
             'X-Hydra-Jobset'   => $build->jobset->name,
             'X-Hydra-Job'      => $build->job->name
