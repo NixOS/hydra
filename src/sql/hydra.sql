@@ -458,6 +458,18 @@ create table UriRevMapper (
     primary key   (baseuri)
 );
 
+create table NewsItems (
+#ifdef POSTGRESQL
+    id            serial primary key not null,
+#else
+    id            integer primary key autoincrement not null,
+#endif
+    contents      text not null,
+    createTime    integer not null,
+    author        text not null,
+    foreign key   (author) references Users(userName) on delete cascade on update cascade
+);
+
 
 -- Some indices.
 create index IndexBuildInputsOnBuild on BuildInputs(build);

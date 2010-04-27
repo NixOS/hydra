@@ -1,6 +1,15 @@
 [% WRAPPER layout.tt title="Overview" %]
 [% PROCESS common.tt %]
 
+[% IF newItems.size != 0 %]
+    <div class="newsbar">
+        [% FOREACH i IN newsItems %]
+            [% contents = String.new(i.contents) %]
+            <p><b>[% INCLUDE renderDateTime timestamp=i.createtime %]</b> <tt>by [% i.author.fullname %]</tt> <br/>[% contents.replace('\n','<br />\n') %]
+        [% END %]
+    </div>
+[% END %]
+
 <h2>Projects</h2>
 
 <p>The following projects are hosted on this server:</p>
@@ -32,6 +41,5 @@
           content = "Create project" %] ]
 </p>
 [% END %]
-
 
 [% END %]

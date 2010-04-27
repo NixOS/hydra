@@ -118,6 +118,20 @@ Related object: L<Hydra::Schema::Users>
 
 __PACKAGE__->belongs_to("owner", "Hydra::Schema::Users", { username => "owner" }, {});
 
+=head2 projectmembers
+
+Type: has_many
+
+Related object: L<Hydra::Schema::ProjectMembers>
+
+=cut
+
+__PACKAGE__->has_many(
+  "projectmembers",
+  "Hydra::Schema::ProjectMembers",
+  { "foreign.project" => "self.name" },
+);
+
 =head2 jobsets
 
 Type: has_many
@@ -231,7 +245,15 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-03-05 13:07:45
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SXJ+FzgNDad87OKSBH2qrg
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-04-20 11:21:42
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:1VZpwwaEdEJzrrV31ErPzw
+# These lines were loaded from '/home/rbvermaa/src/hydra/src/lib/Hydra/Schema/Projects.pm' found in @INC.
+# They are now part of the custom portion of this file
+# for you to hand-edit.  If you do not either delete
+# this section or remove that file from @INC, this section
+# will be repeated redundantly when you re-create this
+# file again via Loader!  See skip_load_external to disable
+# this feature.
 
+# You can replace this text with custom content, and it will be preserved on regeneration
 1;

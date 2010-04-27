@@ -187,6 +187,10 @@ input.longString {
     width: 40em;
 }
 
+textarea.longString {
+    width: 40em;
+}
+
 select {
     background-color: #fffff0;
 }
@@ -207,4 +211,15 @@ form.inline {
 }
 .green {
   color: green;
+}
+
+.newsbar {
+    background-color:#D9E3EA;
+    border:1px solid #999999;
+    float:right;
+    font-size:x-small;
+    margin:0 0 0.5em 0.5em;
+    overflow:hidden;
+    padding:0.5em;
+    width:30em;
 }

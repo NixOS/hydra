@@ -174,7 +174,7 @@
 
 
 [% BLOCK maybeLink -%]
-  [% IF uri %]<a [% HTML.attributes(href => uri) %]>[% content %]</a>[% ELSE; content; END -%]
+  [% IF uri %]<a [% HTML.attributes(href => uri) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END -%]
 [% END -%]
 
 

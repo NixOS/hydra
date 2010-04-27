@@ -90,7 +90,7 @@
       </div>
       <div id="footer">
         <div id="last-modified">
-        <em>Hydra [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
+        <em><a href="http://nixos.org/hydra" target="_new">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
         Page generated on [% INCLUDE renderDateTime %].
         [% IF c.user_exists %]
         You are logged in as <tt>[% c.user.username %]</tt>.
