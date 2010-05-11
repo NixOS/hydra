@@ -172,7 +172,7 @@ sub checkInput {
 
     my $inputType = trim $c->request->params->{"input-$baseName-type"};
     error($c, "Invalid input type: $inputType") unless
-        $inputType eq "svn" || $inputType eq "cvs" || $inputType eq "tarball" ||
+        $inputType eq "svn" || $inputType eq "svn-checkout" || $inputType eq "cvs" || $inputType eq "tarball" ||
         $inputType eq "string" || $inputType eq "path" || $inputType eq "boolean" ||
         $inputType eq "git" || $inputType eq "build" || $inputType eq "sysbuild" ;
 

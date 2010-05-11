@@ -128,7 +128,7 @@ sub fetchInputPath {
 
 
 sub fetchInputSVN {
-    my ($db, $project, $jobset, $name, $type, $value) = @_;
+    my ($db, $project, $jobset, $name, $type, $value, $checkout) = @_;
 
     my $uri = $value;
 
@@ -156,6 +156,8 @@ sub fetchInputSVN {
         print STDERR "checking out Subversion input ", $name, " from $uri revision $revision\n";
         $ENV{"NIX_HASH_ALGO"} = "sha256";
         $ENV{"PRINT_PATH"} = "1";
+        $ENV{"NIX_PREFETCH_SVN_LEAVE_DOT_SVN"} = "$checkout";
+        
         (my $res, $stdout, $stderr) = captureStdoutStderr(
             "nix-prefetch-svn", $uri, $revision);
         die "Cannot check out Subversion repository `$uri':\n$stderr" unless $res;
@@ -308,7 +310,6 @@ sub fetchInputGit {
         # script.  Thus, we leave `.git' in there.  Same for
         # Subversion (e.g., libgcrypt's build system uses that.)
         $ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
-        $ENV{"NIX_PREFETCH_SVN_LEAVE_DOT_SVN"} = "1";
     
         # Ask for a "deep clone" to allow "git describe" and similar
         # tools to work.  See
@@ -366,7 +367,10 @@ sub fetchInput {
         return fetchInputPath($db, $project, $jobset, $name, $type, $value);
     }
     elsif ($type eq "svn") {
-        return fetchInputSVN($db, $project, $jobset, $name, $type, $value);
+        return fetchInputSVN($db, $project, $jobset, $name, $type, $value, 0);
+    }
+    elsif ($type eq "svn-checkout") {
+        return fetchInputSVN($db, $project, $jobset, $name, $type, $value, 1);
     }
     elsif ($type eq "build") {
         return fetchInputBuild($db, $project, $jobset, $name, $type, $value);
@@ -407,7 +411,7 @@ sub inputsToArgs {
                 when ("boolean") {
                     push @res, "--arg", $input, $alt->{value};
                 }
-                when (["svn", "path", "build", "git", "cvs", "sysbuild"]) {
+                when (["svn", "svn-checkout", "path", "build", "git", "cvs", "sysbuild"]) {
                     push @res, "--arg", $input, (
                         "{ outPath = builtins.storePath " . $alt->{storePath} . "" .
                         (defined $alt->{revision} ? "; rev = \"" . $alt->{revision} . "\"" : "") .

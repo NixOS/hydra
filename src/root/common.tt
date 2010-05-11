@@ -4,7 +4,8 @@
 
 
 [% inputTypes =
-    { "svn" = "Subversion checkout"
+    { "svn" = "Subversion export"
+    , "svn-checkout" = "Subversion checkout"
     , "git" = "Git checkout"
     , "tarball" = "Download of a tarball"
     , "string" = "String value"
