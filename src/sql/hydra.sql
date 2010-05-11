@@ -45,7 +45,7 @@ create table Jobsets (
     nixExprPath   text not null, -- relative path of the Nix expression
     errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
     errorTime     integer, -- timestamp associated with errorMsg
-    lastCheckedTime integer, -- last time the scheduler looked at this jobset
+    lastCheckedTime integer, -- last time the evaluator looked at this jobset
     enabled       integer not null default 1,
     enableEmail   integer not null default 1,
     emailOverride text not null,
@@ -100,8 +100,8 @@ create table Jobs (
 
     errorMsg      text, -- evalution error for this job
 
-    firstEvalTime integer, -- first time the scheduler saw this job
-    lastEvalTime  integer, -- last time the scheduler saw this job
+    firstEvalTime integer, -- first time the evaluator saw this job
+    lastEvalTime  integer, -- last time the evaluator saw this job
 
     disabled      integer not null default 0, -- !!! not currently used
 
@@ -432,7 +432,7 @@ create table JobsetEvals (
     hasNewBuilds  integer not null,
 
     -- Used to prevent repeated Nix expression evaluation for the same
-    -- set of inputs for a jobset.  In the scheduler, after obtaining
+    -- set of inputs for a jobset.  In the evaluator, after obtaining
     -- the current inputs for a jobset, we hash the inputs together,
     -- and if the resulting hash already appears in this table, we can
     -- skip the jobset.  Otherwise we proceed.  The hash is computed

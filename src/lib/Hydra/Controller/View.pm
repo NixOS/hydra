@@ -59,7 +59,7 @@ sub updateView {
             unless $view->project->jobsets->find({name => $jobsetName});
 
         # !!! We could check whether the job exists, but that would
-        # require the scheduler to have seen the job, which may not be
+        # require the evaluator to have seen the job, which may not be
         # the case.
         
         $view->viewjobs->create(

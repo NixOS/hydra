@@ -67,7 +67,7 @@
 
   - Create a project, jobset etc.
 
-  - Start hydra_scheduler and hydra_runner
+  - Start hydra_evaluator and hydra_queue_runner
 
 
 * Upgrade notes:
