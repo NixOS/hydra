@@ -158,8 +158,8 @@ sub fetchInputSVN {
         $ENV{"PRINT_PATH"} = "1";
         $ENV{"NIX_PREFETCH_SVN_LEAVE_DOT_SVN"} = "$checkout";
         
-        (my $res, $stdout, $stderr) = captureStdoutStderr(
-            "nix-prefetch-svn", $uri, $revision);
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("nix-prefetch-svn", $uri, $revision));
         die "Cannot check out Subversion repository `$uri':\n$stderr" unless $res;
 
         ($sha256, $storePath) = split ' ', $stdout;
@@ -275,8 +275,8 @@ sub fetchInputGit {
 
     # First figure out the last-modified revision of the URI.
     my $stdout; my $stderr;
-    (my $res, $stdout, $stderr) = captureStdoutStderr(
-        "git", "ls-remote", $uri, "refs/heads/".$branch);
+    (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+        ("git", "ls-remote", $uri, "refs/heads/".$branch));
     die "Cannot get head revision of Git branch '$branch' at `$uri':\n$stderr" unless $res;
 
     (my $revision, my $ref) = split ' ', $stdout;
@@ -317,8 +317,8 @@ sub fetchInputGit {
         # for a discussion.
         $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
     
-        (my $res, $stdout, $stderr) = captureStdoutStderr(
-            "nix-prefetch-git", $uri, $revision);
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("nix-prefetch-git", $uri, $revision));
         die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
     
         ($sha256, $storePath) = split ' ', $stdout;
@@ -426,13 +426,28 @@ sub inputsToArgs {
     return @res;
 }
 
-
 sub captureStdoutStderr {
-    my $stdin = ""; my $stdout; my $stderr;
-    my $res = IPC::Run::run(\@_, \$stdin, \$stdout, \$stderr);
-    return ($res, $stdout, $stderr);
-}
+    (my $timeout, my @cmd) = @_;
+    my $res;
+    my $stdin = "";
+    my $stdout;
+    my $stderr;
 
+    eval {
+        local $SIG{ALRM} = sub { die "timeout\n" }; # NB: \n required
+        alarm $timeout;
+
+        $res = IPC::Run::run(\@cmd, \$stdin, \$stdout, \$stderr);
+        alarm 0;
+     };
+
+     if ($@) {
+        die unless $@ eq "timeout\n";   # propagate unexpected errors
+        return (undef, undef, undef);
+     } else {
+         return ($res, $stdout, $stderr);
+     }
+}
     
 sub evalJobs {
     my ($inputInfo, $nixExprInputName, $nixExprPath) = @_;
@@ -443,9 +458,8 @@ sub evalJobs {
         if scalar @{$inputInfo->{$nixExprInputName}} != 1;
     my $nixExprFullPath = $nixExprInput->{storePath} . "/" . $nixExprPath;
     
-    (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(
-        "hydra_eval_jobs", $nixExprFullPath, "--gc-roots-dir", getGCRootsDir,
-        inputsToArgs($inputInfo));
+    (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(10800,
+        ("hydra_eval_jobs", $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, inputsToArgs($inputInfo)));
     die "Cannot evaluate the Nix expression containing the jobs:\n$stderr" unless $res;
 
     print STDERR "$stderr";
