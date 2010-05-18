@@ -35,6 +35,7 @@
 			      <th>Description</th>
 			      <th>Last evaluated</th>
                   <th colspan="2">Success</th>
+                  [% IF c.check_user_roles('admin') %]<th>Options</th>[% END%]
 			    </tr>
 			  </thead>
 			  <tbody>
@@ -76,6 +77,9 @@
                   <td align="right">
                       <div class="[% class %]">[% j.get_column('nrsucceeded') %]/[% j.get_column('nrtotal') %]</div>
                   </td>
+                  [% IF c.check_user_roles('admin') %]
+                    <td>[ [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, j.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ j.name _ "?") %] ]</td>
+                  [% END%]
 			    </tr>
 			    [% END %]
 			  </tbody>

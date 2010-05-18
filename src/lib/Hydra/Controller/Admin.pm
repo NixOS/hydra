@@ -5,7 +5,7 @@ use warnings;
 use base 'Catalyst::Controller';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
-
+use Hydra::Helper::AddBuilds;
 
 sub admin : Chained('/') PathPart('admin') CaptureArgs(0) {
     my ($self, $c) = @_;
@@ -84,6 +84,22 @@ sub news_delete : Chained('admin') Path('news/delete') Args(1) {
     });
         
     $c->res->redirect("/admin/news");
+}
+
+sub force_eval : Chained('admin') Path('eval') Args(2) {
+    my ($self, $c, $projectName, $jobsetName) = @_;
+    
+    my $project = $c->model('DB::Projects')->find($projectName)
+        or notFound($c, "Project $projectName doesn't exist.");
+
+    $c->stash->{project} = $project;
+    $c->stash->{jobset_} = $project->jobsets->search({name => $jobsetName});
+    $c->stash->{jobset} = $c->stash->{jobset_}->single
+        or notFound($c, "Jobset $jobsetName doesn't exist.");
+    
+    (my $res, my $stdout, my $stderr) = captureStdoutStderr(60, ("hydra_evaluator.pl", $projectName, $jobsetName));
+            
+    $c->res->redirect("/project/$projectName");
 }
 
 1;

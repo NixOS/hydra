@@ -8,7 +8,7 @@ use IPC::Run;
 use Hydra::Helper::Nix;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs);
+our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr);
 
 
 sub getStorePathHash {
