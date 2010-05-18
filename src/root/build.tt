@@ -129,7 +129,7 @@
 				      <th>Duration:</th>
 				      <td>
 				        [% IF build.resultInfo.iscachedbuild %]
-				          (cached from [% INCLUDE renderFullBuildLink build=cachedBuild %])
+				          (cached[% IF cachedBuild %] from [% INCLUDE renderFullBuildLink build=cachedBuild %][% END %])
 				        [% ELSE %]
 				          	[% INCLUDE renderDuration duration = build.resultInfo.stoptime - build.resultInfo.starttime %] <tt>finished at [% INCLUDE renderDateTime timestamp = build.resultInfo.stoptime %]</tt>
 				        [% END %]
