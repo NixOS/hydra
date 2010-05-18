@@ -5,11 +5,9 @@
 #include "store-api.hh"
 #include "eval.hh"
 #include "parser.hh"
-#include "nixexpr-ast.hh"
 #include "util.hh"
 #include "xml-writer.hh"
 #include "get-drvs.hh"
-#include "aterm.hh"
 
 using namespace nix;
 
@@ -23,57 +21,60 @@ void printHelp()
 static Path gcRootsDir;
 
 
-Expr evalAttr(EvalState & state, Expr e)
-{
-    return e ? evalExpr(state, e) : e;
-}
+typedef std::map<Symbol, std::pair<unsigned int, Value> > ArgsUsed;
+typedef std::map<Symbol, list<Value> > AutoArgs;
 
 
 static void findJobs(EvalState & state, XMLWriter & doc,
-    const ATermMap & argsUsed, const ATermMap & argsLeft,
-    Expr e, const string & attrPath);
+    const ArgsUsed & argsUsed, const AutoArgs & argsLeft,
+    Value & v, const string & attrPath);
 
 
 static void tryJobAlts(EvalState & state, XMLWriter & doc,
-    const ATermMap & argsUsed, const ATermMap & argsLeft,
-    const string & attrPath, Expr fun,
-    ATermList formals, const ATermMap & actualArgs)
+    const ArgsUsed & argsUsed, const AutoArgs & argsLeft,
+    const string & attrPath, Value & fun,
+    Formals::Formals_::iterator cur,
+    Formals::Formals_::iterator last,
+    const Bindings & actualArgs)
 {
-    if (formals == ATempty) {
-        findJobs(state, doc, argsUsed, argsLeft,
-            makeCall(fun, makeAttrs(actualArgs)), attrPath);
+    if (cur == last) {
+        Value v, arg;
+        state.mkAttrs(arg);
+        *arg.attrs = actualArgs;
+        mkApp(v, fun, arg);
+        findJobs(state, doc, argsUsed, argsLeft, v, attrPath);
         return;
     }
 
-    Expr name; ATerm def2; ATermList values;
-    if (!matchFormal(ATgetFirst(formals), name, def2)) abort();
-    
-    if ((values = (ATermList) argsLeft.get(name))) {
-        int n = 0;
-        for (ATermIterator i(ATreverse(values)); i; ++i, ++n) {
-            ATermMap actualArgs2(actualArgs);
-            ATermMap argsUsed2(argsUsed);
-            ATermMap argsLeft2(argsLeft);
-            actualArgs2.set(name, makeAttrRHS(*i, makeNoPos()));
-            argsUsed2.set(name, (ATerm) ATmakeList2(*i, (ATerm) ATmakeInt(n)));
-            argsLeft2.remove(name);
-            tryJobAlts(state, doc, argsUsed2, argsLeft2, attrPath, fun, ATgetNext(formals), actualArgs2);
-        }
-    }
-    
-    else
+    AutoArgs::const_iterator a = argsLeft.find(cur->name);
+
+    if (a == argsLeft.end())
         throw TypeError(format("job `%1%' requires an argument named `%2%'")
-            % attrPath % aterm2String(name));
+            % attrPath % cur->name);
+
+    Formals::Formals_::iterator next = cur; ++next;
+
+    int n = 0;
+    foreach (list<Value>::const_iterator, i,  a->second) {
+        Bindings actualArgs2(actualArgs); // !!! inefficient
+        ArgsUsed argsUsed2(argsUsed);
+        AutoArgs argsLeft2(argsLeft);
+        actualArgs2[cur->name].value = *i;
+        argsUsed2[cur->name] = std::pair<unsigned int, Value>(n, *i);
+        argsLeft2.erase(cur->name);
+        tryJobAlts(state, doc, argsUsed2, argsLeft2, attrPath, fun, next, last, actualArgs2);
+        ++n;
+    }
 }
 
 
-static void showArgsUsed(XMLWriter & doc, const ATermMap & argsUsed)
+static void showArgsUsed(XMLWriter & doc, const ArgsUsed & argsUsed)
 {
-    foreach (ATermMap::const_iterator, i, argsUsed) {
+    foreach (ArgsUsed::const_iterator, i, argsUsed) {
         XMLAttrs xmlAttrs2;
-        xmlAttrs2["name"] = aterm2String(i->key);
-        xmlAttrs2["value"] = showValue(ATelementAt((ATermList) i->value, 0));
-        xmlAttrs2["altnr"] = int2String(ATgetInt((ATermInt) ATelementAt((ATermList) i->value, 1)));
+        xmlAttrs2["name"] = i->first;
+        xmlAttrs2["value"] = (format("%1%") % i->second.second).str();
+        xmlAttrs2["altnr"] = int2String(i->second.first);
         doc.writeEmptyElement("arg", xmlAttrs2);
     }
 }
@@ -98,28 +99,20 @@ static int queryMetaFieldInt(MetaInfo & meta, const string & name, int def)
     return def;
 }
 
-    
+
 static void findJobsWrapped(EvalState & state, XMLWriter & doc,
-    const ATermMap & argsUsed, const ATermMap & argsLeft,
-    Expr e, const string & attrPath)
+    const ArgsUsed & argsUsed, const AutoArgs & argsLeft,
+    Value & v, const string & attrPath)
 {
     debug(format("at path `%1%'") % attrPath);
     
-    e = evalExpr(state, e);
+    state.forceValue(v);
 
-    ATermList as, formals;
-    ATermBool ellipsis;
-    ATerm pat, body, pos;
-    string s;
-    PathSet context;
-    
-    if (matchAttrs(e, as)) {
-        ATermMap attrs;
-        queryAllAttrs(e, attrs);
+    if (v.type == tAttrs) {
 
         DrvInfo drv;
         
-        if (getDerivation(state, e, drv)) {
+        if (getDerivation(state, v, drv)) {
             XMLAttrs xmlAttrs;
             Path drvPath;
 
@@ -159,27 +152,30 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
         }
 
         else {
-            foreach (ATermMap::const_iterator, i, attrs)
-                findJobs(state, doc, argsUsed, argsLeft, i->value,
-                    (attrPath.empty() ? "" : attrPath + ".") + aterm2String(i->key));
+            foreach (Bindings::iterator, i, *v.attrs)
+                findJobs(state, doc, argsUsed, argsLeft, i->second.value,
+                    (attrPath.empty() ? "" : attrPath + ".") + (string) i->first);
         }
     }
 
-    else if (matchFunction(e, pat, body, pos) && matchAttrsPat(pat, formals, ellipsis)) {
-        tryJobAlts(state, doc, argsUsed, argsLeft, attrPath, e, formals, ATermMap());
+    else if (v.type == tLambda && v.lambda.fun->matchAttrs) {
+        tryJobAlts(state, doc, argsUsed, argsLeft, attrPath, v,
+            v.lambda.fun->formals->formals.begin(),
+            v.lambda.fun->formals->formals.end(),
+            Bindings());
     }
 
     else
-        throw TypeError(format("unknown value: %1%") % showValue(e));
+        throw TypeError(format("unsupported value: %1%") % v);
 }
 
 
 static void findJobs(EvalState & state, XMLWriter & doc,
-    const ATermMap & argsUsed, const ATermMap & argsLeft,
-    Expr e, const string & attrPath)
+    const ArgsUsed & argsUsed, const AutoArgs & argsLeft,
+    Value & v, const string & attrPath)
 {
     try {
-        findJobsWrapped(state, doc, argsUsed, argsLeft, e, attrPath);
+        findJobsWrapped(state, doc, argsUsed, argsLeft, v, attrPath);
     } catch (EvalError & e) {
         XMLAttrs xmlAttrs;
         xmlAttrs["location"] = attrPath;
@@ -194,7 +190,7 @@ void run(Strings args)
 {
     EvalState state;
     Path releaseExpr;
-    ATermMap autoArgs;
+    AutoArgs autoArgs;
     
     for (Strings::iterator i = args.begin(); i != args.end(); ) {
         string arg = *i++;
@@ -207,12 +203,12 @@ void run(Strings args)
             string name = *i++;
             if (i == args.end()) throw UsageError("missing argument");
             string value = *i++;
-            Expr e = arg == "--arg"
-                ? evalExpr(state, parseExprFromString(state, value, absPath(".")))
-                : makeStr(value);
-            autoArgs.set(toATerm(name), (ATerm) ATinsert(autoArgs.get(toATerm(name))
-                    ? (ATermList) autoArgs.get(toATerm(name))
-                    : ATempty, e));
+            Value v;
+            if (arg == "--arg")
+                state.eval(parseExprFromString(state, value, absPath(".")), v);
+            else
+                mkString(v, value);
+            autoArgs[state.symbols.create(name)].push_back(v);
         }
         else if (arg == "--gc-roots-dir") {
             if (i == args.end()) throw UsageError("missing argument");
@@ -230,11 +226,13 @@ void run(Strings args)
     
     store = openStore();
 
-    Expr e = parseExprFromFile(state, releaseExpr);
+    Expr * e = parseExprFromFile(state, releaseExpr);
+    Value v;
+    state.mkThunk_(v, e);
 
     XMLWriter doc(true, std::cout);
     XMLOpenElement root(doc, "jobs");
-    findJobs(state, doc, ATermMap(), autoArgs, e, "");
+    findJobs(state, doc, ArgsUsed(), autoArgs, v, "");
 }
 
 
