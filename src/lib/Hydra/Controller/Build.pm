@@ -354,10 +354,7 @@ sub restart : Chained('build') PathPart Args(0) {
 
     txn_do($c->model('DB')->schema, sub {
         error($c, "This build cannot be restarted.")
-            unless $build->finished &&
-              ($build->resultInfo->buildstatus == 2 ||
-               $build->resultInfo->buildstatus == 3 ||
-               $build->resultInfo->buildstatus == 4);
+            unless $build->finished;
 
         $build->update({finished => 0, timestamp => time});
 
