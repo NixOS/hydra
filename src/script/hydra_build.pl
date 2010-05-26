@@ -209,8 +209,10 @@ sub sendEmailNotification {
 sub doBuild {
     my ($build) = @_;
 
-    my $drvPath = $build->drvpath;
-    my $outPath = $build->outpath;
+    my $drvPath   = $build->drvpath;
+    my $outPath   = $build->outpath;
+    my $maxsilent = $build->maxsilent;
+    my $timeout   = $build->timeout;
 
     my $isCachedBuild = 1;
     my $outputCreated = 1; # i.e., the Nix build succeeded (but it could be a positive failure)
@@ -234,7 +236,7 @@ sub doBuild {
         # to get notifications about specific build steps, the
         # associated log files, etc.
         my $cmd = "nix-store --realise $drvPath " .
-            "--max-silent-time 3600 --keep-going --fallback " .
+            "--max-silent-time $maxsilent --keep-going --fallback " .
             "--no-build-output --log-type flat --print-build-trace " .
             "--add-root " . gcRootFor $outPath . " 2>&1";
 

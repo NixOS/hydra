@@ -126,8 +126,15 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             xmlAttrs["longDescription"] = queryMetaFieldString(meta, "longDescription");
             xmlAttrs["license"] = queryMetaFieldString(meta, "license");
             xmlAttrs["homepage"] = queryMetaFieldString(meta, "homepage");
+
             int prio = queryMetaFieldInt(meta, "schedulingPriority", 100);
             xmlAttrs["schedulingPriority"] = int2String(prio);
+
+            int timeout = queryMetaFieldInt(meta, "timeout", 36000);
+            xmlAttrs["timeout"] = int2String(timeout);
+
+            int maxsilent = queryMetaFieldInt(meta, "maxSilent", 3600);
+            xmlAttrs["maxSilent"] = int2String(maxsilent);
 
             string maintainers;
             MetaValue value = meta["maintainers"];

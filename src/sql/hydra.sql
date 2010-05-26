@@ -143,6 +143,8 @@ create table Builds (
     license       text, -- meta.license
     homepage      text, -- meta.homepage
     maintainers   text, -- meta.maintainers (concatenated, comma-separated)
+    maxsilent     integer default 3600, -- meta.maxsilent
+    timeout       integer default 36000, -- meta.timeout
 
     isCurrent     integer default 0,
 

@@ -541,6 +541,8 @@ sub checkBuild {
             , license => $buildInfo->{license}
             , homepage => $buildInfo->{homepage}
             , maintainers => $buildInfo->{maintainers}
+            , maxsilent => $buildInfo->{maxSilent}
+            , timeout => $buildInfo->{timeout}
             , nixname => $buildInfo->{nixName}
             , drvpath => $drvPath
             , outpath => $outPath

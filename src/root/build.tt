@@ -275,6 +275,10 @@
 		    <td><tt>[% build.system %]</tt></td>
 		  </tr>
 		  <tr>
+		    <th>Max silent / timeout:</th>
+		    <td>[% build.maxsilent %]s / [% build.timeout %]s</td>
+		  </tr>
+		  <tr>
 		    <th>Derivation store path:</th>
 		    <td>
 		      <tt>[% build.drvpath %]</tt>

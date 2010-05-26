@@ -128,6 +128,20 @@ __PACKAGE__->table("Builds");
   is_nullable: 1
   size: undef
 
+=head2 maxsilent
+
+  data_type: integer
+  default_value: 3600
+  is_nullable: 1
+  size: undef
+
+=head2 timeout
+
+  data_type: integer
+  default_value: 36000
+  is_nullable: 1
+  size: undef
+
 =head2 iscurrent
 
   data_type: integer
@@ -258,6 +272,20 @@ __PACKAGE__->add_columns(
   {
     data_type => "text",
     default_value => undef,
+    is_nullable => 1,
+    size => undef,
+  },
+  "maxsilent",
+  {
+    data_type => "integer",
+    default_value => 3600,
+    is_nullable => 1,
+    size => undef,
+  },
+  "timeout",
+  {
+    data_type => "integer",
+    default_value => 36000,
     is_nullable => 1,
     size => undef,
   },
@@ -435,8 +463,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-03-05 13:07:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:sE2/zTcfETC8Eahh6NQDZA
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-05-26 09:25:50
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OApfteImw84nYhUvSUB4FA
 
 use Hydra::Helper::Nix;
 
