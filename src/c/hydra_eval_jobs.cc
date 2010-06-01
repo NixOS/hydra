@@ -151,8 +151,10 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             /* Register the derivation as a GC root.  !!! This
                registers roots for jobs that we may have already
                done. */
-            Path root = gcRootsDir + "/" + baseNameOf(drvPath);
-            if (!pathExists(root)) addPermRoot(drvPath, root, false);
+            if (gcRootsDir != "") {
+                Path root = gcRootsDir + "/" + baseNameOf(drvPath);
+                if (!pathExists(root)) addPermRoot(drvPath, root, false);
+            }
             
             XMLOpenElement _(doc, "job", xmlAttrs);
             showArgsUsed(doc, argsUsed);
@@ -229,7 +231,7 @@ void run(Strings args)
 
     if (releaseExpr == "") throw UsageError("no expression specified");
     
-    if (gcRootsDir == "") throw UsageError("--gc-roots-dir not specified");
+    if (gcRootsDir == "") printMsg(lvlError, "warning: `--gc-roots-dir' not specified");
     
     store = openStore();
 
