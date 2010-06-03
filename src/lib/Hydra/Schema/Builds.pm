@@ -545,7 +545,7 @@ QUERY
             x.id, x.finished, x.timestamp, x.project, x.jobset, x.job, x.nixname,
             x.description, x.drvpath, x.outpath, x.system, x.longdescription,
             x.license, x.homepage, x.maintainers, x.isCurrent, x.nixExprInput,
-            x.nixExprPath,
+            x.nixExprPath, x.maxsilent, x.timeout,
             b.id as statusChangeId, b.timestamp as statusChangeTime
           from
             (select  
