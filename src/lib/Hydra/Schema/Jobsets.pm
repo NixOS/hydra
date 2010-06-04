@@ -92,6 +92,13 @@ __PACKAGE__->table("Jobsets");
   is_nullable: 0
   size: undef
 
+=head2 hidden
+
+  data_type: integer
+  default_value: 0
+  is_nullable: 0
+  size: undef
+
 =head2 emailoverride
 
   data_type: text
@@ -165,6 +172,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 1, is_nullable => 0, size => undef },
   "enableemail",
   { data_type => "integer", default_value => 1, is_nullable => 0, size => undef },
+  "hidden",
+  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
   "emailoverride",
   {
     data_type => "text",
@@ -271,7 +280,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-03-05 13:07:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Z0HutYxnzYVuQc3W51mq5Q
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-06-04 16:32:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:aQ+7TLIXnNDjjulPNqLq7A
 
 1;

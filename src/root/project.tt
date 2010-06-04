@@ -78,7 +78,14 @@
                       <div class="[% class %]">[% j.get_column('nrsucceeded') %]/[% j.get_column('nrtotal') %]</div>
                   </td>
                   [% IF c.check_user_roles('admin') %]
-                    <td>[ [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, j.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ j.name _ "?") %] ]</td>
+                    <td>[ [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, j.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ j.name _ "?") %]
+                        | [% IF j.hidden %]
+                              [% INCLUDE maybeLink uri = c.uri_for('/jobset' project.name j.name 'unhide') content = "Unhide" %]
+                          [% ELSE %] 
+                              [% INCLUDE maybeLink uri = c.uri_for('/jobset' project.name j.name 'hide') content = "Hide" %]
+                          [% END %]
+                     ]
+                    </td>
                   [% END%]
 			    </tr>
 			    [% END %]

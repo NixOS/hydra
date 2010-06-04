@@ -9,7 +9,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(
     getBuild getPreviousBuild getPreviousSuccessfulBuild getBuildStats joinWithResultInfo getChannelData
     error notFound
-    requireLogin requireProjectOwner requireAdmin requirePost
+    requireLogin requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
     $pathCompRE $relPathRE $relNameRE $jobNameRE $systemRE
 );
@@ -134,6 +134,11 @@ sub requireLogin {
     $c->detach; # doesn't return
 }
 
+sub isProjectOwner {
+    my ($c, $project) = @_;
+
+    return $c->user_exists && ($c->check_user_roles('admin') || $c->user->username eq $project->owner->username || defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
+}
 
 sub requireProjectOwner {
     my ($c, $project) = @_;
@@ -141,9 +146,15 @@ sub requireProjectOwner {
     requireLogin($c) if !$c->user_exists;
 
     error($c, "Only the project members or administrators can perform this operation.")
-        unless $c->check_user_roles('admin') || $c->user->username eq $project->owner->username || defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username });
+        unless isProjectOwner($c, $project);
 }
 
+
+sub isAdmin {
+    my ($c) = @_;
+
+    return $c->user_exists && $c->check_user_roles('admin');
+}
 
 sub requireAdmin {
     my ($c) = @_;
@@ -151,7 +162,7 @@ sub requireAdmin {
     requireLogin($c) if !$c->user_exists;
     
     error($c, "Only administrators can perform this operation.")
-        unless $c->check_user_roles('admin');
+        unless isAdmin($c);
 }
 
 

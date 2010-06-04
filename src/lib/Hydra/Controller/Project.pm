@@ -26,7 +26,7 @@ sub view : Chained('project') PathPart('') Args(0) {
     #getBuildStats($c, scalar $c->stash->{project}->builds);
 
     $c->stash->{views} = [$c->stash->{project}->views->all];
-    $c->stash->{jobsets} = [$c->stash->{project}->jobsets->search({},
+    $c->stash->{jobsets} = [$c->stash->{project}->jobsets->search( isProjectOwner($c, $c->stash->{project}->name) ? {} : { hidden => 0 },
       { order_by => "name" 
       , "+select" => [
          "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildSchedulingInfo WHERE me.project = a.project AND me.name = a.jobset AND a.isCurrent = 1 )"
@@ -62,6 +62,30 @@ sub submit : Chained('project') PathPart Args(0) {
     $c->res->redirect($c->uri_for($self->action_for("view"), [$c->stash->{project}->name]));
 }
 
+
+sub hide : Chained('project') PathPart Args(0) {
+    my ($self, $c) = @_;
+
+    requireProjectOwner($c, $c->stash->{project});
+    
+    txn_do($c->model('DB')->schema, sub {
+        $c->stash->{project}->update({ hidden => 1, enabled => 0 });
+    });
+    
+    $c->res->redirect($c->uri_for("/"));
+}
+
+sub unhide : Chained('project') PathPart Args(0) {
+    my ($self, $c) = @_;
+
+    requireProjectOwner($c, $c->stash->{project});
+    
+    txn_do($c->model('DB')->schema, sub {
+        $c->stash->{project}->update({ hidden => 0 });
+    });
+    
+    $c->res->redirect($c->uri_for("/"));
+}
 
 sub delete : Chained('project') PathPart Args(0) {
     my ($self, $c) = @_;

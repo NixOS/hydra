@@ -47,6 +47,13 @@ __PACKAGE__->table("Projects");
   is_nullable: 0
   size: undef
 
+=head2 hidden
+
+  data_type: integer
+  default_value: 0
+  is_nullable: 0
+  size: undef
+
 =head2 owner
 
   data_type: text
@@ -88,6 +95,8 @@ __PACKAGE__->add_columns(
   },
   "enabled",
   { data_type => "integer", default_value => 1, is_nullable => 0, size => undef },
+  "hidden",
+  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
   "owner",
   {
     data_type => "text",
@@ -245,8 +254,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-04-20 11:21:42
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:1VZpwwaEdEJzrrV31ErPzw
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-06-04 16:32:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:b6DRXQBuBX5/tm+3VPO9yA
 # These lines were loaded from '/home/rbvermaa/src/hydra/src/lib/Hydra/Schema/Projects.pm' found in @INC.
 # They are now part of the custom portion of this file
 # for you to hand-edit.  If you do not either delete

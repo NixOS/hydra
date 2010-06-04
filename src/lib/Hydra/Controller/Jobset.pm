@@ -135,6 +135,32 @@ sub submit : Chained('jobset') PathPart Args(0) {
 }
 
 
+sub hide : Chained('jobset') PathPart Args(0) {
+    my ($self, $c) = @_;
+
+    requireProjectOwner($c, $c->stash->{project});
+    
+    txn_do($c->model('DB')->schema, sub {
+        $c->stash->{jobset}->update({ hidden => 1, enabled => 0 });
+    });
+    
+    $c->res->redirect($c->uri_for($c->controller('Project')->action_for("view"),
+        [$c->stash->{project}->name]));
+}
+
+sub unhide : Chained('jobset') PathPart Args(0) {
+    my ($self, $c) = @_;
+
+    requireProjectOwner($c, $c->stash->{project});
+    
+    txn_do($c->model('DB')->schema, sub {
+        $c->stash->{jobset}->update({ hidden => 0 });
+    });
+    
+    $c->res->redirect($c->uri_for($c->controller('Project')->action_for("view"),
+        [$c->stash->{project}->name]));
+}
+
 sub delete : Chained('jobset') PathPart Args(0) {
     my ($self, $c) = @_;
 

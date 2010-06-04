@@ -20,6 +20,7 @@ create table Projects (
     displayName   text not null, -- display name (e.g. "PatchELF")
     description   text,
     enabled       integer not null default 1,
+    hidden        integer not null default 0,
     owner         text not null,
     homepage      text, -- URL for the project
     foreign key   (owner) references Users(userName) on update cascade
@@ -48,6 +49,7 @@ create table Jobsets (
     lastCheckedTime integer, -- last time the evaluator looked at this jobset
     enabled       integer not null default 1,
     enableEmail   integer not null default 1,
+    hidden        integer not null default 0,
     emailOverride text not null,
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade
