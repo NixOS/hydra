@@ -301,7 +301,7 @@ sub fetchInputGit {
     } else {
     
         # Then download this revision into the store.
-        print STDERR "checking out Git input from $uri";
+        print STDERR "checking out Git input from $uri\n";
         $ENV{"NIX_HASH_ALGO"} = "sha256";
         $ENV{"PRINT_PATH"} = "1";
     
