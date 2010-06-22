@@ -9,7 +9,7 @@ use Hydra::Helper::CatalystUtils;
 
 sub closure : Chained('nix') PathPart {
     my ($self, $c) = @_;
-    $c->stash->{current_view} = 'Hydra::View::NixClosure';
+    $c->stash->{current_view} = 'NixClosure';
 
     # !!! quick hack; this is to make HEAD requests return the right
     # MIME type.  This is set in the view as well, but the view isn't
@@ -20,25 +20,8 @@ sub closure : Chained('nix') PathPart {
 
 sub manifest : Chained('nix') PathPart("MANIFEST") Args(0) {
     my ($self, $c) = @_;
-    $c->stash->{current_view} = 'Hydra::View::NixManifest';
-    $c->stash->{narBase} = $c->uri_for($self->action_for("nar"), $c->req->captures);
-}
-
-
-sub nar : Chained('nix') PathPart {
-    my ($self, $c, @rest) = @_;
-
-    my $path .= "/" . join("/", @rest);
-
-    if (!isValidPath($path)) {
-        $c->response->status(410); # "Gone"
-        error($c, "Path " . $path . " is no longer available.");
-    }
-
-    # !!! check that $path is in the closure of $c->stash->{storePaths}.
-
-    $c->stash->{current_view} = 'Hydra::View::NixNAR';
-    $c->stash->{storePath} = $path;
+    $c->stash->{current_view} = 'NixManifest';
+    $c->stash->{narBase} = $c->uri_for($c->controller('Root')->action_for("nar"));
 }
 
 
@@ -54,7 +37,7 @@ sub pkg : Chained('nix') PathPart Args(1) {
 
     $c->stash->{manifestUri} = $c->uri_for($self->action_for("manifest"), $c->req->captures);
 
-    $c->stash->{current_view} = 'Hydra::View::NixPkg';
+    $c->stash->{current_view} = 'NixPkg';
 
     $c->response->content_type('application/nix-package');
 }
@@ -62,7 +45,7 @@ sub pkg : Chained('nix') PathPart Args(1) {
 
 sub nixexprs : Chained('nix') PathPart('nixexprs.tar.bz2') Args(0) {
     my ($self, $c) = @_;
-    $c->stash->{current_view} = 'Hydra::View::NixExprs';
+    $c->stash->{current_view} = 'NixExprs';
 }
 
 

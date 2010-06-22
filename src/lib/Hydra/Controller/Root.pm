@@ -158,4 +158,19 @@ sub end : ActionClass('RenderView') {
 }
 
 
+sub nar :Local :Args(1) {
+    my ($self, $c, $path) = @_;
+
+    $path = "/nix/store/$path";
+
+    if (!isValidPath($path)) {
+        $c->response->status(410); # "Gone"
+        error($c, "Path " . $path . " is no longer available.");
+    }
+
+    $c->stash->{current_view} = 'NixNAR';
+    $c->stash->{storePath} = $path;
+}
+
+
 1;

@@ -266,7 +266,7 @@ sub runtimedeps : Chained('build') PathPart('runtime-deps') {
     notFound($c, "Path " . $build->outpath . " is no longer available.")
         unless isValidPath($build->outpath);
     
-    $c->stash->{current_view} = 'Hydra::View::NixDepGraph';
+    $c->stash->{current_view} = 'NixDepGraph';
     $c->stash->{storePaths} = [$build->outpath];
     
     $c->res->content_type('image/png'); # !!!
@@ -281,7 +281,7 @@ sub buildtimedeps : Chained('build') PathPart('buildtime-deps') {
     notFound($c, "Path " . $build->drvpath . " is no longer available.")
         unless isValidPath($build->drvpath);
     
-    $c->stash->{current_view} = 'Hydra::View::NixDepGraph';
+    $c->stash->{current_view} = 'NixDepGraph';
     $c->stash->{storePaths} = [$build->drvpath];
     
     $c->res->content_type('image/png'); # !!!
