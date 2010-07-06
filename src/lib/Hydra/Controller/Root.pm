@@ -37,12 +37,19 @@ sub login :Local {
     my $username = $c->request->params->{username} || "";
     my $password = $c->request->params->{password} || "";
 
+    if(! $username && ! defined $c->flash->{afterLogin}) {
+      my $baseurl = $c->uri_for('/');
+      my $refurl = $c->request->referer;
+      $c->flash->{afterLogin} = $refurl if $refurl =~ m/^($baseurl)/ ;
+    }
+
     if ($username && $password) {
         if ($c->authenticate({username => $username, password => $password})) {
             $c->response->redirect(
                 defined $c->flash->{afterLogin}
                 ? $c->flash->{afterLogin}
                 : $c->uri_for('/'));
+            $c->flash->{afterLogin} = undef;
             return;
         }
         $c->stash->{errorMsg} = "Bad username or password.";
