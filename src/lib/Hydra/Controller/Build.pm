@@ -22,6 +22,7 @@ sub build : Chained('/') PathPart CaptureArgs(1) {
 
     $c->stash->{prevBuild} = getPreviousBuild($c, $c->stash->{build});
     $c->stash->{prevSuccessfulBuild} = getPreviousSuccessfulBuild($c, $c->stash->{build});
+    $c->stash->{firstBrokenBuild} = getNextBuild($c, $c->stash->{prevSuccessfulBuild});
 
     $c->stash->{mappers} = [$c->model('DB::UriRevMapper')->all];
 

@@ -183,6 +183,16 @@
 				[% INCLUDE renderBuildSteps type="Failed" %]
 			[% END %]
 
+            [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]
+                <h2>Changes</h2>
+                <p>
+                   Build [% INCLUDE renderFullBuildLink build=firstBrokenBuild %] is the first build failure after the previous successful build of this job. The changes that might have caused the failure are:
+                </p>
+                [% INCLUDE renderInputDiff build2=prevSuccessfulBuild , build1=firstBrokenBuild %]
+                <br />
+                <p/>
+            [% END %]
+
             [% IF build.resultInfo.buildstatus != 0 && prevSuccessfulBuild %]
                 <h2>Changes</h2>
                 <p>
