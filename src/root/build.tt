@@ -188,7 +188,7 @@
                 <p>
                    Build [% INCLUDE renderFullBuildLink build=firstBrokenBuild %] is the first build failure after the previous successful build of this job. The changes that might have caused the failure are:
                 </p>
-                [% INCLUDE renderInputDiff build2=prevSuccessfulBuild , build1=firstBrokenBuild %]
+                [% INCLUDE renderInputDiff build1=prevSuccessfulBuild , build2=firstBrokenBuild %]
                 <br />
                 <p/>
             [% END %]
