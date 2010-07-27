@@ -23,6 +23,8 @@ sub getBuild {
 
 sub getPreviousBuild {
     my ($c, $build) = @_;
+    return undef if !defined $build;
+
     (my $prevBuild) = $c->model('DB::Builds')->search(
       { finished => 1
       , system => $build->system
@@ -37,6 +39,8 @@ sub getPreviousBuild {
 
 sub getNextBuild {
     my ($c, $build) = @_;
+    return undef if !defined $build;
+
     (my $nextBuild) = $c->model('DB::Builds')->search(
       { finished => 1
       , system => $build->system
@@ -51,6 +55,8 @@ sub getNextBuild {
 
 sub getPreviousSuccessfulBuild {
     my ($c, $build) = @_;
+    return undef if !defined $build;
+
     (my $prevBuild) = joinWithResultInfo($c, $c->model('DB::Builds'))->search(
       { finished => 1
       , system => $build->system
