@@ -456,6 +456,9 @@ sub fetchInput {
     elsif ($type eq "git") {
         return fetchInputGit($db, $project, $jobset, $name, $type, $value);
     }
+    elsif ($type eq "hg") {
+        return fetchInputHg($db, $project, $jobset, $name, $type, $value);
+    }
     
     elsif ($type eq "string") {
         die unless defined $value;
