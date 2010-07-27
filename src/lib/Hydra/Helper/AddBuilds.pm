@@ -6,6 +6,8 @@ use XML::Simple;
 use POSIX qw(strftime);
 use IPC::Run;
 use Hydra::Helper::Nix;
+use Digest::SHA qw(sha256_hex);
+use File::Path;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr);
@@ -354,9 +356,82 @@ sub fetchInputGit {
         };
 }
 
+sub scmPath {
+    return getHydraPath . "/scm" ;
+}
 
-sub fetchInputCVS {
+sub fetchInputHg {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
+    
+    (my $uri, my $branch) = split ' ', $value;
+    $branch = defined $branch ? $branch : "default";
+
+    # init local hg clone
+
+    my $stdout; my $stderr;
+    my $clonePath;
+    mkpath(scmPath);
+    $clonePath = scmPath . "/" . sha256_hex($uri);
+
+    if (! -d $clonePath) {
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("hg", "clone", $uri, $clonePath));
+        die "Error cloning mercurial repo at `$uri':\n$stderr" unless $res;
+    }
+
+    # hg pull + check rev
+    chdir $clonePath or die $!;
+    (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+        ("hg", "pull"));
+    die "Error pulling latest change mercurial repo at `$uri':\n$stderr" unless $res;
+
+    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
+        ("hg", "heads", $branch));
+    die "Error getting head of $branch from `$uri':\n$stderr" unless $res;
+
+    $stdout =~ m/[0-9]+:([0-9A-Fa-f]{12})/;
+    my $revision = $1;
+    die "Could not determine head revision of branch $branch" unless $revision;
+    
+    my $storePath;
+    my $sha256;
+    (my $cachedInput) = $db->resultset('CachedHgInputs')->search(
+        {uri => $uri, branch => $branch, revision => $revision});
+
+    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+        $storePath = $cachedInput->storepath;
+        $sha256 = $cachedInput->sha256hash;
+    } else {
+        print STDERR "checking out Mercurial input from $uri $branch revision $revision\n";
+        $ENV{"NIX_HASH_ALGO"} = "sha256";
+        $ENV{"PRINT_PATH"} = "1";
+        
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("nix-prefetch-hg", $uri, $revision));
+        die "Cannot check out Mercurial repository `$uri':\n$stderr" unless $res;
+
+        ($sha256, $storePath) = split ' ', $stdout;
+
+        txn_do($db, sub {
+            $db->resultset('CachedHgInputs')->create(
+                { uri => $uri
+                , branch => $branch
+                , revision => $revision
+                , sha256hash => $sha256
+                , storepath => $storePath
+                });
+            });
+    }
+
+    return 
+        { type => $type
+        , uri => $uri
+        , branch => $branch
+        , storePath => $storePath
+        , sha256hash => $sha256
+        , revision => $revision
+        };
+    
 }
 
 
@@ -411,7 +486,7 @@ sub inputsToArgs {
                 when ("boolean") {
                     push @res, "--arg", $input, $alt->{value};
                 }
-                when (["svn", "svn-checkout", "path", "build", "git", "cvs", "sysbuild"]) {
+                when (["svn", "svn-checkout", "path", "build", "git", "hg", "sysbuild"]) {
                     push @res, "--arg", $input, (
                         "{ outPath = builtins.storePath " . $alt->{storePath} . "" .
                         (defined $alt->{revision} ? "; rev = \"" . $alt->{revision} . "\"" : "") .

@@ -318,6 +318,15 @@ create table CachedGitInputs (
     primary key   (uri, branch, revision)
 );
 
+create table CachedHgInputs (
+    uri           text not null,
+    branch        text not null,
+    revision      text not null,
+    sha256hash    text not null,
+    storePath     text not null,
+    primary key   (uri, branch, revision)
+);
+
 create table CachedCVSInputs (
     uri           text not null,
     module        text not null,
@@ -495,6 +504,7 @@ create index IndexBuildsOnJobset on Builds(project, jobset);
 create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);
 create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
+create index IndexCachedHgInputsOnHash on CachedHgInputs(uri, branch, sha256hash);
 create index IndexCachedGitInputsOnHash on CachedGitInputs(uri, branch, sha256hash);
 create index IndexCachedGitInputsOnLastSeen on CachedGitInputs(uri, branch, lastSeen);
 create index IndexCachedSubversionInputsOnUriRevision on CachedSubversionInputs(uri, revision);

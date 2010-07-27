@@ -76,7 +76,7 @@ rec {
 
       hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [
         libxslt sqlite subversion openssh nix coreutils findutils
-        gzip bzip2 lzma gnutar unzip git
+        gzip bzip2 lzma gnutar unzip git mercurial
         gnused graphviz
       ] ++ ( if stdenv.isLinux then [rpm dpkg cdrkit] else [] )));
 
@@ -90,6 +90,7 @@ rec {
 
         cp ${"${nixpkgs}/pkgs/build-support/fetchsvn/nix-prefetch-svn"} $out/bin/nix-prefetch-svn
         cp ${"${nixpkgs}/pkgs/build-support/fetchgit/nix-prefetch-git"} $out/bin/nix-prefetch-git
+        cp ${"${nixpkgs}/pkgs/build-support/fetchhg/nix-prefetch-hg"} $out/bin/nix-prefetch-hg
 
         make -C src/c NIX=${nix} ATERM=${aterm}
         cp src/c/hydra_eval_jobs $out/bin

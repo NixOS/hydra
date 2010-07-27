@@ -8,6 +8,7 @@
     , "svn-checkout" = "Subversion checkout"
     , "git" = "Git checkout"
     , "tarball" = "Download of a tarball"
+    , "hg" = "Mercurial checkout"
     , "string" = "String value"
     , "boolean" = "Boolean"
     , "path" = "Local path"
