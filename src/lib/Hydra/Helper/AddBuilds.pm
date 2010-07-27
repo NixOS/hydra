@@ -407,7 +407,7 @@ sub fetchInputHg {
         $ENV{"PRINT_PATH"} = "1";
         
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("nix-prefetch-hg", $uri, $revision));
+            ("nix-prefetch-hg", $clonePath, $revision));
         die "Cannot check out Mercurial repository `$uri':\n$stderr" unless $res;
 
         ($sha256, $storePath) = split ' ', $stdout;
