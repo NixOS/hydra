@@ -1,4 +1,4 @@
-{ nixpkgs ? ../nixpkgs
+{ nixpkgs ? /etc/nixos/nixpkgs
 , hydraSrc ? {outPath = ./.; rev = 1234;}
 , officialRelease ? false
 }:

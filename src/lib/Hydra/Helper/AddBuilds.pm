@@ -12,6 +12,9 @@ use File::Path;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr);
 
+sub scmPath {
+    return getHydraPath . "/scm" ;
+}
 
 sub getStorePathHash {
     my ($storePath) = @_;
@@ -275,11 +278,26 @@ sub fetchInputGit {
     my $sha256;
     my $storePath;
 
-    # First figure out the last-modified revision of the URI.
+    my $clonePath;
+    mkpath(scmPath);
+    $clonePath = scmPath . "/" . sha256_hex($uri);    
+
     my $stdout; my $stderr;
+    if (! -d $clonePath) {
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("git", "clone", $uri, $clonePath));
+        die "Error cloning git repo at `$uri':\n$stderr" unless $res;
+    }
+
+    # git pull + check rev
+    chdir $clonePath or die $!;
     (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("git", "ls-remote", $uri, "refs/heads/".$branch));
-    die "Cannot get head revision of Git branch '$branch' at `$uri':\n$stderr" unless $res;
+        ("git", "pull"));
+    die "Error pulling latest change git repo at `$uri':\n$stderr" unless $res;
+
+    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
+        ("git", "ls-remote", $clonePath, "refs/heads/".$branch));
+    die "Cannot get head revision of Git branch '$branch' at `$uri':\n$stderr" unless $res1;
 
     (my $revision, my $ref) = split ' ', $stdout;
     die unless $revision =~ /^[0-9a-fA-F]+$/;
@@ -289,16 +307,10 @@ sub fetchInputGit {
     ($cachedInput) = $db->resultset('CachedGitInputs')->search(
         {uri => $uri, branch => $branch, revision => $revision},
         {rows => 1});
-    if (! defined $cachedInput ) {
-        ($cachedInput) = $db->resultset('CachedGitInputs')->search(
-            {uri => $uri, branch => $branch, lastseen => {">", $timestamp - 3600}},
-            {rows => 1, order_by => "lastseen DESC"});
-    }
 
     if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
-        $timestamp = $cachedInput->timestamp;
         $revision = $cachedInput->revision;
     } else {
     
@@ -324,27 +336,16 @@ sub fetchInputGit {
         die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
     
         ($sha256, $storePath) = split ' ', $stdout;
-        ($cachedInput) = $db->resultset('CachedGitInputs')->search(
-            {uri => $uri, branch => $branch, sha256hash => $sha256});
     
-        if (!defined $cachedInput) {
-            txn_do($db, sub {
-                $db->resultset('CachedGitInputs')->update_or_create(
-                    { uri => $uri
-                    , branch => $branch
-                    , revision => $revision
-                    , timestamp => $timestamp
-                    , lastseen => $timestamp
-                    , sha256hash => $sha256
-                    , storepath => $storePath
-                    });
+        txn_do($db, sub {
+            $db->resultset('CachedGitInputs')->update_or_create(
+                { uri => $uri
+                , branch => $branch
+                , revision => $revision
+                , sha256hash => $sha256
+                , storepath => $storePath
                 });
-        } else {
-            $timestamp = $cachedInput->timestamp;
-            txn_do($db, sub {
-                $cachedInput->update({lastseen => time});
             });
-        }
     }
 
     return
@@ -354,10 +355,6 @@ sub fetchInputGit {
         , sha256hash => $sha256
         , revision => $revision
         };
-}
-
-sub scmPath {
-    return getHydraPath . "/scm" ;
 }
 
 sub fetchInputHg {
@@ -387,7 +384,7 @@ sub fetchInputHg {
 
     (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
         ("hg", "heads", $branch));
-    die "Error getting head of $branch from `$uri':\n$stderr" unless $res;
+    die "Error getting head of $branch from `$uri':\n$stderr" unless $res1;
 
     $stdout =~ m/[0-9]+:([0-9A-Fa-f]{12})/;
     my $revision = $1;

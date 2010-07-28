@@ -311,8 +311,6 @@ create table CachedGitInputs (
     uri           text not null,
     branch        text not null,
     revision      text not null,
-    timestamp     integer not null, -- when we first saw this hash
-    lastSeen      integer not null, -- when we last saw this hash
     sha256hash    text not null,
     storePath     text not null,
     primary key   (uri, branch, revision)
