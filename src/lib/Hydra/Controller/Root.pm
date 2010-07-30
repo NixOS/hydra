@@ -115,7 +115,6 @@ sub robots_txt : Path('robots.txt') {
         return
             ( uri_for($controller, 'closure', $bindings, "*")
             , uri_for($controller, 'manifest', $bindings)
-            , uri_for($controller, 'nar', $bindings, "*")
             , uri_for($controller, 'pkg', $bindings, "*")
             , uri_for($controller, 'nixexprs', $bindings)
             , uri_for($controller, 'channel_contents', $bindings)
@@ -132,6 +131,7 @@ sub robots_txt : Path('robots.txt') {
         , uri_for('Build', 'view_nixlog', ["*"], "*")
         , uri_for('Build', 'view_log', ["*"], "*")
         , uri_for('Build', 'view_log', ["*"])
+        , uri_for('Root', 'nar', [], "*")
         , channelUris('Root', ["*"])
         , channelUris('Project', ["*", "*"])
         , channelUris('Jobset', ["*", "*", "*"])
