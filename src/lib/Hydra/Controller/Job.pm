@@ -28,8 +28,8 @@ sub overview : Chained('job') PathPart('') Args(0) {
     $c->stash->{currentBuilds} = [$c->stash->{job}->builds->search({iscurrent => 1}, { join => 'resultInfo', '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
                                                                                      , '+as' => ["releasename", "buildstatus"], order_by => 'system' })];
 
-    $c->stash->{lastBuilds} = [$c->stash->{job}->builds->search({}, { join => 'resultInfo', '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
-                                                                                         , '+as' => ["releasename", "buildstatus"], order_by => 'system', rows => 5 })];
+    $c->stash->{lastBuilds} = [$c->stash->{job}->builds->search({ finished => 1 }, { join => 'resultInfo', '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
+                                                                                          , '+as' => ["releasename", "buildstatus"], order_by => 'timestamp DESC', rows => 5 })];
 
     $c->stash->{runningBuilds} = [$c->stash->{job}->builds->search({iscurrent => 1}, { join => ['schedulingInfo', 'project'] , order_by => ["priority DESC", "timestamp"]
                                                                                      , '+select' => ['project.enabled', 'schedulingInfo.priority', 'schedulingInfo.disabled', 'schedulingInfo.busy']
