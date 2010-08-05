@@ -506,6 +506,8 @@ create index IndexCachedHgInputsOnHash on CachedHgInputs(uri, branch, sha256hash
 create index IndexCachedGitInputsOnHash on CachedGitInputs(uri, branch, sha256hash);
 create index IndexCachedGitInputsOnLastSeen on CachedGitInputs(uri, branch, lastSeen);
 create index IndexCachedSubversionInputsOnUriRevision on CachedSubversionInputs(uri, revision);
+create index IndexJobsetEvalMembersOnBuild on JobsetEvalMembers(build);
 create index IndexJobsetInputAltsOnInput on JobsetInputAlts(project, jobset, input);
 create index IndexJobsetInputAltsOnJobset on JobsetInputAlts(project, jobset);
 create index IndexProjectsOnEnabled on Projects(enabled);
+create index IndexReleaseMembersOnBuild on ReleaseMembers(build);
