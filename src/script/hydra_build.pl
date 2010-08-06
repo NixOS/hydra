@@ -82,7 +82,7 @@ sub sendEmailNotification {
 
     die unless defined $build->resultInfo;
         
-    return if !($build->maintainers || $build->jobset->enableemail);
+    return if !($build->maintainers && $build->jobset->enableemail);
 
     # Do we want to send mail?
 
