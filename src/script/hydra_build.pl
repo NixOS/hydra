@@ -162,7 +162,7 @@ sub sendEmailNotification {
     my $body = "Hi,\n"
         . "\n"
         . "This is to let you know that Hydra build " . $build->id
-        . " of job " . $jobName . " "  . (defined $prevBuild ? "has changed from '".statusDescription($prevBuild->resultInfo->buildstatus)."' to '$status'" : "has succeeded" ) .".\n"
+        . " of job " . $jobName . " "  . (defined $prevBuild ? "has changed from '".statusDescription($prevBuild->resultInfo->buildstatus)."' to '$status'" : "is '$status'." ) .".\n"
         . "\n"
         . "Complete build information can be found on this page: "
         . "$selfURI/build/" . $build->id . "\n"
