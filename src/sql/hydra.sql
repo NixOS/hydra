@@ -51,6 +51,7 @@ create table Jobsets (
     enableEmail   integer not null default 1,
     hidden        integer not null default 0,
     emailOverride text not null,
+    keepnr        integer not null default 3,
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade
 #ifdef SQLITE
@@ -504,7 +505,6 @@ create index IndexBuildsOnTimestamp on Builds(timestamp);
 create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
 create index IndexCachedHgInputsOnHash on CachedHgInputs(uri, branch, sha256hash);
 create index IndexCachedGitInputsOnHash on CachedGitInputs(uri, branch, sha256hash);
-create index IndexCachedGitInputsOnLastSeen on CachedGitInputs(uri, branch, lastSeen);
 create index IndexCachedSubversionInputsOnUriRevision on CachedSubversionInputs(uri, revision);
 create index IndexJobsetEvalMembersOnBuild on JobsetEvalMembers(build);
 create index IndexJobsetInputAltsOnInput on JobsetInputAlts(project, jobset, input);

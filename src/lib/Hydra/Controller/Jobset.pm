@@ -231,6 +231,7 @@ sub updateJobset {
         , enabled => trim($c->request->params->{enabled}) eq "1" ? 1 : 0
         , enableemail => trim($c->request->params->{enableemail}) eq "1" ? 1 : 0
         , emailoverride => trim($c->request->params->{emailoverride})
+        , keepnr => trim($c->request->params->{keepnr})
         });
 
     my %inputNames;

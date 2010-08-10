@@ -47,7 +47,7 @@ foreach my $project ($db->resultset('Projects')->search({hidden => 0},{})) {
         # !!! Take time into account? E.g. don't delete builds that
         # are younger than N days.
 	my @systems = $job->builds->search({ }, { select => ["system"], distinct => 1 })->all;
-
+    my $keepnr = $job->jobset->keepnr ;
 	foreach my $system (@systems) {
             my @recentBuilds = $job->builds->search(
 		{ finished => 1
@@ -56,7 +56,7 @@ foreach my $project ($db->resultset('Projects')->search({hidden => 0},{})) {
                 },
                 { join => 'resultInfo'
                 , order_by => 'id DESC'
-                , rows => 3 # !!! should make this configurable
+                , rows => $keepnr
                 });
 	    keepBuild $_ foreach @recentBuilds;
 	}

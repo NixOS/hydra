@@ -106,6 +106,13 @@ __PACKAGE__->table("Jobsets");
   is_nullable: 0
   size: undef
 
+=head2 keepnr
+
+  data_type: integer
+  default_value: 3
+  is_nullable: 0
+  size: undef
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -181,6 +188,8 @@ __PACKAGE__->add_columns(
     is_nullable => 0,
     size => undef,
   },
+  "keepnr",
+  { data_type => "integer", default_value => 3, is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("project", "name");
 
@@ -280,7 +289,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-06-04 16:32:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:aQ+7TLIXnNDjjulPNqLq7A
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-08-10 08:24:15
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:b/GSJQxUcjCP4fn3peJVMg
 
 1;

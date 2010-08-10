@@ -40,20 +40,6 @@ __PACKAGE__->table("CachedGitInputs");
   is_nullable: 0
   size: undef
 
-=head2 timestamp
-
-  data_type: integer
-  default_value: undef
-  is_nullable: 0
-  size: undef
-
-=head2 lastseen
-
-  data_type: integer
-  default_value: undef
-  is_nullable: 0
-  size: undef
-
 =head2 sha256hash
 
   data_type: text
@@ -92,20 +78,6 @@ __PACKAGE__->add_columns(
     is_nullable => 0,
     size => undef,
   },
-  "timestamp",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
-  "lastseen",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
   "sha256hash",
   {
     data_type => "text",
@@ -124,7 +96,7 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "branch", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:CoeyzZHUEPo7/VpIpLD+Pw
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-08-10 08:24:15
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4eYbLtiy5X3yegndBRFtSg
 
 1;

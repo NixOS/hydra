@@ -189,12 +189,18 @@
 			      [% INCLUDE renderSelection param="enableemail" curValue=jobset.enableemail options={"1" = "Yes", "0" = "No"} %]
 			    </td>
 			  </tr>
-			  <tr>
-			    <th>Email override:</th>
-			    <td>
-			      [% INCLUDE maybeEditString param="emailoverride" value=jobset.emailoverride %]
-			    </td>
-			  </tr>
+              <tr>
+                <th>Email override:</th>
+                <td>
+                  [% INCLUDE maybeEditString param="emailoverride" value=jobset.emailoverride %]
+                </td>
+              </tr>
+              <tr>
+                <th>Number of builds to keep:</th>
+                <td>
+                  [% INCLUDE maybeEditString param="keepnr" value=jobset.keepnr %]
+                </td>
+              </tr>
 			  [% IF !edit %]
 			  <tr>
 			    <th>Last checked:</th>
