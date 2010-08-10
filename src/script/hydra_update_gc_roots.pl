@@ -34,11 +34,11 @@ sub keepBuild {
 
 # Go over all projects.
 
-foreach my $project ($db->resultset('Projects')->search({hidden => 0},{})) {
+foreach my $project ($db->resultset('Projects')->all) {
 
     # Go over all jobs in this project.
 
-    foreach my $job ($project->jobs->search({hidden => 0}, { join => "jobset"})) {
+    foreach my $job ($project->jobs->all) {
         print STDERR "*** looking for builds to keep in job ",
             $project->name, ":", $job->jobset->name, ":", $job->name, "\n";
 
