@@ -106,11 +106,16 @@ sub view_log : Chained('build') PathPart('log') {
 sub showLog {
     my ($c, $path, $mode) = @_;
 
-    notFound($c, "Log file $path no longer exists.") unless -f $path;
+    my $fallbackpath = -f $path ? $path : "$path.bz2";
+
+    notFound($c, "Log file $path no longer exists.") unless -f $fallbackpath;
+    $path = $fallbackpath;
+
+    my $pipestart = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path") ; 
 
     if (!$mode) {
         # !!! quick hack
-        my $pipeline = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path")
+        my $pipeline = $pipestart
             . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
             . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " - | tail -n +2";
 
@@ -119,11 +124,12 @@ sub showLog {
     }
 
     elsif ($mode eq "raw") {
-        $c->serve_static_file($path);
+        $c->stash->{'plain'} = { data => (scalar `$pipestart`) || " " };
+        $c->forward('Hydra::View::Plain');
     }
 
     elsif ($mode eq "tail") {
-        $c->stash->{'plain'} = { data => (scalar `tail -n 50 $path`) || " " };
+        $c->stash->{'plain'} = { data => (scalar `$pipestart | tail -n 50`) || " " };
         $c->forward('Hydra::View::Plain');
     }
 
