@@ -35,7 +35,6 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     my $build = $c->stash->{build};
     
     $c->stash->{template} = 'build.tt';
-    $c->stash->{curTime} = time;
     $c->stash->{available} = isValidPath $build->outpath;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
     $c->stash->{flashMsg} = $c->flash->{buildMsg};

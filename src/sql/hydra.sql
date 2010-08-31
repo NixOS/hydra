@@ -236,6 +236,7 @@ create table BuildSteps (
     stopTime      integer,
 
     machine       text not null default '',
+    system        text,
 
     primary key   (build, stepnr),
     foreign key   (build) references Builds(id) on delete cascade

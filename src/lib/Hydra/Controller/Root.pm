@@ -12,14 +12,16 @@ __PACKAGE__->config->{namespace} = '';
 
 
 sub begin :Private {
-    my ($self, $c) = @_;
+    my ($self, $c, @args) = @_;
     $c->stash->{curUri} = $c->request->uri;
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
-    $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
-    
-    $c->stash->{nrRunningBuilds} = $c->model('DB::BuildSchedulingInfo')->search({ busy => 1 }, {})->count();
-    $c->stash->{nrQueuedBuilds} = $c->model('DB::BuildSchedulingInfo')->count();
-    
+    $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";    
+    $c->stash->{curTime} = time;
+
+    if (scalar(@args) && $args[0] ne "static") {
+	$c->stash->{nrRunningBuilds} = $c->model('DB::BuildSchedulingInfo')->search({ busy => 1 }, {})->count();
+	$c->stash->{nrQueuedBuilds} = $c->model('DB::BuildSchedulingInfo')->count();
+    }
 }
 
 
@@ -74,6 +76,7 @@ sub queue :Local {
     $c->stash->{flashMsg} = $c->flash->{buildMsg};
 }
 
+
 sub timeline :Local {
     my ($self, $c) = @_;
     my $pit = time();
@@ -89,6 +92,17 @@ sub timeline :Local {
         , '+as' => [ 'starttime', 'stoptime', 'buildstatus' ]   
         })];
 }
+
+
+sub status :Local {
+    my ($self, $c) = @_;
+    $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
+        { 'me.busy' => 1, 'schedulingInfo.busy' => 1 },
+        { join => [ 'schedulingInfo' ] 
+        , order_by => [ 'machine', 'outpath' ]
+        } ) ];
+}
+
 
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {

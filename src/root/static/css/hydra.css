@@ -53,8 +53,13 @@ tr.clickable:hover {
     background-color: #E6EEFF;
     cursor: pointer;
 }
+
 td.centered {
     text-align: center;
+}
+
+td.right {
+    text-align: right;
 }
 
 

@@ -264,6 +264,7 @@ sub doBuild {
                         , type => 0 # = build
                         , drvpath => $drvPathStep
                         , outpath => $2
+                        , system => $3
                         , logfile => $4
                         , busy => 1
                         , starttime => time
