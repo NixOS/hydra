@@ -50,22 +50,26 @@ sub unlockDeadBuilds {
     });
 }
 
+
 sub findBuildDependencyInQueue {
     my ($build) = @_;
     my $drvpath = $build->drvpath;
     my @paths = reverse(split '\n', `nix-store -qR $drvpath`);
 
-    my $depBuild;    
+    my $depBuild;
+    my @drvs = ();
     foreach my $path (@paths) {
-        if($path ne $drvpath) {
-            ($depBuild) = $db->resultset('Builds')->search(
-                 { drvpath => $path, finished => 0, busy => 0, enabled => 1, disabled => 0 },
-                 { join => ['schedulingInfo', 'project'], rows => 1 } ) ;
-            return $depBuild if defined $depBuild;
-        }
-    }    
-    return $depBuild;           
+        push @drvs, $path if $path =~ /\.drv$/ && $path ne $drvpath;
+    }
+
+    return unless scalar @drvs > 0;
+
+    ($depBuild) = $db->resultset('Builds')->search(
+	{ drvpath => [ @drvs ], finished => 0, busy => 0, enabled => 1, disabled => 0 },
+	{ join => ['schedulingInfo', 'project'], rows => 1 } ) ;
+    return $depBuild;
 }
+
 
 sub checkBuilds {
     print "looking for runnable builds...\n";
@@ -107,9 +111,7 @@ sub checkBuilds {
 
             foreach my $build (@builds) {
                 my $depbuild = findBuildDependencyInQueue($build);
-                if(defined $depbuild) {
-                    $build = $depbuild;
-                } 
+                $build = $depbuild if defined $depbuild;
 
                 my $logfile = getcwd . "/logs/" . $build->id;
                 mkdir(dirname $logfile);
