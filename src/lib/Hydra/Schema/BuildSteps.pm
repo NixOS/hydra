@@ -97,6 +97,13 @@ __PACKAGE__->table("BuildSteps");
   is_nullable: 1
   size: undef
 
+=head2 machine
+
+  data_type: text
+  default_value: ''
+  is_nullable: 0
+  size: undef
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -178,6 +185,8 @@ __PACKAGE__->add_columns(
     is_nullable => 1,
     size => undef,
   },
+  "machine",
+  { data_type => "text", default_value => "''", is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("build", "stepnr");
 
@@ -194,7 +203,7 @@ Related object: L<Hydra::Schema::Builds>
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" }, {});
 
 
-# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:233eydU0CA3zcJpwDrtwwA
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-08-31 15:40:29
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:CC/XBHMiRLuQSI+nEFW50g
 
 1;

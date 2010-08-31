@@ -202,7 +202,7 @@ sub sendEmailNotification {
 
     print $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
 
-   sendmail($email);
+    sendmail($email);
 }
 
 
@@ -270,6 +270,15 @@ sub doBuild {
                         });
                 });
             }
+            
+            elsif (/^@\s+build-remote\s+(\S+)\s+(\S+)$/) {
+                my $drvPathStep = $1;
+		my $machine = $2;
+                txn_do($db, sub {
+                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
+                    $step->update({machine => $machine});
+                });
+	    }
             
             elsif (/^@\s+build-succeeded\s+(\S+)\s+(\S+)$/) {
                 my $drvPathStep = $1;

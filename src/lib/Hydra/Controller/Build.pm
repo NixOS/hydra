@@ -45,7 +45,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
 
     if (!$build->finished && $build->schedulingInfo->busy) {
         my $logfile = $build->schedulingInfo->logfile;
-        $c->stash->{logtext} = `cat $logfile` if -e $logfile;
+        $c->stash->{logtext} = `cat $logfile` if defined $logfile && -e $logfile;
     }
 
     if (defined $build->resultInfo && $build->resultInfo->iscachedbuild) {

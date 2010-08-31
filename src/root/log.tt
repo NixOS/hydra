@@ -1,9 +1,14 @@
 [% WRAPPER layout.tt title="Logfile" %]
 [% PROCESS common.tt %]
 
-<h1>Logfile for [% INCLUDE renderFullJobNameOfBuild %] build [% build.id %][%IF step %] step [% step.stepnr %][% END %]</h1>
+<h1>Build log of [% INCLUDE renderFullJobNameOfBuild %] build <a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a>[%IF step %] step [% step.stepnr %][% END %]</h1>
 
-<p>Below is the logfile of the <a href="[% c.uri_for('/build' build.id) %]">build</a> producing Nix store path <tt>[% step.outpath %]</tt>.</p>
+<p>
+  This is the build log of path <tt>[% IF step; step.outpath; ELSE; build.outpath; END %]</tt>.
+  [% IF step && step.machine %]
+    It was built on <tt>[% step.machine %]</tt>.
+  [% END %]
+</p>
 
 <div class="buildlog">
 [% logtext -%]
