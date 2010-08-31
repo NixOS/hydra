@@ -18,8 +18,8 @@ rec {
       buildInputs = [zip unzip];
 
       jquery = fetchurl {
-        url = http://jqueryui.com/download/jquery-ui-1.8.2.custom.zip;
-        sha256 = "1rvys5fl782x13zpyj20q6z9kflm2xg1s9608lvnh9j5fbgxv656";
+        url = http://jqueryui.com/download/jquery-ui-1.8.4.custom.zip;
+        sha256 = "05ma2xm9dksq7x97lqs8lnkrrcy52h11p1dmnl8cwpfm45p0z7cp";
       };
 
       tablesorter = fetchurl {
