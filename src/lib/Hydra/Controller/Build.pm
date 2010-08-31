@@ -63,7 +63,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
             { project => $c->stash->{project}->name
             , jobset => $c->stash->{build}->jobset->name
             , job => $c->stash->{build}->job->name
-            , system => $build->system 
+            , 'me.system' => $build->system 
             , finished => 1
             , buildstatus => 0
             , 'me.id' =>  { '<=' => $build->id }
