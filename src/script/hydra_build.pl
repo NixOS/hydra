@@ -83,7 +83,7 @@ sub sendEmailNotification {
 
     die unless defined $build->resultInfo;
         
-    return if ! ( $build->jobset->enableemail && ($build->maintainers neq "" || $build->jobset->emailoverride neq "") );
+    return if ! ( $build->jobset->enableemail && ($build->maintainers ne "" || $build->jobset->emailoverride ne "") );
 
     # Do we want to send mail?
 
@@ -376,13 +376,7 @@ sub doBuild {
     txn_do($db, sub {
         $build->update({finished => 1, timestamp => time});
 
-        my $releaseName;
-        if (-e "$outPath/nix-support/hydra-release-name") {
-            open FILE, "$outPath/nix-support/hydra-release-name" or die;
-            $releaseName = <FILE>;
-            chomp $releaseName;
-            close FILE;
-        }
+        my $releaseName = getReleaseName($outPath);
         
         $db->resultset('BuildResultInfo')->create(
             { id => $build->id

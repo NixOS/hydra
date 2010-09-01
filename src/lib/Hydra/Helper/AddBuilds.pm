@@ -10,7 +10,7 @@ use Digest::SHA qw(sha256_hex);
 use File::Path;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr);
+our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr getReleaseName);
 
 sub scmPath {
     return getHydraPath . "/scm" ;
@@ -29,6 +29,18 @@ sub getStorePathHash {
     return $hash;    
 }
 
+sub getReleaseName {
+	my ($outPath) = @_;
+	
+    my $releaseName;
+    if (-e "$outPath/nix-support/hydra-release-name") {
+        open FILE, "$outPath/nix-support/hydra-release-name" or die;
+        $releaseName = <FILE>;
+        chomp $releaseName;
+        close FILE;
+    }
+    return $releaseName;
+}
 
 sub parseJobName {
     # Parse a job specification of the form `<project>:<jobset>:<job>
@@ -607,10 +619,12 @@ sub checkBuild {
             return;
         }
         
+        my $time = time();
+        
         # Nope, so add it.
         $build = $job->builds->create(
             { finished => 0
-            , timestamp => time()
+            , timestamp => $time 
             , description => $buildInfo->{description}
             , longdescription => $buildInfo->{longDescription}
             , license => $buildInfo->{license}
@@ -627,15 +641,29 @@ sub checkBuild {
             , nixexprpath => $jobset->nixexprpath
             });
 
-        print STDERR "added to queue as build ", $build->id, "\n";
         
         $currentBuilds->{$build->id} = 1;
         
-        $build->create_related('buildschedulinginfo',
-            { priority => $priority
-            , busy => 0
-            , locker => ""
-            });
+        if(isValidPath($outPath)) {
+            print STDERR "marked as cached build ", $build->id, "\n";
+        	$build->update({ finished => 1 });
+            $build->create_related('buildresultinfo',
+                { iscachedbuild => 1
+                , buildstatus => 0
+                , starttime => $time 
+                , stoptime => $time 
+                , logfile => getBuildLog($drvPath)
+                , errormsg => ""
+                , releasename => getReleaseName($outPath)
+                });
+        } else {
+            print STDERR "added to queue as build ", $build->id, "\n";
+            $build->create_related('buildschedulinginfo',
+                { priority => $priority
+                , busy => 0
+                , locker => ""
+                });
+        }
 
         my %inputs;
         $inputs{$jobset->nixexprinput} = $nixExprInput;
