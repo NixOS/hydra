@@ -5,6 +5,7 @@ use File::Basename;
 use File::stat;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
+use Hydra::Helper::AddBuilds;
 use Email::Sender::Simple qw(sendmail);
 use Email::Sender::Transport::SMTP;
 use Email::Simple;
@@ -82,7 +83,7 @@ sub sendEmailNotification {
 
     die unless defined $build->resultInfo;
         
-    return if !($build->maintainers && $build->jobset->enableemail);
+    return if ! ( $build->jobset->enableemail && ($build->maintainers neq "" || $build->jobset->emailoverride neq "") );
 
     # Do we want to send mail?
 
