@@ -35,5 +35,6 @@ in
   perlPackages.NetTwitterLite
   perlPackages.PadWalker
   perlPackages.DataDump
+  perlPackages.JSONXS
   nixPerl
 ]
