@@ -7,6 +7,8 @@ use POSIX qw(strftime);
 use IPC::Run;
 use Hydra::Helper::Nix;
 use Digest::SHA qw(sha256_hex);
+use File::Basename;
+use File::stat;
 use File::Path;
 
 our @ISA = qw(Exporter);
