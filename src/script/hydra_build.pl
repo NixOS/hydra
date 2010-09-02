@@ -26,13 +26,6 @@ my $db = openHydraDB;
 my %config = new Config::General($ENV{"HYDRA_CONFIG"})->getall;
 
 
-sub getBuildLog {
-    my ($drvPath) = @_;
-    my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
-    return -e $logPath ? $logPath : undef;
-}
-
-
 sub sendTwitterNotification {
     my ($build) = @_;
 

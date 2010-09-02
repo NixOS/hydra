@@ -10,11 +10,19 @@ use Digest::SHA qw(sha256_hex);
 use File::Path;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr getReleaseName);
+our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr getReleaseName getBuildLog);
 
 sub scmPath {
     return getHydraPath . "/scm" ;
 }
+
+
+sub getBuildLog {
+    my ($drvPath) = @_;
+    my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
+    return -e $logPath ? $logPath : undef;
+}
+
 
 sub getStorePathHash {
     my ($storePath) = @_;
