@@ -6,9 +6,6 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
-our @ISA = qw(Exporter);
-our @EXPORT = qw(jobsetOverview);
-
 sub project : Chained('/') PathPart('project') CaptureArgs(1) {
     my ($self, $c, $projectName) = @_;
     
@@ -17,20 +14,6 @@ sub project : Chained('/') PathPart('project') CaptureArgs(1) {
 
     $c->stash->{project} = $project;
      
-}
-
-sub jobsetOverview {
-	my ($c, $project) = @_;
-	return $project->jobsets->search( isProjectOwner($c, $project->name) ? {} : { hidden => 0 },
-      { order_by => "name" 
-      , "+select" => [
-         "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildSchedulingInfo WHERE me.project = a.project AND me.name = a.jobset AND a.isCurrent = 1 )"
-       , "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildResultInfo WHERE me.project = a.project AND me.name = a.jobset AND buildstatus <> 0 AND a.isCurrent = 1 )"
-       , "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildResultInfo WHERE me.project = a.project AND me.name = a.jobset AND buildstatus = 0 AND a.isCurrent = 1 )"
-       , "(SELECT COUNT(*) FROM Builds AS a WHERE me.project = a.project AND me.name = a.jobset AND a.isCurrent = 1 )"
-       ]
-      , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]          
-      });
 }
 
 sub view : Chained('project') PathPart('') Args(0) {
