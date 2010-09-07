@@ -383,64 +383,7 @@ sub doBuild {
             });
 
         if ($buildStatus == 0) {
-
-            my $productnr = 1;
-
-            if (-e "$outPath/nix-support/hydra-build-products") {
-                open LIST, "$outPath/nix-support/hydra-build-products" or die;
-                while (<LIST>) {
-                    /^([\w\-]+)\s+([\w\-]+)\s+(\S+)(\s+(\S+))?$/ or next;
-                    my $type = $1;
-                    my $subtype = $2 eq "none" ? "" : $2;
-                    my $path = $3;
-                    my $defaultPath = $5;
-                    next unless -e $path;
-
-                    my $fileSize, my $sha1, my $sha256;
-
-                    # !!! validate $path, $defaultPath
-
-                    if (-f $path) {
-                        my $st = stat($path) or die "cannot stat $path: $!";
-                        $fileSize = $st->size;
-                        
-                        $sha1 = `nix-hash --flat --type sha1 $path`
-                            or die "cannot hash $path: $?";;
-                        chomp $sha1;
-                    
-                        $sha256 = `nix-hash --flat --type sha256 $path`
-                            or die "cannot hash $path: $?";;
-                        chomp $sha256;
-                    }
-
-                    my $name = $path eq $outPath ? "" : basename $path;
-                    
-                    $db->resultset('BuildProducts')->create(
-                        { build => $build->id
-                        , productnr => $productnr++
-                        , type => $type
-                        , subtype => $subtype
-                        , path => $path
-                        , filesize => $fileSize
-                        , sha1hash => $sha1
-                        , sha256hash => $sha256
-                        , name => $name
-                        , defaultpath => $defaultPath
-                        });
-                }
-                close LIST;
-            }
-
-            else {
-                $db->resultset('BuildProducts')->create(
-                    { build => $build->id
-                    , productnr => $productnr++
-                    , type => "nix-build"
-                    , subtype => ""
-                    , path => $outPath
-                    , name => $build->nixname
-                    });
-            }
+            addBuildProducts($db, $build);
         }
 
         $build->schedulingInfo->delete;

@@ -117,8 +117,8 @@ sub getChannelData {
     
     my @storePaths = ();
     foreach my $build (@builds2) {
-        next unless isValidPath($build->outpath);
-        if (isValidPath($build->drvpath)) {
+        next unless Hydra::Helper::Nix::isValidPath($build->outpath);
+        if (Hydra::Helper::Nix::isValidPath($build->drvpath)) {
             # Adding `drvpath' implies adding `outpath' because of the
             # `--include-outputs' flag passed to `nix-store'.
             push @storePaths, $build->drvpath;
