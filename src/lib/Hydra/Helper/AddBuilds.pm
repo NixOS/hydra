@@ -318,10 +318,12 @@ sub fetchInputGit {
     die "Error pulling latest change git repo at `$uri':\n$stderr" unless $res;
 
     (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
-        ("git", "ls-remote", $clonePath, "refs/heads/".$branch));
-    die "Cannot get head revision of Git branch '$branch' at `$uri':\n$stderr" unless $res1;
+        ("git", "ls-remote", $clonePath, $branch));
+    
+    die "Cannot get head revision of Git branch '$branch' at `$uri':\n$stderr" unless $res1 ;
 
-    (my $revision, my $ref) = split ' ', $stdout;
+    my ($first) = split /\n/, $stdout;
+    (my $revision, my $ref) = split ' ', $first;
     die unless $revision =~ /^[0-9a-fA-F]+$/;
 
     # Some simple caching: don't check a uri/branch more than once every hour, but prefer exact match on uri/branch/revision.
