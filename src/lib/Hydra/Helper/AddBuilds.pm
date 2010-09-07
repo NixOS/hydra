@@ -730,7 +730,7 @@ sub checkBuild {
                 , errormsg => ""
                 , releasename => getReleaseName($outPath)
                 });
-            addBuildProducts($build);
+            addBuildProducts($db, $build);
         } else {
             print STDERR "added to queue as build ", $build->id, "\n";
             $build->create_related('buildschedulinginfo',
