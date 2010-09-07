@@ -36,5 +36,6 @@ in
   perlPackages.PadWalker
   perlPackages.DataDump
   perlPackages.JSONXS
+  perlPackages.DateTime
   nixPerl
 ]
