@@ -9,11 +9,13 @@ use Hydra::Helper::CatalystUtils;
 
 sub getJobStatus {
     my ($self, $c) = @_;
-
+    
     my $latest = joinWithResultInfo($c, $c->stash->{jobStatus});
 
+    my $maintainer = $c->request->params->{"maintainer"};
+
     $latest = $latest->search(
-        {},
+        defined $maintainer ? { maintainers => { like => "%$maintainer%" } } : {},
         { '+select' => ["me.statusChangeId", "me.statusChangeTime"]
         , '+as' => ["statusChangeId", "statusChangeTime"]
         , order_by => "coalesce(statusChangeTime, 0) desc"
@@ -21,7 +23,6 @@ sub getJobStatus {
 
     return $latest;
 }
-
 
 sub jobstatus : Chained('get_builds') PathPart Args(0) {
     my ($self, $c) = @_;
