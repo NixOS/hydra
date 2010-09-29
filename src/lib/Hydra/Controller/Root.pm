@@ -39,7 +39,7 @@ sub login :Local {
     my $username = $c->request->params->{username} || "";
     my $password = $c->request->params->{password} || "";
 
-    if(! $username && ! defined $c->flash->{afterLogin}) {
+    if($username eq "" && $password eq "" && ! defined $c->flash->{afterLogin}) {
       my $baseurl = $c->uri_for('/');
       my $refurl = $c->request->referer;
       $c->flash->{afterLogin} = $refurl if $refurl =~ m/^($baseurl)/ ;
