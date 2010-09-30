@@ -32,7 +32,7 @@ rec {
     let nix = nixSqlite; in
 
     releaseTools.nixBuild {
-      name = "hydra-${tarball.version}";
+      name = "hydra";
       src = tarball; 
       configureFlags = "--with-nix=${nix}";
 
@@ -64,7 +64,6 @@ rec {
         done
 
         echo "doc-pdf manual $out/share/doc/hydra/manual/manual.pdf" >> $out/nix-support/hydra-build-products
-        echo "nix-build none $out" >> $out/nix-support/hydra-build-products
       ''; # */
 
       meta = {
