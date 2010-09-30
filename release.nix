@@ -5,6 +5,17 @@
 
 
 rec {
+  tarball2 = 
+    let pkgs = import nixpkgs {};
+    in with pkgs;
+
+    releaseTools.makeSourceTarball {
+      name = "hydra-tarball";
+      version = "0.1";
+      src = hydraSrc;
+      inherit officialRelease;
+      buildInputs = [ perl libxslt dblatex tetex ] ;
+    };
 
   tarball =
     with import nixpkgs {};

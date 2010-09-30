@@ -1,4 +1,7 @@
-all: hydra-postgresql.sql hydra-sqlite.sql
+EXTRA_DIST = hydra.sql hydra-postgresql.sql hydra-sqlite.sql
+
+sqldir = $(datadir)/hydra/sql
+nobase_sql_DATA = $(EXTRA_DIST)
 
 hydra-postgresql.sql: hydra.sql
 	cpp -P -E -traditional-cpp -DPOSTGRESQL hydra.sql > $@ || rm -f $@
