@@ -11,10 +11,15 @@ rec {
 
     releaseTools.makeSourceTarball {
       name = "hydra-tarball";
-      version = "0.1";
       src = hydraSrc;
       inherit officialRelease;
+
       buildInputs = [ perl libxslt dblatex tetex ] ;
+
+      preConfigure = ''
+        # TeX needs a writable font cache.
+        export VARTEXFONTS=$TMPDIR/texfonts
+      '';
     };
 
   build = 
@@ -32,7 +37,7 @@ rec {
       configureFlags = "--with-nix=${nix}";
 
       buildInputs =
-        [ perl makeWrapper libtool dblatex nix unzip ]
+        [ perl makeWrapper libtool nix unzip nukeReferences ]
         ++ (import ./deps.nix) { inherit pkgs; };
 
       hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [
@@ -43,6 +48,7 @@ rec {
 
       postInstall = ''
         ensureDir $out/nix-support
+        nuke-refs $out/share/doc/hydra/manual/manual.pdf
 
         cp ${"${nixpkgs}/pkgs/build-support/fetchsvn/nix-prefetch-svn"} $out/bin/nix-prefetch-svn
         cp ${"${nixpkgs}/pkgs/build-support/fetchgit/nix-prefetch-git"} $out/bin/nix-prefetch-git

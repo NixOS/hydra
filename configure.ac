@@ -1,4 +1,4 @@
-AC_INIT([hydra],[0.1],[rob.vermaas@gmail.com])
+AC_INIT([hydra],[m4_esyscmd([echo -n $(cat ./version)$VERSION_SUFFIX])])
 AM_INIT_AUTOMAKE([foreign])
 
 AC_PROG_CC
