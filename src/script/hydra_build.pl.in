@@ -31,13 +31,13 @@ sub sendTwitterNotification {
 
     return unless (defined $ENV{'TWITTER_USER'} && defined $ENV{'TWITTER_PASS'});
 
-    my $addURL = defined $ENV{'HYDRA_BUILD_BASEURL'};
+    my $addURL = defined $config{'base_uri'};
 
     my $jobName  = $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
     my $status   = $build->resultInfo->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
     my $system   = $build->system;
     my $duration = ($build->resultInfo->stoptime - $build->resultInfo->starttime) . " seconds"; 
-    my $url = $ENV{'HYDRA_BUILD_BASEURL'}."/".$build->id ;
+    my $url = $config{'base_uri'}."/build/".$build->id ;
 
     my $nt = Net::Twitter::Lite->new(
         username => $ENV{'TWITTER_USER'},
