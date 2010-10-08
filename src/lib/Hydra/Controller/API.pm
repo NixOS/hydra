@@ -147,7 +147,7 @@ sub nrqueue : Chained('api') PathPart('nrqueue') Args(0) {
     my ($self, $c) = @_;
     my $nrQueuedBuilds = $c->model('DB::BuildSchedulingInfo')->count();
     $c->stash->{'plain'} = { 
-        data => $nrQueuedBuilds 
+        data => " $nrQueuedBuilds"
     };
     $c->forward('Hydra::View::Plain');
 }
@@ -156,7 +156,7 @@ sub nrrunning : Chained('api') PathPart('nrrunning') Args(0) {
     my ($self, $c) = @_;
     my $nrRunningBuilds = $c->model('DB::BuildSchedulingInfo')->search({ busy => 1 }, {})->count();
     $c->stash->{'plain'} = { 
-        data => $nrRunningBuilds 
+        data => " $nrRunningBuilds"
     };
     $c->forward('Hydra::View::Plain');
 }
