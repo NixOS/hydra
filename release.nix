@@ -58,7 +58,6 @@ rec {
             wrapProgram $i \
                 --prefix PERL5LIB ':' $out/libexec/hydra/lib:$PERL5LIB \
                 --prefix PATH ':' $out/bin:$hydraPath \
-                --set HYDRA_HOME $out/libexec/hydra \
                 --set HYDRA_RELEASE ${tarball.version} \
                 --set NIX_RELEASE ${nix.name}
         done
