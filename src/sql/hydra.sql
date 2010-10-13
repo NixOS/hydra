@@ -487,12 +487,12 @@ create table NewsItems (
 
 create table BuildMachines (
     hostname text primary key NOT NULL,
-    username text NOT NULL,
-    ssh_key text NOT NULL,
-    options text NOT NULL,
+    username text DEFAULT '' NOT NULL,
+    ssh_key text DEFAULT '' NOT NULL,
+    options text DEFAULT '' NOT NULL,
     maxconcurrent integer DEFAULT 2 NOT NULL,
     speedfactor integer DEFAULT 1 NOT NULL,
-    enabled integer DEFAULT 1 NOT NULL
+    enabled integer DEFAULT 0 NOT NULL
 );
 
 create table BuildMachineSystemTypes (

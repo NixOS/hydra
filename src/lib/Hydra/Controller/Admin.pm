@@ -146,14 +146,15 @@ sub create_machine_submit : Chained('admin') PathPart('create-machine/submit') A
 
     requireAdmin($c);
     
-    my $hostname      = trim $c->request->params->{"hostname"};
+    my $hostname = trim $c->request->params->{"hostname"};
     error($c, "Invalid or empty hostname.") if $hostname eq "";
     
     txn_do($c->model('DB')->schema, sub {
         my $machine = $c->model('DB::BuildMachines')->create(
             { hostname => $hostname });
-        updateMachine($c, $machine);           
+        updateMachine($c, $machine);
     });
+    saveNixMachines($c);
     $c->res->redirect("/admin/machines");
 }
 
