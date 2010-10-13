@@ -485,6 +485,22 @@ create table NewsItems (
     foreign key   (author) references Users(userName) on delete cascade on update cascade
 );
 
+create table BuildMachines (
+    hostname text primary key NOT NULL,
+    username text NOT NULL,
+    ssh_key text NOT NULL,
+    options text NOT NULL,
+    maxconcurrent integer DEFAULT 2 NOT NULL,
+    speedfactor integer DEFAULT 1 NOT NULL,
+    enabled integer DEFAULT 1 NOT NULL
+);
+
+create table BuildMachineSystemTypes (
+    hostname text NOT NULL,
+    system text NOT NULL,
+    primary key (hostname, system),
+    foreign key (hostname) references BuildMachines(hostname) on delete cascade
+);
 
 -- Some indices.
 create index IndexBuildInputsOnBuild on BuildInputs(build);

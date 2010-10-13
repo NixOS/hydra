@@ -12,8 +12,45 @@
             <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('clearvcscache')) content = "Clear VCS caches" confirmmsg = "Are you sure you want to clear the VCS caches?" %]</li>
         </ul>
     </li>    
-    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('managenews')) content = "News" %]</li>    
 </ul>
+
+<h2>Status</h2>
+
+[% FOREACH m IN machines %]
+<table style="width: 40em;">
+    <thead>
+        <tr>
+            <th colspan="5">
+                [% IF m.enabled == 1 %]
+                    [% INCLUDE maybeLink uri = c.uri_for('/admin/machine' m.hostname 'disable' ) content='-' %]
+                [% ELSE %]
+                    [% INCLUDE maybeLink uri = c.uri_for('/admin/machine' m.hostname 'enable' ) content='+' %]
+                [% END %] 
+                [% m.hostname %] <tt>[% FOREACH ms IN m.buildmachinesystemtypes %] [% ms.system %][% END %]</tt>
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+    [% idle = 1 %]
+    [% FOREACH step IN steps %]
+        [% IF step.machine.match('@(.*)').0 == m.hostname %]
+            [% idle = 0 %]
+            <tr>
+                <td><tt>[% INCLUDE renderFullJobName project = step.build.project.name jobset = step.build.jobset.name job = step.build.job.name %]</tt></td>
+                <td><tt>[% step.system %]</tt></td>
+                <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
+                <td><tt>[% step.outpath.match('-(.*)').0 %]</tt></td>
+                <td class='right'>[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
+            </tr>
+        [% END %]
+    [% END %]
+    [% IF idle == 1 %]
+        <tr><td colspan="5">Idle since [% INCLUDE renderDuration duration = curTime - m.get_column('idle') %]</td></tr>
+    [% END %]
+    </tbody>
+</table>
+
+[% END %]
 
 
 [% END %]

@@ -3,22 +3,6 @@
 
 <h1>Hydra Status</h1>
 
-<table class="tablesorter">
-  <thead>
-    <tr><th>Machine</th><th>Type</th><th>Build</th><th>Step</th><th>What</th><th>Since</th></tr>
-  </thead>
-  <tbody>
-    [% FOREACH step IN steps %]
-      <tr>
-        <td><tt>[% IF step.machine; step.machine.match('@(.*)').0; ELSE; 'localhost'; END %]</tt></td>
-        <td><tt>[% step.system %]</tt></td>
-        <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
-        <td><a href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr) %]">[% step.stepnr %]</a></td>
-        <td><tt>[% step.outpath.match('-(.*)').0 %]</tt></td>
-        <td class='right'>[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
-      </tr>
-    [% END %]
-  </tbody>
-</table>
+[% INCLUDE hydraStatus %]
 
 [% END %]

@@ -98,7 +98,7 @@ sub status :Local {
     my ($self, $c) = @_;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
         { 'me.busy' => 1, 'schedulingInfo.busy' => 1 },
-        { join => [ 'schedulingInfo' ] 
+        { join => [ 'schedulingInfo', 'build' ] 
         , order_by => [ 'machine', 'outpath' ]
         } ) ];
 }

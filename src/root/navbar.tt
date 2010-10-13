@@ -24,7 +24,7 @@
   </ul>
 [% END %]
 
-[% IF project %]
+[% IF project || admin %]
 
 <div id="left-bar">  
 
@@ -71,6 +71,17 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Job').action_for('errors'), [project.name, jobset.name, job.name])
         title = "Errors" %]
+    [% END %]
+  [% END %]
+
+  [% IF admin %]
+    [% WRAPPER makeSubMenu title="Admin" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Admin').action_for('machines'))
+        title = "Machines" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Admin').action_for('managenews'))
+        title = "News" %]
     [% END %]
   [% END %]
   
