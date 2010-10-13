@@ -104,6 +104,7 @@ sub updateMachine {
     my $maxconcurrent = trim $c->request->params->{"maxconcurrent"};
     my $speedfactor   = trim $c->request->params->{"speedfactor"};
     my $ssh_key       = trim $c->request->params->{"ssh_key"};
+    my $options       = trim $c->request->params->{"options"};
     my $systems       = $c->request->params->{"systems"} ; 
 	
     error($c, "Invalid or empty username.") if $username eq "";
@@ -116,6 +117,7 @@ sub updateMachine {
         , maxconcurrent => $maxconcurrent
         , speedfactor => $speedfactor
         , ssh_key => $ssh_key
+        , options => $options
         });
     $machine->buildmachinesystemtypes->delete_all;
     if(ref($systems) eq 'ARRAY') {
