@@ -1,4 +1,5 @@
 PERL_MODULES = \
+  $(wildcard *.pm) \
   $(wildcard Hydra/*.pm) \
   $(wildcard Hydra/Helper/*.pm) \
   $(wildcard Hydra/Model/*.pm) \
