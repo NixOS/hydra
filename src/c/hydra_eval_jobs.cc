@@ -242,6 +242,8 @@ void run(Strings args)
     XMLWriter doc(true, std::cout);
     XMLOpenElement root(doc, "jobs");
     findJobs(state, doc, ArgsUsed(), autoArgs, v, "");
+
+    state.printStats();
 }
 
 
