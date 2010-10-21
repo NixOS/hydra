@@ -20,7 +20,7 @@
 <table style="width: 40em;">
     <thead>
         <tr>
-            <th colspan="5">
+            <th colspan="5" style="background-color: [% IF m.enabled == 1 %]lime[% ELSE %]red[% END %];">
                 [% IF m.enabled == 1 %]
                     [% INCLUDE maybeLink uri = c.uri_for('/admin/machine' m.hostname 'disable' ) content='-' %]
                 [% ELSE %]

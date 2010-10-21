@@ -45,7 +45,7 @@ sub index : Chained('admin') PathPart('') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{machines} = [$c->model('DB::BuildMachines')->search(
         {}, 
-        { order_by => "hostname"
+        { order_by => ["enabled DESC", "hostname"]
         , '+select' => ["(select bs.stoptime from buildsteps as bs where bs.machine = (me.username || '\@' || me.hostname) and not bs.stoptime is null order by bs.stoptime desc limit 1)"]
         , '+as' => ['idle']
         })];
