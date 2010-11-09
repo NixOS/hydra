@@ -3,6 +3,8 @@
 
 <h1>Hydra Queue</h1>
 
+<p>[ <a href="[% c.uri_for('/status') %]">Running buildsteps</a> ]</p>
+
 [% IF flashMsg %]
 <p class="error">[% flashMsg %]</p>
 [% END %]
