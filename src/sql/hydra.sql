@@ -114,7 +114,7 @@ create table Jobs (
 );
 
 
--- This table contains all builds, either scheduled or finished.  For
+-- This table contains all wbuilds, either scheduled or finished.  For
 -- scheduled builds, additional info (such as the priority) can be
 -- found in the BuildSchedulingInfo table.  For finished builds,
 -- additional info (such as the logs, build products, etc.) can be
@@ -203,6 +203,10 @@ create table BuildResultInfo (
     stopTime      integer,
 
     logfile       text, -- the path of the logfile
+
+    logsize       integer not null default 0,
+    size          integer not null default 0,
+    closuresize   integer not null default 0,
 
     releaseName   text, -- e.g. "patchelf-0.5pre1234"
 

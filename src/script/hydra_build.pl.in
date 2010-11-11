@@ -199,6 +199,10 @@ sub sendEmailNotification {
     sendmail($email);
 }
 
+sub getSize {
+    my $size = `du -bcs @_ 2> /dev/null | tail -1 | cut -f 1 `;
+    return int($size);
+}
 
 sub doBuild {
     my ($build) = @_;
@@ -365,6 +369,16 @@ sub doBuild {
     }
 
   done:
+    my $logfile = getBuildLog($drvPath); 
+
+    my $logsize = defined $logfile ? getSize($logfile) : 0;
+    my $size = isValidPath($outPath) ? getSize($outPath) : 0;
+
+    my $closuresize = 0;
+    if (isValidPath($outPath)) {
+        (my $hash, my $deriver, my $refs) = queryPathInfo($outPath) ;
+        $closuresize = getSize(@{$refs});
+    }
 
     txn_do($db, sub {
         $build->update({finished => 1, timestamp => time});
@@ -377,7 +391,10 @@ sub doBuild {
             , buildstatus => $buildStatus
             , starttime => $startTime
             , stoptime => $stopTime
-            , logfile => getBuildLog($drvPath)
+            , logfile => $logfile
+            , logsize => $logsize
+            , size => $size
+            , closuresize => $closuresize
             , errormsg => $errormsg
             , releasename => $releaseName
             });

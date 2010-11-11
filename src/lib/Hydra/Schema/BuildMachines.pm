@@ -29,21 +29,21 @@ __PACKAGE__->table("BuildMachines");
 =head2 username
 
   data_type: text
-  default_value: undef
+  default_value: ''
   is_nullable: 0
   size: undef
 
 =head2 ssh_key
 
   data_type: text
-  default_value: undef
+  default_value: ''
   is_nullable: 0
   size: undef
 
 =head2 options
 
   data_type: text
-  default_value: undef
+  default_value: ''
   is_nullable: 0
   size: undef
 
@@ -64,7 +64,7 @@ __PACKAGE__->table("BuildMachines");
 =head2 enabled
 
   data_type: integer
-  default_value: 1
+  default_value: 0
   is_nullable: 0
   size: undef
 
@@ -79,32 +79,17 @@ __PACKAGE__->add_columns(
     size => undef,
   },
   "username",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", default_value => "''", is_nullable => 0, size => undef },
   "ssh_key",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", default_value => "''", is_nullable => 0, size => undef },
   "options",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", default_value => "''", is_nullable => 0, size => undef },
   "maxconcurrent",
   { data_type => "integer", default_value => 2, is_nullable => 0, size => undef },
   "speedfactor",
   { data_type => "integer", default_value => 1, is_nullable => 0, size => undef },
   "enabled",
-  { data_type => "integer", default_value => 1, is_nullable => 0, size => undef },
+  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
 );
 __PACKAGE__->set_primary_key("hostname");
 
@@ -125,8 +110,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-10-11 12:58:16
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:gje+VA73Hghl7JXp+Fl8pw
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-11-11 10:58:44
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:GV0LlwTyjFctix2zArVTGw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration
