@@ -21,7 +21,7 @@ sub process {
         "}\n";
     
     foreach my $path (@paths) {
-        my ($hash, $deriver, $refs) = queryPathInfo $path;
+        my ($deriver, $hash, $time, $narSize, $refs) = Nix::queryPathInfo $path;
 
         # Escape the characters that are allowed to appear in a Nix
         # path name but have special meaning in a URI.
@@ -40,6 +40,7 @@ sub process {
             (defined $deriver ? "  Deriver: $deriver\n" : "") .
             "  NarURL: $url\n" .
             "  NarHash: $hash\n" .
+            ($narSize != 0 ? "  NarSize: $narSize\n" : "") .
             "}\n";
     }
 

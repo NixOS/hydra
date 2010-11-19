@@ -199,10 +199,6 @@ sub sendEmailNotification {
     sendmail($email);
 }
 
-sub getSize {
-    my $size = `du -bcs @_ 2> /dev/null | tail -1 | cut -f 1 `;
-    return int($size);
-}
 
 sub doBuild {
     my ($build) = @_;
@@ -233,7 +229,7 @@ sub doBuild {
         # Run Nix to perform the build, and monitor the stderr output
         # to get notifications about specific build steps, the
         # associated log files, etc.
-        my $cmd = "nix-store --realise $drvPath " .
+        my $cmd = "nix-store -j1 --no-build-hook --realise $drvPath " .
             "--max-silent-time $maxsilent --keep-going --fallback " .
             "--no-build-output --log-type flat --print-build-trace " .
             "--add-root " . gcRootFor $outPath . " 2>&1";
@@ -371,13 +367,20 @@ sub doBuild {
   done:
     my $logfile = getBuildLog($drvPath); 
 
-    my $logsize = defined $logfile ? getSize($logfile) : 0;
-    my $size = isValidPath($outPath) ? getSize($outPath) : 0;
+    my $logsize = defined $logfile ? stat($logfile)->size : 0;
 
+    my $size = 0;
     my $closuresize = 0;
+
     if (isValidPath($outPath)) {
-        (my $hash, my $deriver, my $refs) = queryPathInfo($outPath) ;
-        $closuresize = getSize(@{$refs});
+        my ($deriver, $hash, $time, $narSize, $refs) = Nix::queryPathInfo($outPath);
+        $size = $narSize;
+
+        my @closure = Nix::computeFSClosure(0, 0, $outPath);
+        foreach my $path (@closure) {
+	    my ($deriver, $hash, $time, $narSize, $refs) = Nix::queryPathInfo($path);
+ 	    $closuresize += $narSize;    
+        }
     }
 
     txn_do($db, sub {

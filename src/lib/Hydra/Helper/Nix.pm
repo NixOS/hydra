@@ -9,7 +9,7 @@ use Hydra::Helper::CatalystUtils;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    isValidPath queryPathInfo
+    isValidPath
     getHydraPath getHydraDBPath openHydraDB txn_do
     registerRoot getGCRootsDir gcRootFor
     getPrimaryBuildsForView 
@@ -20,17 +20,6 @@ our @EXPORT = qw(
 sub isValidPath {
     my $path = shift;
     return Nix::isValidPath($path);
-}
-
-
-sub queryPathInfo {
-    my $path = shift;
-
-    my $hash = Nix::queryPathHash($path);
-    my $deriver = Nix::queryDeriver($path);
-    my @refs = Nix::queryReferences($path);
-
-    return ($hash, $deriver, \@refs);
 }
 
 
