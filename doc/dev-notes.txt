@@ -167,3 +167,8 @@
 * Find the builds with the highest number of build steps:
 
   select id, (select count(*) from buildsteps where build = x.id) as n from builds x order by n desc;
+
+
+* Evaluating the NixOS Hydra jobs:
+
+  $ ./hydra_eval_jobs ~/Dev/nixos-wc/release.nix --arg nixpkgs '{outPath = /home/eelco/Dev/nixpkgs-wc;}' --arg nixosSrc '{outPath = /home/eelco/Dev/nixos-wc; rev = 1234;}' --arg services '{outhPath = /home/eelco/services-wc;}' --argstr system i686-linux --argstr system x86_64-linux --arg officialRelease false

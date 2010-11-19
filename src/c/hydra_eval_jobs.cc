@@ -21,8 +21,9 @@ void printHelp()
 static Path gcRootsDir;
 
 
-typedef std::map<Symbol, std::pair<unsigned int, Value> > ArgsUsed;
-typedef std::map<Symbol, list<Value> > AutoArgs;
+typedef std::map<Symbol, std::pair<unsigned int, Value *> > ArgsUsed;
+typedef std::list<Value *, traceable_allocator<Value *> > ValueList;
+typedef std::map<Symbol, ValueList> AutoArgs;
 
 
 static void findJobs(EvalState & state, XMLWriter & doc,
@@ -38,10 +39,10 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
     const Bindings & actualArgs)
 {
     if (cur == last) {
-        Value v, arg;
-        state.mkAttrs(arg);
-        *arg.attrs = actualArgs;
-        mkApp(v, fun, arg);
+        Value v, * arg = state.allocValue();
+        state.mkAttrs(*arg, 0);
+        *arg->attrs = actualArgs;
+        mkApp(v, fun, *arg);
         findJobs(state, doc, argsUsed, argsLeft, v, attrPath);
         return;
     }
@@ -55,12 +56,13 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
     Formals::Formals_::iterator next = cur; ++next;
 
     int n = 0;
-    foreach (list<Value>::const_iterator, i,  a->second) {
+    foreach (ValueList::const_iterator, i, a->second) {
         Bindings actualArgs2(actualArgs); // !!! inefficient
         ArgsUsed argsUsed2(argsUsed);
         AutoArgs argsLeft2(argsLeft);
-        actualArgs2[cur->name].value = *i;
-        argsUsed2[cur->name] = std::pair<unsigned int, Value>(n, *i);
+        actualArgs2.push_back(Attr(cur->name, *i));
+        actualArgs2.sort(); // !!! inefficient
+        argsUsed2[cur->name] = std::pair<unsigned int, Value *>(n, *i);
         argsLeft2.erase(cur->name);
         tryJobAlts(state, doc, argsUsed2, argsLeft2, attrPath, fun, next, last, actualArgs2);
         ++n;
@@ -73,7 +75,7 @@ static void showArgsUsed(XMLWriter & doc, const ArgsUsed & argsUsed)
     foreach (ArgsUsed::const_iterator, i, argsUsed) {
         XMLAttrs xmlAttrs2;
         xmlAttrs2["name"] = i->first;
-        xmlAttrs2["value"] = (format("%1%") % i->second.second).str();
+        xmlAttrs2["value"] = (format("%1%") % *i->second.second).str();
         xmlAttrs2["altnr"] = int2String(i->second.first);
         doc.writeEmptyElement("arg", xmlAttrs2);
     }
@@ -105,7 +107,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
     Value & v, const string & attrPath)
 {
     debug(format("at path `%1%'") % attrPath);
-    
+
     state.forceValue(v);
 
     if (v.type == tAttrs) {
@@ -162,8 +164,8 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
 
         else {
             foreach (Bindings::iterator, i, *v.attrs)
-                findJobs(state, doc, argsUsed, argsLeft, i->second.value,
-                    (attrPath.empty() ? "" : attrPath + ".") + (string) i->first);
+                findJobs(state, doc, argsUsed, argsLeft, *i->value,
+                    (attrPath.empty() ? "" : attrPath + ".") + (string) i->name);
         }
     }
 
@@ -212,11 +214,11 @@ void run(Strings args)
             string name = *i++;
             if (i == args.end()) throw UsageError("missing argument");
             string value = *i++;
-            Value v;
+            Value * v = state.allocValue();
             if (arg == "--arg")
-                state.eval(parseExprFromString(state, value, absPath(".")), v);
+                state.eval(parseExprFromString(state, value, absPath(".")), *v);
             else
-                mkString(v, value);
+                mkString(*v, value);
             autoArgs[state.symbols.create(name)].push_back(v);
         }
         else if (arg == "--gc-roots-dir") {
@@ -239,6 +241,7 @@ void run(Strings args)
     Value v;
     state.mkThunk_(v, e);
 
+    std::cout.setf(std::ios::unitbuf);
     XMLWriter doc(true, std::cout);
     XMLOpenElement root(doc, "jobs");
     findJobs(state, doc, ArgsUsed(), autoArgs, v, "");

@@ -36,34 +36,43 @@ sub keepBuild {
 
 foreach my $project ($db->resultset('Projects')->all) {
 
-    # Go over all jobs in this project.
+    # Go over all jobsets in this project.
+    foreach my $jobset ($project->jobsets->all) {
+        my $keepnr = $jobset->keepnr;
 
-    foreach my $job ($project->jobs->all) {
-        print STDERR "*** looking for builds to keep in job ",
-            $project->name, ":", $job->jobset->name, ":", $job->name, "\n";
+	# If the jobset has been disabled for more than one week, than
+	# don't keep its builds anymore.
+	if ($jobset->enabled == 0 && (time() - $jobset->lastcheckedtime > (7 * 24 * 3600))) {
+	    print STDERR "*** skipping disabled jobset ", $project->name, ":", $jobset->name, "\n";
+	    next;
+	}
+        
+        # Go over all jobs in this jobset.
+        foreach my $job ($jobset->jobs->all) {
+            print STDERR "*** looking for builds to keep in job ",
+                $project->name, ":", $job->jobset->name, ":", $job->name, "\n";
 
-        # Keep the N most recent successful builds for each job and
-        # platform.
-        # !!! Take time into account? E.g. don't delete builds that
-        # are younger than N days.
-	my @systems = $job->builds->search({ }, { select => ["system"], distinct => 1 })->all;
-    my $keepnr = $job->jobset->keepnr ;
-	foreach my $system (@systems) {
-            my @recentBuilds = $job->builds->search(
-		{ finished => 1
-                , buildStatus => 0 # == success
-                , system => $system->system
-                },
-                { join => 'resultInfo'
-                , order_by => 'id DESC'
-                , rows => $keepnr
-                });
-	    keepBuild $_ foreach @recentBuilds;
+            # Keep the N most recent successful builds for each job
+            # and platform.
+            # !!! Take time into account? E.g. don't delete builds
+            # that are younger than N days.
+            my @systems = $job->builds->search({ }, { select => ["system"], distinct => 1 })->all;
+            foreach my $system (@systems) {
+                my @recentBuilds = $job->builds->search(
+                    { finished => 1
+                    , buildStatus => 0 # == success
+                    , system => $system->system
+                    },
+                    { join => 'resultInfo'
+                    , order_by => 'id DESC'
+                    , rows => $keepnr
+                    });
+                keepBuild $_ foreach @recentBuilds;
+	    }
 	}
     }
 
     # Go over all views in this project.
-
     foreach my $view ($project->views->all) {
         print STDERR "*** looking for builds to keep in view ", $project->name, ":", $view->name, "\n";
 
