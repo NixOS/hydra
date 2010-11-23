@@ -40,12 +40,17 @@ foreach my $project ($db->resultset('Projects')->all) {
     foreach my $jobset ($project->jobsets->all) {
         my $keepnr = $jobset->keepnr;
 
-	# If the jobset has been disabled for more than one week, than
-	# don't keep its builds anymore.
-	if ($jobset->enabled == 0 && (time() - $jobset->lastcheckedtime > (7 * 24 * 3600))) {
-	    print STDERR "*** skipping disabled jobset ", $project->name, ":", $jobset->name, "\n";
-	    next;
-	}
+        # If the jobset has been disabled for more than one week, than
+        # don't keep its builds anymore.
+        if ($jobset->enabled == 0 && (time() - $jobset->lastcheckedtime > (7 * 24 * 3600))) {
+            print STDERR "*** skipping disabled jobset ", $project->name, ":", $jobset->name, "\n";
+            next;
+        }
+        
+        if ($keepnr <= 0 ) {
+            print STDERR "*** jobset ", $project->name, ":", $jobset->name, " set to keep 0 builds\n";
+            next;
+        }
         
         # Go over all jobs in this jobset.
         foreach my $job ($jobset->jobs->all) {
@@ -68,8 +73,8 @@ foreach my $project ($db->resultset('Projects')->all) {
                     , rows => $keepnr
                     });
                 keepBuild $_ foreach @recentBuilds;
-	    }
-	}
+           }
+        }
     }
 
     # Go over all views in this project.
