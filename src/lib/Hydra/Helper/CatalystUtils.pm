@@ -123,10 +123,16 @@ sub getChannelData {
             # `--include-outputs' flag passed to `nix-store'.
             push @storePaths, $build->drvpath;
         } else {
-            push @storePaths, $build->outpath;
+	    push @storePaths, $build->outpath;
         }
         my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id;
         $c->stash->{nixPkgs}->{"${pkgName}.nixpkg"} = {build => $build, name => $pkgName};
+        # Put the system type in the manifest (for top-level paths) as
+	# a hint to the binary patch generator.  (It shouldn't try to
+	# generate patches between builds for different systems.)  It
+	# would be nice if Nix stored this info for every path but it
+	# doesn't.
+	$c->stash->{systemForPath}->{$build->outpath} = $build->system;
     };
 
     $c->stash->{storePaths} = [@storePaths];

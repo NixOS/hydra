@@ -33,6 +33,8 @@ sub process {
         
         my $url = $c->stash->{narBase} . "/" . $escaped;
 
+        my $system = $c->stash->{systemForPath}->{$path};
+
         $manifest .=
             "{\n" .
             "  StorePath: $path\n" .
@@ -41,6 +43,7 @@ sub process {
             "  NarURL: $url\n" .
             "  NarHash: $hash\n" .
             ($narSize != 0 ? "  NarSize: $narSize\n" : "") .
+            (defined $system ? "  System: $system\n" : "") .
             "}\n";
     }
 
