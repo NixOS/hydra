@@ -13,7 +13,7 @@
 	<h2 id="buildsteps">[% type %] build steps</h2>
 	<table class="tablesorter">
 	  <thead>
-	    <tr><th>Nr</th><th>What</th><th>Duration</th><th>Status</th></tr>
+	    <tr><th>Nr</th><th>What</th><th>Duration</th><th>Machine</th><th>Status</th></tr>
 	  </thead>
 	  <tbody>
 	    [% FOREACH step IN build.buildsteps -%]
@@ -40,6 +40,7 @@
 		            [% END %]
 		          [% END %]
 		        </td>
+                <td>[% step.machine.split('@').1 %]</td>
 		        <td>
 		          [% IF step.busy == 1 %]
 		            [% IF build.finished %]
