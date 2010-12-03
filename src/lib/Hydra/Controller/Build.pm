@@ -357,26 +357,12 @@ sub restart : Chained('build') PathPart Args(0) {
     my $build = $c->stash->{build};
 
     requireProjectOwner($c, $build->project);
+    
+    my $drvpath = $build->drvpath ;
+    error($c, "This build cannot be restarted.")
+        unless $build->finished && -f $drvpath ;
 
-    txn_do($c->model('DB')->schema, sub {
-        my $drvpath = $build->drvpath ;
-        error($c, "This build cannot be restarted.")
-            unless $build->finished && -f $drvpath ;
-
-        my $cmd = "`nix-store -qR $drvpath`";
-        my $r = `nix-store --clear-failed-paths $cmd`;
-  
-        $build->update({finished => 0, timestamp => time});
-
-        $build->resultInfo->delete;
-
-        $c->model('DB::BuildSchedulingInfo')->create(
-            { id => $build->id
-            , priority => 0 # don't know the original priority anymore...
-            , busy => 0
-            , locker => ""
-            });
-    });
+    restartBuild($build);
 
     $c->flash->{buildMsg} = "Build has been restarted.";
     

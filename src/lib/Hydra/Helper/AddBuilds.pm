@@ -12,7 +12,7 @@ use File::stat;
 use File::Path;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr getReleaseName getBuildLog addBuildProducts);
+our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr getReleaseName getBuildLog addBuildProducts restartBuild);
 
 sub scmPath {
     return getHydraPath . "/scm" ;
@@ -764,3 +764,30 @@ sub checkBuild {
 
     return $build;
 };
+
+
+sub restartBuild {
+    my ($db, $build) = @_;
+
+    txn_do($db, sub {
+        my $drvpath = $build->drvpath ;
+        my $outpath = $build->outpath ;
+
+        my $paths = "";
+        foreach my $bs ($build->buildsteps) {
+          $paths = $paths . " " . $bs->outpath;
+        }
+
+        my $r = `nix-store --clear-failed-paths $paths $outpath`;
+        $build->update({finished => 0, timestamp => time});
+
+        $build->resultInfo->delete;
+
+        $db->resultset('BuildSchedulingInfo')->create(
+            { id => $build->id
+            , priority => 0 # don't know the original priority anymore...
+            , busy => 0
+            , locker => ""
+            });
+    });
+}
