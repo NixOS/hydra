@@ -5,7 +5,7 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
-
+use Digest::SHA1 qw(sha1_hex);
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -196,5 +196,29 @@ sub nar :Local :Args(1) {
     $c->stash->{storePath} = $path;
 }
 
+sub change_password : Path('change-password') : Args(0) {
+    my ($self, $c) = @_;
+    
+    requireLogin($c) if !$c->user_exists;
+    
+    $c->stash->{template} = 'change-password.tt';   
+}
+
+sub change_password_submit : Path('change-password/submit') : Args(0) {
+    my ($self, $c) = @_;
+    
+    requireLogin($c) if !$c->user_exists;
+    
+    my $password = $c->request->params->{"password"}; 
+    my $password_check = $c->request->params->{"password_check"};
+    print STDERR "$password \n";
+    print STDERR "$password_check \n";
+    error($c, "Passwords did not match, go back and try again!") if $password ne $password_check;
+    
+    my $hashed = sha1_hex($password);
+    $c->user->update({ password => $hashed}) ;
+    
+    $c->res->redirect("/");    
+}
 
 1;

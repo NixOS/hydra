@@ -37,5 +37,7 @@ in
   perlPackages.DataDump
   perlPackages.JSONXS
   perlPackages.DateTime
+  perlPackages.DigestSHA1
+  perlPackages.CryptRandPasswd
   nixPerl
 ]

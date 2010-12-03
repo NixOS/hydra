@@ -7,6 +7,12 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::AddBuilds;
 use Data::Dump qw(dump);
+use Digest::SHA1 qw(sha1_hex);
+use Crypt::RandPasswd;
+use Sys::Hostname::Long;
+use Email::Simple;
+use Email::Sender::Simple qw(sendmail);
+use Email::Sender::Transport::SMTP;
 
 sub nixMachines {
     my ($c) = @_;
@@ -56,6 +62,111 @@ sub index : Chained('admin') PathPart('') Args(0) {
         } ) ];
     $c->stash->{template} = 'admin.tt';
  }
+ 
+sub updateUser {
+    my ($c, $user) = @_;
+
+    my $username     = trim $c->request->params->{"username"};
+    my $fullname     = trim $c->request->params->{"fullname"};
+    my $emailaddress = trim $c->request->params->{"emailaddress"};
+    my $emailonerror = trim $c->request->params->{"emailonerror"};
+    my $roles         = $c->request->params->{"roles"} ; 
+    
+    error($c, "Invalid or empty username.") if $username eq "";
+        
+    $user->update(
+        { username => $username
+        , maxconcurrent => $fullname
+        , emailaddress => $emailaddress
+        , emailonerror => $emailonerror
+        });
+    $user->userroles->delete_all;
+    if(ref($roles) eq 'ARRAY') {
+        for my $s (@$roles) {
+            $user->userroles->create({ role => $s}) ;
+        }       
+    } else {
+        $user->userroles->create({ role => $roles}) ;
+    }   
+}
+
+sub user : Chained('admin') PathPart('user') CaptureArgs(1) {
+    my ($self, $c, $username) = @_;
+
+    requireAdmin($c);
+
+    my $user = $c->model('DB::Users')->find($username)
+        or notFound($c, "User $username doesn't exist.");
+
+    $c->stash->{user} = $user;
+}
+
+sub users : Chained('admin') PathPart('users') Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{users} = [$c->model('DB::Users')->search({}, {order_by => "username"})];
+
+    $c->stash->{template} = 'users.tt';
+}
+
+sub user_edit : Chained('user') PathPart('edit') Args(0) {
+    my ($self, $c) = @_;
+
+    $c->stash->{template} = 'user.tt';
+    $c->stash->{edit} = 1;
+}
+
+sub user_edit_submit : Chained('user') PathPart('submit') Args(0) {
+    my ($self, $c) = @_;
+    requirePost($c);
+
+    txn_do($c->model('DB')->schema, sub {
+        updateUser($c, $c->stash->{user}) ;
+    });
+    $c->res->redirect("/admin/users");
+}
+
+sub sendemail {
+   my ($to, $subject, $body) = @_; 
+   
+   my $url = hostname_long;
+   my $sender = ($ENV{'USER'} || "hydra") .  "@" . $url;
+   
+   my $email = Email::Simple->create(
+        header => [
+            To      => $to,
+            From    => "Hydra <$sender>",
+            Subject => $subject
+        ],
+        body => $body
+    );
+
+    sendmail($email);
+}
+
+sub reset_password : Chained('user') PathPart('reset-password') Args(0) {
+    my ($self, $c) = @_;
+
+    # generate password
+    my $password = Crypt::RandPasswd->word(8,10);
+    
+    # calculate hash
+    my $hashed = sha1_hex($password);
+
+    $c->stash->{user}-> update({ password => $hashed}) ;
+
+    # send email
+
+    sendemail(
+        $c->user->emailaddress, 
+        "New password for Hydra",
+        "Hi,\n\n".
+        "Your password has been reset. Your new password is '$password'.\n".
+        "You can change your password at http://".hostname_long." .\n".
+        "With regards, Hydra\n"
+    );
+
+    $c->res->redirect("/admin/users");
+}
 
 sub machines : Chained('admin') PathPart('machines') Args(0) {
     my ($self, $c) = @_;

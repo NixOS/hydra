@@ -1,0 +1,70 @@
+[% WRAPPER layout.tt title=(create ? "New user" : "Editing user '$user.username'") %]
+[% PROCESS common.tt %]
+
+[% BLOCK roleoption %]
+            <option value="[% role %]"
+            [% checked = false %]
+            [% FOREACH r IN user.userroles %]
+                [% checked = r.role == role %]
+                [% BREAK IF checked %]
+            [% END %] 
+            [% IF checked %]
+                SELECTED
+            [% END %]
+            >[% role %]</option>
+[% END %]
+
+<form action="[% IF create %][% c.uri_for('/admin/create-user/submit') %][% ELSE %][% c.uri_for('/admin/user' user.username 'submit') %][% END %]" method="post">
+
+<h2>User[% IF ! create %] '[% user.username %]'[% END %]</h2>
+
+<table class="layoutTable">
+  [% IF create %]
+  <tr>
+    <th>Username:</th>
+    <td>[% INCLUDE maybeEditString param="username" value=user.username %]</td>
+  </tr>
+  [% END %]
+  <tr>
+    <th>Full name:</th>
+    <td>[% INCLUDE maybeEditString param="fullname" value=user.fullname %]</td>
+  </tr>
+  <tr>
+    <th>Email:</th>
+    <td>[% INCLUDE maybeEditString param="emailaddress" value=user.emailaddress %]</td>
+  </tr>
+  <tr>
+    <th>Evaluation error notifications:</th>
+    <td>
+        [% INCLUDE renderSelection param="emailonerror" curValue=user.emailonerror options={"1" = "Yes", "0" = "No"} %]
+    </td>
+  </tr>
+  <tr>
+    <th>Roles:</th>
+    <td>
+        <select multiple name="roles" style="width: 27em;">
+            [% INCLUDE roleoption role="admin" %]
+            [% INCLUDE roleoption role="create-project" %]
+        </select>
+    </td>
+  </tr>
+</table>
+
+<p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
+
+</form>
+
+[% IF !create %]
+
+    <form action="[% c.uri_for('/admin/user' user.hostname 'delete') %]" method="post">
+      <p><button id="delete-user" type="submit"><img src="/static/images/failure.gif" />Remove this user</button></p>
+    </form>
+      
+    <script type="text/javascript">
+      $("#delete-user").click(function() {
+        return confirm("Are you sure you want to delete this user?");
+      });
+    </script>
+[% END %]
+
+[% END %]

@@ -82,6 +82,9 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Admin').action_for('managenews'))
         title = "News" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Admin').action_for('users'))
+        title = "Users" %]
     [% END %]
   [% END %]
   

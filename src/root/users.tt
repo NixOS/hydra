@@ -1,0 +1,34 @@
+[% WRAPPER layout.tt title="Users" %]
+[% PROCESS common.tt %]
+
+<h1>Users</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Roles</th>
+            <th>Eval. notifications</th>
+            <th>Options</th>
+        </tr>
+    </thead>
+    <tbody>
+        [% FOREACH u IN users %]
+        <tr>
+            <td>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('user_edit'), [u.username]) content = u.username %]</td>
+            <td>[% u.fullname %]</td>
+            <td>[% u.emailaddress %]</td>
+            <td>[% FOREACH r IN u.userroles %]<i>[% r.role %]</i> [% END %]</td>
+            <td>[% IF u.emailonerror %]Yes[% ELSE %]No[% END %]</td>
+            <td>[ [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('reset_password'), [u.username]) content = "Reset password" confirmmsg = "Are you sure you want to reset the password for this user?" %] ]</td>
+        </tr>
+        [% END %]
+    </tbody>
+    
+</table>
+
+<p>[ <a href="[% c.uri_for(c.controller('Admin').action_for('create_user')) %]">Add a new user</a> ]</p>
+
+[% END %]
