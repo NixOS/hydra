@@ -776,7 +776,6 @@ sub restartBuild {
         my $paths = "";
         foreach my $bs ($build->buildsteps) {
           $paths = $paths . " " . $bs->outpath;
-          print STDERR $paths . "\n";
         }
 
         my $r = `nix-store --clear-failed-paths $paths $outpath`;
