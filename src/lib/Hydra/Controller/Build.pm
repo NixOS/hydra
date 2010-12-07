@@ -362,7 +362,7 @@ sub restart : Chained('build') PathPart Args(0) {
     error($c, "This build cannot be restarted.")
         unless $build->finished && -f $drvpath ;
 
-    restartBuild($build);
+    restartBuild($c->model('DB')->schema, $build);
 
     $c->flash->{buildMsg} = "Build has been restarted.";
     
