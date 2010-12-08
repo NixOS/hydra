@@ -204,9 +204,9 @@ create table BuildResultInfo (
 
     logfile       text, -- the path of the logfile
 
-    logsize       integer not null default 0,
-    size          integer not null default 0,
-    closuresize   integer not null default 0,
+    logsize       bigint not null default 0,
+    size          bigint not null default 0,
+    closuresize   bigint not null default 0,
 
     releaseName   text, -- e.g. "patchelf-0.5pre1234"
 
