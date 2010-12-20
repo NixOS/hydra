@@ -8,7 +8,6 @@
     <li>Caching
         <ul>
             <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('clearfailedcache')) content = "Clear failed builds cache" confirmmsg = "Are you sure you want to clear the failed builds cache?" %]</li>
-            <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('clearevalcache')) content = "Clear evaluation cache" confirmmsg = "Are you sure you want to clear the evaluation cache?" %]</li>
             <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('clearvcscache')) content = "Clear VCS caches" confirmmsg = "Are you sure you want to clear the VCS caches?" %]</li>
         </ul>
     </li>    

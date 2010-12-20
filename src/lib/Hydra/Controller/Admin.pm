@@ -302,15 +302,6 @@ sub clearfailedcache : Chained('admin') Path('clear-failed-cache') Args(0) {
     $c->res->redirect("/admin");
 }
 
-sub clearevalcache : Chained('admin') Path('clear-eval-cache') Args(0) {
-    my ($self, $c) = @_;
-
-    print "Clearing evaluation cache\n";
-    $c->model('DB::JobsetInputHashes')->delete_all;
-
-    $c->res->redirect("/admin")
-}
-
 sub clearvcscache : Chained('admin') Path('clear-vcs-cache') Args(0) {
     my ($self, $c) = @_;
 
