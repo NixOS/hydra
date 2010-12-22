@@ -217,6 +217,8 @@
 		          <img src="/static/images/error_[% size %].png" alt="Failed" />
 		        [% ELSIF build.resultInfo.buildstatus == 5 %]
 		          <img src="/static/images/error_[% size %].png" alt="Failed" />
+		        [% ELSIF build.resultInfo.buildstatus == 6 %]
+		          <img src="/static/images/error_[% size %].png" alt="Failed (with result)" />
 		        [% ELSE %]
 		          <img src="/static/images/error_[% size %].png" alt="Failed" />
 		        [% END %]  
@@ -246,6 +248,9 @@
 		          <span class="error">Build inhibited because a dependency previously failed to build</span>
 		          [% failedDep = build.resultInfo.failedDep %]
 		          (namely, <a href="[% c.uri_for('/build' failedDep.build.id 'nixlog' failedDep.stepnr) %]"><tt>[% failedDep.outpath %]</tt></a>)
+		        [% ELSIF build.resultInfo.buildstatus == 6 %]
+		          <img src="/static/images/failure.gif" alt="Failed (with result)" />
+		          <span class="error">Build failed (with result)</span>
 		        [% ELSE %]
 		          <img src="/static/images/failure.gif" alt="Failed" />
 		          <span class="error">Build failed</span>

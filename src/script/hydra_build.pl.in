@@ -279,7 +279,14 @@ sub doBuild {
                 my $drvPathStep = $1;
                 txn_do($db, sub {
                     my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
-                    $step->update({busy => 0, status => 0, stoptime => time});
+                    my $stepOutpath = $step->outpath;
+                    my $stepStatus = 0;
+ 
+                    # when $out/nix-support/failed exists, build actually failed, exit code is in the file, status code for such builds is 6
+                    $stepStatus = 6 if -f "$stepOutpath/nix-support/failed";
+                    $thisBuildFailed = 1 if ($drvPath eq $drvPathStep && $stepStatus == 6);
+
+                    $step->update({busy => 0, status => $stepStatus, stoptime => time});
                 });
             }
 
@@ -358,6 +365,8 @@ sub doBuild {
             if ($thisBuildFailed) { $buildStatus = 1; }
             elsif ($someBuildFailed) { $buildStatus = 2; }
             else { $buildStatus = 3; }
+        } else {
+          $buildStatus = 6 if $thisBuildFailed;
         }
 
         # Only store the output of running Nix if we have a miscellaneous error.
@@ -402,7 +411,7 @@ sub doBuild {
             , releasename => $releaseName
             });
 
-        if ($buildStatus == 0) {
+        if ($buildStatus == 0 || $buildStatus == 6) {
             addBuildProducts($db, $build);
         }
 
