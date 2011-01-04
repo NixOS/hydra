@@ -145,6 +145,7 @@ sub robots_txt : Path('robots.txt') {
         , uri_for('Build', 'view_nixlog', ["*"], "*")
         , uri_for('Build', 'view_log', ["*"], "*")
         , uri_for('Build', 'view_log', ["*"])
+        , uri_for('Build', 'download', ["*"], "*")
         , uri_for('Root', 'nar', [], "*")
         , uri_for('Root', 'status', [])
         , uri_for('Root', 'all', [])

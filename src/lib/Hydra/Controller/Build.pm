@@ -204,7 +204,6 @@ sub download_by_type : Chained('build') PathPart('download-by-type') {
     $c->res->redirect(defaultUriForProduct($self, $c, $product, @path));
 }
 
-
 sub contents : Chained('build') PathPart Args(1) {
     my ($self, $c, $productnr) = @_;
 
@@ -220,6 +219,10 @@ sub contents : Chained('build') PathPart Args(1) {
     if ($product->type eq "nix-build" && -d $path) {
         $res = `cd $path && find . -print0 | xargs -0 ls -ld --`;
         error($c, "`ls -lR' error: $?") if $? != 0;
+        
+        my $baseuri = $c->uri_for('/build', $c->stash->{build}->id, 'download', $product->productnr);
+        $baseuri .= "/".$product->name if $product->name;
+        $res =~ s/(\.\/)($relPathRE)/<a href="$baseuri\/$2">$1$2<\/a>/g;
     }
 
     elsif ($path =~ /\.rpm$/) {
@@ -259,8 +262,9 @@ sub contents : Chained('build') PathPart Args(1) {
 
     die unless $res;
     
-    $c->stash->{'plain'} = { data => $res };
-    $c->forward('Hydra::View::Plain');
+    $c->stash->{title} = "Contents of ".$product->path;
+    $c->stash->{contents} = "<pre>$res</pre>";
+    $c->stash->{template} = 'plain.tt';
 }
 
 
