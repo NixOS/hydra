@@ -1,0 +1,10 @@
+[% WRAPPER layout.tt title=title %]
+[% PROCESS common.tt %]
+
+<h1>[% title %]</h1>
+
+<div class="buildlog">
+[% contents -%]
+</div>
+
+[% END %]
