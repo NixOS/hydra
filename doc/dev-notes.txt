@@ -172,3 +172,9 @@
 * Evaluating the NixOS Hydra jobs:
 
   $ ./hydra_eval_jobs ~/Dev/nixos-wc/release.nix --arg nixpkgs '{outPath = /home/eelco/Dev/nixpkgs-wc;}' --arg nixosSrc '{outPath = /home/eelco/Dev/nixos-wc; rev = 1234;}' --arg services '{outhPath = /home/eelco/services-wc;}' --argstr system i686-linux --argstr system x86_64-linux --arg officialRelease false
+
+
+* Show all the failing jobs/systems in the nixpkgs:stdenv jobset that
+  succeed in the nixpkgs:trunk jobset:
+
+  select job, system from builds b natural join buildresultinfo where project = 'nixpkgs' and jobset = 'stdenv' and iscurrent = 1 and finished = 1 and buildstatus != 0 and exists (select 1 from builds natural join buildresultinfo where project = 'nixpkgs' and jobset = 'trunk' and job = b.job and system = b.system and iscurrent = 1 and finished = 1 and buildstatus = 0) order by job, system;
