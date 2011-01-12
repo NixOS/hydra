@@ -13,8 +13,9 @@
       <xsl:if test="contains(text(), ' *** ') or
                     contains(text(), 'LaTeX Error') or
                     contains(text(), 'BUILD FAILED') or
-                    contains(text(), 'FAIL:') or
+                    starts-with(text(), 'FAIL:') or
                     contains(text(), 'FAILURE') or
+                    contains(text(), '[ERROR]') or
                     contains(text(), ' error: ') or
                     true">
          <xsl:attribute name="error"></xsl:attribute>
