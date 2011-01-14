@@ -1,4 +1,9 @@
-EXTRA_DIST = hydra_control.sh
+EXTRA_DIST = \
+  hydra_control.sh \
+  nix-prefetch-svn \
+  nix-prefetch-git \
+  nix-prefetch-hg 
+
 bin_SCRIPTS = \
   hydra_build.pl \
   hydra_evaluator.pl \
