@@ -2,6 +2,8 @@ AC_INIT([Hydra], [m4_esyscmd([echo -n $(cat ./version)$VERSION_SUFFIX])],
         [nix-dev@cs.uu.nl], [hydra], [http://nixos.org/hydra/])
 AM_INIT_AUTOMAKE([foreign])
 
+AC_LANG([C++])
+
 AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_LN_S
@@ -25,6 +27,20 @@ AC_ARG_WITH(nix, AC_HELP_STRING([--with-nix=PATH],
   [prefix of nix]),
   nix=$withval, nix=/nix-missing)
 AC_SUBST(nix)
+
+old_CPPFLAGS="$CPPFLAGS"
+old_LIBS="$LIBS"
+
+CPPFLAGS="-I$nix/include/nix"
+LIBS="-L$nix/lib/nix"
+
+AC_CHECK_HEADER([store-api.hh], [:],
+  [AC_MSG_ERROR([Nix headers not found; please install Nix or check the `--with-nix' option.])])
+AC_CHECK_LIB([expr], [_ZN3nix17parseExprFromFileERNS_9EvalStateESs], [:],
+  [AC_MSG_ERROR([Nix library not found; please install Nix or check the `--with-nix' option.])])
+
+CPPFLAGS="$old_CPPFLAGS"
+LIBS="$old_LIBS"
 
 AC_CONFIG_FILES([
   Makefile
