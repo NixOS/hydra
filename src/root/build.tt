@@ -186,6 +186,7 @@
 
             [% IF build.resultInfo.buildstatus != 0 && prevSuccessfulBuild %]
             <h2>Changes</h2>
+            Changes compared to last successful build: 
             <table>
                 <thead>
                     <th>Last successful build</th>
