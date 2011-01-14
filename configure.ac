@@ -1,4 +1,5 @@
-AC_INIT([hydra],[m4_esyscmd([echo -n $(cat ./version)$VERSION_SUFFIX])])
+AC_INIT([Hydra], [m4_esyscmd([echo -n $(cat ./version)$VERSION_SUFFIX])],
+        [nix-dev@cs.uu.nl], [hydra], [http://nixos.org/hydra/])
 AM_INIT_AUTOMAKE([foreign])
 
 AC_PROG_CC
