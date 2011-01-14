@@ -42,6 +42,8 @@ AC_CHECK_LIB([expr], [_ZN3nix17parseExprFromFileERNS_9EvalStateESs], [:],
 CPPFLAGS="$old_CPPFLAGS"
 LIBS="$old_LIBS"
 
+PKG_CHECK_MODULES([BDW_GC], [bdw-gc])
+
 AC_CONFIG_FILES([
   Makefile
 

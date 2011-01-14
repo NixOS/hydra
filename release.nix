@@ -15,7 +15,8 @@ rec {
       inherit officialRelease;
       version = builtins.readFile ./version;
 
-      buildInputs = [ perl libxslt dblatex tetex nukeReferences ] ;
+      buildInputs =
+        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc ] ;
 
       preConfigure = ''
         # TeX needs a writable font cache.
@@ -46,7 +47,7 @@ rec {
       configureFlags = "--with-nix=${nix}";
 
       buildInputs =
-        [ perl makeWrapper libtool nix unzip nukeReferences boehmgc ]
+        [ perl makeWrapper libtool nix unzip nukeReferences pkgconfig boehmgc ]
         ++ (import ./deps.nix) { inherit pkgs; };
 
       hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [

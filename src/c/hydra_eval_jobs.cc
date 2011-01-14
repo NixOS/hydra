@@ -1,6 +1,8 @@
 #include <map>
 #include <iostream>
 
+#include <gc/gc_allocator.h>
+
 #include "shared.hh"
 #include "store-api.hh"
 #include "eval.hh"
