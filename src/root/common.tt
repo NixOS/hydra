@@ -284,6 +284,16 @@
     [% END %]
 [% END %]
 
+[% BLOCK renderShortInputValue %]
+    [% IF input.type == "build" || input.type == "sysbuild" %]
+        <a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a>
+    [% ELSIF input.type == "string" || input.type == "boolean" %]
+        <tt>"[% input.value %]"</tt>
+    [% ELSE %]
+        <tt>[% input.uri %][% IF input.revision %] (r. [% input.revision %])[% END %]</tt>
+    [% END %]
+[% END %]
+
 [% BLOCK renderDiffUri; %]
     [% nouri = 1 %]
     [% FOREACH m IN mappers %]
@@ -311,14 +321,20 @@
             [% IF bi1.name == bi2.name %]
                 [% IF bi1.type == bi2.type %]
                     [% IF bi1.value != bi2.value || bi1.uri != bi2.uri %]
-                        <tr><td><b>[% bi1.name %]</b></td><td>[% INCLUDE renderInputValue input=bi1 %] to [% INCLUDE renderInputValue input=bi2 %]</td></tr>
+                        <tr><td><b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %] to [% INCLUDE renderShortInputValue input=bi2 %]</tt></td></tr>
                     [% ELSIF bi1.uri == bi2.uri && bi1.revision != bi2.revision %]
+                        [% IF bi1.type == "git" %]
                         <tr><td>
-                            <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=('Revision changed from ' _ bi1.revision _ ' to ' _ bi2.revision) %]</tt>
+                            <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision.substr(0, 6) _ ' to ' _ bi2.revision.substr(0, 6)) %]</tt>
                         </td></tr>
+                        [% ELSE %]
+                        <tr><td>
+                            <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision _ ' to ' _ bi2.revision) %]</tt>
+                        </td></tr>
+                        [% END %]
                     [% ELSIF bi1.dependency.id != bi2.dependency.id || bi1.path != bi2.path %]
                         <tr><td>
-                            <b>[% bi1.name %]</b></td><td>[% INCLUDE renderInputValue input=bi1 %] to [% INCLUDE renderInputValue input=bi2 %]
+                            <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %] to [% INCLUDE renderShortInputValue input=bi2 %]</tt>
                             <br/>
                             <br/>
                             [% INCLUDE renderInputDiff build1=bi1.dependency, build2=bi2.dependency, nestedDiff=1 %]
@@ -358,4 +374,10 @@
     [% END %]
   </tbody>
 </table>
+[% END %]
+
+[% BLOCK buildsGraph %]
+
+
+
 [% END %]

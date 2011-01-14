@@ -184,25 +184,25 @@
 				[% INCLUDE renderBuildSteps type="Failed" %]
 			[% END %]
 
-            [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]
-                <h2>Changes</h2>
-                <p>
-                   Build [% INCLUDE renderFullBuildLink build=firstBrokenBuild %] is the first build failure after the previous successful build of this job. The changes that might have caused the failure are:
-                </p>
-                [% INCLUDE renderInputDiff build1=prevSuccessfulBuild , build2=firstBrokenBuild %]
-                <br />
-                <p/>
-            [% END %]
-
             [% IF build.resultInfo.buildstatus != 0 && prevSuccessfulBuild %]
-                <h2>Changes</h2>
-                <p>
-                    The previous successful build of this job was [% INCLUDE renderFullBuildLink build=prevSuccessfulBuild %]. The 
-                    following changes were made since:
-                </p>
-                [% INCLUDE renderInputDiff build2=build , build1=prevSuccessfulBuild %]
-                <br />
-                <p/>
+            <h2>Changes</h2>
+            <table>
+                <thead>
+                    <th>Last successful build</th>
+                    [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]<th>First broken build</th>[% END %]
+                    <th>Current build</th>
+                </thead>
+                <tr>
+                    <td valign="center">[% INCLUDE renderBuildStatusIcon build=prevSuccessfulBuild size=32 %] [% INCLUDE renderFullBuildLink build=prevSuccessfulBuild %]</td>
+                    [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]<td valign="center">[% INCLUDE renderBuildStatusIcon build=firstBrokenBuild size=32 %] [% INCLUDE renderFullBuildLink build=firstBrokenBuild %]</td>[% END %]
+                    <td>[% INCLUDE renderBuildStatusIcon build=build size=32 %] [% INCLUDE renderFullBuildLink build=build %]</td>
+                </tr>               
+                <tr>
+                    <td></td>
+                    [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]<td>[% INCLUDE renderInputDiff build1=prevSuccessfulBuild , build2=firstBrokenBuild %]</td>[% END %]
+                    <td>[% INCLUDE renderInputDiff build1=prevSuccessfulBuild , build2=build %]</td>
+                </tr>
+            </table>
             [% END %]
 
 			[% IF build.resultInfo.errormsg && build.resultInfo.buildstatus != 5 %]
