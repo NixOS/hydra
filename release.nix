@@ -13,12 +13,19 @@ rec {
       name = "hydra-tarball";
       src = hydraSrc;
       inherit officialRelease;
+      version = builtins.readFile ./version;
 
-      buildInputs = [ perl libxslt dblatex tetex ] ;
+      buildInputs = [ perl libxslt dblatex tetex nukeReferences ] ;
 
       preConfigure = ''
         # TeX needs a writable font cache.
         export VARTEXFONTS=$TMPDIR/texfonts
+      '';
+
+      postHook = ''
+        cp doc/manual/manual.pdf $out
+        nuke-refs $out/manual.pdf
+        echo "doc-pdf manual $out/share/doc/hydra/manual/manual.pdf" >> $out/nix-support/hydra-build-products        
       '';
     };
 
@@ -42,8 +49,7 @@ rec {
 
       hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [
         libxslt sqlite subversion openssh nix coreutils findutils
-        gzip bzip2 lzma gnutar unzip git mercurial
-        gnused graphviz
+        gzip bzip2 lzma gnutar unzip git mercurial gnused graphviz
       ] ++ ( if stdenv.isLinux then [rpm dpkg cdrkit] else [] )));
 
       postInstall = ''
@@ -62,8 +68,6 @@ rec {
                 --set HYDRA_HOME $out/libexec/hydra \
                 --set NIX_RELEASE ${nix.name}
         done
-
-        echo "doc-pdf manual $out/share/doc/hydra/manual/manual.pdf" >> $out/nix-support/hydra-build-products
       ''; # */
 
       meta = {
