@@ -22,7 +22,7 @@ rec {
         export VARTEXFONTS=$TMPDIR/texfonts
       '';
 
-      postHook = ''
+      postDist = ''
         cp doc/manual/manual.pdf $out
         nuke-refs $out/manual.pdf
         echo "doc-pdf manual $out/share/doc/hydra/manual/manual.pdf" >> $out/nix-support/hydra-build-products        
