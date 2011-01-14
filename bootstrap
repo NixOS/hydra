@@ -1,5 +1,2 @@
 #! /bin/sh -e
-libtoolize --copy
-aclocal
-automake --add-missing --copy
-autoconf
+exec autoreconf -vfi
