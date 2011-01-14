@@ -22,6 +22,8 @@ rec {
         export VARTEXFONTS=$TMPDIR/texfonts
       '';
 
+      configureFlags = "--with-nix=${nix}";
+
       postDist = ''
         cp doc/manual/manual.pdf $out
         nuke-refs $out/manual.pdf
