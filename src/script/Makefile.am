@@ -6,4 +6,7 @@ bin_SCRIPTS = \
   hydra_server.pl \
   hydra_update_gc_roots.pl \
   hydra_create.pl \
+  nix-prefetch-svn \
+  nix-prefetch-git \
+  nix-prefetch-hg \
   hydra_control.sh

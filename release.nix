@@ -21,6 +21,10 @@ rec {
       preConfigure = ''
         # TeX needs a writable font cache.
         export VARTEXFONTS=$TMPDIR/texfonts
+
+        cp ${"${nixpkgs}/pkgs/build-support/fetchsvn/nix-prefetch-svn"} src/script
+        cp ${"${nixpkgs}/pkgs/build-support/fetchgit/nix-prefetch-git"} src/script
+        cp ${"${nixpkgs}/pkgs/build-support/fetchhg/nix-prefetch-hg"} src/script
       '';
 
       configureFlags = "--with-nix=${nix}";
@@ -58,10 +62,6 @@ rec {
       postInstall = ''
         ensureDir $out/nix-support
         nuke-refs $out/share/doc/hydra/manual/manual.pdf
-
-        cp ${"${nixpkgs}/pkgs/build-support/fetchsvn/nix-prefetch-svn"} $out/bin/nix-prefetch-svn
-        cp ${"${nixpkgs}/pkgs/build-support/fetchgit/nix-prefetch-git"} $out/bin/nix-prefetch-git
-        cp ${"${nixpkgs}/pkgs/build-support/fetchhg/nix-prefetch-hg"} $out/bin/nix-prefetch-hg
 
         for i in $out/bin/*; do
             wrapProgram $i \
