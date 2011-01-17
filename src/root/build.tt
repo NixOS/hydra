@@ -192,7 +192,7 @@
                 <thead>
                     <th>Last successful build</th>
                     [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]<th>First broken build</th>[% END %]
-                    <th>Current build</th>
+                    <th>This build</th>
                 </thead>
                 <tr>
                     <td valign="center">[% INCLUDE renderBuildStatusIcon build=prevSuccessfulBuild size=32 %] [% INCLUDE renderFullBuildLink build=prevSuccessfulBuild %]</td>
