@@ -1,0 +1,21 @@
+[% WRAPPER layout.tt title=title %]
+[% PROCESS common.tt %]
+
+<h2>Last 50 lines of log</h2>
+
+[% IF reload %]
+<script>
+ $(document).ready(function() {
+     $("#contents").load("[% url %]");
+   var refreshId = setInterval(function() {
+      $("#contents").load("[% url %]");
+   }, 5000);
+});
+</script>
+[% END %]
+
+<pre class="taillog" id="contents">
+[% contents -%]
+</pre>
+
+[% END %]
