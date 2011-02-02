@@ -127,6 +127,16 @@ sub showLog {
         $c->forward('Hydra::View::Plain');
     }
 
+    elsif ($mode eq "tail-reload") {
+    	my $url = $c->request->uri->as_string;
+    	$url =~ s/tail-reload/tail/g;
+        $c->stash->{url} = $url;
+        $c->stash->{reload} = defined $c->stash->{build}->schedulingInfo && $c->stash->{build}->schedulingInfo->busy;
+        $c->stash->{title} = "";
+        $c->stash->{contents} = (scalar `$pipestart | tail -n 50`) || " ";
+        $c->stash->{template} = 'plain-reload.tt';
+    }
+
     elsif ($mode eq "tail") {
         $c->stash->{'plain'} = { data => (scalar `$pipestart | tail -n 50`) || " " };
         $c->forward('Hydra::View::Plain');

@@ -54,7 +54,7 @@
 		            <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
 		          [% END %]
 		          [% IF step.logfile %]
-		            (<a href="[% log %]">log</a>, <a href="[% "$log/raw" %]">raw</a>, <a href="[% "$log/tail" %]">tail</a>)
+		            (<a href="[% log %]">log</a>, <a href="[% "$log/raw" %]">raw</a>, <a href="[% "$log/tail-reload" %]">tail</a>)
 		          [% END %]
 		        </td>
 		      </tr>
@@ -143,7 +143,7 @@
 				        <td>
 				          <a href="[% c.uri_for('/build' build.id 'log') %]"><strong>Available</strong></a>
 				          (<a href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>,
-				           <a href="[% c.uri_for('/build' build.id 'log' 'tail') %]">tail</a>)
+				           <a href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>)
 				        </td>
 				      </tr>
 				  [% END %]
@@ -351,7 +351,7 @@
 		        <td>
 		          <a href="[% c.uri_for('/build' build.id 'log') %]"><strong>Available</strong></a>
 		          (<a href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>,
-		           <a href="[% c.uri_for('/build' build.id 'log' 'tail') %]">tail</a>)
+		           <a href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>)
 		        </td>
 		      </tr>
 		    [% END %]

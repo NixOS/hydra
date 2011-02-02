@@ -141,9 +141,11 @@ pre {
 }
 
 pre.buildlog {
-    border: 1px solid black;
+    border: 3px solid darkblue;
     padding: 0.3em;
     white-space: pre-wrap;
+    background: black;
+    color: #ffffff;    
 }
 
 div.buildlog {
