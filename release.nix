@@ -25,6 +25,7 @@ rec {
         cp ${"${nixpkgs}/pkgs/build-support/fetchsvn/nix-prefetch-svn"} src/script
         cp ${"${nixpkgs}/pkgs/build-support/fetchgit/nix-prefetch-git"} src/script
         cp ${"${nixpkgs}/pkgs/build-support/fetchhg/nix-prefetch-hg"} src/script
+        cp ${"${nixpkgs}/pkgs/build-support/fetchbzr/nix-prefetch-bzr"} src/script
       '';
 
       configureFlags = "--with-nix=${nix}";
@@ -56,7 +57,7 @@ rec {
 
       hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [
         libxslt sqlite subversion openssh nix coreutils findutils
-        gzip bzip2 lzma gnutar unzip git mercurial gnused graphviz
+        gzip bzip2 lzma gnutar unzip git mercurial gnused graphviz bazaar
       ] ++ ( if stdenv.isLinux then [rpm dpkg cdrkit] else [] )));
 
       postInstall = ''
