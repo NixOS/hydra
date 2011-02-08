@@ -381,6 +381,77 @@ sub fetchInputGit {
         };
 }
 
+sub fetchInputBazaar {
+    my ($db, $project, $jobset, $name, $type, $value, $checkout) = @_;
+
+    my $uri = $value;
+
+    my $sha256;
+    my $storePath;
+
+    my $stdout; my $stderr;
+    my $clonePath;
+    mkpath(scmPath);
+    $clonePath = scmPath . "/" . sha256_hex($uri);
+
+    if (! -d $clonePath) {
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("bzr", "branch", $uri, $clonePath));
+        die "Error cloning bazaar branch at `$uri':\n$stderr" unless $res;
+    }
+
+    chdir $clonePath or die $!;
+    (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+        ("bzr", "pull"));
+    die "Error pulling latest change bazaar branch at `$uri':\n$stderr" unless $res;
+
+    # First figure out the last-modified revision of the URI.
+    my @cmd = (["bzr", "revno"],
+               "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
+
+    die "Cannot get head revision of Bazaar branch at `$uri':\n$stderr"
+        unless IPC::Run::run(@cmd, \$stdout, \$stderr);
+    my $revision = $stdout; chomp $revision;
+    die unless $revision =~ /^\d+$/;
+
+    (my $cachedInput) = $db->resultset('CachedBazaarInputs')->search(
+        {uri => $uri, revision => $revision});
+
+    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+        $storePath = $cachedInput->storepath;
+        $sha256 = $cachedInput->sha256hash;
+    } else {
+            
+        # Then download this revision into the store.
+        print STDERR "checking out Bazaar input ", $name, " from $uri revision $revision\n";
+        $ENV{"NIX_HASH_ALGO"} = "sha256";
+        $ENV{"PRINT_PATH"} = "1";
+        $ENV{"NIX_PREFETCH_BZR_LEAVE_DOT_BZR"} = "$checkout";
+        
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("nix-prefetch-bzr", $clonePath, $revision));
+        die "Cannot check out Bazaar branch `$uri':\n$stderr" unless $res;
+
+        ($sha256, $storePath) = split ' ', $stdout;
+
+        txn_do($db, sub {
+            $db->resultset('CachedBazaarInputs')->create(
+                { uri => $uri
+                , revision => $revision
+                , sha256hash => $sha256
+                , storepath => $storePath
+                });
+            });
+    }
+
+    return 
+        { type => $type
+        , uri => $uri
+        , storePath => $storePath
+        , sha256hash => $sha256
+        , revision => $revision
+        };}
+    
 sub fetchInputHg {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
     
@@ -480,17 +551,20 @@ sub fetchInput {
     elsif ($type eq "hg") {
         return fetchInputHg($db, $project, $jobset, $name, $type, $value);
     }
-    
+    elsif ($type eq "bzr") {
+        return fetchInputBazaar($db, $project, $jobset, $name, $type, $value, 0);
+    }
+    elsif ($type eq "bzr-checkout") {
+        return fetchInputBazaar($db, $project, $jobset, $name, $type, $value, 1);
+    }   
     elsif ($type eq "string") {
         die unless defined $value;
         return {type => $type, value => $value};
-    }
-    
+    }    
     elsif ($type eq "boolean") {
         die unless defined $value && ($value eq "true" || $value eq "false");
         return {type => $type, value => $value};
-    }
-    
+    }    
     else {
         die "Input `" . $name . "' has unknown type `$type'.";
     }

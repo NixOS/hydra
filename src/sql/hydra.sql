@@ -315,6 +315,14 @@ create table CachedSubversionInputs (
     primary key   (uri, revision)
 );
 
+create table CachedBazaarInputs (
+    uri           text not null,
+    revision      integer not null,
+    sha256hash    text not null,
+    storePath     text not null,
+    primary key   (uri, revision)
+);
+
 create table CachedGitInputs (
     uri           text not null,
     branch        text not null,
@@ -530,6 +538,7 @@ create index IndexBuildsOnDrvPath on Builds(drvPath);
 create index IndexCachedHgInputsOnHash on CachedHgInputs(uri, branch, sha256hash);
 create index IndexCachedGitInputsOnHash on CachedGitInputs(uri, branch, sha256hash);
 create index IndexCachedSubversionInputsOnUriRevision on CachedSubversionInputs(uri, revision);
+create index IndexCachedBazaarInputsOnUriRevision on CachedBazaarInputs(uri, revision);
 create index IndexJobsetEvalMembersOnBuild on JobsetEvalMembers(build);
 create index IndexJobsetInputAltsOnInput on JobsetInputAlts(project, jobset, input);
 create index IndexJobsetInputAltsOnJobset on JobsetInputAlts(project, jobset);

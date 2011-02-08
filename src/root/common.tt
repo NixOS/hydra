@@ -6,6 +6,8 @@
 [% inputTypes =
     { "svn" = "Subversion export"
     , "svn-checkout" = "Subversion checkout"
+    , "bzr" = "Bazaar export"
+    , "bzr-checkout" = "Bazaar checkout"
     , "git" = "Git checkout"
     , "tarball" = "Download of a tarball"
     , "hg" = "Mercurial checkout"

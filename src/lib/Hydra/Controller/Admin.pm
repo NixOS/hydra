@@ -314,6 +314,9 @@ sub clearvcscache : Chained('admin') Path('clear-vcs-cache') Args(0) {
     print "Clearing subversion cache\n";
     $c->model('DB::CachedSubversionInputs')->delete_all;
 
+    print "Clearing bazaar cache\n";
+    $c->model('DB::CachedBazaarInputs')->delete_all;
+
     $c->res->redirect("/admin");
 }
 
