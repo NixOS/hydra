@@ -584,7 +584,7 @@ sub inputsToArgs {
                 when ("boolean") {
                     push @res, "--arg", $input, $alt->{value};
                 }
-                when (["svn", "svn-checkout", "path", "build", "git", "hg", "sysbuild"]) {
+                when (["svn", "svn-checkout", "path", "build", "git", "hg", "sysbuild", "bzr", "bzr-checkout"]) {
                     push @res, "--arg", $input, (
                         "{ outPath = builtins.storePath " . $alt->{storePath} . "" .
                         (defined $alt->{revision} ? "; rev = \"" . $alt->{revision} . "\"" : "") .
