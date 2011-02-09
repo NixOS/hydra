@@ -2,6 +2,7 @@ EXTRA_DIST = \
   hydra_control.sh \
   nix-prefetch-svn \
   nix-prefetch-git \
+  nix-prefetch-bzr \
   nix-prefetch-hg 
 
 bin_SCRIPTS = \
@@ -13,5 +14,6 @@ bin_SCRIPTS = \
   hydra_create.pl \
   nix-prefetch-svn \
   nix-prefetch-git \
+  nix-prefetch-bzr \
   nix-prefetch-hg \
   hydra_control.sh
