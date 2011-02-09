@@ -71,21 +71,21 @@ __PACKAGE__->table("BuildResultInfo");
 
 =head2 logsize
 
-  data_type: integer
+  data_type: bigint
   default_value: 0
   is_nullable: 0
   size: undef
 
 =head2 size
 
-  data_type: integer
+  data_type: bigint
   default_value: 0
   is_nullable: 0
   size: undef
 
 =head2 closuresize
 
-  data_type: integer
+  data_type: bigint
   default_value: 0
   is_nullable: 0
   size: undef
@@ -172,11 +172,11 @@ __PACKAGE__->add_columns(
     size => undef,
   },
   "logsize",
-  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
+  { data_type => "bigint", default_value => 0, is_nullable => 0, size => undef },
   "size",
-  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
+  { data_type => "bigint", default_value => 0, is_nullable => 0, size => undef },
   "closuresize",
-  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
+  { data_type => "bigint", default_value => 0, is_nullable => 0, size => undef },
   "releasename",
   {
     data_type => "text",
@@ -216,8 +216,8 @@ Related object: L<Hydra::Schema::Builds>
 __PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" }, {});
 
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-11-11 10:58:44
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:7RntgXzDYpnfVLfja5RXKg
+# Created by DBIx::Class::Schema::Loader v0.05000 @ 2011-02-09 11:17:50
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:WutQSwDawsCKevXw5zXOLw
 
 __PACKAGE__->belongs_to(
   "failedDep",
