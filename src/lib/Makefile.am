@@ -1,12 +1,15 @@
-PERL_MODULES = \
-  $(wildcard *.pm) \
-  $(wildcard Hydra/*.pm) \
-  $(wildcard Hydra/Helper/*.pm) \
-  $(wildcard Hydra/Model/*.pm) \
-  $(wildcard Hydra/View/*.pm) \
-  $(wildcard Hydra/Schema/*.pm) \
-  $(wildcard Hydra/Controller/*.pm) \
-  $(wildcard Hydra/Base/*.pm) \
+PERL_MODULES =					\
+  $(wildcard *.pm)				\
+  $(wildcard Hydra/*.pm)			\
+  Hydra/Helper/AddBuilds.pm			\
+  Hydra/Helper/CatalystUtils.pm			\
+  Hydra/Helper/Nix.pm.in			\
+  $(wildcard Hydra/Helper/*.pm)			\
+  $(wildcard Hydra/Model/*.pm)			\
+  $(wildcard Hydra/View/*.pm)			\
+  $(wildcard Hydra/Schema/*.pm)			\
+  $(wildcard Hydra/Controller/*.pm)		\
+  $(wildcard Hydra/Base/*.pm)			\
   $(wildcard Hydra/Base/Controller/*.pm) 
 
 EXTRA_DIST = $(PERL_MODULES)

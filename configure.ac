@@ -55,6 +55,7 @@ AC_CONFIG_FILES([
   src/sql/Makefile
   src/xsl/Makefile
   src/lib/Makefile
+  src/lib/Hydra/Helper/Nix.pm
   src/root/Makefile
 
   src/script/Makefile
