@@ -155,7 +155,7 @@ sub create_jobset_submit : Chained('project') PathPart('create-jobset/submit') A
         # Note: $jobsetName is validated in updateProject, which will
         # abort the transaction if the name isn't valid.
         my $jobset = $c->stash->{project}->jobsets->create(
-            {name => $jobsetName, nixexprinput => "", nixexprpath => ""});
+            {name => $jobsetName, nixexprinput => "", nixexprpath => "", emailoverride => ""});
         Hydra::Controller::Jobset::updateJobset($c, $jobset);
     });
     
