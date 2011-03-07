@@ -230,7 +230,7 @@ sub updateJobset {
         , nixexprinput => $nixExprInput
         , enabled => trim($c->request->params->{enabled}) eq "1" ? 1 : 0
         , enableemail => trim($c->request->params->{enableemail}) eq "1" ? 1 : 0
-        , emailoverride => trim($c->request->params->{emailoverride})
+        , emailoverride => trim($c->request->params->{emailoverride}) || ""
         , keepnr => trim($c->request->params->{keepnr})
         });
 
@@ -307,7 +307,7 @@ sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
             , nixexprinput => $jobset->nixexprinput
             , enabled => 0
             , enableemail => $jobset->enableemail 
-            , emailoverride => $jobset->emailoverride
+            , emailoverride => $jobset->emailoverride || ""
             });    
     
         foreach my $input ($jobset->jobsetinputs) {
