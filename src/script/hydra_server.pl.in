@@ -12,6 +12,7 @@ use Getopt::Long;
 use Pod::Usage;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use Hydra::Helper::Nix;
 
 my $debug             = 0;
 my $fork              = 0;
@@ -26,6 +27,8 @@ my $restart_directory = undef;
 my $follow_symlinks   = 0;
 
 my @argv = @ARGV;
+
+$ENV{'HYDRA_CONFIG'} = getHydraConf if ! $ENV{'HYDRA_CONFIG'} ;
 
 GetOptions(
     'debug|d'             => \$debug,
