@@ -1,9 +1,6 @@
 PERL_MODULES =					\
   $(wildcard *.pm)				\
   $(wildcard Hydra/*.pm)			\
-  Hydra/Helper/AddBuilds.pm			\
-  Hydra/Helper/CatalystUtils.pm			\
-  Hydra/Helper/Nix.pm.in			\
   $(wildcard Hydra/Helper/*.pm)			\
   $(wildcard Hydra/Model/*.pm)			\
   $(wildcard Hydra/View/*.pm)			\
@@ -12,7 +9,9 @@ PERL_MODULES =					\
   $(wildcard Hydra/Base/*.pm)			\
   $(wildcard Hydra/Base/Controller/*.pm) 
 
-EXTRA_DIST = $(PERL_MODULES)
+EXTRA_DIST = \
+  $(PERL_MODULES) \
+  Hydra/Helper/Nix.pm.in
 
 hydradir = $(libexecdir)/hydra/lib
 nobase_hydra_DATA = $(PERL_MODULES)
