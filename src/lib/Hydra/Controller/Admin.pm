@@ -75,8 +75,7 @@ sub updateUser {
     error($c, "Invalid or empty username.") if $username eq "";
         
     $user->update(
-        { username => $username
-        , maxconcurrent => $fullname
+        { fullname => $fullname
         , emailaddress => $emailaddress
         , emailonerror => $emailonerror
         });
