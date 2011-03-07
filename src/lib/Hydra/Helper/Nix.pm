@@ -24,7 +24,8 @@ sub isValidPath {
 
 
 sub getHydraPath {
-    my $dir = $ENV{"HYDRA_DATA"} || "@localstatedir@/lib/hydra";
+    my $dir = $ENV{"HYDRA_DATA"} || "/var/lib/hydra";
+    die "The HYDRA_DATA directory does not exist!\n" unless -d $dir;
     return $dir;
 }
 

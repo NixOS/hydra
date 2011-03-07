@@ -10,8 +10,7 @@ PERL_MODULES =					\
   $(wildcard Hydra/Base/Controller/*.pm) 
 
 EXTRA_DIST = \
-  $(PERL_MODULES) \
-  Hydra/Helper/Nix.pm.in
+  $(PERL_MODULES)
 
 hydradir = $(libexecdir)/hydra/lib
 nobase_hydra_DATA = $(PERL_MODULES)
