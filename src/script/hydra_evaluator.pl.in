@@ -18,7 +18,7 @@ use Data::Dump qw(dump);
 STDOUT->autoflush();
 
 my $db = openHydraDB;
-my %config = new Config::General($ENV{"HYDRA_CONFIG"})->getall;
+my %config = new Config::General(getHydraConf)->getall;
 
 
 sub fetchInputs {

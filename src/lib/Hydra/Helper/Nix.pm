@@ -10,7 +10,7 @@ use Hydra::Helper::CatalystUtils;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     isValidPath
-    getHydraPath getHydraDBPath openHydraDB txn_do
+    getHydraPath getHydraDBPath openHydraDB getHydraConf txn_do
     registerRoot getGCRootsDir gcRootFor
     getPrimaryBuildsForView 
     getPrimaryBuildTotal
@@ -25,8 +25,14 @@ sub isValidPath {
 
 sub getHydraPath {
     my $dir = $ENV{"HYDRA_DATA"} || "/var/lib/hydra";
-    die "The HYDRA_DATA directory does not exist!\n" unless -d $dir;
+    die "The HYDRA_DATA directory ($dir) does not exist!\n" unless -d $dir;
     return $dir;
+}
+
+sub getHydraConf {
+    my $conf = $ENV{"HYDRA_CONF"} || (getHydraPath . "/hydra.conf");
+    die "The HYDRA_CONF file ($conf) does not exist!\n" unless -f $conf;
+    return $conf;
 }
 
 
