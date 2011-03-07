@@ -71,13 +71,6 @@ create table JobsetInputs (
 );
 
 
-#ifdef POSTGRESQL
-alter table Jobsets
-  add foreign key (project, name, nixExprInput)
-    references JobsetInputs(project, jobset, name);
-#endif
-
-
 create table JobsetInputAlts (
     project       text not null,
     jobset        text not null,
