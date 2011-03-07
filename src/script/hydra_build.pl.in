@@ -282,10 +282,6 @@ sub doBuild {
                     my $stepOutpath = $step->outpath;
                     my $stepStatus = 0;
  
-                    # when $out/nix-support/failed exists, build actually failed, exit code is in the file, status code for such builds is 6
-                    $stepStatus = 6 if -f "$stepOutpath/nix-support/failed";
-                    $thisBuildFailed = 1 if ($drvPath eq $drvPathStep && $stepStatus == 6);
-
                     $step->update({busy => 0, status => $stepStatus, stoptime => time});
                 });
             }
@@ -365,9 +361,7 @@ sub doBuild {
             if ($thisBuildFailed) { $buildStatus = 1; }
             elsif ($someBuildFailed) { $buildStatus = 2; }
             else { $buildStatus = 3; }
-        } else {
-          $buildStatus = 6 if $thisBuildFailed;
-        }
+        } 
 
         # Only store the output of running Nix if we have a miscellaneous error.
         $errormsg = undef unless $buildStatus == 3;
@@ -397,6 +391,10 @@ sub doBuild {
 
         my $releaseName = getReleaseName($outPath);
         
+        if ($buildStatus == 0 && -f "$outPath/nix-support/failed") { 
+            $buildStatus = 6; 
+        }
+
         $db->resultset('BuildResultInfo')->create(
             { id => $build->id
             , iscachedbuild => $isCachedBuild
