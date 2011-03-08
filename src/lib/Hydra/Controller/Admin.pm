@@ -72,8 +72,6 @@ sub updateUser {
     my $emailonerror = trim $c->request->params->{"emailonerror"};
     my $roles         = $c->request->params->{"roles"} ; 
     
-    error($c, "Invalid or empty username.") if $username eq "";
-        
     $user->update(
         { fullname => $fullname
         , emailaddress => $emailaddress
