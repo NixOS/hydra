@@ -30,6 +30,17 @@
         </affiliation>
         <contrib>Author</contrib>
       </author>
+      <author>
+        <personname>
+          <firstname>Eelco</firstname>
+          <surname>Visser</surname>
+        </personname>
+        <affiliation>
+          <orgname>Delft University of Technology</orgname>
+          <orgdiv>Department of Software Technology</orgdiv>
+        </affiliation>
+        <contrib>Author</contrib>
+      </author>
     </authorgroup>
 
 
