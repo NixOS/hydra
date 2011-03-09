@@ -35,29 +35,63 @@ nix-env -i hydra</screen>
     </section>
 
     <section>
-        <title>Creating database</title>
+        <title>Creating the database</title>
         <para>
-            Hydra stores its results in a PostgreSQL database. To setup a database with <emphasis>hydra</emphasis> as database name and username, issue the following commands:
+            Hydra stores its results in a database, which can be a
+            PostgreSQL or SQLite database.  The latter is easier to
+	    setup, but the former scales better.
+	</para>
+
+	<para>To setup a PostgreSQL
+            database with <emphasis>hydra</emphasis> as database name
+            and user name, issue the following commands:
             <screen>
 createdb hydra
 echo "CREATE USER hydra WITH PASSWORD '&lt;your-password&gt;' ;" | psql hydra
 cat $prefix/share/hydra/sql/hydra-postgresql.sql | psql hydra
 echo "GRANT ALL ON DATABASE hydra TO hydra;" | psql hydra</screen>
-            Note that <emphasis>$prefix</emphasis> is the location of Hydra in the nix store.
+            Note that <emphasis>$prefix</emphasis> is the location of
+	    Hydra in the nix store.
+	</para>
+
+	<para>
+	    For SQLite, the following command is all it takes to
+	    create the database:
+
+	    <screen>
+	      cat $prefix/share/hydra/sql/hydra-sqlite.sql | sqlite3 /path/to/hydra.sqlite
+	    </screen>
         </para>
+
         <para>
             To add a user <emphasis>root</emphasis> with <emphasis>admin</emphasis> privileges, execute:            
             <screen>
 echo "INSERT INTO Users(userName, emailAddress, password) VALUES ('root', 'some@email.adress.com', '$(echo -n foobar | sha1sum | cut -c1-40)');" | psql hydra
-echo "INSERT INTO UserRoles(userName, role) values('root', 'admin');" | psql hydra</screen>
+echo "INSERT INTO UserRoles(userName, role) values('root', 'admin');" | psql hydra
+	    </screen>
+	    For SQLite the same commands can be used, with
+	    <command>psql hydra</command> replaced by
+	    <command>sqlite3 /path/to/hydra.sqlite</command>.
+	</para>
 
-            Hydra uses an environment variable to know which database should be used, and a variable which point to a location that holds some state. To set these 
-            variables, add the following to the <emphasis>.profile</emphasis> of the user running the Hydra services.
+	<para>
+            Hydra uses an environment variable to know which database
+            should be used, and a variable which point to a location
+            that holds some state. To set these variables for a
+            PostgreSQL database, add the following to the
+            <filename>.profile</filename> of the user running the
+            Hydra services.
+
             <screen>
 export HYDRA_DBI="dbi:Pg:dbname=hydra;host=localhost;"
 export HYDRA_DATA=/var/lib/hydra</screen> 
 
-            Make sure that the <emphasis>HYDRA_DATA</emphasis> directory exists and is writable for the user which will run the Hydra services.
+            Make sure that the <emphasis>HYDRA_DATA</emphasis>
+            directory exists and is writable for the user which will
+            run the Hydra services.  For a SQLite database, the
+            <varname>HYDRA_DBI</varname> should be set to something
+            like <literal>dbi:SQLite:/path/to/hydra.sqlite</literal>
+
         </para>
     </section>
 
