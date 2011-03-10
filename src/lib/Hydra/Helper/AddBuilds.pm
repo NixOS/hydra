@@ -302,12 +302,12 @@ sub fetchInputGit {
 
     my $clonePath;
     mkpath(scmPath);
-    $clonePath = scmPath . "/" . sha256_hex($uri);    
+    $clonePath = scmPath . "/" . sha256_hex($uri . $branch);
 
     my $stdout; my $stderr;
     if (! -d $clonePath) {
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("git", "clone", $uri, $clonePath));
+            ("git", "clone", "--branch", $branch, $uri, $clonePath));
         die "Error cloning git repo at `$uri':\n$stderr" unless $res;
     }
 
