@@ -32,7 +32,7 @@ sub getPreviousBuild {
       , jobset => $build->jobset->name
       , job => $build->job->name
       , 'me.id' =>  { '<' => $build->id } 
-      }, {rows => 1, order_by => "id DESC"});
+      }, {rows => 1, order_by => "me.id DESC"});
     
     return $prevBuild;
 }
@@ -48,7 +48,7 @@ sub getNextBuild {
       , jobset => $build->jobset->name
       , job => $build->job->name
       , 'me.id' =>  { '>' => $build->id } 
-      }, {rows => 1, order_by => "id ASC"});
+      }, {rows => 1, order_by => "me.id ASC"});
     
     return $nextBuild;
 }
@@ -65,7 +65,7 @@ sub getPreviousSuccessfulBuild {
       , job => $build->job->name
       , buildstatus => 0
       , 'me.id' =>  { '<' => $build->id } 
-      }, {rows => 1, order_by => "id DESC"});
+      }, {rows => 1, order_by => "me.id DESC"});
     
     return $prevBuild;
 }
