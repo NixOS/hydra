@@ -71,7 +71,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
           , { join => "actualBuildStep"
             , "+select" => ["actualBuildStep.stoptime - actualBuildStep.starttime"]
             , "+as" => ["actualBuildTime"]
-            , order_by => "id DESC"
+            , order_by => "me.id DESC"
             , rows => 50
             }
           )
