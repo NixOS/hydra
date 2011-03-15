@@ -59,7 +59,7 @@ sub sendTwitterNotification {
 sub statusDescription {
     my ($buildstatus) = @_;
 
-    my $status = "Unknown failure";
+    my $status = "Failed";
     switch ($buildstatus) {     
         case 0 { $status = "Success"; }
         case 1 { $status = "Failed with non-zero exit code"; }
