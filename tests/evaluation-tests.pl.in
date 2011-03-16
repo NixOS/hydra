@@ -1,0 +1,31 @@
+#! @perl@ -w -I@nix@/libexec/nix
+
+use strict;
+use Hydra::Schema;
+use Hydra::Helper::Nix;
+use Hydra::Helper::AddBuilds;
+use Cwd;
+
+use Setup;
+
+my $db = openHydraDB;
+
+use Test::Simple tests => 1;
+
+hydra_setup($db);
+
+my $res;
+my $stdout;
+my $stderr;
+
+my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
+my $jobset = $project->jobsets->create({name => "basic", nixexprinput => "input", nixexprpath => "basic.nix", emailoverride => ""});
+my $jobsetinput = $jobset->jobsetinputs->create({name => "input", type => "path"});
+my $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => getcwd."/jobs"});
+
+($res, $stdout, $stderr) = captureStdoutStderr(60, ("../src/script/hydra_evaluator.pl", "tests", "basic"));
+
+ok($res, "Evaluating jobs/basic.nix should exit with return code 0");
+
+print STDERR "\n$res\n";
+

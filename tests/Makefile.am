@@ -1,19 +1,24 @@
-
+TESTDIR=`pwd`
 TESTS_ENVIRONMENT = \
   HYDRA_DBI="dbi:SQLite:db.sqlite" \
-  HYDRA_DATA="$(top_srcdir)/tests/data" \
+  HYDRA_DATA="$(TESTDIR)/data" \
   HYDRA_HOME="$(topsrc_dir)/src" \
   NIX_REMOTE= \
-  NIX_STATE_DIR=$(top_srcdir)/tests/nix/var \
-  NIX_DATA_DIR=$(top_srcdir)/tests/nix/var \
-  NIX_STORE_DIR=$(top_srcdir)/tests/nix/store \
+  NIX_STATE_DIR="$(TESTDIR)/nix/var/nix" \
+  NIX_STORE_DIR="$(TESTDIR)/nix/store" \
+  NIX_LOG_DIR="$(TESTDIR)/nix/var/log/nix" \
   PERL5LIB=$$PERL5LIB:$(top_srcdir)/src/lib \
   perl -w 
 
 TESTS = \
-  query-all-tables.pl
+  query-all-tables.pl \
+  evaluation-tests.pl
 
-$(TESTS) : db.sqlite dirs
+clean :
+	chmod -R a+w nix
+	rm -rf db.sqlite data nix
+
+$(TESTS) : clean db.sqlite dirs 
 
 db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
 	sqlite3 db.sqlite <  $(top_srcdir)/src/sql/hydra-sqlite.sql
