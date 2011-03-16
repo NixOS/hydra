@@ -27,5 +27,5 @@ my $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value =>
 
 ok($res, "Evaluating jobs/basic.nix should exit with return code 0");
 
-print STDERR "\n$res\n";
+
 
