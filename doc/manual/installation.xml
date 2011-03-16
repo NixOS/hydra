@@ -4,34 +4,107 @@
 
     <title>Installation</title>
 
+    <para>
+      This chapter explains how to install Hydra on your own build farm server.
+    </para>
+
     <section>
         <title>Prerequisites</title>
         <para>
 	        To install and use Hydra you need to have installed the following dependencies:
+
 	        <itemizedlist>
-	            <listitem><para>Nix</para></listitem>
-	            <listitem><para>PostgreSQL</para></listitem>
+	            <listitem>Nix</listitem>
+	            <listitem>either PostgreSQL or SQLite</listitem>
+		    <listitem>many Perl packages, notably Catalyst,
+		    EmailSender, and NixPerl (see the <link
+		    xlink:href="https://svn.nixos.org/repos/nix/nixpkgs/trunk/pkgs/development/tools/misc/hydra/default.nix">Hydra
+		    expression in Nixpkgs</link> for the complete
+		    list).</listitem>
 	        </itemizedlist>
-	        At the moment, Hydra runs only on 32 bit and 64 bit Linux (<emphasis>i686-linux</emphasis> and <emphasis>x86_64_linux</emphasis>).
+
+	        At the moment, Hydra runs only on GNU/Linux
+	        (<emphasis>i686-linux</emphasis> and
+	        <emphasis>x86_64_linux</emphasis>).
         </para>
+
+	<para>
+	  For small projects, Hydra can be run on any reasonably
+	  modern machine. For individual projects you can even run
+	  Hydra on a laptop. However, the charm of a buildfarm server
+	  is usually that it operates without disturbing the
+	  developer's working environment and can serve releases over
+	  the internet. In conjunction you should typically have your
+	  source code administered in a version management system,
+	  such as subversion. Therefore, you will probably want to
+	  install a server that is connected to the internet. To scale
+	  up to large and/or many projects, you will need at least a
+	  considerable amount of diskspace to store builds. Since
+	  Hydra can schedule multiple simultaneous build jobs, it can
+	  be useful to have a multi-core machine, and/or attach
+	  multiple build machines in a network to the central Hydra
+	  server.
+	</para>
+
+	<para>
+	  Of course we think it is a good idea to use the <a
+	  href="http://nixos.org/nixos">NixOS</a> GNU/Linux
+	  distribution for your buildfarm server. But this is not a
+	  requirement.  The Nix software deployment system can be
+	  installed on any GNU/Linux distribution in parallel to the
+	  regular package management system. Thus, you can use Hydra
+	  on a Debian, Fedora, SuSE, or Ubuntu system.
+	</para>
         
     </section>
 
     <section>
+      <title>Getting Nix</title>
+
+      <para>
+	If your server runs NixOS you are all set to continue with
+	installation of Hydra. Otherwise you first need to install
+	Nix.  The latest stable version can be found one <link
+	xlink:href="http://nixos.org/nix/download.html">the Nix web
+	site</link>, along with a manual, which includes installation
+	instructions.
+      </para>
+    </section>
+
+    <section>
         <title>Installation</title>
+
+	<para>
+	  Hydra can be installed using Nixpkgs:
+
+	  <screen>
+	    nix-env -Ai hydra -f /path/to/nixpkgs</screen>
+
+	  This makes the tools available in your Nix user environment,
+	  <literal>$HOME/.nix-profile</literal> by default.
+	</para>
+
         <para>
-            Hydra can be installed by visiting the URL, 
-<screen>
-http://hydra.nixos.org/view/hydra/unstable</screen>
-            and use the one-click install available at one of the build pages. You could also  
+            Alternatively, the latest development snapshot can be
+            installed by visiting the URL
+	    <link xlink:href="http://hydra.nixos.org/view/hydra/unstable"><literal>http://hydra.nixos.org/view/hydra/unstable</literal></link>
+            and use the one-click install available at one of the build pages. You can also  
             install Hydra through the channel by performing the following commands:
 
 <screen>
 nix-channel --add http://hydra.nixos.org/jobset/hydra/trunk/channel/latest
 nix-channel --update
 nix-env -i hydra</screen>
-
         </para>
+
+	<para>
+	  Command completion should reveal a number of command-line tools from Hydra:
+
+	  <screen>
+hydra_build.pl            hydra_eval_jobs           hydra_server.pl
+hydra_control.sh          hydra_evaluator.pl        hydra_update_gc_roots.pl
+hydra_create.pl           hydra_queue_runner.pl     </screen>
+	</para>
     </section>
 
     <section>
