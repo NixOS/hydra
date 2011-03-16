@@ -16,7 +16,7 @@ TESTS = \
 
 clean :
 	chmod -R a+w nix
-	rm -rf db.sqlite data nix
+	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout
 
 $(TESTS) : clean db.sqlite dirs 
 
@@ -29,3 +29,20 @@ dirs :
 	mkdir -p nix
 	mkdir -p nix/store
 	mkdir -p nix/var
+
+git-repo:
+	git init git-repo
+	touch git-repo/git-file
+	(cd git-repo; git add git-file ; git commit -m "add git file" git-file)
+
+hg-repo:
+	hg init hg-repo
+	touch hg-repo/hg-file
+	(cd hg-repo; hg add hg-file ; hg commit -m "add hg file" hg-file)
+
+svn-repo:
+	svnadmin create svn-repo
+	svn co file://$(TESTDIR)/svn-repo svn-checkout
+	touch svn-checkout/svn-file
+	svn add svn-checkout/svn-file
+	svn commit -m "add svn file" svn-checkout/svn-file
