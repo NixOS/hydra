@@ -356,7 +356,7 @@ sub fetchInputGit {
         $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
     
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("nix-prefetch-git", $uri, $revision));
+            ("nix-prefetch-git", $clonePath, $revision));
         die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
     
         ($sha256, $storePath) = split ' ', $stdout;
