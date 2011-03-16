@@ -39,5 +39,6 @@ in
   perlPackages.DateTime
   perlPackages.DigestSHA1
   perlPackages.CryptRandPasswd
+  perlPackages.TestMore
   nixPerl
 ]

@@ -1,0 +1,19 @@
+#! @perl@ -w -I@nix@/libexec/nix
+
+use strict;
+use Hydra::Schema;
+use Hydra::Helper::Nix;
+use Hydra::Helper::AddBuilds;
+
+my $db = openHydraDB;
+
+my @sources = $db->sources;
+my $nrtables = scalar(@sources);
+
+use Test::Simple tests => 62;
+
+foreach my $source (@sources) {
+  if( $source !~ m/^(LatestSucceeded|JobStatus|ActiveJobs)/) {
+    ok(scalar($db->resultset($source)->search({},{})) == 0, "Basic select query for $source");
+  }
+}

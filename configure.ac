@@ -64,6 +64,9 @@ AC_CONFIG_FILES([
   src/script/hydra_queue_runner.pl
   src/script/hydra_server.pl
   src/script/hydra_update_gc_roots.pl
+
+  tests/Makefile
+  tests/query-all-tables.pl
 ])
 AC_OUTPUT
 
