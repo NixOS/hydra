@@ -1,7 +1,7 @@
 TESTS_ENVIRONMENT =					\
   HYDRA_DBI="dbi:SQLite:db.sqlite"			\
   HYDRA_DATA="$(builddir)/data"				\
-  HYDRA_HOME="$(topsrc_dir)/src"			\
+  HYDRA_HOME="$(top_srcdir)/src"			\
   NIX_REMOTE=						\
   NIX_STATE_DIR="$(builddir)/nix/var/nix"		\
   NIX_STORE_DIR="$(builddir)/nix/store"			\
