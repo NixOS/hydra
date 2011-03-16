@@ -36,8 +36,8 @@ LIBS="-L$nix/lib/nix"
 
 AC_CHECK_HEADER([store-api.hh], [:],
   [AC_MSG_ERROR([Nix headers not found; please install Nix or check the `--with-nix' option.])])
-#AC_CHECK_LIB([expr], [_ZN3nix17parseExprFromFileERNS_9EvalStateESs], [:],
-#  [AC_MSG_ERROR([Nix library not found; please install Nix or check the `--with-nix' option.])])
+AC_CHECK_LIB([expr], [_ZN3nix17parseExprFromFileERNS_9EvalStateESs], [:],
+  [AC_MSG_ERROR([Nix library not found; please install Nix or check the `--with-nix' option.])])
 
 CPPFLAGS="$old_CPPFLAGS"
 LIBS="$old_LIBS"
