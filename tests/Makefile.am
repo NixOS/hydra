@@ -18,29 +18,29 @@ clean :
 	chmod -R a+w nix
 	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout
 
-$(TESTS) : clean db.sqlite dirs 
+$(TESTS) : db.sqlite dirs 
 
 db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
 	sqlite3 db.sqlite <  $(top_srcdir)/src/sql/hydra-sqlite.sql
 
-dirs :
+dirs : git-repo hg-repo svn-repo
 	mkdir -p data
 	touch data/hydra.conf
 	mkdir -p nix
 	mkdir -p nix/store
 	mkdir -p nix/var
 
-git-repo:
+git-repo :
 	git init git-repo
 	touch git-repo/git-file
 	(cd git-repo; git add git-file ; git commit -m "add git file" git-file)
 
-hg-repo:
+hg-repo :
 	hg init hg-repo
 	touch hg-repo/hg-file
 	(cd hg-repo; hg add hg-file ; hg commit -m "add hg file" hg-file)
 
-svn-repo:
+svn-repo :
 	svnadmin create svn-repo
 	svn co file://$(TESTDIR)/svn-repo svn-checkout
 	touch svn-checkout/svn-file
