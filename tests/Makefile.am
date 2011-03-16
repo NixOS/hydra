@@ -1,3 +1,4 @@
+
 TESTS_ENVIRONMENT = \
   HYDRA_DBI="dbi:SQLite:db.sqlite" \
   HYDRA_DATA="$(top_srcdir)/tests/data" \
