@@ -56,7 +56,7 @@
 
   <xi:include href="introduction.xml" />
   <xi:include href="installation.xml" />
-
+  <xi:include href="projects.xml" />
   
     
 </book>

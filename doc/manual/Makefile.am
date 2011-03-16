@@ -1,4 +1,4 @@
-DOCBOOK_FILES = installation.xml introduction.xml manual.xml
+DOCBOOK_FILES = installation.xml introduction.xml manual.xml projects.xml
 
 EXTRA_DIST = $(DOCBOOK_FILES) manual.pdf
 
@@ -18,6 +18,3 @@ manual.pdf : $(DOCBOOK_FILES)
 install-data-local:
 	$(INSTALL) -d $(DESTDIR)$(datadir)/doc/hydra/manual
 	$(INSTALL_DATA) manual.pdf $(DESTDIR)$(datadir)/doc/hydra/manual
-
-
-
