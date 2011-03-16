@@ -20,6 +20,7 @@ db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
 
 dirs :
 	mkdir -p data
+	touch data/hydra.conf
 	mkdir -p nix
 	mkdir -p nix/store
 	mkdir -p nix/var
