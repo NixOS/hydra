@@ -1,13 +1,12 @@
-TESTDIR=`pwd`
-TESTS_ENVIRONMENT = \
-  HYDRA_DBI="dbi:SQLite:db.sqlite" \
-  HYDRA_DATA="$(TESTDIR)/data" \
-  HYDRA_HOME="$(topsrc_dir)/src" \
-  NIX_REMOTE= \
-  NIX_STATE_DIR="$(TESTDIR)/nix/var/nix" \
-  NIX_STORE_DIR="$(TESTDIR)/nix/store" \
-  NIX_LOG_DIR="$(TESTDIR)/nix/var/log/nix" \
-  PERL5LIB="$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB" \
+TESTS_ENVIRONMENT =					\
+  HYDRA_DBI="dbi:SQLite:db.sqlite"			\
+  HYDRA_DATA="$(builddir)/data"				\
+  HYDRA_HOME="$(topsrc_dir)/src"			\
+  NIX_REMOTE=						\
+  NIX_STATE_DIR="$(builddir)/nix/var/nix"		\
+  NIX_STORE_DIR="$(builddir)/nix/store"			\
+  NIX_LOG_DIR="$(builddir)/nix/var/log/nix"		\
+  PERL5LIB="$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB"	\
   perl -w 
 
 TESTS = \
@@ -42,7 +41,7 @@ hg-repo :
 
 svn-repo :
 	svnadmin create svn-repo
-	svn co file://$(TESTDIR)/svn-repo svn-checkout
+	svn co file://$(builddir)/svn-repo svn-checkout
 	touch svn-checkout/svn-file
 	svn add svn-checkout/svn-file
 	svn commit -m "add svn file" svn-checkout/svn-file
