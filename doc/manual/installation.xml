@@ -169,34 +169,47 @@ export HYDRA_DATA=/var/lib/hydra</screen>
     </section>
 
     <section>
-        <title>Getting started</title>
+        <title>Getting Started</title>
+
         <para>
-            To start the Hydra webserver, execute:            
+            To start the Hydra web server, execute:            
             <screen>
 hydra_server.pl</screen>
 
-            When the server is started, you can browse to <ulink>http://localhost:3000/</ulink> to start configuring your Hydra instance.
+            When the server is started, you can browse to
+            <ulink>http://localhost:3000/</ulink> to start configuring
+            your Hydra instance.
         </para>
+
+	<para>
+	  The <command>hydra_server.pl</command> command launches the
+	  web server.  There are two other processes that come into
+	  play:
+
+	  <itemizedlist>
+	    <listitem>
+	      The <emphasis>evaluator</emphasis> is responsible for
+	      peridically evaluating job sets, checking out their
+	      dependencies off their version control systems (VCS),
+	      and queueing new builds if the result of the evaluation
+	      changed.  It is launched by the
+	      <command>hydra_evaluator.pl</command> command.
+	    </listitem>
+	    <listitem>
+	      The <emphasis>queue runner</emphasis> launches builds
+	      (using Nix) as they are queued by the evaluator,
+	      scheduling them onto the configured Nix hosts.  It is
+	      launched using the
+	      <command>hydra_queue_runner.pl</command> command.
+	    </listitem>
+	  </itemizedlist>
+
+	  All three processes must be running for Hydra to be fully
+	  functional, though it's possible to temporarily stop any one
+	  of them for maintenance purposes, for instance.
+	</para>
+	  
     </section>
-
-    <section>
-        <title>Example: PatchELF</title>
-        <para>
-        </para>
-        
-        <subsection>
-            <title>Defining jobsets</title>
-            <para>
-            </para>
-        </subsection>
-
-        <subsection>
-            <title>Creating views</title>
-            <para>
-            </para>
-        </subsection>
-    </section>
-
 
 
 </chapter>
