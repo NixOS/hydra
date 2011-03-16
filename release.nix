@@ -52,7 +52,7 @@ rec {
       configureFlags = "--with-nix=${nix}";
 
       buildInputs =
-        [ perl makeWrapper libtool nix unzip nukeReferences pkgconfig boehmgc ]
+        [ perl makeWrapper libtool nix unzip nukeReferences pkgconfig boehmgc sqlite]
         ++ (import ./deps.nix) { inherit pkgs; };
 
       hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [
