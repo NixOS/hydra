@@ -30,8 +30,8 @@ sub getHydraPath {
 }
 
 sub getHydraConf {
-    my $conf = $ENV{"HYDRA_CONF"} || (getHydraPath . "/hydra.conf");
-    die "The HYDRA_CONF file ($conf) does not exist!\n" unless -f $conf;
+    my $conf = $ENV{"HYDRA_CONFIG"} || (getHydraPath . "/hydra.conf");
+    die "The HYDRA_CONFIG file ($conf) does not exist!\n" unless -f $conf;
     return $conf;
 }
 
@@ -74,7 +74,7 @@ sub txn_do {
 
 sub getGCRootsDir {
     die unless defined $ENV{LOGNAME};
-    my $dir = "/nix/var/nix/gcroots/per-user/$ENV{LOGNAME}/hydra-roots";
+    my $dir = ($ENV{NIX_STATE_DIR} || "/nix/var/nix" ) . "/gcroots/per-user/$ENV{LOGNAME}/hydra-roots"; 
     mkpath $dir if !-e $dir;
     return $dir;
 }

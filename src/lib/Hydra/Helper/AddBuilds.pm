@@ -21,7 +21,7 @@ sub scmPath {
 
 sub getBuildLog {
     my ($drvPath) = @_;
-    my $logPath = "/nix/var/log/nix/drvs/" . basename $drvPath;
+    my $logPath = ($ENV{NIX_LOG_DIR} || "/nix/var/log/nix"). "/drvs/" . basename $drvPath;
     return -e $logPath ? $logPath : undef;
 }
 
