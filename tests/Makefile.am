@@ -6,6 +6,7 @@ TESTS_ENVIRONMENT = \
   NIX_STATE_DIR=$(top_srcdir)/tests/nix/var \
   NIX_DATA_DIR=$(top_srcdir)/tests/nix/var \
   NIX_STORE_DIR=$(top_srcdir)/tests/nix/store \
+  PERL5LIB=$$PERL5LIB:$(top_srcdir)/src/lib \
   perl -w 
 
 TESTS = \
