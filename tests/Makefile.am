@@ -3,6 +3,6 @@ TESTS = \
 
 $(TESTS) : db.sqlite
 
-db.sqlite : $(srcdir)/src/sql/hydra-sqlite.sql
-	sqlite3 db.sqlite <  $(srcdir)/src/sql/hydra-sqlite.sql
+db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
+	sqlite3 db.sqlite <  $(top_srcdir)/src/sql/hydra-sqlite.sql
 
