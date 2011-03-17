@@ -10,7 +10,7 @@ use Setup;
 
 my $db = openHydraDB;
 
-use Test::Simple tests => 1;
+use Test::Simple tests => 14;
 
 hydra_setup($db);
 
@@ -18,14 +18,47 @@ my $res;
 my $stdout;
 my $stderr;
 
+my $jobsBaseUri = "file://".getcwd;
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
-my $jobset = $project->jobsets->create({name => "basic", nixexprinput => "input", nixexprpath => "basic.nix", emailoverride => ""});
-my $jobsetinput = $jobset->jobsetinputs->create({name => "input", type => "path"});
+
+sub nrBuildsForJobset {
+  my ($project, $jobset) = @_;
+  return $db->resultset('Builds')->search({ project => $project, jobset => $jobset},{})->count ;
+}
+
+sub createJobsetWithOneSCMInput {
+  my ($jobsetName, $nixexprpath, $type, $uri) = @_;
+  my $jobset = $project->jobsets->create({name => $jobsetName, nixexprinput => "jobs", nixexprpath => $nixexprpath, emailoverride => ""});
+
+  my $jobsetinput;
+  my $jobsetinputals;
+
+  $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
+  $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => getcwd."/jobs"});
+
+  $jobsetinput = $jobset->jobsetinputs->create({name => "src", type => $type});
+  $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => $uri});
+}
+
+sub evalSucceeds {
+  my ($project, $jobset) = @_;
+  return captureStdoutStderr(60, ("../src/script/hydra_evaluator.pl", $project, $jobset));
+}
+
+my $jobset = $project->jobsets->create({name => "basic", nixexprinput => "jobs", nixexprpath => "basic.nix", emailoverride => ""});
+my $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
 my $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => getcwd."/jobs"});
 
 ($res, $stdout, $stderr) = captureStdoutStderr(60, ("../src/script/hydra_evaluator.pl", "tests", "basic"));
 
 ok($res, "Evaluating jobs/basic.nix should exit with return code 0");
+ok( nrBuildsForJobset("tests", "basic") == 3 , "Evaluating jobs/basic.nix should result in 3 builds");
 
 
+my @scminputs = ("svn", "svn-checkout", "git", "bzr", "bzr-checkout", "hg");
+foreach my $scm (@scminputs) {
+  createJobsetWithOneSCMInput($scm, "$scm-input.nix", $scm, "$jobsBaseUri/$scm-repo");
+  ok(evalSucceeds("tests", $scm), "Evaluating jobs/$scm-input.nix should exit with return code 0.");
+  ok(nrBuildsForJobset("tests", $scm) == 1, "Evaluating jobs/$scm-input.nix should result in 1 build")
+}
 

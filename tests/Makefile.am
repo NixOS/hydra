@@ -7,6 +7,7 @@ TESTS_ENVIRONMENT =					\
   NIX_STORE_DIR="$(abs_builddir)/nix/store"			\
   NIX_LOG_DIR="$(abs_builddir)/nix/var/log/nix"		\
   PERL5LIB="$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB"	\
+  PATH=$(abs_top_srcdir)/src/script:$$PATH \
   perl -w 
 
 EXTRA_DIST = \
@@ -20,14 +21,14 @@ TESTS = \
 
 clean :
 	chmod -R a+w nix
-	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout bzr-repo
+	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout svn-checkout-repo bzr-repo bzr-checkout-repo
 
 $(TESTS) : db.sqlite dirs 
 
 db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
 	sqlite3 db.sqlite <  $(top_srcdir)/src/sql/hydra-sqlite.sql
 
-dirs : git-repo hg-repo svn-repo bzr-repo
+dirs : git-repo hg-repo svn-repo svn-checkout-repo bzr-repo bzr-checkout-repo
 	mkdir -p data
 	touch data/hydra.conf
 	mkdir -p nix
@@ -58,3 +59,8 @@ bzr-repo :
 	bzr add bzr-repo/bzr-file
 	bzr commit -m "add bzr-file" bzr-repo/bzr-file
 	
+svn-checkout-repo :
+	ln -s svn-repo svn-checkout-repo
+
+bzr-checkout-repo :
+	ln -s bzr-repo bzr-checkout-repo

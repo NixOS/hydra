@@ -1,4 +1,3 @@
-{ input }:
 {  
   empty_dir = 
     derivation {
