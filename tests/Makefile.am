@@ -9,6 +9,11 @@ TESTS_ENVIRONMENT =					\
   PERL5LIB="$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB"	\
   perl -w 
 
+EXTRA_DIST = \
+  $(wildcard *.pm) \
+  $(wildcard jobs/*.nix) \
+  $(wildcard jobs/*.sh) 
+
 TESTS = \
   query-all-tables.pl \
   evaluation-tests.pl
