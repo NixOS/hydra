@@ -44,6 +44,9 @@ LIBS="$old_LIBS"
 
 PKG_CHECK_MODULES([BDW_GC], [bdw-gc])
 
+testPath="$(dirname $(type -p expr))"
+AC_SUBST(testPath)
+
 AC_CONFIG_FILES([
   Makefile
   doc/Makefile
@@ -56,6 +59,7 @@ AC_CONFIG_FILES([
   src/root/Makefile
   src/script/Makefile
   tests/Makefile
+  tests/jobs/config.nix
 ])
 
 AC_CONFIG_FILES([src/script/hydra_build.pl], [chmod +x src/script/hydra_build.pl])

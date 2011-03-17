@@ -1,0 +1,9 @@
+rec {
+  path = "@testPath@";
+
+  mkDerivation = args:
+    derivation ({
+      system = builtins.currentSystem;
+      PATH = path;
+    } // args);
+}

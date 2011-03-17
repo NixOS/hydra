@@ -2,9 +2,12 @@ package Setup;
 
 use strict;
 use Exporter;
+use Hydra::Helper::Nix;
+use Hydra::Helper::AddBuilds;
+use Cwd;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(hydra_setup);
+our @EXPORT = qw(hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild);
 
 sub hydra_setup {
   my ($db) = @_;
@@ -16,14 +19,20 @@ sub nrBuildsForJobset {
   return $jobset->builds->search({},{})->count ;
 }
 
+sub queuedBuildsForJobset {
+  my ($jobset) = @_;
+  return $jobset->builds->search({},{ join => 'schedulingInfo' });
+}
+
 sub nrQueuedBuildsForJobset {
   my ($jobset) = @_;
-  return $jobset->builds->search({},{ join => 'schedulingInfo' })->count ;
+  return queuedBuildsForJobset($jobset)->count ;
 }
 
 sub createBaseJobset {
   my ($jobsetName, $nixexprpath) = @_;
-  my $project = $db->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
+  
+  my $project = openHydraDB->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
   my $jobset = $project->jobsets->create({name => $jobsetName, nixexprinput => "jobs", nixexprpath => $nixexprpath, emailoverride => ""});
 
   my $jobsetinput;
@@ -53,6 +62,11 @@ sub evalSucceeds {
   my $res = captureStdoutStderr(60, ("../src/script/hydra_evaluator.pl", $jobset->project->name, $jobset->name));
   print STDERR "Evaluation errors for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
   return $res;
+}
+
+sub runBuild {
+  my ($build) = @_;
+  return captureStdoutStderr(60, ("../src/script/hydra_build.pl", $build->id));
 }
 
 1;

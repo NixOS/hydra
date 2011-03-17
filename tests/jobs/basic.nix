@@ -1,22 +1,20 @@
+with import ./config.nix;
 {  
   empty_dir = 
-    derivation {
+    mkDerivation {
       name = "empty-dir";
-      system = builtins.currentSystem;
       builder = ./empty-dir-builder.sh;
     };
 
   fails = 
-    derivation {
+    mkDerivation {
       name = "fails";
-      system = builtins.currentSystem;
       builder = ./fail.sh;
     };
 
   succeed_with_failed = 
-    derivation {
+    mkDerivation {
       name = "succeed-with-failed";
-      system = builtins.currentSystem;
       builder = ./succeed-with-failed.sh;
     };
 }

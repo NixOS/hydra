@@ -10,7 +10,7 @@ use Setup;
 
 my $db = openHydraDB;
 
-use Test::Simple tests => 16;
+use Test::Simple tests => 22;
 
 hydra_setup($db);
 
@@ -28,6 +28,12 @@ $jobset = createBaseJobset("basic", "basic.nix");
 ok(evalSucceeds($jobset),                  "Evaluating jobs/basic.nix should exit with return code 0");
 ok(nrQueuedBuildsForJobset($jobset) == 3 , "Evaluating jobs/basic.nix should result in 3 builds");
 
+for my $build (queuedBuildsForJobset($jobset)) {
+  ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
+  my $newbuild = $db->resultset('Builds')->find($build->id);
+  my $expected = $build->job->name eq "fails" ? 1 : 0;
+  ok($newbuild->buildresultinfo->buildstatus == $expected, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus $expected");
+}
 
 # Test jobset with 2 jobs, one has parameter of succeeded build of the other
 $jobset = createJobsetWithOneInput("build-output-as-input", "build-output-as-input.nix", "build1", "build", "build1");

@@ -1,9 +1,10 @@
+with import ./config.nix;
 { src }:
 {  
   copy = 
-    derivation {
+    mkDerivation {
       name = "bzr-checkout-input";
-      system = builtins.currentSystem;
       builder = ./scm-builder.sh;
+      inherit src;
     };
 }

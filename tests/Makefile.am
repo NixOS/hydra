@@ -4,6 +4,7 @@ TESTS_ENVIRONMENT =					\
   HYDRA_DATA="$(abs_builddir)/data"				\
   HYDRA_HOME="$(top_srcdir)/src"			\
   NIX_REMOTE=						\
+  NIX_CONF_DIR="$(abs_builddir)/nix/etc/nix"		\
   NIX_STATE_DIR="$(abs_builddir)/nix/var/nix"		\
   NIX_STORE_DIR="$(abs_builddir)/nix/store"			\
   NIX_LOG_DIR="$(abs_builddir)/nix/var/log/nix"		\
@@ -35,6 +36,8 @@ dirs :
 	mkdir -p data
 	touch data/hydra.conf
 	mkdir -p nix
+	mkdir -p nix/etc/nix
+	touch nix/etc/nix/nix.conf
 	mkdir -p nix/store
 	mkdir -p nix/var
 
