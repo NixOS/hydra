@@ -18,8 +18,6 @@ TESTS = \
   query-all-tables.pl \
   evaluation-tests.pl
 
-rob:
-	echo $(TESTS_ENVIRONMENT)
 clean :
 	chmod -R a+w nix
 	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout
