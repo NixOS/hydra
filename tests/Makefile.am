@@ -1,4 +1,5 @@
 TESTS_ENVIRONMENT =					\
+  BZR_HOME="$(abs_builddir)/data" \
   HYDRA_DBI="dbi:SQLite:db.sqlite"			\
   HYDRA_DATA="$(abs_builddir)/data"				\
   HYDRA_HOME="$(top_srcdir)/src"			\
