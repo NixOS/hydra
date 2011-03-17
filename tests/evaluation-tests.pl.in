@@ -38,6 +38,8 @@ sub createJobsetWithOneSCMInput {
 
   $jobsetinput = $jobset->jobsetinputs->create({name => "src", type => $type});
   $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => $uri});
+
+  return $jobset;
 }
 
 sub evalSucceeds {
@@ -57,8 +59,10 @@ ok( nrBuildsForJobset("tests", "basic") == 3 , "Evaluating jobs/basic.nix should
 
 my @scminputs = ("svn", "svn-checkout", "git", "bzr", "bzr-checkout", "hg");
 foreach my $scm (@scminputs) {
-  createJobsetWithOneSCMInput($scm, "$scm-input.nix", $scm, "$jobsBaseUri/$scm-repo");
+  $jobset = createJobsetWithOneSCMInput($scm, "$scm-input.nix", $scm, "$jobsBaseUri/$scm-repo");
   ok(evalSucceeds("tests", $scm), "Evaluating jobs/$scm-input.nix should exit with return code 0.");
-  ok(nrBuildsForJobset("tests", $scm) == 1, "Evaluating jobs/$scm-input.nix should result in 1 build")
+  print STDERR "Evaluation errors for jobset tests:$scm: \n".$jobset->errormsg."\n" if $jobset->errormsg;
+
+  ok(nrBuildsForJobset("tests", $scm) == 1, "Evaluating jobs/$scm-input.nix should result in 1 build");
 }
 

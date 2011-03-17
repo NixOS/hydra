@@ -24,7 +24,7 @@ clean :
 	chmod -R a+w nix
 	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout svn-checkout-repo bzr-repo bzr-checkout-repo
 
-$(TESTS) : db.sqlite dirs 
+$(TESTS) : db.sqlite repos
 
 db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
 	sqlite3 db.sqlite <  $(top_srcdir)/src/sql/hydra-sqlite.sql
