@@ -41,7 +41,7 @@ hg-repo :
 
 svn-repo :
 	svnadmin create svn-repo
-	svn co file://$(builddir)/svn-repo svn-checkout
+	svn co file://$(abs_builddir)/svn-repo svn-checkout
 	touch svn-checkout/svn-file
 	svn add svn-checkout/svn-file
 	svn commit -m "add svn file" svn-checkout/svn-file
