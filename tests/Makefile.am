@@ -29,7 +29,9 @@ $(TESTS) : db.sqlite dirs
 db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
 	sqlite3 db.sqlite <  $(top_srcdir)/src/sql/hydra-sqlite.sql
 
-dirs : git-repo hg-repo svn-repo svn-checkout-repo bzr-repo bzr-checkout-repo
+repos : dirs git-repo hg-repo svn-repo svn-checkout-repo bzr-repo bzr-checkout-repo
+
+dirs : 
 	mkdir -p data
 	touch data/hydra.conf
 	mkdir -p nix
@@ -55,13 +57,14 @@ svn-repo :
 
 bzr-repo :
 	bzr init bzr-repo
-	bzr whoami "build <build@donotemail.com>" -d bzr-repo
+	BZR_HOME=$(abs_builddir)/data bzr whoami "build <build@donotemail.com>" -d bzr-repo
 	touch bzr-repo/bzr-file
 	bzr add bzr-repo/bzr-file
-	bzr commit -m "add bzr-file" bzr-repo/bzr-file
+	BZR_HOME=$(abs_builddir)/data bzr commit -m "add bzr-file" bzr-repo/bzr-file
 	
 svn-checkout-repo :
 	ln -s svn-repo svn-checkout-repo
 
 bzr-checkout-repo :
 	ln -s bzr-repo bzr-checkout-repo
+
