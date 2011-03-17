@@ -1,11 +1,11 @@
 TESTS_ENVIRONMENT =					\
   HYDRA_DBI="dbi:SQLite:db.sqlite"			\
-  HYDRA_DATA="$(builddir)/data"				\
+  HYDRA_DATA="$(abs_builddir)/data"				\
   HYDRA_HOME="$(top_srcdir)/src"			\
   NIX_REMOTE=						\
-  NIX_STATE_DIR="$(builddir)/nix/var/nix"		\
-  NIX_STORE_DIR="$(builddir)/nix/store"			\
-  NIX_LOG_DIR="$(builddir)/nix/var/log/nix"		\
+  NIX_STATE_DIR="$(abs_builddir)/nix/var/nix"		\
+  NIX_STORE_DIR="$(abs_builddir)/nix/store"			\
+  NIX_LOG_DIR="$(abs_builddir)/nix/var/log/nix"		\
   PERL5LIB="$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB"	\
   perl -w 
 
@@ -18,6 +18,8 @@ TESTS = \
   query-all-tables.pl \
   evaluation-tests.pl
 
+rob:
+	echo $(TESTS_ENVIRONMENT)
 clean :
 	chmod -R a+w nix
 	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout
