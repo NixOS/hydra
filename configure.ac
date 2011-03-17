@@ -46,28 +46,26 @@ PKG_CHECK_MODULES([BDW_GC], [bdw-gc])
 
 AC_CONFIG_FILES([
   Makefile
-
   doc/Makefile
   doc/manual/Makefile
-
   src/Makefile
   src/c/Makefile
   src/sql/Makefile
   src/xsl/Makefile
   src/lib/Makefile
   src/root/Makefile
-
   src/script/Makefile
-  src/script/hydra_build.pl
-  src/script/hydra_create.pl
-  src/script/hydra_evaluator.pl
-  src/script/hydra_queue_runner.pl
-  src/script/hydra_server.pl
-  src/script/hydra_update_gc_roots.pl
-
   tests/Makefile
-  tests/query-all-tables.pl
-  tests/evaluation-tests.pl
 ])
+
+AC_CONFIG_FILES([src/script/hydra_build.pl], [chmod +x src/script/hydra_build.pl])
+AC_CONFIG_FILES([src/script/hydra_create.pl], [chmod +x src/script/hydra_create.pl])
+AC_CONFIG_FILES([src/script/hydra_evaluator.pl], [chmod +x src/script/hydra_evaluator.pl])
+AC_CONFIG_FILES([src/script/hydra_queue_runner.pl], [chmod +x src/script/hydra_queue_runner.pl])
+AC_CONFIG_FILES([src/script/hydra_server.pl], [chmod +x src/script/hydra_server.pl])
+AC_CONFIG_FILES([src/script/hydra_update_gc_roots.pl], [chmod +x src/script/hydra_update_gc_roots.pl])
+AC_CONFIG_FILES([tests/query-all-tables.pl], [chmod +x tests/query-all-tables.pl])
+AC_CONFIG_FILES([tests/evaluation-tests.pl], [chmod +x tests/evaluation-tests.pl])
+
 AC_OUTPUT
 
