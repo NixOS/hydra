@@ -20,14 +20,14 @@ TESTS = \
 
 clean :
 	chmod -R a+w nix
-	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout
+	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout bzr-repo
 
 $(TESTS) : db.sqlite dirs 
 
 db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
 	sqlite3 db.sqlite <  $(top_srcdir)/src/sql/hydra-sqlite.sql
 
-dirs : git-repo hg-repo svn-repo
+dirs : git-repo hg-repo svn-repo bzr-repo
 	mkdir -p data
 	touch data/hydra.conf
 	mkdir -p nix
@@ -50,3 +50,11 @@ svn-repo :
 	touch svn-checkout/svn-file
 	svn add svn-checkout/svn-file
 	svn commit -m "add svn file" svn-checkout/svn-file
+
+bzr-repo :
+	bzr init bzr-repo
+	bzr whoami "build <build@donotemail.com>" -d bzr-repo
+	touch bzr-repo/bzr-file
+	bzr add bzr-repo/bzr-file
+	bzr commit -m "add bzr-file" bzr-repo/bzr-file
+	
