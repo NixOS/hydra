@@ -57,7 +57,7 @@ rec {
 
       hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [
         libxslt sqlite subversion openssh nix coreutils findutils
-        gzip bzip2 lzma gnutar unzip git mercurial gnused graphviz bazaar
+        gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial gnused graphviz bazaar
       ] ++ ( if stdenv.isLinux then [rpm dpkg cdrkit] else [] )));
 
       postInstall = ''
