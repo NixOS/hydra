@@ -18,8 +18,8 @@ EXTRA_DIST = \
   $(wildcard jobs/*.sh) 
 
 TESTS = \
-  query-all-tables.pl \
-  evaluation-tests.pl
+  query-all-tables.pl
+#  evaluation-tests.pl
 
 clean :
 	chmod -R a+w nix
