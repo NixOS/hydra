@@ -52,7 +52,7 @@ sub createJobsetWithOneInput {
   my $jobsetinputals;
 
   $jobsetinput = $jobset->jobsetinputs->create({name => $name, type => $type});
-  $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 1, value => $uri});
+  $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => $uri});
 
   return $jobset;
 }
