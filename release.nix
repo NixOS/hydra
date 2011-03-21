@@ -52,7 +52,7 @@ rec {
       configureFlags = "--with-nix=${nix}";
 
       buildInputs =
-        [ perl makeWrapper libtool nix unzip nukeReferences pkgconfig boehmgc sqlite git mercurial subversion bazaar]
+        [ perl makeWrapper libtool nix unzip nukeReferences pkgconfig boehmgc sqlite git gitAndTools.topGit mercurial subversion bazaar]
         ++ (import ./deps.nix) { inherit pkgs; };
 
       hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [
