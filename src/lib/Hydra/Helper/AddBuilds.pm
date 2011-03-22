@@ -326,6 +326,15 @@ sub fetchInputGit {
     (my $revision, my $ref) = split ' ', $first;
     die unless $revision =~ /^[0-9a-fA-F]+$/;
 
+    if (-f ".topdeps") {
+	# This is a TopGit branch.  Fetch all the topic branches so
+	# that builders can run "tg patch" and similar.
+	(my $res, $stdout, $stderr) = captureStdoutStderr(600,
+	  ("tg", "remote", "--populate", "origin"));
+
+	print STDERR "Warning: `tg remote --populate origin' failed:\n$stderr" unless $res;
+    }
+
     # Some simple caching: don't check a uri/branch more than once every hour, but prefer exact match on uri/branch/revision.
     my $cachedInput ;
     ($cachedInput) = $db->resultset('CachedGitInputs')->search(
