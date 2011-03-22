@@ -193,7 +193,7 @@ sub findLastJobForBuilds {
 
 sub jobsetOverview {
    my ($c, $project) = @_;
-   return $project->jobsets->search( isProjectOwner($c, $project->name) ? {} : { hidden => 0 },
+   return $project->jobsets->search( isProjectOwner($c, $project) ? {} : { hidden => 0 },
       { order_by => "name" 
       , "+select" => [
          "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildSchedulingInfo WHERE me.project = a.project AND me.name = a.jobset AND a.isCurrent = 1 )"
