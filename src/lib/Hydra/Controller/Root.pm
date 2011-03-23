@@ -188,7 +188,7 @@ sub end : ActionClass('RenderView') {
 sub nar :Local :Args(1) {
     my ($self, $c, $path) = @_;
 
-    $path = ($ENV{NIX_STORE_DIR}."/$path" || "/nix/store/$path" );
+    $path = ($ENV{NIX_STORE_DIR} || "/nix/store")."/$path";
 
     if (!isValidPath($path)) {
         $c->response->status(410); # "Gone"
