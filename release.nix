@@ -73,7 +73,7 @@ rec {
                 --set NIX_RELEASE ${nix.name}
         done
       ''; # */
-
+      LOGNAME="$USER";
       meta = {
         description = "Build of Hydra on ${system}";
       };

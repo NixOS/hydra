@@ -9,7 +9,7 @@ TESTS_ENVIRONMENT =					\
   NIX_STORE_DIR="$(abs_builddir)/nix/store"			\
   NIX_LOG_DIR="$(abs_builddir)/nix/var/log/nix"		\
   PERL5LIB="$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB"	\
-  PATH=$(abs_top_srcdir)/src/script:$$PATH \
+  PATH=$(abs_top_srcdir)/src/script:$(abs_top_srcdir)/src/c:$$PATH \
   perl -w 
 
 EXTRA_DIST = \
@@ -18,8 +18,8 @@ EXTRA_DIST = \
   $(wildcard jobs/*.sh) 
 
 TESTS = \
-  query-all-tables.pl
-#  evaluation-tests.pl
+  query-all-tables.pl \
+  evaluation-tests.pl
 
 clean :
 	chmod -R a+w nix
