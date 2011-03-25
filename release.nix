@@ -21,11 +21,6 @@ rec {
       preConfigure = ''
         # TeX needs a writable font cache.
         export VARTEXFONTS=$TMPDIR/texfonts
-
-        cp ${"${nixpkgs}/pkgs/build-support/fetchsvn/nix-prefetch-svn"} src/script
-        cp ${"${nixpkgs}/pkgs/build-support/fetchgit/nix-prefetch-git"} src/script
-        cp ${"${nixpkgs}/pkgs/build-support/fetchhg/nix-prefetch-hg"} src/script
-        cp ${"${nixpkgs}/pkgs/build-support/fetchbzr/nix-prefetch-bzr"} src/script
       '';
 
       configureFlags = "--with-nix=${nix}";
