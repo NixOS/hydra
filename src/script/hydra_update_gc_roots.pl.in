@@ -46,12 +46,12 @@ foreach my $project ($db->resultset('Projects')->all) {
             print STDERR "*** skipping disabled jobset ", $project->name, ":", $jobset->name, "\n";
             next;
         }
-        
+
         if ($keepnr <= 0 ) {
             print STDERR "*** jobset ", $project->name, ":", $jobset->name, " set to keep 0 builds\n";
             next;
         }
-        
+
         # Go over all jobs in this jobset.
         foreach my $job ($jobset->jobs->all) {
             print STDERR "*** looking for builds to keep in job ",
@@ -69,7 +69,7 @@ foreach my $project ($db->resultset('Projects')->all) {
                     , system => $system->system
                     },
                     { join => 'resultInfo'
-                    , order_by => 'id DESC'
+                    , order_by => 'me.id DESC'
                     , rows => $keepnr
                     });
                 keepBuild $_ foreach @recentBuilds;

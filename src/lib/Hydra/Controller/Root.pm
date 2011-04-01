@@ -15,7 +15,7 @@ sub begin :Private {
     my ($self, $c, @args) = @_;
     $c->stash->{curUri} = $c->request->uri;
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
-    $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";    
+    $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
 
     if (scalar(@args) == 0 || $args[0] ne "static") {
@@ -37,7 +37,7 @@ sub index :Path :Args(0) {
 
 sub login :Local {
     my ($self, $c) = @_;
-    
+
     my $username = $c->request->params->{username} || "";
     my $password = $c->request->params->{password} || "";
 
@@ -58,7 +58,7 @@ sub login :Local {
         }
         $c->stash->{errorMsg} = "Bad username or password.";
     }
-    
+
     $c->stash->{template} = 'login.tt';
 }
 
@@ -82,7 +82,7 @@ sub queue :Local {
 sub timeline :Local {
     my ($self, $c) = @_;
     my $pit = time();
-    $c->stash->{pit} = $pit; 
+    $c->stash->{pit} = $pit;
     $pit = $pit-(24*60*60)-1;
 
     $c->stash->{template} = 'timeline.tt';
@@ -90,8 +90,8 @@ sub timeline :Local {
         {finished => 1, stoptime => { '>' => $pit } }
       , { join => 'resultInfo'
         , order_by => ["starttime"]
-        , '+select' => [ 'resultInfo.starttime', 'resultInfo.stoptime', 'resultInfo.buildstatus' ]   
-        , '+as' => [ 'starttime', 'stoptime', 'buildstatus' ]   
+        , '+select' => [ 'resultInfo.starttime', 'resultInfo.stoptime', 'resultInfo.buildstatus' ]
+        , '+as' => [ 'starttime', 'stoptime', 'buildstatus' ]
         })];
 }
 
@@ -100,8 +100,8 @@ sub status :Local {
     my ($self, $c) = @_;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
         { 'me.busy' => 1, 'schedulingInfo.busy' => 1 },
-        { join => [ 'schedulingInfo', 'build' ] 
-        , order_by => [ 'machine', 'outpath' ]
+        { join => [ 'schedulingInfo', 'build' ]
+        , order_by => [ 'machine' ]
         } ) ];
 }
 
@@ -158,12 +158,12 @@ sub robots_txt : Path('robots.txt') {
         , channelUris('Job', ["*", "*", "*", "*"])
         , channelUris('Build', ["*"])
         );
-    
+
     $c->stash->{'plain'} = { data => "User-agent: *\n" . join('', map { "Disallow: $_\n" } @rules) };
     $c->forward('Hydra::View::Plain');
 }
 
-    
+
 sub default :Path {
     my ($self, $c) = @_;
     notFound($c, "Page not found.");
@@ -201,27 +201,27 @@ sub nar :Local :Args(1) {
 
 sub change_password : Path('change-password') : Args(0) {
     my ($self, $c) = @_;
-    
+
     requireLogin($c) if !$c->user_exists;
-    
-    $c->stash->{template} = 'change-password.tt';   
+
+    $c->stash->{template} = 'change-password.tt';
 }
 
 sub change_password_submit : Path('change-password/submit') : Args(0) {
     my ($self, $c) = @_;
-    
+
     requireLogin($c) if !$c->user_exists;
-    
-    my $password = $c->request->params->{"password"}; 
+
+    my $password = $c->request->params->{"password"};
     my $password_check = $c->request->params->{"password_check"};
     print STDERR "$password \n";
     print STDERR "$password_check \n";
     error($c, "Passwords did not match, go back and try again!") if $password ne $password_check;
-    
+
     my $hashed = sha1_hex($password);
     $c->user->update({ password => $hashed}) ;
-    
-    $c->res->redirect("/");    
+
+    $c->res->redirect("/");
 }
 
 1;
