@@ -12,7 +12,7 @@ our @EXPORT = qw(
     isValidPath
     getHydraPath getHydraDBPath openHydraDB getHydraConf txn_do
     registerRoot getGCRootsDir gcRootFor
-    getPrimaryBuildsForView 
+    getPrimaryBuildsForView
     getPrimaryBuildTotal
     getViewResult getLatestSuccessfulViewResult jobsetOverview);
 
@@ -74,7 +74,7 @@ sub txn_do {
 
 sub getGCRootsDir {
     die unless defined $ENV{LOGNAME};
-    my $dir = ($ENV{NIX_STATE_DIR} || "/nix/var/nix" ) . "/gcroots/per-user/$ENV{LOGNAME}/hydra-roots"; 
+    my $dir = ($ENV{NIX_STATE_DIR} || "/nix/var/nix" ) . "/gcroots/per-user/$ENV{LOGNAME}/hydra-roots";
     mkpath $dir if !-e $dir;
     return $dir;
 }
@@ -88,9 +88,9 @@ sub gcRootFor {
 
 sub registerRoot {
     my ($path) = @_;
-    
+
     my $link = gcRootFor $path;
-    
+
     if (!-l $link) {
         symlink($path, $link)
             or die "cannot create GC root `$link' to `$path'";
@@ -127,7 +127,7 @@ sub allPrimaryBuilds {
         , '+as' => ["releasename", "buildstatus"]
         , where => \ attrsToSQL($primaryJob->attrs, "me.id")
         });
-    return $allPrimaryBuilds; 
+    return $allPrimaryBuilds;
 }
 
 
@@ -167,7 +167,7 @@ sub findLastJobForBuilds {
         $thisBuild = $ev->builds->find(
             { job => $job->get_column('job'), finished => 1 },
             { join => 'resultInfo', rows => 1
-            , order_by => ["id"]
+            , order_by => ["me.id"]
             , where => \ attrsToSQL($job->attrs, "build.id")
             , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
             });
@@ -179,7 +179,7 @@ sub findLastJobForBuilds {
     # hacky
     $thisBuild = $depBuilds->find(
         { project => $project, jobset => $jobset
-        , job => $job->get_column('job'), finished => 1 
+        , job => $job->get_column('job'), finished => 1
         },
         { join => 'resultInfo', rows => 1
         , order_by => ["buildstatus", "timestamp"]
@@ -187,27 +187,27 @@ sub findLastJobForBuilds {
         , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
         })
         unless defined $thisBuild;
-    
+
     return $thisBuild;
 }
 
 sub jobsetOverview {
    my ($c, $project) = @_;
    return $project->jobsets->search( isProjectOwner($c, $project) ? {} : { hidden => 0 },
-      { order_by => "name" 
+      { order_by => "name"
       , "+select" => [
          "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildSchedulingInfo WHERE me.project = a.project AND me.name = a.jobset AND a.isCurrent = 1 )"
        , "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildResultInfo WHERE me.project = a.project AND me.name = a.jobset AND buildstatus <> 0 AND a.isCurrent = 1 )"
        , "(SELECT COUNT(*) FROM Builds AS a NATURAL JOIN BuildResultInfo WHERE me.project = a.project AND me.name = a.jobset AND buildstatus = 0 AND a.isCurrent = 1 )"
        , "(SELECT COUNT(*) FROM Builds AS a WHERE me.project = a.project AND me.name = a.jobset AND a.isCurrent = 1 )"
        ]
-      , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]          
+      , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]
       });
 }
 
 sub getViewResult {
     my ($primaryBuild, $jobs) = @_;
-    
+
     my @jobs = ();
 
     my $status = 0; # = okay
@@ -218,11 +218,11 @@ sub getViewResult {
     # might not be a evaluation record, so $ev may be undefined.)
     my $ev = $primaryBuild->jobsetevalmembers->find({}, { rows => 1, order_by => "eval" });
     $ev = $ev->eval if defined $ev;
-    
+
     # The timestamp of the view result is the highest timestamp of all
     # constitutent builds.
     my $timestamp = 0;
-        
+
     foreach my $job (@{$jobs}) {
         my $thisBuild = $job->isprimary
             ? $primaryBuild
@@ -259,5 +259,5 @@ sub getLatestSuccessfulViewResult {
     return undef;
 }
 
-    
+
 1;
