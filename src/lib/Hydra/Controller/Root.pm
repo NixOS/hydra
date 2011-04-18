@@ -17,10 +17,10 @@ sub begin :Private {
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
-
+    $c->stash->{logo} = $ENV{"HYDRA_LOGO"} ? "/logo" : "/static/images/hydra.png" ;
     if (scalar(@args) == 0 || $args[0] ne "static") {
-	$c->stash->{nrRunningBuilds} = $c->model('DB::BuildSchedulingInfo')->search({ busy => 1 }, {})->count();
-	$c->stash->{nrQueuedBuilds} = $c->model('DB::BuildSchedulingInfo')->count();
+      $c->stash->{nrRunningBuilds} = $c->model('DB::BuildSchedulingInfo')->search({ busy => 1 }, {})->count();
+      $c->stash->{nrQueuedBuilds} = $c->model('DB::BuildSchedulingInfo')->count();
     }
 }
 
@@ -223,5 +223,12 @@ sub change_password_submit : Path('change-password/submit') : Args(0) {
 
     $c->res->redirect("/");
 }
+
+sub logo :Local {
+    my ($self, $c) = @_;
+    my $path = $ENV{"HYDRA_LOGO"} or die("Logo not set!");
+    $c->serve_static_file($path);
+}
+
 
 1;

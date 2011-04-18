@@ -7,7 +7,7 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
-  
+
   <head>
     <title>Hydra - [% title %]</title>
     <link type="text/css" href="/static/js/jquery/css/smoothness/jquery-ui-1.8.5.custom.css" rel="Stylesheet" />
@@ -15,18 +15,18 @@
     <link rel="stylesheet" href="/static/css/nix-common.css" type="text/css" />
     <link rel="stylesheet" href="/static/css/nixos-site.css" type="text/css" />
     <link rel="stylesheet" href="/static/css/logfile.css" type="text/css" />
-    <script type="text/javascript" src="/static/js/jquery/js/jquery-1.4.2.min.js"></script> 
-    <script type="text/javascript" src="/static/js/jquery/js/jquery-ui-1.8.5.custom.min.js"></script> 
+    <script type="text/javascript" src="/static/js/jquery/js/jquery-1.4.2.min.js"></script>
+    <script type="text/javascript" src="/static/js/jquery/js/jquery-ui-1.8.5.custom.min.js"></script>
     <script type="text/javascript" src="/static/js/tablesorter/jquery.tablesorter.js"></script>
-    
+
     <script type="text/javascript">
       $(document).ready(function() {
 
           /*** Sortable tables. ***/
-          
+
           $("table.tablesorter").tablesorter();
 
-          
+
           /*** Tree toggles in logfiles. ***/
 
           /* Set the appearance of the toggle depending on whether the
@@ -69,19 +69,19 @@
 
       });
     </script>
-    
+
   </head>
-  
+
   <body>
-    <div id="page"> 
- 
-      <div id="header"> 
-        <div id="logo"><a class="no-hover" href="/"><img src="/static/images/hydra.png" alt="Hydra Logo" /></a></div> 
-          [% PROCESS topbar.tt %]        
+    <div id="page">
+
+      <div id="header">
+        <div id="logo"><a class="no-hover" href="/"><img src="[% logo %]" alt="Hydra Logo" /></a></div>
+          [% PROCESS topbar.tt %]
           [% PROCESS contextbar.tt %]
       </div>
-      <div id="main"> 
-        [% PROCESS navbar.tt %]        
+      <div id="main">
+        [% PROCESS navbar.tt %]
 
         <div id="content">
           [% content %]
