@@ -18,6 +18,8 @@ sub begin :Private {
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
     $c->stash->{logo} = $ENV{"HYDRA_LOGO"} ? "/logo" : "/static/images/hydra.png" ;
+    $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"} ;
+
     if (scalar(@args) == 0 || $args[0] ne "static") {
       $c->stash->{nrRunningBuilds} = $c->model('DB::BuildSchedulingInfo')->search({ busy => 1 }, {})->count();
       $c->stash->{nrQueuedBuilds} = $c->model('DB::BuildSchedulingInfo')->count();
