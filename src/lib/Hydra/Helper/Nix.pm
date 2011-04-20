@@ -167,7 +167,7 @@ sub findLastJobForBuilds {
         $thisBuild = $ev->builds->find(
             { job => $job->get_column('job'), finished => 1 },
             { join => 'resultInfo', rows => 1
-            , order_by => ["me.id"]
+            , order_by => ["build.id"]
             , where => \ attrsToSQL($job->attrs, "build.id")
             , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
             });
