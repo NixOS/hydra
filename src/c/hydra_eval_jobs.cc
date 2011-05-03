@@ -49,13 +49,17 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
         return;
     }
 
+    Formals::Formals_::iterator next = cur; ++next;
+
     AutoArgs::const_iterator a = argsLeft.find(cur->name);
 
-    if (a == argsLeft.end())
-        throw TypeError(format("job `%1%' requires an argument named `%2%'")
-            % attrPath % cur->name);
-
-    Formals::Formals_::iterator next = cur; ++next;
+    if (a == argsLeft.end()) {
+        if (!cur->def)
+            throw TypeError(format("job `%1%' requires an argument named `%2%'")
+                % attrPath % cur->name);
+        tryJobAlts(state, doc, argsUsed, argsLeft, attrPath, fun, next, last, actualArgs);
+        return;
+    }
 
     int n = 0;
     foreach (ValueList::const_iterator, i, a->second) {
