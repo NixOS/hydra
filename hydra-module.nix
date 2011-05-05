@@ -18,6 +18,9 @@ let
       + ''HYDRA_CONFIG=${cfg.baseDir}/data/hydra.conf ''
       + ''HYDRA_DATA=${cfg.baseDir}/data ''
       + ''HYDRA_PORT="${toString cfg.port}" ''
+      + ${if cfg.logo != null
+          then ''HYDRA_LOGO="${cfg.logo}" ''
+          else ""}
       + ''HYDRA_TRACKER="${cfg.tracker}" ;'';
 
 in
@@ -50,8 +53,9 @@ in
       
       dbi = mkOption {
         default = "dbi:Pg:dbname=hydra;host=localhost;user=root;";
+        example = "dbi:SQLite:/home/hydra/db/hydra.sqlite";
         description = ''
-          The DBI string for Hydra database connection
+          The DBI string for Hydra database connection.
         '';
       };
       
@@ -102,8 +106,15 @@ in
         description = ''
           Piece of HTML that is included on all pages.
         '';
-      }; 
-      
+      };
+
+      logo = mkOption {
+        default = null;
+        description = ''
+          File name of an alternate logo to be displayed on the web pages.
+        '';
+      };
+
       autoStart = mkOption {
         default = true;
         description = ''
