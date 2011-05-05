@@ -122,14 +122,6 @@ in
       } 
     ];
 
-    # Should these 3 really be here?
-    nix.maxJobs = 0;
-    nix.distributedBuilds = true;
-    nix.manualNixMachines = true;
-
-    nix.useChroot = true;
-    nix.nrBuildUsers = 100;
-      
     nix.gc.automatic = true;
     # $3 / $4 don't always work depending on length of device name
     nix.gc.options = ''--max-freed "$((200 * 1024**3 - 1024 * $(df /nix/store | tail -n 1 | awk '{ print $3 }')))"'';
