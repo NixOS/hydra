@@ -17,6 +17,7 @@ let
       + ''HYDRA_DBI="${cfg.dbi}" ''
       + ''HYDRA_CONFIG=${cfg.baseDir}/data/hydra.conf ''
       + ''HYDRA_DATA=${cfg.baseDir}/data ''
+      + ''HYDRA_PORT="${toString cfg.port}" ''
       + ''HYDRA_TRACKER="${cfg.tracker}" ;'';
 
 in
@@ -67,7 +68,14 @@ in
           The base URL for the Hydra webserver instance. Used for links in emails. 
         '';
       };
-      
+
+      port = mkOption {
+        default = 3000;
+        description = ''
+          TCP port the web server should listen to.
+        '';
+      };
+
       minimumDiskFree = mkOption {
         default = 5;
         description = ''
