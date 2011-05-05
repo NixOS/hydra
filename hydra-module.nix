@@ -18,9 +18,9 @@ let
       + ''HYDRA_CONFIG=${cfg.baseDir}/data/hydra.conf ''
       + ''HYDRA_DATA=${cfg.baseDir}/data ''
       + ''HYDRA_PORT="${toString cfg.port}" ''
-      + ${if cfg.logo != null
-          then ''HYDRA_LOGO="${cfg.logo}" ''
-          else ""}
+      + (if cfg.logo != null
+         then ''HYDRA_LOGO="${cfg.logo}" ''
+         else "")
       + ''HYDRA_TRACKER="${cfg.tracker}" ;'';
 
 in
