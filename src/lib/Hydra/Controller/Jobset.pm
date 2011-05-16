@@ -14,7 +14,7 @@ sub jobset : Chained('/') PathPart('jobset') CaptureArgs(2) {
         or notFound($c, "Project $projectName doesn't exist.");
 
     $c->stash->{project} = $project;
-    
+
     $c->stash->{jobset_} = $project->jobsets->search({name => $jobsetName});
     $c->stash->{jobset} = $c->stash->{jobset_}->single
         or notFound($c, "Jobset $jobsetName doesn't exist.");
@@ -24,7 +24,7 @@ sub jobsetIndex {
     my ($self, $c, $forceStatus) = @_;
 
     $c->stash->{template} = 'jobset.tt';
-    
+
     #getBuildStats($c, scalar $c->stash->{jobset}->builds);
 
     my $projectName = $c->stash->{project}->name;
@@ -49,15 +49,15 @@ sub jobsetIndex {
             push @{$c->stash->{inactiveJobs}}, $job->name;
         }
     }
-    
+
     $c->stash->{systems} = [$c->stash->{jobset}->builds->search({iscurrent => 1}, {select => ["system"], distinct => 1, order_by => "system" })];
-        
+
     # status per system
     my @systems = ();
     foreach my $system (@{$c->stash->{systems}}) {
     	push(@systems, $system->system);
     }
-    
+
     if($forceStatus || scalar(@{$c->stash->{activeJobs}}) <= 20) {
         my @select = ();
         my @as = ();
@@ -77,7 +77,7 @@ sub jobsetIndex {
 	          , order_by => ["job"]
 	          })];
     }
-	
+
     # last builds for jobset
     my $tmp = $c->stash->{jobset}->builds;
     $c->stash->{lastBuilds} = [joinWithResultInfo($c, $tmp)
@@ -112,7 +112,7 @@ sub get_builds : Chained('jobset') PathPart('') CaptureArgs(0) {
 
 sub edit : Chained('jobset') PathPart Args(0) {
     my ($self, $c) = @_;
-    
+
     requireProjectOwner($c, $c->stash->{project});
 
     $c->stash->{template} = 'jobset.tt';
@@ -122,10 +122,10 @@ sub edit : Chained('jobset') PathPart Args(0) {
 
 sub submit : Chained('jobset') PathPart Args(0) {
     my ($self, $c) = @_;
-    
+
     requireProjectOwner($c, $c->stash->{project});
     requirePost($c);
-    
+
     txn_do($c->model('DB')->schema, sub {
         updateJobset($c, $c->stash->{jobset});
     });
@@ -139,11 +139,11 @@ sub hide : Chained('jobset') PathPart Args(0) {
     my ($self, $c) = @_;
 
     requireProjectOwner($c, $c->stash->{project});
-    
+
     txn_do($c->model('DB')->schema, sub {
         $c->stash->{jobset}->update({ hidden => 1, enabled => 0 });
     });
-    
+
     $c->res->redirect($c->uri_for($c->controller('Project')->action_for("view"),
         [$c->stash->{project}->name]));
 }
@@ -152,11 +152,11 @@ sub unhide : Chained('jobset') PathPart Args(0) {
     my ($self, $c) = @_;
 
     requireProjectOwner($c, $c->stash->{project});
-    
+
     txn_do($c->model('DB')->schema, sub {
         $c->stash->{jobset}->update({ hidden => 0 });
     });
-    
+
     $c->res->redirect($c->uri_for($c->controller('Project')->action_for("view"),
         [$c->stash->{project}->name]));
 }
@@ -166,11 +166,11 @@ sub delete : Chained('jobset') PathPart Args(0) {
 
     requireProjectOwner($c, $c->stash->{project});
     requirePost($c);
-    
+
     txn_do($c->model('DB')->schema, sub {
         $c->stash->{jobset}->delete;
     });
-    
+
     $c->res->redirect($c->uri_for($c->controller('Project')->action_for("view"),
         [$c->stash->{project}->name]));
 }
@@ -178,7 +178,7 @@ sub delete : Chained('jobset') PathPart Args(0) {
 
 sub nixExprPathFromParams {
     my ($c) = @_;
-    
+
     # The Nix expression path must be relative and can't contain ".." elements.
     my $nixExprPath = trim $c->request->params->{"nixexprpath"};
     error($c, "Invalid Nix expression path: $nixExprPath") if $nixExprPath !~ /^$relPathRE$/;
@@ -229,13 +229,14 @@ sub updateJobset {
         , nixexprpath => $nixExprPath
         , nixexprinput => $nixExprInput
         , enabled => trim($c->request->params->{enabled}) eq "1" ? 1 : 0
+        , buildonlylatest => trim($c->request->params->{buildonlylatest}) eq "1" ? 1 : 0
         , enableemail => trim($c->request->params->{enableemail}) eq "1" ? 1 : 0
         , emailoverride => trim($c->request->params->{emailoverride}) || ""
-        , keepnr => trim($c->request->params->{keepnr})
+        , keepnr => trim($c->request->params->{keepnr}) || 3
         });
 
     my %inputNames;
-        
+
     # Process the inputs of this jobset.
     foreach my $param (keys %{$c->request->params}) {
         next unless $param =~ /^input-(\w+)-name$/;
@@ -245,7 +246,7 @@ sub updateJobset {
         my ($inputName, $inputType) = checkInput($c, $baseName);
 
         $inputNames{$inputName} = 1;
-            
+
         my $input;
         if ($baseName =~ /^\d+$/) { # numeric base name is auto-generated, i.e. a new entry
             $input = $jobset->jobsetinputs->create(
@@ -298,18 +299,19 @@ sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
     my $newjobsetName = trim $c->request->params->{"newjobset"};
     error($c, "Invalid jobset name: $newjobsetName") unless $newjobsetName =~ /^[[:alpha:]][\w\-]*$/;
 
-    my $newjobset;    
-    txn_do($c->model('DB')->schema, sub {    
+    my $newjobset;
+    txn_do($c->model('DB')->schema, sub {
         $newjobset = $jobset->project->jobsets->create(
             { name => $newjobsetName
             , description => $jobset->description
             , nixexprpath => $jobset->nixexprpath
             , nixexprinput => $jobset->nixexprinput
             , enabled => 0
-            , enableemail => $jobset->enableemail 
+            , buildonlylatest => $jobset->buildonlylatest
+            , enableemail => $jobset->enableemail
             , emailoverride => $jobset->emailoverride || ""
-            });    
-    
+            });
+
         foreach my $input ($jobset->jobsetinputs) {
             my $newinput = $newjobset->jobsetinputs->create({name => $input->name, type => $input->type});
             foreach my $inputalt ($input->jobsetinputalts) {
@@ -317,9 +319,9 @@ sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
             }
         }
     });
-    
+
     $c->res->redirect($c->uri_for($c->controller('Jobset')->action_for("edit"), [$jobset->project->name, $newjobsetName]));
-    
+
 }
 
 
