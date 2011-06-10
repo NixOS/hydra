@@ -180,7 +180,7 @@
 		[% END %]
 
 		[% IF build.finished %]
-			[% IF build.buildsteps && build.resultInfo.buildstatus != 0 %]
+			[% IF build.buildsteps && build.resultInfo.buildstatus != 0 && build.resultInfo.buildstatus != 6 %]
 				[% INCLUDE renderBuildSteps type="Failed" %]
 			[% END %]
 
@@ -190,9 +190,9 @@
             <br/> 
             <table>
                 <thead>
-                    <th>Last successful build</th>
-                    [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]<th>First broken build</th>[% END %]
-                    <th>This build</th>
+                    <th>Last successful build <tt>[% INCLUDE renderDateTime timestamp = prevSuccessfulBuild.timestamp %]</tt></th>
+                    [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]<th>First broken build <tt>[% INCLUDE renderDateTime timestamp = firstBrokenBuild.timestamp %]</tt></th>[% END %]
+                    <th>This build <tt>[% INCLUDE renderDateTime timestamp = build.timestamp %]</tt></th>
                 </thead>
                 <tr>
                     <td valign="center">[% INCLUDE renderBuildStatusIcon build=prevSuccessfulBuild size=32 %] [% INCLUDE renderFullBuildLink build=prevSuccessfulBuild %]</td>
