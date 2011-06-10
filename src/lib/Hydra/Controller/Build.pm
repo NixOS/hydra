@@ -55,7 +55,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     (my $lastBuildStep) = $build->buildsteps->search({},{order_by => "stepnr DESC", rows => 1});
     my $path = defined $lastBuildStep ? $lastBuildStep->logfile : "" ;
     if (defined $build->resultInfo && ($build->resultInfo->buildstatus == 1 || $build->resultInfo->buildstatus == 6) && !($path eq "") && -f $lastBuildStep->logfile) {
-	$c->stash->{logtext} = `tail -n 50 $path`;
+	$c->stash->{logtext} = removeAsciiEscapes(`tail -n 50 $path`);
     }
 
     if($build->finished) {

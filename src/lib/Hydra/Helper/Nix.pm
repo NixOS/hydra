@@ -14,7 +14,7 @@ our @EXPORT = qw(
     registerRoot getGCRootsDir gcRootFor
     getPrimaryBuildsForView
     getPrimaryBuildTotal
-    getViewResult getLatestSuccessfulViewResult jobsetOverview);
+    getViewResult getLatestSuccessfulViewResult jobsetOverview removeAsciiEscapes);
 
 
 sub isValidPath {
@@ -259,5 +259,10 @@ sub getLatestSuccessfulViewResult {
     return undef;
 }
 
+sub removeAsciiEscapes {
+    my ($logtext) = @_;
+    $logtext =~ s/\e\[[A-Za-z]//g;
+    return $logtext;
+}
 
 1;
