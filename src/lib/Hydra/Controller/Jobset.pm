@@ -229,7 +229,6 @@ sub updateJobset {
         , nixexprpath => $nixExprPath
         , nixexprinput => $nixExprInput
         , enabled => trim($c->request->params->{enabled}) eq "1" ? 1 : 0
-        , buildonlylatest => trim($c->request->params->{buildonlylatest}) eq "1" ? 1 : 0
         , enableemail => trim($c->request->params->{enableemail}) eq "1" ? 1 : 0
         , emailoverride => trim($c->request->params->{emailoverride}) || ""
         , keepnr => trim($c->request->params->{keepnr}) || 3
