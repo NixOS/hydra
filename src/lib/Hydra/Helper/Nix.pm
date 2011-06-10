@@ -261,7 +261,7 @@ sub getLatestSuccessfulViewResult {
 
 sub removeAsciiEscapes {
     my ($logtext) = @_;
-    $logtext =~ s/\e\[[A-Za-z]//g;
+    $logtext =~ s/\e\[[0-9]*[A-Za-z]//g;
     return $logtext;
 }
 
