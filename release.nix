@@ -29,7 +29,7 @@ rec {
         ];
 
       postDist = ''
-        make -C doc/manual install
+        make -C doc/manual install prefix="$out"
         nuke-refs "$out/share/doc/hydra/manual.pdf"
 
         echo "doc manual $out/share/doc/hydra/manual.html" >> \
