@@ -82,7 +82,7 @@ rec {
 
     let hydra = build { inherit system; }; in
 
-    with import "${nixos}/lib/testing.nix" { inherit nixpkgs system; services = null; };
+    with import "${nixos}/lib/testing.nix" { inherit nixpkgs system; };
 
     {
     
