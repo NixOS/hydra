@@ -23,7 +23,10 @@ rec {
         export VARTEXFONTS=$TMPDIR/texfonts
       '';
 
-      configureFlags = "--with-nix=${nix}";
+      configureFlags =
+        [ "--with-nix=${nix}"
+          "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook"
+        ];
 
       postDist = ''
         make -C doc/manual install
