@@ -235,7 +235,9 @@ sub doBuild {
         # Run Nix to perform the build, and monitor the stderr output
         # to get notifications about specific build steps, the
         # associated log files, etc.
+	# Note: `--timeout' was added in Nix 1.0pre27564, June 2011.
         my $cmd = "nix-store --realise $drvPath " .
+	    "--timeout $timeout " .
             "--max-silent-time $maxsilent --keep-going --fallback " .
             "--no-build-output --log-type flat --print-build-trace " .
             "--add-root " . gcRootFor $outPath . " 2>&1";
