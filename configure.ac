@@ -10,7 +10,17 @@ AC_PROG_LN_S
 AC_PROG_LIBTOOL
 AC_PROG_CXX
 
-AC_PATH_PROG(dblatex, dblatex)
+dnl Optional dependencies to build the manual, normally not needed
+dnl since the tarball comes with the PDF and HTML manuals.
+AC_PATH_PROG([DBLATEX], [dblatex])
+AC_PATH_PROG([XSLTPROC], [xsltproc])
+
+AC_ARG_WITH([docbook-xsl],
+  [AS_HELP_STRING([--with-docbook-xsl=PATH],
+    [path of the DocBook XSL stylesheets])],
+  [docbookxsl="$withval"],
+  [docbookxsl="/docbook-xsl-missing"])
+AC_SUBST([docbookxsl])
 
 
 AC_DEFUN([NEED_PROG],
