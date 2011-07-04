@@ -26,9 +26,13 @@ rec {
       configureFlags = "--with-nix=${nix}";
 
       postDist = ''
-        cp doc/manual/manual.pdf $out
-        nuke-refs $out/manual.pdf
-        echo "doc-pdf manual $out/manual.pdf" >> $out/nix-support/hydra-build-products        
+        make -C doc/manual install
+        nuke-refs "$out/share/doc/hydra/manual.pdf"
+
+        echo "doc manual $out/share/doc/hydra/manual.html" >> \
+          "$out/nix-support/hydra-build-products"
+        echo "doc-pdf manual $out/share/doc/hydra/manual.pdf" >> \
+          "$out/nix-support/hydra-build-products"
       '';
     };
 
