@@ -1,4 +1,4 @@
-package Hydra::Controller::Jobset;
+wpackage Hydra::Controller::Jobset;
 
 use strict;
 use warnings;
@@ -306,7 +306,6 @@ sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
             , nixexprpath => $jobset->nixexprpath
             , nixexprinput => $jobset->nixexprinput
             , enabled => 0
-            , buildonlylatest => $jobset->buildonlylatest
             , enableemail => $jobset->enableemail
             , emailoverride => $jobset->emailoverride || ""
             });
