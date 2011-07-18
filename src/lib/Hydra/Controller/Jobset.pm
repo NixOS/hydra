@@ -1,4 +1,4 @@
-wpackage Hydra::Controller::Jobset;
+package Hydra::Controller::Jobset;
 
 use strict;
 use warnings;
