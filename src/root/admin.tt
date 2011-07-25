@@ -5,6 +5,9 @@
 
 <ul>
     <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Project').action_for('create')) content = "Create project" %]</li>    
+    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('users')) content = "Manage users" %]</li>
+    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('news')) content = "Manage news" %]</li>
+
     <li>Caching
         <ul>
             <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('clearfailedcache')) content = "Clear failed builds cache" confirmmsg = "Are you sure you want to clear the failed builds cache?" %]</li>
