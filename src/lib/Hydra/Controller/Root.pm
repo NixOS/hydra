@@ -43,19 +43,16 @@ sub login :Local {
     my $username = $c->request->params->{username} || "";
     my $password = $c->request->params->{password} || "";
 
-    if($username eq "" && $password eq "" && ! defined $c->flash->{afterLogin}) {
-      my $baseurl = $c->uri_for('/');
-      my $refurl = $c->request->referer;
-      $c->flash->{afterLogin} = $refurl if $refurl =~ m/^($baseurl)/ ;
+    if ($username eq "" && $password eq "" && ! defined $c->flash->{referer}) {
+        my $baseurl = $c->uri_for('/');
+        my $refurl = $c->request->referer;
+        $c->flash->{referer} = $refurl if $refurl =~ m/^($baseurl)/;
     }
 
     if ($username && $password) {
         if ($c->authenticate({username => $username, password => $password})) {
-            $c->response->redirect(
-                defined $c->flash->{afterLogin}
-                ? $c->flash->{afterLogin}
-                : $c->uri_for('/'));
-            $c->flash->{afterLogin} = undef;
+            $c->response->redirect($c->flash->{referer} || $c->uri_for('/'));
+            $c->flash->{referer} = undef;
             return;
         }
         $c->stash->{errorMsg} = "Bad username or password.";
@@ -68,7 +65,7 @@ sub login :Local {
 sub logout :Local {
     my ($self, $c) = @_;
     $c->logout;
-    $c->response->redirect($c->uri_for('/'));
+    $c->response->redirect($c->request->referer || $c->uri_for('/'));
 }
 
 
