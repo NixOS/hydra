@@ -16,6 +16,7 @@ with pkgs;
   perlPackages.IOCompressBzip2
   perlPackages.Readonly
   perlPackages.DBDPg
+  perlPackages.DBDSQLite
   perlPackages.EmailSender
   perlPackages.TextTable
   perlPackages.NetTwitterLite
