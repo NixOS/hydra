@@ -154,7 +154,7 @@ sub defaultUriForProduct {
     my $x = $product->productnr
         . ($product->name ? "/" . $product->name : "")
         . ($product->defaultpath ? "/" . $product->defaultpath : ""); 
-    return $c->uri_for($self->action_for("download"), $c->req->captures, $x, @path);
+    return $c->uri_for($self->action_for("download"), $c->req->captures, (split /\//, $x), @path);
 }
 
 
