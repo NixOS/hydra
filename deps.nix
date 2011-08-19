@@ -6,6 +6,7 @@ with pkgs;
   perlPackages.CatalystPluginSessionStoreFastMmap
   perlPackages.CatalystPluginStackTrace
   perlPackages.CatalystPluginAuthorizationRoles
+  perlPackages.CatalystPluginSessionStateCookie
   perlPackages.CatalystAuthenticationStoreDBIxClass
   perlPackages.CatalystViewTT
   perlPackages.CatalystEngineHTTPPrefork
@@ -25,5 +26,6 @@ with pkgs;
   perlPackages.DigestSHA1
   perlPackages.CryptRandPasswd
   perlPackages.TestMore
+  perlPackages.SysHostnameLong
   perlPackages.nixPerl
 ]
