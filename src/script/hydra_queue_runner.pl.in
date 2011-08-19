@@ -6,6 +6,7 @@ use File::Basename;
 use POSIX qw(dup2 :sys_wait_h);
 use Hydra::Schema;
 use Hydra::Helper::Nix;
+use IO::Handle;
 use Nix;
 
 chdir getHydraPath or die;
