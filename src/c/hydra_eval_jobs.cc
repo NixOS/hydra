@@ -6,7 +6,6 @@
 #include "shared.hh"
 #include "store-api.hh"
 #include "eval.hh"
-#include "parser.hh"
 #include "util.hh"
 #include "xml-writer.hh"
 #include "get-drvs.hh"
@@ -218,7 +217,7 @@ void run(Strings args)
             string value = *i++;
             Value * v = state.allocValue();
             if (arg == "--arg")
-                state.eval(parseExprFromString(state, value, absPath(".")), *v);
+                state.eval(state.parseExprFromString(value, absPath(".")), *v);
             else
                 mkString(*v, value);
             autoArgs[state.symbols.create(name)].push_back(v);
@@ -239,7 +238,7 @@ void run(Strings args)
     
     store = openStore();
 
-    Expr * e = parseExprFromFile(state, releaseExpr);
+    Expr * e = state.parseExprFromFile(releaseExpr);
     Value v;
     state.mkThunk_(v, e);
 
