@@ -6,8 +6,9 @@
 
 rec {
   tarball = 
-    let pkgs = import nixpkgs {};
-    in with pkgs;
+    with import nixpkgs { };
+
+    let nix = nixUnstable; in
 
     releaseTools.makeSourceTarball {
       name = "hydra-tarball";
@@ -46,7 +47,7 @@ rec {
 
     with pkgs;
 
-    let nix = nixSqlite; in
+    let nix = nixUnstable; in
 
     releaseTools.nixBuild {
       name = "hydra";
