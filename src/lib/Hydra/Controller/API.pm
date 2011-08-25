@@ -4,10 +4,12 @@ use strict;
 use warnings;
 use base 'Catalyst::Controller';
 use Hydra::Helper::Nix;
+use Hydra::Helper::AddBuilds;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Controller::Project;
 use JSON::Any;
 use DateTime;
+use Digest::SHA qw(sha256_hex);
 
 sub api : Chained('/') PathPart('api') CaptureArgs(0) {
     my ($self, $c) = @_;
@@ -203,6 +205,32 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     $c->stash->{'plain'} = { 
         data => scalar (JSON::Any->objToJson(\@arr)) 
     };
+    $c->forward('Hydra::View::Plain');
+}
+
+sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
+    my ($self, $c) = @_;
+
+    my $uri = $c->request->params->{uri} ;
+    my $type = $c->request->params->{type} ;
+    my $branch = $c->request->params->{branch} ;
+    my $rev1 = $c->request->params->{rev1} ;
+    my $rev2 = $c->request->params->{rev2} ;
+
+    my $diff = "";
+    if($type eq "hg") {
+        my $clonePath = scmPath . "/" . sha256_hex($uri);
+        die if ! -d $clonePath;
+	$diff .= `(cd $clonePath ; hg log -r $rev1:$rev2)`;
+	$diff .= `(cd $clonePath ; hg diff -r $rev1:$rev2)`;
+    } elsif ($type eq "git") {
+        my $clonePath = scmPath . "/" . sha256_hex($uri.$branch);
+        die if ! -d $clonePath;
+	$diff .= `(cd $clonePath ; git log $rev1..$rev2)`;
+	$diff .= `(cd $clonePath ; git diff $rev1..$rev2)`;
+    }
+
+    $c->stash->{'plain'} = { data => (scalar $diff) || " " };
     $c->forward('Hydra::View::Plain');
 }
 

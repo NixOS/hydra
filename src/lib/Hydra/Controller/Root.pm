@@ -150,6 +150,7 @@ sub robots_txt : Path('robots.txt') {
         , uri_for('Root', 'nar', [], "*")
         , uri_for('Root', 'status', [])
         , uri_for('Root', 'all', [])
+        , uri_for('API', 'scmdiff', [])
         , uri_for('Project', 'all', ["*"])
         , channelUris('Root', ["*"])
         , channelUris('Project', ["*", "*"])

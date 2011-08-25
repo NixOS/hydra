@@ -12,7 +12,7 @@ use File::stat;
 use File::Path;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr getReleaseName getBuildLog addBuildProducts restartBuild);
+our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr getReleaseName getBuildLog addBuildProducts restartBuild scmPath);
 
 sub scmPath {
     return getHydraPath . "/scm" ;

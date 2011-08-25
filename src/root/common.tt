@@ -308,7 +308,14 @@
         [% END %]
     [% END %]
     [% IF nouri %]
-      [% contents %]
+      [% res = bi1.uri.split(' ') %]
+      [% url = res.0 %]
+      [% branch = res.1 %]
+      [% IF bi1.type == "hg" || bi1.type == "git" %]
+          <a target="_new" href="/api/scmdiff?uri=[% url %]&rev1=[% bi1.revision %]&rev2=[% bi2.revision %]&type=[% bi1.type %]&branch=[% branch %]">[% contents %]</a>
+      [% ELSE %]
+        [% contents %]
+      [% END %]
     [% END %]
 [% END %]
 
