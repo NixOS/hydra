@@ -58,7 +58,7 @@ sub jobsetIndex {
     	push(@systems, $system->system);
     }
 
-    if($forceStatus || scalar(@{$c->stash->{activeJobs}}) <= 20) {
+    if($forceStatus || scalar(@{$c->stash->{activeJobs}}) <= 50) {
         my @select = ();
         my @as = ();
         push(@select, "job"); push(@as, "job");
