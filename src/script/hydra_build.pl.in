@@ -244,7 +244,7 @@ sub doBuild {
 
         my $max = $build->buildsteps->find(
             {}, {select => {max => 'stepnr + 1'}, as => ['max']});
-        my $buildStepNr = defined $max ? $max->get_column('max') : 1;
+        my $buildStepNr = (defined $max && defined $max->get_column('max')) ? $max->get_column('max') : 1;
 
         my %buildSteps;
         
