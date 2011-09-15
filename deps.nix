@@ -11,6 +11,7 @@ with pkgs;
   perlPackages.CatalystViewTT
   perlPackages.CatalystEngineHTTPPrefork
   perlPackages.CatalystViewDownload
+  perlPackages.CatalystViewJSON
   perlPackages.XMLSimple
   perlPackages.IPCRun
   perlPackages.IOCompressBzip2

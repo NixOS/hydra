@@ -11,6 +11,8 @@ use JSON::Any;
 use DateTime;
 use Digest::SHA qw(sha256_hex);
 
+# !!! Rewrite this to use View::JSON.
+
 sub api : Chained('/') PathPart('api') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->response->content_type('application/json');
@@ -161,16 +163,6 @@ sub nrrunning : Chained('api') PathPart('nrrunning') Args(0) {
         data => " $nrRunningBuilds"
     };
     $c->forward('Hydra::View::Plain');
-}
-
-sub ts {
-	my ($nr, $period) = @_;
-	my @arr ;
-
-
-    	
-	
-	return @arr;
 }
 
 sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {

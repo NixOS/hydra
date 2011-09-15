@@ -10,6 +10,7 @@ use File::stat;
 use Data::Dump qw(dump);
 use Nix;
 
+
 sub build : Chained('/') PathPart CaptureArgs(1) {
     my ($self, $c, $id) = @_;
     
@@ -28,6 +29,7 @@ sub build : Chained('/') PathPart CaptureArgs(1) {
 
     $c->stash->{project} = $c->stash->{build}->project;
 }
+
 
 sub view_build : Chained('build') PathPart('') Args(0) {
     my ($self, $c) = @_;
@@ -215,6 +217,7 @@ sub download_by_type : Chained('build') PathPart('download-by-type') {
     $c->res->redirect(defaultUriForProduct($self, $c, $product, @path));
 }
 
+
 sub contents : Chained('build') PathPart Args(1) {
     my ($self, $c, $productnr) = @_;
 
@@ -307,6 +310,7 @@ sub buildtimedeps : Chained('build') PathPart('buildtime-deps') {
     
     $c->res->content_type('image/png'); # !!!
 }
+
 
 sub deps : Chained('build') PathPart('deps') {
     my ($self, $c) = @_;
@@ -536,6 +540,17 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
     $c->flash->{buildMsg} = "Build " . $newBuild->id . " added to the queue.";
     
     $c->res->redirect($c->uri_for($c->controller('Root')->action_for('queue')));
+}
+
+
+sub get_info  : Chained('build') PathPart('api/get-info') Args(0) {
+    my ($self, $c) = @_;
+    my $build = $c->stash->{build};
+    # !!! strip the json prefix
+    $c->stash->{jsonBuildId} = $build->id;
+    $c->stash->{jsonDrvPath} = $build->drvpath;
+    $c->stash->{jsonOutPath} = $build->outpath;
+    $c->forward('View::JSON');
 }
 
 

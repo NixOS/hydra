@@ -43,7 +43,13 @@ __PACKAGE__->config(
                 },
             },
         },
-    }
+    },
+    'View::JSON' => {
+        expose_stash => qr/^json/,
+    },
+    'Plugin::Session' => {
+        expires => 3600 * 24 * 2,
+    },
 );
 
 __PACKAGE__->setup();
