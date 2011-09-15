@@ -197,6 +197,7 @@ sub download : Chained('build') PathPart {
     notFound($c, "Path $path is a directory.") if -d $path;
 
     $c->serve_static_file($path);
+    $c->response->headers->last_modified($c->stash->{build}->timestamp);
 }
 
 
