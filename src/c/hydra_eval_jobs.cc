@@ -156,7 +156,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
                done. */
             if (gcRootsDir != "") {
                 Path root = gcRootsDir + "/" + baseNameOf(drvPath);
-                if (!pathExists(root)) addPermRoot(drvPath, root, false);
+                if (!pathExists(root)) addPermRoot(*store, drvPath, root, false);
             }
             
             XMLOpenElement _(doc, "job", xmlAttrs);
