@@ -14,7 +14,7 @@ with pkgs;
   perlPackages.CatalystViewJSON
   perlPackages.XMLSimple
   perlPackages.IPCRun
-  perlPackages.IOCompressBzip2
+  perlPackages.IOCompress
   perlPackages.Readonly
   perlPackages.DBDPg
   perlPackages.DBDSQLite
