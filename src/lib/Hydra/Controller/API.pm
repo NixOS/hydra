@@ -10,6 +10,8 @@ use Hydra::Controller::Project;
 use JSON::Any;
 use DateTime;
 use Digest::SHA qw(sha256_hex);
+use Text::Diff;
+use File::Slurp;
 
 # !!! Rewrite this to use View::JSON.
 
@@ -213,7 +215,7 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
     if($type eq "hg") {
         my $clonePath = scmPath . "/" . sha256_hex($uri);
         die if ! -d $clonePath;
-	$diff .= `(cd $clonePath ; hg log -r $rev1:$rev2)`;
+	$diff .= `(cd $clonePath ; hg log -r $rev1 -r $rev2 -b $branch)`;
 	$diff .= `(cd $clonePath ; hg diff -r $rev1:$rev2)`;
     } elsif ($type eq "git") {
         my $clonePath = scmPath . "/" . sha256_hex($uri.$branch);
@@ -222,6 +224,39 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
 	$diff .= `(cd $clonePath ; git diff $rev1..$rev2)`;
     }
 
+    $c->stash->{'plain'} = { data => (scalar $diff) || " " };
+    $c->forward('Hydra::View::Plain');
+}
+
+sub readNormalizedLog {
+    my ($file) = @_;
+    my $res = read_file($file);
+
+    $res =~ s/\/nix\/store\/[a-z0-9]*-/\/nix\/store\/...-/g;
+    $res =~ s/nix-build-[a-z0-9]*-/nix-build-...-/g;
+    $res =~ s/[0-9]{2}:[0-9]{2}:[0-9]{2}/00:00:00/g;
+    return $res;
+}
+
+sub logdiff : Chained('api') PathPart('logdiff') Args(2) {
+    my ($self, $c, $buildid1, $buildid2) = @_;
+
+    my $diff = "";
+
+    my $build1 = getBuild($c, $buildid1);
+    notFound($c, "Build with ID $buildid1 doesn't exist.")
+        if !defined $build1;
+    my $build2 = getBuild($c, $buildid2);
+    notFound($c, "Build with ID $buildid2 doesn't exist.")
+        if !defined $build2;
+
+    if (-f $build1->resultInfo->logfile && -f $build2->resultInfo->logfile) {
+        my $logtext1 = readNormalizedLog($build1->resultInfo->logfile);
+        my $logtext2 = readNormalizedLog($build2->resultInfo->logfile);
+        $diff = diff \$logtext1, \$logtext2;
+    } else {
+        $c->response->status(404);
+    }
     $c->stash->{'plain'} = { data => (scalar $diff) || " " };
     $c->forward('Hydra::View::Plain');
 }

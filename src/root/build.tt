@@ -184,15 +184,19 @@
 				[% INCLUDE renderBuildSteps type="Failed" %]
 			[% END %]
 
-            [% IF build.resultInfo.buildstatus != 0 && prevSuccessfulBuild %]
             <h2>Changes</h2>
-            Changes compared to last successful build:<br/>
             <br/> 
             <table>
                 <thead>
                     <th>Last successful build <tt>[% INCLUDE renderDateTime timestamp = prevSuccessfulBuild.timestamp %]</tt></th>
-                    [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]<th>First broken build <tt>[% INCLUDE renderDateTime timestamp = firstBrokenBuild.timestamp %]</tt></th>[% END %]
-                    <th>This build <tt>[% INCLUDE renderDateTime timestamp = build.timestamp %]</tt></th>
+                    [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]
+                        <th>First broken build <tt>[% INCLUDE renderDateTime timestamp = firstBrokenBuild.timestamp %]</tt><br/>
+                            <tt>[ <a href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id firstBrokenBuild.id ) %]">log diff</a> ]</tt>
+                        </th>
+                    [% END %]
+                    <th>This build <tt>[% INCLUDE renderDateTime timestamp = build.timestamp %]</tt> <br/>
+                        <tt>[ <a href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id build.id) %]">log diff</a> ]</tt>
+                    </th>
                 </thead>
                 <tr>
                     <td valign="center">[% INCLUDE renderBuildStatusIcon build=prevSuccessfulBuild size=32 %] [% INCLUDE renderFullBuildLink build=prevSuccessfulBuild %]</td>
@@ -205,7 +209,6 @@
                     <td>[% INCLUDE renderInputDiff build1=prevSuccessfulBuild , build2=build %]</td>
                 </tr>
             </table>
-            [% END %]
 
 			[% IF build.resultInfo.errormsg && build.resultInfo.buildstatus != 5 %]
 		

@@ -20,6 +20,8 @@ with pkgs;
   perlPackages.DBDSQLite
   perlPackages.EmailSender
   perlPackages.TextTable
+  perlPackages.TextDiff
+  perlPackages.FileSlurp
   perlPackages.NetTwitterLite
   perlPackages.PadWalker
   perlPackages.DataDump
