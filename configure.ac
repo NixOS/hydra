@@ -38,7 +38,7 @@ AC_ARG_WITH(nix, AC_HELP_STRING([--with-nix=PATH],
   nix=$withval, nix=/nix-missing)
 AC_SUBST(nix)
 
-PATH="$nix:$PATH"
+PATH="$nix/bin:$PATH"
 export PATH
 
 NEED_PROG([NIX_STORE_PROGRAM], [nix-store])
