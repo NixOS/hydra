@@ -42,7 +42,7 @@ old_CPPFLAGS="$CPPFLAGS"
 old_LIBS="$LIBS"
 
 CPPFLAGS="-I$nix/include/nix"
-LIBS="-L$nix/lib/nix"
+LDFLAGS="-L$nix/lib/nix"
 
 AC_CHECK_HEADER([store-api.hh], [:],
   [AC_MSG_ERROR([Nix headers not found; please install Nix or check the `--with-nix' option.])])
