@@ -44,7 +44,7 @@ export PATH
 NEED_PROG([NIX_STORE_PROGRAM], [nix-store])
 
 AC_MSG_CHECKING([whether $NIX_STORE_PROGRAM is recent enough])
-if test -n "$NIX_STORE" -a test -n "$TMPDIR"
+if test -n "$NIX_STORE" -a -n "$TMPDIR"
 then
     # This may be executed from within a build chroot, so pacify
     # `nix-store' instead of letting it choke while trying to mkdir
