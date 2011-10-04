@@ -38,6 +38,20 @@ AC_ARG_WITH(nix, AC_HELP_STRING([--with-nix=PATH],
   nix=$withval, nix=/nix-missing)
 AC_SUBST(nix)
 
+PATH="$nix:$PATH"
+export PATH
+
+NEED_PROG([NIX_STORE], [nix-store])
+
+AC_MSG_CHECKING([whether $NIX_STORE is recent enough])
+if "$NIX_STORE" --timeout 123 -q > /dev/null 2>&1
+then
+    AC_MSG_RESULT([yes])
+else
+    AC_MSG_RESULT([no])
+    AC_MSG_ERROR([`$NIX_STORE' doesn't support `--timeout'; please use a newer version.])
+fi
+
 old_CPPFLAGS="$CPPFLAGS"
 old_LIBS="$LIBS"
 
