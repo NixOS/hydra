@@ -41,15 +41,15 @@ AC_SUBST(nix)
 PATH="$nix:$PATH"
 export PATH
 
-NEED_PROG([NIX_STORE], [nix-store])
+NEED_PROG([NIX_STORE_PROGRAM], [nix-store])
 
-AC_MSG_CHECKING([whether $NIX_STORE is recent enough])
-if "$NIX_STORE" --timeout 123 -q > /dev/null 2>&1
+AC_MSG_CHECKING([whether $NIX_STORE_PROGRAM is recent enough])
+if "$NIX_STORE_PROGRAM" --timeout 123 -q > /dev/null 2>&1
 then
     AC_MSG_RESULT([yes])
 else
     AC_MSG_RESULT([no])
-    AC_MSG_ERROR([`$NIX_STORE' doesn't support `--timeout'; please use a newer version.])
+    AC_MSG_ERROR([`$NIX_STORE_PROGRAM' doesn't support `--timeout'; please use a newer version.])
 fi
 
 old_CPPFLAGS="$CPPFLAGS"
