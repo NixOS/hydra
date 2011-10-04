@@ -16,7 +16,7 @@ manual.html: $(DOCBOOK_FILES)
 		$(XSLTPROC) --nonet --xinclude --output manual.html	\
 	 	   $(docbookxsl)/html/docbook.xsl manual.xml;		\
 	else								\
-		@echo "Please install xsltproc and rerun configure.";	\
+		echo "Please install xsltproc and rerun configure.";	\
 		exit 1;							\
 	fi
 
