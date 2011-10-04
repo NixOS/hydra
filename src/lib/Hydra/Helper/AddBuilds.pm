@@ -469,6 +469,7 @@ sub fetchInputHg {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
     
     (my $uri, my $id) = split ' ', $value;
+    $id = defined $id ? $id : "default";
 
     # init local hg clone
 
@@ -489,7 +490,7 @@ sub fetchInputHg {
         ("hg", "pull"));
     die "Error pulling latest change mercurial repo at `$uri':\n$stderr" unless $res;
 
-    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,("hg", "log", "-r", $id, "--template", "'{node|short} {branch}'"));
+    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,("hg", "log", "-r", $id, "--template", "{node|short} {branch}"));
     die "Error getting branch and revision of $id from `$uri':\n$stderr" unless $res1;
 
     my ($revision, $branch) = split ' ', $stdout;
