@@ -3,7 +3,6 @@
 with pkgs;
 
 [ perlPackages.CatalystDevel
-  perlPackages.CatalystPluginSessionStateCookie
   perlPackages.CatalystPluginSessionStoreFastMmap
   perlPackages.CatalystPluginStackTrace
   perlPackages.CatalystPluginAuthorizationRoles
