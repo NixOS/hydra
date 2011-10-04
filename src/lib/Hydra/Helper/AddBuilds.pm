@@ -468,8 +468,7 @@ sub fetchInputBazaar {
 sub fetchInputHg {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
     
-    (my $uri, my $branch) = split ' ', $value;
-    $branch = defined $branch ? $branch : "default";
+    (my $uri, my $id) = split ' ', $value;
 
     # init local hg clone
 
@@ -490,13 +489,10 @@ sub fetchInputHg {
         ("hg", "pull"));
     die "Error pulling latest change mercurial repo at `$uri':\n$stderr" unless $res;
 
-    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
-        ("hg", "heads", $branch));
-    die "Error getting head of $branch from `$uri':\n$stderr" unless $res1;
+    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,("hg", "log", "-r", $id, "--template", "'{node|short} {branch}'"));
+    die "Error getting branch and revision of $id from `$uri':\n$stderr" unless $res1;
 
-    $stdout =~ m/[0-9]+:([0-9A-Fa-f]{12})/;
-    my $revision = $1;
-    die "Could not determine head revision of branch $branch" unless $revision;
+    my ($revision, $branch) = split ' ', $stdout;
     
     my $storePath;
     my $sha256;
