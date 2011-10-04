@@ -157,18 +157,22 @@ sub fetchInputPath {
 sub fetchInputSVN {
     my ($db, $project, $jobset, $name, $type, $value, $checkout) = @_;
 
-    my $uri = $value;
+    # Allow users to specify a revision number next to the URI.
+    my ($uri, $revision) = split ' ', $value;
 
     my $sha256;
     my $storePath;
-
-    # First figure out the last-modified revision of the URI.
-    my @cmd = (["svn", "ls", "-v", "--depth", "empty", $uri],
-               "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
     my $stdout; my $stderr;
-    die "Cannot get head revision of Subversion repository at `$uri':\n$stderr"
-        unless IPC::Run::run(@cmd, \$stdout, \$stderr);
-    my $revision = $stdout; chomp $revision;
+
+    unless (defined $revision) {
+	# First figure out the last-modified revision of the URI.
+	my @cmd = (["svn", "ls", "-v", "--depth", "empty", $uri],
+		   "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
+	die "Cannot get head revision of Subversion repository at `$uri':\n$stderr"
+	    unless IPC::Run::run(@cmd, \$stdout, \$stderr);
+	$revision = $stdout; chomp $revision;
+    }
+
     die unless $revision =~ /^\d+$/;
 
     (my $cachedInput) = $db->resultset('CachedSubversionInputs')->search(
