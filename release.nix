@@ -17,7 +17,7 @@ rec {
       version = builtins.readFile ./version;
 
       buildInputs =
-        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc ] ;
+        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc nix] ;
 
       preConfigure = ''
         # TeX needs a writable font cache.
