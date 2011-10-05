@@ -207,15 +207,18 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
 
     my $uri = $c->request->params->{uri} ;
     my $type = $c->request->params->{type} ;
-    my $branch = $c->request->params->{branch} ;
     my $rev1 = $c->request->params->{rev1} ;
     my $rev2 = $c->request->params->{rev2} ;
+    my $branch;
+
+    die("invalid revisions: [$rev1] [$rev2]") if $rev1 !~ m/^[a-zA-Z0-9_.]+$/ || $rev2 !~ m/^[a-zA-Z0-9_.]+$/ ;
 
     my $diff = "";
     if($type eq "hg") {
         my $clonePath = scmPath . "/" . sha256_hex($uri);
         die if ! -d $clonePath;
-	$diff .= `(cd $clonePath ; hg log -r $rev1 -r $rev2)`;
+        $branch = `hg log --template '{branch}' -r $rev2`;
+	$diff .= `(cd $clonePath ; hg log -r $rev1 -r $rev2 -b $branch)`;
 	$diff .= `(cd $clonePath ; hg diff -r $rev1:$rev2)`;
     } elsif ($type eq "git") {
         my $clonePath = scmPath . "/" . sha256_hex($uri.$branch);
