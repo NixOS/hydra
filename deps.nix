@@ -9,7 +9,6 @@ with pkgs;
   perlPackages.CatalystPluginSessionStateCookie
   perlPackages.CatalystAuthenticationStoreDBIxClass
   perlPackages.CatalystViewTT
-  perlPackages.CatalystEngineHTTPPrefork
   perlPackages.CatalystViewDownload
   perlPackages.CatalystViewJSON
   perlPackages.XMLSimple
@@ -31,5 +30,6 @@ with pkgs;
   perlPackages.CryptRandPasswd
   perlPackages.TestMore
   perlPackages.SysHostnameLong
+  perlPackages.Starman
   perlPackages.nixPerl
 ]
