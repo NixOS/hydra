@@ -256,7 +256,7 @@ sub contents : Chained('build') PathPart Args(1) {
         error($c, "`dpkg-deb' error: $?") if $? != 0;
     }
 
-    elsif ($path =~ /\.tar(\.gz|\.bz2|\.lzma)?$/ ) {
+    elsif ($path =~ /\.tar(\.gz|\.bz2|\.xz|\.lzma)?$/ ) {
         $res = `tar tvfa "$path"`;
         error($c, "`tar' error: $?") if $? != 0;
     }
