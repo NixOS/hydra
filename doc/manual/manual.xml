@@ -41,6 +41,13 @@
         </affiliation>
         <contrib>Author</contrib>
       </author>
+      <author>
+        <personname>
+          <firstname>Ludovic</firstname>
+          <surname>Courtès</surname>
+        </personname>
+        <contrib>Author</contrib>
+      </author>
     </authorgroup>
 
 
