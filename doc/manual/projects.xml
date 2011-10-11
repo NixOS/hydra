@@ -150,15 +150,205 @@ DBIx::Class::ResultSet::create(): DBI Exception: DBD::SQLite::st execute failed:
   </section>
 
   <section>
-    <title><filename>release.nix</filename></title>
+    <title>Build Recipes</title>
 
-- Voorbeelden van Nix expressies voor Hydra:
+    <para>
+      Build jobs and <emphasis>build recipes</emphasis> for a jobset are
+      specified in a text file written in the <link
+      xlink:href="http://nixos.org/nix/">Nix language</link>.  The
+      recipe is actually called a <emphasis>Nix expression</emphasis> in
+      Nix parlance.  By convention this file is often called
+      <filename>release.nix</filename>.
+    </para>
 
+    <para>
+      The <filename>release.nix</filename> file is typically kept under
+      version control, and the repository that contains it one of the
+      build inputs of the corresponding–often called
+      <literal>hydraConfig</literal> by convention.  The repository for
+      that file and the actual file name are specified on the web
+      interface of Hydra under the <literal>Setup</literal> tab of the
+      jobset's overview page, under the <literal>Nix
+      expression</literal> heading.  See, for example, the <link
+      xlink:href="http://hydra.nixos.org/jobset/patchelf/trunk">jobset
+      overview page</link> of the PatchELF project, and <link
+      xlink:href="https://svn.nixos.org/repos/nix/patchelf/trunk/release.nix">
+      the corresponding Nix file</link>.
+    </para>
 
+    <para>
+      Knowledge of the Nix language is recommended, but the example
+      below should already give a good idea of how it works:
+    </para>
 
-https://svn.nixos.org/repos/nix/patchelf/trunk/release.nix
-https://svn.nixos.org/repos/nix/nix/trunk/release.nix
-https://svn.nixos.org/repos/nix/hydra/trunk/release.nix
+    <example xml:id='ex-hello'>
+      <title><filename>release.nix</filename> file for GNU Hello</title>
+      <programlisting>
+{ nixpkgs }: <co xml:id='ex-hello-co-nixpkgs' />
+
+let
+  pkgs = import nixpkgs {}; <co xml:id='ex-hello-co-import-nixpkgs' />
+
+  jobs = rec { <co xml:id='ex-hello-co-jobs' />
+
+    tarball = <co xml:id='ex-hello-co-tarball' />
+      { helloSrc }: <co xml:id='ex-hello-co-tarball-arg' />
+
+      pkgs.releaseTools.sourceTarball { <co xml:id='ex-hello-co-source-tarball' />
+        name = "hello-tarball";
+        src = helloSrc;
+        buildInputs = (with pkgs; [ gettext texLive texinfo ]);
+      };
+
+    build = <co xml:id='ex-hello-co-build' />
+      { tarball ? jobs.tarball {}        <co xml:id='ex-hello-co-build-args' />
+      , system ? builtins.currentSystem
+      }:
+
+      let pkgs = import nixpkgs { inherit system; }; in
+      pkgs.releaseTools.nixBuild { <co xml:id='ex-hello-co-nix-build' />
+        name = "hello" ;
+        src = tarball;
+      };
+  };
+in
+  jobs <co xml:id='ex-hello-body' />
+      </programlisting>
+    </example>
+
+    <para>
+      <xref linkend='ex-hello' /> shows what a
+      <filename>release.nix</filename> file for <link
+      xlink:href="http://www.gnu.org/software/hello/">GNU Hello</link>
+      would you like.  GNU Hello is representative of many GNU
+      and non-GNU free software projects:
+
+      <itemizedlist>
+	<listitem>it uses the GNU Build System, namely GNU Autoconf,
+	and GNU Automake; for users, it means it can be installed
+	using the <link
+	xlink:href="http://www.gnu.org/prep/standards/html_node/Managing-Releases.html">usual
+	<literal>./configure &amp;&amp; make install</literal>
+	procedure</link>;
+	</listitem>
+	<listitem>it uses Gettext for internationalization;</listitem>
+	<listitem>it has a Texinfo manual, which can be rendered as PDF
+	with TeX.</listitem>
+      </itemizedlist>
+
+      The file defines a jobset consisting of two jobs:
+      <literal>tarball</literal>, and <literal>build</literal>.  It
+      contains the following elements (referenced from the figure by
+      numbers):
+
+      <calloutlist>
+
+	<callout arearefs='ex-hello-co-nixpkgs'>
+	  <para>
+	    This specifies a function of one named arguments,
+	    <varname>nixpkgs</varname>.  This function and those
+	    defined below is called by Hydra.  Here the
+	    <varname>nixpkgs</varname> argument is meant to be a
+	    checkout of the <link
+	    xlink:href="http://nixos.org/nixpkgs/">Nixpkgs</link>
+	    software distribution.
+	  </para>
+	  <para>
+	    Hydra inspects the formal argument list of the function
+	    (here, the <varname>nixpkgs</varname> argument) and passes
+	    it the corresponding parameter specified as a build input
+	    on Hydra's web interface.  In this case, the web interface
+	    should show a <varname>nixpkgs</varname> build input,
+	    which is a checkout of the Nixpkgs source code repository.
+	  </para>
+	</callout>
+	<callout arearefs='ex-hello-co-import-nixpkgs'>
+	  <para>
+	    This defines a variable <varname>pkgs</varname> holding
+	    the set of packages provided by Nixpkgs.
+	  </para>
+	</callout>
+
+	<callout arearefs='ex-hello-co-jobs'>
+	  <para>
+	    This defines a variable holding the two Hydra
+	    jobs–an <emphasis>attribute set</emphasis> in Nix.
+	  </para>
+	</callout>
+
+	<callout arearefs='ex-hello-co-tarball'>
+	  <para>
+	    This is the definition of the first job, named
+	    <varname>tarball</varname>.  The purpose of this job is to
+	    produce a usable source code tarball.
+	  </para>
+	</callout>
+	<callout arearefs='ex-hello-co-tarball-args'>
+	  <para>
+	    The <varname>tarball</varname> takes an additional
+	    argument called <varname>helloSrc</varname>.  Again, this
+	    argument is passed by Hydra and is meant to be a checkout
+	    of GNU Hello's source code repository.
+	  </para>
+	</callout>
+	<callout arearefs='ex-hello-co-source-tarball'>
+	  <para>
+	    The <varname>tarball</varname> job calls the
+	    <varname>sourceTarball</varname> function, which (roughly)
+	    runs <command>autoreconf &amp;&amp; ./configure &amp;&amp;
+	    make dist</command> on the checkout.  The
+	    <varname>buildInputs</varname> attribute specifies
+	    additional software dependencies for the job.
+	  </para>
+	</callout>
+
+	<callout arearefs='ex-hello-co-build'>
+	  <para>
+	    This is the definition of the <varname>build</varname>
+	    job, whose purpose is to build Hello from the tarball
+	    produced above.
+	  </para>
+	</callout>
+	<callout arearefs='ex-hello-co-build-args'>
+	  <para>
+	    The <varname>build</varname> function takes two additional
+	    parameter: <varname>tarball</varname>, which is meant to
+	    be the result of the <varname>tarball</varname> job, and
+	    <varname>system</varname>, which should be a string
+	    defining the Nix system type–e.g.,
+	    <literal>"x86_64-linux"</literal>.
+	  </para>
+	  <para>
+	    Again, these parameters are passed by Hydra when it calls
+	    <varname>build</varname>.  Thus, they must be defined as
+	    build inputs in Hydra: <varname>tarball</varname> should
+	    have type <literal>Build Output</literal>, its value being
+	    the latest output of the <varname>tarball</varname> job,
+	    and <varname>system</varname> should be a string.
+	  </para>
+	  <para>
+	    The question mark after <literal>tarball</literal> and
+	    <literal>system</literal> defines default values for these
+	    arguments, and is only useful for debugging.
+	  </para>
+	</callout>
+	<callout arearefs='ex-hello-co-nix-build'>
+	  <para>
+	    The <varname>build</varname> job calls the
+	    <varname>nixBuild</varname> function, which unpacks the
+	    tarball, then runs <command>./configure &amp;&amp; make
+	    &amp;&amp; make check &amp;&amp; make install</command>.
+	  </para>
+	</callout>
+
+	<callout arearefs='ex-hello-co-body'>
+	  <para>
+	    Finally, the set of jobs is returned to Hydra, as a Nix
+	    attribute set.
+	  </para>
+	</callout>
+      </calloutlist>
+    </para>
   </section>
 
   <section>
