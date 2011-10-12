@@ -299,7 +299,15 @@ in
             runs <command>autoreconf &amp;&amp; ./configure &amp;&amp;
             make dist</command> on the checkout.  The
             <varname>buildInputs</varname> attribute specifies
-            additional software dependencies for the job.
+            additional software dependencies for the
+            job<footnote><para>The package names used in
+            <varname>buildInputs</varname>–e.g.,
+            <varname>texLive</varname>–are the names of the
+            <emphasis>attributes</emphasis> corresponding to these
+            packages in Nixpkgs, specifically in the <link
+            xlink:href="https://svn.nixos.org/repos/nix/nixpkgs/trunk/pkgs/top-level/all-packages.nix"><filename>all-packages.nix</filename></link>
+            file.  See the section entitled “Package Naming” in the
+            Nixpkgs manual for more information.</para></footnote>.
           </para>
         </callout>
 
