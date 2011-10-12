@@ -225,16 +225,16 @@ in
       and non-GNU free software projects:
 
       <itemizedlist>
-	<listitem>it uses the GNU Build System, namely GNU Autoconf,
-	and GNU Automake; for users, it means it can be installed
-	using the <link
-	xlink:href="http://www.gnu.org/prep/standards/html_node/Managing-Releases.html">usual
-	<literal>./configure &amp;&amp; make install</literal>
-	procedure</link>;
-	</listitem>
-	<listitem>it uses Gettext for internationalization;</listitem>
-	<listitem>it has a Texinfo manual, which can be rendered as PDF
-	with TeX.</listitem>
+        <listitem>it uses the GNU Build System, namely GNU Autoconf,
+        and GNU Automake; for users, it means it can be installed
+        using the <link
+        xlink:href="http://www.gnu.org/prep/standards/html_node/Managing-Releases.html">usual
+        <literal>./configure &amp;&amp; make install</literal>
+        procedure</link>;
+        </listitem>
+        <listitem>it uses Gettext for internationalization;</listitem>
+        <listitem>it has a Texinfo manual, which can be rendered as PDF
+        with TeX.</listitem>
       </itemizedlist>
 
       The file defines a jobset consisting of two jobs:
@@ -244,110 +244,110 @@ in
 
       <calloutlist>
 
-	<callout arearefs='ex-hello-co-nixpkgs'>
-	  <para>
-	    This specifies a function of one named arguments,
-	    <varname>nixpkgs</varname>.  This function and those
-	    defined below is called by Hydra.  Here the
-	    <varname>nixpkgs</varname> argument is meant to be a
-	    checkout of the <link
-	    xlink:href="http://nixos.org/nixpkgs/">Nixpkgs</link>
-	    software distribution.
-	  </para>
-	  <para>
-	    Hydra inspects the formal argument list of the function
-	    (here, the <varname>nixpkgs</varname> argument) and passes
-	    it the corresponding parameter specified as a build input
-	    on Hydra's web interface.  In this case, the web interface
-	    should show a <varname>nixpkgs</varname> build input,
-	    which is a checkout of the Nixpkgs source code repository.
-	  </para>
-	</callout>
-	<callout arearefs='ex-hello-co-import-nixpkgs'>
-	  <para>
-	    This defines a variable <varname>pkgs</varname> holding
-	    the set of packages provided by Nixpkgs.
-	  </para>
-	</callout>
+        <callout arearefs='ex-hello-co-nixpkgs'>
+          <para>
+            This specifies a function of one named arguments,
+            <varname>nixpkgs</varname>.  This function and those
+            defined below is called by Hydra.  Here the
+            <varname>nixpkgs</varname> argument is meant to be a
+            checkout of the <link
+            xlink:href="http://nixos.org/nixpkgs/">Nixpkgs</link>
+            software distribution.
+          </para>
+          <para>
+            Hydra inspects the formal argument list of the function
+            (here, the <varname>nixpkgs</varname> argument) and passes
+            it the corresponding parameter specified as a build input
+            on Hydra's web interface.  In this case, the web interface
+            should show a <varname>nixpkgs</varname> build input,
+            which is a checkout of the Nixpkgs source code repository.
+          </para>
+        </callout>
+        <callout arearefs='ex-hello-co-import-nixpkgs'>
+          <para>
+            This defines a variable <varname>pkgs</varname> holding
+            the set of packages provided by Nixpkgs.
+          </para>
+        </callout>
 
-	<callout arearefs='ex-hello-co-jobs'>
-	  <para>
-	    This defines a variable holding the two Hydra
-	    jobs–an <emphasis>attribute set</emphasis> in Nix.
-	  </para>
-	</callout>
+        <callout arearefs='ex-hello-co-jobs'>
+          <para>
+            This defines a variable holding the two Hydra
+            jobs–an <emphasis>attribute set</emphasis> in Nix.
+          </para>
+        </callout>
 
-	<callout arearefs='ex-hello-co-tarball'>
-	  <para>
-	    This is the definition of the first job, named
-	    <varname>tarball</varname>.  The purpose of this job is to
-	    produce a usable source code tarball.
-	  </para>
-	</callout>
-	<callout arearefs='ex-hello-co-tarball-args'>
-	  <para>
-	    The <varname>tarball</varname> takes an additional
-	    argument called <varname>helloSrc</varname>.  Again, this
-	    argument is passed by Hydra and is meant to be a checkout
-	    of GNU Hello's source code repository.
-	  </para>
-	</callout>
-	<callout arearefs='ex-hello-co-source-tarball'>
-	  <para>
-	    The <varname>tarball</varname> job calls the
-	    <varname>sourceTarball</varname> function, which (roughly)
-	    runs <command>autoreconf &amp;&amp; ./configure &amp;&amp;
-	    make dist</command> on the checkout.  The
-	    <varname>buildInputs</varname> attribute specifies
-	    additional software dependencies for the job.
-	  </para>
-	</callout>
+        <callout arearefs='ex-hello-co-tarball'>
+          <para>
+            This is the definition of the first job, named
+            <varname>tarball</varname>.  The purpose of this job is to
+            produce a usable source code tarball.
+          </para>
+        </callout>
+        <callout arearefs='ex-hello-co-tarball-args'>
+          <para>
+            The <varname>tarball</varname> takes an additional
+            argument called <varname>helloSrc</varname>.  Again, this
+            argument is passed by Hydra and is meant to be a checkout
+            of GNU Hello's source code repository.
+          </para>
+        </callout>
+        <callout arearefs='ex-hello-co-source-tarball'>
+          <para>
+            The <varname>tarball</varname> job calls the
+            <varname>sourceTarball</varname> function, which (roughly)
+            runs <command>autoreconf &amp;&amp; ./configure &amp;&amp;
+            make dist</command> on the checkout.  The
+            <varname>buildInputs</varname> attribute specifies
+            additional software dependencies for the job.
+          </para>
+        </callout>
 
-	<callout arearefs='ex-hello-co-build'>
-	  <para>
-	    This is the definition of the <varname>build</varname>
-	    job, whose purpose is to build Hello from the tarball
-	    produced above.
-	  </para>
-	</callout>
-	<callout arearefs='ex-hello-co-build-args'>
-	  <para>
-	    The <varname>build</varname> function takes two additional
-	    parameter: <varname>tarball</varname>, which is meant to
-	    be the result of the <varname>tarball</varname> job, and
-	    <varname>system</varname>, which should be a string
-	    defining the Nix system type–e.g.,
-	    <literal>"x86_64-linux"</literal>.
-	  </para>
-	  <para>
-	    Again, these parameters are passed by Hydra when it calls
-	    <varname>build</varname>.  Thus, they must be defined as
-	    build inputs in Hydra: <varname>tarball</varname> should
-	    have type <literal>Build Output</literal>, its value being
-	    the latest output of the <varname>tarball</varname> job,
-	    and <varname>system</varname> should be a string.
-	  </para>
-	  <para>
-	    The question mark after <literal>tarball</literal> and
-	    <literal>system</literal> defines default values for these
-	    arguments, and is only useful for debugging.
-	  </para>
-	</callout>
-	<callout arearefs='ex-hello-co-nix-build'>
-	  <para>
-	    The <varname>build</varname> job calls the
-	    <varname>nixBuild</varname> function, which unpacks the
-	    tarball, then runs <command>./configure &amp;&amp; make
-	    &amp;&amp; make check &amp;&amp; make install</command>.
-	  </para>
-	</callout>
+        <callout arearefs='ex-hello-co-build'>
+          <para>
+            This is the definition of the <varname>build</varname>
+            job, whose purpose is to build Hello from the tarball
+            produced above.
+          </para>
+        </callout>
+        <callout arearefs='ex-hello-co-build-args'>
+          <para>
+            The <varname>build</varname> function takes two additional
+            parameter: <varname>tarball</varname>, which is meant to
+            be the result of the <varname>tarball</varname> job, and
+            <varname>system</varname>, which should be a string
+            defining the Nix system type–e.g.,
+            <literal>"x86_64-linux"</literal>.
+          </para>
+          <para>
+            Again, these parameters are passed by Hydra when it calls
+            <varname>build</varname>.  Thus, they must be defined as
+            build inputs in Hydra: <varname>tarball</varname> should
+            have type <literal>Build Output</literal>, its value being
+            the latest output of the <varname>tarball</varname> job,
+            and <varname>system</varname> should be a string.
+          </para>
+          <para>
+            The question mark after <literal>tarball</literal> and
+            <literal>system</literal> defines default values for these
+            arguments, and is only useful for debugging.
+          </para>
+        </callout>
+        <callout arearefs='ex-hello-co-nix-build'>
+          <para>
+            The <varname>build</varname> job calls the
+            <varname>nixBuild</varname> function, which unpacks the
+            tarball, then runs <command>./configure &amp;&amp; make
+            &amp;&amp; make check &amp;&amp; make install</command>.
+          </para>
+        </callout>
 
-	<callout arearefs='ex-hello-co-body'>
-	  <para>
-	    Finally, the set of jobs is returned to Hydra, as a Nix
-	    attribute set.
-	  </para>
-	</callout>
+        <callout arearefs='ex-hello-co-body'>
+          <para>
+            Finally, the set of jobs is returned to Hydra, as a Nix
+            attribute set.
+          </para>
+        </callout>
       </calloutlist>
     </para>
   </section>
@@ -368,14 +368,14 @@ in
       linkend='ex-hello' />, just run:
 
       <screen>
-	$ nix-build release.nix -A tarball
+        $ nix-build release.nix -A tarball
       </screen>
 
       However, doing this with <xref linkend='ex-hello' /> as is will
       probably yield an error like this:
 
       <screen>
-	error: cannot auto-call a function that has an argument without a default value (`nixpkgs')
+        error: cannot auto-call a function that has an argument without a default value (`nixpkgs')
       </screen>
 
       This is because no value was specified for the
@@ -400,13 +400,13 @@ in
       <varname>tarball</varname> jobset can now be evaluated by running:
 
       <screen>
-	$ nix-build -I ~/src release.nix -A tarball
+        $ nix-build -I ~/src release.nix -A tarball
       </screen>
 
       Similarly, the <varname>build</varname> jobset can be evaluated:
 
       <screen>
-	$ nix-build -I ~/src release.nix -A build
+        $ nix-build -I ~/src release.nix -A build
       </screen>
 
       The <varname>build</varname> job reuses the result of the
@@ -483,9 +483,9 @@ in
       in
         pkgs.lib.overrideDerivation build (attrs: {
           buildInputs = [ pkgs.gcc33 ];
-	  preConfigure = "gcc --version";
-	  configureFlags =
-	    attrs.configureFlags ++ [ "--disable-nls" ];
+          preConfigure = "gcc --version";
+          configureFlags =
+            attrs.configureFlags ++ [ "--disable-nls" ];
         }); </programlisting>
 
       The <varname>build_exotic</varname> job reuses
@@ -506,3 +506,10 @@ in
 
 
 </chapter>
+
+<!--
+ Local Variables:
+ indent-tabs-mode: nil
+ ispell-local-dictionary: "american"
+ End:
+ -->
