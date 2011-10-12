@@ -413,6 +413,96 @@ in
       <varname>tarball</varname> job, rebuilding it only if it needs to.
     </para>
       
+  </section>
+
+  <section>
+    <title>Adding More Jobs</title>
+
+    <para>
+      <xref linkend='ex-hello' /> illustrates how to write the most
+      basic jobs, <varname>tarball</varname> and
+      <varname>build</varname>.  In practice, much more can be done by
+      using features readily provided by Nixpkgs or by creating new jobs
+      as customizations of existing jobs.
+    </para>
+
+    <para>
+      For instance, test coverage report for projects compiled with GCC
+      can be automatically generated using the
+      <varname>coverageAnalysis</varname> function provided by Nixpkgs
+      instead of <varname>nixBuild</varname>.  Back to our GNU Hello
+      example, we can define a <varname>coverage</varname> job that
+      produces an HTML code coverage report directly readable from the
+      corresponding Hydra build page:
+
+      <programlisting>
+    coverage =
+      { tarball ? jobs.tarball {}
+      , system ? builtins.currentSystem
+      }:
+
+      let pkgs = import nixpkgs { inherit system; }; in
+      pkgs.releaseTools.coverageAnalysis {
+        name = "hello" ;
+        src = tarball;
+        configureFlags = [ "--disable-silent-rules" ];
+      }; </programlisting>
+
+      As can be seen, the only difference compared to
+      <varname>build</varname> is the use of
+      <varname>coverageAnalysis</varname>.
+    </para>
+
+    <para>
+      Nixpkgs provides many more build tools, including the ability to
+      run build in virtual machines, which can themselves run another
+      GNU/Linux distribution, which allows for the creation of packages
+      for these distributions.  Please see <link
+      xlink:href="https://svn.nixos.org/repos/nix/nixpkgs/trunk/pkgs/build-support/release/">the
+      <filename>pkgs/build-support/release</filename> directory</link>
+      of Nixpkgs for more.  The NixOS manual also contains information
+      about whole-system testing in virtual machine.
+    </para>
+
+    <para>
+      Now, assume we want to build Hello with an old version of GCC, and
+      with different <command>configure</command> flags.  A new
+      <varname>build_exotic</varname> job can be written that simply
+      <emphasis>overrides</emphasis> the relevant arguments passed to
+      <varname>nixBuild</varname>:
+
+      <programlisting>
+    build_exotic =
+      { tarball ? jobs.tarball {}
+      , system ? builtins.currentSystem
+      }:
+
+      let
+        pkgs = import nixpkgs { inherit system; };
+        build = jobs.build { inherit tarball system; };
+      in
+        pkgs.lib.overrideDerivation build (attrs: {
+          buildInputs = [ pkgs.gcc33 ];
+	  preConfigure = "gcc --version";
+	  configureFlags =
+	    attrs.configureFlags ++ [ "--disable-nls" ];
+        }); </programlisting>
+
+      The <varname>build_exotic</varname> job reuses
+      <varname>build</varname> and overrides some of its arguments: it
+      adds a dependency on GCC 3.3, a pre-configure phase that runs
+      <command>gcc --version</command>, and adds the
+      <literal>--disable-nls</literal> configure flags.
+    </para>
+
+    <para>
+      This customization mechanism is very powerful.  For instance, it
+      can be used to change the way Hello and <emphasis>all</emphasis>
+      its dependencies–including the C library and compiler used to
+      build it–are built.  See the Nixpkgs manual for more.
+    </para>
 
   </section>
+
+
 </chapter>
