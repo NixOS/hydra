@@ -260,6 +260,8 @@ sub logdiff : Chained('api') PathPart('logdiff') Args(2) {
     } else {
         $c->response->status(404);
     }
+
+    $c->response->content_type('text/x-diff');
     $c->stash->{'plain'} = { data => (scalar $diff) || " " };
     $c->forward('Hydra::View::Plain');
 }
