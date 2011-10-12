@@ -213,7 +213,7 @@ let
       };
   };
 in
-  jobs <co xml:id='ex-hello-body' />
+  jobs <co xml:id='ex-hello-co-body' />
       </programlisting>
     </example>
 
