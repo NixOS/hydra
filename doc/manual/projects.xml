@@ -353,15 +353,66 @@ in
   </section>
 
   <section>
-    <title>Building on the Command Line</title>
+    <title>Building from the Command Line</title>
 
-Overigens zijn die helemaal niet Hydra-specifiek, je kunt ze gewoon vanaf de
-command line bouwen, bijv. als je een patchelf checkout hebt (met een nixpkgs
-checkout in ../nixpkgs):
+    <para>
+      It is often useful to test a build recipe, for instance before
+      it is actually used by Hydra, when testing changes, or when
+      debugging a build issue.  Since build recipes for Hydra jobsets
+      are just plain Nix expressions, they can be evaluated using the
+      standard Nix tools.
+    </para>
 
-<screen>
-$ nix-build release.nix -A rpm_fedora10i386
-</screen>
+    <para>
+      To evaluate the <varname>tarball</varname> jobset of <xref
+      linkend='ex-hello' />, just run:
+
+      <screen>
+	$ nix-build release.nix -A tarball
+      </screen>
+
+      However, doing this with <xref linkend='ex-hello' /> as is will
+      probably yield an error like this:
+
+      <screen>
+	error: cannot auto-call a function that has an argument without a default value (`nixpkgs')
+      </screen>
+
+      This is because no value was specified for the
+      <varname>nixpkgs</varname> argument of the Nix expression.
+    </para>
+
+    <para>
+      This is fixed by providing a default value for that argument in
+      the Nix expression, which will allow <command>nix-build</command>
+      to auto-call the function: instfead of writing <literal>{ nixpkgs
+      }:</literal>, we now write <literal>{ nixpkgs ? &lt;nixpkgs&gt;
+      }:</literal>.  What it means is that, by default, the
+      <varname>nixpkgs</varname> variable will be bound to the absolute
+      path of any <filename>nixpkgs</filename> file found in the Nix
+      search path.  Similarly, a default value for
+      <varname>helloSrc</varname> needs to be provided.
+    </para>
+
+    <para>
+      Thus, assuming a checkout of Nixpkgs is available under
+      <filename>$HOME/src/nixpkgs</filename>, the
+      <varname>tarball</varname> jobset can now be evaluated by running:
+
+      <screen>
+	$ nix-build -I ~/src release.nix -A tarball
+      </screen>
+
+      Similarly, the <varname>build</varname> jobset can be evaluated:
+
+      <screen>
+	$ nix-build -I ~/src release.nix -A build
+      </screen>
+
+      The <varname>build</varname> job reuses the result of the
+      <varname>tarball</varname> job, rebuilding it only if it needs to.
+    </para>
+      
 
   </section>
 </chapter>
