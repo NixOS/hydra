@@ -209,6 +209,7 @@ let
       pkgs.releaseTools.nixBuild { <co xml:id='ex-hello-co-nix-build' />
         name = "hello" ;
         src = tarball;
+        configureFlags = [ "--disable-silent-rules" ];
       };
   };
 in
