@@ -192,7 +192,7 @@ let
   jobs = rec { <co xml:id='ex-hello-co-jobs' />
 
     tarball = <co xml:id='ex-hello-co-tarball' />
-      { helloSrc }: <co xml:id='ex-hello-co-tarball-arg' />
+      { helloSrc }: <co xml:id='ex-hello-co-tarball-args' />
 
       pkgs.releaseTools.sourceTarball { <co xml:id='ex-hello-co-source-tarball' />
         name = "hello-tarball";
