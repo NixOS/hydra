@@ -1,6 +1,10 @@
 [% WRAPPER layout.tt title=title %]
 [% PROCESS common.tt %]
 
+[% project = build.project %]
+[% jobset = build.jobset %]
+[% job = build.job %]
+
 <h2>Last 50 lines of log</h2>
 
 [% IF reload %]
