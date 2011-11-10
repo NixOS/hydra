@@ -5,7 +5,7 @@
 [% jobset = build.jobset %]
 [% job = build.job %]
 
-<h2>Last 50 lines of log</h2>
+<h2>Last 50 log lines of [% INCLUDE renderFullJobNameOfBuild %] build <a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a>[%IF step %] step [% step.stepnr %][% END %]</h2>
 
 [% IF reload %]
 <script>
