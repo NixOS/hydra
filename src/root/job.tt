@@ -17,18 +17,17 @@
 		<!-- <li><a href="#tabs-statistics">Statistics</a></li> -->
 	</ul>
 	<div id="tabs-status">
-            [% IF currentBuilds.size != 0 %]
-	        <h2>Finished builds</h2>
-		[% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
-	    [% ELSE %]
-                 [% IF lastBuilds.size != 0 %]
-	            <h2>Last 5 builds</h2>
-		    [% INCLUDE renderBuildList builds=lastBuilds showStatusChange=0 %]
-    	        [% END %]
+            [% IF runningBuilds.size == 0 %]
+	        <h2>Latest builds (latest evaluation)</h2>
+  	        [% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
             [% END %]
             [% IF runningBuilds.size != 0 %]
 	        <h2>Running builds</h2>
 	        [% INCLUDE renderBuildList builds=runningBuilds showSchedulingInfo=1 hideResultInfo=1 %]
+	    [% END %]
+            [% IF lastBuilds.size != 0 %]
+	        <h2>Last 10 builds</h2>
+	        [% INCLUDE renderBuildList builds=lastBuilds showStatusChange=0 %]
 	    [% END %]
 	</div>
 	<div id="tabs-channels">
