@@ -17,7 +17,7 @@
 		<!-- <li><a href="#tabs-statistics">Statistics</a></li> -->
 	</ul>
 	<div id="tabs-status">
-            [% IF runningBuilds.size == 0 %]
+            [% IF currentBuilds.size == 0 %]
 	        <h2>Latest builds (latest evaluation)</h2>
   	        [% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
             [% END %]
