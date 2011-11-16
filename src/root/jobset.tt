@@ -90,7 +90,7 @@
 	</ul>
 	<div id="tabs-information">
 	    [% IF jobset.errormsg && !edit -%]
-	    <table class="layoutTable"><tr><td><img src="/static/images/failure.gif" /></td><td><a href="#tabs-errors" id="error-link">There are evaluation errors!</a></td></tr></table>
+	    <table class="layoutTable"><tr><td><img src="/static/images/error_16.png" /></td><td><a href="#tabs-errors" id="error-link">There are evaluation errors!</a></td></tr></table>
 	    <script type="text/javascript">
 	    	$('#error-link').click(function() { 
     			$("#generic-tabs").tabs('select', 1);
@@ -119,11 +119,7 @@
 		      	       <td class="centered">
 		      	          [% IF systemStatus != undef %]
 		      	             <a href="[% c.uri_for('/build' j.get_column(system _ '-build') ) %]">
-			      	         [% IF systemStatus == 0 %]
-	                           <img src="/static/images/success.gif" alt="Succeeded" />
-	                         [% ELSE %]
-	                           <img src="/static/images/failure.gif" alt="Failed" />
-	                         [% END %]
+                                     [% INCLUDE renderBuildStatusIcon buildstatus=systemStatus size=16 %]
 	                         </a>
 	                       [% END %]
 		      	       </td>

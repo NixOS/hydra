@@ -30,11 +30,11 @@
       <tr class="clickable" onclick="window.location = '[% link %]'">
         <td>
           [% IF result.status == 0 %]
-            <img src="/static/images/success.gif" />
+            <img src="/static/images/checkmark_16.png" />
           [% ELSIF result.status == 1 %]
-            <img src="/static/images/failure.gif" />
+            <img src="/static/images/error_16.png" />
           [% ELSIF result.status == 2 %]
-            <img src="/static/images/question-mark.png" />
+            <img src="/static/images/help_16.png" />
           [% END %]
         </td>
         <td><a href="[% link %]">[% result.id %]</a></td>
@@ -51,9 +51,9 @@
             [% IF j.build %]
               <a href="[% c.uri_for('/build' j.build.id) %]">
                 [% IF j.build.get_column('buildstatus') == 0 %]
-                  <img src="/static/images/success.gif" />
+                  <img src="/static/images/checkmark_16.png" />
                 [% ELSE %]
-                  <img src="/static/images/failure.gif" />
+                  <img src="/static/images/error_16.png" />
                 [% END %]
               </a>
             [% END %]
