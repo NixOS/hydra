@@ -26,6 +26,7 @@ create table Projects (
     foreign key   (owner) references Users(userName) on update cascade
 );
 
+
 create table ProjectMembers (
     project       text not null,
     userName      text not null,
@@ -478,6 +479,7 @@ create table UriRevMapper (
     primary key   (baseuri)
 );
 
+
 create table NewsItems (
 #ifdef POSTGRESQL
     id            serial primary key not null,
@@ -490,6 +492,7 @@ create table NewsItems (
     foreign key   (author) references Users(userName) on delete cascade on update cascade
 );
 
+
 create table BuildMachines (
     hostname text primary key NOT NULL,
     username text DEFAULT '' NOT NULL,
@@ -500,12 +503,14 @@ create table BuildMachines (
     enabled integer DEFAULT 0 NOT NULL
 );
 
+
 create table BuildMachineSystemTypes (
     hostname text NOT NULL,
     system text NOT NULL,
     primary key (hostname, system),
     foreign key (hostname) references BuildMachines(hostname) on delete cascade
 );
+
 
 -- Some indices.
 create index IndexBuildInputsOnBuild on BuildInputs(build);
