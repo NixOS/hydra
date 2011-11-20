@@ -97,7 +97,7 @@
                    [% ELSE -%]
                      [% IF odd %] odd [% END; odd = !odd -%]
                    [% END %]"
-            onclick="window.location = '[% c.uri_for('/build' build.id) %]'">
+            onclick="if(event.which == 2) return true ; window.location = '[% c.uri_for('/build' build.id) %]'">
           [% IF !hideResultInfo %]
             <td>
               [% INCLUDE renderBuildStatusIcon size=16 %]
