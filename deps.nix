@@ -11,6 +11,7 @@ with pkgs;
   perlPackages.CatalystViewTT
   perlPackages.CatalystViewDownload
   perlPackages.CatalystViewJSON
+  perlPackages.CatalystXScriptServerStarman
   perlPackages.XMLSimple
   perlPackages.IPCRun
   perlPackages.IOCompress
