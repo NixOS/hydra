@@ -1,0 +1,17 @@
+*.o
+*~
+Makefile
+Makefile.in
+.deps
+/config.guess
+/config.log
+/config.status
+/config.sub
+/configure
+/depcomp
+/libtool
+/ltmain.sh
+/autom4te.cache
+/aclocal.m4
+/missing
+/install-sh
