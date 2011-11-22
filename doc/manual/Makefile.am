@@ -28,9 +28,9 @@ manual.html: $(DOCBOOK_FILES)
 		exit 1;							\
 	fi
 
-manual.pdf : $(DOCBOOK_FILES)
+manual.pdf: $(DOCBOOK_FILES)
 	if test "$(DBLATEX)" != ""; then \
-	        $(DBLATEX) $(dblatex_opts) manual.xml; \
+	        $(DBLATEX) $(dblatex_opts) manual.xml \
 	else \
 	        echo "Please install dblatex and rerun configure."; \
 	        exit 1; \
