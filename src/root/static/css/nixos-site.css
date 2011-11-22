@@ -1,6 +1,4 @@
 body {
-    background-color: gray;
-    margin: 0;
 }
 
 /* The main container element. */
@@ -9,10 +7,6 @@ div#page {
     min-width: 50em;
     margin: 1em auto;
     background-color: white;
-    
-    /* Put a rounded border around the page. */
-    border: 1px solid black;
-    padding: 1em;
 }
 
 /* The header. */
