@@ -7,8 +7,7 @@ use Hydra::Helper::Nix;
 use Catalyst::Runtime '5.70';
 
 use parent qw/Catalyst/;
-use Catalyst qw/-Debug
-                ConfigLoader
+use Catalyst qw/ConfigLoader
                 Static::Simple
                 StackTrace
                 Authentication
