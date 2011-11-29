@@ -35,7 +35,7 @@ sub jobsetIndex {
         { },
         { select => [
             "name",
-            \("exists (select 1 from builds where project = '$projectName' and jobset = '$jobsetName' and job = me.name and isCurrent = 1) as active")
+            \ ("exists (select 1 from builds where project = '$projectName' and jobset = '$jobsetName' and job = me.name and isCurrent = 1) as active")
           ]
         , as => ["name", "active"]
         , order_by => ["name"] });
@@ -50,7 +50,8 @@ sub jobsetIndex {
         }
     }
 
-    $c->stash->{systems} = [$c->stash->{jobset}->builds->search({iscurrent => 1}, {select => ["system"], distinct => 1, order_by => "system" })];
+    $c->stash->{systems} = 
+        [ $c->stash->{jobset}->builds->search({ iscurrent => 1 }, { select => ["system"], distinct => 1, order_by => "system" }) ];
 
     # status per system
     my @systems = ();
@@ -78,10 +79,10 @@ sub jobsetIndex {
 	          })];
     }
 
-    # last builds for jobset
+    # Last builds for jobset.
     my $tmp = $c->stash->{jobset}->builds;
-    $c->stash->{lastBuilds} = [joinWithResultInfo($c, $tmp)
-        ->search({finished => 1}, {order_by => "timestamp DESC", rows => 5 })] ;
+    $c->stash->{lastBuilds} = 
+	[ joinWithResultInfo($c, $tmp)->search({ finished => 1 }, { order_by => "timestamp DESC", rows => 5 }) ];
 }
 
 sub index : Chained('jobset') PathPart('') Args(0) {
