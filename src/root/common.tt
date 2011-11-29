@@ -1,9 +1,9 @@
-[% USE date %]
-[% USE String %]
-[% USE HTML %]
+[%- USE date -%]
+[%- USE String -%]
+[%- USE HTML -%]
 
 
-[% inputTypes =
+[%- inputTypes =
     { "svn" = "Subversion export"
     , "svn-checkout" = "Subversion checkout"
     , "bzr" = "Bazaar export"
@@ -17,46 +17,46 @@
     , "build" = "Build output"
     , "sysbuild" = "Build output (same system)"
     }
-%]
+-%]
 
 
-[% BLOCK renderDateTime %]
+[%- BLOCK renderDateTime -%]
   [% date.format(timestamp, '%Y-%m-%d %H:%M:%S') -%]
-[% END %]
+[%- END -%]
 
 
-[% BLOCK renderProjectName -%]
+[%- BLOCK renderProjectName -%]
 <a href="[% c.uri_for('/project' project) %]"><tt>[% project %]</tt></a>[% END -%]
 
 
-[% BLOCK renderJobsetName -%]
+[%- BLOCK renderJobsetName -%]
 <a href="[% c.uri_for('/jobset' project jobset) %]"><tt>[% jobset %]</tt></a>[% END -%]
 
 
-[% BLOCK renderJobName -%]
+[%- BLOCK renderJobName -%]
 <a href="[% c.uri_for('/job' project jobset job) %]"><tt>[% job %]</tt></a>[% END -%]
 
 
-[% BLOCK renderFullJobsetName %]
+[%- BLOCK renderFullJobsetName -%]
   <tt>
   [% INCLUDE renderProjectName %]:[% INCLUDE renderJobsetName %]
   </tt>
 [% END %]
 
 
-[% BLOCK renderFullJobName %]
+[%- BLOCK renderFullJobName -%]
   <tt>
   [% INCLUDE renderProjectName %]:[% INCLUDE renderJobsetName %]:[% INCLUDE renderJobName %]
   </tt>
 [% END %]
 
 
-[% BLOCK renderFullJobNameOfBuild %]
+[%- BLOCK renderFullJobNameOfBuild -%]
   [% INCLUDE renderFullJobName project=build.get_column("project") jobset = build.get_column("jobset") job = build.get_column("job") %]
 [% END %]
 
 
-[% BLOCK renderDuration -%]
+[%- BLOCK renderDuration -%]
 [% IF duration >= 24 * 60 * 60 %][% duration div (24 * 60 * 60) %]d[% END %]
 [% IF duration >= 60 * 60 %][% duration div (60 * 60) % 24 %]h[% END %]
 [% IF duration >= 60 %][% duration div 60 % 60 %]m[% END %]
@@ -64,79 +64,77 @@
 [% END %]
 
 
-[% BLOCK renderBuildList %]
+[%- BLOCK renderBuildList -%]
   <table class="buildList tablesorter[% IF !showSchedulingInfo %] clean[% END %]">
     <thead>
       <tr>
-        [% IF !hideResultInfo %]
+        [%- IF !hideResultInfo -%]
           <th></th>
         [% END %]
         <th>#</th>
-        [% IF showSchedulingInfo %]
+        [%- IF showSchedulingInfo -%]
           <th></th>
           <th>P</th>
-        [% END %]
+        [%- END -%]
         <th>Job</th>
         <th>Release Name</th>
         <th>System</th>
         <th>Timestamp</th>
-        [% IF showStatusChange %]
+        [%- IF showStatusChange -%]
           <th class="headerSortUp">Last status change</th>
-        [% END %]
-        [% IF showDescription %]
+        [%- END -%]
+        [%- IF showDescription -%]
           <th>Description</th>
-        [% END %]
+        [%- END -%]
       </tr>
     </thead>
     <tbody>
-      [% odd = 0 %]
-      [% FOREACH build IN builds -%]
-        <tr class="clickable
-                   [% IF showSchedulingInfo -%]
-                     [% IF build.get_column('busy') %]runningBuild[% ELSIF build.get_column('disabled') == 1 || build.get_column('enabled') == 0 %]disabledBuild[% END %]
-                   [% ELSE -%]
-                     [% IF odd %] odd [% END; odd = !odd -%]
-                   [% END %]"
-            onclick="if(event.which == 2) return true ; window.location = '[% c.uri_for('/build' build.id) %]'">
-          [% IF !hideResultInfo %]
+      [%- odd = 0 -%]
+      [%- FOREACH build IN builds -%]
+        <tr class="clickable 
+                   [%- IF showSchedulingInfo -%]
+                     [%- IF build.get_column('busy') %]runningBuild[% ELSIF build.get_column('disabled') == 1 || build.get_column('enabled') == 0 %]disabledBuild[% END -%]
+                   [%- ELSE -%]
+                     [%- IF odd %] odd [% END; odd = !odd -%]
+                   [%- END %]"
+            onclick="if(event.which == 2) return true; window.location = '[% c.uri_for('/build' build.id) %]'">
+          [%- IF !hideResultInfo -%]
             <td>
-              [% INCLUDE renderBuildStatusIcon size=16 busy=(showSchedulingInfo ? 1 : 0) buildstatus=build.get_column('buildStatus') %]
+              [%- INCLUDE renderBuildStatusIcon size=16 busy=(showSchedulingInfo ? 1 : 0) buildstatus=build.get_column('buildStatus') -%]
             </td>
-          [% END %]
+          [%- END -%]
           <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
-          [% IF showSchedulingInfo %]
+          [%- IF showSchedulingInfo -%]
             <td>[% IF build.get_column('busy') %]<img src="/static/images/running.gif" alt="Running" />[% ELSIF build.get_column('disabled') == 1 || build.get_column('enabled') == 0 %]Disabled[% END %]</td>
             <td>[% build.get_column('priority') %]</td>
-          [% END %]
-          <td>
-            [% INCLUDE renderFullJobNameOfBuild %]
-          </td>
+          [%- END -%]
+          <td>[%- INCLUDE renderFullJobNameOfBuild -%]</td>
           <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
           <td><tt>[% build.system %]</tt></td>
           <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
-          [% IF showStatusChange %]
+          [%- IF showStatusChange -%]
           <td>
-            [% IF build.get_column('statusChangeTime') %]
+            [%- IF build.get_column('statusChangeTime') -%]
               <a href="[% c.uri_for('/build' build.get_column('statusChangeId')) %]">
                 [% date.format(build.get_column('statusChangeTime'), '%Y-%m-%d %H:%M:%S') %]
               </a>
-            [% ELSE %]
+            [%- ELSE -%]
               <em>never</em>
-            [% END %]
+            [%- END -%]
           </td>
-          [% END %]
-        [% IF showDescription %]
+        [%- END -%]
+        [%- IF showDescription -%]
           <td>[% build.description %]</td>
-        [% END -%]
+        [%- END -%]
         </tr>
-      [% END -%]
+      [%- END -%]
     </tbody>
   </table>
-[% END %]
+[%- END -%]
 
-[% BLOCK renderLink %]<a href="[% uri %]">[% title %]</a>[% END %]
+[%- BLOCK renderLink -%]<a href="[% uri %]">[% title %]</a>[%- END -%]
 
-[% BLOCK showBuildStats %]
+[%- BLOCK showBuildStats -%]
 
   <table class="layoutTable">
     <tr>
@@ -165,7 +163,7 @@
     </tr>
   </table>
 
-[% END %]
+[%- END -%]
 
 
 [% BLOCK renderViewJobName -%]
@@ -203,32 +201,32 @@
 [% INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>[% -%]
 [% END %]
 
-[% BLOCK renderBuildStatusIcon %] 
-  [% finished = build != undef ? build.finished : 1 %]
-  [% busy = busy != undef ? busy : build.schedulingInfo.busy %]
-  [% buildstatus = buildstatus != undef ? buildstatus : build.resultInfo.buildstatus %]
-  [% IF finished %]
-    [% IF buildstatus == 0 %]
+[%- BLOCK renderBuildStatusIcon -%]
+  [%- finished = build != undef ? build.finished : 1 -%]
+  [%- busy = busy != undef ? busy : build.schedulingInfo.busy -%]
+  [%- buildstatus = buildstatus != undef ? buildstatus : build.resultInfo.buildstatus -%]
+  [%- IF finished -%]
+    [%- IF buildstatus == 0 -%]
       <img src="/static/images/checkmark_[% size %].png" alt="Succeeded" />
-    [% ELSIF buildstatus == 1 %]
+    [%- ELSIF buildstatus == 1 -%]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
-    [% ELSIF buildstatus == 2 %]
+    [%- ELSIF buildstatus == 2 -%]
       <img src="/static/images/dependency_[% size %].png" alt="Dependency failed" />
-    [% ELSIF buildstatus == 4 %]
+    [%- ELSIF buildstatus == 4 -%]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
-    [% ELSIF buildstatus == 5 %]
+    [%- ELSIF buildstatus == 5 -%]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
-    [% ELSIF buildstatus == 6 %]
+    [%- ELSIF buildstatus == 6 -%]
       <img src="/static/images/error_[% size %].png" alt="Failed (with result)" />
-    [% ELSE %]
+    [%- ELSE -%]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
-    [% END %]  
-  [% ELSIF busy %]
+    [%- END -%]  
+  [%- ELSIF busy -%]
     <img src="/static/images/help_[% size %].png" alt="Busy" />
-  [% ELSE %]
+  [%- ELSE -%]
     <img src="/static/images/help_[% size %].png" alt="Scheduled" />
-  [% END %] 
-[% END %]
+  [%- END -%]
+[%- END -%]
 
 [% BLOCK renderStatus %] 
   [% IF build.finished %]
