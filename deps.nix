@@ -7,6 +7,7 @@ with pkgs;
   perlPackages.CatalystPluginStackTrace
   perlPackages.CatalystPluginAuthorizationRoles
   perlPackages.CatalystPluginSessionStateCookie
+  perlPackages.CatalystPluginAccessLog
   perlPackages.CatalystAuthenticationStoreDBIxClass
   perlPackages.CatalystViewTT
   perlPackages.CatalystViewDownload
