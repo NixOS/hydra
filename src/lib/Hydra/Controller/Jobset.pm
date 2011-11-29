@@ -82,7 +82,11 @@ sub jobsetIndex {
     # Last builds for jobset.
     my $tmp = $c->stash->{jobset}->builds;
     $c->stash->{lastBuilds} = 
-	[ joinWithResultInfo($c, $tmp)->search({ finished => 1 }, { order_by => "timestamp DESC", rows => 5 }) ];
+	[ joinWithResultInfo($c, $tmp)->search({ finished => 1 }, 
+            { order_by => "timestamp DESC", rows => 5
+            , '+select' => ["resultInfo.buildStatus"]
+            , '+as' => ["buildStatus"]
+            }) ];
 }
 
 sub index : Chained('jobset') PathPart('') Args(0) {

@@ -100,7 +100,7 @@
             onclick="if(event.which == 2) return true ; window.location = '[% c.uri_for('/build' build.id) %]'">
           [% IF !hideResultInfo %]
             <td>
-              [% INCLUDE renderBuildStatusIcon size=16 %]
+              [% INCLUDE renderBuildStatusIcon size=16 busy=(showSchedulingInfo ? 1 : 0) buildstatus=build.get_column('buildStatus') %]
             </td>
           [% END %]
           <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
@@ -203,9 +203,9 @@
 [% INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>[% -%]
 [% END %]
 
-[% BLOCK renderBuildStatusIcon; %] 
-  [% finished = build != undef ? build.finished : 1  %]
-  [% busy = build != undef ? build.schedulingInfo.busy : 0  %]
+[% BLOCK renderBuildStatusIcon %] 
+  [% finished = build != undef ? build.finished : 1 %]
+  [% busy = busy != undef ? busy : build.schedulingInfo.busy %]
   [% buildstatus = buildstatus != undef ? buildstatus : build.resultInfo.buildstatus %]
   [% IF finished %]
     [% IF buildstatus == 0 %]
@@ -230,30 +230,24 @@
   [% END %] 
 [% END %]
 
-[% BLOCK renderStatus; %] 
+[% BLOCK renderStatus %] 
   [% IF build.finished %]
+    [% INCLUDE renderBuildStatusIcon size=16 %]
     [% IF build.resultInfo.buildstatus == 0 %]
-      [% INCLUDE renderBuildStatusIcon size=16 %]
       <strong>Success</strong>
     [% ELSIF build.resultInfo.buildstatus == 1 %]
-      [% INCLUDE renderBuildStatusIcon size=16 %]
       <span class="error">Build returned a non-zero exit code</span>
     [% ELSIF build.resultInfo.buildstatus == 2 %]
-      [% INCLUDE renderBuildStatusIcon size=16 %]
       <span class="error">A dependency of the build failed</span>
     [% ELSIF build.resultInfo.buildstatus == 4 %]
-      [% INCLUDE renderBuildStatusIcon size=16 %]
       <span class="error">Cancelled by user</span>
     [% ELSIF build.resultInfo.buildstatus == 5 %]
-      [% INCLUDE renderBuildStatusIcon size=16 %]
       <span class="error">Build inhibited because a dependency previously failed to build</span>
       [% failedDep = build.resultInfo.failedDep %]
       (namely, <a href="[% c.uri_for('/build' failedDep.build.id 'nixlog' failedDep.stepnr) %]"><tt>[% failedDep.outpath %]</tt></a>)
     [% ELSIF build.resultInfo.buildstatus == 6 %]
-      [% INCLUDE renderBuildStatusIcon size=16 %]
       <span class="error">Build failed (with result)</span>
     [% ELSE %]
-      [% INCLUDE renderBuildStatusIcon size=16 %]
       <span class="error">Build failed</span>
       (see <a href="#nix-error">below</a>)
     [% END %]  

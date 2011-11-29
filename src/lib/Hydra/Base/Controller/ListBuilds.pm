@@ -16,8 +16,8 @@ sub getJobStatus {
 
     $latest = $latest->search(
         defined $maintainer ? { maintainers => { like => "%$maintainer%" } } : {},
-        { '+select' => ["me.statusChangeId", "me.statusChangeTime"]
-        , '+as' => ["statusChangeId", "statusChangeTime"]
+        { '+select' => ["me.statusChangeId", "me.statusChangeTime", "resultInfo.buildStatus"]
+        , '+as' => ["statusChangeId", "statusChangeTime", "buildStatus"]
         , order_by => "coalesce(statusChangeTime, 0) desc"
         });
 
@@ -64,11 +64,13 @@ sub all : Chained('get_builds') PathPart {
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{totalBuilds} = $nrBuilds;
 
-    $c->stash->{builds} = [joinWithResultInfo($c, $c->stash->{allBuilds})->search(
+    $c->stash->{builds} = [ joinWithResultInfo($c, $c->stash->{allBuilds})->search(
         { finished => 1 },
-        { order_by => "timestamp DESC"
+        { '+select' => ["resultInfo.buildStatus"]
+        , '+as' => ["buildStatus"]
+        , order_by => "timestamp DESC"
         , rows => $resultsPerPage
-        , page => $page })];
+        , page => $page }) ];
 }
 
 
