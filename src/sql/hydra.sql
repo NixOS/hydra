@@ -517,7 +517,6 @@ create index IndexBuildInputsOnBuild on BuildInputs(build);
 create index IndexBuildInputsOnDependency on BuildInputs(dependency);
 create index IndexBuildProducstOnBuildAndType on BuildProducts(build, type);
 create index IndexBuildProductsOnBuild on BuildProducts(build);
-create index IndexBuildResultInfo on BuildResultInfo(id); -- primary key index, not created automatically by PostgreSQL
 create index IndexBuildSchedulingInfoOnBuild on BuildSchedulingInfo(id); -- idem
 create index IndexBuildStepsOnBuild on BuildSteps(build);
 create index IndexBuildStepsOnDrvpathTypeBusyStatus on BuildSteps(drvpath, type, busy, status);
@@ -525,6 +524,7 @@ create index IndexBuildStepsOnOutpath on BuildSteps(outpath);
 create index IndexBuildStepsOnOutpathBuild on BuildSteps (outpath, build);
 create index IndexBuildsOnFinished on Builds(finished);
 create index IndexBuildsOnIsCurrent on Builds(isCurrent);
+create index IndexBuildsOnJobsetIsCurrent on Builds(project, jobset, isCurrent);
 --create index IndexBuildsOnJob on Builds(project, jobset, job);
 --create index IndexBuildsOnJobAndIsCurrent on Builds(project, jobset, job, isCurrent);
 create index IndexBuildsOnJobAndSystem on Builds(project, jobset, job, system);
