@@ -39,6 +39,7 @@ sub getStorePathHash {
     return $hash;    
 }
 
+
 sub getReleaseName {
 	my ($outPath) = @_;
 	
@@ -51,6 +52,7 @@ sub getReleaseName {
     }
     return $releaseName;
 }
+
 
 sub parseJobName {
     # Parse a job specification of the form `<project>:<jobset>:<job>
@@ -463,7 +465,9 @@ sub fetchInputBazaar {
         , storePath => $storePath
         , sha256hash => $sha256
         , revision => $revision
-        };}
+        };
+}
+
     
 sub fetchInputHg {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
@@ -533,7 +537,6 @@ sub fetchInputHg {
         , sha256hash => $sha256
         , revision => $revision
         };
-    
 }
 
 
@@ -616,6 +619,7 @@ sub inputsToArgs {
     return @res;
 }
 
+
 sub captureStdoutStderr {
     (my $timeout, my @cmd) = @_;
     my $res;
@@ -638,6 +642,7 @@ sub captureStdoutStderr {
          return ($res, $stdout, $stderr);
      }
 }
+
     
 sub evalJobs {
     my ($inputInfo, $nixExprInputName, $nixExprPath) = @_;
@@ -678,6 +683,7 @@ sub evalJobs {
     
     return ($jobs, $nixExprInput);
 }
+
 
 sub addBuildProducts {
     my ($db, $build) = @_;
@@ -741,6 +747,7 @@ sub addBuildProducts {
                     });
             }
 }
+
 
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
