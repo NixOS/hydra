@@ -3,6 +3,7 @@
 use strict;
 use File::Basename;
 use File::stat;
+use Nix::Store;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
@@ -384,12 +385,12 @@ sub doBuild {
     my $closuresize = 0;
 
     if (isValidPath($outPath)) {
-        my ($deriver, $hash, $time, $narSize, $refs) = Nix::queryPathInfo($outPath);
+        my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($outPath);
         $size = $narSize;
 
-        my @closure = Nix::computeFSClosure(0, 0, $outPath);
+        my @closure = computeFSClosure(0, 0, $outPath);
         foreach my $path (@closure) {
-	    my ($deriver, $hash, $time, $narSize, $refs) = Nix::queryPathInfo($path);
+	    my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($path);
  	    $closuresize += $narSize;    
         }
     }
