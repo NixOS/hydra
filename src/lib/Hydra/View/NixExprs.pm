@@ -25,7 +25,7 @@ sub process {
         my $build = $c->stash->{nixPkgs}->{$name}->{build};
         $res .= "  # $name\n";
         $res .= "  { type = \"derivation\";\n";
-        $res .= "    name = " . escape ($build->resultInfo->releasename or $build->nixname) . ";\n";
+        $res .= "    name = " . escape ($build->get_column("releasename") or $build->nixname) . ";\n";
         $res .= "    system = " . (escape $build->system) . ";\n";
         $res .= "    outPath = " . (escape $build->outpath) . ";\n";
         $res .= "    meta = {\n";
