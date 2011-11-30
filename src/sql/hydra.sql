@@ -457,7 +457,7 @@ create table JobsetEvals (
     -- the current inputs for a jobset, we hash the inputs together,
     -- and if the resulting hash already appears in this table, we can
     -- skip the jobset.  Otherwise we proceed.  The hash is computed
-    -- over the command-line arguments to hydra_eval_jobs.
+    -- over the command-line arguments to hydra-eval-jobs.
     hash          text not null,
 
     foreign key   (project) references Projects(name) on delete cascade on update cascade,

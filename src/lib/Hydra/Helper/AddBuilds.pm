@@ -655,7 +655,7 @@ sub evalJobs {
     my $nixExprFullPath = $nixExprInput->{storePath} . "/" . $nixExprPath;
     
     (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(10800,
-        ("hydra_eval_jobs", $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo)));
+        ("hydra-eval-jobs", $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo)));
     die "Cannot evaluate the Nix expression containing the jobs:\n$stderr" unless $res;
 
     print STDERR "$stderr";
