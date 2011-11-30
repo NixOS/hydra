@@ -4,23 +4,15 @@ use strict;
 use Exporter;
 use File::Path;
 use File::Basename;
-use Nix;
 use Hydra::Helper::CatalystUtils;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    isValidPath
     getHydraPath getHydraDBPath openHydraDB getHydraConf txn_do
     registerRoot getGCRootsDir gcRootFor
     getPrimaryBuildsForView
     getPrimaryBuildTotal
     getViewResult getLatestSuccessfulViewResult jobsetOverview removeAsciiEscapes);
-
-
-sub isValidPath {
-    my $path = shift;
-    return Nix::isValidPath($path);
-}
 
 
 sub getHydraPath {

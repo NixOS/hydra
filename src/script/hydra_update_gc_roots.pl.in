@@ -3,6 +3,7 @@
 use strict;
 use File::Path;
 use File::Basename;
+use Nix::Store;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 use POSIX qw(strftime);

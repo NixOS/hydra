@@ -7,7 +7,7 @@ use POSIX qw(dup2 :sys_wait_h);
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 use IO::Handle;
-use Nix;
+use Nix::Store;
 
 chdir getHydraPath or die;
 my $db = openHydraDB;

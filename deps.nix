@@ -33,5 +33,5 @@ with pkgs;
   perlPackages.TestMore
   perlPackages.SysHostnameLong
   perlPackages.Starman
-  perlPackages.nixPerl
+  nixUnstable
 ]

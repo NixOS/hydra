@@ -3,6 +3,7 @@ package Hydra::Helper::CatalystUtils;
 use strict;
 use Exporter;
 use Readonly;
+use Nix::Store;
 use Hydra::Helper::Nix;
 
 our @ISA = qw(Exporter);
@@ -117,8 +118,8 @@ sub getChannelData {
     
     my @storePaths = ();
     foreach my $build (@builds2) {
-        next unless Hydra::Helper::Nix::isValidPath($build->outpath);
-        if (Hydra::Helper::Nix::isValidPath($build->drvpath)) {
+        next unless isValidPath($build->outpath);
+        if (isValidPath($build->drvpath)) {
             # Adding `drvpath' implies adding `outpath' because of the
             # `--include-outputs' flag passed to `nix-store'.
             push @storePaths, $build->drvpath;

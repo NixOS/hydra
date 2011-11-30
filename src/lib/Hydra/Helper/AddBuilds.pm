@@ -5,6 +5,7 @@ use feature 'switch';
 use XML::Simple;
 use POSIX qw(strftime);
 use IPC::Run;
+use Nix::Store;
 use Hydra::Helper::Nix;
 use Digest::SHA qw(sha256_hex);
 use File::Basename;

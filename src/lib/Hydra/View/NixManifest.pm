@@ -3,7 +3,7 @@ package Hydra::View::NixManifest;
 use strict;
 use base qw/Catalyst::View/;
 use Hydra::Helper::Nix;
-use Nix;
+use Nix::Store;
 
 
 sub process {
@@ -13,7 +13,7 @@ sub process {
     
     $c->response->content_type('text/x-nix-manifest');
 
-    my @paths = Nix::computeFSClosure(0, 1, @storePaths);
+    my @paths = computeFSClosure(0, 1, @storePaths);
 
     my $manifest =
         "version {\n" .
@@ -21,7 +21,7 @@ sub process {
         "}\n";
     
     foreach my $path (@paths) {
-        my ($deriver, $hash, $time, $narSize, $refs) = Nix::queryPathInfo $path;
+        my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo $path;
 
         # Escape the characters that are allowed to appear in a Nix
         # path name but have special meaning in a URI.
