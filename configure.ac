@@ -94,14 +94,4 @@ AC_CONFIG_FILES([
   tests/jobs/config.nix
 ])
 
-AC_CONFIG_FILES([src/script/hydra_build.pl], [chmod +x src/script/hydra_build.pl])
-AC_CONFIG_FILES([src/script/hydra_create.pl], [chmod +x src/script/hydra_create.pl])
-AC_CONFIG_FILES([src/script/hydra_evaluator.pl], [chmod +x src/script/hydra_evaluator.pl])
-AC_CONFIG_FILES([src/script/hydra_queue_runner.pl], [chmod +x src/script/hydra_queue_runner.pl])
-AC_CONFIG_FILES([src/script/hydra_server.pl], [chmod +x src/script/hydra_server.pl])
-AC_CONFIG_FILES([src/script/hydra_update_gc_roots.pl], [chmod +x src/script/hydra_update_gc_roots.pl])
-AC_CONFIG_FILES([tests/query-all-tables.pl], [chmod +x tests/query-all-tables.pl])
-AC_CONFIG_FILES([tests/evaluation-tests.pl], [chmod +x tests/evaluation-tests.pl])
-
 AC_OUTPUT
-

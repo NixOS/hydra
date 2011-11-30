@@ -1,5 +1,3 @@
-#! @perl@ -w -I@nix@/libexec/nix
-
 use strict;
 use Hydra::Schema;
 use Hydra::Helper::Nix;

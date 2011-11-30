@@ -1,4 +1,4 @@
-#! @perl@ -w -I@nix@/libexec/nix
+#! /var/run/current-system/sw/bin/perl -w
 
 use strict;
 use feature 'switch';

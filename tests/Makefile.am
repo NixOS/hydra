@@ -16,7 +16,10 @@ TESTS_ENVIRONMENT =					\
 EXTRA_DIST = \
   $(wildcard *.pm) \
   $(wildcard jobs/*.nix) \
-  $(wildcard jobs/*.sh) 
+  $(wildcard jobs/*.sh) \
+  $(TESTS)
+
+TESTS_ENVIRONMENT = $(perl) -w
 
 TESTS = \
   query-all-tables.pl \
@@ -65,7 +68,7 @@ bzr-repo :
 	touch bzr-repo/bzr-file
 	bzr add bzr-repo/bzr-file
 	BZR_HOME=$(abs_builddir)/data bzr commit -m "add bzr-file" bzr-repo/bzr-file
-	
+
 svn-checkout-repo :
 	ln -s svn-repo svn-checkout-repo
 

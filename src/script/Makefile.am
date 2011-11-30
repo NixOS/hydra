@@ -1,19 +1,19 @@
 EXTRA_DIST = \
-  hydra_control.sh \
-  nix-prefetch-svn \
-  nix-prefetch-git \
-  nix-prefetch-bzr \
-  nix-prefetch-hg 
-
-bin_SCRIPTS = \
-  hydra_build.pl \
-  hydra_evaluator.pl \
-  hydra_queue_runner.pl \
-  hydra_server.pl \
-  hydra_update_gc_roots.pl \
-  hydra_create.pl \
+  hydra-control \
   nix-prefetch-svn \
   nix-prefetch-git \
   nix-prefetch-bzr \
   nix-prefetch-hg \
-  hydra_control.sh
+  $(bin_SCRIPTS)
+
+bin_SCRIPTS = \
+  hydra-build \
+  hydra-evaluator \
+  hydra-queue-runner \
+  hydra-server \
+  hydra-update-gc-roots \
+  hydra-create \
+  nix-prefetch-svn \
+  nix-prefetch-git \
+  nix-prefetch-bzr \
+  nix-prefetch-hg

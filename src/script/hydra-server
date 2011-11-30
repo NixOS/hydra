@@ -1,4 +1,4 @@
-#! @perl@ -w -I@nix@/libexec/nix
+#! /var/run/current-system/sw/bin/perl -w
 
 BEGIN {
     $ENV{CATALYST_SCRIPT_GEN} = 40;

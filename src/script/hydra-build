@@ -1,4 +1,4 @@
-#! @perl@ -w -I@nix@/libexec/nix
+#! /var/run/current-system/sw/bin/perl -w
 
 use strict;
 use File::Basename;
@@ -430,7 +430,7 @@ sub doBuild {
 }
 
 
-my $buildId = $ARGV[0] or die;
+my $buildId = $ARGV[0] or die "syntax: $0 BUILD-ID\n";
 print STDERR "performing build $buildId\n";
 
 if ($ENV{'HYDRA_MAIL_TEST'}) {
