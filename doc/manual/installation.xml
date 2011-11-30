@@ -101,9 +101,9 @@ nix-env -i hydra</screen>
 	  Command completion should reveal a number of command-line tools from Hydra:
 
 	  <screen>
-hydra_build.pl            hydra_eval_jobs           hydra_server.pl
-hydra_control.sh          hydra_evaluator.pl        hydra_update_gc_roots.pl
-hydra_create.pl           hydra_queue_runner.pl     </screen>
+hydra-build      hydra-evaluator     hydra-update-gc-roots
+hydra-create     hydra-queue-runner  
+hydra-eval-jobs  hydra-server</screen>
 	</para>
     </section>
 
@@ -174,7 +174,7 @@ export HYDRA_DATA=/var/lib/hydra</screen>
         <para>
             To start the Hydra web server, execute:            
             <screen>
-hydra_server.pl</screen>
+hydra-server</screen>
 
             When the server is started, you can browse to
             <ulink>http://localhost:3000/</ulink> to start configuring
@@ -182,7 +182,7 @@ hydra_server.pl</screen>
         </para>
 
 	<para>
-	  The <command>hydra_server.pl</command> command launches the
+	  The <command>hydra-server</command> command launches the
 	  web server.  There are two other processes that come into
 	  play:
 
@@ -193,14 +193,14 @@ hydra_server.pl</screen>
 	      dependencies off their version control systems (VCS),
 	      and queueing new builds if the result of the evaluation
 	      changed.  It is launched by the
-	      <command>hydra_evaluator.pl</command> command.
+	      <command>hydra-evaluator</command> command.
 	    </listitem>
 	    <listitem>
 	      The <emphasis>queue runner</emphasis> launches builds
 	      (using Nix) as they are queued by the evaluator,
 	      scheduling them onto the configured Nix hosts.  It is
 	      launched using the
-	      <command>hydra_queue_runner.pl</command> command.
+	      <command>hydra-queue-runner</command> command.
 	    </listitem>
 	  </itemizedlist>
 
