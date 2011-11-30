@@ -221,7 +221,7 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
 	$diff .= `(cd $clonePath ; hg log -r $rev1 -r $rev2 -b $branch)`;
 	$diff .= `(cd $clonePath ; hg diff -r $rev1:$rev2)`;
     } elsif ($type eq "git") {
-        my $clonePath = scmPath . "/" . sha256_hex($uri.$branch);
+        my $clonePath = scmPath . "/" . sha256_hex($uri);
         die if ! -d $clonePath;
 	$diff .= `(cd $clonePath ; git log $rev1..$rev2)`;
 	$diff .= `(cd $clonePath ; git diff $rev1..$rev2)`;
