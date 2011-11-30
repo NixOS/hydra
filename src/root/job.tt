@@ -31,18 +31,13 @@
 	    [% END %]
 	</div>
 	<div id="tabs-channels">
-		<p>This job provides the following Nix channels:</p>
+		<p>This job provides the following Nix channel:</p>
 		
 		<ul>
 		  <li>
 		    <a href="[% c.uri_for('/job' project.name jobset.name job.name
 		    'channel' 'latest') %]"><tt>latest</tt></a> — contains the latest
 		    successful build for each platform.
-		  </li>
-		  <li>
-		    <a href="[% c.uri_for('/job' project.name jobset.name job.name
-		    'channel' 'all') %]"><tt>all</tt></a> — contains every successful
-		    build of this job.
 		  </li>
 		</ul>
 	</div>

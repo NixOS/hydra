@@ -81,10 +81,10 @@ sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
             $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
             getChannelData($c, scalar($c->stash->{latestSucceeded}));
         }
-        elsif ($channelName eq "all") {
-            $c->stash->{channelName} = $c->stash->{channelBaseName} . "-all";
-            getChannelData($c, scalar($c->stash->{allBuilds}));
-        }
+        #elsif ($channelName eq "all") {
+        #    $c->stash->{channelName} = $c->stash->{channelBaseName} . "-all";
+        #    getChannelData($c, scalar($c->stash->{allBuilds}));
+        #}
         else {
             notFound($c, "Unknown channel `$channelName'.");
         }
