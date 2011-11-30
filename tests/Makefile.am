@@ -1,7 +1,7 @@
-TESTS_ENVIRONMENT =					\
-  BZR_HOME="$(abs_builddir)/data" \
+TESTS_ENVIRONMENT = \
+  BZR_HOME="$(abs_builddir)/data"			\
   HYDRA_DBI="dbi:SQLite:db.sqlite"			\
-  HYDRA_DATA="$(abs_builddir)/data"				\
+  HYDRA_DATA="$(abs_builddir)/data"			\
   HYDRA_HOME="$(top_srcdir)/src"			\
   NIX_REMOTE=						\
   NIX_CONF_DIR="$(abs_builddir)/nix/etc/nix"		\
@@ -19,8 +19,6 @@ EXTRA_DIST = \
   $(wildcard jobs/*.sh) \
   $(TESTS)
 
-TESTS_ENVIRONMENT = $(perl) -w
-
 TESTS = \
   query-all-tables.pl \
   evaluation-tests.pl
@@ -29,7 +27,7 @@ clean :
 	chmod -R a+w nix
 	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout svn-checkout-repo bzr-repo bzr-checkout-repo
 
-$(TESTS) : db.sqlite repos
+check_SCRIPTS = db.sqlite repos
 
 db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
 	sqlite3 db.sqlite <  $(top_srcdir)/src/sql/hydra-sqlite.sql

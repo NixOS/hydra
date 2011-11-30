@@ -17,7 +17,7 @@ rec {
       version = builtins.readFile ./version;
 
       buildInputs =
-        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc ] ;
+        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc ];
 
       preConfigure = ''
         # TeX needs a writable font cache.
@@ -62,6 +62,8 @@ rec {
         libxslt sqlite subversion openssh nix coreutils findutils
         gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial gnused graphviz bazaar
       ] ++ ( if stdenv.isLinux then [rpm dpkg cdrkit] else [] )));
+
+      preConfigure = "patchShebangs .";
 
       postInstall = ''
         ensureDir $out/nix-support
