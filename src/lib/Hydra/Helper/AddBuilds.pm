@@ -634,14 +634,14 @@ sub captureStdoutStderr {
 
         $res = IPC::Run::run(\@cmd, \$stdin, \$stdout, \$stderr);
         alarm 0;
-     };
+    };
 
-     if ($@) {
-        die unless $@ eq "timeout\n";   # propagate unexpected errors
-        return (undef, undef, undef);
-     } else {
-         return ($res, $stdout, $stderr);
-     }
+    if ($@) {
+	die unless $@ eq "timeout\n";   # propagate unexpected errors
+	return (undef, undef, undef);
+    } else {
+	return ($res, $stdout, $stderr);
+    }
 }
 
     
