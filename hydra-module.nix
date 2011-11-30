@@ -178,16 +178,16 @@ in
       { description = "hydra-server";
         startOn = if cfg.autoStart then "started network-interfaces hydra-init" else "never";
         exec = ''
-          ${pkgs.su}/bin/su - ${cfg.user} -c '${env} ${cfg.hydra}/bin/hydra_server.pl > ${cfg.baseDir}/data/server.log 2>&1'
+          ${pkgs.su}/bin/su - ${cfg.user} -c '${env} ${cfg.hydra}/bin/hydra-server.pl > ${cfg.baseDir}/data/server.log 2>&1'
         '';
       };
 
     jobs.hydra_queue_runner =
       { description = "hydra-queue-runner";
         startOn = if cfg.autoStart then "started network-interfaces hydra-init" else "never";
-        preStart = "${pkgs.su}/bin/su - ${cfg.user} -c '${env} ${cfg.hydra}/bin/hydra_queue_runner.pl --unlock'";
+        preStart = "${pkgs.su}/bin/su - ${cfg.user} -c '${env} ${cfg.hydra}/bin/hydra-queue-runner.pl --unlock'";
         exec = ''
-          ${pkgs.su}/bin/su - ${cfg.user} -c '${env} nice -n 8 ${cfg.hydra}/bin/hydra_queue_runner.pl > ${cfg.baseDir}/data/queue_runner.log 2>&1'
+          ${pkgs.su}/bin/su - ${cfg.user} -c '${env} nice -n 8 ${cfg.hydra}/bin/hydra-queue-runner.pl > ${cfg.baseDir}/data/queue-runner.log 2>&1'
         '';
       };
 
@@ -195,7 +195,7 @@ in
       { description = "hydra-evaluator";
         startOn = if cfg.autoStart then "started network-interfaces hydra-init" else "never";
         exec = ''
-          ${pkgs.su}/bin/su - ${cfg.user} -c '${env} nice -n 5 ${cfg.hydra}/bin/hydra_evaluator.pl > ${cfg.baseDir}/data/evaluator.log 2>&1'
+          ${pkgs.su}/bin/su - ${cfg.user} -c '${env} nice -n 5 ${cfg.hydra}/bin/hydra-evaluator.pl > ${cfg.baseDir}/data/evaluator.log 2>&1'
         '';
       };
 
@@ -221,7 +221,7 @@ in
 	    in
 	    [ "*/5 * * * * root  ${checkSpace} &> ${cfg.baseDir}/data/checkspace.log" 
 	      "15 5 * * * root  ${compressLogs} &> ${cfg.baseDir}/data/compress.log"
-              "15 02 * * * ${cfg.user} ${env} ${cfg.hydra}/bin/hydra_update_gc_roots.pl &> ${cfg.baseDir}/data/gc-roots.log"
+              "15 02 * * * ${cfg.user} ${env} ${cfg.hydra}/bin/hydra-update-gc-roots.pl &> ${cfg.baseDir}/data/gc-roots.log"
 	    ];
 
   };  
