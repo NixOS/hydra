@@ -13,7 +13,11 @@ use File::stat;
 use File::Path;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr getReleaseName getBuildLog addBuildProducts restartBuild scmPath);
+our @EXPORT = qw(
+    fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr 
+    getReleaseName getBuildLog addBuildProducts restartBuild scmPath
+);
+
 
 sub scmPath {
     return getHydraPath . "/scm" ;
@@ -319,7 +323,7 @@ sub fetchInputGit {
     }
 
     # git pull + check rev
-    chdir $clonePath or die $!;
+    chdir $clonePath or die $!; # !!! urgh, shouldn't do a chdir
     (my $res, $stdout, $stderr) = captureStdoutStderr(600,
         ("git", "pull"));
     die "Error pulling latest change git repo at `$uri':\n$stderr" unless $res;
@@ -396,6 +400,7 @@ sub fetchInputGit {
         , revision => $revision
         };
 }
+
 
 sub fetchInputBazaar {
     my ($db, $project, $jobset, $name, $type, $value, $checkout) = @_;
@@ -693,60 +698,60 @@ sub addBuildProducts {
     my $productnr = 1;
 
     if (-e "$outPath/nix-support/hydra-build-products") {
-                open LIST, "$outPath/nix-support/hydra-build-products" or die;
-                while (<LIST>) {
-                    /^([\w\-]+)\s+([\w\-]+)\s+(\S+)(\s+(\S+))?$/ or next;
-                    my $type = $1;
-                    my $subtype = $2 eq "none" ? "" : $2;
-                    my $path = $3;
-                    my $defaultPath = $5;
-                    next unless -e $path;
+	open LIST, "$outPath/nix-support/hydra-build-products" or die;
+	while (<LIST>) {
+	    /^([\w\-]+)\s+([\w\-]+)\s+(\S+)(\s+(\S+))?$/ or next;
+	    my $type = $1;
+	    my $subtype = $2 eq "none" ? "" : $2;
+	    my $path = $3;
+	    my $defaultPath = $5;
+	    next unless -e $path;
 
-                    my $fileSize, my $sha1, my $sha256;
+	    my $fileSize, my $sha1, my $sha256;
 
-                    # !!! validate $path, $defaultPath
+	    # !!! validate $path, $defaultPath
 
-                    if (-f $path) {
-                        my $st = stat($path) or die "cannot stat $path: $!";
-                        $fileSize = $st->size;
+	    if (-f $path) {
+		my $st = stat($path) or die "cannot stat $path: $!";
+		$fileSize = $st->size;
                         
-                        $sha1 = `nix-hash --flat --type sha1 $path`
-                            or die "cannot hash $path: $?";;
-                        chomp $sha1;
-                    
-                        $sha256 = `nix-hash --flat --type sha256 $path`
-                            or die "cannot hash $path: $?";;
-                        chomp $sha256;
-                    }
+		$sha1 = `nix-hash --flat --type sha1 $path`
+		    or die "cannot hash $path: $?";;
+		chomp $sha1;
+		
+		$sha256 = `nix-hash --flat --type sha256 $path`
+		    or die "cannot hash $path: $?";;
+		chomp $sha256;
+	    }
 
-                    my $name = $path eq $outPath ? "" : basename $path;
+	    my $name = $path eq $outPath ? "" : basename $path;
                     
-                    $db->resultset('BuildProducts')->create(
-                        { build => $build->id
-                        , productnr => $productnr++
-                        , type => $type
-                        , subtype => $subtype
-                        , path => $path
-                        , filesize => $fileSize
-                        , sha1hash => $sha1
-                        , sha256hash => $sha256
-                        , name => $name
-                        , defaultpath => $defaultPath
-                        });
-                }
-                close LIST;
-            }
+	    $db->resultset('BuildProducts')->create(
+		{ build => $build->id
+		, productnr => $productnr++
+		, type => $type
+		, subtype => $subtype
+		, path => $path
+		, filesize => $fileSize
+		, sha1hash => $sha1
+		, sha256hash => $sha256
+		, name => $name
+		, defaultpath => $defaultPath
+		});
+	}
+	close LIST;
+    }
 
-            else {
-                $db->resultset('BuildProducts')->create(
-                    { build => $build->id
-                    , productnr => $productnr++
-                    , type => "nix-build"
-                    , subtype => ""
-                    , path => $outPath
-                    , name => $build->nixname
-                    });
-            }
+    else {
+	$db->resultset('BuildProducts')->create(
+	    { build => $build->id
+	    , productnr => $productnr++
+	    , type => "nix-build"
+	    , subtype => ""
+	    , path => $outPath
+	    , name => $build->nixname
+	    });
+    }
 }
 
 
