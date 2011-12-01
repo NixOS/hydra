@@ -59,7 +59,7 @@ sub createJobsetWithOneInput {
 
 sub evalSucceeds {
   my ($jobset) = @_;
-  my $res = captureStdoutStderr(60, ("../src/script/hydra-evaluator", $jobset->project->name, $jobset->name));
+  my ($res) = captureStdoutStderr(60, ("../src/script/hydra-evaluator", $jobset->project->name, $jobset->name));
   print STDERR "Evaluation errors for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
   return $res;
 }
