@@ -161,7 +161,7 @@
 
 * Using PostgreSQL:
 
-  $ HYDRA_DBI="dbi:Pg:dbname=hydra;" hydra_server.pl
+  $ HYDRA_DBI="dbi:Pg:dbname=hydra;" hydra-server
 
 
 * Find the builds with the highest number of build steps:

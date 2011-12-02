@@ -365,7 +365,7 @@ sub force_eval : Chained('admin') Path('eval') Args(2) {
     $c->stash->{jobset} = $c->stash->{jobset_}->single
         or notFound($c, "Jobset $jobsetName doesn't exist.");
 
-    (my $res, my $stdout, my $stderr) = captureStdoutStderr(60, ("hydra_evaluator.pl", $projectName, $jobsetName));
+    (my $res, my $stdout, my $stderr) = captureStdoutStderr(60, ("hydra-evaluator", $projectName, $jobsetName));
 
     $c->res->redirect("/project/$projectName");
 }

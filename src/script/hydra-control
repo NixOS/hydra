@@ -9,13 +9,13 @@ fi
 
 if test "$action" = "start"; then
 
-    hydra_server.pl > $HYDRA_DATA/server.log 2>&1 &
+    hydra-server > $HYDRA_DATA/server.log 2>&1 &
     echo $! > $HYDRA_DATA/server.pid
 
-    hydra_evaluator.pl > $HYDRA_DATA/evaluator.log 2>&1 &
+    hydra-evaluator > $HYDRA_DATA/evaluator.log 2>&1 &
     echo $! > $HYDRA_DATA/evaluator.pid
 
-    hydra_queue_runner.pl > $HYDRA_DATA/queue_runner.log 2>&1 &
+    hydra-queue-runner > $HYDRA_DATA/queue-runner.log 2>&1 &
     echo $! > $HYDRA_DATA/queue_runner.pid
 
 elif test "$action" = "stop"; then
