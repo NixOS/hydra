@@ -6,6 +6,7 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Digest::SHA1 qw(sha1_hex);
+use Nix::Store;
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
