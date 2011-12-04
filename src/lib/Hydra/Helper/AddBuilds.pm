@@ -100,7 +100,7 @@ sub attrsToSQL {
 
 
 sub fetchInputPath {
-    my ($db, $project, $jobset, $name, $type, $value) = @_;
+    my ($db, $project, $jobset, $name, $value) = @_;
 
     my $uri = $value;
 
@@ -153,8 +153,7 @@ sub fetchInputPath {
     }
 
     return
-        { type => $type
-        , uri => $uri
+        { uri => $uri
         , storePath => $storePath
         , sha256hash => $sha256
         , revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp)
@@ -163,7 +162,7 @@ sub fetchInputPath {
 
 
 sub fetchInputSVN {
-    my ($db, $project, $jobset, $name, $type, $value, $checkout) = @_;
+    my ($db, $project, $jobset, $name, $value, $checkout) = @_;
 
     # Allow users to specify a revision number next to the URI.
     my ($uri, $revision) = split ' ', $value;
@@ -227,8 +226,7 @@ sub fetchInputSVN {
     }
 
     return 
-        { type => $type
-        , uri => $uri
+        { uri => $uri
         , storePath => $storePath
         , sha256hash => $sha256
         , revision => $revision
@@ -237,7 +235,7 @@ sub fetchInputSVN {
 
 
 sub fetchInputBuild {
-    my ($db, $project, $jobset, $name, $type, $value) = @_;
+    my ($db, $project, $jobset, $name, $value) = @_;
 
     my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
     $projectName ||= $project->name;
@@ -264,8 +262,7 @@ sub fetchInputBuild {
     my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
         
     return 
-        { type => "build"
-        , storePath => $prevBuild->outpath
+        { storePath => $prevBuild->outpath
         , id => $prevBuild->id
         , version => $version
         };
@@ -273,7 +270,7 @@ sub fetchInputBuild {
 
 
 sub fetchInputSystemBuild {
-    my ($db, $project, $jobset, $name, $type, $value) = @_;
+    my ($db, $project, $jobset, $name, $value) = @_;
 
     my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
     $projectName ||= $project->name;
@@ -302,8 +299,7 @@ sub fetchInputSystemBuild {
         my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
                 
         my $input =
-            { type => "sysbuild"
-            , storePath => $prevBuild->outpath
+            { storePath => $prevBuild->outpath
             , id => $prevBuild->id
             , version => $version
             , system => $prevBuild->system
@@ -316,7 +312,7 @@ sub fetchInputSystemBuild {
 
 
 sub fetchInputGit {
-    my ($db, $project, $jobset, $name, $type, $value) = @_;
+    my ($db, $project, $jobset, $name, $value) = @_;
 
     (my $uri, my $branch) = split ' ', $value;
     $branch = defined $branch ? $branch : "master"; 
@@ -406,8 +402,7 @@ sub fetchInputGit {
     }
 
     return
-        { type => $type
-        , uri => $uri
+        { uri => $uri
         , storePath => $storePath
         , sha256hash => $sha256
         , revision => $revision
@@ -416,7 +411,7 @@ sub fetchInputGit {
 
 
 sub fetchInputBazaar {
-    my ($db, $project, $jobset, $name, $type, $value, $checkout) = @_;
+    my ($db, $project, $jobset, $name, $value, $checkout) = @_;
 
     my $uri = $value;
 
@@ -479,8 +474,7 @@ sub fetchInputBazaar {
     }
 
     return 
-        { type => $type
-        , uri => $uri
+        { uri => $uri
         , storePath => $storePath
         , sha256hash => $sha256
         , revision => $revision
@@ -489,7 +483,7 @@ sub fetchInputBazaar {
 
     
 sub fetchInputHg {
-    my ($db, $project, $jobset, $name, $type, $value) = @_;
+    my ($db, $project, $jobset, $name, $value) = @_;
     
     (my $uri, my $id) = split ' ', $value;
     $id = defined $id ? $id : "default";
@@ -549,8 +543,7 @@ sub fetchInputHg {
     }
 
     return 
-        { type => $type
-        , uri => $uri
+        { uri => $uri
         , branch => $branch
         , storePath => $storePath
         , sha256hash => $sha256
@@ -561,45 +554,49 @@ sub fetchInputHg {
 
 sub fetchInput {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
+    my $input;
 
     if ($type eq "path") {
-        return fetchInputPath($db, $project, $jobset, $name, $type, $value);
+        $input = fetchInputPath($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "svn") {
-        return fetchInputSVN($db, $project, $jobset, $name, $type, $value, 0);
+        $input = fetchInputSVN($db, $project, $jobset, $name, $value, 0);
     }
     elsif ($type eq "svn-checkout") {
-        return fetchInputSVN($db, $project, $jobset, $name, $type, $value, 1);
+        $input = fetchInputSVN($db, $project, $jobset, $name, $value, 1);
     }
     elsif ($type eq "build") {
-        return fetchInputBuild($db, $project, $jobset, $name, $type, $value);
+        $input = fetchInputBuild($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "sysbuild") {
-        return fetchInputSystemBuild($db, $project, $jobset, $name, $type, $value);
+        $input = fetchInputSystemBuild($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "git") {
-        return fetchInputGit($db, $project, $jobset, $name, $type, $value);
+        $input = fetchInputGit($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "hg") {
-        return fetchInputHg($db, $project, $jobset, $name, $type, $value);
+        $input = fetchInputHg($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "bzr") {
-        return fetchInputBazaar($db, $project, $jobset, $name, $type, $value, 0);
+        $input = fetchInputBazaar($db, $project, $jobset, $name, $value, 0);
     }
     elsif ($type eq "bzr-checkout") {
-        return fetchInputBazaar($db, $project, $jobset, $name, $type, $value, 1);
+        $input = fetchInputBazaar($db, $project, $jobset, $name, $value, 1);
     }   
     elsif ($type eq "string") {
         die unless defined $value;
-        return {type => $type, value => $value};
+        $input = { value => $value };
     }    
     elsif ($type eq "boolean") {
         die unless defined $value && ($value eq "true" || $value eq "false");
-        return {type => $type, value => $value};
+        $input = { value => $value };
     }    
     else {
         die "Input `" . $name . "' has unknown type `$type'.";
     }
+
+    $input->{type} = $type;
+    return $input;
 }
 
 
@@ -835,7 +832,7 @@ sub checkBuild {
         
         $currentBuilds->{$build->id} = 1;
         
-        if(isValidPath($outPath)) {
+        if (isValidPath($outPath)) {
             print STDERR "marked as cached build ", $build->id, "\n";
                 $build->update({ finished => 1 });
             $build->create_related('buildresultinfo',
