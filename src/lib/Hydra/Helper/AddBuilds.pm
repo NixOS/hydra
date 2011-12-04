@@ -47,8 +47,8 @@ sub getStorePathHash {
 
 
 sub getReleaseName {
-	my ($outPath) = @_;
-	
+    my ($outPath) = @_;
+
     my $releaseName;
     if (-e "$outPath/nix-support/hydra-release-name") {
         open FILE, "$outPath/nix-support/hydra-release-name" or die;
@@ -173,12 +173,12 @@ sub fetchInputSVN {
     my $stdout; my $stderr;
 
     unless (defined $revision) {
-	# First figure out the last-modified revision of the URI.
-	my @cmd = (["svn", "ls", "-v", "--depth", "empty", $uri],
-		   "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
-	die "Cannot get head revision of Subversion repository at `$uri':\n$stderr"
-	    unless IPC::Run::run(@cmd, \$stdout, \$stderr);
-	$revision = $stdout; chomp $revision;
+        # First figure out the last-modified revision of the URI.
+        my @cmd = (["svn", "ls", "-v", "--depth", "empty", $uri],
+                   "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
+        die "Cannot get head revision of Subversion repository at `$uri':\n$stderr"
+            unless IPC::Run::run(@cmd, \$stdout, \$stderr);
+        $revision = $stdout; chomp $revision;
     }
 
     die unless $revision =~ /^\d+$/;
@@ -194,25 +194,25 @@ sub fetchInputSVN {
         $sha256 = $cachedInput->sha256hash;
     } else {
 
-	# No, do a checkout.  The working copy is reused between
-	# invocations to speed things up.
-	mkpath(scmPath . "/svn");
-	my $wcPath = scmPath . "/svn" . sha256_hex($uri) . "/svn-checkout";
+        # No, do a checkout.  The working copy is reused between
+        # invocations to speed things up.
+        mkpath(scmPath . "/svn");
+        my $wcPath = scmPath . "/svn" . sha256_hex($uri) . "/svn-checkout";
 
         print STDERR "checking out Subversion input ", $name, " from $uri revision $revision into $wcPath\n";
 
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
             ("svn", "checkout", $uri, "-r", $revision, $wcPath));
 
-	if ($checkout) {
-	    $storePath = addToStore($wcPath, 1, "sha256");
-	} else {
-	    # Hm, if the Nix Perl bindings supported filters in
-	    # addToStore(), then we wouldn't need to make a copy here.
-	    my $tmpDir = File::Temp->newdir("hydra-svn-export.XXXXXX", CLEANUP => 1, TMPDIR => 1) or die;
-	    (system "svn", "export", $wcPath, "$tmpDir/svn-export", "--quiet") == 0 or die "svn export failed";
-	    $storePath = addToStore("$tmpDir/svn-export", 1, "sha256");
-	}
+        if ($checkout) {
+            $storePath = addToStore($wcPath, 1, "sha256");
+        } else {
+            # Hm, if the Nix Perl bindings supported filters in
+            # addToStore(), then we wouldn't need to make a copy here.
+            my $tmpDir = File::Temp->newdir("hydra-svn-export.XXXXXX", CLEANUP => 1, TMPDIR => 1) or die;
+            (system "svn", "export", $wcPath, "$tmpDir/svn-export", "--quiet") == 0 or die "svn export failed";
+            $storePath = addToStore("$tmpDir/svn-export", 1, "sha256");
+        }
 
         $sha256 = queryPathHash($storePath); $sha256 =~ s/sha256://;
 
@@ -351,12 +351,12 @@ sub fetchInputGit {
     die unless $revision =~ /^[0-9a-fA-F]+$/;
 
     if (-f ".topdeps") {
-	# This is a TopGit branch.  Fetch all the topic branches so
-	# that builders can run "tg patch" and similar.
-	(my $res, $stdout, $stderr) = captureStdoutStderr(600,
-	  ("tg", "remote", "--populate", "origin"));
+        # This is a TopGit branch.  Fetch all the topic branches so
+        # that builders can run "tg patch" and similar.
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+          ("tg", "remote", "--populate", "origin"));
 
-	print STDERR "Warning: `tg remote --populate origin' failed:\n$stderr" unless $res;
+        print STDERR "Warning: `tg remote --populate origin' failed:\n$stderr" unless $res;
     }
 
     # Some simple caching: don't check a uri/branch more than once every hour, but prefer exact match on uri/branch/revision.
@@ -655,10 +655,10 @@ sub captureStdoutStderr {
     };
 
     if ($@) {
-	die unless $@ eq "timeout\n";   # propagate unexpected errors
-	return (undef, undef, undef);
+        die unless $@ eq "timeout\n";   # propagate unexpected errors
+        return (undef, undef, undef);
     } else {
-	return ($res, $stdout, $stderr);
+        return ($res, $stdout, $stderr);
     }
 }
 
@@ -711,59 +711,59 @@ sub addBuildProducts {
     my $productnr = 1;
 
     if (-e "$outPath/nix-support/hydra-build-products") {
-	open LIST, "$outPath/nix-support/hydra-build-products" or die;
-	while (<LIST>) {
-	    /^([\w\-]+)\s+([\w\-]+)\s+(\S+)(\s+(\S+))?$/ or next;
-	    my $type = $1;
-	    my $subtype = $2 eq "none" ? "" : $2;
-	    my $path = $3;
-	    my $defaultPath = $5;
-	    next unless -e $path;
+        open LIST, "$outPath/nix-support/hydra-build-products" or die;
+        while (<LIST>) {
+            /^([\w\-]+)\s+([\w\-]+)\s+(\S+)(\s+(\S+))?$/ or next;
+            my $type = $1;
+            my $subtype = $2 eq "none" ? "" : $2;
+            my $path = $3;
+            my $defaultPath = $5;
+            next unless -e $path;
 
-	    my $fileSize, my $sha1, my $sha256;
+            my $fileSize, my $sha1, my $sha256;
 
-	    # !!! validate $path, $defaultPath
+            # !!! validate $path, $defaultPath
 
-	    if (-f $path) {
-		my $st = stat($path) or die "cannot stat $path: $!";
-		$fileSize = $st->size;
+            if (-f $path) {
+                my $st = stat($path) or die "cannot stat $path: $!";
+                $fileSize = $st->size;
                         
-		$sha1 = `nix-hash --flat --type sha1 $path`
-		    or die "cannot hash $path: $?";;
-		chomp $sha1;
-		
-		$sha256 = `nix-hash --flat --type sha256 $path`
-		    or die "cannot hash $path: $?";;
-		chomp $sha256;
-	    }
+                $sha1 = `nix-hash --flat --type sha1 $path`
+                    or die "cannot hash $path: $?";;
+                chomp $sha1;
+                
+                $sha256 = `nix-hash --flat --type sha256 $path`
+                    or die "cannot hash $path: $?";;
+                chomp $sha256;
+            }
 
-	    my $name = $path eq $outPath ? "" : basename $path;
+            my $name = $path eq $outPath ? "" : basename $path;
                     
-	    $db->resultset('BuildProducts')->create(
-		{ build => $build->id
-		, productnr => $productnr++
-		, type => $type
-		, subtype => $subtype
-		, path => $path
-		, filesize => $fileSize
-		, sha1hash => $sha1
-		, sha256hash => $sha256
-		, name => $name
-		, defaultpath => $defaultPath
-		});
-	}
-	close LIST;
+            $db->resultset('BuildProducts')->create(
+                { build => $build->id
+                , productnr => $productnr++
+                , type => $type
+                , subtype => $subtype
+                , path => $path
+                , filesize => $fileSize
+                , sha1hash => $sha1
+                , sha256hash => $sha256
+                , name => $name
+                , defaultpath => $defaultPath
+                });
+        }
+        close LIST;
     }
 
     else {
-	$db->resultset('BuildProducts')->create(
-	    { build => $build->id
-	    , productnr => $productnr++
-	    , type => "nix-build"
-	    , subtype => ""
-	    , path => $outPath
-	    , name => $build->nixname
-	    });
+        $db->resultset('BuildProducts')->create(
+            { build => $build->id
+            , productnr => $productnr++
+            , type => "nix-build"
+            , subtype => ""
+            , path => $outPath
+            , name => $build->nixname
+            });
     }
 }
 
@@ -837,7 +837,7 @@ sub checkBuild {
         
         if(isValidPath($outPath)) {
             print STDERR "marked as cached build ", $build->id, "\n";
-        	$build->update({ finished => 1 });
+                $build->update({ finished => 1 });
             $build->create_related('buildresultinfo',
                 { iscachedbuild => 1
                 , buildstatus => 0
