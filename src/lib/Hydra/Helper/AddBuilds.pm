@@ -595,7 +595,7 @@ sub fetchInput {
         die "Input `" . $name . "' has unknown type `$type'.";
     }
 
-    $input->{type} = $type;
+    $input->{type} = $type if defined $input;
     return $input;
 }
 
