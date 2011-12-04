@@ -11,6 +11,7 @@ use Digest::SHA qw(sha256_hex);
 use File::Basename;
 use File::stat;
 use File::Path;
+use File::Temp;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -182,6 +183,9 @@ sub fetchInputSVN {
 
     die unless $revision =~ /^\d+$/;
 
+    # Do we already have this revision in the store?
+    # !!! This needs to take $checkout into account!  Otherwise "svn"
+    # and "svn-checkout" inputs can get mixed up.
     (my $cachedInput) = $db->resultset('CachedSubversionInputs')->search(
         {uri => $uri, revision => $revision});
 
@@ -189,21 +193,31 @@ sub fetchInputSVN {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
     } else {
-            
-        # Then download this revision into the store.
-        print STDERR "checking out Subversion input ", $name, " from $uri revision $revision\n";
-        $ENV{"NIX_HASH_ALGO"} = "sha256";
-        $ENV{"PRINT_PATH"} = "1";
-        $ENV{"NIX_PREFETCH_SVN_LEAVE_DOT_SVN"} = "$checkout";
-        
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("nix-prefetch-svn", $uri, $revision));
-        die "Cannot check out Subversion repository `$uri':\n$stderr" unless $res;
 
-        ($sha256, $storePath) = split ' ', $stdout;
+	# No, do a checkout.  The working copy is reused between
+	# invocations to speed things up.
+	mkpath(scmPath . "/svn");
+	my $wcPath = scmPath . "/svn" . sha256_hex($uri) . "/svn-checkout";
+
+        print STDERR "checking out Subversion input ", $name, " from $uri revision $revision into $wcPath\n";
+
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("svn", "checkout", $uri, "-r", $revision, $wcPath));
+
+	if ($checkout) {
+	    $storePath = addToStore($wcPath, 1, "sha256");
+	} else {
+	    # Hm, if the Nix Perl bindings supported filters in
+	    # addToStore(), then we wouldn't need to make a copy here.
+	    my $tmpDir = File::Temp->newdir("hydra-svn-export.XXXXXX", CLEANUP => 1, TMPDIR => 1) or die;
+	    (system "svn", "export", $wcPath, "$tmpDir/svn-export", "--quiet") == 0 or die "svn export failed";
+	    $storePath = addToStore("$tmpDir/svn-export", 1, "sha256");
+	}
+
+        $sha256 = queryPathHash($storePath); $sha256 =~ s/sha256://;
 
         txn_do($db, sub {
-            $db->resultset('CachedSubversionInputs')->create(
+            $db->resultset('CachedSubversionInputs')->update_or_create(
                 { uri => $uri
                 , revision => $revision
                 , sha256hash => $sha256
@@ -311,9 +325,8 @@ sub fetchInputGit {
     my $sha256;
     my $storePath;
 
-    my $clonePath;
     mkpath(scmPath);
-    $clonePath = scmPath . "/" . sha256_hex($uri);
+    my $clonePath = scmPath . "/" . sha256_hex($uri);
 
     my $stdout; my $stderr;
     if (! -d $clonePath) {
@@ -411,9 +424,9 @@ sub fetchInputBazaar {
     my $storePath;
 
     my $stdout; my $stderr;
-    my $clonePath;
+
     mkpath(scmPath);
-    $clonePath = scmPath . "/" . sha256_hex($uri);
+    my $clonePath = scmPath . "/" . sha256_hex($uri);
 
     if (! -d $clonePath) {
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
@@ -484,9 +497,9 @@ sub fetchInputHg {
     # init local hg clone
 
     my $stdout; my $stderr;
-    my $clonePath;
+
     mkpath(scmPath);
-    $clonePath = scmPath . "/" . sha256_hex($uri);
+    my $clonePath = scmPath . "/" . sha256_hex($uri);
 
     if (! -d $clonePath) {
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
@@ -627,7 +640,7 @@ sub inputsToArgs {
 
 
 sub captureStdoutStderr {
-    (my $timeout, my @cmd) = @_;
+    my ($timeout, @cmd) = @_;
     my $res;
     my $stdin = "";
     my $stdout;
@@ -649,7 +662,7 @@ sub captureStdoutStderr {
     }
 }
 
-    
+
 sub evalJobs {
     my ($inputInfo, $nixExprInputName, $nixExprPath) = @_;
 
