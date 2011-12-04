@@ -195,8 +195,7 @@ sub fetchInputSVN {
 
         # No, do a checkout.  The working copy is reused between
         # invocations to speed things up.
-        mkpath(scmPath . "/svn");
-        my $wcPath = scmPath . "/svn" . sha256_hex($uri) . "/svn-checkout";
+        my $wcPath = scmPath . "/svn/" . sha256_hex($uri) . "/svn-checkout";
 
         print STDERR "checking out Subversion input ", $name, " from $uri revision $revision into $wcPath\n";
 
