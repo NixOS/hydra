@@ -9,6 +9,7 @@ TESTS_ENVIRONMENT = \
   NIX_MANIFESTS_DIR="$(abs_builddir)/nix/var/nix/manifests"	\
   NIX_STORE_DIR="$(abs_builddir)/nix/store"			\
   NIX_LOG_DIR="$(abs_builddir)/nix/var/log/nix"		\
+  NIX_BUILD_HOOK=					\
   PERL5LIB="$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB"	\
   PATH=$(abs_top_srcdir)/src/script:$(abs_top_srcdir)/src/c:$$PATH \
   perl -w 
@@ -24,7 +25,7 @@ TESTS = \
   evaluation-tests.pl
 
 clean :
-	chmod -R a+w nix
+	chmod -R a+w nix || true
 	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout svn-checkout-repo bzr-repo bzr-checkout-repo
 
 check_SCRIPTS = db.sqlite repos
@@ -51,7 +52,7 @@ git-repo :
 hg-repo :
 	hg init hg-repo
 	touch hg-repo/hg-file
-	(cd hg-repo; hg add hg-file ; hg commit -m "add hg file" hg-file)
+	(cd hg-repo; hg add hg-file ; hg commit -m "add hg file" hg-file -u foobar)
 
 svn-repo :
 	svnadmin create svn-repo
