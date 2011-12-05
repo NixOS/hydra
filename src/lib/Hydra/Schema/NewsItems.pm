@@ -1,17 +1,21 @@
+use utf8;
 package Hydra::Schema::NewsItems;
 
 # Created by DBIx::Class::Schema::Loader
 # DO NOT MODIFY THE FIRST PART OF THIS FILE
+
+=head1 NAME
+
+Hydra::Schema::NewsItems
+
+=cut
 
 use strict;
 use warnings;
 
 use base 'DBIx::Class::Core';
 
-
-=head1 NAME
-
-Hydra::Schema::NewsItems
+=head1 TABLE: C<NewsItems>
 
 =cut
 
@@ -21,68 +25,49 @@ __PACKAGE__->table("NewsItems");
 
 =head2 id
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_auto_increment: 1
   is_nullable: 0
-  size: undef
 
 =head2 contents
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 0
-  size: undef
 
 =head2 createtime
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_nullable: 0
-  size: undef
 
 =head2 author
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =cut
 
 __PACKAGE__->add_columns(
   "id",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_auto_increment => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
   "contents",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 0 },
   "createtime",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_nullable => 0 },
   "author",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
 );
+
+=head1 PRIMARY KEY
+
+=over 4
+
+=item * L</id>
+
+=back
+
+=cut
+
 __PACKAGE__->set_primary_key("id");
 
 =head1 RELATIONS
@@ -98,8 +83,8 @@ Related object: L<Hydra::Schema::Users>
 __PACKAGE__->belongs_to("author", "Hydra::Schema::Users", { username => "author" }, {});
 
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-04-27 15:13:51
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SX13YZYhf5Uz5KZGphG/+w
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:YRMh0QI4JezFLj7nywGu6Q
 
 use Hydra::Helper::Nix;
 

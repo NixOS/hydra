@@ -1,17 +1,21 @@
+use utf8;
 package Hydra::Schema::BuildProducts;
 
 # Created by DBIx::Class::Schema::Loader
 # DO NOT MODIFY THE FIRST PART OF THIS FILE
+
+=head1 NAME
+
+Hydra::Schema::BuildProducts
+
+=cut
 
 use strict;
 use warnings;
 
 use base 'DBIx::Class::Core';
 
-
-=head1 NAME
-
-Hydra::Schema::BuildProducts
+=head1 TABLE: C<BuildProducts>
 
 =cut
 
@@ -21,164 +25,99 @@ __PACKAGE__->table("BuildProducts");
 
 =head2 build
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 productnr
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_nullable: 0
-  size: undef
 
 =head2 type
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 0
-  size: undef
 
 =head2 subtype
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 0
-  size: undef
 
 =head2 filesize
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_nullable: 1
-  size: undef
 
 =head2 sha1hash
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 sha256hash
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 path
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 name
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 0
-  size: undef
 
 =head2 description
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 defaultpath
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =cut
 
 __PACKAGE__->add_columns(
   "build",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "productnr",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_nullable => 0 },
   "type",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 0 },
   "subtype",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 0 },
   "filesize",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "integer", is_nullable => 1 },
   "sha1hash",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "sha256hash",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "path",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "name",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 0 },
   "description",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "defaultpath",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
 );
+
+=head1 PRIMARY KEY
+
+=over 4
+
+=item * L</build>
+
+=item * L</productnr>
+
+=back
+
+=cut
+
 __PACKAGE__->set_primary_key("build", "productnr");
 
 =head1 RELATIONS
@@ -194,8 +133,8 @@ Related object: L<Hydra::Schema::Builds>
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" }, {});
 
 
-# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:5XWD8BZb3WeSJwKirHGhWA
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:suSgQkBLXzu0yD4YicRS1A
 
 # You can replace this text with custom content, and it will be preserved on regeneration
 1;

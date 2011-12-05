@@ -1,17 +1,21 @@
+use utf8;
 package Hydra::Schema::JobsetInputs;
 
 # Created by DBIx::Class::Schema::Loader
 # DO NOT MODIFY THE FIRST PART OF THIS FILE
+
+=head1 NAME
+
+Hydra::Schema::JobsetInputs
+
+=cut
 
 use strict;
 use warnings;
 
 use base 'DBIx::Class::Core';
 
-
-=head1 NAME
-
-Hydra::Schema::JobsetInputs
+=head1 TABLE: C<JobsetInputs>
 
 =cut
 
@@ -21,89 +25,56 @@ __PACKAGE__->table("JobsetInputs");
 
 =head2 project
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 jobset
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 name
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 0
-  size: undef
 
 =head2 type
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 0
-  size: undef
 
 =cut
 
 __PACKAGE__->add_columns(
   "project",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "jobset",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "name",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 0 },
   "type",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 0 },
 );
-__PACKAGE__->set_primary_key("project", "jobset", "name");
 
-=head1 RELATIONS
+=head1 PRIMARY KEY
 
-=head2 jobsets
+=over 4
 
-Type: has_many
+=item * L</project>
 
-Related object: L<Hydra::Schema::Jobsets>
+=item * L</jobset>
+
+=item * L</name>
+
+=back
 
 =cut
 
-__PACKAGE__->has_many(
-  "jobsets",
-  "Hydra::Schema::Jobsets",
-  {
-    "foreign.name"         => "self.jobset",
-    "foreign.nixexprinput" => "self.name",
-    "foreign.project"      => "self.project",
-  },
-);
+__PACKAGE__->set_primary_key("project", "jobset", "name");
+
+=head1 RELATIONS
 
 =head2 jobset
 
@@ -136,10 +107,30 @@ __PACKAGE__->has_many(
     "foreign.jobset"  => "self.jobset",
     "foreign.project" => "self.project",
   },
+  {},
+);
+
+=head2 jobsets
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Jobsets>
+
+=cut
+
+__PACKAGE__->has_many(
+  "jobsets",
+  "Hydra::Schema::Jobsets",
+  {
+    "foreign.name"         => "self.jobset",
+    "foreign.nixexprinput" => "self.name",
+    "foreign.project"      => "self.project",
+  },
+  {},
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-02-25 10:29:41
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:eThDu6WyuCUmDMEDlXyPkA
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:F/eZhnWZHATn9+O6MzuPqA
 
 1;

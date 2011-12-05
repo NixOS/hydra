@@ -1,17 +1,21 @@
+use utf8;
 package Hydra::Schema::BuildSchedulingInfo;
 
 # Created by DBIx::Class::Schema::Loader
 # DO NOT MODIFY THE FIRST PART OF THIS FILE
+
+=head1 NAME
+
+Hydra::Schema::BuildSchedulingInfo
+
+=cut
 
 use strict;
 use warnings;
 
 use base 'DBIx::Class::Core';
 
-
-=head1 NAME
-
-Hydra::Schema::BuildSchedulingInfo
+=head1 TABLE: C<BuildSchedulingInfo>
 
 =cut
 
@@ -21,88 +25,79 @@ __PACKAGE__->table("BuildSchedulingInfo");
 
 =head2 id
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
+  is_auto_increment: 1
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 priority
 
-  data_type: integer
+  data_type: 'integer'
   default_value: 0
   is_nullable: 0
-  size: undef
 
 =head2 busy
 
-  data_type: integer
+  data_type: 'integer'
   default_value: 0
   is_nullable: 0
-  size: undef
 
 =head2 locker
 
-  data_type: text
-  default_value: ''
+  data_type: 'text'
+  default_value: (empty string)
   is_nullable: 0
-  size: undef
 
 =head2 logfile
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 disabled
 
-  data_type: integer
+  data_type: 'integer'
   default_value: 0
   is_nullable: 0
-  size: undef
 
 =head2 starttime
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_nullable: 1
-  size: undef
 
 =cut
 
 __PACKAGE__->add_columns(
   "id",
   {
-    data_type => "integer",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
+    data_type         => "integer",
+    is_auto_increment => 1,
+    is_foreign_key    => 1,
+    is_nullable       => 0,
   },
   "priority",
-  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
   "busy",
-  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
   "locker",
-  { data_type => "text", default_value => "''", is_nullable => 0, size => undef },
+  { data_type => "text", default_value => "", is_nullable => 0 },
   "logfile",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "disabled",
-  { data_type => "integer", default_value => 0, is_nullable => 0, size => undef },
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
   "starttime",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "integer", is_nullable => 1 },
 );
+
+=head1 PRIMARY KEY
+
+=over 4
+
+=item * L</id>
+
+=back
+
+=cut
+
 __PACKAGE__->set_primary_key("id");
 
 =head1 RELATIONS
@@ -118,8 +113,8 @@ Related object: L<Hydra::Schema::Builds>
 __PACKAGE__->belongs_to("id", "Hydra::Schema::Builds", { id => "id" }, {});
 
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-03-05 13:07:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qOU/YGv3fgPynBXovV6gfg
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Uz7y9Ly+ADRrtrPfEk9lGA
 
 # You can replace this text with custom content, and it will be preserved on regeneration
 1;

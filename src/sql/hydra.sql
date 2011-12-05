@@ -1,3 +1,11 @@
+-- Singleton table to keep track of the schema version.
+create table SchemaVersion (
+    version       integer not null
+);
+
+insert into SchemaVersion (version) values (1);
+
+
 create table Users (
     userName      text primary key not null,
     fullName      text,

@@ -1,17 +1,21 @@
+use utf8;
 package Hydra::Schema::JobsetEvalMembers;
 
 # Created by DBIx::Class::Schema::Loader
 # DO NOT MODIFY THE FIRST PART OF THIS FILE
+
+=head1 NAME
+
+Hydra::Schema::JobsetEvalMembers
+
+=cut
 
 use strict;
 use warnings;
 
 use base 'DBIx::Class::Core';
 
-
-=head1 NAME
-
-Hydra::Schema::JobsetEvalMembers
+=head1 TABLE: C<JobsetEvalMembers>
 
 =cut
 
@@ -21,67 +25,47 @@ __PACKAGE__->table("JobsetEvalMembers");
 
 =head2 eval
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 build
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 isnew
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_nullable: 0
-  size: undef
 
 =cut
 
 __PACKAGE__->add_columns(
   "eval",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "build",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "isnew",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_nullable => 0 },
 );
-__PACKAGE__->set_primary_key("eval", "build");
 
-=head1 RELATIONS
+=head1 PRIMARY KEY
 
-=head2 eval
+=over 4
 
-Type: belongs_to
+=item * L</eval>
 
-Related object: L<Hydra::Schema::JobsetEvals>
+=item * L</build>
+
+=back
 
 =cut
 
-__PACKAGE__->belongs_to("eval", "Hydra::Schema::JobsetEvals", { id => "eval" }, {});
+__PACKAGE__->set_primary_key("eval", "build");
+
+=head1 RELATIONS
 
 =head2 build
 
@@ -93,9 +77,19 @@ Related object: L<Hydra::Schema::Builds>
 
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" }, {});
 
+=head2 eval
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-03-05 13:07:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:vwefi8q3HolhFCkB9aEVWw
+Type: belongs_to
+
+Related object: L<Hydra::Schema::JobsetEvals>
+
+=cut
+
+__PACKAGE__->belongs_to("eval", "Hydra::Schema::JobsetEvals", { id => "eval" }, {});
+
+
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:0K4lDPUQeK04SEXS5yBbeA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

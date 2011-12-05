@@ -1,17 +1,21 @@
+use utf8;
 package Hydra::Schema::ProjectMembers;
 
 # Created by DBIx::Class::Schema::Loader
 # DO NOT MODIFY THE FIRST PART OF THIS FILE
+
+=head1 NAME
+
+Hydra::Schema::ProjectMembers
+
+=cut
 
 use strict;
 use warnings;
 
 use base 'DBIx::Class::Core';
 
-
-=head1 NAME
-
-Hydra::Schema::ProjectMembers
+=head1 TABLE: C<ProjectMembers>
 
 =cut
 
@@ -21,40 +25,37 @@ __PACKAGE__->table("ProjectMembers");
 
 =head2 project
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 username
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =cut
 
 __PACKAGE__->add_columns(
   "project",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "username",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
 );
+
+=head1 PRIMARY KEY
+
+=over 4
+
+=item * L</project>
+
+=item * L</username>
+
+=back
+
+=cut
+
 __PACKAGE__->set_primary_key("project", "username");
 
 =head1 RELATIONS
@@ -85,8 +86,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.05003 @ 2010-03-10 10:46:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:/5E52ddbqTr6+kf+ixYZGA
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:09p6h8c3+hRIjw3XmX15rA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

@@ -1,17 +1,21 @@
+use utf8;
 package Hydra::Schema::Builds;
 
 # Created by DBIx::Class::Schema::Loader
 # DO NOT MODIFY THE FIRST PART OF THIS FILE
+
+=head1 NAME
+
+Hydra::Schema::Builds
+
+=cut
 
 use strict;
 use warnings;
 
 use base 'DBIx::Class::Core';
 
-
-=head1 NAME
-
-Hydra::Schema::Builds
+=head1 TABLE: C<Builds>
 
 =cut
 
@@ -21,317 +25,257 @@ __PACKAGE__->table("Builds");
 
 =head2 id
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_auto_increment: 1
   is_nullable: 0
-  size: undef
 
 =head2 finished
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_nullable: 0
-  size: undef
 
 =head2 timestamp
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_nullable: 0
-  size: undef
 
 =head2 project
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 jobset
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 job
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 nixname
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 description
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 drvpath
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 0
-  size: undef
 
 =head2 outpath
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 0
-  size: undef
 
 =head2 system
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 0
-  size: undef
 
 =head2 longdescription
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 license
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 homepage
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 maintainers
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 maxsilent
 
-  data_type: integer
+  data_type: 'integer'
   default_value: 3600
   is_nullable: 1
-  size: undef
 
 =head2 timeout
 
-  data_type: integer
+  data_type: 'integer'
   default_value: 36000
   is_nullable: 1
-  size: undef
 
 =head2 iscurrent
 
-  data_type: integer
+  data_type: 'integer'
   default_value: 0
   is_nullable: 1
-  size: undef
 
 =head2 nixexprinput
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =head2 nixexprpath
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 1
-  size: undef
 
 =cut
 
 __PACKAGE__->add_columns(
   "id",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_auto_increment => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
   "finished",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_nullable => 0 },
   "timestamp",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_nullable => 0 },
   "project",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "jobset",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "job",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "nixname",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "description",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "drvpath",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 0 },
   "outpath",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 0 },
   "system",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 0 },
   "longdescription",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "license",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "homepage",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "maintainers",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "maxsilent",
-  {
-    data_type => "integer",
-    default_value => 3600,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "integer", default_value => 3600, is_nullable => 1 },
   "timeout",
-  {
-    data_type => "integer",
-    default_value => 36000,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "integer", default_value => 36000, is_nullable => 1 },
   "iscurrent",
-  { data_type => "integer", default_value => 0, is_nullable => 1, size => undef },
+  { data_type => "integer", default_value => 0, is_nullable => 1 },
   "nixexprinput",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
   "nixexprpath",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 1,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 1 },
 );
+
+=head1 PRIMARY KEY
+
+=over 4
+
+=item * L</id>
+
+=back
+
+=cut
+
 __PACKAGE__->set_primary_key("id");
 
 =head1 RELATIONS
 
-=head2 project
+=head2 buildinputs_builds
 
-Type: belongs_to
+Type: has_many
 
-Related object: L<Hydra::Schema::Projects>
-
-=cut
-
-__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
-
-=head2 jobset
-
-Type: belongs_to
-
-Related object: L<Hydra::Schema::Jobsets>
+Related object: L<Hydra::Schema::BuildInputs>
 
 =cut
 
-__PACKAGE__->belongs_to(
-  "jobset",
-  "Hydra::Schema::Jobsets",
-  { name => "jobset", project => "project" },
+__PACKAGE__->has_many(
+  "buildinputs_builds",
+  "Hydra::Schema::BuildInputs",
+  { "foreign.build" => "self.id" },
+  {},
+);
+
+=head2 buildinputs_dependencies
+
+Type: has_many
+
+Related object: L<Hydra::Schema::BuildInputs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildinputs_dependencies",
+  "Hydra::Schema::BuildInputs",
+  { "foreign.dependency" => "self.id" },
+  {},
+);
+
+=head2 buildproducts
+
+Type: has_many
+
+Related object: L<Hydra::Schema::BuildProducts>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildproducts",
+  "Hydra::Schema::BuildProducts",
+  { "foreign.build" => "self.id" },
+  {},
+);
+
+=head2 buildresultinfo
+
+Type: might_have
+
+Related object: L<Hydra::Schema::BuildResultInfo>
+
+=cut
+
+__PACKAGE__->might_have(
+  "buildresultinfo",
+  "Hydra::Schema::BuildResultInfo",
+  { "foreign.id" => "self.id" },
+  {},
+);
+
+=head2 buildschedulinginfo
+
+Type: might_have
+
+Related object: L<Hydra::Schema::BuildSchedulingInfo>
+
+=cut
+
+__PACKAGE__->might_have(
+  "buildschedulinginfo",
+  "Hydra::Schema::BuildSchedulingInfo",
+  { "foreign.id" => "self.id" },
+  {},
+);
+
+=head2 buildsteps
+
+Type: has_many
+
+Related object: L<Hydra::Schema::BuildSteps>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildsteps",
+  "Hydra::Schema::BuildSteps",
+  { "foreign.build" => "self.id" },
   {},
 );
 
@@ -350,102 +294,19 @@ __PACKAGE__->belongs_to(
   {},
 );
 
-=head2 buildschedulinginfo
+=head2 jobset
 
-Type: might_have
+Type: belongs_to
 
-Related object: L<Hydra::Schema::BuildSchedulingInfo>
-
-=cut
-
-__PACKAGE__->might_have(
-  "buildschedulinginfo",
-  "Hydra::Schema::BuildSchedulingInfo",
-  { "foreign.id" => "self.id" },
-);
-
-=head2 buildresultinfo
-
-Type: might_have
-
-Related object: L<Hydra::Schema::BuildResultInfo>
+Related object: L<Hydra::Schema::Jobsets>
 
 =cut
 
-__PACKAGE__->might_have(
-  "buildresultinfo",
-  "Hydra::Schema::BuildResultInfo",
-  { "foreign.id" => "self.id" },
-);
-
-=head2 buildsteps
-
-Type: has_many
-
-Related object: L<Hydra::Schema::BuildSteps>
-
-=cut
-
-__PACKAGE__->has_many(
-  "buildsteps",
-  "Hydra::Schema::BuildSteps",
-  { "foreign.build" => "self.id" },
-);
-
-=head2 buildinputs_builds
-
-Type: has_many
-
-Related object: L<Hydra::Schema::BuildInputs>
-
-=cut
-
-__PACKAGE__->has_many(
-  "buildinputs_builds",
-  "Hydra::Schema::BuildInputs",
-  { "foreign.build" => "self.id" },
-);
-
-=head2 buildinputs_dependencies
-
-Type: has_many
-
-Related object: L<Hydra::Schema::BuildInputs>
-
-=cut
-
-__PACKAGE__->has_many(
-  "buildinputs_dependencies",
-  "Hydra::Schema::BuildInputs",
-  { "foreign.dependency" => "self.id" },
-);
-
-=head2 buildproducts
-
-Type: has_many
-
-Related object: L<Hydra::Schema::BuildProducts>
-
-=cut
-
-__PACKAGE__->has_many(
-  "buildproducts",
-  "Hydra::Schema::BuildProducts",
-  { "foreign.build" => "self.id" },
-);
-
-=head2 releasemembers
-
-Type: has_many
-
-Related object: L<Hydra::Schema::ReleaseMembers>
-
-=cut
-
-__PACKAGE__->has_many(
-  "releasemembers",
-  "Hydra::Schema::ReleaseMembers",
-  { "foreign.build" => "self.id" },
+__PACKAGE__->belongs_to(
+  "jobset",
+  "Hydra::Schema::Jobsets",
+  { name => "jobset", project => "project" },
+  {},
 );
 
 =head2 jobsetevalmembers
@@ -460,11 +321,37 @@ __PACKAGE__->has_many(
   "jobsetevalmembers",
   "Hydra::Schema::JobsetEvalMembers",
   { "foreign.build" => "self.id" },
+  {},
+);
+
+=head2 project
+
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Projects>
+
+=cut
+
+__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
+
+=head2 releasemembers
+
+Type: has_many
+
+Related object: L<Hydra::Schema::ReleaseMembers>
+
+=cut
+
+__PACKAGE__->has_many(
+  "releasemembers",
+  "Hydra::Schema::ReleaseMembers",
+  { "foreign.build" => "self.id" },
+  {},
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-05-26 09:25:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OApfteImw84nYhUvSUB4FA
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:RRtBPTdD946kA5133+c4kw
 
 use Hydra::Helper::Nix;
 

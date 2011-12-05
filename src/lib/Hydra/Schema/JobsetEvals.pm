@@ -1,17 +1,21 @@
+use utf8;
 package Hydra::Schema::JobsetEvals;
 
 # Created by DBIx::Class::Schema::Loader
 # DO NOT MODIFY THE FIRST PART OF THIS FILE
+
+=head1 NAME
+
+Hydra::Schema::JobsetEvals
+
+=cut
 
 use strict;
 use warnings;
 
 use base 'DBIx::Class::Core';
 
-
-=head1 NAME
-
-Hydra::Schema::JobsetEvals
+=head1 TABLE: C<JobsetEvals>
 
 =cut
 
@@ -21,139 +25,81 @@ __PACKAGE__->table("JobsetEvals");
 
 =head2 id
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_auto_increment: 1
   is_nullable: 0
-  size: undef
 
 =head2 project
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 jobset
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_foreign_key: 1
   is_nullable: 0
-  size: undef
 
 =head2 timestamp
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_nullable: 0
-  size: undef
 
 =head2 checkouttime
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_nullable: 0
-  size: undef
 
 =head2 evaltime
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_nullable: 0
-  size: undef
 
 =head2 hasnewbuilds
 
-  data_type: integer
-  default_value: undef
+  data_type: 'integer'
   is_nullable: 0
-  size: undef
 
 =head2 hash
 
-  data_type: text
-  default_value: undef
+  data_type: 'text'
   is_nullable: 0
-  size: undef
 
 =cut
 
 __PACKAGE__->add_columns(
   "id",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_auto_increment => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
   "project",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "jobset",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_foreign_key => 1,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "timestamp",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_nullable => 0 },
   "checkouttime",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_nullable => 0 },
   "evaltime",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_nullable => 0 },
   "hasnewbuilds",
-  {
-    data_type => "integer",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "integer", is_nullable => 0 },
   "hash",
-  {
-    data_type => "text",
-    default_value => undef,
-    is_nullable => 0,
-    size => undef,
-  },
+  { data_type => "text", is_nullable => 0 },
 );
-__PACKAGE__->set_primary_key("id");
 
-=head1 RELATIONS
+=head1 PRIMARY KEY
 
-=head2 project
+=over 4
 
-Type: belongs_to
+=item * L</id>
 
-Related object: L<Hydra::Schema::Projects>
+=back
 
 =cut
 
-__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
+__PACKAGE__->set_primary_key("id");
+
+=head1 RELATIONS
 
 =head2 jobset
 
@@ -182,11 +128,22 @@ __PACKAGE__->has_many(
   "jobsetevalmembers",
   "Hydra::Schema::JobsetEvalMembers",
   { "foreign.eval" => "self.id" },
+  {},
 );
 
+=head2 project
 
-# Created by DBIx::Class::Schema::Loader v0.05000 @ 2010-03-05 13:33:51
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:QD7ZMOLp9HpK0mAYkk0d/Q
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Projects>
+
+=cut
+
+__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
+
+
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:eQtF5bcR/qZ625LxWBc7ug
 
 use Hydra::Helper::Nix;
 
