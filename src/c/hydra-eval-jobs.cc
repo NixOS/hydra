@@ -9,6 +9,7 @@
 #include "util.hh"
 #include "xml-writer.hh"
 #include "get-drvs.hh"
+#include "common-opts.hh"
 
 using namespace nix;
 
@@ -203,6 +204,10 @@ void run(Strings args)
     EvalState state;
     Path releaseExpr;
     AutoArgs autoArgs;
+
+    /* Prevent undeclared dependencies in the evaluation via
+       $HYDRA_PATH. */
+    unsetenv("HYDRA_PATH");
     
     for (Strings::iterator i = args.begin(); i != args.end(); ) {
         string arg = *i++;
@@ -226,6 +231,8 @@ void run(Strings args)
             if (i == args.end()) throw UsageError("missing argument");
             gcRootsDir = *i++;
         }
+        else if (parseSearchPathArg(arg, i, args.end(), state))
+            ;
         else if (arg[0] == '-')
             throw UsageError(format("unknown flag `%1%'") % arg);
         else

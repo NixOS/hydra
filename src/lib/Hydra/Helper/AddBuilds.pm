@@ -604,6 +604,9 @@ sub inputsToArgs {
     my @res = ();
 
     foreach my $input (keys %{$inputInfo}) {
+        push @res, "-I", "$input=$inputInfo->{$input}->[0]->{storePath}"
+            if scalar @{$inputInfo->{$input}} == 1 
+               && defined $inputInfo->{$input}->[0]->{storePath};
         foreach my $alt (@{$inputInfo->{$input}}) {
             given ($alt->{type}) {
                 when ("string") {

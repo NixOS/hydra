@@ -115,7 +115,7 @@ sub checkJobset {
     my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo));
     my $argsHash = sha256_hex("@args");
 
-    if ($jobset->jobsetevals->find({hash => $argsHash})) {
+    if (scalar($jobset->jobsetevals->search({hash => $argsHash})) > 0) {
         print "  already evaluated, skipping\n";
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
