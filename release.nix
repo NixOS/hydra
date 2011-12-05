@@ -1,5 +1,5 @@
 { nixpkgs ? /etc/nixos/nixpkgs
-, hydraSrc ? {outPath = ./.; rev = 1234;}
+, hydraSrc ? { outPath = ./.; revCount = 1234; gitTag = "abcdef"; }
 , officialRelease ? false
 }:
 
@@ -17,7 +17,9 @@ rec {
       version = builtins.readFile ./version;
 
       buildInputs =
-        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc ];
+        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc git ];
+
+      versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
 
       preConfigure = ''
         # TeX needs a writable font cache.
