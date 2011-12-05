@@ -563,49 +563,52 @@ sub fetchInputHg {
 
 sub fetchInput {
     my ($db, $project, $jobset, $name, $type, $value) = @_;
-    my $input;
+    my @inputs;
 
     if ($type eq "path") {
-        $input = fetchInputPath($db, $project, $jobset, $name, $value);
+        push @inputs, fetchInputPath($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "svn") {
-        $input = fetchInputSVN($db, $project, $jobset, $name, $value, 0);
+        push @inputs, fetchInputSVN($db, $project, $jobset, $name, $value, 0);
     }
     elsif ($type eq "svn-checkout") {
-        $input = fetchInputSVN($db, $project, $jobset, $name, $value, 1);
+        push @inputs, fetchInputSVN($db, $project, $jobset, $name, $value, 1);
     }
     elsif ($type eq "build") {
-        $input = fetchInputBuild($db, $project, $jobset, $name, $value);
+        push @inputs, fetchInputBuild($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "sysbuild") {
-        $input = fetchInputSystemBuild($db, $project, $jobset, $name, $value);
+        push @inputs, fetchInputSystemBuild($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "git") {
-        $input = fetchInputGit($db, $project, $jobset, $name, $value);
+        push @inputs, fetchInputGit($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "hg") {
-        $input = fetchInputHg($db, $project, $jobset, $name, $value);
+        push @inputs, fetchInputHg($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "bzr") {
-        $input = fetchInputBazaar($db, $project, $jobset, $name, $value, 0);
+        push @inputs, fetchInputBazaar($db, $project, $jobset, $name, $value, 0);
     }
     elsif ($type eq "bzr-checkout") {
-        $input = fetchInputBazaar($db, $project, $jobset, $name, $value, 1);
+        push @inputs, fetchInputBazaar($db, $project, $jobset, $name, $value, 1);
     }   
     elsif ($type eq "string") {
         die unless defined $value;
-        $input = { value => $value };
+        push @inputs, { value => $value };
     }    
     elsif ($type eq "boolean") {
         die unless defined $value && ($value eq "true" || $value eq "false");
-        $input = { value => $value };
+        push @inputs, { value => $value };
     }    
     else {
         die "Input `" . $name . "' has unknown type `$type'.";
     }
 
-    $input->{type} = $type if defined $input;
-    return $input;
+    foreach my $input (@inputs) { 
+	$input->{type} = $type if defined $input;
+    }
+
+    return @inputs;
 }
 
 
