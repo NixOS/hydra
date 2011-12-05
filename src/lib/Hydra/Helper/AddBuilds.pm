@@ -382,11 +382,11 @@ sub fetchInputGit {
         # http://thread.gmane.org/gmane.linux.distributions.nixos/3569
         # for a discussion.
         $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
-    
+
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
             ("nix-prefetch-git", $clonePath, $revision));
         die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
-    
+
         ($sha256, $storePath) = split ' ', $stdout;
     
         txn_do($db, sub {
@@ -400,11 +400,21 @@ sub fetchInputGit {
             });
     }
 
+    # For convenience in producing readable version names, pass the
+    # number of commits in the history of this revision (‘revCount‘)
+    # and the output of git-describe (‘gitTag’).
+    my $revCount = `git rev-list $revision | wc -l`; chomp $revCount;
+    die "git rev-list failed" if $? != 0;
+    my $gitTag = `git describe --always $revision`; chomp $gitTag;
+    die "git describe failed" if $? != 0;
+
     return
         { uri => $uri
         , storePath => $storePath
         , sha256hash => $sha256
         , revision => $revision
+        , revCount => int($revCount)
+        , gitTag => $gitTag
         };
 }
 
@@ -619,6 +629,8 @@ sub inputsToArgs {
                     push @res, "--arg", $input, (
                         "{ outPath = builtins.storePath " . $alt->{storePath} . "" .
                         (defined $alt->{revision} ? "; rev = \"" . $alt->{revision} . "\"" : "") .
+                        (defined $alt->{revCount} ? "; revCount = " . $alt->{revCount} . "" : "") .
+                        (defined $alt->{gitTag} ? "; gitTag = \"" . $alt->{gitTag} . "\"" : "") .
                         (defined $alt->{version} ? "; version = \"" . $alt->{version} . "\"" : "") .
                         ";}"
                     );
