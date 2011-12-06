@@ -401,12 +401,15 @@ sub fetchInputGit {
     }
 
     # For convenience in producing readable version names, pass the
-    # number of commits in the history of this revision (‘revCount‘)
-    # and the output of git-describe (‘gitTag’).
+    # number of commits in the history of this revision (‘revCount’)
+    # the output of git-describe (‘gitTag’), and the abbreviated
+    # revision (‘shortRev’).
     my $revCount = `git rev-list $revision | wc -l`; chomp $revCount;
     die "git rev-list failed" if $? != 0;
     my $gitTag = `git describe --always $revision`; chomp $gitTag;
     die "git describe failed" if $? != 0;
+    my $shortRev = `git rev-parse --short $revision`; chomp $shortRev;
+    die "git rev-parse failed" if $? != 0;
 
     return
         { uri => $uri
@@ -415,6 +418,7 @@ sub fetchInputGit {
         , revision => $revision
         , revCount => int($revCount)
         , gitTag => $gitTag
+        , shortRev => $shortRev
         };
 }
 
@@ -634,6 +638,7 @@ sub inputsToArgs {
                         (defined $alt->{revision} ? "; rev = \"" . $alt->{revision} . "\"" : "") .
                         (defined $alt->{revCount} ? "; revCount = " . $alt->{revCount} . "" : "") .
                         (defined $alt->{gitTag} ? "; gitTag = \"" . $alt->{gitTag} . "\"" : "") .
+                        (defined $alt->{shortRev} ? "; shortRev = \"" . $alt->{shortRev} . "\"" : "") .
                         (defined $alt->{version} ? "; version = \"" . $alt->{version} . "\"" : "") .
                         ";}"
                     );
