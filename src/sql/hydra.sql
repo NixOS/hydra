@@ -283,7 +283,7 @@ create table BuildProducts (
     productnr     integer not null,
     type          text not null, -- "nix-build", "file", "doc", "report", ...
     subtype       text not null, -- "source-dist", "rpm", ...
-    fileSize      integer,
+    fileSize      bigint,
     sha1hash      text,
     sha256hash    text,
     path          text,
