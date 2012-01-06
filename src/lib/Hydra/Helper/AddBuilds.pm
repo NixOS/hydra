@@ -68,7 +68,7 @@ sub parseJobName {
     our $key;
     our %attrs = ();
     # hm, maybe I should stop programming Perl before it's too late...
-    $s =~ / ^ (?: (?: ([\w\-]+) : )? ([\w\-]+) : )? ([\w\-]+) \s*
+    $s =~ / ^ (?: (?: ([\w\-]+) : )? ([\w\-]+) : )? ([\w\-\.]+) \s*
             (\[ \s* (
               ([\w]+) (?{ $key = $^N; }) \s* = \s* \"
               ([\w\-]+) (?{ $attrs{$key} = $^N; }) \"
