@@ -279,7 +279,7 @@
 
 [% BLOCK renderShortInputValue %]
     [% IF input.type == "build" || input.type == "sysbuild" %]
-        <a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a>
+        <a href="[% c.uri_for('/build' input.dependency.id) %]">[% input.dependency.id %]</a>
     [% ELSIF input.type == "string" || input.type == "boolean" %]
         <tt>"[% input.value %]"</tt>
     [% ELSE %]
