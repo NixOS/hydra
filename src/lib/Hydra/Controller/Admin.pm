@@ -158,7 +158,7 @@ sub reset_password : Chained('user') PathPart('reset-password') Args(0) {
         "New password for Hydra",
         "Hi,\n\n".
         "Your password has been reset. Your new password is '$password'.\n".
-        "You can change your password at http://".hostname_long."/change-password .\n".
+        "You can change your password at http://".$config{'base_uri'}."/change-password .\n".
         "With regards, Hydra\n"
     );
 
