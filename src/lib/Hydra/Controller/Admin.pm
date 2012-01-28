@@ -13,6 +13,7 @@ use Sys::Hostname::Long;
 use Email::Simple;
 use Email::Sender::Simple qw(sendmail);
 use Email::Sender::Transport::SMTP;
+use Config::General;
 
 sub nixMachines {
     my ($c) = @_;
@@ -142,6 +143,8 @@ sub sendemail {
 
 sub reset_password : Chained('user') PathPart('reset-password') Args(0) {
     my ($self, $c) = @_;
+
+    my %config = new Config::General(getHydraConf)->getall;
 
     # generate password
     my $password = Crypt::RandPasswd->word(8,10);
