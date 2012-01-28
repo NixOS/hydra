@@ -233,7 +233,6 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
 
 sub readNormalizedLog {
     my ($file) = @_;
-    my $pipe = (-f "$file.bz2" ? "cat $file | bzip2 -d" : "cat $file") ;
     my $pipe = (-f "$file.bz2" ? "cat $file.bz2 | bzip2 -d" : "cat $file") ;
     my $res = `$pipe`;
 
