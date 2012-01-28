@@ -154,7 +154,7 @@ sub reset_password : Chained('user') PathPart('reset-password') Args(0) {
     # send email
 
     sendemail(
-        $c->user->emailaddress,
+        $c->stash->{user}->emailaddress,
         "New password for Hydra",
         "Hi,\n\n".
         "Your password has been reset. Your new password is '$password'.\n".
