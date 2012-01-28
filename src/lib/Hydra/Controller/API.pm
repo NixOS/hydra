@@ -233,7 +233,9 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
 
 sub readNormalizedLog {
     my ($file) = @_;
-    my $res = read_file($file);
+    my $pipe = (-f "$file.bz2" ? "cat $file | bzip2 -d" : "cat $file") ;
+    my $pipe = (-f "$file.bz2" ? "cat $file.bz2 | bzip2 -d" : "cat $file") ;
+    my $res = `$pipe`;
 
     $res =~ s/\/nix\/store\/[a-z0-9]*-/\/nix\/store\/...-/g;
     $res =~ s/nix-build-[a-z0-9]*-/nix-build-...-/g;
