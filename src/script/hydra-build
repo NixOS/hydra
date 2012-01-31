@@ -190,12 +190,13 @@ sub sendEmailNotification {
         header => [
             To      => $to,
             From    => "Hydra Build Daemon <$sender>",
-            Subject => "Hydra job $jobName build " . $build->id . ": $status",
+            Subject => "Hydra job $jobName on " . $build->system . ", build " . $build->id . ": $status",
 
             'X-Hydra-Instance' => $baseurl,
             'X-Hydra-Project'  => $build->project->name,
             'X-Hydra-Jobset'   => $build->jobset->name,
-            'X-Hydra-Job'      => $build->job->name
+            'X-Hydra-Job'      => $build->job->name,
+            'X-Hydra-System'   => $build->system
         ],
         body => "",
     );
