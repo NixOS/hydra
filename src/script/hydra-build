@@ -97,8 +97,9 @@ sub sendEmailNotification {
         return; 
     }
 
-    # if buildstatus of this build is aborted, do not send email
-    if ($build->resultInfo->buildstatus == 3) {
+    # if buildstatus of this build or the previous one is aborted, do
+    # not send email
+    if ($build->resultInfo->buildstatus == 3 || (defined $prevBuild && ($prevBuild->resultInfo->buildstatus == 3))) {
         return; 
     }
 
