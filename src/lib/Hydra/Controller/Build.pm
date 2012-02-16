@@ -85,7 +85,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
         { eval => { -in => $build->jobsetevalmembers->get_column('eval')->as_query } }
       , { join => 'jobsetevalmembers', order_by => [ 'project', 'jobset', 'job'] }
       );
-    if ($r->count <= 50) {
+    if ($r->count <= 100) {
         $c->stash->{relatedbuilds} = [$r->all];
     }
 }
