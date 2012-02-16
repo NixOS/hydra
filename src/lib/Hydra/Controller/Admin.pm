@@ -294,6 +294,18 @@ sub machine_disable : Chained('machine') PathPart('disable') Args(0) {
     $c->res->redirect("/admin/machines");
 }
 
+sub clear_queue_non_current : Chained('admin') Path('clear-queue-non-current') Args(0) {
+    my ($self, $c) = @_;
+    $c->model('DB::Builds')->search({iscurrent => 0, busy => 0}, { join => 'schedulingInfo' })->delete_all;
+    $c->res->redirect("/admin");
+}
+
+sub clear_queue : Chained('admin') Path('clear-queue') Args(0) {
+    my ($self, $c) = @_;
+    $c->model('DB::Builds')->search({busy => 0}, { join => 'schedulingInfo' })->delete_all;
+    $c->res->redirect("/admin");
+}
+
 sub clearfailedcache : Chained('admin') Path('clear-failed-cache') Args(0) {
     my ($self, $c) = @_;
 
