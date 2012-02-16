@@ -105,7 +105,7 @@ sub joinWithResultInfo {
         { },
         { join => 'resultInfo'
         , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
-        , '+as' => ["releasename", "buildstatus"]
+        , '+as' => ["releasename", "buildStatus"]
         });
 }
 

@@ -230,26 +230,27 @@
 
 [% BLOCK renderStatus %] 
   [% IF build.finished %]
+    [% buildstatus = build.resultInfo.buildstatus %]
     [% INCLUDE renderBuildStatusIcon size=16 %]
-    [% IF build.resultInfo.buildstatus == 0 %]
+    [% IF buildstatus == 0 %]
       <strong>Success</strong>
-    [% ELSIF build.resultInfo.buildstatus == 1 %]
+    [% ELSIF buildstatus == 1 %]
       <span class="error">Build returned a non-zero exit code</span>
-    [% ELSIF build.resultInfo.buildstatus == 2 %]
+    [% ELSIF buildstatus == 2 %]
       <span class="error">A dependency of the build failed</span>
-    [% ELSIF build.resultInfo.buildstatus == 4 %]
+    [% ELSIF buildstatus == 4 %]
       <span class="error">Cancelled by user</span>
-    [% ELSIF build.resultInfo.buildstatus == 5 %]
+    [% ELSIF buildstatus == 5 %]
       <span class="error">Build inhibited because a dependency previously failed to build</span>
       [% failedDep = build.resultInfo.failedDep %]
       (namely, <a href="[% c.uri_for('/build' failedDep.build.id 'nixlog' failedDep.stepnr) %]"><tt>[% failedDep.outpath %]</tt></a>)
-    [% ELSIF build.resultInfo.buildstatus == 6 %]
+    [% ELSIF buildstatus == 6 %]
       <span class="error">Build failed (with result)</span>
     [% ELSE %]
       <span class="error">Build failed</span>
       (see <a href="#nix-error">below</a>)
     [% END %]  
-    [% IF c.user_exists && (build.resultInfo.buildstatus == 3 || build.resultInfo.buildstatus == 4) %]
+    [% IF c.user_exists && (buildstatus == 3 || buildstatus == 4) %]
       <form action="[% c.uri_for('/build' build.id 'restart') %]" method="post" class="inline">
         <button id="restart" type="submit">Restart</button>
       </form>

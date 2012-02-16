@@ -7,6 +7,7 @@
 [% project = build.project %]
 [% jobset = build.jobset %]
 [% job = build.job %]
+[% resultInfo = build.resultInfo %]
 
 [% BLOCK renderBuildSteps %]
 
@@ -34,7 +35,7 @@
 		            [% INCLUDE renderDuration duration = step.stoptime - step.starttime %]
 		          [% ELSE %]
 		            [% IF build.finished %]
-		              [% INCLUDE renderDuration duration = build.resultInfo.stoptime - step.starttime %]
+		              [% INCLUDE renderDuration duration = resultInfo.stoptime - step.starttime %]
 		            [% ELSE %]
 		              [% INCLUDE renderDuration duration = curTime - step.starttime %]
 		            [% END %]
@@ -87,6 +88,7 @@
 		<li><a href="#tabs-summary">Summary</a></li>
 		<li><a href="#tabs-information">Information</a></li>
 		<li><a href="#tabs-buildinputs">Build Inputs</a></li>
+		[% IF relatedbuilds %]<li><a href="#tabs-relatedbuilds">Related builds</a></li>[% END %]
 		[% IF build.buildsteps %]<li><a href="#tabs-buildsteps">Build Steps</a></li>[% END %]
                 [% IF build.dependents %]<li><a href="#tabs-usedby">Used by</a></li>[% END%]
 		[% IF prevBuilds %]<li><a href="#tabs-history">History chart</a></li>[% END %]
@@ -104,10 +106,10 @@
 				    <th>Build ID:</th>
 				    <td>[% build.id %]</td>
 				  </tr>
-				  [% IF build.resultInfo.releasename %]
+				  [% IF resultInfo.releasename %]
 				    <tr>
 				      <th>Release name:</th>
-				      <td><tt>[% HTML.escape(build.resultInfo.releasename) %]</tt></td>
+				      <td><tt>[% HTML.escape(resultInfo.releasename) %]</tt></td>
 				    </tr>
 				  [% ELSE %]
 					  <tr>
@@ -129,15 +131,15 @@
 				    <tr>
 				      <th>Duration:</th>
 				      <td>
-				        [% IF build.resultInfo.iscachedbuild %]
+				        [% IF resultInfo.iscachedbuild %]
 				          (cached[% IF cachedBuild %] from [% INCLUDE renderFullBuildLink build=cachedBuild %][% END %])
 				        [% ELSE %]
-				          	[% INCLUDE renderDuration duration = build.resultInfo.stoptime - build.resultInfo.starttime %] <tt>finished at [% INCLUDE renderDateTime timestamp = build.resultInfo.stoptime %]</tt>
+				          	[% INCLUDE renderDuration duration = resultInfo.stoptime - resultInfo.starttime %] <tt>finished at [% INCLUDE renderDateTime timestamp = resultInfo.stoptime %]</tt>
 				        [% END %]
 				      </td>
 				    </tr>
 				  [% END %]
-				  [% IF build.resultInfo.logfile %]
+				  [% IF resultInfo.logfile %]
 				      <tr>
 				        <th>Logfile:</th>
 				        <td>
@@ -180,7 +182,7 @@
 		[% END %]
 
 		[% IF build.finished %]
-			[% IF build.buildsteps && build.resultInfo.buildstatus != 0 && build.resultInfo.buildstatus != 6 %]
+			[% IF build.buildsteps && resultInfo.buildstatus != 0 && resultInfo.buildstatus != 6 %]
 				[% INCLUDE renderBuildSteps type="Failed" %]
 			[% END %]
 
@@ -212,11 +214,11 @@
             </table>
             [% END %]
 
-			[% IF build.resultInfo.errormsg && build.resultInfo.buildstatus != 5 %]
+			[% IF resultInfo.errormsg && resultInfo.buildstatus != 5 %]
 		
 				<h2 id="nix-error">Nix error output</h2>
 				
-				<pre class="buildlog">[% HTML.escape(build.resultInfo.errormsg) -%]</pre>
+				<pre class="buildlog">[% HTML.escape(resultInfo.errormsg) -%]</pre>
 			[% END %]
 		[% END %]
 		[% IF logtext %]
@@ -262,10 +264,10 @@
 		    <th>Nix name:</th>
 		    <td><tt>[% build.nixname %]</tt></td>
 		  </tr>
-		  [% IF build.resultInfo.releasename %]
+		  [% IF resultInfo.releasename %]
 		    <tr>
 		      <th>Release name:</th>
-		      <td><tt>[% HTML.escape(build.resultInfo.releasename) %]</tt></td>
+		      <td><tt>[% HTML.escape(resultInfo.releasename) %]</tt></td>
 		    </tr>
 		  [% END %]
 		  <tr>
@@ -324,8 +326,8 @@
 		    <th>Time added:</th>
 		    <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
 		  </tr>
-		  [% IF build.finished && build.resultInfo.buildstatus != 4 %]
-		    [% IF build.resultInfo.iscachedbuild && cachedBuild %]
+		  [% IF build.finished && resultInfo.buildstatus != 4 %]
+		    [% IF resultInfo.iscachedbuild && cachedBuild %]
 		      <tr>
 		        <th>Cached build:</th>
 		        <td>[% INCLUDE renderFullBuildLink build=cachedBuild %]</td>
@@ -334,23 +336,23 @@
 		    
 		    <tr>
 		      <th>Build started:</th>
-		      <td>[% IF build.resultInfo.starttime %][% INCLUDE renderDateTime timestamp = build.resultInfo.starttime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+		      <td>[% IF resultInfo.starttime %][% INCLUDE renderDateTime timestamp = resultInfo.starttime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
 		    </tr>
 		    <tr>
 		      <th>Build finished:</th>
-		      <td>[% IF build.resultInfo.stoptime %][% INCLUDE renderDateTime timestamp = build.resultInfo.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+		      <td>[% IF resultInfo.stoptime %][% INCLUDE renderDateTime timestamp = resultInfo.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
 		    </tr>
 		    <tr>
 		      <th>Duration:</th>
 		      <td>
-		        [% IF build.resultInfo.iscachedbuild %]
+		        [% IF resultInfo.iscachedbuild %]
 		          <em>(cached build)</em>
 		        [% ELSE %]
-		          [% INCLUDE renderDuration duration = build.resultInfo.stoptime - build.resultInfo.starttime %]
+		          [% INCLUDE renderDuration duration = resultInfo.stoptime - resultInfo.starttime %]
 		        [% END %]
 		      </td>
 		    </tr>
-		    [% IF build.resultInfo.logfile %]
+		    [% IF resultInfo.logfile %]
 		      <tr>
 		        <th>Logfile:</th>
 		        <td>
@@ -373,7 +375,7 @@
 		      <td>
 		        [% IF !available %]
 		          <em>Build output is no longer available</em>
-		        [% ELSIF build.resultInfo.keep %]
+		        [% ELSIF resultInfo.keep %]
 		          <em>Build output will be kept permanently</em>
 		          [% IF c.user_exists %]
 		            <form action="[% c.uri_for('/build' build.id 'keep' 0) %]" method="post" class="inline">
@@ -431,6 +433,13 @@
        
 	</div>
 
+        [% IF relatedbuilds %]
+	<div id="tabs-relatedbuilds">
+		
+		<h2>Related builds</h2>
+		[% INCLUDE renderBuildList builds=relatedbuilds%]
+	</div>
+        [% END %]
 
 [% IF build.buildsteps %]
 	<div id="tabs-buildsteps">
@@ -476,8 +485,9 @@
     var d = [];
     var ids = [];
     [% FOREACH prevbuild IN prevBuilds %][% IF prevbuild.resultInfo.starttime != 0 %]
-      d.push([[% prevbuild.resultInfo.starttime * 1000 %],[% prevbuild.get_column('actualBuildTime') %]]);
-      ids[[% prevbuild.resultInfo.starttime * 1000 %]] = [% prevbuild.id %] ;
+      [% pbResultInfo = prevbuild.resultInfo %]
+      d.push([[% pbResultInfo.starttime * 1000 %],[% prevbuild.get_column('actualBuildTime') %]]);
+      ids[[% pbResultInfo.starttime * 1000 %]] = [% prevbuild.id %] ;
     [% END %][% END %] 
 
     var options = {
