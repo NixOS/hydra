@@ -178,6 +178,10 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             Bindings());
     }
 
+    else if (v.type = tNull) {
+        // allow null values, meaning 'do nothing'
+    }
+
     else
         throw TypeError(format("unsupported value: %1%") % v);
 }
