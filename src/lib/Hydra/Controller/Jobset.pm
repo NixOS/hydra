@@ -20,6 +20,7 @@ sub jobset : Chained('/') PathPart('jobset') CaptureArgs(2) {
         or notFound($c, "Jobset $jobsetName doesn't exist.");
 }
 
+
 sub jobsetIndex {
     my ($self, $c, $forceStatus) = @_;
 
@@ -89,14 +90,16 @@ sub jobsetIndex {
             }) ];
 }
 
+
 sub index : Chained('jobset') PathPart('') Args(0) {
-  my ($self, $c) = @_;
-  jobsetIndex($self, $c, 0);
+    my ($self, $c) = @_;
+    jobsetIndex($self, $c, 0);
 }
 
+
 sub indexWithStatus : Chained('jobset') PathPart('') Args(1) {
-  my ($self, $c, $forceStatus) = @_;
-  jobsetIndex($self, $c, 1);
+    my ($self, $c, $forceStatus) = @_;
+    jobsetIndex($self, $c, 1);
 }
 
 
@@ -153,6 +156,7 @@ sub hide : Chained('jobset') PathPart Args(0) {
         [$c->stash->{project}->name]));
 }
 
+
 sub unhide : Chained('jobset') PathPart Args(0) {
     my ($self, $c) = @_;
 
@@ -165,6 +169,7 @@ sub unhide : Chained('jobset') PathPart Args(0) {
     $c->res->redirect($c->uri_for($c->controller('Project')->action_for("view"),
         [$c->stash->{project}->name]));
 }
+
 
 sub delete : Chained('jobset') PathPart Args(0) {
     my ($self, $c) = @_;
@@ -293,6 +298,7 @@ sub clone : Chained('jobset') PathPart('clone') Args(0) {
     $c->stash->{template} = 'clone-jobset.tt';
 }
 
+
 sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
     my ($self, $c) = @_;
 
@@ -324,7 +330,6 @@ sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
     });
 
     $c->res->redirect($c->uri_for($c->controller('Jobset')->action_for("edit"), [$jobset->project->name, $newjobsetName]));
-
 }
 
 
