@@ -437,6 +437,7 @@
 	<div id="tabs-relatedbuilds">
 		
 		<h2>Related builds</h2>
+		<p>The following builds are part of the same jobset evaluation that produced this build.</p>
 		[% INCLUDE renderBuildList builds=relatedbuilds%]
 	</div>
         [% END %]

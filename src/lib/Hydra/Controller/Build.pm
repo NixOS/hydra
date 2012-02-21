@@ -83,7 +83,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
 
     my $r = joinWithResultInfo( $c, $c->model('DB::Builds'))->search(
         { eval => { -in => $build->jobsetevalmembers->get_column('eval')->as_query } }
-      , { join => 'jobsetevalmembers', order_by => [ 'project', 'jobset', 'job'] }
+      , { join => 'jobsetevalmembers', order_by => [ 'project', 'jobset', 'job'], distinct => 1 }
       );
     if ($r->count <= 100) {
         $c->stash->{relatedbuilds} = [$r->all];
