@@ -19,67 +19,67 @@
       more in-depth testing than what developers could feasibly do manually:
 
       <itemizedlist>
-	<listitem> <emphasis>Portability testing</emphasis>: The
-	software may need to be built and tested on many different
-	platforms.  It is infeasible for each developer to do this
-	before every commit.
-	</listitem>
+        <listitem> <emphasis>Portability testing</emphasis>: The
+        software may need to be built and tested on many different
+        platforms.  It is infeasible for each developer to do this
+        before every commit.
+        </listitem>
 
-	<listitem> Likewise, many projects have very large test sets
-	(e.g., regression tests in a compiler, or stress tests in a
-	DBMS) that can take hours or days to run to completion.
-	</listitem>
+        <listitem> Likewise, many projects have very large test sets
+        (e.g., regression tests in a compiler, or stress tests in a
+        DBMS) that can take hours or days to run to completion.
+        </listitem>
 
-	<listitem> Many kinds of static and dynamic analyses can be
-	performed as part of the tests, such as code coverage runs and
-	static analyses.
-	</listitem>
+        <listitem> Many kinds of static and dynamic analyses can be
+        performed as part of the tests, such as code coverage runs and
+        static analyses.
+        </listitem>
 
-	<listitem> It may also be necessary to build many different
-	<emphasis>variants</emphasis> of the software.  For instance,
-	it may be necessary to verify that the component builds with
-	various versions of a compiler.
-	</listitem>
+        <listitem> It may also be necessary to build many different
+        <emphasis>variants</emphasis> of the software.  For instance,
+        it may be necessary to verify that the component builds with
+        various versions of a compiler.
+        </listitem>
 
-	<listitem> Developers typically use incremental building to
-	test their changes (since a full build may take too long), but
-	this is unreliable with many build management tools (such as
-	Make), i.e., the result of the incremental build might differ
-	from a full build.
-	</listitem>
+        <listitem> Developers typically use incremental building to
+        test their changes (since a full build may take too long), but
+        this is unreliable with many build management tools (such as
+        Make), i.e., the result of the incremental build might differ
+        from a full build.
+        </listitem>
 
-	<listitem> It ensures that the  software can be built from the
-	sources under  revision control.  Users  of version management
-	systems  such as  CVS  and Subversion  often  forget to  place
-	source files under revision control.
-	</listitem>
+        <listitem> It ensures that the  software can be built from the
+        sources under  revision control.  Users  of version management
+        systems  such as  CVS  and Subversion  often  forget to  place
+        source files under revision control.
+        </listitem>
 
-	<listitem> The machines on which the continuous integration
-	system runs ideally provides a clean, well-defined build
-	environment.  If this environment is administered through
-	proper SCM techniques, then builds produced by the system can
-	be reproduced.  In contrast, developer work environments are
-	typically not under any kind of SCM control.
-	</listitem>
+        <listitem> The machines on which the continuous integration
+        system runs ideally provides a clean, well-defined build
+        environment.  If this environment is administered through
+        proper SCM techniques, then builds produced by the system can
+        be reproduced.  In contrast, developer work environments are
+        typically not under any kind of SCM control.
+        </listitem>
 
-	<listitem> In large projects, developers often work on a
-	particular component of the project, and do not build and test
-	the composition of those components (again since this is
-	likely to take too long).  To prevent the phenomenon of ``big
-	bang integration'', where components are only tested together
-	near the end of the development process, it is important to
-	test components together as soon as possible (hence
-	<emphasis>continuous integration</emphasis>).
-	</listitem>
+        <listitem> In large projects, developers often work on a
+        particular component of the project, and do not build and test
+        the composition of those components (again since this is
+        likely to take too long).  To prevent the phenomenon of ``big
+        bang integration'', where components are only tested together
+        near the end of the development process, it is important to
+        test components together as soon as possible (hence
+        <emphasis>continuous integration</emphasis>).
+        </listitem>
 
-	<listitem> It allows software to be
-	<emphasis>released</emphasis> by automatically creating
-	packages that users can download and install.  To do this
-	manually represents an often prohibitive amount of work, as
-	one may want to produce releases for many different platforms:
-	e.g., installers for Windows and Mac OS X, RPM or Debian
-	packages for certain Linux distributions, and so on.
-	</listitem>
+        <listitem> It allows software to be
+        <emphasis>released</emphasis> by automatically creating
+        packages that users can download and install.  To do this
+        manually represents an often prohibitive amount of work, as
+        one may want to produce releases for many different platforms:
+        e.g., installers for Windows and Mac OS X, RPM or Debian
+        packages for certain Linux distributions, and so on.
+        </listitem>
 
       </itemizedlist>
     </para>
@@ -92,19 +92,19 @@
 
       <itemizedlist>
 
-	<listitem>It obtains the latest version of the component's
-	source code from the version management system.
-	</listitem>
+        <listitem>It obtains the latest version of the component's
+        source code from the version management system.
+        </listitem>
 
-	<listitem> It runs the component's build process (which
-	presumably includes the execution of the component's test
-	set).
-	</listitem>
+        <listitem> It runs the component's build process (which
+        presumably includes the execution of the component's test
+        set).
+        </listitem>
 
-	<listitem> It presents the results of the build (such as error
-	logs and releases) to the developers, e.g., by producing a web
-	page.
-	</listitem>
+        <listitem> It presents the results of the build (such as error
+        logs and releases) to the developers, e.g., by producing a web
+        page.
+        </listitem>
 
       </itemizedlist>
 
@@ -114,40 +114,40 @@
 
       <itemizedlist>
 
-	<listitem> They do not manage the <emphasis>build
-	environment</emphasis>.  The build environment consists of the
-	dependencies necessary to perform a build action, e.g.,
-	compilers, libraries, etc.  Setting up the environment is
-	typically done manually, and without proper SCM control (so it
-	may be hard to reproduce a build at a later time).  Manual
-	management of the environment scales poorly in the number of
-	configurations that must be supported.  For instance, suppose
-	that we want to build a component that requires a certain
-	compiler X.  We then have to go to each machine and install X.
-	If we later need a newer version of X, the process must be
-	repeated all over again.  An ever worse problem occurs if
-	there are conflicting, mutually exclusive versions of the
-	dependencies.  Thus, simply installing the latest version is
-	not an option.  Of course, we can install these components in
-	different directories and manually pass the appropriate paths
-	to the build processes of the various components.  But this is
-	a rather tiresome and error-prone process.
-	</listitem>
+        <listitem> They do not manage the <emphasis>build
+        environment</emphasis>.  The build environment consists of the
+        dependencies necessary to perform a build action, e.g.,
+        compilers, libraries, etc.  Setting up the environment is
+        typically done manually, and without proper SCM control (so it
+        may be hard to reproduce a build at a later time).  Manual
+        management of the environment scales poorly in the number of
+        configurations that must be supported.  For instance, suppose
+        that we want to build a component that requires a certain
+        compiler X.  We then have to go to each machine and install X.
+        If we later need a newer version of X, the process must be
+        repeated all over again.  An ever worse problem occurs if
+        there are conflicting, mutually exclusive versions of the
+        dependencies.  Thus, simply installing the latest version is
+        not an option.  Of course, we can install these components in
+        different directories and manually pass the appropriate paths
+        to the build processes of the various components.  But this is
+        a rather tiresome and error-prone process.
+        </listitem>
 
-	<listitem> They do not easily support <emphasis>variability in software
-	systems</emphasis>.  A system may have a great deal of build-time
-	variability: optional functionality, whether to build a debug or
-	production version, different versions of dependencies, and so on.
-	(For instance, the Linux kernel now has over 2,600 build-time
-	configuration switches.)  It is therefore important that a continuous
-	integration tool can easily select and test different instances from
-	the configuration space of the system to reveal problems, such as
-	erroneous interactions between features.  In a continuous integration
-	setting, it is also useful to test different combinations of versions
-	of subsystems, e.g., the head revision of a component against stable
-	releases of its dependencies, and vice versa, as this can reveal
-	various integration problems.
-	</listitem>
+        <listitem> They do not easily support <emphasis>variability in software
+        systems</emphasis>.  A system may have a great deal of build-time
+        variability: optional functionality, whether to build a debug or
+        production version, different versions of dependencies, and so on.
+        (For instance, the Linux kernel now has over 2,600 build-time
+        configuration switches.)  It is therefore important that a continuous
+        integration tool can easily select and test different instances from
+        the configuration space of the system to reveal problems, such as
+        erroneous interactions between features.  In a continuous integration
+        setting, it is also useful to test different combinations of versions
+        of subsystems, e.g., the head revision of a component against stable
+        releases of its dependencies, and vice versa, as this can reveal
+        various integration problems.
+        </listitem>
 
       </itemizedlist>
     </para>
@@ -258,3 +258,10 @@
   </section>
 
 </chapter>
+
+<!--
+ Local Variables:
+ indent-tabs-mode: nil
+ ispell-local-dictionary: "american"
+ End:
+ -->
