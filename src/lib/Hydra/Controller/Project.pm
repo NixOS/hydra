@@ -6,6 +6,7 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
+
 sub project : Chained('/') PathPart('project') CaptureArgs(1) {
     my ($self, $c, $projectName) = @_;
     
@@ -13,8 +14,8 @@ sub project : Chained('/') PathPart('project') CaptureArgs(1) {
         or notFound($c, "Project $projectName doesn't exist.");
 
     $c->stash->{project} = $project;
-     
 }
+
 
 sub view : Chained('project') PathPart('') Args(0) {
     my ($self, $c) = @_;
