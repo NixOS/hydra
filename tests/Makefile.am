@@ -31,7 +31,7 @@ clean :
 check_SCRIPTS = db.sqlite repos
 
 db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
-	sqlite3 db.sqlite <  $(top_srcdir)/src/sql/hydra-sqlite.sql
+	perl $(top_srcdir)/src/script/hydra-init
 
 repos : dirs git-repo hg-repo svn-repo svn-checkout-repo bzr-repo bzr-checkout-repo
 

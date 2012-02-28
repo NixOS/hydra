@@ -1,6 +1,6 @@
 EXTRA_DIST = hydra.sql hydra-postgresql.sql hydra-sqlite.sql
 
-sqldir = $(datadir)/hydra/sql
+sqldir = $(libexecdir)/hydra/sql
 nobase_sql_DATA = $(EXTRA_DIST)
 
 hydra-postgresql.sql: hydra.sql

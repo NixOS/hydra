@@ -1,37 +1,38 @@
-{pkgs}:
+{ pkgs }:
 
 with pkgs;
 
-[ perlPackages.CatalystDevel
-  perlPackages.CatalystPluginSessionStoreFastMmap
-  perlPackages.CatalystPluginStackTrace
+[ perlPackages.CatalystAuthenticationStoreDBIxClass
+  perlPackages.CatalystPluginAccessLog
   perlPackages.CatalystPluginAuthorizationRoles
   perlPackages.CatalystPluginSessionStateCookie
-  perlPackages.CatalystPluginAccessLog
-  perlPackages.CatalystAuthenticationStoreDBIxClass
-  perlPackages.CatalystViewTT
+  perlPackages.CatalystPluginSessionStoreFastMmap
+  perlPackages.CatalystPluginStackTrace
   perlPackages.CatalystViewDownload
   perlPackages.CatalystViewJSON
+  perlPackages.CatalystViewTT
   perlPackages.CatalystXScriptServerStarman
-  perlPackages.XMLSimple
-  perlPackages.IPCRun
-  perlPackages.IOCompress
-  perlPackages.Readonly
+  perlPackages.CryptRandPasswd
   perlPackages.DBDPg
   perlPackages.DBDSQLite
-  perlPackages.EmailSender
-  perlPackages.TextTable
-  perlPackages.TextDiff
-  perlPackages.FileSlurp
-  perlPackages.NetTwitterLite
-  perlPackages.PadWalker
   perlPackages.DataDump
-  perlPackages.JSONXS
   perlPackages.DateTime
   perlPackages.DigestSHA1
-  perlPackages.CryptRandPasswd
-  perlPackages.TestMore
-  perlPackages.SysHostnameLong
+  perlPackages.EmailSender
+  perlPackages.FileSlurp
+  perlPackages.IOCompress
+  perlPackages.IPCRun
+  perlPackages.JSONXS
+  perlPackages.NetTwitterLite
+  perlPackages.PadWalker
+  perlPackages.CatalystDevel
+  perlPackages.Readonly
+  perlPackages.SQLSplitStatement
   perlPackages.Starman
+  perlPackages.SysHostnameLong
+  perlPackages.TestMore
+  perlPackages.TextDiff
+  perlPackages.TextTable
+  perlPackages.XMLSimple
   nixUnstable
 ]
