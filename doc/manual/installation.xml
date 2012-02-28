@@ -101,9 +101,8 @@ nix-env -i hydra</screen>
 	  Command completion should reveal a number of command-line tools from Hydra:
 
 	  <screen>
-hydra-build      hydra-evaluator     hydra-update-gc-roots
-hydra-create     hydra-queue-runner  
-hydra-eval-jobs  hydra-server</screen>
+hydra-build      hydra-evaluator     hydra-server
+hydra-eval-jobs  hydra-queue-runner  hydra-update-gc-roots</screen>
 	</para>
     </section>
 

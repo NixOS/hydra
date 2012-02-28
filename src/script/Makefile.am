@@ -8,7 +8,6 @@ bin_SCRIPTS = \
   hydra-queue-runner \
   hydra-server \
   hydra-update-gc-roots \
-  hydra-create \
   nix-prefetch-git \
   nix-prefetch-bzr \
   nix-prefetch-hg
