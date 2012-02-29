@@ -57,9 +57,9 @@ sub index : Chained('admin') PathPart('') Args(0) {
         , '+as' => ['idle']
         })];
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
-        { 'me.busy' => 1, 'schedulingInfo.busy' => 1 },
-        { join => [ 'schedulingInfo', 'build' ]
-        , order_by => [ 'machine' ]
+        { finished => 0, 'me.busy' => 1, 'build.busy' => 1, },
+        { join => [ 'build' ]
+        , order_by => [ 'machine', 'stepnr' ]
         } ) ];
     $c->stash->{template} = 'admin.tt';
  }
@@ -296,13 +296,15 @@ sub machine_disable : Chained('machine') PathPart('disable') Args(0) {
 
 sub clear_queue_non_current : Chained('admin') Path('clear-queue-non-current') Args(0) {
     my ($self, $c) = @_;
-    $c->model('DB::Builds')->search({iscurrent => 0, busy => 0}, { join => 'schedulingInfo' })->delete_all;
+    # !!! Mark the builds as cancelled instead.
+    $c->model('DB::Builds')->search({finished => 0, iscurrent => 0, busy => 0})->delete_all;
     $c->res->redirect("/admin");
 }
 
 sub clear_queue : Chained('admin') Path('clear-queue') Args(0) {
     my ($self, $c) = @_;
-    $c->model('DB::Builds')->search({busy => 0}, { join => 'schedulingInfo' })->delete_all;
+    # !!! Mark the builds as cancelled instead.
+    $c->model('DB::Builds')->search({finished => 0, busy => 0})->delete_all;
     $c->res->redirect("/admin");
 }
 

@@ -65,10 +65,10 @@ sub jobsetIndex {
         my @as = ();
         push(@select, "job"); push(@as, "job");
         foreach my $system (@systems) {
-            push(@select, "(SELECT buildstatus FROM BuildResultInfo bri NATURAL JOIN Builds b WHERE b.id = (SELECT MAX(id) FROM Builds t WHERE t.project = me.project AND t.jobset = me.jobset AND t.job = me.job AND t.system = '$system' AND t.iscurrent = 1 ))");
+            push(@select, "(select buildstatus from BuildResultInfo bri join Builds b using (id) where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
             push(@as, $system);
-            push(@select, "(SELECT b.id FROM BuildResultInfo bri NATURAL JOIN Builds b WHERE b.id = (SELECT MAX(id) FROM Builds t WHERE t.project = me.project AND t.jobset = me.jobset AND t.job = me.job AND t.system = '$system' AND t.iscurrent = 1 ))");
-            push(@as, $system."-build");
+            push(@select, "(select b.id from BuildResultInfo bri join Builds b using (id) where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
+            push(@as, "$system-build");
         }
         $c->stash->{activeJobsStatus} =
             [ $c->model('DB')->resultset('ActiveJobsForJobset')->search(

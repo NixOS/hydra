@@ -93,7 +93,7 @@
       [%- FOREACH build IN builds -%]
         <tr class="clickable 
                    [%- IF showSchedulingInfo -%]
-                     [%- IF build.get_column('busy') %]runningBuild[% ELSIF build.get_column('disabled') == 1 || build.get_column('enabled') == 0 %]disabledBuild[% END -%]
+                     [%- IF build.busy %]runningBuild[% ELSIF build.disabled == 1 || build.get_column('enabled') == 0 %]disabledBuild[% END -%]
                    [%- ELSE -%]
                      [%- IF odd %] odd [% END; odd = !odd -%]
                    [%- END %]"
@@ -105,8 +105,8 @@
           [%- END -%]
           <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
           [%- IF showSchedulingInfo -%]
-            <td>[% IF build.get_column('busy') %]<img src="/static/images/running.gif" alt="Running" />[% ELSIF build.get_column('disabled') == 1 || build.get_column('enabled') == 0 %]Disabled[% END %]</td>
-            <td>[% build.get_column('priority') %]</td>
+            <td>[% IF build.busy %]<img src="/static/images/running.gif" alt="Running" />[% ELSIF build.disabled == 1 || build.get_column('enabled') == 0 %]Disabled[% END %]</td>
+            <td>[% build.priority %]</td>
           [%- END -%]
           <td>[%- INCLUDE renderFullJobNameOfBuild -%]</td>
           <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
@@ -203,7 +203,7 @@
 
 [%- BLOCK renderBuildStatusIcon -%]
   [%- finished = build != undef ? build.finished : 1 -%]
-  [%- busy = busy != undef ? busy : build.schedulingInfo.busy -%]
+  [%- busy = busy != undef ? busy : build.busy -%]
   [%- buildstatus = buildstatus != undef ? buildstatus : build.resultInfo.buildstatus -%]
   [%- IF finished -%]
     [%- IF buildstatus == 0 -%]
@@ -255,9 +255,9 @@
         <button id="restart" type="submit">Restart</button>
       </form>
     [% END %]
-  [% ELSIF build.schedulingInfo.busy %]
+  [% ELSIF build.busy %]
     <strong>Build in progress</strong>
-    since [% INCLUDE renderDateTime timestamp = build.schedulingInfo.starttime %]
+    since [% INCLUDE renderDateTime timestamp = build.starttime %]
   [% ELSE %]
     <strong>Scheduled to be built</strong>
     [% IF c.user_exists %]

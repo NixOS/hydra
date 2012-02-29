@@ -70,7 +70,7 @@
 <h1>
   Job <tt>[% project.name %]:[% jobset.name %]:[% job.name %]</tt> build [% id %]
   [% IF !build.finished %]
-    [% IF build.schedulingInfo.busy %]
+    [% IF build.busy %]
       (currently building)
     [% ELSE %]
       (scheduled)
@@ -127,7 +127,7 @@
 				    <th>System:</th>
 				    <td><tt>[% build.system %]</tt></td>
 				  </tr>
-				  [% IF !build.schedulingInfo %]
+				  [% IF !build.finished %]
 				    <tr>
 				      <th>Duration:</th>
 				      <td>
@@ -316,12 +316,14 @@
 		      [% END %]
 		    </td>
 		  </tr>
+                  [% IF pathHash %]
 		  <tr>
 		    <th>Output store path hash:</th>
 		    <td>
 		      <tt>[% pathHash %]</tt>
 		    </td>
 		  </tr>
+                  [% END %]
 		  <tr>
 		    <th>Time added:</th>
 		    <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
@@ -366,7 +368,7 @@
 		  [% IF !build.finished %]
 		    <tr>
 		      <th>Priority:</th>
-		      <td>[% build.schedulingInfo.priority %]</td>
+		      <td>[% build.priority %]</td>
 		    </tr>
 		  [% END %]
 		  [% IF build.finished && build.buildproducts %]

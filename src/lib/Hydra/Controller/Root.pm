@@ -22,8 +22,8 @@ sub begin :Private {
     $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"} ;
 
     if (scalar(@args) == 0 || $args[0] ne "static") {
-      $c->stash->{nrRunningBuilds} = $c->model('DB::BuildSchedulingInfo')->search({ busy => 1 }, {})->count();
-      $c->stash->{nrQueuedBuilds} = $c->model('DB::BuildSchedulingInfo')->count();
+	$c->stash->{nrRunningBuilds} = $c->model('DB::Builds')->search({ finished => 0, busy => 1 }, {})->count();
+	$c->stash->{nrQueuedBuilds} = $c->model('DB::Builds')->search({ finished => 0 })->count();
     }
 }
 
@@ -74,7 +74,7 @@ sub queue :Local {
     my ($self, $c) = @_;
     $c->stash->{template} = 'queue.tt';
     $c->stash->{queue} = [$c->model('DB::Builds')->search(
-        {finished => 0}, {join => ['schedulingInfo', 'project'] , order_by => ["priority DESC", "timestamp"], '+select' => ['project.enabled', 'schedulingInfo.priority', 'schedulingInfo.disabled', 'schedulingInfo.busy'], '+as' => ['enabled', 'priority', 'disabled', 'busy']  })];
+        {finished => 0}, {join => ['project'] , order_by => ["priority DESC", "timestamp"], '+select' => ['project.enabled'], '+as' => ['enabled']  })];
     $c->stash->{flashMsg} = $c->flash->{buildMsg};
 }
 
@@ -99,8 +99,8 @@ sub timeline :Local {
 sub status :Local {
     my ($self, $c) = @_;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
-        { 'me.busy' => 1, 'schedulingInfo.busy' => 1 },
-        { join => [ 'schedulingInfo', 'build' ]
+        { 'me.busy' => 1, 'build.busy' => 1 },
+        { join => [ 'build' ]
         , order_by => [ 'machine' ]
         } ) ];
 }

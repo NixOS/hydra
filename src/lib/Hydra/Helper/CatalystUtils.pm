@@ -82,9 +82,7 @@ sub getBuildStats {
         
     $c->stash->{scheduledBuilds} = $builds->search({finished => 0}) || 0;
         
-    $c->stash->{busyBuilds} = $builds->search(
-        {finished => 0, busy => 1},
-        {join => 'schedulingInfo'}) || 0;
+    $c->stash->{busyBuilds} = $builds->search({finished => 0, busy => 1}) || 0;
 
     my $res;
     $res = $builds->search({},

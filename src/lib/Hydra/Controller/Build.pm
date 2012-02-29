@@ -41,11 +41,10 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
     $c->stash->{flashMsg} = $c->flash->{buildMsg};
 
-    my $pathHash = $c->stash->{available} ? queryPathHash($build->outpath) : "Not available";
-    $c->stash->{pathHash} = $pathHash;
+    $c->stash->{pathHash} = $c->stash->{available} ? queryPathHash($build->outpath) : undef;
 
-    if (!$build->finished && $build->schedulingInfo->busy) {
-        my $logfile = $build->schedulingInfo->logfile;
+    if (!$build->finished && $build->busy) {
+        my $logfile = $build->logfile;
         $c->stash->{logtext} = `cat $logfile` if defined $logfile && -e $logfile;
     }
 
@@ -81,13 +80,13 @@ sub view_build : Chained('build') PathPart('') Args(0) {
         ];
     }
 
-    my $r = joinWithResultInfo( $c, $c->model('DB::Builds'))->search(
-        { eval => { -in => $build->jobsetevalmembers->get_column('eval')->as_query } }
-      , { join => 'jobsetevalmembers', order_by => [ 'project', 'jobset', 'job'], distinct => 1 }
-      );
-    if ($r->count <= 100) {
-        $c->stash->{relatedbuilds} = [$r->all];
-    }
+    #my $r = joinWithResultInfo( $c, $c->model('DB::Builds'))->search(
+    #    { eval => { -in => $build->jobsetevalmembers->all->get_column('eval')->as_query } }
+    #  , { join => 'jobsetevalmembers', order_by => [ 'project', 'jobset', 'job'], distinct => 1 }
+    #  );
+    #if ($r->count <= 100) {
+    #    $c->stash->{relatedbuilds} = [$r->all];
+    #}
 }
 
 
@@ -141,7 +140,7 @@ sub showLog {
     	my $url = $c->request->uri->as_string;
     	$url =~ s/tail-reload/tail/g;
         $c->stash->{url} = $url;
-        $c->stash->{reload} = defined $c->stash->{build}->schedulingInfo && $c->stash->{build}->schedulingInfo->busy;
+        $c->stash->{reload} = !$c->stash->{build}->finished && $c->stash->{build}->busy;
         $c->stash->{title} = "";
         $c->stash->{contents} = (scalar `$pipestart | tail -n 50`) || " ";
         $c->stash->{template} = 'plain-reload.tt';
@@ -406,21 +405,19 @@ sub cancel : Chained('build') PathPart Args(0) {
 
     txn_do($c->model('DB')->schema, sub {
         error($c, "This build cannot be cancelled.")
-            if $build->finished || $build->schedulingInfo->busy;
+            if $build->finished || $build->busy;
 
         # !!! Actually, it would be nice to be able to cancel busy
         # builds as well, but we would have to send a signal or
         # something to the build process.
 
-        $build->update({finished => 1, timestamp => time});
+        $build->update({finished => 1, busy => 0, timestamp => time});
 
         $c->model('DB::BuildResultInfo')->create(
             { id => $build->id
             , iscachedbuild => 0
             , buildstatus => 4 # = cancelled
             });
-
-        $build->schedulingInfo->delete;
     });
 
     $c->flash->{buildMsg} = "Build has been cancelled.";

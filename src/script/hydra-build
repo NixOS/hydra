@@ -398,7 +398,7 @@ sub doBuild {
     }
 
     txn_do($db, sub {
-        $build->update({finished => 1, timestamp => time});
+        $build->update({finished => 1, busy => 0, locker => '', logfile => '', timestamp => time});
 
         my $releaseName = getReleaseName($outPath);
         
@@ -423,8 +423,6 @@ sub doBuild {
         if ($buildStatus == 0 || $buildStatus == 6) {
             addBuildProducts($db, $build);
         }
-
-        $build->schedulingInfo->delete;
     });
 
     sendEmailNotification $build;
@@ -453,10 +451,10 @@ txn_do($db, sub {
     $build = $db->resultset('Builds')->find($buildId);
     die "build $buildId doesn't exist" unless defined $build;
     die "build $buildId already done" if defined $build->resultInfo;
-    if ($build->schedulingInfo->busy != 0 && $build->schedulingInfo->locker != getppid) {
+    if ($build->busy != 0 && $build->locker != getppid) {
         die "build $buildId is already being built";
     }
-    $build->schedulingInfo->update({busy => 1, locker => $$});
+    $build->update({busy => 1, locker => $$});
     $build->buildsteps->search({busy => 1})->delete_all;
     $build->buildproducts->delete_all;
 });
@@ -472,6 +470,6 @@ eval {
 if ($@) {
     warn $@;
     txn_do($db, sub {
-        $build->schedulingInfo->update({busy => 0, locker => $$});
+        $build->update({busy => 0, locker => $$});
     });
 }

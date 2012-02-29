@@ -851,12 +851,11 @@ sub checkBuild {
             , nixexprpath => $jobset->nixexprpath
             });
 
-        
         $currentBuilds->{$build->id} = 1;
         
         if (isValidPath($outPath)) {
             print STDERR "marked as cached build ", $build->id, "\n";
-                $build->update({ finished => 1 });
+	    $build->update({ finished => 1 });
             $build->create_related('buildresultinfo',
                 { iscachedbuild => 1
                 , buildstatus => 0
@@ -869,8 +868,8 @@ sub checkBuild {
             addBuildProducts($db, $build);
         } else {
             print STDERR "added to queue as build ", $build->id, "\n";
-            $build->create_related('buildschedulinginfo',
-                { priority => $priority
+	    $build->update(
+		{ priority => $priority
                 , busy => 0
                 , locker => ""
                 });
@@ -906,24 +905,23 @@ sub restartBuild {
     my ($db, $build) = @_;
 
     txn_do($db, sub {
-        my $drvpath = $build->drvpath ;
-        my $outpath = $build->outpath ;
+        my $drvpath = $build->drvpath;
+        my $outpath = $build->outpath;
 
         my $paths = "";
         foreach my $bs ($build->buildsteps) {
-          $paths = $paths . " " . $bs->outpath;
+	    $paths = $paths . " " . $bs->outpath;
         }
 
         my $r = `nix-store --clear-failed-paths $paths $outpath`;
-        $build->update({finished => 0, timestamp => time});
 
-        $build->resultInfo->delete;
-
-        $db->resultset('BuildSchedulingInfo')->create(
-            { id => $build->id
-            , priority => 0 # don't know the original priority anymore...
+        $build->update(
+	    { finished => 0
+	    , timestamp => time
             , busy => 0
             , locker => ""
-            });
+	    });
+
+        $build->resultInfo->delete;
     });
 }

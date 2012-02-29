@@ -136,13 +136,11 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
     my $nr = $c->request->params->{nr} ;
     error($c, "Parameter not defined!") if !defined $nr;
 
-    my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, join => ['schedulingInfo'] , order_by => ["busy DESC", "priority DESC", "timestamp"], '+select' => ['schedulingInfo.priority', 'schedulingInfo.busy'], '+as' => ['priority', 'busy']  });
+    my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["busy DESC", "priority DESC", "timestamp"]});
     
-    my @list ;
-    foreach my $b (@builds) {
-      push @list, buildToHash($b) ;
-    }
-       
+    my @list;
+    push @list, buildToHash($_) foreach @builds;
+
     $c->stash->{'plain'} = { 
         data => scalar (JSON::Any->objToJson(\@list)) 
     };
@@ -151,18 +149,18 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
 
 sub nrqueue : Chained('api') PathPart('nrqueue') Args(0) {
     my ($self, $c) = @_;
-    my $nrQueuedBuilds = $c->model('DB::BuildSchedulingInfo')->count();
+    my $nrQueuedBuilds = $c->model('DB::Builds')->search({finished => 0})->count();
     $c->stash->{'plain'} = { 
-        data => " $nrQueuedBuilds"
+        data => "$nrQueuedBuilds"
     };
     $c->forward('Hydra::View::Plain');
 }
 
 sub nrrunning : Chained('api') PathPart('nrrunning') Args(0) {
     my ($self, $c) = @_;
-    my $nrRunningBuilds = $c->model('DB::BuildSchedulingInfo')->search({ busy => 1 }, {})->count();
-    $c->stash->{'plain'} = { 
-        data => " $nrRunningBuilds"
+    my $nrRunningBuilds = $c->model('DB::Builds')->search({finished => 0, busy => 1 })->count();
+    $c->stash->{'plain'} = {
+        data => "$nrRunningBuilds"
     };
     $c->forward('Hydra::View::Plain');
 }

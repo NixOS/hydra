@@ -151,10 +151,4 @@ __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" }, {})
 # Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:5H+OkGT0zQEWkAjU+OlBdg
 
-__PACKAGE__->belongs_to(
-  "schedulingInfo",
-  "Hydra::Schema::BuildSchedulingInfo",
-  { id => "build" },
-);
-
 1;
