@@ -36,9 +36,15 @@ sub overview : Chained('job') PathPart('') Args(0) {
 	    , order_by => 'timestamp DESC', rows => 10 
 	    }) ];
 
-    $c->stash->{runningBuilds} = [$c->stash->{job}->builds->search({busy => 1}, { join => ['schedulingInfo', 'project'] , order_by => ["priority DESC", "timestamp"]
-                                                                                     , '+select' => ['project.enabled', 'schedulingInfo.priority', 'schedulingInfo.disabled', 'schedulingInfo.busy']
-                                                                                     , '+as' => ['enabled', 'priority', 'disabled', 'busy']  })];
+    $c->stash->{runningBuilds} = [
+	$c->stash->{job}->builds->search(
+	    { busy => 1 }, 
+	    { join => ['project']
+	    , order_by => ["priority DESC", "timestamp"]
+            , '+select' => ['project.enabled']
+	    , '+as' => ['enabled']  
+	    } 
+	) ];
 
     $c->stash->{systems} = [$c->stash->{job}->builds->search({iscurrent => 1}, {select => ["system"], distinct => 1})];
 }

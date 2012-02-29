@@ -46,7 +46,7 @@ __PACKAGE__->table("BuildProducts");
 
 =head2 filesize
 
-  data_type: 'integer'
+  data_type: 'bigint'
   is_nullable: 1
 
 =head2 sha1hash
@@ -91,7 +91,7 @@ __PACKAGE__->add_columns(
   "subtype",
   { data_type => "text", is_nullable => 0 },
   "filesize",
-  { data_type => "integer", is_nullable => 1 },
+  { data_type => "bigint", is_nullable => 1 },
   "sha1hash",
   { data_type => "text", is_nullable => 1 },
   "sha256hash",
@@ -133,8 +133,8 @@ Related object: L<Hydra::Schema::Builds>
 __PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" }, {});
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:suSgQkBLXzu0yD4YicRS1A
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-02-29 00:47:18
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:dzTKwZ7bby7kplnSgta3Gw
 
 # You can replace this text with custom content, and it will be preserved on regeneration
 1;

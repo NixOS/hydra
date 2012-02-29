@@ -114,11 +114,6 @@ create table Jobs (
 );
 
 
--- This table contains all wbuilds, either scheduled or finished.  For
--- scheduled builds, additional info (such as the priority) can be
--- found in the BuildSchedulingInfo table.  For finished builds,
--- additional info (such as the logs, build products, etc.) can be
--- found in several tables, such as BuildResultInfo and BuildProducts.
 create table Builds (
 #ifdef POSTGRESQL
     id            serial primary key not null,
@@ -156,29 +151,22 @@ create table Builds (
     -- build.
     nixExprInput  text,
     nixExprPath   text,
-    
-    foreign key   (project) references Projects(name) on update cascade,
-    foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
-    foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade
-);
 
-
--- Info for a scheduled build.
-create table BuildSchedulingInfo (
-    id            integer primary key not null,
-    
+    -- Information about scheduled builds.
     priority      integer not null default 0,
 
     busy          integer not null default 0, -- true means someone is building this job now
-    locker        text not null default '', -- !!! hostname/pid of the process building this job?
+    locker        text, -- !!! hostname/pid of the process building this job?
 
     logfile       text, -- if busy, the path of the logfile
 
-    disabled      integer not null default 0,
+    disabled      integer not null default 0, -- !!! boolean
     
     startTime     integer, -- if busy, time we started
-    
-    foreign key   (id) references Builds(id) on delete cascade
+
+    foreign key   (project) references Projects(name) on update cascade,
+    foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
+    foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade
 );
 
 
@@ -523,7 +511,6 @@ create index IndexBuildInputsOnBuild on BuildInputs(build);
 create index IndexBuildInputsOnDependency on BuildInputs(dependency);
 create index IndexBuildProducstOnBuildAndType on BuildProducts(build, type);
 create index IndexBuildProductsOnBuild on BuildProducts(build);
-create index IndexBuildSchedulingInfoOnBuild on BuildSchedulingInfo(id); -- idem
 create index IndexBuildStepsOnBuild on BuildSteps(build);
 create index IndexBuildStepsOnDrvpathTypeBusyStatus on BuildSteps(drvpath, type, busy, status);
 create index IndexBuildStepsOnOutpath on BuildSteps(outpath);

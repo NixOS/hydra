@@ -130,6 +130,39 @@ __PACKAGE__->table("Builds");
   data_type: 'text'
   is_nullable: 1
 
+=head2 priority
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 0
+
+=head2 busy
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 0
+
+=head2 locker
+
+  data_type: 'text'
+  is_nullable: 1
+
+=head2 logfile
+
+  data_type: 'text'
+  is_nullable: 1
+
+=head2 disabled
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 0
+
+=head2 starttime
+
+  data_type: 'integer'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -173,6 +206,18 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "nixexprpath",
   { data_type => "text", is_nullable => 1 },
+  "priority",
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
+  "busy",
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
+  "locker",
+  { data_type => "text", is_nullable => 1 },
+  "logfile",
+  { data_type => "text", is_nullable => 1 },
+  "disabled",
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
+  "starttime",
+  { data_type => "integer", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -245,21 +290,6 @@ Related object: L<Hydra::Schema::BuildResultInfo>
 __PACKAGE__->might_have(
   "buildresultinfo",
   "Hydra::Schema::BuildResultInfo",
-  { "foreign.id" => "self.id" },
-  {},
-);
-
-=head2 buildschedulinginfo
-
-Type: might_have
-
-Related object: L<Hydra::Schema::BuildSchedulingInfo>
-
-=cut
-
-__PACKAGE__->might_have(
-  "buildschedulinginfo",
-  "Hydra::Schema::BuildSchedulingInfo",
   { "foreign.id" => "self.id" },
   {},
 );
@@ -350,8 +380,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:RRtBPTdD946kA5133+c4kw
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-02-29 00:47:54
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:VnnyFTwnLncGb2Dj2/giiA
 
 use Hydra::Helper::Nix;
 
@@ -367,12 +397,6 @@ __PACKAGE__->has_many(
   "inputs",
   "Hydra::Schema::BuildInputs",
   { "foreign.build" => "self.id" },
-);
-
-__PACKAGE__->belongs_to(
-  "schedulingInfo",
-  "Hydra::Schema::BuildSchedulingInfo",
-  { id => "id" },
 );
 
 __PACKAGE__->belongs_to(
@@ -410,11 +434,11 @@ sub makeQueries {
     
     my $joinWithStatusChange =
         <<QUERY;
-          natural join BuildResultInfo r
+          join BuildResultInfo r using (id)
           left join Builds b on
             b.id =
-              (select max(id)
-               from builds c natural join buildresultinfo r2
+              (select max(c.id)
+               from builds c join buildresultinfo r2 on c.id = r2.id
                where
                  x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system and
                  x.id > c.id and
@@ -432,11 +456,12 @@ QUERY
             x.id, x.finished, x.timestamp, x.project, x.jobset, x.job, x.nixname,
             x.description, x.drvpath, x.outpath, x.system, x.longdescription,
             x.license, x.homepage, x.maintainers, x.isCurrent, x.nixExprInput,
-            x.nixExprPath, x.maxsilent, x.timeout,
+            x.nixExprPath, x.maxsilent, x.timeout, x.priority, x.busy, x.locker,
+            x.logfile, x.disabled, x.startTime,
             b.id as statusChangeId, b.timestamp as statusChangeTime
           from
             (select  
-               (select max(id) from builds b
+               (select max(b.id) from builds b
                 where 
                   project = activeJobs.project and jobset = activeJobs.jobset 
                   and job = activeJobs.job and system = activeJobs.system 
@@ -457,7 +482,7 @@ QUERY
           select *
           from
             (select  
-               (select max(id) from builds b
+               (select max(b.id) from builds b
                 where 
                   project = activeJobs.project and jobset = activeJobs.jobset 
                   and job = activeJobs.job and system = activeJobs.system 
