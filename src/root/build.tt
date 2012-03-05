@@ -7,7 +7,6 @@
 [% project = build.project %]
 [% jobset = build.jobset %]
 [% job = build.job %]
-[% resultInfo = build.resultInfo %]
 
 [% BLOCK renderBuildSteps %]
 
@@ -35,7 +34,7 @@
 		            [% INCLUDE renderDuration duration = step.stoptime - step.starttime %]
 		          [% ELSE %]
 		            [% IF build.finished %]
-		              [% INCLUDE renderDuration duration = resultInfo.stoptime - step.starttime %]
+		              [% INCLUDE renderDuration duration = build.stoptime - step.starttime %]
 		            [% ELSE %]
 		              [% INCLUDE renderDuration duration = curTime - step.starttime %]
 		            [% END %]
@@ -106,10 +105,10 @@
 				    <th>Build ID:</th>
 				    <td>[% build.id %]</td>
 				  </tr>
-				  [% IF resultInfo.releasename %]
+				  [% IF build.releasename %]
 				    <tr>
 				      <th>Release name:</th>
-				      <td><tt>[% HTML.escape(resultInfo.releasename) %]</tt></td>
+				      <td><tt>[% HTML.escape(build.releasename) %]</tt></td>
 				    </tr>
 				  [% ELSE %]
 					  <tr>
@@ -131,15 +130,15 @@
 				    <tr>
 				      <th>Duration:</th>
 				      <td>
-				        [% IF resultInfo.iscachedbuild %]
+				        [% IF build.iscachedbuild %]
 				          (cached[% IF cachedBuild %] from [% INCLUDE renderFullBuildLink build=cachedBuild %][% END %])
 				        [% ELSE %]
-				          	[% INCLUDE renderDuration duration = resultInfo.stoptime - resultInfo.starttime %] <tt>finished at [% INCLUDE renderDateTime timestamp = resultInfo.stoptime %]</tt>
+				          	[% INCLUDE renderDuration duration = build.stoptime - build.starttime %] <tt>finished at [% INCLUDE renderDateTime timestamp = build.stoptime %]</tt>
 				        [% END %]
 				      </td>
 				    </tr>
 				  [% END %]
-				  [% IF resultInfo.logfile %]
+				  [% IF build.logfile %]
 				      <tr>
 				        <th>Logfile:</th>
 				        <td>
@@ -182,7 +181,7 @@
 		[% END %]
 
 		[% IF build.finished %]
-			[% IF build.buildsteps && resultInfo.buildstatus != 0 && resultInfo.buildstatus != 6 %]
+			[% IF build.buildsteps && build.buildstatus != 0 && build.buildstatus != 6 %]
 				[% INCLUDE renderBuildSteps type="Failed" %]
 			[% END %]
 
@@ -214,11 +213,11 @@
             </table>
             [% END %]
 
-			[% IF resultInfo.errormsg && resultInfo.buildstatus != 5 %]
+			[% IF build.errormsg && build.buildstatus != 5 %]
 		
 				<h2 id="nix-error">Nix error output</h2>
 				
-				<pre class="buildlog">[% HTML.escape(resultInfo.errormsg) -%]</pre>
+				<pre class="buildlog">[% HTML.escape(build.errormsg) -%]</pre>
 			[% END %]
 		[% END %]
 		[% IF logtext %]
@@ -264,10 +263,10 @@
 		    <th>Nix name:</th>
 		    <td><tt>[% build.nixname %]</tt></td>
 		  </tr>
-		  [% IF resultInfo.releasename %]
+		  [% IF build.releasename %]
 		    <tr>
 		      <th>Release name:</th>
-		      <td><tt>[% HTML.escape(resultInfo.releasename) %]</tt></td>
+		      <td><tt>[% HTML.escape(build.releasename) %]</tt></td>
 		    </tr>
 		  [% END %]
 		  <tr>
@@ -328,8 +327,8 @@
 		    <th>Time added:</th>
 		    <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
 		  </tr>
-		  [% IF build.finished && resultInfo.buildstatus != 4 %]
-		    [% IF resultInfo.iscachedbuild && cachedBuild %]
+		  [% IF build.finished && build.buildstatus != 4 %]
+		    [% IF build.iscachedbuild && cachedBuild %]
 		      <tr>
 		        <th>Cached build:</th>
 		        <td>[% INCLUDE renderFullBuildLink build=cachedBuild %]</td>
@@ -338,23 +337,23 @@
 		    
 		    <tr>
 		      <th>Build started:</th>
-		      <td>[% IF resultInfo.starttime %][% INCLUDE renderDateTime timestamp = resultInfo.starttime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+		      <td>[% IF build.starttime %][% INCLUDE renderDateTime timestamp = build.starttime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
 		    </tr>
 		    <tr>
 		      <th>Build finished:</th>
-		      <td>[% IF resultInfo.stoptime %][% INCLUDE renderDateTime timestamp = resultInfo.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+		      <td>[% IF build.stoptime %][% INCLUDE renderDateTime timestamp = build.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
 		    </tr>
 		    <tr>
 		      <th>Duration:</th>
 		      <td>
-		        [% IF resultInfo.iscachedbuild %]
+		        [% IF build.iscachedbuild %]
 		          <em>(cached build)</em>
 		        [% ELSE %]
-		          [% INCLUDE renderDuration duration = resultInfo.stoptime - resultInfo.starttime %]
+		          [% INCLUDE renderDuration duration = build.stoptime - build.starttime %]
 		        [% END %]
 		      </td>
 		    </tr>
-		    [% IF resultInfo.logfile %]
+		    [% IF build.logfile %]
 		      <tr>
 		        <th>Logfile:</th>
 		        <td>
@@ -377,7 +376,7 @@
 		      <td>
 		        [% IF !available %]
 		          <em>Build output is no longer available</em>
-		        [% ELSIF resultInfo.keep %]
+		        [% ELSIF build.keep %]
 		          <em>Build output will be kept permanently</em>
 		          [% IF c.user_exists %]
 		            <form action="[% c.uri_for('/build' build.id 'keep' 0) %]" method="post" class="inline">
@@ -487,10 +486,9 @@
   $(function() {
     var d = [];
     var ids = [];
-    [% FOREACH prevbuild IN prevBuilds %][% IF prevbuild.resultInfo.starttime != 0 %]
-      [% pbResultInfo = prevbuild.resultInfo %]
-      d.push([[% pbResultInfo.starttime * 1000 %],[% prevbuild.get_column('actualBuildTime') %]]);
-      ids[[% pbResultInfo.starttime * 1000 %]] = [% prevbuild.id %] ;
+    [% FOREACH prevbuild IN prevBuilds %][% IF prevbuild.build.starttime != 0 %]
+      d.push([[% prevbuild.starttime * 1000 %],[% prevbuild.get_column('actualBuildTime') %]]);
+      ids[[% prevbuild.starttime * 1000 %]] = [% prevbuild.id %] ;
     [% END %][% END %] 
 
     var options = {
@@ -560,9 +558,9 @@
   $(function() {
     var d = [];
     var ids = [];
-    [% FOREACH prevbuild IN prevBuilds %][% IF prevbuild.resultInfo.size != 0 %]
-      d.push([[% prevbuild.resultInfo.starttime * 1000 %],[% prevbuild.resultInfo.size / (1024*1024.0) %]]);
-      ids[[% prevbuild.resultInfo.starttime * 1000 %]] = [% prevbuild.id %] ;
+    [% FOREACH prevbuild IN prevBuilds %][% IF prevbuild.size != 0 %]
+      d.push([[% prevbuild.starttime * 1000 %],[% prevbuild.size / (1024*1024.0) %]]);
+      ids[[% prevbuild.starttime * 1000 %]] = [% prevbuild.id %] ;
     [% END %][% END %] 
 
     var options = {

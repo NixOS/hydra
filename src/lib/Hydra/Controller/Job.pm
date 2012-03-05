@@ -25,16 +25,11 @@ sub overview : Chained('job') PathPart('') Args(0) {
 
     #getBuildStats($c, scalar $c->stash->{job}->builds);
 
-    $c->stash->{currentBuilds} = [$c->stash->{job}->builds->search({iscurrent => 1}, { join => 'resultInfo', '+select' => ["resultInfo.releasename", "resultInfo.buildStatus"]
-                                                                                     , '+as' => ["releasename", "buildStatus"], order_by => 'system' })];
+    $c->stash->{currentBuilds} = [$c->stash->{job}->builds->search({finished => 1, iscurrent => 1}, { order_by => 'system' })];
 
     $c->stash->{lastBuilds} = 
 	[ $c->stash->{job}->builds->search({ finished => 1 }, 
-	    { join => 'resultInfo', 
-	    , '+select' => ["resultInfo.releasename", "resultInfo.buildStatus"]
-	    , '+as' => ["releasename", "buildStatus"]
-	    , order_by => 'timestamp DESC', rows => 10 
-	    }) ];
+	    { order_by => 'timestamp DESC', rows => 10 }) ];
 
     $c->stash->{runningBuilds} = [
 	$c->stash->{job}->builds->search(

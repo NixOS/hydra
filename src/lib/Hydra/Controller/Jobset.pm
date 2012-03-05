@@ -65,9 +65,9 @@ sub jobsetIndex {
         my @as = ();
         push(@select, "job"); push(@as, "job");
         foreach my $system (@systems) {
-            push(@select, "(select buildstatus from BuildResultInfo bri join Builds b using (id) where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
+            push(@select, "(select buildstatus from Builds b where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
             push(@as, $system);
-            push(@select, "(select b.id from BuildResultInfo bri join Builds b using (id) where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
+            push(@select, "(select b.id from Builds b where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
             push(@as, "$system-build");
         }
         $c->stash->{activeJobsStatus} =
@@ -81,13 +81,9 @@ sub jobsetIndex {
     }
 
     # Last builds for jobset.
-    my $tmp = $c->stash->{jobset}->builds;
     $c->stash->{lastBuilds} = 
-	[ joinWithResultInfo($c, $tmp)->search({ finished => 1 }, 
-            { order_by => "timestamp DESC", rows => 5
-            , '+select' => ["resultInfo.buildStatus"]
-            , '+as' => ["buildStatus"]
-            }) ];
+	[ $c->stash->{jobset}->builds->search({ finished => 1 }, 
+            { order_by => "timestamp DESC", rows => 5 }) ];
 }
 
 

@@ -8,7 +8,7 @@ use Hydra::Helper::Nix;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild getBuildStats joinWithResultInfo getChannelData
+    getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild getBuildStats getChannelData
     error notFound
     requireLogin requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
@@ -58,7 +58,7 @@ sub getPreviousSuccessfulBuild {
     my ($c, $build) = @_;
     return undef if !defined $build;
 
-    (my $prevBuild) = joinWithResultInfo($c, $c->model('DB::Builds'))->search(
+    (my $prevBuild) = $c->model('DB::Builds')->search(
       { finished => 1
       , system => $build->system
       , project => $build->project->name
@@ -76,43 +76,24 @@ sub getBuildStats {
     
     $c->stash->{finishedBuilds} = $builds->search({finished => 1}) || 0;
     
-    $c->stash->{succeededBuilds} = $builds->search(
-        {finished => 1, buildStatus => 0},
-        {join => 'resultInfo'}) || 0;
+    $c->stash->{succeededBuilds} = $builds->search({finished => 1, buildStatus => 0}) || 0;
         
     $c->stash->{scheduledBuilds} = $builds->search({finished => 0}) || 0;
         
     $c->stash->{busyBuilds} = $builds->search({finished => 0, busy => 1}) || 0;
 
     my $res;
-    $res = $builds->search({},
-        {join => 'resultInfo', select => {sum => 'stoptime - starttime'}, as => ['sum']})
-        ->first ;        
+    $res = $builds->search({}, {select => {sum => 'stoptime - starttime'}, as => ['sum']})->first;
         
     $c->stash->{totalBuildTime} = defined ($res) ? $res->get_column('sum') : 0 ;
 
 }
 
 
-# Add the releaseName and buildStatus attributes from the
-# BuildResultInfo table for each build.
-sub joinWithResultInfo {
-    my ($c, $source) = @_;
-
-    return $source->search(
-        { },
-        { join => 'resultInfo'
-        , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
-        , '+as' => ["releasename", "buildStatus"]
-        });
-}
-
-
 sub getChannelData {
     my ($c, $builds) = @_;
 
-    my @builds2 = joinWithResultInfo($c, $builds)
-        ->search_literal("exists (select 1 from buildproducts where build = resultInfo.id and type = 'nix-build')");
+    my @builds2 = $builds->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')");
     
     my @storePaths = ();
     foreach my $build (@builds2) {

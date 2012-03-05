@@ -34,9 +34,9 @@ sub sendTwitterNotification {
     my $addURL = defined $config{'base_uri'};
 
     my $jobName  = $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
-    my $status   = $build->resultInfo->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
+    my $status   = $build->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
     my $system   = $build->system;
-    my $duration = ($build->resultInfo->stoptime - $build->resultInfo->starttime) . " seconds"; 
+    my $duration = ($build->stoptime - $build->starttime) . " seconds"; 
     my $url = $config{'base_uri'}."/build/".$build->id ;
 
     my $nt = Net::Twitter::Lite->new(
@@ -74,7 +74,7 @@ sub statusDescription {
 sub sendEmailNotification {
     my ($build) = @_;
 
-    die unless defined $build->resultInfo;
+    die unless $build->finished;
         
     return if ! ( $build->jobset->enableemail && ($build->maintainers ne "" || $build->jobset->emailoverride ne "") );
 
@@ -93,13 +93,13 @@ sub sendEmailNotification {
         );
 
     # if there is a previous build with same buildstatus, do not send email
-    if (defined $prevBuild && ($build->resultInfo->buildstatus == $prevBuild->resultInfo->buildstatus)) {
+    if (defined $prevBuild && ($build->buildstatus == $prevBuild->buildstatus)) {
         return; 
     }
 
     # if buildstatus of this build or the previous one is aborted, do
     # not send email
-    if ($build->resultInfo->buildstatus == 3 || (defined $prevBuild && ($prevBuild->resultInfo->buildstatus == 3))) {
+    if ($build->buildstatus == 3 || (defined $prevBuild && ($prevBuild->buildstatus == 3))) {
         return; 
     }
 
@@ -110,7 +110,7 @@ sub sendEmailNotification {
 
     my $jobName = $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
 
-    my $status =  statusDescription($build->resultInfo->buildstatus);
+    my $status =  statusDescription($build->buildstatus);
 
     my $baseurl = hostname_long ;
     my $sender = $config{'notification_sender'} ||
@@ -132,10 +132,10 @@ sub sendEmailNotification {
         [ "Time added:", showTime $build->timestamp ],
         );
     push @lines, (
-        [ "Build started:", showTime $build->resultInfo->starttime ],
-        [ "Build finished:", showTime $build->resultInfo->stoptime ],
-        [ "Duration:", $build->resultInfo->stoptime - $build->resultInfo->starttime . "s" ],
-    ) if $build->resultInfo->starttime;
+        [ "Build started:", showTime $build->starttime ],
+        [ "Build finished:", showTime $build->stoptime ],
+        [ "Duration:", $build->stoptime - $build->starttime . "s" ],
+    ) if $build->starttime;
     $infoTable->load(@lines);
 
     my $inputsTable = Text::Table->new(
@@ -157,18 +157,18 @@ sub sendEmailNotification {
     $inputsTable->load(@lines);
 
     my $loglines = 50;
-    my $logfile = $build->resultInfo->logfile;
+    my $logfile = $build->logfile;
     my $logtext = defined $logfile && -e $logfile ? `tail -$loglines $logfile` : "No logfile available.\n";
     $logtext = removeAsciiEscapes($logtext);
 
     my $body = "Hi,\n"
         . "\n"
         . "This is to let you know that Hydra build " . $build->id
-        . " of job " . $jobName . " "  . (defined $prevBuild ? "has changed from '" . statusDescription($prevBuild->resultInfo->buildstatus) . "' to '$status'" : "is '$status'" ) .".\n"
+        . " of job " . $jobName . " "  . (defined $prevBuild ? "has changed from '" . statusDescription($prevBuild->buildstatus) . "' to '$status'" : "is '$status'" ) .".\n"
         . "\n"
         . "Complete build information can be found on this page: "
         . "$selfURI/build/" . $build->id . "\n"
-        . ($build->resultInfo->buildstatus != 0 ? "\nThe last $loglines lines of the build log are shown at the bottom of this email.\n" : "")
+        . ($build->buildstatus != 0 ? "\nThe last $loglines lines of the build log are shown at the bottom of this email.\n" : "")
         . "\n"
         . "A summary of the build information follows:\n"
         . "\n"
@@ -181,7 +181,7 @@ sub sendEmailNotification {
         . $inputsTable->body
         . "\n"
         . "Regards,\n\nThe Hydra build daemon.\n"
-        . ($build->resultInfo->buildstatus != 0 ? "\n---\n$logtext" : ""); 
+        . ($build->buildstatus != 0 ? "\n---\n$logtext" : ""); 
 
     # stripping trailing spaces from lines
     $body =~ s/[\ ]+$//gm;
@@ -398,16 +398,16 @@ sub doBuild {
     }
 
     txn_do($db, sub {
-        $build->update({finished => 1, busy => 0, locker => '', logfile => '', timestamp => time});
-
         my $releaseName = getReleaseName($outPath);
         
-        if ($buildStatus == 0 && -f "$outPath/nix-support/failed") { 
-            $buildStatus = 6; 
-        }
+        $buildStatus = 6 if $buildStatus == 0 && -f "$outPath/nix-support/failed";
 
-        $db->resultset('BuildResultInfo')->create(
-            { id => $build->id
+        $build->update(
+            { finished => 1
+            , busy => 0
+            , locker => ''
+            , logfile => ''
+            , timestamp => time # !!! Why change the timestamp?
             , iscachedbuild => $isCachedBuild
             , buildstatus => $buildStatus
             , starttime => $startTime
@@ -450,7 +450,7 @@ my $build;
 txn_do($db, sub {
     $build = $db->resultset('Builds')->find($buildId);
     die "build $buildId doesn't exist" unless defined $build;
-    die "build $buildId already done" if defined $build->resultInfo;
+    die "build $buildId already done" if $build->finished;
     if ($build->busy != 0 && $build->locker != getppid) {
         die "build $buildId is already being built";
     }

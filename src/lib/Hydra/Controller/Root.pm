@@ -86,13 +86,10 @@ sub timeline :Local {
     $pit = $pit-(24*60*60)-1;
 
     $c->stash->{template} = 'timeline.tt';
-    $c->stash->{builds} = [$c->model('DB::Builds')->search(
-        {finished => 1, stoptime => { '>' => $pit } }
-      , { join => 'resultInfo'
-        , order_by => ["starttime"]
-        , '+select' => [ 'resultInfo.starttime', 'resultInfo.stoptime', 'resultInfo.buildstatus' ]
-        , '+as' => [ 'starttime', 'stoptime', 'buildstatus' ]
-        })];
+    $c->stash->{builds} = [ $c->model('DB::Builds')->search
+        ( { finished => 1, stoptime => { '>' => $pit } }
+        , { order_by => ["starttime"] } 
+        ) ];
 }
 
 
