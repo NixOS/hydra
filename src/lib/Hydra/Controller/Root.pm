@@ -95,11 +95,15 @@ sub timeline :Local {
 
 sub status :Local {
     my ($self, $c) = @_;
-    $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
-        { 'me.busy' => 1, 'build.busy' => 1 },
-        { join => [ 'build' ]
-        , order_by => [ 'machine' ]
-        } ) ];
+    $c->model('DB')->storage->dbh_do(sub {
+        my (undef, $dbh) = @_;
+        local $dbh->{pg_server_prepare} = 0;
+        $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
+            { 'me.busy' => 1, 'build.finished' => 0, 'build.busy' => 1 },
+            { join => [ 'build' ]
+            , order_by => [ 'machine' ]
+            } ) ];
+    });
 }
 
 

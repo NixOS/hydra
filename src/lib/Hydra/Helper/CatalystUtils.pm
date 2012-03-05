@@ -22,6 +22,7 @@ sub getBuild {
     return $build;
 }
 
+
 sub getPreviousBuild {
     my ($c, $build) = @_;
     return undef if !defined $build;
@@ -37,6 +38,7 @@ sub getPreviousBuild {
     
     return $prevBuild;
 }
+
 
 sub getNextBuild {
     my ($c, $build) = @_;
@@ -54,6 +56,7 @@ sub getNextBuild {
     return $nextBuild;
 }
 
+
 sub getPreviousSuccessfulBuild {
     my ($c, $build) = @_;
     return undef if !defined $build;
@@ -70,6 +73,7 @@ sub getPreviousSuccessfulBuild {
     
     return $prevBuild;
 }
+
 
 sub getBuildStats {
     my ($c, $builds) = @_;
