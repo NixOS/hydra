@@ -3,6 +3,7 @@ EXTRA_DIST = \
   $(bin_SCRIPTS)
 
 bin_SCRIPTS = \
+  hydra-init \
   hydra-build \
   hydra-evaluator \
   hydra-queue-runner \
