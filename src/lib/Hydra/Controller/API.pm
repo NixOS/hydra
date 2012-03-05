@@ -15,10 +15,12 @@ use File::Slurp;
 
 # !!! Rewrite this to use View::JSON.
 
+
 sub api : Chained('/') PathPart('api') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->response->content_type('application/json');
 }
+
 
 sub projectToHash {
     my ($project) = @_;
@@ -28,14 +30,15 @@ sub projectToHash {
     }; 
 }
 
+
 sub projects : Chained('api') PathPart('projects') Args(0) {
     my ($self, $c) = @_;
     
-    my @projects = $c->model('DB::Projects')->search({hidden => 0}, {order_by => 'name'}) ;
+    my @projects = $c->model('DB::Projects')->search({hidden => 0}, {order_by => 'name'});
 
-    my @list ;
+    my @list;
     foreach my $p (@projects) {
-      push @list, projectToHash($p) ;
+      push @list, projectToHash($p);
     }
     
     $c->stash->{'plain'} = { 
@@ -43,6 +46,7 @@ sub projects : Chained('api') PathPart('projects') Args(0) {
     };
     $c->forward('Hydra::View::Plain');
 }
+
 
 sub buildToHash {
     my ($build) = @_;
@@ -58,7 +62,7 @@ sub buildToHash {
     };
 
     if($build->finished) {    
-        $result->{'buildstatus'} = $build->get_column("buildstatus") ;
+        $result->{'buildstatus'} = $build->get_column("buildstatus");
     } else {
         $result->{'busy'} = $build->get_column("busy");
         $result->{'priority'} = $build->get_column("priority");
@@ -67,34 +71,34 @@ sub buildToHash {
     return $result;
 };
 
+
 sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     my ($self, $c) = @_;
-    my $nr = $c->request->params->{nr} ;
+    my $nr = $c->request->params->{nr};
     error($c, "Parameter not defined!") if !defined $nr;
 
-    my $project = $c->request->params->{project} ;
-    my $jobset = $c->request->params->{jobset} ;
-    my $job = $c->request->params->{job} ;
-    my $system = $c->request->params->{system} ;
+    my $project = $c->request->params->{project};
+    my $jobset = $c->request->params->{jobset};
+    my $job = $c->request->params->{job};
+    my $system = $c->request->params->{system};
     
-    my $filter = {finished => 1} ;
+    my $filter = {finished => 1};
     $filter->{project} = $project if ! $project eq ""; 
     $filter->{jobset} = $jobset if ! $jobset eq ""; 
     $filter->{job} = $job if !$job eq ""; 
     $filter->{system} = $system if !$system eq ""; 
     
-    my @latest = joinWithResultInfo($c, $c->model('DB::Builds'))->search($filter, {rows => $nr, order_by => ["timestamp DESC"] });
+    my @latest = $c->model('DB::Builds')->search($filter, {rows => $nr, order_by => ["timestamp DESC"] });
     
-    my @list ;
-    foreach my $b (@latest) {
-      push @list, buildToHash($b) ;
-    }
+    my @list;
+    push @list, buildToHash($_) foreach @latest;
     
     $c->stash->{'plain'} = { 
         data => scalar (JSON::Any->objToJson(\@list)) 
     };
     $c->forward('Hydra::View::Plain');
 }
+
 
 sub jobsetToHash {
     my ($jobset) = @_;
@@ -108,10 +112,11 @@ sub jobsetToHash {
     };
 } 
 
+
 sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
     my ($self, $c) = @_;
 
-    my $projectName = $c->request->params->{project} ;
+    my $projectName = $c->request->params->{project};
     error($c, "Parameter 'project' not defined!") if !defined $projectName;
 
     my $project = $c->model('DB::Projects')->find($projectName)
@@ -119,10 +124,8 @@ sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
 
     my @jobsets = jobsetOverview($c, $project);
     
-    my @list ;
-    foreach my $j (@jobsets) {
-      push @list, jobsetToHash($j) ;
-    }
+    my @list;
+    push @list, jobsetToHash($_) foreach @jobsets;
     
     $c->stash->{'plain'} = { 
         data => scalar (JSON::Any->objToJson(\@list)) 
@@ -130,10 +133,11 @@ sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
     $c->forward('Hydra::View::Plain');
 }
 
+
 sub queue : Chained('api') PathPart('queue') Args(0) {
     my ($self, $c) = @_;
 
-    my $nr = $c->request->params->{nr} ;
+    my $nr = $c->request->params->{nr};
     error($c, "Parameter not defined!") if !defined $nr;
 
     my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["busy DESC", "priority DESC", "timestamp"]});
@@ -147,6 +151,7 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
     $c->forward('Hydra::View::Plain');
 }
 
+
 sub nrqueue : Chained('api') PathPart('nrqueue') Args(0) {
     my ($self, $c) = @_;
     my $nrQueuedBuilds = $c->model('DB::Builds')->search({finished => 0})->count();
@@ -155,6 +160,7 @@ sub nrqueue : Chained('api') PathPart('nrqueue') Args(0) {
     };
     $c->forward('Hydra::View::Plain');
 }
+
 
 sub nrrunning : Chained('api') PathPart('nrrunning') Args(0) {
     my ($self, $c) = @_;
@@ -165,20 +171,21 @@ sub nrrunning : Chained('api') PathPart('nrrunning') Args(0) {
     $c->forward('Hydra::View::Plain');
 }
 
+
 sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     my ($self, $c) = @_;
-    my $nr = $c->request->params->{nr} ;
-    my $period = $c->request->params->{period} ;
+    my $nr = $c->request->params->{nr};
+    my $period = $c->request->params->{period};
     
     error($c, "Parameter not defined!") if !defined $nr || !defined $period;
     my $base;
 
-    my $project = $c->request->params->{project} ;
-    my $jobset = $c->request->params->{jobset} ;
-    my $job = $c->request->params->{job} ;
-    my $system = $c->request->params->{system} ;
+    my $project = $c->request->params->{project};
+    my $jobset = $c->request->params->{jobset};
+    my $job = $c->request->params->{job};
+    my $system = $c->request->params->{system};
 
-    my $filter = {finished => 1} ;
+    my $filter = {finished => 1};
     $filter->{project} = $project if ! $project eq ""; 
     $filter->{jobset} = $jobset if ! $jobset eq ""; 
     $filter->{job} = $job if !$job eq ""; 
@@ -187,11 +194,9 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     $base = 60*60 if($period eq "hour");
     $base = 24*60*60 if($period eq "day");
     
-    my @stats = $c->model('DB::Builds')->search($filter, {select => [{ count => "*" }], as => ["nr"], group_by => ["timestamp - timestamp % $base"], order_by => "timestamp - timestamp % $base DESC", rows => $nr}) ;
-    my @arr ;
-    foreach my $d (@stats) {
-	  push @arr, int($d->get_column("nr"));
-    }
+    my @stats = $c->model('DB::Builds')->search($filter, {select => [{ count => "*" }], as => ["nr"], group_by => ["timestamp - timestamp % $base"], order_by => "timestamp - timestamp % $base DESC", rows => $nr});
+    my @arr;
+    push @arr, int($_->get_column("nr")) foreach @stats;
     @arr = reverse(@arr);
     
     $c->stash->{'plain'} = { 
@@ -200,38 +205,40 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     $c->forward('Hydra::View::Plain');
 }
 
+
 sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
     my ($self, $c) = @_;
 
-    my $uri = $c->request->params->{uri} ;
-    my $type = $c->request->params->{type} ;
-    my $rev1 = $c->request->params->{rev1} ;
-    my $rev2 = $c->request->params->{rev2} ;
+    my $uri = $c->request->params->{uri};
+    my $type = $c->request->params->{type};
+    my $rev1 = $c->request->params->{rev1};
+    my $rev2 = $c->request->params->{rev2};
     my $branch;
 
-    die("invalid revisions: [$rev1] [$rev2]") if $rev1 !~ m/^[a-zA-Z0-9_.]+$/ || $rev2 !~ m/^[a-zA-Z0-9_.]+$/ ;
+    die("invalid revisions: [$rev1] [$rev2]") if $rev1 !~ m/^[a-zA-Z0-9_.]+$/ || $rev2 !~ m/^[a-zA-Z0-9_.]+$/;
 
     my $diff = "";
-    if($type eq "hg") {
+    if ($type eq "hg") {
         my $clonePath = scmPath . "/" . sha256_hex($uri);
         die if ! -d $clonePath;
-        $branch = `(cd $clonePath ; hg log --template '{branch}' -r $rev2)`;
-	$diff .= `(cd $clonePath ; hg log -r $rev1 -r $rev2 -b $branch)`;
-	$diff .= `(cd $clonePath ; hg diff -r $rev1:$rev2)`;
+        $branch = `(cd $clonePath; hg log --template '{branch}' -r $rev2)`;
+	$diff .= `(cd $clonePath; hg log -r $rev1 -r $rev2 -b $branch)`;
+	$diff .= `(cd $clonePath; hg diff -r $rev1:$rev2)`;
     } elsif ($type eq "git") {
         my $clonePath = scmPath . "/" . sha256_hex($uri);
         die if ! -d $clonePath;
-	$diff .= `(cd $clonePath ; git log $rev1..$rev2)`;
-	$diff .= `(cd $clonePath ; git diff $rev1..$rev2)`;
+	$diff .= `(cd $clonePath; git log $rev1..$rev2)`;
+	$diff .= `(cd $clonePath; git diff $rev1..$rev2)`;
     }
 
     $c->stash->{'plain'} = { data => (scalar $diff) || " " };
     $c->forward('Hydra::View::Plain');
 }
 
+
 sub readNormalizedLog {
     my ($file) = @_;
-    my $pipe = (-f "$file.bz2" ? "cat $file.bz2 | bzip2 -d" : "cat $file") ;
+    my $pipe = (-f "$file.bz2" ? "cat $file.bz2 | bzip2 -d" : "cat $file");
     my $res = `$pipe`;
 
     $res =~ s/\/nix\/store\/[a-z0-9]*-/\/nix\/store\/...-/g;
@@ -239,6 +246,7 @@ sub readNormalizedLog {
     $res =~ s/[0-9]{2}:[0-9]{2}:[0-9]{2}/00:00:00/g;
     return $res;
 }
+
 
 sub logdiff : Chained('api') PathPart('logdiff') Args(2) {
     my ($self, $c, $buildid1, $buildid2) = @_;
@@ -252,9 +260,9 @@ sub logdiff : Chained('api') PathPart('logdiff') Args(2) {
     notFound($c, "Build with ID $buildid2 doesn't exist.")
         if !defined $build2;
 
-    if (-f $build1->resultInfo->logfile && -f $build2->resultInfo->logfile) {
-        my $logtext1 = readNormalizedLog($build1->resultInfo->logfile);
-        my $logtext2 = readNormalizedLog($build2->resultInfo->logfile);
+    if (-f $build1->logfile && -f $build2->logfile) {
+        my $logtext1 = readNormalizedLog($build1->logfile);
+        my $logtext2 = readNormalizedLog($build2->logfile);
         $diff = diff \$logtext1, \$logtext2;
     } else {
         $c->response->status(404);
@@ -264,5 +272,6 @@ sub logdiff : Chained('api') PathPart('logdiff') Args(2) {
     $c->stash->{'plain'} = { data => (scalar $diff) || " " };
     $c->forward('Hydra::View::Plain');
 }
+
 
 1;

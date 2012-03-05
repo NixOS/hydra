@@ -244,7 +244,7 @@ sub fetchInputBuild {
     (my $prevBuild) = $db->resultset('Builds')->search(
         { finished => 1, project => $projectName, jobset => $jobsetName
         , job => $jobName, buildStatus => 0 },
-        { join => 'resultInfo', order_by => "me.id DESC", rows => 1
+        { order_by => "me.id DESC", rows => 1
         , where => \ attrsToSQL($attrs, "me.id") });
 
     if (!defined $prevBuild || !isValidPath($prevBuild->outpath)) {
@@ -257,7 +257,7 @@ sub fetchInputBuild {
     my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
     my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
 
-    my $relName = ($prevBuild->resultInfo->releasename or $prevBuild->nixname);
+    my $relName = ($prevBuild->releasename or $prevBuild->nixname);
     my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
         
     return 
@@ -294,7 +294,7 @@ sub fetchInputSystemBuild {
         my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
         my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
         
-        my $relName = ($prevBuild->resultInfo->releasename or $prevBuild->nixname);
+        my $relName = ($prevBuild->releasename or $prevBuild->nixname);
         my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
                 
         my $input =
@@ -855,9 +855,9 @@ sub checkBuild {
         
         if (isValidPath($outPath)) {
             print STDERR "marked as cached build ", $build->id, "\n";
-	    $build->update({ finished => 1 });
-            $build->create_related('buildresultinfo',
-                { iscachedbuild => 1
+	    $build->update(
+                { finished => 1 
+                , iscachedbuild => 1
                 , buildstatus => 0
                 , starttime => $time 
                 , stoptime => $time 
@@ -921,7 +921,5 @@ sub restartBuild {
             , busy => 0
             , locker => ""
 	    });
-
-        $build->resultInfo->delete;
     });
 }

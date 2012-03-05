@@ -19,7 +19,7 @@
       [% SWITCH product.type %]
 
       [% CASE "nix-build" %]
-        [% IF build.resultInfo.buildstatus == 6 %]
+        [% IF build.buildstatus == 6 %]
           [% filename = "${build.nixname}.closure.gz" %]
           [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
           <tr class="product">

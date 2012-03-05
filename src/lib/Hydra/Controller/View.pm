@@ -153,10 +153,7 @@ sub result : Chained('view') PathPart('') {
 
     # Note: we don't actually check whether $id is a primary build,
     # but who cares?
-    my $primaryBuild = $c->stash->{project}->builds->find($id,
-        { join => 'resultInfo',
-        , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
-        , '+as' => ["releasename", "buildstatus"] })
+    my $primaryBuild = $c->stash->{project}->builds->find($id)
         or error($c, "Build $id doesn't exist.");
 
     my $result = getViewResult($primaryBuild, $c->stash->{jobs});

@@ -121,9 +121,7 @@ sub allPrimaryBuilds {
     my ($project, $primaryJob) = @_;
     my $allPrimaryBuilds = $project->builds->search(
         { jobset => $primaryJob->get_column('jobset'), job => $primaryJob->get_column('job'), finished => 1 },
-        { join => 'resultInfo', order_by => "timestamp DESC"
-        , '+select' => ["resultInfo.releasename", "resultInfo.buildstatus"]
-        , '+as' => ["releasename", "buildstatus"]
+        { order_by => "timestamp DESC"
         , where => \ attrsToSQL($primaryJob->attrs, "me.id")
         });
     return $allPrimaryBuilds;
@@ -165,10 +163,9 @@ sub findLastJobForBuilds {
     {
         $thisBuild = $ev->builds->find(
             { job => $job->get_column('job'), finished => 1 },
-            { join => 'resultInfo', rows => 1
+            { rows => 1
             , order_by => ["build.id"]
             , where => \ attrsToSQL($job->attrs, "build.id")
-            , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
             });
     }
 
@@ -180,15 +177,15 @@ sub findLastJobForBuilds {
         { project => $project, jobset => $jobset
         , job => $job->get_column('job'), finished => 1
         },
-        { join => 'resultInfo', rows => 1
+        { rows => 1
         , order_by => ["buildstatus", "timestamp"]
         , where => \ attrsToSQL($job->attrs, "build.id")
-        , '+select' => ["resultInfo.buildstatus"], '+as' => ["buildstatus"]
         })
         unless defined $thisBuild;
 
     return $thisBuild;
 }
+
 
 sub jobsetOverview {
     my ($c, $project) = @_;
@@ -196,13 +193,14 @@ sub jobsetOverview {
         { order_by => "name"
         , "+select" => 
           [ "(select count(*) from Builds as a where a.finished = 0 and me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a join BuildResultInfo r using (id) where me.project = a.project and me.name = a.jobset and buildstatus <> 0 and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a join BuildResultInfo r using (id) where me.project = a.project and me.name = a.jobset and buildstatus = 0 and a.isCurrent = 1)"
+          , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus <> 0 and a.isCurrent = 1)"
+          , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus = 0 and a.isCurrent = 1)"
           , "(select count(*) from Builds as a where me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
           ]
 	, "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]
         });
 }
+
 
 sub getViewResult {
     my ($primaryBuild, $jobs) = @_;
@@ -258,10 +256,12 @@ sub getLatestSuccessfulViewResult {
     return undef;
 }
 
+
 sub removeAsciiEscapes {
     my ($logtext) = @_;
     $logtext =~ s/\e\[[0-9]*[A-Za-z]//g;
     return $logtext;
 }
+
 
 1;

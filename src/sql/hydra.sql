@@ -163,18 +163,10 @@ create table Builds (
     disabled      integer not null default 0, -- !!! boolean
     
     startTime     integer, -- if busy, time we started
+    stopTime      integer,
 
-    foreign key   (project) references Projects(name) on update cascade,
-    foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
-    foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade
-);
-
-
--- Info for a finished build.
-create table BuildResultInfo (
-    id            integer primary key not null,
-    
-    isCachedBuild integer not null, -- boolean
+    -- Information about finished builds.
+    isCachedBuild integer, -- boolean
 
     -- Status codes:
     --   0 = succeeded
@@ -187,23 +179,17 @@ create table BuildResultInfo (
 
     errorMsg      text, -- error message in case of a Nix failure
     
-    startTime     integer, -- in Unix time, 0 = used cached build result
-    stopTime      integer,
-
-    logfile       text, -- the path of the logfile
-
-    logsize       bigint not null default 0,
-    size          bigint not null default 0,
-    closuresize   bigint not null default 0,
+    logSize       bigint,
+    size          bigint,
+    closureSize   bigint,
 
     releaseName   text, -- e.g. "patchelf-0.5pre1234"
 
     keep          integer not null default 0, -- true means never garbage-collect the build output
 
-    failedDepBuild  integer, -- obsolete
-    failedDepStepNr integer, -- obsolete
-    
-    foreign key   (id) references Builds(id) on delete cascade
+    foreign key   (project) references Projects(name) on update cascade,
+    foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
+    foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade
 );
 
 

@@ -163,6 +163,52 @@ __PACKAGE__->table("Builds");
   data_type: 'integer'
   is_nullable: 1
 
+=head2 stoptime
+
+  data_type: 'integer'
+  is_nullable: 1
+
+=head2 iscachedbuild
+
+  data_type: 'integer'
+  is_nullable: 1
+
+=head2 buildstatus
+
+  data_type: 'integer'
+  is_nullable: 1
+
+=head2 errormsg
+
+  data_type: 'text'
+  is_nullable: 1
+
+=head2 logsize
+
+  data_type: 'bigint'
+  is_nullable: 1
+
+=head2 size
+
+  data_type: 'bigint'
+  is_nullable: 1
+
+=head2 closuresize
+
+  data_type: 'bigint'
+  is_nullable: 1
+
+=head2 releasename
+
+  data_type: 'text'
+  is_nullable: 1
+
+=head2 keep
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 0
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -218,6 +264,24 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "starttime",
   { data_type => "integer", is_nullable => 1 },
+  "stoptime",
+  { data_type => "integer", is_nullable => 1 },
+  "iscachedbuild",
+  { data_type => "integer", is_nullable => 1 },
+  "buildstatus",
+  { data_type => "integer", is_nullable => 1 },
+  "errormsg",
+  { data_type => "text", is_nullable => 1 },
+  "logsize",
+  { data_type => "bigint", is_nullable => 1 },
+  "size",
+  { data_type => "bigint", is_nullable => 1 },
+  "closuresize",
+  { data_type => "bigint", is_nullable => 1 },
+  "releasename",
+  { data_type => "text", is_nullable => 1 },
+  "keep",
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -276,21 +340,6 @@ __PACKAGE__->has_many(
   "buildproducts",
   "Hydra::Schema::BuildProducts",
   { "foreign.build" => "self.id" },
-  {},
-);
-
-=head2 buildresultinfo
-
-Type: might_have
-
-Related object: L<Hydra::Schema::BuildResultInfo>
-
-=cut
-
-__PACKAGE__->might_have(
-  "buildresultinfo",
-  "Hydra::Schema::BuildResultInfo",
-  { "foreign.id" => "self.id" },
   {},
 );
 
@@ -380,8 +429,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-02-29 00:47:54
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:VnnyFTwnLncGb2Dj2/giiA
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-02-29 18:56:22
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:w16c86FRReLPdA8H0yTIRg
 
 use Hydra::Helper::Nix;
 
@@ -397,12 +446,6 @@ __PACKAGE__->has_many(
   "inputs",
   "Hydra::Schema::BuildInputs",
   { "foreign.build" => "self.id" },
-);
-
-__PACKAGE__->belongs_to(
-  "resultInfo",
-  "Hydra::Schema::BuildResultInfo",
-  { id => "id" },
 );
 
 __PACKAGE__->has_one(
@@ -432,36 +475,16 @@ sub makeSource {
 sub makeQueries {
     my ($name, $constraint) = @_;
     
-    my $joinWithStatusChange =
-        <<QUERY;
-          join BuildResultInfo r using (id)
-          left join Builds b on
-            b.id =
-              (select max(c.id)
-               from builds c join buildresultinfo r2 on c.id = r2.id
-               where
-                 x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system and
-                 x.id > c.id and
-                   ((r.buildstatus = 0 and r2.buildstatus != 0) or
-                    (r.buildstatus != 0 and r2.buildstatus = 0)))
-QUERY
-
     my $activeJobs = "(select distinct project, jobset, job, system from Builds where isCurrent = 1 $constraint)";
 
     makeSource(
         "JobStatus$name",
         # Urgh, can't use "*" in the "select" here because of the status change join.
         <<QUERY
-          select 
-            x.id, x.finished, x.timestamp, x.project, x.jobset, x.job, x.nixname,
-            x.description, x.drvpath, x.outpath, x.system, x.longdescription,
-            x.license, x.homepage, x.maintainers, x.isCurrent, x.nixExprInput,
-            x.nixExprPath, x.maxsilent, x.timeout, x.priority, x.busy, x.locker,
-            x.logfile, x.disabled, x.startTime,
-            b.id as statusChangeId, b.timestamp as statusChangeTime
+          select x.*, b.id as statusChangeId, b.timestamp as statusChangeTime
           from
             (select  
-               (select max(b.id) from builds b
+               (select max(b.id) from Builds b
                 where 
                   project = activeJobs.project and jobset = activeJobs.jobset 
                   and job = activeJobs.job and system = activeJobs.system 
@@ -470,7 +493,15 @@ QUERY
              from $activeJobs as activeJobs
             ) as latest
           join Builds x using (id)
-          $joinWithStatusChange
+          left join Builds b on
+            b.id =
+              (select max(c.id) from Builds c
+               where
+                 c.finished = 1 and
+                 x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system and
+                 x.id > c.id and
+                   ((x.buildStatus = 0 and c.buildStatus != 0) or
+                    (x.buildStatus != 0 and c.buildStatus = 0)))
 QUERY
     );
 
@@ -486,8 +517,7 @@ QUERY
                 where 
                   project = activeJobs.project and jobset = activeJobs.jobset 
                   and job = activeJobs.job and system = activeJobs.system 
-                  and finished = 1
-                  and exists (select 1 from buildresultinfo where id = b.id and buildstatus = 0)
+                  and finished = 1 and buildstatus = 0
                ) as id
              from $activeJobs as activeJobs
             ) as latest

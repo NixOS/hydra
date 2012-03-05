@@ -10,14 +10,12 @@ use Hydra::Helper::CatalystUtils;
 sub getJobStatus {
     my ($self, $c) = @_;
     
-    my $latest = joinWithResultInfo($c, $c->stash->{jobStatus});
-
     my $maintainer = $c->request->params->{"maintainer"};
 
-    $latest = $latest->search(
+    my $latest = $c->stash->{jobStatus}->search(
         defined $maintainer ? { maintainers => { like => "%$maintainer%" } } : {},
-        { '+select' => ["me.statusChangeId", "me.statusChangeTime", "resultInfo.buildStatus"]
-        , '+as' => ["statusChangeId", "statusChangeTime", "buildStatus"]
+        { '+select' => ["me.statusChangeId", "me.statusChangeTime"]
+        , '+as' => ["statusChangeId", "statusChangeTime"]
         , order_by => "coalesce(statusChangeTime, 0) desc"
         });
 
@@ -43,7 +41,7 @@ sub errors : Chained('get_builds') PathPart Args(0) {
         [$c->stash->{allJobs}->search({errormsg => {'!=' => ''}})]
         if defined $c->stash->{allJobs};
     $c->stash->{brokenBuilds} =
-        [getJobStatus($self, $c)->search({'resultInfo.buildstatus' => {'!=' => 0}})];
+        [getJobStatus($self, $c)->search({buildStatus => {'!=' => 0}})];
 }
 
     
@@ -64,11 +62,9 @@ sub all : Chained('get_builds') PathPart {
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{totalBuilds} = $nrBuilds;
 
-    $c->stash->{builds} = [ joinWithResultInfo($c, $c->stash->{allBuilds})->search(
+    $c->stash->{builds} = [ $c->stash->{allBuilds}->search(
         { finished => 1 },
-        { '+select' => ["resultInfo.buildStatus"]
-        , '+as' => ["buildStatus"]
-        , order_by => "timestamp DESC"
+        { order_by => "timestamp DESC"
         , rows => $resultsPerPage
         , page => $page }) ];
 }
@@ -97,8 +93,8 @@ sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
 sub latest : Chained('get_builds') PathPart('latest') {
     my ($self, $c, @rest) = @_;
 
-    my ($latest) = joinWithResultInfo($c, $c->stash->{allBuilds})
-        ->search({finished => 1, buildstatus => 0}, {order_by => ["isCurrent DESC", "timestamp DESC"]});
+    my ($latest) = $c->stash->{allBuilds}->search(
+	{finished => 1, buildstatus => 0}, {order_by => ["isCurrent DESC", "timestamp DESC"]});
 
     notFound($c, "There is no successful build to redirect to.") unless defined $latest;
     
@@ -112,8 +108,8 @@ sub latest_for : Chained('get_builds') PathPart('latest-for') {
 
     notFound($c, "You need to specify a platform type in the URL.") unless defined $system;
     
-    my ($latest) = joinWithResultInfo($c, $c->stash->{allBuilds})
-        ->search({finished => 1, buildstatus => 0, system => $system}, {order_by => ["isCurrent DESC", "timestamp DESC"]});
+    my ($latest) = $c->stash->{allBuilds}->search(
+	{finished => 1, buildstatus => 0, system => $system}, {order_by => ["isCurrent DESC", "timestamp DESC"]});
 
     notFound($c, "There is no successful build for platform `$system' to redirect to.") unless defined $latest;
     

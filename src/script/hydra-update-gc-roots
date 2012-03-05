@@ -69,8 +69,7 @@ foreach my $project ($db->resultset('Projects')->all) {
                     , buildStatus => 0 # == success
                     , system => $system->system
                     },
-                    { join => 'resultInfo'
-                    , order_by => 'me.id DESC'
+                    { order_by => 'me.id DESC'
                     , rows => $keepnr
                     });
                 keepBuild $_ foreach @recentBuilds;
@@ -106,7 +105,7 @@ foreach my $project ($db->resultset('Projects')->all) {
 
 # Keep all builds that have been marked as "keep".
 print STDERR "*** looking for kept builds\n";
-my @buildsToKeep = $db->resultset('Builds')->search({finished => 1, keep => 1}, {join => 'resultInfo'});
+my @buildsToKeep = $db->resultset('Builds')->search({finished => 1, keep => 1});
 keepBuild $_ foreach @buildsToKeep;
 
 

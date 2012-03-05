@@ -48,20 +48,20 @@ sub view_build : Chained('build') PathPart('') Args(0) {
         $c->stash->{logtext} = `cat $logfile` if defined $logfile && -e $logfile;
     }
 
-    if (defined $build->resultInfo && $build->resultInfo->iscachedbuild) {
+    if ($build->finished && $build->iscachedbuild) {
         (my $cachedBuildStep) = $c->model('DB::BuildSteps')->search({ outpath => $build->outpath }, {}) ;
         $c->stash->{cachedBuild} = $cachedBuildStep->build if defined $cachedBuildStep;
     }
     
     (my $lastBuildStep) = $build->buildsteps->search({},{order_by => "stepnr DESC", rows => 1});
     my $path = defined $lastBuildStep ? $lastBuildStep->logfile : "" ;
-    if (defined $build->resultInfo && ($build->resultInfo->buildstatus == 1 || $build->resultInfo->buildstatus == 6) && !($path eq "") && -f $lastBuildStep->logfile) {
+    if ($build->finished && ($build->buildstatus == 1 || $build->buildstatus == 6) && !($path eq "") && -f $lastBuildStep->logfile) {
 	my $logtext = `tail -n 50 $path`;
         $c->stash->{logtext} = removeAsciiEscapes($logtext);
     }
 
-    if($build->finished) {
-        $c->stash->{prevBuilds} = [joinWithResultInfo($c, $c->model('DB::Builds'))->search(
+    if ($build->finished) {
+        $c->stash->{prevBuilds} = [$c->model('DB::Builds')->search(
             { project => $c->stash->{project}->name
             , jobset => $c->stash->{build}->jobset->name
             , job => $c->stash->{build}->job->name
@@ -105,9 +105,9 @@ sub view_nixlog : Chained('build') PathPart('nixlog') {
 sub view_log : Chained('build') PathPart('log') {
     my ($self, $c, $mode) = @_;
 
-    error($c, "Build didn't produce a log.") if !defined $c->stash->{build}->resultInfo->logfile;
+    error($c, "Build didn't produce a log.") if !defined $c->stash->{build}->logfile;
 
-    showLog($c, $c->stash->{build}->resultInfo->logfile, $mode);
+    showLog($c, $c->stash->{build}->logfile, $mode);
 }
 
 
@@ -438,7 +438,7 @@ sub keep : Chained('build') PathPart Args(1) {
     registerRoot $build->outpath if $newStatus == 1;
 
     txn_do($c->model('DB')->schema, sub {
-        $build->resultInfo->update({keep => int $newStatus});
+        $build->update({keep => int $newStatus});
     });
 
     $c->flash->{buildMsg} =

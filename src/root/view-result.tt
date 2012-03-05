@@ -24,7 +24,7 @@
 
   [% IF j.build %]
 
-    [% IF j.build.resultInfo.buildstatus == 0 %]
+    [% IF j.build.buildstatus == 0 %]
 
       [% IF j.build.buildproducts %]
         [% p = jobNames.${j.job.job} > 1 ? "-${j.build.system}" : "";
