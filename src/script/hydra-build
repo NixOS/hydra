@@ -89,7 +89,6 @@ sub sendEmailNotification {
         , finished => 1
         , id => { '!=', $build->id } 
 	}, { order_by => ["timestamp DESC"] }
-
         );
 
     # if there is a previous build with same buildstatus, do not send email
@@ -192,7 +191,6 @@ sub sendEmailNotification {
             To      => $to,
             From    => "Hydra Build Daemon <$sender>",
             Subject => "Hydra job $jobName on " . $build->system . ", build " . $build->id . ": $status",
-
             'X-Hydra-Instance' => $baseurl,
             'X-Hydra-Project'  => $build->project->name,
             'X-Hydra-Jobset'   => $build->jobset->name,
