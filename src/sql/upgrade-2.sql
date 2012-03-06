@@ -39,3 +39,6 @@ update Builds b set
     releaseName = (select releaseName from BuildResultInfo r where r.id = b.id),
     keep = (select keep from BuildResultInfo r where r.id = b.id)
     where exists (select 1 from BuildResultInfo r where r.id = b.id);
+
+drop table BuildSchedulingInfo;
+drop table BuildResultInfo;
