@@ -65,6 +65,7 @@ sub all : Chained('get_builds') PathPart {
     $c->stash->{builds} = [ $c->stash->{allBuilds}->search(
         { finished => 1 },
         { order_by => "timestamp DESC"
+        , columns => [@buildListColumns]
         , rows => $resultsPerPage
         , page => $page }) ];
 }

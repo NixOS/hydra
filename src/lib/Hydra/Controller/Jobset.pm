@@ -83,7 +83,7 @@ sub jobsetIndex {
     # Last builds for jobset.
     $c->stash->{lastBuilds} = 
 	[ $c->stash->{jobset}->builds->search({ finished => 1 }, 
-            { order_by => "timestamp DESC", rows => 5 }) ];
+            { order_by => "timestamp DESC", rows => 5, columns => [@buildListColumns] }) ];
 }
 
 

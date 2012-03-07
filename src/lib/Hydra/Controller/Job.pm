@@ -29,7 +29,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
 
     $c->stash->{lastBuilds} = 
 	[ $c->stash->{job}->builds->search({ finished => 1 }, 
-	    { order_by => 'timestamp DESC', rows => 10 }) ];
+	    { order_by => 'timestamp DESC', rows => 10, columns => [@buildListColumns] }) ];
 
     $c->stash->{runningBuilds} = [
 	$c->stash->{job}->builds->search(

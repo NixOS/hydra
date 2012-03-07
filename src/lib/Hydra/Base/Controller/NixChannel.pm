@@ -51,16 +51,15 @@ sub nixexprs : Chained('nix') PathPart('nixexprs.tar.bz2') Args(0) {
 
 sub name {
     my ($build) = @_;
-    return $build->get_column('releasename') || $build->nixname;
+    return $build->releasename || $build->nixname;
 }
 
 
 sub sortPkgs {
-    # Sort by name, then timestamp.
+    # Sort by name, then id.
     return sort
       { lc(name($a->{build})) cmp lc(name($b->{build}))
-            or $a->{build}->timestamp <=> $b->{build}->timestamp
-      } @_;
+            or $a->{build}->id <=> $b->{build}->id } @_;
 }
 
 
