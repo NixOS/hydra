@@ -43,6 +43,16 @@ sub keepBuild {
 }
 
 
+# Read the current GC roots.  We need to do that here so that we don't
+# delete roots that were added while we were determining the desired
+# roots.
+print STDERR "*** reading current roots...\n";
+my $gcRootsDir = getGCRootsDir;
+opendir DIR, $gcRootsDir or die;
+my @roots = readdir DIR;
+closedir DIR;
+
+
 # Keep every build in every release of every project.
 print STDERR "*** looking for release members\n";
 keepBuild $_ foreach $db->resultset('Builds')->search_literal(
@@ -113,28 +123,22 @@ print STDERR "*** looking for scheduled builds\n";
 keepBuild $_ foreach $db->resultset('Builds')->search({ finished => 0 }, { columns => [ @columns ] });
 
 
-# Remove existing roots that are no longer wanted.  !!! racy
+# Remove existing roots that are no longer wanted.
 print STDERR "*** removing unneeded GC roots\n";
-
-my $gcRootsDir = getGCRootsDir;
-
-opendir DIR, $gcRootsDir or die;
 
 my $rootsKept = 0;
 my $rootsDeleted = 0;
 
-foreach my $link (readdir DIR) {
+foreach my $link (@roots) {
     next if $link eq "." || $link eq "..";
     my $path = "/nix/store/$link";
     if (!defined $roots{$path}) {
         print STDERR "removing root $path\n";
 	$rootsDeleted++;
-        unlink "$gcRootsDir/$link" or warn "cannot remove $gcRootsDir/$link";
+        #unlink "$gcRootsDir/$link" or warn "cannot remove $gcRootsDir/$link";
     } else {
 	$rootsKept++;
     }
 }
-
-closedir DIR;
 
 print STDERR "kept $rootsKept roots, deleted $rootsDeleted roots\n";
