@@ -517,6 +517,8 @@ create index IndexBuildsOnJobsetFinishedTimestamp on Builds(project, jobset, fin
 create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
 create index IndexBuildsOnJobSystemCurrent on Builds(project, jobset, job, system, isCurrent);
 create index IndexBuildsOnDrvPath on Builds(drvPath);
+create index IndexBuildsOnKeep on Builds(keep); -- used by hydra-update-gc-roots
+create index IndexMostRecentSuccessfulBuilds on Builds(project, jobset, job, system, finished, buildStatus, id desc); -- used by hydra-update-gc-roots
 create index IndexCachedHgInputsOnHash on CachedHgInputs(uri, branch, sha256hash);
 create index IndexCachedGitInputsOnHash on CachedGitInputs(uri, branch, sha256hash);
 create index IndexCachedSubversionInputsOnUriRevision on CachedSubversionInputs(uri, revision);
