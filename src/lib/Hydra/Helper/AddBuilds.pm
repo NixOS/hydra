@@ -17,6 +17,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(
     fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr 
     getReleaseName getBuildLog addBuildProducts restartBuild scmPath
+    getPrevJobsetEval
 );
 
 
@@ -787,9 +788,18 @@ sub addBuildProducts {
 }
 
 
+# Return the most recent evaluation of the given jobset that had new
+# builds, or undefined if no such evaluation exists.
+sub getPrevJobsetEval {
+    my ($db, $jobset) = @_;
+    my ($prevEval) = $jobset->jobsetevals({ hasnewbuilds => 1 }, { order_by => "id DESC", rows => 1 });
+    return $prevEval;
+}
+
+
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
-    my ($db, $project, $jobset, $inputInfo, $nixExprInput, $buildInfo, $currentBuilds) = @_;
+    my ($db, $project, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildIds, $prevEval) = @_;
 
     my $jobName = $buildInfo->{jobName};
     my $drvPath = $buildInfo->{drvPath};
@@ -822,19 +832,36 @@ sub checkBuild {
         # !!! Checking $outPath doesn't take meta-attributes into
         # account.  For instance, do we want a new build to be
         # scheduled if the meta.maintainers field is changed?
-        my @previousBuilds = $job->builds->search({outPath => $outPath, isCurrent => 1});
-        if (scalar(@previousBuilds) > 0) {
-            print STDERR "already scheduled/built\n";
-            $currentBuilds->{$_->id} = 0 foreach @previousBuilds;
-            return;
+        if (defined $prevEval) {
+            my ($prevBuild) = $prevEval->builds->search({ job => $job->name, outPath => $outPath }, { rows => 1, columns => ['id'] });
+            if (defined $prevBuild) {
+                print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
+                $buildIds->{$prevBuild->id} = 0;
+                return;
+            }
         }
         
         my $time = time();
         
         # Nope, so add it.
+        my %extraFlags;
+        if (isValidPath($outPath)) {
+            %extraFlags =
+                ( finished => 1 
+                , iscachedbuild => 1
+                , buildstatus => 0
+                , starttime => $time 
+                , stoptime => $time 
+                , logfile => getBuildLog($drvPath)
+                , errormsg => ""
+                , releasename => getReleaseName($outPath)
+                );
+        } else {
+            %extraFlags = ( finished => 0 );
+        }
+	
         $build = $job->builds->create(
-            { finished => 0
-            , timestamp => $time 
+            { timestamp => $time 
             , description => $buildInfo->{description}
             , longdescription => $buildInfo->{longDescription}
             , license => $buildInfo->{license}
@@ -849,30 +876,19 @@ sub checkBuild {
             , iscurrent => 1
             , nixexprinput => $jobset->nixexprinput
             , nixexprpath => $jobset->nixexprpath
+	    , priority => $priority
+	    , busy => 0
+	    , locker => ""
+	    , %extraFlags
             });
 
-        $currentBuilds->{$build->id} = 1;
+        $buildIds->{$build->id} = 1;
         
-        if (isValidPath($outPath)) {
-            print STDERR "marked as cached build ", $build->id, "\n";
-	    $build->update(
-                { finished => 1 
-                , iscachedbuild => 1
-                , buildstatus => 0
-                , starttime => $time 
-                , stoptime => $time 
-                , logfile => getBuildLog($drvPath)
-                , errormsg => ""
-                , releasename => getReleaseName($outPath)
-                });
+        if ($build->iscachedbuild) {
+            print STDERR "    marked as cached build ", $build->id, "\n";
             addBuildProducts($db, $build);
         } else {
-            print STDERR "added to queue as build ", $build->id, "\n";
-	    $build->update(
-		{ priority => $priority
-                , busy => 0
-                , locker => ""
-                });
+            print STDERR "    added to queue as build ", $build->id, "\n";
         }
 
         my %inputs;

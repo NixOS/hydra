@@ -80,10 +80,11 @@ sub sendJobsetErrorNotification() {
     );
     $email->body_set($body);
 
-    print $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
+    print STDERR $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
 
     sendmail($email);
 }
+
 
 sub permute {
     my @list = @_;
@@ -105,13 +106,13 @@ sub checkJobset {
     my $checkoutStop = time;
 
     # Hash the arguments to hydra-eval-jobs and check the
-    # JobsetInputHashes to see if we've already evaluated this set of
+    # JobsetInputHashes to see if the previous evaluation had the same
     # inputs.  If so, bail out.
     my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo));
     my $argsHash = sha256_hex("@args");
-
-    if (scalar($jobset->jobsetevals->search({hash => $argsHash})) > 0) {
-        print "  already evaluated, skipping\n";
+    my $prevEval = getPrevJobsetEval($db, $jobset);
+    if ($prevEval->hash eq $argsHash) {
+        print STDERR "  jobset is unchanged, skipping\n";
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
         });
@@ -125,12 +126,17 @@ sub checkJobset {
 
     txn_do($db, sub {
         
+        # Clear the "current" flag on all builds.  Since we're in a
+        # transaction this will only become visible after the new
+        # current builds have been added.
+        $jobset->builds->search({iscurrent => 1})->update({iscurrent => 0});
+
         # Schedule each successfully evaluated job.
-        my %currentBuilds;
+        my %buildIds;
         foreach my $job (permute @{$jobs->{job}}) {
             next if $job->{jobName} eq "";
-            print "considering job " . $job->{jobName} . "\n";
-            checkBuild($db, $project, $jobset, $inputInfo, $nixExprInput, $job, \%currentBuilds);
+            print STDERR "  considering job " . $project->name, ":", $jobset->name, ":", $job->{jobName} . "\n";
+            checkBuild($db, $project, $jobset, $inputInfo, $nixExprInput, $job, \%buildIds, $prevEval);
         }
 
         # Update the last checked times and error messages for each
@@ -140,22 +146,11 @@ sub checkJobset {
 
         $jobset->update({lastcheckedtime => time});
         
-        foreach my $job ($jobset->jobs->all) {
-            if ($failedJobNames{$job->name}) {
-                $job->update({errormsg => join '\n', @{$failedJobNames{$job->name}}});
-            } else {
-                $job->update({errormsg => undef});
-            }
-        }
-
-        # Clear the "current" flag on all builds that are no longer
-        # current.
-        foreach my $build ($jobset->builds->search({iscurrent => 1})) {
-            $build->update({iscurrent => 0}) unless defined $currentBuilds{$build->id};
-        }
+        $_->update({ errormsg => $failedJobNames{$_->name} ? join '\n', @{$failedJobNames{$_->name}} : undef })
+            foreach $jobset->jobs->all;
 
         my $hasNewBuilds = 0;
-        while (my ($id, $new) = each %currentBuilds) {
+        while (my ($id, $new) = each %buildIds) {
             $hasNewBuilds = 1 if $new;
         }
 
@@ -168,13 +163,13 @@ sub checkJobset {
             });
 
         if ($hasNewBuilds) {
-            while (my ($id, $new) = each %currentBuilds) {
+            while (my ($id, $new) = each %buildIds) {
                 $ev->jobsetevalmembers->create({ build => $id, isnew => $new });
             }
         }
     });
        
-    # Store the errors messages for jobs that failed to evaluate.
+    # Store the error messages for jobs that failed to evaluate.
     my $msg = "";
     foreach my $error (@{$jobs->{error}}) {
         my $bindings = "";
@@ -197,7 +192,7 @@ sub checkJobset {
 sub checkJobsetWrapped {
     my ($project, $jobset) = @_;
     
-    print "considering jobset ", $jobset->name, " in ", $project->name, "\n";
+    print STDERR "considering jobset ", $project->name, ":", $jobset->name, "\n";
     
     eval {
         checkJobset($project, $jobset);
@@ -205,7 +200,7 @@ sub checkJobsetWrapped {
     
     if ($@) {
         my $msg = $@;
-        print "error evaluating jobset ", $jobset->name, ": $msg";
+        print STDERR "error evaluating jobset ", $jobset->name, ": $msg";
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
             setJobsetError($jobset, $msg);
@@ -216,7 +211,7 @@ sub checkJobsetWrapped {
 
 sub checkProjects {
     foreach my $project ($db->resultset('Projects')->search({enabled => 1})) {
-        print "considering project ", $project->name, "\n";
+        print STDERR "considering project ", $project->name, "\n";
         checkJobsetWrapped($project, $_)
             foreach $project->jobsets->search({enabled => 1});
     }
@@ -237,7 +232,7 @@ while (1) {
     eval {
         checkProjects;
     };
-    if ($@) { print "$@"; }
-    print "sleeping...\n";
+    if ($@) { print STDERR "$@"; }
+    print STDERR "sleeping...\n";
     sleep 30;
 }

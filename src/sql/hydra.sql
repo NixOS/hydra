@@ -493,6 +493,7 @@ create table BuildMachineSystemTypes (
 
 
 -- Some indices.
+
 create index IndexBuildInputsOnBuild on BuildInputs(build);
 create index IndexBuildInputsOnDependency on BuildInputs(dependency);
 create index IndexBuildProducstOnBuildAndType on BuildProducts(build, type);
@@ -517,8 +518,6 @@ create index IndexBuildsOnJobsetFinishedTimestamp on Builds(project, jobset, fin
 create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
 create index IndexBuildsOnJobSystemCurrent on Builds(project, jobset, job, system, isCurrent);
 create index IndexBuildsOnDrvPath on Builds(drvPath);
-create index IndexBuildsOnKeep on Builds(keep); -- used by hydra-update-gc-roots
-create index IndexMostRecentSuccessfulBuilds on Builds(project, jobset, job, system, finished, buildStatus, id desc); -- used by hydra-update-gc-roots
 create index IndexCachedHgInputsOnHash on CachedHgInputs(uri, branch, sha256hash);
 create index IndexCachedGitInputsOnHash on CachedGitInputs(uri, branch, sha256hash);
 create index IndexCachedSubversionInputsOnUriRevision on CachedSubversionInputs(uri, revision);
@@ -528,3 +527,10 @@ create index IndexJobsetInputAltsOnInput on JobsetInputAlts(project, jobset, inp
 create index IndexJobsetInputAltsOnJobset on JobsetInputAlts(project, jobset);
 create index IndexProjectsOnEnabled on Projects(enabled);
 create index IndexReleaseMembersOnBuild on ReleaseMembers(build);
+
+--  For hydra-update-gc-roots.
+create index IndexBuildsOnKeep on Builds(keep);
+create index IndexMostRecentSuccessfulBuilds on Builds(project, jobset, job, system, finished, buildStatus, id desc);
+
+-- To get the most recent eval for a jobset.
+create index IndexJobsetEvalsOnJobsetId on JobsetEvals(project, jobset, hasNewBuilds, id desc);
