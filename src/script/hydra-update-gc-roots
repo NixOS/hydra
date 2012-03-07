@@ -13,32 +13,54 @@ my $db = openHydraDB;
 
 my %roots;
 
-sub registerRoot {
+sub addRoot {
     my ($path) = @_;
-    Hydra::Helper::Nix::registerRoot($path);
+    registerRoot($path);
     $roots{$path} = 1;
 }
 
 
+my @columns = ( "id", "project", "jobset", "job", "system", "finished", "outpath", "drvpath", "timestamp" );
+
 sub keepBuild {
     my ($build) = @_;
-    print STDERR "  keeping build ", $build->id, " (",
-        $build->system, "; ",
+    print STDERR "  keeping ", ($build->finished ? "" : "scheduled "), "build ", $build->id, " (",
+        $build->get_column('project'), ":", $build->get_column('jobset'), ":", $build->get_column('job'), "; ",
+	$build->system, "; ",
         strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
     if (isValidPath($build->outpath)) {
-        registerRoot $build->outpath;
+	addRoot $build->outpath;
     } else {
-        print STDERR "warning: output ", $build->outpath, " has disappeared\n";
+        print STDERR "    warning: output ", $build->outpath, " has disappeared\n" if $build->finished;
+    }
+    if (!$build->finished) {
+	if (isValidPath($build->drvpath)) {
+	    addRoot $build->drvpath;
+	} else {
+	    print STDERR "    warning: derivation ", $build->drvpath, " has disappeared\n";
+	}
     }
 }
 
 
-# Go over all projects.
+# Keep every build in every release of every project.
+print STDERR "*** looking for release members\n";
+keepBuild $_ foreach $db->resultset('Builds')->search_literal(
+    "exists (select 1 from releasemembers where build = me.id)", { order_by => ["project", "jobset", "job", "id"] });
 
-foreach my $project ($db->resultset('Projects')->all) {
+
+# Keep all builds that have been marked as "keep".
+print STDERR "*** looking for kept builds\n";
+my @buildsToKeep = $db->resultset('Builds')->search(
+    { finished => 1, keep => 1 }, { order_by => ["project", "jobset", "job", "id"], columns => [ @columns ] });
+keepBuild $_ foreach @buildsToKeep;
+
+
+# Go over all projects.
+foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name"] })) {
 
     # Go over all jobsets in this project.
-    foreach my $jobset ($project->jobsets->all) {
+    foreach my $jobset ($project->jobsets->search({}, { order_by => ["name" ]})) {
         my $keepnr = $jobset->keepnr;
 
         # If the jobset has been disabled for more than one week, than
@@ -53,28 +75,19 @@ foreach my $project ($db->resultset('Projects')->all) {
             next;
         }
 
-        # Go over all jobs in this jobset.
-        foreach my $job ($jobset->jobs->all) {
-            print STDERR "*** looking for builds to keep in job ",
-                $project->name, ":", $job->jobset->name, ":", $job->name, "\n";
+	print STDERR "*** looking for the $keepnr most recent successful builds of each job in jobset ",
+	    $project->name, ":", $jobset->name, "\n";
 
-            # Keep the N most recent successful builds for each job
-            # and platform.
-            # !!! Take time into account? E.g. don't delete builds
-            # that are younger than N days.
-            my @systems = $job->builds->search({ }, { select => ["system"], distinct => 1 })->all;
-            foreach my $system (@systems) {
-                my @recentBuilds = $job->builds->search(
-                    { finished => 1
-                    , buildStatus => 0 # == success
-                    , system => $system->system
-                    },
-                    { order_by => 'me.id DESC'
-                    , rows => $keepnr
-                    });
-                keepBuild $_ foreach @recentBuilds;
-           }
-        }
+	keepBuild $_ foreach $jobset->builds->search(
+	    { 'me.id' => { 'in' => \ 
+	        [ "select b2.id from Builds b2 join " .
+		  "  (select distinct job, system, coalesce( " .
+                  "    (select id from builds where project = b.project and jobset = b.jobset and job = b.job and system = b.system and finished = 1 and buildStatus = 0 order by id desc offset ? limit 1)" .
+                  "    , 0) nth from builds b where project = ? and jobset = ? and isCurrent = 1) x " .
+		  "  on b2.project = ? and b2.jobset = ? and b2.job = x.job and b2.system = x.system and (id >= x.nth) where finished = 1 and buildStatus = 0"
+		, [ '', $keepnr - 1 ], [ '', $project->name ], [ '', $jobset->name ], [ '', $project->name ], [ '', $jobset->name ] ] }
+	    },
+	    { order_by => ["job", "system", "id"], columns => [ @columns ] });
     }
 
     # Go over all views in this project.
@@ -87,40 +100,17 @@ foreach my $project ($db->resultset('Projects')->all) {
         # Keep all builds belonging to the most recent successful view result.
         my $latest = getLatestSuccessfulViewResult($project, $primaryJob, $jobs);
         if (defined $latest) {
-            print STDERR "keeping latest successful view result ", $latest->id, " (", $latest->get_column('releasename'), ")\n";
+            print STDERR "  keeping latest successful view result ", $latest->id, " (", $latest->get_column('releasename'), ")\n";
             my $result = getViewResult($latest, $jobs);
             keepBuild $_->{build} foreach @{$result->{jobs}};
         }
     }
-
-    # Keep every build in every release in this project.
-    print STDERR "*** keeping releases in project ", $project->name, "\n"
-        if scalar $project->releases > 0;
-    foreach my $release ($project->releases->all) {
-        print STDERR "keeping release ", $release->name, "\n";
-        keepBuild $_->build foreach $release->releasemembers;
-    }
 }
-
-
-# Keep all builds that have been marked as "keep".
-print STDERR "*** looking for kept builds\n";
-my @buildsToKeep = $db->resultset('Builds')->search({finished => 1, keep => 1});
-keepBuild $_ foreach @buildsToKeep;
 
 
 # For scheduled builds, we register the derivation as a GC root.
 print STDERR "*** looking for scheduled builds\n";
-foreach my $build ($db->resultset('Builds')->search({finished => 0})) {
-    if (isValidPath($build->drvpath)) {
-        print STDERR "keeping scheduled build ", $build->id, " (",
-            strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
-        registerRoot $build->drvpath;
-        registerRoot $build->outpath if -e $build->outpath;
-    } else {
-        print STDERR "warning: derivation ", $build->drvpath, " has disappeared\n";
-    }
-}
+keepBuild $_ foreach $db->resultset('Builds')->search({ finished => 0 }, { columns => [ @columns ] });
 
 
 # Remove existing roots that are no longer wanted.  !!! racy
@@ -130,13 +120,21 @@ my $gcRootsDir = getGCRootsDir;
 
 opendir DIR, $gcRootsDir or die;
 
+my $rootsKept = 0;
+my $rootsDeleted = 0;
+
 foreach my $link (readdir DIR) {
-    next if !-l "$gcRootsDir/$link";
-    my $path = readlink "$gcRootsDir/$link" or die;
+    next if $link eq "." || $link eq "..";
+    my $path = "/nix/store/$link";
     if (!defined $roots{$path}) {
         print STDERR "removing root $path\n";
-        unlink "$gcRootsDir/$link" or die "cannot remove $gcRootsDir/$link";
+	$rootsDeleted++;
+        unlink "$gcRootsDir/$link" or warn "cannot remove $gcRootsDir/$link";
+    } else {
+	$rootsKept++;
     }
 }
 
 closedir DIR;
+
+print STDERR "kept $rootsKept roots, deleted $rootsDeleted roots\n";
