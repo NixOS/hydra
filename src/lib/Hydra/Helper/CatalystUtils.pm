@@ -13,7 +13,12 @@ our @EXPORT = qw(
     requireLogin requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
     $pathCompRE $relPathRE $relNameRE $jobNameRE $systemRE
+    @buildListColumns
 );
+
+
+# Columns from the Builds table needed to render build lists.
+Readonly our @buildListColumns => ('id', 'finished', 'timestamp', 'project', 'jobset', 'job', 'nixname', 'system', 'priority', 'busy', 'buildstatus', 'releasename');
 
 
 sub getBuild {
@@ -97,7 +102,9 @@ sub getBuildStats {
 sub getChannelData {
     my ($c, $builds) = @_;
 
-    my @builds2 = $builds->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')");
+    my @builds2 = $builds
+	->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')")
+	->search({}, { columns => [@buildListColumns, 'drvpath', 'outpath', 'description', 'homepage'] });
     
     my @storePaths = ();
     foreach my $build (@builds2) {
@@ -144,11 +151,13 @@ sub requireLogin {
     $c->detach; # doesn't return
 }
 
+
 sub isProjectOwner {
     my ($c, $project) = @_;
 
     return $c->user_exists && ($c->check_user_roles('admin') || $c->user->username eq $project->owner->username || defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
 }
+
 
 sub requireProjectOwner {
     my ($c, $project) = @_;
@@ -165,6 +174,7 @@ sub isAdmin {
 
     return $c->user_exists && $c->check_user_roles('admin');
 }
+
 
 sub requireAdmin {
     my ($c) = @_;
@@ -190,12 +200,12 @@ sub trim {
 
 
 # Security checking of filenames.
-Readonly::Scalar our $pathCompRE => "(?:[A-Za-z0-9-\+\._][A-Za-z0-9-\+\._]*)";
-Readonly::Scalar our $relPathRE  => "(?:$pathCompRE(?:/$pathCompRE)*)";
-Readonly::Scalar our $relNameRE  => "(?:[A-Za-z0-9-][A-Za-z0-9-\.]*)";
-Readonly::Scalar our $attrNameRE => "(?:[A-Za-z_][A-Za-z0-9_]*)";
-Readonly::Scalar our $jobNameRE  => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
-Readonly::Scalar our $systemRE   => "(?:[a-z0-9_]+-[a-z0-9_]+)";
+Readonly our $pathCompRE => "(?:[A-Za-z0-9-\+\._][A-Za-z0-9-\+\._]*)";
+Readonly our $relPathRE  => "(?:$pathCompRE(?:/$pathCompRE)*)";
+Readonly our $relNameRE  => "(?:[A-Za-z0-9-][A-Za-z0-9-\.]*)";
+Readonly our $attrNameRE => "(?:[A-Za-z_][A-Za-z0-9_]*)";
+Readonly our $jobNameRE  => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
+Readonly our $systemRE   => "(?:[a-z0-9_]+-[a-z0-9_]+)";
 
 
 1;
