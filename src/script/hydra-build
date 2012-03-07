@@ -87,8 +87,8 @@ sub sendEmailNotification {
         , job => $build->job->name
         , system => $build->system 
         , finished => 1
-        , id => { '!=', $build->id } 
-	}, { order_by => ["timestamp DESC"] }
+        , id => { '<', $build->id }
+	}, { order_by => ["id DESC"] }
         );
 
     # if there is a previous build with same buildstatus, do not send email
