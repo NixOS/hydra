@@ -99,37 +99,6 @@ sub getBuildStats {
 }
 
 
-sub getChannelData {
-    my ($c, $builds) = @_;
-
-    my @builds2 = $builds
-	->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')")
-	->search({}, { columns => [@buildListColumns, 'drvpath', 'outpath', 'description', 'homepage'] });
-    
-    my @storePaths = ();
-    foreach my $build (@builds2) {
-        next unless isValidPath($build->outpath);
-        if (isValidPath($build->drvpath)) {
-            # Adding `drvpath' implies adding `outpath' because of the
-            # `--include-outputs' flag passed to `nix-store'.
-            push @storePaths, $build->drvpath;
-        } else {
-	    push @storePaths, $build->outpath;
-        }
-        my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id;
-        $c->stash->{nixPkgs}->{"${pkgName}.nixpkg"} = {build => $build, name => $pkgName};
-        # Put the system type in the manifest (for top-level paths) as
-	# a hint to the binary patch generator.  (It shouldn't try to
-	# generate patches between builds for different systems.)  It
-	# would be nice if Nix stored this info for every path but it
-	# doesn't.
-	$c->stash->{systemForPath}->{$build->outpath} = $build->system;
-    };
-
-    $c->stash->{storePaths} = [@storePaths];
-}
-
-
 sub error {
     my ($c, $msg) = @_;
     $c->error($msg);
