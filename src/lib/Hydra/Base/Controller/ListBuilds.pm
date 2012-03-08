@@ -76,12 +76,10 @@ sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
     eval {
         if ($channelName eq "latest") {
             $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
-            getChannelData($c, scalar($c->stash->{latestSucceeded}));
+            $c->stash->{channelBuilds} = $c->stash->{latestSucceeded}
+                ->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')")
+                ->search({}, { columns => [@buildListColumns, 'drvpath', 'outpath', 'description', 'homepage'] });
         }
-        #elsif ($channelName eq "all") {
-        #    $c->stash->{channelName} = $c->stash->{channelBaseName} . "-all";
-        #    getChannelData($c, scalar($c->stash->{allBuilds}));
-        #}
         else {
             notFound($c, "Unknown channel `$channelName'.");
         }
