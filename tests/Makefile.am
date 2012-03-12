@@ -1,3 +1,5 @@
+perl5lib = "$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB"
+
 TESTS_ENVIRONMENT = \
   BZR_HOME="$(abs_builddir)/data"			\
   HYDRA_DBI="dbi:SQLite:db.sqlite"			\
@@ -10,7 +12,7 @@ TESTS_ENVIRONMENT = \
   NIX_STORE_DIR="$(abs_builddir)/nix/store"			\
   NIX_LOG_DIR="$(abs_builddir)/nix/var/log/nix"		\
   NIX_BUILD_HOOK=					\
-  PERL5LIB="$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB"	\
+  PERL5LIB=$(perl5lib)					\
   PATH=$(abs_top_srcdir)/src/script:$(abs_top_srcdir)/src/c:$$PATH \
   perl -w 
 
@@ -31,7 +33,7 @@ clean :
 check_SCRIPTS = db.sqlite repos
 
 db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
-	perl $(top_srcdir)/src/script/hydra-init
+	PERL5LIB=$(perl5lib) perl $(top_srcdir)/src/script/hydra-init
 
 repos : dirs git-repo hg-repo svn-repo svn-checkout-repo bzr-repo bzr-checkout-repo
 
