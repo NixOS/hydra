@@ -788,11 +788,14 @@ sub addBuildProducts {
 }
 
 
-# Return the most recent evaluation of the given jobset that had new
-# builds, or undefined if no such evaluation exists.
+# Return the most recent evaluation of the given jobset (that
+# optionally had new builds), or undefined if no such evaluation
+# exists.
 sub getPrevJobsetEval {
-    my ($db, $jobset) = @_;
-    my ($prevEval) = $jobset->jobsetevals({ hasnewbuilds => 1 }, { order_by => "id DESC", rows => 1 });
+    my ($db, $jobset, $hasNewBuilds) = @_;
+    my ($prevEval) = $jobset->jobsetevals(
+        ($hasNewBuilds ? { hasnewbuilds => 1 } : { }), 
+        { order_by => "id DESC", rows => 1 });
     return $prevEval;
 }
 
