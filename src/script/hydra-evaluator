@@ -110,7 +110,8 @@ sub checkJobset {
     # inputs.  If so, bail out.
     my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo));
     my $argsHash = sha256_hex("@args");
-    if (getPrevJobsetEval($db, $jobset, 0)->hash eq $argsHash) {
+    my $prevEval = getPrevJobsetEval($db, $jobset, 0);
+    if (defined $prevEval && $prevEval->hash eq $argsHash) {
         print STDERR "  jobset is unchanged, skipping\n";
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
