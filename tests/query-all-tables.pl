@@ -7,7 +7,7 @@ my $db = openHydraDB;
 my @sources = $db->sources;
 my $nrtables = scalar(@sources);
 
-use Test::Simple tests => 44;
+use Test::Simple tests => 42;
 
 foreach my $source (@sources) {
   my $title = "Basic select query for $source";

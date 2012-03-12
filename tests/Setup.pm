@@ -21,7 +21,7 @@ sub nrBuildsForJobset {
 
 sub queuedBuildsForJobset {
   my ($jobset) = @_;
-  return $jobset->builds->search({},{ join => 'schedulingInfo' });
+  return $jobset->builds->search({finished => 0});
 }
 
 sub nrQueuedBuildsForJobset {

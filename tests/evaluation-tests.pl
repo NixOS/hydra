@@ -30,7 +30,7 @@ for my $build (queuedBuildsForJobset($jobset)) {
   ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
   my $newbuild = $db->resultset('Builds')->find($build->id);
   my $expected = $build->job->name eq "fails" ? 1 : 0;
-  ok($newbuild->buildresultinfo->buildstatus == $expected, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus $expected");
+  ok($newbuild->finished == 1 && $newbuild->buildstatus == $expected, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus $expected");
 }
 
 # Test jobset with 2 jobs, one has parameter of succeeded build of the other
@@ -41,7 +41,7 @@ ok(nrQueuedBuildsForJobset($jobset) == 1 , "Evaluating jobs/build-output-as-inpu
 for my $build (queuedBuildsForJobset($jobset)) {
   ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
   my $newbuild = $db->resultset('Builds')->find($build->id);
-  ok($newbuild->buildresultinfo->buildstatus == 0, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus 0");
+  ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus 0");
 }
 
 ok(evalSucceeds($jobset),                  "Evaluating jobs/build-output-as-input.nix for second time should exit with return code 0");
@@ -49,7 +49,7 @@ ok(nrQueuedBuildsForJobset($jobset) == 1 , "Evaluating jobs/build-output-as-inpu
 for my $build (queuedBuildsForJobset($jobset)) {
   ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
   my $newbuild = $db->resultset('Builds')->find($build->id);
-  ok($newbuild->buildresultinfo->buildstatus == 0, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus 0");
+  ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus 0");
 }
 
 
