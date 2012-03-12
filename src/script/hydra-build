@@ -17,7 +17,7 @@ use Text::Table;
 use POSIX qw(strftime);
 use Net::Twitter::Lite;
 use Data::Dump qw(dump);
-use Switch;
+use feature qw/switch/;
 
 STDOUT->autoflush();
 
@@ -61,11 +61,11 @@ sub statusDescription {
     my ($buildstatus) = @_;
 
     my $status = "Failed";
-    switch ($buildstatus) {     
-        case 0 { $status = "Success"; }
-        case 1 { $status = "Failed with non-zero exit code"; }
-        case 2 { $status = "Dependency failed"; }
-        case 4 { $status = "Cancelled"; }
+    given ($buildstatus) {
+        when (0) { $status = "Success"; }
+        when (1) { $status = "Failed with non-zero exit code"; }
+        when (2) { $status = "Dependency failed"; }
+        when (4) { $status = "Cancelled"; }
     }
     
    return $status;
