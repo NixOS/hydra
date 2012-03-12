@@ -6,7 +6,10 @@ use Hydra::Helper::Nix;
 
 __PACKAGE__->config(
     schema_class => 'Hydra::Schema',
-    connect_info => [getHydraDBPath],
+    connect_info => {
+        dsn => getHydraDBPath,
+        pg_server_prepare => 0,
+    },
 );
 
 =head1 NAME
