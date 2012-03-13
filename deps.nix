@@ -29,6 +29,7 @@ with pkgs;
   perlPackages.Readonly
   perlPackages.SQLSplitStatement
   perlPackages.Starman
+  perlPackages.Switch     # XXX: seems to be an indirect dep of `hydra-build'
   perlPackages.SysHostnameLong
   perlPackages.TestMore
   perlPackages.TextDiff
