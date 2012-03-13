@@ -2,7 +2,7 @@ package Hydra;
 
 use strict;
 use warnings;
-use Hydra::Helper::Nix;
+use Hydra::Model::DB;
 
 use Catalyst::Runtime '5.70';
 
@@ -23,7 +23,7 @@ __PACKAGE__->config(
     name => 'Hydra',
     default_view => "TT",
     session => {
-        storage => getHydraPath . "/session_data"
+        storage => Hydra::Model::DB::getHydraPath . "/session_data"
     },
     authentication => {
         default_realm => "dbic",
