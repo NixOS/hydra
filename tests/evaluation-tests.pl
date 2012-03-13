@@ -1,12 +1,11 @@
 use strict;
 use Hydra::Schema;
-use Hydra::Helper::Nix;
+use Hydra::Model::DB;
 use Hydra::Helper::AddBuilds;
 use Cwd;
-
 use Setup;
 
-my $db = openHydraDB;
+my $db = Hydra::Model::DB->new;
 
 use Test::Simple tests => 28;
 

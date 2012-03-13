@@ -3,6 +3,7 @@ package Setup;
 use strict;
 use Exporter;
 use Hydra::Helper::Nix;
+use Hydra::Model::DB;
 use Hydra::Helper::AddBuilds;
 use Cwd;
 
@@ -32,7 +33,8 @@ sub nrQueuedBuildsForJobset {
 sub createBaseJobset {
   my ($jobsetName, $nixexprpath) = @_;
   
-  my $project = openHydraDB->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
+  my $db = Hydra::Model::DB->new;
+  my $project = $db->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
   my $jobset = $project->jobsets->create({name => $jobsetName, nixexprinput => "jobs", nixexprpath => $nixexprpath, emailoverride => ""});
 
   my $jobsetinput;
