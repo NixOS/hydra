@@ -432,8 +432,6 @@ __PACKAGE__->has_many(
 # Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-02-29 18:56:22
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:w16c86FRReLPdA8H0yTIRg
 
-use Hydra::Helper::Nix;
-
 __PACKAGE__->has_many(
   "dependents",
   "Hydra::Schema::BuildInputs",
@@ -455,13 +453,6 @@ __PACKAGE__->has_one(
   , 'foreign.build' => 'self.id'
   },
 );
-
-sub addSequence {
-    my $hydradbi = getHydraDBPath;
-    if ($hydradbi =~ m/^dbi:Pg/) {
-        __PACKAGE__->sequence('builds_id_seq');
-    }
-}
 
 sub makeSource {
     my ($name, $query) = @_;
@@ -525,8 +516,6 @@ QUERY
 QUERY
     );
 }
-
-addSequence;
 
 makeQueries('', "");
 makeQueries('ForProject', "and project = ?");

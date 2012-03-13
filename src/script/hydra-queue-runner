@@ -6,11 +6,12 @@ use File::Basename;
 use POSIX qw(dup2 :sys_wait_h);
 use Hydra::Schema;
 use Hydra::Helper::Nix;
+use Hydra::Model::DB;
 use IO::Handle;
 use Nix::Store;
 
-chdir getHydraPath or die;
-my $db = openHydraDB;
+chdir Hydra::Model::DB::getHydraPath or die;
+my $db = Hydra::Model::DB->new();
 
 STDOUT->autoflush();
 

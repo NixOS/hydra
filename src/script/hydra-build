@@ -6,6 +6,7 @@ use File::stat;
 use Nix::Store;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
+use Hydra::Model::DB;
 use Hydra::Helper::AddBuilds;
 use Email::Sender::Simple qw(sendmail);
 use Email::Sender::Transport::SMTP;
@@ -21,7 +22,7 @@ use feature qw/switch/;
 
 STDOUT->autoflush();
 
-my $db = openHydraDB;
+my $db = Hydra::Model::DB->new();
 
 
 my %config = new Config::General(getHydraConf)->getall;

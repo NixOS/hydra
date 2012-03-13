@@ -3,11 +3,12 @@
 use strict;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
+use Hydra::Model::DB;
 use File::Slurp;
 use SQL::SplitStatement;
 use List::Util qw(max);
 
-my $db = openHydraDB;
+my $db = Hydra::Model::DB->new();
 my $dbh = $db->storage->dbh;
 $dbh->{RaiseError} = 1;
 

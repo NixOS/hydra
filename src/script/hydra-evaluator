@@ -5,8 +5,8 @@ use feature 'switch';
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
+use Hydra::Model::DB;
 use Digest::SHA qw(sha256_hex);
-
 use Email::Sender::Simple qw(sendmail);
 use Email::Sender::Transport::SMTP;
 use Email::Simple;
@@ -17,7 +17,7 @@ use Data::Dump qw(dump);
 
 STDOUT->autoflush();
 
-my $db = openHydraDB;
+my $db = Hydra::Model::DB->new();
 my %config = new Config::General(getHydraConf)->getall;
 
 

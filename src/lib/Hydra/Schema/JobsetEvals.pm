@@ -145,14 +145,6 @@ __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project
 # Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:eQtF5bcR/qZ625LxWBc7ug
 
-use Hydra::Helper::Nix;
-
-# !!! Ugly, should be generated.
-my $hydradbi = getHydraDBPath;
-if ($hydradbi =~ m/^dbi:Pg/) {
-    __PACKAGE__->sequence('jobsetevals_id_seq');
-}
-
 __PACKAGE__->has_many(
   "buildIds",
   "Hydra::Schema::JobsetEvalMembers",

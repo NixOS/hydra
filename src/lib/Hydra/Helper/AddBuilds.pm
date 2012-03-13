@@ -6,6 +6,7 @@ use XML::Simple;
 use POSIX qw(strftime);
 use IPC::Run;
 use Nix::Store;
+use Hydra::Model::DB;
 use Hydra::Helper::Nix;
 use Digest::SHA qw(sha256_hex);
 use File::Basename;
@@ -22,7 +23,7 @@ our @EXPORT = qw(
 
 
 sub scmPath {
-    return getHydraPath . "/scm" ;
+    return Hydra::Model::DB::getHydraPath . "/scm" ;
 }
 
 

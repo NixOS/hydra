@@ -86,12 +86,4 @@ __PACKAGE__->belongs_to("author", "Hydra::Schema::Users", { username => "author"
 # Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:YRMh0QI4JezFLj7nywGu6Q
 
-use Hydra::Helper::Nix;
-
-# !!! Ugly, should be generated.
-my $hydradbi = getHydraDBPath;
-if ($hydradbi =~ m/^dbi:Pg/) {
-    __PACKAGE__->sequence('newsitems_id_seq');
-}
-
 1;

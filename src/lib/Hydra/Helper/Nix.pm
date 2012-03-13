@@ -5,21 +5,15 @@ use Exporter;
 use File::Path;
 use File::Basename;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Model::DB;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getHydraPath getHydraHome getHydraDBPath openHydraDB getHydraConf txn_do
+    getHydraHome getHydraConf txn_do
     registerRoot getGCRootsDir gcRootFor
     getPrimaryBuildsForView
     getPrimaryBuildTotal
     getViewResult getLatestSuccessfulViewResult jobsetOverview removeAsciiEscapes);
-
-
-sub getHydraPath {
-    my $dir = $ENV{"HYDRA_DATA"} || "/var/lib/hydra";
-    die "The HYDRA_DATA directory ($dir) does not exist!\n" unless -d $dir;
-    return $dir;
-}
 
 
 sub getHydraHome {
@@ -29,30 +23,9 @@ sub getHydraHome {
 
 
 sub getHydraConf {
-    my $conf = $ENV{"HYDRA_CONFIG"} || (getHydraPath . "/hydra.conf");
+    my $conf = $ENV{"HYDRA_CONFIG"} || (Hydra::Model::DB::getHydraPath . "/hydra.conf");
     die "The HYDRA_CONFIG file ($conf) does not exist!\n" unless -f $conf;
     return $conf;
-}
-
-
-sub getHydraDBPath {
-    my $db = $ENV{"HYDRA_DBI"};
-    if ( defined $db ) {
-      return $db ;
-    }
-    else {
-        my $path = getHydraPath . '/hydra.sqlite';
-        die "The Hydra database ($path) not exist!\n" unless -f $path;
-        return "dbi:SQLite:$path";
-    }
-}
-
-
-sub openHydraDB {
-    my $db = Hydra::Schema->connect(getHydraDBPath, "", "", {});
-    $db->storage->dbh->do("PRAGMA synchronous = OFF;")
-        if defined $ENV{'HYDRA_NO_FSYNC'};
-    return $db;
 }
 
 

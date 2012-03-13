@@ -156,16 +156,4 @@ __PACKAGE__->belongs_to(
 # Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:yaqa9gcGx9Z+Nfr3xgX28g
 
-use Hydra::Helper::Nix;
-
-sub addSequence {
-  my $hydradbi = getHydraDBPath ;
-  if ($hydradbi =~ m/^dbi:Pg/) {
-    __PACKAGE__->sequence('builds_id_seq');
-  }
-} 
-
-addSequence ;
-
-# You can replace this text with custom content, and it will be preserved on regeneration
 1;

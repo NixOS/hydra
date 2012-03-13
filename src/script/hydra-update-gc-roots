@@ -6,9 +6,10 @@ use File::Basename;
 use Nix::Store;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
+use Hydra::Model::DB;
 use POSIX qw(strftime);
 
-my $db = openHydraDB;
+my $db = Hydra::Model::DB->new();
 
 
 my %roots;
@@ -75,7 +76,7 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
 
         # If the jobset has been disabled for more than one week, than
         # don't keep its builds anymore.
-        if ($jobset->enabled == 0 && (time() - $jobset->lastcheckedtime > (7 * 24 * 3600))) {
+        if ($jobset->enabled == 0 && (time() - ($jobset->lastcheckedtime || 0) > (7 * 24 * 3600))) {
             print STDERR "*** skipping disabled jobset ", $project->name, ":", $jobset->name, "\n";
             next;
         }
