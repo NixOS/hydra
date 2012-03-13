@@ -1,12 +1,11 @@
-{ nixpkgs ? /etc/nixos/nixpkgs
-, hydraSrc ? { outPath = ./.; revCount = 1234; gitTag = "abcdef"; }
+{ hydraSrc ? { outPath = ./.; revCount = 1234; gitTag = "abcdef"; }
 , officialRelease ? false
 }:
 
 
 rec {
   tarball = 
-    with import nixpkgs { };
+    with import <nixpkgs> { };
 
     let nix = nixUnstable; in
 
@@ -45,7 +44,7 @@ rec {
   build = 
     { system ? "x86_64-linux" }:
 
-    let pkgs = import nixpkgs {inherit system;}; in
+    let pkgs = import <nixpkgs> {inherit system;}; in
 
     with pkgs;
 
@@ -97,7 +96,7 @@ rec {
 
     let hydra = build { inherit system; }; in
 
-    with import "${nixos}/lib/testing.nix" { inherit nixpkgs system; };
+    with import <nixos/lib/testing.nix> { inherit system; };
 
     {
     
