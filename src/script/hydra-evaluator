@@ -169,8 +169,10 @@ sub checkJobset {
                 $ev->jobsetevalmembers->create({ build => $id, isnew => $new });
             }
             print STDERR "  created new eval ", $ev->id, "\n";
+            $ev->builds->update({iscurrent => 1});
         } else {
             print STDERR "  created cached eval ", $ev->id, "\n";
+            $prevEval->builds->update({iscurrent => 1});
         }
     });
        

@@ -877,7 +877,6 @@ sub checkBuild {
             , drvpath => $drvPath
             , outpath => $outPath
             , system => $buildInfo->{system}
-            , iscurrent => 1
             , nixexprinput => $jobset->nixexprinput
             , nixexprpath => $jobset->nixexprpath
 	    , priority => $priority
