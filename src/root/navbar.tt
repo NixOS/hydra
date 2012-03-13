@@ -47,12 +47,6 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Jobset').action_for('all'), [project.name, jobset.name])
         title = "All builds" %]
-      [% INCLUDE makeLink
-        uri = c.uri_for(c.controller('Jobset').action_for('jobstatus'), [project.name, jobset.name])
-        title = "Job status" %]
-      [% INCLUDE makeLink
-        uri = c.uri_for(c.controller('Jobset').action_for('errors'), [project.name, jobset.name])
-        title = "Errors" %]
     [% END %]
   [% END %]
   
