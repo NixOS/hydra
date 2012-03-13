@@ -27,12 +27,6 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Root').action_for('all'))
         title = "All builds" %]
-      [% INCLUDE makeLink
-        uri = c.uri_for(c.controller('Root').action_for('jobstatus'))
-        title = "Job status" %]
-      [% INCLUDE makeLink
-        uri = c.uri_for(c.controller('Root').action_for('errors'))
-        title = "Errors" %]
       [% IF c.user_exists %]
         [% IF c.check_user_roles('admin') %]
             [% INCLUDE makeLink
