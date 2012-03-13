@@ -1,5 +1,5 @@
 sqldir = $(libexecdir)/hydra/sql
-nobase_sql_DATA =				\
+nobase_dist_sql_DATA =				\
   hydra-postgresql.sql				\
   hydra.sql					\
   hydra-sqlite.sql				\
