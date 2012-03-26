@@ -136,7 +136,7 @@ foreach my $link (@roots) {
     if (!defined $roots{$path}) {
         print STDERR "removing root $path\n";
 	$rootsDeleted++;
-        #unlink "$gcRootsDir/$link" or warn "cannot remove $gcRootsDir/$link";
+        unlink "$gcRootsDir/$link" or warn "cannot remove $gcRootsDir/$link";
     } else {
 	$rootsKept++;
     }
