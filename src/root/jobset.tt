@@ -305,20 +305,6 @@
 
   </form>
 
-  [% IF !create %]
-
-    <form action="[% c.uri_for('/jobset' project.name jobset.name 'delete') %]" method="post">
-      <p><button id="delete-jobset" type="submit"><img src="/static/images/failure.gif" />Delete this jobset</button></p>
-    </form>
-      
-    <script type="text/javascript">
-      $("#delete-jobset").click(function() {
-        return confirm("Are you sure you want to delete this jobset?");
-      });
-    </script>
-
-  [% END %]
-    
 [% END %]
 
 
