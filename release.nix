@@ -16,7 +16,7 @@ rec {
       version = builtins.readFile ./version;
 
       buildInputs =
-        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc git ];
+        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc git openssl];
 
       versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
 
