@@ -436,10 +436,9 @@
 
         [% IF relatedbuilds %]
 	<div id="tabs-relatedbuilds">
-		
 		<h2>Related builds</h2>
 		<p>The following builds are part of the same jobset evaluation that produced this build.</p>
-		[% INCLUDE renderBuildList builds=relatedbuilds%]
+		[% INCLUDE renderBuildList builds=relatedbuilds hideProjectName=1 hideJobsetName=1 %]
 	</div>
         [% END %]
 

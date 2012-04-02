@@ -101,7 +101,7 @@
 	    
 	    [% IF lastBuilds %]
 	    	<h2>Most recent builds</h2>
-	    	[% INCLUDE renderBuildList builds=lastBuilds %]
+	    	[% INCLUDE renderBuildList builds=lastBuilds hideProjectName=1 hideJobsetName=1 %]
 	    [% END %]
 	
 		[% IF !edit && activeJobsStatus -%]

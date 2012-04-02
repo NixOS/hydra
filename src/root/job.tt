@@ -1,5 +1,6 @@
 [% WRAPPER layout.tt title="Job ‘$project.name:$jobset.name:$job.name’" %]
 [% PROCESS common.tt %]
+[% hideProjectName=1 hideJobsetName=1 hideJobName=1 %]
 
 
 <h1>Job <tt>[% INCLUDE renderLink
@@ -17,7 +18,7 @@
 		<!-- <li><a href="#tabs-statistics">Statistics</a></li> -->
 	</ul>
 	<div id="tabs-status">
-            [% IF currentBuilds.size == 0 %]
+            [% IF currentBuilds.size != 0 %]
 	        <h2>Latest builds (latest evaluation)</h2>
   	        [% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
             [% END %]

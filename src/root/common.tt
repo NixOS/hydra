@@ -45,10 +45,8 @@
 
 
 [%- BLOCK renderFullJobName -%]
-  <tt>
-  [% INCLUDE renderProjectName %]:[% INCLUDE renderJobsetName %]:[% INCLUDE renderJobName %]
-  </tt>
-[% END %]
+<tt>[% IF !hideProjectName; INCLUDE renderProjectName %]:[% END; IF !hideJobsetName; INCLUDE renderJobsetName %]:[% END; INCLUDE renderJobName %]</tt>
+[%- END %]
 
 
 [%- BLOCK renderFullJobNameOfBuild -%]
@@ -76,7 +74,9 @@
           <th></th>
           <th>P</th>
         [%- END -%]
+        [%- IF !hideJobName -%]
         <th>Job</th>
+        [%- END -%]
         <th>Release Name</th>
         <th>System</th>
         <th>Timestamp</th>
@@ -108,7 +108,9 @@
             <td>[% IF build.busy %]<img src="/static/images/running.gif" alt="Running" />[% ELSIF build.disabled == 1 || build.get_column('enabled') == 0 %]Disabled[% END %]</td>
             <td>[% build.priority %]</td>
           [%- END -%]
+          [%- IF !hideJobName -%]
           <td>[%- INCLUDE renderFullJobNameOfBuild -%]</td>
+          [%- END -%]
           <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
           <td><tt>[% build.system %]</tt></td>
           <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>

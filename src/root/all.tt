@@ -22,11 +22,8 @@ out of [% totalBuilds %] in order of descending timestamp.</p>
 </p>
 [% END %]
 
-
 [% INCLUDE renderNav %]
-[% INCLUDE renderBuildList %]
+[% INCLUDE renderBuildList hideProjectName=project hideJobsetName=jobset hideJobName=job %]
 [% INCLUDE renderNav %]
-
-
 
 [% END %]
