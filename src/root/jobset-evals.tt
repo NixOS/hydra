@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title="Jobset ‘$project.name:$jobset.name’ evaluations" %]
+[% WRAPPER layout.tt title="Jobset ‘$project.name:$jobset.name’ Evaluations" %]
 [% PROCESS common.tt %]
 
 <h1>Evaluations of Jobset <tt>[% INCLUDE renderLink

@@ -33,14 +33,12 @@ sub view : Chained('eval') PathPart('') Args(0) {
     my @builds = $eval->builds->search({}, { order_by => ["job", "system", "id"], columns => [@buildListColumns] });
     my @builds2 = $eval2->builds->search({}, { order_by => ["job", "system", "id"], columns => [@buildListColumns] });
 
-    print STDERR "EVAL IS ", $eval2->id, "\n";
-    print STDERR scalar(@builds), "\n";
-    print STDERR scalar(@builds2), "\n";
-
     $c->stash->{stillSucceed} = [];
     $c->stash->{stillFail} = [];
     $c->stash->{nowSucceed} = [];
     $c->stash->{nowFail} = [];
+    $c->stash->{new} = [];
+    $c->stash->{removed} = [];
 
     my $n = 0;
     foreach my $build (@builds) {
@@ -49,11 +47,8 @@ sub view : Chained('eval') PathPart('') Args(0) {
             my $build2 = $builds2[$n];
             my $d = $build->get_column('job') cmp $build2->get_column('job')
                 || $build->get_column('system') cmp $build2->get_column('system');
-            #print STDERR $build->id, " ", $build->get_column('job'), " ",  $build->system, " ", $d, "\n";
-            last if $d == -1;
             if ($d == 0) {
-                #print STDERR $build->buildstatus, "\n";
-                #print STDERR $build2->buildstatus, "\n";
+                $n++;
                 if ($build->buildstatus == 0 && $build2->buildstatus == 0) {
                     push @{$c->stash->{stillSucceed}}, $build;
                 } elsif ($build->buildstatus != 0 && $build2->buildstatus != 0) {
@@ -62,9 +57,13 @@ sub view : Chained('eval') PathPart('') Args(0) {
                     push @{$c->stash->{nowSucceed}}, $build;
                 } elsif ($build->buildstatus != 0 && $build2->buildstatus == 0) {
                     push @{$c->stash->{nowFail}}, $build;
-                }
+                } else { die; }
+                last;
+            } elsif ($d == -1) {
+                push @{$c->stash->{new}}, $build;
                 last;
             }
+            push @{$c->stash->{removed}}, { job => $build2->get_column('job'), system => $build2->get_column('system') };
             $n++;
         }
     }

@@ -28,7 +28,7 @@ a#error-link {
 
 table {
     empty-cells: show;
-    border-spacing: 1px;
+    border-collapse: collapse;
     text-align: left;
 }
 

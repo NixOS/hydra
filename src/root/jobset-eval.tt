@@ -1,7 +1,7 @@
-[% WRAPPER layout.tt title="Bla" %]
+[% WRAPPER layout.tt title="Jobset $project.name:$jobset.name evaluation $eval.id" %]
 [% PROCESS common.tt %]
 
-<h1>Jobset <tt>[% project.name %]:[% jobset.name %]</tt> Evaluation [% eval.id %]</h1>
+<h1>Jobset <tt>[% project.name %]:[% jobset.name %]</tt> evaluation [% eval.id %]</h1>
 
 <!-- <p>Info on evaluation [% eval.id %]...<p> -->
 
@@ -16,23 +16,41 @@
 
 [% INCLUDE renderBuildListHeader unsortable=1 %]
 
+[% IF new.size > 0 %]
+  <tr><th class="subheader" colspan="0"><strong>New</strong> jobs</th></tr>
+  [% INCLUDE renderSome builds=new %]
+[% END %]
+
+[% IF removed.size > 0 %]
+  <tr><th class="subheader" colspan="0"><strong>Removed</strong> jobs</th></tr>
+  [%- FOREACH j IN removed -%]
+    <tr>
+      <td colspan=2></td>
+      <td>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.job %]</td>
+      <td></td>
+      <td><tt>[% j.system %]</tt></td>
+      <td></td>
+    </tr>
+  [%- END -%]
+[% END %]
+
 [% IF nowFail.size > 0 %]
-  <tr><th class="subheader" colspan="0">Builds that now <strong>fail</strong></th></tr>
+  <tr><th class="subheader" colspan="0">Jobs that now <strong>fail</strong></th></tr>
   [% INCLUDE renderSome builds=nowFail %]
 [% END %]
 
 [% IF nowSucceed.size > 0 %]
-  <tr><th class="subheader" colspan="0">Builds that now <strong>succeed</strong></th></tr>
+  <tr><th class="subheader" colspan="0">Jobs that now <strong>succeed</strong></th></tr>
   [% INCLUDE renderSome builds=nowSucceed %]
 [% END %]
   
 [% IF stillFail.size > 0 %]
-  <tr><th class="subheader" colspan="0">Builds that still <strong>fail</strong></th></tr>
+  <tr><th class="subheader" colspan="0">Jobs that still <strong>fail</strong></th></tr>
   [% INCLUDE renderSome builds=stillFail %]
 [% END %]
 
 [% IF stillSucceed.size > 0 %]
-  <tr><th class="subheader" colspan="0">Builds that still <strong>succeed</strong></th></tr>
+  <tr><th class="subheader" colspan="0">Jobs that still <strong>succeed</strong></th></tr>
   [% INCLUDE renderSome builds=stillSucceed %]
 [% END %]
 
