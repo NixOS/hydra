@@ -39,6 +39,7 @@ sub view : Chained('eval') PathPart('') Args(0) {
     $c->stash->{nowFail} = [];
     $c->stash->{new} = [];
     $c->stash->{removed} = [];
+    $c->stash->{unfinished} = [];
 
     my $n = 0;
     foreach my $build (@builds) {
@@ -49,7 +50,9 @@ sub view : Chained('eval') PathPart('') Args(0) {
                 || $build->get_column('system') cmp $build2->get_column('system');
             if ($d == 0) {
                 $n++;
-                if ($build->buildstatus == 0 && $build2->buildstatus == 0) {
+                if ($build->finished == 0 || $build2->finished == 0) {
+                    push @{$c->stash->{unfinished}}, $build;
+                } elsif ($build->buildstatus == 0 && $build2->buildstatus == 0) {
                     push @{$c->stash->{stillSucceed}}, $build;
                 } elsif ($build->buildstatus != 0 && $build2->buildstatus != 0) {
                     push @{$c->stash->{stillFail}}, $build;

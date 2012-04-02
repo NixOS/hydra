@@ -16,6 +16,11 @@
 
 [% INCLUDE renderBuildListHeader unsortable=1 %]
 
+[% IF unfinished.size > 0 %]
+  <tr><th class="subheader" colspan="0"><strong>Queued</strong> jobs</th></tr>
+  [% INCLUDE renderSome builds=unfinished %]
+[% END %]
+
 [% IF new.size > 0 %]
   <tr><th class="subheader" colspan="0"><strong>New</strong> jobs</th></tr>
   [% INCLUDE renderSome builds=new %]
@@ -23,15 +28,17 @@
 
 [% IF removed.size > 0 %]
   <tr><th class="subheader" colspan="0"><strong>Removed</strong> jobs</th></tr>
-  [%- FOREACH j IN removed -%]
+  [% size = removed.size; max = full ? size : 30; %]
+  [%- FOREACH j IN removed.slice(0,(size > max ? max : size) - 1) -%]
     <tr>
-      <td colspan=2></td>
-      <td>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.job %]</td>
-      <td></td>
-      <td><tt>[% j.system %]</tt></td>
-      <td></td>
+      <td colspan="2"></td>
+      <td colspan="2">[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.job %]</td>
+      <td colspan="2"><tt>[% j.system %]</tt></td>
     </tr>
   [%- END -%]
+  [% IF size > max %]
+  <tr><td class="centered" colspan="0"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], full => 1) %]"><em>([% size - max %] more jobs omitted)</em></a></td></tr>
+  [% END %]
 [% END %]
 
 [% IF nowFail.size > 0 %]
