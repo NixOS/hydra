@@ -4,9 +4,11 @@
 <h1>Evaluations of Jobset <tt>[% INCLUDE renderLink
   uri = c.uri_for(c.controller('Project').action_for('view'), [project.name])
   title = project.name %]:[% jobset.name %]</tt></h1>
+
+[% nrShown = evals.size > resultsPerPage ? resultsPerPage : evals.size %]
   
 <p>Showing evaluations [% (page - 1) * resultsPerPage + 1 %] - [%
-(page - 1) * resultsPerPage + evals.size %] out of [% total %].</p>
+(page - 1) * resultsPerPage + nrShown %] out of [% total %].</p>
 
 [% INCLUDE renderPager %]
 
@@ -19,7 +21,7 @@
     </tr>
   </thead>
   <tbody>
-    [% last = evals.size - 2; FOREACH n IN [0..last]; eval = evals.$n; m = n + 1; next = evals.$m; %]
+    [% last = nrShown - 1; FOREACH n IN [0..last]; eval = evals.$n; m = n + 1; next = evals.$m; %]
      <tr>
        <td><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">[% eval.id %]</a>&nbsp;</td>
        <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]&nbsp;</td>

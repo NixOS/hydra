@@ -351,9 +351,9 @@ sub evals : Chained('jobset') PathPart('evals') Args(0) {
 	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 1))"
 	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 1 and b.buildStatus = 0))" 
 	    ]
-	, '+as' => [ "nrBuilds", "nrScheduled", "nrFinished", "nrSucceeded" ]
-        , rows => $resultsPerPage
-	, page => $page
+        , '+as' => [ "nrBuilds", "nrScheduled", "nrFinished", "nrSucceeded" ]
+        , rows => $resultsPerPage + 1
+        , offset => ($page - 1) * $resultsPerPage
         }
     ) ];
 }

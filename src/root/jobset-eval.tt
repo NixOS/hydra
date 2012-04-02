@@ -3,7 +3,13 @@
 
 <h1>Jobset <tt>[% project.name %]:[% jobset.name %]</tt> evaluation [% eval.id %]</h1>
 
-<!-- <p>Info on evaluation [% eval.id %]...<p> -->
+[%- IF otherEval -%]
+<p>Comparisons are relative to [% INCLUDE renderFullJobsetName
+project=otherEval.jobset.project.name jobset=otherEval.jobset.name %]
+evaluation <a href="[%
+c.uri_for(c.controller('JobsetEval').action_for('view'),
+[otherEval.id]) %]">[% otherEval.id %]</a>.</p>
+[%- END -%]
 
 [%- BLOCK renderSome -%]
   [% size = builds.size; max = full ? size : 30; %]
