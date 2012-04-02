@@ -69,7 +69,6 @@
         [% END %]
         <th>#</th>
         [%- IF showSchedulingInfo -%]
-          <th></th>
           <th>P</th>
         [%- END -%]
         [%- IF !hideJobName -%]
@@ -106,7 +105,6 @@
           [%- END -%]
           <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
           [%- IF showSchedulingInfo -%]
-            <td>[% IF build.busy %]<img src="/static/images/running.gif" alt="Running" />[% ELSIF build.disabled == 1 || build.get_column('enabled') == 0 %]Disabled[% END %]</td>
             <td>[% build.priority %]</td>
           [%- END -%]
           [%- IF !hideJobName -%]

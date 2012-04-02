@@ -126,10 +126,16 @@ ul.productList li {
     margin-left: 3em;
 }
 
-.runningBuild {
+tr:nth-child(even).runningBuild  {
+    background-color: #d8ffd8 !important;
+}
+
+tr:nth-child(odd).runningBuild  {
+    background-color: #e8ffe8 !important;
 }
 
 .disabledBuild {
+    background-color: #ffc0c0 !important;
 }
 
 .error-msg {
