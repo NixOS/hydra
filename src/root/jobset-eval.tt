@@ -1,0 +1,41 @@
+[% WRAPPER layout.tt title="Bla" %]
+[% PROCESS common.tt %]
+
+<h1>Jobset <tt>[% project.name %]:[% jobset.name %]</tt> Evaluation [% eval.id %]</h1>
+
+<!-- <p>Info on evaluation [% eval.id %]...<p> -->
+
+[%- BLOCK renderSome -%]
+  [% size = builds.size; max = full ? size : 30; %]
+  [% INCLUDE renderBuildListBody builds=builds.slice(0, (size > max ? max : size) - 1)
+       hideProjectName=1 hideJobsetName=1 %]
+  [% IF size > max %]
+  <tr><td class="centered" colspan="0"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], full => 1) %]"><em>([% size - max %] more builds omitted)</em></a></td></tr>
+  [% END %]
+[% END %]
+
+[% INCLUDE renderBuildListHeader unsortable=1 %]
+
+[% IF nowFail.size > 0 %]
+  <tr><th class="subheader" colspan="0">Builds that now <strong>fail</strong></th></tr>
+  [% INCLUDE renderSome builds=nowFail %]
+[% END %]
+
+[% IF nowSucceed.size > 0 %]
+  <tr><th class="subheader" colspan="0">Builds that now <strong>succeed</strong></th></tr>
+  [% INCLUDE renderSome builds=nowSucceed %]
+[% END %]
+  
+[% IF stillFail.size > 0 %]
+  <tr><th class="subheader" colspan="0">Builds that still <strong>fail</strong></th></tr>
+  [% INCLUDE renderSome builds=stillFail %]
+[% END %]
+
+[% IF stillSucceed.size > 0 %]
+  <tr><th class="subheader" colspan="0">Builds that still <strong>succeed</strong></th></tr>
+  [% INCLUDE renderSome builds=stillSucceed %]
+[% END %]
+
+[% INCLUDE renderBuildListFooter %]
+
+[% END %]

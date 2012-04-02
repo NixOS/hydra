@@ -7,23 +7,10 @@
   [% ELSIF project %] for Project <tt>[% project.name %]</tt>[% END %]</h1>
 
 <p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %]
-out of [% totalBuilds %] in order of descending timestamp.</p>
+out of [% total %] in order of descending timestamp.</p>
 
-[% BLOCK renderNav %]
-<p>
-[<a href="[% "$baseUri?page=1" %]">First</a>]
-[% IF page > 1 %]
-  [<a href="[% "$baseUri?page="; (page - 1) %]">Prev</a>]
-[% END %]
-[% IF page * resultsPerPage < totalBuilds %]
-  [<a href="[% "$baseUri?page="; (page + 1) %]">Next</a>]
-[% END %]
-[<a href="[% "$baseUri?page="; (totalBuilds - 1) div resultsPerPage + 1 %]">Last</a>]
-</p>
-[% END %]
-
-[% INCLUDE renderNav %]
+[% INCLUDE renderPager %]
 [% INCLUDE renderBuildList hideProjectName=project hideJobsetName=jobset hideJobName=job %]
-[% INCLUDE renderNav %]
+[% INCLUDE renderPager %]
 
 [% END %]

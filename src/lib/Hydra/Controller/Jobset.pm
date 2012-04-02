@@ -329,5 +329,34 @@ sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
 }
 
 
+sub evals : Chained('jobset') PathPart('evals') Args(0) {
+    my ($self, $c) = @_;
+
+    $c->stash->{template} = 'jobset-evals.tt';
+
+    my $page = int($c->req->param('page') || "1") || 1;
+
+    my $resultsPerPage = 20;
+
+    $c->stash->{page} = $page;
+    $c->stash->{resultsPerPage} = $resultsPerPage;
+    $c->stash->{total} = $c->stash->{jobset}->jobsetevals->search({hasnewbuilds => 1})->count;
+
+    $c->stash->{evals} = [ $c->stash->{jobset}->jobsetevals->search(
+        { hasnewbuilds => 1 }, 
+        { order_by => "id DESC"
+        , '+select' => # !!! Slow - should precompute this.
+	    [ "(select count(*) from JobsetEvalMembers where eval = me.id)"
+	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 0))" 
+	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 1))"
+	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 1 and b.buildStatus = 0))" 
+	    ]
+	, '+as' => [ "nrBuilds", "nrScheduled", "nrFinished", "nrSucceeded" ]
+        , rows => $resultsPerPage
+	, page => $page
+        }
+    ) ];
+}
+
 
 1;

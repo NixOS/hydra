@@ -60,7 +60,7 @@ sub all : Chained('get_builds') PathPart {
 
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
-    $c->stash->{totalBuilds} = $nrBuilds;
+    $c->stash->{total} = $nrBuilds;
 
     $c->stash->{builds} = [ $c->stash->{allBuilds}->search(
         { finished => 1 },

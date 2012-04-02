@@ -1,0 +1,47 @@
+[% WRAPPER layout.tt title="Jobset ‘$project.name:$jobset.name’ evaluations" %]
+[% PROCESS common.tt %]
+
+<h1>Evaluations of Jobset <tt>[% INCLUDE renderLink
+  uri = c.uri_for(c.controller('Project').action_for('view'), [project.name])
+  title = project.name %]:[% jobset.name %]</tt></h1>
+  
+<p>Showing evaluations [% (page - 1) * resultsPerPage + 1 %] - [%
+(page - 1) * resultsPerPage + evals.size %] out of [% total %].</p>
+
+[% INCLUDE renderPager %]
+
+<table class="tablesorter">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Date</th>
+      <th colspan='2'>Success</th>
+    </tr>
+  </thead>
+  <tbody>
+    [% last = evals.size - 2; FOREACH n IN [0..last]; eval = evals.$n; m = n + 1; next = evals.$m; %]
+     <tr>
+       <td><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">[% eval.id %]</a>&nbsp;</td>
+       <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]&nbsp;</td>
+       <td align='right'>
+         [% eval.get_column('nrSucceeded') %] / [% eval.get_column('nrBuilds') %]
+	 [% IF eval.get_column('nrScheduled') > 0 %]
+	 <br />[% eval.get_column('nrScheduled') %] scheduled
+	 [% END %]
+       </td>
+       <td align='right'>
+	 [% diff = eval.get_column('nrSucceeded') - next.get_column('nrSucceeded');
+	    IF diff > 0 %]
+	    <span class='green'><strong>+[% diff %]</strong></span>
+	 [% ELSIF diff < 0 && eval.get_column('nrScheduled') == 0 %]
+	    <span class='red'><strong>[% diff %]</strong></span>
+	 [% END %]
+       </td>
+     </tr>
+    [% END %]
+  </tbody>
+</table>
+
+[% INCLUDE renderPager %]
+
+[% END %]

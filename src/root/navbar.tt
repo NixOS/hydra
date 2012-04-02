@@ -45,6 +45,9 @@
         uri = c.uri_for(c.controller('Jobset').action_for('index'), [project.name, jobset.name])
         title = "Overview" %]
       [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name])
+        title = "Evaluations" %]
+      [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Jobset').action_for('all'), [project.name, jobset.name])
         title = "All builds" %]
       [% INCLUDE makeLink

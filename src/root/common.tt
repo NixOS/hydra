@@ -62,8 +62,8 @@
 [% END %]
 
 
-[%- BLOCK renderBuildList -%]
-  <table class="buildList tablesorter[% IF !showSchedulingInfo %] clean[% END %]">
+[%- BLOCK renderBuildListHeader -%]
+  <table class="buildList [% IF !unsortable %]tablesorter[% END %] [% IF !showSchedulingInfo %] clean[% END %]">
     <thead>
       <tr>
         [%- IF !hideResultInfo -%]
@@ -89,6 +89,9 @@
       </tr>
     </thead>
     <tbody>
+[%- END -%]
+
+[%- BLOCK renderBuildListBody -%]
       [%- odd = 0 -%]
       [%- FOREACH build IN builds -%]
         <tr class="clickable 
@@ -130,9 +133,19 @@
         [%- END -%]
         </tr>
       [%- END -%]
+[%- END -%]
+
+[%- BLOCK renderBuildListFooter -%]
     </tbody>
   </table>
 [%- END -%]
+
+[%- BLOCK renderBuildList -%]
+[%- INCLUDE renderBuildListHeader -%]
+[%- INCLUDE renderBuildListBody -%]
+[%- INCLUDE renderBuildListFooter -%]
+[%- END -%]
+
 
 [%- BLOCK renderLink -%]<a href="[% uri %]">[% title %]</a>[%- END -%]
 
@@ -377,8 +390,18 @@
 </table>
 [% END %]
 
-[% BLOCK buildsGraph %]
 
-
-
+[% BLOCK renderPager %]
+<p>
+[<a href="[% "$baseUri?page=1" %]">First</a>]
+[% IF page > 1 %]
+  [<a href="[% "$baseUri?page="; (page - 1) %]">Prev</a>]
 [% END %]
+[% IF page * resultsPerPage < total %]
+  [<a href="[% "$baseUri?page="; (page + 1) %]">Next</a>]
+[% END %]
+[<a href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last</a>]
+</p>
+[% END %]
+
+

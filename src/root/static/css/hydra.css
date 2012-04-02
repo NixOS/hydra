@@ -38,7 +38,14 @@ th, td {
 }
 
 th {
-    background-color:#E6EEEE;
+    background-color: #E6EEEE;
+}
+
+th.subheader {
+    background-color: #f0f0f8;
+    font-size: 120%;
+    text-align: center;
+    font-weight: normal;
 }
 
 table.tablesorter:not(.clean) tr:nth-child(even) {
