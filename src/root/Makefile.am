@@ -13,11 +13,14 @@ EXTRA_DIST = $(TEMPLATES) $(STATIC) $(ZIPS)
 
 hydradir = $(libexecdir)/hydra/root
 nobase_hydra_DATA = $(EXTRA_DIST)
-  
+
+all:
+	mkdir -p $(srcdir)/static/js
+	unzip -u -d $(srcdir)/static/js/jquery $(JQUERY)
+	rm -rf $(srcdir)/static/js/tablesorter
+	unzip -u -d $(srcdir)/static/js $(TABLESORTER)
+	unzip -u -d $(srcdir)/static/js $(FLOT)
+
 install-data-local: $(ZIPS)
 	mkdir -p $(hydradir)/static/js
-	unzip -u -d $(hydradir)/static/js/jquery $(JQUERY)
-	rm -rf $(hydradir)/static/js/tablesorter
-	unzip -u -d $(hydradir)/static/js $(TABLESORTER)
-	unzip -u -d $(hydradir)/static/js $(FLOT)
-
+	cp -prvd $(srcdir)/static/js/* $(hydradir)/static/js 
