@@ -2,7 +2,7 @@ package Hydra::Controller::JobsetEval;
 
 use strict;
 use warnings;
-use base 'Catalyst::Controller';
+use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
@@ -96,6 +96,16 @@ sub view : Chained('eval') PathPart('') Args(0) {
     }
     
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
+}
+
+
+# Hydra::Base::Controller::NixChannel needs this.
+sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
+    my ($self, $c) = @_;
+    $c->stash->{channelName} = $c->stash->{project}->name . "-" . $c->stash->{jobset}->name . "-latest";
+    $c->stash->{channelBuilds} = $c->stash->{eval}->builds
+        ->search_literal("exists (select 1 from buildproducts where build = build.id and type = 'nix-build')")
+        ->search({ finished => 1, buildstatus => 0 }, { columns => [@buildListColumns, 'drvpath', 'outpath', 'description', 'homepage'] });
 }
 
 
