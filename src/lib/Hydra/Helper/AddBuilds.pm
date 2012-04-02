@@ -803,7 +803,7 @@ sub getPrevJobsetEval {
 
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
-    my ($db, $project, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildIds, $prevEval) = @_;
+    my ($db, $project, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildIds, $prevEval, $jobOutPathMap) = @_;
 
     my $jobName = $buildInfo->{jobName};
     my $drvPath = $buildInfo->{drvPath};
@@ -843,6 +843,14 @@ sub checkBuild {
                 $buildIds->{$prevBuild->id} = 0;
                 return;
             }
+        }
+
+        # Prevent multiple builds with the same (job, outPath) from
+        # being added.
+        my $prev = $$jobOutPathMap{$job->name . "\t" . $outPath};
+        if (defined $prev) {
+            print STDERR "    already scheduled as build ", $prev, "\n";
+            return;
         }
         
         my $time = time();
@@ -886,6 +894,7 @@ sub checkBuild {
             });
 
         $buildIds->{$build->id} = 1;
+        $$jobOutPathMap{$job->name . "\t" . $outPath} = $build->id;
         
         if ($build->iscachedbuild) {
             print STDERR "    marked as cached build ", $build->id, "\n";

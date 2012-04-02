@@ -124,6 +124,8 @@ sub checkJobset {
     my ($jobs, $nixExprInput) = evalJobs($inputInfo, $jobset->nixexprinput, $jobset->nixexprpath);
     my $evalStop = time;
 
+    my $jobOutPathMap = {};
+
     txn_do($db, sub {
         
         my $prevEval = getPrevJobsetEval($db, $jobset, 1);
@@ -138,7 +140,7 @@ sub checkJobset {
         foreach my $job (permute @{$jobs->{job}}) {
             next if $job->{jobName} eq "";
             print STDERR "  considering job " . $project->name, ":", $jobset->name, ":", $job->{jobName} . "\n";
-            checkBuild($db, $project, $jobset, $inputInfo, $nixExprInput, $job, \%buildIds, $prevEval);
+            checkBuild($db, $project, $jobset, $inputInfo, $nixExprInput, $job, \%buildIds, $prevEval, $jobOutPathMap);
         }
 
         # Update the last checked times and error messages for each

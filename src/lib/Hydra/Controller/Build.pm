@@ -532,7 +532,7 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
     my %currentBuilds;
     my $newBuild = checkBuild(
         $c->model('DB'), $build->project, $build->jobset,
-        $inputInfo, $nixExprInput, $job, \%currentBuilds, undef);
+        $inputInfo, $nixExprInput, $job, \%currentBuilds, undef, {});
 
     error($c, "This build has already been performed.") unless $newBuild;
     
