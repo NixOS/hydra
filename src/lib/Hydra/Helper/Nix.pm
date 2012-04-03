@@ -222,10 +222,16 @@ sub getViewResult {
 
 
 sub getLatestSuccessfulViewResult {
-    my ($project, $primaryJob, $jobs) = @_;
+    my ($project, $primaryJob, $jobs, $finished) = @_;
     my $latest;
     foreach my $build (getPrimaryBuildsForView($project, $primaryJob)) {
-        return $build if getViewResult($build, $jobs)->{status} == 0;
+        my $result = getViewResult($build, $jobs);
+        next if $result->{status} != 0;
+        if ($finished) {
+            next unless defined $result->{eval};
+            next if $result->{eval}->builds->search({ finished => 0 })->count > 0;
+        }
+        return $build;
     }
     return undef;
 }

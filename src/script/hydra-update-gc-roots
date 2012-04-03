@@ -109,7 +109,7 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
         my $jobs = [$view->viewjobs->all];
 
         # Keep all builds belonging to the most recent successful view result.
-        my $latest = getLatestSuccessfulViewResult($project, $primaryJob, $jobs);
+        my $latest = getLatestSuccessfulViewResult($project, $primaryJob, $jobs, 0);
         if (defined $latest) {
             print STDERR "  keeping latest successful view result ", $latest->id, " (", $latest->get_column('releasename'), ")\n";
             my $result = getViewResult($latest, $jobs);

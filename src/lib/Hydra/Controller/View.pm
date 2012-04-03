@@ -140,7 +140,20 @@ sub latest : Chained('view') PathPart('latest') {
     # Redirect to the latest result in the view in which every build
     # is successful.
     my $latest = getLatestSuccessfulViewResult(
-        $c->stash->{project}, $c->stash->{primaryJob}, $c->stash->{jobs});
+        $c->stash->{project}, $c->stash->{primaryJob}, $c->stash->{jobs}, 0);
+    error($c, "This view set has no successful results yet.") if !defined $latest;
+    $c->res->redirect($c->uri_for($self->action_for("view_view"), $c->req->captures, $latest->id, @args));
+}
+
+
+sub latest_finished : Chained('view') PathPart('latest-finished') {
+    my ($self, $c, @args) = @_;
+    
+    # Redirect to the latest result in the view in which every build
+    # is successful *and* where the jobset evaluation has finished
+    # completely.
+    my $latest = getLatestSuccessfulViewResult(
+        $c->stash->{project}, $c->stash->{primaryJob}, $c->stash->{jobs}, 1);
     error($c, "This view set has no successful results yet.") if !defined $latest;
     $c->res->redirect($c->uri_for($self->action_for("view_view"), $c->req->captures, $latest->id, @args));
 }
