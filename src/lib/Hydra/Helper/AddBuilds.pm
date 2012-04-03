@@ -903,8 +903,17 @@ sub checkBuild {
             print STDERR "    added to queue as build ", $build->id, "\n";
         }
 
+        # Record which inputs where used.
         my %inputs;
         $inputs{$jobset->nixexprinput} = $nixExprInput;
+        foreach my $name (keys %{$inputInfo}) {
+            # Unconditionally include all inputs that were included in
+            # the Nix search path (through the -I flag).  We currently
+            # have no way to see which ones were actually used.
+            $inputs{$name} = $inputInfo->{$name}->[0]
+                if scalar @{$inputInfo->{$name}} == 1 
+                   && defined $inputInfo->{$name}->[0]->{storePath};
+        }
         foreach my $arg (@{$buildInfo->{arg}}) {
             $inputs{$arg->{name}} = $inputInfo->{$arg->{name}}->[$arg->{altnr}]
                 || die "invalid input";
