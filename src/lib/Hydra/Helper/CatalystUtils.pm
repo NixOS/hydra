@@ -12,6 +12,7 @@ our @EXPORT = qw(
     error notFound
     requireLogin requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
+    getLatestFinishedEval
     $pathCompRE $relPathRE $relNameRE $jobNameRE $systemRE
     @buildListColumns
 );
@@ -165,6 +166,17 @@ sub trim {
     my $s = shift;
     $s =~ s/^\s+|\s+$//g;
     return $s;
+}
+
+
+sub getLatestFinishedEval {
+    my ($c, $jobset) = @_;
+    my ($eval) = $jobset->jobsetevals->search(
+        { hasnewbuilds => 1 },
+        { order_by => "id DESC", rows => 1
+        , where => \ "not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0)"
+        });
+    return $eval;
 }
 
 

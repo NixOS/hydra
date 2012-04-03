@@ -362,12 +362,8 @@ sub evals : Chained('jobset') PathPart('evals') Args(0) {
 # Redirect to the latest finished evaluation of this jobset.
 sub latest_eval : Chained('jobset') PathPart('latest-eval') {
     my ($self, $c, @args) = @_;
-    my ($eval) = $c->stash->{jobset}->jobsetevals->search(
-        { hasnewbuilds => 1 },
-        { order_by => "id DESC", rows => 1
-        , where => \ "not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0)"
-        });
-    notFound($c, "No evaluation found.") unless defined $eval;
+    my $eval = getLatestFinishedEval($c, $c->stash->{jobset})
+        or notFound($c, "No evaluation found.");
     my $uri = $c->uri_for($c->controller('JobsetEval')->action_for("view"), [$eval->id]);
     $uri .= "/" . join("/", @args) if scalar @args > 0;
     $c->res->redirect($uri);

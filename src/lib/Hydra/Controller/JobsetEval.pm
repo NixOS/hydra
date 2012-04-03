@@ -38,11 +38,7 @@ sub view : Chained('eval') PathPart('') Args(0) {
     } elsif (defined $compare && $compare =~ /^($jobNameRE)$/) {
         my $j = $c->stash->{project}->jobsets->find({name => $compare})
             or notFound($c, "Jobset $compare doesn't exist.");
-        ($eval2) = $j->jobsetevals->search(
-            { hasnewbuilds => 1 },
-            { order_by => "id DESC", rows => 1
-            , where => \ "not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0)"
-            });
+        $eval2 = getLatestFinishedEval($c, $j);
     } else {
         ($eval2) = $eval->jobset->jobsetevals->search(
             { hasnewbuilds => 1, id => { '<', $eval->id } },
