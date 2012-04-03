@@ -216,6 +216,7 @@ sub getViewResult {
         , jobs => [@jobs]
         , status => $status
         , timestamp => $timestamp
+        , eval => $ev
         };
 }
 

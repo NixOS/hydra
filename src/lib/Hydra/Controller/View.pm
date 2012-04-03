@@ -193,6 +193,14 @@ sub result : Chained('view') PathPart('') {
             [$c->stash->{project}->name, $release->name]));
     }
 
+    elsif (scalar @args >= 1 && $args[0] eq "eval") {
+        my $eval = $c->stash->{result}->{eval};
+        notFound($c, "This view result has no evaluation.") unless defined $eval;
+        my $uri = $c->uri_for($c->controller('JobsetEval')->action_for("view"), [$eval->id]);
+        $uri .= "/" . join("/", @args[1..$#args]) if scalar @args > 1;
+        $c->res->redirect($uri);
+    }
+    
     # Provide a redirect to the specified job of this view result
     # through `http://.../view/$project/$viewName/$viewResult/$jobName'. 
     # Optionally, you can append `-$system' to the $jobName to get a
