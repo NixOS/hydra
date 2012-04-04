@@ -15,8 +15,8 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% size = builds.size; max = full ? size : 30; %]
   [% INCLUDE renderBuildListBody builds=builds.slice(0, (size > max ? max : size) - 1)
        hideProjectName=1 hideJobsetName=1 %]
-  [% IF size > max %]
-  <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], full => 1) %]"><em>([% size - max %] more builds omitted)</em></a></td></tr>
+  [% IF size > max; params = c.req.params; params.full = 1 %]
+  <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]"><em>([% size - max %] more builds omitted)</em></a></td></tr>
   [% END %]
 [% END %]
 
@@ -42,8 +42,8 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
       <td colspan="2"><tt>[% j.system %]</tt></td>
     </tr>
   [%- END -%]
-  [% IF size > max %]
-  <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], full => 1) %]"><em>([% size - max %] more jobs omitted)</em></a></td></tr>
+  [% IF size > max; params = c.req.params; params.full = 1 %]
+  <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]"><em>([% size - max %] more jobs omitted)</em></a></td></tr>
   [% END %]
 [% END %]
 
