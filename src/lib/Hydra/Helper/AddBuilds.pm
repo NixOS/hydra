@@ -837,7 +837,13 @@ sub checkBuild {
         # account.  For instance, do we want a new build to be
         # scheduled if the meta.maintainers field is changed?
         if (defined $prevEval) {
-            my ($prevBuild) = $prevEval->builds->search({ job => $job->name, outPath => $outPath }, { rows => 1, columns => ['id'] });
+            my ($prevBuild) = $prevEval->builds->search(
+		# The "project" and "jobset" constraints are
+		# semantically unnecessary (because they're implied by
+		# the eval), but they give a factor 1000 speedup on
+		# the Nixpkgs jobset with PostgreSQL.
+		{ project => $project->name, jobset => $jobset->name, job => $job->name, outPath => $outPath }, 
+		{ rows => 1, columns => ['id'] });
             if (defined $prevBuild) {
                 print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
                 $buildIds->{$prevBuild->id} = 0;
