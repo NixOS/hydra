@@ -142,7 +142,7 @@ sub latest : Chained('view') PathPart('latest') {
     my $latest = getLatestSuccessfulViewResult(
         $c->stash->{project}, $c->stash->{primaryJob}, $c->stash->{jobs}, 0);
     error($c, "This view set has no successful results yet.") if !defined $latest;
-    $c->res->redirect($c->uri_for($self->action_for("view_view"), $c->req->captures, $latest->id, @args));
+    $c->res->redirect($c->uri_for($self->action_for("view_view"), $c->req->captures, $latest->id, @args, $c->req->params));
 }
 
 
@@ -155,7 +155,7 @@ sub latest_finished : Chained('view') PathPart('latest-finished') {
     my $latest = getLatestSuccessfulViewResult(
         $c->stash->{project}, $c->stash->{primaryJob}, $c->stash->{jobs}, 1);
     error($c, "This view set has no successful results yet.") if !defined $latest;
-    $c->res->redirect($c->uri_for($self->action_for("view_view"), $c->req->captures, $latest->id, @args));
+    $c->res->redirect($c->uri_for($self->action_for("view_view"), $c->req->captures, $latest->id, @args, $c->req->params));
 }
 
 
@@ -209,9 +209,8 @@ sub result : Chained('view') PathPart('') {
     elsif (scalar @args >= 1 && $args[0] eq "eval") {
         my $eval = $c->stash->{result}->{eval};
         notFound($c, "This view result has no evaluation.") unless defined $eval;
-        my $uri = $c->uri_for($c->controller('JobsetEval')->action_for("view"), [$eval->id]);
-        $uri .= "/" . join("/", @args[1..$#args]) if scalar @args > 1;
-        $c->res->redirect($uri);
+        $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for("view"),
+            [$eval->id], @args[1..$#args], $c->req->params));
     }
     
     # Provide a redirect to the specified job of this view result

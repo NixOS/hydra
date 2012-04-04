@@ -364,9 +364,7 @@ sub latest_eval : Chained('jobset') PathPart('latest-eval') {
     my ($self, $c, @args) = @_;
     my $eval = getLatestFinishedEval($c, $c->stash->{jobset})
         or notFound($c, "No evaluation found.");
-    my $uri = $c->uri_for($c->controller('JobsetEval')->action_for("view"), [$eval->id]);
-    $uri .= "/" . join("/", @args) if scalar @args > 0;
-    $c->res->redirect($uri);
+    $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for("view"), [$eval->id], @args, $c->req->params));
 }
 
 
