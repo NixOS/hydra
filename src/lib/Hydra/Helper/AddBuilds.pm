@@ -328,14 +328,14 @@ sub fetchInputGit {
     my $stdout; my $stderr;
     if (! -d $clonePath) {
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("git", "clone", "--branch", $branch, $uri, $clonePath));
+            ("git", "clone", $uri, $clonePath));
         die "Error cloning git repo at `$uri':\n$stderr" unless $res;
     }
 
     # git pull + check rev
     chdir $clonePath or die $!; # !!! urgh, shouldn't do a chdir
     (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("git", "pull"));
+        ("git", "fetch", "--all"));
     die "Error pulling latest change git repo at `$uri':\n$stderr" unless $res;
 
     (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
