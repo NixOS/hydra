@@ -323,7 +323,7 @@ sub fetchInputGit {
     my $storePath;
 
     mkpath(scmPath);
-    my $clonePath = scmPath . "/" . sha256_hex($uri);
+    my $clonePath = scmPath . "/" . sha256_hex($uri.$branch);
 
     my $stdout; my $stderr;
     if (! -d $clonePath) {
