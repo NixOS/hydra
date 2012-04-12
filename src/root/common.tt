@@ -67,6 +67,9 @@
         [%- IF !hideResultInfo -%]
           <th></th>
         [% END %]
+        [%- IF showSchedulingInfo -%]
+          <th></th>
+        [%- END -%]
         <th>#</th>
         [%- IF showSchedulingInfo -%]
           <th>P</th>
@@ -103,6 +106,9 @@
               [%- INCLUDE renderBuildStatusIcon size=16 busy=(showSchedulingInfo ? 1 : 0) buildstatus=build.buildstatus -%]
             </td>
           [%- END -%]
+          [% IF showSchedulingInfo %]
+              <td>[%- IF build.busy %]<span class="label label-success">Running</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
+          [% END %]
           <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
           [%- IF showSchedulingInfo -%]
             <td>[% build.priority %]</td>
