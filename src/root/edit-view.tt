@@ -34,7 +34,7 @@
     </tr>
   </table>
 
-  <table class="tablesorter">
+  <table class="tablesorter table table-condensed table-striped">
     <thead>
       <tr>
         <th></th>

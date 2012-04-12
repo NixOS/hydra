@@ -12,7 +12,7 @@
 
 [% INCLUDE renderPager %]
 
-<table class="tablesorter">
+<table class="tablesorter table table-condensed table-striped">
   <thead>
     <tr>
       <th>#</th>
@@ -26,17 +26,18 @@
        <td><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">[% eval.id %]</a>&nbsp;</td>
        <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]&nbsp;</td>
        <td align='right'>
-         [% eval.get_column('nrSucceeded') %] / [% eval.get_column('nrBuilds') %]
+         <span class="label label-success">[% eval.get_column('nrSucceeded') %]</span>
+         <span class="label label-important">[% eval.get_column('nrBuilds') - eval.get_column('nrSucceeded') - eval.get_column('nrScheduled') %]</span>
 	 [% IF eval.get_column('nrScheduled') > 0 %]
-	 <br />[% eval.get_column('nrScheduled') %] scheduled
+	 <span class="label">[% eval.get_column('nrScheduled') %]</span>
 	 [% END %]
        </td>
        <td align='right'>
 	 [% diff = eval.get_column('nrSucceeded') - next.get_column('nrSucceeded');
 	    IF diff > 0 %]
-	    <span class='green'><strong>+[% diff %]</strong></span>
+	    <span class='label label-success'><strong>+[% diff %]</strong></span>
 	 [% ELSIF diff < 0 && eval.get_column('nrScheduled') == 0 %]
-	    <span class='red'><strong>[% diff %]</strong></span>
+	    <span class='label label-important'><strong>[% diff %]</strong></span>
 	 [% END %]
        </td>
      </tr>

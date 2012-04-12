@@ -11,7 +11,7 @@
 
 <p>Showing results [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + results.size %] out of [% totalResults %].</p>
 
-<table class="tablesorter">
+<table class="tablesorter table table-condensed table-striped">
   <thead>
     <tr>
       <th></th>
@@ -64,6 +64,12 @@
   </tbody>
 </table>
 
+<ul class="pager">
+    <li class="previous"><a href="[% "$baseUri?page="; (page - 1) %]">Prev</a></li>
+    <li class="next"><a href="[% "$baseUri?page="; (page + 1) %]">Next</a></li>
+</ul>
+
+<!--
 <p>
 [<a href="[% "$baseUri?page=1" %]">First</a>]
 [% IF page > 1 %]
@@ -74,5 +80,6 @@
 [% END %]
 [<a href="[% "$baseUri?page="; (totalResults - 1) div resultsPerPage + 1 %]">Last</a>]
 </p>
+-->
 
 [% END %]

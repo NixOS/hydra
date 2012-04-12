@@ -29,7 +29,7 @@
               Failed build produced output. Click here to inspect the output.
             </a>
             [<a class="productDetailsToggle" href="javascript:">help</a>]
-            <div class="help productDetails">
+            <div class="well hide productDetails">
                   <p>If you have Nix installed on your machine, this failed build output and
                   all its dependencies can be unpacked into your local Nix store by doing:</p>
         
@@ -51,7 +51,7 @@
               One-click install of Nix package <tt>[% build.nixname %]</tt>
             </a>
             [<a class="productDetailsToggle" href="javascript:">help</a>, <a href="[% contents %]">contents</a>]
-            <div class="help productDetails">
+            <div class="well hide productDetails">
               <p>If you have Nix installed on your machine, you can
               install this package and all its dependencies automatically
               by clicking on the link above.  This requires that you have
@@ -83,7 +83,7 @@
             </a>
             
             [<a class="productDetailsToggle" href="javascript:">help</a>]
-            <div class="help productDetails">
+            <div class="well hide productDetails">
               <p>If you have Nix installed on your machine, this build and
               all its dependencies can be unpacked into your local Nix
               store by doing:</p>
@@ -133,7 +133,7 @@
           [% END %]
         </a>
         [<a class="productDetailsToggle" href="javascript:">details</a>, <a href="[% contents %]">contents</a>]
-        <div class="productDetails">
+        <div class="well hide productDetails">
           <table>
             <tr>
               <th>URL:</th>
@@ -230,4 +230,3 @@
     );
   });
 </script>
-

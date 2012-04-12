@@ -10,20 +10,28 @@
 
   <head>
     <title>Hydra - [% title %]</title>
-    <link type="text/css" href="/static/js/jquery/css/smoothness/jquery-ui-1.8.5.custom.css" rel="Stylesheet" />
-    <link rel="stylesheet" href="/static/css/hydra.css" type="text/css" />
-    <link rel="stylesheet" href="/static/css/nixos-site.css" type="text/css" />
-    <link rel="stylesheet" href="/static/css/logfile.css" type="text/css" />
-    <script type="text/javascript" src="/static/js/jquery/js/jquery-1.4.2.min.js"></script>
-    <script type="text/javascript" src="/static/js/jquery/js/jquery-ui-1.8.5.custom.min.js"></script>
-    <script type="text/javascript" src="/static/js/tablesorter/jquery.tablesorter.js"></script>
+    <link rel="stylesheet" href="/static/bootstrap/css/bootstrap.css" type="text/css" />
+    <style>
+      body {
+        padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
+        padding-bottom: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
+      }
+    </style>
 
+    <link rel="stylesheet" href="/static/bootstrap/css/bootstrap-responsive.css" type="text/css" />
+
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/jquery-ui.min.js"></script>
+    <script type="text/javascript" src="/static/bootstrap/js/bootstrap-dropdown.js"></script>
+    <script type="text/javascript" src="/static/bootstrap/js/bootstrap-tab.js"></script>
+    <script type="text/javascript" src="/static/bootstrap/js/bootstrap-alert.js"></script>
+<!--
+    <script type="text/javascript" src="/static/js/tablesorter/jquery.tablesorter.js"></script>
+-->
     <script type="text/javascript">
       $(document).ready(function() {
 
           /*** Sortable tables. ***/
-
-          $("table.tablesorter").tablesorter();
 
 
           /*** Tree toggles in logfiles. ***/
@@ -72,22 +80,31 @@
   </head>
 
   <body>
-    <div id="page">
 
-      <div id="header">
-        <div id="logo"><a class="no-hover" href="/"><img src="[% logo %]" alt="Hydra Logo" /></a></div>
-          [% PROCESS topbar.tt %]
-          [% PROCESS contextbar.tt %]
-      </div>
-      <div id="main">
-        [% PROCESS navbar.tt %]
-
-        <div id="content">
-          [% content %]
+    <div class="navbar navbar-fixed-top">
+      <div class="navbar-inner">
+        <div class="container">
+          <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </a>
+          <a class="brand" href="[% c.uri_for(c.controller('Root').action_for('index')) %]">Hydra</a>
+          <div class="nav-collapse">
+            [% PROCESS topbar.tt %]
+          </div><!--/.nav-collapse -->
         </div>
-
       </div>
-      <div id="footer">
+    </div>
+
+    <div class="container">
+
+      [% content %]
+
+    </div>
+
+    <div class="navbar navbar-fixed-bottom">
+      <div id="footer" style="text-align: center;">
         <div id="last-modified">
         <em><a href="http://nixos.org/hydra" target="_new">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
         Page generated on [% INCLUDE renderDateTime %].
@@ -97,6 +114,7 @@
         </div>
 
     </div>
+
   </body>
 
 </html>

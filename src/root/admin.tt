@@ -3,24 +3,6 @@
 
 <h1>Admin</h1>
 
-<ul>
-    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Project').action_for('create')) content = "Create project" %]</li>    
-    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('users')) content = "Manage users" %]</li>
-    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('news')) content = "Manage news" %]</li>
-    <li>Queue
-        <ul>
-            <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('clear_queue')) content = "Clear all non-running builds from queue." confirmmsg = "Are you sure you want to clear the queue?" %]</li>
-            <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('clear_queue_non_current')) content = "Clear all non-running old builds from queue." confirmmsg = "Are you sure you want to clear the queue?" %]</li>
-        </ul>
-    </li>
-    <li>Caching
-        <ul>
-            <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('clearfailedcache')) content = "Clear failed builds cache" confirmmsg = "Are you sure you want to clear the failed builds cache?" %]</li>
-            <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('clearvcscache')) content = "Clear VCS caches" confirmmsg = "Are you sure you want to clear the VCS caches?" %]</li>
-        </ul>
-    </li>    
-</ul>
-
 <h2>Status</h2>
 
 [% FOREACH m IN machines %]

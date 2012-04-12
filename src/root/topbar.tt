@@ -1,3 +1,24 @@
+
+[% BLOCK menuItem %]
+  <li class="[% IF "${root}${curUri}" == uri %]active[% END %]">
+    <a href="[% uri %]">[% title %]</a>
+  </li>
+[% END %]
+
+[% BLOCK makeLink -%]
+[% INCLUDE makeLinkWrapped content="" -%]
+[% END %]
+
+[% BLOCK makeSubMenu %]
+  <li class="dropdown">
+      <a class="dropdown-toggle" href="#" data-toggle="dropdown">[% title %]<b class="caret"></b></a>
+      <ul id="left-menu" class="dropdown-menu">
+          [% content %]
+      </ul>
+  </li>
+[% END %]
+
+
 [% BLOCK makeLinkWrapped %]
   <li [% IF curUri == uri %]class="active"[% END %]>
     <a href="[% uri %]">[% title %]</a>
@@ -9,30 +30,118 @@
 [% INCLUDE makeLinkWrapped content="" -%]
 [% END %]
 
-[% BLOCK makeSubMenu %]
-    <ul class="short-menu" id="top-menu">
-      [% content %]
-    </ul>
-  </li>
-[% END %]
 
-
-  [% WRAPPER makeSubMenu title="Hydra" %]
-      [% INCLUDE makeLink
-        uri = c.uri_for(c.controller('Root').action_for('index'))
-        title = "Projects" %]
+  <ul class="nav" id="top-menu">
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Root').action_for('queue'))
-        title = "Queue" %] ([% nrRunningBuilds %]/[% nrQueuedBuilds %])
+        title = "Queue ("_ nrRunningBuilds _"/"_ nrQueuedBuilds _")" %]
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Root').action_for('all'))
         title = "All builds" %]
+
+[% IF project || admin %]
+
+  [% IF project %]
+    [% WRAPPER makeSubMenu title=("Project: " _ project.name) collapsed=(jobset || job)  %]
+      [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('view'), [project.name]) title = "Overview" %]
+      [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('releases'), [project.name]) title = "Releases" %]
+      [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('all'), [project.name]) title = "All builds" %]
+      [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('jobstatus'), [project.name]) title = "Job status" %]
+      [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('errors'), [project.name]) title = "Errors" %]
+      [% IF c.check_user_roles('admin') %]
+          <li class="divider"></li>
+          [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create new jobset" %]
+          [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit project" %]
+      [% END %]
+    [% END %]
+  [% END %]
+  
+
+  [% IF jobset %]
+    [% WRAPPER makeSubMenu title=("Jobset: " _ jobset.name) collapsed=job %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Jobset').action_for('index'), [project.name, jobset.name])
+        title = "Overview" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name])
+        title = "Evaluations" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Jobset').action_for('all'), [project.name, jobset.name])
+        title = "All builds" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Jobset').action_for('jobstatus'), [project.name, jobset.name])
+        title = "Job status" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Jobset').action_for('errors'), [project.name, jobset.name])
+        title = "Errors" %]
+      [% IF c.check_user_roles('admin') %]
+          <li class="divider"></li>
+          [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit jobset" %]
+          [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'clone') title="Clone jobset" %]
+      [% END %]
+    [% END %]
+  [% END %]
+  
+
+  [% IF job %]
+    [% WRAPPER makeSubMenu title=("Job: " _ job.name) %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Job').action_for('overview'), [project.name, jobset.name, job.name])
+        title = "Overview" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Job').action_for('all'), [project.name, jobset.name, job.name])
+        title = "All builds" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Job').action_for('jobstatus'), [project.name, jobset.name, job.name])
+        title = "Job status" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Job').action_for('errors'), [project.name, jobset.name, job.name])
+        title = "Errors" %]
+    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('users')) content = "Manage users" %]</li>
+    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('news')) content = "Manage news" %]</li>
+
+    [% END %]
+  [% END %]
+
+[% END %]
+
+[% IF c.user_exists %]
+  [% IF c.check_user_roles('admin') %]
+    [% WRAPPER makeSubMenu title="Admin" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Admin').action_for('index'))
+        title = "Machine status" %]
+      <li class="divider"></li>
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Admin').action_for('machines'))
+        title = "Manage machines" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Admin').action_for('managenews'))
+        title = "Manage news" %]
+      [% INCLUDE makeLink
+        uri = c.uri_for(c.controller('Admin').action_for('users'))
+        title = "Manage users" %]
+      <li class="divider"></li>
+      [% INCLUDE maybeLink 
+        uri = c.uri_for(c.controller('Admin').action_for('clearfailedcache')) 
+        content = "Clear failed builds cache" 
+        confirmmsg = "Are you sure you want to clear the failed builds cache?" %]
+      [% INCLUDE maybeLink 
+        uri = c.uri_for(c.controller('Admin').action_for('clear_queue_non_current'))
+        content = "Clear all non-running old builds from queue."
+        confirmmsg = "Are you sure you want to clear the queue?" 
+      %]
+      <li class="divider"></li>
+      [% IF c.check_user_roles('admin') %]
+          [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create')) title = "Create new project" %]
+      [% END %]
+
+    [% END %]
+[% END %]
+
+  [% END %]
+
       [% IF c.user_exists %]
-        [% IF c.check_user_roles('admin') %]
-            [% INCLUDE makeLink
-              uri = c.uri_for(c.controller('Admin').action_for('index'))
-              title = "Admin" %]
-        [% END %]
         [% INCLUDE makeLink
           uri = c.uri_for(c.controller('Root').action_for('logout'))
           title = "Sign out" %]
@@ -41,6 +150,5 @@
           uri = c.uri_for(c.controller('Root').action_for('login'))
           title = "Sign in" %]
       [% END %]
-  [% END %]
 
-
+  </ul>

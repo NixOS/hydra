@@ -1,33 +1,27 @@
 [% WRAPPER layout.tt title=(edit ? (create ? "New Project" : "Editing Project ‘$project.name’") : "Project ‘$project.name’") %]
 [% PROCESS common.tt %]
-[% IF create %]
-  <h1>New Project</h1>
-[% ELSE %]
-  <h1>Project <tt>[% project.name %]</tt></h1>
-[% END %]
-
-<div id="generic-tabs">
-	<ul>
+	<ul id="tab" class="nav nav-tabs">
 		[% IF !edit %]
-			<li><a href="#tabs-project">Project</a></li>
+			<li><a href="#tabs-project" data-toggle="tab">Project</a></li>
 		[% END %]
-		<li><a href="#tabs-settings">Settings</a></li>
+		<li><a href="#tabs-settings" data-toggle="tab">Settings</a></li>
 		[% IF !edit %]
-			<li><a href="#tabs-views">Views</a></li>
-			<li><a href="#tabs-channels">Channels</a></li>
-			<!-- <li><a href="#tabs-statistics">Statistics</a></li> -->
+			<li><a href="#tabs-views" data-toggle="tab">Views</a></li>
+			<li><a href="#tabs-channels" data-toggle="tab">Channels</a></li>
 		[% END %]
 	</ul>
 
+        <div class="tab-content">
+
 	[% IF !edit %]
-		<div id="tabs-project">
+		<div id="tabs-project" class="tab-pane active">
 			<h2>Jobsets</h2>
 			
 			[% IF project.jobsets.size > 0 %]
 			
 			<p>This project has the following jobsets:</p>
 			
-			<table class="tablesorter">
+			<table class="tablesorter table table-striped table-condensed">
 			  <thead>
 			    <tr>
                   <th></th>
@@ -60,32 +54,36 @@
                   [% IF j.get_column('nrtotal') > 0 %]
                     [% successrate = ( j.get_column('nrsucceeded') / j.get_column('nrtotal') )*100 %]
                     [% IF j.get_column('nrscheduled') > 0 %]
-                      [% class = '' %]
+                      [% class = 'label' %]
                     [% ELSIF successrate < 25 %]
-                      [% class = 'red' %]
+                      [% class = 'label label-important' %]
                     [% ELSIF successrate < 75 %]
-                      [% class = 'orange' %]
+                      [% class = 'label label-warning' %]
                     [% ELSIF successrate <= 100 %]
-                      [% class = 'green' %]
+                      [% class = 'label label-success' %]
                     [% END %]
                   [% END %]
-                  <td align="right">
-                      <div class="[% class %]">[% successrate FILTER format('%d') %]%</div>
+                  <td>
+                      <span class="[% class %]">[% successrate FILTER format('%d') %]%</span>
+                  </td>
+                  <td>
+                      [% IF j.get_column('nrsucceeded') > 0 %]
+                      <span class="label label-success">[% j.get_column('nrsucceeded') %]</span>
+                      [% END %]
+                      [% IF j.get_column('nrfailed') > 0 %]
+                      <span class="label label-important">[% j.get_column('nrfailed') %]</span>
+                      [% END %]
                       [% IF j.get_column('nrscheduled') > 0 %]
-                          [% j.get_column('nrscheduled') %] builds still running
+                      <span class="label label">[% j.get_column('nrscheduled') %]</span>
                       [% END %]
                   </td>
-                  <td align="right">
-                      <div class="[% class %]">[% j.get_column('nrsucceeded') %]/[% j.get_column('nrtotal') %]</div>
-                  </td>
                   [% IF c.check_user_roles('admin') %]
-                    <td>[ [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, j.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ j.name _ "?") %]
-                        | [% IF j.hidden %]
-                              [% INCLUDE maybeLink uri = c.uri_for('/jobset' project.name j.name 'unhide') content = "Unhide" %]
+                    <td>[% INCLUDE maybeButton uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, j.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ j.name _ "?") %]
+                          [% IF j.hidden %]
+                              [% INCLUDE maybeButton uri = c.uri_for('/jobset' project.name j.name 'unhide') content = "Unhide" %]
                           [% ELSE %] 
-                              [% INCLUDE maybeLink uri = c.uri_for('/jobset' project.name j.name 'hide') content = "Hide" %]
+                              [% INCLUDE maybeButton uri = c.uri_for('/jobset' project.name j.name 'hide') content = "Hide" %]
                           [% END %]
-                     ]
                     </td>
                   [% END%]
 			    </tr>
@@ -99,17 +97,16 @@
 			
 			[% END %]
 			
-			<p><a href="[% c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) %]">[Create a new jobset]</a></p>
 	
 		</div>
 	[% END %]
-	<div id="tabs-settings">
+	<div id="tabs-settings" class="tab-pane [% IF edit %]active[% END %]">
 		[% IF edit %]
 		  <form action="[% IF create %][% c.uri_for('/create-project/submit') %][% ELSE %][% c.uri_for('/project' project.name 'submit') %][% END %]" method="post">
 		[% END %]
 		
 		
-		<h2>Information[% IF !edit %] <a class="smallLink" href="[% c.uri_for('/project' project.name 'edit') %]">[Edit]</a>[% END %]</h2>
+		<h2>Information</h2>
 		
 		<table class="layoutTable">
 		  [% IF edit %]
@@ -177,7 +174,7 @@
 	</div>
 
 	[% IF !edit %]
-		<div id="tabs-views">	
+		<div id="tabs-views" class="tab-pane">	
 			
 			<h2>Views</h2>
 			
@@ -203,7 +200,7 @@
 			<p><a href="[% c.uri_for('/project' project.name 'create-view') %]">[Create a new view]</a></p>
 			
 		</div>
-		<div id="tabs-channels">	
+		<div id="tabs-channels" class="tab-pane">	
 			
 			<h2>Channels</h2>
 			
@@ -217,17 +214,13 @@
 			</ul>
 			
 		</div>
-                [%#
-		<div id="tabs-statistics">
-			<h2>Statistics</h2>
-			[% INCLUDE showBuildStats % ]
-		</div>
-                %]
 	[% END %]
 </div>
 
 <script type="text/javascript">
-	$("#generic-tabs").tabs();
+	jQuery(document).ready(function ($) {
+            $('#tab').tab('show');
+        });
 </script>
 
 

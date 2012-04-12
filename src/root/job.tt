@@ -2,22 +2,13 @@
 [% PROCESS common.tt %]
 [% hideProjectName=1 hideJobsetName=1 hideJobName=1 %]
 
-
-<h1>Job <tt>[% INCLUDE renderLink
-      uri = c.uri_for(c.controller('Project').action_for('view'), [project.name])
-       title = project.name %]:[% INCLUDE renderLink
-      uri = c.uri_for(c.controller('Jobset').action_for('index'), [project.name, jobset.name])
-       title = jobset.name %]:[% job.name %]</tt></h1>
-
-
-<div id="generic-tabs">
-	<ul>
-		<li><a href="#tabs-status">Status</a></li>
-		<li><a href="#tabs-channels">Channels</a></li>
-		<li><a href="#tabs-latestbuilds">Latest builds</a></li>
-		<!-- <li><a href="#tabs-statistics">Statistics</a></li> -->
+	<ul id="tab" class="nav nav-tabs">
+		<li><a href="#tabs-status" data-toggle="tab">Status</a></li>
+		<li><a href="#tabs-channels" data-toggle="tab">Channels</a></li>
+		<li><a href="#tabs-latestbuilds" data-toggle="tab">Latest builds</a></li>
 	</ul>
-	<div id="tabs-status">
+<div id="generic-tabs" class="tab-content">
+	<div id="tabs-status" class="tab-pane active">
             [% IF currentBuilds.size != 0 %]
 	        <h2>Latest builds (latest evaluation)</h2>
   	        [% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
@@ -31,7 +22,7 @@
 	        [% INCLUDE renderBuildList builds=lastBuilds showStatusChange=0 %]
 	    [% END %]
 	</div>
-	<div id="tabs-channels">
+	<div id="tabs-channels" class="tab-pane">
 		<p>This job provides the following Nix channel:</p>
 		
 		<ul>
@@ -42,7 +33,7 @@
 		  </li>
 		</ul>
 	</div>
-	<div id="tabs-latestbuilds">
+	<div id="tabs-latestbuilds" class="tab-pane">
 		<ul>
 		  <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
 		  'latest') %]">Latest successful build.</a></li>
@@ -53,14 +44,11 @@
 		  [% END %]
 		</ul>
 	</div>
-        [%#
-	<div id="tabs-statistics">
-		[% INCLUDE showBuildStats % ]
-        </div>
-        %]
 </div>
 <script type="text/javascript">
-	$("#generic-tabs").tabs();
+	jQuery(document).ready(function ($) {
+            $('#tab').tab('show');
+        });
 </script>
 
 

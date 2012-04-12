@@ -8,10 +8,6 @@
 
 [% IF create %]
   <h1>New Jobset in Project <tt>[% project.name %]</tt></h1>
-[% ELSE %]
-  <h1>Jobset <tt>[% INCLUDE renderLink
-      uri = c.uri_for(c.controller('Project').action_for('view'), [project.name])
-       title = project.name %]:[% jobset.name %]</tt></h1>
 [% END %]
 
 
@@ -56,7 +52,7 @@
 [% BLOCK renderInputs %]
 		<h3>Inputs</h3>
 		
-		<table class="tablesorter">
+		<table class="tablesorter table table-striped table-condensed">
 		  <thead>
 		    <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
 		  </thead>
@@ -75,20 +71,19 @@
 [% END %]
 
 
-<div id="generic-tabs">
-	<ul>
+	<ul id="tab" class="nav nav-tabs">
 		[% IF !edit -%]
- 			<li><a href="#tabs-information">Jobset</a></li>
-	        [% IF jobset.errormsg -%]<li><a href="#tabs-errors">Evaluation errors</a></li>[% END %]
-			<li><a href="#tabs-jobs">Jobs ([% activeJobs.size %])</a></li>
+ 			<li><a href="#tabs-information" data-toggle="tab">Jobset</a></li>
+	        [% IF jobset.errormsg -%]<li><a href="#tabs-errors" data-toggle="tab">Evaluation errors</a></li>[% END %]
+			<li><a href="#tabs-jobs" data-toggle="tab">Jobs ([% activeJobs.size %])</a></li>
 		[% END %]
-		<li><a href="#tabs-setup">Setup</a></li>
+		<li><a href="#tabs-setup" data-toggle="tab">Setup</a></li>
 		[% IF !edit -%]
-			<li><a href="#tabs-channels">Channels</a></li>
-			<!-- <li><a href="#tabs-statistics">Statistics</a></li> -->
+			<li><a href="#tabs-channels" data-toggle="tab">Channels</a></li>
 		[% END %]
 	</ul>
-	<div id="tabs-information">
+<div id="generic-tabs" class="tab-content">
+	<div id="tabs-information" class="tab-pane active">
 	    [% IF jobset.errormsg && !edit -%]
 	    <table class="layoutTable"><tr><td><img src="/static/images/error_16.png" /></td><td><a href="#tabs-errors" id="error-link">There are evaluation errors!</a></td></tr></table>
 	    <script type="text/javascript">
@@ -106,7 +101,7 @@
 	
 		[% IF !edit && activeJobsStatus -%]
 		    <h2>Status</h2>
-		    <table>
+		    <table class="table table-striped table-condensed">
 		      <thead><tr><th>Job</th>[% FOREACH s IN systems %]<th>[% s.system %]</th>[% END %]</tr></thead>
 		      <tbody>
                 [% odd = 0 %]
@@ -140,20 +135,14 @@
 	[% IF !edit -%]
 	
 		[% IF jobset.errormsg -%]
-		<div id="tabs-errors">
+		<div id="tabs-errors" class="tab-pane">
 		  <h3>Evaluation errors</h3>
 		  <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
 		</div>
 		[% END %]
 	[% END %]
-		<div id="tabs-setup">
+		<div id="tabs-setup" class="tab-pane [% IF edit %]active[% END %]">
 			<h2>Information</h2>
-			
-			 [% IF !edit && c.user_exists %]
-			     <p>
-			         [ <a href="[% c.uri_for('/jobset' project.name jobset.name 'edit') %]">Edit</a> | <a href="[% c.uri_for('/jobset' project.name jobset.name 'clone') %]">Clone</a> ]
-			     </p>
-	         [% END %]
 			
 			<table class="layoutTable">
 			  [% IF edit %]
@@ -217,7 +206,7 @@
 			[% INCLUDE renderInputs %]
 		</div>
 	[% IF !edit -%]
-		<div id="tabs-channels">
+		<div id="tabs-channels" class="tab-pane">
 		
 			<h2>Channels</h2>
 			
@@ -233,7 +222,7 @@
 			
 		</div>
 	
-		<div id="tabs-jobs">
+		<div id="tabs-jobs" class="tab-pane">
 		
 			<h2>Jobs</h2>
 			
@@ -255,20 +244,14 @@
 			</p>
 		
 		</div>
-                [%#
-		<div id="tabs-statistics">
-		
-			<h2>Statistics</h2>
-			
-			[% INCLUDE showBuildStats % ]
-		</div>
-                %]
 	[% END %]
 
 </div>
 
 <script type="text/javascript">
-	$("#generic-tabs").tabs();
+	jQuery(document).ready(function ($) {
+            $('#tab').tab('show');
+        });
 </script>
 
 [% IF edit %]

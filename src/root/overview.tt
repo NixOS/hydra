@@ -2,10 +2,12 @@
 [% PROCESS common.tt %]
 
 [% IF newItems.size != 0 %]
-    <div class="newsbar">
+    <div class="alert alert-info">
+        <a class="close" data-dismiss="alert">×</a>
         [% FOREACH i IN newsItems %]
             [% contents = String.new(i.contents) %]
-            <p><b>[% INCLUDE renderDateTime timestamp=i.createtime %]</b> <tt>by [% i.author.fullname %]</tt> <br/>[% contents.replace('\n','<br />\n') %]
+            <h4 class="alert-heading">[% INCLUDE renderDateTime timestamp=i.createtime %] by [% i.author.fullname %]</h4> 
+            [% contents.replace('\n','<br />\n') %]
         [% END %]
     </div>
 [% END %]
@@ -14,7 +16,7 @@
 
 <p>The following projects are hosted on this server:</p>
 
-<table class="tablesorter">
+<table class="tablesorter table table-condensed table-striped">
   <thead>
     <tr>
       <th>Id</th>
@@ -44,13 +46,5 @@
     [% END %]
   </tbody>
 </table>
-
-[% IF c.user_exists %]
-<p>
-  [ [% INCLUDE maybeLink
-          uri = c.uri_for(c.controller('Project').action_for('create'))
-          content = "Create project" %] ]
-</p>
-[% END %]
 
 [% END %]

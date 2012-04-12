@@ -12,7 +12,7 @@
 
 <p>This project has made the following releases:</p>
 
-<table class="tablesorter">
+<table class="tablesorter table table-condensed table-striped">
   <thead>
     <tr>
       <th>Name</th>

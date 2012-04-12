@@ -3,7 +3,7 @@
 
 <h1>Build machines</h1>
 
-<table>
+<table class="table table-condensed table-striped">
     <thead>
         <tr>
             <th>Enabled</th>
