@@ -66,18 +66,6 @@
 [% END %]
 
 
-<h1>
-  Job <tt>[% project.name %]:[% jobset.name %]:[% job.name %]</tt> build [% id %]
-  [% IF !build.finished %]
-    [% IF build.busy %]
-      (currently building)
-    [% ELSE %]
-      (scheduled)
-    [% END %]
-  [% END %]
-</h1>
-
-
 [% IF flashMsg %]
 <p class="error">[% flashMsg %]</p>
 [% END %]
