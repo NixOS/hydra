@@ -148,10 +148,6 @@
 		</form>
 		[% END %]
 		
-		[% IF c.user_exists %]
-		<p>[<a href="[% c.uri_for('/build' build.id 'clone') %]">Clone this build</a>]</p>
-		[% END %]
-
 		[% IF build.buildproducts %]
 
 			<h2>Build products</h2>
