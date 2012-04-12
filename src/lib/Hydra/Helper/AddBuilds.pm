@@ -323,7 +323,7 @@ sub fetchInputGit {
     my $storePath;
 
     mkpath(scmPath);
-    my $clonePath = scmPath . "/" . sha256_hex($uri.$branch);
+    my $clonePath = scmPath . "/" . sha256_hex($uri);
 
     my $stdout; my $stderr;
     if (! -d $clonePath) {
@@ -335,7 +335,7 @@ sub fetchInputGit {
     # git pull + check rev
     chdir $clonePath or die $!; # !!! urgh, shouldn't do a chdir
     (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("git", "pull"));
+        ("git", "pull", "--all"));
     die "Error pulling latest change git repo at `$uri':\n$stderr" unless $res;
 
     (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
@@ -343,6 +343,10 @@ sub fetchInputGit {
     
     die "Cannot get head revision of Git branch '$branch' at `$uri':\n$stderr" unless $res1 ;
 
+    # Take the first commit ID returned by `ls-remote'.  The
+    # assumption is that `ls-remote' returned both `refs/heads/BRANCH'
+    # and `refs/remotes/origin/BRANCH', and that both point at the
+    # same commit.
     my ($first) = split /\n/, $stdout;
     (my $revision, my $ref) = split ' ', $first;
     die unless $revision =~ /^[0-9a-fA-F]+$/;
