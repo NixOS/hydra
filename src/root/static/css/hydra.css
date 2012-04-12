@@ -4,4 +4,8 @@
     font-size: larger;
 }
 
+th {
+    text-align: left;
+    vertical-align: top;
+}
 
