@@ -114,8 +114,19 @@
       [% INCLUDE makeLink
         uri = c.uri_for('/build' build.id 'clone')
         title = "Clone build" %]
+      [% IF !available %]
+      [% ELSIF build.keep %]
+          [% INCLUDE makeLink
+            uri = c.uri_for('/build' build.id 'keep' 0)
+            title = "Unkeep build" %]
+      [% ELSE %]
+          [% INCLUDE makeLink
+            uri = c.uri_for('/build' build.id 'keep' 1)
+            title = "Keep build" %]
+      [% END %]
+
       [% INCLUDE makeLink
-        uri = '#'
+        uri = c.uri_for('/build' build.id 'restart')
         title = "Restart build" %]
     [% END %]
   

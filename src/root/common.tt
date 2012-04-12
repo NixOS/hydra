@@ -262,11 +262,6 @@
       <span class="error">Build failed</span>
       (see <a href="#nix-error">below</a>)
     [% END %]  
-    [% IF c.user_exists && (buildstatus == 3 || buildstatus == 4) %]
-      <form action="[% c.uri_for('/build' build.id 'restart') %]" method="post" class="inline">
-        <button id="restart" type="submit">Restart</button>
-      </form>
-    [% END %]
   [% ELSIF build.busy %]
     <strong>Build in progress</strong>
     since [% INCLUDE renderDateTime timestamp = build.starttime %]
