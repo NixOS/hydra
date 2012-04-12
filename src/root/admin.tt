@@ -1,20 +1,18 @@
 [% WRAPPER layout.tt title="Admin" %]
 [% PROCESS common.tt %]
 
-<h1>Admin</h1>
+<h2>Machine status</h2>
 
-<h2>Status</h2>
-
+<table class="table table-condensed table-striped">
 [% FOREACH m IN machines %]
-<table style="width: 40em;">
     <thead>
         <tr>
-            <th colspan="5" style="background-color: [% IF m.enabled == 1 %]lime[% ELSE %]red[% END %];">
+            <th colspan="5">
                 [% IF m.enabled == 1 %]
-                    [% INCLUDE maybeLink uri = c.uri_for('/admin/machine' m.hostname 'disable' ) content='-' %]
+                    <a class="btn btn-success btn-mini" href="[% c.uri_for('/admin/machine' m.hostname 'disable' ) %]">Running</a>
                 [% ELSE %]
-                    [% INCLUDE maybeLink uri = c.uri_for('/admin/machine' m.hostname 'enable' ) content='+' %]
-                [% END %] 
+                    <a class="btn btn-danger btn-mini" href="[% c.uri_for('/admin/machine' m.hostname 'enable' ) %]">Stopped</a>
+                [% END %]
                 [% m.hostname %] <tt>[% FOREACH ms IN m.buildmachinesystemtypes %] [% ms.system %][% END %]</tt>
             </th>
         </tr>
@@ -37,9 +35,9 @@
         <tr><td colspan="5">Idle since [% INCLUDE renderDuration duration = curTime - m.get_column('idle') %]</td></tr>
     [% END %]
     </tbody>
+[% END %]
 </table>
 
-[% END %]
 
 
 [% END %]
