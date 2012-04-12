@@ -110,6 +110,13 @@
       [% INCLUDE makeLink
         uri = '#'
         title = "Related builds" %]
+      <li class="divider"></li>
+      [% INCLUDE makeLink
+        uri = c.uri_for('/build' build.id 'clone')
+        title = "Clone build" %]
+      [% INCLUDE makeLink
+        uri = '#'
+        title = "Restart build" %]
     [% END %]
   
 [% END %]
