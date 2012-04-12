@@ -34,12 +34,11 @@
       <td>[% WRAPPER maybeLink uri=p.homepage %][% HTML.escape(p.description) %][% END %]</td>
       [% IF c.check_user_roles('admin') %]
         <td>
-            [ [% IF p.hidden %]
-                [% INCLUDE maybeLink uri = c.uri_for('/project' p.name 'unhide') content = "Unhide" %]
+              [% IF p.hidden %]
+                [% INCLUDE maybeButton uri = c.uri_for('/project' p.name 'unhide') content = "Unhide" %]
               [% ELSE %] 
-                [% INCLUDE maybeLink uri = c.uri_for('/project' p.name 'hide') content = "Hide" %]
+                [% INCLUDE maybeButton uri = c.uri_for('/project' p.name 'hide') content = "Hide" %]
               [% END %]
-            ]
         </td>
       [% END %]
     </tr>

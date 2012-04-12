@@ -130,9 +130,9 @@
 				      <tr>
 				        <th>Logfile:</th>
 				        <td>
-				          <a href="[% c.uri_for('/build' build.id 'log') %]"><strong>Available</strong></a>
-				          (<a href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>,
-				           <a href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>)
+				          <a class="btn btn-mini btn-primary" href="[% c.uri_for('/build' build.id 'log') %]"><strong>Available</strong></a>
+				          <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>
+				          <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>
 				        </td>
 				      </tr>
 				  [% END %]
@@ -180,12 +180,12 @@
                 <thead>
                     <th>Last successful build <tt>[% INCLUDE renderDateTime timestamp = prevSuccessfulBuild.timestamp %]</tt></th>
                     [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]
-                        <th>First broken build <tt>[% INCLUDE renderDateTime timestamp = firstBrokenBuild.timestamp %]</tt><br/>
-                            <tt>[ <a href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id firstBrokenBuild.id ) %]">log diff</a> ]</tt>
+                        <th>First broken build <tt>[% INCLUDE renderDateTime timestamp = firstBrokenBuild.timestamp %]</tt>
+                            <a class="btn btn-mini" href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id firstBrokenBuild.id ) %]">log diff</a>
                         </th>
                     [% END %]
-                    <th>This build <tt>[% INCLUDE renderDateTime timestamp = build.timestamp %]</tt> <br/>
-                        <tt>[ <a href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id build.id) %]">log diff</a> ]</tt>
+                    <th>This build <tt>[% INCLUDE renderDateTime timestamp = build.timestamp %]</tt>
+                        <a class="btn btn-mini" href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id build.id) %]">log diff</a>
                     </th>
                 </thead>
                 <tr>

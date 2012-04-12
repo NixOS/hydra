@@ -105,6 +105,15 @@
 
 [% END %]
 
+[% IF build %]
+    [% WRAPPER makeSubMenu title=("Build: " _ build.id) %]
+      [% INCLUDE makeLink
+        uri = '#'
+        title = "Related builds" %]
+    [% END %]
+  
+[% END %]
+
 [% IF c.user_exists %]
   [% IF c.check_user_roles('admin') %]
     [% WRAPPER makeSubMenu title="Admin" %]

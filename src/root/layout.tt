@@ -11,6 +11,7 @@
   <head>
     <title>Hydra - [% title %]</title>
     <link rel="stylesheet" href="/static/bootstrap/css/bootstrap.css" type="text/css" />
+    <link rel="stylesheet" href="/static/css/hydra.css" type="text/css" />
     <style>
       body {
         padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
