@@ -18,7 +18,7 @@ sub begin :Private {
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
-    $c->stash->{logo} = $ENV{"HYDRA_LOGO"} ? "/logo" : "/static/images/hydra.png" ;
+    $c->stash->{logo} = $ENV{"HYDRA_LOGO"} ? "/logo" : "/static/images/nixos-logo-only-hires.png" ;
     $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"} ;
 
     if (scalar(@args) == 0 || $args[0] ne "static") {
