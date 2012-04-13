@@ -110,24 +110,26 @@
       [% INCLUDE makeLink
         uri = '#'
         title = "Related builds" %]
-      <li class="divider"></li>
-      [% INCLUDE makeLink
-        uri = c.uri_for('/build' build.id 'clone')
-        title = "Clone build" %]
-      [% IF !available %]
-      [% ELSIF build.keep %]
+      [% IF c.user_exists %]
+          <li class="divider"></li>
           [% INCLUDE makeLink
-            uri = c.uri_for('/build' build.id 'keep' 0)
-            title = "Unkeep build" %]
-      [% ELSE %]
+            uri = c.uri_for('/build' build.id 'clone')
+            title = "Clone build" %]
+          [% IF !available %]
+          [% ELSIF build.keep %]
+              [% INCLUDE makeLink
+                 uri = c.uri_for('/build' build.id 'keep' 0)
+                 title = "Unkeep build" %]
+          [% ELSE %]
+              [% INCLUDE makeLink
+                 uri = c.uri_for('/build' build.id 'keep' 1)
+                 title = "Keep build" %]
+          [% END %]
           [% INCLUDE makeLink
-            uri = c.uri_for('/build' build.id 'keep' 1)
-            title = "Keep build" %]
+            uri = c.uri_for('/build' build.id 'restart')
+            title = "Restart build" %]
       [% END %]
 
-      [% INCLUDE makeLink
-        uri = c.uri_for('/build' build.id 'restart')
-        title = "Restart build" %]
     [% END %]
   
 [% END %]
