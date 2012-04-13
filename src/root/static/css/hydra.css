@@ -4,6 +4,10 @@
     font-size: larger;
 }
 
+.logo {
+    height: 30px;
+}
+
 th {
     text-align: left;
     vertical-align: top;

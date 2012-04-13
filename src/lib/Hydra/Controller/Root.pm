@@ -33,8 +33,6 @@ sub index :Path :Args(0) {
     $c->stash->{template} = 'overview.tt';
     $c->stash->{projects} = [$c->model('DB::Projects')->search(isAdmin($c) ? {} : {hidden => 0}, {order_by => 'name'})];
     $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, { order_by => ['createtime DESC'], rows => 5 })];
-#    $c->stash->{nrbuilds} = [nrbuildsQuery($c, 30, "day", "", "", "", "")];
-    # <img src="http://chart.apis.google.com/chart?cht=bvg&chtt=Nr%20builds%20over%20the%20last%2030%20days&chs=300x100&chd=t:1785,881,2863,2828,1472,2847,1449,5634,1625,1200,1576,700,839,8533,1439,361,991,1337,1234,1322,1883,2146,1553,883,378,1395,1204,527,1147,124&chco=BBCEBB&chds=0,8533&chbh=a&chxt=y&chxr=0,0,8533"/>
 }
 
 
