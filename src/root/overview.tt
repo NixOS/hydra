@@ -22,7 +22,6 @@
       <th>Id</th>
       <th>Name</th>
       <th>Description</th>
-      [% IF c.check_user_roles('admin') %]<th>Options</th>[% END %]
     </tr>
   </thead>
   <tbody>
@@ -32,15 +31,6 @@
       <td>[% INCLUDE renderProjectName project = p.name %]</td>
       <td>[% HTML.escape(p.displayname) %]</td>
       <td>[% WRAPPER maybeLink uri=p.homepage %][% HTML.escape(p.description) %][% END %]</td>
-      [% IF c.check_user_roles('admin') %]
-        <td>
-              [% IF p.hidden %]
-                [% INCLUDE maybeButton uri = c.uri_for('/project' p.name 'unhide') content = "Unhide" %]
-              [% ELSE %] 
-                [% INCLUDE maybeButton uri = c.uri_for('/project' p.name 'hide') content = "Hide" %]
-              [% END %]
-        </td>
-      [% END %]
     </tr>
     [% END %]
   </tbody>
