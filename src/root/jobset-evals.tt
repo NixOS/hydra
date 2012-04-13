@@ -45,6 +45,4 @@
   </tbody>
 </table>
 
-[% INCLUDE renderPager %]
-
 [% END %]

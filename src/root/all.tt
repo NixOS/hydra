@@ -11,6 +11,5 @@ out of [% total %] in order of descending timestamp.</p>
 
 [% INCLUDE renderPager %]
 [% INCLUDE renderBuildList hideProjectName=project hideJobsetName=jobset hideJobName=job %]
-[% INCLUDE renderPager %]
 
 [% END %]
