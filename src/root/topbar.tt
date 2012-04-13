@@ -48,6 +48,7 @@
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('all'), [project.name]) title = "All builds" %]
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('jobstatus'), [project.name]) title = "Job status" %]
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('errors'), [project.name]) title = "Errors" %]
+      [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'channel' 'latest') title = "Channel (latest)" %]
       [% IF c.check_user_roles('admin') %]
           <li class="divider"></li>
           [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create new jobset" %]
@@ -74,6 +75,7 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Jobset').action_for('errors'), [project.name, jobset.name])
         title = "Errors" %]
+      [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'channel' 'latest') title = "Channel (latest)" %]
       [% IF c.check_user_roles('admin') %]
           <li class="divider"></li>
           [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit jobset" %]

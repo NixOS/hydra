@@ -7,7 +7,6 @@
 		<li><a href="#tabs-settings" data-toggle="tab">Settings</a></li>
 		[% IF !edit %]
 			<li><a href="#tabs-views" data-toggle="tab">Views</a></li>
-			<li><a href="#tabs-channels" data-toggle="tab">Channels</a></li>
 		[% END %]
 	</ul>
 
@@ -198,20 +197,6 @@
 			[% END %]
 			
 			<p><a href="[% c.uri_for('/project' project.name 'create-view') %]">[Create a new view]</a></p>
-			
-		</div>
-		<div id="tabs-channels" class="tab-pane">	
-			
-			<h2>Channels</h2>
-			
-			<p>This project provides the following Nix channel:</p>
-			
-			<ul>
-			  <li>
-			    <a href="[% c.uri_for('/project' project.name 'channel' 'latest') %]"><tt>latest</tt></a> —
-			    contains the latest successful build of every job in this project.
-			  </li>
-			</ul>
 			
 		</div>
 	[% END %]

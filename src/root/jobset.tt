@@ -78,9 +78,6 @@
 			<li><a href="#tabs-jobs" data-toggle="tab">Jobs ([% activeJobs.size %])</a></li>
 		[% END %]
 		<li><a href="#tabs-setup" data-toggle="tab">Setup</a></li>
-		[% IF !edit -%]
-			<li><a href="#tabs-channels" data-toggle="tab">Channels</a></li>
-		[% END %]
 	</ul>
 <div id="generic-tabs" class="tab-content">
 	<div id="tabs-information" class="tab-pane active">
@@ -206,22 +203,6 @@
 			[% INCLUDE renderInputs %]
 		</div>
 	[% IF !edit -%]
-		<div id="tabs-channels" class="tab-pane">
-		
-			<h2>Channels</h2>
-			
-			<p>This jobset provides the following Nix channel:</p>
-			
-			<ul>
-			  <li>
-			    <a href="[% c.uri_for('/jobset' project.name jobset.name 'channel'
-			    'latest') %]"><tt>latest</tt></a> — contains the latest successful
-			    build of every job in this jobset.
-			  </li>
-			</ul>
-			
-		</div>
-	
 		<div id="tabs-jobs" class="tab-pane">
 		
 			<h2>Jobs</h2>
