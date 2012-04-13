@@ -478,9 +478,6 @@
     };
     
 
-    $('#generic-tabs').bind('tabsshow', function(event, ui) {
-        if (ui.panel.id == "tabs-history") {
-
             var plot = $.plot($("#placeholder"), [d], options);
     
             var overview = $.plot($("#overview"), [d], {
@@ -517,9 +514,6 @@
                     window.location = "/build/"+buildid;
                 }      
             }); 
-        }
-    });
-
   });
 
 </script>
@@ -549,9 +543,6 @@
         },
     };
     
-
-    $('#generic-tabs').bind('tabsshow', function(event, ui) {
-        if (ui.panel.id == "tabs-history") {
 
             var plot = $.plot($("#placeholder-size"), [d], options);
     
@@ -589,9 +580,6 @@
                     window.location = "/build/"+buildid;
                 }      
             }); 
-        }
-    });
-
   });
 
 </script>
