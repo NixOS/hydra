@@ -396,7 +396,7 @@
     <li><a href="[% "$baseUri?page=1" %]">First</a></li>
 
     <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page - 1) %]">Previous</a></li>
-    <li [% IF page * resultsPerPage < total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page + 1) %]">Next</a></li>
+    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page + 1) %]">Next</a></li>
     <li><a href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last</a></li>
 </ul>
 <!--
