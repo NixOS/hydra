@@ -84,9 +84,9 @@
           [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit jobset" %]
           [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, jobset.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ j.name _ "?") %]
           [% IF j.hidden %]
-              [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name j.name 'unhide') title = "Unhide" %]
+              [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'unhide') title = "Unhide" %]
           [% ELSE %] 
-              [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name j.name 'hide') title = "Hide" %]
+              [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'hide') title = "Hide" %]
           [% END %]
       [% END %]
 
