@@ -12,3 +12,7 @@ th {
     text-align: left;
     vertical-align: top;
 }
+
+.template {
+    display: none;
+}

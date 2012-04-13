@@ -59,7 +59,7 @@ sub jobsetIndex {
 	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 1 and b.buildStatus = 0))" 
 	    ]
         , '+as' => [ "nrBuilds", "nrScheduled", "nrFinished", "nrSucceeded" ]
-        , rows => 5
+        , rows => 6
         }
     ) ];
 

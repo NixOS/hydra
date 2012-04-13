@@ -90,14 +90,15 @@
 			});
 		</script>
 	    [% END %]
-	    
-	    	<h2>Most recent evaluations</h2>
-	    	[% INCLUDE renderEvals nrShown=5 %]
+	    	
+		[% IF !edit-%]
+                    <h2>Most recent evaluations</h2>
+	            [% INCLUDE renderEvals nrShown=5 %]
    
-                <a href="c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name])" class="btn">All evaluations</a>
-                <br />
-                <br />
-	
+                    <a href="[% c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name]) %]" class="btn">All evaluations</a>
+                    <br />
+                    <br />
+                [% END %]
 		[% IF !edit && activeJobsStatus -%]
 		    <h2>Status</h2>
 		    <table class="table table-striped table-condensed">

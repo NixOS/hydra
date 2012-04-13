@@ -90,7 +90,13 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </a>
-          <a class="brand" href="[% c.uri_for(c.controller('Root').action_for('index')) %]"><img src="[% logo %]" alt="Hydra Logo" class="logo" /></a>
+          <a class="brand" href="[% c.uri_for(c.controller('Root').action_for('index')) %]">
+          [% IF logo == "" %]
+              Hydra
+          [% ELSE %]
+              <img src="[% logo %]" alt="Hydra Logo" class="logo" />
+          [% END %]
+          </a>
           <div class="nav-collapse">
             [% PROCESS topbar.tt %]
           </div><!--/.nav-collapse -->
