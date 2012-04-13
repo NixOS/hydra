@@ -107,7 +107,7 @@
             </td>
           [%- END -%]
           [% IF showSchedulingInfo %]
-              <td>[%- IF build.busy %]<span class="label label-success">Running</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
+              <td>[%- IF build.busy %]<span class="label label-success">Started</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
           [% END %]
           <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
           [%- IF showSchedulingInfo -%]
