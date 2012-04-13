@@ -28,7 +28,6 @@
 			      <th>Description</th>
 			      <th>Last evaluated</th>
                   <th colspan="2">Success</th>
-                  [% IF c.check_user_roles('admin') %]<th>Options</th>[% END%]
 			    </tr>
 			  </thead>
 			  <tbody>
@@ -76,15 +75,6 @@
                       <span class="label label">[% j.get_column('nrscheduled') %]</span>
                       [% END %]
                   </td>
-                  [% IF c.check_user_roles('admin') %]
-                    <td>[% INCLUDE maybeButton uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, j.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ j.name _ "?") %]
-                          [% IF j.hidden %]
-                              [% INCLUDE maybeButton uri = c.uri_for('/jobset' project.name j.name 'unhide') content = "Unhide" %]
-                          [% ELSE %] 
-                              [% INCLUDE maybeButton uri = c.uri_for('/jobset' project.name j.name 'hide') content = "Hide" %]
-                          [% END %]
-                    </td>
-                  [% END%]
 			    </tr>
 			    [% END %]
 			  </tbody>

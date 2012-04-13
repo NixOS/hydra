@@ -399,18 +399,43 @@
     <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page + 1) %]">Next</a></li>
     <li><a href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last</a></li>
 </ul>
-<!--
-<p>
-[]
-[% IF page > 1 %]
-  [<a href="[% "$baseUri?page="; (page - 1) %]">Prev</a>]
-[% END %]
-[% IF page * resultsPerPage < total %]
-  [<a href="[% "$baseUri?page="; (page + 1) %]">Next</a>]
-[% END %]
-[<a href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last</a>]
-</p>
--->
 [% END %]
 
 
+[% BLOCK renderEvals %]
+
+<table class="tablesorter table table-condensed table-striped">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Date</th>
+      <th colspan='2'>Success</th>
+    </tr>
+  </thead>
+  <tbody>
+    [% last = nrShown - 1; FOREACH n IN [0..last]; eval = evals.$n; m = n + 1; next = evals.$m; %]
+     <tr>
+       <td><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">[% eval.id %]</a>&nbsp;</td>
+       <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]&nbsp;</td>
+       <td align='right'>
+         <span class="label label-success">[% eval.get_column('nrSucceeded') %]</span>
+         <span class="label label-important">[% eval.get_column('nrBuilds') - eval.get_column('nrSucceeded') - eval.get_column('nrScheduled') %]</span>
+	 [% IF eval.get_column('nrScheduled') > 0 %]
+	 <span class="label">[% eval.get_column('nrScheduled') %]</span>
+	 [% END %]
+       </td>
+       <td align='right'>
+	 [% diff = eval.get_column('nrSucceeded') - next.get_column('nrSucceeded');
+	    IF diff > 0 %]
+	    <span class='label label-success'><strong>+[% diff %]</strong></span>
+	 [% ELSIF diff < 0 && eval.get_column('nrScheduled') == 0 %]
+	    <span class='label label-important'><strong>[% diff %]</strong></span>
+	 [% END %]
+       </td>
+     </tr>
+    [% END %]
+  </tbody>
+</table>
+
+
+[% END %]

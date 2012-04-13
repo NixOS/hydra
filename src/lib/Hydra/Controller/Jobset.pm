@@ -26,8 +26,6 @@ sub jobsetIndex {
 
     $c->stash->{template} = 'jobset.tt';
 
-    #getBuildStats($c, scalar $c->stash->{jobset}->builds);
-
     my $projectName = $c->stash->{project}->name;
     my $jobsetName = $c->stash->{jobset}->name;
 
@@ -50,6 +48,20 @@ sub jobsetIndex {
             push @{$c->stash->{inactiveJobs}}, $job->name;
         }
     }
+
+    $c->stash->{evals} = [ $c->stash->{jobset}->jobsetevals->search(
+        { hasnewbuilds => 1 }, 
+        { order_by => "id DESC"
+        , '+select' => # !!! Slow - should precompute this.
+	    [ "(select count(*) from JobsetEvalMembers where eval = me.id)"
+	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 0))" 
+	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 1))"
+	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 1 and b.buildStatus = 0))" 
+	    ]
+        , '+as' => [ "nrBuilds", "nrScheduled", "nrFinished", "nrSucceeded" ]
+        , rows => 5
+        }
+    ) ];
 
     $c->stash->{systems} = 
         [ $c->stash->{jobset}->builds->search({ iscurrent => 1 }, { select => ["system"], distinct => 1, order_by => "system" }) ];
@@ -80,10 +92,6 @@ sub jobsetIndex {
 	          })];
     }
 
-    # Last builds for jobset.
-    $c->stash->{lastBuilds} = 
-	[ $c->stash->{jobset}->builds->search({ finished => 1 }, 
-            { order_by => "timestamp DESC", rows => 5, columns => [@buildListColumns] }) ];
 }
 
 

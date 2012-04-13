@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Jobset $project.name:$jobset.name evaluation $eval.id" %]
 [% PROCESS common.tt %]
 
-<h1>Jobset <tt>[% project.name %]:[% jobset.name %]</tt> evaluation [% eval.id %]</h1>
+<h2>Jobset <tt>[% project.name %]:[% jobset.name %]</tt> evaluation [% eval.id %]</h2>
 
 [%- IF otherEval -%]
 <p>Comparisons are relative to [% INCLUDE renderFullJobsetName

@@ -91,10 +91,12 @@
 		</script>
 	    [% END %]
 	    
-	    [% IF lastBuilds %]
-	    	<h2>Most recent builds</h2>
-	    	[% INCLUDE renderBuildList builds=lastBuilds hideProjectName=1 hideJobsetName=1 %]
-	    [% END %]
+	    	<h2>Most recent evaluations</h2>
+	    	[% INCLUDE renderEvals nrShown=5 %]
+   
+                <a href="c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name])" class="btn">All evaluations</a>
+                <br />
+                <br />
 	
 		[% IF !edit && activeJobsStatus -%]
 		    <h2>Status</h2>
