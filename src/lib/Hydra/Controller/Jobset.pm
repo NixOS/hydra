@@ -339,9 +339,17 @@ sub getEvals {
         my $cur = $evals[$n];
 
         # Get stats for this eval.
-        my $nrBuilds = $cur->jobsetevalmembers->count;
-        my $nrScheduled = $cur->builds->search({finished => 0})->count;
-        my $nrSucceeded = $cur->builds->search({finished => 1, buildStatus => 0})->count;
+        my $nrScheduled;
+        my $nrSucceeded = $cur->nrsucceeded;
+        if (defined $nrSucceeded) {
+            $nrScheduled = 0;
+        } else {
+            $nrScheduled = $cur->builds->search({finished => 0})->count;
+            $nrSucceeded = $cur->builds->search({finished => 1, buildStatus => 0})->count;
+            if ($nrScheduled == 0) {
+                $cur->update({nrsucceeded => $nrSucceeded});
+            }
+        }
 
         # Compute what inputs changed between each eval.
         my $curInputs = [ $cur->jobsetevalinputs->search(
@@ -359,10 +367,9 @@ sub getEvals {
 
         my $e = 
             { eval => $cur
-            , nrBuilds => $nrBuilds
             , nrScheduled => $nrScheduled
             , nrSucceeded => $nrSucceeded
-            , nrFailed => $nrBuilds - $nrSucceeded - $nrScheduled
+            , nrFailed => $cur->nrbuilds - $nrSucceeded - $nrScheduled
             , diff => defined $prev ? $nrSucceeded - $prev->{nrSucceeded} : 0
             , changedInputs => [ @changedInputs ]
             };

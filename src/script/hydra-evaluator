@@ -165,6 +165,7 @@ sub checkJobset {
             , checkouttime => abs($checkoutStop - $checkoutStart)
             , evaltime => abs($evalStop - $evalStart)
             , hasnewbuilds => $hasNewBuilds
+            , nrbuilds => $hasNewBuilds ? scalar(keys %buildIds) : undef
             });
 
         if ($hasNewBuilds) {

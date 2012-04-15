@@ -66,6 +66,16 @@ __PACKAGE__->table("JobsetEvals");
   data_type: 'text'
   is_nullable: 0
 
+=head2 nrbuilds
+
+  data_type: 'integer'
+  is_nullable: 1
+
+=head2 nrsucceeded
+
+  data_type: 'integer'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -85,6 +95,10 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 0 },
   "hash",
   { data_type => "text", is_nullable => 0 },
+  "nrbuilds",
+  { data_type => "integer", is_nullable => 1 },
+  "nrsucceeded",
+  { data_type => "integer", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -157,8 +171,8 @@ Related object: L<Hydra::Schema::Projects>
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-04-15 16:38:10
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Yt39QbkhH52hfpJZ4ZECeg
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-04-15 22:30:41
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:jn81MbsAb5KZGwRpQ7qTEQ
 
 __PACKAGE__->has_many(
   "buildIds",
