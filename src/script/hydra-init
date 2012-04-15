@@ -25,15 +25,15 @@ my @tables = $dbh->tables;
 if (! grep { /SchemaVersion/i } @tables) {
     print STDERR "initialising the Hydra database schema...\n";
     my $schema = read_file(
-	$dbh->{Driver}->{Name} eq 'SQLite' ? "$home/sql/hydra-sqlite.sql" :
-	$dbh->{Driver}->{Name} eq 'Pg' ? "$home/sql/hydra-postgresql.sql" :
-	die "unsupported database type\n");
+        $dbh->{Driver}->{Name} eq 'SQLite' ? "$home/sql/hydra-sqlite.sql" :
+        $dbh->{Driver}->{Name} eq 'Pg' ? "$home/sql/hydra-postgresql.sql" :
+        die "unsupported database type\n");
     my @statements = $sql_splitter->split($schema);
     eval {
-	$dbh->begin_work;
-	$dbh->do($_) foreach @statements;
-	$db->resultset('SchemaVersion')->create({version => $maxSchemaVersion});
-	$dbh->commit;
+        $dbh->begin_work;
+        $dbh->do($_) foreach @statements;
+        $db->resultset('SchemaVersion')->create({version => $maxSchemaVersion});
+        $dbh->commit;
     };
     die "schema initialisation failed: $@\n" if $@;
     exit 0;
@@ -50,10 +50,15 @@ for (my $n = $schemaVersion; $n < $maxSchemaVersion; $n++) {
     my $schema = read_file("$home/sql/upgrade-$m.sql");
     my @statements = $sql_splitter->split($schema);
     eval {
-	$dbh->begin_work;
-	$dbh->do($_) foreach @statements;
-	$db->resultset('SchemaVersion')->update({version => $m});
-	$dbh->commit;
+        $dbh->begin_work;
+        sub run {
+            my ($stm) = @_;
+            print STDERR "executing SQL statement: $stm\n";
+            $dbh->do($_);
+        }
+        run($_) foreach @statements;
+        $db->resultset('SchemaVersion')->update({version => $m});
+        $dbh->commit;
     };
     die "schema upgrade failed: $@\n" if $@;
 }
