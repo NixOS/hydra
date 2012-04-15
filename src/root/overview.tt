@@ -3,7 +3,6 @@
 
 [% IF newItems.size != 0 %]
     <div class="alert alert-info">
-        <a class="close" data-dismiss="alert">×</a>
         [% FOREACH i IN newsItems %]
             [% contents = String.new(i.contents) %]
             <h4 class="alert-heading">[% INCLUDE renderDateTime timestamp=i.createtime %] by [% i.author.fullname %]</h4> 
