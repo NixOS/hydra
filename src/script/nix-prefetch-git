@@ -63,8 +63,8 @@ Options:
       --url url       Any url understand by 'git clone'.
       --rev ref       Any sha1 or references (such as refs/heads/master)
       --hash h        Expected hash.
-      --deepClone     Clone submodules recursively.
-      --no-deepClone  Do not clone submodules.
+      --deepClone     Clone history until a tag is found as parent.
+      --no-deepClone  Clone the minimum history.
       --leave-dotGit  Keep the .git directories.
       --builder       Clone as fetchgit does, but url, rev, and out option are mandatory.
 "
@@ -117,7 +117,14 @@ checkout_ref(){
 	# allow "git describe" and similar tools to work.  See
 	# http://thread.gmane.org/gmane.linux.distributions.nixos/3569
 	# for a discussion.
-	return 1
+
+        # To make git describe works, we need to fetch all tags.
+        if git fetch -t ${builder:+--progress} --depth 1 origin; then
+	    return 1
+        else
+            # There is no tag, don't try to recover git-describe mechanism.
+            deepClone=false
+        fi
     fi
 
     if test -z "$ref"; then
@@ -209,7 +216,7 @@ clone_user_rev() {
     # Allow doing additional processing before .git removal
     eval "$NIX_PREFETCH_GIT_CHECKOUT_HOOK"
     if test -z "$leaveDotGit"; then
-	echo "removing \`.git'..." >&2
+	test -n "$QUIET" || echo "removing \`.git'..." >&2
         find $dir -name .git\* | xargs rm -rf
     fi
 }
@@ -248,7 +255,7 @@ else
 
       # Compute the hash.
       hash=$(nix-hash --type $hashType $hashFormat $tmpFile)
-      if ! test -n "$QUIET"; then echo "hash is $hash" >&2; fi
+      test -n "$QUIET" || echo "hash is $hash" >&2;
 
       # Add the downloaded file to the Nix store.
       finalPath=$(nix-store --add-fixed --recursive "$hashType" $tmpFile)
@@ -259,7 +266,7 @@ else
       fi
   fi
 
-  if ! test -n "$QUIET"; then echo "path is $finalPath" >&2; fi
+  test -n "$QUIET" || echo "path is $finalPath" >&2
 
   echo $hash
 

@@ -315,8 +315,8 @@ sub fetchInputSystemBuild {
 sub fetchInputGit {
     my ($db, $project, $jobset, $name, $value) = @_;
 
-    (my $uri, my $branch) = split ' ', $value;
-    $branch = defined $branch ? $branch : "master"; 
+    (my $uri, my $branch, my $deepClone) = split ' ', $value;
+    $branch = defined $branch ? $branch : "master";
 
     my $timestamp = time;
     my $sha256;
@@ -325,42 +325,64 @@ sub fetchInputGit {
     mkpath(scmPath);
     my $clonePath = scmPath . "/" . sha256_hex($uri);
 
-    my $stdout; my $stderr;
+    my $stdout = ""; my $stderr = ""; my $res;
     if (! -d $clonePath) {
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+        # Clone everything and fetch the branch.
+        # TODO: Optimize the first clone by using "git init $clonePath" and "git remote add origin $uri".
+        ($res, $stdout, $stderr) = captureStdoutStderr(600,
             ("git", "clone", "--branch", $branch, $uri, $clonePath));
         die "Error cloning git repo at `$uri':\n$stderr" unless $res;
     }
 
-    # git pull + check rev
     chdir $clonePath or die $!; # !!! urgh, shouldn't do a chdir
-    (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("git", "pull", "--all"));
-    die "Error pulling latest change git repo at `$uri':\n$stderr" unless $res;
 
-    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
-        ("git", "ls-remote", $clonePath, $branch));
-    
-    die "Cannot get head revision of Git branch '$branch' at `$uri':\n$stderr" unless $res1 ;
-
-    # Take the first commit ID returned by `ls-remote'.  The
-    # assumption is that `ls-remote' returned both `refs/heads/BRANCH'
-    # and `refs/remotes/origin/BRANCH', and that both point at the
-    # same commit.
-    my ($first) = split /\n/, $stdout;
-    (my $revision, my $ref) = split ' ', $first;
-    die unless $revision =~ /^[0-9a-fA-F]+$/;
-
-    if (-f ".topdeps") {
-        # This is a TopGit branch.  Fetch all the topic branches so
-        # that builders can run "tg patch" and similar.
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-          ("tg", "remote", "--populate", "origin"));
-
-        print STDERR "Warning: `tg remote --populate origin' failed:\n$stderr" unless $res;
+    if (defined $deepClone) {
+        # This fetch every branches from the remote repository and create a
+        # local branch for each heads of the remote repository.  This is
+        # necessary to provide a working git-describe.
+        ($res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("git", "pull", "--ff-only", "-fu", "--all", "origin"));
+        die "Error pulling latest change from git repo at `$uri':\n$stderr" unless $res;
+    } else {
+        # This command force the update of the local branch to be in the same as
+        # the remote branch for whatever the repository state is.  This command mirror
+        # only one branch of the remote repository.
+        ($res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("git", "fetch", "-fu", "origin", "+$branch:$branch"));
+        die "Error fetching latest change from git repo at `$uri':\n$stderr" unless $res;
     }
 
-    # Some simple caching: don't check a uri/branch more than once every hour, but prefer exact match on uri/branch/revision.
+    ($res, $stdout, $stderr) = captureStdoutStderr(600,
+        ("git", "rev-parse", "$branch"));
+    die "Error getting revision number of Git branch '$branch' at `$uri':\n$stderr" unless $res;
+
+    my ($revision) = split /\n/, $stdout;
+    die unless $revision =~ /^[0-9a-fA-F]+$/;
+    die "Error getting a well-formated revision number of Git branch '$branch' at `$uri':\n$stdout" unless $res;
+
+    my $ref = "refs/heads/$branch";
+
+    # If deepClone is defined, then we look at the content of the repository
+    # to determine if this is a top-git branch.
+    if (defined $deepClone) {
+
+        # Checkout the branch to look at its content.
+        ($res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("git", "checkout", "$branch"));
+        die "Error checking out Git branch '$branch' at `$uri':\n$stderr" unless $res;
+
+        if (-f ".topdeps") {
+            # This is a TopGit branch.  Fetch all the topic branches so
+            # that builders can run "tg patch" and similar.
+            ($res, $stdout, $stderr) = captureStdoutStderr(600,
+                ("tg", "remote", "--populate", "origin"));
+
+            print STDERR "Warning: `tg remote --populate origin' failed:\n$stderr" unless $res;
+        }
+    }
+
+    # Some simple caching: don't check a uri/branch/revision more than once.
+    # TODO: Fix case where the branch is reset to a previous commit.
     my $cachedInput ;
     ($cachedInput) = $db->resultset('CachedGitInputs')->search(
         {uri => $uri, branch => $branch, revision => $revision},
@@ -371,25 +393,28 @@ sub fetchInputGit {
         $sha256 = $cachedInput->sha256hash;
         $revision = $cachedInput->revision;
     } else {
-    
         # Then download this revision into the store.
-        print STDERR "checking out Git input from $uri\n";
+        print STDERR "checking out Git branch $branch from $uri\n";
         $ENV{"NIX_HASH_ALGO"} = "sha256";
         $ENV{"PRINT_PATH"} = "1";
-    
-        # Checked out code often wants to be able to run `git
-        # describe', e.g., code that uses Gnulib's `git-version-gen'
-        # script.  Thus, we leave `.git' in there.  Same for
-        # Subversion (e.g., libgcrypt's build system uses that.)
-        $ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
-    
-        # Ask for a "deep clone" to allow "git describe" and similar
-        # tools to work.  See
-        # http://thread.gmane.org/gmane.linux.distributions.nixos/3569
-        # for a discussion.
-        $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
+        $ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "0";
+        $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "";
 
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+        if (defined $deepClone) {
+            # Checked out code often wants to be able to run `git
+            # describe', e.g., code that uses Gnulib's `git-version-gen'
+            # script.  Thus, we leave `.git' in there.  Same for
+            # Subversion (e.g., libgcrypt's build system uses that.)
+            $ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
+
+            # Ask for a "deep clone" to allow "git describe" and similar
+            # tools to work.  See
+            # http://thread.gmane.org/gmane.linux.distributions.nixos/3569
+            # for a discussion.
+            $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
+        }
+
+        ($res, $stdout, $stderr) = captureStdoutStderr(600,
             ("nix-prefetch-git", $clonePath, $revision));
         die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
 
@@ -509,7 +534,7 @@ sub fetchInputHg {
 
     # init local hg clone
 
-    my $stdout; my $stderr;
+    my $stdout = ""; my $stderr = "";
 
     mkpath(scmPath);
     my $clonePath = scmPath . "/" . sha256_hex($uri);
@@ -681,7 +706,7 @@ sub captureStdoutStderr {
 
     if ($@) {
         die unless $@ eq "timeout\n";   # propagate unexpected errors
-        return (undef, undef, undef);
+        return (undef, "", "timeout\n");
     } else {
         return ($res, $stdout, $stderr);
     }
