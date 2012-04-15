@@ -74,23 +74,13 @@
 	<ul id="tab" class="nav nav-tabs">
 		[% IF !edit -%]
  			<li><a href="#tabs-information" data-toggle="tab">Jobset</a></li>
-	        [% IF jobset.errormsg -%]<li><a href="#tabs-errors" data-toggle="tab">Evaluation errors</a></li>[% END %]
+	        [% IF jobset.errormsg -%]<li><a href="#tabs-errors" data-toggle="tab"><img src="/static/images/error_16.png" /> Evaluation errors</a></li>[% END %]
 			<li><a href="#tabs-jobs" data-toggle="tab">Jobs ([% activeJobs.size %])</a></li>
 		[% END %]
 		<li><a href="#tabs-setup" data-toggle="tab">Setup</a></li>
 	</ul>
 <div id="generic-tabs" class="tab-content">
 	<div id="tabs-information" class="tab-pane active">
-	    [% IF jobset.errormsg && !edit -%]
-	    <table class="layoutTable"><tr><td><img src="/static/images/error_16.png" /></td><td><a href="#tabs-errors" id="error-link">There are evaluation errors!</a></td></tr></table>
-	    <script type="text/javascript">
-	    	$('#error-link').click(function() { 
-    			$("#generic-tabs").tabs('select', 1);
-    			return false;
-			});
-		</script>
-	    [% END %]
-	    	
 		[% IF !edit-%]
                     <h2>Most recent evaluations</h2>
 	            [% INCLUDE renderEvals nrShown=5 linkToAll=c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name]) %]
