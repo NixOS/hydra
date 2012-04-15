@@ -160,9 +160,9 @@
 			
 		[% END %]
 
-        [% IF !build.finished %]
+        [% IF !build.finished && build.buildsteps.size > 0 %]
             [% INCLUDE renderBuildSteps type="Running" %]
-		[% END %]
+	[% END %]
 
 		[% IF build.finished %]
 			[% IF build.buildsteps && build.buildstatus != 0 && build.buildstatus != 6 %]
