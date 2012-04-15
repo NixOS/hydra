@@ -330,23 +330,18 @@ sub getEvals {
     
     my @evals = $c->stash->{jobset}->jobsetevals->search(
         { hasnewbuilds => 1 }, 
-        { order_by => "id DESC"
-        , '+select' => # !!! Slow - should precompute this.
-	    [ "(select count(*) from JobsetEvalMembers where eval = me.id)"
-	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 0))" 
-	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 1))"
-	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 1 and b.buildStatus = 0))" 
-	    ]
-        , '+as' => [ "nrBuilds", "nrScheduled", "nrFinished", "nrSucceeded" ]
-        , rows => $rows + 1
-        , offset => $offset
-        });
+        { order_by => "id DESC", rows => $rows + 1, offset => $offset });
 
     my @res = ();
     my $prevInputs = [];
+    my $prev;
     for (my $n = scalar @evals - 1; $n >= 0; $n--) {
         my $cur = $evals[$n];
-        my $prev = $evals[$n + 1];
+
+        # Get stats for this eval.
+        my $nrBuilds = $cur->jobsetevalmembers->count;
+        my $nrScheduled = $cur->builds->search({finished => 0})->count;
+        my $nrSucceeded = $cur->builds->search({finished => 1, buildStatus => 0})->count;
 
         # Compute what inputs changed between each eval.
         my $curInputs = [ $cur->jobsetevalinputs->search(
@@ -361,15 +356,21 @@ sub getEvals {
                 if !defined $p || $input->revision ne $p->revision || $input->type ne $p->type || $input->uri ne $p->uri;
         }
         $prevInputs = $curInputs;
-        
-        push @res,
+
+        my $e = 
             { eval => $cur
-            , diff => defined $prev ? $cur->get_column("nrSucceeded") - $prev->get_column("nrSucceeded") : 0
+            , nrBuilds => $nrBuilds
+            , nrScheduled => $nrScheduled
+            , nrSucceeded => $nrSucceeded
+            , nrFailed => $nrBuilds - $nrSucceeded - $nrScheduled
+            , diff => defined $prev ? $nrSucceeded - $prev->{nrSucceeded} : 0
             , changedInputs => [ @changedInputs ]
             };
+        push @res, $e if $n < $rows;
+        $prev = $e;
     }
     
-    return [(reverse @res)[0..$rows - 1]];
+    return [reverse @res];
 }
 
 

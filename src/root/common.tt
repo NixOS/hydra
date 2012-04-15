@@ -439,16 +439,16 @@
          [%- END -%]
        </td>
        <td align='right'>
-         <span class="label label-success">[% eval.get_column('nrSucceeded') %]</span>
-         <span class="label label-important">[% eval.get_column('nrBuilds') - eval.get_column('nrSucceeded') - eval.get_column('nrScheduled') %]</span>
-	 [% IF eval.get_column('nrScheduled') > 0 %]
-	 <span class="label">[% eval.get_column('nrScheduled') %]</span>
+         <span class="label label-success">[% e.nrSucceeded %]</span>
+         <span class="label label-important">[% e.nrFailed %]</span>
+	 [% IF e.nrScheduled > 0 %]
+	 <span class="label">[% e.nrScheduled %]</span>
 	 [% END %]
        </td>
        <td align='right'>
 	 [%- IF e.diff > 0 -%]
 	    <span class='label label-success'><strong>+[% e.diff %]</strong></span>
-	 [%- ELSIF e.diff < 0 && eval.get_column('nrScheduled') == 0 -%]
+	 [%- ELSIF e.diff < 0 && e.nrScheduled == 0 -%]
 	    <span class='label label-important'><strong>[% e.diff %]</strong></span>
 	 [%- END -%]
        </td>
