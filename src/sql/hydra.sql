@@ -72,7 +72,7 @@ create table JobsetInputs (
     project       text not null,
     jobset        text not null,
     name          text not null,
-    type          text not null, -- "svn", "cvs", "path", "uri", "string", "boolean"
+    type          text not null, -- "svn", "path", "uri", "string", "boolean"
     primary key   (project, jobset, name),
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );
@@ -86,8 +86,7 @@ create table JobsetInputAlts (
 
     -- urgh
     value         text, -- for most types, a URI; for 'path', an absolute path; for 'string', an arbitrary value
-    revision      text, -- for type == 'svn'
-    tag           text, -- for type == 'cvs'
+    revision      text, -- for repositories
     
     primary key   (project, jobset, input, altnr),
     foreign key   (project, jobset, input) references JobsetInputs(project, jobset, name) on delete cascade on update cascade
@@ -237,7 +236,6 @@ create table BuildInputs (
     type          text not null,
     uri           text,
     revision      text,
-    tag           text,
     value         text,
     dependency    integer, -- build ID of the input, for type == 'build'
 

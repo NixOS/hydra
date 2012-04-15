@@ -55,11 +55,6 @@ __PACKAGE__->table("BuildInputs");
   data_type: 'text'
   is_nullable: 1
 
-=head2 tag
-
-  data_type: 'text'
-  is_nullable: 1
-
 =head2 value
 
   data_type: 'text'
@@ -95,8 +90,6 @@ __PACKAGE__->add_columns(
   "uri",
   { data_type => "text", is_nullable => 1 },
   "revision",
-  { data_type => "text", is_nullable => 1 },
-  "tag",
   { data_type => "text", is_nullable => 1 },
   "value",
   { data_type => "text", is_nullable => 1 },
@@ -153,7 +146,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:yaqa9gcGx9Z+Nfr3xgX28g
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-04-15 12:38:16
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:sav9OmLm3qA/jiK5k+KIjw
 
 1;

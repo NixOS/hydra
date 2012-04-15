@@ -56,11 +56,6 @@ __PACKAGE__->table("JobsetInputAlts");
   data_type: 'text'
   is_nullable: 1
 
-=head2 tag
-
-  data_type: 'text'
-  is_nullable: 1
-
 =cut
 
 __PACKAGE__->add_columns(
@@ -75,8 +70,6 @@ __PACKAGE__->add_columns(
   "value",
   { data_type => "text", is_nullable => 1 },
   "revision",
-  { data_type => "text", is_nullable => 1 },
-  "tag",
   { data_type => "text", is_nullable => 1 },
 );
 
@@ -116,7 +109,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:jtiF1/FMZBz6iUKqIhSeVw
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-04-15 12:38:16
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:M1pOjrCZ2RgULsIPZjN7sg
 
 1;
