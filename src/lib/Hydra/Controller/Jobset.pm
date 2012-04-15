@@ -49,7 +49,7 @@ sub jobsetIndex {
         }
     }
 
-    $c->stash->{evals} = getEvals($self, $c, 0, 6);
+    $c->stash->{evals} = getEvals($self, $c, 0, 5);
 
     $c->stash->{systems} = 
         [ $c->stash->{jobset}->builds->search({ iscurrent => 1 }, { select => ["system"], distinct => 1, order_by => "system" }) ];
@@ -327,7 +327,8 @@ sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
 
 sub getEvals {
     my ($self, $c, $offset, $rows) = @_;
-    return [ $c->stash->{jobset}->jobsetevals->search(
+    
+    my @evals = $c->stash->{jobset}->jobsetevals->search(
         { hasnewbuilds => 1 }, 
         { order_by => "id DESC"
         , '+select' => # !!! Slow - should precompute this.
@@ -337,10 +338,42 @@ sub getEvals {
 	    , "(select count(*) from JobsetEvalMembers where eval = me.id and exists(select 1 from Builds b where b.id = build and b.finished = 1 and b.buildStatus = 0))" 
 	    ]
         , '+as' => [ "nrBuilds", "nrScheduled", "nrFinished", "nrSucceeded" ]
-        , rows => $rows
+        , rows => $rows + 1
         , offset => $offset
+        });
+
+    my @res = ();
+    my $curInputs;
+    for (my $n = 0; $n < $rows && $n < scalar @evals; $n++) {
+        my $cur = $evals[$n];
+        my $prev = $evals[$n + 1];
+
+        # Compute what inputs changed between each eval.
+        my $diff = 0;
+        my $prevInputs = [];
+        $curInputs = [ $cur->jobsetevalinputs->search(
+            { uri => { '!=' => undef }, revision => { '!=' => undef }, altNr => 0 },
+            { order_by => "name" }) ] unless defined $curInputs;
+        if (defined $prev) {
+            $diff = $cur->get_column("nrSucceeded") - $prev->get_column("nrSucceeded");
+            $prevInputs = [ $prev->jobsetevalinputs->search(
+                { uri => { '!=' => undef }, revision => { '!=' => undef }, altNr => 0 },
+                { order_by => "name" }) ];
         }
-    ) ];
+        my @changedInputs;
+        my %prevInputsHash;
+        $prevInputsHash{$_->name} = $_ foreach @{$prevInputs};
+        foreach my $input (@{$curInputs}) {
+            my $p = $prevInputsHash{$input->name};
+            push @changedInputs, $input
+                if !defined $p || $input->revision != $p->revision || $input->type != $p->type || $input->uri != $p->uri;
+        }
+        $curInputs = $prevInputs;
+        
+        push @res, { eval => $cur, diff => $diff, changedInputs => [ @changedInputs ] };
+    }
+    
+    return [@res];
 }
 
 
@@ -357,7 +390,7 @@ sub evals : Chained('jobset') PathPart('evals') Args(0) {
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{total} = $c->stash->{jobset}->jobsetevals->search({hasnewbuilds => 1})->count;
 
-    $c->stash->{evals} = getEvals($self, $c, ($page - 1) * $resultsPerPage, $resultsPerPage + 1)
+    $c->stash->{evals} = getEvals($self, $c, ($page - 1) * $resultsPerPage, $resultsPerPage)
 }
 
 

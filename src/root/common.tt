@@ -402,22 +402,42 @@
 [% END %]
 
 
-[% BLOCK renderEvals %]
+[% BLOCK renderShortRev -%]
+  [%- IF type == "svn" || type == "svn-checkout" || type == "bzr" || type == "bzr-checkout" -%]
+    r[%- revision -%]
+  [%- ELSIF type == "git" -%]
+    <tt>[% revision.substr(0, 7) %]</tt>
+  [%- ELSE -%]
+    <tt>[%- revision -%]</tt>
+  [%- END -%]
+[%- END %]
 
+
+[% BLOCK renderEvals %]
 <table class="tablesorter table table-condensed table-striped">
   <thead>
     <tr>
       <th>#</th>
       <th>Date</th>
+      <th>Input changes</th>
       <th colspan='2'>Success</th>
     </tr>
   </thead>
   <tbody>
-    [% last = nrShown - 1; FOREACH n IN [0..last]; eval = evals.$n; m = n + 1; next = evals.$m;
-       link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]
+    [%- FOREACH e IN evals; eval = e.eval; 
+        link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) -%]
      <tr class="clickable" onclick="window.location = '[% link %]'">
        <td><a href="[% link %]">[% eval.id %]</a>&nbsp;</td>
        <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]&nbsp;</td>
+       <td>
+         [%- IF e.changedInputs.size > 0 -%]
+           [%- sep=''; FOREACH input IN e.changedInputs -%]
+             [%- sep %] [% input.name %] → [% INCLUDE renderShortRev type=input.type revision=input.revision %]
+           [%- sep=','; END -%]
+         [%- ELSE -%]
+           -
+         [%- END -%]
+       </td>
        <td align='right'>
          <span class="label label-success">[% eval.get_column('nrSucceeded') %]</span>
          <span class="label label-important">[% eval.get_column('nrBuilds') - eval.get_column('nrSucceeded') - eval.get_column('nrScheduled') %]</span>
@@ -426,20 +446,17 @@
 	 [% END %]
        </td>
        <td align='right'>
-	 [% diff = eval.get_column('nrSucceeded') - next.get_column('nrSucceeded');
-	    IF diff > 0 %]
-	    <span class='label label-success'><strong>+[% diff %]</strong></span>
-	 [% ELSIF diff < 0 && eval.get_column('nrScheduled') == 0 %]
-	    <span class='label label-important'><strong>[% diff %]</strong></span>
-	 [% END %]
+	 [%- IF e.diff > 0 -%]
+	    <span class='label label-success'><strong>+[% e.diff %]</strong></span>
+	 [%- ELSIF e.diff < 0 && eval.get_column('nrScheduled') == 0 -%]
+	    <span class='label label-important'><strong>[% e.diff %]</strong></span>
+	 [%- END -%]
        </td>
      </tr>
     [%- END -%]
     [%- IF linkToAll -%]
-      <tr><td class="centered" colspan="4"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+      <tr><td class="centered" colspan=54"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
     [%- END -%]
   </tbody>
 </table>
-
-
 [% END %]

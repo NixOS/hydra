@@ -5,10 +5,8 @@
   uri = c.uri_for(c.controller('Project').action_for('view'), [project.name])
   title = project.name %]:[% jobset.name %]</tt></h2>
 
-[% nrShown = evals.size > resultsPerPage ? resultsPerPage : evals.size %]
-  
 <p>Showing evaluations [% (page - 1) * resultsPerPage + 1 %] - [%
-(page - 1) * resultsPerPage + nrShown %] out of [% total %].</p>
+(page - 1) * resultsPerPage + evals.size %] out of [% total %].</p>
 
 [% INCLUDE renderPager %]
 

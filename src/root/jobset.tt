@@ -83,7 +83,7 @@
 	<div id="tabs-information" class="tab-pane active">
 		[% IF !edit && evals.size() > 0 -%]
                     <h2>Most recent evaluations</h2>
-	            [% INCLUDE renderEvals nrShown=evals.size() - 1 linkToAll=c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name]) %]
+	            [% INCLUDE renderEvals linkToAll=c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name]) %]
                 [% END %]
 		[% IF !edit && activeJobsStatus -%]
 		    <h2>Status</h2>
