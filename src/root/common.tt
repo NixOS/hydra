@@ -433,7 +433,10 @@
 	 [% END %]
        </td>
      </tr>
-    [% END %]
+    [%- END -%]
+    [%- IF linkToAll -%]
+      <tr><td class="centered" colspan="4"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+    [%- END -%]
   </tbody>
 </table>
 
