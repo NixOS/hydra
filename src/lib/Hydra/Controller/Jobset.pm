@@ -366,7 +366,7 @@ sub getEvals {
         foreach my $input (@{$curInputs}) {
             my $p = $prevInputsHash{$input->name};
             push @changedInputs, $input
-                if !defined $p || $input->revision != $p->revision || $input->type != $p->type || $input->uri != $p->uri;
+                if !defined $p || $input->revision ne $p->revision || $input->type ne $p->type || $input->uri ne $p->uri;
         }
         $curInputs = $prevInputs;
         
