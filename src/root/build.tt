@@ -130,7 +130,7 @@
 				      <tr>
 				        <th>Logfile:</th>
 				        <td>
-				          <a class="btn btn-mini btn-primary" href="[% c.uri_for('/build' build.id 'log') %]"><strong>Available</strong></a>
+				          <a class="btn btn-mini btn-primary" href="[% c.uri_for('/build' build.id 'log') %]">pretty</a>
 				          <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>
 				          <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>
 				        </td>
