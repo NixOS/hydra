@@ -73,9 +73,9 @@
 	<ul id="tab" class="nav nav-tabs">
 		<li><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
 		<li><a href="#tabs-information" data-toggle="tab">Information</a></li>
-		<li><a href="#tabs-buildinputs" data-toggle="tab">Build Inputs</a></li>
+		<li><a href="#tabs-buildinputs" data-toggle="tab">Build inputs</a></li>
 		[% IF relatedbuilds %]<li><a href="#tabs-relatedbuilds" data-toggle="tab">Related builds</a></li>[% END %]
-		[% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build Steps</a></li>[% END %]
+		[% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
                 [% IF build.dependents %]<li><a href="#tabs-usedby" data-toggle="tab">Used by</a></li>[% END%]
 		[% IF prevBuilds %]<li><a href="#tabs-history" data-toggle="tab">History chart</a></li>[% END %]
 	</ul>
