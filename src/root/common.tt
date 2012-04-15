@@ -413,9 +413,10 @@
     </tr>
   </thead>
   <tbody>
-    [% last = nrShown - 1; FOREACH n IN [0..last]; eval = evals.$n; m = n + 1; next = evals.$m; %]
-     <tr>
-       <td><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">[% eval.id %]</a>&nbsp;</td>
+    [% last = nrShown - 1; FOREACH n IN [0..last]; eval = evals.$n; m = n + 1; next = evals.$m;
+       link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]
+     <tr class="clickable" onclick="window.location = '[% link %]'">
+       <td><a href="[% link %]">[% eval.id %]</a>&nbsp;</td>
        <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]&nbsp;</td>
        <td align='right'>
          <span class="label label-success">[% eval.get_column('nrSucceeded') %]</span>
