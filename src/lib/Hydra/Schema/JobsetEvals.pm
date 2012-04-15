@@ -116,6 +116,21 @@ __PACKAGE__->belongs_to(
   {},
 );
 
+=head2 jobsetevalinputs
+
+Type: has_many
+
+Related object: L<Hydra::Schema::JobsetEvalInputs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "jobsetevalinputs",
+  "Hydra::Schema::JobsetEvalInputs",
+  { "foreign.eval" => "self.id" },
+  {},
+);
+
 =head2 jobsetevalmembers
 
 Type: has_many
@@ -142,8 +157,8 @@ Related object: L<Hydra::Schema::Projects>
 __PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:eQtF5bcR/qZ625LxWBc7ug
+# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-04-15 16:38:10
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Yt39QbkhH52hfpJZ4ZECeg
 
 __PACKAGE__->has_many(
   "buildIds",

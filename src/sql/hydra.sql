@@ -443,6 +443,27 @@ create table JobsetEvals (
 );
 
 
+create table JobsetEvalInputs (
+    eval          integer not null references JobsetEvals(id) on delete cascade,
+    name          text not null,
+    altNr         integer not null,
+    
+    -- Copied from the jobsetinputs from which the build was created.
+    type          text not null,
+    uri           text,
+    revision      text,
+    value         text,
+    dependency    integer, -- build ID of the input, for type == 'build'
+
+    path          text,
+    
+    sha256hash    text,
+
+    primary key   (eval, name, altNr),
+    foreign key   (dependency) references Builds(id)
+);
+
+
 create table JobsetEvalMembers (
     eval          integer not null references JobsetEvals(id) on delete cascade,
     build         integer not null references Builds(id) on delete cascade,
@@ -521,6 +542,7 @@ create index IndexCachedGitInputsOnHash on CachedGitInputs(uri, branch, sha256ha
 create index IndexCachedSubversionInputsOnUriRevision on CachedSubversionInputs(uri, revision);
 create index IndexCachedBazaarInputsOnUriRevision on CachedBazaarInputs(uri, revision);
 create index IndexJobsetEvalMembersOnBuild on JobsetEvalMembers(build);
+create index IndexJobsetEvalMembersOnEval on JobsetEvalMembers(eval);
 create index IndexJobsetInputAltsOnInput on JobsetInputAlts(project, jobset, input);
 create index IndexJobsetInputAltsOnJobset on JobsetInputAlts(project, jobset);
 create index IndexProjectsOnEnabled on Projects(enabled);

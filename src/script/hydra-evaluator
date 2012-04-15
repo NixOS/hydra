@@ -171,6 +171,24 @@ sub checkJobset {
             while (my ($id, $new) = each %buildIds) {
                 $ev->jobsetevalmembers->create({ build => $id, isnew => $new });
             }
+            
+            foreach my $name (keys %{$inputInfo}) {
+                for (my $n = 0; $n < scalar(@{$inputInfo->{$name}}); $n++) {
+                    my $input = $inputInfo->{$name}->[$n];
+                    $ev->jobsetevalinputs->create(
+                        { name => $name
+                        , altnr => $n
+                        , type => $input->{type}
+                        , uri => $input->{uri}
+                        , revision => $input->{revision}
+                        , value => $input->{value}
+                        , dependency => $input->{id}
+                        , path => $input->{storePath} || "" # !!! temporary hack
+                        , sha256hash => $input->{sha256hash}
+                        });
+                }
+            }
+           
             print STDERR "  created new eval ", $ev->id, "\n";
             $ev->builds->update({iscurrent => 1});
         } else {
