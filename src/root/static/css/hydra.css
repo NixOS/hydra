@@ -16,3 +16,7 @@ th {
 .template {
     display: none;
 }
+
+h3 {
+    margin-top: 1em;
+}

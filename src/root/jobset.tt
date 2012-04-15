@@ -122,7 +122,7 @@
 	
 		[% IF jobset.errormsg -%]
 		<div id="tabs-errors" class="tab-pane">
-		  <h3>Evaluation errors</h3>
+		  <h2>Evaluation errors</h2>
 		  <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
 		</div>
 		[% END %]

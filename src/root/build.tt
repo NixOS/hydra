@@ -150,7 +150,7 @@
 		
 		[% IF build.buildproducts %]
 
-			<h2>Build products</h2>
+			<h3>Build products</h3>
 		
 			[% IF !available %]
 			  <p class="error">Note: this build is no longer available.</p>
@@ -170,8 +170,7 @@
 			[% END %]
 
             [% IF prevSuccessfulBuild %]
-            <h2>Changes</h2>
-            <br/> 
+            <h3>Changes</h3>
             <table class="table table-striped table-condensed">
                 <thead>
                     <th>Last successful build <tt>[% INCLUDE renderDateTime timestamp = prevSuccessfulBuild.timestamp %]</tt></th>
