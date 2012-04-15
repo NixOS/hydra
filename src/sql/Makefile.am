@@ -4,9 +4,7 @@ nobase_dist_sql_DATA =				\
   hydra.sql					\
   hydra-sqlite.sql				\
   test.sql					\
-  upgrade-2.sql					\
-  upgrade-3.sql					\
-  upgrade-4.sql
+  upgrade-*.sql
 
 
 hydra-postgresql.sql: hydra.sql
