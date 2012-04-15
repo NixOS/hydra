@@ -343,23 +343,15 @@ sub getEvals {
         });
 
     my @res = ();
-    my $curInputs;
-    for (my $n = 0; $n < $rows && $n < scalar @evals; $n++) {
+    my $prevInputs = [];
+    for (my $n = scalar @evals - 1; $n >= 0; $n--) {
         my $cur = $evals[$n];
         my $prev = $evals[$n + 1];
 
         # Compute what inputs changed between each eval.
-        my $diff = 0;
-        my $prevInputs = [];
-        $curInputs = [ $cur->jobsetevalinputs->search(
+        my $curInputs = [ $cur->jobsetevalinputs->search(
             { uri => { '!=' => undef }, revision => { '!=' => undef }, altNr => 0 },
-            { order_by => "name" }) ] unless defined $curInputs;
-        if (defined $prev) {
-            $diff = $cur->get_column("nrSucceeded") - $prev->get_column("nrSucceeded");
-            $prevInputs = [ $prev->jobsetevalinputs->search(
-                { uri => { '!=' => undef }, revision => { '!=' => undef }, altNr => 0 },
-                { order_by => "name" }) ];
-        }
+            { order_by => "name" }) ];
         my @changedInputs;
         my %prevInputsHash;
         $prevInputsHash{$_->name} = $_ foreach @{$prevInputs};
@@ -368,12 +360,16 @@ sub getEvals {
             push @changedInputs, $input
                 if !defined $p || $input->revision ne $p->revision || $input->type ne $p->type || $input->uri ne $p->uri;
         }
-        $curInputs = $prevInputs;
+        $prevInputs = $curInputs;
         
-        push @res, { eval => $cur, diff => $diff, changedInputs => [ @changedInputs ] };
+        push @res,
+            { eval => $cur
+            , diff => defined $prev ? $cur->get_column("nrSucceeded") - $prev->get_column("nrSucceeded") : 0
+            , changedInputs => [ @changedInputs ]
+            };
     }
     
-    return [@res];
+    return [(reverse @res)[0..$rows - 1]];
 }
 
 
