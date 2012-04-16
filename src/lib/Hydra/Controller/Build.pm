@@ -289,36 +289,6 @@ sub contents : Chained('build') PathPart Args(1) {
 }
 
 
-sub runtimedeps : Chained('build') PathPart('runtime-deps') {
-    my ($self, $c) = @_;
-    
-    my $build = $c->stash->{build};
-    
-    notFound($c, "Path " . $build->outpath . " is no longer available.")
-        unless isValidPath($build->outpath);
-    
-    $c->stash->{current_view} = 'NixDepGraph';
-    $c->stash->{storePaths} = [$build->outpath];
-    
-    $c->res->content_type('image/png'); # !!!
-}
-
-
-sub buildtimedeps : Chained('build') PathPart('buildtime-deps') {
-    my ($self, $c) = @_;
-    
-    my $build = $c->stash->{build};
-    
-    notFound($c, "Path " . $build->drvpath . " is no longer available.")
-        unless isValidPath($build->drvpath);
-    
-    $c->stash->{current_view} = 'NixDepGraph';
-    $c->stash->{storePaths} = [$build->drvpath];
-    
-    $c->res->content_type('image/png'); # !!!
-}
-
-
 sub deps : Chained('build') PathPart('deps') {
     my ($self, $c) = @_;
     
