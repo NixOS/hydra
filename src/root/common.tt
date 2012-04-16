@@ -329,6 +329,11 @@
     [% IF !nestedDiff %]
         <tr><th>Input</th><th>Changes</th></tr>
     [% END %]
+    [% IF !nestLevel %]
+        [% nestLevel = 0 %]
+    [% END %]
+
+    [% IF nestLevel <= 3 %]
     [% FOREACH bi1 IN build1.inputs %]
         [% deletedInput = 1 %]
         [% FOREACH bi2 IN build2.inputs %]
@@ -351,7 +356,7 @@
                             <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %] to [% INCLUDE renderShortInputValue input=bi2 %]</tt>
                             <br/>
                             <br/>
-                            [% INCLUDE renderInputDiff build1=bi1.dependency, build2=bi2.dependency, nestedDiff=1 %]
+                            [% INCLUDE renderInputDiff build1=bi1.dependency, build2=bi2.dependency, nestedDiff=1, nestLevel=nestLevel+1 %]
                         </td></tr>
                     [% END %]
                 [% ELSE %]                  
@@ -364,6 +369,7 @@
         [% IF deletedInput == 1 %]
             <tr><td><b>[% bi1.name %]</b></td><td>Input not present in this build.</td></tr>
         [% END %]
+    [% END %]
     [% END %]
 </table>
 
