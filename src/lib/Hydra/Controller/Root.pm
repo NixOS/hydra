@@ -136,9 +136,7 @@ sub robots_txt : Path('robots.txt') {
     # robots.txt.  Note: wildcards are not universally supported in
     # robots.txt, but apparently Google supports them.
     my @rules =
-        ( uri_for('Build', 'buildtimedeps', ["*"])
-        , uri_for('Build', 'runtimedeps', ["*"])
-        , uri_for('Build', 'deps', ["*"])
+        ( uri_for('Build', 'deps', ["*"])
         , uri_for('Build', 'view_nixlog', ["*"], "*")
         , uri_for('Build', 'view_log', ["*"], "*")
         , uri_for('Build', 'view_log', ["*"])
