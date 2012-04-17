@@ -9,8 +9,6 @@
 [% job = build.job %]
 
 [% BLOCK renderBuildSteps %]
-
-	<h2 id="buildsteps">[% type %] build steps</h2>
 	<table class="tablesorter table table-striped table-condensed">
 	  <thead>
 	    <tr><th>Nr</th><th>What</th><th>Duration</th><th>Machine</th><th>Status</th></tr>
@@ -67,7 +65,7 @@
 
 
 [% IF flashMsg %]
-<p class="error">[% flashMsg %]</p>
+<p class="btn-info btn-large">[% flashMsg %]</p>
 [% END %]
 
 	<ul id="tab" class="nav nav-tabs">
@@ -160,12 +158,14 @@
 			
 		[% END %]
 
-        [% IF !build.finished && build.buildsteps.size > 0 %]
+        [% IF !build.finished %]
+            <h3>Running build steps</h3>
             [% INCLUDE renderBuildSteps type="Running" %]
 	[% END %]
 
 		[% IF build.finished %]
 			[% IF build.buildsteps && build.buildstatus != 0 && build.buildstatus != 6 %]
+                                <h3>Failed build steps</h3>
 				[% INCLUDE renderBuildSteps type="Failed" %]
 			[% END %]
 
@@ -416,9 +416,10 @@
         [% END %]
 
 [% IF build.buildsteps %]
-	<div id="tabs-buildsteps" class="tab-pane">
-		[% INCLUDE renderBuildSteps type="All" %]
-	</div>
+  <div id="tabs-buildsteps" class="tab-pane">
+    <h2>All build steps</h2>
+    [% INCLUDE renderBuildSteps type="All" %]
+  </div>
 [% END %]
 	
 
