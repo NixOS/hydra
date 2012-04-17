@@ -194,7 +194,7 @@ sub checkJobset {
             $ev->builds->update({iscurrent => 1});
         } else {
             print STDERR "  created cached eval ", $ev->id, "\n";
-            $prevEval->builds->update({iscurrent => 1});
+            $prevEval->builds->update({iscurrent => 1}) if defined $prevEval;
         }
     });
        
