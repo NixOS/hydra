@@ -13,7 +13,7 @@ our @EXPORT = qw(
     requireLogin requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
     getLatestFinishedEval
-    $pathCompRE $relPathRE $relNameRE $jobNameRE $systemRE
+    $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE
     @buildListColumns
 );
 
@@ -181,12 +181,14 @@ sub getLatestFinishedEval {
 
 
 # Security checking of filenames.
-Readonly our $pathCompRE => "(?:[A-Za-z0-9-\+\._][A-Za-z0-9-\+\._]*)";
-Readonly our $relPathRE  => "(?:$pathCompRE(?:/$pathCompRE)*)";
-Readonly our $relNameRE  => "(?:[A-Za-z0-9-][A-Za-z0-9-\.]*)";
-Readonly our $attrNameRE => "(?:[A-Za-z_][A-Za-z0-9_]*)";
-Readonly our $jobNameRE  => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
-Readonly our $systemRE   => "(?:[a-z0-9_]+-[a-z0-9_]+)";
+Readonly our $pathCompRE    => "(?:[A-Za-z0-9-\+\._][A-Za-z0-9-\+\._]*)";
+Readonly our $relPathRE     => "(?:$pathCompRE(?:/$pathCompRE)*)";
+Readonly our $relNameRE     => "(?:[A-Za-z0-9-][A-Za-z0-9-\.]*)";
+Readonly our $attrNameRE    => "(?:[A-Za-z_][A-Za-z0-9_]*)";
+Readonly our $projectNameRE => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
+Readonly our $jobsetNameRE  => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
+Readonly our $jobNameRE     => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
+Readonly our $systemRE      => "(?:[a-z0-9_]+-[a-z0-9_]+)";
 
 
 1;

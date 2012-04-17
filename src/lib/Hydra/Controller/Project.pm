@@ -119,6 +119,8 @@ sub create_submit : Path('/create-project/submit') {
 
     my $projectName = trim $c->request->params->{name};
     
+    error($c, "Invalid project name: ‘$projectName’") if $projectName !~ /^$projectNameRE$/;
+
     txn_do($c->model('DB')->schema, sub {
         # Note: $projectName is validated in updateProject,
         # which will abort the transaction if the name isn't
@@ -152,6 +154,8 @@ sub create_jobset_submit : Chained('project') PathPart('create-jobset/submit') A
     
     my $jobsetName = trim $c->request->params->{name};
 
+    error($c, "Invalid jobset name: ‘$jobsetName’") if $jobsetName !~ /^$jobsetNameRE$/;
+
     txn_do($c->model('DB')->schema, sub {
         # Note: $jobsetName is validated in updateProject, which will
         # abort the transaction if the name isn't valid.
@@ -168,7 +172,7 @@ sub create_jobset_submit : Chained('project') PathPart('create-jobset/submit') A
 sub updateProject {
     my ($c, $project) = @_;
     my $projectName = trim $c->request->params->{name};
-    error($c, "Invalid project name: " . ($projectName || "(empty)")) unless $projectName =~ /^[[:alpha:]][\w\-]*$/;
+    error($c, "Invalid project name: ‘$projectName’") if $projectName !~ /^$projectNameRE$/;
     
     my $displayName = trim $c->request->params->{displayname};
     error($c, "Invalid display name: $displayName") if $displayName eq "";
