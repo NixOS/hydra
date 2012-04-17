@@ -2,7 +2,7 @@
 [% PROCESS common.tt %]
 [% USE HTML %]
 
-<h1>Releases for Project <tt>[% project.name %]</tt></h1>
+<div class="page-header"><h1>Releases for Project <tt>[% project.name %]</tt></h1></div>
 
 [% IF releases.size == 0 %]
 
@@ -33,9 +33,9 @@
 [% END %]
 
 [% IF c.user_exists %]
-<p>
-[<a href="[% c.uri_for('/project' project.name 'create-release') %]">Create a release</a>]
-</p>
+<p><a class="btn" href="[% c.uri_for('/project' project.name 'create-release') %]">
+  <i class="icon-plus"></i> Create a release
+</a></p>
 [% END %]
 
 [% END %]

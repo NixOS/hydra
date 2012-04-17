@@ -108,17 +108,16 @@
 
       [% content %]
 
-    </div>
-
-    <div class="navbar navbar-fixed-bottom">
-      <div id="footer" style="text-align: center;">
-        <div id="last-modified">
-        <em><a href="http://nixos.org/hydra" target="_new">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
-        Page generated on [% INCLUDE renderDateTime %].
-        [% IF c.user_exists %]
-        You are logged in as <tt>[% c.user.username %]</tt>.
-        [% END %]
-        </div>
+      <footer class="navbar">
+        <hr />
+        <small>
+          <em><a href="http://nixos.org/hydra" target="_new">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
+          Page generated on [% INCLUDE renderDateTime %].
+          [% IF c.user_exists %]
+          You are logged in as <tt>[% c.user.username %]</tt>.
+          [% END %]
+        </small>
+      </footer>
 
     </div>
 

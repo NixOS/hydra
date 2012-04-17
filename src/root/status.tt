@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Hydra status" %]
 [% PROCESS common.tt %]
 
-<h1>Hydra Status</h1>
+<div class="page-header"><h1>Hydra status</h1></div>
 
 [% INCLUDE hydraStatus %]
 

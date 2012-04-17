@@ -133,32 +133,34 @@
 		  <tr>
 		    <th>Enabled:</th>
 		    <td>
-		      [% INCLUDE renderSelection param="enabled" curValue=project.enabled options={"1" = "Yes", "0" = "No"} %]
+		      [% INCLUDE renderSelection param="enabled" curValue=project.enabled radiobuttons=1 options={"1" = "Yes", "0" = "No"} %]
 		    </td>
 		  </tr>
 		</table>
 		
 		[% IF edit %]
 		
-		  <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
+		  <p>
+                    <button type="submit" class="btn btn-primary">
+                      <i class="icon-ok icon-white"></i>
+                      [%IF create %]Create[% ELSE %]Apply changes[% END %]
+                    </button>
+                    [% IF !create %]
+		      <button id="delete-project" type="submit" class="btn btn-danger" name="submit" value="delete">
+                        <i class="icon-trash icon-white"></i>
+                        Delete this project
+                      </button>
+   		      <script type="text/javascript">
+  		        $("#delete-project").click(function() {
+		          return confirm("Are you sure you want to delete this project?");
+		        });
+		      </script>
+                    [% END %]
+                  </p>
 		
-		  </form>
-		
-		  [% IF !create %]
-		
-		    <form action="[% c.uri_for('/project' project.name 'delete') %]" method="post">
-		      <p><button id="delete-project" type="submit"><img src="/static/images/failure.gif" />Delete this project</button></p>
-		    </form>
-		      
-		    <script type="text/javascript">
-		      $("#delete-project").click(function() {
-		        return confirm("Are you sure you want to delete this project?");
-		      });
-		    </script>
-		
-		  [% END %]
-		    
 		[% END %]		
+		
+          </form>
 		
 	</div>
 
@@ -175,7 +177,7 @@
 			  [% FOREACH view IN views %]
 			    <li>
 			      <a href="[% c.uri_for('/view' project.name view.name) %]"><tt>[% view.name %]</tt></a>
-			      [<a href="[% c.uri_for('/view' project.name view.name "edit") %]">Edit</a>]
+                              <a class="btn btn-mini" href="[% c.uri_for('/view' project.name view.name "edit") %]">Edit</a>
 			    </li>
 			  [% END %]
 			</ul>
@@ -186,7 +188,9 @@
 			
 			[% END %]
 			
-			<p><a href="[% c.uri_for('/project' project.name 'create-view') %]">[Create a new view]</a></p>
+			<p><a class="btn" href="[% c.uri_for('/project' project.name 'create-view') %]">
+                          <i class="icon-plus"></i> Create a new view
+                        </a></p>
 			
 		</div>
 	[% END %]

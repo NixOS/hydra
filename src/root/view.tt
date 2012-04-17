@@ -2,11 +2,11 @@
 [% PROCESS common.tt %]
 [% USE HTML %]
 
-<h1>View <tt>[% view.project.name %]:[% view.name %]</tt></h1>
+<div class="page-header"><h1>View <tt>[% view.project.name %]:[% view.name %]</tt></h1></div>
 
 <p>
-[<a href="[% c.uri_for('/view' project.name view.name "edit") %]">Edit</a>]
-[<a href="[% c.uri_for('/view' project.name view.name "latest") %]">Latest</a>]
+<a class="btn" href="[% c.uri_for('/view' project.name view.name "edit") %]"><i class="icon-edit"></i> Edit</a>
+<a class="btn" href="[% c.uri_for('/view' project.name view.name "latest") %]"><i class="icon-share-alt"></i> Latest</a>
 </p>
 
 <p>Showing results [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + results.size %] out of [% totalResults %].</p>
@@ -65,8 +65,12 @@
 </table>
 
 <ul class="pager">
+  [% IF page > 1 %]
     <li class="previous"><a href="[% "$baseUri?page="; (page - 1) %]">Prev</a></li>
+  [% END %]
+  [% IF page * resultsPerPage < totalResults %]
     <li class="next"><a href="[% "$baseUri?page="; (page + 1) %]">Next</a></li>
+  [% END %]
 </ul>
 
 <!--

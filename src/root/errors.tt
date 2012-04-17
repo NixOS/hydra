@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Errors" %]
 [% PROCESS common.tt %]
 
-<h1>Errors</h1>
+<div class="page-header"><h1>Errors</h1></div>
 
 <p>This page provides a quick way to see how FUBARed your packages
 are.  It shows job expressions that don’t evaluate properly and jobs

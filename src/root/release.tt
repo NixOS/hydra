@@ -3,8 +3,8 @@
 [% PROCESS "product-list.tt" %]
 [% USE HTML %]
 
-<h1>Release <tt>[% release.name %]</tt> <a
-class="smallLink" href="[% c.uri_for('/release' project.name release.name "edit") %]">[Edit]</a></h1>
+<div class="page-header"><h1>Release <tt>[% release.name %]</tt>
+  <a class="btn" href="[% c.uri_for('/release' project.name release.name "edit") %]"><i class="icon-edit"></i></a></h1></div>
 
 <p><em>Released on [% INCLUDE renderDateTime timestamp =
 release.timestamp %].</em></p>
@@ -17,11 +17,11 @@ release.timestamp %].</em></p>
 
 [% FOREACH m IN members %]
 
-  <h2>
+  <h3>
     <a href="[% c.uri_for('/build' m.build.id) %]">
       [% HTML.escape(m.description) %]
     </a>
-  </h2>
+  </h3>
 
   [% INCLUDE renderProductList build=m.build %]
 

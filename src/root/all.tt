@@ -1,10 +1,10 @@
-[% WRAPPER layout.tt title="All Builds" %]
+[% WRAPPER layout.tt title="All builds" %]
 [% PROCESS common.tt %]
 
-<h1>All Builds
+<div class="page-header"><h1>All builds
   [% IF job %]for Job [% project.name %]:[% jobset.name %]:[% job.name %]
   [% ELSIF jobset %]for Jobset [% project.name %]:[% jobset.name %]
-  [% ELSIF project %] for Project <tt>[% project.name %]</tt>[% END %]</h1>
+  [% ELSIF project %] for Project <tt>[% project.name %]</tt>[% END %]</h1></div>
 
 <p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %]
 out of [% total %] in order of descending timestamp.</p>

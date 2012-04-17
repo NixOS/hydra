@@ -1,36 +1,39 @@
 [% WRAPPER layout.tt title="Login to Hydra" %]
 [% PROCESS common.tt %]
 
-<h1>Login</h1>
+<div class="page-header"><h1>Login</h1></div>
+
+[% IF errorMsg %]
+<p class="btn-warning btn-large">Error: [% errorMsg %]</p>
+[% END %]
 
 [% IF c.user_exists %]
-<p>
+<p class="btn-info btn-large">
 You are already logged in as <tt>[% c.user.username %]</tt>.
 You can <a href="[% c.uri_for('/logout') %]">logout</a> here.
 </p>
 [% ELSE %]
 
-[% IF errorMsg %]
-<p class="error">Error: [% errorMsg %]</p>
-[% END %]
+<form class="form-horizontal" method="post" action="[% c.uri_for('/login') %]">
 
-<form method="post" action="[% c.uri_for('/login') %]">
+<fieldset>
+  <div class="control-group">
+    <label class="control-label">User name</label>
+    <div class="controls">
+      <input type="text" class="span3" name="username" value=""></input>
+    </div>
+  </div>
 
-  <table class="layoutTable">
-    <tr>
-      <td>Username:</td>
-      <td><input type="text" name="username" /></td>
-    </tr>
-    <tr>
-      <td>Password:</td>
-      <td><input type="password" name="password" /></td>
-    </tr>
-    <tr colspan="2">
-      <td>
-        <input type="submit" name="login" value="Login" />
-      </td>
-    </tr>
-  </table>
+  <div class="control-group">
+    <label class="control-label">Password</label>
+    <div class="controls">
+      <input type="password" class="span3" name="password" value=""></input>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <input type="submit" name="login" value="Login" class="btn btn-primary" />
+  </div>
 
 </form>
 

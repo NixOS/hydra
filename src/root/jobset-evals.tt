@@ -1,9 +1,9 @@
 [% WRAPPER layout.tt title="Jobset ‘$project.name:$jobset.name’ Evaluations" %]
 [% PROCESS common.tt %]
 
-<h2>Evaluations of Jobset <tt>[% INCLUDE renderLink
+<div class="page-header"><h1>Evaluations of Jobset <tt>[% INCLUDE renderLink
   uri = c.uri_for(c.controller('Project').action_for('view'), [project.name])
-  title = project.name %]:[% jobset.name %]</tt></h2>
+  title = project.name %]:[% jobset.name %]</tt></h1></div>
 
 <p>Showing evaluations [% (page - 1) * resultsPerPage + 1 %] - [%
 (page - 1) * resultsPerPage + evals.size %] out of [% total %].</p>

@@ -45,6 +45,11 @@ sub submit : Chained('project') PathPart Args(0) {
     requireProjectOwner($c, $c->stash->{project});
     requirePost($c);
     
+    if (($c->request->params->{submit} || "") eq "delete") {
+        $c->stash->{project}->delete;
+        $c->res->redirect($c->uri_for("/"));
+    }
+
     txn_do($c->model('DB')->schema, sub {
         updateProject($c, $c->stash->{project});
     });
@@ -65,6 +70,7 @@ sub hide : Chained('project') PathPart Args(0) {
     $c->res->redirect($c->uri_for("/"));
 }
 
+
 sub unhide : Chained('project') PathPart Args(0) {
     my ($self, $c) = @_;
 
@@ -72,19 +78,6 @@ sub unhide : Chained('project') PathPart Args(0) {
     
     txn_do($c->model('DB')->schema, sub {
         $c->stash->{project}->update({ hidden => 0 });
-    });
-    
-    $c->res->redirect($c->uri_for("/"));
-}
-
-sub delete : Chained('project') PathPart Args(0) {
-    my ($self, $c) = @_;
-
-    requireProjectOwner($c, $c->stash->{project});
-    requirePost($c);
-    
-    txn_do($c->model('DB')->schema, sub {
-        $c->stash->{project}->delete;
     });
     
     $c->res->redirect($c->uri_for("/"));
@@ -171,18 +164,19 @@ sub create_jobset_submit : Chained('project') PathPart('create-jobset/submit') A
 
 sub updateProject {
     my ($c, $project) = @_;
-    my $projectName = trim $c->request->params->{name};
-    error($c, "Invalid project name: ‘$projectName’") if $projectName !~ /^$projectNameRE$/;
     
-    my $displayName = trim $c->request->params->{displayname};
-    error($c, "Invalid display name: $displayName") if $displayName eq "";
-
     my $owner = $project->owner;
     if ($c->check_user_roles('admin')) {
         $owner = trim $c->request->params->{owner};
         error($c, "Invalid owner: $owner")
             unless defined $c->model('DB::Users')->find({username => $owner});
     }
+
+    my $projectName = trim $c->request->params->{name};
+    error($c, "Invalid project name: ‘$projectName’") if $projectName !~ /^$projectNameRE$/;
+    
+    my $displayName = trim $c->request->params->{displayname};
+    error($c, "Invalid display name: $displayName") if $displayName eq "";
 
     $project->update(
         { name => $projectName

@@ -2,7 +2,7 @@
 [% PROCESS common.tt %]
 
 [% IF edit %]
-  <form action="[% IF create %][% c.uri_for('/project' project.name 'create-jobset/submit') %][% ELSE %][% c.uri_for('/jobset' project.name jobset.name 'submit') %][% END %]" method="post">
+  <form class="form-horizontal" action="[% IF create %][% c.uri_for('/project' project.name 'create-jobset/submit') %][% ELSE %][% c.uri_for('/jobset' project.name jobset.name 'submit') %][% END %]" method="post">
 [% END %]
 
 
@@ -13,7 +13,7 @@
 
 [% BLOCK renderInputAlt %]
   [% IF edit %]
-    <button type="button" onclick='$(this).parents(".inputalt").remove()'><img src="/static/images/failure.gif" alt="Delete value" /></button>
+    <button type="button" class="btn btn-warning" onclick='$(this).parents(".inputalt").remove()'><i class="icon-trash icon-white"></i></button>
     [% INCLUDE maybeEditString param=param value=alt.value %]
     <br />  
   [% ELSE %]
@@ -26,7 +26,7 @@
 
   <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
     <td>
-      [% IF edit %]<button type="button" onclick='$(this).parents(".input").remove()'><img src="/static/images/failure.gif" alt="Delete input" /></button>[% END -%]
+      [% IF edit %]<button type="button" class="btn btn-warning" onclick='$(this).parents(".input").remove()'><i class="icon-trash icon-white"></i></button>[% END -%]
       <tt>[% INCLUDE maybeEditString param="$baseName-name" value=input.name extraClass="shortString" %]</tt>
     </td>
     <td>
@@ -42,7 +42,7 @@
           [% END %]
         </tt>
       [% END %]
-      [% IF edit %]<button type="button" onclick='return false' class="add-inputalt">+</button>[% END %]
+      [% IF edit %]<button type="button" class="add-inputalt btn btn-success" onclick='return false'><i class="icon-plus icon-white"></i></button>[% END %]
     </td>
   </tr>
 
@@ -62,7 +62,7 @@
 		    [% END %]
 		    [% IF edit %]
 		      <tr>
-		        <td colspan="3"><button type="button" class="add-input">Add a new input</button></td>
+		        <td colspan="3" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="icon-plus icon-white"></i> Add a new input</button></td>
 		      </tr>
 		    [% END %]
 		  </tbody>
@@ -79,6 +79,7 @@
 		[% END %]
 		<li><a href="#tabs-setup" data-toggle="tab">Setup</a></li>
 	</ul>
+        
 <div id="generic-tabs" class="tab-content">
 	<div id="tabs-information" class="tab-pane active">
 		[% IF !edit && evals.size() > 0 -%]
@@ -151,13 +152,13 @@
 			  <tr>
 			    <th>Enabled:</th>
 			    <td>
-			      [% INCLUDE renderSelection param="enabled" curValue=jobset.enabled options={"1" = "Yes", "0" = "No"} %]
+			      [% INCLUDE renderSelection param="enabled" curValue=jobset.enabled radiobuttons=1 options={"1" = "Yes", "0" = "No"} %]
 			    </td>
 			  </tr>
 			  <tr>
 			    <th>Enable email notification:</th>
 			    <td>
-			      [% INCLUDE renderSelection param="enableemail" curValue=jobset.enableemail options={"1" = "Yes", "0" = "No"} %]
+			      [% INCLUDE renderSelection param="enableemail" curValue=jobset.enableemail radiobuttons=1 options={"1" = "Yes", "0" = "No"} %]
 			    </td>
 			  </tr>
               <tr>
@@ -254,7 +255,7 @@
     });
   </script>
     
-  <p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
+  <p><button type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
 
   </form>
 

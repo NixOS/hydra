@@ -52,6 +52,8 @@ sub edit : Chained('release') PathPart('edit') Args(0) {
     my ($self, $c) = @_;
     requireProjectOwner($c, $c->stash->{project});
     $c->stash->{template} = 'edit-release.tt';
+    $c->stash->{members} = [$c->stash->{release}->releasemembers->search({},
+        {order_by => ["description"]})];
 }
 
 

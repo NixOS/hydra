@@ -189,7 +189,7 @@
 
 
 [% BLOCK maybeLink -%]
-  [% IF uri %]<a [% HTML.attributes(href => uri) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END -%]
+  [% IF uri %]<a [% HTML.attributes(href => uri, class => class) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END -%]
 [% END -%]
 
 [% BLOCK maybeButton -%]
@@ -198,11 +198,24 @@
 
 [% BLOCK renderSelection %]
   [% IF edit %]
-    <select [% HTML.attributes(id => param, name => param) %]>
-      [% FOREACH name IN options.keys.sort %]
-        <option [% HTML.attributes(value => name) %] [% IF name == curValue; "selected='selected'"; END %]>[% options.$name %]</option>
-      [% END %]
-    </select>
+    [% IF radiobuttons %]
+      <div class="controls">
+        [% FOREACH name IN options.keys.sort %]
+          <label class="radio inline">
+            <input type="radio" [% HTML.attributes(id => param, name => param, value => name) %]
+              [% IF name == curValue; "checked='1'"; END %]>
+              [% options.$name %]
+            </input>
+          </label>
+        [% END %]
+      </div>
+    [% ELSE %]
+      <select [% HTML.attributes(id => param, name => param) %]>
+        [% FOREACH name IN options.keys.sort %]
+          <option [% HTML.attributes(value => name) %] [% IF name == curValue; "selected='selected'"; END %]>[% options.$name %]</option>
+        [% END %]
+      </select>
+    [% END %]
   [% ELSE %]
     [% options.$curValue %]
   [% END %]
