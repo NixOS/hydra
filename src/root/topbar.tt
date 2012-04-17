@@ -145,6 +145,9 @@
           [% INCLUDE makeLink
             uri = c.uri_for('/build' build.id 'restart')
             title = "Restart build" %]
+          [% INCLUDE makeLink
+            uri = c.uri_for('/build' build.id 'cancel')
+            title = "Cancel build" %]
       [% END %]
 
     [% END %]

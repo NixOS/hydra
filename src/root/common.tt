@@ -273,11 +273,6 @@
     since [% INCLUDE renderDateTime timestamp = build.starttime %]
   [% ELSE %]
     <strong>Scheduled to be built</strong>
-    [% IF c.user_exists %]
-      <form action="[% c.uri_for('/build' build.id 'cancel') %]" method="post" class="inline">
-        <button id="cancel" type="submit">Cancel</button>
-      </form>
-    [% END %]
   [% END %] 
 [% END -%]
 
