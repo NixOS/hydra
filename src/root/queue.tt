@@ -6,7 +6,7 @@
 <p>[ <a href="[% c.uri_for('/status') %]">Running build steps</a> ]</p>
 
 [% IF flashMsg %]
-<p class="error">[% flashMsg %]</p>
+<p class="btn-info btn-large">[% flashMsg %]</p>
 [% END %]
 
 [% IF queue.size == 0 %]
