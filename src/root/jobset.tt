@@ -130,12 +130,6 @@
 		<div id="tabs-setup" class="tab-pane [% IF edit %]active[% END %]">
 			<h2>Information</h2>
 			
-			[% IF !edit && c.user_exists %]
-			     <p>
-			         [ <a href="[% c.uri_for('/jobset' project.name jobset.name 'edit') %]">Edit</a> | <a href="[% c.uri_for('/jobset' project.name jobset.name 'clone') %]">Clone</a> ]
-			     </p>
-			[% END %]
-
 			<table class="layoutTable">
 			  [% IF edit %]
 			  <tr>
