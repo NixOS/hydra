@@ -968,5 +968,11 @@ sub restartBuild {
             , busy => 0
             , locker => ""
 	    });
+
+        # Reset the stats for the evals to which this build belongs.
+        # !!! Should do this in a trigger.
+        foreach my $m ($build->jobsetevalmembers->all) {
+            $m->eval->update({nrsucceeded => undef});
+        }
     });
 }

@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Machines" %]
 [% PROCESS common.tt %]
 
-<h1>Build machines</h1>
+<div class="page-header"><h1>Build machines</h1></div>
 
 <table class="table table-condensed table-striped">
     <thead>
@@ -9,7 +9,7 @@
             <th>Enabled</th>
             <th>Machine</th>
             <th>Max concurrent</th>
-            <th>Speedfactor</th>
+            <th>Speed factor</th>
             [% FOREACH s IN systems %]<th>[% s.system %]</th>[% END %]
         </tr>
     </thead>
@@ -17,7 +17,7 @@
         [% FOREACH m IN machines %]
         <tr>
             <td><input type="checkbox" name="enabled" [% IF m.enabled == 1  %]CHECKED[% END %] onclick="window.location='[% IF m.enabled == 1 %][%c.uri_for('/admin/machine' m.hostname 'disable' )%][% ELSE %][%c.uri_for('/admin/machine' m.hostname 'enable' )%][% END %]'"/></td>
-            <td>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('machine_edit'), [m.hostname]) content = m.hostname %]</td>
+            <td><a href="[% c.uri_for(c.controller('Admin').action_for('machine_edit'), [m.hostname]) %]">[% m.hostname %]</a></td>
             <td>[% m.maxconcurrent %]</td>
             <td>[% m.speedfactor %]</td>
             [% FOREACH s IN systems %]
@@ -36,8 +36,7 @@
     
 </table>
 
-<p>[ <a href="[% c.uri_for(c.controller('Admin').action_for('create_machine')) %]">Add a new machine</a> ]</p>
-
+<p><a class="btn" href="[% c.uri_for(c.controller('Admin').action_for('create_machine')) %]"><i class="icon-plus"></i> Add a new machine</a></p>
 
 <p>
 Resulting <tt>/etc/nix.machines</tt> [% IF nixMachinesWritable == 0  %](note: file is not writable!)[% END%]:

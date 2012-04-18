@@ -2,7 +2,7 @@
 [% PROCESS common.tt %]
 [% USE HTML %]
 
-<h1>Channel <tt>[% channelName %]</tt></h1>
+<div class="page-header"><h1>Channel <tt>[% channelName %]</tt></h1></div>
 
 <p>This page provides a <em>channel</em> for the <a
 href="http://nixos.org/">Nix package manager</a>.  If you have Nix

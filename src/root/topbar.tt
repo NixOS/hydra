@@ -87,7 +87,7 @@
           <li class="divider"></li>
           [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'clone') title="Clone jobset" %]
           [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit jobset" %]
-          [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, jobset.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ jobset.name _ "?") %]
+          [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, jobset.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ jobset.name _ "?") class = "" %]
           [% IF jobset.hidden %]
               [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'unhide') title = "Unhide" %]
           [% ELSE %] 
@@ -114,8 +114,8 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Job').action_for('errors'), [project.name, jobset.name, job.name])
         title = "Errors" %]
-    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('users')) content = "Manage users" %]</li>
-    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('news')) content = "Manage news" %]</li>
+    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('users')) content = "Manage users" class = "" %]</li>
+    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('news')) content = "Manage news" class = "" %]</li>
 
     [% END %]
   [% END %]
@@ -145,6 +145,9 @@
           [% INCLUDE makeLink
             uri = c.uri_for('/build' build.id 'restart')
             title = "Restart build" %]
+          [% INCLUDE makeLink
+            uri = c.uri_for('/build' build.id 'cancel')
+            title = "Cancel build" %]
       [% END %]
 
     [% END %]
@@ -171,11 +174,13 @@
       [% INCLUDE maybeLink 
         uri = c.uri_for(c.controller('Admin').action_for('clearfailedcache')) 
         content = "Clear failed builds cache" 
-        confirmmsg = "Are you sure you want to clear the failed builds cache?" %]
+        confirmmsg = "Are you sure you want to clear the failed builds cache?"
+        class = "" %]
       [% INCLUDE maybeLink 
         uri = c.uri_for(c.controller('Admin').action_for('clear_queue_non_current'))
         content = "Clear all non-running old builds from queue."
-        confirmmsg = "Are you sure you want to clear the queue?" 
+        confirmmsg = "Are you sure you want to clear the queue?"
+        class = ""
       %]
       <li class="divider"></li>
       [% IF c.check_user_roles('admin') %]

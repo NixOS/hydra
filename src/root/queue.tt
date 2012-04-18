@@ -1,12 +1,12 @@
 [% WRAPPER layout.tt title="Queue" %]
 [% PROCESS common.tt %]
 
-<h1>Hydra Queue</h1>
+<div class="page-header"><h1>Hydra queue</h1></div>
 
-<p>[ <a href="[% c.uri_for('/status') %]">Running build steps</a> ]</p>
+<p><a class="btn" href="[% c.uri_for('/status') %]">Running build steps</a></p>
 
 [% IF flashMsg %]
-<p class="error">[% flashMsg %]</p>
+<p class="btn-info btn-large">[% flashMsg %]</p>
 [% END %]
 
 [% IF queue.size == 0 %]

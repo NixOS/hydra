@@ -116,21 +116,15 @@ sub edit : Chained('view') PathPart('edit') Args(0) {
 sub submit : Chained('view') PathPart('submit') Args(0) {
     my ($self, $c) = @_;
     requireProjectOwner($c, $c->stash->{project});
+    if (($c->request->params->{submit} || "") eq "delete") {
+        $c->stash->{view}->delete;
+        $c->res->redirect($c->uri_for($c->controller('Project')->action_for('view'),
+            [$c->stash->{project}->name]));
+    }
     txn_do($c->model('DB')->schema, sub {
         updateView($c, $c->stash->{view});
     });
     $c->res->redirect($c->uri_for($self->action_for("view_view"), $c->req->captures));
-}
-
-    
-sub delete : Chained('view') PathPart('delete') Args(0) {
-    my ($self, $c) = @_;
-    requireProjectOwner($c, $c->stash->{project});
-    txn_do($c->model('DB')->schema, sub {
-        $c->stash->{view}->delete;
-    });
-    $c->res->redirect($c->uri_for($c->controller('Project')->action_for('view'),
-        [$c->stash->{project}->name]));
 }
 
     

@@ -1,7 +1,7 @@
-[% WRAPPER layout.tt title="Job Status" %]
+[% WRAPPER layout.tt title="Job status" %]
 [% PROCESS common.tt %]
 
-<h1>Job Status[% IF project %] of <tt>[% project.name %][% IF jobset %]:[% jobset.name%][% END %][% IF job %]:[% job.name%][% END %]</tt>[% END %]</h1>
+<div class="page-header"><h1>Job status[% IF project %] of <tt>[% project.name %][% IF jobset %]:[% jobset.name%][% END %][% IF job %]:[% job.name%][% END %]</tt>[% END %]</h1></div>
 
 <p>Below are the latest builds for each job.  It is ordered by the status
 change time (the timestamp of the last build that had a different

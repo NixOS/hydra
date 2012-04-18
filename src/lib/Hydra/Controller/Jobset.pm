@@ -221,7 +221,7 @@ sub updateJobset {
     my ($c, $jobset) = @_;
 
     my $jobsetName = trim $c->request->params->{"name"};
-    error($c, "Invalid jobset name: $jobsetName") unless $jobsetName =~ /^[[:alpha:]][\w\-]*$/;
+    error($c, "Invalid jobset name: ‘$jobsetName’") if $jobsetName !~ /^$jobsetNameRE$/;
 
     my ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
 
@@ -298,13 +298,13 @@ sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
     requireProjectOwner($c, $jobset->project);
     requirePost($c);
 
-    my $newjobsetName = trim $c->request->params->{"newjobset"};
-    error($c, "Invalid jobset name: $newjobsetName") unless $newjobsetName =~ /^[[:alpha:]][\w\-]*$/;
+    my $newJobsetName = trim $c->request->params->{"newjobset"};
+    error($c, "Invalid jobset name: $newJobsetName") unless $newJobsetName =~ /^[[:alpha:]][\w\-]*$/;
 
-    my $newjobset;
+    my $newJobset;
     txn_do($c->model('DB')->schema, sub {
-        $newjobset = $jobset->project->jobsets->create(
-            { name => $newjobsetName
+        $newJobset = $jobset->project->jobsets->create(
+            { name => $newJobsetName
             , description => $jobset->description
             , nixexprpath => $jobset->nixexprpath
             , nixexprinput => $jobset->nixexprinput
@@ -314,14 +314,14 @@ sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
             });
 
         foreach my $input ($jobset->jobsetinputs) {
-            my $newinput = $newjobset->jobsetinputs->create({name => $input->name, type => $input->type});
+            my $newinput = $newJobset->jobsetinputs->create({name => $input->name, type => $input->type});
             foreach my $inputalt ($input->jobsetinputalts) {
                 $newinput->jobsetinputalts->create({altnr => $inputalt->altnr, value => $inputalt->value});
             }
         }
     });
 
-    $c->res->redirect($c->uri_for($c->controller('Jobset')->action_for("edit"), [$jobset->project->name, $newjobsetName]));
+    $c->res->redirect($c->uri_for($c->controller('Jobset')->action_for("edit"), [$jobset->project->name, $newJobsetName]));
 }
 
 

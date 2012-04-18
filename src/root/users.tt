@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Users" %]
 [% PROCESS common.tt %]
 
-<h1>Users</h1>
+<div class="page-header"><h1>Users</h1></div>
 
 <table class="table table-striped table-condensed">
     <thead>
@@ -17,18 +17,20 @@
     <tbody>
         [% FOREACH u IN users %]
         <tr>
-            <td>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('user_edit'), [u.username]) content = u.username %]</td>
+            <td><a href="[% c.uri_for(c.controller('Admin').action_for('user_edit'), [u.username]) %]">[% u.username %]</a></td>
             <td>[% u.fullname %]</td>
             <td>[% u.emailaddress %]</td>
             <td>[% FOREACH r IN u.userroles %]<i>[% r.role %]</i> [% END %]</td>
             <td>[% IF u.emailonerror %]Yes[% ELSE %]No[% END %]</td>
-            <td>[ [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('reset_password'), [u.username]) content = "Reset password" confirmmsg = "Are you sure you want to reset the password for this user?" %] ]</td>
+            <td>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('reset_password'), [u.username]) content = "Reset password" confirmmsg = "Are you sure you want to reset the password for this user?" class = "btn btn-mini" %]</td>
         </tr>
         [% END %]
     </tbody>
     
 </table>
 
-<p>[ <a href="[% c.uri_for(c.controller('Admin').action_for('create_user')) %]">Add a new user</a> ]</p>
+<p><a class="btn" href="[% c.uri_for(c.controller('Admin').action_for('create_user')) %]">
+  <i class="icon-plus"></i> Add a new user
+</a></p>
 
 [% END %]

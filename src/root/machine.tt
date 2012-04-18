@@ -1,77 +1,90 @@
 [% WRAPPER layout.tt title=(create ? "New machine" : "Editing machine '$machine.hostname'") %]
 [% PROCESS common.tt %]
 
-<form action="[% IF create %][% c.uri_for('/admin/create-machine/submit') %][% ELSE %][% c.uri_for('/admin/machine' machine.hostname 'submit') %][% END %]" method="post">
+<div class="page-header"><h1>[% IF create %]New machine[% ELSE %]Machine <tt>[% machine.hostname %]</tt>[% END %]</h1></div>
+  
+<form class="form-horizontal" method="post"
+      action="[% IF create %][% c.uri_for('/admin/create-machine/submit') %][% ELSE %][% c.uri_for('/admin/machine' machine.hostname 'submit') %][% END %]">
 
-<h2>Machine[% IF ! create %] '[% machine.hostname %]'[% END %]</h2>
-
-<table class="layoutTable">
+<fieldset>
   [% IF create %]
-  <tr>
-    <th>Hostname:</th>
-    <td>[% INCLUDE maybeEditString param="hostname" value=machine.hostname %]</td>
-  </tr>
+  <div class="control-group">
+    <label class="control-label">Host name</label>
+    <div class="controls">
+      <input type="text" class="span3" name="hostname" value="[% machine.hostname %]"></input>
+    </div>
+  </div>
   [% END %]
-  <tr>
-    <th>Username:</th>
-    <td>[% INCLUDE maybeEditString param="username" value=machine.username %]</td>
-  </tr>
-  <tr>
-    <th>SSH key location:</th>
-    <td>[% INCLUDE maybeEditString param="ssh_key" value=machine.ssh_key %]</td>
-  </tr>
-  <tr>
-    <th>Options:</th>
-    <td>
-        [% INCLUDE maybeEditString param="options" value=machine.options %]
-    </td>
-  </tr>
-  <tr>
-    <th>Max concurrent builds:</th>
-    <td><tt>[% INCLUDE maybeEditString param="maxconcurrent" value=machine.maxconcurrent %]</tt></td>
-  </tr>
-  <tr>
-    <th>Speed factor:</th>
-    <td>
-      [% INCLUDE maybeEditString param="speedfactor" value=machine.speedfactor %]
-    </td>
-  </tr>
-  <tr>
-    <th>Systems:</th>
-    <td>
-        <select multiple name="systems" style="width: 27em;">
-            [% FOREACH s IN systemtypes %]
-                <option value="[% s.system %]"
-                [% checked = false %]
-                [% FOREACH ms IN machine.buildmachinesystemtypes %]
-                    [% checked = ms.system == s.system  %]
-                    [% BREAK IF checked %]
-                [% END %] 
-                [% IF checked %]
-                    SELECTED
-                [% END %]
-                >[% s.system %]</option>
-            [% END %]
-        </select>
-    </td>
-  </tr>
-</table>
+  
+  <div class="control-group">
+    <label class="control-label">User name</label>
+    <div class="controls">
+      <input type="text" class="span3" name="username" value="[% machine.username %]"></input>
+    </div>
+  </div>
+  
+  <div class="control-group">
+    <label class="control-label">SSH key location</label>
+    <div class="controls">
+      <input type="text" class="span3" name="ssh_key" value="[% machine.ssh_key %]"></input>
+    </div>
+  </div>
+  
+  <div class="control-group">
+    <label class="control-label">Options</label>
+    <div class="controls">
+      <input type="text" class="span3" name="options" value="[% machine.options %]"></input>
+    </div>
+  </div>
+  
+  <div class="control-group">
+    <label class="control-label">Max concurrent builds</label>
+    <div class="controls">
+      <input type="text" class="span3" name="maxconcurrent" value="[% machine.maxconcurrent %]"></input>
+    </div>
+  </div>
+  
+  <div class="control-group">
+    <label class="control-label">Speed factor</label>
+    <div class="controls">
+      <input type="text" class="span3" name="speedfactor" value="[% machine.speedfactor %]"></input>
+    </div>
+  </div>
+  
+  <div class="control-group">
+    <label class="control-label">Systems</label>
+    <div class="controls">
+      <select class="span3" multiple="1" name="systems">
+        [% FOREACH s IN systemtypes;
+           checked = false;
+           FOREACH ms IN machine.buildmachinesystemtypes;
+             checked = ms.system == s.system;
+             BREAK IF checked;
+           END %]
+          <option value="[% s.system %]" [% IF checked %]selected="1"[% END %]>[% s.system %]</option>
+        [% END %]
+      </select>
+    </div>
+  </div>
 
-<p><button type="submit"><img src="/static/images/success.gif" />[%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
-
-</form>
-
-[% IF !create %]
-
-    <form action="[% c.uri_for('/admin/machine' machine.hostname 'delete') %]" method="post">
-      <p><button id="delete-machine" type="submit"><img src="/static/images/failure.gif" />Remove this machine</button></p>
-    </form>
-      
-    <script type="text/javascript">
-      $("#delete-machine").click(function() {
-        return confirm("Are you sure you want to delete this machine?");
-      });
-    </script>
-[% END %]
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">
+      <i class="icon-ok icon-white"></i>
+      [%IF create %]Create[% ELSE %]Apply changes[% END %]
+    </button>
+    [% IF !create %]
+      <button id="delete-machine" type="submit" class="btn btn-danger" name="submit" value="delete">
+        <i class="icon-trash icon-white"></i>
+        Delete this machine
+      </button>
+      <script type="text/javascript">
+        $("#delete-machine").click(function() {
+          return confirm("Are you sure you want to delete this machine?");
+        });
+      </script>
+    [% END %]
+  </div>
+  
+</fieldset>
 
 [% END %]

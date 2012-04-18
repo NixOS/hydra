@@ -32,13 +32,17 @@ sub view : Chained('eval') PathPart('') Args(0) {
     # Allow comparing this evaluation against the previous evaluation
     # (default), an arbitrary evaluation, or the latest completed
     # evaluation of another jobset.
-    if (defined $compare && $compare =~ /^\d+$/) {
-        $eval2 = $c->model('DB::JobsetEvals')->find($compare)
-            or notFound($c, "Evaluation $compare doesn't exist.");
-    } elsif (defined $compare && $compare =~ /^($jobNameRE)$/) {
-        my $j = $c->stash->{project}->jobsets->find({name => $compare})
-            or notFound($c, "Jobset $compare doesn't exist.");
-        $eval2 = getLatestFinishedEval($c, $j);
+    if (defined $compare) {
+        if ($compare =~ /^\d+$/) {
+            $eval2 = $c->model('DB::JobsetEvals')->find($compare)
+                or notFound($c, "Evaluation $compare doesn't exist.");
+        } elsif (defined $compare && $compare =~ /^($jobsetNameRE)$/) {
+            my $j = $c->stash->{project}->jobsets->find({name => $compare})
+                or notFound($c, "Jobset $compare doesn't exist.");
+            $eval2 = getLatestFinishedEval($c, $j);
+        } else {
+            notFound($c, "Unknown comparison source ‘$compare’.");
+        }
     } else {
         ($eval2) = $eval->jobset->jobsetevals->search(
             { hasnewbuilds => 1, id => { '<', $eval->id } },

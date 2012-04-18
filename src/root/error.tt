@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Error" %]
 [% USE HTML %]
 
-<h1>[% IF httpStatus %][% httpStatus %][% ELSE %]Error[% END %]</h1>
+<div class="page-header"><h1>[% IF httpStatus %][% httpStatus %][% ELSE %]Error[% END %]</h1></div>
 
 <p>I'm very sorry, but the following error(s) occurred:</p>
 

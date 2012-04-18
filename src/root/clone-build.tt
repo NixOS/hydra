@@ -3,7 +3,7 @@
 [% USE HTML %]
 [% edit=1 %]
 
-<h1>Clone Build</h1>
+<div class="page-header"><h1>Clone Build</h1></div>
 
 <p>Cloning allows you to perform a build with modified inputs.</p>
 

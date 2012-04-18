@@ -22,9 +22,6 @@ our $VERSION = '0.01';
 __PACKAGE__->config(
     name => 'Hydra',
     default_view => "TT",
-    session => {
-        storage => Hydra::Model::DB::getHydraPath . "/session_data"
-    },
     authentication => {
         default_realm => "dbic",
         realms => {
@@ -49,6 +46,7 @@ __PACKAGE__->config(
     },
     'Plugin::Session' => {
         expires => 3600 * 24 * 2,
+        storage => Hydra::Model::DB::getHydraPath . "/session_data"
     },
 );
 

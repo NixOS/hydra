@@ -351,9 +351,9 @@ sub restart : Chained('build') PathPart Args(0) {
 
     requireProjectOwner($c, $build->project);
     
-    my $drvpath = $build->drvpath ;
+    my $drvpath = $build->drvpath;
     error($c, "This build cannot be restarted.")
-        unless $build->finished && -f $drvpath ;
+        unless $build->finished && -f $drvpath;
 
     restartBuild($c->model('DB')->schema, $build);
 

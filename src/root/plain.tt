@@ -5,7 +5,7 @@
 [% jobset = build.jobset %]
 [% job = build.job %]
 
-<h1>[% title %]</h1>
+<div class="page-header"><h1>[% title %]</h1></div>
 
 <div class="buildlog">
 [% contents -%]
