@@ -179,7 +179,7 @@ sub fetchInputSVN {
                    "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
         die "Cannot get head revision of Subversion repository at `$uri':\n$stderr"
             unless IPC::Run::run(@cmd, \$stdout, \$stderr);
-        $revision = $stdout; chomp $revision;
+        $revision = $stdout; $revision =~ s/\s*([0-9]+)\s*/$1/sm;
     }
 
     die unless $revision =~ /^\d+$/;
