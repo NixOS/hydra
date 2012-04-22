@@ -8,7 +8,7 @@ use Hydra::Helper::AddBuilds;
 use Cwd;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild);
+our @EXPORT = qw(hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild updateRepository);
 
 sub hydra_setup {
   my ($db) = @_;
@@ -72,6 +72,14 @@ sub evalSucceeds {
 sub runBuild {
   my ($build) = @_;
   return captureStdoutStderr(60, ("../src/script/hydra-build", $build->id));
+}
+
+sub updateRepository {
+  my ($scm, $update, $repo) = @_;
+  my ($res, $stdout, $stderr) = captureStdoutStderr(60, ($update, $repo));
+  die "Unexpected update error with $scm: $stderr\n" unless $res;
+  print STDOUT "Update $scm repository: $stdout" if $stdout ne "";
+  return $stdout ne "";
 }
 
 1;
