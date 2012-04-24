@@ -371,7 +371,7 @@ sub doBuild {
             if ($thisBuildFailed) { $buildStatus = 1; }
             elsif ($someBuildFailed) { $buildStatus = 2; }
             else { $buildStatus = 3; }
-        } 
+        }
 
         # Only store the output of running Nix if we have a miscellaneous error.
         $errormsg = undef unless $buildStatus == 3;
