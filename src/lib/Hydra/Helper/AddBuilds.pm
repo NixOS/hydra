@@ -341,7 +341,7 @@ sub fetchInputGit {
         # local branch for each heads of the remote repository.  This is
         # necessary to provide a working git-describe.
         ($res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("git", "pull", "--ff-only", "-fu", "--all", "origin"));
+            ("git", "pull", "--ff-only", "-fu", "--all"));
         die "Error pulling latest change from git repo at `$uri':\n$stderr" unless $res;
     } else {
         # This command force the update of the local branch to be in the same as
