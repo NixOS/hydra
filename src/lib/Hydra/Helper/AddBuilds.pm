@@ -343,6 +343,10 @@ sub fetchInputGit {
         ($res, $stdout, $stderr) = captureStdoutStderr(600,
             ("git", "pull", "--ff-only", "-fu", "--all"));
         die "Error pulling latest change from git repo at `$uri':\n$stderr" unless $res;
+        # Make sure there is a local branch
+        ($res, $stdout, $stderr) = captureStdoutStderr(600,
+            ("git", "checkout", "-f", $branch));
+        die "Error making local branch $branch in $clonePath from git repo at `$uri':\n$stderr" unless $res;
     } else {
         # This command force the update of the local branch to be in the same as
         # the remote branch for whatever the repository state is.  This command mirror
