@@ -336,25 +336,12 @@ sub fetchInputGit {
 
     chdir $clonePath or die $!; # !!! urgh, shouldn't do a chdir
 
-    if (defined $deepClone) {
-        # This fetch every branches from the remote repository and create a
-        # local branch for each heads of the remote repository.  This is
-        # necessary to provide a working git-describe.
-        ($res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("git", "pull", "--ff-only", "-fu", "--all"));
-        die "Error pulling latest change from git repo at `$uri':\n$stderr" unless $res;
-        # Make sure there is a local branch
-        ($res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("git", "checkout", "-f", $branch));
-        die "Error making local branch $branch in $clonePath from git repo at `$uri':\n$stderr" unless $res;
-    } else {
-        # This command force the update of the local branch to be in the same as
-        # the remote branch for whatever the repository state is.  This command mirror
-        # only one branch of the remote repository.
-        ($res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("git", "fetch", "-fu", "origin", "+$branch:$branch"));
-        die "Error fetching latest change from git repo at `$uri':\n$stderr" unless $res;
-    }
+    # This command force the update of the local branch to be in the same as
+    # the remote branch for whatever the repository state is.  This command mirror
+    # only one branch of the remote repository.
+    ($res, $stdout, $stderr) = captureStdoutStderr(600,
+        ("git", "fetch", "-fu", "origin", "+$branch:$branch"));
+    die "Error fetching latest change from git repo at `$uri':\n$stderr" unless $res;
 
     ($res, $stdout, $stderr) = captureStdoutStderr(600,
         ("git", "rev-parse", "$branch"));
