@@ -8,7 +8,7 @@
 
   <table class="productList layoutTable">
 
-    [% FOREACH product IN build.buildproducts -%]
+    [% FOREACH product IN build.buildproducts.nsort('productnr') -%]
 
       [% uri = "${c.uri_for('/build' build.id 'download' product.productnr)}"
           _ (product.name ? "/" _ product.name : "")
