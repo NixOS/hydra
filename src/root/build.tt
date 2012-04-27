@@ -112,14 +112,14 @@
 				    <th>System:</th>
 				    <td><tt>[% build.system %]</tt></td>
 				  </tr>
-				  [% IF !build.finished %]
+				  [% IF build.finished %]
 				    <tr>
 				      <th>Duration:</th>
 				      <td>
 				        [% IF build.iscachedbuild %]
 				          (cached[% IF cachedBuild %] from [% INCLUDE renderFullBuildLink build=cachedBuild %][% END %])
 				        [% ELSE %]
-				          	[% INCLUDE renderDuration duration = build.stoptime - build.starttime %] <tt>finished at [% INCLUDE renderDateTime timestamp = build.stoptime %]</tt>
+				          	[% INCLUDE renderDuration duration = build.stoptime - build.starttime %] finished at [% INCLUDE renderDateTime timestamp = build.stoptime %]
 				        [% END %]
 				      </td>
 				    </tr>
