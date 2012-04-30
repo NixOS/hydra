@@ -61,7 +61,7 @@
 
           /* Implementation of the expand all link. */
           $(".logTreeExpandAll").click(function() {
-              $(".logTreeToggle", $(this).siblings(".toplevel")).map(function() {
+              $(".logTreeToggle", $(this).parent().siblings(".toplevel")).map(function() {
                   $(this).siblings("ul").show();
                   $(this).text("-");
               });
@@ -69,7 +69,7 @@
 
           /* Implementation of the collapse all link. */
           $(".logTreeCollapseAll").click(function() {
-              $(".logTreeToggle", $(this).siblings(".toplevel")).map(function() {
+              $(".logTreeToggle", $(this).parent().siblings(".toplevel")).map(function() {
                   $(this).siblings("ul").hide();
                   $(this).text("+");
               });

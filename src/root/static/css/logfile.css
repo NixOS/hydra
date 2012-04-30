@@ -81,6 +81,11 @@ em.storeref:hover span.popup {
     font-size: larger;
 }
 
+span.code {
+    white-space: pre-wrap;
+    font-family: monospace;
+}
+
 .errorLine {
     color: #ff0000;
     font-weight: bold;
@@ -93,8 +98,4 @@ em.storeref:hover span.popup {
 
 .prio3 {
     font-style: italic;
-}
-
-.code {
-    white-space: pre-wrap;
 }

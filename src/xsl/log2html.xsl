@@ -7,8 +7,11 @@
               doctype-system="http://www.w3.org/TR/html4/strict.dtd" />
 
   <xsl:template match="logfile">
-    [<a href="javascript:" class="logTreeExpandAll">Expand all</a>]
-    [<a href="javascript:" class="logTreeCollapseAll">Collapse all</a>]
+    <p>
+    <a href="javascript:" class="btn btn-info logTreeExpandAll"><i class="icon-plus icon-white"></i> Expand all</a>
+    <xsl:text> </xsl:text>
+    <a href="javascript:" class="btn btn-info logTreeCollapseAll"><i class="icon-minus icon-white"></i> Collapse all</a>
+    </p>
     <ul class='toplevel'>
       <xsl:for-each select='line|nest'>
         <li>
@@ -61,18 +64,18 @@
 
   
   <xsl:template match="head|line">
-    <div class="code">
+    <span class="code">
       <xsl:if test="@error">
-        <xsl:attribute name="class">errorLine</xsl:attribute>
+        <xsl:attribute name="class">code errorLine</xsl:attribute>
       </xsl:if>
       <xsl:if test="@warning">
-        <xsl:attribute name="class">warningLine</xsl:attribute>
+        <xsl:attribute name="class">code warningLine</xsl:attribute>
       </xsl:if>
       <xsl:if test="@priority = 3">
-        <xsl:attribute name="class">prio3</xsl:attribute>
+        <xsl:attribute name="class">code prio3</xsl:attribute>
       </xsl:if>
       <xsl:apply-templates/>
-    </div>
+    </span>
   </xsl:template>
 
   
