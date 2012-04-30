@@ -2,13 +2,9 @@
 
 [% BLOCK renderProductList -%]
 
-  [% # Work around a strange bug: build.buildproducts.size returns 3 when the actual size is 1. 
-     nrProducts = 0; FOREACH product IN build.buildproducts; nrProducts = nrProducts + 1; END
-  %]
-
   <table class="productList layoutTable">
 
-    [% FOREACH product IN build.buildproducts.nsort('productnr') -%]
+    [% FOREACH product IN build.buildproducts -%]
 
       [% uri = "${c.uri_for('/build' build.id 'download' product.productnr)}"
           _ (product.name ? "/" _ product.name : "")
@@ -143,7 +139,7 @@
             <tr>              
               <th>Links to latest:</th>
               <td>
-                [% IF nrProducts > 1 %]
+                [% IF build.buildproducts.count > 1 %]
                   [% uri2 = "${c.uri_for(latestRoot.join('/') 'download-by-type' product.type product.subtype)}" %]
                   <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
                   <br />
@@ -210,7 +206,7 @@
       
       <tr class="product">
         <td>
-        Something of type <tt>[% product.type %]</tt>
+        Something of type <tt>[% product.type %]</tt> [% product %]
         </td>
       </tr>
 
