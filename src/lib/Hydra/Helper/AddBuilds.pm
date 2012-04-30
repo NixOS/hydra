@@ -887,7 +887,7 @@ sub checkBuild {
             %extraFlags =
                 ( finished => 1 
                 , iscachedbuild => 1
-                , buildstatus => 0
+                , buildstatus => -f "$outPath/nix-support/failed" ? 6 : 0
                 , starttime => $time 
                 , stoptime => $time 
                 , logfile => getBuildLog($drvPath)
