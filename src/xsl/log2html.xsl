@@ -61,7 +61,7 @@
 
   
   <xsl:template match="head|line">
-    <code>
+    <div class="code">
       <xsl:if test="@error">
         <xsl:attribute name="class">errorLine</xsl:attribute>
       </xsl:if>
@@ -72,7 +72,7 @@
         <xsl:attribute name="class">prio3</xsl:attribute>
       </xsl:if>
       <xsl:apply-templates/>
-    </code>
+    </div>
   </xsl:template>
 
   
