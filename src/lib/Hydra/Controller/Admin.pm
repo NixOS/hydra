@@ -325,16 +325,7 @@ sub machine_disable : Chained('machine') PathPart('disable') Args(0) {
 
 sub clear_queue_non_current : Chained('admin') Path('clear-queue-non-current') Args(0) {
     my ($self, $c) = @_;
-    # !!! Mark the builds as cancelled instead.
-    $c->model('DB::Builds')->search({finished => 0, iscurrent => 0, busy => 0})->delete_all;
-    $c->res->redirect("/admin");
-}
-
-
-sub clear_queue : Chained('admin') Path('clear-queue') Args(0) {
-    my ($self, $c) = @_;
-    # !!! Mark the builds as cancelled instead.
-    $c->model('DB::Builds')->search({finished => 0, busy => 0})->delete_all;
+    $c->model('DB::Builds')->search({finished => 0, iscurrent => 0, busy => 0})->update({ finished => 1, buildstatus => 4, timestamp => time});
     $c->res->redirect("/admin");
 }
 
