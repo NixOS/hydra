@@ -75,11 +75,12 @@ sub runBuild {
 }
 
 sub updateRepository {
-  my ($scm, $update, $repo) = @_;
-  my ($res, $stdout, $stderr) = captureStdoutStderr(60, ($update, $repo));
+  my ($scm, $update) = @_;
+  my ($res, $stdout, $stderr) = captureStdoutStderr(60, ($update, $scm));
   die "Unexpected update error with $scm: $stderr\n" unless $res;
-  print STDOUT "Update $scm repository: $stdout" if $stdout ne "";
-  return $stdout ne "";
+  my ($message, $loop, $status) = $stdout =~ m/::(.*) -- (.*) -- (.*)::/;
+  print STDOUT "Update $scm repository: $message\n";
+  return ($loop eq "continue", $status eq "updated");
 }
 
 1;
