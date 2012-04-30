@@ -80,7 +80,7 @@ rec {
         done
       ''; # */
 
-      LOGNAME="$USER";
+      LOGNAME = "foo";
 
       meta = {
         description = "Build of Hydra on ${system}";

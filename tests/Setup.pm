@@ -71,7 +71,9 @@ sub evalSucceeds {
 
 sub runBuild {
   my ($build) = @_;
-  return captureStdoutStderr(60, ("../src/script/hydra-build", $build->id));
+  my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("../src/script/hydra-build", $build->id));
+  print "STDERR: $stderr" if $res;
+  return ($res, $stdout, $stderr);
 }
 
 sub updateRepository {
