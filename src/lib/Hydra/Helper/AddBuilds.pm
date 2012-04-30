@@ -138,7 +138,7 @@ sub fetchInputPath {
         # (or changes back), we don't get a new "revision".
         if (!defined $cachedInput) {
             txn_do($db, sub {
-                $db->resultset('CachedPathInputs')->create(
+                $db->resultset('CachedPathInputs')->update_or_create(
                     { srcpath => $uri
                     , timestamp => $timestamp
                     , lastseen => $timestamp
@@ -567,7 +567,7 @@ sub fetchInputHg {
         ($sha256, $storePath) = split ' ', $stdout;
 
         txn_do($db, sub {
-            $db->resultset('CachedHgInputs')->create(
+            $db->resultset('CachedHgInputs')->update_or_create(
                 { uri => $uri
                 , branch => $branch
                 , revision => $revision
