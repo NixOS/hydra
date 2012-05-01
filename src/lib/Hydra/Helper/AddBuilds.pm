@@ -542,10 +542,10 @@ sub fetchInputHg {
         ("hg", "pull"));
     die "Error pulling latest change mercurial repo at `$uri':\n$stderr" unless $res;
 
-    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,("hg", "log", "-r", $id, "--template", "{node|short} {branch}"));
+    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,("hg", "log", "-r", $id, "--template", "{node|short} {rev} {branch}"));
     die "Error getting branch and revision of $id from `$uri':\n$stderr" unless $res1;
 
-    my ($revision, $branch) = split ' ', $stdout;
+    my ($revision, $revCount, $branch) = split ' ', $stdout;
     
     my $storePath;
     my $sha256;
@@ -583,6 +583,7 @@ sub fetchInputHg {
         , storePath => $storePath
         , sha256hash => $sha256
         , revision => $revision
+        , revCount => int($revCount)
         };
 }
 
