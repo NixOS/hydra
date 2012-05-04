@@ -295,7 +295,7 @@
     [% ELSIF input.type == "string" || input.type == "boolean" %]
         <tt>"[% input.value %]"</tt>
     [% ELSE %]
-        <tt>[% input.uri %][% IF input.revision %] (r. [% input.revision %])[% END %]</tt>
+        <tt>[% input.uri %][% IF input.revision %] (r[% input.revision %])[% END %]</tt>
     [% END %]
 [% END %]
 
@@ -305,7 +305,7 @@
     [% ELSIF input.type == "string" || input.type == "boolean" %]
         <tt>"[% input.value %]"</tt>
     [% ELSE %]
-        <tt>[% input.uri %][% IF input.revision %] (r. [% input.revision %])[% END %]</tt>
+        <tt>[% input.uri %][% IF input.revision %] (r[% input.revision %])[% END %]</tt>
     [% END %]
 [% END %]
 
