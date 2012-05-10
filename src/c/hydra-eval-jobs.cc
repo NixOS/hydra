@@ -253,7 +253,6 @@ void run(Strings args)
     Value v;
     state.mkThunk_(v, e);
 
-    std::cout.setf(std::ios::unitbuf);
     XMLWriter doc(true, std::cout);
     XMLOpenElement root(doc, "jobs");
     findJobs(state, doc, ArgsUsed(), autoArgs, v, "");
