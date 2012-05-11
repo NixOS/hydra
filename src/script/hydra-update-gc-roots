@@ -74,9 +74,9 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
     foreach my $jobset ($project->jobsets->search({}, { order_by => ["name" ]})) {
         my $keepnr = $jobset->keepnr;
 
-        # If the jobset has been disabled for more than one week, than
+        # If the jobset has been hidden and disabled for more than one week, than
         # don't keep its builds anymore.
-        if ($jobset->enabled == 0 && (time() - ($jobset->lastcheckedtime || 0) > (7 * 24 * 3600))) {
+        if ($jobset->enabled == 0 && ($project->hidden == 1 || $jobset->hidden == 1) && (time() - ($jobset->lastcheckedtime || 0) > (7 * 24 * 3600))) {
             print STDERR "*** skipping disabled jobset ", $project->name, ":", $jobset->name, "\n";
             next;
         }
