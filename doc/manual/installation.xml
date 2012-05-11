@@ -14,13 +14,13 @@
       To install and use Hydra you need to have installed the following dependencies:
 
       <itemizedlist>
-        <listitem>Nix</listitem>
-        <listitem>either PostgreSQL or SQLite</listitem>
-        <listitem>many Perl packages, notably Catalyst, EmailSender,
+        <listitem><para>Nix</para></listitem>
+        <listitem><para>either PostgreSQL or SQLite</para></listitem>
+        <listitem><para>many Perl packages, notably Catalyst, EmailSender,
         and NixPerl (see the <link
         xlink:href="https://svn.nixos.org/repos/nix/nixpkgs/trunk/pkgs/development/tools/misc/hydra/default.nix">Hydra
         expression in Nixpkgs</link> for the complete
-        list).</listitem>
+        list)</para></listitem>
       </itemizedlist>
 
       At the moment, Hydra runs only on GNU/Linux
@@ -46,13 +46,13 @@
     </para>
 
     <para>
-      Of course we think it is a good idea to use the <a
-      href="http://nixos.org/nixos">NixOS</a> GNU/Linux distribution
-      for your buildfarm server. But this is not a requirement.  The
-      Nix software deployment system can be installed on any GNU/Linux
-      distribution in parallel to the regular package management
-      system. Thus, you can use Hydra on a Debian, Fedora, SuSE, or
-      Ubuntu system.
+      Of course we think it is a good idea to use the <link
+      xlink:href="http://nixos.org/nixos">NixOS</link> GNU/Linux
+      distribution for your buildfarm server. But this is not a
+      requirement.  The Nix software deployment system can be
+      installed on any GNU/Linux distribution in parallel to the
+      regular package management system. Thus, you can use Hydra on a
+      Debian, Fedora, SuSE, or Ubuntu system.
     </para>
         
   </section>

@@ -30,9 +30,9 @@
 
       Here's what we fill in for the patchelf project:
 
-      <screen>
-  Identifier: patchelf
-      </screen>
+<screen>
+Identifier: patchelf
+</screen>
 
       The <emphasis>identifier</emphasis> is the identity of the
       project. It is used in URLs and in the names of build results.
@@ -54,27 +54,27 @@ DBIx::Class::ResultSet::create(): DBI Exception: DBD::SQLite::st execute failed:
        Job sets can be added once the project has been created.
 
 <screen>
-  Display name: Patchelf
+Display name: Patchelf
 </screen>
 
        The <emphasis>display name</emphasis> is used in menus.
 
 <screen>
-  Description: A tool for modifying ELF binaries
+Description: A tool for modifying ELF binaries
 </screen>
 
        The <emphasis>description</emphasis> is used as short
        documentation of the nature of the project.
 
 <screen>
-  Owner: eelco
+Owner: eelco
 </screen>
 
        The <emphasis>owner</emphasis> of a project can create and edit
        job sets.
 
 <screen>
-  Enabled: Yes
+Enabled: Yes
 </screen>
 
        Only if the project is <emphasis>enabled</emphasis> are builds
@@ -102,9 +102,9 @@ DBIx::Class::ResultSet::create(): DBI Exception: DBD::SQLite::st execute failed:
       the following "Information":
 
 <screen>
-  Identifier:     trunk
-  Description:    Trunk
-  Nix expression: release.nix in input patchelfSrc
+Identifier:     trunk
+Description:    Trunk
+Nix expression: release.nix in input patchelfSrc
 </screen>
 
       This states that in order to build the <literal>trunk</literal>
@@ -122,14 +122,14 @@ DBIx::Class::ResultSet::create(): DBI Exception: DBD::SQLite::st execute failed:
       be added.  For patchelf we declare the following inputs.
 
 <screen>
-  patchelfSrc 
-    'Subversion checkout' https://svn.nixos.org/repos/nix/patchelf/trunk
+patchelfSrc 
+  'Subversion checkout' https://svn.nixos.org/repos/nix/patchelf/trunk
 
-  nixpkgs 'Subversion checkout' https://svn.nixos.org/repos/nix/nixpkgs/trunk
+nixpkgs 'Subversion checkout' https://svn.nixos.org/repos/nix/nixpkgs/trunk
 
-  officialRelease   Boolean false
+officialRelease   Boolean false
 
-  system   String value "i686-linux" 
+system   String value "i686-linux" 
 </screen>
     </para>
   </section>
@@ -207,7 +207,7 @@ let
 
       let pkgs = import nixpkgs { inherit system; }; in
       pkgs.releaseTools.nixBuild { <co xml:id='ex-hello-co-nix-build' />
-        name = "hello" ;
+        name = "hello";
         src = tarball;
         configureFlags = [ "--disable-silent-rules" ];
       };
@@ -375,16 +375,16 @@ in
       To evaluate the <varname>tarball</varname> jobset of <xref
       linkend='ex-hello' />, just run:
 
-      <screen>
-        $ nix-build release.nix -A tarball
-      </screen>
+<screen>
+$ nix-build release.nix -A tarball
+</screen>
 
       However, doing this with <xref linkend='ex-hello' /> as is will
       probably yield an error like this:
 
-      <screen>
-        error: cannot auto-call a function that has an argument without a default value (`nixpkgs')
-      </screen>
+<screen>
+error: cannot auto-call a function that has an argument without a default value (`nixpkgs')
+</screen>
 
       This is because no value was specified for the
       <varname>nixpkgs</varname> argument of the Nix expression.
@@ -407,15 +407,15 @@ in
       <filename>$HOME/src/nixpkgs</filename>, the
       <varname>tarball</varname> jobset can now be evaluated by running:
 
-      <screen>
-        $ nix-build -I ~/src release.nix -A tarball
-      </screen>
+<screen>
+$ nix-build -I ~/src release.nix -A tarball
+</screen>
 
       Similarly, the <varname>build</varname> jobset can be evaluated:
 
-      <screen>
-        $ nix-build -I ~/src release.nix -A build
-      </screen>
+<screen>
+$ nix-build -I ~/src release.nix -A build
+</screen>
 
       The <varname>build</varname> job reuses the result of the
       <varname>tarball</varname> job, rebuilding it only if it needs to.
@@ -443,18 +443,19 @@ in
       produces an HTML code coverage report directly readable from the
       corresponding Hydra build page:
 
-      <programlisting>
-    coverage =
-      { tarball ? jobs.tarball {}
-      , system ? builtins.currentSystem
-      }:
+<programlisting>
+coverage =
+  { tarball ? jobs.tarball {}
+  , system ? builtins.currentSystem
+  }:
 
-      let pkgs = import nixpkgs { inherit system; }; in
-      pkgs.releaseTools.coverageAnalysis {
-        name = "hello" ;
-        src = tarball;
-        configureFlags = [ "--disable-silent-rules" ];
-      }; </programlisting>
+  let pkgs = import nixpkgs { inherit system; }; in
+  pkgs.releaseTools.coverageAnalysis {
+    name = "hello";
+    src = tarball;
+    configureFlags = [ "--disable-silent-rules" ];
+  };
+</programlisting>
 
       As can be seen, the only difference compared to
       <varname>build</varname> is the use of
@@ -479,22 +480,23 @@ in
       <emphasis>overrides</emphasis> the relevant arguments passed to
       <varname>nixBuild</varname>:
 
-      <programlisting>
-    build_exotic =
-      { tarball ? jobs.tarball {}
-      , system ? builtins.currentSystem
-      }:
+<programlisting>
+build_exotic =
+  { tarball ? jobs.tarball {}
+  , system ? builtins.currentSystem
+  }:
 
-      let
-        pkgs = import nixpkgs { inherit system; };
-        build = jobs.build { inherit tarball system; };
-      in
-        pkgs.lib.overrideDerivation build (attrs: {
-          buildInputs = [ pkgs.gcc33 ];
-          preConfigure = "gcc --version";
-          configureFlags =
-            attrs.configureFlags ++ [ "--disable-nls" ];
-        }); </programlisting>
+  let
+    pkgs = import nixpkgs { inherit system; };
+    build = jobs.build { inherit tarball system; };
+  in
+    pkgs.lib.overrideDerivation build (attrs: {
+      buildInputs = [ pkgs.gcc33 ];
+      preConfigure = "gcc --version";
+      configureFlags =
+        attrs.configureFlags ++ [ "--disable-nls" ];
+    });
+</programlisting>
 
       The <varname>build_exotic</varname> job reuses
       <varname>build</varname> and overrides some of its arguments: it
