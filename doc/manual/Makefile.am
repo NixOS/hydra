@@ -4,7 +4,10 @@ EXTRA_DIST = $(DOCBOOK_FILES)
 
 xsltproc_opts =					\
  --param html.stylesheet \'style.css\'		\
- --param callout.graphics.extension \'.gif\'
+ --param callout.graphics.extension \'.gif\'	\
+ --param section.autolabel 1 			\
+ --param section.label.includes.component.label 1
+
 
 dblatex_opts = \
  -V \
