@@ -50,7 +50,7 @@
       <li class="divider"></li>
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('releases'), [project.name]) title = "Releases" %]
       [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'channel' 'latest') title = "Channel (latest)" %]
-      [% IF c.check_user_roles('admin') %]
+      [% IF c.user_exists %]
           <li class="divider"></li>
           [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create new jobset" %]
           [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit project" %]
