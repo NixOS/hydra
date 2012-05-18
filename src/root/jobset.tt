@@ -124,6 +124,9 @@
 		[% IF jobset.errormsg -%]
 		<div id="tabs-errors" class="tab-pane">
 		  <h2>Evaluation errors</h2>
+                  <p>
+                  Errors occurred at <tt>[% INCLUDE renderDateTime timestamp=jobset.errortime %]</tt>.
+                  </p>
 		  <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
 		</div>
 		[% END %]
