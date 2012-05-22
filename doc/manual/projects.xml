@@ -184,31 +184,25 @@ system   String value "i686-linux"
     <example xml:id='ex-hello'>
       <title><filename>release.nix</filename> file for GNU Hello</title>
       <programlisting>
-{ nixpkgs }: <co xml:id='ex-hello-co-nixpkgs' />
-
 let
-  pkgs = import nixpkgs {}; <co xml:id='ex-hello-co-import-nixpkgs' />
+  pkgs = import &lt;nixpkgs&gt; {}; <co xml:id='ex-hello-co-import-nixpkgs' />
 
   jobs = rec { <co xml:id='ex-hello-co-jobs' />
 
     tarball = <co xml:id='ex-hello-co-tarball' />
-      { helloSrc }: <co xml:id='ex-hello-co-tarball-args' />
-
       pkgs.releaseTools.sourceTarball { <co xml:id='ex-hello-co-source-tarball' />
         name = "hello-tarball";
-        src = helloSrc;
+        src = &lt;hello&gt;; <co xml:id='ex-hello-co-tarball-args' />
         buildInputs = (with pkgs; [ gettext texLive texinfo ]);
       };
 
     build = <co xml:id='ex-hello-co-build' />
-      { tarball ? jobs.tarball {}        <co xml:id='ex-hello-co-build-args' />
-      , system ? builtins.currentSystem
-      }:
+      { system ? builtins.currentSystem }:  <co xml:id='ex-hello-co-build-args' />
 
-      let pkgs = import nixpkgs { inherit system; }; in
+      let pkgs = import &lt;nixpkgs&gt; { inherit system; }; in
       pkgs.releaseTools.nixBuild { <co xml:id='ex-hello-co-nix-build' />
         name = "hello";
-        src = tarball;
+        src = jobs.tarball;
         configureFlags = [ "--disable-silent-rules" ];
       };
   };
@@ -244,29 +238,20 @@ in
 
       <calloutlist>
 
-        <callout arearefs='ex-hello-co-nixpkgs'>
-          <para>
-            This specifies a function of one named arguments,
-            <varname>nixpkgs</varname>.  This function and those
-            defined below is called by Hydra.  Here the
-            <varname>nixpkgs</varname> argument is meant to be a
-            checkout of the <link
-            xlink:href="http://nixos.org/nixpkgs/">Nixpkgs</link>
-            software distribution.
-          </para>
-          <para>
-            Hydra inspects the formal argument list of the function
-            (here, the <varname>nixpkgs</varname> argument) and passes
-            it the corresponding parameter specified as a build input
-            on Hydra's web interface.  In this case, the web interface
-            should show a <varname>nixpkgs</varname> build input,
-            which is a checkout of the Nixpkgs source code repository.
-          </para>
-        </callout>
         <callout arearefs='ex-hello-co-import-nixpkgs'>
           <para>
             This defines a variable <varname>pkgs</varname> holding
-            the set of packages provided by Nixpkgs.
+            the set of packages provided by <link
+            xlink:href="http://nixos.org/nixpkgs/">Nixpkgs</link>.
+          </para>
+          <para>
+            Since <varname>nixpkgs</varname> appears in angle brackets,
+            there must be a build input of that name in the Nix search
+            path.  In this case, the web interface should show a
+            <varname>nixpkgs</varname> build input, which is a checkout
+            of the Nixpkgs source code repository; Hydra then adds this
+            and other build inputs to the Nix search path when
+            evaluating <filename>release.nix</filename>.
           </para>
         </callout>
 
@@ -286,10 +271,11 @@ in
         </callout>
         <callout arearefs='ex-hello-co-tarball-args'>
           <para>
-            The <varname>tarball</varname> takes an additional
-            argument called <varname>helloSrc</varname>.  Again, this
-            argument is passed by Hydra and is meant to be a checkout
-            of GNU Hello's source code repository.
+            The <varname>tarball</varname> jobs expects a
+            <varname>hello</varname> build input to be available in the
+            Nix search path.  Again, this input is passed by Hydra and
+            is meant to be a checkout of GNU Hello's source code
+            repository.
           </para>
         </callout>
         <callout arearefs='ex-hello-co-source-tarball'>
@@ -320,25 +306,25 @@ in
         </callout>
         <callout arearefs='ex-hello-co-build-args'>
           <para>
-            The <varname>build</varname> function takes two additional
-            parameter: <varname>tarball</varname>, which is meant to
-            be the result of the <varname>tarball</varname> job, and
-            <varname>system</varname>, which should be a string
+            The <varname>build</varname> function takes one
+            parameter, <varname>system</varname>, which should be a string
             defining the Nix system type–e.g.,
-            <literal>"x86_64-linux"</literal>.
+            <literal>"x86_64-linux"</literal>.  Additionally, it refers
+            to <varname>jobs.tarball</varname>, seen above.
           </para>
           <para>
-            Again, these parameters are passed by Hydra when it calls
-            <varname>build</varname>.  Thus, they must be defined as
-            build inputs in Hydra: <varname>tarball</varname> should
-            have type <literal>Build Output</literal>, its value being
-            the latest output of the <varname>tarball</varname> job,
-            and <varname>system</varname> should be a string.
+            Hydra inspects the formal argument list of the function
+            (here, the <varname>system</varname> argument) and passes it
+            the corresponding parameter specified as a build input on
+            Hydra's web interface.  Here, <varname>system</varname> is
+            passed by Hydra when it calls <varname>build</varname>.
+            Thus, it must be defined as a build input of type string in
+            Hydra, which could take one of several values.
           </para>
           <para>
-            The question mark after <literal>tarball</literal> and
-            <literal>system</literal> defines default values for these
-            arguments, and is only useful for debugging.
+            The question mark after <literal>system</literal> defines
+            the default value for this argument, and is only useful when
+            debugging locally.
           </para>
         </callout>
         <callout arearefs='ex-hello-co-nix-build'>
@@ -383,29 +369,12 @@ $ nix-build release.nix -A tarball
       probably yield an error like this:
 
 <screen>
-error: cannot auto-call a function that has an argument without a default value (`nixpkgs')
+error: user-thrown exception: file `hello' was not found in the Nix search path (add it using $NIX_PATH or -I)
 </screen>
 
-      This is because no value was specified for the
-      <varname>nixpkgs</varname> argument of the Nix expression.
-    </para>
-
-    <para>
-      This is fixed by providing a default value for that argument in
-      the Nix expression, which will allow <command>nix-build</command>
-      to auto-call the function: instfead of writing <literal>{ nixpkgs
-      }:</literal>, we now write <literal>{ nixpkgs ? &lt;nixpkgs&gt;
-      }:</literal>.  What it means is that, by default, the
-      <varname>nixpkgs</varname> variable will be bound to the absolute
-      path of any <filename>nixpkgs</filename> file found in the Nix
-      search path.  Similarly, a default value for
-      <varname>helloSrc</varname> needs to be provided.
-    </para>
-
-    <para>
-      Thus, assuming a checkout of Nixpkgs is available under
-      <filename>$HOME/src/nixpkgs</filename>, the
-      <varname>tarball</varname> jobset can now be evaluated by running:
+       The error is self-explanatory.  Assuming
+       <filename>$HOME/src/hello</filename> points to a checkout of
+       Hello, this can be fixed this way:
 
 <screen>
 $ nix-build -I ~/src release.nix -A tarball
@@ -445,14 +414,12 @@ $ nix-build -I ~/src release.nix -A build
 
 <programlisting>
 coverage =
-  { tarball ? jobs.tarball {}
-  , system ? builtins.currentSystem
-  }:
+  { system ? builtins.currentSystem }:
 
   let pkgs = import nixpkgs { inherit system; }; in
   pkgs.releaseTools.coverageAnalysis {
     name = "hello";
-    src = tarball;
+    src = jobs.tarball;
     configureFlags = [ "--disable-silent-rules" ];
   };
 </programlisting>
@@ -482,13 +449,11 @@ coverage =
 
 <programlisting>
 build_exotic =
-  { tarball ? jobs.tarball {}
-  , system ? builtins.currentSystem
-  }:
+  { system ? builtins.currentSystem }:
 
   let
     pkgs = import nixpkgs { inherit system; };
-    build = jobs.build { inherit tarball system; };
+    build = jobs.build { inherit system; };
   in
     pkgs.lib.overrideDerivation build (attrs: {
       buildInputs = [ pkgs.gcc33 ];
