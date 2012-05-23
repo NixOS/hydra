@@ -205,14 +205,14 @@ static void findJobs(EvalState & state, XMLWriter & doc,
 
 void run(Strings args)
 {
+    /* Prevent undeclared dependencies in the evaluation via
+       $NIX_PATH. */
+    unsetenv("NIX_PATH");
+    
     EvalState state;
     Path releaseExpr;
     AutoArgs autoArgs;
 
-    /* Prevent undeclared dependencies in the evaluation via
-       $HYDRA_PATH. */
-    unsetenv("HYDRA_PATH");
-    
     for (Strings::iterator i = args.begin(); i != args.end(); ) {
         string arg = *i++;
         if (arg == "--arg" || arg == "--argstr") {
