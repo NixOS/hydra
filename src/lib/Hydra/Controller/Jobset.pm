@@ -353,7 +353,7 @@ sub getEvals {
 
         # Compute what inputs changed between each eval.
         my $curInputs = [ $cur->jobsetevalinputs->search(
-            { uri => { '!=' => undef }, revision => { '!=' => undef }, altNr => 0 },
+            { -or => [ -and => [ uri => { '!=' => undef }, revision => { '!=' => undef }], dependency => { '!=' => undef }], altNr => 0 },
             { order_by => "name" }) ];
         my @changedInputs;
         my %prevInputsHash;
@@ -361,7 +361,8 @@ sub getEvals {
         foreach my $input (@{$curInputs}) {
             my $p = $prevInputsHash{$input->name};
             push @changedInputs, $input
-                if !defined $p || $input->revision ne $p->revision || $input->type ne $p->type || $input->uri ne $p->uri;
+                if !defined $p || $input->revision ne $p->revision || $input->type ne $p->type || $input->uri ne $p->uri || 
+                   ( defined $input->dependency && defined $p->dependency && $input->dependency->id ne $p->dependency->id);
         }
         $prevInputs = $curInputs;
 

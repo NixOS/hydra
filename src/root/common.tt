@@ -246,7 +246,7 @@
     [%- ELSIF buildstatus == 2 -%]
       <img src="/static/images/dependency_[% size %].png" alt="Dependency failed" />
     [%- ELSIF buildstatus == 4 -%]
-      <img src="/static/images/error_[% size %].png" alt="Failed" />
+      <img src="/static/images/cancelled_[% size %].png" alt="Cancelled" />
     [%- ELSIF buildstatus == 5 -%]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
     [%- ELSIF buildstatus == 6 -%]
@@ -416,13 +416,15 @@
 [% END %]
 
 
-[% BLOCK renderShortRev -%]
-  [%- IF type == "svn" || type == "svn-checkout" || type == "bzr" || type == "bzr-checkout" -%]
+[% BLOCK renderShortEval -%]
+  [%- IF input.type == "svn" || input.type == "svn-checkout" || input.type == "bzr" || input.type == "bzr-checkout" -%]
     r[%- revision -%]
-  [%- ELSIF type == "git" -%]
-    <tt>[% revision.substr(0, 7) %]</tt>
+  [%- ELSIF input.type == "git" -%]
+    <tt>[% input.revision.substr(0, 7) %]</tt>
+  [%- ELSIF input.type == "build" || input.type == "sysbuild" -%]
+    <tt>[% input.dependency.id %]</tt>
   [%- ELSE -%]
-    <tt>[%- revision -%]</tt>
+    <tt>[%- input.revision -%]</tt>
   [%- END -%]
 [%- END %]
 
@@ -446,7 +448,7 @@
        <td>
          [%- IF e.changedInputs.size > 0 -%]
            [%- sep=''; FOREACH input IN e.changedInputs -%]
-             [%- sep %] [% input.name %] → [% INCLUDE renderShortRev type=input.type revision=input.revision %]
+             [%- sep %] [% input.name %] → [% INCLUDE renderShortEval input=input %]
            [%- sep=','; END -%]
          [%- ELSE -%]
            -
