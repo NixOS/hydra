@@ -416,9 +416,9 @@
 [% END %]
 
 
-[% BLOCK renderShortEval -%]
+[% BLOCK renderShortEvalInput -%]
   [%- IF input.type == "svn" || input.type == "svn-checkout" || input.type == "bzr" || input.type == "bzr-checkout" -%]
-    r[%- revision -%]
+    r[%- input.revision -%]
   [%- ELSIF input.type == "git" -%]
     <tt>[% input.revision.substr(0, 7) %]</tt>
   [%- ELSIF input.type == "build" || input.type == "sysbuild" -%]
@@ -448,7 +448,7 @@
        <td>
          [%- IF e.changedInputs.size > 0 -%]
            [%- sep=''; FOREACH input IN e.changedInputs -%]
-             [%- sep %] [% input.name %] → [% INCLUDE renderShortEval input=input %]
+             [%- sep %] [% input.name %] → [% INCLUDE renderShortEvalInput input=input %]
            [%- sep=','; END -%]
          [%- ELSE -%]
            -
