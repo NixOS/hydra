@@ -141,10 +141,9 @@ in
       } 
     ];
 
-    nix.gc.automatic = true;
-    # $3 / $4 don't always work depending on length of device name
-    nix.gc.options = ''--max-freed "$((200 * 1024**3 - 1024 * $(df /nix/store | tail -n 1 | awk '{ print $3 }')))"'';
-    
+    # We have our own crontab entries for GC, see below.
+    nix.gc.automatic = false;
+
     nix.extraOptions = ''
       gc-keep-outputs = true
       gc-keep-derivations = true
@@ -200,30 +199,45 @@ in
       };
 
     services.cron.systemCronJobs =
-	    let
-	      # If there is less than ... GiB of free disk space, stop the queue
-	      # to prevent builds from failing or aborting.
-	      checkSpace = pkgs.writeScript "hydra-check-space"
-	        ''
-	          #! /bin/sh
-	          if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFree} * 1024**3)) ]; then
-                stop hydra_queue_runner
-	          fi
-              if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFreeEvaluator} * 1024**3)) ]; then
-                stop hydra_evaluator
-              fi
-	        '';
-          compressLogs = pkgs.writeScript "compress-logs" ''
-              #! /bin/sh -e
-             touch -d 'last month' r
-             find /nix/var/log/nix/drvs -type f -a ! -newer r -name '*.drv' | xargs bzip2 -v
-           '';
-	    in
-	    [ "*/5 * * * * root  ${checkSpace} &> ${cfg.baseDir}/data/checkspace.log" 
-	      "15 5 * * * root  ${compressLogs} &> ${cfg.baseDir}/data/compress.log"
-              "15 02 * * * ${cfg.user} ${env} ${cfg.hydra}/bin/hydra-update-gc-roots &> ${cfg.baseDir}/data/gc-roots.log"
-	    ];
+      let
+        # If there is less than ... GiB of free disk space, stop the queue
+        # to prevent builds from failing or aborting.
+        checkSpace = pkgs.writeScript "hydra-check-space"
+          ''
+            #! /bin/sh
+            if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFree} * 1024**3)) ]; then
+          stop hydra_queue_runner
+            fi
+        if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFreeEvaluator} * 1024**3)) ]; then
+          stop hydra_evaluator
+        fi
+          '';
 
-  };  
+        collect = pkgs.writeScript "collect-some-garbage"
+          # Arrange to always have at least 100 GiB free.
+          '' #!/bin/sh -e
+             available="$(df -B1 /nix/store | tail -n 1 | awk '{ print $4 }')"
+             target="$((100 * 1024**3))"
+             to_free="$(($available > $target ? 200 * 1024**2 : $target - $available))"
+
+             echo "$available B available, and targeting $target B available"
+             echo "thus, freeing $to_free B"
+             exec "${pkgs.nix}/bin/nix-collect-garbage" --max-freed "$to_free"
+          '';
+
+        compressLogs = pkgs.writeScript "compress-logs" ''
+            #! /bin/sh -e
+           touch -d 'last month' r
+           find /nix/var/log/nix/drvs -type f -a ! -newer r -name '*.drv' | xargs bzip2 -v
+         '';
+      in
+        [ "15 03 * * * root  ${collect} &> ${cfg.baseDir}/data/gc.log"
+          "15 13 * * * root  ${collect} &> ${cfg.baseDir}/data/gc.log"
+
+          "*/5 * * * * root  ${checkSpace} &> ${cfg.baseDir}/data/checkspace.log"
+
+          "15 5 * * * root  ${compressLogs} &> ${cfg.baseDir}/data/compress.log"
+          "15 02 * * * ${cfg.user} ${env} ${cfg.hydra}/bin/hydra-update-gc-roots &> ${cfg.baseDir}/data/gc-roots.log"
+        ];
+  };
 }
-
