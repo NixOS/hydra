@@ -207,10 +207,10 @@ in
 	        ''
 	          #! /bin/sh
 	          if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFree} * 1024**3)) ]; then
-                stop hydra-queue-runner
+                stop hydra_queue_runner
 	          fi
               if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFreeEvaluator} * 1024**3)) ]; then
-                stop hydra-evaluator
+                stop hydra_evaluator
               fi
 	        '';
           compressLogs = pkgs.writeScript "compress-logs" ''
