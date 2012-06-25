@@ -13,9 +13,9 @@ use Nix::Store;
 
 sub build : Chained('/') PathPart CaptureArgs(1) {
     my ($self, $c, $id) = @_;
-    
+
     $c->stash->{id} = $id;
-    
+
     $c->stash->{build} = getBuild($c, $id);
 
     notFound($c, "Build with ID $id doesn't exist.")
@@ -30,12 +30,16 @@ sub build : Chained('/') PathPart CaptureArgs(1) {
     $c->stash->{project} = $c->stash->{build}->project;
 }
 
+sub cat_log_command {
+    my ($path) = @_;
+    return ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path");
+}
 
 sub view_build : Chained('build') PathPart('') Args(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
-    
+
     $c->stash->{template} = 'build.tt';
     $c->stash->{available} = isValidPath $build->outpath;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
@@ -43,20 +47,23 @@ sub view_build : Chained('build') PathPart('') Args(0) {
 
     $c->stash->{pathHash} = $c->stash->{available} ? queryPathHash($build->outpath) : undef;
 
+    my $pipestart;
     if (!$build->finished && $build->busy) {
         my $logfile = $build->logfile;
-        $c->stash->{logtext} = `cat $logfile` if defined $logfile && -e $logfile;
+        $pipestart = cat_log_command($logfile);
+        $c->stash->{logtext} = `$pipestart` if defined $logfile && -e $logfile;
     }
 
     if ($build->finished && $build->iscachedbuild) {
         (my $cachedBuildStep) = $c->model('DB::BuildSteps')->search({ outpath => $build->outpath }, {}) ;
         $c->stash->{cachedBuild} = $cachedBuildStep->build if defined $cachedBuildStep;
     }
-    
+
     (my $lastBuildStep) = $build->buildsteps->search({},{order_by => "stepnr DESC", rows => 1});
     my $path = defined $lastBuildStep ? $lastBuildStep->logfile : "" ;
     if ($build->finished && ($build->buildstatus == 1 || $build->buildstatus == 6) && !($path eq "") && -f $lastBuildStep->logfile) {
-	my $logtext = `tail -n 50 $path`;
+        $pipestart = cat_log_command($path);
+	my $logtext = `$pipestart | tail -n 50`;
         $c->stash->{logtext} = removeAsciiEscapes($logtext);
     }
 
@@ -65,7 +72,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
             { project => $c->stash->{project}->name
             , jobset => $c->stash->{build}->jobset->name
             , job => $c->stash->{build}->job->name
-            , 'me.system' => $build->system 
+            , 'me.system' => $build->system
             , finished => 1
             , buildstatus => 0
             , 'me.id' =>  { '<=' => $build->id }
@@ -119,7 +126,7 @@ sub showLog {
     notFound($c, "Log file $path no longer exists.") unless -f $fallbackpath;
     $path = $fallbackpath;
 
-    my $pipestart = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path") ; 
+    my $pipestart = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path") ;
 
     if (!$mode) {
         # !!! quick hack
@@ -161,7 +168,7 @@ sub defaultUriForProduct {
     my ($self, $c, $product, @path) = @_;
     my $x = $product->productnr
         . ($product->name ? "/" . $product->name : "")
-        . ($product->defaultpath ? "/" . $product->defaultpath : ""); 
+        . ($product->defaultpath ? "/" . $product->defaultpath : "");
     return $c->uri_for($self->action_for("download"), $c->req->captures, (split /\//, $x), @path);
 }
 
@@ -178,16 +185,16 @@ sub download : Chained('build') PathPart {
 
     return $c->res->redirect(defaultUriForProduct($self, $c, $product, @path))
         if scalar @path == 0 && ($product->name || $product->defaultpath);
-    
+
     # If the product has a name, then the first path element can be
     # ignored (it's the name included in the URL for informational purposes).
-    shift @path if $product->name; 
-    
+    shift @path if $product->name;
+
     # Security paranoia.
     foreach my $elem (@path) {
         error($c, "Invalid filename $elem.") if $elem !~ /^$pathCompRE$/;
     }
-    
+
     my $path = $product->path;
     $path .= "/" . join("/", @path) if scalar @path > 0;
 
@@ -195,7 +202,7 @@ sub download : Chained('build') PathPart {
     if (-d $path && substr($c->request->uri, -1) ne "/") {
         return $c->res->redirect($c->request->uri . "/");
     }
-    
+
     $path = "$path/index.html" if -d $path && -e "$path/index.html";
 
     notFound($c, "File $path does not exist.") if !-e $path;
@@ -232,7 +239,7 @@ sub contents : Chained('build') PathPart Args(1) {
     notFound($c, "Build doesn't have a product $productnr.") if !defined $product;
 
     my $path = $product->path;
-    
+
     notFound($c, "Product $path has disappeared.") unless -e $path;
 
     my $res;
@@ -240,7 +247,7 @@ sub contents : Chained('build') PathPart Args(1) {
     if ($product->type eq "nix-build" && -d $path) {
         $res = `cd $path && find . -print0 | xargs -0 ls -ld --`;
         error($c, "`ls -lR' error: $?") if $? != 0;
-        
+
         my $baseuri = $c->uri_for('/build', $c->stash->{build}->id, 'download', $product->productnr);
         $baseuri .= "/".$product->name if $product->name;
         $res =~ s/(\.\/)($relPathRE)/<a href="$baseuri\/$2">$1$2<\/a>/g;
@@ -282,7 +289,7 @@ sub contents : Chained('build') PathPart Args(1) {
     }
 
     die unless $res;
-    
+
     $c->stash->{title} = "Contents of ".$product->path;
     $c->stash->{contents} = "<pre>$res</pre>";
     $c->stash->{template} = 'plain.tt';
@@ -291,22 +298,22 @@ sub contents : Chained('build') PathPart Args(1) {
 
 sub deps : Chained('build') PathPart('deps') {
     my ($self, $c) = @_;
-    
+
     my $build = $c->stash->{build};
     $c->stash->{available} = isValidPath $build->outpath;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
 
     my $drvpath = $build->drvpath;
     my $outpath = $build->outpath;
-    
+
     my @buildtimepaths = ();
     my @buildtimedeps = ();
     @buildtimepaths = split '\n', `nix-store --query --requisites --include-outputs $drvpath` if isValidPath($build->drvpath);
-    
+
     my @runtimepaths = ();
     my @runtimedeps = ();
     @runtimepaths = split '\n', `nix-store --query --requisites --include-outputs $outpath` if isValidPath($build->outpath);
-    
+
     foreach my $p (@buildtimepaths) {
     	my $buildStep;
     	($buildStep) = $c->model('DB::BuildSteps')->search({ outpath => $p }, {}) ;
@@ -321,10 +328,10 @@ sub deps : Chained('build') PathPart('deps') {
     	push(@runtimedeps, \%dep);
     }
 
-    
+
     $c->stash->{buildtimedeps} = \@buildtimedeps;
     $c->stash->{runtimedeps} = \@runtimedeps;
-    
+
     $c->stash->{template} = 'deps.tt';
 }
 
@@ -339,7 +346,7 @@ sub nix : Chained('build') PathPart('nix') CaptureArgs(0) {
 
     notFound($c, "Path " . $build->outpath . " is no longer available.")
         unless isValidPath($build->outpath);
-    
+
     $c->stash->{channelBuilds} = $c->model('DB::Builds')->search({id => $build->id});
 }
 
@@ -350,7 +357,7 @@ sub restart : Chained('build') PathPart Args(0) {
     my $build = $c->stash->{build};
 
     requireProjectOwner($c, $build->project);
-    
+
     my $drvpath = $build->drvpath;
     error($c, "This build cannot be restarted.")
         unless $build->finished && -f $drvpath;
@@ -358,7 +365,7 @@ sub restart : Chained('build') PathPart Args(0) {
     restartBuild($c->model('DB')->schema, $build);
 
     $c->flash->{buildMsg} = "Build has been restarted.";
-    
+
     $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
 }
 
@@ -385,7 +392,7 @@ sub cancel : Chained('build') PathPart Args(0) {
     });
 
     $c->flash->{buildMsg} = "Build has been cancelled.";
-    
+
     $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
 }
 
@@ -407,7 +414,7 @@ sub keep : Chained('build') PathPart Args(1) {
 
     $c->flash->{buildMsg} =
         $newStatus == 0 ? "Build will not be kept." : "Build will be kept.";
-    
+
     $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
 }
 
@@ -416,26 +423,26 @@ sub add_to_release : Chained('build') PathPart('add-to-release') Args(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
-    
+
     requireProjectOwner($c, $build->project);
 
     my $releaseName = trim $c->request->params->{name};
 
     my $release = $build->project->releases->find({name => $releaseName});
-    
+
     error($c, "This project has no release named `$releaseName'.") unless $release;
 
     error($c, "This build is already a part of release `$releaseName'.")
         if $release->releasemembers->find({build => $build->id});
- 
+
     registerRoot $build->outpath;
-    
+
     error($c, "This build is no longer available.") unless isValidPath $build->outpath;
 
     $release->releasemembers->create({build => $build->id, description => $build->description});
-    
+
     $c->flash->{buildMsg} = "Build added to project <tt>$releaseName</tt>.";
-    
+
     $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
 }
 
@@ -444,7 +451,7 @@ sub clone : Chained('build') PathPart('clone') Args(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
-    
+
     requireProjectOwner($c, $build->project);
 
     $c->stash->{template} = 'clone-build.tt';
@@ -455,7 +462,7 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
-    
+
     requireProjectOwner($c, $build->project);
 
     my ($nixExprPath, $nixExprInputName) = Hydra::Controller::Jobset::nixExprPathFromParams $c;
@@ -505,9 +512,9 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
         $inputInfo, $nixExprInput, $job, \%currentBuilds, undef, {});
 
     error($c, "This build has already been performed.") unless $newBuild;
-    
+
     $c->flash->{buildMsg} = "Build " . $newBuild->id . " added to the queue.";
-    
+
     $c->res->redirect($c->uri_for($c->controller('Root')->action_for('queue')));
 }
 
