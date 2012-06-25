@@ -1,6 +1,7 @@
 #! /bin/sh
+set -e
 
-repo="$1"
+repo=svn-repo
 STATE_FILE=$(pwd)/.svn-state
 if test -e $STATE_FILE; then
     state=$(cat $STATE_FILE)
@@ -12,7 +13,7 @@ fi
 case $state in
     (0) echo "::Create repo. -- continue -- updated::"
     svnadmin create svn-repo
-    svn co $repo svn-checkout
+    svn co file://$PWD/$repo svn-checkout
     touch svn-checkout/svn-file
     svn add svn-checkout/svn-file
     svn commit -m "add svn file" svn-checkout/svn-file

@@ -1,4 +1,5 @@
 #! /bin/sh
+set -e
 
 repo="$1"
 STATE_FILE=$(pwd)/.bzr-state

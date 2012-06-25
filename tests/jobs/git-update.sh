@@ -1,7 +1,9 @@
 #! /bin/sh
 # This script is used both by git & deepgit checks.
+set -e 
 
 repo=git-repo
+export HOME=$(pwd)
 STATE_FILE=$(pwd)/.git-state
 if test -e $STATE_FILE; then
     state=$(cat $STATE_FILE)
@@ -10,15 +12,18 @@ else
     state=0;
 fi
 
+echo "STATE: $state" 
 case $state in
-    (0) echo "::Create repo. -- continue -- updated::"
+    (0) echo "::Create repo. -- continue -- updated::" 
     git init $repo
     cd $repo
+    git config --global user.email "you@example.com"
+    git config --global user.name "Your Name"
+
     touch foo
     git add foo
     git commit -m "Add foo"
     git tag -a -m "First Tag." tag0
-    git checkout -b master HEAD
     ;;
     (1) echo "::Create new commit. -- continue -- updated::"
     cd $repo
