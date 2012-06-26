@@ -13,7 +13,8 @@ our @EXPORT = qw(
     registerRoot getGCRootsDir gcRootFor
     getPrimaryBuildsForView
     getPrimaryBuildTotal
-    getViewResult getLatestSuccessfulViewResult jobsetOverview removeAsciiEscapes);
+    getViewResult getLatestSuccessfulViewResult
+    jobsetOverview removeAsciiEscapes logContents);
 
 
 sub getHydraHome {
