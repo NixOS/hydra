@@ -16,7 +16,7 @@ use File::Temp;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr 
+    fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr
     getReleaseName getBuildLog addBuildProducts restartBuild scmPath
     getPrevJobsetEval
 );
@@ -30,7 +30,10 @@ sub scmPath {
 sub getBuildLog {
     my ($drvPath) = @_;
     my $logPath = ($ENV{NIX_LOG_DIR} || "/nix/var/log/nix"). "/drvs/" . basename $drvPath;
-    return -e $logPath ? $logPath : undef;
+    return $logPath if -e $logPath;
+    $logPath = "$logPath.bz2";
+    return $logPath if -e $logPath;
+    return undef;
 }
 
 
@@ -44,7 +47,7 @@ sub getStorePathHash {
     $hash = `nix-hash --to-base16 --type sha256 $hash`
         or die "cannot convert hash";
     chomp $hash;
-    return $hash;    
+    return $hash;
 }
 
 
@@ -226,7 +229,7 @@ sub fetchInputSVN {
             });
     }
 
-    return 
+    return
         { uri => $uri
         , storePath => $storePath
         , sha256hash => $sha256
@@ -261,8 +264,8 @@ sub fetchInputBuild {
 
     my $relName = ($prevBuild->releasename or $prevBuild->nixname);
     my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
-        
-    return 
+
+    return
         { storePath => $prevBuild->outpath
         , id => $prevBuild->id
         , version => $version
@@ -284,21 +287,21 @@ sub fetchInputSystemBuild {
     foreach my $build (@latestBuilds) {
         push(@validBuilds, $build) if isValidPath($build->outpath);
     }
-        
+
     if (scalar(@validBuilds) == 0) {
         print STDERR "input `", $name, "': no previous build available\n";
         return undef;
     }
-    
+
     my @inputs = ();
-    
+
     foreach my $prevBuild (@validBuilds) {
         my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
         my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
-        
+
         my $relName = ($prevBuild->releasename or $prevBuild->nixname);
         my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
-                
+
         my $input =
             { storePath => $prevBuild->outpath
             , id => $prevBuild->id
@@ -307,8 +310,8 @@ sub fetchInputSystemBuild {
             };
         push(@inputs, $input);
     }
-    
-    return @inputs;                     
+
+    return @inputs;
 }
 
 
@@ -410,7 +413,7 @@ sub fetchInputGit {
         die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
 
         ($sha256, $storePath) = split ' ', $stdout;
-    
+
         txn_do($db, sub {
             $db->resultset('CachedGitInputs')->update_or_create(
                 { uri => $uri
@@ -485,13 +488,13 @@ sub fetchInputBazaar {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
     } else {
-            
+
         # Then download this revision into the store.
         print STDERR "checking out Bazaar input ", $name, " from $uri revision $revision\n";
         $ENV{"NIX_HASH_ALGO"} = "sha256";
         $ENV{"PRINT_PATH"} = "1";
         $ENV{"NIX_PREFETCH_BZR_LEAVE_DOT_BZR"} = "$checkout";
-        
+
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
             ("nix-prefetch-bzr", $clonePath, $revision));
         die "Cannot check out Bazaar branch `$uri':\n$stderr" unless $res;
@@ -508,7 +511,7 @@ sub fetchInputBazaar {
             });
     }
 
-    return 
+    return
         { uri => $uri
         , storePath => $storePath
         , sha256hash => $sha256
@@ -516,10 +519,10 @@ sub fetchInputBazaar {
         };
 }
 
-    
+
 sub fetchInputHg {
     my ($db, $project, $jobset, $name, $value) = @_;
-    
+
     (my $uri, my $id) = split ' ', $value;
     $id = defined $id ? $id : "default";
 
@@ -546,7 +549,7 @@ sub fetchInputHg {
     die "Error getting branch and revision of $id from `$uri':\n$stderr" unless $res1;
 
     my ($revision, $revCount, $branch) = split ' ', $stdout;
-    
+
     my $storePath;
     my $sha256;
     (my $cachedInput) = $db->resultset('CachedHgInputs')->search(
@@ -559,7 +562,7 @@ sub fetchInputHg {
         print STDERR "checking out Mercurial input from $uri $branch revision $revision\n";
         $ENV{"NIX_HASH_ALGO"} = "sha256";
         $ENV{"PRINT_PATH"} = "1";
-        
+
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
             ("nix-prefetch-hg", $clonePath, $revision));
         die "Cannot check out Mercurial repository `$uri':\n$stderr" unless $res;
@@ -577,7 +580,7 @@ sub fetchInputHg {
             });
     }
 
-    return 
+    return
         { uri => $uri
         , branch => $branch
         , storePath => $storePath
@@ -618,20 +621,20 @@ sub fetchInput {
     }
     elsif ($type eq "bzr-checkout") {
         push @inputs, fetchInputBazaar($db, $project, $jobset, $name, $value, 1);
-    }   
+    }
     elsif ($type eq "string") {
         die unless defined $value;
         push @inputs, { value => $value };
-    }    
+    }
     elsif ($type eq "boolean") {
         die unless defined $value && ($value eq "true" || $value eq "false");
         push @inputs, { value => $value };
-    }    
+    }
     else {
         die "Input `" . $name . "' has unknown type `$type'.";
     }
 
-    foreach my $input (@inputs) { 
+    foreach my $input (@inputs) {
 	$input->{type} = $type if defined $input;
     }
 
@@ -645,7 +648,7 @@ sub inputsToArgs {
 
     foreach my $input (keys %{$inputInfo}) {
         push @res, "-I", "$input=$inputInfo->{$input}->[0]->{storePath}"
-            if scalar @{$inputInfo->{$input}} == 1 
+            if scalar @{$inputInfo->{$input}} == 1
                && defined $inputInfo->{$input}->[0]->{storePath};
         foreach my $alt (@{$inputInfo->{$input}}) {
             given ($alt->{type}) {
@@ -713,7 +716,7 @@ sub evalJobs {
     die "Multiple alternatives for the input containing the Nix expression are not supported.\n"
         if scalar @{$inputInfo->{$nixExprInputName}} != 1;
     my $nixExprFullPath = $nixExprInput->{storePath} . "/" . $nixExprPath;
-    
+
     (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(10800,
         ("hydra-eval-jobs", $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo)));
     die "Cannot evaluate the Nix expression containing the jobs:\n$stderr" unless $res;
@@ -741,7 +744,7 @@ sub evalJobs {
         }
     }
     $jobs->{job} = \@filteredJobs;
-    
+
     return ($jobs, $nixExprInput);
 }
 
@@ -769,18 +772,18 @@ sub addBuildProducts {
             if (-f $path) {
                 my $st = stat($path) or die "cannot stat $path: $!";
                 $fileSize = $st->size;
-                        
+
                 $sha1 = `nix-hash --flat --type sha1 $path`
                     or die "cannot hash $path: $?";;
                 chomp $sha1;
-                
+
                 $sha256 = `nix-hash --flat --type sha256 $path`
                     or die "cannot hash $path: $?";;
                 chomp $sha256;
             }
 
             my $name = $path eq $outPath ? "" : basename $path;
-                    
+
             $db->resultset('BuildProducts')->create(
                 { build => $build->id
                 , productnr => $productnr++
@@ -816,7 +819,7 @@ sub addBuildProducts {
 sub getPrevJobsetEval {
     my ($db, $jobset, $hasNewBuilds) = @_;
     my ($prevEval) = $jobset->jobsetevals(
-        ($hasNewBuilds ? { hasnewbuilds => 1 } : { }), 
+        ($hasNewBuilds ? { hasnewbuilds => 1 } : { }),
         { order_by => "id DESC", rows => 1 });
     return $prevEval;
 }
@@ -863,7 +866,7 @@ sub checkBuild {
 		# semantically unnecessary (because they're implied by
 		# the eval), but they give a factor 1000 speedup on
 		# the Nixpkgs jobset with PostgreSQL.
-		{ project => $project->name, jobset => $jobset->name, job => $job->name, outPath => $outPath }, 
+		{ project => $project->name, jobset => $jobset->name, job => $job->name, outPath => $outPath },
 		{ rows => 1, columns => ['id'] });
             if (defined $prevBuild) {
                 print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
@@ -879,18 +882,18 @@ sub checkBuild {
             print STDERR "    already scheduled as build ", $prev, "\n";
             return;
         }
-        
+
         my $time = time();
-        
+
         # Nope, so add it.
         my %extraFlags;
         if (isValidPath($outPath)) {
             %extraFlags =
-                ( finished => 1 
+                ( finished => 1
                 , iscachedbuild => 1
                 , buildstatus => -f "$outPath/nix-support/failed" ? 6 : 0
-                , starttime => $time 
-                , stoptime => $time 
+                , starttime => $time
+                , stoptime => $time
                 , logfile => getBuildLog($drvPath)
                 , errormsg => ""
                 , releasename => getReleaseName($outPath)
@@ -898,9 +901,9 @@ sub checkBuild {
         } else {
             %extraFlags = ( finished => 0 );
         }
-	
+
         $build = $job->builds->create(
-            { timestamp => $time 
+            { timestamp => $time
             , description => $buildInfo->{description}
             , longdescription => $buildInfo->{longDescription}
             , license => $buildInfo->{license}
@@ -922,7 +925,7 @@ sub checkBuild {
 
         $buildIds->{$build->id} = 1;
         $$jobOutPathMap{$job->name . "\t" . $outPath} = $build->id;
-        
+
         if ($build->iscachedbuild) {
             print STDERR "    marked as cached build ", $build->id, "\n";
             addBuildProducts($db, $build);
@@ -938,7 +941,7 @@ sub checkBuild {
             # the Nix search path (through the -I flag).  We currently
             # have no way to see which ones were actually used.
             $inputs{$name} = $inputInfo->{$name}->[0]
-                if scalar @{$inputInfo->{$name}} == 1 
+                if scalar @{$inputInfo->{$name}} == 1
                    && defined $inputInfo->{$name}->[0]->{storePath};
         }
         foreach my $arg (@{$buildInfo->{arg}}) {
