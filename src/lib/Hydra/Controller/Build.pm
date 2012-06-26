@@ -47,11 +47,9 @@ sub view_build : Chained('build') PathPart('') Args(0) {
 
     $c->stash->{pathHash} = $c->stash->{available} ? queryPathHash($build->outpath) : undef;
 
-    my $pipestart;
     if (!$build->finished && $build->busy) {
         my $logfile = $build->logfile;
-        $pipestart = cat_log_command($logfile);
-        $c->stash->{logtext} = `$pipestart` if defined $logfile && -e $logfile;
+        $c->stash->{logtext} = logContents($logfile);
     }
 
     if ($build->finished && $build->iscachedbuild) {
@@ -62,8 +60,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     (my $lastBuildStep) = $build->buildsteps->search({},{order_by => "stepnr DESC", rows => 1});
     my $path = defined $lastBuildStep ? $lastBuildStep->logfile : "" ;
     if ($build->finished && ($build->buildstatus == 1 || $build->buildstatus == 6) && !($path eq "") && -f $lastBuildStep->logfile) {
-        $pipestart = cat_log_command($path);
-	my $logtext = `$pipestart | tail -n 50`;
+	my $logtext = logContents($path, 50);
         $c->stash->{logtext} = removeAsciiEscapes($logtext);
     }
 
@@ -126,10 +123,9 @@ sub showLog {
     notFound($c, "Log file $path no longer exists.") unless -f $fallbackpath;
     $path = $fallbackpath;
 
-    my $pipestart = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path") ;
-
     if (!$mode) {
         # !!! quick hack
+        my $pipestart = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path") ;
         my $pipeline = $pipestart
             . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
             . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " - | tail -n +2";
@@ -139,7 +135,7 @@ sub showLog {
     }
 
     elsif ($mode eq "raw") {
-        $c->stash->{'plain'} = { data => (scalar `$pipestart`) || " " };
+        $c->stash->{'plain'} = { data => (scalar logContents($path)) || " " };
         $c->forward('Hydra::View::Plain');
     }
 
@@ -149,12 +145,12 @@ sub showLog {
         $c->stash->{url} = $url;
         $c->stash->{reload} = !$c->stash->{build}->finished && $c->stash->{build}->busy;
         $c->stash->{title} = "";
-        $c->stash->{contents} = (scalar `$pipestart | tail -n 50`) || " ";
+        $c->stash->{contents} = (scalar logContents($path, 50)) || " ";
         $c->stash->{template} = 'plain-reload.tt';
     }
 
     elsif ($mode eq "tail") {
-        $c->stash->{'plain'} = { data => (scalar `$pipestart | tail -n 50`) || " " };
+        $c->stash->{'plain'} = { data => (scalar logContents($path, 50)) || " " };
         $c->forward('Hydra::View::Plain');
     }
 

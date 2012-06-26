@@ -37,7 +37,7 @@ sub sendTwitterNotification {
     my $jobName  = $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
     my $status   = $build->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
     my $system   = $build->system;
-    my $duration = ($build->stoptime - $build->starttime) . " seconds"; 
+    my $duration = ($build->stoptime - $build->starttime) . " seconds";
     my $url = $config{'base_uri'}."/build/".$build->id ;
 
     my $nt = Net::Twitter::Lite->new(
@@ -47,11 +47,11 @@ sub sendTwitterNotification {
       );
 
     my $tag = $build->project->name;
-    my $msg = "$jobName ($system): $status in $duration #$tag"; 
+    my $msg = "$jobName ($system): $status in $duration #$tag";
     if (length($msg) + 1 + length($url) <= 140) {
       $msg = "$msg $url" ;
     }
-    
+
     eval {
         my $result = eval { $nt->update($msg) };
     };
@@ -68,7 +68,7 @@ sub statusDescription {
         when (2) { $status = "Dependency failed"; }
         when (4) { $status = "Cancelled"; }
     }
-    
+
    return $status;
 }
 
@@ -76,7 +76,7 @@ sub sendEmailNotification {
     my ($build) = @_;
 
     die unless $build->finished;
-        
+
     return if ! ( $build->jobset->enableemail && ($build->maintainers ne "" || $build->jobset->emailoverride ne "") );
 
     # Do we want to send mail?
@@ -86,7 +86,7 @@ sub sendEmailNotification {
 	{ project => $build->project->name
         , jobset => $build->jobset->name
         , job => $build->job->name
-        , system => $build->system 
+        , system => $build->system
         , finished => 1
         , id => { '<', $build->id }
 	}, { order_by => ["id DESC"] }
@@ -94,13 +94,13 @@ sub sendEmailNotification {
 
     # if there is a previous build with same buildstatus, do not send email
     if (defined $prevBuild && ($build->buildstatus == $prevBuild->buildstatus)) {
-        return; 
+        return;
     }
 
     # if buildstatus of this build or the previous one is aborted, do
     # not send email
     if ($build->buildstatus == 3 || (defined $prevBuild && ($prevBuild->buildstatus == 3))) {
-        return; 
+        return;
     }
 
     # Send mail.
@@ -157,8 +157,7 @@ sub sendEmailNotification {
     $inputsTable->load(@lines);
 
     my $loglines = 50;
-    my $logfile = $build->logfile;
-    my $logtext = defined $logfile && -e $logfile ? `tail -$loglines $logfile` : "No logfile available.\n";
+    my $logtext = logContents($build->logfile, $loglines);
     $logtext = removeAsciiEscapes($logtext);
 
     my $body = "Hi,\n"
@@ -181,7 +180,7 @@ sub sendEmailNotification {
         . $inputsTable->body
         . "\n"
         . "Regards,\n\nThe Hydra build daemon.\n"
-        . ($build->buildstatus != 0 ? "\n---\n$logtext" : ""); 
+        . ($build->buildstatus != 0 ? "\n---\n$logtext" : "");
 
     # stripping trailing spaces from lines
     $body =~ s/[\ ]+$//gm;
@@ -233,7 +232,7 @@ sub doBuild {
 
         my $thisBuildFailed = 0;
         my $someBuildFailed = 0;
-        
+
         # Run Nix to perform the build, and monitor the stderr output
         # to get notifications about specific build steps, the
         # associated log files, etc.
@@ -249,17 +248,17 @@ sub doBuild {
         my $buildStepNr = (defined $max && defined $max->get_column('max')) ? $max->get_column('max') : 1;
 
         my %buildSteps;
-        
+
         open OUT, "$cmd |" or die;
 
         while (<OUT>) {
             $errormsg .= $_;
-            
+
             unless (/^@\s+/) {
                 print STDERR "$_";
                 next;
             }
-            
+
             if (/^@\s+build-started\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/) {
 		my $drvPathStep = $1;
                 txn_do($db, sub {
@@ -275,7 +274,7 @@ sub doBuild {
                         });
                 });
             }
-            
+
             elsif (/^@\s+build-remote\s+(\S+)\s+(\S+)$/) {
                 my $drvPathStep = $1;
 		my $machine = $2;
@@ -284,14 +283,14 @@ sub doBuild {
                     $step->update({machine => $machine});
                 });
 	    }
-            
+
             elsif (/^@\s+build-succeeded\s+(\S+)\s+(\S+)$/) {
                 my $drvPathStep = $1;
                 txn_do($db, sub {
                     my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
                     my $stepOutpath = $step->outpath;
                     my $stepStatus = 0;
- 
+
                     $step->update({busy => 0, status => $stepStatus, stoptime => time});
                 });
             }
@@ -360,7 +359,7 @@ sub doBuild {
                 print STDERR "unknown Nix trace message: $_";
             }
         }
-        
+
         close OUT;
 
         my $res = $?;
@@ -378,7 +377,7 @@ sub doBuild {
     }
 
   done:
-    my $logfile = getBuildLog($drvPath); 
+    my $logfile = getBuildLog($drvPath);
 
     my $logsize = defined $logfile ? stat($logfile)->size : 0;
 
@@ -392,13 +391,13 @@ sub doBuild {
         my @closure = computeFSClosure(0, 0, $outPath);
         foreach my $path (@closure) {
 	    my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($path);
- 	    $closuresize += $narSize;    
+ 	    $closuresize += $narSize;
         }
     }
 
     txn_do($db, sub {
         my $releaseName = getReleaseName($outPath);
-        
+
         $buildStatus = 6 if $buildStatus == 0 && -f "$outPath/nix-support/failed";
 
         $build->update(

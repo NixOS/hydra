@@ -164,7 +164,7 @@ sub jobsetOverview {
     my ($c, $project) = @_;
     return $project->jobsets->search( isProjectOwner($c, $project) ? {} : { hidden => 0 },
         { order_by => "name"
-        , "+select" => 
+        , "+select" =>
           [ "(select count(*) from Builds as a where a.finished = 0 and me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
           , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus <> 0 and a.isCurrent = 1)"
           , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus = 0 and a.isCurrent = 1)"
@@ -236,6 +236,18 @@ sub getLatestSuccessfulViewResult {
     return undef;
 }
 
+sub logContents {
+    my ($path, $tail) = @_;
+    my $cmd;
+    if ($path =~ /.bz2$/) {
+        $cmd = "cat $path | bzip2 -d";
+        $cmd = $cmd . " | tail -$tail" if defined $tail;
+    }
+    else {
+        $cmd = defined $tail ? "tail -$tail $path" : "cat $path";
+    }
+    return `$cmd` if -e $path;
+}
 
 sub removeAsciiEscapes {
     my ($logtext) = @_;
