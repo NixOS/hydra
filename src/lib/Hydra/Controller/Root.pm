@@ -194,6 +194,13 @@ sub nar :Local :Args(1) {
     $c->stash->{storePath} = $path;
 }
 
+
+sub narinfo :Path('*.narinfo') {
+    my ($self, $c) = @_;
+    $c->stash->{current_view} = 'NixInfo';
+}
+
+
 sub change_password : Path('change-password') : Args(0) {
     my ($self, $c) = @_;
 
@@ -201,6 +208,7 @@ sub change_password : Path('change-password') : Args(0) {
 
     $c->stash->{template} = 'change-password.tt';
 }
+
 
 sub change_password_submit : Path('change-password/submit') : Args(0) {
     my ($self, $c) = @_;
@@ -218,6 +226,7 @@ sub change_password_submit : Path('change-password/submit') : Args(0) {
 
     $c->res->redirect("/");
 }
+
 
 sub logo :Local {
     my ($self, $c) = @_;
