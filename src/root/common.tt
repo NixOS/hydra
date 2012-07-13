@@ -9,7 +9,6 @@
     , "bzr" = "Bazaar export"
     , "bzr-checkout" = "Bazaar checkout"
     , "git" = "Git checkout"
-    , "tarball" = "Download of a tarball"
     , "hg" = "Mercurial checkout"
     , "string" = "String value"
     , "boolean" = "Boolean"
