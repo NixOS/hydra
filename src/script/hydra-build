@@ -385,12 +385,12 @@ sub doBuild {
     my $closuresize = 0;
 
     if (isValidPath($outPath)) {
-        my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($outPath);
+        my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($outPath, 0);
         $size = $narSize;
 
         my @closure = computeFSClosure(0, 0, $outPath);
         foreach my $path (@closure) {
-	    my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($path);
+	    my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($path, 0);
  	    $closuresize += $narSize;
         }
     }

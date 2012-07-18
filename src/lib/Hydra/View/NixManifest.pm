@@ -21,7 +21,7 @@ sub process {
         "}\n";
     
     foreach my $path (@paths) {
-        my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo $path;
+        my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($path, 0);
 
         # Escape the characters that are allowed to appear in a Nix
         # path name but have special meaning in a URI.

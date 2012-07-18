@@ -12,14 +12,12 @@ sub process {
     
     $c->response->content_type('text/x-nix-narinfo'); # !!! check MIME type
 
-    my ($deriver, $narHash, $time, $narSize, $refs) = queryPathInfo($storePath);
+    my ($deriver, $narHash, $time, $narSize, $refs) = queryPathInfo($storePath, 1);
 
     my $info;
     $info .= "StorePath: $storePath\n";
     $info .= "URL: nar/" . basename $storePath. "\n";
     $info .= "Compression: bzip2\n";
-    #$info .= "FileHash: sha256:$compressedHash\n";
-    #$info .= "FileSize: $compressedSize\n";
     $info .= "NarHash: $narHash\n";
     $info .= "NarSize: $narSize\n";
     $info .= "References: " . join(" ", map { basename $_ } @{$refs}) . "\n";
