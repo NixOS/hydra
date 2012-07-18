@@ -99,6 +99,42 @@ sub view : Chained('eval') PathPart('') Args(0) {
 }
 
 
+sub release : Chained('eval') PathPart('release') Args(0) {
+    my ($self, $c) = @_;
+    my $eval = $c->stash->{eval};
+
+    requireProjectOwner($c, $c->stash->{project});
+    
+    my @builds = $eval->builds;
+
+    my $releaseName;
+    $releaseName ||= $_->releasename foreach @builds;
+
+    error($c, "No build in this evaluation has a release name.")
+        unless defined $releaseName;
+
+    my $release;
+
+    txn_do($c->model('DB')->schema, sub {
+
+        $release = $c->stash->{project}->releases->create(
+            { name => $releaseName
+            , timestamp => time
+            });
+
+        foreach my $build (@builds) {
+            $release->releasemembers->create(
+                { build => $build->id
+                , description => $build->description
+                }) if $build->buildstatus == 0;
+        }
+    });
+
+    $c->res->redirect($c->uri_for($c->controller('Release')->action_for('view'),
+        [$c->stash->{project}->name, $release->name]));
+}
+
+
 # Hydra::Base::Controller::NixChannel needs this.
 sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
     my ($self, $c) = @_;

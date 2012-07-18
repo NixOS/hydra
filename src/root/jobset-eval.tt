@@ -69,4 +69,10 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 
 [% INCLUDE renderBuildListFooter %]
 
+[% IF c.user_exists %]
+<p>
+<a class="btn" href="[% c.uri_for(c.controller('JobsetEval').action_for('release'), [eval.id]) %]">Release</a>
+</p>
+[% END %]
+
 [% END %]
