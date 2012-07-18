@@ -198,17 +198,9 @@ sub nar :Local :Args(1) {
 sub hashToPath {
     my ($c, $hash) = @_;
     die if length($hash) != 32;
-    # FIXME: doing a glob is very inefficient.  Should do a database
-    # lookup.
-    my @glob = glob("/nix/store/$hash*");
-    foreach my $storePath (@glob) {
-	if (isValidPath($storePath)) {
-	    print STDERR "FOUND: $hash -> $storePath\n";
-	    return $storePath;
-	}
-	#return $storePath if isValidPath($storePath);
-    }
-    notFound($c, "Store path with hash ‘$hash’ does not exist.");
+    my $path = queryPathFromHashPart($hash);
+    notFound($c, "Store path with hash ‘$hash’ does not exist.") unless $path;
+    return $path;
 }
 
 
