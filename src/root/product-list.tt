@@ -124,6 +124,8 @@
             <img src="/static/images/debian.png" alt="RPM" /> Debian package <tt>[% product.name %]</tt>
           [% CASE "iso" %]
             <img src="/static/images/iso.png" alt="ISO" /> ISO-9660 CD/DVD image <tt>[% product.name %]</tt>
+          [% CASE "binary-dist" %]
+            <img src="/static/images/binary-dist.png" alt="Binary distribution" /> Binary distribution <tt>[% product.name %]</tt>
           [% CASE DEFAULT %]
             File <tt>[% product.name %]</tt> of type <tt>[% product.subtype %]</tt>
           [% END %]
