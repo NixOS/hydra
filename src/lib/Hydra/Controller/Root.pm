@@ -7,6 +7,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
+use Nix::Config;
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -195,6 +196,17 @@ sub nar :Local :Args(1) {
 }
 
 
+sub nix_cache_info :Path('nix-cache-info') :Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{'plain'} = { data => 
+        #"StoreDir: $Nix::Config::storeDir\n" . # FIXME
+        "StoreDir: /nix/store\n" .
+	"WantMassQuery: 0\n"
+    };
+    $c->forward('Hydra::View::Plain');
+}
+
+
 sub hashToPath {
     my ($c, $hash) = @_;
     die if length($hash) != 32;
@@ -212,7 +224,7 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
 }
 
 
-sub change_password : Path('change-password') : Args(0) {
+sub change_password : Path('change-password') :Args(0) {
     my ($self, $c) = @_;
 
     requireLogin($c) if !$c->user_exists;
