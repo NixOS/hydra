@@ -12,7 +12,8 @@ sub process {
 
     my $s = "NIXPKG1 " . $c->stash->{manifestUri}
         . " " . $build->nixname . " " . $build->system
-        . " " . $build->drvpath . " " . $build->outpath;
+        . " " . $build->drvpath . " " . $build->outpath
+	. " " . $c->uri_for('/');
     
     $c->response->body($s);
 
