@@ -86,6 +86,14 @@ sub nixexprs : Chained('nix') PathPart('nixexprs.tar.bz2') Args(0) {
 }
 
 
+sub binary_cache_url : Chained('nix') PathPart('binary-cache-url') Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{'plain'} = { data => $c->uri_for('/') };
+    $c->header('Content-Type' => 'text/plain');
+    $c->forward('Hydra::View::Plain');
+}
+
+
 sub name {
     my ($build) = @_;
     return $build->releasename || $build->nixname;

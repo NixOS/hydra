@@ -198,6 +198,7 @@ sub nar :Local :Args(1) {
 
 sub nix_cache_info :Path('nix-cache-info') :Args(0) {
     my ($self, $c) = @_;
+    $c->header('Content-Type' => 'text/plain');
     $c->stash->{'plain'} = { data => 
         #"StoreDir: $Nix::Config::storeDir\n" . # FIXME
         "StoreDir: /nix/store\n" .
