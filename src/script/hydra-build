@@ -89,17 +89,16 @@ sub sendEmailNotification {
         , system => $build->system
         , finished => 1
         , id => { '<', $build->id }
+        , -not => { buildstatus => { -in => [4, 3]} }
 	}, { order_by => ["id DESC"] }
         );
 
-    # if there is a previous build with same buildstatus, do not send email
-    if (defined $prevBuild && ($build->buildstatus == $prevBuild->buildstatus)) {
+    # if build is cancelled or aborted, do not send email
+    if ($build->buildstatus == 4 || $build->buildstatus == 3) {
         return;
     }
-
-    # if buildstatus of this build or the previous one is aborted, do
-    # not send email
-    if ($build->buildstatus == 3 || (defined $prevBuild && ($prevBuild->buildstatus == 3))) {
+    # if there is a previous (that is not cancelled or aborted) build with same buildstatus, do not send email
+    if (defined $prevBuild && ($build->buildstatus == $prevBuild->buildstatus)) {
         return;
     }
 
