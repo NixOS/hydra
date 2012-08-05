@@ -99,8 +99,26 @@ sub create_user : Chained('admin') PathPart('create-user') Args(0) {
 
     requireAdmin($c);
 
-    error($c, "Not implemented yet!"); # FIXME
+    $c->stash->{template} = 'user.tt';
+    $c->stash->{edit} = 1;
+    $c->stash->{create} = 1;   
 }
+
+sub create_user_submit : Chained('admin') PathPart('create-user/submit') Args(0) {
+    my ($self, $c) = @_;
+
+    my $username = trim $c->request->params->{username};
+
+    txn_do($c->model('DB')->schema, sub {
+        my $user = $c->model('DB::Users')->create(
+            {username => $username, emailaddress => "", password => ""});
+        updateUser($c, $user);
+    });
+
+    $c->res->redirect("/admin/users");
+}
+
+
 
 
 sub user : Chained('admin') PathPart('user') CaptureArgs(1) {
@@ -313,7 +331,6 @@ sub machine_enable : Chained('machine') PathPart('enable') Args(0) {
     saveNixMachines($c);
     $c->res->redirect("/admin/machines");
 }
-
 
 sub machine_disable : Chained('machine') PathPart('disable') Args(0) {
     my ($self, $c) = @_;
