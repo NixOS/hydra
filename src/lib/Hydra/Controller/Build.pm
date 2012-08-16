@@ -463,6 +463,11 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
 
     my ($nixExprPath, $nixExprInputName) = Hydra::Controller::Jobset::nixExprPathFromParams $c;
 
+    # When the expression is in a .scm file, assume it's a Guile + Guix
+    # build expression.
+    my $exprType =
+	$c->request->params->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
+
     my $jobName = trim $c->request->params->{"jobname"};
     error($c, "Invalid job name: $jobName") if $jobName !~ /^$jobNameRE$/;
 
@@ -488,7 +493,7 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
         error($c, $@) if $@;
     }
 
-    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $nixExprInputName, $nixExprPath);
+    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $nixExprInputName, $nixExprPath);
 
     my $job;
     foreach my $j (@{$jobs->{job}}) {

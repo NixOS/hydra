@@ -49,8 +49,8 @@ create table Jobsets (
     name          text not null,
     project       text not null,
     description   text,
-    nixExprInput  text not null, -- name of the jobsetInput containing the Nix expression
-    nixExprPath   text not null, -- relative path of the Nix expression
+    nixExprInput  text not null, -- name of the jobsetInput containing the Nix or Guix expression
+    nixExprPath   text not null, -- relative path of the Nix or Guix expression
     errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
     errorTime     integer, -- timestamp associated with errorMsg
     lastCheckedTime integer, -- last time the evaluator looked at this jobset

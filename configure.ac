@@ -75,6 +75,7 @@ CPPFLAGS="$old_CPPFLAGS"
 LIBS="$old_LIBS"
 
 PKG_CHECK_MODULES([BDW_GC], [bdw-gc])
+PKG_CHECK_MODULES([GUILE], [guile-2.0], [HAVE_GUILE=yes], [HAVE_GUILE=no])
 
 testPath="$(dirname $(type -p expr))"
 AC_SUBST(testPath)

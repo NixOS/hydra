@@ -1,0 +1,214 @@
+#!/bin/sh
+# Aside from this initial boilerplate, this is actually -*- scheme -*- code.
+main="(module-ref (resolve-interface '(hydra-eval-guile-jobs)) 'eval-guile-jobs)"
+
+# Make sure no undeclared dependency is leaked.  Guix has to be
+# provided as an input through Hydra.  Guix itself must thus be built via a
+# recipe written in the Nix language.
+unset GUILE_LOAD_PATH
+unset GUILE_LOAD_COMPILED_PATH
+
+exec ${GUILE:-guile} --no-auto-compile   \
+  -l "$0" -c "(apply $main (cdr (command-line)))" "$@"
+!#
+;;; Copyright (C) 2012  Ludovic Courtès <ludo@gnu.org>
+;;;
+;;; Hydra is free software: you can redistribute it and/or modify
+;;; it under the terms of the GNU General Public License as published by
+;;; the Free Software Foundation, either version 3 of the License, or
+;;; (at your option) any later version.
+;;;
+;;; Hydra is distributed in the hope that it will be useful,
+;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;; GNU General Public License for more details.
+;;;
+;;; You should have received a copy of the GNU General Public License
+;;; along with Hydra.  If not, see <http://www.gnu.org/licenses/>.
+
+(define-module (hydra-eval-guile-jobs)
+  #:use-module (sxml simple)
+  #:use-module (ice-9 match)
+  #:use-module (ice-9 regex)
+  #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-11)
+  #:export (job-evaluations->xml
+            eval-guile-jobs))
+
+(define (guix-variable module name)
+  "Dynamically link variable NAME under Guix module MODULE and return it.
+Note: this is used instead of `@', because when using `@' in an uncompiled
+file, Guile tries to load the module directly as it reads the source, which
+fails in our case, leading to the creation of empty (guix ...) modules."
+  ;; TODO: fail with an XML error description
+  (let ((m (resolve-interface `(guix ,module))))
+    (module-ref m name)))
+
+(define (%derivation-system drv)
+  ;; XXX: Awful hack to workaround the fact that `derivation-system', which
+  ;; is a macro, cannot be referred to dynamically.
+  (struct-ref drv 3))
+
+(define strip-store-path
+  (let ((store-path-rx
+         (make-regexp "^.*/nix/store/[^-]+-(.+)$")))
+    (lambda (path)
+      (or (and=> (regexp-exec store-path-rx path)
+                 (lambda (match)
+                   (let ((path (match:substring match 1)))
+                     path)))
+          path))))
+
+(define (derivation-path->name drv)
+  "Return the base name of DRV, sans hash and `.drv' extension."
+  (let ((d (strip-store-path drv)))
+    (if (string-suffix? ".drv" d)
+        (string-drop-right d 4)
+        d)))
+
+(define (job-evaluations->sxml jobs)
+  "Return the hydra-eval-jobs SXML form for the result of JOBS, a list of
+symbol/thunk pairs."
+  `(*TOP*
+    (*PI* xml "version='1.0' encoding='utf-8'")
+    "\n"
+    (jobs "\n"
+     ,@(map (match-lambda
+             (((? symbol? name) . (? thunk? thunk))
+              (let* ((result (save-module-excursion
+                              (lambda ()
+                                (set-current-module %user-module)
+                                (with-output-to-port (%make-void-port "w")
+                                  thunk))))
+                     (drv    (assoc-ref result 'derivation)))
+                (define (opt-attr xml-name name)
+                  (match (assoc name result)
+                    ((_ . value)
+                     `((,xml-name ,value)))
+                    (_
+                     '())))
+
+                ;; XXX: Add <arg ...> tags?
+                `(job (@ (jobName ,name)
+                         (drvPath ,drv)
+                         (outPath
+                          ;; Resolve Guix modules lazily.
+                          ,((guix-variable 'derivations
+                                           'derivation-path->output-path)
+                            drv))
+                         ,@(opt-attr 'homepage 'home-page)
+                         ,@(opt-attr 'license 'license)
+                         ,@(opt-attr 'description 'description)
+                         ,@(opt-attr 'longDescription 'long-description)
+                         (maintainers
+                          ,(string-join (or (assoc-ref result 'maintainers)
+                                            '())
+                                        ", "))
+                         (maxSilent
+                          ,(number->string (or (assoc-ref result
+                                                          'max-silent-time)
+                                               3600)))
+                         (timeout
+                          ,(number->string (or (assoc-ref result 'timeout)
+                                               7200)))
+                         (nixName ,(derivation-path->name drv))
+                         (schedulingPriority
+                          ,(number->string (or (assoc-ref result
+                                                          'scheduling-priority)
+                                               10)))
+                         (system
+                          ,(call-with-input-file drv
+                             (compose %derivation-system
+                                      (guix-variable 'derivations
+                                                     'read-derivation)))))
+                      "\n"))))
+            jobs))))
+
+(define (job-evaluations->xml jobs port)
+  (set-port-encoding! port "UTF-8")
+  (sxml->xml (job-evaluations->sxml jobs) port))
+
+
+;;;
+;;; Command-line entry point.
+;;;
+
+(define (parse-arguments args)
+  "Traverse ARGS, a list of command-line arguments compatible with
+`hydra-eval-jobs', and return the name of the file that defines the jobs, an
+expression that returns the entry point in that file (a unary procedure), the
+list of name/value pairs passed to that entry point, as well as a GC root
+directory or #f."
+  (define (module-directory dir)
+    (let ((d (string-append dir "/share/guile/site/2.0")))
+      (if (file-exists? d)
+          d
+          dir)))
+
+  (let loop ((args      args)
+             (result    '())
+             (file      #f)
+             (entry     'hydra-jobs)
+             (roots-dir #f))
+    (match args
+      (()
+       (if (not file)
+           (error "hydra-eval-guile-jobs: no expression file given")
+           (values file entry (reverse result) roots-dir)))
+      (("-I" name=dir rest ...)
+       (let* ((dir  (match (string-tokenize name=dir
+                                            (char-set-complement (char-set
+                                                                  #\=)))
+                      ((_ dir) dir)
+                      ((dir)   dir)))
+              (dir* (module-directory dir)))
+         (format (current-error-port) "adding `~a' to the load path~%" dir*)
+        (set! %load-path (cons dir* %load-path))
+        (set! %load-compiled-path (cons dir* %load-compiled-path)))
+       (loop rest result file entry roots-dir))
+      (("--argstr" name value rest ...)
+       (loop rest (alist-cons (string->symbol name) value result)
+             file entry roots-dir))
+      (("--arg" name expr rest ...)
+       (let ((value (eval (call-with-input-string expr read)
+                          (current-module))))
+         (loop rest (alist-cons (string->symbol name) value result)
+               file entry roots-dir)))
+      (("--gc-roots-dir" dir rest ...)
+       (loop rest result file entry dir))
+      (("-j" _ rest ...)                          ; XXX: what's this?
+       (loop rest result file entry roots-dir))
+      (("--entry" expr rest ...)               ; entry point, like `guile -e'
+       (let ((expr (call-with-input-string expr read)))
+         (loop rest result file expr roots-dir)))
+      ((file rest ...)                    ; source file that defines the jobs
+       (loop rest result file entry roots-dir))
+      (_
+       (error "hydra-eval-guile-jobs: invalid arguments" args)))))
+
+(define %user-module
+  ;; Hydra user module.
+  ;; TODO: Make it a sandbox.
+  (let ((m (make-module)))
+    (beautify-user-module! m)
+    m))
+
+(define (eval-guile-jobs . args)
+  (setlocale LC_ALL "")
+
+  (let-values (((file entry args gc-roots-dir)
+                (parse-arguments args)))
+
+    (save-module-excursion
+     (lambda ()
+       (set-current-module %user-module)
+
+       ;; The standard output must contain only XML.
+       (with-output-to-port (%make-void-port "w")
+         (lambda ()
+           (primitive-load file)))))
+
+    (let* ((entry (eval entry %user-module))
+           (store ((guix-variable 'store 'open-connection)))
+           (jobs  (entry store args)))
+      (job-evaluations->xml jobs (current-output-port)))))

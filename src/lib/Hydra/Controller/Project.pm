@@ -146,6 +146,8 @@ sub create_jobset_submit : Chained('project') PathPart('create-jobset/submit') A
     requireProjectOwner($c, $c->stash->{project});
     
     my $jobsetName = trim $c->request->params->{name};
+    my $exprType =
+	$c->request->params->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
 
     error($c, "Invalid jobset name: ‘$jobsetName’") if $jobsetName !~ /^$jobsetNameRE$/;
 

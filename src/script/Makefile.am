@@ -6,6 +6,7 @@ bin_SCRIPTS = \
   hydra-init \
   hydra-build \
   hydra-evaluator \
+  hydra-eval-guile-jobs \
   hydra-queue-runner \
   hydra-server \
   hydra-update-gc-roots \

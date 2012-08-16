@@ -644,8 +644,47 @@ sub fetchInput {
 }
 
 
+sub booleanToString {
+    my ($exprType, $value) = @_;
+    my $result;
+    if ($exprType eq "guile") {
+    	if ($value eq "true") {
+    	    $result = "#t";
+    	} else {
+    	    $result = "#f";
+    	}
+    	$result = $value;
+    } else {
+    	$result = $value;
+    }
+    return $result;
+}
+
+sub buildInputToString {
+    my ($exprType, $input) = @_;
+    my $result;
+    if ($exprType eq "guile") {
+	$result = "'((file-name . \"" . ${input}->{storePath} . "\")" .
+	    (defined $input->{revision} ? "(revision . \"" . $input->{revision} . "\")" : "") .
+	    (defined $input->{revCount} ? "(revision-count . " . $input->{revCount} . ")" : "") .
+	    (defined $input->{gitTag} ? "(git-tag . \"" . $input->{gitTag} . "\")" : "") .
+	    (defined $input->{shortRev} ? "(short-revision . \"" . $input->{shortRev} . "\")" : "") .
+	    (defined $input->{version} ? "(version . \"" . $input->{version} . "\")" : "") .
+	    ")";
+    } else {
+	$result = "{ outPath = builtins.storePath " . $input->{storePath} . "" .
+	    (defined $input->{revision} ? "; rev = \"" . $input->{revision} . "\"" : "") .
+	    (defined $input->{revCount} ? "; revCount = " . $input->{revCount} . "" : "") .
+	    (defined $input->{gitTag} ? "; gitTag = \"" . $input->{gitTag} . "\"" : "") .
+	    (defined $input->{shortRev} ? "; shortRev = \"" . $input->{shortRev} . "\"" : "") .
+	    (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
+	    ";}";
+    }
+    return $result;
+}
+
 sub inputsToArgs {
-    my ($inputInfo) = @_;
+    my ($inputInfo, $exprType) = @_;
     my @res = ();
 
     foreach my $input (keys %{$inputInfo}) {
@@ -658,18 +697,10 @@ sub inputsToArgs {
                     push @res, "--argstr", $input, $alt->{value};
                 }
                 when ("boolean") {
-                    push @res, "--arg", $input, $alt->{value};
+                    push @res, "--arg", $input, booleanToString($exprType, $alt->{value});
                 }
                 when (["path", "build", "git", "hg", "sysbuild"]) {
-                    push @res, "--arg", $input, (
-                        "{ outPath = builtins.storePath " . $alt->{storePath} . "" .
-                        (defined $alt->{revision} ? "; rev = \"" . $alt->{revision} . "\"" : "") .
-                        (defined $alt->{revCount} ? "; revCount = " . $alt->{revCount} . "" : "") .
-                        (defined $alt->{gitTag} ? "; gitTag = \"" . $alt->{gitTag} . "\"" : "") .
-                        (defined $alt->{shortRev} ? "; shortRev = \"" . $alt->{shortRev} . "\"" : "") .
-                        (defined $alt->{version} ? "; version = \"" . $alt->{version} . "\"" : "") .
-                        ";}"
-                    );
+                    push @res, "--arg", $input, buildInputToString($exprType, $alt);
                 }
                 when (["svn", "svn-checkout", "bzr", "bzr-checkout"]) {
                     push @res, "--arg", $input, (
@@ -711,7 +742,7 @@ sub captureStdoutStderr {
 
 
 sub evalJobs {
-    my ($inputInfo, $nixExprInputName, $nixExprPath) = @_;
+    my ($inputInfo, $exprType, $nixExprInputName, $nixExprPath) = @_;
 
     my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
         or die "Cannot find the input containing the job expression.\n";
@@ -719,8 +750,11 @@ sub evalJobs {
         if scalar @{$inputInfo->{$nixExprInputName}} != 1;
     my $nixExprFullPath = $nixExprInput->{storePath} . "/" . $nixExprPath;
 
+    my $evaluator = ($exprType eq "guile") ? "hydra-eval-guile-jobs" : "hydra-eval-jobs";
+    print STDERR "evaluator ${evaluator}\n";
+
     (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(10800,
-        ("hydra-eval-jobs", $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo)));
+        ($evaluator, $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo, $exprType)));
     die "Cannot evaluate the Nix expression containing the jobs:\n$stderr" unless $res;
 
     print STDERR "$stderr";

@@ -223,6 +223,11 @@ sub updateJobset {
     my $jobsetName = trim $c->request->params->{"name"};
     error($c, "Invalid jobset name: ‘$jobsetName’") if $jobsetName !~ /^$jobsetNameRE$/;
 
+    # When the expression is in a .scm file, assume it's a Guile + Guix
+    # build expression.
+    my $exprType =
+	$c->request->params->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
+
     my ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
 
     $jobset->update(
