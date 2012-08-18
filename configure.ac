@@ -77,6 +77,13 @@ LIBS="$old_LIBS"
 PKG_CHECK_MODULES([BDW_GC], [bdw-gc])
 PKG_CHECK_MODULES([GUILE], [guile-2.0], [HAVE_GUILE=yes], [HAVE_GUILE=no])
 
+if test "x$HAVE_GUILE" = xyes; then
+  AC_PATH_PROG([GUILE], [guile])
+else
+  GUILE="guile"
+fi
+AC_SUBST([GUILE])
+
 testPath="$(dirname $(type -p expr))"
 AC_SUBST(testPath)
 
@@ -91,8 +98,12 @@ AC_CONFIG_FILES([
   src/lib/Makefile
   src/root/Makefile
   src/script/Makefile
+  src/script/hydra-eval-guile-jobs
   tests/Makefile
   tests/jobs/config.nix
 ])
+
+AC_CONFIG_COMMANDS([executable-scripts],
+  [chmod +x src/script/hydra-eval-guile-jobs])
 
 AC_OUTPUT

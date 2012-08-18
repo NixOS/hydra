@@ -8,7 +8,7 @@ main="(module-ref (resolve-interface '(hydra-eval-guile-jobs)) 'eval-guile-jobs)
 unset GUILE_LOAD_PATH
 unset GUILE_LOAD_COMPILED_PATH
 
-exec ${GUILE:-guile} --no-auto-compile   \
+exec ${GUILE:-@GUILE@} --no-auto-compile   \
   -l "$0" -c "(apply $main (cdr (command-line)))" "$@"
 !#
 ;;; Copyright (C) 2012  Ludovic Courtès <ludo@gnu.org>
