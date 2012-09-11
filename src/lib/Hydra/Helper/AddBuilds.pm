@@ -344,6 +344,8 @@ sub fetchInputGit {
     # only one branch of the remote repository.
     ($res, $stdout, $stderr) = captureStdoutStderr(600,
         ("git", "fetch", "-fu", "origin", "+$branch:$branch"));
+    ($res, $stdout, $stderr) = captureStdoutStderr(600,
+        ("git", "fetch", "-fu", "origin")) unless $res;
     die "Error fetching latest change from git repo at `$uri':\n$stderr" unless $res;
 
     ($res, $stdout, $stderr) = captureStdoutStderr(600,
