@@ -6,6 +6,7 @@
 #include "shared.hh"
 #include "store-api.hh"
 #include "eval.hh"
+#include "eval-inline.hh"
 #include "util.hh"
 #include "xml-writer.hh"
 #include "get-drvs.hh"
@@ -118,7 +119,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
 
         DrvInfo drv;
         
-        if (getDerivation(state, v, drv)) {
+        if (getDerivation(state, v, drv, false)) {
             XMLAttrs xmlAttrs;
             Path drvPath;
 
