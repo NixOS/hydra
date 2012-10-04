@@ -16,7 +16,7 @@ using namespace nix;
 
 void printHelp()
 {
-    std::cout << "Syntax: eval-jobs <expr>\n";
+    std::cout << "Syntax: hydra-eval-jobs <expr>\n";
 }
 
 
@@ -110,6 +110,8 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
 {
     debug(format("at path `%1%'") % attrPath);
 
+    checkInterrupt();
+
     state.forceValue(v);
 
     if (v.type == tAttrs) {
@@ -165,9 +167,11 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
         }
 
         else {
-            foreach (Bindings::iterator, i, *v.attrs)
-                findJobs(state, doc, argsUsed, argsLeft, *i->value,
-                    (attrPath.empty() ? "" : attrPath + ".") + (string) i->name);
+            if (!state.isDerivation(v)) {
+                foreach (Bindings::iterator, i, *v.attrs)
+                    findJobs(state, doc, argsUsed, argsLeft, *i->value,
+                        (attrPath.empty() ? "" : attrPath + ".") + (string) i->name);
+            }
         }
     }
 
@@ -261,4 +265,4 @@ void run(Strings args)
 }
 
 
-string programId = "eval-jobs";
+string programId = "hydra-eval-jobs";
