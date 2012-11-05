@@ -49,6 +49,11 @@ __PACKAGE__->config(
         expires => 3600 * 24 * 2,
         storage => Hydra::Model::DB::getHydraPath . "/session_data"
     },
+    'Plugin::AccessLog' => {
+	formatter => {
+	    format => '%h %l %u %t "%r" %s %b "%{Referer}i" "%{User-Agent}i" %[handle_time]',
+        },
+    },
 );
 
 __PACKAGE__->setup();
