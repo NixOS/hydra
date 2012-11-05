@@ -16,6 +16,7 @@ use Catalyst qw/ConfigLoader
                 Session::Store::FastMmap
                 Session::State::Cookie
                 AccessLog
+                -Log=warn,fatal,error
                /;
 our $VERSION = '0.01';
 
