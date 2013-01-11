@@ -184,7 +184,7 @@ sub getLatestFinishedEval {
 Readonly our $pathCompRE    => "(?:[A-Za-z0-9-\+\._\$][A-Za-z0-9-\+\._\$]*)";
 Readonly our $relPathRE     => "(?:$pathCompRE(?:/$pathCompRE)*)";
 Readonly our $relNameRE     => "(?:[A-Za-z0-9-][A-Za-z0-9-\.]*)";
-Readonly our $attrNameRE    => "(?:[A-Za-z_][A-Za-z0-9_]*)";
+Readonly our $attrNameRE    => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 Readonly our $projectNameRE => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 Readonly our $jobsetNameRE  => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 Readonly our $jobNameRE     => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
