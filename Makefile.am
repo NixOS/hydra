@@ -1,4 +1,4 @@
-SUBDIRS = doc src tests
+SUBDIRS = src tests doc
 BOOTCLEAN_SUBDIRS = $(SUBDIRS)
 DIST_SUBDIRS      = $(SUBDIRS)
 
