@@ -9,7 +9,7 @@ sub process {
     my ($self, $c) = @_;
 
     my $storePath = $c->stash->{storePath};
-    
+
     $c->response->content_type('text/x-nix-narinfo'); # !!! check MIME type
 
     my ($deriver, $narHash, $time, $narSize, $refs) = queryPathInfo($storePath, 1);

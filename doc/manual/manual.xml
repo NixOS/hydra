@@ -58,12 +58,12 @@
     </copyright>
 
     <date>March 2010</date>
-    
+
   </info>
 
   <xi:include href="introduction.xml" />
   <xi:include href="installation.xml" />
   <xi:include href="projects.xml" />
-  
-    
+
+
 </book>

@@ -21,7 +21,7 @@ $ nix-env -i foo</pre>
 <p>You can update to the latest versions of the packages in this channel by executing</p>
 
 <pre>
-$ nix-channel --update 
+$ nix-channel --update
 $ nix-env -u '*'</pre>
 
 <p>Alternatively, if you have associated the
@@ -35,7 +35,7 @@ install the package simply by clicking on the packages below.</p>
 <p>This channel contains the following packages.</p>
 
 <table class="tablesorter table table-condensed table-striped">
-  
+
   <thead>
     <tr>
       <th>#</th>
@@ -44,7 +44,7 @@ install the package simply by clicking on the packages below.</p>
       <th>Description</th>
     </tr>
   </thead>
-  
+
   <tbody>
 
     [% odd = 0 %]
@@ -69,9 +69,9 @@ install the package simply by clicking on the packages below.</p>
 
     [% END %]
 
-      
+
   </tbody>
-  
+
 </table>
 
 

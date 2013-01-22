@@ -276,7 +276,7 @@ __PACKAGE__->has_many(
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:vHluB+s1FkpJBPWmpv+wUQ
 
 1;
-# End of lines loaded from '/home/rbvermaa/src/hydra/src/lib/Hydra/Schema/Users.pm' 
+# End of lines loaded from '/home/rbvermaa/src/hydra/src/lib/Hydra/Schema/Users.pm'
 # These lines were loaded from '/home/rbvermaa/src/hydra/src/lib/Hydra/Schema/Users.pm' found in @INC.
 # They are now part of the custom portion of this file
 # for you to hand-edit.  If you do not either delete

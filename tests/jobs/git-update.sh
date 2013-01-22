@@ -1,6 +1,6 @@
 #! /bin/sh
 # This script is used both by git & deepgit checks.
-set -e 
+set -e
 
 repo=git-repo
 export HOME=$(pwd)
@@ -12,9 +12,9 @@ else
     state=0;
 fi
 
-echo "STATE: $state" 
+echo "STATE: $state"
 case $state in
-    (0) echo "::Create repo. -- continue -- updated::" 
+    (0) echo "::Create repo. -- continue -- updated::"
     git init $repo
     cd $repo
     git config --global user.email "you@example.com"

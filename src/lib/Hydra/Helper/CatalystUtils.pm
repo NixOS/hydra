@@ -39,9 +39,9 @@ sub getPreviousBuild {
       , project => $build->project->name
       , jobset => $build->jobset->name
       , job => $build->job->name
-      , 'me.id' =>  { '<' => $build->id } 
+      , 'me.id' =>  { '<' => $build->id }
       }, {rows => 1, order_by => "me.id DESC"});
-    
+
     return $prevBuild;
 }
 
@@ -56,9 +56,9 @@ sub getNextBuild {
       , project => $build->project->name
       , jobset => $build->jobset->name
       , job => $build->job->name
-      , 'me.id' =>  { '>' => $build->id } 
+      , 'me.id' =>  { '>' => $build->id }
       }, {rows => 1, order_by => "me.id ASC"});
-    
+
     return $nextBuild;
 }
 
@@ -74,27 +74,27 @@ sub getPreviousSuccessfulBuild {
       , jobset => $build->jobset->name
       , job => $build->job->name
       , buildstatus => 0
-      , 'me.id' =>  { '<' => $build->id } 
+      , 'me.id' =>  { '<' => $build->id }
       }, {rows => 1, order_by => "me.id DESC"});
-    
+
     return $prevBuild;
 }
 
 
 sub getBuildStats {
     my ($c, $builds) = @_;
-    
+
     $c->stash->{finishedBuilds} = $builds->search({finished => 1}) || 0;
-    
+
     $c->stash->{succeededBuilds} = $builds->search({finished => 1, buildStatus => 0}) || 0;
-        
+
     $c->stash->{scheduledBuilds} = $builds->search({finished => 0}) || 0;
-        
+
     $c->stash->{busyBuilds} = $builds->search({finished => 0, busy => 1}) || 0;
 
     my $res;
     $res = $builds->search({}, {select => {sum => 'stoptime - starttime'}, as => ['sum']})->first;
-        
+
     $c->stash->{totalBuildTime} = defined ($res) ? $res->get_column('sum') : 0 ;
 
 }
@@ -131,7 +131,7 @@ sub isProjectOwner {
 
 sub requireProjectOwner {
     my ($c, $project) = @_;
-    
+
     requireLogin($c) if !$c->user_exists;
 
     error($c, "Only the project members or administrators can perform this operation.")
@@ -150,7 +150,7 @@ sub requireAdmin {
     my ($c) = @_;
 
     requireLogin($c) if !$c->user_exists;
-    
+
     error($c, "Only administrators can perform this operation.")
         unless isAdmin($c);
 }

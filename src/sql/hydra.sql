@@ -87,7 +87,7 @@ create table JobsetInputAlts (
     -- urgh
     value         text, -- for most types, a URI; for 'path', an absolute path; for 'string', an arbitrary value
     revision      text, -- for repositories
-    
+
     primary key   (project, jobset, input, altnr),
     foreign key   (project, jobset, input) references JobsetInputs(project, jobset, name) on delete cascade on update cascade
 );
@@ -121,7 +121,7 @@ create table Builds (
 #endif
 
     finished      integer not null, -- 0 = scheduled, 1 = finished
-    
+
     timestamp     integer not null, -- time this build was scheduled / finished building
 
     -- Info about the inputs.
@@ -160,7 +160,7 @@ create table Builds (
     logfile       text, -- if busy, the path of the logfile
 
     disabled      integer not null default 0, -- !!! boolean
-    
+
     startTime     integer, -- if busy, time we started
     stopTime      integer,
 
@@ -177,7 +177,7 @@ create table Builds (
     buildStatus   integer,
 
     errorMsg      text, -- error message in case of a Nix failure
-    
+
     logSize       bigint,
     size          bigint,
     closureSize   bigint,
@@ -230,7 +230,7 @@ create table BuildInputs (
 
     -- Which build this input belongs to.
     build         integer,
-    
+
     -- Copied from the jobsetinputs from which the build was created.
     name          text not null,
     type          text not null,
@@ -240,9 +240,9 @@ create table BuildInputs (
     dependency    integer, -- build ID of the input, for type == 'build'
 
     path          text,
-    
+
     sha256hash    text,
-    
+
     foreign key   (build) references Builds(id) on delete cascade,
     foreign key   (dependency) references Builds(id)
 );
@@ -339,11 +339,11 @@ create table SystemTypes (
 create table Views (
     project       text not null,
     name          text not null,
-    
+
     description   text,
 
     -- If true, don't garbage-collect builds included in this view.
-    keep          integer not null default 0, 
+    keep          integer not null default 0,
 
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade
@@ -364,9 +364,9 @@ create table ViewJobs (
     -- If set, this is the primary job for the view.  There can be
     -- only one such job per view.
     isPrimary     integer not null default 0,
-    
+
     description   text,
-    
+
     jobset        text not null,
 
     -- If set, once there is a successful build for every job
@@ -374,7 +374,7 @@ create table ViewJobs (
     -- builds is automatically added as a release to the Releases
     -- table.
     autoRelease   integer not null default 0,
-    
+
     primary key   (project, view_, job, attrs),
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     foreign key   (project, view_) references Views(project, name) on delete cascade on update cascade
@@ -419,7 +419,7 @@ create table JobsetEvals (
 
     project       text not null,
     jobset        text not null,
-    
+
     timestamp     integer not null, -- when this entry was added
     checkoutTime  integer not null, -- how long obtaining the inputs took (in seconds)
     evalTime      integer not null, -- how long evaluation took (in seconds)
@@ -451,7 +451,7 @@ create table JobsetEvalInputs (
     eval          integer not null references JobsetEvals(id) on delete cascade,
     name          text not null,
     altNr         integer not null,
-    
+
     -- Copied from the jobsetinputs from which the build was created.
     type          text not null,
     uri           text,
@@ -460,7 +460,7 @@ create table JobsetEvalInputs (
     dependency    integer, -- build ID of the input, for type == 'build'
 
     path          text,
-    
+
     sha256hash    text,
 
     primary key   (eval, name, altNr),

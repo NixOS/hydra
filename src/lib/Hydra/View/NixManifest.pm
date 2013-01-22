@@ -10,7 +10,7 @@ sub process {
     my ($self, $c) = @_;
 
     my @storePaths = @{$c->stash->{storePaths}};
-    
+
     $c->response->content_type('text/x-nix-manifest');
 
     my @paths = computeFSClosure(0, 1, @storePaths);
@@ -19,7 +19,7 @@ sub process {
         "version {\n" .
         "  ManifestVersion: 4\n" .
         "}\n";
-    
+
     foreach my $path (@paths) {
         my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($path, 0);
 
@@ -30,7 +30,7 @@ sub process {
         $escaped =~ s/\+/%2b/g;
         $escaped =~ s/\=/%3d/g;
         $escaped =~ s/\?/%3f/g;
-        
+
         my $url = $c->stash->{narBase} . "/" . $escaped;
 
         my $system = $c->stash->{systemForPath}->{$path};

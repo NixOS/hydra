@@ -80,7 +80,7 @@ sub checkBuilds {
         my @systemTypes = $db->resultset('Builds')->search(
             { finished => 0, busy => 0, enabled => 1, disabled => 0 },
             { join => ['project'], select => ['system'], as => ['system'], distinct => 1 });
-            
+
         # For each system type, select up to the maximum number of
         # concurrent build for that system type.  Choose the highest
         # priority builds first, then the oldest builds.
@@ -165,9 +165,9 @@ while (1) {
     eval {
         # Clean up zombies.
         while ((waitpid(-1, &WNOHANG)) > 0) { };
-        
+
         unlockDeadBuilds;
-        
+
         checkBuilds;
     };
     warn $@ if $@;

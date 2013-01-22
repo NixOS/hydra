@@ -9,7 +9,7 @@ use Hydra::Helper::CatalystUtils;
 
 sub getView {
     my ($c, $projectName, $viewName) = @_;
-    
+
     my $project = $c->model('DB::Projects')->find($projectName);
     notFound($c, "Project $projectName doesn't exist.") if !defined $project;
     $c->stash->{project} = $project;
@@ -32,11 +32,11 @@ sub getView {
 
 sub updateView {
     my ($c, $view) = @_;
-    
+
     my $viewName = trim $c->request->params->{name};
     error($c, "Invalid view name: $viewName")
         unless $viewName =~ /^[[:alpha:]][\w\-]*$/;
-    
+
     $view->update(
         { name => $viewName
         , description => trim $c->request->params->{description} });
@@ -61,7 +61,7 @@ sub updateView {
         # !!! We could check whether the job exists, but that would
         # require the evaluator to have seen the job, which may not be
         # the case.
-        
+
         $view->viewjobs->create(
             { jobset => $jobsetName
             , job => $jobName
@@ -112,7 +112,7 @@ sub edit : Chained('view') PathPart('edit') Args(0) {
     $c->stash->{template} = 'edit-view.tt';
 }
 
-    
+
 sub submit : Chained('view') PathPart('submit') Args(0) {
     my ($self, $c) = @_;
     requireProjectOwner($c, $c->stash->{project});
@@ -127,10 +127,10 @@ sub submit : Chained('view') PathPart('submit') Args(0) {
     $c->res->redirect($c->uri_for($self->action_for("view_view"), $c->req->captures));
 }
 
-    
+
 sub latest : Chained('view') PathPart('latest') {
     my ($self, $c, @args) = @_;
-    
+
     # Redirect to the latest result in the view in which every build
     # is successful.
     my $latest = getLatestSuccessfulViewResult(
@@ -142,7 +142,7 @@ sub latest : Chained('view') PathPart('latest') {
 
 sub latest_finished : Chained('view') PathPart('latest-finished') {
     my ($self, $c, @args) = @_;
-    
+
     # Redirect to the latest result in the view in which every build
     # is successful *and* where the jobset evaluation has finished
     # completely.
@@ -155,7 +155,7 @@ sub latest_finished : Chained('view') PathPart('latest-finished') {
 
 sub result : Chained('view') PathPart('') {
     my ($self, $c, $id, @args) = @_;
-    
+
     $c->stash->{template} = 'view-result.tt';
 
     # Note: we don't actually check whether $id is a primary build,
@@ -206,9 +206,9 @@ sub result : Chained('view') PathPart('') {
         $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for("view"),
             [$eval->id], @args[1..$#args], $c->req->params));
     }
-    
+
     # Provide a redirect to the specified job of this view result
-    # through `http://.../view/$project/$viewName/$viewResult/$jobName'. 
+    # through `http://.../view/$project/$viewName/$viewResult/$jobName'.
     # Optionally, you can append `-$system' to the $jobName to get a
     # build for a specific platform.
     elsif (scalar @args != 0) {

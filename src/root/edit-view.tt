@@ -24,21 +24,21 @@
 <form class="form-horizontal" action="[% IF create %][% c.uri_for('/project' project.name 'create-view/submit') %][% ELSE %][% c.uri_for('/view' project.name view.name 'submit') %][% END %]" method="post">
 
 <fieldset>
-  
+
   <div class="control-group">
     <label class="control-label">Identifier</label>
     <div class="controls">
       <input type="text" class="span3" name="name" [% HTML.attributes(value => view.name) %]></input>
     </div>
   </div>
-  
+
   <div class="control-group">
     <label class="control-label">Description</label>
     <div class="controls">
       <input type="text" class="span3" name="description" [% HTML.attributes(value => view.description) %]></input>
     </div>
   </div>
-  
+
   <table class="tablesorter table table-condensed table-striped">
     <thead>
       <tr>
@@ -77,8 +77,8 @@
         });
       </script>
     [% END %]
-  </div>      
-  
+  </div>
+
 </form>
 
 
@@ -90,7 +90,7 @@
 <script type="text/javascript">
   $(document).ready(function() {
     var id = [% n %];
-    
+
     $(".add-job").click(function() {
       var newnr = id++;
       var newid = "job-" + newnr;
@@ -104,5 +104,5 @@
   });
 </script>
 
-  
+
 [% END %]

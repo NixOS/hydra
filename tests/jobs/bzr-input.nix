@@ -1,7 +1,7 @@
 with import ./config.nix;
 { src }:
-{  
-  copy = 
+{
+  copy =
     mkDerivation {
       name = "bzr-input";
       builder = ./scm-builder.sh;

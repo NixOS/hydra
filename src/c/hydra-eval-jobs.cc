@@ -92,7 +92,7 @@ static string queryMetaFieldString(MetaInfo & meta, const string & name)
     return value.stringValue;
 }
 
-    
+
 static int queryMetaFieldInt(MetaInfo & meta, const string & name, int def)
 {
     MetaValue value = meta[name];
@@ -118,7 +118,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
     if (v.type == tAttrs) {
 
         DrvInfo drv;
-        
+
         if (getDerivation(state, v, drv, false)) {
             XMLAttrs xmlAttrs;
             Path drvPath;
@@ -162,7 +162,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
                 Path root = gcRootsDir + "/" + baseNameOf(drvPath);
                 if (!pathExists(root)) addPermRoot(*store, drvPath, root, false);
             }
-            
+
             XMLOpenElement _(doc, "job", xmlAttrs);
             showArgsUsed(doc, argsUsed);
         }
@@ -213,7 +213,7 @@ void run(Strings args)
     /* Prevent undeclared dependencies in the evaluation via
        $NIX_PATH. */
     unsetenv("NIX_PATH");
-    
+
     EvalState state;
     Path releaseExpr;
     AutoArgs autoArgs;
@@ -249,9 +249,9 @@ void run(Strings args)
     }
 
     if (releaseExpr == "") throw UsageError("no expression specified");
-    
+
     if (gcRootsDir == "") printMsg(lvlError, "warning: `--gc-roots-dir' not specified");
-    
+
     store = openStore();
 
     Expr * e = state.parseExprFromFile(releaseExpr);

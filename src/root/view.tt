@@ -23,7 +23,7 @@
       [% END %]
     </tr>
   </thead>
-  
+
   <tbody>
     [% FOREACH result IN results %]
       [% link = c.uri_for('/view' project.name view.name result.id) %]

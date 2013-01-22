@@ -2,51 +2,51 @@
 [% PROCESS common.tt %]
 [% hideProjectName=1 hideJobsetName=1 hideJobName=1 %]
 
-	<ul id="tab" class="nav nav-tabs">
-		<li><a href="#tabs-status" data-toggle="tab">Status</a></li>
-		<li><a href="#tabs-channels" data-toggle="tab">Channels</a></li>
-		<li><a href="#tabs-latestbuilds" data-toggle="tab">Latest builds</a></li>
-	</ul>
+        <ul id="tab" class="nav nav-tabs">
+                <li><a href="#tabs-status" data-toggle="tab">Status</a></li>
+                <li><a href="#tabs-channels" data-toggle="tab">Channels</a></li>
+                <li><a href="#tabs-latestbuilds" data-toggle="tab">Latest builds</a></li>
+        </ul>
 <div id="generic-tabs" class="tab-content">
-	<div id="tabs-status" class="tab-pane active">
+        <div id="tabs-status" class="tab-pane active">
             [% IF currentBuilds.size != 0 %]
-	        <h2>Latest builds (latest evaluation)</h2>
-  	        [% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
+                <h2>Latest builds (latest evaluation)</h2>
+                [% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
             [% END %]
             [% IF runningBuilds.size != 0 %]
-	        <h2>Running builds</h2>
-	        [% INCLUDE renderBuildList builds=runningBuilds showSchedulingInfo=1 hideResultInfo=1 %]
-	    [% END %]
+                <h2>Running builds</h2>
+                [% INCLUDE renderBuildList builds=runningBuilds showSchedulingInfo=1 hideResultInfo=1 %]
+            [% END %]
             [% IF lastBuilds.size != 0 %]
-	        <h2>Last 10 builds</h2>
-	        [% INCLUDE renderBuildList builds=lastBuilds showStatusChange=0 %]
-	    [% END %]
-	</div>
-	<div id="tabs-channels" class="tab-pane">
-		<p>This job provides the following Nix channel:</p>
-		
-		<ul>
-		  <li>
-		    <a href="[% c.uri_for('/job' project.name jobset.name job.name
-		    'channel' 'latest') %]"><tt>latest</tt></a> — contains the latest
-		    successful build for each platform.
-		  </li>
-		</ul>
-	</div>
-	<div id="tabs-latestbuilds" class="tab-pane">
-		<ul>
-		  <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
-		  'latest') %]">Latest successful build.</a></li>
-		  [% FOREACH system IN systems %]
-		    <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
-		    'latest-for' system.system) %]">Latest successful build for <tt>[%
-		    system.system %]</tt>.</a></li>
-		  [% END %]
-		</ul>
-	</div>
+                <h2>Last 10 builds</h2>
+                [% INCLUDE renderBuildList builds=lastBuilds showStatusChange=0 %]
+            [% END %]
+        </div>
+        <div id="tabs-channels" class="tab-pane">
+                <p>This job provides the following Nix channel:</p>
+
+                <ul>
+                  <li>
+                    <a href="[% c.uri_for('/job' project.name jobset.name job.name
+                    'channel' 'latest') %]"><tt>latest</tt></a> — contains the latest
+                    successful build for each platform.
+                  </li>
+                </ul>
+        </div>
+        <div id="tabs-latestbuilds" class="tab-pane">
+                <ul>
+                  <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
+                  'latest') %]">Latest successful build.</a></li>
+                  [% FOREACH system IN systems %]
+                    <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
+                    'latest-for' system.system) %]">Latest successful build for <tt>[%
+                    system.system %]</tt>.</a></li>
+                  [% END %]
+                </ul>
+        </div>
 </div>
 <script type="text/javascript">
-	jQuery(document).ready(function ($) {
+        jQuery(document).ready(function ($) {
             $('#tab').tab('show');
         });
 </script>

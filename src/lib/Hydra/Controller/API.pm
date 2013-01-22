@@ -27,22 +27,22 @@ sub projectToHash {
     return {
         name => $project->name,
         description => $project->description
-    }; 
+    };
 }
 
 
 sub projects : Chained('api') PathPart('projects') Args(0) {
     my ($self, $c) = @_;
-    
+
     my @projects = $c->model('DB::Projects')->search({hidden => 0}, {order_by => 'name'});
 
     my @list;
     foreach my $p (@projects) {
       push @list, projectToHash($p);
     }
-    
-    $c->stash->{'plain'} = { 
-        data => scalar (JSON::Any->objToJson(\@list)) 
+
+    $c->stash->{'plain'} = {
+        data => scalar (JSON::Any->objToJson(\@list))
     };
     $c->forward('Hydra::View::Plain');
 }
@@ -61,13 +61,13 @@ sub buildToHash {
         timestamp => $build->timestamp
     };
 
-    if($build->finished) {    
+    if($build->finished) {
         $result->{'buildstatus'} = $build->get_column("buildstatus");
     } else {
         $result->{'busy'} = $build->get_column("busy");
         $result->{'priority'} = $build->get_column("priority");
     }
-    
+
     return $result;
 };
 
@@ -81,20 +81,20 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     my $jobset = $c->request->params->{jobset};
     my $job = $c->request->params->{job};
     my $system = $c->request->params->{system};
-    
+
     my $filter = {finished => 1};
-    $filter->{project} = $project if ! $project eq ""; 
-    $filter->{jobset} = $jobset if ! $jobset eq ""; 
-    $filter->{job} = $job if !$job eq ""; 
-    $filter->{system} = $system if !$system eq ""; 
-    
+    $filter->{project} = $project if ! $project eq "";
+    $filter->{jobset} = $jobset if ! $jobset eq "";
+    $filter->{job} = $job if !$job eq "";
+    $filter->{system} = $system if !$system eq "";
+
     my @latest = $c->model('DB::Builds')->search($filter, {rows => $nr, order_by => ["timestamp DESC"] });
-    
+
     my @list;
     push @list, buildToHash($_) foreach @latest;
-    
-    $c->stash->{'plain'} = { 
-        data => scalar (JSON::Any->objToJson(\@list)) 
+
+    $c->stash->{'plain'} = {
+        data => scalar (JSON::Any->objToJson(\@list))
     };
     $c->forward('Hydra::View::Plain');
 }
@@ -110,7 +110,7 @@ sub jobsetToHash {
         nrfailed => $jobset->get_column("nrfailed"),
         nrtotal => $jobset->get_column("nrtotal")
     };
-} 
+}
 
 
 sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
@@ -123,12 +123,12 @@ sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
         or notFound($c, "Project $projectName doesn't exist.");
 
     my @jobsets = jobsetOverview($c, $project);
-    
+
     my @list;
     push @list, jobsetToHash($_) foreach @jobsets;
-    
-    $c->stash->{'plain'} = { 
-        data => scalar (JSON::Any->objToJson(\@list)) 
+
+    $c->stash->{'plain'} = {
+        data => scalar (JSON::Any->objToJson(\@list))
     };
     $c->forward('Hydra::View::Plain');
 }
@@ -141,12 +141,12 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
     error($c, "Parameter not defined!") if !defined $nr;
 
     my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["busy DESC", "priority DESC", "timestamp"]});
-    
+
     my @list;
     push @list, buildToHash($_) foreach @builds;
 
-    $c->stash->{'plain'} = { 
-        data => scalar (JSON::Any->objToJson(\@list)) 
+    $c->stash->{'plain'} = {
+        data => scalar (JSON::Any->objToJson(\@list))
     };
     $c->forward('Hydra::View::Plain');
 }
@@ -155,7 +155,7 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
 sub nrqueue : Chained('api') PathPart('nrqueue') Args(0) {
     my ($self, $c) = @_;
     my $nrQueuedBuilds = $c->model('DB::Builds')->search({finished => 0})->count();
-    $c->stash->{'plain'} = { 
+    $c->stash->{'plain'} = {
         data => "$nrQueuedBuilds"
     };
     $c->forward('Hydra::View::Plain');
@@ -176,7 +176,7 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     my ($self, $c) = @_;
     my $nr = $c->request->params->{nr};
     my $period = $c->request->params->{period};
-    
+
     error($c, "Parameter not defined!") if !defined $nr || !defined $period;
     my $base;
 
@@ -186,21 +186,21 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     my $system = $c->request->params->{system};
 
     my $filter = {finished => 1};
-    $filter->{project} = $project if ! $project eq ""; 
-    $filter->{jobset} = $jobset if ! $jobset eq ""; 
-    $filter->{job} = $job if !$job eq ""; 
-    $filter->{system} = $system if !$system eq ""; 
+    $filter->{project} = $project if ! $project eq "";
+    $filter->{jobset} = $jobset if ! $jobset eq "";
+    $filter->{job} = $job if !$job eq "";
+    $filter->{system} = $system if !$system eq "";
 
     $base = 60*60 if($period eq "hour");
     $base = 24*60*60 if($period eq "day");
-    
+
     my @stats = $c->model('DB::Builds')->search($filter, {select => [{ count => "*" }], as => ["nr"], group_by => ["timestamp - timestamp % $base"], order_by => "timestamp - timestamp % $base DESC", rows => $nr});
     my @arr;
     push @arr, int($_->get_column("nr")) foreach @stats;
     @arr = reverse(@arr);
-    
-    $c->stash->{'plain'} = { 
-        data => scalar (JSON::Any->objToJson(\@arr)) 
+
+    $c->stash->{'plain'} = {
+        data => scalar (JSON::Any->objToJson(\@arr))
     };
     $c->forward('Hydra::View::Plain');
 }

@@ -54,7 +54,7 @@
       regular package management system. Thus, you can use Hydra on a
       Debian, Fedora, SuSE, or Ubuntu system.
     </para>
-        
+
   </section>
 
   <section>
@@ -104,7 +104,7 @@ nix-env -i hydra</screen>
 
           <screen>
 hydra-build      hydra-init          hydra-update-gc-roots
-hydra-eval-jobs  hydra-queue-runner  
+hydra-eval-jobs  hydra-queue-runner
 hydra-evaluator  hydra-server
 </screen>
     </para>
@@ -191,7 +191,7 @@ hydra-init</screen>
     <title>Getting Started</title>
 
     <para>
-      To start the Hydra web server, execute:            
+      To start the Hydra web server, execute:
       <screen>
 hydra-server</screen>
 
@@ -225,7 +225,7 @@ hydra-server</screen>
       functional, though it's possible to temporarily stop any one of
       them for maintenance purposes, for instance.
     </para>
-          
+
   </section>
 
 </chapter>

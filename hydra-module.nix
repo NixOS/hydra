@@ -5,14 +5,14 @@ with pkgs.lib;
 let
   cfg = config.services.hydra;
 
-  hydraConf = pkgs.writeScript "hydra.conf" 
+  hydraConf = pkgs.writeScript "hydra.conf"
     ''
       using_frontend_proxy 1
       base_uri ${cfg.hydraURL}
       notification_sender ${cfg.notificationSender}
       max_servers 25
     '';
-    
+
   env = ''export NIX_REMOTE=daemon ''
       + ''HYDRA_DBI="${cfg.dbi}" ''
       + ''HYDRA_CONFIG=${cfg.baseDir}/data/hydra.conf ''
@@ -29,7 +29,7 @@ in
   ###### interface
   options = {
     services.hydra = rec {
-        
+
       enable = mkOption {
         default = false;
         description = ''
@@ -50,7 +50,7 @@ in
           The user the Hydra services should run as.
         '';
       };
-      
+
       dbi = mkOption {
         default = "dbi:Pg:dbname=hydra;host=localhost;user=root;";
         example = "dbi:SQLite:/home/hydra/db/hydra.sqlite";
@@ -58,18 +58,18 @@ in
           The DBI string for Hydra database connection.
         '';
       };
-      
+
       hydra = mkOption {
         default = pkgs.hydra;
         description = ''
           Location of hydra
         '';
       };
-      
+
       hydraURL = mkOption {
         default = "http://hydra.nixos.org";
         description = ''
-          The base URL for the Hydra webserver instance. Used for links in emails. 
+          The base URL for the Hydra webserver instance. Used for links in emails.
         '';
       };
 
@@ -83,23 +83,23 @@ in
       minimumDiskFree = mkOption {
         default = 5;
         description = ''
-          Threshold of minimum disk space (G) to determine if queue runner should run or not.  
+          Threshold of minimum disk space (G) to determine if queue runner should run or not.
         '';
       };
 
       minimumDiskFreeEvaluator = mkOption {
         default = 2;
         description = ''
-          Threshold of minimum disk space (G) to determine if evaluator should run or not.  
+          Threshold of minimum disk space (G) to determine if evaluator should run or not.
         '';
       };
 
       notificationSender = mkOption {
         default = "e.dolstra@tudelft.nl";
         description = ''
-          Sender email address used for email notifications. 
+          Sender email address used for email notifications.
         '';
-      }; 
+      };
 
       tracker = mkOption {
         default = "";
@@ -120,12 +120,12 @@ in
         description = ''
           If hydra upstart jobs should start automatically.
         '';
-      }; 
-      
+      };
+
     };
 
   };
-  
+
 
   ###### implementation
 
@@ -138,7 +138,7 @@ in
         home = cfg.baseDir;
         createHome = true;
         useDefaultShell = true;
-      } 
+      }
     ];
 
     # We have our own crontab entries for GC, see below.

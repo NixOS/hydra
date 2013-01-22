@@ -12,7 +12,7 @@
 <ul>
 [% FOREACH dep IN runtimedeps -%]
   <li>
-    [% IF dep.buildstep %] 
+    [% IF dep.buildstep %]
       <a href="[% c.uri_for('/build' dep.buildstep.get_column('build') 'nixlog' dep.buildstep.stepnr) %]">[% dep.path %]</a>
     [% ELSE %]
       [% dep.path %]
@@ -30,7 +30,7 @@ Path not available anymore!<br />
 <ul>
 [% FOREACH dep IN buildtimedeps -%]
   <li>
-    [% IF dep.buildstep %] 
+    [% IF dep.buildstep %]
       <a href="[% c.uri_for('/build' dep.buildstep.get_column('build') 'nixlog' dep.buildstep.stepnr) %]">[% dep.path %]</a>
     [% ELSE %]
       [% dep.path %]

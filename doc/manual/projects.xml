@@ -45,7 +45,7 @@ Identifier: patchelf
       get an error message such as:
 
 <screen>
-I'm very sorry, but an error occurred: 
+I'm very sorry, but an error occurred:
 DBIx::Class::ResultSet::create(): DBI Exception: DBD::SQLite::st execute failed: column name is not unique(19) at dbdimp.c line 402
 </screen>
 
@@ -122,14 +122,14 @@ Nix expression: release.nix in input patchelfSrc
       be added.  For patchelf we declare the following inputs.
 
 <screen>
-patchelfSrc 
+patchelfSrc
   'Subversion checkout' https://svn.nixos.org/repos/nix/patchelf/trunk
 
 nixpkgs 'Subversion checkout' https://svn.nixos.org/repos/nix/nixpkgs/trunk
 
 officialRelease   Boolean false
 
-system   String value "i686-linux" 
+system   String value "i686-linux"
 </screen>
     </para>
   </section>
@@ -389,7 +389,7 @@ $ nix-build -I ~/src release.nix -A build
       The <varname>build</varname> job reuses the result of the
       <varname>tarball</varname> job, rebuilding it only if it needs to.
     </para>
-      
+
   </section>
 
   <section>

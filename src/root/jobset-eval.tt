@@ -56,7 +56,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   <tr><th class="subheader" colspan="6">Jobs that now <strong>succeed</strong></th></tr>
   [% INCLUDE renderSome builds=nowSucceed %]
 [% END %]
-  
+
 [% IF stillFail.size > 0 %]
   <tr><th class="subheader" colspan="6">Jobs that still <strong>fail</strong></th></tr>
   [% INCLUDE renderSome builds=stillFail %]

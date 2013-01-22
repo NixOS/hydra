@@ -9,7 +9,7 @@ use Hydra::Helper::CatalystUtils;
 
 sub getJobStatus {
     my ($self, $c) = @_;
-    
+
     my $maintainer = $c->request->params->{"maintainer"};
 
     my $latest = $c->stash->{jobStatus}->search(
@@ -30,7 +30,7 @@ sub jobstatus : Chained('get_builds') PathPart Args(0) {
 
 
 # A convenient way to see all the errors - i.e. things demanding
-# attention - at a glance. 
+# attention - at a glance.
 sub errors : Chained('get_builds') PathPart Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'errors.tt';
@@ -44,7 +44,7 @@ sub errors : Chained('get_builds') PathPart Args(0) {
         [getJobStatus($self, $c)->search({buildStatus => {'!=' => 0}})];
 }
 
-    
+
 sub all : Chained('get_builds') PathPart {
     my ($self, $c) = @_;
 
@@ -96,7 +96,7 @@ sub latest : Chained('get_builds') PathPart('latest') {
         {finished => 1, buildstatus => 0}, {order_by => ["isCurrent DESC", "timestamp DESC"]});
 
     notFound($c, "There is no successful build to redirect to.") unless defined $latest;
-    
+
     $c->res->redirect($c->uri_for($c->controller('Build')->action_for("view_build"), [$latest->id], @rest));
 }
 
@@ -106,12 +106,12 @@ sub latest_for : Chained('get_builds') PathPart('latest-for') {
     my ($self, $c, $system, @rest) = @_;
 
     notFound($c, "You need to specify a platform type in the URL.") unless defined $system;
-    
+
     my ($latest) = $c->stash->{allBuilds}->search(
         {finished => 1, buildstatus => 0, system => $system}, {order_by => ["isCurrent DESC", "timestamp DESC"]});
 
     notFound($c, "There is no successful build for platform `$system' to redirect to.") unless defined $latest;
-    
+
     $c->res->redirect($c->uri_for($c->controller('Build')->action_for("view_build"), [$latest->id], @rest));
 }
 

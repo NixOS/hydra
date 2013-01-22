@@ -7,21 +7,21 @@
 <form class="form-horizontal" action="[% IF create %][% c.uri_for('/project' project.name 'create-release/submit') %][% ELSE %][% c.uri_for('/release' project.name release.name 'submit') %][% END %]" method="post">
 
 <fieldset>
-    
+
   <div class="control-group">
     <label class="control-label">Identifier</label>
     <div class="controls">
       <input type="text" class="span3" name="name" [% HTML.attributes(value => release.name) %]></input>
     </div>
   </div>
-    
+
   <div class="control-group">
     <label class="control-label">Description</label>
     <div class="controls">
       <input type="text" class="span3" name="description" [% HTML.attributes(value => release.description) %]></input>
     </div>
   </div>
-    
+
   <h3>Release members</h3>
 
   <p><em>Note:</em> to add a build to this release, go to the build’s
@@ -36,7 +36,7 @@
         <button class="btn btn-warning" type="button" onclick='$(this).parents(".releaseMember").remove()'><i class="icon-trash icon-white"></i></button>
       </div>
     </div>
-    
+
   [% END %]
 
   <div class="form-actions">
@@ -55,10 +55,10 @@
         });
       </script>
     [% END %]
-  </div>      
-  
+  </div>
+
 </fieldset>
-  
+
 </form>
 
 [% END %]

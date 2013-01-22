@@ -464,7 +464,7 @@ __PACKAGE__->has_many(
 __PACKAGE__->has_one(
   "actualBuildStep",
   "Hydra::Schema::BuildSteps",
-  { 'foreign.outpath' => 'self.outpath' 
+  { 'foreign.outpath' => 'self.outpath'
   , 'foreign.build' => 'self.id'
   },
 );
@@ -480,7 +480,7 @@ sub makeSource {
 
 sub makeQueries {
     my ($name, $constraint) = @_;
-    
+
     my $activeJobs = "(select distinct project, jobset, job, system from Builds where isCurrent = 1 $constraint)";
 
     makeSource(
@@ -489,11 +489,11 @@ sub makeQueries {
         <<QUERY
           select x.*, b.id as statusChangeId, b.timestamp as statusChangeTime
           from
-            (select  
+            (select
                (select max(b.id) from Builds b
-                where 
-                  project = activeJobs.project and jobset = activeJobs.jobset 
-                  and job = activeJobs.job and system = activeJobs.system 
+                where
+                  project = activeJobs.project and jobset = activeJobs.jobset
+                  and job = activeJobs.job and system = activeJobs.system
                   and finished = 1
                ) as id
              from $activeJobs as activeJobs
@@ -512,17 +512,17 @@ QUERY
     );
 
     makeSource("ActiveJobs$name", "(select distinct project, jobset, job from Builds where isCurrent = 1 $constraint)");
-    
+
     makeSource(
         "LatestSucceeded$name",
         <<QUERY
           select *
           from
-            (select  
+            (select
                (select max(b.id) from builds b
-                where 
-                  project = activeJobs.project and jobset = activeJobs.jobset 
-                  and job = activeJobs.job and system = activeJobs.system 
+                where
+                  project = activeJobs.project and jobset = activeJobs.jobset
+                  and job = activeJobs.job and system = activeJobs.system
                   and finished = 1 and buildstatus = 0
                ) as id
              from $activeJobs as activeJobs

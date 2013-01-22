@@ -26,7 +26,7 @@
         </tr>
         [% END %]
     </tbody>
-    
+
 </table>
 
 <p><a class="btn" href="[% c.uri_for(c.controller('Admin').action_for('create_user')) %]">

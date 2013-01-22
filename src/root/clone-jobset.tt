@@ -8,7 +8,7 @@
   <h2>Cloning jobset [% jobset.project.name %]:[% jobset.name %]</h2>
   <p>
      Name <tt><input type="text" class="string" name="newjobset" [% HTML.attributes(value => "") %] /></tt>
-  </p>  
+  </p>
   <p>
      <button type="submit">Next</button>
   </p>

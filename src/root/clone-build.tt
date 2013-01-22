@@ -45,7 +45,7 @@
       [% END -%]
     </tbody>
   </table>
-  
+
   <p><button type="submit"><img alt="Add" src="/static/images/success.gif" />Add to queue</button></p>
 
 </form>

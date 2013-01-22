@@ -14,7 +14,7 @@ sub process {
         . " " . $build->nixname . " " . $build->system
         . " " . $build->drvpath . " " . $build->outpath
         . " " . $c->uri_for('/');
-    
+
     $c->response->body($s);
 
     return 1;

@@ -51,7 +51,7 @@ sub jobsetIndex {
 
     $c->stash->{evals} = getEvals($self, $c, 0, 5);
 
-    $c->stash->{systems} = 
+    $c->stash->{systems} =
         [ $c->stash->{jobset}->builds->search({ iscurrent => 1 }, { select => ["system"], distinct => 1, order_by => "system" }) ];
 
     # status per system
@@ -332,9 +332,9 @@ sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
 
 sub getEvals {
     my ($self, $c, $offset, $rows) = @_;
-    
+
     my @evals = $c->stash->{jobset}->jobsetevals->search(
-        { hasnewbuilds => 1 }, 
+        { hasnewbuilds => 1 },
         { order_by => "id DESC", rows => $rows + 1, offset => $offset });
 
     my @res = ();
@@ -366,12 +366,12 @@ sub getEvals {
         foreach my $input (@{$curInputs}) {
             my $p = $prevInputsHash{$input->name};
             push @changedInputs, $input
-                if !defined $p || ($input->revision || "") ne ($p->revision || "") || $input->type ne $p->type || ($input->uri || "") ne ($p->uri || "") || 
+                if !defined $p || ($input->revision || "") ne ($p->revision || "") || $input->type ne $p->type || ($input->uri || "") ne ($p->uri || "") ||
                    ( defined $input->dependency && defined $p->dependency && $input->dependency->id ne $p->dependency->id);
         }
         $prevInputs = $curInputs;
 
-        my $e = 
+        my $e =
             { eval => $cur
             , nrScheduled => $nrScheduled
             , nrSucceeded => $nrSucceeded
@@ -382,7 +382,7 @@ sub getEvals {
         push @res, $e if $n < $rows;
         $prev = $e;
     }
-    
+
     return [reverse @res];
 }
 

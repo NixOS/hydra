@@ -15,7 +15,7 @@ alter table Builds
     add column releaseName text,
     add column keep integer not null default 0;
 
-update Builds b set 
+update Builds b set
     priority = (select priority from BuildSchedulingInfo s where s.id = b.id),
     busy = (select busy from BuildSchedulingInfo s where s.id = b.id),
     disabled = (select disabled from BuildSchedulingInfo s where s.id = b.id),
@@ -23,10 +23,10 @@ update Builds b set
     logfile = (select logfile from BuildSchedulingInfo s where s.id = b.id)
     where exists (select 1 from BuildSchedulingInfo s where s.id = b.id);
 
-update Builds b set 
+update Builds b set
     startTime = ((select startTime from BuildSchedulingInfo s where s.id = b.id) union (select startTime from BuildResultInfo r where r.id = b.id));
 
-update Builds b set 
+update Builds b set
     isCachedBuild = (select isCachedBuild from BuildResultInfo r where r.id = b.id),
     buildStatus = (select buildStatus from BuildResultInfo r where r.id = b.id),
     errorMsg = (select errorMsg from BuildResultInfo r where r.id = b.id),

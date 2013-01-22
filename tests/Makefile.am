@@ -12,7 +12,7 @@ TESTS_ENVIRONMENT = \
   NIX_BUILD_HOOK=					\
   PERL5LIB="$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB"	\
   PATH=$(abs_top_srcdir)/src/script:$(abs_top_srcdir)/src/c:$$PATH \
-  perl -w 
+  perl -w
 
 EXTRA_DIST = \
   $(wildcard *.pm) \
@@ -35,7 +35,7 @@ db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
 
 repos : dirs
 
-dirs : 
+dirs :
 	mkdir -p data
 	touch data/hydra.conf
 	mkdir -p nix

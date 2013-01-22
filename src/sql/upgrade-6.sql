@@ -5,7 +5,7 @@ create table JobsetEvalInputs (
     eval          integer not null references JobsetEvals(id) on delete cascade,
     name          text not null,
     altNr         integer not null,
-    
+
     -- Copied from the jobsetinputs from which the build was created.
     type          text not null,
     uri           text,
@@ -14,7 +14,7 @@ create table JobsetEvalInputs (
     dependency    integer, -- build ID of the input, for type == 'build'
 
     path          text,
-    
+
     sha256hash    text,
 
     primary key   (eval, name, altNr),

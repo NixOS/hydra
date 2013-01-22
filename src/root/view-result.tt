@@ -37,7 +37,7 @@
     [% ELSE %]
 
       <p class="error">Build failed</p>
-      
+
     [% END %]
 
   [% ELSE %]

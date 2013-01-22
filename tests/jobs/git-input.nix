@@ -1,7 +1,7 @@
 with import ./config.nix;
 { src }:
-{  
-  copy = 
+{
+  copy =
     mkDerivation {
       name = "git-input";
       builder = ./scm-builder.sh;

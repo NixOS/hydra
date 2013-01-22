@@ -9,7 +9,7 @@ use Hydra::Helper::CatalystUtils;
 
 sub eval : Chained('/') PathPart('eval') CaptureArgs(1) {
     my ($self, $c, $evalId) = @_;
-    
+
     my $eval = $c->model('DB::JobsetEvals')->find($evalId)
         or notFound($c, "Evaluation $evalId doesn't exist.");
 
@@ -50,7 +50,7 @@ sub view : Chained('eval') PathPart('') Args(0) {
     }
 
     $c->stash->{otherEval} = $eval2 if defined $eval2;
-    
+
     my @builds = $eval->builds->search({}, { order_by => ["job", "system", "id"], columns => [@buildListColumns] });
     my @builds2 = defined $eval2
         ? $eval2->builds->search({}, { order_by => ["job", "system", "id"], columns => [@buildListColumns] })
@@ -94,7 +94,7 @@ sub view : Chained('eval') PathPart('') Args(0) {
         }
         push @{$c->stash->{new}}, $build if !$found;
     }
-    
+
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
 }
 
@@ -104,7 +104,7 @@ sub release : Chained('eval') PathPart('release') Args(0) {
     my $eval = $c->stash->{eval};
 
     requireProjectOwner($c, $c->stash->{project});
-    
+
     my @builds = $eval->builds;
 
     my $releaseName;

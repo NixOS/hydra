@@ -32,7 +32,7 @@ sub nrQueuedBuildsForJobset {
 
 sub createBaseJobset {
   my ($jobsetName, $nixexprpath) = @_;
-  
+
   my $db = Hydra::Model::DB->new;
   my $project = $db->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
   my $jobset = $project->jobsets->create({name => $jobsetName, nixexprinput => "jobs", nixexprpath => $nixexprpath, emailoverride => ""});

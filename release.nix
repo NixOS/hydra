@@ -4,7 +4,7 @@
 
 
 rec {
-  tarball = 
+  tarball =
     with import <nixpkgs> { };
 
     let nix = nixUnstable; in
@@ -41,7 +41,7 @@ rec {
       '';
     };
 
-  build = 
+  build =
     { system ? "x86_64-linux" }:
 
     let pkgs = import <nixpkgs> {inherit system;}; in
@@ -52,7 +52,7 @@ rec {
 
     releaseTools.nixBuild {
       name = "hydra";
-      src = tarball; 
+      src = tarball;
       configureFlags = "--with-nix=${nix}";
 
       buildInputs =
@@ -99,10 +99,10 @@ rec {
     with import <nixos/lib/testing.nix> { inherit system; };
 
     {
-    
+
       install = simpleTest {
 
-        machine = 
+        machine =
           { config, pkgs, ... }:
           { services.postgresql.enable = true;
             environment.systemPackages = [ hydra ];
@@ -123,9 +123,9 @@ rec {
             #$machine->mustSucceed("HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=hydra;' hydra-server >&2 &");
             #$machine->waitForOpenPort("3000");
           '';
-          
+
       };
-      
+
     };
 
 

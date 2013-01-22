@@ -7,7 +7,7 @@
             [% FOREACH r IN user.userroles %]
                 [% checked = r.role == role %]
                 [% BREAK IF checked %]
-            [% END %] 
+            [% END %]
             [% IF checked %]
                 SELECTED
             [% END %]
@@ -17,7 +17,7 @@
 <div class="page-header"><h1>[% IF create %]New user[% ELSE %]User <tt>[% user.username %]</tt>[% END %]</h1></div>
 
 <form class="form-horizontal" action="[% IF create %][% c.uri_for('/admin/create-user/submit') %][% ELSE %][% c.uri_for('/admin/user' user.username 'submit') %][% END %]" method="post">
-  
+
 <fieldset>
   [% IF create %]
   <div class="control-group">
@@ -70,7 +70,7 @@
       </script>
     [% END %]
   </div>
-</p>  
+</p>
 
 </form>
 

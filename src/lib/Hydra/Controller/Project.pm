@@ -9,7 +9,7 @@ use Hydra::Helper::CatalystUtils;
 
 sub project : Chained('/') PathPart('project') CaptureArgs(1) {
     my ($self, $c, $projectName) = @_;
-    
+
     my $project = $c->model('DB::Projects')->find($projectName)
         or notFound($c, "Project $projectName doesn't exist.");
 
@@ -44,7 +44,7 @@ sub submit : Chained('project') PathPart Args(0) {
 
     requireProjectOwner($c, $c->stash->{project});
     requirePost($c);
-    
+
     if (($c->request->params->{submit} || "") eq "delete") {
         $c->stash->{project}->delete;
         $c->res->redirect($c->uri_for("/"));
@@ -53,7 +53,7 @@ sub submit : Chained('project') PathPart Args(0) {
     txn_do($c->model('DB')->schema, sub {
         updateProject($c, $c->stash->{project});
     });
-    
+
     $c->res->redirect($c->uri_for($self->action_for("view"), [$c->stash->{project}->name]));
 }
 
@@ -62,11 +62,11 @@ sub hide : Chained('project') PathPart Args(0) {
     my ($self, $c) = @_;
 
     requireProjectOwner($c, $c->stash->{project});
-    
+
     txn_do($c->model('DB')->schema, sub {
         $c->stash->{project}->update({ hidden => 1, enabled => 0 });
     });
-    
+
     $c->res->redirect($c->uri_for("/"));
 }
 
@@ -75,18 +75,18 @@ sub unhide : Chained('project') PathPart Args(0) {
     my ($self, $c) = @_;
 
     requireProjectOwner($c, $c->stash->{project});
-    
+
     txn_do($c->model('DB')->schema, sub {
         $c->stash->{project}->update({ hidden => 0 });
     });
-    
+
     $c->res->redirect($c->uri_for("/"));
 }
 
 
 sub requireMayCreateProjects {
     my ($c) = @_;
- 
+
     requireLogin($c) if !$c->user_exists;
 
     error($c, "Only administrators or authorised users can perform this operation.")
@@ -111,7 +111,7 @@ sub create_submit : Path('/create-project/submit') {
     requireMayCreateProjects($c);
 
     my $projectName = trim $c->request->params->{name};
-    
+
     error($c, "Invalid project name: ‘$projectName’") if $projectName !~ /^$projectNameRE$/;
 
     txn_do($c->model('DB')->schema, sub {
@@ -124,7 +124,7 @@ sub create_submit : Path('/create-project/submit') {
             {name => $projectName, displayname => "", owner => $owner});
         updateProject($c, $project);
     });
-    
+
     $c->res->redirect($c->uri_for($self->action_for("view"), [$projectName]));
 }
 
@@ -133,7 +133,7 @@ sub create_jobset : Chained('project') PathPart('create-jobset') Args(0) {
     my ($self, $c) = @_;
 
     requireProjectOwner($c, $c->stash->{project});
-    
+
     $c->stash->{template} = 'jobset.tt';
     $c->stash->{create} = 1;
     $c->stash->{edit} = 1;
@@ -144,7 +144,7 @@ sub create_jobset_submit : Chained('project') PathPart('create-jobset/submit') A
     my ($self, $c) = @_;
 
     requireProjectOwner($c, $c->stash->{project});
-    
+
     my $jobsetName = trim $c->request->params->{name};
     my $exprType =
         $c->request->params->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
@@ -158,7 +158,7 @@ sub create_jobset_submit : Chained('project') PathPart('create-jobset/submit') A
             {name => $jobsetName, nixexprinput => "", nixexprpath => "", emailoverride => ""});
         Hydra::Controller::Jobset::updateJobset($c, $jobset);
     });
-    
+
     $c->res->redirect($c->uri_for($c->controller('Jobset')->action_for("index"),
         [$c->stash->{project}->name, $jobsetName]));
 }
@@ -166,7 +166,7 @@ sub create_jobset_submit : Chained('project') PathPart('create-jobset/submit') A
 
 sub updateProject {
     my ($c, $project) = @_;
-    
+
     my $owner = $project->owner;
     if ($c->check_user_roles('admin')) {
         $owner = trim $c->request->params->{owner};
@@ -176,7 +176,7 @@ sub updateProject {
 
     my $projectName = trim $c->request->params->{name};
     error($c, "Invalid project name: ‘$projectName’") if $projectName !~ /^$projectNameRE$/;
-    
+
     my $displayName = trim $c->request->params->{displayname};
     error($c, "Invalid display name: $displayName") if $displayName eq "";
 
@@ -209,7 +209,7 @@ sub create_view_submit : Chained('project') PathPart('create-view/submit') Args(
     my ($self, $c) = @_;
 
     requireProjectOwner($c, $c->stash->{project});
-    
+
     my $viewName = $c->request->params->{name};
 
     my $view;
@@ -253,7 +253,7 @@ sub create_release : Chained('project') PathPart('create-release') Args(0) {
 
 sub create_release_submit : Chained('project') PathPart('create-release/submit') Args(0) {
     my ($self, $c) = @_;
-    
+
     requireProjectOwner($c, $c->stash->{project});
 
     my $releaseName = $c->request->params->{name};

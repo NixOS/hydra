@@ -9,9 +9,9 @@
       [% uri = "${c.uri_for('/build' build.id 'download' product.productnr)}"
           _ (product.name ? "/" _ product.name : "")
           _ (product.defaultpath ? "/" _ product.defaultpath : "") %]
-      
+
       [% contents = c.uri_for('/build' build.id 'contents' product.productnr) %]
-      
+
       [% SWITCH product.type %]
 
       [% CASE "nix-build" %]
@@ -28,16 +28,16 @@
             <div class="well hide productDetails">
                   <p>If you have Nix installed on your machine, this failed build output and
                   all its dependencies can be unpacked into your local Nix store by doing:</p>
-        
+
                   <pre>$ curl [% uri %] | gunzip | nix-store --import</pre>
-        
+
                   <p>The build output can then be found in the path <tt>[% product.path %]</tt>.</p>
-              
+
               </p>
             </div>
             </td>
           </tr>
-        
+
         [% ELSE %]
           <tr class="product">
             <td>
@@ -55,61 +55,61 @@
               with the <tt>nix-install-package</tt> program in your web
               browser.  Alternatively, you can install it from the
               command-line:</p>
-              
+
               <pre>$ nix-install-package --non-interactive --url [% uri %]</pre>
-              
+
               <p>If you get an error message “Permission denied”, you
               should make sure that you have sufficient access rights to
               the Nix store, e.g., run the command as <tt>root</tt>.
-              
+
               </p>
             </div>
-    
+
             </td>
           </tr>
           <tr class="product">
             <td>
-    
+
             [% filename = "${build.nixname}.closure.gz" %]
             [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
-            
+
             <a href="[% uri %]">
               <img src="/static/images/nix-build.png" alt="Source" />
               Nix closure of path <tt>[% product.path %]</tt>
             </a>
-            
+
             <a class="productDetailsToggle btn btn-mini" href="javascript:">help</a>
             <div class="well hide productDetails">
               <p>If you have Nix installed on your machine, this build and
               all its dependencies can be unpacked into your local Nix
               store by doing:</p>
-    
+
               <pre>$ gunzip &lt; [% filename %] | nix-store --import</pre>
-    
+
               <p>or to download and unpack in one command:</p>
-    
+
               <pre>$ curl [% uri %] | gunzip | nix-store --import</pre>
-    
+
               <p>The package can then be found in the path <tt>[%
               product.path %]</tt>.  You’ll probably also want to do</p>
-    
+
               <pre>$ nix-env -i [% product.path %]</pre>
-    
+
               <p>to actually install the package in your Nix user environment.</p>
-    
+
               <p>If you get the error message “imported
               archive lacks a signature”, you should make sure that you have
               sufficient access rights to the Nix store, e.g., run the
               command as <tt>root</tt>.</p>
             </div>
-    
+
             </td>
           </tr>
 
       [% END %]
 
       [% CASE "file" %]
-      
+
       <tr class="product">
         <td>
         <a href="[% uri %]">
@@ -138,7 +138,7 @@
               <td><a href="[% uri %]"><tt>[% uri %]</tt></a></td>
             </tr>
             [% IF latestRoot %]
-            <tr>              
+            <tr>
               <th>Links to latest:</th>
               <td>
                 [% IF build.buildproducts.count > 1 %]
@@ -160,12 +160,12 @@
             <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
           </table>
         </div>
-        
+
         </td>
       </tr>
 
       [% CASE "report" %]
-      
+
       <tr class="product">
         <td>
         <a href="[% uri %]">
@@ -205,7 +205,7 @@
       </tr>
 
       [% CASE DEFAULT %]
-      
+
       <tr class="product">
         <td>
         Something of type <tt>[% product.type %]</tt> [% product %]

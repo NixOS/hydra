@@ -87,7 +87,7 @@ sub timeline :Local {
     $c->stash->{template} = 'timeline.tt';
     $c->stash->{builds} = [ $c->model('DB::Builds')->search
         ( { finished => 1, stoptime => { '>' => $pit } }
-        , { order_by => ["starttime"] } 
+        , { order_by => ["starttime"] }
         ) ];
 }
 
@@ -199,7 +199,7 @@ sub nar :Local :Args(1) {
 sub nix_cache_info :Path('nix-cache-info') :Args(0) {
     my ($self, $c) = @_;
     $c->response->content_type('text/plain');
-    $c->stash->{'plain'} = { data => 
+    $c->stash->{'plain'} = { data =>
         #"StoreDir: $Nix::Config::storeDir\n" . # FIXME
         "StoreDir: /nix/store\n" .
         "WantMassQuery: 0\n" .

@@ -219,8 +219,8 @@
       <link
       xlink:href="http://hydra.nixos.org/"><literal>http://hydra.nixos.org/</literal></link>.
 
-      That installation is used to build software components from the 
-      <link xlink:href="http://nixos.org">Nix</link>, 
+      That installation is used to build software components from the
+      <link xlink:href="http://nixos.org">Nix</link>,
       <link xlink:href="http://nixos.org/nixos">NixOS</link>,
       <link xlink:href="http://www.gnu.org/">GNU</link>,
       <link xlink:href="http://strategoxt.org">Stratego/XT</link>,

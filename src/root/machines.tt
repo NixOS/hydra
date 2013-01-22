@@ -33,7 +33,7 @@
         </tr>
         [% END %]
     </tbody>
-    
+
 </table>
 
 <p><a class="btn" href="[% c.uri_for(c.controller('Admin').action_for('create_machine')) %]"><i class="icon-plus"></i> Add a new machine</a></p>

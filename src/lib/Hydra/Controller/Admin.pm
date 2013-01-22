@@ -101,7 +101,7 @@ sub create_user : Chained('admin') PathPart('create-user') Args(0) {
 
     $c->stash->{template} = 'user.tt';
     $c->stash->{edit} = 1;
-    $c->stash->{create} = 1;   
+    $c->stash->{create} = 1;
 }
 
 sub create_user_submit : Chained('admin') PathPart('create-user/submit') Args(0) {
@@ -160,7 +160,7 @@ sub user_edit_submit : Chained('user') PathPart('submit') Args(0) {
             updateUser($c, $c->stash->{user});
         }
     });
-    
+
     $c->res->redirect("/admin/users");
 }
 
@@ -252,9 +252,9 @@ sub machine_edit_submit : Chained('machine') PathPart('submit') Args(0) {
             updateMachine($c, $c->stash->{machine});
         }
     });
-    
+
     saveNixMachines($c);
-    
+
     $c->res->redirect("/admin/machines");
 }
 

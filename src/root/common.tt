@@ -93,7 +93,7 @@
 [%- BLOCK renderBuildListBody -%]
       [%- odd = 0 -%]
       [%- FOREACH build IN builds -%]
-        <tr class="clickable 
+        <tr class="clickable
                    [%- IF showSchedulingInfo -%]
                      [%- IF build.busy %]runningBuild[% ELSIF build.disabled == 1 || build.get_column('enabled') == 0 %]disabledBuild[% END -%]
                    [%- ELSE -%]
@@ -229,7 +229,7 @@
   END -%]
 [% END -%]
 
-[% BLOCK renderFullBuildLink %] 
+[% BLOCK renderFullBuildLink %]
 [% INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>[% -%]
 [% END %]
 
@@ -252,7 +252,7 @@
       <img src="/static/images/error_[% size %].png" alt="Failed (with result)" />
     [%- ELSE -%]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
-    [%- END -%]  
+    [%- END -%]
   [%- ELSIF busy -%]
     <img src="/static/images/help_[% size %].png" alt="Busy" />
   [%- ELSE -%]
@@ -260,7 +260,7 @@
   [%- END -%]
 [%- END -%]
 
-[% BLOCK renderStatus %] 
+[% BLOCK renderStatus %]
   [% IF build.finished %]
     [% buildstatus = build.buildstatus %]
     [% INCLUDE renderBuildStatusIcon size=16 %]
@@ -279,13 +279,13 @@
     [% ELSE %]
       <span class="error">Build failed</span>
       (see <a href="#nix-error">below</a>)
-    [% END %]  
+    [% END %]
   [% ELSIF build.busy %]
     <strong>Build in progress</strong>
     since [% INCLUDE renderDateTime timestamp = build.starttime %]
   [% ELSE %]
     <strong>Scheduled to be built</strong>
-  [% END %] 
+  [% END %]
 [% END -%]
 
 [% BLOCK renderInputValue %]
@@ -366,10 +366,10 @@
                             [% INCLUDE renderInputDiff build1=bi1.dependency, build2=bi2.dependency, nestedDiff=1, nestLevel=nestLevel+1 %]
                         </td></tr>
                     [% END %]
-                [% ELSE %]                  
+                [% ELSE %]
                     <tr><td><b>[% bi1.name %]</b></td><td>Changed input type from '[% type = bi1.type; inputTypes.$type %]' to '[% type = bi2.type; inputTypes.$type %]'</td></tr>
                 [% END %]
-                
+
                 [% deletedInput = 0 %]
             [% END %]
         [% END %]
@@ -439,7 +439,7 @@
     </tr>
   </thead>
   <tbody>
-    [%- FOREACH e IN evals; eval = e.eval; 
+    [%- FOREACH e IN evals; eval = e.eval;
         link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) -%]
      <tr class="clickable" onclick="window.location = '[% link %]'">
        <td><a href="[% link %]">[% eval.id %]</a>&nbsp;</td>
@@ -456,16 +456,16 @@
        <td align='right'>
          <span class="label label-success">[% e.nrSucceeded %]</span>
          <span class="label label-important">[% e.nrFailed %]</span>
-	 [% IF e.nrScheduled > 0 %]
-	 <span class="label">[% e.nrScheduled %]</span>
-	 [% END %]
+         [% IF e.nrScheduled > 0 %]
+         <span class="label">[% e.nrScheduled %]</span>
+         [% END %]
        </td>
        <td align='right'>
-	 [%- IF e.diff > 0 -%]
-	    <span class='label label-success'><strong>+[% e.diff %]</strong></span>
-	 [%- ELSIF e.diff < 0 && e.nrScheduled == 0 -%]
-	    <span class='label label-important'><strong>[% e.diff %]</strong></span>
-	 [%- END -%]
+         [%- IF e.diff > 0 -%]
+            <span class='label label-success'><strong>+[% e.diff %]</strong></span>
+         [%- ELSIF e.diff < 0 && e.nrScheduled == 0 -%]
+            <span class='label label-important'><strong>[% e.diff %]</strong></span>
+         [%- END -%]
        </td>
      </tr>
     [%- END -%]

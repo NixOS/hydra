@@ -28,11 +28,11 @@ sub view : Chained('release') PathPart('') Args(0) {
 
 sub updateRelease {
     my ($c, $release) = @_;
-    
+
     my $releaseName = trim $c->request->params->{name};
     error($c, "Invalid release name: $releaseName")
         unless $releaseName =~ /^$relNameRE$/;
-    
+
     $release->update(
         { name => $releaseName
         , description => trim $c->request->params->{description}
@@ -59,7 +59,7 @@ sub edit : Chained('release') PathPart('edit') Args(0) {
 
 sub submit : Chained('release') PathPart('submit') Args(0) {
     my ($self, $c) = @_;
-    
+
     requireProjectOwner($c, $c->stash->{project});
 
     if (($c->request->params->{action} || "") eq "delete") {

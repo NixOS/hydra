@@ -90,7 +90,7 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
 	    $project->name, ":", $jobset->name, "\n";
 
 	keepBuild $_ foreach $jobset->builds->search(
-	    { 'me.id' => { 'in' => \ 
+	    { 'me.id' => { 'in' => \
 	        [ "select b2.id from Builds b2 join " .
 		  "  (select distinct job, system, coalesce( " .
                   "    (select id from builds where project = b.project and jobset = b.jobset and job = b.job and system = b.system and finished = 1 and buildStatus = 0 order by id desc offset ? limit 1)" .

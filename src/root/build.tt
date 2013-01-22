@@ -9,57 +9,57 @@
 [% job = build.job %]
 
 [% BLOCK renderBuildSteps %]
-	<table class="tablesorter table table-striped table-condensed">
-	  <thead>
-	    <tr><th>Nr</th><th>What</th><th>Duration</th><th>Machine</th><th>Status</th></tr>
-	  </thead>
-	  <tbody>
-	    [% FOREACH step IN build.buildsteps -%]
-			[% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) -%]
-		      [% log = c.uri_for('/build' build.id 'nixlog' step.stepnr) %]
-		      <tr class="[% IF step.logfile %]clickable[% END %]"
-		          [% IF step.logfile %] onclick="window.location = '[% log %]'" [% END %]>
-		        <td>[% step.stepnr %]</td>
-		        <td>
-		          [% IF step.type == 0 %]
-		            Build of <tt>[% step.outpath %]</tt>
-		          [% ELSE %]
-		            Substitution of <tt>[% step.outpath %]</tt>
-		          [% END %]
-		        </td>
-		        <td>
-		          [% IF step.busy == 0 %]
-		            [% INCLUDE renderDuration duration = step.stoptime - step.starttime %]
-		          [% ELSE %]
-		            [% IF build.finished %]
-		              [% INCLUDE renderDuration duration = build.stoptime - step.starttime %]
-		            [% ELSE %]
-		              [% INCLUDE renderDuration duration = curTime - step.starttime %]
-		            [% END %]
-		          [% END %]
-		        </td>
+        <table class="tablesorter table table-striped table-condensed">
+          <thead>
+            <tr><th>Nr</th><th>What</th><th>Duration</th><th>Machine</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            [% FOREACH step IN build.buildsteps -%]
+                        [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) -%]
+                      [% log = c.uri_for('/build' build.id 'nixlog' step.stepnr) %]
+                      <tr class="[% IF step.logfile %]clickable[% END %]"
+                          [% IF step.logfile %] onclick="window.location = '[% log %]'" [% END %]>
+                        <td>[% step.stepnr %]</td>
+                        <td>
+                          [% IF step.type == 0 %]
+                            Build of <tt>[% step.outpath %]</tt>
+                          [% ELSE %]
+                            Substitution of <tt>[% step.outpath %]</tt>
+                          [% END %]
+                        </td>
+                        <td>
+                          [% IF step.busy == 0 %]
+                            [% INCLUDE renderDuration duration = step.stoptime - step.starttime %]
+                          [% ELSE %]
+                            [% IF build.finished %]
+                              [% INCLUDE renderDuration duration = build.stoptime - step.starttime %]
+                            [% ELSE %]
+                              [% INCLUDE renderDuration duration = curTime - step.starttime %]
+                            [% END %]
+                          [% END %]
+                        </td>
                 <td>[% step.machine.split('@').1 %]</td>
-		        <td>
-		          [% IF step.busy == 1 %]
-		            [% IF build.finished %]
-		              <span class="error">Aborted</span>
-		            [% ELSE %]
-		              <strong>Building</strong>
-		            [% END %]
-		          [% ELSIF step.status == 0 %]
-		            Succeeded
-		          [% ELSE %]
-		            <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
-		          [% END %]
-		          [% IF step.logfile %]
-		            (<a href="[% log %]">log</a>, <a href="[% "$log/raw" %]">raw</a>, <a href="[% "$log/tail-reload" %]">tail</a>)
-		          [% END %]
-		        </td>
-		      </tr>
-		    [% END %]
-	    [% END %]
-	  </tbody>
-	</table>
+                        <td>
+                          [% IF step.busy == 1 %]
+                            [% IF build.finished %]
+                              <span class="error">Aborted</span>
+                            [% ELSE %]
+                              <strong>Building</strong>
+                            [% END %]
+                          [% ELSIF step.status == 0 %]
+                            Succeeded
+                          [% ELSE %]
+                            <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
+                          [% END %]
+                          [% IF step.logfile %]
+                            (<a href="[% log %]">log</a>, <a href="[% "$log/raw" %]">raw</a>, <a href="[% "$log/tail-reload" %]">tail</a>)
+                          [% END %]
+                        </td>
+                      </tr>
+                    [% END %]
+            [% END %]
+          </tbody>
+        </table>
 
 [% END %]
 
@@ -68,79 +68,79 @@
 <p class="btn-info btn-large">[% flashMsg %]</p>
 [% END %]
 
-	<ul id="tab" class="nav nav-tabs">
-		<li><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
-		<li><a href="#tabs-information" data-toggle="tab">Information</a></li>
-		<li><a href="#tabs-buildinputs" data-toggle="tab">Build inputs</a></li>
-		[% IF relatedbuilds %]<li><a href="#tabs-relatedbuilds" data-toggle="tab">Related builds</a></li>[% END %]
-		[% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
+        <ul id="tab" class="nav nav-tabs">
+                <li><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
+                <li><a href="#tabs-information" data-toggle="tab">Information</a></li>
+                <li><a href="#tabs-buildinputs" data-toggle="tab">Build inputs</a></li>
+                [% IF relatedbuilds %]<li><a href="#tabs-relatedbuilds" data-toggle="tab">Related builds</a></li>[% END %]
+                [% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
                 [% IF build.dependents %]<li><a href="#tabs-usedby" data-toggle="tab">Used by</a></li>[% END%]
-		[% IF prevBuilds %]<li><a href="#tabs-history" data-toggle="tab">History chart</a></li>[% END %]
-	</ul>
+                [% IF prevBuilds %]<li><a href="#tabs-history" data-toggle="tab">History chart</a></li>[% END %]
+        </ul>
     <div id="generic-tabs" class="tab-content">
-	<div id="tabs-summary" class="tab-pane active">
+        <div id="tabs-summary" class="tab-pane active">
 
-	    <table class="layoutTable">
-	      <tr>
-	      	<td>
-				[% INCLUDE renderBuildStatusIcon size=128, build=build %]
-	      	</td>
-	      	<td>
-				<table class="layoutTable">
-				  <tr>
-				    <th>Build ID:</th>
-				    <td>[% build.id %]</td>
-				  </tr>
-				  [% IF build.releasename %]
-				    <tr>
-				      <th>Release name:</th>
-				      <td><tt>[% HTML.escape(build.releasename) %]</tt></td>
-				    </tr>
-				  [% ELSE %]
-					  <tr>
-					    <th>Nix name:</th>
-					    <td><tt>[% build.nixname %]</tt></td>
-					  </tr>
-				  [% END %]
-				  <tr>
-				    <th>Status:</th>
-				    <td> 
-				    	[% INCLUDE renderStatus build=build %]
-				    </td>
-				  </tr>
-				  <tr>
-				    <th>System:</th>
-				    <td><tt>[% build.system %]</tt></td>
-				  </tr>
-				  [% IF build.finished %]
-				    <tr>
-				      <th>Duration:</th>
-				      <td>
-				        [% IF build.iscachedbuild %]
-				          (cached[% IF cachedBuild %] from [% INCLUDE renderFullBuildLink build=cachedBuild %][% END %])
-				        [% ELSE %]
-				          	[% INCLUDE renderDuration duration = build.stoptime - build.starttime %] finished at [% INCLUDE renderDateTime timestamp = build.stoptime %]
-				        [% END %]
-				      </td>
-				    </tr>
-				  [% END %]
-				  [% IF build.logfile %]
-				      <tr>
-				        <th>Logfile:</th>
-				        <td>
-				          <a class="btn btn-mini btn-primary" href="[% c.uri_for('/build' build.id 'log') %]">pretty</a>
-				          <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>
-				          <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>
-				        </td>
-				      </tr>
-				  [% END %]
-				</table>
-			</td>
-	      </tr>
-	    </table>
-      
-		[% IF c.user_exists && available %]
-		<form class="form-horizontal" action="[% c.uri_for('/build' build.id 'add-to-release') %]" method="post">
+            <table class="layoutTable">
+              <tr>
+                <td>
+                                [% INCLUDE renderBuildStatusIcon size=128, build=build %]
+                </td>
+                <td>
+                                <table class="layoutTable">
+                                  <tr>
+                                    <th>Build ID:</th>
+                                    <td>[% build.id %]</td>
+                                  </tr>
+                                  [% IF build.releasename %]
+                                    <tr>
+                                      <th>Release name:</th>
+                                      <td><tt>[% HTML.escape(build.releasename) %]</tt></td>
+                                    </tr>
+                                  [% ELSE %]
+                                          <tr>
+                                            <th>Nix name:</th>
+                                            <td><tt>[% build.nixname %]</tt></td>
+                                          </tr>
+                                  [% END %]
+                                  <tr>
+                                    <th>Status:</th>
+                                    <td>
+                                        [% INCLUDE renderStatus build=build %]
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <th>System:</th>
+                                    <td><tt>[% build.system %]</tt></td>
+                                  </tr>
+                                  [% IF build.finished %]
+                                    <tr>
+                                      <th>Duration:</th>
+                                      <td>
+                                        [% IF build.iscachedbuild %]
+                                          (cached[% IF cachedBuild %] from [% INCLUDE renderFullBuildLink build=cachedBuild %][% END %])
+                                        [% ELSE %]
+                                                [% INCLUDE renderDuration duration = build.stoptime - build.starttime %] finished at [% INCLUDE renderDateTime timestamp = build.stoptime %]
+                                        [% END %]
+                                      </td>
+                                    </tr>
+                                  [% END %]
+                                  [% IF build.logfile %]
+                                      <tr>
+                                        <th>Logfile:</th>
+                                        <td>
+                                          <a class="btn btn-mini btn-primary" href="[% c.uri_for('/build' build.id 'log') %]">pretty</a>
+                                          <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>
+                                          <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>
+                                        </td>
+                                      </tr>
+                                  [% END %]
+                                </table>
+                        </td>
+              </tr>
+            </table>
+
+                [% IF c.user_exists && available %]
+                <form class="form-horizontal" action="[% c.uri_for('/build' build.id 'add-to-release') %]" method="post">
                   <div class="control-group">
                     <label class="control-label">Add to release</label>
                     <div class="controls">
@@ -148,31 +148,31 @@
                       <button type="submit" class="btn btn-success">Apply</button>
                     </div>
                   </div>
-		</form>
-		[% END %]
-		
-		[% IF build.buildproducts %]
+                </form>
+                [% END %]
 
-			<h3>Build products</h3>
-		
-			[% IF !available %]
-			  <p class="error">Note: this build is no longer available.</p>
-			[% END %]
-			
-			[% INCLUDE renderProductList latestRoot=['/job' build.project.name build.jobset.name build.job.name 'latest'] %]
-			
-		[% END %]
+                [% IF build.buildproducts %]
+
+                        <h3>Build products</h3>
+
+                        [% IF !available %]
+                          <p class="error">Note: this build is no longer available.</p>
+                        [% END %]
+
+                        [% INCLUDE renderProductList latestRoot=['/job' build.project.name build.jobset.name build.job.name 'latest'] %]
+
+                [% END %]
 
         [% IF !build.finished %]
             <h3>Running build steps</h3>
             [% INCLUDE renderBuildSteps type="Running" %]
-	[% END %]
+        [% END %]
 
-		[% IF build.finished %]
-			[% IF build.buildsteps && build.buildstatus != 0 && build.buildstatus != 6 %]
+                [% IF build.finished %]
+                        [% IF build.buildsteps && build.buildstatus != 0 && build.buildstatus != 6 %]
                                 <h3>Failed build steps</h3>
-				[% INCLUDE renderBuildSteps type="Failed" %]
-			[% END %]
+                                [% INCLUDE renderBuildSteps type="Failed" %]
+                        [% END %]
 
             [% IF prevSuccessfulBuild %]
             <h3>Changes</h3>
@@ -192,7 +192,7 @@
                     <td valign="center">[% INCLUDE renderBuildStatusIcon build=prevSuccessfulBuild size=32 %] [% INCLUDE renderFullBuildLink build=prevSuccessfulBuild, hideProjectName=1, hideJobsetName=1  %]</td>
                     [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]<td valign="center">[% INCLUDE renderBuildStatusIcon build=firstBrokenBuild size=32 %] [% INCLUDE renderFullBuildLink build=firstBrokenBuild, hideProjectName=1, hideJobsetName=1  %]</td>[% END %]
                     <td>[% INCLUDE renderBuildStatusIcon build=build size=32 %] [% INCLUDE renderFullBuildLink build=build, hideProjectName=1, hideJobsetName=1  %]</td>
-                </tr>               
+                </tr>
                 <tr>
                     <td></td>
                     [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]<td>[% INCLUDE renderInputDiff build1=prevSuccessfulBuild , build2=firstBrokenBuild %]</td>[% END %]
@@ -201,207 +201,207 @@
             </table>
             [% END %]
 
-			[% IF build.errormsg && build.buildstatus != 5 %]
-		
-				<h2 id="nix-error">Nix error output</h2>
-				
-				<pre class="buildlog">[% HTML.escape(build.errormsg) -%]</pre>
-			[% END %]
-		[% END %]
-		[% IF logtext %]
-			<h2>Log</h2>
-			
-			<pre class="buildlog">[% HTML.escape(logtext) -%]</pre>
-		[% END %]
-	</div>
-	<div id="tabs-information" class="tab-pane">
+                        [% IF build.errormsg && build.buildstatus != 5 %]
 
-		<h2>Information</h2>
-		
-		<table class="layoutTable">
-		  <tr>
-		    <th>Build ID:</th>
-		    <td>[% build.id %]</td>
-		  </tr>
-		  <tr>
-		    <th>Status:</th>
-		    <td> 
-		    	[% INCLUDE renderStatus build=build %]
-		    </td>
-		  </tr>
-		  <tr>
-		    <th>Project:</th>
-		    <td>[% INCLUDE renderProjectName project=project.name %]</td>
-		  </tr>
-		  <tr>
-		    <th>Jobset:</th>
-		    <td>[% INCLUDE renderJobsetName project=project.name jobset=jobset.name %]</td>
-		  </tr>
-		  <tr>
-		    <th>Job name:</th>
-		    <td>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=job.name %]</td>
-		  </tr>
-		  [% IF build.nixexprinput %]
-		  <tr>
-		    <th>Nix expression:</th>
-		    <td>file <tt>[% HTML.escape(build.nixexprpath) %]</tt> in input <tt>[% HTML.escape(build.nixexprinput) %]</tt></td>
-		  </tr>
-		  [% END %]
-		  <tr>
-		    <th>Nix name:</th>
-		    <td><tt>[% build.nixname %]</tt></td>
-		  </tr>
-		  [% IF build.releasename %]
-		    <tr>
-		      <th>Release name:</th>
-		      <td><tt>[% HTML.escape(build.releasename) %]</tt></td>
-		    </tr>
-		  [% END %]
-		  <tr>
-		    <th>Short description:</th>
-		    <td>[% IF build.description %][% HTML.escape(build.description) %][% ELSE %]<em>(not given)</em>[% END %]</td>
-		  </tr>
-		  <tr>
-		    <th>Long description:</th>
-		    <td>[% IF build.longdescription %][% HTML.escape(build.longdescription) %][% ELSE %]<em>(not given)</em>[% END %]</td>
-		  </tr>
-		  <tr>
-		    <th>License:</th>
-		    <td>[% IF build.license %][% HTML.escape(build.license) %][% ELSE %]<em>(not given)</em>[% END %]</td>
-		  </tr>
-		  <tr>
-		    <th>Homepage:</th>
-		    <td>[% IF build.homepage %]<a [% HTML.attributes(href => build.homepage) %]>[% HTML.escape(build.homepage) %]</a>[% ELSE %]<em>(not given)</em>[% END %]</td>
-		  </tr>
-		  <tr>
-		    <th>Maintainer(s):</th>
-		    <td>[% IF build.maintainers %]<tt>[% HTML.escape(build.maintainers) %]</tt>[% ELSE %]<em>(not given)</em>[% END %]</td>
-		  </tr>
-		  <tr>
-		    <th>System:</th>
-		    <td><tt>[% build.system %]</tt></td>
-		  </tr>
-		  <tr>
-		    <th>Max silent / timeout:</th>
-		    <td>[% build.maxsilent %]s / [% build.timeout %]s</td>
-		  </tr>
-		  <tr>
-		    <th>Derivation store path:</th>
-		    <td>
-		      <tt>[% build.drvpath %]</tt>
-		      [% IF drvAvailable %]
-		        (<a href="[% c.uri_for('/build' build.id 'deps') %]#buildtime">build-time dependencies</a>)
-		      [% END %]
-		    </td>
-		  </tr>
-		  <tr>
-		    <th>Output store path:</th>
-		    <td>
-		      <tt>[% build.outpath %]</tt>
-		      [% IF available %]
-		        (<a href="[% c.uri_for('/build' build.id 'deps') %]#runtime">runtime dependencies</a>)
-		      [% END %]
-		    </td>
-		  </tr>
-                  [% IF pathHash %]
-		  <tr>
-		    <th>Output store path hash:</th>
-		    <td>
-		      <tt>[% pathHash %]</tt>
-		    </td>
-		  </tr>
+                                <h2 id="nix-error">Nix error output</h2>
+
+                                <pre class="buildlog">[% HTML.escape(build.errormsg) -%]</pre>
+                        [% END %]
+                [% END %]
+                [% IF logtext %]
+                        <h2>Log</h2>
+
+                        <pre class="buildlog">[% HTML.escape(logtext) -%]</pre>
+                [% END %]
+        </div>
+        <div id="tabs-information" class="tab-pane">
+
+                <h2>Information</h2>
+
+                <table class="layoutTable">
+                  <tr>
+                    <th>Build ID:</th>
+                    <td>[% build.id %]</td>
+                  </tr>
+                  <tr>
+                    <th>Status:</th>
+                    <td>
+                        [% INCLUDE renderStatus build=build %]
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Project:</th>
+                    <td>[% INCLUDE renderProjectName project=project.name %]</td>
+                  </tr>
+                  <tr>
+                    <th>Jobset:</th>
+                    <td>[% INCLUDE renderJobsetName project=project.name jobset=jobset.name %]</td>
+                  </tr>
+                  <tr>
+                    <th>Job name:</th>
+                    <td>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=job.name %]</td>
+                  </tr>
+                  [% IF build.nixexprinput %]
+                  <tr>
+                    <th>Nix expression:</th>
+                    <td>file <tt>[% HTML.escape(build.nixexprpath) %]</tt> in input <tt>[% HTML.escape(build.nixexprinput) %]</tt></td>
+                  </tr>
                   [% END %]
-		  <tr>
-		    <th>Time added:</th>
-		    <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
-		  </tr>
-		  [% IF build.finished && build.buildstatus != 4 %]
-		    [% IF build.iscachedbuild && cachedBuild %]
-		      <tr>
-		        <th>Cached build:</th>
-		        <td>[% INCLUDE renderFullBuildLink build=cachedBuild %]</td>
-		      </tr>
-		    [% END %]
-		    
-		    <tr>
-		      <th>Build started:</th>
-		      <td>[% IF build.starttime %][% INCLUDE renderDateTime timestamp = build.starttime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
-		    </tr>
-		    <tr>
-		      <th>Build finished:</th>
-		      <td>[% IF build.stoptime %][% INCLUDE renderDateTime timestamp = build.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
-		    </tr>
-		    <tr>
-		      <th>Duration:</th>
-		      <td>
-		        [% IF build.iscachedbuild %]
-		          <em>(cached build)</em>
-		        [% ELSE %]
-		          [% INCLUDE renderDuration duration = build.stoptime - build.starttime %]
-		        [% END %]
-		      </td>
-		    </tr>
-		    [% IF build.logfile %]
-		      <tr>
-		        <th>Logfile:</th>
-		        <td>
-		          <a href="[% c.uri_for('/build' build.id 'log') %]"><strong>Available</strong></a>
-		          (<a href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>,
-		           <a href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>)
-		        </td>
-		      </tr>
-		    [% END %]
-		  [% END %]
-		  [% IF !build.finished %]
-		    <tr>
-		      <th>Priority:</th>
-		      <td>[% build.priority %]</td>
-		    </tr>
-		  [% END %]
-		  [% IF build.finished && build.buildproducts %]
-		    <tr>
-		      <th>Availability:</th>
-		      <td>
-		        [% IF !available %]
-		          <em>Build output is no longer available</em>
-		        [% ELSIF build.keep %]
-		          <em>Build output will be kept permanently</em>
-		        [% ELSE %]
-		          <em>Build output is available, but may be garbage-collected</em>
-		        [% END %]
-		      </td>
-		    </tr>
-		  [% END %]
-		</table>
-	</div>
-	<div id="tabs-buildinputs" class="tab-pane">
-		
-		<h2>Build inputs</h2>
-		
-		<table class="tablesorter table table-striped table-condensed">
-		  <thead>
-		    <tr><th>Name</th><th>Type</th><th>Value</th><th>Revision</th><th>Store path</th></tr>
-		  </thead>
-		  <tbody>
-		    [% FOREACH input IN build.inputs -%]
-		      <tr>
-		        <td><tt>[% input.name %]</tt></td>
-		        <td><tt>[% type = input.type; inputTypes.$type %]</tt></td>
-		        <td>
-		          [% IF input.type == "build" || input.type == "sysbuild" %]
-		            [% INCLUDE renderFullBuildLink build=input.dependency %]</a>
-		          [% ELSIF input.type == "string" || input.type == "boolean" %]
-		            <tt>"[% input.value %]"</tt>
-		          [% ELSE %]
-		            <tt>[% input.uri %]</tt>
-		          [% END %]
-		        </td>
-		        <td>[% IF input.revision %][% input.revision %][% END %]</td>
-		        <td><tt>[% input.path %]</tt></td>
-		      </tr>
-		    [% END -%]
-		  </tbody>
-		</table>
+                  <tr>
+                    <th>Nix name:</th>
+                    <td><tt>[% build.nixname %]</tt></td>
+                  </tr>
+                  [% IF build.releasename %]
+                    <tr>
+                      <th>Release name:</th>
+                      <td><tt>[% HTML.escape(build.releasename) %]</tt></td>
+                    </tr>
+                  [% END %]
+                  <tr>
+                    <th>Short description:</th>
+                    <td>[% IF build.description %][% HTML.escape(build.description) %][% ELSE %]<em>(not given)</em>[% END %]</td>
+                  </tr>
+                  <tr>
+                    <th>Long description:</th>
+                    <td>[% IF build.longdescription %][% HTML.escape(build.longdescription) %][% ELSE %]<em>(not given)</em>[% END %]</td>
+                  </tr>
+                  <tr>
+                    <th>License:</th>
+                    <td>[% IF build.license %][% HTML.escape(build.license) %][% ELSE %]<em>(not given)</em>[% END %]</td>
+                  </tr>
+                  <tr>
+                    <th>Homepage:</th>
+                    <td>[% IF build.homepage %]<a [% HTML.attributes(href => build.homepage) %]>[% HTML.escape(build.homepage) %]</a>[% ELSE %]<em>(not given)</em>[% END %]</td>
+                  </tr>
+                  <tr>
+                    <th>Maintainer(s):</th>
+                    <td>[% IF build.maintainers %]<tt>[% HTML.escape(build.maintainers) %]</tt>[% ELSE %]<em>(not given)</em>[% END %]</td>
+                  </tr>
+                  <tr>
+                    <th>System:</th>
+                    <td><tt>[% build.system %]</tt></td>
+                  </tr>
+                  <tr>
+                    <th>Max silent / timeout:</th>
+                    <td>[% build.maxsilent %]s / [% build.timeout %]s</td>
+                  </tr>
+                  <tr>
+                    <th>Derivation store path:</th>
+                    <td>
+                      <tt>[% build.drvpath %]</tt>
+                      [% IF drvAvailable %]
+                        (<a href="[% c.uri_for('/build' build.id 'deps') %]#buildtime">build-time dependencies</a>)
+                      [% END %]
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Output store path:</th>
+                    <td>
+                      <tt>[% build.outpath %]</tt>
+                      [% IF available %]
+                        (<a href="[% c.uri_for('/build' build.id 'deps') %]#runtime">runtime dependencies</a>)
+                      [% END %]
+                    </td>
+                  </tr>
+                  [% IF pathHash %]
+                  <tr>
+                    <th>Output store path hash:</th>
+                    <td>
+                      <tt>[% pathHash %]</tt>
+                    </td>
+                  </tr>
+                  [% END %]
+                  <tr>
+                    <th>Time added:</th>
+                    <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
+                  </tr>
+                  [% IF build.finished && build.buildstatus != 4 %]
+                    [% IF build.iscachedbuild && cachedBuild %]
+                      <tr>
+                        <th>Cached build:</th>
+                        <td>[% INCLUDE renderFullBuildLink build=cachedBuild %]</td>
+                      </tr>
+                    [% END %]
+
+                    <tr>
+                      <th>Build started:</th>
+                      <td>[% IF build.starttime %][% INCLUDE renderDateTime timestamp = build.starttime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+                    </tr>
+                    <tr>
+                      <th>Build finished:</th>
+                      <td>[% IF build.stoptime %][% INCLUDE renderDateTime timestamp = build.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+                    </tr>
+                    <tr>
+                      <th>Duration:</th>
+                      <td>
+                        [% IF build.iscachedbuild %]
+                          <em>(cached build)</em>
+                        [% ELSE %]
+                          [% INCLUDE renderDuration duration = build.stoptime - build.starttime %]
+                        [% END %]
+                      </td>
+                    </tr>
+                    [% IF build.logfile %]
+                      <tr>
+                        <th>Logfile:</th>
+                        <td>
+                          <a href="[% c.uri_for('/build' build.id 'log') %]"><strong>Available</strong></a>
+                          (<a href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>,
+                           <a href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>)
+                        </td>
+                      </tr>
+                    [% END %]
+                  [% END %]
+                  [% IF !build.finished %]
+                    <tr>
+                      <th>Priority:</th>
+                      <td>[% build.priority %]</td>
+                    </tr>
+                  [% END %]
+                  [% IF build.finished && build.buildproducts %]
+                    <tr>
+                      <th>Availability:</th>
+                      <td>
+                        [% IF !available %]
+                          <em>Build output is no longer available</em>
+                        [% ELSIF build.keep %]
+                          <em>Build output will be kept permanently</em>
+                        [% ELSE %]
+                          <em>Build output is available, but may be garbage-collected</em>
+                        [% END %]
+                      </td>
+                    </tr>
+                  [% END %]
+                </table>
+        </div>
+        <div id="tabs-buildinputs" class="tab-pane">
+
+                <h2>Build inputs</h2>
+
+                <table class="tablesorter table table-striped table-condensed">
+                  <thead>
+                    <tr><th>Name</th><th>Type</th><th>Value</th><th>Revision</th><th>Store path</th></tr>
+                  </thead>
+                  <tbody>
+                    [% FOREACH input IN build.inputs -%]
+                      <tr>
+                        <td><tt>[% input.name %]</tt></td>
+                        <td><tt>[% type = input.type; inputTypes.$type %]</tt></td>
+                        <td>
+                          [% IF input.type == "build" || input.type == "sysbuild" %]
+                            [% INCLUDE renderFullBuildLink build=input.dependency %]</a>
+                          [% ELSIF input.type == "string" || input.type == "boolean" %]
+                            <tt>"[% input.value %]"</tt>
+                          [% ELSE %]
+                            <tt>[% input.uri %]</tt>
+                          [% END %]
+                        </td>
+                        <td>[% IF input.revision %][% input.revision %][% END %]</td>
+                        <td><tt>[% input.path %]</tt></td>
+                      </tr>
+                    [% END -%]
+                  </tbody>
+                </table>
 
         <p/>
 
@@ -409,15 +409,15 @@
             <h3>Changes since previous build : [% INCLUDE renderFullBuildLink build=prevBuild, hideProjectName=1, hideJobsetName=1 %]</h3>
             [% INCLUDE renderInputDiff build2=build , build1=prevBuild %]
         [% END %]
-       
-	</div>
+
+        </div>
 
         [% IF relatedbuilds %]
-	<div id="tabs-relatedbuilds" class="tab-pane">
-		<h2>Related builds</h2>
-		<p>The following builds are part of the same jobset evaluation that produced this build.</p>
-		[% INCLUDE renderBuildList builds=relatedbuilds hideProjectName=1 hideJobsetName=1 %]
-	</div>
+        <div id="tabs-relatedbuilds" class="tab-pane">
+                <h2>Related builds</h2>
+                <p>The following builds are part of the same jobset evaluation that produced this build.</p>
+                [% INCLUDE renderBuildList builds=relatedbuilds hideProjectName=1 hideJobsetName=1 %]
+        </div>
         [% END %]
 
 [% IF build.buildsteps %]
@@ -426,37 +426,37 @@
     [% INCLUDE renderBuildSteps type="All" %]
   </div>
 [% END %]
-	
+
 
 [% IF build.dependents %]
     <div id="tabs-usedby" class="tab-pane">
 
-		<h2>Used by</h2>
-		
-		<p>The following builds have used this build as an input:</p>
-		
-		<table class="tablesorter table table-condensed table-striped">
-		  <thead>
-		    <tr><th>Build</th><th>Input name</th><th>System</th><th>Timestamp</th></tr>
-		  </thead>
-		  <tbody>
-		    [% FOREACH input IN build.dependents -%]
-		      <tr>
-		        <td>[% INCLUDE renderFullBuildLink build=input.build %]</td>
-		        <td><tt>[% input.name %]</tt></td>
-		        <td><tt>[% input.build.system %]</tt></td>
-		        <td>[% INCLUDE renderDateTime timestamp = input.build.timestamp %]</td>
-		      </tr>
-		    [% END -%]
-		  </tbody>
-		</table>
+                <h2>Used by</h2>
+
+                <p>The following builds have used this build as an input:</p>
+
+                <table class="tablesorter table table-condensed table-striped">
+                  <thead>
+                    <tr><th>Build</th><th>Input name</th><th>System</th><th>Timestamp</th></tr>
+                  </thead>
+                  <tbody>
+                    [% FOREACH input IN build.dependents -%]
+                      <tr>
+                        <td>[% INCLUDE renderFullBuildLink build=input.build %]</td>
+                        <td><tt>[% input.name %]</tt></td>
+                        <td><tt>[% input.build.system %]</tt></td>
+                        <td>[% INCLUDE renderDateTime timestamp = input.build.timestamp %]</td>
+                      </tr>
+                    [% END -%]
+                  </tbody>
+                </table>
     </div>
 [% END %]
 [% IF prevBuilds %]
     <div id="tabs-history" class="tab-pane">
         <h2>Build time history (in seconds)</h2>
-        <div id="placeholder" style="width:800px;height:400px;"></div> 
-        <div id="overview" style="margin-left:50px;margin-top:20px;width:600px;height:50px"></div> 
+        <div id="placeholder" style="width:800px;height:400px;"></div>
+        <div id="overview" style="margin-left:50px;margin-top:20px;width:600px;height:50px"></div>
 
 <script src="/static/js/flot/jquery.flot.js" type="text/javascript"></script>
 <script src="/static/js/flot/jquery.flot.selection.js" type="text/javascript"></script>
@@ -467,7 +467,7 @@
     [% FOREACH prevbuild IN prevBuilds %][% IF prevbuild.build.starttime != 0 %]
       d.push([[% prevbuild.starttime * 1000 %],[% prevbuild.get_column('actualBuildTime') %]]);
       ids[[% prevbuild.starttime * 1000 %]] = [% prevbuild.id %] ;
-    [% END %][% END %] 
+    [% END %][% END %]
 
     var options = {
         xaxis: { mode: "time" },
@@ -481,10 +481,10 @@
           hoverRadius: 4,
         },
     };
-    
+
 
             var plot = $.plot($("#placeholder"), [d], options);
-    
+
             var overview = $.plot($("#overview"), [d], {
                 series: {
                     lines: { show: true, lineWidth: 1 },
@@ -494,20 +494,20 @@
                 yaxis: { ticks: [], min: 0, autoscaleMargin: 0.1 },
                 selection: { mode: "x" }
             });
- 
+
             // now connect the two
-    
+
             $("#placeholder").bind("plotselected", function (event, ranges) {
                 // do the zooming
                 plot = $.plot($("#placeholder"), [d],
                               $.extend(true, {}, options, {
                                   xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to }
                               }));
- 
+
                 // don't fire event on the overview to prevent eternal loop
                 overview.setSelection(ranges, true);
             });
-    
+
             $("#overview").bind("plotselected", function (event, ranges) {
                 plot.setSelection(ranges);
             });
@@ -517,15 +517,15 @@
                     plot.highlight(item.series, item.datapoint);
                     buildid = ids[item.datapoint[0]];
                     window.location = "/build/"+buildid;
-                }      
-            }); 
+                }
+            });
   });
 
 </script>
 
         <h2>Store path size history (in MB)</h2>
-        <div id="placeholder-size" style="width:800px;height:400px;"></div> 
-        <div id="overview-size" style="margin-left:50px;margin-top:20px;width:600px;height:50px"></div> 
+        <div id="placeholder-size" style="width:800px;height:400px;"></div>
+        <div id="overview-size" style="margin-left:50px;margin-top:20px;width:600px;height:50px"></div>
 <script type="text/javascript">
   $(function() {
     var d = [];
@@ -533,7 +533,7 @@
     [% FOREACH prevbuild IN prevBuilds %][% IF prevbuild.size != 0 %]
       d.push([[% prevbuild.starttime * 1000 %],[% prevbuild.size / (1024*1024.0) %]]);
       ids[[% prevbuild.starttime * 1000 %]] = [% prevbuild.id %] ;
-    [% END %][% END %] 
+    [% END %][% END %]
 
     var options = {
         xaxis: { mode: "time" },
@@ -547,10 +547,10 @@
           hoverRadius: 4,
         },
     };
-    
+
 
             var plot = $.plot($("#placeholder-size"), [d], options);
-    
+
             var overview = $.plot($("#overview-size"), [d], {
                 series: {
                     lines: { show: true, lineWidth: 1 },
@@ -560,20 +560,20 @@
                 yaxis: { ticks: [], min: 0, autoscaleMargin: 0.1 },
                 selection: { mode: "x" }
             });
- 
+
             // now connect the two
-    
+
             $("#placeholder-size").bind("plotselected", function (event, ranges) {
                 // do the zooming
                 plot = $.plot($("#placeholder-size"), [d],
                               $.extend(true, {}, options, {
                                   xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to }
                               }));
- 
+
                 // don't fire event on the overview to prevent eternal loop
                 overview.setSelection(ranges, true);
             });
-    
+
             $("#overview-size").bind("plotselected", function (event, ranges) {
                 plot.setSelection(ranges);
             });
@@ -583,13 +583,13 @@
                     plot.highlight(item.series, item.datapoint);
                     buildid = ids[item.datapoint[0]];
                     window.location = "/build/"+buildid;
-                }      
-            }); 
+                }
+            });
   });
 
 </script>
 
-        
+
     </div>
 [% END %]
 
