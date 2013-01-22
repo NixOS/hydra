@@ -24,21 +24,21 @@ STDOUT->autoflush();
 
 my $db = Hydra::Model::DB->new();
 
+my $config = getHydraConfig();
 
-my %config = new Config::General(getHydraConf)->getall;
 
 sub sendTwitterNotification {
     my ($build) = @_;
 
     return unless (defined $ENV{'TWITTER_USER'} && defined $ENV{'TWITTER_PASS'});
 
-    my $addURL = defined $config{'base_uri'};
+    my $addURL = defined $config->{'base_uri'};
 
     my $jobName  = $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
     my $status   = $build->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
     my $system   = $build->system;
     my $duration = ($build->stoptime - $build->starttime) . " seconds";
-    my $url = $config{'base_uri'}."/build/".$build->id ;
+    my $url = $config->{'base_uri'}."/build/".$build->id ;
 
     my $nt = Net::Twitter::Lite->new(
         username => $ENV{'TWITTER_USER'},
@@ -83,14 +83,14 @@ sub sendEmailNotification {
 
     my $prevBuild;
     ($prevBuild) = $db->resultset('Builds')->search(
-	{ project => $build->project->name
+        { project => $build->project->name
         , jobset => $build->jobset->name
         , job => $build->job->name
         , system => $build->system
         , finished => 1
         , id => { '<', $build->id }
         , -not => { buildstatus => { -in => [4, 3]} }
-	}, { order_by => ["id DESC"] }
+        }, { order_by => ["id DESC"] }
         );
 
     # if build is cancelled or aborted, do not send email
@@ -112,10 +112,10 @@ sub sendEmailNotification {
     my $status =  statusDescription($build->buildstatus);
 
     my $baseurl = hostname_long ;
-    my $sender = $config{'notification_sender'} ||
+    my $sender = $config->{'notification_sender'} ||
         (($ENV{'USER'} || "hydra") .  "@" . $baseurl);
 
-    my $selfURI = $config{'base_uri'} || "http://localhost:3000";
+    my $selfURI = $config->{'base_uri'} || "http://localhost:3000";
 
     sub showTime { my ($x) = @_; return strftime('%Y-%m-%d %H:%M:%S', localtime($x)); }
 
@@ -235,9 +235,9 @@ sub doBuild {
         # Run Nix to perform the build, and monitor the stderr output
         # to get notifications about specific build steps, the
         # associated log files, etc.
-	# Note: `--timeout' was added in Nix 1.0pre27564, June 2011.
+        # Note: `--timeout' was added in Nix 1.0pre27564, June 2011.
         my $cmd = "nix-store --realise $drvPath " .
-	    "--timeout $timeout " .
+            "--timeout $timeout " .
             "--max-silent-time $maxsilent --keep-going --fallback " .
             "--no-build-output --log-type flat --print-build-trace " .
             "--add-root " . gcRootFor $outPath . " 2>&1";
@@ -259,7 +259,7 @@ sub doBuild {
             }
 
             if (/^@\s+build-started\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/) {
-		my $drvPathStep = $1;
+                my $drvPathStep = $1;
                 txn_do($db, sub {
                     $build->buildsteps->create(
                         { stepnr => ($buildSteps{$drvPathStep} = $buildStepNr++)
@@ -276,12 +276,12 @@ sub doBuild {
 
             elsif (/^@\s+build-remote\s+(\S+)\s+(\S+)$/) {
                 my $drvPathStep = $1;
-		my $machine = $2;
+                my $machine = $2;
                 txn_do($db, sub {
                     my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
                     $step->update({machine => $machine});
                 });
-	    }
+            }
 
             elsif (/^@\s+build-succeeded\s+(\S+)\s+(\S+)$/) {
                 my $drvPathStep = $1;
@@ -389,8 +389,8 @@ sub doBuild {
 
         my @closure = computeFSClosure(0, 0, $outPath);
         foreach my $path (@closure) {
-	    my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($path, 0);
- 	    $closuresize += $narSize;
+            my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($path, 0);
+            $closuresize += $narSize;
         }
     }
 
@@ -446,8 +446,8 @@ if ($ENV{'HYDRA_TWITTER_TEST'}) {
 my $build;
 txn_do($db, sub {
     $build = $db->resultset('Builds')->find($buildId);
-    die "build $buildId doesn't exist" unless defined $build;
-    die "build $buildId already done" if $build->finished;
+    die "build $buildId doesn't exist\n" unless defined $build;
+    die "build $buildId already done\n" if $build->finished;
     if ($build->busy != 0 && $build->locker != getppid) {
         die "build $buildId is already being built";
     }

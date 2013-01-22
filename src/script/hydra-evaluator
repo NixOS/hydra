@@ -18,17 +18,17 @@ use Data::Dump qw(dump);
 STDOUT->autoflush();
 
 my $db = Hydra::Model::DB->new();
-my %config = new Config::General(getHydraConf)->getall;
+my $config = getHydraConfig();
 
 
 sub fetchInputs {
     my ($project, $jobset, $inputInfo) = @_;
     foreach my $input ($jobset->jobsetinputs->all) {
         foreach my $alt ($input->jobsetinputalts->all) {
-	    my @info = fetchInput($db, $project, $jobset, $input->name, $input->type, $alt->value);
-	    foreach my $info_el (@info) {
-		push @{$$inputInfo{$input->name}}, $info_el if defined $info_el;
-	    }
+            my @info = fetchInput($db, $project, $jobset, $input->name, $input->type, $alt->value);
+            foreach my $info_el (@info) {
+                push @{$$inputInfo{$input->name}}, $info_el if defined $info_el;
+            }
         }
     }
 }
@@ -41,7 +41,7 @@ sub setJobsetError {
             $jobset->update({errormsg => $errorMsg, errortime => time});
         });
     };
-    sendJobsetErrorNotification($jobset, $errorMsg); 
+    sendJobsetErrorNotification($jobset, $errorMsg);
 }
 
 
@@ -49,13 +49,13 @@ sub sendJobsetErrorNotification() {
     my ($jobset, $errorMsg) = @_;
 
     return if $jobset->project->owner->emailonerror == 0;
-    return if $errorMsg eq ""; 
+    return if $errorMsg eq "";
 
     my $url = hostname_long;
     my $projectName = $jobset->project->name;
     my $jobsetName = $jobset->name;
 
-    my $sender = $config{'notification_sender'} ||
+    my $sender = $config->{'notification_sender'} ||
         (($ENV{'USER'} || "hydra") .  "@" . $url);
 
     my $body = "Hi,\n"
@@ -76,7 +76,7 @@ sub sendJobsetErrorNotification() {
             'X-Hydra-Instance' => $url,
             'X-Hydra-Project' => $projectName,
             'X-Hydra-Jobset'  => $jobsetName
-        ], 
+        ],
         body => ""
     );
     $email->body_set($body);
@@ -90,7 +90,7 @@ sub sendJobsetErrorNotification() {
 sub permute {
     my @list = @_;
     for (my $n = scalar @list - 1; $n > 0; $n--) {
-        my $k = int(rand($n + 1)); # 0 <= $k <= $n 
+        my $k = int(rand($n + 1)); # 0 <= $k <= $n
         @list[$n, $k] = @list[$k, $n];
     }
     return @list;
@@ -101,7 +101,7 @@ sub checkJobset {
     my ($project, $jobset) = @_;
     my $inputInfo = {};
     my $exprType = $jobset->nixexprpath =~ /.scm$/ ? "guile" : "nix";
-    
+
     # Fetch all values for all inputs.
     my $checkoutStart = time;
     fetchInputs($project, $jobset, $inputInfo);
@@ -120,7 +120,7 @@ sub checkJobset {
         });
         return;
     }
-    
+
     # Evaluate the job expression.
     my $evalStart = time;
     my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
@@ -129,7 +129,7 @@ sub checkJobset {
     my $jobOutPathMap = {};
 
     txn_do($db, sub {
-        
+
         my $prevEval = getPrevJobsetEval($db, $jobset, 1);
 
         # Clear the "current" flag on all builds.  Since we're in a
@@ -151,7 +151,7 @@ sub checkJobset {
         push @{$failedJobNames{$_->{location}}}, $_->{msg} foreach @{$jobs->{error}};
 
         $jobset->update({lastcheckedtime => time});
-        
+
         $_->update({ errormsg => $failedJobNames{$_->name} ? join '\n', @{$failedJobNames{$_->name}} : undef })
             foreach $jobset->jobs->all;
 
@@ -173,7 +173,7 @@ sub checkJobset {
             while (my ($id, $new) = each %buildIds) {
                 $ev->jobsetevalmembers->create({ build => $id, isnew => $new });
             }
-            
+
             foreach my $name (keys %{$inputInfo}) {
                 for (my $n = 0; $n < scalar(@{$inputInfo->{$name}}); $n++) {
                     my $input = $inputInfo->{$name}->[$n];
@@ -190,7 +190,7 @@ sub checkJobset {
                         });
                 }
             }
-           
+
             print STDERR "  created new eval ", $ev->id, "\n";
             $ev->builds->update({iscurrent => 1});
         } else {
@@ -198,7 +198,7 @@ sub checkJobset {
             $prevEval->builds->update({iscurrent => 1}) if defined $prevEval;
         }
     });
-       
+
     # Store the error messages for jobs that failed to evaluate.
     my $msg = "";
     foreach my $error (@{$jobs->{error}}) {
@@ -221,13 +221,13 @@ sub checkJobset {
 
 sub checkJobsetWrapped {
     my ($project, $jobset) = @_;
-    
+
     print STDERR "considering jobset ", $project->name, ":", $jobset->name, "\n";
-    
+
     eval {
         checkJobset($project, $jobset);
     };
-    
+
     if ($@) {
         my $msg = $@;
         print STDERR "error evaluating jobset ", $jobset->name, ": $msg";

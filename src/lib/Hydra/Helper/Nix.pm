@@ -9,7 +9,7 @@ use Hydra::Model::DB;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getHydraHome getHydraConf txn_do
+    getHydraHome getHydraConfig txn_do
     registerRoot getGCRootsDir gcRootFor
     getPrimaryBuildsForView
     getPrimaryBuildTotal
@@ -23,10 +23,11 @@ sub getHydraHome {
 }
 
 
-sub getHydraConf {
+sub getHydraConfig {
     my $conf = $ENV{"HYDRA_CONFIG"} || (Hydra::Model::DB::getHydraPath . "/hydra.conf");
-    die "The HYDRA_CONFIG file ($conf) does not exist!\n" unless -f $conf;
-    return $conf;
+    return {} unless -f $conf;
+    my %config = new Config::General($conf)->getall;
+    return \%config;
 }
 
 
