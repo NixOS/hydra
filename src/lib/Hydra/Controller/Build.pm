@@ -60,7 +60,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     (my $lastBuildStep) = $build->buildsteps->search({},{order_by => "stepnr DESC", rows => 1});
     my $path = defined $lastBuildStep ? $lastBuildStep->logfile : "" ;
     if ($build->finished && ($build->buildstatus == 1 || $build->buildstatus == 6) && !($path eq "") && -f $lastBuildStep->logfile) {
-	my $logtext = logContents($path, 50);
+        my $logtext = logContents($path, 50);
         $c->stash->{logtext} = removeAsciiEscapes($logtext);
     }
 
@@ -140,8 +140,8 @@ sub showLog {
     }
 
     elsif ($mode eq "tail-reload") {
-    	my $url = $c->request->uri->as_string;
-    	$url =~ s/tail-reload/tail/g;
+        my $url = $c->request->uri->as_string;
+        $url =~ s/tail-reload/tail/g;
         $c->stash->{url} = $url;
         $c->stash->{reload} = !$c->stash->{build}->finished && $c->stash->{build}->busy;
         $c->stash->{title} = "";
@@ -311,17 +311,17 @@ sub deps : Chained('build') PathPart('deps') {
     @runtimepaths = split '\n', `nix-store --query --requisites --include-outputs $outpath` if isValidPath($build->outpath);
 
     foreach my $p (@buildtimepaths) {
-    	my $buildStep;
-    	($buildStep) = $c->model('DB::BuildSteps')->search({ outpath => $p }, {}) ;
-    	my %dep = ( buildstep => $buildStep,  path => $p ) ;
-    	push(@buildtimedeps, \%dep);
+        my $buildStep;
+        ($buildStep) = $c->model('DB::BuildSteps')->search({ outpath => $p }, {}) ;
+        my %dep = ( buildstep => $buildStep,  path => $p ) ;
+        push(@buildtimedeps, \%dep);
     }
 
     foreach my $p (@runtimepaths) {
-    	my $buildStep;
-    	($buildStep) = $c->model('DB::BuildSteps')->search({ outpath => $p }, {}) ;
-    	my %dep = ( buildstep => $buildStep,  path => $p ) ;
-    	push(@runtimedeps, \%dep);
+        my $buildStep;
+        ($buildStep) = $c->model('DB::BuildSteps')->search({ outpath => $p }, {}) ;
+        my %dep = ( buildstep => $buildStep,  path => $p ) ;
+        push(@runtimedeps, \%dep);
     }
 
 
@@ -466,7 +466,7 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
     # When the expression is in a .scm file, assume it's a Guile + Guix
     # build expression.
     my $exprType =
-	$c->request->params->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
+        $c->request->params->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
 
     my $jobName = trim $c->request->params->{"jobname"};
     error($c, "Invalid job name: $jobName") if $jobName !~ /^$jobNameRE$/;

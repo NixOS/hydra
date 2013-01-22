@@ -172,7 +172,7 @@ sub jobsetOverview {
           , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus = 0 and a.isCurrent = 1)"
           , "(select count(*) from Builds as a where me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
           ]
-	, "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]
+        , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]
         });
 }
 

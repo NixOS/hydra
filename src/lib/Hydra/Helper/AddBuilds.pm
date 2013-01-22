@@ -637,7 +637,7 @@ sub fetchInput {
     }
 
     foreach my $input (@inputs) {
-	$input->{type} = $type if defined $input;
+        $input->{type} = $type if defined $input;
     }
 
     return @inputs;
@@ -648,14 +648,14 @@ sub booleanToString {
     my ($exprType, $value) = @_;
     my $result;
     if ($exprType eq "guile") {
-    	if ($value eq "true") {
-    	    $result = "#t";
-    	} else {
-    	    $result = "#f";
-    	}
-    	$result = $value;
+        if ($value eq "true") {
+            $result = "#t";
+        } else {
+            $result = "#f";
+        }
+        $result = $value;
     } else {
-    	$result = $value;
+        $result = $value;
     }
     return $result;
 }
@@ -664,21 +664,21 @@ sub buildInputToString {
     my ($exprType, $input) = @_;
     my $result;
     if ($exprType eq "guile") {
-	$result = "'((file-name . \"" . ${input}->{storePath} . "\")" .
-	    (defined $input->{revision} ? "(revision . \"" . $input->{revision} . "\")" : "") .
-	    (defined $input->{revCount} ? "(revision-count . " . $input->{revCount} . ")" : "") .
-	    (defined $input->{gitTag} ? "(git-tag . \"" . $input->{gitTag} . "\")" : "") .
-	    (defined $input->{shortRev} ? "(short-revision . \"" . $input->{shortRev} . "\")" : "") .
-	    (defined $input->{version} ? "(version . \"" . $input->{version} . "\")" : "") .
-	    ")";
+        $result = "'((file-name . \"" . ${input}->{storePath} . "\")" .
+            (defined $input->{revision} ? "(revision . \"" . $input->{revision} . "\")" : "") .
+            (defined $input->{revCount} ? "(revision-count . " . $input->{revCount} . ")" : "") .
+            (defined $input->{gitTag} ? "(git-tag . \"" . $input->{gitTag} . "\")" : "") .
+            (defined $input->{shortRev} ? "(short-revision . \"" . $input->{shortRev} . "\")" : "") .
+            (defined $input->{version} ? "(version . \"" . $input->{version} . "\")" : "") .
+            ")";
     } else {
-	$result = "{ outPath = builtins.storePath " . $input->{storePath} . "" .
-	    (defined $input->{revision} ? "; rev = \"" . $input->{revision} . "\"" : "") .
-	    (defined $input->{revCount} ? "; revCount = " . $input->{revCount} . "" : "") .
-	    (defined $input->{gitTag} ? "; gitTag = \"" . $input->{gitTag} . "\"" : "") .
-	    (defined $input->{shortRev} ? "; shortRev = \"" . $input->{shortRev} . "\"" : "") .
-	    (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
-	    ";}";
+        $result = "{ outPath = builtins.storePath " . $input->{storePath} . "" .
+            (defined $input->{revision} ? "; rev = \"" . $input->{revision} . "\"" : "") .
+            (defined $input->{revCount} ? "; revCount = " . $input->{revCount} . "" : "") .
+            (defined $input->{gitTag} ? "; gitTag = \"" . $input->{gitTag} . "\"" : "") .
+            (defined $input->{shortRev} ? "; shortRev = \"" . $input->{shortRev} . "\"" : "") .
+            (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
+            ";}";
     }
     return $result;
 }
@@ -898,12 +898,12 @@ sub checkBuild {
         # scheduled if the meta.maintainers field is changed?
         if (defined $prevEval) {
             my ($prevBuild) = $prevEval->builds->search(
-		# The "project" and "jobset" constraints are
-		# semantically unnecessary (because they're implied by
-		# the eval), but they give a factor 1000 speedup on
-		# the Nixpkgs jobset with PostgreSQL.
-		{ project => $project->name, jobset => $jobset->name, job => $job->name, outPath => $outPath },
-		{ rows => 1, columns => ['id'] });
+                # The "project" and "jobset" constraints are
+                # semantically unnecessary (because they're implied by
+                # the eval), but they give a factor 1000 speedup on
+                # the Nixpkgs jobset with PostgreSQL.
+                { project => $project->name, jobset => $jobset->name, job => $job->name, outPath => $outPath },
+                { rows => 1, columns => ['id'] });
             if (defined $prevBuild) {
                 print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
                 $buildIds->{$prevBuild->id} = 0;
@@ -953,10 +953,10 @@ sub checkBuild {
             , system => $buildInfo->{system}
             , nixexprinput => $jobset->nixexprinput
             , nixexprpath => $jobset->nixexprpath
-	    , priority => $priority
-	    , busy => 0
-	    , locker => ""
-	    , %extraFlags
+            , priority => $priority
+            , busy => 0
+            , locker => ""
+            , %extraFlags
             });
 
         $buildIds->{$build->id} = 1;
@@ -1013,17 +1013,17 @@ sub restartBuild {
 
         my $paths = "";
         foreach my $bs ($build->buildsteps) {
-	    $paths = $paths . " " . $bs->outpath;
+            $paths = $paths . " " . $bs->outpath;
         }
 
         my $r = `nix-store --clear-failed-paths $paths $outpath`;
 
         $build->update(
-	    { finished => 0
-	    , timestamp => time
+            { finished => 0
+            , timestamp => time
             , busy => 0
             , locker => ""
-	    });
+            });
 
         # Reset the stats for the evals to which this build belongs.
         # !!! Should do this in a trigger.

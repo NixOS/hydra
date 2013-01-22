@@ -57,7 +57,7 @@ sub jobsetIndex {
     # status per system
     my @systems = ();
     foreach my $system (@{$c->stash->{systems}}) {
-    	push(@systems, $system->system);
+        push(@systems, $system->system);
     }
 
     if($forceStatus || scalar(@{$c->stash->{activeJobs}}) <= 100) {
@@ -74,10 +74,10 @@ sub jobsetIndex {
             [ $c->model('DB')->resultset('ActiveJobsForJobset')->search(
                   {},
                   { bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]
-	          , select => \@select
-	          , as => \@as
-	          , order_by => ["job"]
-	          })];
+                  , select => \@select
+                  , as => \@as
+                  , order_by => ["job"]
+                  })];
     }
 
 }
@@ -226,7 +226,7 @@ sub updateJobset {
     # When the expression is in a .scm file, assume it's a Guile + Guix
     # build expression.
     my $exprType =
-	$c->request->params->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
+        $c->request->params->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
 
     my ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
 

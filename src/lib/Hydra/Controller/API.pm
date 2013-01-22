@@ -103,8 +103,8 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
 sub jobsetToHash {
     my ($jobset) = @_;
     return {
-    	project => $jobset->project->name,
-    	name => $jobset->name,
+        project => $jobset->project->name,
+        name => $jobset->name,
         nrscheduled => $jobset->get_column("nrscheduled"),
         nrsucceeded => $jobset->get_column("nrsucceeded"),
         nrfailed => $jobset->get_column("nrfailed"),
@@ -222,13 +222,13 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
         my $clonePath = scmPath . "/" . sha256_hex($uri);
         die if ! -d $clonePath;
         $branch = `(cd $clonePath; hg log --template '{branch}' -r $rev2)`;
-	$diff .= `(cd $clonePath; hg log -r $rev1 -r $rev2 -b $branch)`;
-	$diff .= `(cd $clonePath; hg diff -r $rev1:$rev2)`;
+        $diff .= `(cd $clonePath; hg log -r $rev1 -r $rev2 -b $branch)`;
+        $diff .= `(cd $clonePath; hg diff -r $rev1:$rev2)`;
     } elsif ($type eq "git") {
         my $clonePath = scmPath . "/" . sha256_hex($uri);
         die if ! -d $clonePath;
-	$diff .= `(cd $clonePath; git log $rev1..$rev2)`;
-	$diff .= `(cd $clonePath; git diff $rev1..$rev2)`;
+        $diff .= `(cd $clonePath; git log $rev1..$rev2)`;
+        $diff .= `(cd $clonePath; git diff $rev1..$rev2)`;
     }
 
     $c->stash->{'plain'} = { data => (scalar $diff) || " " };
