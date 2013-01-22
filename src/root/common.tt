@@ -263,7 +263,7 @@
 [% BLOCK renderStatus %]
   [% IF build.finished %]
     [% buildstatus = build.buildstatus %]
-    [% INCLUDE renderBuildStatusIcon size=16 %]
+    [% IF icon; INCLUDE renderBuildStatusIcon size=16; END %]
     [% IF buildstatus == 0 %]
       <strong>Success</strong>
     [% ELSIF buildstatus == 1 %]

@@ -89,6 +89,12 @@
                                     <th>Build ID:</th>
                                     <td>[% build.id %]</td>
                                   </tr>
+                                  <tr>
+                                    <th>Status:</th>
+                                    <td>
+                                        [% INCLUDE renderStatus build=build icon=0 %]
+                                    </td>
+                                  </tr>
                                   [% IF build.releasename %]
                                     <tr>
                                       <th>Release name:</th>
@@ -100,12 +106,6 @@
                                             <td><tt>[% build.nixname %]</tt></td>
                                           </tr>
                                   [% END %]
-                                  <tr>
-                                    <th>Status:</th>
-                                    <td>
-                                        [% INCLUDE renderStatus build=build %]
-                                    </td>
-                                  </tr>
                                   <tr>
                                     <th>System:</th>
                                     <td><tt>[% build.system %]</tt></td>
