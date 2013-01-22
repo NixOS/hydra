@@ -106,7 +106,7 @@ __PACKAGE__->has_many(
   "builds",
   "Hydra::Schema::Builds",
   { "foreign.project" => "self.name" },
-  {},
+  undef,
 );
 
 =head2 jobs
@@ -121,7 +121,7 @@ __PACKAGE__->has_many(
   "jobs",
   "Hydra::Schema::Jobs",
   { "foreign.project" => "self.name" },
-  {},
+  undef,
 );
 
 =head2 jobsetevals
@@ -136,7 +136,7 @@ __PACKAGE__->has_many(
   "jobsetevals",
   "Hydra::Schema::JobsetEvals",
   { "foreign.project" => "self.name" },
-  {},
+  undef,
 );
 
 =head2 jobsets
@@ -151,7 +151,7 @@ __PACKAGE__->has_many(
   "jobsets",
   "Hydra::Schema::Jobsets",
   { "foreign.project" => "self.name" },
-  {},
+  undef,
 );
 
 =head2 owner
@@ -162,7 +162,12 @@ Related object: L<Hydra::Schema::Users>
 
 =cut
 
-__PACKAGE__->belongs_to("owner", "Hydra::Schema::Users", { username => "owner" }, {});
+__PACKAGE__->belongs_to(
+  "owner",
+  "Hydra::Schema::Users",
+  { username => "owner" },
+  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
+);
 
 =head2 projectmembers
 
@@ -176,7 +181,7 @@ __PACKAGE__->has_many(
   "projectmembers",
   "Hydra::Schema::ProjectMembers",
   { "foreign.project" => "self.name" },
-  {},
+  undef,
 );
 
 =head2 releasemembers
@@ -191,7 +196,7 @@ __PACKAGE__->has_many(
   "releasemembers",
   "Hydra::Schema::ReleaseMembers",
   { "foreign.project" => "self.name" },
-  {},
+  undef,
 );
 
 =head2 releases
@@ -206,7 +211,7 @@ __PACKAGE__->has_many(
   "releases",
   "Hydra::Schema::Releases",
   { "foreign.project" => "self.name" },
-  {},
+  undef,
 );
 
 =head2 viewjobs
@@ -221,7 +226,7 @@ __PACKAGE__->has_many(
   "viewjobs",
   "Hydra::Schema::ViewJobs",
   { "foreign.project" => "self.name" },
-  {},
+  undef,
 );
 
 =head2 views
@@ -236,12 +241,22 @@ __PACKAGE__->has_many(
   "views",
   "Hydra::Schema::Views",
   { "foreign.project" => "self.name" },
-  {},
+  undef,
 );
 
+=head2 usernames
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:cnheEOmK/5fCX1ui4OWPog
+Type: many_to_many
+
+Composing rels: L</projectmembers> -> username
+
+=cut
+
+__PACKAGE__->many_to_many("usernames", "projectmembers", "username");
+
+
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OCuhmxs8pZxvmk81eVLLcQ
 # These lines were loaded from '/home/rbvermaa/src/hydra/src/lib/Hydra/Schema/Projects.pm' found in @INC.
 # They are now part of the custom portion of this file
 # for you to hand-edit.  If you do not either delete

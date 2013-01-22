@@ -14,7 +14,7 @@ our @EXPORT = qw(
     getPrimaryBuildsForView
     getPrimaryBuildTotal
     getViewResult getLatestSuccessfulViewResult
-    jobsetOverview removeAsciiEscapes logContents);
+    jobsetOverview removeAsciiEscapes getDrvLogPath logContents);
 
 
 sub getHydraHome {
@@ -238,18 +238,38 @@ sub getLatestSuccessfulViewResult {
     return undef;
 }
 
+
+# Return the path of the build log of the given derivation, or undef
+# if the log is gone.
+sub getDrvLogPath {
+    my ($drvPath) = @_;
+    my $base = basename $drvPath;
+    my $fn =
+        ($ENV{NIX_LOG_DIR} || "/nix/var/log/nix") . "/drvs/"
+        . substr($base, 0, 2) . "/"
+        . substr($base, 2);
+    return $fn if -f $fn;
+    $fn .= ".bz2";
+    return $fn if -f $fn;
+    return undef;
+}
+
+
 sub logContents {
-    my ($path, $tail) = @_;
+    my ($drvPath, $tail) = @_;
+    my $logPath = getDrvLogPath($drvPath);
+    die unless defined $logPath;
     my $cmd;
-    if ($path =~ /.bz2$/) {
-        $cmd = "cat $path | bzip2 -d";
-        $cmd = $cmd . " | tail -$tail" if defined $tail;
+    if ($logPath =~ /.bz2$/) {
+        $cmd = "bzip2 -d < $logPath";
+        $cmd = $cmd . " | tail -n $tail" if defined $tail;
     }
     else {
-        $cmd = defined $tail ? "tail -$tail $path" : "cat $path";
+        $cmd = defined $tail ? "tail -$tail $logPath" : "cat $logPath";
     }
-    return `$cmd` if -e $path;
+    return `$cmd`;
 }
+
 
 sub removeAsciiEscapes {
     my ($logtext) = @_;

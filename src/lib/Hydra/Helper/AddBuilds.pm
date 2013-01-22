@@ -17,23 +17,13 @@ use File::Temp;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr
-    getReleaseName getBuildLog addBuildProducts restartBuild scmPath
+    getReleaseName addBuildProducts restartBuild scmPath
     getPrevJobsetEval
 );
 
 
 sub scmPath {
     return Hydra::Model::DB::getHydraPath . "/scm" ;
-}
-
-
-sub getBuildLog {
-    my ($drvPath) = @_;
-    my $logPath = ($ENV{NIX_LOG_DIR} || "/nix/var/log/nix"). "/drvs/" . basename $drvPath;
-    return $logPath if -e $logPath;
-    $logPath = "$logPath.bz2";
-    return $logPath if -e $logPath;
-    return undef;
 }
 
 
@@ -930,7 +920,6 @@ sub checkBuild {
                 , buildstatus => -f "$outPath/nix-support/failed" ? 6 : 0
                 , starttime => $time
                 , stoptime => $time
-                , logfile => getBuildLog($drvPath)
                 , errormsg => ""
                 , releasename => getReleaseName($outPath)
                 );

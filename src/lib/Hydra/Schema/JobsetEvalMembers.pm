@@ -75,7 +75,12 @@ Related object: L<Hydra::Schema::Builds>
 
 =cut
 
-__PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" }, {});
+__PACKAGE__->belongs_to(
+  "build",
+  "Hydra::Schema::Builds",
+  { id => "build" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+);
 
 =head2 eval
 
@@ -85,11 +90,16 @@ Related object: L<Hydra::Schema::JobsetEvals>
 
 =cut
 
-__PACKAGE__->belongs_to("eval", "Hydra::Schema::JobsetEvals", { id => "eval" }, {});
+__PACKAGE__->belongs_to(
+  "eval",
+  "Hydra::Schema::JobsetEvals",
+  { id => "eval" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:0K4lDPUQeK04SEXS5yBbeA
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:EVwSR9WBqbBdIHq1ANQMHg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

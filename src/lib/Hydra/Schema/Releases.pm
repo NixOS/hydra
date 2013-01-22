@@ -81,7 +81,12 @@ Related object: L<Hydra::Schema::Projects>
 
 =cut
 
-__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
+__PACKAGE__->belongs_to(
+  "project",
+  "Hydra::Schema::Projects",
+  { name => "project" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+);
 
 =head2 releasemembers
 
@@ -98,11 +103,11 @@ __PACKAGE__->has_many(
     "foreign.project"  => "self.project",
     "foreign.release_" => "self.name",
   },
-  {},
+  undef,
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:W6GOMPv7hc2EAdVaBOvc3A
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:UTUE3Hb89fT7prwnwwBgvQ
 
 1;

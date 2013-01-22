@@ -109,12 +109,12 @@ __PACKAGE__->has_many(
   "buildmachinesystemtypes",
   "Hydra::Schema::BuildMachineSystemTypes",
   { "foreign.hostname" => "self.hostname" },
-  {},
+  undef,
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:wboDtUIBUkvEiUHpe09kkg
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OST5IMcvHKsXlNMCRazXhg
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

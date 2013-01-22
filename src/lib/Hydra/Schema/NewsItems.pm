@@ -80,10 +80,15 @@ Related object: L<Hydra::Schema::Users>
 
 =cut
 
-__PACKAGE__->belongs_to("author", "Hydra::Schema::Users", { username => "author" }, {});
+__PACKAGE__->belongs_to(
+  "author",
+  "Hydra::Schema::Users",
+  { username => "author" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:YRMh0QI4JezFLj7nywGu6Q
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:lnA5Utkwk5WTyKA/M5mlyg
 
 1;

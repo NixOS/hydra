@@ -16,9 +16,9 @@
           <tbody>
             [% FOREACH step IN build.buildsteps -%]
                         [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) -%]
-                      [% log = c.uri_for('/build' build.id 'nixlog' step.stepnr) %]
-                      <tr class="[% IF step.logfile %]clickable[% END %]"
-                          [% IF step.logfile %] onclick="window.location = '[% log %]'" [% END %]>
+                      [% has_log = log_exists(step.drvpath);
+                         log = c.uri_for('/build' build.id 'nixlog' step.stepnr); -%]
+                      <tr [% IF has_log %] class="clickable" onclick="window.location = '[% log %]'" [% END %]>
                         <td>[% step.stepnr %]</td>
                         <td>
                           [% IF step.type == 0 %]
@@ -51,7 +51,7 @@
                           [% ELSE %]
                             <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
                           [% END %]
-                          [% IF step.logfile %]
+                          [% IF has_log %]
                             (<a href="[% log %]">log</a>, <a href="[% "$log/raw" %]">raw</a>, <a href="[% "$log/tail-reload" %]">tail</a>)
                           [% END %]
                         </td>
@@ -124,11 +124,11 @@
                                       </td>
                                     </tr>
                                   [% END %]
-                                  [% IF build.logfile %]
+                                  [% IF log_exists(build.drvpath) %]
                                       <tr>
                                         <th>Logfile:</th>
                                         <td>
-                                          <a class="btn btn-mini btn-primary" href="[% c.uri_for('/build' build.id 'log') %]">pretty</a>
+                                          <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log') %]">pretty</a>
                                           <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>
                                           <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>
                                         </td>
@@ -208,9 +208,9 @@
                                 <pre class="buildlog">[% HTML.escape(build.errormsg) -%]</pre>
                         [% END %]
                 [% END %]
+
                 [% IF logtext %]
                         <h2>Log</h2>
-
                         <pre class="buildlog">[% HTML.escape(logtext) -%]</pre>
                 [% END %]
         </div>
@@ -275,15 +275,11 @@
                   </tr>
                   <tr>
                     <th>Maintainer(s):</th>
-                    <td>[% IF build.maintainers %]<tt>[% HTML.escape(build.maintainers) %]</tt>[% ELSE %]<em>(not given)</em>[% END %]</td>
+                    <td>[% IF build.maintainers %][% HTML.escape(build.maintainers) %][% ELSE %]<em>(not given)</em>[% END %]</td>
                   </tr>
                   <tr>
                     <th>System:</th>
                     <td><tt>[% build.system %]</tt></td>
-                  </tr>
-                  <tr>
-                    <th>Max silent / timeout:</th>
-                    <td>[% build.maxsilent %]s / [% build.timeout %]s</td>
                   </tr>
                   <tr>
                     <th>Derivation store path:</th>
@@ -322,7 +318,6 @@
                         <td>[% INCLUDE renderFullBuildLink build=cachedBuild %]</td>
                       </tr>
                     [% END %]
-
                     <tr>
                       <th>Build started:</th>
                       <td>[% IF build.starttime %][% INCLUDE renderDateTime timestamp = build.starttime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
@@ -331,26 +326,6 @@
                       <th>Build finished:</th>
                       <td>[% IF build.stoptime %][% INCLUDE renderDateTime timestamp = build.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
                     </tr>
-                    <tr>
-                      <th>Duration:</th>
-                      <td>
-                        [% IF build.iscachedbuild %]
-                          <em>(cached build)</em>
-                        [% ELSE %]
-                          [% INCLUDE renderDuration duration = build.stoptime - build.starttime %]
-                        [% END %]
-                      </td>
-                    </tr>
-                    [% IF build.logfile %]
-                      <tr>
-                        <th>Logfile:</th>
-                        <td>
-                          <a href="[% c.uri_for('/build' build.id 'log') %]"><strong>Available</strong></a>
-                          (<a href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>,
-                           <a href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>)
-                        </td>
-                      </tr>
-                    [% END %]
                   [% END %]
                   [% IF !build.finished %]
                     <tr>
@@ -406,7 +381,7 @@
         <p/>
 
         [% IF prevBuild %]
-            <h3>Changes since previous build : [% INCLUDE renderFullBuildLink build=prevBuild, hideProjectName=1, hideJobsetName=1 %]</h3>
+            <h3>Changes since previous build: [% INCLUDE renderFullBuildLink build=prevBuild, hideProjectName=1, hideJobsetName=1 %]</h3>
             [% INCLUDE renderInputDiff build2=build , build1=prevBuild %]
         [% END %]
 

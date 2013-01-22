@@ -178,7 +178,6 @@ create table Builds (
 
     errorMsg      text, -- error message in case of a Nix failure
 
-    logSize       bigint,
     size          bigint,
     closureSize   bigint,
 
@@ -200,8 +199,6 @@ create table BuildSteps (
 
     drvPath       text,
     outPath       text,
-
-    logfile       text,
 
     busy          integer not null,
 

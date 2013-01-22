@@ -71,12 +71,12 @@ __PACKAGE__->belongs_to(
   "hostname",
   "Hydra::Schema::BuildMachines",
   { hostname => "hostname" },
-  {},
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:CpwMC8YMFC4B7gzGBdzh0A
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:im3sfvrv5YY3i1IAOozeiA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

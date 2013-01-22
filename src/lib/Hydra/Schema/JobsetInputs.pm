@@ -88,7 +88,7 @@ __PACKAGE__->belongs_to(
   "jobset",
   "Hydra::Schema::Jobsets",
   { name => "jobset", project => "project" },
-  {},
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
 =head2 jobsetinputalts
@@ -107,7 +107,7 @@ __PACKAGE__->has_many(
     "foreign.jobset"  => "self.jobset",
     "foreign.project" => "self.project",
   },
-  {},
+  undef,
 );
 
 =head2 jobsets
@@ -126,11 +126,11 @@ __PACKAGE__->has_many(
     "foreign.nixexprinput" => "self.name",
     "foreign.project"      => "self.project",
   },
-  {},
+  undef,
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:F/eZhnWZHATn9+O6MzuPqA
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:xjioYUPo6visoLAVDkDZ0Q
 
 1;

@@ -85,7 +85,12 @@ Related object: L<Hydra::Schema::Builds>
 
 =cut
 
-__PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" }, {});
+__PACKAGE__->belongs_to(
+  "build",
+  "Hydra::Schema::Builds",
+  { id => "build" },
+  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "NO ACTION" },
+);
 
 =head2 project
 
@@ -95,7 +100,12 @@ Related object: L<Hydra::Schema::Projects>
 
 =cut
 
-__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
+__PACKAGE__->belongs_to(
+  "project",
+  "Hydra::Schema::Projects",
+  { name => "project" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
+);
 
 =head2 release
 
@@ -109,11 +119,11 @@ __PACKAGE__->belongs_to(
   "release",
   "Hydra::Schema::Releases",
   { name => "release_", project => "project" },
-  {},
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SBMfzENPE0BjEwc2HAK7IA
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:eP00w5UJp1uTtiB7D5IhTQ
 
 1;

@@ -130,11 +130,16 @@ Related object: L<Hydra::Schema::Builds>
 
 =cut
 
-__PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" }, {});
+__PACKAGE__->belongs_to(
+  "build",
+  "Hydra::Schema::Builds",
+  { id => "build" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-02-29 00:47:18
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:dzTKwZ7bby7kplnSgta3Gw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:KHwh/Np40jxKXc3ijMImEQ
 
 # You can replace this text with custom content, and it will be preserved on regeneration
 1;

@@ -7,6 +7,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::AddBuilds;
 use File::stat;
+use File::Slurp;
 use Data::Dump qw(dump);
 use Nix::Store;
 
@@ -30,10 +31,6 @@ sub build : Chained('/') PathPart CaptureArgs(1) {
     $c->stash->{project} = $c->stash->{build}->project;
 }
 
-sub cat_log_command {
-    my ($path) = @_;
-    return ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path");
-}
 
 sub view_build : Chained('build') PathPart('') Args(0) {
     my ($self, $c) = @_;
@@ -48,20 +45,12 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     $c->stash->{pathHash} = $c->stash->{available} ? queryPathHash($build->outpath) : undef;
 
     if (!$build->finished && $build->busy) {
-        my $logfile = $build->logfile;
-        $c->stash->{logtext} = logContents($logfile);
+        $c->stash->{logtext} = read_file($build->logfile, err_mode => 'quiet') // "";
     }
 
     if ($build->finished && $build->iscachedbuild) {
-        (my $cachedBuildStep) = $c->model('DB::BuildSteps')->search({ outpath => $build->outpath }, {}) ;
+        (my $cachedBuildStep) = $c->model('DB::BuildSteps')->search({ outpath => $build->outpath }, {});
         $c->stash->{cachedBuild} = $cachedBuildStep->build if defined $cachedBuildStep;
-    }
-
-    (my $lastBuildStep) = $build->buildsteps->search({},{order_by => "stepnr DESC", rows => 1});
-    my $path = defined $lastBuildStep ? $lastBuildStep->logfile : "" ;
-    if ($build->finished && ($build->buildstatus == 1 || $build->buildstatus == 6) && !($path eq "") && -f $lastBuildStep->logfile) {
-        my $logtext = logContents($path, 50);
-        $c->stash->{logtext} = removeAsciiEscapes($logtext);
     }
 
     if ($build->finished) {
@@ -102,40 +91,34 @@ sub view_nixlog : Chained('build') PathPart('nixlog') {
 
     $c->stash->{step} = $step;
 
-    showLog($c, $step->logfile, $mode);
+    showLog($c, $step->drvpath, $mode);
 }
 
 
 sub view_log : Chained('build') PathPart('log') {
     my ($self, $c, $mode) = @_;
-
-    error($c, "Build didn't produce a log.") if !defined $c->stash->{build}->logfile;
-
-    showLog($c, $c->stash->{build}->logfile, $mode);
+    showLog($c, $c->stash->{build}->drvpath, $mode);
 }
 
 
 sub showLog {
-    my ($c, $path, $mode) = @_;
+    my ($c, $drvPath, $mode) = @_;
 
-    my $fallbackpath = -f $path ? $path : "$path.bz2";
+    my $logPath = getDrvLogPath($drvPath);
 
-    notFound($c, "Log file $path no longer exists.") unless -f $fallbackpath;
-    $path = $fallbackpath;
+    notFound($c, "The build log of derivation ‘$drvPath’ is not available.") unless defined $logPath;
 
     if (!$mode) {
         # !!! quick hack
-        my $pipestart = ($path =~ /.bz2$/ ? "cat $path | bzip2 -d" : "cat $path") ;
-        my $pipeline = $pipestart
+        my $pipeline = "nix-store -l $drvPath"
             . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
             . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " - | tail -n +2";
-
         $c->stash->{template} = 'log.tt';
         $c->stash->{logtext} = `$pipeline`;
     }
 
     elsif ($mode eq "raw") {
-        $c->stash->{'plain'} = { data => (scalar logContents($path)) || " " };
+        $c->stash->{'plain'} = { data => (scalar logContents($drvPath)) || " " };
         $c->forward('Hydra::View::Plain');
     }
 
@@ -145,12 +128,12 @@ sub showLog {
         $c->stash->{url} = $url;
         $c->stash->{reload} = !$c->stash->{build}->finished && $c->stash->{build}->busy;
         $c->stash->{title} = "";
-        $c->stash->{contents} = (scalar logContents($path, 50)) || " ";
+        $c->stash->{contents} = (scalar logContents($drvPath, 50)) || " ";
         $c->stash->{template} = 'plain-reload.tt';
     }
 
     elsif ($mode eq "tail") {
-        $c->stash->{'plain'} = { data => (scalar logContents($path, 50)) || " " };
+        $c->stash->{'plain'} = { data => (scalar logContents($drvPath, 50)) || " " };
         $c->forward('Hydra::View::Plain');
     }
 

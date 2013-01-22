@@ -122,7 +122,7 @@ __PACKAGE__->has_many(
     "foreign.jobset"  => "self.jobset",
     "foreign.project" => "self.project",
   },
-  {},
+  undef,
 );
 
 =head2 jobset
@@ -137,7 +137,7 @@ __PACKAGE__->belongs_to(
   "jobset",
   "Hydra::Schema::Jobsets",
   { name => "jobset", project => "project" },
-  {},
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
 =head2 project
@@ -148,10 +148,15 @@ Related object: L<Hydra::Schema::Projects>
 
 =cut
 
-__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
+__PACKAGE__->belongs_to(
+  "project",
+  "Hydra::Schema::Projects",
+  { name => "project" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZyDc4SrY9RfmsLK6VOqHhw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Vfl4QtuyeKeEk9+Ap7FP2A
 
 1;

@@ -183,11 +183,6 @@ __PACKAGE__->table("Builds");
   data_type: 'text'
   is_nullable: 1
 
-=head2 logsize
-
-  data_type: 'bigint'
-  is_nullable: 1
-
 =head2 size
 
   data_type: 'bigint'
@@ -272,8 +267,6 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 1 },
   "errormsg",
   { data_type => "text", is_nullable => 1 },
-  "logsize",
-  { data_type => "bigint", is_nullable => 1 },
   "size",
   { data_type => "bigint", is_nullable => 1 },
   "closuresize",
@@ -310,7 +303,7 @@ __PACKAGE__->has_many(
   "buildinputs_builds",
   "Hydra::Schema::BuildInputs",
   { "foreign.build" => "self.id" },
-  {},
+  undef,
 );
 
 =head2 buildinputs_dependencies
@@ -325,7 +318,7 @@ __PACKAGE__->has_many(
   "buildinputs_dependencies",
   "Hydra::Schema::BuildInputs",
   { "foreign.dependency" => "self.id" },
-  {},
+  undef,
 );
 
 =head2 buildproducts
@@ -340,7 +333,7 @@ __PACKAGE__->has_many(
   "buildproducts",
   "Hydra::Schema::BuildProducts",
   { "foreign.build" => "self.id" },
-  {},
+  undef,
 );
 
 =head2 buildsteps
@@ -355,7 +348,7 @@ __PACKAGE__->has_many(
   "buildsteps",
   "Hydra::Schema::BuildSteps",
   { "foreign.build" => "self.id" },
-  {},
+  undef,
 );
 
 =head2 job
@@ -370,7 +363,7 @@ __PACKAGE__->belongs_to(
   "job",
   "Hydra::Schema::Jobs",
   { jobset => "jobset", name => "job", project => "project" },
-  {},
+  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
 );
 
 =head2 jobset
@@ -385,7 +378,7 @@ __PACKAGE__->belongs_to(
   "jobset",
   "Hydra::Schema::Jobsets",
   { name => "jobset", project => "project" },
-  {},
+  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
 );
 
 =head2 jobsetevalinputs
@@ -400,7 +393,7 @@ __PACKAGE__->has_many(
   "jobsetevalinputs",
   "Hydra::Schema::JobsetEvalInputs",
   { "foreign.dependency" => "self.id" },
-  {},
+  undef,
 );
 
 =head2 jobsetevalmembers
@@ -415,7 +408,7 @@ __PACKAGE__->has_many(
   "jobsetevalmembers",
   "Hydra::Schema::JobsetEvalMembers",
   { "foreign.build" => "self.id" },
-  {},
+  undef,
 );
 
 =head2 project
@@ -426,7 +419,12 @@ Related object: L<Hydra::Schema::Projects>
 
 =cut
 
-__PACKAGE__->belongs_to("project", "Hydra::Schema::Projects", { name => "project" }, {});
+__PACKAGE__->belongs_to(
+  "project",
+  "Hydra::Schema::Projects",
+  { name => "project" },
+  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
+);
 
 =head2 releasemembers
 
@@ -440,12 +438,12 @@ __PACKAGE__->has_many(
   "releasemembers",
   "Hydra::Schema::ReleaseMembers",
   { "foreign.build" => "self.id" },
-  {},
+  undef,
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-04-15 16:38:10
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:AltTdmkzfwBMYToTkj84vA
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:34:39
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:wPBFqpUWncuD9xki8Pbnvg
 
 __PACKAGE__->has_many(
   "dependents",

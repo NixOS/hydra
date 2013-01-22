@@ -156,7 +156,7 @@ sub sendEmailNotification {
     $inputsTable->load(@lines);
 
     my $loglines = 50;
-    my $logtext = logContents($build->logfile, $loglines);
+    my $logtext = logContents($build->drvpath, $loglines);
     $logtext = removeAsciiEscapes($logtext);
 
     my $body = "Hi,\n"
@@ -267,7 +267,6 @@ sub doBuild {
                         , drvpath => $drvPathStep
                         , outpath => $2
                         , system => $3
-                        , logfile => $4
                         , busy => 1
                         , starttime => time
                         });
@@ -314,7 +313,6 @@ sub doBuild {
                             , type => 0 # = build
                             , drvpath => $drvPathStep
                             , outpath => $2
-                            , logfile => getBuildLog($drvPathStep)
                             , busy => 0
                             , status => 1
                             , starttime => time
@@ -376,10 +374,6 @@ sub doBuild {
     }
 
   done:
-    my $logfile = getBuildLog($drvPath);
-
-    my $logsize = defined $logfile ? stat($logfile)->size : 0;
-
     my $size = 0;
     my $closuresize = 0;
 
@@ -409,8 +403,6 @@ sub doBuild {
             , buildstatus => $buildStatus
             , starttime => $startTime
             , stoptime => $stopTime
-            , logfile => $logfile
-            , logsize => $logsize
             , size => $size
             , closuresize => $closuresize
             , errormsg => $errormsg

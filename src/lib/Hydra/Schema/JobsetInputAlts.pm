@@ -105,11 +105,11 @@ __PACKAGE__->belongs_to(
   "jobsetinput",
   "Hydra::Schema::JobsetInputs",
   { jobset => "jobset", name => "input", project => "project" },
-  {},
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-04-15 12:38:16
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:M1pOjrCZ2RgULsIPZjN7sg
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:M3pNBRLfxgSScrPj1zaajA
 
 1;

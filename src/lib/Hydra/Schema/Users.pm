@@ -90,7 +90,7 @@ __PACKAGE__->has_many(
   "newsitems",
   "Hydra::Schema::NewsItems",
   { "foreign.author" => "self.username" },
-  {},
+  undef,
 );
 
 =head2 projectmembers
@@ -105,10 +105,10 @@ __PACKAGE__->has_many(
   "projectmembers",
   "Hydra::Schema::ProjectMembers",
   { "foreign.username" => "self.username" },
-  {},
+  undef,
 );
 
-=head2 projects
+=head2 projects_2s
 
 Type: has_many
 
@@ -117,10 +117,10 @@ Related object: L<Hydra::Schema::Projects>
 =cut
 
 __PACKAGE__->has_many(
-  "projects",
+  "projects_2s",
   "Hydra::Schema::Projects",
   { "foreign.owner" => "self.username" },
-  {},
+  undef,
 );
 
 =head2 userroles
@@ -135,12 +135,22 @@ __PACKAGE__->has_many(
   "userroles",
   "Hydra::Schema::UserRoles",
   { "foreign.username" => "self.username" },
-  {},
+  undef,
 );
 
+=head2 projects
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3fmr8WMAE9Dg7TKom76YIQ
+Type: many_to_many
+
+Composing rels: L</projectmembers> -> project
+
+=cut
+
+__PACKAGE__->many_to_many("projects", "projectmembers", "project");
+
+
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OAUFl/teGpfeleb6D8FPlw
 # These lines were loaded from '/home/rbvermaa/src/hydra/src/lib/Hydra/Schema/Users.pm' found in @INC.
 # They are now part of the custom portion of this file
 # for you to hand-edit.  If you do not either delete

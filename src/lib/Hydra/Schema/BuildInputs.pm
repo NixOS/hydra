@@ -127,7 +127,12 @@ __PACKAGE__->belongs_to(
   "build",
   "Hydra::Schema::Builds",
   { id => "build" },
-  { join_type => "LEFT" },
+  {
+    is_deferrable => 0,
+    join_type     => "LEFT",
+    on_delete     => "CASCADE",
+    on_update     => "NO ACTION",
+  },
 );
 
 =head2 dependency
@@ -142,11 +147,16 @@ __PACKAGE__->belongs_to(
   "dependency",
   "Hydra::Schema::Builds",
   { id => "dependency" },
-  { join_type => "LEFT" },
+  {
+    is_deferrable => 0,
+    join_type     => "LEFT",
+    on_delete     => "NO ACTION",
+    on_update     => "NO ACTION",
+  },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2012-04-15 12:38:16
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:sav9OmLm3qA/jiK5k+KIjw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:byU/SLN03zNJlSFbi/3Bcg
 
 1;

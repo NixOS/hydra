@@ -49,11 +49,6 @@ __PACKAGE__->table("BuildSteps");
   data_type: 'text'
   is_nullable: 1
 
-=head2 logfile
-
-  data_type: 'text'
-  is_nullable: 1
-
 =head2 busy
 
   data_type: 'integer'
@@ -103,8 +98,6 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "outpath",
   { data_type => "text", is_nullable => 1 },
-  "logfile",
-  { data_type => "text", is_nullable => 1 },
   "busy",
   { data_type => "integer", is_nullable => 0 },
   "status",
@@ -145,10 +138,15 @@ Related object: L<Hydra::Schema::Builds>
 
 =cut
 
-__PACKAGE__->belongs_to("build", "Hydra::Schema::Builds", { id => "build" }, {});
+__PACKAGE__->belongs_to(
+  "build",
+  "Hydra::Schema::Builds",
+  { id => "build" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:5H+OkGT0zQEWkAjU+OlBdg
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ItI1OvxHfLTzLVEqfPRjHg
 
 1;

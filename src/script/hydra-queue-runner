@@ -40,9 +40,7 @@ sub unlockDeadBuilds {
             }
             if ($unlock) {
                 print "build ", $build->id, " pid $pid died, unlocking\n";
-                $build->busy(0);
-                $build->locker("");
-                $build->update;
+                $build->update({ busy => 0, locker => ""});
             }
         }
     });
@@ -63,8 +61,8 @@ sub findBuildDependencyInQueue {
     return unless scalar @drvs > 0;
 
     ($depBuild) = $db->resultset('Builds')->search(
-	{ drvpath => [ @drvs ], finished => 0, busy => 0, enabled => 1, disabled => 0 },
-	{ join => ['project'], rows => 1 } ) ;
+        { drvpath => [ @drvs ], finished => 0, busy => 0, enabled => 1, disabled => 0 },
+        { join => ['project'], rows => 1 } ) ;
     return $depBuild;
 }
 
@@ -113,11 +111,12 @@ sub checkBuilds {
                 my $logfile = getcwd . "/logs/" . $build->id;
                 mkdir(dirname $logfile);
                 unlink($logfile);
-                $build->busy(1);
-                $build->locker($$);
-                $build->logfile($logfile);
-                $build->starttime(time);
-                $build->update;
+                $build->update(
+                    { busy => 1
+                    , locker => $$
+                    , logfile => $logfile
+                    , starttime => time()
+                    });
                 push @buildsStarted, $build;
             }
         }
