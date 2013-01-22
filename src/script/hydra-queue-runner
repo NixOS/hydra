@@ -41,6 +41,7 @@ sub unlockDeadBuilds {
             if ($unlock) {
                 print "build ", $build->id, " pid $pid died, unlocking\n";
                 $build->update({ busy => 0, locker => ""});
+                $build->buildsteps->search({ busy => 1 })->update({ busy => 0, status => 4, stoptime => time });
             }
         }
     });

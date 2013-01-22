@@ -41,13 +41,11 @@
                 <td>[% step.machine.split('@').1 %]</td>
                         <td>
                           [% IF step.busy == 1 %]
-                            [% IF build.finished %]
-                              <span class="error">Aborted</span>
-                            [% ELSE %]
-                              <strong>Building</strong>
-                            [% END %]
+                            <strong>Building</strong>
                           [% ELSIF step.status == 0 %]
                             Succeeded
+                          [% ELSIF step.status == 4 %]
+                            <span class="error">Aborted</span>
                           [% ELSE %]
                             <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
                           [% END %]
@@ -163,7 +161,7 @@
 
                 [% END %]
 
-        [% IF !build.finished %]
+        [% IF build.busy %]
             <h3>Running build steps</h3>
             [% INCLUDE renderBuildSteps type="Running" %]
         [% END %]

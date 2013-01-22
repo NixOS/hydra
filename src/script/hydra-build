@@ -286,10 +286,7 @@ sub doBuild {
                 my $drvPathStep = $1;
                 txn_do($db, sub {
                     my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
-                    my $stepOutpath = $step->outpath;
-                    my $stepStatus = 0;
-
-                    $step->update({busy => 0, status => $stepStatus, stoptime => time});
+                    $step->update({busy => 0, status => 0, stoptime => time});
                 });
             }
 
