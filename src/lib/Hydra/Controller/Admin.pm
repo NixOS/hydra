@@ -187,8 +187,6 @@ sub sendemail {
 sub reset_password : Chained('user') PathPart('reset-password') Args(0) {
     my ($self, $c) = @_;
 
-    my %config = new Config::General(getHydraConf)->getall;
-
     # generate password
     my $password = Crypt::RandPasswd->word(8,10);
 
@@ -204,7 +202,7 @@ sub reset_password : Chained('user') PathPart('reset-password') Args(0) {
         "New password for Hydra",
         "Hi,\n\n".
         "Your password has been reset. Your new password is '$password'.\n".
-        "You can change your password at ".$config{'base_uri'}."/change-password .\n".
+        "You can change your password at " . $c->config()->{'base_uri'} . "/change-password .\n".
         "With regards, Hydra\n"
     );
 
