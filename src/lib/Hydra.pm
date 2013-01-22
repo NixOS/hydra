@@ -50,8 +50,8 @@ __PACKAGE__->config(
         storage => Hydra::Model::DB::getHydraPath . "/session_data"
     },
     'Plugin::AccessLog' => {
-	formatter => {
-	    format => '%h %l %u %t "%r" %s %b "%{Referer}i" "%{User-Agent}i" %[handle_time]',
+        formatter => {
+            format => '%h %l %u %t "%r" %s %b "%{Referer}i" "%{User-Agent}i" %[handle_time]',
         },
     },
 );
