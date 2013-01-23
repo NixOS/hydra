@@ -2,12 +2,10 @@
 , officialRelease ? false
 }:
 
-
 rec {
+
   tarball =
     with import <nixpkgs> { };
-
-    let nix = nixUnstable; in
 
     releaseTools.makeSourceTarball {
       name = "hydra-tarball";
@@ -16,7 +14,7 @@ rec {
       version = builtins.readFile ./version;
 
       buildInputs =
-        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc git openssl];
+        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc git openssl ];
 
       versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
 
@@ -41,6 +39,7 @@ rec {
       '';
     };
 
+
   build =
     { system ? "x86_64-linux" }:
 
@@ -56,18 +55,19 @@ rec {
       configureFlags = "--with-nix=${nix}";
 
       buildInputs =
-        [ perl makeWrapper libtool nix unzip nukeReferences pkgconfig boehmgc sqlite git gitAndTools.topGit mercurial subversion bazaar openssl bzip2 ]
-        ++ (import ./deps.nix) { inherit pkgs; };
+        [ perl makeWrapper libtool nix unzip nukeReferences pkgconfig boehmgc sqlite
+          git gitAndTools.topGit mercurial subversion bazaar openssl bzip2
+        ] ++ (import ./deps.nix) { inherit pkgs; };
 
-      hydraPath = stdenv.lib.concatStringsSep ":" (map (p: "${p}/bin") ( [
-        libxslt sqlite subversion openssh nix coreutils findutils
-        gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial gnused graphviz bazaar
-      ] ++ ( if stdenv.isLinux then [rpm dpkg cdrkit] else [] )));
+      hydraPath = lib.makeSearchPath "bin" (
+        [ libxslt sqlite subversion openssh nix coreutils findutils
+          gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial gnused graphviz bazaar
+        ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
       preConfigure = "patchShebangs .";
 
       postInstall = ''
-        ensureDir $out/nix-support
+        mkdir -p $out/nix-support
         nuke-refs $out/share/doc/hydra/manual/manual.pdf
 
         for i in $out/bin/*; do
@@ -82,9 +82,7 @@ rec {
 
       LOGNAME = "foo";
 
-      meta = {
-        description = "Build of Hydra on ${system}";
-      };
+      meta.description = "Build of Hydra on ${system}";
     };
 
 
