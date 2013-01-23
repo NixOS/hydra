@@ -11,78 +11,78 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild updateRepository);
 
 sub hydra_setup {
-  my ($db) = @_;
-  $db->resultset('Users')->create({ username => "root", emailaddress => 'root@email.com', password => '' });
+    my ($db) = @_;
+    $db->resultset('Users')->create({ username => "root", emailaddress => 'root@email.com', password => '' });
 }
 
 sub nrBuildsForJobset {
-  my ($jobset) = @_;
-  return $jobset->builds->search({},{})->count ;
+    my ($jobset) = @_;
+    return $jobset->builds->search({},{})->count ;
 }
 
 sub queuedBuildsForJobset {
-  my ($jobset) = @_;
-  return $jobset->builds->search({finished => 0});
+    my ($jobset) = @_;
+    return $jobset->builds->search({finished => 0});
 }
 
 sub nrQueuedBuildsForJobset {
-  my ($jobset) = @_;
-  return queuedBuildsForJobset($jobset)->count ;
+    my ($jobset) = @_;
+    return queuedBuildsForJobset($jobset)->count ;
 }
 
 sub createBaseJobset {
-  my ($jobsetName, $nixexprpath) = @_;
+    my ($jobsetName, $nixexprpath) = @_;
 
-  my $db = Hydra::Model::DB->new;
-  my $project = $db->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
-  my $jobset = $project->jobsets->create({name => $jobsetName, nixexprinput => "jobs", nixexprpath => $nixexprpath, emailoverride => ""});
+    my $db = Hydra::Model::DB->new;
+    my $project = $db->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
+    my $jobset = $project->jobsets->create({name => $jobsetName, nixexprinput => "jobs", nixexprpath => $nixexprpath, emailoverride => ""});
 
-  my $jobsetinput;
-  my $jobsetinputals;
+    my $jobsetinput;
+    my $jobsetinputals;
 
-  $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
-  $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => getcwd."/jobs"});
+    $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
+    $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => getcwd."/jobs"});
 
-  return $jobset;
+    return $jobset;
 }
 
 sub createJobsetWithOneInput {
-  my ($jobsetName, $nixexprpath, $name, $type, $uri) = @_;
-  my $jobset = createBaseJobset($jobsetName, $nixexprpath);
+    my ($jobsetName, $nixexprpath, $name, $type, $uri) = @_;
+    my $jobset = createBaseJobset($jobsetName, $nixexprpath);
 
-  my $jobsetinput;
-  my $jobsetinputals;
+    my $jobsetinput;
+    my $jobsetinputals;
 
-  $jobsetinput = $jobset->jobsetinputs->create({name => $name, type => $type});
-  $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => $uri});
+    $jobsetinput = $jobset->jobsetinputs->create({name => $name, type => $type});
+    $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => $uri});
 
-  return $jobset;
+    return $jobset;
 }
 
 sub evalSucceeds {
-  my ($jobset) = @_;
-  my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("../src/script/hydra-evaluator", $jobset->project->name, $jobset->name));
-  chomp $stdout; chomp $stderr;
-  print STDERR "Evaluation errors for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
-  print STDERR "STDOUT: $stdout\n" if $stdout ne "";
-  print STDERR "STDERR: $stderr\n" if $stderr ne "";
-  return $res;
+    my ($jobset) = @_;
+    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("../src/script/hydra-evaluator", $jobset->project->name, $jobset->name));
+    chomp $stdout; chomp $stderr;
+    print STDERR "Evaluation errors for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
+    print STDERR "STDOUT: $stdout\n" if $stdout ne "";
+    print STDERR "STDERR: $stderr\n" if $stderr ne "";
+    return $res;
 }
 
 sub runBuild {
-  my ($build) = @_;
-  my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("../src/script/hydra-build", $build->id));
-  print "STDERR: $stderr" if $res;
-  return ($res, $stdout, $stderr);
+    my ($build) = @_;
+    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("../src/script/hydra-build", $build->id));
+    print "STDERR: $stderr" if $res;
+    return ($res, $stdout, $stderr);
 }
 
 sub updateRepository {
-  my ($scm, $update) = @_;
-  my ($res, $stdout, $stderr) = captureStdoutStderr(60, ($update, $scm));
-  die "Unexpected update error with $scm: $stderr\n" unless $res;
-  my ($message, $loop, $status) = $stdout =~ m/::(.*) -- (.*) -- (.*)::/;
-  print STDOUT "Update $scm repository: $message\n";
-  return ($loop eq "continue", $status eq "updated");
+    my ($scm, $update) = @_;
+    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ($update, $scm));
+    die "Unexpected update error with $scm: $stderr\n" unless $res;
+    my ($message, $loop, $status) = $stdout =~ m/::(.*) -- (.*) -- (.*)::/;
+    print STDOUT "Update $scm repository: $message\n";
+    return ($loop eq "continue", $status eq "updated");
 }
 
 1;
