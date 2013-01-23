@@ -8,7 +8,7 @@ use Hydra::Helper::Nix;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild getBuildStats getChannelData
+    getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild getBuildStats
     error notFound
     requireLogin requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim

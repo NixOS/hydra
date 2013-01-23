@@ -2,11 +2,9 @@ package Hydra;
 
 use strict;
 use warnings;
+use parent 'Catalyst';
 use Hydra::Model::DB;
-
 use Catalyst::Runtime '5.70';
-
-use parent qw/Catalyst/;
 use Catalyst qw/ConfigLoader
                 Static::Simple
                 StackTrace
@@ -15,9 +13,9 @@ use Catalyst qw/ConfigLoader
                 Session
                 Session::Store::FastMmap
                 Session::State::Cookie
-                AccessLog
-                -Log=warn,fatal,error
-               /;
+                AccessLog/,
+                '-Log=warn,fatal,error';
+
 our $VERSION = '0.01';
 
 __PACKAGE__->config(

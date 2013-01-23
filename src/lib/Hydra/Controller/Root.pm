@@ -118,18 +118,18 @@ sub robots_txt : Path('robots.txt') {
     my ($self, $c) = @_;
 
     sub uri_for {
-        my ($controller, $action, @args) = @_;
+        my ($c, $controller, $action, @args) = @_;
         return $c->uri_for($c->controller($controller)->action_for($action), @args)->path;
     }
 
     sub channelUris {
-        my ($controller, $bindings) = @_;
+        my ($c, $controller, $bindings) = @_;
         return
-            ( uri_for($controller, 'closure', $bindings, "*")
-            , uri_for($controller, 'manifest', $bindings)
-            , uri_for($controller, 'pkg', $bindings, "*")
-            , uri_for($controller, 'nixexprs', $bindings)
-            , uri_for($controller, 'channel_contents', $bindings)
+            ( uri_for($c, $controller, 'closure', $bindings, "*")
+            , uri_for($c, $controller, 'manifest', $bindings)
+            , uri_for($c, $controller, 'pkg', $bindings, "*")
+            , uri_for($c, $controller, 'nixexprs', $bindings)
+            , uri_for($c, $controller, 'channel_contents', $bindings)
             );
     }
 
@@ -137,22 +137,22 @@ sub robots_txt : Path('robots.txt') {
     # robots.txt.  Note: wildcards are not universally supported in
     # robots.txt, but apparently Google supports them.
     my @rules =
-        ( uri_for('Build', 'deps', ["*"])
-        , uri_for('Build', 'view_nixlog', ["*"], "*")
-        , uri_for('Build', 'view_log', ["*"], "*")
-        , uri_for('Build', 'view_log', ["*"])
-        , uri_for('Build', 'download', ["*"], "*")
-        , uri_for('Root', 'nar', [], "*")
-        , uri_for('Root', 'status', [])
-        , uri_for('Root', 'all', [])
-        , uri_for('API', 'scmdiff', [])
-        , uri_for('API', 'logdiff', [],"*", "*")
-        , uri_for('Project', 'all', ["*"])
-        , channelUris('Root', ["*"])
-        , channelUris('Project', ["*", "*"])
-        , channelUris('Jobset', ["*", "*", "*"])
-        , channelUris('Job', ["*", "*", "*", "*"])
-        , channelUris('Build', ["*"])
+        ( uri_for($c, 'Build', 'deps', ["*"])
+        , uri_for($c, 'Build', 'view_nixlog', ["*"], "*")
+        , uri_for($c, 'Build', 'view_log', ["*"], "*")
+        , uri_for($c, 'Build', 'view_log', ["*"])
+        , uri_for($c, 'Build', 'download', ["*"], "*")
+        , uri_for($c, 'Root', 'nar', [], "*")
+        , uri_for($c, 'Root', 'status', [])
+        , uri_for($c, 'Root', 'all', [])
+        , uri_for($c, 'API', 'scmdiff', [])
+        , uri_for($c, 'API', 'logdiff', [],"*", "*")
+        , uri_for($c, 'Project', 'all', ["*"])
+        , channelUris($c, 'Root', ["*"])
+        , channelUris($c, 'Project', ["*", "*"])
+        , channelUris($c, 'Jobset', ["*", "*", "*"])
+        , channelUris($c, 'Job', ["*", "*", "*", "*"])
+        , channelUris($c, 'Build', ["*"])
         );
 
     $c->stash->{'plain'} = { data => "User-agent: *\n" . join('', map { "Disallow: $_\n" } @rules) };
