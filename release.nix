@@ -115,7 +115,7 @@ rec {
             # Initialise the database and the state.
             $machine->mustSucceed
                 ( "createdb -O root hydra",
-                , "psql hydra -f ${hydra}/share/hydra/sql/hydra-postgresql.sql"
+                , "psql hydra -f ${hydra}/libexec/hydra/sql/hydra-postgresql.sql"
                 , "mkdir /var/lib/hydra"
                 );
 
