@@ -26,10 +26,10 @@ ok(evalSucceeds($jobset),                  "Evaluating jobs/basic.nix should exi
 ok(nrQueuedBuildsForJobset($jobset) == 3 , "Evaluating jobs/basic.nix should result in 3 builds");
 
 for my $build (queuedBuildsForJobset($jobset)) {
-  ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
-  my $newbuild = $db->resultset('Builds')->find($build->id);
-  my $expected = $build->job->name eq "fails" ? 1 : 0;
-  ok($newbuild->finished == 1 && $newbuild->buildstatus == $expected, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus $expected");
+    ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
+    my $newbuild = $db->resultset('Builds')->find($build->id);
+    my $expected = $build->job->name eq "fails" ? 1 : 0;
+    ok($newbuild->finished == 1 && $newbuild->buildstatus == $expected, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus $expected");
 }
 
 # Test jobset with 2 jobs, one has parameter of succeeded build of the other
@@ -38,17 +38,17 @@ $jobset = createJobsetWithOneInput("build-output-as-input", "build-output-as-inp
 ok(evalSucceeds($jobset),                  "Evaluating jobs/build-output-as-input.nix should exit with return code 0");
 ok(nrQueuedBuildsForJobset($jobset) == 1 , "Evaluating jobs/build-output-as-input.nix for first time should result in 1 build in queue");
 for my $build (queuedBuildsForJobset($jobset)) {
-  ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
-  my $newbuild = $db->resultset('Builds')->find($build->id);
-  ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus 0");
+    ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
+    my $newbuild = $db->resultset('Builds')->find($build->id);
+    ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus 0");
 }
 
 ok(evalSucceeds($jobset),                  "Evaluating jobs/build-output-as-input.nix for second time should exit with return code 0");
 ok(nrQueuedBuildsForJobset($jobset) == 1 , "Evaluating jobs/build-output-as-input.nix for second time after building build1 should result in 1 build in queue");
 for my $build (queuedBuildsForJobset($jobset)) {
-  ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
-  my $newbuild = $db->resultset('Builds')->find($build->id);
-  ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus 0");
+    ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
+    my $newbuild = $db->resultset('Builds')->find($build->id);
+    ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus 0");
 }
 
 
@@ -106,33 +106,33 @@ my @scminputs = (
 );
 
 foreach my $scm ( @scminputs ) {
-  my $scmName = $scm->{"name"};
-  my $nixexpr = $scm->{"nixexpr"};
-  my $type = $scm->{"type"};
-  my $uri = $scm->{"uri"};
-  my $update = $scm->{"update"};
-  $jobset = createJobsetWithOneInput($scmName, $nixexpr, "src", $type, $uri);
+    my $scmName = $scm->{"name"};
+    my $nixexpr = $scm->{"nixexpr"};
+    my $type = $scm->{"type"};
+    my $uri = $scm->{"uri"};
+    my $update = $scm->{"update"};
+    $jobset = createJobsetWithOneInput($scmName, $nixexpr, "src", $type, $uri);
 
-  my $state = 0;
-  my $q = 0;
-  my ($loop, $updated) = updateRepository($scmName, $update);
-  while($loop) {
-    my $c = 0;
+    my $state = 0;
+    my $q = 0;
+    my ($loop, $updated) = updateRepository($scmName, $update);
+    while($loop) {
+        my $c = 0;
 
-    # Verify that it can be fetched and possibly queued.
-    ok(evalSucceeds($jobset),                  "$scmName:$state.$c: Evaluating nix-expression."); $c++;
+        # Verify that it can be fetched and possibly queued.
+        ok(evalSucceeds($jobset),                  "$scmName:$state.$c: Evaluating nix-expression."); $c++;
 
-    # Verify that the evaluation has queued a new job and evaluate again to ...
-    if ($updated) {
-        $q++;
+        # Verify that the evaluation has queued a new job and evaluate again to ...
+        if ($updated) {
+            $q++;
+            ok(nrQueuedBuildsForJobset($jobset) == $q, "$scmName:$state.$c: Expect $q jobs in the queue."); $c++;
+            ok(evalSucceeds($jobset),                  "$scmName:$state.$c: Evaluating nix-expression again."); $c++;
+        }
+
+        # ... check that it is deterministic and not queued again.
         ok(nrQueuedBuildsForJobset($jobset) == $q, "$scmName:$state.$c: Expect $q jobs in the queue."); $c++;
-        ok(evalSucceeds($jobset),                  "$scmName:$state.$c: Evaluating nix-expression again."); $c++;
+
+        $state++;
+        ($loop, $updated) = updateRepository($scmName, $update, getcwd . "/$scmName-repo/");
     }
-
-    # ... check that it is deterministic and not queued again.
-    ok(nrQueuedBuildsForJobset($jobset) == $q, "$scmName:$state.$c: Expect $q jobs in the queue."); $c++;
-
-    $state++;
-    ($loop, $updated) = updateRepository($scmName, $update, getcwd . "/$scmName-repo/");
-  }
 }
