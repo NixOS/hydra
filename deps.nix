@@ -22,6 +22,7 @@ with pkgs;
   perlPackages.FileSlurp
   perlPackages.IOCompress
   perlPackages.IPCRun
+  perlPackages.JSON # FIXME: JSON::XS should work
   perlPackages.JSONXS
   perlPackages.NetTwitterLite
   perlPackages.PadWalker
