@@ -85,9 +85,6 @@ rec {
       meta = {
         description = "Build of Hydra on ${system}";
       };
-
-      succeedOnFailure = true;
-      keepBuildDirectory = true;
     };
 
 
