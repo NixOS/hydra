@@ -24,18 +24,19 @@ TESTS = \
   query-all-tables.pl \
   evaluation-tests.pl
 
-clean :
+clean:
 	chmod -R a+w nix || true
 	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout svn-checkout-repo bzr-repo bzr-checkout-repo
+	rm -f .*-state
 
 check_SCRIPTS = db.sqlite repos
 
-db.sqlite : $(top_srcdir)/src/sql/hydra-sqlite.sql
+db.sqlite: $(top_srcdir)/src/sql/hydra-sqlite.sql
 	$(TESTS_ENVIRONMENT) $(top_srcdir)/src/script/hydra-init
 
-repos : dirs
+repos: dirs
 
-dirs :
+dirs:
 	mkdir -p data
 	touch data/hydra.conf
 	mkdir -p nix

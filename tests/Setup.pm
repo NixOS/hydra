@@ -66,20 +66,20 @@ sub evalSucceeds {
     print STDERR "Evaluation errors for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
     print STDERR "STDOUT: $stdout\n" if $stdout ne "";
     print STDERR "STDERR: $stderr\n" if $stderr ne "";
-    return $res;
+    return !$res;
 }
 
 sub runBuild {
     my ($build) = @_;
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("../src/script/hydra-build", $build->id));
-    print "STDERR: $stderr" if $res;
-    return ($res, $stdout, $stderr);
+    print "STDERR: $stderr" if $stderr ne "";
+    return !$res;
 }
 
 sub updateRepository {
     my ($scm, $update) = @_;
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ($update, $scm));
-    die "Unexpected update error with $scm: $stderr\n" unless $res;
+    die "unexpected update error with $scm: $stderr\n" if $res;
     my ($message, $loop, $status) = $stdout =~ m/::(.*) -- (.*) -- (.*)::/;
     print STDOUT "Update $scm repository: $message\n";
     return ($loop eq "continue", $status eq "updated");

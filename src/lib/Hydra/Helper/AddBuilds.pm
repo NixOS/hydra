@@ -116,7 +116,7 @@ sub fetchInputPath {
 
         print STDERR "copying input ", $name, " from $uri\n";
         $storePath = `nix-store --add "$uri"`
-            or die "Cannot copy path $uri to the Nix store.\n";
+            or die "cannot copy path $uri to the Nix store.\n";
         chomp $storePath;
 
         $sha256 = getStorePathHash $storePath;
@@ -170,8 +170,8 @@ sub fetchInputSVN {
         # First figure out the last-modified revision of the URI.
         my @cmd = (["svn", "ls", "-v", "--depth", "empty", $uri],
                    "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
-        die "Cannot get head revision of Subversion repository at `$uri':\n$stderr"
-            unless IPC::Run::run(@cmd, \$stdout, \$stderr);
+        IPC::Run::run(@cmd, \$stdout, \$stderr);
+        die "cannot get head revision of Subversion repository at `$uri':\n$stderr" if $?;
         $revision = $stdout; $revision =~ s/\s*([0-9]+)\s*/$1/sm;
     }
 
@@ -194,8 +194,8 @@ sub fetchInputSVN {
 
         print STDERR "checking out Subversion input ", $name, " from $uri revision $revision into $wcPath\n";
 
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("svn", "checkout", $uri, "-r", $revision, $wcPath));
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600, "svn", "checkout", $uri, "-r", $revision, $wcPath);
+        die "error checking out Subversion repo at `$uri':\n$stderr" if $res;
 
         if ($checkout) {
             $storePath = addToStore($wcPath, 1, "sha256");
@@ -322,9 +322,8 @@ sub fetchInputGit {
     if (! -d $clonePath) {
         # Clone everything and fetch the branch.
         # TODO: Optimize the first clone by using "git init $clonePath" and "git remote add origin $uri".
-        ($res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("git", "clone", "--branch", $branch, $uri, $clonePath));
-        die "Error cloning git repo at `$uri':\n$stderr" unless $res;
+        ($res, $stdout, $stderr) = captureStdoutStderr(600, "git", "clone", "--branch", $branch, $uri, $clonePath);
+        die "error cloning git repo at `$uri':\n$stderr" if $res;
     }
 
     chdir $clonePath or die $!; # !!! urgh, shouldn't do a chdir
@@ -333,18 +332,18 @@ sub fetchInputGit {
     # the remote branch for whatever the repository state is.  This command mirror
     # only one branch of the remote repository.
     ($res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("git", "fetch", "-fu", "origin", "+$branch:$branch"));
+        "git", "fetch", "-fu", "origin", "+$branch:$branch");
     ($res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("git", "fetch", "-fu", "origin")) unless $res;
-    die "Error fetching latest change from git repo at `$uri':\n$stderr" unless $res;
+        "git", "fetch", "-fu", "origin") if $res;
+    die "error fetching latest change from git repo at `$uri':\n$stderr" if $res;
 
     ($res, $stdout, $stderr) = captureStdoutStderr(600,
         ("git", "rev-parse", "$branch"));
-    die "Error getting revision number of Git branch '$branch' at `$uri':\n$stderr" unless $res;
+    die "error getting revision number of Git branch '$branch' at `$uri':\n$stderr" if $res;
 
     my ($revision) = split /\n/, $stdout;
-    die unless $revision =~ /^[0-9a-fA-F]+$/;
-    die "Error getting a well-formated revision number of Git branch '$branch' at `$uri':\n$stdout" unless $res;
+    die "error getting a well-formated revision number of Git branch '$branch' at `$uri':\n$stdout"
+        unless $revision =~ /^[0-9a-fA-F]+$/;
 
     my $ref = "refs/heads/$branch";
 
@@ -353,17 +352,15 @@ sub fetchInputGit {
     if (defined $deepClone) {
 
         # Checkout the branch to look at its content.
-        ($res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("git", "checkout", "$branch"));
-        die "Error checking out Git branch '$branch' at `$uri':\n$stderr" unless $res;
+        ($res, $stdout, $stderr) = captureStdoutStderr(600, "git", "checkout", "$branch");
+        die "error checking out Git branch '$branch' at `$uri':\n$stderr" if $res;
 
         if (-f ".topdeps") {
             # This is a TopGit branch.  Fetch all the topic branches so
             # that builders can run "tg patch" and similar.
             ($res, $stdout, $stderr) = captureStdoutStderr(600,
-                ("tg", "remote", "--populate", "origin"));
-
-            print STDERR "Warning: `tg remote --populate origin' failed:\n$stderr" unless $res;
+                "tg", "remote", "--populate", "origin");
+            print STDERR "warning: `tg remote --populate origin' failed:\n$stderr" if $res;
         }
     }
 
@@ -400,9 +397,8 @@ sub fetchInputGit {
             $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
         }
 
-        ($res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("nix-prefetch-git", $clonePath, $revision));
-        die "Cannot check out Git repository branch '$branch' at `$uri':\n$stderr" unless $res;
+        ($res, $stdout, $stderr) = captureStdoutStderr(600, "nix-prefetch-git", $clonePath, $revision);
+        die "cannot check out Git repository branch '$branch' at `$uri':\n$stderr" if $res;
 
         ($sha256, $storePath) = split ' ', $stdout;
 
@@ -454,22 +450,19 @@ sub fetchInputBazaar {
     my $clonePath = scmPath . "/" . sha256_hex($uri);
 
     if (! -d $clonePath) {
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("bzr", "branch", $uri, $clonePath));
-        die "Error cloning bazaar branch at `$uri':\n$stderr" unless $res;
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600, "bzr", "branch", $uri, $clonePath);
+        die "error cloning bazaar branch at `$uri':\n$stderr" if $res;
     }
 
     chdir $clonePath or die $!;
-    (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("bzr", "pull"));
-    die "Error pulling latest change bazaar branch at `$uri':\n$stderr" unless $res;
+    (my $res, $stdout, $stderr) = captureStdoutStderr(600, "bzr", "pull");
+    die "error pulling latest change bazaar branch at `$uri':\n$stderr" if $res;
 
     # First figure out the last-modified revision of the URI.
-    my @cmd = (["bzr", "revno"],
-               "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
+    my @cmd = (["bzr", "revno"], "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
 
-    die "Cannot get head revision of Bazaar branch at `$uri':\n$stderr"
-        unless IPC::Run::run(@cmd, \$stdout, \$stderr);
+    IPC::Run::run(@cmd, \$stdout, \$stderr);
+    die "cannot get head revision of Bazaar branch at `$uri':\n$stderr" if $?;
     my $revision = $stdout; chomp $revision;
     die unless $revision =~ /^\d+$/;
 
@@ -488,8 +481,8 @@ sub fetchInputBazaar {
         $ENV{"NIX_PREFETCH_BZR_LEAVE_DOT_BZR"} = "$checkout";
 
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("nix-prefetch-bzr", $clonePath, $revision));
-        die "Cannot check out Bazaar branch `$uri':\n$stderr" unless $res;
+            "nix-prefetch-bzr", $clonePath, $revision);
+        die "cannot check out Bazaar branch `$uri':\n$stderr" if $res;
 
         ($sha256, $storePath) = split ' ', $stdout;
 
@@ -527,18 +520,18 @@ sub fetchInputHg {
 
     if (! -d $clonePath) {
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("hg", "clone", $uri, $clonePath));
-        die "Error cloning mercurial repo at `$uri':\n$stderr" unless $res;
+            "hg", "clone", $uri, $clonePath);
+        die "error cloning mercurial repo at `$uri':\n$stderr" if $res;
     }
 
     # hg pull + check rev
     chdir $clonePath or die $!;
-    (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("hg", "pull"));
-    die "Error pulling latest change mercurial repo at `$uri':\n$stderr" unless $res;
+    (my $res, $stdout, $stderr) = captureStdoutStderr(600, "hg", "pull");
+    die "error pulling latest change mercurial repo at `$uri':\n$stderr" if $res;
 
-    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,("hg", "log", "-r", $id, "--template", "{node|short} {rev} {branch}"));
-    die "Error getting branch and revision of $id from `$uri':\n$stderr" unless $res1;
+    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
+        "hg", "log", "-r", $id, "--template", "{node|short} {rev} {branch}");
+    die "error getting branch and revision of $id from `$uri':\n$stderr" if $res1;
 
     my ($revision, $revCount, $branch) = split ' ', $stdout;
 
@@ -556,8 +549,8 @@ sub fetchInputHg {
         $ENV{"PRINT_PATH"} = "1";
 
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("nix-prefetch-hg", $clonePath, $revision));
-        die "Cannot check out Mercurial repository `$uri':\n$stderr" unless $res;
+            "nix-prefetch-hg", $clonePath, $revision);
+        die "cannot check out Mercurial repository `$uri':\n$stderr" if $res;
 
         ($sha256, $storePath) = split ' ', $stdout;
 
@@ -623,7 +616,7 @@ sub fetchInput {
         push @inputs, { value => $value };
     }
     else {
-        die "Input `" . $name . "' has unknown type `$type'.";
+        die "input `" . $name . "' has unknown type `$type'.";
     }
 
     foreach my $input (@inputs) {
@@ -709,7 +702,6 @@ sub inputsToArgs {
 
 sub captureStdoutStderr {
     my ($timeout, @cmd) = @_;
-    my $res;
     my $stdin = "";
     my $stdout;
     my $stderr;
@@ -717,16 +709,15 @@ sub captureStdoutStderr {
     eval {
         local $SIG{ALRM} = sub { die "timeout\n" }; # NB: \n required
         alarm $timeout;
-
-        $res = IPC::Run::run(\@cmd, \$stdin, \$stdout, \$stderr);
+        IPC::Run::run(\@cmd, \$stdin, \$stdout, \$stderr);
         alarm 0;
     };
 
     if ($@) {
-        die unless $@ eq "timeout\n";   # propagate unexpected errors
-        return (undef, "", "timeout\n");
+        die unless $@ eq "timeout\n"; # propagate unexpected errors
+        return (-1, "", "timeout\n");
     } else {
-        return ($res, $stdout, $stderr);
+        return ($?, $stdout, $stderr);
     }
 }
 
@@ -735,8 +726,8 @@ sub evalJobs {
     my ($inputInfo, $exprType, $nixExprInputName, $nixExprPath) = @_;
 
     my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
-        or die "Cannot find the input containing the job expression.\n";
-    die "Multiple alternatives for the input containing the Nix expression are not supported.\n"
+        or die "cannot find the input containing the job expression.\n";
+    die "multiple alternatives for the input containing the Nix expression are not supported.\n"
         if scalar @{$inputInfo->{$nixExprInputName}} != 1;
     my $nixExprFullPath = $nixExprInput->{storePath} . "/" . $nixExprPath;
 
@@ -744,8 +735,8 @@ sub evalJobs {
     print STDERR "evaluator ${evaluator}\n";
 
     (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(10800,
-        ($evaluator, $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo, $exprType)));
-    die "Cannot evaluate the Nix expression containing the jobs:\n$stderr" unless $res;
+        $evaluator, $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo, $exprType));
+    die "cannot evaluate the Nix expression containing the jobs:\n$stderr" if $res;
 
     print STDERR "$stderr";
 
