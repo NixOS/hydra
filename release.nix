@@ -120,8 +120,8 @@ rec {
                 );
 
             # Start the web interface.
-            #$machine->mustSucceed("HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=hydra;' hydra-server >&2 &");
-            #$machine->waitForOpenPort("3000");
+            $machine->mustSucceed("HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=hydra;' hydra-server >&2 &");
+            $machine->waitForOpenPort("3000");
           '';
 
       };
