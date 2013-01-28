@@ -120,19 +120,10 @@
     --if system i686-linux --arg build {...}
 
 
-* Restarting a bunch of failed builds:
+* Restart all aborted builds in a given evaluation (e.g. 820909).
 
-  $ sqlite3 hydra.sqlite "select x.id from builds x join buildresultinfo r on r.id = x.id where project = 'nixpkgs' and jobset = 'stdenv' and exists (select 1 from buildinputs where build = x.id and revision = 14806) and finished = 1 and buildstatus = 3" > ids
+  > update builds set finished = 0 where id in (select id from builds where finished = 1 and buildstatus = 3 and exists (select 1 from jobsetevalmembers where eval = 820909 and build = id));
 
-  $ for i in $(cat ids); do echo $i; sqlite3 hydra.sqlite "begin transaction; insert into buildschedulinginfo (id, priority, busy, locker) values($i, 100, 0, ''); delete from buildresultinfo where id = $i; update builds set finished = 0 where id = $i; commit transaction;"; done
-
-  Or with Postgres:
-
-  (restarting all aborted builds with ID > 42000)
-  $ psql -h buildfarm.st.ewi.tudelft.nl -U hydra hydra -t -c 'select x.id from builds x join buildresultinfo r on r.id = x.id where finished = 1 and buildstatus = 3 and x.id > 42000' > ids
-
-  $ for i in $(cat ids); do echo $i; PGPASSWORD=... psql -h buildfarm.st.ewi.tudelft.nl -U hydra hydra -t -c "begin transaction; insert into buildschedulinginfo (id, priority, busy, locker) values($i, 100, 0, ''); delete from buildresultinfo where id = $i; update builds set finished = 0 where id = $i; commit transaction;"; done
-  
 
 * select * from (select project, jobset, job, system, max(timestamp) timestamp from builds where finished = 1 group by project, jobset, job, system) x join builds y on x.timestamp = y.timestamp and x.project = y.project and x.jobset = y.jobset and x.job = y.job and x.system = y.system;
 
