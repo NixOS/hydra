@@ -7,7 +7,7 @@ my $db = Hydra::Model::DB->new;
 my @sources = $db->schema->sources;
 my $nrtables = scalar(@sources);
 
-use Test::Simple tests => 41;
+use Test::Simple tests => 45;
 
 foreach my $source (@sources) {
     my $title = "Basic select query for $source";

@@ -149,7 +149,6 @@ sub fetchInputSystemBuild {
     return @inputs;
 }
 
-
 sub fetchInput {
     my ($plugins, $db, $project, $jobset, $name, $type, $value) = @_;
     my @inputs;
