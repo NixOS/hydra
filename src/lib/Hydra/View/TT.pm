@@ -6,6 +6,8 @@ use Hydra::Helper::Nix;
 
 __PACKAGE__->config(
     TEMPLATE_EXTENSION => '.tt',
+    PRE_CHOMP => 1,
+    POST_CHOMP => 1,
     expose_methods => [qw/log_exists/]);
 
 sub log_exists {
