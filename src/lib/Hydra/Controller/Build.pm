@@ -10,6 +10,7 @@ use File::stat;
 use File::Slurp;
 use Data::Dump qw(dump);
 use Nix::Store;
+use Nix::Config;
 use List::MoreUtils qw(all);
 
 
@@ -169,6 +170,14 @@ sub defaultUriForProduct {
 }
 
 
+sub checkPath {
+    my ($self, $c, $path) = @_;
+    my $storeDir = $Nix::Config::storeDir . "/";
+    error($c, "Invalid path in build product.")
+        if substr($path, 0, length($storeDir)) ne $storeDir || $path =~ /\/\.\./;
+}
+
+
 sub download : Chained('build') PathPart {
     my ($self, $c, $productnr, @path) = @_;
 
@@ -177,7 +186,7 @@ sub download : Chained('build') PathPart {
     my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
     notFound($c, "Build doesn't have a product #$productnr.") if !defined $product;
 
-    notFound($c, "Product " . $product->path . " has disappeared.") unless -e $product->path;
+    notFound($c, "Build product " . $product->path . " has disappeared.") unless -e $product->path;
 
     return $c->res->redirect(defaultUriForProduct($self, $c, $product, @path))
         if scalar @path == 0 && ($product->name || $product->defaultpath);
@@ -193,6 +202,9 @@ sub download : Chained('build') PathPart {
 
     my $path = $product->path;
     $path .= "/" . join("/", @path) if scalar @path > 0;
+
+    # Make sure the file is in the Nix store.
+    checkPath($self, $c, $path);
 
     # If this is a directory but no "/" is attached, then redirect.
     if (-d $path && substr($c->request->uri, -1) ne "/") {
@@ -235,6 +247,8 @@ sub contents : Chained('build') PathPart Args(1) {
     notFound($c, "Build doesn't have a product $productnr.") if !defined $product;
 
     my $path = $product->path;
+
+    checkPath($self, $c, $path);
 
     notFound($c, "Product $path has disappeared.") unless -e $path;
 
