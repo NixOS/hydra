@@ -4,7 +4,7 @@
 <div class="page-header"><h1>Build log of [% INCLUDE renderFullJobNameOfBuild %] build <a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a>[%IF step %] step [% step.stepnr %][% END %]</h1></div>
 
 <p>
-  This is the build log of path <tt>[% IF step; step.outpath; ELSE; build.outpath; END %]</tt>.
+  This is the build log of derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
   [% IF step && step.machine %]
     It was built on <tt>[% step.machine %]</tt>.
   [% END %]

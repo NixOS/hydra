@@ -44,11 +44,6 @@ __PACKAGE__->table("BuildSteps");
   data_type: 'text'
   is_nullable: 1
 
-=head2 outpath
-
-  data_type: 'text'
-  is_nullable: 1
-
 =head2 busy
 
   data_type: 'integer'
@@ -95,8 +90,6 @@ __PACKAGE__->add_columns(
   "type",
   { data_type => "integer", is_nullable => 0 },
   "drvpath",
-  { data_type => "text", is_nullable => 1 },
-  "outpath",
   { data_type => "text", is_nullable => 1 },
   "busy",
   { data_type => "integer", is_nullable => 0 },
@@ -145,8 +138,23 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
+=head2 buildstepoutputs
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ItI1OvxHfLTzLVEqfPRjHg
+Type: has_many
+
+Related object: L<Hydra::Schema::BuildStepOutputs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildstepoutputs",
+  "Hydra::Schema::BuildStepOutputs",
+  { "foreign.build" => "self.build", "foreign.stepnr" => "self.stepnr" },
+  undef,
+);
+
+
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-30 16:36:03
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZiA1nv73Fpp0/DTi4sLfEQ
 
 1;

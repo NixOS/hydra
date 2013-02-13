@@ -64,6 +64,7 @@ install the package simply by clicking on the packages below.</p>
           [% ELSE -%]
             [% HTML.escape(build.description) -%]
           [% END -%]
+          [% IF pkg.outName != 'out' %] [[% pkg.outName %]][% END %]
         </td>
       </tr>
 

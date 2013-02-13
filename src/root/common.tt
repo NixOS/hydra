@@ -347,7 +347,7 @@
             [% IF bi1.name == bi2.name %]
                 [% IF bi1.type == bi2.type %]
                     [% IF bi1.value != bi2.value || bi1.uri != bi2.uri %]
-                        <tr><td><b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %] to [% INCLUDE renderShortInputValue input=bi2 %]</tt></td></tr>
+                        <tr><td><b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %]</tt> to <tt>[% INCLUDE renderShortInputValue input=bi2 %]</tt></td></tr>
                     [% ELSIF bi1.uri == bi2.uri && bi1.revision != bi2.revision %]
                         [% IF bi1.type == "git" %]
                         <tr><td>
@@ -360,7 +360,7 @@
                         [% END %]
                     [% ELSIF bi1.dependency.id != bi2.dependency.id || bi1.path != bi2.path %]
                         <tr><td>
-                            <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %] to [% INCLUDE renderShortInputValue input=bi2 %]</tt>
+                            <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %]</tt> to <tt>[% INCLUDE renderShortInputValue input=bi2 %]</tt>
                             <br/>
                             <br/>
                             [% INCLUDE renderInputDiff build1=bi1.dependency, build2=bi2.dependency, nestedDiff=1, nestLevel=nestLevel+1 %]
@@ -395,7 +395,7 @@
         <td><tt>[% step.system %]</tt></td>
         <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
         <td><a href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail-reload') %]">[% step.stepnr %]</a></td>
-        <td><tt>[% step.outpath.match('-(.*)').0 %]</tt></td>
+        <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
         <td class='right'>[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
       </tr>
     [% END %]

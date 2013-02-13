@@ -141,7 +141,10 @@ sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
     $c->stash->{channelName} = $c->stash->{project}->name . "-" . $c->stash->{jobset}->name . "-latest";
     $c->stash->{channelBuilds} = $c->stash->{eval}->builds
         ->search_literal("exists (select 1 from buildproducts where build = build.id and type = 'nix-build')")
-        ->search({ finished => 1, buildstatus => 0 }, { columns => [@buildListColumns, 'drvpath', 'outpath', 'description', 'homepage'] });
+        ->search({ finished => 1, buildstatus => 0 },
+                 { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
+                 , join => ["buildoutputs"]
+                 , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
 }
 
 

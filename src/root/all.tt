@@ -6,8 +6,7 @@
   [% ELSIF jobset %]for Jobset [% project.name %]:[% jobset.name %]
   [% ELSIF project %] for Project <tt>[% project.name %]</tt>[% END %]</h1></div>
 
-<p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %]
-out of [% total %] in order of descending timestamp.</p>
+<p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %] out of [% total %] in order of descending timestamp.</p>
 
 [% INCLUDE renderPager %]
 [% INCLUDE renderBuildList hideProjectName=project hideJobsetName=jobset hideJobName=job %]

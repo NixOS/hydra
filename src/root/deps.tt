@@ -8,7 +8,7 @@
 
 <a name="runtime"></a>
 [% IF available %]
-<h1>Runtime dependencies for [% build.outpath %]</h1>
+<h1>Runtime dependencies</h1>
 <ul>
 [% FOREACH dep IN runtimedeps -%]
   <li>
@@ -26,7 +26,7 @@ Path not available anymore!<br />
 
 <a name="buildtime"></a>
 [% IF drvAvailable %]
-<h1>Build time dependencies for [% build.drvpath %]</h1>
+<h1>Build time dependencies</h1>
 <ul>
 [% FOREACH dep IN buildtimedeps -%]
   <li>

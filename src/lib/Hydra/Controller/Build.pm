@@ -10,6 +10,7 @@ use File::stat;
 use File::Slurp;
 use Data::Dump qw(dump);
 use Nix::Store;
+use List::MoreUtils qw(all);
 
 
 sub build : Chained('/') PathPart CaptureArgs(1) {
@@ -32,28 +33,44 @@ sub build : Chained('/') PathPart CaptureArgs(1) {
 }
 
 
+sub findBuildStepByOutPath {
+    my ($self, $c, $path, $status) = @_;
+    return $c->model('DB::BuildSteps')->search(
+        { path => $path, busy => 0, status => $status },
+        { join => ["buildstepoutputs"], order_by => ["stopTime"], limit => 1 })->single;
+}
+
+
+sub findBuildStepByDrvPath {
+    my ($self, $c, $drvPath, $status) = @_;
+    return $c->model('DB::BuildSteps')->search(
+        { drvpath => $drvPath, busy => 0, status => $status },
+        { order_by => ["stopTime"], limit => 1 })->single;
+}
+
+
 sub view_build : Chained('build') PathPart('') Args(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
 
     $c->stash->{template} = 'build.tt';
-    $c->stash->{available} = isValidPath $build->outpath;
+    $c->stash->{available} = all { isValidPath($_->path) } $build->buildoutputs->all;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
     $c->stash->{flashMsg} = $c->flash->{buildMsg};
-
-    $c->stash->{pathHash} = $c->stash->{available} ? queryPathHash($build->outpath) : undef;
 
     if (!$build->finished && $build->busy) {
         $c->stash->{logtext} = read_file($build->logfile, err_mode => 'quiet') // "";
     }
 
     if ($build->finished && $build->iscachedbuild) {
-        (my $cachedBuildStep) = $c->model('DB::BuildSteps')->search({ outpath => $build->outpath }, {});
+        my $path = ($build->buildoutputs)[0]->path or die;
+        my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path,
+            $build->buildstatus == 0 || $build->buildstatus == 6 ? 0 : 1);
         $c->stash->{cachedBuild} = $cachedBuildStep->build if defined $cachedBuildStep;
     }
 
-    if ($build->finished) {
+    if ($build->finished && 0) {
         $c->stash->{prevBuilds} = [$c->model('DB::Builds')->search(
             { project => $c->stash->{project}->name
             , jobset => $c->stash->{build}->jobset->name
@@ -279,34 +296,30 @@ sub deps : Chained('build') PathPart('deps') {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
-    $c->stash->{available} = isValidPath $build->outpath;
-    $c->stash->{drvAvailable} = isValidPath $build->drvpath;
+    my $drvPath = $build->drvpath;
+    my @outPaths = map { $_->path } $build->buildoutputs->all;
 
-    my $drvpath = $build->drvpath;
-    my $outpath = $build->outpath;
+    $c->stash->{available} = all { isValidPath($_) } @outPaths;
+    $c->stash->{drvAvailable} = isValidPath $drvPath;
 
-    my @buildtimepaths = ();
+    my @buildtimepaths = $c->stash->{drvAvailable} ? computeFSClosure(0, 0, $drvPath) : ();
     my @buildtimedeps = ();
-    @buildtimepaths = split '\n', `nix-store --query --requisites --include-outputs $drvpath` if isValidPath($build->drvpath);
 
-    my @runtimepaths = ();
+    my @runtimepaths = $c->stash->{available} ? computeFSClosure(0, 0, @outPaths) : ();
     my @runtimedeps = ();
-    @runtimepaths = split '\n', `nix-store --query --requisites --include-outputs $outpath` if isValidPath($build->outpath);
 
     foreach my $p (@buildtimepaths) {
-        my $buildStep;
-        ($buildStep) = $c->model('DB::BuildSteps')->search({ outpath => $p }, {}) ;
-        my %dep = ( buildstep => $buildStep,  path => $p ) ;
+        next unless $p =~ /\.drv$/;
+        my ($buildStep) = findBuildStepByDrvPath($self, $c, $p, 0);
+        my %dep = ( buildstep => $buildStep, path => $p );
         push(@buildtimedeps, \%dep);
     }
 
     foreach my $p (@runtimepaths) {
-        my $buildStep;
-        ($buildStep) = $c->model('DB::BuildSteps')->search({ outpath => $p }, {}) ;
-        my %dep = ( buildstep => $buildStep,  path => $p ) ;
+        my ($buildStep) = findBuildStepByOutPath($self, $c, $p, 0);
+        my %dep = ( buildstep => $buildStep, path => $p );
         push(@runtimedeps, \%dep);
     }
-
 
     $c->stash->{buildtimedeps} = \@buildtimedeps;
     $c->stash->{runtimedeps} = \@runtimedeps;
@@ -321,12 +334,17 @@ sub nix : Chained('build') PathPart('nix') CaptureArgs(0) {
     my $build = $c->stash->{build};
 
     notFound($c, "Build cannot be downloaded as a closure or Nix package.")
-        if !$build->buildproducts->find({type => "nix-build"});
+        if $build->buildproducts->search({type => "nix-build"})->count == 0;
 
-    notFound($c, "Path " . $build->outpath . " is no longer available.")
-        unless isValidPath($build->outpath);
+    foreach my $out ($build->buildoutputs) {
+        notFound($c, "Path " . $out->path . " is no longer available.")
+            unless isValidPath($out->path);
+    }
 
-    $c->stash->{channelBuilds} = $c->model('DB::Builds')->search({id => $build->id});
+    $c->stash->{channelBuilds} = $c->model('DB::Builds')->search(
+        { id => $build->id },
+        { join => ["buildoutputs"]
+        , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
 }
 
 
@@ -377,22 +395,23 @@ sub cancel : Chained('build') PathPart Args(0) {
 
 
 sub keep : Chained('build') PathPart Args(1) {
-    my ($self, $c, $newStatus) = @_;
+    my ($self, $c, $x) = @_;
+    my $keep = $x eq "1" ? 1 : 0;
 
     my $build = $c->stash->{build};
 
     requireProjectOwner($c, $build->project);
 
-    die unless $newStatus == 0 || $newStatus == 1;
-
-    registerRoot $build->outpath if $newStatus == 1;
+    if ($keep) {
+        registerRoot $_->path foreach $build->buildoutputs;
+    }
 
     txn_do($c->model('DB')->schema, sub {
-        $build->update({keep => int $newStatus});
+        $build->update({keep => $keep});
     });
 
     $c->flash->{buildMsg} =
-        $newStatus == 0 ? "Build will not be kept." : "Build will be kept.";
+        $keep ? "Build will be kept." : "Build will not be kept.";
 
     $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
 }
@@ -414,9 +433,10 @@ sub add_to_release : Chained('build') PathPart('add-to-release') Args(0) {
     error($c, "This build is already a part of release `$releaseName'.")
         if $release->releasemembers->find({build => $build->id});
 
-    registerRoot $build->outpath;
-
-    error($c, "This build is no longer available.") unless isValidPath $build->outpath;
+    foreach my $output ($build->buildoutputs) {
+        error($c, "This build is no longer available.") unless isValidPath $output->path;
+        registerRoot $output->path;
+    }
 
     $release->releasemembers->create({build => $build->id, description => $build->description});
 
@@ -509,7 +529,8 @@ sub get_info  : Chained('build') PathPart('api/get-info') Args(0) {
     # !!! strip the json prefix
     $c->stash->{jsonBuildId} = $build->id;
     $c->stash->{jsonDrvPath} = $build->drvpath;
-    $c->stash->{jsonOutPath} = $build->outpath;
+    my $out = $build->buildoutputs->find({name => "out"});
+    $c->stash->{jsonOutPath} = $out->path if defined $out;
     $c->forward('View::JSON');
 }
 

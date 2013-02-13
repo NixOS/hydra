@@ -10,9 +10,10 @@ sub process {
 
     my $build = $c->stash->{build};
 
+    # FIXME: add multiple output support
     my $s = "NIXPKG1 " . $c->stash->{manifestUri}
         . " " . $build->nixname . " " . $build->system
-        . " " . $build->drvpath . " " . $build->outpath
+        . " " . $build->drvpath . " " . $build->buildoutputs->find({name => "out"})->path
         . " " . $c->uri_for('/');
 
     $c->response->body($s);

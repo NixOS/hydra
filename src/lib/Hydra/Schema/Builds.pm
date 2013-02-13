@@ -72,11 +72,6 @@ __PACKAGE__->table("Builds");
   data_type: 'text'
   is_nullable: 0
 
-=head2 outpath
-
-  data_type: 'text'
-  is_nullable: 0
-
 =head2 system
 
   data_type: 'text'
@@ -225,8 +220,6 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "drvpath",
   { data_type => "text", is_nullable => 0 },
-  "outpath",
-  { data_type => "text", is_nullable => 0 },
   "system",
   { data_type => "text", is_nullable => 0 },
   "longdescription",
@@ -321,6 +314,21 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 buildoutputs
+
+Type: has_many
+
+Related object: L<Hydra::Schema::BuildOutputs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildoutputs",
+  "Hydra::Schema::BuildOutputs",
+  { "foreign.build" => "self.id" },
+  undef,
+);
+
 =head2 buildproducts
 
 Type: has_many
@@ -332,6 +340,21 @@ Related object: L<Hydra::Schema::BuildProducts>
 __PACKAGE__->has_many(
   "buildproducts",
   "Hydra::Schema::BuildProducts",
+  { "foreign.build" => "self.id" },
+  undef,
+);
+
+=head2 buildstepoutputs
+
+Type: has_many
+
+Related object: L<Hydra::Schema::BuildStepOutputs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildstepoutputs",
+  "Hydra::Schema::BuildStepOutputs",
   { "foreign.build" => "self.id" },
   undef,
 );
@@ -442,8 +465,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:34:39
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:wPBFqpUWncuD9xki8Pbnvg
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-30 16:22:11
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:YBdqPWScG4dtGx+U3dJcwA
 
 __PACKAGE__->has_many(
   "dependents",
@@ -459,13 +482,13 @@ __PACKAGE__->has_many(
   { "foreign.build" => "self.id" },
 );
 
-__PACKAGE__->has_one(
-  "actualBuildStep",
-  "Hydra::Schema::BuildSteps",
-  { 'foreign.outpath' => 'self.outpath'
-  , 'foreign.build' => 'self.id'
-  },
-);
+#__PACKAGE__->has_one(
+#  "actualBuildStep",
+#  "Hydra::Schema::BuildSteps",
+#  { 'foreign.outpath' => 'self.outpath'
+#  , 'foreign.build' => 'self.id'
+#  },
+#);
 
 sub makeSource {
     my ($name, $query) = @_;

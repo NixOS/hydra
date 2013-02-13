@@ -1,6 +1,7 @@
 #! /var/run/current-system/sw/bin/perl -w
 
 use strict;
+use List::MoreUtils qw(all);
 use File::Basename;
 use File::stat;
 use Nix::Store;
@@ -58,6 +59,7 @@ sub sendTwitterNotification {
     warn "$@\n" if $@;
 }
 
+
 sub statusDescription {
     my ($buildstatus) = @_;
 
@@ -71,6 +73,7 @@ sub statusDescription {
 
    return $status;
 }
+
 
 sub sendEmailNotification {
     my ($build) = @_;
@@ -127,7 +130,7 @@ sub sendEmailNotification {
         [ "Maintainer(s):", $build->maintainers ],
         [ "System:", $build->system ],
         [ "Derivation store path:", $build->drvpath ],
-        [ "Output store path:", $build->outpath ],
+        [ "Output store path:", join(", ", map { $_->path } $build->buildoutputs) ],
         [ "Time added:", showTime $build->timestamp ],
         );
     push @lines, (
@@ -206,11 +209,21 @@ sub sendEmailNotification {
 }
 
 
+sub addBuildStepOutputs {
+    my ($step) = @_;
+    my $drv = derivationFromPath($step->drvpath);
+    $step->buildstepoutputs->create({ name => $_, path => $drv->{outputs}->{$_} })
+        foreach keys %{$drv->{outputs}};
+}
+
+
 sub doBuild {
     my ($build) = @_;
 
+    my %outputs;
+    $outputs{$_->name} = $_->path foreach $build->buildoutputs->all;
+
     my $drvPath   = $build->drvpath;
-    my $outPath   = $build->outpath;
     my $maxsilent = $build->maxsilent;
     my $timeout   = $build->timeout;
 
@@ -223,7 +236,7 @@ sub doBuild {
 
     my $errormsg = undef;
 
-    if (!isValidPath($outPath)) {
+    unless (all { isValidPath($_) } values(%outputs)) {
         $isCachedBuild = 0;
 
         # Do the build.
@@ -235,12 +248,12 @@ sub doBuild {
         # Run Nix to perform the build, and monitor the stderr output
         # to get notifications about specific build steps, the
         # associated log files, etc.
-        # Note: `--timeout' was added in Nix 1.0pre27564, June 2011.
         my $cmd = "nix-store --realise $drvPath " .
             "--timeout $timeout " .
             "--max-silent-time $maxsilent --keep-going --fallback " .
             "--no-build-output --log-type flat --print-build-trace " .
-            "--add-root " . gcRootFor $outPath . " 2>&1";
+            "--add-root " . gcRootFor($outputs{out} // $outputs{(sort keys %outputs)[0]}) . " 2>&1";
+        print STDERR "$cmd\n";
 
         my $max = $build->buildsteps->find(
             {}, {select => {max => 'stepnr + 1'}, as => ['max']});
@@ -261,15 +274,15 @@ sub doBuild {
             if (/^@\s+build-started\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/) {
                 my $drvPathStep = $1;
                 txn_do($db, sub {
-                    $build->buildsteps->create(
+                    my $step = $build->buildsteps->create(
                         { stepnr => ($buildSteps{$drvPathStep} = $buildStepNr++)
                         , type => 0 # = build
                         , drvpath => $drvPathStep
-                        , outpath => $2
                         , system => $3
                         , busy => 1
                         , starttime => time
                         });
+                    addBuildStepOutputs($step);
                 });
             }
 
@@ -305,46 +318,47 @@ sub doBuild {
                     # failed previously.  This can happen if this is a
                     # restarted build.
                     elsif (scalar $build->buildsteps->search({drvpath => $drvPathStep, type => 0, busy => 0, status => 1}) == 0) {
-                        $build->buildsteps->create(
+                        my $step = $build->buildsteps->create(
                             { stepnr => ($buildSteps{$drvPathStep} = $buildStepNr++)
                             , type => 0 # = build
                             , drvpath => $drvPathStep
-                            , outpath => $2
                             , busy => 0
                             , status => 1
                             , starttime => time
                             , stoptime => time
                             , errormsg => $errorMsg
                             });
+                        addBuildStepOutputs($step);
                     }
                 });
             }
 
             elsif (/^@\s+substituter-started\s+(\S+)\s+(\S+)$/) {
-                my $outPath = $1;
+                my $path = $1;
                 txn_do($db, sub {
-                    $build->buildsteps->create(
-                        { stepnr => ($buildSteps{$outPath} = $buildStepNr++)
+                    my $step = $build->buildsteps->create(
+                        { stepnr => ($buildSteps{$path} = $buildStepNr++)
                         , type => 1 # = substitution
-                        , outpath => $1
                         , busy => 1
                         , starttime => time
                         });
+                    # "out" is kinda fake (substitutions don't have named outputs).
+                    $step->buildstepoutputs->create({ name => "out", path => $path });
                 });
             }
 
             elsif (/^@\s+substituter-succeeded\s+(\S+)$/) {
-                my $outPath = $1;
+                my $path = $1;
                 txn_do($db, sub {
-                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$outPath}}) or die;
+                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$path}}) or die;
                     $step->update({busy => 0, status => 0, stoptime => time});
                 });
             }
 
             elsif (/^@\s+substituter-failed\s+(\S+)\s+(\S+)\s+(\S+)$/) {
-                my $outPath = $1;
+                my $path = $1;
                 txn_do($db, sub {
-                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$outPath}}) or die;
+                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$path}}) or die;
                     $step->update({busy => 0, status => 1, errormsg => $3, stoptime => time});
                 });
             }
@@ -371,24 +385,34 @@ sub doBuild {
     }
 
   done:
-    my $size = 0;
-    my $closuresize = 0;
-
-    if (isValidPath($outPath)) {
-        my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($outPath, 0);
-        $size = $narSize;
-
-        my @closure = computeFSClosure(0, 0, $outPath);
-        foreach my $path (@closure) {
-            my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($path, 0);
-            $closuresize += $narSize;
-        }
-    }
 
     txn_do($db, sub {
-        my $releaseName = getReleaseName($outPath);
+        if ($buildStatus == 0) {
 
-        $buildStatus = 6 if $buildStatus == 0 && -f "$outPath/nix-support/failed";
+            my $size = 0;
+            my $closureSize = 0;
+            my $releaseName;
+
+            my @closure = computeFSClosure(0, 0, values %outputs);
+            foreach my $path (@closure) {
+                my ($deriver, $hash, $time, $narSize, $refs) = queryPathInfo($path, 0);
+                $closureSize += $narSize;
+                $size += $narSize if grep { $path eq $_ } values(%outputs);
+            }
+
+            foreach my $path (values %outputs) {
+                $buildStatus = 6 if $buildStatus == 0 && -f "$path/nix-support/failed";
+                $releaseName //= getReleaseName($path);
+            }
+
+            $build->update(
+                { releasename => $releaseName
+                , size => $size
+                , closuresize => $closureSize
+                });
+
+            addBuildProducts($db, $build);
+        }
 
         $build->update(
             { finished => 1
@@ -400,15 +424,9 @@ sub doBuild {
             , buildstatus => $buildStatus
             , starttime => $startTime
             , stoptime => $stopTime
-            , size => $size
-            , closuresize => $closuresize
             , errormsg => $errormsg
-            , releasename => $releaseName
             });
 
-        if ($buildStatus == 0 || $buildStatus == 6) {
-            addBuildProducts($db, $build);
-        }
     });
 
     sendEmailNotification $build;

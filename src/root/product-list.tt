@@ -16,7 +16,7 @@
 
       [% CASE "nix-build" %]
         [% IF build.buildstatus == 6 %]
-          [% filename = "${build.nixname}.closure.gz" %]
+          [% filename = build.nixname _ (product.subtype ? "-" _ product.subtype : "") _ ".closure.gz" %]
           [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
           <tr class="product">
             <td>
@@ -70,7 +70,7 @@
           <tr class="product">
             <td>
 
-            [% filename = "${build.nixname}.closure.gz" %]
+            [% filename = build.nixname _ (product.subtype ? "-" _ product.subtype : "") _ ".closure.gz" %]
             [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
 
             <a href="[% uri %]">

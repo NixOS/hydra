@@ -21,25 +21,27 @@ sub addRoot {
 }
 
 
-my @columns = ( "id", "project", "jobset", "job", "system", "finished", "outpath", "drvpath", "timestamp" );
+my @columns = ( "id", "project", "jobset", "job", "system", "finished", "drvpath", "timestamp" );
 
 sub keepBuild {
     my ($build) = @_;
     print STDERR "  keeping ", ($build->finished ? "" : "scheduled "), "build ", $build->id, " (",
         $build->get_column('project'), ":", $build->get_column('jobset'), ":", $build->get_column('job'), "; ",
-	$build->system, "; ",
+        $build->system, "; ",
         strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
-    if (isValidPath($build->outpath)) {
-	addRoot $build->outpath;
-    } else {
-        print STDERR "    warning: output ", $build->outpath, " has disappeared\n" if $build->finished;
+    foreach my $out ($build->buildoutputs->all) {
+        if (isValidPath($out->path)) {
+            addRoot $out->path;
+        } else {
+            print STDERR "    warning: output ", $out->path, " has disappeared\n" if $build->finished;
+        }
     }
     if (!$build->finished) {
-	if (isValidPath($build->drvpath)) {
-	    addRoot $build->drvpath;
-	} else {
-	    print STDERR "    warning: derivation ", $build->drvpath, " has disappeared\n";
-	}
+        if (isValidPath($build->drvpath)) {
+            addRoot $build->drvpath;
+        } else {
+            print STDERR "    warning: derivation ", $build->drvpath, " has disappeared\n";
+        }
     }
 }
 
@@ -57,7 +59,8 @@ closedir DIR;
 # Keep every build in every release of every project.
 print STDERR "*** looking for release members\n";
 keepBuild $_ foreach $db->resultset('Builds')->search_literal(
-    "exists (select 1 from releasemembers where build = me.id)", { order_by => ["project", "jobset", "job", "id"] });
+    "exists (select 1 from releasemembers where build = me.id)",
+    { order_by => ["project", "jobset", "job", "id"], columns => [ @columns ] });
 
 
 # Keep all builds that have been marked as "keep".
@@ -74,8 +77,8 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
     foreach my $jobset ($project->jobsets->search({}, { order_by => ["name" ]})) {
         my $keepnr = $jobset->keepnr;
 
-        # If the jobset has been hidden and disabled for more than one week, than
-        # don't keep its builds anymore.
+        # If the jobset has been hidden and disabled for more than one
+        # week, then don't keep its builds anymore.
         if ($jobset->enabled == 0 && ($project->hidden == 1 || $jobset->hidden == 1) && (time() - ($jobset->lastcheckedtime || 0) > (7 * 24 * 3600))) {
             print STDERR "*** skipping disabled jobset ", $project->name, ":", $jobset->name, "\n";
             next;
@@ -86,19 +89,20 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
             next;
         }
 
-	print STDERR "*** looking for the $keepnr most recent successful builds of each job in jobset ",
-	    $project->name, ":", $jobset->name, "\n";
+        # FIXME: base this on jobset evals?
+        print STDERR "*** looking for the $keepnr most recent successful builds of each job in jobset ",
+            $project->name, ":", $jobset->name, "\n";
 
-	keepBuild $_ foreach $jobset->builds->search(
-	    { 'me.id' => { 'in' => \
-	        [ "select b2.id from Builds b2 join " .
-		  "  (select distinct job, system, coalesce( " .
+        keepBuild $_ foreach $jobset->builds->search(
+            { 'me.id' => { 'in' => \
+                [ "select b2.id from Builds b2 join " .
+                  "  (select distinct job, system, coalesce( " .
                   "    (select id from builds where project = b.project and jobset = b.jobset and job = b.job and system = b.system and finished = 1 and buildStatus = 0 order by id desc offset ? limit 1)" .
                   "    , 0) as nth from builds b where project = ? and jobset = ? and isCurrent = 1) x " .
-		  "  on b2.project = ? and b2.jobset = ? and b2.job = x.job and b2.system = x.system and (id >= x.nth) where finished = 1 and buildStatus = 0"
-		, [ '', $keepnr - 1 ], [ '', $project->name ], [ '', $jobset->name ], [ '', $project->name ], [ '', $jobset->name ] ] }
-	    },
-	    { order_by => ["job", "system", "id"], columns => [ @columns ] });
+                  "  on b2.project = ? and b2.jobset = ? and b2.job = x.job and b2.system = x.system and (id >= x.nth) where finished = 1 and buildStatus = 0"
+                , [ '', $keepnr - 1 ], [ '', $project->name ], [ '', $jobset->name ], [ '', $project->name ], [ '', $jobset->name ] ] }
+            },
+            { order_by => ["job", "system", "id"], columns => [ @columns ] });
     }
 
     # Go over all views in this project.
@@ -135,10 +139,10 @@ foreach my $link (@roots) {
     my $path = "/nix/store/$link";
     if (!defined $roots{$path}) {
         print STDERR "removing root $path\n";
-	$rootsDeleted++;
+        $rootsDeleted++;
         unlink "$gcRootsDir/$link" or warn "cannot remove $gcRootsDir/$link";
     } else {
-	$rootsKept++;
+        $rootsKept++;
     }
 }
 

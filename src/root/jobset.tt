@@ -204,7 +204,7 @@
 
                           <blockquote>
                             [% IF activeJobs.size == 0 %]<em>(none)</em>[% END %]
-                            [% FOREACH j IN activeJobs %] [% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %] [% END %]
+                            [% FOREACH j IN activeJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]
                           </blockquote>
                         </p>
 
@@ -212,7 +212,7 @@
 
                           <blockquote>
                             [% IF inactiveJobs.size == 0 %]<em>(none)</em>[% END %]
-                            [% FOREACH j IN inactiveJobs %] [% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %] [% END %]
+                            [% FOREACH j IN inactiveJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]
                           </blockquote>
 
                         </p>

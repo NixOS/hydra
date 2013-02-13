@@ -21,13 +21,13 @@ sub process {
 
     my $res = "[\n";
 
-    foreach my $name (keys %{$c->stash->{nixPkgs}}) {
-        my $build = $c->stash->{nixPkgs}->{$name}->{build};
-        $res .= "  # $name\n";
+    foreach my $pkg (@{$c->stash->{nixPkgs}}) {
+        my $build = $pkg->{build};
+        $res .= "  # $pkg->{name}\n";
         $res .= "  { type = \"derivation\";\n";
         $res .= "    name = " . escape ($build->get_column("releasename") or $build->nixname) . ";\n";
         $res .= "    system = " . (escape $build->system) . ";\n";
-        $res .= "    outPath = " . (escape $build->outpath) . ";\n";
+        $res .= "    outPath = " . (escape $pkg->{outPath}) . ";\n";
         $res .= "    meta = {\n";
         $res .= "      description = " . (escape $build->description) . ";\n"
             if $build->description;

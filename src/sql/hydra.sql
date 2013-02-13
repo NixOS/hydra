@@ -133,7 +133,6 @@ create table Builds (
     nixName       text, -- name attribute of the derivation
     description   text, -- meta.description
     drvPath       text not null,
-    outPath       text not null,
     system        text not null,
 
     longDescription text, -- meta.longDescription
@@ -174,6 +173,7 @@ create table Builds (
     --   3 = other failure (see errorMsg)
     --   4 = build cancelled (removed from queue; never built)
     --   5 = build not done because a dependency failed previously (obsolete)
+    --   6 = failure with output
     buildStatus   integer,
 
     errorMsg      text, -- error message in case of a Nix failure
@@ -191,6 +191,15 @@ create table Builds (
 );
 
 
+create table BuildOutputs (
+    build         integer not null,
+    name          text not null,
+    path          text not null,
+    primary key   (build, name),
+    foreign key   (build) references Builds(id) on delete cascade
+);
+
+
 create table BuildSteps (
     build         integer not null,
     stepnr        integer not null,
@@ -198,7 +207,6 @@ create table BuildSteps (
     type          integer not null, -- 0 = build, 1 = substitution
 
     drvPath       text,
-    outPath       text,
 
     busy          integer not null,
 
@@ -214,6 +222,17 @@ create table BuildSteps (
 
     primary key   (build, stepnr),
     foreign key   (build) references Builds(id) on delete cascade
+);
+
+
+create table BuildStepOutputs (
+    build         integer not null,
+    stepnr        integer not null,
+    name          text not null,
+    path          text not null,
+    primary key   (build, stepnr, name),
+    foreign key   (build) references Builds(id) on delete cascade,
+    foreign key   (build, stepnr) references BuildSteps(build, stepnr) on delete cascade
 );
 
 
@@ -494,13 +513,13 @@ create table NewsItems (
 
 
 create table BuildMachines (
-    hostname text primary key NOT NULL,
-    username text DEFAULT '' NOT NULL,
-    ssh_key text DEFAULT '' NOT NULL,
-    options text DEFAULT '' NOT NULL,
-    maxconcurrent integer DEFAULT 2 NOT NULL,
-    speedfactor integer DEFAULT 1 NOT NULL,
-    enabled integer DEFAULT 0 NOT NULL
+    hostname text primary key not null,
+    username text default '' not null,
+    ssh_key text default '' not null,
+    options text default '' not null,
+    maxconcurrent integer default 2 not null,
+    speedfactor integer default 1 not null,
+    enabled integer default 0 not null
 );
 
 
@@ -518,11 +537,9 @@ create index IndexBuildInputsOnBuild on BuildInputs(build);
 create index IndexBuildInputsOnDependency on BuildInputs(dependency);
 create index IndexBuildProducstOnBuildAndType on BuildProducts(build, type);
 create index IndexBuildProductsOnBuild on BuildProducts(build);
-create index IndexBuildStepsOnBuild on BuildSteps(build);
 create index IndexBuildStepsOnBusy on BuildSteps(busy);
 create index IndexBuildStepsOnDrvpathTypeBusyStatus on BuildSteps(drvpath, type, busy, status);
-create index IndexBuildStepsOnOutpath on BuildSteps(outpath);
-create index IndexBuildStepsOnOutpathBuild on BuildSteps (outpath, build);
+create index IndexBuildStepOutputsOnPath on BuildStepOutputs(path);
 create index IndexBuildsOnFinished on Builds(finished);
 create index IndexBuildsOnFinishedBusy on Builds(finished, busy);
 create index IndexBuildsOnIsCurrent on Builds(isCurrent);

@@ -14,7 +14,8 @@ our @EXPORT = qw(
     getPrimaryBuildsForView
     getPrimaryBuildTotal
     getViewResult getLatestSuccessfulViewResult
-    jobsetOverview removeAsciiEscapes getDrvLogPath logContents);
+    jobsetOverview removeAsciiEscapes getDrvLogPath logContents
+    getMainOutput);
 
 
 sub getHydraHome {
@@ -275,6 +276,14 @@ sub removeAsciiEscapes {
     my ($logtext) = @_;
     $logtext =~ s/\e\[[0-9]*[A-Za-z]//g;
     return $logtext;
+}
+
+
+sub getMainOutput {
+    my ($build) = @_;
+    return
+        $build->buildoutputs->find({name => "out"}) //
+        $build->buildoutputs->find({}, {limit => 1, order_by => ["name"]});
 }
 
 

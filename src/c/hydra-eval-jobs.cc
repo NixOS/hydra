@@ -123,11 +123,12 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             XMLAttrs xmlAttrs;
             Path drvPath;
 
+            DrvInfo::Outputs outputs = drv.queryOutputs(state);
+
             xmlAttrs["jobName"] = attrPath;
             xmlAttrs["nixName"] = drv.name;
             xmlAttrs["system"] = drv.system;
             xmlAttrs["drvPath"] = drvPath = drv.queryDrvPath(state);
-            xmlAttrs["outPath"] = drv.queryOutPath(state);
             MetaInfo meta = drv.queryMetaInfo(state);
             xmlAttrs["description"] = queryMetaFieldString(meta, "description");
             xmlAttrs["longDescription"] = queryMetaFieldString(meta, "longDescription");
@@ -164,6 +165,14 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             }
 
             XMLOpenElement _(doc, "job", xmlAttrs);
+
+            foreach (DrvInfo::Outputs::iterator, j, outputs) {
+                XMLAttrs attrs2;
+                attrs2["name"] = j->first;
+                attrs2["path"] = j->second;
+                doc.writeEmptyElement("output", attrs2);
+            }
+
             showArgsUsed(doc, argsUsed);
         }
 

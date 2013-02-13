@@ -13,6 +13,7 @@ use File::Basename;
 use File::stat;
 use File::Path;
 use File::Temp;
+use File::Slurp;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -43,14 +44,9 @@ sub getStorePathHash {
 
 sub getReleaseName {
     my ($outPath) = @_;
-
-    my $releaseName;
-    if (-e "$outPath/nix-support/hydra-release-name") {
-        open FILE, "$outPath/nix-support/hydra-release-name" or die;
-        $releaseName = <FILE>;
-        chomp $releaseName;
-        close FILE;
-    }
+    return undef unless -f "$outPath/nix-support/hydra-release-name";
+    my $releaseName = read_file("$outPath/nix-support/hydra-release-name");
+    chomp $releaseName;
     return $releaseName;
 }
 
@@ -242,7 +238,7 @@ sub fetchInputBuild {
         { order_by => "me.id DESC", rows => 1
         , where => \ attrsToSQL($attrs, "me.id") });
 
-    if (!defined $prevBuild || !isValidPath($prevBuild->outpath)) {
+    if (!defined $prevBuild || !isValidPath(getMainOutput($prevBuild)->path)) {
         print STDERR "input `", $name, "': no previous build available\n";
         return undef;
     }
@@ -256,7 +252,7 @@ sub fetchInputBuild {
     my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
 
     return
-        { storePath => $prevBuild->outpath
+        { storePath => getMainOutput($prevBuild)->path
         , id => $prevBuild->id
         , version => $version
         };
@@ -275,7 +271,7 @@ sub fetchInputSystemBuild {
 
     my @validBuilds = ();
     foreach my $build (@latestBuilds) {
-        push(@validBuilds, $build) if isValidPath($build->outpath);
+        push(@validBuilds, $build) if !isValidPath(getMainOutput($build)->path);
     }
 
     if (scalar(@validBuilds) == 0) {
@@ -293,7 +289,7 @@ sub fetchInputSystemBuild {
         my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
 
         my $input =
-            { storePath => $prevBuild->outpath
+            { storePath => getMainOutput($prevBuild)->path
             , id => $prevBuild->id
             , version => $version
             , system => $prevBuild->system
@@ -666,6 +662,7 @@ sub buildInputToString {
     return $result;
 }
 
+
 sub inputsToArgs {
     my ($inputInfo, $exprType) = @_;
     my @res = ();
@@ -742,8 +739,8 @@ sub evalJobs {
 
     my $jobs = XMLin(
         $jobsXml,
-        ForceArray => ['error', 'job', 'arg'],
-        KeyAttr => [],
+        ForceArray => ['error', 'job', 'arg', 'output'],
+        KeyAttr => { output => "+name" },
         SuppressEmpty => '')
         or die "cannot parse XML output";
 
@@ -751,7 +748,7 @@ sub evalJobs {
     foreach my $job (@{$jobs->{job}}) {
         my $validJob = 1;
         foreach my $arg (@{$job->{arg}}) {
-            my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}] ;
+            my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}];
             if ($input->{type} eq "sysbuild" && $input->{system} ne $job->{system}) {
                 $validJob = 0;
             }
@@ -769,60 +766,68 @@ sub evalJobs {
 sub addBuildProducts {
     my ($db, $build) = @_;
 
-    my $outPath = $build->outpath;
     my $productnr = 1;
+    my $explicitProducts = 0;
 
-    if (-e "$outPath/nix-support/hydra-build-products") {
-        open LIST, "$outPath/nix-support/hydra-build-products" or die;
-        while (<LIST>) {
-            /^([\w\-]+)\s+([\w\-]+)\s+(\S+)(\s+(\S+))?$/ or next;
-            my $type = $1;
-            my $subtype = $2 eq "none" ? "" : $2;
-            my $path = $3;
-            my $defaultPath = $5;
-            next unless -e $path;
+    foreach my $output ($build->buildoutputs->all) {
+        my $outPath = $output->path;
+        if (-e "$outPath/nix-support/hydra-build-products") {
+            $explicitProducts = 1;
 
-            my $fileSize, my $sha1, my $sha256;
+            open LIST, "$outPath/nix-support/hydra-build-products" or die;
+            while (<LIST>) {
+                /^([\w\-]+)\s+([\w\-]+)\s+(\S+)(\s+(\S+))?$/ or next;
+                my $type = $1;
+                my $subtype = $2 eq "none" ? "" : $2;
+                my $path = $3;
+                my $defaultPath = $5;
+                next unless -e $path;
 
-            # !!! validate $path, $defaultPath
+                my $fileSize, my $sha1, my $sha256;
 
-            if (-f $path) {
-                my $st = stat($path) or die "cannot stat $path: $!";
-                $fileSize = $st->size;
+                # !!! validate $path, $defaultPath
 
-                $sha1 = `nix-hash --flat --type sha1 $path`
-                    or die "cannot hash $path: $?";;
-                chomp $sha1;
+                if (-f $path) {
+                    my $st = stat($path) or die "cannot stat $path: $!";
+                    $fileSize = $st->size;
 
-                $sha256 = `nix-hash --flat --type sha256 $path`
-                    or die "cannot hash $path: $?";;
-                chomp $sha256;
+                    $sha1 = `nix-hash --flat --type sha1 $path`
+                        or die "cannot hash $path: $?";;
+                    chomp $sha1;
+
+                    $sha256 = `nix-hash --flat --type sha256 $path`
+                        or die "cannot hash $path: $?";;
+                    chomp $sha256;
+                }
+
+                my $name = $path eq $outPath ? "" : basename $path;
+
+                $db->resultset('BuildProducts')->create(
+                    { build => $build->id
+                    , productnr => $productnr++
+                    , type => $type
+                    , subtype => $subtype
+                    , path => $path
+                    , filesize => $fileSize
+                    , sha1hash => $sha1
+                    , sha256hash => $sha256
+                    , name => $name
+                    , defaultpath => $defaultPath
+                    });
             }
-
-            my $name = $path eq $outPath ? "" : basename $path;
-
-            $db->resultset('BuildProducts')->create(
-                { build => $build->id
-                , productnr => $productnr++
-                , type => $type
-                , subtype => $subtype
-                , path => $path
-                , filesize => $fileSize
-                , sha1hash => $sha1
-                , sha256hash => $sha256
-                , name => $name
-                , defaultpath => $defaultPath
-                });
+            close LIST;
         }
-        close LIST;
     }
 
-    else {
+    return if $explicitProducts;
+
+    foreach my $output ($build->buildoutputs->all) {
+        my $outPath = $output->path;
         $db->resultset('BuildProducts')->create(
             { build => $build->id
             , productnr => $productnr++
             , type => "nix-build"
-            , subtype => ""
+            , subtype => $output->name eq "out" ? "" : $output->name
             , path => $outPath
             , name => $build->nixname
             });
@@ -846,9 +851,17 @@ sub getPrevJobsetEval {
 sub checkBuild {
     my ($db, $project, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildIds, $prevEval, $jobOutPathMap) = @_;
 
-    my $jobName = $buildInfo->{jobName};
-    my $drvPath = $buildInfo->{drvPath};
-    my $outPath = $buildInfo->{outPath};
+    my @outputNames = sort keys %{$buildInfo->{output}};
+    die unless scalar @outputNames;
+
+    # In various checks we can use an arbitrary output (the first)
+    # rather than all outputs, since if one output is the same, the
+    # others will be as well.
+    my $firstOutputName = $outputNames[0];
+    my $firstOutputPath = $buildInfo->{output}->{$firstOutputName}->{path};
+
+    my $jobName = $buildInfo->{jobName} or die;
+    my $drvPath = $buildInfo->{drvPath} or die;
 
     my $priority = 100;
     $priority = int($buildInfo->{schedulingPriority})
@@ -873,18 +886,21 @@ sub checkBuild {
         # will be performed (though the last one will probably use the
         # cached result from the first).  This ensures that the builds
         # with the highest ID will always be the ones that we want in
-        # the channels.
-        # !!! Checking $outPath doesn't take meta-attributes into
-        # account.  For instance, do we want a new build to be
-        # scheduled if the meta.maintainers field is changed?
+        # the channels.  FIXME: Checking the output paths doesn't take
+        # meta-attributes into account.  For instance, do we want a
+        # new build to be scheduled if the meta.maintainers field is
+        # changed?
         if (defined $prevEval) {
+            # Only check one output: if it's the same, the other will be as well.
+            my $firstOutput = $outputNames[0];
             my ($prevBuild) = $prevEval->builds->search(
                 # The "project" and "jobset" constraints are
                 # semantically unnecessary (because they're implied by
                 # the eval), but they give a factor 1000 speedup on
                 # the Nixpkgs jobset with PostgreSQL.
-                { project => $project->name, jobset => $jobset->name, job => $job->name, outPath => $outPath },
-                { rows => 1, columns => ['id'] });
+                { project => $project->name, jobset => $jobset->name, job => $job->name,
+                  name => $firstOutputName, path => $firstOutputPath },
+                { rows => 1, columns => ['id'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
                 print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
                 $buildIds->{$prevBuild->id} = 0;
@@ -894,7 +910,7 @@ sub checkBuild {
 
         # Prevent multiple builds with the same (job, outPath) from
         # being added.
-        my $prev = $$jobOutPathMap{$job->name . "\t" . $outPath};
+        my $prev = $$jobOutPathMap{$job->name . "\t" . $firstOutputPath};
         if (defined $prev) {
             print STDERR "    already scheduled as build ", $prev, "\n";
             return;
@@ -902,22 +918,41 @@ sub checkBuild {
 
         my $time = time();
 
-        # Nope, so add it.
+        # Are the outputs already in the Nix store?  Then add a cached
+        # build.
         my %extraFlags;
-        if (isValidPath($outPath)) {
+        my $allValid = 1;
+        my $buildStatus;
+        my $releaseName;
+        foreach my $name (@outputNames) {
+            my $path = $buildInfo->{output}->{$name}->{path};
+            if (isValidPath($path)) {
+                if (-f "$path/nix-support/failed") {
+                    $buildStatus = 6;
+                } else {
+                    $buildStatus //= 0;
+                }
+                $releaseName //= getReleaseName($path);
+            } else {
+                $allValid = 0;
+                last;
+            }
+        }
+
+        if ($allValid) {
             %extraFlags =
                 ( finished => 1
                 , iscachedbuild => 1
-                , buildstatus => -f "$outPath/nix-support/failed" ? 6 : 0
+                , buildstatus => $buildStatus
                 , starttime => $time
                 , stoptime => $time
-                , errormsg => ""
-                , releasename => getReleaseName($outPath)
+                , releasename => $releaseName
                 );
         } else {
             %extraFlags = ( finished => 0 );
         }
 
+        # Add the build to the database.
         $build = $job->builds->create(
             { timestamp => $time
             , description => $buildInfo->{description}
@@ -929,7 +964,6 @@ sub checkBuild {
             , timeout => $buildInfo->{timeout}
             , nixname => $buildInfo->{nixName}
             , drvpath => $drvPath
-            , outpath => $outPath
             , system => $buildInfo->{system}
             , nixexprinput => $jobset->nixexprinput
             , nixexprpath => $jobset->nixexprpath
@@ -939,8 +973,11 @@ sub checkBuild {
             , %extraFlags
             });
 
+        $build->buildoutputs->create({ name => $_, path => $buildInfo->{output}->{$_}->{path} })
+            foreach @outputNames;
+
         $buildIds->{$build->id} = 1;
-        $$jobOutPathMap{$job->name . "\t" . $outPath} = $build->id;
+        $$jobOutPathMap{$job->name . "\t" . $firstOutputPath} = $build->id;
 
         if ($build->iscachedbuild) {
             print STDERR "    marked as cached build ", $build->id, "\n";
@@ -988,15 +1025,11 @@ sub restartBuild {
     my ($db, $build) = @_;
 
     txn_do($db, sub {
-        my $drvpath = $build->drvpath;
-        my $outpath = $build->outpath;
+        my @paths;
+        push @paths, $build->drvpath;
+        push @paths, $_->drvpath foreach $build->buildsteps;
 
-        my $paths = "";
-        foreach my $bs ($build->buildsteps) {
-            $paths = $paths . " " . $bs->outpath;
-        }
-
-        my $r = `nix-store --clear-failed-paths $paths $outpath`;
+        my $r = `nix-store --clear-failed-paths @paths`;
 
         $build->update(
             { finished => 0

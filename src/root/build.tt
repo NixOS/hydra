@@ -8,57 +8,60 @@
 [% jobset = build.jobset %]
 [% job = build.job %]
 
-[% BLOCK renderBuildSteps %]
-        <table class="tablesorter table table-striped table-condensed">
-          <thead>
-            <tr><th>Nr</th><th>What</th><th>Duration</th><th>Machine</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            [% FOREACH step IN build.buildsteps -%]
-                        [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) -%]
-                      [% has_log = log_exists(step.drvpath);
-                         log = c.uri_for('/build' build.id 'nixlog' step.stepnr); -%]
-                      <tr [% IF has_log %] class="clickable" onclick="window.location = '[% log %]'" [% END %]>
-                        <td>[% step.stepnr %]</td>
-                        <td>
-                          [% IF step.type == 0 %]
-                            Build of <tt>[% step.outpath %]</tt>
-                          [% ELSE %]
-                            Substitution of <tt>[% step.outpath %]</tt>
-                          [% END %]
-                        </td>
-                        <td>
-                          [% IF step.busy == 0 %]
-                            [% INCLUDE renderDuration duration = step.stoptime - step.starttime %]
-                          [% ELSE %]
-                            [% IF build.finished %]
-                              [% INCLUDE renderDuration duration = build.stoptime - step.starttime %]
-                            [% ELSE %]
-                              [% INCLUDE renderDuration duration = curTime - step.starttime %]
-                            [% END %]
-                          [% END %]
-                        </td>
-                <td>[% step.machine.split('@').1 %]</td>
-                        <td>
-                          [% IF step.busy == 1 %]
-                            <strong>Building</strong>
-                          [% ELSIF step.status == 0 %]
-                            Succeeded
-                          [% ELSIF step.status == 4 %]
-                            <span class="error">Aborted</span>
-                          [% ELSE %]
-                            <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
-                          [% END %]
-                          [% IF has_log %]
-                            (<a href="[% log %]">log</a>, <a href="[% "$log/raw" %]">raw</a>, <a href="[% "$log/tail-reload" %]">tail</a>)
-                          [% END %]
-                        </td>
-                      </tr>
-                    [% END %]
-            [% END %]
-          </tbody>
-        </table>
+[% BLOCK renderOutputs %]
+  [% start=1; FOREACH output IN outputs %]
+    [% IF !start %],<br/>[% END; start=0; output.path %]
+  [% END %]
+[% END %]
 
+[% BLOCK renderBuildSteps %]
+  <table class="tablesorter table table-striped table-condensed">
+    <thead>
+      <tr><th>Nr</th><th>What</th><th>Duration</th><th>Machine</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      [% FOREACH step IN build.buildsteps %]
+        [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
+          [% has_log = log_exists(step.drvpath);
+              log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
+            <tr [% IF has_log %] class="clickable" onclick="window.location = '[% log %]'" [% END %]>
+              <td>[% step.stepnr %]</td>
+              <td>
+                [% IF step.type == 0 %]
+                  Build of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
+                [% ELSE %]
+                  Substitution of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
+                [% END %]
+              </td>
+              <td>
+                [% IF step.busy == 0;
+                     INCLUDE renderDuration duration = step.stoptime - step.starttime;
+                   ELSIF build.finished;
+                     INCLUDE renderDuration duration = build.stoptime - step.starttime;
+                   ELSE;
+                     INCLUDE renderDuration duration = curTime - step.starttime;
+                   END %]
+              </td>
+              <td>[% step.machine.split('@').1 %]</td>
+              <td>
+                [% IF step.busy == 1 %]
+                  <strong>Building</strong>
+                [% ELSIF step.status == 0 %]
+                  Succeeded
+                [% ELSIF step.status == 4 %]
+                  <span class="error">Aborted</span>
+                [% ELSE %]
+                  <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
+                [% END %]
+                [% IF has_log %]
+                  (<a href="[% log %]">log</a>, <a href="[% "$log/raw" %]">raw</a>, <a href="[% "$log/tail-reload" %]">tail</a>)
+                [% END %]
+              </td>
+            </tr>
+          [% END %]
+        [% END %]
+    </tbody>
+  </table>
 [% END %]
 
 
@@ -110,15 +113,18 @@
                                     <th>System:</th>
                                     <td><tt>[% build.system %]</tt></td>
                                   </tr>
-                                  [% IF build.finished %]
+                                  [% IF build.iscachedbuild %]
+                                    <tr>
+                                      <th>Cached from:</th>
+                                      <td>
+                                        [% INCLUDE renderFullBuildLink build=cachedBuild %]
+                                      </td>
+                                    </tr>
+                                  [% ELSE %]
                                     <tr>
                                       <th>Duration:</th>
                                       <td>
-                                        [% IF build.iscachedbuild %]
-                                          (cached[% IF cachedBuild %] from [% INCLUDE renderFullBuildLink build=cachedBuild %][% END %])
-                                        [% ELSE %]
-                                                [% INCLUDE renderDuration duration = build.stoptime - build.starttime %] finished at [% INCLUDE renderDateTime timestamp = build.stoptime %]
-                                        [% END %]
+                                        [% INCLUDE renderDuration duration = build.stoptime - build.starttime %]; finished at [% INCLUDE renderDateTime timestamp = build.stoptime %]
                                       </td>
                                     </tr>
                                   [% END %]
@@ -217,28 +223,6 @@
                 <h2>Information</h2>
 
                 <table class="layoutTable">
-                  <tr>
-                    <th>Build ID:</th>
-                    <td>[% build.id %]</td>
-                  </tr>
-                  <tr>
-                    <th>Status:</th>
-                    <td>
-                        [% INCLUDE renderStatus build=build %]
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Project:</th>
-                    <td>[% INCLUDE renderProjectName project=project.name %]</td>
-                  </tr>
-                  <tr>
-                    <th>Jobset:</th>
-                    <td>[% INCLUDE renderJobsetName project=project.name jobset=jobset.name %]</td>
-                  </tr>
-                  <tr>
-                    <th>Job name:</th>
-                    <td>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=job.name %]</td>
-                  </tr>
                   [% IF build.nixexprinput %]
                   <tr>
                     <th>Nix expression:</th>
@@ -249,12 +233,6 @@
                     <th>Nix name:</th>
                     <td><tt>[% build.nixname %]</tt></td>
                   </tr>
-                  [% IF build.releasename %]
-                    <tr>
-                      <th>Release name:</th>
-                      <td><tt>[% HTML.escape(build.releasename) %]</tt></td>
-                    </tr>
-                  [% END %]
                   <tr>
                     <th>Short description:</th>
                     <td>[% IF build.description %][% HTML.escape(build.description) %][% ELSE %]<em>(not given)</em>[% END %]</td>
@@ -289,22 +267,14 @@
                     </td>
                   </tr>
                   <tr>
-                    <th>Output store path:</th>
+                    <th>Output store paths:</th>
                     <td>
-                      <tt>[% build.outpath %]</tt>
+                      <tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt>
                       [% IF available %]
                         (<a href="[% c.uri_for('/build' build.id 'deps') %]#runtime">runtime dependencies</a>)
                       [% END %]
                     </td>
                   </tr>
-                  [% IF pathHash %]
-                  <tr>
-                    <th>Output store path hash:</th>
-                    <td>
-                      <tt>[% pathHash %]</tt>
-                    </td>
-                  </tr>
-                  [% END %]
                   <tr>
                     <th>Time added:</th>
                     <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>

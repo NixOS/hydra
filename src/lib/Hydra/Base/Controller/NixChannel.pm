@@ -3,6 +3,7 @@ package Hydra::Base::Controller::NixChannel;
 use strict;
 use warnings;
 use base 'Catalyst::Controller';
+use List::MoreUtils qw(all);
 use Nix::Store;
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
@@ -12,26 +13,23 @@ sub getChannelData {
     my ($c, $checkValidity) = @_;
 
     my @storePaths = ();
+    $c->stash->{nixPkgs} = [];
     foreach my $build ($c->stash->{channelBuilds}->all) {
-        next if $checkValidity && !isValidPath($build->outpath);
-        #if (isValidPath($build->drvpath)) {
-        #    # Adding `drvpath' implies adding `outpath' because of the
-        #    # `--include-outputs' flag passed to `nix-store'.
-        #    push @storePaths, $build->drvpath;
-        #} else {
-        #    push @storePaths, $build->outpath;
-        #}
-        push @storePaths, $build->outpath;
-        my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id;
-        $c->stash->{nixPkgs}->{"${pkgName}.nixpkg"} = {build => $build, name => $pkgName};
+        my $outPath = $build->get_column("outpath");
+        my $outName = $build->get_column("outname");
+        next if $checkValidity && !isValidPath($outPath);
+        push @storePaths, $outPath;
+        my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id . ($outName ne "out" ? "-" . $outName : "");
+        push @{$c->stash->{nixPkgs}}, { build => $build, name => $pkgName, outPath => $outPath, outName => $outName };
         # Put the system type in the manifest (for top-level paths) as
         # a hint to the binary patch generator.  (It shouldn't try to
         # generate patches between builds for different systems.)  It
         # would be nice if Nix stored this info for every path but it
         # doesn't.
-        $c->stash->{systemForPath}->{$build->outpath} = $build->system;
+        $c->stash->{systemForPath}->{$outPath} = $build->system;
     };
 
+    print STDERR @storePaths, "\n";
     $c->stash->{storePaths} = [@storePaths];
 }
 
@@ -41,6 +39,8 @@ sub closure : Chained('nix') PathPart {
     $c->stash->{current_view} = 'NixClosure';
 
     getChannelData($c, 1);
+
+    # FIXME: get the closure of the selected path only.
 
     # !!! quick hack; this is to make HEAD requests return the right
     # MIME type.  This is set in the view as well, but the view isn't
@@ -62,11 +62,14 @@ sub pkg : Chained('nix') PathPart Args(1) {
 
     if (!$c->stash->{build}) {
         $pkgName =~ /-(\d+)\.nixpkg$/ or notFound($c, "Bad package name.");
+        # FIXME: need to handle multiple outputs: channelBuilds is
+        # joined with the build outputs, so find() can return multiple
+        # results.
         $c->stash->{build} = $c->stash->{channelBuilds}->find({ id => $1 })
             || notFound($c, "No such package in this channel.");
     }
 
-    if (!isValidPath($c->stash->{build}->outpath)) {
+    unless (all { isValidPath($_->path) } $c->stash->{build}->buildoutputs->all) {
         $c->response->status(410); # "Gone"
         error($c, "Build " . $c->stash->{build}->id . " is no longer available.");
     }
@@ -115,7 +118,7 @@ sub channel_contents : Chained('nix') PathPart('') Args(0) {
     # channel.
     getChannelData($c, 0);
     $c->stash->{template} = 'channel-contents.tt';
-    $c->stash->{nixPkgs} = [sortPkgs (values %{$c->stash->{nixPkgs}})];
+    $c->stash->{nixPkgs} = [sortPkgs @{$c->stash->{nixPkgs}}];
 }
 
 
