@@ -6,6 +6,7 @@ use XML::Simple;
 use POSIX qw(strftime);
 use IPC::Run;
 use Nix::Store;
+use Nix::Config;
 use Hydra::Model::DB;
 use Hydra::Helper::Nix;
 use Digest::SHA qw(sha256_hex);
@@ -13,6 +14,7 @@ use File::Basename;
 use File::stat;
 use File::Path;
 use File::Temp;
+use File::Spec;
 use File::Slurp;
 
 our @ISA = qw(Exporter);
@@ -768,6 +770,7 @@ sub addBuildProducts {
 
     my $productnr = 1;
     my $explicitProducts = 0;
+    my $storeDir = $Nix::Config::storeDir . "/";
 
     foreach my $output ($build->buildoutputs->all) {
         my $outPath = $output->path;
@@ -779,9 +782,17 @@ sub addBuildProducts {
                 /^([\w\-]+)\s+([\w\-]+)\s+(\S+)(\s+(\S+))?$/ or next;
                 my $type = $1;
                 my $subtype = $2 eq "none" ? "" : $2;
-                my $path = $3;
+                my $path = File::Spec->canonpath($3);
                 my $defaultPath = $5;
+
+                # Ensure that the path exists and points into the Nix store.
+                next unless File::Spec->file_name_is_absolute($path);
+                next if $path =~ /\/\.\./; # don't go up
                 next unless -e $path;
+                next unless substr($path, 0, length($storeDir)) eq $storeDir;
+
+                # FIXME: check that the path is in the input closure
+                # of the build?
 
                 my $fileSize, my $sha1, my $sha256;
 
@@ -1036,7 +1047,10 @@ sub restartBuild {
             , timestamp => time
             , busy => 0
             , locker => ""
+            , iscachedbuild => 0
             });
+
+        $build->buildproducts->delete_all;
 
         # Reset the stats for the evals to which this build belongs.
         # !!! Should do this in a trigger.
