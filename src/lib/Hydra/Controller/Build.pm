@@ -543,7 +543,7 @@ sub get_info  : Chained('build') PathPart('api/get-info') Args(0) {
     # !!! strip the json prefix
     $c->stash->{jsonBuildId} = $build->id;
     $c->stash->{jsonDrvPath} = $build->drvpath;
-    my $out = $build->buildoutputs->find({name => "out"});
+    my $out = getMainOutput($build);
     $c->stash->{jsonOutPath} = $out->path if defined $out;
     $c->forward('View::JSON');
 }
