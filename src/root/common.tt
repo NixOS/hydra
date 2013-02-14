@@ -1,65 +1,67 @@
-[% USE date %]
-[% USE String %]
-[% USE HTML %]
+[%
+USE date;
+USE String;
+USE HTML;
 
 
-[% inputTypes =
-    { "svn" = "Subversion export"
-    , "svn-checkout" = "Subversion checkout"
-    , "bzr" = "Bazaar export"
-    , "bzr-checkout" = "Bazaar checkout"
-    , "git" = "Git checkout"
-    , "hg" = "Mercurial checkout"
-    , "string" = "String value"
-    , "boolean" = "Boolean"
-    , "path" = "Local path"
-    , "build" = "Build output"
-    , "sysbuild" = "Build output (same system)"
-    }
-%]
+inputTypes =
+  { "svn" = "Subversion export"
+  , "svn-checkout" = "Subversion checkout"
+  , "bzr" = "Bazaar export"
+  , "bzr-checkout" = "Bazaar checkout"
+  , "git" = "Git checkout"
+  , "hg" = "Mercurial checkout"
+  , "string" = "String value"
+  , "boolean" = "Boolean"
+  , "path" = "Local path"
+  , "build" = "Build output"
+  , "sysbuild" = "Build output (same system)"
+  };
+
+BLOCK renderDateTime;
+date.format(timestamp, '%Y-%m-%d %H:%M:%S');
+END;
 
 
-[% BLOCK renderDateTime %]
-  [% date.format(timestamp, '%Y-%m-%d %H:%M:%S') %]
-[% END %]
+BLOCK renderProjectName %]
+<a href="[% c.uri_for('/project' project) %]"><tt>[% project %]</tt></a>
+[% END;
 
 
-[% BLOCK renderProjectName %]
-<a href="[% c.uri_for('/project' project) %]"><tt>[% project %]</tt></a>[% END %]
+BLOCK renderJobsetName %]
+<a href="[% c.uri_for('/jobset' project jobset) %]"><tt>[% jobset %]</tt></a>
+[% END;
 
 
-[% BLOCK renderJobsetName %]
-<a href="[% c.uri_for('/jobset' project jobset) %]"><tt>[% jobset %]</tt></a>[% END %]
+BLOCK renderJobName %]
+<a href="[% c.uri_for('/job' project jobset job) %]"><tt>[% job %]</tt></a>
+[% END;
 
 
-[% BLOCK renderJobName %]
-<a href="[% c.uri_for('/job' project jobset job) %]"><tt>[% job %]</tt></a>[% END %]
-
-
-[% BLOCK renderFullJobsetName %]
+BLOCK renderFullJobsetName %]
 <tt>[% INCLUDE renderProjectName %]:[% INCLUDE renderJobsetName %]</tt>
-[% END %]
+[% END;
 
 
-[% BLOCK renderFullJobName %]
+BLOCK renderFullJobName %]
 <tt>[% IF !hideProjectName; INCLUDE renderProjectName %]:[% END; IF !hideJobsetName; INCLUDE renderJobsetName %]:[% END; INCLUDE renderJobName %]</tt>
-[% END %]
+[% END;
 
 
-[% BLOCK renderFullJobNameOfBuild %]
-  [% INCLUDE renderFullJobName project=build.get_column("project") jobset = build.get_column("jobset") job = build.get_column("job") %]
-[% END %]
+BLOCK renderFullJobNameOfBuild;
+  INCLUDE renderFullJobName project=build.get_column("project") jobset = build.get_column("jobset") job = build.get_column("job");
+END;
 
 
-[% BLOCK renderDuration %]
-[% IF duration >= 24 * 60 * 60 %][% duration div (24 * 60 * 60) %]d[% END %]
-[% IF duration >= 60 * 60 %][% duration div (60 * 60) % 24 %]h[% END %]
-[% IF duration >= 60 %][% duration div 60 % 60 %]m[% END %]
-[% duration % 60 %]s
-[% END %]
+BLOCK renderDuration;
+  IF duration >= 24 * 60 * 60; duration div (24 * 60 * 60) %]d[% END;
+  IF duration >= 60 * 60; duration div (60 * 60) % 24 %]h[% END;
+  IF duration >= 60; duration div 60 % 60 %]m[% END;
+  duration % 60 %]s[%
+END;
 
 
-[% BLOCK renderBuildListHeader %]
+BLOCK renderBuildListHeader %]
   <table class="buildList table table-striped table-condensed [% IF !unsortable %]tablesorter[% END %] [% IF !showSchedulingInfo %] clean[% END %]">
     <thead>
       <tr>
@@ -88,70 +90,73 @@
       </tr>
     </thead>
     <tbody>
-[% END %]
+[% END;
 
-[% BLOCK renderBuildListBody %]
-      [% odd = 0 %]
-      [% FOREACH build IN builds %]
-        <tr class="clickable
-                   [% IF showSchedulingInfo %]
-                     [% IF build.busy %]runningBuild[% ELSIF build.disabled == 1 || build.get_column('enabled') == 0 %]disabledBuild[% END %]
-                   [% ELSE %]
-                     [% IF odd %] odd [% END; odd = !odd %]
-                   [% END %]"
-            onclick="if(event.which == 2) return true; window.location = '[% c.uri_for('/build' build.id) %]'">
-          [% IF !hideResultInfo %]
-            <td>
-              [% INCLUDE renderBuildStatusIcon size=16 busy=(showSchedulingInfo ? 1 : 0) buildstatus=build.buildstatus %]
-            </td>
-          [% END %]
-          [% IF showSchedulingInfo %]
-              <td>[% IF build.busy %]<span class="label label-success">Started</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
-          [% END %]
-          <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
-          [% IF showSchedulingInfo %]
-            <td>[% build.priority %]</td>
-          [% END %]
-          [% IF !hideJobName %]
-          <td>[% INCLUDE renderFullJobNameOfBuild %]</td>
-          [% END %]
-          <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
-          <td><tt>[% build.system %]</tt></td>
-          <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
-          [% IF showStatusChange %]
-          <td>
-            [% IF build.get_column('statusChangeTime') %]
-              <a href="[% c.uri_for('/build' build.get_column('statusChangeId')) %]">
-                [% date.format(build.get_column('statusChangeTime'), '%Y-%m-%d %H:%M:%S') %]
-              </a>
-            [% ELSE %]
-              <em>never</em>
-            [% END %]
-          </td>
-        [% END %]
-        [% IF showDescription %]
-          <td>[% build.description %]</td>
-        [% END %]
-        </tr>
+
+BLOCK renderBuildListBody;
+  odd = 0;
+  FOREACH build IN builds; %]
+    <tr class="clickable
+               [% IF showSchedulingInfo %]
+                 [% IF build.busy %]runningBuild[% ELSIF build.disabled == 1 || build.get_column('enabled') == 0 %]disabledBuild[% END %]
+               [% ELSE %]
+                 [% IF odd %] odd [% END; odd = !odd %]
+               [% END %]"
+        onclick="if(event.which == 2) return true; window.location = '[% c.uri_for('/build' build.id) %]'">
+      [% IF !hideResultInfo %]
+        <td>
+          [% INCLUDE renderBuildStatusIcon size=16 busy=(showSchedulingInfo ? 1 : 0) buildstatus=build.buildstatus %]
+        </td>
       [% END %]
-[% END %]
+      [% IF showSchedulingInfo %]
+        <td>[% IF build.busy %]<span class="label label-success">Started</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
+      [% END %]
+      <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
+      [% IF showSchedulingInfo %]
+        <td>[% build.priority %]</td>
+      [% END %]
+      [% IF !hideJobName %]
+        <td>[% INCLUDE renderFullJobNameOfBuild %]</td>
+      [% END %]
+      <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
+      <td><tt>[% build.system %]</tt></td>
+      <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+      [% IF showStatusChange %]
+        <td>
+          [% IF build.get_column('statusChangeTime') %]
+            <a href="[% c.uri_for('/build' build.get_column('statusChangeId')) %]">
+              [% date.format(build.get_column('statusChangeTime'), '%Y-%m-%d %H:%M:%S') %]
+            </a>
+          [% ELSE %]
+            <em>never</em>
+          [% END %]
+        </td>
+      [% END %]
+      [% IF showDescription %]
+        <td>[% build.description %]</td>
+      [% END %]
+    </tr>
+  [% END;
+END;
 
-[% BLOCK renderBuildListFooter %]
+
+BLOCK renderBuildListFooter %]
     </tbody>
   </table>
-[% END %]
-
-[% BLOCK renderBuildList %]
-[% INCLUDE renderBuildListHeader %]
-[% INCLUDE renderBuildListBody %]
-[% INCLUDE renderBuildListFooter %]
-[% END %]
+[% END;
 
 
-[% BLOCK renderLink %]<a href="[% uri %]">[% title %]</a>[% END %]
+BLOCK renderBuildList;
+  INCLUDE renderBuildListHeader;
+  INCLUDE renderBuildListBody;
+  INCLUDE renderBuildListFooter;
+END;
 
-[% BLOCK showBuildStats %]
 
+BLOCK renderLink %]<a href="[% uri %]">[% title %]</a>[% END;
+
+
+BLOCK showBuildStats %]
   <table class="layoutTable">
     <tr>
       <th>Finished builds:</th>
@@ -178,26 +183,27 @@
       <td>[% busyBuilds %]</td>
     </tr>
   </table>
-
-[% END %]
-
-
-[% BLOCK renderViewJobName %]
-[% IF job.description; HTML.escape(job.description); ELSE %]<tt>[% job.job %]</tt> ([% job.attrs %])[% END %]
-[% END %]
+[% END;
 
 
-[% BLOCK maybeLink %]
-  [% IF uri %]<a [% HTML.attributes(href => uri, class => class) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END %]
-[% END %]
+BLOCK renderViewJobName;
+  IF job.description; HTML.escape(job.description); ELSE %]<tt>[% job.job %]</tt> ([% job.attrs %])[% END;
+END;
 
-[% BLOCK maybeButton %]
-  [% IF uri %]<a class="btn btn-mini" [% HTML.attributes(href => uri) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END %]
-[% END %]
 
-[% BLOCK renderSelection %]
-  [% IF edit %]
-    [% IF radiobuttons %]
+BLOCK maybeLink;
+  IF uri %]<a [% HTML.attributes(href => uri, class => class) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END;
+END;
+
+
+BLOCK maybeButton;
+  IF uri %]<a class="btn btn-mini" [% HTML.attributes(href => uri); IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END; content %]</a>[% ELSE; content; END;
+END;
+
+
+BLOCK renderSelection;
+  IF edit;
+    IF radiobuttons; %]
       <div class="controls">
         [% FOREACH name IN options.keys.sort %]
           <label class="radio inline">
@@ -214,31 +220,33 @@
           <option [% HTML.attributes(value => name) %] [% IF name == curValue; "selected='selected'"; END %]>[% options.$name %]</option>
         [% END %]
       </select>
-    [% END %]
-  [% ELSE %]
-    [% options.$curValue %]
-  [% END %]
-[% END %]
+    [% END;
+  ELSE;
+    options.$curValue;
+  END;
+END;
 
 
-[% BLOCK maybeEditString;
+BLOCK maybeEditString;
   IF edit %]
     <input type="text" class="string [% extraClass %]" [% HTML.attributes(id => param, name => param, value => value) %] />
   [% ELSE;
     HTML.escape(value);
-  END %]
-[% END %]
+  END;
+END;
 
-[% BLOCK renderFullBuildLink %]
-[% INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>[% %]
-[% END %]
 
-[% BLOCK renderBuildStatusIcon %]
-  [% finished = build != undef ? build.finished : 1 %]
-  [% busy = busy != undef ? busy : build.busy %]
-  [% buildstatus = buildstatus != undef ? buildstatus : build.buildstatus %]
-  [% IF finished %]
-    [% IF buildstatus == 0 %]
+BLOCK renderFullBuildLink;
+  INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>[%
+END;
+
+
+BLOCK renderBuildStatusIcon;
+  finished = build != undef ? build.finished : 1;
+  busy = busy != undef ? busy : build.busy;
+  buildstatus = buildstatus != undef ? buildstatus : build.buildstatus;
+  IF finished;
+    IF buildstatus == 0 %]
       <img src="/static/images/checkmark_[% size %].png" alt="Succeeded" />
     [% ELSIF buildstatus == 1 %]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
@@ -252,19 +260,20 @@
       <img src="/static/images/error_[% size %].png" alt="Failed (with result)" />
     [% ELSE %]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
-    [% END %]
-  [% ELSIF busy %]
+    [% END;
+  ELSIF busy %]
     <img src="/static/images/help_[% size %].png" alt="Busy" />
   [% ELSE %]
     <img src="/static/images/help_[% size %].png" alt="Scheduled" />
-  [% END %]
-[% END %]
+  [% END;
+END;
 
-[% BLOCK renderStatus %]
-  [% IF build.finished %]
-    [% buildstatus = build.buildstatus %]
-    [% IF icon; INCLUDE renderBuildStatusIcon size=16; END %]
-    [% IF buildstatus == 0 %]
+
+BLOCK renderStatus;
+  IF build.finished;
+    buildstatus = build.buildstatus;
+    IF icon; INCLUDE renderBuildStatusIcon size=16; END;
+    IF buildstatus == 0 %]
       <strong>Success</strong>
     [% ELSIF buildstatus == 1 %]
       <span class="error">Build returned a non-zero exit code</span>
@@ -279,144 +288,146 @@
     [% ELSE %]
       <span class="error">Build failed</span>
       (see <a href="#nix-error">below</a>)
-    [% END %]
-  [% ELSIF build.busy %]
+    [% END;
+  ELSIF build.busy %]
     <strong>Build in progress</strong>
-    since [% INCLUDE renderDateTime timestamp = build.starttime %]
-  [% ELSE %]
+    since [% INCLUDE renderDateTime timestamp = build.starttime;
+  ELSE %]
     <strong>Scheduled to be built</strong>
+  [% END;
+END;
+
+
+BLOCK renderInputValue;
+  IF input.type == "build" || input.type == "sysbuild";
+    INCLUDE renderFullBuildLink build=input.dependency;
+  ELSIF input.type == "string" || input.type == "boolean" %]
+    <tt>"[% input.value %]"</tt>
+  [% ELSE %]
+    <tt>[% input.uri %][% IF input.revision %] (r[% input.revision %])[% END %]</tt>
+  [% END;
+END;
+
+
+BLOCK renderShortInputValue;
+  IF input.type == "build" || input.type == "sysbuild" %]
+    <a href="[% c.uri_for('/build' input.dependency.id) %]">[% input.dependency.id %]</a>
+  [% ELSIF input.type == "string" || input.type == "boolean" %]
+    <tt>"[% input.value %]"</tt>
+  [% ELSE %]
+    <tt>[% input.uri %][% IF input.revision %] (r[% input.revision %])[% END %]</tt>
   [% END %]
-[% END %]
+[% END;
 
-[% BLOCK renderInputValue %]
-    [% IF input.type == "build" || input.type == "sysbuild" %]
-        [% INCLUDE renderFullBuildLink build=input.dependency %]</a>
-    [% ELSIF input.type == "string" || input.type == "boolean" %]
-        <tt>"[% input.value %]"</tt>
-    [% ELSE %]
-        <tt>[% input.uri %][% IF input.revision %] (r[% input.revision %])[% END %]</tt>
-    [% END %]
-[% END %]
 
-[% BLOCK renderShortInputValue %]
-    [% IF input.type == "build" || input.type == "sysbuild" %]
-        <a href="[% c.uri_for('/build' input.dependency.id) %]">[% input.dependency.id %]</a>
-    [% ELSIF input.type == "string" || input.type == "boolean" %]
-        <tt>"[% input.value %]"</tt>
-    [% ELSE %]
-        <tt>[% input.uri %][% IF input.revision %] (r[% input.revision %])[% END %]</tt>
-    [% END %]
-[% END %]
+BLOCK renderDiffUri;
+  nouri = 1;
+  FOREACH m IN mappers;
+    base = m.baseuri;
+    url = bi1.uri;
+    path = url.replace(base, '');
+    IF url.match(base) %]
+      <a target="_new" href="[% m.uri.replace('_path_', path).replace('_1_', bi1.revision).replace('_2_', bi2.revision) %]">[% contents %]</a>
+      [% nouri = 0;
+    END;
+  END;
+  IF nouri;
+    res = bi1.uri.split(' ');
+    url = res.0;
+    branch = res.1;
+    IF bi1.type == "hg" || bi1.type == "git" %]
+      <a target="_new" href="/api/scmdiff?uri=[% url %]&rev1=[% bi1.revision %]&rev2=[% bi2.revision %]&type=[% bi1.type %]&branch=[% branch %]">[% contents %]</a>
+    [% ELSE;
+      contents;
+    END;
+  END;
+END;
 
-[% BLOCK renderDiffUri; %]
-    [% nouri = 1 %]
-    [% FOREACH m IN mappers %]
-        [% base = m.baseuri %]
-        [% url = bi1.uri %]
-        [% path = url.replace(base, '') %]
-        [% IF url.match(base) %]
-          <a target="_new" href="[% m.uri.replace('_path_', path).replace('_1_', bi1.revision).replace('_2_', bi2.revision) %]">[% contents %]</a>
-          [% nouri = 0 %]
-        [% END %]
-    [% END %]
-    [% IF nouri %]
-      [% res = bi1.uri.split(' ') %]
-      [% url = res.0 %]
-      [% branch = res.1 %]
-      [% IF bi1.type == "hg" || bi1.type == "git" %]
-          <a target="_new" href="/api/scmdiff?uri=[% url %]&rev1=[% bi1.revision %]&rev2=[% bi2.revision %]&type=[% bi1.type %]&branch=[% branch %]">[% contents %]</a>
-      [% ELSE %]
-        [% contents %]
-      [% END %]
-    [% END %]
-[% END %]
 
-[% BLOCK renderInputDiff; %]
-<table class="table table-striped table-condensed">
+BLOCK renderInputDiff; %]
+  <table class="table table-striped table-condensed">
     [% IF !nestedDiff %]
-        <tr><th>Input</th><th>Changes</th></tr>
-    [% END %]
-    [% IF !nestLevel %]
-        [% nestLevel = 0 %]
-    [% END %]
+      <tr><th>Input</th><th>Changes</th></tr>
+    [% END;
+    IF !nestLevel;
+      nestLevel = 0;
+    END;
 
-    [% IF nestLevel <= 3 %]
-    [% FOREACH bi1 IN build1.inputs %]
-        [% deletedInput = 1 %]
-        [% FOREACH bi2 IN build2.inputs %]
-            [% IF bi1.name == bi2.name %]
-                [% IF bi1.type == bi2.type %]
-                    [% IF bi1.value != bi2.value || bi1.uri != bi2.uri %]
-                        <tr><td><b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %]</tt> to <tt>[% INCLUDE renderShortInputValue input=bi2 %]</tt></td></tr>
-                    [% ELSIF bi1.uri == bi2.uri && bi1.revision != bi2.revision %]
-                        [% IF bi1.type == "git" %]
-                        <tr><td>
-                            <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision.substr(0, 6) _ ' to ' _ bi2.revision.substr(0, 6)) %]</tt>
-                        </td></tr>
-                        [% ELSE %]
-                        <tr><td>
-                            <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision _ ' to ' _ bi2.revision) %]</tt>
-                        </td></tr>
-                        [% END %]
-                    [% ELSIF bi1.dependency.id != bi2.dependency.id || bi1.path != bi2.path %]
-                        <tr><td>
-                            <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %]</tt> to <tt>[% INCLUDE renderShortInputValue input=bi2 %]</tt>
-                            <br/>
-                            <br/>
-                            [% INCLUDE renderInputDiff build1=bi1.dependency, build2=bi2.dependency, nestedDiff=1, nestLevel=nestLevel+1 %]
-                        </td></tr>
-                    [% END %]
+    IF nestLevel <= 3;
+      FOREACH bi1 IN build1.inputs;
+        deletedInput = 1;
+        FOREACH bi2 IN build2.inputs;
+          IF bi1.name == bi2.name;
+            IF bi1.type == bi2.type;
+              IF bi1.value != bi2.value || bi1.uri != bi2.uri %]
+                <tr><td><b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %]</tt> to <tt>[% INCLUDE renderShortInputValue input=bi2 %]</tt></td></tr>
+              [% ELSIF bi1.uri == bi2.uri && bi1.revision != bi2.revision %]
+                [% IF bi1.type == "git" %]
+                  <tr><td>
+                    <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision.substr(0, 6) _ ' to ' _ bi2.revision.substr(0, 6)) %]</tt>
+                  </td></tr>
                 [% ELSE %]
-                    <tr><td><b>[% bi1.name %]</b></td><td>Changed input type from '[% type = bi1.type; inputTypes.$type %]' to '[% type = bi2.type; inputTypes.$type %]'</td></tr>
+                  <tr><td>
+                    <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision _ ' to ' _ bi2.revision) %]</tt>
+                  </td></tr>
                 [% END %]
-
-                [% deletedInput = 0 %]
-            [% END %]
-        [% END %]
-        [% IF deletedInput == 1 %]
-            <tr><td><b>[% bi1.name %]</b></td><td>Input not present in this build.</td></tr>
-        [% END %]
-    [% END %]
-    [% END %]
-</table>
-
-[% END %]
-
-[% BLOCK hydraStatus %]
-<table class="tablesorter table table-striped table-condensed">
-  <thead>
-    <tr><th>Machine</th><th>Job</th><th>Type</th><th>Build</th><th>Step</th><th>What</th><th>Since</th></tr>
-  </thead>
-  <tbody>
-    [% FOREACH step IN steps %]
-      <tr>
-        <td><tt>[% IF step.machine; step.machine.match('@(.*)').0; ELSE; 'localhost'; END %]</tt></td>
-        <td><tt>[% INCLUDE renderFullJobName project = step.build.project.name jobset = step.build.jobset.name job = step.build.job.name %]</tt></td>
-        <td><tt>[% step.system %]</tt></td>
-        <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
-        <td><a href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail-reload') %]">[% step.stepnr %]</a></td>
-        <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
-        <td class='right'>[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
-      </tr>
-    [% END %]
-  </tbody>
-</table>
-[% END %]
+              [% ELSIF bi1.dependency.id != bi2.dependency.id || bi1.path != bi2.path %]
+                <tr><td>
+                  <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %]</tt> to <tt>[% INCLUDE renderShortInputValue input=bi2 %]</tt>
+                  <br/>
+                  <br/>
+                  [% INCLUDE renderInputDiff build1=bi1.dependency, build2=bi2.dependency, nestedDiff=1, nestLevel=nestLevel+1 %]
+                </td></tr>
+              [% END %]
+            [% ELSE %]
+              <tr><td><b>[% bi1.name %]</b></td><td>Changed input type from '[% type = bi1.type; inputTypes.$type %]' to '[% type = bi2.type; inputTypes.$type %]'</td></tr>
+            [% END;
+            deletedInput = 0;
+          END;
+        END;
+        IF deletedInput == 1 %]
+          <tr><td><b>[% bi1.name %]</b></td><td>Input not present in this build.</td></tr>
+        [% END;
+      END;
+    END %]
+  </table>
+[% END;
 
 
-[% BLOCK renderPager %]
-<ul class="pagination">
+BLOCK hydraStatus %]
+  <table class="tablesorter table table-striped table-condensed">
+    <thead>
+      <tr><th>Machine</th><th>Job</th><th>Type</th><th>Build</th><th>Step</th><th>What</th><th>Since</th></tr>
+    </thead>
+    <tbody>
+      [% FOREACH step IN steps %]
+        <tr>
+          <td><tt>[% IF step.machine; step.machine.match('@(.*)').0; ELSE; 'localhost'; END %]</tt></td>
+          <td><tt>[% INCLUDE renderFullJobName project = step.build.project.name jobset = step.build.jobset.name job = step.build.job.name %]</tt></td>
+          <td><tt>[% step.system %]</tt></td>
+          <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
+          <td><a href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail-reload') %]">[% step.stepnr %]</a></td>
+          <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
+          <td class='right'>[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
+        </tr>
+      [% END %]
+    </tbody>
+  </table>
+[% END;
+
+
+BLOCK renderPager %]
+  <ul class="pagination">
     <li><a href="[% "$baseUri?page=1" %]">First</a></li>
-
     <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page - 1) %]">Previous</a></li>
     <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page + 1) %]">Next</a></li>
     <li><a href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last</a></li>
-</ul>
-[% END %]
+  </ul>
+[% END;
 
 
-[% BLOCK renderShortEvalInput %]
-  [% IF input.type == "svn" || input.type == "svn-checkout" || input.type == "bzr" || input.type == "bzr-checkout" %]
+BLOCK renderShortEvalInput;
+  IF input.type == "svn" || input.type == "svn-checkout" || input.type == "bzr" || input.type == "bzr-checkout" %]
     r[% input.revision %]
   [% ELSIF input.type == "git" %]
     <tt>[% input.revision.substr(0, 7) %]</tt>
@@ -424,59 +435,62 @@
     <tt>[% input.dependency.id %]</tt>
   [% ELSE %]
     <tt>[% input.revision %]</tt>
-  [% END %]
-[% END %]
+  [% END;
+END;
 
 
-[% BLOCK renderEvals %]
-<table class="tablesorter table table-condensed table-striped">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Date</th>
-      <th>Input changes</th>
-      <th colspan='2'>Success</th>
-    </tr>
-  </thead>
-  <tbody>
-    [% FOREACH e IN evals; eval = e.eval;
+BLOCK renderEvals %]
+  <table class="tablesorter table table-condensed table-striped">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Date</th>
+        <th>Input changes</th>
+        <th colspan='2'>Success</th>
+      </tr>
+    </thead>
+    <tbody>
+      [% FOREACH e IN evals
+        eval = e.eval;
         link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]
-     <tr class="clickable" onclick="window.location = '[% link %]'">
-       <td><a href="[% link %]">[% eval.id %]</a>&nbsp;</td>
-       <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]&nbsp;</td>
-       <td>
-         [% IF e.changedInputs.size > 0 %]
-           [% sep=''; FOREACH input IN e.changedInputs %]
-             [% sep %] [% input.name %] → [% INCLUDE renderShortEvalInput input=input %]
-           [% sep=','; END %]
-         [% ELSE %]
-           -
-         [% END %]
-       </td>
-       <td align='right'>
-         <span class="label label-success">[% e.nrSucceeded %]</span>
-         <span class="label label-important">[% e.nrFailed %]</span>
-         [% IF e.nrScheduled > 0 %]
-         <span class="label">[% e.nrScheduled %]</span>
-         [% END %]
-       </td>
-       <td align='right'>
-         [% IF e.diff > 0 %]
-            <span class='label label-success'><strong>+[% e.diff %]</strong></span>
-         [% ELSIF e.diff < 0 && e.nrScheduled == 0 %]
-            <span class='label label-important'><strong>[% e.diff %]</strong></span>
-         [% END %]
-       </td>
-     </tr>
-    [% END %]
-    [% IF linkToAll %]
-      <tr><td class="centered" colspan=54"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
-    [% END %]
-  </tbody>
-</table>
-[% END %]
+        <tr class="clickable" onclick="window.location = '[% link %]'">
+          <td><a href="[% link %]">[% eval.id %]</a>&nbsp;</td>
+          <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]&nbsp;</td>
+          <td>
+            [% IF e.changedInputs.size > 0;
+              sep='';
+              FOREACH input IN e.changedInputs;
+                sep; %] [% input.name %] → [% INCLUDE renderShortEvalInput input=input;
+                sep=',';
+              END;
+            ELSE %]
+             -
+            [% END %]
+          </td>
+          <td align='right'>
+            <span class="label label-success">[% e.nrSucceeded %]</span>
+            <span class="label label-important">[% e.nrFailed %]</span>
+            [% IF e.nrScheduled > 0 %]
+            <span class="label">[% e.nrScheduled %]</span>
+            [% END %]
+          </td>
+          <td align='right'>
+            [% IF e.diff > 0 %]
+              <span class='label label-success'><strong>+[% e.diff %]</strong></span>
+            [% ELSIF e.diff < 0 && e.nrScheduled == 0 %]
+              <span class='label label-important'><strong>[% e.diff %]</strong></span>
+            [% END %]
+          </td>
+        </tr>
+      [% END;
+      IF linkToAll %]
+        <tr><td class="centered" colspan=54"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+      [% END %]
+    </tbody>
+  </table>
+[% END;
 
 
-[% BLOCK renderLogLinks %]
+BLOCK renderLogLinks %]
 (<a href="[% url %]">log</a>, <a href="[% "$url/raw" %]">raw</a>, <a href="[% "$url/tail-reload" %]">tail</a>)
 [% END %]
