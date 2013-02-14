@@ -207,13 +207,13 @@
 
                                 <h2 id="nix-error">Nix error output</h2>
 
-                                <pre class="buildlog">[% HTML.escape(build.errormsg) -%]</pre>
+                                <pre class="buildlog">[% HTML.escape(build.errormsg) %]</pre>
                         [% END %]
                 [% END %]
 
                 [% IF logtext %]
                         <h2>Log</h2>
-                        <pre class="buildlog">[% HTML.escape(logtext) -%]</pre>
+                        <pre class="buildlog">[% HTML.escape(logtext) %]</pre>
                 [% END %]
         </div>
         <div id="tabs-information" class="tab-pane">
@@ -320,7 +320,7 @@
                     <tr><th>Name</th><th>Type</th><th>Value</th><th>Revision</th><th>Store path</th></tr>
                   </thead>
                   <tbody>
-                    [% FOREACH input IN build.inputs -%]
+                    [% FOREACH input IN build.inputs %]
                       <tr>
                         <td><tt>[% input.name %]</tt></td>
                         <td><tt>[% type = input.type; inputTypes.$type %]</tt></td>
@@ -336,7 +336,7 @@
                         <td>[% IF input.revision %][% input.revision %][% END %]</td>
                         <td><tt>[% input.path %]</tt></td>
                       </tr>
-                    [% END -%]
+                    [% END %]
                   </tbody>
                 </table>
 
@@ -375,14 +375,14 @@
                     <tr><th>Build</th><th>Input name</th><th>System</th><th>Timestamp</th></tr>
                   </thead>
                   <tbody>
-                    [% FOREACH input IN build.dependents -%]
+                    [% FOREACH input IN build.dependents %]
                       <tr>
                         <td>[% INCLUDE renderFullBuildLink build=input.build %]</td>
                         <td><tt>[% input.name %]</tt></td>
                         <td><tt>[% input.build.system %]</tt></td>
                         <td>[% INCLUDE renderDateTime timestamp = input.build.timestamp %]</td>
                       </tr>
-                    [% END -%]
+                    [% END %]
                   </tbody>
                 </table>
     </div>

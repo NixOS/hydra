@@ -19,7 +19,7 @@
 [% END %]
 
 <pre class="taillog" id="contents">
-[% HTML.escape(contents) -%]
+[% HTML.escape(contents) %]
 </pre>
 
 [% END %]

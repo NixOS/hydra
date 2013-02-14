@@ -26,7 +26,7 @@
       <tr><th>Name</th><th>Type</th><th>Value</th></tr>
     </thead>
     <tbody>
-      [% FOREACH input IN build.inputs -%]
+      [% FOREACH input IN build.inputs %]
         <tr>
           <td><tt>[% input.name %]<input type="hidden" [% HTML.attributes(name => "input-$input.name-name" value => input.name) %] /></tt></td>
           <td>
@@ -42,7 +42,7 @@
               [% END %] /></tt>
           </td>
         </tr>
-      [% END -%]
+      [% END %]
     </tbody>
   </table>
 

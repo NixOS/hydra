@@ -1,5 +1,5 @@
-[% USE date -%]
-[% USE HTML -%]
+[% USE date %]
+[% USE HTML %]
 <?xml version="1.0" encoding="UTF-8"?>
 
 [% PROCESS common.tt %]

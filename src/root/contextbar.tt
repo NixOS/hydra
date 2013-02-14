@@ -5,8 +5,8 @@
   </li>
 [% END %]
 
-[% BLOCK makeLink -%]
-[% INCLUDE makeLinkWrapped content="" -%]
+[% BLOCK makeLink %]
+[% INCLUDE makeLinkWrapped content="" %]
 [% END %]
 
 [% BLOCK makeSubMenu %]

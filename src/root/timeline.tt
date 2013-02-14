@@ -41,7 +41,7 @@ Timeline_urlPrefix="http://simile.mit.edu/timeline/api/";
             "title": "Now"
           }
 
-     [% FOREACH build IN builds -%]
+     [% FOREACH build IN builds %]
           , { "start": "[% date.format(build.get_column("starttime"), '%Y-%m-%dT%H:%M:%S')  %]",
               "end": "[% date.format(build.get_column("stoptime"), '%Y-%m-%dT%H:%M:%S') %]",
               "isDuration": "true",

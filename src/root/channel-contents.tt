@@ -59,11 +59,11 @@ install the package simply by clicking on the packages below.</p>
         <td><a href="[% uri %]"><tt>[% build.get_column('releasename') || build.nixname %]</tt></a></td>
         <td><tt>[% build.system %]</tt></td>
         <td>
-          [% IF build.homepage -%]
+          [% IF build.homepage %]
             <a [% HTML.attributes(href => build.homepage) %]>[% HTML.escape(build.description) %]</a>
-          [% ELSE -%]
-            [% HTML.escape(build.description) -%]
-          [% END -%]
+          [% ELSE %]
+            [% HTML.escape(build.description) %]
+          [% END %]
           [% IF pkg.outName != 'out' %] [[% pkg.outName %]][% END %]
         </td>
       </tr>

@@ -1,9 +1,9 @@
-[%- USE date -%]
-[%- USE String -%]
-[%- USE HTML -%]
+[% USE date %]
+[% USE String %]
+[% USE HTML %]
 
 
-[%- inputTypes =
+[% inputTypes =
     { "svn" = "Subversion export"
     , "svn-checkout" = "Subversion checkout"
     , "bzr" = "Bazaar export"
@@ -16,42 +16,42 @@
     , "build" = "Build output"
     , "sysbuild" = "Build output (same system)"
     }
--%]
+%]
 
 
-[%- BLOCK renderDateTime -%]
-  [% date.format(timestamp, '%Y-%m-%d %H:%M:%S') -%]
-[%- END -%]
+[% BLOCK renderDateTime %]
+  [% date.format(timestamp, '%Y-%m-%d %H:%M:%S') %]
+[% END %]
 
 
-[%- BLOCK renderProjectName -%]
-<a href="[% c.uri_for('/project' project) %]"><tt>[% project %]</tt></a>[% END -%]
+[% BLOCK renderProjectName %]
+<a href="[% c.uri_for('/project' project) %]"><tt>[% project %]</tt></a>[% END %]
 
 
-[%- BLOCK renderJobsetName -%]
-<a href="[% c.uri_for('/jobset' project jobset) %]"><tt>[% jobset %]</tt></a>[% END -%]
+[% BLOCK renderJobsetName %]
+<a href="[% c.uri_for('/jobset' project jobset) %]"><tt>[% jobset %]</tt></a>[% END %]
 
 
-[%- BLOCK renderJobName -%]
-<a href="[% c.uri_for('/job' project jobset job) %]"><tt>[% job %]</tt></a>[% END -%]
+[% BLOCK renderJobName %]
+<a href="[% c.uri_for('/job' project jobset job) %]"><tt>[% job %]</tt></a>[% END %]
 
 
-[%- BLOCK renderFullJobsetName -%]
+[% BLOCK renderFullJobsetName %]
 <tt>[% INCLUDE renderProjectName %]:[% INCLUDE renderJobsetName %]</tt>
-[%- END -%]
+[% END %]
 
 
-[%- BLOCK renderFullJobName -%]
+[% BLOCK renderFullJobName %]
 <tt>[% IF !hideProjectName; INCLUDE renderProjectName %]:[% END; IF !hideJobsetName; INCLUDE renderJobsetName %]:[% END; INCLUDE renderJobName %]</tt>
-[%- END %]
+[% END %]
 
 
-[%- BLOCK renderFullJobNameOfBuild -%]
+[% BLOCK renderFullJobNameOfBuild %]
   [% INCLUDE renderFullJobName project=build.get_column("project") jobset = build.get_column("jobset") job = build.get_column("job") %]
 [% END %]
 
 
-[%- BLOCK renderDuration -%]
+[% BLOCK renderDuration %]
 [% IF duration >= 24 * 60 * 60 %][% duration div (24 * 60 * 60) %]d[% END %]
 [% IF duration >= 60 * 60 %][% duration div (60 * 60) % 24 %]h[% END %]
 [% IF duration >= 60 %][% duration div 60 % 60 %]m[% END %]
@@ -59,98 +59,98 @@
 [% END %]
 
 
-[%- BLOCK renderBuildListHeader -%]
+[% BLOCK renderBuildListHeader %]
   <table class="buildList table table-striped table-condensed [% IF !unsortable %]tablesorter[% END %] [% IF !showSchedulingInfo %] clean[% END %]">
     <thead>
       <tr>
-        [%- IF !hideResultInfo -%]
+        [% IF !hideResultInfo %]
           <th></th>
         [% END %]
-        [%- IF showSchedulingInfo -%]
+        [% IF showSchedulingInfo %]
           <th></th>
-        [%- END -%]
+        [% END %]
         <th>#</th>
-        [%- IF showSchedulingInfo -%]
+        [% IF showSchedulingInfo %]
           <th>P</th>
-        [%- END -%]
-        [%- IF !hideJobName -%]
+        [% END %]
+        [% IF !hideJobName %]
         <th>Job</th>
-        [%- END -%]
+        [% END %]
         <th>Release Name</th>
         <th>System</th>
         <th>Timestamp</th>
-        [%- IF showStatusChange -%]
+        [% IF showStatusChange %]
           <th class="headerSortUp">Last status change</th>
-        [%- END -%]
-        [%- IF showDescription -%]
+        [% END %]
+        [% IF showDescription %]
           <th>Description</th>
-        [%- END -%]
+        [% END %]
       </tr>
     </thead>
     <tbody>
-[%- END -%]
+[% END %]
 
-[%- BLOCK renderBuildListBody -%]
-      [%- odd = 0 -%]
-      [%- FOREACH build IN builds -%]
+[% BLOCK renderBuildListBody %]
+      [% odd = 0 %]
+      [% FOREACH build IN builds %]
         <tr class="clickable
-                   [%- IF showSchedulingInfo -%]
-                     [%- IF build.busy %]runningBuild[% ELSIF build.disabled == 1 || build.get_column('enabled') == 0 %]disabledBuild[% END -%]
-                   [%- ELSE -%]
-                     [%- IF odd %] odd [% END; odd = !odd -%]
-                   [%- END %]"
+                   [% IF showSchedulingInfo %]
+                     [% IF build.busy %]runningBuild[% ELSIF build.disabled == 1 || build.get_column('enabled') == 0 %]disabledBuild[% END %]
+                   [% ELSE %]
+                     [% IF odd %] odd [% END; odd = !odd %]
+                   [% END %]"
             onclick="if(event.which == 2) return true; window.location = '[% c.uri_for('/build' build.id) %]'">
-          [%- IF !hideResultInfo -%]
+          [% IF !hideResultInfo %]
             <td>
-              [%- INCLUDE renderBuildStatusIcon size=16 busy=(showSchedulingInfo ? 1 : 0) buildstatus=build.buildstatus -%]
+              [% INCLUDE renderBuildStatusIcon size=16 busy=(showSchedulingInfo ? 1 : 0) buildstatus=build.buildstatus %]
             </td>
-          [%- END -%]
+          [% END %]
           [% IF showSchedulingInfo %]
-              <td>[%- IF build.busy %]<span class="label label-success">Started</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
+              <td>[% IF build.busy %]<span class="label label-success">Started</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
           [% END %]
           <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
-          [%- IF showSchedulingInfo -%]
+          [% IF showSchedulingInfo %]
             <td>[% build.priority %]</td>
-          [%- END -%]
-          [%- IF !hideJobName -%]
-          <td>[%- INCLUDE renderFullJobNameOfBuild -%]</td>
-          [%- END -%]
+          [% END %]
+          [% IF !hideJobName %]
+          <td>[% INCLUDE renderFullJobNameOfBuild %]</td>
+          [% END %]
           <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
           <td><tt>[% build.system %]</tt></td>
           <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
-          [%- IF showStatusChange -%]
+          [% IF showStatusChange %]
           <td>
-            [%- IF build.get_column('statusChangeTime') -%]
+            [% IF build.get_column('statusChangeTime') %]
               <a href="[% c.uri_for('/build' build.get_column('statusChangeId')) %]">
                 [% date.format(build.get_column('statusChangeTime'), '%Y-%m-%d %H:%M:%S') %]
               </a>
-            [%- ELSE -%]
+            [% ELSE %]
               <em>never</em>
-            [%- END -%]
+            [% END %]
           </td>
-        [%- END -%]
-        [%- IF showDescription -%]
+        [% END %]
+        [% IF showDescription %]
           <td>[% build.description %]</td>
-        [%- END -%]
+        [% END %]
         </tr>
-      [%- END -%]
-[%- END -%]
+      [% END %]
+[% END %]
 
-[%- BLOCK renderBuildListFooter -%]
+[% BLOCK renderBuildListFooter %]
     </tbody>
   </table>
-[%- END -%]
+[% END %]
 
-[%- BLOCK renderBuildList -%]
-[%- INCLUDE renderBuildListHeader -%]
-[%- INCLUDE renderBuildListBody -%]
-[%- INCLUDE renderBuildListFooter -%]
-[%- END -%]
+[% BLOCK renderBuildList %]
+[% INCLUDE renderBuildListHeader %]
+[% INCLUDE renderBuildListBody %]
+[% INCLUDE renderBuildListFooter %]
+[% END %]
 
 
-[%- BLOCK renderLink -%]<a href="[% uri %]">[% title %]</a>[%- END -%]
+[% BLOCK renderLink %]<a href="[% uri %]">[% title %]</a>[% END %]
 
-[%- BLOCK showBuildStats -%]
+[% BLOCK showBuildStats %]
 
   <table class="layoutTable">
     <tr>
@@ -179,21 +179,21 @@
     </tr>
   </table>
 
-[%- END -%]
+[% END %]
 
 
-[% BLOCK renderViewJobName -%]
-[% IF job.description; HTML.escape(job.description); ELSE %]<tt>[% job.job %]</tt> ([% job.attrs %])[% END -%]
-[% END -%]
+[% BLOCK renderViewJobName %]
+[% IF job.description; HTML.escape(job.description); ELSE %]<tt>[% job.job %]</tt> ([% job.attrs %])[% END %]
+[% END %]
 
 
-[% BLOCK maybeLink -%]
-  [% IF uri %]<a [% HTML.attributes(href => uri, class => class) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END -%]
-[% END -%]
+[% BLOCK maybeLink %]
+  [% IF uri %]<a [% HTML.attributes(href => uri, class => class) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END %]
+[% END %]
 
-[% BLOCK maybeButton -%]
-  [% IF uri %]<a class="btn btn-mini" [% HTML.attributes(href => uri) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END -%]
-[% END -%]
+[% BLOCK maybeButton %]
+  [% IF uri %]<a class="btn btn-mini" [% HTML.attributes(href => uri) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END %]
+[% END %]
 
 [% BLOCK renderSelection %]
   [% IF edit %]
@@ -222,43 +222,43 @@
 
 
 [% BLOCK maybeEditString;
-  IF edit -%]
+  IF edit %]
     <input type="text" class="string [% extraClass %]" [% HTML.attributes(id => param, name => param, value => value) %] />
   [% ELSE;
     HTML.escape(value);
-  END -%]
-[% END -%]
-
-[% BLOCK renderFullBuildLink %]
-[% INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>[% -%]
+  END %]
 [% END %]
 
-[%- BLOCK renderBuildStatusIcon -%]
-  [%- finished = build != undef ? build.finished : 1 -%]
-  [%- busy = busy != undef ? busy : build.busy -%]
-  [%- buildstatus = buildstatus != undef ? buildstatus : build.buildstatus -%]
-  [%- IF finished -%]
-    [%- IF buildstatus == 0 -%]
+[% BLOCK renderFullBuildLink %]
+[% INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>[% %]
+[% END %]
+
+[% BLOCK renderBuildStatusIcon %]
+  [% finished = build != undef ? build.finished : 1 %]
+  [% busy = busy != undef ? busy : build.busy %]
+  [% buildstatus = buildstatus != undef ? buildstatus : build.buildstatus %]
+  [% IF finished %]
+    [% IF buildstatus == 0 %]
       <img src="/static/images/checkmark_[% size %].png" alt="Succeeded" />
-    [%- ELSIF buildstatus == 1 -%]
+    [% ELSIF buildstatus == 1 %]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
-    [%- ELSIF buildstatus == 2 -%]
+    [% ELSIF buildstatus == 2 %]
       <img src="/static/images/dependency_[% size %].png" alt="Dependency failed" />
-    [%- ELSIF buildstatus == 4 -%]
+    [% ELSIF buildstatus == 4 %]
       <img src="/static/images/cancelled_[% size %].png" alt="Cancelled" />
-    [%- ELSIF buildstatus == 5 -%]
+    [% ELSIF buildstatus == 5 %]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
-    [%- ELSIF buildstatus == 6 -%]
+    [% ELSIF buildstatus == 6 %]
       <img src="/static/images/error_[% size %].png" alt="Failed (with result)" />
-    [%- ELSE -%]
+    [% ELSE %]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
-    [%- END -%]
-  [%- ELSIF busy -%]
+    [% END %]
+  [% ELSIF busy %]
     <img src="/static/images/help_[% size %].png" alt="Busy" />
-  [%- ELSE -%]
+  [% ELSE %]
     <img src="/static/images/help_[% size %].png" alt="Scheduled" />
-  [%- END -%]
-[%- END -%]
+  [% END %]
+[% END %]
 
 [% BLOCK renderStatus %]
   [% IF build.finished %]
@@ -286,7 +286,7 @@
   [% ELSE %]
     <strong>Scheduled to be built</strong>
   [% END %]
-[% END -%]
+[% END %]
 
 [% BLOCK renderInputValue %]
     [% IF input.type == "build" || input.type == "sysbuild" %]
@@ -415,17 +415,17 @@
 [% END %]
 
 
-[% BLOCK renderShortEvalInput -%]
-  [%- IF input.type == "svn" || input.type == "svn-checkout" || input.type == "bzr" || input.type == "bzr-checkout" -%]
-    r[%- input.revision -%]
-  [%- ELSIF input.type == "git" -%]
+[% BLOCK renderShortEvalInput %]
+  [% IF input.type == "svn" || input.type == "svn-checkout" || input.type == "bzr" || input.type == "bzr-checkout" %]
+    r[% input.revision %]
+  [% ELSIF input.type == "git" %]
     <tt>[% input.revision.substr(0, 7) %]</tt>
-  [%- ELSIF input.type == "build" || input.type == "sysbuild" -%]
+  [% ELSIF input.type == "build" || input.type == "sysbuild" %]
     <tt>[% input.dependency.id %]</tt>
-  [%- ELSE -%]
-    <tt>[%- input.revision -%]</tt>
-  [%- END -%]
-[%- END %]
+  [% ELSE %]
+    <tt>[% input.revision %]</tt>
+  [% END %]
+[% END %]
 
 
 [% BLOCK renderEvals %]
@@ -439,19 +439,19 @@
     </tr>
   </thead>
   <tbody>
-    [%- FOREACH e IN evals; eval = e.eval;
-        link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) -%]
+    [% FOREACH e IN evals; eval = e.eval;
+        link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]
      <tr class="clickable" onclick="window.location = '[% link %]'">
        <td><a href="[% link %]">[% eval.id %]</a>&nbsp;</td>
        <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]&nbsp;</td>
        <td>
-         [%- IF e.changedInputs.size > 0 -%]
-           [%- sep=''; FOREACH input IN e.changedInputs -%]
-             [%- sep %] [% input.name %] → [% INCLUDE renderShortEvalInput input=input %]
-           [%- sep=','; END -%]
-         [%- ELSE -%]
+         [% IF e.changedInputs.size > 0 %]
+           [% sep=''; FOREACH input IN e.changedInputs %]
+             [% sep %] [% input.name %] → [% INCLUDE renderShortEvalInput input=input %]
+           [% sep=','; END %]
+         [% ELSE %]
            -
-         [%- END -%]
+         [% END %]
        </td>
        <td align='right'>
          <span class="label label-success">[% e.nrSucceeded %]</span>
@@ -461,17 +461,17 @@
          [% END %]
        </td>
        <td align='right'>
-         [%- IF e.diff > 0 -%]
+         [% IF e.diff > 0 %]
             <span class='label label-success'><strong>+[% e.diff %]</strong></span>
-         [%- ELSIF e.diff < 0 && e.nrScheduled == 0 -%]
+         [% ELSIF e.diff < 0 && e.nrScheduled == 0 %]
             <span class='label label-important'><strong>[% e.diff %]</strong></span>
-         [%- END -%]
+         [% END %]
        </td>
      </tr>
-    [%- END -%]
-    [%- IF linkToAll -%]
+    [% END %]
+    [% IF linkToAll %]
       <tr><td class="centered" colspan=54"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
-    [%- END -%]
+    [% END %]
   </tbody>
 </table>
 [% END %]

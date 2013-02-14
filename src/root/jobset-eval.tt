@@ -3,15 +3,15 @@
 
 <div class="page-header"><h1>Jobset <tt>[% project.name %]:[% jobset.name %]</tt> evaluation [% eval.id %]</h1></div>
 
-[%- IF otherEval -%]
+[% IF otherEval %]
 <p>Comparisons are relative to [% INCLUDE renderFullJobsetName
 project=otherEval.jobset.project.name jobset=otherEval.jobset.name %]
 evaluation <a href="[%
 c.uri_for(c.controller('JobsetEval').action_for('view'),
 [otherEval.id]) %]">[% otherEval.id %]</a>.</p>
-[%- END -%]
+[% END %]
 
-[%- BLOCK renderSome -%]
+[% BLOCK renderSome %]
   [% size = builds.size; max = full ? size : 30; %]
   [% INCLUDE renderBuildListBody builds=builds.slice(0, (size > max ? max : size) - 1)
        hideProjectName=1 hideJobsetName=1 %]
@@ -35,13 +35,13 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 [% IF removed.size > 0 %]
   <tr><th class="subheader" colspan="6"><strong>Removed</strong> jobs</th></tr>
   [% size = removed.size; max = full ? size : 30; %]
-  [%- FOREACH j IN removed.slice(0,(size > max ? max : size) - 1) -%]
+  [% FOREACH j IN removed.slice(0,(size > max ? max : size) - 1) %]
     <tr>
       <td colspan="2"></td>
       <td colspan="2">[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.job %]</td>
       <td colspan="2"><tt>[% j.system %]</tt></td>
     </tr>
-  [%- END -%]
+  [% END %]
   [% IF size > max; params = c.req.params; params.full = 1 %]
   <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]"><em>([% size - max %] more jobs omitted)</em></a></td></tr>
   [% END %]

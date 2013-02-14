@@ -1,4 +1,4 @@
-[% releaseName = (result.releasename || "(No name)") -%]
+[% releaseName = (result.releasename || "(No name)") %]
 [% WRAPPER layout.tt title="View $releaseName" %]
 [% PROCESS common.tt %]
 [% PROCESS "product-list.tt" %]
