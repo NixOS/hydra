@@ -6,40 +6,49 @@
 [% jobset = build.jobset %]
 [% job = build.job %]
 
-<a name="runtime"></a>
-[% IF available %]
-<h1>Runtime dependencies</h1>
-<ul>
-[% FOREACH dep IN runtimedeps -%]
+[% BLOCK renderNode %]
   <li>
-    [% IF dep.buildstep %]
-      <a href="[% c.uri_for('/build' dep.buildstep.get_column('build') 'nixlog' dep.buildstep.stepnr) %]">[% dep.path %]</a>
+    [% IF done.${node.path} %]
+      <p><tt>[% node.name %]</tt> (<em>repeated</em>)</p>
     [% ELSE %]
-      [% dep.path %]
+      [% done.${node.path} = 1 %]
+      <p>
+        [% IF node.buildStep %]
+          <a href="[% c.uri_for('/build' node.buildStep.get_column('build')) %]"><tt>[% node.name %]</tt></a> [%
+            IF log_exists(node.buildStep.drvpath);
+            INCLUDE renderLogLinks url=c.uri_for('/build' node.buildStep.get_column('build') 'nixlog' node.buildStep.stepnr);
+            END %]
+        [% ELSE %]
+          <tt>[% node.name %]</tt>
+        [% END %]
+      </p>
+      [% IF node.refs.size > 0 %]
+        <ul>
+          [% FOREACH ref IN node.refs; INCLUDE renderNode node=ref; END %]
+        </ul>
+      [% END %]
     [% END %]
   </li>
 [% END %]
+
+<a name="runtime"></a>
+<h2>Runtime dependency graph</h2>
+[% IF available %]
+<ul>
+  [% done={}; FOREACH node IN runtimeGraph; INCLUDE renderNode; END %]
 </ul>
 [% ELSE %]
-Path not available anymore!<br />
+<p><em>No longer available.</em></p>
 [% END %]
 
 <a name="buildtime"></a>
+<h2>Build-time dependency graph</h2>
 [% IF drvAvailable %]
-<h1>Build time dependencies</h1>
 <ul>
-[% FOREACH dep IN buildtimedeps -%]
-  <li>
-    [% IF dep.buildstep %]
-      <a href="[% c.uri_for('/build' dep.buildstep.get_column('build') 'nixlog' dep.buildstep.stepnr) %]">[% dep.path %]</a>
-    [% ELSE %]
-      [% dep.path %]
-    [% END %]
-  </li>
-[% END %]
+  [% INCLUDE renderNode node=buildTimeGraph %]
 </ul>
 [% ELSE %]
-Derivation not available anymore!<br />
+<p><em>No longer available.</em></p>
 [% END %]
 
 [% END %]

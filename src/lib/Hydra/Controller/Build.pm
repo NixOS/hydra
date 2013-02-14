@@ -306,6 +306,39 @@ sub contents : Chained('build') PathPart Args(1) {
 }
 
 
+sub getDependencyGraph {
+    my ($self, $c, $runtime, $done, $path) = @_;
+    my $node = $$done{$path};
+
+    if (!defined $node) {
+        $path =~ /\/[a-z0-9]+-(.*)$/;
+        my $name = $1 // $path;
+        $name =~ s/\.drv$//;
+        $node =
+            { path => $path
+            , name => $name
+            , buildStep => $runtime
+                ? findBuildStepByOutPath($self, $c, $path, 0)
+                : findBuildStepByDrvPath($self, $c, $path, 0)
+            };
+        $$done{$path} = $node;
+        my @refs;
+        foreach my $ref (queryReferences($path)) {
+            next if $ref eq $path;
+            next unless $runtime || $ref =~ /\.drv$/;
+            getDependencyGraph($self, $c, $runtime, $done, $ref);
+            push @refs, $ref;
+        }
+        # Show in reverse topological order to flatten the graph.
+        # Should probably do a proper BFS.
+        my @sorted = reverse topoSortPaths(@refs);
+        $node->{refs} = [map { $$done{$_} } @sorted];
+    }
+
+    return $node;
+}
+
+
 sub deps : Chained('build') PathPart('deps') {
     my ($self, $c) = @_;
 
@@ -316,27 +349,15 @@ sub deps : Chained('build') PathPart('deps') {
     $c->stash->{available} = all { isValidPath($_) } @outPaths;
     $c->stash->{drvAvailable} = isValidPath $drvPath;
 
-    my @buildtimepaths = $c->stash->{drvAvailable} ? computeFSClosure(0, 0, $drvPath) : ();
-    my @buildtimedeps = ();
-
-    my @runtimepaths = $c->stash->{available} ? computeFSClosure(0, 0, @outPaths) : ();
-    my @runtimedeps = ();
-
-    foreach my $p (@buildtimepaths) {
-        next unless $p =~ /\.drv$/;
-        my ($buildStep) = findBuildStepByDrvPath($self, $c, $p, 0);
-        my %dep = ( buildstep => $buildStep, path => $p );
-        push(@buildtimedeps, \%dep);
+    if ($c->stash->{available}) {
+        my $done = {};
+        $c->stash->{runtimeGraph} = [ map { getDependencyGraph($self, $c, 1, $done, $_) } @outPaths ];
     }
 
-    foreach my $p (@runtimepaths) {
-        my ($buildStep) = findBuildStepByOutPath($self, $c, $p, 0);
-        my %dep = ( buildstep => $buildStep, path => $p );
-        push(@runtimedeps, \%dep);
+    if ($c->stash->{drvAvailable}) {
+        my $done = {};
+        $c->stash->{buildTimeGraph} = getDependencyGraph($self, $c, 0, $done, $drvPath);
     }
-
-    $c->stash->{buildtimedeps} = \@buildtimedeps;
-    $c->stash->{runtimedeps} = \@runtimedeps;
 
     $c->stash->{template} = 'deps.tt';
 }

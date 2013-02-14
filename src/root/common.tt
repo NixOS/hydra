@@ -475,3 +475,8 @@
   </tbody>
 </table>
 [% END %]
+
+
+[% BLOCK renderLogLinks %]
+(<a href="[% url %]">log</a>, <a href="[% "$url/raw" %]">raw</a>, <a href="[% "$url/tail-reload" %]">tail</a>)
+[% END %]

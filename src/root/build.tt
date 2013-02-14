@@ -53,9 +53,7 @@
                 [% ELSE %]
                   <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
                 [% END %]
-                [% IF has_log %]
-                  (<a href="[% log %]">log</a>, <a href="[% "$log/raw" %]">raw</a>, <a href="[% "$log/tail-reload" %]">tail</a>)
-                [% END %]
+                [%%] [%+ IF has_log; INCLUDE renderLogLinks url=log; END %]
               </td>
             </tr>
           [% END %]
