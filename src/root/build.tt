@@ -326,7 +326,7 @@
                         <td><tt>[% type = input.type; inputTypes.$type %]</tt></td>
                         <td>
                           [% IF input.type == "build" || input.type == "sysbuild" %]
-                            [% INCLUDE renderFullBuildLink build=input.dependency %]</a>
+                            [% INCLUDE renderFullBuildLink build=input.dependency %]
                           [% ELSIF input.type == "string" || input.type == "boolean" %]
                             <tt>"[% input.value %]"</tt>
                           [% ELSE %]

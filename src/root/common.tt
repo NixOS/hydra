@@ -336,7 +336,7 @@ BLOCK renderDiffUri;
     url = res.0;
     branch = res.1;
     IF bi1.type == "hg" || bi1.type == "git" %]
-      <a target="_new" href="/api/scmdiff?uri=[% url %]&rev1=[% bi1.revision %]&rev2=[% bi2.revision %]&type=[% bi1.type %]&branch=[% branch %]">[% contents %]</a>
+      <a target="_new" href="[% HTML.escape("/api/scmdiff?uri=$url&rev1=$bi1.revision&rev2=$bi2.revision&type=$bi1.type&branch=$branch") %]">[% contents %]</a>
     [% ELSE;
       contents;
     END;
@@ -450,12 +450,12 @@ BLOCK renderEvals %]
       </tr>
     </thead>
     <tbody>
-      [% FOREACH e IN evals
+      [% FOREACH e IN evals;
         eval = e.eval;
         link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]
         <tr class="clickable" onclick="window.location = '[% link %]'">
-          <td><a href="[% link %]">[% eval.id %]</a>&nbsp;</td>
-          <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]&nbsp;</td>
+          <td><a href="[% link %]">[% eval.id %]</a></td>
+          <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]</td>
           <td>
             [% IF e.changedInputs.size > 0;
               sep='';
@@ -484,7 +484,7 @@ BLOCK renderEvals %]
         </tr>
       [% END;
       IF linkToAll %]
-        <tr><td class="centered" colspan=54"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+        <tr><td class="centered" colspan="54"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
       [% END %]
     </tbody>
   </table>

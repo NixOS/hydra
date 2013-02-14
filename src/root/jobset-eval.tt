@@ -5,8 +5,7 @@
 
 [% IF otherEval %]
 <p>Comparisons are relative to [% INCLUDE renderFullJobsetName
-project=otherEval.jobset.project.name jobset=otherEval.jobset.name %]
-evaluation <a href="[%
+project=otherEval.jobset.project.name jobset=otherEval.jobset.name %] evaluation <a href="[%
 c.uri_for(c.controller('JobsetEval').action_for('view'),
 [otherEval.id]) %]">[% otherEval.id %]</a>.</p>
 [% END %]
