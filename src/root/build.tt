@@ -71,7 +71,7 @@
 
         <ul id="tab" class="nav nav-tabs">
                 <li><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
-                <li><a href="#tabs-information" data-toggle="tab">Information</a></li>
+                <li><a href="#tabs-information" data-toggle="tab">Details</a></li>
                 <li><a href="#tabs-buildinputs" data-toggle="tab">Build inputs</a></li>
                 [% IF relatedbuilds %]<li><a href="#tabs-relatedbuilds" data-toggle="tab">Related builds</a></li>[% END %]
                 [% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
@@ -220,8 +220,6 @@
         </div>
         <div id="tabs-information" class="tab-pane">
 
-                <h2>Information</h2>
-
                 <table class="layoutTable">
                   [% IF build.nixexprinput %]
                   <tr>
@@ -319,8 +317,6 @@
         </div>
         <div id="tabs-buildinputs" class="tab-pane">
 
-                <h2>Build inputs</h2>
-
                 <table class="tablesorter table table-striped table-condensed">
                   <thead>
                     <tr><th>Name</th><th>Type</th><th>Value</th><th>Revision</th><th>Store path</th></tr>
@@ -357,7 +353,6 @@
 
         [% IF relatedbuilds %]
         <div id="tabs-relatedbuilds" class="tab-pane">
-                <h2>Related builds</h2>
                 <p>The following builds are part of the same jobset evaluation that produced this build.</p>
                 [% INCLUDE renderBuildList builds=relatedbuilds hideProjectName=1 hideJobsetName=1 %]
         </div>
@@ -365,7 +360,6 @@
 
 [% IF build.buildsteps %]
   <div id="tabs-buildsteps" class="tab-pane">
-    <h2>All build steps</h2>
     [% INCLUDE renderBuildSteps type="All" %]
   </div>
 [% END %]

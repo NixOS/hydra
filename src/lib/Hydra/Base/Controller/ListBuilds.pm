@@ -22,11 +22,13 @@ sub getJobStatus {
     return $latest;
 }
 
+
 sub jobstatus : Chained('get_builds') PathPart Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'jobstatus.tt';
     $c->stash->{latestBuilds} = [getJobStatus($self, $c)->all];
 }
+
 
 
 # A convenient way to see all the errors - i.e. things demanding
@@ -78,8 +80,8 @@ sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
             $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
             $c->stash->{channelBuilds} = $c->stash->{latestSucceeded}
                 ->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')")
-                ->search({}, { join => ["buildoutputs"]
-                             , columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
+                ->search({}, { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
+                             , join => ["buildoutputs"]
                              , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
         }
         else {
