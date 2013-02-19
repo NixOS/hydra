@@ -10,26 +10,23 @@
 
   <head>
     <title>Hydra - [% title %]</title>
-    <link rel="stylesheet" href="/static/bootstrap/css/bootstrap.css" type="text/css" />
-    <link rel="stylesheet" href="/static/css/hydra.css" type="text/css" />
-    <link rel="stylesheet" href="/static/css/logfile.css" type="text/css" />
-    <style>
-      body {
-        padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
-        padding-bottom: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
-      }
-    </style>
-
-    <link rel="stylesheet" href="/static/bootstrap/css/bootstrap-responsive.css" type="text/css" />
 
     <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
     <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/jquery-ui.min.js"></script>
+
+    <link rel="stylesheet" href="/static/bootstrap/css/bootstrap.css" type="text/css" />
+    <link rel="stylesheet" href="/static/bootstrap/css/bootstrap-responsive.css" type="text/css" />
     <script type="text/javascript" src="/static/bootstrap/js/bootstrap-dropdown.js"></script>
     <script type="text/javascript" src="/static/bootstrap/js/bootstrap-tab.js"></script>
     <script type="text/javascript" src="/static/bootstrap/js/bootstrap-alert.js"></script>
-<!--
+
+    <link rel="stylesheet" href="/static/css/hydra.css" type="text/css" />
+    <link rel="stylesheet" href="/static/css/logfile.css" type="text/css" />
+
+    <!--
     <script type="text/javascript" src="/static/js/tablesorter/jquery.tablesorter.js"></script>
--->
+    -->
+
     <script type="text/javascript">
       $(document).ready(function() {
 
@@ -78,7 +75,9 @@
 
       });
     </script>
+
     [% tracker %]
+
   </head>
 
   <body>
