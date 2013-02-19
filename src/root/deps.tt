@@ -7,12 +7,12 @@
 [% job = build.job %]
 
 [% BLOCK renderNode %]
-  <li>
+  <li class="treenode">
     [% IF done.${node.path} %]
-      <p><tt>[% node.name %]</tt> (<em>repeated</em>)</p>
+      <span class="treeline"><tt>[% node.name %]</tt> (<em>repeated</em>)</span>
     [% ELSE %]
       [% done.${node.path} = 1 %]
-      <p>
+      <span class="treeline">
         [% IF node.buildStep %]
           <a href="[% c.uri_for('/build' node.buildStep.get_column('build')) %]"><tt>[% node.name %]</tt></a> [%
             IF log_exists(node.buildStep.drvpath);
@@ -21,7 +21,7 @@
         [% ELSE %]
           <tt>[% node.name %]</tt>
         [% END %]
-      </p>
+      </span>
       [% IF node.refs.size > 0 %]
         <ul>
           [% FOREACH ref IN node.refs; INCLUDE renderNode node=ref; END %]
@@ -34,7 +34,7 @@
 <a name="runtime"></a>
 <h2>Runtime dependency graph</h2>
 [% IF available %]
-<ul>
+<ul class="tree">
   [% done={}; FOREACH node IN runtimeGraph; INCLUDE renderNode; END %]
 </ul>
 [% ELSE %]
@@ -44,7 +44,7 @@
 <a name="buildtime"></a>
 <h2>Build-time dependency graph</h2>
 [% IF drvAvailable %]
-<ul>
+<ul class="tree">
   [% INCLUDE renderNode node=buildTimeGraph %]
 </ul>
 [% ELSE %]

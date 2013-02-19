@@ -45,8 +45,7 @@
 
       <ul class='subtree' style="{$style}">
         <xsl:for-each select='line|nest'>
-          <li class='tree-line'>
-            <span class='tree-conn' />
+          <li>
             <xsl:apply-templates select='.'/>
           </li>
         </xsl:for-each>

@@ -4,27 +4,27 @@ ul.tree, ul.subtree {
     list-style-type: none;
 }
 
-/* Indent each tree level. */
-li.tree-line {
+/* Indent each tree level and draw vertical tree lines next to all
+   children except the last. */
+ul.subtree > li {
     position: relative;
     padding-left: 2.0em;
-}
-
-li.tree-line:last-child {
-    padding-left: 2.1em; /* for the 0.1em border-left in the last child */
-}
-
-/* Draw vertical tree lines next to all children except the last. */
-li.tree-line {
     border-left: 0.1em solid #6185a0;
 }
 
-li.tree-line:last-child {
+ul.subtree > li:last-child {
+    padding-left: 2.1em; /* for the 0.1em border-left in the last child */
     border-left: 0;
 }
 
+/* Draw the vertical tree line to the last child. */
+ul.subtree > li:last-child > *:first-child:before {
+    border-left: 0.1em solid #6185a0;
+}
+
 /* Draw horizontal tree lines to all children. */
-span.tree-conn {
+ul.subtree > li > *:first-child:before {
+    content: "";
     position: absolute;
     height: 0.65em;
     left: 0em;
@@ -32,13 +32,8 @@ span.tree-conn {
     border-bottom: 0.1em solid #6185a0;
 }
 
-/* Draw the vertical tree line to the last child. */
-li.tree-line:last-child > span.tree-conn {
-    border-left: 0.1em solid #6185a0;
-}
-
-.tree-toggle {
+/* Ensure that the + and - have the same size. */
+a.tree-toggle {
     text-decoration: none;
     font-family: monospace;
-    font-size: larger;
 }
