@@ -11,8 +11,8 @@
   <head>
     <title>Hydra - [% title %]</title>
 
-    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
-    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/jquery-ui.min.js"></script>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.10.1/jquery-ui.min.js"></script>
 
     <link rel="stylesheet" href="/static/bootstrap/css/bootstrap.css" type="text/css" />
     <link rel="stylesheet" href="/static/bootstrap/css/bootstrap-responsive.css" type="text/css" />
@@ -29,9 +29,6 @@
 
     <script type="text/javascript">
       $(document).ready(function() {
-
-          /*** Sortable tables. ***/
-
 
           /*** Tree toggles in logfiles. ***/
 
@@ -72,8 +69,8 @@
               });
           });
 
-
       });
+
     </script>
 
     [% tracker %]
