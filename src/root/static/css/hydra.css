@@ -3,12 +3,6 @@ body {
     padding-bottom: 0px; /* 60px to make the container go all the way to the bottom of the topbar */
 }
 
-.logTreeToggle {
-    text-decoration: none;
-    font-family: monospace;
-    font-size: larger;
-}
-
 .logo {
     height: 30px;
 }
