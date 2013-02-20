@@ -67,8 +67,8 @@
 <p class="btn-info btn-large">[% flashMsg %]</p>
 [% END %]
 
-        <ul id="tab" class="nav nav-tabs">
-                <li><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
+        <ul class="nav nav-tabs">
+                <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
                 <li><a href="#tabs-information" data-toggle="tab">Details</a></li>
                 <li><a href="#tabs-buildinputs" data-toggle="tab">Build inputs</a></li>
                 [% IF relatedbuilds %]<li><a href="#tabs-relatedbuilds" data-toggle="tab">Related builds</a></li>[% END %]

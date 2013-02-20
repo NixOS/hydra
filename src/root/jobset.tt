@@ -71,9 +71,9 @@
 [% END %]
 
 
-        <ul id="tab" class="nav nav-tabs">
+        <ul class="nav nav-tabs">
                 [% IF !edit %]
-                        <li><a href="#tabs-information" data-toggle="tab">Jobset</a></li>
+                        <li class="active"><a href="#tabs-information" data-toggle="tab">Jobset</a></li>
                 [% IF jobset.errormsg %]<li><a href="#tabs-errors" data-toggle="tab"><img src="/static/images/error_16.png" /> Evaluation errors</a></li>[% END %]
                         <li><a href="#tabs-jobs" data-toggle="tab">Jobs ([% activeJobs.size %])</a></li>
                 [% END %]

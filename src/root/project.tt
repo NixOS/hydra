@@ -1,8 +1,8 @@
 [% WRAPPER layout.tt title=(edit ? (create ? "New Project" : "Editing Project ‘$project.name’") : "Project ‘$project.name’") %]
 [% PROCESS common.tt %]
-        <ul id="tab" class="nav nav-tabs">
+        <ul class="nav nav-tabs">
                 [% IF !edit %]
-                        <li><a href="#tabs-project" data-toggle="tab">Project</a></li>
+                        <li class="active"><a href="#tabs-project" data-toggle="tab">Project</a></li>
                 [% END %]
                 <li><a href="#tabs-settings" data-toggle="tab">Settings</a></li>
                 [% IF !edit %]

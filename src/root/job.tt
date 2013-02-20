@@ -2,8 +2,8 @@
 [% PROCESS common.tt %]
 [% hideProjectName=1 hideJobsetName=1 hideJobName=1 %]
 
-        <ul id="tab" class="nav nav-tabs">
-                <li><a href="#tabs-status" data-toggle="tab">Status</a></li>
+        <ul class="nav nav-tabs">
+                <li class="active"><a href="#tabs-status" data-toggle="tab">Status</a></li>
                 <li><a href="#tabs-channels" data-toggle="tab">Channels</a></li>
                 <li><a href="#tabs-latestbuilds" data-toggle="tab">Latest builds</a></li>
         </ul>
