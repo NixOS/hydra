@@ -507,11 +507,15 @@
   [% END %]
 
   [% IF drvAvailable %]
-    <div id="tabs-build-deps" class="tab-pane"><i class="icon-time icon-black"></i></div>
+    <div id="tabs-build-deps" class="tab-pane">
+      <center><img src="/static/images/ajax-loader.gif" alt="Loading..." /></center>
+    </div>
   [% END %]
 
   [% IF available %]
-    <div id="tabs-runtime-deps" class="tab-pane"><i class="icon-time icon-black"></i></div>
+    <div id="tabs-runtime-deps" class="tab-pane">
+      <center><img src="/static/images/ajax-loader.gif" alt="Loading..." /></center>
+    </div>
   [% END %]
 
 </div>
