@@ -1,0 +1,7 @@
+[% PROCESS deps.tt %]
+
+<div class="dep-tree">
+  <ul class="tree">
+    [% INCLUDE renderNode node=buildTimeGraph %]
+  </ul>
+</div>

@@ -70,6 +70,8 @@
   [% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
   [% IF build.dependents %]<li><a href="#tabs-usedby" data-toggle="tab">Used by</a></li>[% END%]
   [% IF prevBuilds %]<li><a href="#tabs-history" data-toggle="tab">History chart</a></li>[% END %]
+  [% IF drvAvailable %]<li><a href="#tabs-build-deps" data-toggle="tab">Build dependencies</a></li>[% END %]
+  [% IF available %]<li><a href="#tabs-runtime-deps" data-toggle="tab">Runtime dependencies</a></li>[% END %]
 </ul>
 
 <div id="generic-tabs" class="tab-content">
@@ -101,7 +103,7 @@
                 <td><tt>[% HTML.escape(build.releasename) %]</tt></td>
               </tr>
             [% ELSE %]
-              <tr>
+g              <tr>
                 <th>Nix name:</th>
                 <td><tt>[% build.nixname %]</tt></td>
               </tr>
@@ -249,11 +251,11 @@
       </tr>
       <tr>
         <th>Derivation store path:</th>
-        <td><tt>[% build.drvpath %]</tt>[% IF drvAvailable %] (<a href="[% c.uri_for('/build' build.id 'deps') %]#buildtime">build-time dependencies</a>)[% END %]</td>
+        <td><tt>[% build.drvpath %]</tt></td>
       </tr>
       <tr>
         <th>Output store paths:</th>
-        <td><tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt> [% IF available %](<a href="[% c.uri_for('/build' build.id 'deps') %]#runtime">runtime dependencies</a>)[% END %]</td>
+        <td><tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt></td>
       </tr>
       <tr>
         <th>Time added:</th>
@@ -344,8 +346,6 @@
   [% IF build.dependents %]
     <div id="tabs-usedby" class="tab-pane">
 
-      <h2>Used by</h2>
-
       <p>The following builds have used this build as an input:</p>
 
       <table class="tablesorter table table-condensed table-striped">
@@ -368,7 +368,8 @@
 
   [% IF prevBuilds %]
     <div id="tabs-history" class="tab-pane">
-      <h2>Build time history (in seconds)</h2>
+      <h3>Build time history (in seconds)</h3>
+
       <div id="placeholder" style="width:800px;height:400px;"></div>
       <div id="overview" style="margin-left:50px;margin-top:20px;width:600px;height:50px"></div>
 
@@ -436,9 +437,11 @@
         });
       </script>
 
-      <h2>Store path size history (in MB)</h2>
+      <h3>Store path size history (in MB)</h3>
+
       <div id="placeholder-size" style="width:800px;height:400px;"></div>
       <div id="overview-size" style="margin-left:50px;margin-top:20px;width:600px;height:50px"></div>
+
       <script type="text/javascript">
         $(function() {
           var d = [];
@@ -503,7 +506,20 @@
     </div>
   [% END %]
 
+  [% IF drvAvailable %]
+    <div id="tabs-build-deps" class="tab-pane"><i class="icon-time icon-black"></i></div>
+    <script>
+      $('#tabs-build-deps').load("[% c.uri_for('/build' build.id 'build-deps') %]");
+    </script>
+  [% END %]
+
+  [% IF available %]
+    <div id="tabs-runtime-deps" class="tab-pane"><i class="icon-time icon-black"></i></div>
+    <script>
+      $('#tabs-runtime-deps').load("[% c.uri_for('/build' build.id 'runtime-deps') %]");
+    </script>
+  [% END %]
+
 </div>
 
 [% END %]
-

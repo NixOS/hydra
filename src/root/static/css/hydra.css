@@ -30,7 +30,7 @@ span:target > span.dep-tree-line {
 }
 
 :target {
-  padding-top: 40px;
-  margin-top: -40px;
-  display: inline-block; /* required for webkit browsers */
+    padding-top: 40px;
+    margin-top: -40px;
+    display: inline-block; /* required for webkit browsers */
 }

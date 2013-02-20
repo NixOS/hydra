@@ -339,27 +339,30 @@ sub getDependencyGraph {
 }
 
 
-sub deps : Chained('build') PathPart('deps') {
+sub build_deps : Chained('build') PathPart('build-deps') {
     my ($self, $c) = @_;
-
     my $build = $c->stash->{build};
     my $drvPath = $build->drvpath;
+
+    error($c, "Derivation no longer available.") unless isValidPath $drvPath;
+
+    $c->stash->{buildTimeGraph} = getDependencyGraph($self, $c, 0, {}, $drvPath);
+
+    $c->stash->{template} = 'build-deps.tt';
+}
+
+
+sub runtime_deps : Chained('build') PathPart('runtime-deps') {
+    my ($self, $c) = @_;
+    my $build = $c->stash->{build};
     my @outPaths = map { $_->path } $build->buildoutputs->all;
 
-    $c->stash->{available} = all { isValidPath($_) } @outPaths;
-    $c->stash->{drvAvailable} = isValidPath $drvPath;
+    error($c, "Build outputs no longer available.") unless all { isValidPath($_) } @outPaths;
 
-    if ($c->stash->{available}) {
-        my $done = {};
-        $c->stash->{runtimeGraph} = [ map { getDependencyGraph($self, $c, 1, $done, $_) } @outPaths ];
-    }
+    my $done = {};
+    $c->stash->{runtimeGraph} = [ map { getDependencyGraph($self, $c, 1, $done, $_) } @outPaths ];
 
-    if ($c->stash->{drvAvailable}) {
-        my $done = {};
-        $c->stash->{buildTimeGraph} = getDependencyGraph($self, $c, 0, $done, $drvPath);
-    }
-
-    $c->stash->{template} = 'deps.tt';
+    $c->stash->{template} = 'runtime-deps.tt';
 }
 
 

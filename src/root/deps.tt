@@ -1,11 +1,6 @@
-[% WRAPPER layout.tt title="Dependencies of build $id" %]
 [% PROCESS common.tt %]
-[% USE HTML %]
 
-[% project = build.project;
-   jobset = build.jobset;
-   job = build.job;
-   global.nodeId = 1 %]
+[% global.nodeId = 1 %]
 
 [% BLOCK renderNode %]
   <li>
@@ -34,28 +29,3 @@
     [% END %]
   </li>
 [% END %]
-
-<section><h2 id="runtime">Runtime dependency graph</h2>
-[% IF available %]
-<ul class="tree">
-  [% done={}; FOREACH node IN runtimeGraph; INCLUDE renderNode; END %]
-</ul>
-[% ELSE %]
-<p><em>No longer available.</em></p>
-[% END %]
-</section>
-
-<br />
-
-<section><h2 id="buildtime">Build-time dependency graph</h2>
-[% IF drvAvailable %]
-<ul class="tree">
-  [% INCLUDE renderNode node=buildTimeGraph %]
-</ul>
-[% ELSE %]
-<p><em>No longer available.</em></p>
-[% END %]
-</section>
-
-[% END %]
-
