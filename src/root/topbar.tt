@@ -1,4 +1,3 @@
-
 [% BLOCK menuItem %]
   <li class="[% IF "${root}${curUri}" == uri %]active[% END %]">
     <a href="[% uri %]">[% title %]</a>

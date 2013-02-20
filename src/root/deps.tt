@@ -16,7 +16,7 @@
       [% IF node.refs.size > 0 %]
         <a href="javascript:" class="tree-toggle"></a>
       [% END %]
-      <span class="dep-tree-line" id="[% done.${node.path} %]">
+      <span id="[% done.${node.path} %]"><span class="dep-tree-line">
         [% IF node.buildStep %]
           <a href="[% c.uri_for('/build' node.buildStep.get_column('build')) %]"><tt>[% node.name %]</tt></a> [%
             IF log_exists(node.buildStep.drvpath);
@@ -25,7 +25,7 @@
         [% ELSE %]
           <tt>[% node.name %]</tt> (<em>no info</em>)
         [% END %]
-      </span>
+      </span></span>
       [% IF node.refs.size > 0 %]
         <ul class="subtree">
           [% FOREACH ref IN node.refs; INCLUDE renderNode node=ref; END %]
@@ -35,8 +35,7 @@
   </li>
 [% END %]
 
-<a name="runtime"></a>
-<h2>Runtime dependency graph</h2>
+<h2 id="runtime">Runtime dependency graph</h2>
 [% IF available %]
 <ul class="tree">
   [% done={}; FOREACH node IN runtimeGraph; INCLUDE renderNode; END %]
@@ -45,8 +44,8 @@
 <p><em>No longer available.</em></p>
 [% END %]
 
-<a name="buildtime"></a>
-<h2>Build-time dependency graph</h2>
+<h2 id="buildtime">Build-time dependency graph</h2>
+
 [% IF drvAvailable %]
 <ul class="tree">
   [% INCLUDE renderNode node=buildTimeGraph %]

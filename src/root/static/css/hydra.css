@@ -1,6 +1,5 @@
 body {
-    padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
-    padding-bottom: 0px; /* 60px to make the container go all the way to the bottom of the topbar */
+    padding-top: 60px;
 }
 
 .logo {
@@ -25,7 +24,13 @@ table.productList {
     border-spacing: 0em 1em;
 }
 
-span.dep-tree-line:target {
-    background-color: #f8f8e0;
+span:target > span.dep-tree-line {
     font-style: italic;
+    font-weight: bold;
+}
+
+:target {
+  padding-top: 40px;
+  margin-top: -40px;
+  display: inline-block; /* required for webkit browsers */
 }
