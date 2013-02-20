@@ -29,7 +29,6 @@ sub getChannelData {
         $c->stash->{systemForPath}->{$outPath} = $build->system;
     };
 
-    print STDERR @storePaths, "\n";
     $c->stash->{storePaths} = [@storePaths];
 }
 
