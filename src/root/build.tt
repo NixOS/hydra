@@ -63,10 +63,6 @@
 [% END %]
 
 
-[% IF flashMsg %]
-<p class="btn-info btn-large">[% flashMsg %]</p>
-[% END %]
-
         <ul class="nav nav-tabs">
                 <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
                 <li><a href="#tabs-information" data-toggle="tab">Details</a></li>

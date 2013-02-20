@@ -104,6 +104,16 @@
 
     <div class="container">
 
+      [% IF flashMsg %]
+        <br />
+        <p class="btn-info btn-large">[% flashMsg %]</p>
+      [% END %]
+
+      [% IF errorMsg %]
+        <br />
+        <p class="btn-warning btn-large">Error: [% errorMsg %]</p>
+      [% END %]
+
       [% IF !hideHeader %]
         <div class="page-header">
           <h1><small>[% HTML.escape(title) %]</small></h1>

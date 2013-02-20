@@ -1,10 +1,6 @@
 [% WRAPPER layout.tt title="Sign in" %]
 [% PROCESS common.tt %]
 
-[% IF errorMsg %]
-<p class="btn-warning btn-large">Error: [% errorMsg %]</p>
-[% END %]
-
 [% IF c.user_exists %]
 <p class="btn-info btn-large">
 You are already logged in as <tt>[% c.user.username %]</tt>.

@@ -4,10 +4,6 @@
   </li>
 [% END %]
 
-[% BLOCK makeLink %]
-[% INCLUDE makeLinkWrapped content="" %]
-[% END %]
-
 [% BLOCK makeSubMenu %]
   <li class="dropdown">
       <a class="dropdown-toggle" href="#" data-toggle="dropdown">[% title %]<b class="caret"></b></a>
@@ -16,7 +12,6 @@
       </ul>
   </li>
 [% END %]
-
 
 [% BLOCK makeLinkWrapped %]
   <li [% IF curUri == uri %]class="active"[% END %]>
@@ -29,16 +24,13 @@
 [% INCLUDE makeLinkWrapped content="" %]
 [% END %]
 
-
-  <ul class="nav" id="top-menu">
-      [% INCLUDE makeLink
-        uri = c.uri_for(c.controller('Root').action_for('queue'))
-        title = "Queue ("_ nrRunningBuilds _"/"_ nrQueuedBuilds _")" %]
-      [% INCLUDE makeLink
-        uri = c.uri_for(c.controller('Root').action_for('all'))
-        title = "All builds" %]
-
-[% IF project || admin %]
+<ul class="nav" id="top-menu">
+  [% INCLUDE makeLink
+     uri = c.uri_for(c.controller('Root').action_for('queue'))
+     title = "Queue ("_ nrRunningBuilds _"/"_ nrQueuedBuilds _")" %]
+  [% INCLUDE makeLink
+     uri = c.uri_for(c.controller('Root').action_for('all'))
+     title = "All builds" %]
 
   [% IF project %]
     [% WRAPPER makeSubMenu title=("Project: " _ project.name) collapsed=(jobset || job)  %]
@@ -50,18 +42,17 @@
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('releases'), [project.name]) title = "Releases" %]
       [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'channel' 'latest') title = "Channel (latest)" %]
       [% IF c.user_exists %]
-          <li class="divider"></li>
-          [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create new jobset" %]
-          [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit project" %]
-          [% IF project.hidden %]
-              [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'unhide') title = "Unhide" %]
-          [% ELSE %]
-              [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'hide') title = "Hide" %]
-          [% END %]
+        <li class="divider"></li>
+        [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create new jobset" %]
+        [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit project" %]
+        [% IF project.hidden %]
+          [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'unhide') title = "Unhide" %]
+        [% ELSE %]
+          [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'hide') title = "Hide" %]
+        [% END %]
       [% END %]
     [% END %]
   [% END %]
-
 
   [% IF jobset %]
     [% WRAPPER makeSubMenu title=("Jobset: " _ jobset.name) collapsed=job %]
@@ -83,21 +74,18 @@
       <li class="divider"></li>
       [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'channel' 'latest') title = "Channel (latest)" %]
       [% IF c.user_exists %]
-          <li class="divider"></li>
-          [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'clone') title="Clone jobset" %]
-          [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit jobset" %]
-          [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, jobset.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ jobset.name _ "?") class = "" %]
-          [% IF jobset.hidden %]
-              [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'unhide') title = "Unhide" %]
-          [% ELSE %]
-              [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'hide') title = "Hide" %]
-          [% END %]
+        <li class="divider"></li>
+        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'clone') title="Clone jobset" %]
+        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit jobset" %]
+        [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, jobset.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ jobset.name _ "?") class = "" %]
+        [% IF jobset.hidden %]
+          [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'unhide') title = "Unhide" %]
+        [% ELSE %]
+          [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'hide') title = "Hide" %]
+        [% END %]
       [% END %]
-
-
     [% END %]
   [% END %]
-
 
   [% IF job %]
     [% WRAPPER makeSubMenu title=("Job: " _ job.name) %]
@@ -113,48 +101,45 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Job').action_for('errors'), [project.name, jobset.name, job.name])
         title = "Errors" %]
-    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('users')) content = "Manage users" class = "" %]</li>
-    <li>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('news')) content = "Manage news" class = "" %]</li>
-
     [% END %]
   [% END %]
 
-[% END %]
-
-[% IF build %]
+  [% IF build %]
     [% WRAPPER makeSubMenu title=("Build: " _ build.id) %]
       [% INCLUDE makeLink
         uri = c.uri_for('/build' build.id)
         title = "Overview" %]
       [% IF c.user_exists %]
-          <li class="divider"></li>
-          [% INCLUDE makeLink
-            uri = c.uri_for('/build' build.id 'clone')
-            title = "Clone build" %]
-          [% IF !available %]
-          [% ELSIF build.keep %]
-              [% INCLUDE makeLink
-                 uri = c.uri_for('/build' build.id 'keep' 0)
-                 title = "Unkeep build" %]
+        <li class="divider"></li>
+        [% INCLUDE makeLink
+          uri = c.uri_for('/build' build.id 'clone')
+          title = "Clone build" %]
+        [% IF available %]
+          [% IF build.keep %]
+            [% INCLUDE makeLink
+               uri = c.uri_for('/build' build.id 'keep' 0)
+               title = "Unkeep build" %]
           [% ELSE %]
-              [% INCLUDE makeLink
-                 uri = c.uri_for('/build' build.id 'keep' 1)
-                 title = "Keep build" %]
+            [% INCLUDE makeLink
+               uri = c.uri_for('/build' build.id 'keep' 1)
+               title = "Keep build" %]
           [% END %]
+        [% END %]
+        [% IF build.finished %]
           [% INCLUDE makeLink
             uri = c.uri_for('/build' build.id 'restart')
             title = "Restart build" %]
+        [% END %]
+        [% IF !build.finished %]
           [% INCLUDE makeLink
             uri = c.uri_for('/build' build.id 'cancel')
             title = "Cancel build" %]
+        [% END %]
       [% END %]
-
     [% END %]
+  [% END %]
 
-[% END %]
-
-[% IF c.user_exists %]
-  [% IF c.check_user_roles('admin') %]
+  [% IF c.user_exists && c.check_user_roles('admin') %]
     [% WRAPPER makeSubMenu title="Admin" %]
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Admin').action_for('index'))
@@ -179,26 +164,18 @@
         uri = c.uri_for(c.controller('Admin').action_for('clear_queue_non_current'))
         content = "Clear all non-running old builds from queue"
         confirmmsg = "Are you sure you want to clear the queue?"
-        class = ""
-      %]
+        class = "" %]
       <li class="divider"></li>
       [% IF c.check_user_roles('admin') %]
-          [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create')) title = "Create new project" %]
+        [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create')) title = "Create new project" %]
       [% END %]
-
     [% END %]
-[% END %]
-
   [% END %]
 
-      [% IF c.user_exists %]
-        [% INCLUDE makeLink
-          uri = c.uri_for(c.controller('Root').action_for('logout'))
-          title = "Sign out" %]
-      [% ELSE %]
-        [% INCLUDE makeLink
-          uri = c.uri_for(c.controller('Root').action_for('login'))
-          title = "Sign in" %]
-      [% END %]
+  [% IF c.user_exists %]
+    [% INCLUDE makeLink uri = c.uri_for(c.controller('Root').action_for('logout')) title = "Sign out" %]
+  [% ELSE %]
+    [% INCLUDE makeLink uri = c.uri_for(c.controller('Root').action_for('login')) title = "Sign in" %]
+  [% END %]
 
-  </ul>
+</ul>
