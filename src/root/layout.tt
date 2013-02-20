@@ -20,6 +20,8 @@
     <link href="/static/bootstrap/css/bootstrap-responsive.min.css" rel="stylesheet" />
     <script type="text/javascript" src="/static/bootstrap/js/bootstrap.min.js"></script>
 
+    <script type="text/javascript" src="/static/js/bootbox.min.js"></script>
+
     <link rel="stylesheet" href="/static/css/hydra.css" type="text/css" />
     <link rel="stylesheet" href="/static/css/tree.css" type="text/css" />
     <link rel="stylesheet" href="/static/css/logfile.css" type="text/css" />

@@ -6,10 +6,10 @@
 
 [% BLOCK makeSubMenu %]
   <li class="dropdown">
-      <a class="dropdown-toggle" href="#" data-toggle="dropdown">[% title %]<b class="caret"></b></a>
-      <ul id="left-menu" class="dropdown-menu">
-          [% content %]
-      </ul>
+    <a class="dropdown-toggle" href="#" data-toggle="dropdown">[% title %]<b class="caret"></b></a>
+    <ul id="left-menu" class="dropdown-menu">
+      [% content %]
+    </ul>
   </li>
 [% END %]
 
@@ -52,8 +52,8 @@
       [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'channel' 'latest') title = "Channel" %]
       [% IF c.user_exists %]
         <li class="divider"></li>
+        [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit configuration" %]
         [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create new jobset" %]
-        [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit project" %]
         [% IF project.hidden %]
           [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'unhide') title = "Unhide" %]
         [% ELSE %]
@@ -84,9 +84,22 @@
       [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'channel' 'latest') title = "Channel" %]
       [% IF c.user_exists %]
         <li class="divider"></li>
-        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'clone') title="Clone jobset" %]
-        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit jobset" %]
-        [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, jobset.name) content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ jobset.name _ "?") class = "" %]
+        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit configuration" %]
+
+        <form id="delete-jobset" method="post" action="[% c.uri_for('/jobset' project.name jobset.name 'delete') %]" class="hidden"></form>
+        <script>
+          function confirmDeleteJobset() {
+            bootbox.confirm(
+              'Are you sure you want to delete this jobset?',
+              function(del) { if (del) $('#delete-jobset').submit(); });
+            return;
+          };
+        </script>
+        [% INCLUDE menuItem title="Delete" uri = "javascript:confirmDeleteJobset()" %]
+
+        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'clone') title="Clone" %]
+        [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, jobset.name)
+          content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ jobset.name _ "?") class = "" %]
         [% IF jobset.hidden %]
           [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'unhide') title = "Unhide" %]
         [% ELSE %]
