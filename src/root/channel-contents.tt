@@ -7,7 +7,7 @@ href="http://nixos.org/">Nix package manager</a>.  If you have Nix
 installed, you can subscribe to this channel by once executing</p>
 
 <pre>
-$ nix-channel --add [% curUri %]
+$ nix-channel --add [% curUri +%]
 $ nix-channel --update</pre>
 
 <p>You can then query and install packages in the normal way, e.g.,</p>
