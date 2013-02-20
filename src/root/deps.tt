@@ -7,23 +7,24 @@
 [% job = build.job %]
 
 [% BLOCK renderNode %]
-  <li class="treenode">
+  <li>
     [% IF done.${node.path} %]
-      <span class="treeline"><tt>[% node.name %]</tt> (<em>repeated</em>)</span>
+      <tt>[% node.name %]</tt> (<em>repeated</em>)
     [% ELSE %]
       [% done.${node.path} = 1 %]
-      <span class="treeline">
-        [% IF node.buildStep %]
-          <a href="[% c.uri_for('/build' node.buildStep.get_column('build')) %]"><tt>[% node.name %]</tt></a> [%
-            IF log_exists(node.buildStep.drvpath);
-            INCLUDE renderLogLinks url=c.uri_for('/build' node.buildStep.get_column('build') 'nixlog' node.buildStep.stepnr);
-            END %]
-        [% ELSE %]
-          <tt>[% node.name %]</tt>
-        [% END %]
-      </span>
       [% IF node.refs.size > 0 %]
-        <ul>
+        <a href="javascript:" class="tree-toggle"></a>
+      [% END %]
+      [% IF node.buildStep %]
+        <a href="[% c.uri_for('/build' node.buildStep.get_column('build')) %]"><tt>[% node.name %]</tt></a> [%
+          IF log_exists(node.buildStep.drvpath);
+          INCLUDE renderLogLinks url=c.uri_for('/build' node.buildStep.get_column('build') 'nixlog' node.buildStep.stepnr);
+          END %]
+      [% ELSE %]
+        <tt>[% node.name %]</tt>
+      [% END %]
+      [% IF node.refs.size > 0 %]
+        <ul class="subtree">
           [% FOREACH ref IN node.refs; INCLUDE renderNode node=ref; END %]
         </ul>
       [% END %]
