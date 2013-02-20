@@ -24,3 +24,8 @@ table.productList {
     border-collapse: separate;
     border-spacing: 0em 1em;
 }
+
+span.dep-tree-line:target {
+    background-color: #f8f8e0;
+    font-style: italic;
+}
