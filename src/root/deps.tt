@@ -5,7 +5,7 @@
 [% BLOCK renderNode %]
   <li>
     [% IF done.${node.path} %]
-      <a href="#[% done.${node.path} %]"><tt>[% node.name %]</tt></a>
+      <tt>[% node.name %]</tt> (<a href="#[% done.${node.path} %]"><em>repeated</em></a>)
     [% ELSE %]
       [% done.${node.path} = global.nodeId; global.nodeId = global.nodeId + 1; %]
       [% IF node.refs.size > 0 %]
@@ -15,7 +15,7 @@
         [% IF node.buildStep %]
           <a href="[% c.uri_for('/build' node.buildStep.get_column('build')) %]"><tt>[% node.name %]</tt></a> [%
             IF log_exists(node.buildStep.drvpath);
-            INCLUDE renderLogLinks url=c.uri_for('/build' node.buildStep.get_column('build') 'nixlog' node.buildStep.stepnr);
+              INCLUDE renderLogLinks url=c.uri_for('/build' node.buildStep.get_column('build') 'nixlog' node.buildStep.stepnr);
             END %]
         [% ELSE %]
           <tt>[% node.name %]</tt> (<em>no info</em>)
