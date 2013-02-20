@@ -1,8 +1,6 @@
-[% WRAPPER layout.tt title="View ‘$view.project.name:$view.name’" %]
+[% WRAPPER layout.tt title="View $view.project.name:$view.name" %]
 [% PROCESS common.tt %]
 [% USE HTML %]
-
-<div class="page-header"><h1>View <tt>[% view.project.name %]:[% view.name %]</tt></h1></div>
 
 <p>
 <a class="btn" href="[% c.uri_for('/view' project.name view.name "edit") %]"><i class="icon-edit"></i> Edit</a>

@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title="Overview" %]
+[% WRAPPER layout.tt title="Overview" hideHeader=1 %]
 [% PROCESS common.tt %]
 
 [% IF newItems.size != 0 %]

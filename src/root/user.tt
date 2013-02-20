@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title=(create ? "New user" : "Editing user '$user.username'") %]
+[% WRAPPER layout.tt title=(create ? "New user" : "User $user.username") %]
 [% PROCESS common.tt %]
 
 [% BLOCK roleoption %]
@@ -13,8 +13,6 @@
             [% END %]
             >[% role %]</option>
 [% END %]
-
-<div class="page-header"><h1>[% IF create %]New user[% ELSE %]User <tt>[% user.username %]</tt>[% END %]</h1></div>
 
 <form class="form-horizontal" action="[% IF create %][% c.uri_for('/admin/create-user/submit') %][% ELSE %][% c.uri_for('/admin/user' user.username 'submit') %][% END %]" method="post">
 

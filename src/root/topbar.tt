@@ -124,8 +124,8 @@
 [% IF build %]
     [% WRAPPER makeSubMenu title=("Build: " _ build.id) %]
       [% INCLUDE makeLink
-        uri = '#'
-        title = "Related builds" %]
+        uri = c.uri_for('/build' build.id)
+        title = "Overview" %]
       [% IF c.user_exists %]
           <li class="divider"></li>
           [% INCLUDE makeLink
@@ -177,7 +177,7 @@
         class = "" %]
       [% INCLUDE maybeLink
         uri = c.uri_for(c.controller('Admin').action_for('clear_queue_non_current'))
-        content = "Clear all non-running old builds from queue."
+        content = "Clear all non-running old builds from queue"
         confirmmsg = "Are you sure you want to clear the queue?"
         class = ""
       %]

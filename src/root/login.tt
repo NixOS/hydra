@@ -1,7 +1,5 @@
-[% WRAPPER layout.tt title="Login to Hydra" %]
+[% WRAPPER layout.tt title="Sign in" %]
 [% PROCESS common.tt %]
-
-<div class="page-header"><h1>Login</h1></div>
 
 [% IF errorMsg %]
 <p class="btn-warning btn-large">Error: [% errorMsg %]</p>
@@ -32,7 +30,7 @@ You can <a href="[% c.uri_for('/logout') %]">logout</a> here.
   </div>
 
   <div class="form-actions">
-    <input type="submit" name="login" value="Login" class="btn btn-primary" />
+    <input type="submit" name="login" value="Sign in" class="btn btn-primary" />
   </div>
 
 </form>

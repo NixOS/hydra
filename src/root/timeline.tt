@@ -4,8 +4,6 @@
 
 [% PROCESS common.tt %]
 
-<div class="page-header"><h1>Hydra timeline of last 24 hours</h1></div>
-
 <script type="text/javascript">
 Timeline_urlPrefix="http://simile.mit.edu/timeline/api/";
 </script>

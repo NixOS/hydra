@@ -1,13 +1,10 @@
-[% WRAPPER layout.tt title="Release ‘$release.name’" %]
+[% WRAPPER layout.tt title="Release $release.name" %]
 [% PROCESS common.tt %]
 [% PROCESS "product-list.tt" %]
 [% USE HTML %]
 
-<div class="page-header"><h1>Release <tt>[% release.name %]</tt>
-  <a class="btn" href="[% c.uri_for('/release' project.name release.name "edit") %]"><i class="icon-edit"></i></a></h1></div>
-
 <p><em>Released on [% INCLUDE renderDateTime timestamp =
-release.timestamp %].</em></p>
+release.timestamp %].</em> <a class="btn" href="[% c.uri_for('/release' project.name release.name "edit") %]"><i class="icon-edit"></i></a></p>
 
 [% IF !members %]
 

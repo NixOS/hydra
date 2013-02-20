@@ -1,17 +1,23 @@
-[% WRAPPER layout.tt title="Clone Jobset" %]
+[% WRAPPER layout.tt title="Clone jobset $jobset.project.name:$jobset.name" %]
 [% PROCESS common.tt %]
 [% USE HTML %]
 [% edit=1 %]
 
-<form action="[% c.uri_for('/jobset' jobset.project.name jobset.name 'clone' 'submit') %]" method="post">
+<form class="form-horizontal" action="[% c.uri_for('/jobset' jobset.project.name jobset.name 'clone' 'submit') %]" method="post">
 
-  <h2>Cloning jobset [% jobset.project.name %]:[% jobset.name %]</h2>
-  <p>
-     Name <tt><input type="text" class="string" name="newjobset" [% HTML.attributes(value => "") %] /></tt>
-  </p>
-  <p>
-     <button type="submit">Next</button>
-  </p>
+  <fieldset>
+    <div class="control-group">
+      <label class="control-label">New name</label>
+      <div class="controls">
+        <input type="text" class="span3" name="newjobset" value=""></input>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <input type="submit" value="Submit" class="btn btn-primary" />
+    </div>
+
+  </fieldset>
 
 </form>
 

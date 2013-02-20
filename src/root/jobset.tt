@@ -1,13 +1,8 @@
-[% WRAPPER layout.tt title=(edit ? (create ? "New Jobset in Project ‘$project.name’" : "Editing Jobset ‘$project.name:$jobset.name’") : "Jobset ‘$project.name:$jobset.name’") %]
+[% WRAPPER layout.tt title=(edit ? (create ? "Create jobset in project $project.name" : "Editing jobset $project.name:$jobset.name") : "Jobset $project.name:$jobset.name") %]
 [% PROCESS common.tt %]
 
 [% IF edit %]
   <form class="form-horizontal" action="[% IF create %][% c.uri_for('/project' project.name 'create-jobset/submit') %][% ELSE %][% c.uri_for('/jobset' project.name jobset.name 'submit') %][% END %]" method="post">
-[% END %]
-
-
-[% IF create %]
-  <h1>New Jobset in Project <tt>[% project.name %]</tt></h1>
 [% END %]
 
 
@@ -258,7 +253,9 @@
     });
   </script>
 
-  <p><button type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create %]Create[% ELSE %]Apply changes[% END %]</button></p>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create %]Create[% ELSE %]Apply changes[% END %]</button>
+  </div>
 
   </form>
 

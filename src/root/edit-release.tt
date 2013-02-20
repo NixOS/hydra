@@ -1,8 +1,6 @@
-[% WRAPPER layout.tt title=(create ? "New release" : "Edit release") %]
+[% WRAPPER layout.tt title=(create ? "New release" : "Edit release ${release.name}") %]
 [% PROCESS common.tt %]
 [% USE HTML %]
-
-<div class="page-header"><h1>[% IF create %]New release[% ELSE %]Release <tt>[% release.name %]</tt>[% END %]</h1></div>
 
 <form class="form-horizontal" action="[% IF create %][% c.uri_for('/project' project.name 'create-release/submit') %][% ELSE %][% c.uri_for('/release' project.name release.name 'submit') %][% END %]" method="post">
 

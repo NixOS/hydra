@@ -1,7 +1,5 @@
-[% WRAPPER layout.tt title="Admin" %]
+[% WRAPPER layout.tt title="Machine status" %]
 [% PROCESS common.tt %]
-
-<div class="page-header"><h1>Machine status</h1></div>
 
 <table class="table table-condensed table-striped">
 [% FOREACH m IN machines %]

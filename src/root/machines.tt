@@ -1,7 +1,5 @@
-[% WRAPPER layout.tt title="Machines" %]
+[% WRAPPER layout.tt title="Build machines" %]
 [% PROCESS common.tt %]
-
-<div class="page-header"><h1>Build machines</h1></div>
 
 <table class="table table-condensed table-striped">
     <thead>

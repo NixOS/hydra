@@ -2,8 +2,6 @@
 [% PROCESS common.tt %]
 [% USE HTML %]
 
-<div class="page-header"><h1>Channel <tt>[% channelName %]</tt></h1></div>
-
 <p>This page provides a <em>channel</em> for the <a
 href="http://nixos.org/">Nix package manager</a>.  If you have Nix
 installed, you can subscribe to this channel by once executing</p>
@@ -51,25 +49,24 @@ install the package simply by clicking on the packages below.</p>
 
     [% FOREACH pkg IN nixPkgs %]
 
-      [% build = pkg.build %]
+      [% b = pkg.build %]
       [% uri = "${curUri}/pkg/${pkg.name}.nixpkg" %]
 
       <tr class="clickable [% IF odd %] odd [% END; odd = !odd %]" onclick="window.location = '[% uri %]'">
-        <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
-        <td><a href="[% uri %]"><tt>[% build.get_column('releasename') || build.nixname %]</tt></a></td>
-        <td><tt>[% build.system %]</tt></td>
+        <td><a href="[% c.uri_for('/build' b.id) %]">[% b.id %]</a></td>
+        <td><a href="[% uri %]"><tt>[% b.get_column('releasename') || b.nixname %]</tt></a></td>
+        <td><tt>[% b.system %]</tt></td>
         <td>
-          [% IF build.homepage %]
-            <a [% HTML.attributes(href => build.homepage) %]>[% HTML.escape(build.description) %]</a>
+          [% IF b.homepage %]
+            <a [% HTML.attributes(href => b.homepage) %]>[% HTML.escape(b.description) %]</a>
           [% ELSE %]
-            [% HTML.escape(build.description) %]
+            [% HTML.escape(b.description) %]
           [% END %]
           [% IF pkg.outName != 'out' %] [[% pkg.outName %]][% END %]
         </td>
       </tr>
 
     [% END %]
-
 
   </tbody>
 

@@ -1,8 +1,23 @@
-[% WRAPPER layout.tt title="Hydra status" %]
+[% WRAPPER layout.tt title="Active build steps" %]
 [% PROCESS common.tt %]
 
-<div class="page-header"><h1>Hydra status</h1></div>
-
-[% INCLUDE hydraStatus %]
+<table class="tablesorter table table-striped table-condensed">
+  <thead>
+    <tr><th>Machine</th><th>Job</th><th>Type</th><th>Build</th><th>Step</th><th>What</th><th>Since</th></tr>
+  </thead>
+  <tbody>
+    [% FOREACH step IN steps %]
+      <tr>
+        <td><tt>[% IF step.machine; step.machine.match('@(.*)').0; ELSE; 'localhost'; END %]</tt></td>
+        <td><tt>[% INCLUDE renderFullJobName project = step.build.project.name jobset = step.build.jobset.name job = step.build.job.name %]</tt></td>
+        <td><tt>[% step.system %]</tt></td>
+        <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
+        <td><a href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail-reload') %]">[% step.stepnr %]</a></td>
+        <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
+        <td class='right'>[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
+      </tr>
+    [% END %]
+  </tbody>
+</table>
 
 [% END %]

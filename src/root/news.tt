@@ -2,7 +2,6 @@
 [% PROCESS common.tt %]
 
 [% USE String %]
-<div class="page-header"><h1>News items</h1></div>
 
 [% IF newsItems.size == 0 %]
     <p>No news items</p>
