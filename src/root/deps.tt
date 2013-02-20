@@ -1,7 +1,5 @@
 [% PROCESS common.tt %]
 
-[% global.nodeId = 1 %]
-
 [% BLOCK renderNode %]
   <li>
     [% IF done.${node.path} %]
