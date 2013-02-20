@@ -217,12 +217,6 @@
 
 </div>
 
-<script type="text/javascript">
-        jQuery(document).ready(function ($) {
-            $('#tab').tab('show');
-        });
-</script>
-
 [% IF edit %]
 
   <table class="template"> <!-- dummy wrapper needed because “hidden” trs are visible anyway -->

@@ -504,9 +504,5 @@
 
 </div>
 
-<script type="text/javascript">
-    $('#tab').tab('show');
-</script>
-
 [% END %]
 
