@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title="All builds" _
+[% WRAPPER layout.tt title="Recent builds" _
     (job ? " for job $project.name:$jobset.name:$job.name" :
      jobset ? " for jobset $project.name:$jobset.name" :
      project ? " for project $project.name" : "") %]

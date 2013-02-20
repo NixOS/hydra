@@ -31,10 +31,10 @@
        uri = c.uri_for(c.controller('Root').action_for('queue'))
        title = "Queue ("_ nrRunningBuilds _"/"_ nrQueuedBuilds _")" %]
     [% INCLUDE makeLink
-       uri = c.uri_for(c.controller(Root).action_for('status'))
+       uri = c.uri_for(c.controller('Root').action_for('status'))
        title = "Active build steps" %]
     [% INCLUDE makeLink
-       uri = c.uri_for(c.controller('Admin').action_for('index'))
+       uri = c.uri_for(c.controller('Root').action_for('machines'))
        title = "Machine status" %]
     [% INCLUDE makeLink
        uri = c.uri_for(c.controller('Root').action_for('all'))

@@ -52,23 +52,6 @@ sub admin : Chained('/') PathPart('admin') CaptureArgs(0) {
 }
 
 
-sub index : Chained('admin') PathPart('') Args(0) {
-    my ($self, $c) = @_;
-    $c->stash->{machines} = [$c->model('DB::BuildMachines')->search(
-        {},
-        { order_by => ["enabled DESC", "hostname"]
-        , '+select' => ["(select bs.stoptime from buildsteps as bs where bs.machine = (me.username || '\@' || me.hostname) and not bs.stoptime is null order by bs.stoptime desc limit 1)"]
-        , '+as' => ['idle']
-        })];
-    $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
-        { finished => 0, 'me.busy' => 1, 'build.busy' => 1, },
-        { join => [ 'build' ]
-        , order_by => [ 'machine', 'stepnr' ]
-        } ) ];
-    $c->stash->{template} = 'admin.tt';
-}
-
-
 sub updateUser {
     my ($c, $user) = @_;
 
@@ -117,8 +100,6 @@ sub create_user_submit : Chained('admin') PathPart('create-user/submit') Args(0)
 
     $c->res->redirect("/admin/users");
 }
-
-
 
 
 sub user : Chained('admin') PathPart('user') CaptureArgs(1) {
