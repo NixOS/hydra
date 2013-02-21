@@ -53,6 +53,11 @@
           <input type="checkbox" name="enabled" [% IF jobset.enabled; 'checked="checked"'; END %]></input>Enabled
         </label>
       </div>
+      <div class="controls">
+        <label class="checkbox">
+          <input type="checkbox" name="visible" [% IF !jobset.hidden; 'checked="checked"'; END %]></input>Visible
+        </label>
+      </div>
     </div>
 
     <div class="control-group">
