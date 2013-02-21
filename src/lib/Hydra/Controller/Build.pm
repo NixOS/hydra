@@ -92,6 +92,7 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     }
 
     # Get the first eval of which this build was a part.
+    ($c->stash->{nrEvals}) = $c->stash->{build}->jobsetevals->search({ hasnewbuilds => 1 })->count;
     ($c->stash->{eval}) = $c->stash->{build}->jobsetevals->search(
         { hasnewbuilds => 1},
         { limit => 1, order_by => ["id"] });

@@ -97,12 +97,6 @@
               <th>System:</th>
               <td><tt>[% build.system %]</tt></td>
             </tr>
-            [% IF eval %]
-              <tr>
-                <th>Part of:</th>
-                <td><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">evaluation [% eval.id %]</a></td>
-              </tr>
-            [% END %]
             [% IF build.releasename %]
               <tr>
                 <th>Release name:</th>
@@ -112,6 +106,15 @@
               <tr>
                 <th>Nix name:</th>
                 <td><tt>[% build.nixname %]</tt></td>
+              </tr>
+            [% END %]
+            [% IF eval %]
+              <tr>
+                <th>Part of:</th>
+                <td>
+                  <a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">evaluation [% eval.id %]</a>
+                  [% IF nrEvals > 1 +%] (and [% nrEvals - 1 %] others)[% END %]
+                </td>
               </tr>
             [% END %]
             [% IF build.iscachedbuild %]
