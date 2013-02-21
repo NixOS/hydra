@@ -8,7 +8,7 @@ use Hydra::Helper::Nix;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild getBuildStats
+    getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild
     error notFound
     requireLogin requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
@@ -78,25 +78,6 @@ sub getPreviousSuccessfulBuild {
       }, {rows => 1, order_by => "me.id DESC"});
 
     return $prevBuild;
-}
-
-
-sub getBuildStats {
-    my ($c, $builds) = @_;
-
-    $c->stash->{finishedBuilds} = $builds->search({finished => 1}) || 0;
-
-    $c->stash->{succeededBuilds} = $builds->search({finished => 1, buildStatus => 0}) || 0;
-
-    $c->stash->{scheduledBuilds} = $builds->search({finished => 0}) || 0;
-
-    $c->stash->{busyBuilds} = $builds->search({finished => 0, busy => 1}) || 0;
-
-    my $res;
-    $res = $builds->search({}, {select => {sum => 'stoptime - starttime'}, as => ['sum']})->first;
-
-    $c->stash->{totalBuildTime} = defined ($res) ? $res->get_column('sum') : 0 ;
-
 }
 
 

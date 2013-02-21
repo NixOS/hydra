@@ -22,8 +22,6 @@ sub view : Chained('project') PathPart('') Args(0) {
 
     $c->stash->{template} = 'project.tt';
 
-    #getBuildStats($c, scalar $c->stash->{project}->builds);
-
     $c->stash->{views} = [$c->stash->{project}->views->all];
     $c->stash->{jobsets} = [jobsetOverview($c, $c->stash->{project})];
     $c->stash->{releases} = [$c->stash->{project}->releases->search({},

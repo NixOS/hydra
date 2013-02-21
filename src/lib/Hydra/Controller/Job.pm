@@ -23,8 +23,6 @@ sub overview : Chained('job') PathPart('') Args(0) {
 
     $c->stash->{template} = 'job.tt';
 
-    #getBuildStats($c, scalar $c->stash->{job}->builds);
-
     $c->stash->{currentBuilds} = [$c->stash->{job}->builds->search({finished => 1, iscurrent => 1}, { order_by => 'system' })];
 
     $c->stash->{lastBuilds} =
