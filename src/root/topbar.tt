@@ -48,7 +48,6 @@
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('jobstatus'), [project.name]) title = "Job status" %]
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('errors'), [project.name]) title = "Errors" %]
       <li class="divider"></li>
-      [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('releases'), [project.name]) title = "Releases" %]
       [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'channel' 'latest') title = "Channel" %]
       [% IF c.user_exists %]
         <li class="divider"></li>

@@ -4,6 +4,7 @@
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-project" data-toggle="tab">Jobsets</a></li>
   <li><a href="#tabs-settings" data-toggle="tab">Configuration</a></li>
+  <li><a href="#tabs-releases" data-toggle="tab">Releases</a></li>
   <li><a href="#tabs-views" data-toggle="tab">Views</a></li>
 </ul>
 
@@ -106,6 +107,44 @@
         <td>[% project.enabled ? "Yes" : "No" %]</td>
       </tr>
     </table>
+  </div>
+
+  <div id="tabs-releases" class="tab-pane">
+
+    [% IF releases.size == 0 %]
+
+    <p><em>This project has no releases yet.</em></p>
+
+    [% ELSE %]
+
+    <p>This project has made the following releases:</p>
+
+    <table class="tablesorter table table-condensed table-striped">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        [% FOREACH release IN releases %]
+          [% link = c.uri_for('/release' project.name release.name) %]
+          <tr class="clickable" onclick="window.location = '[% link %]'">
+            <td><a href="[% link %]"><tt>[% release.name %]</tt></a></td>
+            <td>[% INCLUDE renderDateTime timestamp = release.timestamp %]</td>
+          </tr>
+        [% END %]
+      </tbody>
+    </table>
+
+    [% END %]
+
+    [% IF c.user_exists %]
+    <p><a class="btn" href="[% c.uri_for('/project' project.name 'create-release') %]">
+      <i class="icon-plus"></i> Create a release
+    </a></p>
+    [% END %]
+
   </div>
 
   <div id="tabs-views" class="tab-pane">

@@ -26,6 +26,8 @@ sub view : Chained('project') PathPart('') Args(0) {
 
     $c->stash->{views} = [$c->stash->{project}->views->all];
     $c->stash->{jobsets} = [jobsetOverview($c, $c->stash->{project})];
+    $c->stash->{releases} = [$c->stash->{project}->releases->search({},
+        {order_by => ["timestamp DESC"]})];
 }
 
 
@@ -232,14 +234,6 @@ sub create_view : Chained('project') PathPart('create-view') Args(0) {
 
     $c->stash->{template} = 'edit-view.tt';
     $c->stash->{create} = 1;
-}
-
-
-sub releases : Chained('project') PathPart('releases') Args(0) {
-    my ($self, $c) = @_;
-    $c->stash->{template} = 'releases.tt';
-    $c->stash->{releases} = [$c->stash->{project}->releases->search({},
-        {order_by => ["timestamp DESC"]})];
 }
 
 

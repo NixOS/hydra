@@ -66,7 +66,7 @@ sub submit : Chained('release') PathPart('submit') Args(0) {
         txn_do($c->model('DB')->schema, sub {
             $c->stash->{release}->delete;
         });
-        $c->res->redirect($c->uri_for($c->controller('Project')->action_for('releases'),
+        $c->res->redirect($c->uri_for($c->controller('Project')->action_for('view'),
             [$c->stash->{project}->name]));
     } else {
         txn_do($c->model('DB')->schema, sub {
