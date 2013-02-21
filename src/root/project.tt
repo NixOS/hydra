@@ -79,6 +79,7 @@
   </div>
 
   <div id="tabs-settings" class="tab-pane">
+    <a class="btn pull-right" href="[% c.uri_for('/project' project.name "edit") %]"><i class="icon-edit"></i> Edit</a>
     <table class="info-table">
       <tr>
         <th>Display name:</th>
@@ -157,7 +158,6 @@
         [% FOREACH view IN views %]
           <li>
             <a href="[% c.uri_for('/view' project.name view.name) %]"><tt>[% view.name %]</tt></a>
-            <a class="btn btn-mini" href="[% c.uri_for('/view' project.name view.name "edit") %]">Edit</a>
           </li>
         [% END %]
       </ul>

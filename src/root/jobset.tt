@@ -121,6 +121,8 @@
 
   <div id="tabs-setup" class="tab-pane">
 
+    <a class="btn pull-right" href="[% c.uri_for('/jobset' project.name jobset.name "edit") %]"><i class="icon-edit"></i> Edit</a>
+
     <table class="info-table">
       <tr>
         <th>Description:</th>
