@@ -156,36 +156,6 @@ END;
 BLOCK renderLink %]<a href="[% uri %]">[% title %]</a>[% END;
 
 
-BLOCK showBuildStats %]
-  <table class="layoutTable">
-    <tr>
-      <th>Finished builds:</th>
-      <td>[% finishedBuilds %]</td>
-    </tr>
-    <tr>
-      <th><img src="/static/images/checkmark_16.png" alt="Succeeded" /> Succeeded builds:</th>
-      <td>[% succeededBuilds %]</td>
-    </tr>
-    <tr>
-      <th><img src="/static/images/error_16.png" alt="Failed" /> Failed builds:</th>
-      <td>[% finishedBuilds - succeededBuilds %]</td>
-    </tr>
-    <tr>
-      <th>Total build time:</th>
-      <td>[% INCLUDE renderDuration duration = totalBuildTime %]</td>
-    </tr>
-    <tr>
-      <th>Scheduled builds:</th>
-      <td>[% scheduledBuilds %]</td>
-    </tr>
-    <tr>
-      <th>Currently executing builds:</th>
-      <td>[% busyBuilds %]</td>
-    </tr>
-  </table>
-[% END;
-
-
 BLOCK renderViewJobName;
   IF job.description; HTML.escape(job.description); ELSE %]<tt>[% job.job %]</tt> ([% job.attrs %])[% END;
 END;
@@ -224,7 +194,7 @@ END;
 
 BLOCK editString; %]
   <input type="text" class="string" [% HTML.attributes(id => param, name => param, value => value) %] />
-END;
+[% END;
 
 
 BLOCK renderFullBuildLink;
@@ -455,7 +425,7 @@ BLOCK renderEvals %]
         </tr>
       [% END;
       IF linkToAll %]
-        <tr><td class="centered" colspan="54"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+        <tr><td class="centered" colspan="54"><a href="[% linkToAll %]"><em>All evaluations...</em></a></td></tr>
       [% END %]
     </tbody>
   </table>

@@ -79,7 +79,7 @@
   </div>
 
   <div id="tabs-settings" class="tab-pane">
-    <table class="layoutTable">
+    <table class="info-table">
       <tr>
         <th>Display name:</th>
         <td>[% HTML.escape(project.displayname) %]</td>

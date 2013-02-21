@@ -64,7 +64,7 @@
 
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
-  <li><a href="#tabs-information" data-toggle="tab">Details</a></li>
+  <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
   <li><a href="#tabs-buildinputs" data-toggle="tab">Build inputs</a></li>
   [% IF relatedbuilds %]<li><a href="#tabs-relatedbuilds" data-toggle="tab">Related builds</a></li>[% END %]
   [% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
@@ -78,13 +78,13 @@
 
   <div id="tabs-summary" class="tab-pane active">
 
-    <table class="layoutTable">
+    <table>
       <tr>
         <td>
           [% INCLUDE renderBuildStatusIcon size=128, build=build %]
         </td>
         <td>
-          <table class="layoutTable">
+          <table class="info-table">
             <tr>
               <th>Build ID:</th>
               <td>[% build.id %]</td>
@@ -212,9 +212,9 @@
 
   </div>
 
-  <div id="tabs-information" class="tab-pane">
+  <div id="tabs-details" class="tab-pane">
 
-    <table class="layoutTable">
+    <table class="info-table">
       [% IF build.nixexprinput %]
         <tr>
           <th>Nix expression:</th>

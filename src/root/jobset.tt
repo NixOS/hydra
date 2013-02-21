@@ -54,7 +54,7 @@
 
   <div id="tabs-evaluations" class="tab-pane active">
 
-    <table class="layoutTable">
+    <table class="info-table">
       <tr>
         <th>Last checked:</th>
         <td>
@@ -78,7 +78,6 @@
   <div id="tabs-status" class="tab-pane">
 
     [% IF activeJobsStatus %]
-      <h2>Status</h2>
       <table class="table table-striped table-condensed">
         <thead><tr><th>Job</th>[% FOREACH s IN systems %]<th>[% s.system %]</th>[% END %]</tr></thead>
         <tbody>
@@ -122,7 +121,7 @@
 
   <div id="tabs-setup" class="tab-pane">
 
-    <table class="layoutTable">
+    <table class="info-table">
       <tr>
         <th>Description:</th>
         <td>[% HTML.escape(jobset.description) %]</td>
@@ -158,7 +157,6 @@
   <div id="tabs-jobs" class="tab-pane">
 
     <p>This jobset currently contains the following [% activeJobs.size %] jobs:
-
       <blockquote>
         [% IF activeJobs.size == 0 %]<em>(none)</em>[% END %]
         [% FOREACH j IN activeJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]
@@ -166,7 +164,6 @@
     </p>
 
     <p>This jobset used to contain the following [% inactiveJobs.size %] jobs:
-
       <blockquote>
         [% IF inactiveJobs.size == 0 %]<em>(none)</em>[% END %]
         [% FOREACH j IN inactiveJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]

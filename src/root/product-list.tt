@@ -2,7 +2,7 @@
 
 [% BLOCK renderProductList %]
 
-  <table class="productList layoutTable">
+  <table class="productList">
 
     [% FOREACH product IN build.buildproducts %]
 
