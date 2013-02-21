@@ -559,7 +559,7 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
 }
 
 
-sub get_info  : Chained('build') PathPart('api/get-info') Args(0) {
+sub get_info : Chained('build') PathPart('api/get-info') Args(0) {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
     # !!! strip the json prefix
@@ -568,6 +568,24 @@ sub get_info  : Chained('build') PathPart('api/get-info') Args(0) {
     my $out = getMainOutput($build);
     $c->stash->{jsonOutPath} = $out->path if defined $out;
     $c->forward('View::JSON');
+}
+
+
+sub get_info : Chained('build') PathPart('evals') Args(0) {
+    my ($self, $c) = @_;
+
+    $c->stash->{template} = 'evals.tt';
+
+    my $page = int($c->req->param('page') || "1") || 1;
+
+    my $resultsPerPage = 20;
+
+    my $evals = $c->stash->{build}->jobsetevals;
+
+    $c->stash->{page} = $page;
+    $c->stash->{resultsPerPage} = $resultsPerPage;
+    $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
+    $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
 }
 
 

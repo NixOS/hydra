@@ -384,7 +384,7 @@ BLOCK renderEvals %]
   <table class="tablesorter table table-condensed table-striped">
     <thead>
       <tr>
-        [% IF !jobset %]
+        [% IF !jobset && !build %]
           <th>Jobset</th>
         [% END %]
         <th>#</th>
@@ -398,7 +398,7 @@ BLOCK renderEvals %]
         eval = e.eval;
         link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]
         <tr class="clickable" onclick="window.location = '[% link %]'">
-          [% IF !jobset %]
+          [% IF !jobset && !build %]
             <td>[% INCLUDE renderFullJobsetName project=eval.get_column('project') jobset=eval.get_column('jobset') %]</td>
           [% END %]
           <td><a href="[% link %]">[% eval.id %]</a></td>

@@ -112,7 +112,7 @@
                 <th>Part of:</th>
                 <td>
                   <a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">evaluation [% eval.id %]</a>
-                  [% IF nrEvals > 1 +%] (and [% nrEvals - 1 %] others)[% END %]
+                  [% IF nrEvals > 1 +%] (and <a href="[% c.uri_for('/build' build.id 'evals') %]">[% nrEvals - 1 %] others</a>)[% END %]
                 </td>
               </tr>
             [% END %]

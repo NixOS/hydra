@@ -1,4 +1,7 @@
-[% WRAPPER layout.tt title=(jobset ? "Evaluations of jobset $project.name:$jobset.name" : "Latest evaluations") %]
+[% WRAPPER layout.tt title=
+    (build ? "Evaluations containing build $build.id" :
+     jobset ? "Evaluations of jobset $project.name:$jobset.name" :
+     "Latest evaluations") %]
 [% PROCESS common.tt %]
 
 <p>Showing evaluations [% (page - 1) * resultsPerPage + 1 %] - [%
