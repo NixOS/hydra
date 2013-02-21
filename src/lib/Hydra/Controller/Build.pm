@@ -91,6 +91,11 @@ sub view_build : Chained('build') PathPart('') Args(0) {
         ];
     }
 
+    # Get the first eval of which this build was a part.
+    ($c->stash->{eval}) = $c->stash->{build}->jobsetevals->search(
+        { hasnewbuilds => 1},
+        { limit => 1, order_by => ["id"] });
+
     my $maxRelated = 100;
     my $r = $c->model('DB::Builds')->search(
         { eval => { -in => $build->jobsetevalmembers->search({}, {rows => 1})->get_column('eval')->as_query } },

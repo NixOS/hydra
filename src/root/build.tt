@@ -97,6 +97,12 @@
               <th>System:</th>
               <td><tt>[% build.system %]</tt></td>
             </tr>
+            [% IF eval %]
+              <tr>
+                <th>Part of:</th>
+                <td><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">evaluation [% eval.id %]</a></td>
+              </tr>
+            [% END %]
             [% IF build.releasename %]
               <tr>
                 <th>Release name:</th>

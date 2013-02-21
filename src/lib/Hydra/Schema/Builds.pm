@@ -482,6 +482,12 @@ __PACKAGE__->has_many(
   { "foreign.build" => "self.id" },
 );
 
+__PACKAGE__->has_many(
+  "evals",
+  "Hydra::Schema::BuildInputs",
+  { "foreign.build" => "self.id" },
+);
+
 #__PACKAGE__->has_one(
 #  "actualBuildStep",
 #  "Hydra::Schema::BuildSteps",
@@ -489,6 +495,8 @@ __PACKAGE__->has_many(
 #  , 'foreign.build' => 'self.id'
 #  },
 #);
+
+__PACKAGE__->many_to_many("jobsetevals", "jobsetevalmembers", "eval");
 
 sub makeSource {
     my ($name, $query) = @_;
