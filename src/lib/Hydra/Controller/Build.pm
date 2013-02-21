@@ -96,14 +96,6 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     ($c->stash->{eval}) = $c->stash->{build}->jobsetevals->search(
         { hasnewbuilds => 1},
         { limit => 1, order_by => ["id"] });
-
-    my $maxRelated = 100;
-    my $r = $c->model('DB::Builds')->search(
-        { eval => { -in => $build->jobsetevalmembers->search({}, {rows => 1})->get_column('eval')->as_query } },
-        { join => 'jobsetevalmembers', order_by => [ 'project', 'jobset', 'job'], distinct => 1, rows => $maxRelated + 1 }
-    );
-    $c->stash->{relatedbuilds} = [$r->all];
-    delete $c->stash->{relatedbuilds} if scalar(@{$c->stash->{relatedbuilds}}) > $maxRelated;
 }
 
 
