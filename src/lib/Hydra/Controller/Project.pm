@@ -34,7 +34,7 @@ sub edit : Chained('project') PathPart Args(0) {
 
     requireProjectOwner($c, $c->stash->{project});
 
-    $c->stash->{template} = 'project.tt';
+    $c->stash->{template} = 'edit-project.tt';
     $c->stash->{edit} = 1;
 }
 
@@ -99,7 +99,7 @@ sub create : Path('/create-project') {
 
     requireMayCreateProjects($c);
 
-    $c->stash->{template} = 'project.tt';
+    $c->stash->{template} = 'edit-project.tt';
     $c->stash->{create} = 1;
     $c->stash->{edit} = 1;
 }

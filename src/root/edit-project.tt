@@ -1,0 +1,57 @@
+[% WRAPPER layout.tt title=(create ? "New Project" : "Editing project $project.name") %]
+[% PROCESS common.tt %]
+
+<form action="[% IF create %][% c.uri_for('/create-project/submit') %][% ELSE %][% c.uri_for('/project' project.name 'submit') %][% END %]" method="post">
+
+  <table class="layoutTable">
+    <tr>
+      <th>Identifier:</th>
+      <td><tt>[% INCLUDE editString param="name" value=project.name %]</tt></td>
+    </tr>
+    <tr>
+      <th>Display name:</th>
+      <td>[% INCLUDE editString param="displayname" value=project.displayname %]</td>
+    </tr>
+    <tr>
+      <th>Description:</th>
+      <td>[% INCLUDE editString param="description" value=project.description %]</td>
+    </tr>
+    <tr>
+      <th>Homepage:</th>
+      <td>
+        [% INCLUDE editString param="homepage" value=project.homepage %]
+      </td>
+    </tr>
+    <tr>
+      <th>Owner:</th>
+      <td><tt>[% INCLUDE editString param="owner" value=(project.owner.username || c.user.username) %]</tt></td>
+    </tr>
+    <tr>
+      <th>Enabled:</th>
+      <td>
+        [% INCLUDE renderSelection param="enabled" curValue=project.enabled radiobuttons=1 options={"1" = "Yes", "0" = "No"} %]
+      </td>
+    </tr>
+  </table>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">
+      <i class="icon-ok icon-white"></i>
+      [%IF create %]Create[% ELSE %]Apply changes[% END %]
+    </button>
+    [% IF !create %]
+      <button id="delete-project" type="submit" class="btn btn-danger" name="submit" value="delete">
+        <i class="icon-trash icon-white"></i>
+        Delete this project
+      </button>
+      <script type="text/javascript">
+        $("#delete-project").click(function() {
+          return confirm("Are you sure you want to delete this project?");
+        });
+      </script>
+    [% END %]
+  </div>
+
+</form>
+
+[% END %]

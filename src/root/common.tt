@@ -236,6 +236,15 @@ BLOCK maybeEditString;
 END;
 
 
+BLOCK editString;
+  IF edit %]
+    <input type="text" class="string" [% HTML.attributes(id => param, name => param, value => value) %] />
+  [% ELSE;
+    HTML.escape(value);
+  END;
+END;
+
+
 BLOCK renderFullBuildLink;
   INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>[%
 END;

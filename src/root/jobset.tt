@@ -22,7 +22,7 @@
   <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
     <td>
       [% IF edit %]<button type="button" class="btn btn-warning" onclick='$(this).parents(".input").remove()'><i class="icon-trash icon-white"></i></button>[% END %]
-      <tt>[% INCLUDE maybeEditString param="$baseName-name" value=input.name extraClass="shortString" %]</tt>
+      <tt>[% INCLUDE maybeEditString param="$baseName-name" value=input.name %]</tt>
     </td>
     <td>
       [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
@@ -143,8 +143,8 @@
                           <tr>
                             <th>Nix expression:</th>
                             <td>
-                              <tt>[% INCLUDE maybeEditString param="nixexprpath" value=jobset.nixexprpath extraClass="shortString" %]</tt> in input
-                              <tt>[% INCLUDE maybeEditString param="nixexprinput" value=jobset.nixexprinput extraClass="shortString" %]</tt>
+                              <tt>[% INCLUDE maybeEditString param="nixexprpath" value=jobset.nixexprpath %]</tt> in input
+                              <tt>[% INCLUDE maybeEditString param="nixexprinput" value=jobset.nixexprinput %]</tt>
                             </td>
                           </tr>
                           <tr>
