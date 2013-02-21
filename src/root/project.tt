@@ -40,7 +40,7 @@
                   <img src="/static/images/error_16.png" alt="All Failed" />
                 [% END %]
               </td>
-              <td>[% INCLUDE renderJobsetName project = project.name jobset = j.name %]</td>
+              <td><span class="[% IF !j.enabled %]disabled-jobset[% END %] [%+ IF j.hidden %]hidden-jobset[% END %]">[% INCLUDE renderJobsetName project = project.name jobset = j.name %]</span></td>
               <td>[% HTML.escape(j.description) %]</td>
               <td>[% INCLUDE renderDateTime timestamp = j.lastcheckedtime %]</td>
               [% IF j.get_column('nrtotal') > 0 %]

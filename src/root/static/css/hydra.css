@@ -34,3 +34,11 @@ span:target > span.dep-tree-line {
     margin-top: -40px;
     display: inline-block; /* required for webkit browsers */
 }
+
+span.disabled-project, span.disabled-jobset {
+    text-decoration: line-through;
+}
+
+span.hidden-project a, span.hidden-jobset a {
+    color: gray;
+}

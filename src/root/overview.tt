@@ -27,7 +27,7 @@
     [% FOREACH p IN projects %]
     <tr class="clickable [% IF odd %] odd [% END; odd = !odd %]"
         onclick="window.location = '[% c.uri_for('/project' p.name) %]'">
-      <td>[% INCLUDE renderProjectName project = p.name %]</td>
+      <td><span class="[% IF !p.enabled %]disabled-project[% END %] [%+ IF p.hidden %]hidden-project[% END %]">[% INCLUDE renderProjectName project = p.name %]</span></td>
       <td>[% HTML.escape(p.displayname) %]</td>
       <td>[% WRAPPER maybeLink uri=p.homepage %][% HTML.escape(p.description) %][% END %]</td>
     </tr>
