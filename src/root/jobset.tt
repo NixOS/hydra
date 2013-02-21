@@ -41,22 +41,41 @@
 
 
 <ul class="nav nav-tabs">
-  <li class="active"><a href="#tabs-information" data-toggle="tab">Jobset</a></li>
+  <li class="active"><a href="#tabs-evaluations" data-toggle="tab">Evaluations</a></li>
   [% IF jobset.errormsg %]
     <li><a href="#tabs-errors" data-toggle="tab"><img src="/static/images/error_16.png" /> Evaluation errors</a></li>
   [% END %]
+  <li><a href="#tabs-status" data-toggle="tab">Job status</a></li>
   <li><a href="#tabs-jobs" data-toggle="tab">Jobs ([% activeJobs.size %])</a></li>
   <li><a href="#tabs-setup" data-toggle="tab">Configuration</a></li>
 </ul>
 
 <div id="generic-tabs" class="tab-content">
 
-  <div id="tabs-information" class="tab-pane active">
+  <div id="tabs-evaluations" class="tab-pane active">
+
+    <table class="layoutTable">
+      <tr>
+        <th>Last checked:</th>
+        <td>
+          [% IF jobset.lastcheckedtime %]
+            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %][% IF jobset.errormsg %]<em>, with evaluation errors!</em>[% ELSE %], <em>no evaluation errors</em>[% END %]
+          [% ELSE %]
+            <em>never</em>
+          [% END %]
+        </td>
+      </tr>
+    </table>
+
+    <br/>
 
     [% IF evals.size() > 0 %]
-      <h2>Most recent evaluations</h2>
       [% INCLUDE renderEvals linkToAll=c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name]) %]
     [% END %]
+
+  </div>
+
+  <div id="tabs-status" class="tab-pane">
 
     [% IF activeJobsStatus %]
       <h2>Status</h2>
@@ -102,7 +121,6 @@
   [% END %]
 
   <div id="tabs-setup" class="tab-pane">
-    <h2>Information</h2>
 
     <table class="layoutTable">
       <tr>
@@ -131,16 +149,6 @@
       <tr>
         <th>Number of builds to keep:</th>
         <td>[% jobset.keepnr %]</td>
-      </tr>
-      <tr>
-        <th>Last checked:</th>
-        <td>
-          [% IF jobset.lastcheckedtime %]
-            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %][% IF jobset.errormsg %]<em>, with errors!</em>[% ELSE %], <em>no errors</em>[% END %]
-          [% ELSE %]
-            <em>never</em>
-          [% END %]
-        </td>
       </tr>
     </table>
 
