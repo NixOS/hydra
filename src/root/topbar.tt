@@ -52,11 +52,6 @@
       [% IF c.user_exists %]
         <li class="divider"></li>
         [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit" %]
-        [% IF project.hidden %]
-          [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'unhide') title = "Unhide" %]
-        [% ELSE %]
-          [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'hide') title = "Hide" %]
-        [% END %]
         [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create jobset" %]
       [% END %]
     [% END %]

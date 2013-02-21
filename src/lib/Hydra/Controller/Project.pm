@@ -60,32 +60,6 @@ sub submit : Chained('project') PathPart Args(0) {
 }
 
 
-sub hide : Chained('project') PathPart Args(0) {
-    my ($self, $c) = @_;
-
-    requireProjectOwner($c, $c->stash->{project});
-
-    txn_do($c->model('DB')->schema, sub {
-        $c->stash->{project}->update({ hidden => 1, enabled => 0 });
-    });
-
-    $c->res->redirect($c->uri_for("/"));
-}
-
-
-sub unhide : Chained('project') PathPart Args(0) {
-    my ($self, $c) = @_;
-
-    requireProjectOwner($c, $c->stash->{project});
-
-    txn_do($c->model('DB')->schema, sub {
-        $c->stash->{project}->update({ hidden => 0 });
-    });
-
-    $c->res->redirect($c->uri_for("/"));
-}
-
-
 sub requireMayCreateProjects {
     my ($c) = @_;
 
@@ -187,7 +161,8 @@ sub updateProject {
         , displayname => $displayName
         , description => trim($c->request->params->{description})
         , homepage => trim($c->request->params->{homepage})
-        , enabled => trim($c->request->params->{enabled}) eq "1" ? 1 : 0
+        , enabled => defined $c->request->params->{enabled} ? 1 : 0
+        , hidden => defined $c->request->params->{visible} ? 0 : 1
         , owner => $owner
         });
 }
