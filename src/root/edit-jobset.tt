@@ -113,11 +113,11 @@
 
   </fieldset>
 
-  <table class="hidden">
+  <table style="display: none">
     [% INCLUDE renderInput input="" extraClass="template" id="input-template" baseName="input-template" %]
   </table>
 
-  <tt class="inputalt hidden" id="inputalt-template">
+  <tt class="inputalt" id="inputalt-template" style="display: none">
     [% INCLUDE renderInputAlt alt=alt %]
   </tt>
 
