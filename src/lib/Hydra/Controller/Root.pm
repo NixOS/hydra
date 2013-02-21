@@ -43,7 +43,7 @@ sub login :Local {
     my $username = $c->request->params->{username} || "";
     my $password = $c->request->params->{password} || "";
 
-    if ($username eq "" && $password eq "" && ! defined $c->flash->{referer}) {
+    if ($username eq "" && $password eq "" && !defined $c->flash->{referer}) {
         my $baseurl = $c->uri_for('/');
         my $refurl = $c->request->referer;
         $c->flash->{referer} = $refurl if $refurl =~ m/^($baseurl)/;
@@ -57,6 +57,8 @@ sub login :Local {
         }
         $c->stash->{errorMsg} = "Bad username or password.";
     }
+
+    $c->keep_flash("referer");
 
     $c->stash->{template} = 'login.tt';
 }

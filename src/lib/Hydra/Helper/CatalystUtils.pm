@@ -97,7 +97,6 @@ sub notFound {
 
 sub requireLogin {
     my ($c) = @_;
-    $c->flash->{afterLogin} = $c->request->uri;
     $c->response->redirect($c->uri_for('/login'));
     $c->detach; # doesn't return
 }
