@@ -110,7 +110,7 @@ sub create_jobset : Chained('project') PathPart('create-jobset') Args(0) {
 
     requireProjectOwner($c, $c->stash->{project});
 
-    $c->stash->{template} = 'jobset.tt';
+    $c->stash->{template} = 'edit-jobset.tt';
     $c->stash->{create} = 1;
     $c->stash->{edit} = 1;
 }

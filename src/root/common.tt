@@ -196,11 +196,6 @@ BLOCK maybeLink;
 END;
 
 
-BLOCK maybeButton;
-  IF uri %]<a class="btn btn-mini" [% HTML.attributes(href => uri); IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END; content %]</a>[% ELSE; content; END;
-END;
-
-
 BLOCK renderSelection;
   IF edit;
     IF radiobuttons; %]
@@ -227,21 +222,8 @@ BLOCK renderSelection;
 END;
 
 
-BLOCK maybeEditString;
-  IF edit %]
-    <input type="text" class="string [% extraClass %]" [% HTML.attributes(id => param, name => param, value => value) %] />
-  [% ELSE;
-    HTML.escape(value);
-  END;
-END;
-
-
-BLOCK editString;
-  IF edit %]
-    <input type="text" class="string" [% HTML.attributes(id => param, name => param, value => value) %] />
-  [% ELSE;
-    HTML.escape(value);
-  END;
+BLOCK editString; %]
+  <input type="text" class="string" [% HTML.attributes(id => param, name => param, value => value) %] />
 END;
 
 

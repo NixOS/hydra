@@ -8,12 +8,12 @@
     <div class="control-group">
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="enabled" value="enabled" [% IF project.enabled; 'checked="checked"'; END %]></input>Enabled
+          <input type="checkbox" name="enabled" [% IF project.enabled; 'checked="checked"'; END %]></input>Enabled
         </label>
       </div>
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="visible" value="visible" [% IF !project.hidden; 'checked="checked"'; END %]></input>Visible in the list of projects
+          <input type="checkbox" name="visible" [% IF !project.hidden; 'checked="checked"'; END %]></input>Visible in the list of projects
         </label>
       </div>
     </div>

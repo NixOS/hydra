@@ -1,28 +1,11 @@
-[% WRAPPER layout.tt title=(edit ? (create ? "Create jobset in project $project.name" : "Editing jobset $project.name:$jobset.name") : "Jobset $project.name:$jobset.name") %]
+[% WRAPPER layout.tt title="Jobset $project.name:$jobset.name" %]
 [% PROCESS common.tt %]
-
-[% IF edit %]
-  <form class="form-horizontal" action="[% IF create %][% c.uri_for('/project' project.name 'create-jobset/submit') %][% ELSE %][% c.uri_for('/jobset' project.name jobset.name 'submit') %][% END %]" method="post">
-[% END %]
-
-
-[% BLOCK renderInputAlt %]
-  [% IF edit %]
-    <button type="button" class="btn btn-warning" onclick='$(this).parents(".inputalt").remove()'><i class="icon-trash icon-white"></i></button>
-    [% INCLUDE maybeEditString param=param value=alt.value %]
-    <br />
-  [% ELSE %]
-    [% INCLUDE maybeEditString param=param value=alt.value %]
-  [% END %]
-[% END %]
 
 
 [% BLOCK renderInput %]
-
   <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
     <td>
-      [% IF edit %]<button type="button" class="btn btn-warning" onclick='$(this).parents(".input").remove()'><i class="icon-trash icon-white"></i></button>[% END %]
-      <tt>[% INCLUDE maybeEditString param="$baseName-name" value=input.name %]</tt>
+      <tt>[% HTML.escape(input.name) %]</tt>
     </td>
     <td>
       [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
@@ -30,230 +13,160 @@
     <td class="inputalts" id="[% baseName %]">
       [% FOREACH alt IN input.jobsetinputalts %]
         <tt class="inputalt">
-          [% IF input.type == "string" && !edit %]
+          [% IF input.type == "string" %]
             "[% HTML.escape(alt.value) %]"
           [% ELSE %]
-            [% INCLUDE renderInputAlt alt=alt param="$baseName-values" %]
+            [% HTML.escape(alt.value) %]
           [% END %]
         </tt>
       [% END %]
-      [% IF edit %]<button type="button" class="add-inputalt btn btn-success" onclick='return false'><i class="icon-plus icon-white"></i></button>[% END %]
     </td>
   </tr>
-
 [% END %]
 
 
 [% BLOCK renderInputs %]
-                <h3>Inputs</h3>
-
-                <table class="tablesorter table table-striped table-condensed">
-                  <thead>
-                    <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
-                  </thead>
-                  <tbody class="inputs">
-                    [% FOREACH input IN jobset.jobsetinputs %]
-                      [% INCLUDE renderInput input=input baseName="input-$input.name" %]
-                    [% END %]
-                    [% IF edit %]
-                      <tr>
-                        <td colspan="3" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="icon-plus icon-white"></i> Add a new input</button></td>
-                      </tr>
-                    [% END %]
-                  </tbody>
-                </table>
-
+  <h3>Inputs</h3>
+  <table class="tablesorter table table-striped table-condensed">
+    <thead>
+      <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
+    </thead>
+    <tbody class="inputs">
+      [% FOREACH input IN jobset.jobsetinputs %]
+        [% INCLUDE renderInput input=input baseName="input-$input.name" %]
+      [% END %]
+    </tbody>
+  </table>
 [% END %]
 
 
-        <ul class="nav nav-tabs">
-                [% IF !edit %]
-                        <li class="active"><a href="#tabs-information" data-toggle="tab">Jobset</a></li>
-                [% IF jobset.errormsg %]<li><a href="#tabs-errors" data-toggle="tab"><img src="/static/images/error_16.png" /> Evaluation errors</a></li>[% END %]
-                        <li><a href="#tabs-jobs" data-toggle="tab">Jobs ([% activeJobs.size %])</a></li>
-                [% END %]
-                <li><a href="#tabs-setup" data-toggle="tab">Setup</a></li>
-        </ul>
+<ul class="nav nav-tabs">
+  <li class="active"><a href="#tabs-information" data-toggle="tab">Jobset</a></li>
+  [% IF jobset.errormsg %]
+    <li><a href="#tabs-errors" data-toggle="tab"><img src="/static/images/error_16.png" /> Evaluation errors</a></li>
+  [% END %]
+  <li><a href="#tabs-jobs" data-toggle="tab">Jobs ([% activeJobs.size %])</a></li>
+  <li><a href="#tabs-setup" data-toggle="tab">Configuration</a></li>
+</ul>
 
 <div id="generic-tabs" class="tab-content">
-        <div id="tabs-information" class="tab-pane active">
-                [% IF !edit && evals.size() > 0 %]
-                    <h2>Most recent evaluations</h2>
-                    [% INCLUDE renderEvals linkToAll=c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name]) %]
-                [% END %]
-                [% IF !edit && activeJobsStatus %]
-                    <h2>Status</h2>
-                    <table class="table table-striped table-condensed">
-                      <thead><tr><th>Job</th>[% FOREACH s IN systems %]<th>[% s.system %]</th>[% END %]</tr></thead>
-                      <tbody>
-                [% odd = 0 %]
-                        [% FOREACH j IN activeJobsStatus %]
-                          <tr class="[% IF odd %] odd [% END; odd = !odd %]">
-                             <td>[% INCLUDE renderJobName project=project.name jobset = jobset.name job = j.get_column('job') %]</td>
-                             [% FOREACH s IN systems %]
-                       [% system = s.system %]
-                       [% systemStatus = j.get_column(system) %]
-                               <td class="centered">
-                                  [% IF systemStatus != undef %]
-                                     <a href="[% c.uri_for('/build' j.get_column(system _ '-build') ) %]">
-                                     [% INCLUDE renderBuildStatusIcon buildstatus=systemStatus size=16 %]
-                                 </a>
-                               [% END %]
-                               </td>
-                             [% END %]
-                          </tr>
-                        [% END %]
-                      </tbody>
-                    </table>
-                [% END %]
-                [% IF !edit && !activeJobsStatus %]
-                    <h2>Status</h2>
-                        <p>
-                                [ <a href="[% c.uri_for('/jobset' project.name jobset.name 'with-status' ) %]">Show status overview</a> ]
-                        </p>
-                [% END %]
 
-        </div>
-        [% IF !edit %]
+  <div id="tabs-information" class="tab-pane active">
 
-                [% IF jobset.errormsg %]
-                <div id="tabs-errors" class="tab-pane">
-                  <h2>Evaluation errors</h2>
-                  <p>
-                  Errors occurred at <tt>[% INCLUDE renderDateTime timestamp=jobset.errortime %]</tt>.
-                  </p>
-                  <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
-                </div>
-                [% END %]
-        [% END %]
-                <div id="tabs-setup" class="tab-pane [% IF edit %]active[% END %]">
-                        <h2>Information</h2>
+    [% IF evals.size() > 0 %]
+      <h2>Most recent evaluations</h2>
+      [% INCLUDE renderEvals linkToAll=c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name]) %]
+    [% END %]
 
-                        <table class="layoutTable">
-                          [% IF edit %]
-                          <tr>
-                            <th>Identifier:</th>
-                            <td>[% INCLUDE maybeEditString param="name" value=jobset.name %]</td>
-                          </tr>
-                          [% END %]
-                          <tr>
-                            <th>Description:</th>
-                            <td>[% INCLUDE maybeEditString param="description" value=jobset.description %]</td>
-                          </tr>
-                          <tr>
-                            <th>Nix expression:</th>
-                            <td>
-                              <tt>[% INCLUDE maybeEditString param="nixexprpath" value=jobset.nixexprpath %]</tt> in input
-                              <tt>[% INCLUDE maybeEditString param="nixexprinput" value=jobset.nixexprinput %]</tt>
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>Enabled:</th>
-                            <td>
-                              [% INCLUDE renderSelection param="enabled" curValue=jobset.enabled radiobuttons=1 options={"1" = "Yes", "0" = "No"} %]
-                            </td>
-                          </tr>
-                          <tr>
-                            <th>Enable email notification:</th>
-                            <td>
-                              [% INCLUDE renderSelection param="enableemail" curValue=jobset.enableemail radiobuttons=1 options={"1" = "Yes", "0" = "No"} %]
-                            </td>
-                          </tr>
-              <tr>
-                <th>Email override:</th>
-                <td>
-                  [% INCLUDE maybeEditString param="emailoverride" value=jobset.emailoverride %]
+    [% IF activeJobsStatus %]
+      <h2>Status</h2>
+      <table class="table table-striped table-condensed">
+        <thead><tr><th>Job</th>[% FOREACH s IN systems %]<th>[% s.system %]</th>[% END %]</tr></thead>
+        <tbody>
+          [% odd = 0 %]
+          [% FOREACH j IN activeJobsStatus %]
+            <tr class="[% IF odd %] odd [% END; odd = !odd %]">
+              <td>[% INCLUDE renderJobName project=project.name jobset = jobset.name job = j.get_column('job') %]</td>
+              [% FOREACH s IN systems %]
+                [% system = s.system %]
+                [% systemStatus = j.get_column(system) %]
+                <td class="centered">
+                  [% IF systemStatus != undef %]
+                    <a href="[% c.uri_for('/build' j.get_column(system _ '-build') ) %]">
+                      [% INCLUDE renderBuildStatusIcon buildstatus=systemStatus size=16 %]
+                    </a>
+                  [% END %]
                 </td>
-              </tr>
-              <tr>
-                <th>Number of builds to keep:</th>
-                <td>
-                  [% INCLUDE maybeEditString param="keepnr" value=jobset.keepnr %]
-                </td>
-              </tr>
-                          [% IF !edit %]
-                          <tr>
-                            <th>Last checked:</th>
-                            <td>
-                              [% IF jobset.lastcheckedtime %]
-                                [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %][% IF jobset.errormsg %]<em>, with errors!</em>
-                                [% ELSE %], <em>no errors</em>
-                                [% END %]
-                              [% ELSE %]
-                                <em>never</em>
-                              [% END %]
-                            </td>
-                          </tr>
-                          [% END %]
-                        </table>
+              [% END %]
+            </tr>
+          [% END %]
+        </tbody>
+      </table>
+    [% ELSE %]
+      <h2>Status</h2>
+      <p>
+        [ <a href="[% c.uri_for('/jobset' project.name jobset.name 'with-status' ) %]">Show status overview</a> ]
+      </p>
+    [% END %]
 
-
-                        [% INCLUDE renderInputs %]
-                </div>
-        [% IF !edit %]
-                <div id="tabs-jobs" class="tab-pane">
-
-                        <h2>Jobs</h2>
-
-                        <p>This jobset currently contains the following [% activeJobs.size %] jobs:
-
-                          <blockquote>
-                            [% IF activeJobs.size == 0 %]<em>(none)</em>[% END %]
-                            [% FOREACH j IN activeJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]
-                          </blockquote>
-                        </p>
-
-                        <p>This jobset used to contain the following [% inactiveJobs.size %] jobs:
-
-                          <blockquote>
-                            [% IF inactiveJobs.size == 0 %]<em>(none)</em>[% END %]
-                            [% FOREACH j IN inactiveJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]
-                          </blockquote>
-
-                        </p>
-
-                </div>
-        [% END %]
-
-</div>
-
-[% IF edit %]
-
-  <table class="template"> <!-- dummy wrapper needed because “hidden” trs are visible anyway -->
-    [% INCLUDE renderInput input="" extraClass="template" id="input-template" baseName="input-template" %]
-  </table>
-
-  <tt class="inputalt template" id="inputalt-template">
-    [% INCLUDE renderInputAlt alt=alt %]
-  </tt>
-
-  <script type="text/javascript">
-    $(document).ready(function() {
-      var id = 0;
-
-      $(".add-input").click(function() {
-        var newid = "input-" + id++;
-        var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
-        $("#input-template-name", x).attr("name", newid + "-name");
-        $("#input-template-type", x).attr("name", newid + "-type");
-        $("#input-template", x).attr("id", newid);
-        return false;
-      });
-
-      $(".add-inputalt").click(function() {
-        var x = $("#inputalt-template").clone(true).insertBefore($(this)).attr("id", "").show();
-        $("input", x).attr("name", x.parents(".inputalts").attr("id") + "-values");
-      });
-    });
-  </script>
-
-  <div class="form-actions">
-    <button type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create %]Create[% ELSE %]Apply changes[% END %]</button>
   </div>
 
-  </form>
+  [% IF jobset.errormsg %]
+    <div id="tabs-errors" class="tab-pane">
+      <h2>Evaluation errors</h2>
+      <p>
+        Errors occurred at <tt>[% INCLUDE renderDateTime timestamp=jobset.errortime %]</tt>.
+      </p>
+      <pre class="multiLineMsg error">[% HTML.escape(jobset.errormsg) %]</pre>
+    </div>
+  [% END %]
 
-[% END %]
+  <div id="tabs-setup" class="tab-pane">
+    <h2>Information</h2>
 
+    <table class="layoutTable">
+      <tr>
+        <th>Description:</th>
+        <td>[% HTML.escape(jobset.description) %]</td>
+      </tr>
+      <tr>
+        <th>Nix expression:</th>
+        <td>
+          <tt>[% HTML.escape(jobset.nixexprpath) %]</tt> in input
+          <tt>[% HTML.escape(jobset.nixexprinput) %]</tt>
+        </td>
+      </tr>
+      <tr>
+        <th>Enabled:</th>
+        <td>[% jobset.enabled ? "Yes" : "No" %]</td>
+      </tr>
+      <tr>
+        <th>Enable email notification:</th>
+        <td>[% jobset.enableemail ? "Yes" : "No" %]</td>
+      </tr>
+      <tr>
+        <th>Email override:</th>
+        <td>[% HTML.escape(jobset.emailoverride) %]</td>
+      </tr>
+      <tr>
+        <th>Number of builds to keep:</th>
+        <td>[% jobset.keepnr %]</td>
+      </tr>
+      <tr>
+        <th>Last checked:</th>
+        <td>
+          [% IF jobset.lastcheckedtime %]
+            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %][% IF jobset.errormsg %]<em>, with errors!</em>[% ELSE %], <em>no errors</em>[% END %]
+          [% ELSE %]
+            <em>never</em>
+          [% END %]
+        </td>
+      </tr>
+    </table>
+
+    [% INCLUDE renderInputs %]
+  </div>
+
+  <div id="tabs-jobs" class="tab-pane">
+
+    <p>This jobset currently contains the following [% activeJobs.size %] jobs:
+
+      <blockquote>
+        [% IF activeJobs.size == 0 %]<em>(none)</em>[% END %]
+        [% FOREACH j IN activeJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]
+      </blockquote>
+    </p>
+
+    <p>This jobset used to contain the following [% inactiveJobs.size %] jobs:
+
+      <blockquote>
+        [% IF inactiveJobs.size == 0 %]<em>(none)</em>[% END %]
+        [% FOREACH j IN inactiveJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]
+      </blockquote>
+    </p>
+
+  </div>
+
+</div>
 
 [% END %]

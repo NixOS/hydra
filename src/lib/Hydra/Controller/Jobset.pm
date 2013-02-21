@@ -115,7 +115,7 @@ sub edit : Chained('jobset') PathPart Args(0) {
 
     requireProjectOwner($c, $c->stash->{project});
 
-    $c->stash->{template} = 'jobset.tt';
+    $c->stash->{template} = 'edit-jobset.tt';
     $c->stash->{edit} = 1;
 }
 
@@ -235,8 +235,8 @@ sub updateJobset {
         , description => trim($c->request->params->{"description"})
         , nixexprpath => $nixExprPath
         , nixexprinput => $nixExprInput
-        , enabled => trim($c->request->params->{enabled}) eq "1" ? 1 : 0
-        , enableemail => trim($c->request->params->{enableemail}) eq "1" ? 1 : 0
+        , enabled => defined $c->request->params->{enabled} ? 1 : 0
+        , enableemail => defined $c->request->params->{enableemail} ? 1 : 0
         , emailoverride => trim($c->request->params->{emailoverride}) || ""
         , keepnr => trim($c->request->params->{keepnr}) || 3
         });
