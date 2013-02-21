@@ -1,12 +1,8 @@
 [% WRAPPER layout.tt title=(httpStatus ? httpStatus : "Error") %]
 [% USE HTML %]
 
-<p>I'm very sorry, but the following error(s) occurred:</p>
-
-<ul>
 [% FOREACH error IN errors %]
-<li><div class="error-msg">[% HTML.escape(error) %]</div></li>
+   <div class="alert alert-error">[% HTML.escape(error) %]</div>
 [% END %]
-</ul>
 
 [% END %]

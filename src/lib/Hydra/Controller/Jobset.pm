@@ -49,7 +49,7 @@ sub jobsetIndex {
         }
     }
 
-    $c->stash->{evals} = getEvals($self, $c, 0, 10);
+    $c->stash->{evals} = getEvals($self, $c, scalar $c->stash->{jobset}->jobsetevals, 0, 10);
 
     $c->stash->{systems} =
         [ $c->stash->{jobset}->builds->search({ iscurrent => 1 }, { select => ["system"], distinct => 1, order_by => "system" }) ];
@@ -303,77 +303,21 @@ sub clone_submit : Chained('jobset') PathPart('clone/submit') Args(0) {
 }
 
 
-sub getEvals {
-    my ($self, $c, $offset, $rows) = @_;
-
-    my @evals = $c->stash->{jobset}->jobsetevals->search(
-        { hasnewbuilds => 1 },
-        { order_by => "id DESC", rows => $rows + 1, offset => $offset });
-
-    my @res = ();
-    my $prevInputs = [];
-    my $prev;
-    for (my $n = scalar @evals - 1; $n >= 0; $n--) {
-        my $cur = $evals[$n];
-
-        # Get stats for this eval.
-        my $nrScheduled;
-        my $nrSucceeded = $cur->nrsucceeded;
-        if (defined $nrSucceeded) {
-            $nrScheduled = 0;
-        } else {
-            $nrScheduled = $cur->builds->search({finished => 0})->count;
-            $nrSucceeded = $cur->builds->search({finished => 1, buildStatus => 0})->count;
-            if ($nrScheduled == 0) {
-                $cur->update({nrsucceeded => $nrSucceeded});
-            }
-        }
-
-        # Compute what inputs changed between each eval.
-        my $curInputs = [ $cur->jobsetevalinputs->search(
-            { -or => [ -and => [ uri => { '!=' => undef }, revision => { '!=' => undef }], dependency => { '!=' => undef }], altNr => 0 },
-            { order_by => "name" }) ];
-        my @changedInputs;
-        my %prevInputsHash;
-        $prevInputsHash{$_->name} = $_ foreach @{$prevInputs};
-        foreach my $input (@{$curInputs}) {
-            my $p = $prevInputsHash{$input->name};
-            push @changedInputs, $input
-                if !defined $p || ($input->revision || "") ne ($p->revision || "") || $input->type ne $p->type || ($input->uri || "") ne ($p->uri || "") ||
-                   ( defined $input->dependency && defined $p->dependency && $input->dependency->id ne $p->dependency->id);
-        }
-        $prevInputs = $curInputs;
-
-        my $e =
-            { eval => $cur
-            , nrScheduled => $nrScheduled
-            , nrSucceeded => $nrSucceeded
-            , nrFailed => $cur->nrbuilds - $nrSucceeded - $nrScheduled
-            , diff => defined $prev ? $nrSucceeded - $prev->{nrSucceeded} : 0
-            , changedInputs => [ @changedInputs ]
-            };
-        push @res, $e if $n < $rows;
-        $prev = $e;
-    }
-
-    return [reverse @res];
-}
-
-
 sub evals : Chained('jobset') PathPart('evals') Args(0) {
     my ($self, $c) = @_;
 
-    $c->stash->{template} = 'jobset-evals.tt';
+    $c->stash->{template} = 'evals.tt';
 
     my $page = int($c->req->param('page') || "1") || 1;
 
     my $resultsPerPage = 20;
 
+    my $evals = $c->stash->{jobset}->jobsetevals;
+
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
-    $c->stash->{total} = $c->stash->{jobset}->jobsetevals->search({hasnewbuilds => 1})->count;
-
-    $c->stash->{evals} = getEvals($self, $c, ($page - 1) * $resultsPerPage, $resultsPerPage)
+    $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
+    $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
 }
 
 

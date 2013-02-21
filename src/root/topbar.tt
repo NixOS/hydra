@@ -37,6 +37,9 @@
        uri = c.uri_for(c.controller('Root').action_for('machines'))
        title = "Machine status" %]
     [% INCLUDE makeLink
+       uri = c.uri_for(c.controller('Root').action_for('evals'))
+       title = "Latest evaluations" %]
+    [% INCLUDE makeLink
        uri = c.uri_for(c.controller('Root').action_for('all'))
        title = "Latest builds" %]
   [% END %]

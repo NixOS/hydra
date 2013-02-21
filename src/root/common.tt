@@ -384,10 +384,13 @@ BLOCK renderEvals %]
   <table class="tablesorter table table-condensed table-striped">
     <thead>
       <tr>
+        [% IF !jobset %]
+          <th>Jobset</th>
+        [% END %]
         <th>#</th>
-        <th>Date</th>
+        <th style="width: 10em">Date</th>
         <th>Input changes</th>
-        <th colspan='2'>Success</th>
+        <th colspan='2' style="width: 25em">Success</th>
       </tr>
     </thead>
     <tbody>
@@ -395,6 +398,9 @@ BLOCK renderEvals %]
         eval = e.eval;
         link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]
         <tr class="clickable" onclick="window.location = '[% link %]'">
+          [% IF !jobset %]
+            <td>[% INCLUDE renderFullJobsetName project=eval.get_column('project') jobset=eval.get_column('jobset') %]</td>
+          [% END %]
           <td><a href="[% link %]">[% eval.id %]</a></td>
           <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]</td>
           <td>
@@ -402,7 +408,7 @@ BLOCK renderEvals %]
               sep='';
               FOREACH input IN e.changedInputs;
                 sep; %] [% input.name %] → [% INCLUDE renderShortEvalInput input=input;
-                sep=',';
+                sep=', ';
               END;
             ELSE %]
              -
