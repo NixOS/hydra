@@ -51,13 +51,13 @@
       [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'channel' 'latest') title = "Channel" %]
       [% IF c.user_exists %]
         <li class="divider"></li>
-        [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit configuration" %]
-        [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create new jobset" %]
+        [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit" %]
         [% IF project.hidden %]
           [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'unhide') title = "Unhide" %]
         [% ELSE %]
           [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'hide') title = "Hide" %]
         [% END %]
+        [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create jobset" %]
       [% END %]
     [% END %]
   [% END %]
@@ -83,7 +83,7 @@
       [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'channel' 'latest') title = "Channel" %]
       [% IF c.user_exists %]
         <li class="divider"></li>
-        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit configuration" %]
+        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit" %]
 
         <form id="delete-jobset" method="post" action="[% c.uri_for('/jobset' project.name jobset.name 'delete') %]" class="hidden"></form>
         <script>
@@ -162,6 +162,10 @@
 
   [% IF c.user_exists && c.check_user_roles('admin') %]
     [% WRAPPER makeSubMenu title="Admin" %]
+      [% IF c.check_user_roles('admin') %]
+        [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create')) title = "Create project" %]
+        <li class="divider"></li>
+      [% END %]
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Admin').action_for('machines'))
         title = "Manage machines" %]
@@ -182,10 +186,6 @@
         content = "Clear all non-running old builds from queue"
         confirmmsg = "Are you sure you want to clear the queue?"
         class = "" %]
-      <li class="divider"></li>
-      [% IF c.check_user_roles('admin') %]
-        [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create')) title = "Create new project" %]
-      [% END %]
     [% END %]
   [% END %]
 

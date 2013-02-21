@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title=(create ? "New Project" : "Editing project $project.name") %]
+[% WRAPPER layout.tt title=(create ? "New project" : "Editing project $project.name") %]
 [% PROCESS common.tt %]
 
 <form action="[% IF create %][% c.uri_for('/create-project/submit') %][% ELSE %][% c.uri_for('/project' project.name 'submit') %][% END %]" method="post">
