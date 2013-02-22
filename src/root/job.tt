@@ -1,10 +1,9 @@
-[% WRAPPER layout.tt title="Job ‘$project.name:$jobset.name:$job.name’" %]
+[% WRAPPER layout.tt title="Job $project.name:$jobset.name:$job.name" %]
 [% PROCESS common.tt %]
 [% hideProjectName=1 hideJobsetName=1 hideJobName=1 %]
 
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-status" data-toggle="tab">Status</a></li>
-  <li><a href="#tabs-channels" data-toggle="tab">Channels</a></li>
   <li><a href="#tabs-latestbuilds" data-toggle="tab">Latest builds</a></li>
 </ul>
 
@@ -25,23 +24,11 @@
     [% END %]
   </div>
 
-  <div id="tabs-channels" class="tab-pane">
-    <p>This job provides the following Nix channel:</p>
-    <ul>
-      <li>
-        <a href="[% c.uri_for('/job' project.name jobset.name job.name
-                 'channel' 'latest') %]"><tt>latest</tt></a> — contains the latest
-        successful build for each platform.
-      </li>
-    </ul>
-  </div>
-
   <div id="tabs-latestbuilds" class="tab-pane">
     <ul>
-      <li><a href="[% c.uri_for('/job' project.name jobset.name job.name
-                   'latest') %]">Latest successful build.</a></li>
+      <li><a href="[% c.uri_for('/job' project.name jobset.name job.name 'latest') %]">Latest successful build</a></li>
       [% FOREACH system IN systems %]
-        <li><a href="[% c.uri_for('/job' project.name jobset.name job.name 'latest-for' system.system) %]">Latest successful build for <tt>[% system.system %]</tt>.</a></li>
+        <li><a href="[% c.uri_for('/job' project.name jobset.name job.name 'latest-for' system.system) %]">Latest successful build for <tt>[% system.system %]</tt></a></li>
       [% END %]
     </ul>
   </div>

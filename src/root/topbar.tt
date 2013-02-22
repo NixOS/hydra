@@ -115,6 +115,8 @@
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Job').action_for('errors'), [project.name, jobset.name, job.name])
         title = "Errors" %]
+      <li class="divider"></li>
+      [% INCLUDE menuItem uri = c.uri_for('/job' project.name jobset.name job.name 'channel' 'latest') title = "Channel" %]
     [% END %]
   [% END %]
 
