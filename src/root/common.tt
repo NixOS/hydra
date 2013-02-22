@@ -34,17 +34,17 @@ BLOCK renderJobsetName %]
 
 
 BLOCK renderJobName %]
-<a href="[% c.uri_for('/job' project jobset job) %]"><tt>[% job %]</tt></a>
+<a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/job' project jobset job) %]"><tt>[% job %]</tt></a>
 [% END;
 
 
 BLOCK renderFullJobsetName %]
-<tt>[% INCLUDE renderProjectName %]:[% INCLUDE renderJobsetName %]</tt>
+<tt>[% INCLUDE renderProjectName inRow=0 %]:[% INCLUDE renderJobsetName %]</tt>
 [% END;
 
 
 BLOCK renderFullJobName %]
-<tt>[% IF !hideProjectName; INCLUDE renderProjectName %]:[% END; IF !hideJobsetName; INCLUDE renderJobsetName %]:[% END; INCLUDE renderJobName %]</tt>
+<tt>[% IF !hideProjectName; INCLUDE renderProjectName inRow=0 %]:[% END; IF !hideJobsetName; INCLUDE renderJobsetName inRow=0 %]:[% END; INCLUDE renderJobName %]</tt>
 [% END;
 
 
