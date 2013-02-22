@@ -205,6 +205,11 @@ BLOCK renderFullBuildLink;
 END;
 
 
+BLOCK renderBuildLink; %]
+<a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>
+[% END;
+
+
 BLOCK renderBuildStatusIcon;
   finished = build != undef ? build.finished : 1;
   busy = busy != undef ? busy : build.busy;

@@ -65,7 +65,7 @@
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
   <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
-  <li><a href="#tabs-buildinputs" data-toggle="tab">Build inputs</a></li>
+  <li><a href="#tabs-buildinputs" data-toggle="tab">Inputs</a></li>
   [% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
   [% IF build.dependents %]<li><a href="#tabs-usedby" data-toggle="tab">Used by</a></li>[% END%]
   [% IF prevBuilds %]<li><a href="#tabs-history" data-toggle="tab">History chart</a></li>[% END %]
@@ -174,6 +174,7 @@
     [% END %]
 
     [% IF build.finished %]
+
       [% IF build.buildsteps && build.buildstatus != 0 && build.buildstatus != 6 %]
         <h3>Failed build steps</h3>
         [% INCLUDE renderBuildSteps type="Failed" %]
@@ -194,13 +195,17 @@
             </th>
           </thead>
           <tr>
-            <td valign="center">[% INCLUDE renderBuildStatusIcon build=prevSuccessfulBuild size=32 %] [% INCLUDE renderFullBuildLink build=prevSuccessfulBuild, hideProjectName=1, hideJobsetName=1  %]</td>
-            [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]<td valign="center">[% INCLUDE renderBuildStatusIcon build=firstBrokenBuild size=32 %] [% INCLUDE renderFullBuildLink build=firstBrokenBuild, hideProjectName=1, hideJobsetName=1  %]</td>[% END %]
-            <td>[% INCLUDE renderBuildStatusIcon build=build size=32 %] [% INCLUDE renderFullBuildLink build=build, hideProjectName=1, hideJobsetName=1  %]</td>
+            <td valign="center">[% INCLUDE renderBuildStatusIcon build=prevSuccessfulBuild size=32 %] [% INCLUDE renderBuildLink build=prevSuccessfulBuild %]</td>
+            [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]
+              <td valign="center">[% INCLUDE renderBuildStatusIcon build=firstBrokenBuild size=32 %] [% INCLUDE renderBuildLink build=firstBrokenBuild %]</td>
+            [% END %]
+            <td>[% INCLUDE renderBuildStatusIcon build=build size=32 %] [% INCLUDE renderBuildLink build=build %]</td>
           </tr>
           <tr>
             <td></td>
-            [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]<td>[% INCLUDE renderInputDiff build1=prevSuccessfulBuild , build2=firstBrokenBuild %]</td>[% END %]
+            [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]
+              <td>[% INCLUDE renderInputDiff build1=prevSuccessfulBuild build2=firstBrokenBuild %]</td>
+            [% END %]
             <td>[% INCLUDE renderInputDiff build1=prevSuccessfulBuild , build2=build %]</td>
           </tr>
         </table>
@@ -332,8 +337,8 @@
     <br />
 
     [% IF prevBuild %]
-      <h3>Changes since previous build: [% INCLUDE renderFullBuildLink build=prevBuild, hideProjectName=1, hideJobsetName=1 %]</h3>
-      [% INCLUDE renderInputDiff build2=build , build1=prevBuild %]
+      <h3>Changes since previous [% INCLUDE renderBuildLink build=prevBuild %]</h3>
+      [% INCLUDE renderInputDiff build2=build, build1=prevBuild %]
     [% END %]
 
   </div>
