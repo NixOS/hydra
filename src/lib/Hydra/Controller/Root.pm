@@ -310,6 +310,8 @@ sub search :Local Args(0) {
     error($c, "Invalid character in query.")
         unless $query =~ /^[a-zA-Z0-9_\-]+$/;
 
+    $c->stash->{limit} = 500;
+
     $c->stash->{projects} = [ $c->model('DB::Projects')->search(
         { -and =>
             [ { -or => [ name => { ilike => "%$query%" }, displayName => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] }
@@ -334,6 +336,7 @@ sub search :Local Args(0) {
         { order_by => ["enabled_ desc", "project", "jobset", "name"], join => ["project", "jobset"]
         , "+select" => [\ "(project.enabled = 1 and jobset.enabled = 1 and exists (select 1 from Builds where project = project.name and jobset = jobset.name and job = me.name and iscurrent = 1)) enabled_"]
         , "+as" => ["enabled"]
+        , rows => $c->stash->{limit} + 1
         } ) ];
 }
 

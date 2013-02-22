@@ -43,7 +43,7 @@
 
 [% IF jobs.size > 0; matched = 1 %]
 
-  <p>The following jobs match your query:</p>
+  <p>The following jobs match your query:[% IF jobs.size > limit %] <span class="text-warning">(first [% limit %] results only)</span>[% END %]</p>
 
   <table class="table table-striped table-condensed">
     <thead>

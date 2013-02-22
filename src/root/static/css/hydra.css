@@ -43,3 +43,8 @@ table.info-table th {
     padding-right: 1.0em;
     padding-bottom: 0.2em;
 }
+
+/* Missing in bootstrap 2.0.2 */
+.text-warning {
+  color: #c09853;
+}
