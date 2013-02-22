@@ -11,15 +11,15 @@
 
   <div id="tabs-status" class="tab-pane active">
     [% IF currentBuilds.size != 0 %]
-      <h2>Latest builds (latest evaluation)</h2>
+      <h3>Latest builds (latest evaluation)</h3>
       [% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
     [% END %]
-    [% IF runningBuilds.size != 0 %]
-      <h2>Running builds</h2>
-      [% INCLUDE renderBuildList builds=runningBuilds showSchedulingInfo=1 hideResultInfo=1 %]
+    [% IF queuedBuilds.size != 0 %]
+      <h3>Queued builds</h3>
+      [% INCLUDE renderBuildList builds=queuedBuilds showSchedulingInfo=1 hideResultInfo=1 %]
     [% END %]
     [% IF lastBuilds.size != 0 %]
-      <h2>Last 10 builds</h2>
+      <h3>Last 10 builds</h3>
       [% INCLUDE renderBuildList builds=lastBuilds showStatusChange=0 %]
     [% END %]
   </div>

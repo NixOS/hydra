@@ -29,9 +29,9 @@ sub overview : Chained('job') PathPart('') Args(0) {
         [ $c->stash->{job}->builds->search({ finished => 1 },
             { order_by => 'timestamp DESC', rows => 10, columns => [@buildListColumns] }) ];
 
-    $c->stash->{runningBuilds} = [
+    $c->stash->{queuedBuilds} = [
         $c->stash->{job}->builds->search(
-            { busy => 1 },
+            { finished => 0 },
             { join => ['project']
             , order_by => ["priority DESC", "timestamp"]
             , '+select' => ['project.enabled']
