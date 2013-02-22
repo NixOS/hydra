@@ -331,7 +331,10 @@ sub search :Local Args(0) {
         , "project.hidden" => 0
         , "jobset.hidden" => 0
         },
-        { order_by => ["project", "jobset", "name"], join => ["project", "jobset"] } ) ];
+        { order_by => ["enabled_ desc", "project", "jobset", "name"], join => ["project", "jobset"]
+        , "+select" => [\ "(project.enabled = 1 and jobset.enabled = 1 and exists (select 1 from Builds where project = project.name and jobset = jobset.name and job = me.name and iscurrent = 1)) enabled_"]
+        , "+as" => ["enabled"]
+        } ) ];
 }
 
 

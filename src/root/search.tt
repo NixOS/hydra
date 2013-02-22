@@ -12,7 +12,7 @@
     <tbody>
       [% FOREACH p IN projects %]
         <tr>
-          <td>[% INCLUDE renderProjectName project=p.name %]</td>
+          <td><span class="[% IF !p.enabled %]disabled-project[% END %]">[% INCLUDE renderProjectName project=p.name %]</span></td>
           <td>[% HTML.escape(p.description) %]</td>
         </tr>
       [% END %]
@@ -32,7 +32,7 @@
     <tbody>
       [% FOREACH j IN jobsets %]
         <tr>
-          <td>[% INCLUDE renderFullJobsetName project=j.get_column('project') jobset=j.name %]</td>
+          <td><span class="[% IF !j.enabled %]disabled-jobset[% END %]">[% INCLUDE renderFullJobsetName project=j.get_column('project') jobset=j.name %]</span></td>
           <td>[% HTML.escape(j.description) %]</td>
         </tr>
       [% END %]
@@ -52,7 +52,7 @@
     <tbody>
       [% FOREACH j IN jobs %]
         <tr>
-          <td>[% INCLUDE renderFullJobName project=j.get_column('project') jobset=j.get_column('jobset') job=j.name %]</td>
+          <td><span class="[% IF !j.get_column('enabled') %]disabled-job[% END %]">[% INCLUDE renderFullJobName project=j.get_column('project') jobset=j.get_column('jobset') job=j.name %]</span></td>
         </tr>
       [% END %]
     </tbody>

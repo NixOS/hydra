@@ -31,7 +31,7 @@ span:target > span.dep-tree-line {
     display: inline-block; /* required for webkit browsers */
 }
 
-span.disabled-project, span.disabled-jobset {
+span.disabled-project, span.disabled-jobset, span.disabled-job {
     text-decoration: line-through;
 }
 
