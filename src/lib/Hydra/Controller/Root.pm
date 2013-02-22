@@ -311,16 +311,27 @@ sub search :Local Args(0) {
         unless $query =~ /^[a-zA-Z0-9_\-]+$/;
 
     $c->stash->{projects} = [ $c->model('DB::Projects')->search(
-        { -or => [ name => { ilike => "%$query%" }, displayName => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] },
+        { -and =>
+            [ { -or => [ name => { ilike => "%$query%" }, displayName => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] }
+            , { hidden => 0 }
+            ]
+        },
         { order_by => ["name"] } ) ];
 
     $c->stash->{jobsets} = [ $c->model('DB::Jobsets')->search(
-        { -or => [ name => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] },
-        { order_by => ["project", "name"] } ) ];
+        { -and =>
+            [ { -or => [ "me.name" => { ilike => "%$query%" }, "me.description" => { ilike => "%$query%" } ] }
+            , { "project.hidden" => 0, "me.hidden" => 0 }
+            ]
+        },
+        { order_by => ["project", "name"], join => ["project"] } ) ];
 
     $c->stash->{jobs} = [ $c->model('DB::Jobs')->search(
-        { name => { ilike => "%$query%" } },
-        { order_by => ["project", "jobset", "name"] } ) ];
+        { "me.name" => { ilike => "%$query%" }
+        , "project.hidden" => 0
+        , "jobset.hidden" => 0
+        },
+        { order_by => ["project", "jobset", "name"], join => ["project", "jobset"] } ) ];
 }
 
 
