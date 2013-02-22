@@ -461,7 +461,11 @@ BLOCK makeLazyTab %]
         var pattern = /#.+/gi;
         var id = e.target.toString().match(pattern)[0];
         if (id == "#[% tabName %]") {
-          $('#[% tabName %]').load("[% uri %]");
+          $('#[% tabName %]').load("[% uri %]", function(response, status, xhr) {
+            if (status == "error") {
+              $('#[% tabName %]').html("<div class='alert alert-error'>Error loading tab: " + xhr.status + " " + xhr.statusText + "</div>");
+            }
+          });
         }
       });
     });
