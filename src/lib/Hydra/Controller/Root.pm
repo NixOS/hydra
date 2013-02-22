@@ -300,4 +300,28 @@ sub evals :Local Args(0) {
 }
 
 
+sub search :Local Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'search.tt';
+
+    my $query = trim $c->request->params->{"query"};
+
+    error($c, "Query is empty.") if $query eq "";
+    error($c, "Invalid character in query.")
+        unless $query =~ /^[a-zA-Z0-9_\-]+$/;
+
+    $c->stash->{projects} = [ $c->model('DB::Projects')->search(
+        { -or => [ name => { ilike => "%$query%" }, displayName => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] },
+        { order_by => ["name"] } ) ];
+
+    $c->stash->{jobsets} = [ $c->model('DB::Jobsets')->search(
+        { -or => [ name => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] },
+        { order_by => ["project", "name"] } ) ];
+
+    $c->stash->{jobs} = [ $c->model('DB::Jobs')->search(
+        { name => { ilike => "%$query%" } },
+        { order_by => ["project", "jobset", "name"] } ) ];
+}
+
+
 1;

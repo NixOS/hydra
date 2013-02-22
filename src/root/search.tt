@@ -1,0 +1,68 @@
+[% WRAPPER layout.tt title="Search results" %]
+[% PROCESS common.tt %]
+
+[% IF projects.size > 0; matched = 1 %]
+
+  <p>The following projects match your query:</p>
+
+  <table class="table table-striped table-condensed">
+    <thead>
+      <tr><th>Project</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      [% FOREACH p IN projects %]
+        <tr>
+          <td>[% INCLUDE renderProjectName project=p.name %]</td>
+          <td>[% HTML.escape(p.description) %]</td>
+        </tr>
+      [% END %]
+    </tbody>
+  </table>
+
+[% END %]
+
+[% IF jobsets.size > 0; matched = 1 %]
+
+  <p>The following jobsets match your query:</p>
+
+  <table class="table table-striped table-condensed">
+    <thead>
+      <tr><th>Jobset</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      [% FOREACH j IN jobsets %]
+        <tr>
+          <td>[% INCLUDE renderFullJobsetName project=j.get_column('project') jobset=j.name %]</td>
+          <td>[% HTML.escape(j.description) %]</td>
+        </tr>
+      [% END %]
+    </tbody>
+  </table>
+
+[% END %]
+
+[% IF jobs.size > 0; matched = 1 %]
+
+  <p>The following jobs match your query:</p>
+
+  <table class="table table-striped table-condensed">
+    <thead>
+      <tr><th>Job</th></tr>
+    </thead>
+    <tbody>
+      [% FOREACH j IN jobs %]
+        <tr>
+          <td>[% INCLUDE renderFullJobName project=j.get_column('project') jobset=j.get_column('jobset') job=j.name %]</td>
+        </tr>
+      [% END %]
+    </tbody>
+  </table>
+
+[% END %]
+
+[% IF !matched %]
+  <div class="alert alert-warn">Sorry! Nothing matches your
+  query.</div>
+[% END %]
+
+[% END %]
