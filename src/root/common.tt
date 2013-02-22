@@ -62,7 +62,7 @@ END;
 
 
 BLOCK renderBuildListHeader %]
-  <table class="buildList table table-striped table-condensed [% IF !unsortable %]tablesorter[% END %] [% IF !showSchedulingInfo %] clean[% END %]">
+  <table class="table table-striped table-condensed [% IF !unsortable %]tablesorter[% END %]">
     <thead>
       <tr>
         [% IF !hideResultInfo %]
@@ -94,15 +94,8 @@ BLOCK renderBuildListHeader %]
 
 
 BLOCK renderBuildListBody;
-  odd = 0;
   FOREACH build IN builds; %]
-    <tr class="clickable
-               [% IF showSchedulingInfo %]
-                 [% IF build.busy %]runningBuild[% ELSIF build.disabled == 1 || build.get_column('enabled') == 0 %]disabledBuild[% END %]
-               [% ELSE %]
-                 [% IF odd %] odd [% END; odd = !odd %]
-               [% END %]"
-        onclick="if(event.which == 2) return true; window.location = '[% c.uri_for('/build' build.id) %]'">
+    <tr onclick="if(event.which == 2) return true; window.location = '[% c.uri_for('/build' build.id) %]'">
       [% IF !hideResultInfo %]
         <td>
           [% INCLUDE renderBuildStatusIcon size=16 busy=(showSchedulingInfo ? 1 : 0) buildstatus=build.buildstatus %]
@@ -405,7 +398,7 @@ BLOCK renderEvals %]
       [% FOREACH e IN evals;
         eval = e.eval;
         link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]
-        <tr class="clickable" onclick="window.location = '[% link %]'">
+        <tr onclick="window.location = '[% link %]'">
           [% IF !jobset && !build %]
             <td>[% INCLUDE renderFullJobsetName project=eval.get_column('project') jobset=eval.get_column('jobset') %]</td>
           [% END %]

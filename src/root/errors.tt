@@ -13,7 +13,7 @@ that don’t build.</p>
 
 <h2>Evaluation errors in jobsets</h2>
 
-<table class="buildList tablesorter table table-condensed table-striped">
+<table class="tablesorter table table-condensed table-striped">
   <thead>
     <tr>
       <th>Name</th>
@@ -39,7 +39,7 @@ that don’t build.</p>
 
 <h2>Evaluation errors in jobs</h2>
 
-<table class="buildList tablesorter table table-condensed table-striped">
+<table class="tablesorter table table-condensed table-striped">
   <thead>
     <tr>
       <th>Name</th>

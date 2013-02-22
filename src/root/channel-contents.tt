@@ -45,14 +45,12 @@ install the package simply by clicking on the packages below.</p>
 
   <tbody>
 
-    [% odd = 0 %]
-
     [% FOREACH pkg IN nixPkgs %]
 
       [% b = pkg.build %]
       [% uri = "${curUri}/pkg/${pkg.name}.nixpkg" %]
 
-      <tr class="clickable [% IF odd %] odd [% END; odd = !odd %]" onclick="window.location = '[% uri %]'">
+      <tr onclick="window.location = '[% uri %]'">
         <td><a href="[% c.uri_for('/build' b.id) %]">[% b.id %]</a></td>
         <td><a href="[% uri %]"><tt>[% b.get_column('releasename') || b.nixname %]</tt></a></td>
         <td><tt>[% b.system %]</tt></td>

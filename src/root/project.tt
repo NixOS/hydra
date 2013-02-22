@@ -27,8 +27,7 @@
         <tbody>
           [% FOREACH j IN jobsets %]
             [% successrate = 0 %]
-            <tr class="clickable [% IF odd %] odd [% END; odd = !odd %]"
-                onclick="window.location = '[% c.uri_for('/jobset' project.name j.name) %]'">
+            <tr onclick="window.location = '[% c.uri_for('/jobset' project.name j.name) %]'">
               <td>
                 [% IF j.get_column('nrscheduled') > 0 %]
                   <img src="/static/images/help_16.png" alt="Scheduled" />
@@ -130,7 +129,7 @@
       <tbody>
         [% FOREACH release IN releases %]
           [% link = c.uri_for('/release' project.name release.name) %]
-          <tr class="clickable" onclick="window.location = '[% link %]'">
+          <tr onclick="window.location = '[% link %]'">
             <td><a href="[% link %]"><tt>[% release.name %]</tt></a></td>
             <td>[% INCLUDE renderDateTime timestamp = release.timestamp %]</td>
           </tr>

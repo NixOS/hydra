@@ -25,7 +25,7 @@
   <tbody>
     [% FOREACH result IN results %]
       [% link = c.uri_for('/view' project.name view.name result.id) %]
-      <tr class="clickable" onclick="window.location = '[% link %]'">
+      <tr onclick="window.location = '[% link %]'">
         <td>
           [% IF result.status == 0 %]
             <img src="/static/images/checkmark_16.png" />

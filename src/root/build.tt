@@ -24,7 +24,7 @@
         [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
           [% has_log = log_exists(step.drvpath);
              log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
-          <tr [% IF has_log %] class="clickable" onclick="window.location = '[% log %]'" [% END %]>
+          <tr [% IF has_log %] onclick="window.location = '[% log %]'" [% END %]>
             <td>[% step.stepnr %]</td>
             <td>
               [% IF step.type == 0 %]
