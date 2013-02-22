@@ -15,7 +15,7 @@
 [% END %]
 
 [% BLOCK renderBuildSteps %]
-  <table class="tablesorter table table-striped table-condensed">
+  <table class="tablesorter table table-striped table-condensed clickable-rows">
     <thead>
       <tr><th>Nr</th><th>What</th><th>Duration</th><th>Machine</th><th>Status</th></tr>
     </thead>
@@ -24,7 +24,7 @@
         [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
           [% has_log = log_exists(step.drvpath);
              log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
-          <tr [% IF has_log %] onclick="window.location = '[% log %]'" [% END %]>
+          <tr>
             <td>[% step.stepnr %]</td>
             <td>
               [% IF step.type == 0 %]
@@ -53,7 +53,7 @@
               [% ELSE %]
                 <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
               [% END %]
-              [%%] [%+ IF has_log; INCLUDE renderLogLinks url=log; END %]
+              [%%] [%+ IF has_log; INCLUDE renderLogLinks url=log inRow=1; END %]
             </td>
           </tr>
         [% END %]

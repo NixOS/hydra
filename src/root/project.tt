@@ -14,7 +14,7 @@
     [% IF project.jobsets.size > 0 %]
       <p>This project has the following jobsets:</p>
 
-      <table class="tablesorter table table-striped table-condensed">
+      <table class="tablesorter table table-striped table-condensed clickable-rows">
         <thead>
           <tr>
             <th></th>
@@ -27,7 +27,7 @@
         <tbody>
           [% FOREACH j IN jobsets %]
             [% successrate = 0 %]
-            <tr onclick="window.location = '[% c.uri_for('/jobset' project.name j.name) %]'">
+            <tr>
               <td>
                 [% IF j.get_column('nrscheduled') > 0 %]
                   <img src="/static/images/help_16.png" alt="Scheduled" />
@@ -39,7 +39,7 @@
                   <img src="/static/images/error_16.png" alt="All Failed" />
                 [% END %]
               </td>
-              <td><span class="[% IF !j.enabled %]disabled-jobset[% END %] [%+ IF j.hidden %]hidden-jobset[% END %]">[% INCLUDE renderJobsetName project = project.name jobset = j.name %]</span></td>
+              <td><span class="[% IF !j.enabled %]disabled-jobset[% END %] [%+ IF j.hidden %]hidden-jobset[% END %]">[% INCLUDE renderJobsetName project=project.name jobset=j.name inRow=1 %]</span></td>
               <td>[% HTML.escape(j.description) %]</td>
               <td>[% INCLUDE renderDateTime timestamp = j.lastcheckedtime %]</td>
               [% IF j.get_column('nrtotal') > 0 %]
@@ -119,7 +119,7 @@
 
     <p>This project has made the following releases:</p>
 
-    <table class="tablesorter table table-condensed table-striped">
+    <table class="tablesorter table table-condensed table-striped clickable-rows">
       <thead>
         <tr>
           <th>Name</th>
@@ -128,9 +128,8 @@
       </thead>
       <tbody>
         [% FOREACH release IN releases %]
-          [% link = c.uri_for('/release' project.name release.name) %]
-          <tr onclick="window.location = '[% link %]'">
-            <td><a href="[% link %]"><tt>[% release.name %]</tt></a></td>
+          <tr>
+            <td><a class="row-link" href="[% c.uri_for('/release' project.name release.name) %]"><tt>[% release.name %]</tt></a></td>
             <td>[% INCLUDE renderDateTime timestamp = release.timestamp %]</td>
           </tr>
         [% END %]

@@ -32,7 +32,7 @@ install the package simply by clicking on the packages below.</p>
 
 <p>This channel contains the following packages.</p>
 
-<table class="tablesorter table table-condensed table-striped">
+<table class="tablesorter table table-condensed table-striped clickable-rows">
 
   <thead>
     <tr>
@@ -50,9 +50,9 @@ install the package simply by clicking on the packages below.</p>
       [% b = pkg.build %]
       [% uri = "${curUri}/pkg/${pkg.name}.nixpkg" %]
 
-      <tr onclick="window.location = '[% uri %]'">
+      <tr>
         <td><a href="[% c.uri_for('/build' b.id) %]">[% b.id %]</a></td>
-        <td><a href="[% uri %]"><tt>[% b.get_column('releasename') || b.nixname %]</tt></a></td>
+        <td><a class="row-link" href="[% uri %]"><tt>[% b.get_column('releasename') || b.nixname %]</tt></a></td>
         <td><tt>[% b.system %]</tt></td>
         <td>
           [% IF b.homepage %]

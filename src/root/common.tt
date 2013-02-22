@@ -24,12 +24,12 @@ END;
 
 
 BLOCK renderProjectName %]
-<a href="[% c.uri_for('/project' project) %]"><tt>[% project %]</tt></a>
+<a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/project' project) %]"><tt>[% project %]</tt></a>
 [% END;
 
 
 BLOCK renderJobsetName %]
-<a href="[% c.uri_for('/jobset' project jobset) %]"><tt>[% jobset %]</tt></a>
+<a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/jobset' project jobset) %]"><tt>[% jobset %]</tt></a>
 [% END;
 
 
@@ -62,7 +62,7 @@ END;
 
 
 BLOCK renderBuildListHeader %]
-  <table class="table table-striped table-condensed [% IF !unsortable %]tablesorter[% END %]">
+  <table class="table table-striped table-condensed clickable-rows [% IF !unsortable %]tablesorter[% END %]">
     <thead>
       <tr>
         [% IF !hideResultInfo %]
@@ -95,7 +95,7 @@ BLOCK renderBuildListHeader %]
 
 BLOCK renderBuildListBody;
   FOREACH build IN builds; %]
-    <tr onclick="if(event.which == 2) return true; window.location = '[% c.uri_for('/build' build.id) %]'">
+    <tr>
       [% IF !hideResultInfo %]
         <td>
           [% INCLUDE renderBuildStatusIcon size=16 busy=(showSchedulingInfo ? 1 : 0) buildstatus=build.buildstatus %]
@@ -104,7 +104,7 @@ BLOCK renderBuildListBody;
       [% IF showSchedulingInfo %]
         <td>[% IF build.busy %]<span class="label label-success">Started</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
       [% END %]
-      <td><a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
+      <td><a class="row-link" href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
       [% IF showSchedulingInfo %]
         <td>[% build.priority %]</td>
       [% END %]
@@ -382,7 +382,7 @@ END;
 
 
 BLOCK renderEvals %]
-  <table class="tablesorter table table-condensed table-striped">
+  <table class="tablesorter table table-condensed table-striped clickable-rows">
     <thead>
       <tr>
         [% IF !jobset && !build %]
@@ -398,11 +398,11 @@ BLOCK renderEvals %]
       [% FOREACH e IN evals;
         eval = e.eval;
         link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]
-        <tr onclick="window.location = '[% link %]'">
+        <tr>
           [% IF !jobset && !build %]
             <td>[% INCLUDE renderFullJobsetName project=eval.get_column('project') jobset=eval.get_column('jobset') %]</td>
           [% END %]
-          <td><a href="[% link %]">[% eval.id %]</a></td>
+          <td><a class="row-link" href="[% link %]">[% eval.id %]</a></td>
           <td>[% INCLUDE renderDateTime timestamp = eval.timestamp %]</td>
           <td>
             [% IF e.changedInputs.size > 0;
@@ -440,7 +440,7 @@ BLOCK renderEvals %]
 
 
 BLOCK renderLogLinks %]
-(<a href="[% url %]">log</a>, <a href="[% "$url/raw" %]">raw</a>, <a href="[% "$url/tail-reload" %]">tail</a>)
+(<a [% IF inRow %]class="row-link"[% END %] href="[% url %]">log</a>, <a href="[% "$url/raw" %]">raw</a>, <a href="[% "$url/tail-reload" %]">tail</a>)
 [% END;
 
 

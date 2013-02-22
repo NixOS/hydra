@@ -9,7 +9,7 @@
 
 <p>Showing results [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + results.size %] out of [% totalResults %].</p>
 
-<table class="tablesorter table table-condensed table-striped">
+<table class="tablesorter table table-condensed table-striped clickable-rows">
   <thead>
     <tr>
       <th></th>
@@ -24,8 +24,7 @@
 
   <tbody>
     [% FOREACH result IN results %]
-      [% link = c.uri_for('/view' project.name view.name result.id) %]
-      <tr onclick="window.location = '[% link %]'">
+      <tr>
         <td>
           [% IF result.status == 0 %]
             <img src="/static/images/checkmark_16.png" />
@@ -35,7 +34,7 @@
             <img src="/static/images/help_16.png" />
           [% END %]
         </td>
-        <td><a href="[% link %]">[% result.id %]</a></td>
+        <td><a class="row-link" href="[% c.uri_for('/view' project.name view.name result.id) %]">[% result.id %]</a></td>
         <td>
           [% IF result.releasename %]
             <tt>[% result.releasename %]</tt>

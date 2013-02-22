@@ -15,7 +15,7 @@
 
 <p>The following projects are hosted on this server:</p>
 
-<table class="tablesorter table table-condensed table-striped">
+<table class="tablesorter table table-condensed table-striped clickable-rows">
   <thead>
     <tr>
       <th>Id</th>
@@ -25,8 +25,8 @@
   </thead>
   <tbody>
     [% FOREACH p IN projects %]
-    <tr onclick="window.location = '[% c.uri_for('/project' p.name) %]'">
-      <td><span class="[% IF !p.enabled %]disabled-project[% END %] [%+ IF p.hidden %]hidden-project[% END %]">[% INCLUDE renderProjectName project = p.name %]</span></td>
+    <tr>
+      <td><span class="[% IF !p.enabled %]disabled-project[% END %] [%+ IF p.hidden %]hidden-project[% END %]">[% INCLUDE renderProjectName project=p.name inRow=1 %]</span></td>
       <td>[% HTML.escape(p.displayname) %]</td>
       <td>[% WRAPPER maybeLink uri=p.homepage %][% HTML.escape(p.description) %][% END %]</td>
     </tr>
