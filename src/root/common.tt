@@ -137,6 +137,9 @@ BLOCK renderBuildListBody;
       [% END %]
     </tr>
   [% END;
+  IF linkToAll %]
+    <td class="centered" colspan="5"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+  [% END;
 END;
 
 
@@ -431,7 +434,7 @@ BLOCK renderEvals %]
         </tr>
       [% END;
       IF linkToAll %]
-        <tr><td class="centered" colspan="54"><a href="[% linkToAll %]"><em>All evaluations...</em></a></td></tr>
+        <tr><td class="centered" colspan="5"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
       [% END %]
     </tbody>
   </table>

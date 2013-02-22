@@ -4,23 +4,24 @@
 
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-status" data-toggle="tab">Status</a></li>
-  <li><a href="#tabs-latestbuilds" data-toggle="tab">Latest builds</a></li>
+  <li><a href="#tabs-links" data-toggle="tab">Links</a></li>
 </ul>
 
 <div id="generic-tabs" class="tab-content">
 
   <div id="tabs-status" class="tab-pane active">
+    [% IF lastBuilds.size != 0 %]
+      <h3>Lastest builds</h3>
+      [% INCLUDE renderBuildList builds=lastBuilds showStatusChange=0
+          linkToAll=c.uri_for('/job' project.name jobset.name job.name 'all') %]
+    [% END %]
     [% IF queuedBuilds.size != 0 %]
       <h3>Queued builds</h3>
       [% INCLUDE renderBuildList builds=queuedBuilds showSchedulingInfo=1 hideResultInfo=1 %]
     [% END %]
-    [% IF lastBuilds.size != 0 %]
-      <h3>Last 10 builds</h3>
-      [% INCLUDE renderBuildList builds=lastBuilds showStatusChange=0 %]
-    [% END %]
   </div>
 
-  <div id="tabs-latestbuilds" class="tab-pane">
+  <div id="tabs-links" class="tab-pane">
     <ul>
       <li><a href="[% c.uri_for('/job' project.name jobset.name job.name 'latest') %]">Latest successful build</a></li>
       [% FOREACH system IN systems %]
