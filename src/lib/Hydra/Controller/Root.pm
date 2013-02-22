@@ -191,6 +191,7 @@ sub end : ActionClass('RenderView') {
     if (scalar @{$c->error}) {
         $c->stash->{template} = 'error.tt';
         $c->stash->{errors} = $c->error;
+        $c->response->status(500) if $c->response->status == 200;
         if ($c->response->status >= 300) {
             $c->stash->{httpStatus} =
                 $c->response->status . " " . HTTP::Status::status_message($c->response->status);
