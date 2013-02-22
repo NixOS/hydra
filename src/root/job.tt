@@ -10,10 +10,6 @@
 <div id="generic-tabs" class="tab-content">
 
   <div id="tabs-status" class="tab-pane active">
-    [% IF currentBuilds.size != 0 %]
-      <h3>Latest builds (latest evaluation)</h3>
-      [% INCLUDE renderBuildList builds=currentBuilds showStatusChange=0 %]
-    [% END %]
     [% IF queuedBuilds.size != 0 %]
       <h3>Queued builds</h3>
       [% INCLUDE renderBuildList builds=queuedBuilds showSchedulingInfo=1 hideResultInfo=1 %]
