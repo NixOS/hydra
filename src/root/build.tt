@@ -513,32 +513,14 @@
   [% END %]
 
   [% IF drvAvailable %]
-    <div id="tabs-build-deps" class="tab-pane">
-      <center><img src="/static/images/ajax-loader.gif" alt="Loading..." /></center>
-    </div>
+    [% INCLUDE makeLazyTab tabName="tabs-build-deps" uri=c.uri_for('/build' build.id 'build-deps') %]
   [% END %]
 
   [% IF available %]
-    <div id="tabs-runtime-deps" class="tab-pane">
-      <center><img src="/static/images/ajax-loader.gif" alt="Loading..." /></center>
-    </div>
+    [% INCLUDE makeLazyTab tabName="tabs-runtime-deps" uri=c.uri_for('/build' build.id 'runtime-deps') %]
   [% END %]
 
 </div>
-
-<script>
-  $(function() {
-    $('.nav-tabs').bind('show', function(e) {
-      var pattern = /#.+/gi;
-      var id = e.target.toString().match(pattern)[0];
-      if (id == "#tabs-runtime-deps") {
-        $('#tabs-runtime-deps').load("[% c.uri_for('/build' build.id 'runtime-deps') %]");
-      } else if (id == "#tabs-build-deps") {
-        $('#tabs-build-deps').load("[% c.uri_for('/build' build.id 'build-deps') %]");
-      }
-    });
-  });
-</script>
 
 
 [% END %]

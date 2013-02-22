@@ -448,4 +448,25 @@ BLOCK renderEvals %]
 
 BLOCK renderLogLinks %]
 (<a href="[% url %]">log</a>, <a href="[% "$url/raw" %]">raw</a>, <a href="[% "$url/tail-reload" %]">tail</a>)
-[% END %]
+[% END;
+
+
+BLOCK makeLazyTab %]
+  <div id="[% tabName %]" class="tab-pane">
+    <center><img src="/static/images/ajax-loader.gif" alt="Loading..." /></center>
+  </div>
+  <script>
+    $(function() {
+      $('.nav-tabs').bind('show', function(e) {
+        var pattern = /#.+/gi;
+        var id = e.target.toString().match(pattern)[0];
+        if (id == "#[% tabName %]") {
+          $('#[% tabName %]').load("[% uri %]");
+        }
+      });
+    });
+  </script>
+[% END;
+
+
+%]
