@@ -46,5 +46,9 @@ table.info-table th {
 
 /* Missing in bootstrap 2.0.2 */
 .text-warning {
-  color: #c09853;
+    color: #c09853;
+}
+
+table.clickable-rows > tbody > tr {
+    cursor: pointer;
 }
