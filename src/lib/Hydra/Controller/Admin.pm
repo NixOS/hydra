@@ -322,16 +322,14 @@ sub machine_disable : Chained('machine') PathPart('disable') Args(0) {
 sub clear_queue_non_current : Chained('admin') Path('clear-queue-non-current') Args(0) {
     my ($self, $c) = @_;
     $c->model('DB::Builds')->search({finished => 0, iscurrent => 0, busy => 0})->update({ finished => 1, buildstatus => 4, timestamp => time});
-    $c->res->redirect("/admin");
+    $c->res->redirect($c->request->referer // "/admin");
 }
 
 
 sub clearfailedcache : Chained('admin') Path('clear-failed-cache') Args(0) {
     my ($self, $c) = @_;
-
     my $r = `nix-store --clear-failed-paths '*'`;
-
-    $c->res->redirect("/admin");
+    $c->res->redirect($c->request->referer // "/admin");
 }
 
 
@@ -350,7 +348,7 @@ sub clearvcscache : Chained('admin') Path('clear-vcs-cache') Args(0) {
     print "Clearing bazaar cache\n";
     $c->model('DB::CachedBazaarInputs')->delete_all;
 
-    $c->res->redirect("/admin");
+    $c->res->redirect($c->request->referer // "/admin");
 }
 
 
