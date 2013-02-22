@@ -46,7 +46,7 @@
     <li><a href="#tabs-errors" data-toggle="tab"><img src="/static/images/error_16.png" /> Evaluation errors</a></li>
   [% END %]
   <li><a href="#tabs-status" data-toggle="tab">Job status</a></li>
-  <li><a href="#tabs-jobs" data-toggle="tab">Jobs ([% activeJobs.size %])</a></li>
+  <li><a href="#tabs-jobs" data-toggle="tab">Jobs</a></li>
   <li><a href="#tabs-setup" data-toggle="tab">Configuration</a></li>
 </ul>
 
@@ -86,39 +86,7 @@
 
   </div>
 
-  <div id="tabs-status" class="tab-pane">
-
-    [% IF activeJobsStatus %]
-      <table class="table table-striped table-condensed">
-        <thead><tr><th>Job</th>[% FOREACH s IN systems %]<th>[% s.system %]</th>[% END %]</tr></thead>
-        <tbody>
-          [% odd = 0 %]
-          [% FOREACH j IN activeJobsStatus %]
-            <tr class="[% IF odd %] odd [% END; odd = !odd %]">
-              <td>[% INCLUDE renderJobName project=project.name jobset = jobset.name job = j.get_column('job') %]</td>
-              [% FOREACH s IN systems %]
-                [% system = s.system %]
-                [% systemStatus = j.get_column(system) %]
-                <td class="centered">
-                  [% IF systemStatus != undef %]
-                    <a href="[% c.uri_for('/build' j.get_column(system _ '-build') ) %]">
-                      [% INCLUDE renderBuildStatusIcon buildstatus=systemStatus size=16 %]
-                    </a>
-                  [% END %]
-                </td>
-              [% END %]
-            </tr>
-          [% END %]
-        </tbody>
-      </table>
-    [% ELSE %]
-      <h2>Status</h2>
-      <p>
-        [ <a href="[% c.uri_for('/jobset' project.name jobset.name 'with-status' ) %]">Show status overview</a> ]
-      </p>
-    [% END %]
-
-  </div>
+  [% INCLUDE makeLazyTab tabName="tabs-status" uri=c.uri_for('/jobset' project.name jobset.name "status-tab") %]
 
   [% IF jobset.errormsg %]
     <div id="tabs-errors" class="tab-pane">
@@ -164,23 +132,7 @@
     [% INCLUDE renderInputs %]
   </div>
 
-  <div id="tabs-jobs" class="tab-pane">
-
-    <p>This jobset currently contains the following [% activeJobs.size %] jobs:
-      <blockquote>
-        [% IF activeJobs.size == 0 %]<em>(none)</em>[% END %]
-        [% FOREACH j IN activeJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]
-      </blockquote>
-    </p>
-
-    <p>This jobset used to contain the following [% inactiveJobs.size %] jobs:
-      <blockquote>
-        [% IF inactiveJobs.size == 0 %]<em>(none)</em>[% END %]
-        [% FOREACH j IN inactiveJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]
-      </blockquote>
-    </p>
-
-  </div>
+  [% INCLUDE makeLazyTab tabName="tabs-jobs" uri=c.uri_for('/jobset' project.name jobset.name "jobs-tab") %]
 
 </div>
 

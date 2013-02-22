@@ -21,37 +21,54 @@ sub jobset : Chained('/') PathPart('jobset') CaptureArgs(2) {
 }
 
 
-sub jobsetIndex {
-    my ($self, $c, $forceStatus) = @_;
+sub index : Chained('jobset') PathPart('') Args(0) {
+    my ($self, $c) = @_;
 
     $c->stash->{template} = 'jobset.tt';
 
     my $projectName = $c->stash->{project}->name;
     my $jobsetName = $c->stash->{jobset}->name;
 
-    # Get the active / inactive jobs in this jobset.
-    my @jobs = $c->stash->{jobset}->jobs->search(
-        { },
-        { select => [
-            "name",
-            \ ("exists (select 1 from builds where project = '$projectName' and jobset = '$jobsetName' and job = me.name and isCurrent = 1) as active")
-          ]
-        , as => ["name", "active"]
-        , order_by => ["name"] });
-
-    $c->stash->{activeJobs} = [];
-    $c->stash->{inactiveJobs} = [];
-    foreach my $job (@jobs) {
-        if ($job->get_column('active')) {
-            push @{$c->stash->{activeJobs}}, $job->name;
-        } else {
-            push @{$c->stash->{inactiveJobs}}, $job->name;
-        }
-    }
-
     $c->stash->{evals} = getEvals($self, $c, scalar $c->stash->{jobset}->jobsetevals, 0, 10);
 
     ($c->stash->{latestEval}) = $c->stash->{jobset}->jobsetevals->search({}, { limit => 1, order_by => ["id desc"] });
+}
+
+
+sub jobs_tab : Chained('jobset') PathPart('jobs-tab') Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'jobset-jobs-tab.tt';
+
+    $c->stash->{activeJobs} = [];
+    $c->stash->{inactiveJobs} = [];
+
+    (my $latestEval) = $c->stash->{jobset}->jobsetevals->search(
+        { hasnewbuilds => 1}, { limit => 1, order_by => ["id desc"] });
+
+    my %activeJobs;
+    if (defined $latestEval) {
+        foreach my $build ($latestEval->builds->search({}, { order_by => ["job"], select => ["job"] })) {
+            my $job = $build->get_column("job");
+            if (!defined $activeJobs{$job}) {
+                $activeJobs{$job} = 1;
+                push @{$c->stash->{activeJobs}}, $job;
+            }
+        }
+    }
+
+    foreach my $job ($c->stash->{jobset}->jobs->search({}, { order_by => ["name"] })) {
+        if (!defined $activeJobs{$job->name}) {
+            push @{$c->stash->{inactiveJobs}}, $job->name;
+        }
+    }
+}
+
+
+sub status_tab : Chained('jobset') PathPart('status-tab') Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'jobset-status-tab.tt';
+
+    # FIXME: use latest eval instead of iscurrent.
 
     $c->stash->{systems} =
         [ $c->stash->{jobset}->builds->search({ iscurrent => 1 }, { select => ["system"], distinct => 1, order_by => "system" }) ];
@@ -62,38 +79,24 @@ sub jobsetIndex {
         push(@systems, $system->system);
     }
 
-    if($forceStatus || scalar(@{$c->stash->{activeJobs}}) <= 100) {
-        my @select = ();
-        my @as = ();
-        push(@select, "job"); push(@as, "job");
-        foreach my $system (@systems) {
-            push(@select, "(select buildstatus from Builds b where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
-            push(@as, $system);
-            push(@select, "(select b.id from Builds b where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
-            push(@as, "$system-build");
-        }
-        $c->stash->{activeJobsStatus} =
-            [ $c->model('DB')->resultset('ActiveJobsForJobset')->search(
-                  {},
-                  { bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]
-                  , select => \@select
-                  , as => \@as
-                  , order_by => ["job"]
-                  })];
+    my @select = ();
+    my @as = ();
+    push(@select, "job"); push(@as, "job");
+    foreach my $system (@systems) {
+        push(@select, "(select buildstatus from Builds b where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
+        push(@as, $system);
+        push(@select, "(select b.id from Builds b where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
+        push(@as, "$system-build");
     }
 
-}
-
-
-sub index : Chained('jobset') PathPart('') Args(0) {
-    my ($self, $c) = @_;
-    jobsetIndex($self, $c, 0);
-}
-
-
-sub indexWithStatus : Chained('jobset') PathPart('') Args(1) {
-    my ($self, $c, $forceStatus) = @_;
-    jobsetIndex($self, $c, 1);
+    $c->stash->{activeJobsStatus} = [
+        $c->model('DB')->resultset('ActiveJobsForJobset')->search(
+            {},
+            { bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]
+            , select => \@select
+            , as => \@as
+            , order_by => ["job"]
+            }) ];
 }
 
 
