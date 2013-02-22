@@ -25,7 +25,7 @@ that don’t build.</p>
       <tr>
         <td>[% INCLUDE renderFullJobsetName project=j.project.name jobset=j.name %]</td>
         <td>
-          <pre class="multiLineMsg error">[% HTML.escape(j.errormsg) %]</pre>
+          <pre class="error">[% HTML.escape(j.errormsg) %]</pre>
         </td>
       </tr>
     [% END %]
@@ -51,7 +51,7 @@ that don’t build.</p>
       <tr>
         <td>[% INCLUDE renderFullJobName project=j.project.name jobset=j.jobset.name job=j.name %]</td>
         <td>
-          <pre class="multiLineMsg error">[% HTML.escape(j.errormsg) %]</pre>
+          <pre class="error">[% HTML.escape(j.errormsg) %]</pre>
         </td>
       </tr>
     [% END %]

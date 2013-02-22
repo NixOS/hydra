@@ -51,6 +51,8 @@ sub jobsetIndex {
 
     $c->stash->{evals} = getEvals($self, $c, scalar $c->stash->{jobset}->jobsetevals, 0, 10);
 
+    ($c->stash->{latestEval}) = $c->stash->{jobset}->jobsetevals->search({}, { limit => 1, order_by => ["id desc"] });
+
     $c->stash->{systems} =
         [ $c->stash->{jobset}->builds->search({ iscurrent => 1 }, { select => ["system"], distinct => 1, order_by => "system" }) ];
 
