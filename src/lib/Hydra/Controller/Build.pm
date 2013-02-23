@@ -173,6 +173,7 @@ sub checkPath {
     my $storeDir = $Nix::Config::storeDir . "/";
     error($c, "Invalid path in build product.")
         if substr($path, 0, length($storeDir)) ne $storeDir || $path =~ /\/\.\./;
+    error($c, "Path ‘$path’ is a symbolic link.") if -l $path;
 }
 
 

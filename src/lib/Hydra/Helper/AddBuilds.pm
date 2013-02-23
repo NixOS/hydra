@@ -788,15 +788,14 @@ sub addBuildProducts {
                 # Ensure that the path exists and points into the Nix store.
                 next unless File::Spec->file_name_is_absolute($path);
                 next if $path =~ /\/\.\./; # don't go up
-                next unless -e $path;
                 next unless substr($path, 0, length($storeDir)) eq $storeDir;
+                next unless -e $path;
+                next if -l $path;
 
                 # FIXME: check that the path is in the input closure
                 # of the build?
 
                 my $fileSize, my $sha1, my $sha256;
-
-                # !!! validate $path, $defaultPath
 
                 if (-f $path) {
                     my $st = stat($path) or die "cannot stat $path: $!";
