@@ -801,14 +801,8 @@ sub addBuildProducts {
                 if (-f $path) {
                     my $st = stat($path) or die "cannot stat $path: $!";
                     $fileSize = $st->size;
-
-                    $sha1 = `nix-hash --flat --type sha1 $path`
-                        or die "cannot hash $path: $?";;
-                    chomp $sha1;
-
-                    $sha256 = `nix-hash --flat --type sha256 $path`
-                        or die "cannot hash $path: $?";;
-                    chomp $sha256;
+                    $sha1 = hashFile("sha1", 0, $path);
+                    $sha256 = hashFile("sha256", 0, $path);
                 }
 
                 my $name = $path eq $outPath ? "" : basename $path;
