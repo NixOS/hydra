@@ -1,7 +1,8 @@
 TEMPLATES = $(wildcard *.tt)
 STATIC = \
   $(wildcard static/images/*) \
-  $(wildcard static/css/*)
+  $(wildcard static/css/*) \
+  static/js/bootbox.min.js
 
 FLOT = flot-0.6.zip
 TABLESORTER = jquery.tablesorter.zip
