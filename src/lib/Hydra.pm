@@ -40,6 +40,10 @@ __PACKAGE__->config(
             },
         },
     },
+    'Plugin::Static::Simple' => {
+        send_etag => 1,
+        expires => 3600
+    },
     'View::JSON' => {
         expose_stash => qr/^json/,
     },
