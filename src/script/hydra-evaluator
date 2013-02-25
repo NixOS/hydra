@@ -228,7 +228,9 @@ sub checkJobset {
     my ($jobset) = @_;
 
     print STDERR "considering jobset ", $jobset->project->name, ":", $jobset->name,
-        " (last checked ", time() - $jobset->lastcheckedtime, "s ago)\n";
+      $jobset->lastcheckedtime
+          ? " (last checked " . (time() - $jobset->lastcheckedtime) . "s ago)\n"
+          : " (never checked)\n";
 
     eval {
         checkJobsetWrapped($jobset);
@@ -248,8 +250,9 @@ sub checkJobset {
 # Check the jobset that hasn't been checked for the longest time.
 sub checkSomeJobset {
     my ($jobset) = $db->resultset('Jobsets')->search(
-        { 'project.enabled' => 1, 'me.enabled' => 1, 'lastcheckedtime' => { '<', time() - $minCheckInterval } },
-        { join => 'project', order_by => [ 'lastcheckedtime' ], rows => 1 });
+        { 'project.enabled' => 1, 'me.enabled' => 1
+        , -or => [ 'lastcheckedtime' => undef, 'lastcheckedtime' => { '<', time() - $minCheckInterval } ] },
+        { join => 'project', order_by => [ 'lastcheckedtime nulls first' ], rows => 1 });
 
     return 0 unless defined $jobset;
 
