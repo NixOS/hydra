@@ -20,6 +20,10 @@ STDOUT->autoflush();
 my $db = Hydra::Model::DB->new();
 my $config = getHydraConfig();
 
+# Don't check a jobset more than once every five minutes.
+my $minCheckInterval = 1;
+
+
 
 sub fetchInputs {
     my ($project, $jobset, $inputInfo) = @_;
@@ -97,8 +101,9 @@ sub permute {
 }
 
 
-sub checkJobset {
-    my ($project, $jobset) = @_;
+sub checkJobsetWrapped {
+    my ($jobset) = @_;
+    my $project = $jobset->project;
     my $inputInfo = {};
     my $exprType = $jobset->nixexprpath =~ /.scm$/ ? "guile" : "nix";
 
@@ -219,13 +224,14 @@ sub checkJobset {
 }
 
 
-sub checkJobsetWrapped {
-    my ($project, $jobset) = @_;
+sub checkJobset {
+    my ($jobset) = @_;
 
-    print STDERR "considering jobset ", $project->name, ":", $jobset->name, "\n";
+    print STDERR "considering jobset ", $jobset->project->name, ":", $jobset->name,
+        " (last checked ", time() - $jobset->lastcheckedtime, "s ago)\n";
 
     eval {
-        checkJobset($project, $jobset);
+        checkJobsetWrapped($jobset);
     };
 
     if ($@) {
@@ -239,12 +245,17 @@ sub checkJobsetWrapped {
 }
 
 
-sub checkProjects {
-    foreach my $project ($db->resultset('Projects')->search({enabled => 1})) {
-        print STDERR "considering project ", $project->name, "\n";
-        checkJobsetWrapped($project, $_)
-            foreach $project->jobsets->search({enabled => 1});
-    }
+# Check the jobset that hasn't been checked for the longest time.
+sub checkSomeJobset {
+    my ($jobset) = $db->resultset('Jobsets')->search(
+        { 'project.enabled' => 1, 'me.enabled' => 1, 'lastcheckedtime' => { '<', time() - $minCheckInterval } },
+        { join => 'project', order_by => [ 'lastcheckedtime' ], rows => 1 });
+
+    return 0 unless defined $jobset;
+
+    checkJobset($jobset);
+
+    return 1;
 }
 
 
@@ -253,16 +264,21 @@ if (scalar @ARGV == 2) {
     my $projectName = $ARGV[0];
     my $jobsetName = $ARGV[1];
     my $jobset = $db->resultset('Jobsets')->find($projectName, $jobsetName) or die;
-    checkJobsetWrapped($jobset->project, $jobset);
+    checkJobset($jobset);
     exit 0;
 }
 
 
 while (1) {
     eval {
-        checkProjects;
+        if (checkSomeJobset) {
+            # Just so we don't go completely crazy if lastcheckedtime
+            # isn't updated properly.
+            sleep 1;
+        } else {
+            print STDERR "sleeping...\n";
+            sleep 30;
+        }
     };
     if ($@) { print STDERR "$@"; }
-    print STDERR "sleeping...\n";
-    sleep 30;
 }
