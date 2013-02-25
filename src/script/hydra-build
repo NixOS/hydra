@@ -253,7 +253,6 @@ sub doBuild {
             "--max-silent-time $maxsilent --keep-going --fallback " .
             "--no-build-output --log-type flat --print-build-trace " .
             "--add-root " . gcRootFor($outputs{out} // $outputs{(sort keys %outputs)[0]}) . " 2>&1";
-        print STDERR "$cmd\n";
 
         my $max = $build->buildsteps->find(
             {}, {select => {max => 'stepnr + 1'}, as => ['max']});
