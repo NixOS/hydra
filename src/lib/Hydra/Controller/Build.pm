@@ -563,11 +563,10 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
 sub get_info : Chained('build') PathPart('api/get-info') Args(0) {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
-    # !!! strip the json prefix
-    $c->stash->{jsonBuildId} = $build->id;
-    $c->stash->{jsonDrvPath} = $build->drvpath;
+    $c->stash->{json}->{buildId} = $build->id;
+    $c->stash->{json}->{drvPath} = $build->drvpath;
     my $out = getMainOutput($build);
-    $c->stash->{jsonOutPath} = $out->path if defined $out;
+    $c->stash->{json}->{outPath} = $out->path if defined $out;
     $c->forward('View::JSON');
 }
 

@@ -54,6 +54,7 @@ create table Jobsets (
     errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
     errorTime     integer, -- timestamp associated with errorMsg
     lastCheckedTime integer, -- last time the evaluator looked at this jobset
+    triggerTime   integer, -- set if we were triggered by a push event
     enabled       integer not null default 1,
     enableEmail   integer not null default 1,
     hidden        integer not null default 0,

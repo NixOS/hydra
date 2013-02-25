@@ -21,7 +21,7 @@ my $db = Hydra::Model::DB->new();
 my $config = getHydraConfig();
 
 # Don't check a jobset more than once every five minutes.
-my $minCheckInterval = 1;
+my $minCheckInterval = 5 * 60;
 
 
 
@@ -232,6 +232,8 @@ sub checkJobset {
           ? " (last checked " . (time() - $jobset->lastcheckedtime) . "s ago)\n"
           : " (never checked)\n";
 
+    my $triggerTime = $jobset->triggertime;
+
     eval {
         checkJobsetWrapped($jobset);
     };
@@ -244,15 +246,35 @@ sub checkJobset {
             setJobsetError($jobset, $msg);
         });
     }
+
+    if (defined $triggerTime) {
+        txn_do($db, sub {
+            # Only clear the trigger time if the jobset hasn't been
+            # triggered in the meantime.  In that case, we need to
+            # evaluate again.
+            my $new = $jobset->get_from_storage();
+            $jobset->update({ triggertime => undef })
+                if $new->triggertime == $triggerTime;
+        });
+    }
 }
 
 
-# Check the jobset that hasn't been checked for the longest time.
 sub checkSomeJobset {
+    # If any jobset has been triggered by a push, check it.
     my ($jobset) = $db->resultset('Jobsets')->search(
-        { 'project.enabled' => 1, 'me.enabled' => 1
+        { 'project.enabled' => 1, 'me.enabled' => 1, 'triggertime' => { '!=', undef },
         , -or => [ 'lastcheckedtime' => undef, 'lastcheckedtime' => { '<', time() - $minCheckInterval } ] },
-        { join => 'project', order_by => [ 'lastcheckedtime nulls first' ], rows => 1 });
+        { join => 'project', order_by => [ 'triggertime' ], rows => 1 });
+
+    # Otherwise, check the jobset that hasn't been checked for the
+    # longest time (but don't check more often than the minimal check
+    # interval).
+    ($jobset) = $db->resultset('Jobsets')->search(
+        { 'project.enabled' => 1, 'me.enabled' => 1,
+        , -or => [ 'lastcheckedtime' => undef, 'lastcheckedtime' => { '<', time() - $minCheckInterval } ] },
+        { join => 'project', order_by => [ 'lastcheckedtime nulls first' ], rows => 1 })
+        unless defined $jobset;
 
     return 0 unless defined $jobset;
 

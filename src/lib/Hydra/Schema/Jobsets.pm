@@ -66,6 +66,11 @@ __PACKAGE__->table("Jobsets");
   data_type: 'integer'
   is_nullable: 1
 
+=head2 triggertime
+
+  data_type: 'integer'
+  is_nullable: 1
+
 =head2 enabled
 
   data_type: 'integer'
@@ -113,6 +118,8 @@ __PACKAGE__->add_columns(
   "errortime",
   { data_type => "integer", is_nullable => 1 },
   "lastcheckedtime",
+  { data_type => "integer", is_nullable => 1 },
+  "triggertime",
   { data_type => "integer", is_nullable => 1 },
   "enabled",
   { data_type => "integer", default_value => 1, is_nullable => 0 },
@@ -245,7 +252,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:9smV/zbSSxQNLiBcnADFXA
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-02-25 19:10:12
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SvBgR0iH9NjVH4jvBATYPA
 
 1;

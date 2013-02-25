@@ -1,5 +1,6 @@
 package Hydra::Controller::API;
 
+use utf8;
 use strict;
 use warnings;
 use base 'Catalyst::Controller';
@@ -19,6 +20,16 @@ use File::Slurp;
 sub api : Chained('/') PathPart('api') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->response->content_type('application/json');
+}
+
+
+sub end : ActionClass('RenderView') {
+    my ($self, $c) = @_;
+    if (scalar @{$c->error}) {
+        $c->stash->{json}->{error} = join "\n", @{$c->error};
+        $c->forward('View::JSON');
+        $c->clear_errors;
+    }
 }
 
 
@@ -271,6 +282,41 @@ sub logdiff : Chained('api') PathPart('logdiff') Args(2) {
     $c->response->content_type('text/x-diff');
     $c->stash->{'plain'} = { data => (scalar $diff) || " " };
     $c->forward('Hydra::View::Plain');
+}
+
+
+sub triggerJobset {
+    my ($self, $c, $jobset) = @_;
+    txn_do($c->model('DB')->schema, sub {
+        $jobset->update({ triggertime => time });
+    });
+    push @{$c->{stash}->{json}->{jobsetsTriggered}}, $jobset->project->name . ":" . $jobset->name;
+}
+
+
+sub push : Chained('api') PathPart('push') Args(0) {
+    my ($self, $c) = @_;
+
+    $c->{stash}->{json}->{jobsetsTriggered} = [];
+
+    my @jobsets = split /,/, ($c->request->params->{jobsets} // "");
+    foreach my $s (@jobsets) {
+        my ($p, $j) = parseJobsetName($s);
+        my $jobset = $c->model('DB::Jobsets')->find($p, $j) or notFound($c, "Jobset ‘$p:$j’ does not exist.");
+        next unless $jobset->project->enabled && $jobset->enabled;
+        triggerJobset($self, $c, $jobset);
+    }
+
+    my @repos = split /,/, ($c->request->params->{repos} // "");
+    foreach my $r (@repos) {
+        triggerJobset($self, $c, $_) foreach $c->model('DB::Jobsets')->search(
+            { 'project.enabled' => 1, 'me.enabled' => 1 },
+            { join => 'project'
+            , where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ]
+            });
+    }
+
+    $c->forward('View::JSON');
 }
 
 

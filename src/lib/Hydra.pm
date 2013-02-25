@@ -45,7 +45,7 @@ __PACKAGE__->config(
         expires => 3600
     },
     'View::JSON' => {
-        expose_stash => qr/^json/,
+        expose_stash => 'json'
     },
     'Plugin::Session' => {
         expires => 3600 * 24 * 2,

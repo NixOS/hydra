@@ -13,6 +13,7 @@ our @EXPORT = qw(
     requireLogin requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
     getLatestFinishedEval
+    parseJobsetName
     $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE
     @buildListColumns
 );
@@ -169,6 +170,13 @@ Readonly our $projectNameRE => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 Readonly our $jobsetNameRE  => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 Readonly our $jobNameRE     => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
 Readonly our $systemRE      => "(?:[a-z0-9_]+-[a-z0-9_]+)";
+
+
+sub parseJobsetName {
+    my ($s) = @_;
+    $s =~ /^($projectNameRE):($jobsetNameRE)$/ or die "invalid jobset specifier ‘$s’\n";
+    return ($1, $2);
+}
 
 
 1;
