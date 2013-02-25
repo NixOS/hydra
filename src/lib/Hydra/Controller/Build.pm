@@ -572,7 +572,7 @@ sub get_info : Chained('build') PathPart('api/get-info') Args(0) {
 }
 
 
-sub get_info : Chained('build') PathPart('evals') Args(0) {
+sub evals : Chained('build') PathPart('evals') Args(0) {
     my ($self, $c) = @_;
 
     $c->stash->{template} = 'evals.tt';
