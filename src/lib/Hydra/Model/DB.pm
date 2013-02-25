@@ -20,8 +20,7 @@ sub getHydraDBPath {
 __PACKAGE__->config(
     schema_class => 'Hydra::Schema',
     connect_info => {
-        dsn => getHydraDBPath,
-        pg_server_prepare => 0,
+        dsn => getHydraDBPath
     },
 );
 
