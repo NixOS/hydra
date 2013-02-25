@@ -287,6 +287,7 @@ sub logdiff : Chained('api') PathPart('logdiff') Args(2) {
 
 sub triggerJobset {
     my ($self, $c, $jobset) = @_;
+    print STDERR "triggering jobset ", $jobset->project->name . ":" . $jobset->name, "\n";
     txn_do($c->model('DB')->schema, sub {
         $jobset->update({ triggertime => time });
     });
@@ -299,7 +300,7 @@ sub push : Chained('api') PathPart('push') Args(0) {
 
     $c->{stash}->{json}->{jobsetsTriggered} = [];
 
-    my @jobsets = split /,/, ($c->request->params->{jobsets} // "");
+    my @jobsets = split /,/, ($c->request->query_params->{jobsets} // "");
     foreach my $s (@jobsets) {
         my ($p, $j) = parseJobsetName($s);
         my $jobset = $c->model('DB::Jobsets')->find($p, $j) or notFound($c, "Jobset ‘$p:$j’ does not exist.");
@@ -307,7 +308,7 @@ sub push : Chained('api') PathPart('push') Args(0) {
         triggerJobset($self, $c, $jobset);
     }
 
-    my @repos = split /,/, ($c->request->params->{repos} // "");
+    my @repos = split /,/, ($c->request->query_params->{repos} // "");
     foreach my $r (@repos) {
         triggerJobset($self, $c, $_) foreach $c->model('DB::Jobsets')->search(
             { 'project.enabled' => 1, 'me.enabled' => 1 },
