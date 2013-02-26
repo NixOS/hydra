@@ -53,3 +53,7 @@ table.info-table th {
 table.clickable-rows > tbody > tr {
     cursor: pointer;
 }
+
+h3 {
+    margin-top: 0.5em;
+}
