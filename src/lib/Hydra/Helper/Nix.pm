@@ -288,60 +288,89 @@ sub getMainOutput {
 }
 
 
+sub getEvalInputs {
+    my ($c, $eval) = @_;
+    my @inputs = $eval->jobsetevalinputs->search(
+        { -or => [ -and => [ uri => { '!=' => undef }, revision => { '!=' => undef }], dependency => { '!=' => undef }], altNr => 0 },
+        { order_by => "name" });
+}
+
+
+sub getEvalInfo {
+    my ($cache, $eval) = @_;
+    my $res = $cache->{$eval->id}; return $res if defined $res;
+
+    # Get stats for this eval.
+    my $nrScheduled;
+    my $nrSucceeded = $eval->nrsucceeded;
+    if (defined $nrSucceeded) {
+        $nrScheduled = 0;
+    } else {
+        $nrScheduled = $eval->builds->search({finished => 0})->count;
+        $nrSucceeded = $eval->builds->search({finished => 1, buildStatus => 0})->count;
+        if ($nrScheduled == 0) {
+            $eval->update({nrsucceeded => $nrSucceeded});
+        }
+    }
+
+    # Get the inputs.
+    my @inputsList = $eval->jobsetevalinputs->search(
+        { -or => [ -and => [ uri => { '!=' => undef }, revision => { '!=' => undef }], dependency => { '!=' => undef }], altNr => 0 },
+        { order_by => "name" });
+    my $inputs;
+    $inputs->{$_->name} = $_ foreach @inputsList;
+
+    return $cache->{$eval->id} =
+        { nrScheduled => $nrScheduled
+        , nrSucceeded => $nrSucceeded
+        , inputs => $inputs
+        };
+}
+
+
 sub getEvals {
     my ($self, $c, $evals, $offset, $rows) = @_;
 
     my @evals = $evals->search(
         { hasnewbuilds => 1 },
-        { order_by => "id DESC", rows => $rows + 1, offset => $offset });
+        { order_by => "id DESC", rows => $rows, offset => $offset });
 
     my @res = ();
-    my $prevInputs = [];
-    my $prev;
-    for (my $n = scalar @evals - 1; $n >= 0; $n--) {
-        my $cur = $evals[$n];
+    my $cache = {};
 
-        # Get stats for this eval.
-        my $nrScheduled;
-        my $nrSucceeded = $cur->nrsucceeded;
-        if (defined $nrSucceeded) {
-            $nrScheduled = 0;
-        } else {
-            $nrScheduled = $cur->builds->search({finished => 0})->count;
-            $nrSucceeded = $cur->builds->search({finished => 1, buildStatus => 0})->count;
-            if ($nrScheduled == 0) {
-                $cur->update({nrsucceeded => $nrSucceeded});
-            }
-        }
+    foreach my $curEval (@evals) {
+
+        my ($prevEval) = $c->model('DB::JobsetEvals')->search(
+            { project => $curEval->get_column('project'), jobset => $curEval->get_column('jobset')
+            , hasnewbuilds => 1, id => { '<', $curEval->id } },
+            { order_by => "id DESC", rows => 1 });
+
+        my $curInfo = getEvalInfo($cache, $curEval);
+        my $prevInfo = getEvalInfo($cache, $prevEval) if defined $prevEval;
 
         # Compute what inputs changed between each eval.
-        my $curInputs = [ $cur->jobsetevalinputs->search(
-            { -or => [ -and => [ uri => { '!=' => undef }, revision => { '!=' => undef }], dependency => { '!=' => undef }], altNr => 0 },
-            { order_by => "name" }) ];
         my @changedInputs;
-        my %prevInputsHash;
-        $prevInputsHash{$_->name} = $_ foreach @{$prevInputs};
-        foreach my $input (@{$curInputs}) {
-            my $p = $prevInputsHash{$input->name};
-            push @changedInputs, $input
-                if !defined $p || ($input->revision || "") ne ($p->revision || "") || $input->type ne $p->type || ($input->uri || "") ne ($p->uri || "") ||
-                   ( defined $input->dependency && defined $p->dependency && $input->dependency->id ne $p->dependency->id);
+        foreach my $input (values %{$curInfo->{inputs}}) {
+            my $p = $prevInfo->{inputs}->{$input->name};
+            push @changedInputs, $input if
+                !defined $p
+                || ($input->revision || "") ne ($p->revision || "")
+                || $input->type ne $p->type
+                || ($input->uri || "") ne ($p->uri || "")
+                || ($input->get_column('dependency') || "") ne ($p->get_column('dependency') || "");
         }
-        $prevInputs = $curInputs;
 
-        my $e =
-            { eval => $cur
-            , nrScheduled => $nrScheduled
-            , nrSucceeded => $nrSucceeded
-            , nrFailed => $cur->nrbuilds - $nrSucceeded - $nrScheduled
-            , diff => defined $prev ? $nrSucceeded - $prev->{nrSucceeded} : 0
+        push @res,
+            { eval => $curEval
+            , nrScheduled => $curInfo->{nrScheduled}
+            , nrSucceeded => $curInfo->{nrSucceeded}
+            , nrFailed => $curEval->nrbuilds - $curInfo->{nrSucceeded} - $curInfo->{nrScheduled}
+            , diff => defined $prevEval ? $curInfo->{nrSucceeded} - $prevInfo->{nrSucceeded} : 0
             , changedInputs => [ @changedInputs ]
             };
-        push @res, $e if $n < $rows;
-        $prev = $e;
     }
 
-    return [reverse @res];
+    return [@res];
 }
 
 
