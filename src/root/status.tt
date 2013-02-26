@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Active build steps" %]
 [% PROCESS common.tt %]
 
-<table class="tablesorter table table-striped table-condensed">
+<table class="tablesorter table table-striped table-condensed clickable-rows">
   <thead>
     <tr><th>Machine</th><th>Job</th><th>Type</th><th>Build</th><th>Step</th><th>What</th><th>Since</th></tr>
   </thead>
@@ -12,7 +12,7 @@
         <td><tt>[% INCLUDE renderFullJobName project = step.build.project.name jobset = step.build.jobset.name job = step.build.job.name %]</tt></td>
         <td><tt>[% step.system %]</tt></td>
         <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
-        <td><a href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail-reload') %]">[% step.stepnr %]</a></td>
+        <td><a class="row-link" href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail-reload') %]">[% step.stepnr %]</a></td>
         <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
         <td class='right'>[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
       </tr>
