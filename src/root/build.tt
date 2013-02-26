@@ -336,8 +336,6 @@
       </tbody>
     </table>
 
-    <br />
-
     [% IF prevBuild %]
       <h3>Changes since previous [% INCLUDE renderBuildLink build=prevBuild %]</h3>
       [% INCLUDE renderInputDiff build2=build, build1=prevBuild %]
