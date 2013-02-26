@@ -59,8 +59,7 @@
         <th>Last checked:</th>
         <td>
           [% IF jobset.lastcheckedtime %]
-            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %][% IF jobset.errormsg %]<em>, with
-            evaluation errors!</em>[% ELSE %], <em>no evaluation errors</em>[% END %]
+            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %], [% IF jobset.errormsg %]<em class="text-warning">with errors!</em>[% ELSE %]<em>no errors</em>[% END %]
           [% ELSE %]
             <em>never</em>
           [% END %]
@@ -76,6 +75,12 @@
           [% END %]
         </td>
       </tr>
+      [% IF jobset.triggertime %]
+      <tr>
+        <th>Evaluation pending since:</th>
+        <td>[% INCLUDE renderDateTime timestamp = jobset.triggertime %]</td>
+      </tr>
+      [% END %]
     </table>
 
     <br/>
