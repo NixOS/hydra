@@ -131,27 +131,17 @@ sub submit : Chained('jobset') PathPart Args(0) {
     requireProjectOwner($c, $c->stash->{project});
     requirePost($c);
 
+    if (($c->request->params->{submit} // "") eq "delete") {
+        $c->stash->{jobset}->delete;
+        return $c->res->redirect($c->uri_for($c->controller('Project')->action_for("view"), [$c->stash->{project}->name]));
+    }
+
     txn_do($c->model('DB')->schema, sub {
         updateJobset($c, $c->stash->{jobset});
     });
 
     $c->res->redirect($c->uri_for($self->action_for("index"),
         [$c->stash->{project}->name, $c->stash->{jobset}->name]));
-}
-
-
-sub delete : Chained('jobset') PathPart Args(0) {
-    my ($self, $c) = @_;
-
-    requireProjectOwner($c, $c->stash->{project});
-    requirePost($c);
-
-    txn_do($c->model('DB')->schema, sub {
-        $c->stash->{jobset}->delete;
-    });
-
-    $c->res->redirect($c->uri_for($c->controller('Project')->action_for("view"),
-        [$c->stash->{project}->name]));
 }
 
 

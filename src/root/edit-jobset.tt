@@ -109,6 +109,18 @@
 
     <div class="form-actions">
       <button type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create %]Create[% ELSE %]Apply changes[% END %]</button>
+
+      [% IF !create %]
+        <button id="delete-jobset" type="submit" class="btn btn-danger" name="submit" value="delete">
+          <i class="icon-trash icon-white"></i>
+          Delete this jobset
+        </button>
+        <script type="text/javascript">
+          $("#delete-jobset").click(function() {
+            return confirm("Are you sure you want to delete this jobset?");
+          });
+        </script>
+      [% END %]
     </div>
 
   </fieldset>

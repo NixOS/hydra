@@ -82,18 +82,6 @@
       [% IF c.user_exists %]
         <li class="divider"></li>
         [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit" %]
-
-        <form id="delete-jobset" method="post" action="[% c.uri_for('/jobset' project.name jobset.name 'delete') %]" class="hidden"></form>
-        <script>
-          function confirmDeleteJobset() {
-            bootbox.confirm(
-              'Are you sure you want to delete this jobset?',
-              function(del) { if (del) $('#delete-jobset').submit(); });
-            return;
-          };
-        </script>
-        [% INCLUDE menuItem title="Delete" uri = "javascript:confirmDeleteJobset()" %]
-
         [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'clone') title="Clone" %]
 
         <script>
