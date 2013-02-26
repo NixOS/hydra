@@ -122,12 +122,14 @@
                 <td>[% INCLUDE renderFullBuildLink build=cachedBuild %]</td>
               </tr>
             [% END %]
+            [% IF build.finished %]
             <tr>
               <th>Duration:</th>
               <td>[% actualBuild = build.iscachedbuild ? cachedBuild : build;
                      INCLUDE renderDuration duration = actualBuild.stoptime - actualBuild.starttime %]; finished at [% INCLUDE renderDateTime timestamp = actualBuild.stoptime
                   %]</td>
             </tr>
+            [% END %]
             [% IF log_exists(build.drvpath) %]
               <tr>
                 <th>Logfile:</th>
