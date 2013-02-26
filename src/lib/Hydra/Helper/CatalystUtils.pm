@@ -1,5 +1,6 @@
 package Hydra::Helper::CatalystUtils;
 
+use utf8;
 use strict;
 use Exporter;
 use Readonly;

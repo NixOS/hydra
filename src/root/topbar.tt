@@ -95,8 +95,27 @@
         [% INCLUDE menuItem title="Delete" uri = "javascript:confirmDeleteJobset()" %]
 
         [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'clone') title="Clone" %]
-        [% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('force_eval'), project.name, jobset.name)
-          content = "Evaluate" confirmmsg = ("Are you sure you want to force evaluation of jobset " _ project.name _ ":" _ jobset.name _ "?") class = "" %]
+
+        <script>
+          function confirmEvaluateJobset() {
+            bootbox.confirm(
+              'Are you sure you want to force evaluation of this jobset?',
+              function(c) {
+                if (!c) return;
+                $.post("[% c.uri_for('/api/push', { jobsets = project.name _ ':' _ jobset.name }) %]")
+                  .done(function(data) {
+                    if (data.error)
+                      bootbox.alert("Unable to schedule the jobset for evaluation: " + data.error);
+                    else
+                      bootbox.alert("The jobset has been scheduled for evaluation.");
+                  })
+                  .fail(function() { bootbox.alert("Server request failed!"); });
+              });
+            return;
+          };
+        </script>
+        [% INCLUDE menuItem title="Evaluate" uri = "javascript:confirmEvaluateJobset()" %]
+
       [% END %]
     [% END %]
   [% END %]

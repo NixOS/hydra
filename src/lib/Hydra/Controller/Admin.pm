@@ -392,21 +392,4 @@ sub news_delete : Chained('admin') Path('news/delete') Args(1) {
 }
 
 
-sub force_eval : Chained('admin') Path('eval') Args(2) {
-    my ($self, $c, $projectName, $jobsetName) = @_;
-
-    my $project = $c->model('DB::Projects')->find($projectName)
-        or notFound($c, "Project $projectName doesn't exist.");
-
-    $c->stash->{project} = $project;
-    $c->stash->{jobset_} = $project->jobsets->search({name => $jobsetName});
-    $c->stash->{jobset} = $c->stash->{jobset_}->single
-        or notFound($c, "Jobset $jobsetName doesn't exist.");
-
-    captureStdoutStderr(60, "hydra-evaluator", $projectName, $jobsetName);
-
-    $c->res->redirect("/project/$projectName");
-}
-
-
 1;

@@ -79,6 +79,8 @@
                 window.location = link.attr("href");
           });
 
+          bootbox.animate(false);
+
       });
 
     </script>
