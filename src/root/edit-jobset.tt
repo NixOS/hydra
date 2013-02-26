@@ -11,7 +11,7 @@
   <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
     <td>
       <button type="button" class="btn btn-warning" onclick='$(this).parents(".input").remove()'><i class="icon-trash icon-white"></i></button>
-      <tt><input type="text" name="[% baseName %]-name" [% HTML.attributes(value => input.name) %]></input>
+      <tt><input type="text" id="[% baseName %]-name" name="[% baseName %]-name" [% HTML.attributes(value => input.name) %]></input>
     </td>
     <td>
       [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
