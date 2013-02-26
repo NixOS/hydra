@@ -304,8 +304,8 @@ sub push : Chained('api') PathPart('push') Args(0) {
     my @jobsets = split /,/, ($c->request->query_params->{jobsets} // "");
     foreach my $s (@jobsets) {
         my ($p, $j) = parseJobsetName($s);
-        my $jobset = $c->model('DB::Jobsets')->find($p, $j) or notFound($c, "Jobset ‘$p:$j’ does not exist.");
-        next unless $jobset->project->enabled && $jobset->enabled;
+        my $jobset = $c->model('DB::Jobsets')->find($p, $j);
+        next unless defined $jobset && $jobset->project->enabled && $jobset->enabled;
         triggerJobset($self, $c, $jobset);
     }
 
