@@ -8,6 +8,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Controller::Project;
+use JSON;
 use JSON::Any;
 use DateTime;
 use Digest::SHA qw(sha256_hex);
@@ -319,6 +320,27 @@ sub push : Chained('api') PathPart('push') Args(0) {
 
     $c->forward('View::JSON');
 }
+
+
+sub push_github : Chained('api') PathPart('push-github') Args(0) {
+    my ($self, $c) = @_;
+
+    $c->{stash}->{json}->{jobsetsTriggered} = [];
+    
+    my $in = decode_json $c->req->body_params->{payload};
+    my $owner = $in->{repository}->{owner}->{name} or die;
+    my $repo = $in->{repository}->{name} or die;
+    print STDERR "got push from GitHub repository $owner/$repo\n";
+    
+    triggerJobset($self, $c, $_) foreach $c->model('DB::Jobsets')->search(
+        { 'project.enabled' => 1, 'me.enabled' => 1 },
+        { join => 'project'
+        , where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)', [ 'value', "%github.com%/$owner/$repo.git%" ] ]
+        });
+
+    $c->forward('View::JSON');
+}
+
 
 
 1;
