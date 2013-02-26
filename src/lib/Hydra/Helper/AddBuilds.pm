@@ -273,7 +273,7 @@ sub fetchInputSystemBuild {
 
     my @validBuilds = ();
     foreach my $build (@latestBuilds) {
-        push(@validBuilds, $build) if !isValidPath(getMainOutput($build)->path);
+        push(@validBuilds, $build) if isValidPath(getMainOutput($build)->path);
     }
 
     if (scalar(@validBuilds) == 0) {
