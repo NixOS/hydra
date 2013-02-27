@@ -13,7 +13,8 @@ use Catalyst qw/ConfigLoader
                 Session
                 Session::Store::FastMmap
                 Session::State::Cookie
-                AccessLog/,
+                AccessLog
+                Captcha/,
                 '-Log=warn,fatal,error';
 
 our $VERSION = '0.01';
@@ -55,6 +56,24 @@ __PACKAGE__->config(
         formatter => {
             format => '%h %l %u %t "%r" %s %b "%{Referer}i" "%{User-Agent}i" %[handle_time]',
         },
+    },
+    'Plugin::Captcha' => {
+        session_name => 'hydra-captcha',
+        new => {
+            width => 270,
+            height => 80,
+            ptsize => 20,
+            lines => 30,
+            thickness => 1,
+            rndmax => 5,
+            scramble => 1,
+            #send_ctobg => 1,
+            bgcolor => '#ffffff',
+            font => '/home/eelco/Dev/hydra/ttf/StayPuft.ttf',
+        },
+        create => [ qw/ttf circle/ ],
+        particle => [ 3500 ],
+        out => { force => 'jpeg' }
     },
 );
 

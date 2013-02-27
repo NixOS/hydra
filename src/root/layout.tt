@@ -119,6 +119,11 @@
         <p class="btn-info btn-large">[% flashMsg %]</p>
       [% END %]
 
+      [% IF successMsg %]
+        <br />
+        <p class="btn-success btn-large">[% successMsg %]</p>
+      [% END %]
+
       [% IF errorMsg %]
         <br />
         <p class="btn-warning btn-large">Error: [% errorMsg %]</p>

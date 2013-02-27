@@ -20,7 +20,9 @@ sub begin :Private {
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
     $c->stash->{logo} = $ENV{"HYDRA_LOGO"} ? "/logo" : "";
-    $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"} ;
+    $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"};
+    $c->stash->{flashMsg} = $c->flash->{flashMsg};
+    $c->stash->{successMsg} = $c->flash->{successMsg};
 
     if (scalar(@args) == 0 || $args[0] ne "static") {
         $c->stash->{nrRunningBuilds} = $c->model('DB::Builds')->search({ finished => 0, busy => 1 }, {})->count();
@@ -37,46 +39,12 @@ sub index :Path :Args(0) {
 }
 
 
-sub login :Local {
-    my ($self, $c) = @_;
-
-    my $username = $c->request->params->{username} || "";
-    my $password = $c->request->params->{password} || "";
-
-    if ($username eq "" && $password eq "" && !defined $c->flash->{referer}) {
-        my $baseurl = $c->uri_for('/');
-        my $refurl = $c->request->referer;
-        $c->flash->{referer} = $refurl if $refurl =~ m/^($baseurl)/;
-    }
-
-    if ($username && $password) {
-        if ($c->authenticate({username => $username, password => $password})) {
-            $c->response->redirect($c->flash->{referer} || $c->uri_for('/'));
-            $c->flash->{referer} = undef;
-            return;
-        }
-        $c->stash->{errorMsg} = "Bad username or password.";
-    }
-
-    $c->keep_flash("referer");
-
-    $c->stash->{template} = 'login.tt';
-}
-
-
-sub logout :Local {
-    my ($self, $c) = @_;
-    $c->logout;
-    $c->response->redirect($c->request->referer || $c->uri_for('/'));
-}
-
-
 sub queue :Local {
     my ($self, $c) = @_;
     $c->stash->{template} = 'queue.tt';
     $c->stash->{queue} = [$c->model('DB::Builds')->search(
         {finished => 0}, { join => ['project'], order_by => ["priority DESC", "timestamp"], columns => [@buildListColumns], '+select' => ['project.enabled'], '+as' => ['enabled'] })];
-    $c->stash->{flashMsg} = $c->flash->{buildMsg};
+    $c->stash->{flashMsg} //= $c->flash->{buildMsg};
 }
 
 

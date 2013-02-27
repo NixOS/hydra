@@ -15,7 +15,7 @@ our @EXPORT = qw(
     trim
     getLatestFinishedEval
     parseJobsetName
-    $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE
+    $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE $userNameRE
     @buildListColumns
 );
 
@@ -171,6 +171,7 @@ Readonly our $projectNameRE => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 Readonly our $jobsetNameRE  => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 Readonly our $jobNameRE     => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
 Readonly our $systemRE      => "(?:[a-z0-9_]+-[a-z0-9_]+)";
+Readonly our $userNameRE    => "(?:[a-z][a-z0-9_\.]*)";
 
 
 sub parseJobsetName {

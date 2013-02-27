@@ -1,72 +1,115 @@
-[% WRAPPER layout.tt title=(create ? "New user" : "User $user.username") %]
+[% WRAPPER layout.tt title=(create ? "Register new user" : "User $user.username") %]
 [% PROCESS common.tt %]
 
 [% BLOCK roleoption %]
-            <option value="[% role %]"
-            [% checked = false %]
-            [% FOREACH r IN user.userroles %]
-                [% checked = r.role == role %]
-                [% BREAK IF checked %]
-            [% END %]
-            [% IF checked %]
-                SELECTED
-            [% END %]
-            >[% role %]</option>
+  <option value="[% role %]"
+    [% checked = false %]
+    [% FOREACH r IN user.userroles %]
+      [% checked = r.role == role %]
+      [% BREAK IF checked %]
+    [% END %]
+    [% IF checked %]
+      SELECTED
+    [% END %]
+    >[% role %]</option>
 [% END %]
 
-<form class="form-horizontal" action="[% IF create %][% c.uri_for('/admin/create-user/submit') %][% ELSE %][% c.uri_for('/admin/user' user.username 'submit') %][% END %]" method="post">
+<form class="form-horizontal" method="post">
 
-<fieldset>
-  [% IF create %]
-  <div class="control-group">
-    <label class="control-label">User name</label>
-    <div class="controls">
-      <input type="text" class="span3" name="username" value=""></input>
-    </div>
-  </div>
-  [% END %]
-  <div class="control-group">
-    <label class="control-label">Full name</label>
-    <div class="controls">
-      <input type="text" class="span3" name="fullname" [% HTML.attributes(value => user.fullname) %]></input>
-    </div>
-  </div>
-  <div class="control-group">
-    <label class="control-label">Email</label>
-    <div class="controls">
-      <input type="text" class="span3" name="emailaddress" [% HTML.attributes(value => user.emailaddress) %]></input>
-    </div>
-  </div>
-  <div class="control-group">
-    <label class="control-label">Evaluation error notifications</label>
-    [% INCLUDE renderSelection param="emailonerror" curValue=user.emailonerror radiobuttons=1 options={"1" = "Yes", "0" = "No"} %]
-  </div>
-  <div class="control-group">
-    <label class="control-label">Roles</label>
-    <div class="controls">
-      <select multiple name="roles" class="span3">
-        [% INCLUDE roleoption role="admin" %]
-        [% INCLUDE roleoption role="create-project" %]
-      </select>
-    </div>
-  </div>
+  <fieldset>
 
-  <div class="form-actions">
-    <button type="submit" class="btn btn-primary">
-      <i class="icon-ok icon-white"></i>
-      [%IF create %]Create[% ELSE %]Apply changes[% END %]
-    </button>
-    [% IF !create %]
-      <button id="delete-user" type="submit" class="btn btn-danger" name="submit" value="delete">
-        <i class="icon-trash icon-white"></i>
-        Delete this user
-      </button>
-      <script type="text/javascript">
-        $("#delete-user").click(function() {
-          return confirm("Are you sure you want to delete this user?");
-        });
-      </script>
+    [% IF create %]
+    <div class="control-group">
+      <label class="control-label">User name</label>
+      <div class="controls">
+        <input type="text" class="span3" name="username" [% HTML.attributes(value => username) %]></input>
+      </div>
+    </div>
     [% END %]
+
+    <div class="control-group">
+      <label class="control-label">Full name</label>
+      <div class="controls">
+        <input type="text" class="span3" name="fullname" [% HTML.attributes(value => fullname) %]></input>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label class="control-label">Password</label>
+      <div class="controls">
+        <input type="password" class="span3" name="password" value=""></input>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label class="control-label">Confirm password</label>
+      <div class="controls">
+        <input type="password" class="span3" name="password2" value=""></input>
+      </div>
+    </div>
+
+    <!--
+    <div class="control-group">
+      <label class="control-label">Email</label>
+      <div class="controls">
+        <input type="text" class="span3" name="emailaddress" [% HTML.attributes(value => user.emailaddress) %]></input>
+      </div>
+    </div>
+    -->
+
+    [% IF !create %]
+      <div class="control-group">
+        <div class="controls">
+          <label class="checkbox">
+            <input type="checkbox" name="enabled" [% IF 1; 'checked="checked"'; END %]></input>Receive evaluation error notifications
+          </label>
+        </div>
+      </div>
+    [% END %]
+
+    [% IF !create && c.check_user_roles('admin') %]
+      <div class="control-group">
+        <label class="control-label">Roles</label>
+        <div class="controls">
+          <select multiple name="roles" class="span3">
+            [% INCLUDE roleoption role="admin" %]
+            [% INCLUDE roleoption role="create-project" %]
+          </select>
+        </div>
+      </div>
+    [% END %]
+
+    [% IF create %]
+      <div class="control-group">
+        <div class="controls">
+          <img src="[% c.uri_for('/captcha') %]" alt="CAPTCHA"/>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label">Type the digits shown in the image above</label>
+        <div class="controls">
+          <input type="text" class="span3" name="captcha" value=""></input>
+        </div>
+      </div>
+    [% END %]
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        <i class="icon-ok icon-white"></i>
+        [%IF create %]Create[% ELSE %]Apply changes[% END %]
+      </button>
+      [% IF !create %]
+        <button id="delete-user" type="submit" class="btn btn-danger" name="submit" value="delete">
+          <i class="icon-trash icon-white"></i>
+          Delete this user
+        </button>
+        <script type="text/javascript">
+          $("#delete-user").click(function() {
+            return confirm("Are you sure you want to delete this user?");
+          });
+        </script>
+      [% END %]
   </div>
 </p>
 

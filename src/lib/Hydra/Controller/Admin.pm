@@ -87,6 +87,7 @@ sub create_user : Chained('admin') PathPart('create-user') Args(0) {
     $c->stash->{create} = 1;
 }
 
+
 sub create_user_submit : Chained('admin') PathPart('create-user/submit') Args(0) {
     my ($self, $c) = @_;
 

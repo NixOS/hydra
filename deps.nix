@@ -5,6 +5,7 @@ with pkgs;
 [ perlPackages.CatalystAuthenticationStoreDBIxClass
   perlPackages.CatalystPluginAccessLog
   perlPackages.CatalystPluginAuthorizationRoles
+  perlPackages.CatalystPluginCaptcha
   perlPackages.CatalystPluginSessionStateCookie
   perlPackages.CatalystPluginSessionStoreFastMmap
   perlPackages.CatalystPluginStackTrace
