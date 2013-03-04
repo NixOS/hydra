@@ -56,11 +56,7 @@ sub users : Chained('admin') PathPart('users') Args(0) {
 
 sub machines : Chained('admin') PathPart('machines') Args(0) {
     my ($self, $c) = @_;
-    $c->stash->{machines} = [$c->model('DB::BuildMachines')->search({}, {order_by => "hostname"})];
-    $c->stash->{systems} = [$c->model('DB::SystemTypes')->search({}, {select => ["system"], order_by => "system" })];
-    $c->stash->{nixMachines} = nixMachines($c);
-    $c->stash->{nixMachinesWritable} = (-e "/etc/nix.machines" && -w "/etc/nix.machines");
-
+    $c->stash->{machines} = getMachines;
     $c->stash->{template} = 'machines.tt';
 }
 

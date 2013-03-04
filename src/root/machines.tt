@@ -8,32 +8,23 @@
             <th>Machine</th>
             <th>Max concurrent</th>
             <th>Speed factor</th>
-            [% FOREACH s IN systems %]<th>[% s.system %]</th>[% END %]
+            <th>Systems</th>
         </tr>
     </thead>
     <tbody>
         [% FOREACH m IN machines %]
         <tr>
-            <td><input type="checkbox" name="enabled" [% IF m.enabled == 1  %]CHECKED[% END %] onclick="window.location='[% IF m.enabled == 1 %][%c.uri_for('/admin/machine' m.hostname 'disable' )%][% ELSE %][%c.uri_for('/admin/machine' m.hostname 'enable' )%][% END %]'"/></td>
-            <td><a href="[% c.uri_for(c.controller('Admin').action_for('machine_edit'), [m.hostname]) %]">[% m.hostname %]</a></td>
-            <td>[% m.maxconcurrent %]</td>
-            <td>[% m.speedfactor %]</td>
-            [% FOREACH s IN systems %]
-                <td>
-                [% checked = false %]
-                [% FOREACH ms IN m.buildmachinesystemtypes %]
-                    [% checked = ms.system == s.system  %]
-                    [% BREAK IF checked %]
-                [% END %]
-                <input type="checkbox" name="system" DISABLED [% IF checked %]CHECKED[% END %]/>
-                </td>
-            [% END %]
+            <td><input type="checkbox" name="enabled" [% IF m.value.maxJobs > 0  %]CHECKED[% END %] disabled="true" /></td>
+            <td>[% m.key %]</a></td>
+            <td>[% m.value.maxJobs %]</td>
+            <td>[% m.value.speedFactor %]</td>
+            <td>
+                [% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END; system; END %]
+            </td>
         </tr>
         [% END %]
     </tbody>
 
 </table>
-
-<p><a class="btn" href="[% c.uri_for(c.controller('Admin').action_for('create_machine')) %]"><i class="icon-plus"></i> Add a new machine</a></p>
 
 [% END %]
