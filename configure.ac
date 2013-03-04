@@ -95,6 +95,7 @@ AC_CONFIG_FILES([
   src/c/Makefile
   src/sql/Makefile
   src/xsl/Makefile
+  src/ttf/Makefile
   src/lib/Makefile
   src/root/Makefile
   src/script/Makefile

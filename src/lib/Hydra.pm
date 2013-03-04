@@ -69,7 +69,7 @@ __PACKAGE__->config(
             scramble => 1,
             #send_ctobg => 1,
             bgcolor => '#ffffff',
-            font => '/home/eelco/Dev/hydra/ttf/StayPuft.ttf',
+            font => __PACKAGE__->path_to("ttf/StayPuft.ttf"),
         },
         create => [ qw/ttf circle/ ],
         particle => [ 3500 ],
