@@ -16,7 +16,7 @@ our @EXPORT = qw(
     getViewResult getLatestSuccessfulViewResult
     jobsetOverview removeAsciiEscapes getDrvLogPath logContents
     getMainOutput
-    getEvals);
+    getEvals getMachines);
 
 
 sub getHydraHome {
@@ -371,6 +371,34 @@ sub getEvals {
     }
 
     return [@res];
+}
+
+sub getMachines {
+    my $machinesConf = $ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix.machines";
+
+    # Read the list of machines.
+    my %machines = ();
+    if (-e $machinesConf) {
+        open CONF, "<$machinesConf" or die;
+        while (<CONF>) {
+            chomp;
+            s/\#.*$//g;
+            next if /^\s*$/;
+            my @tokens = split /\s/, $_;
+            my @supportedFeatures = split(/,/, $tokens[5] || "");
+            my @mandatoryFeatures = split(/,/, $tokens[6] || "");
+            $machines{$tokens[0]} =
+                { systemTypes => [ split(/,/, $tokens[1]) ]
+                , sshKeys => $tokens[2]
+                , maxJobs => int($tokens[3])
+                , speedFactor => 1.0 * (defined $tokens[4] ? int($tokens[4]) : 1)
+                , supportedFeatures => [ @supportedFeatures, @mandatoryFeatures ]
+                , mandatoryFeatures => [ @mandatoryFeatures ]
+                };
+        }
+        close CONF;
+    }
+    return \%machines;
 }
 
 
