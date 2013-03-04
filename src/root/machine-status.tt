@@ -6,18 +6,18 @@
     <thead>
       <tr>
         <th colspan="5">
-          [% IF m.enabled == 1 %]
-            <a class="btn btn-success btn-mini" href="[% c.uri_for('/admin/machine' m.hostname 'disable' ) %]">Running</a>
+          [% IF m.value.maxJobs > 0 %]
+            Running
           [% ELSE %]
-            <a class="btn btn-danger btn-mini" href="[% c.uri_for('/admin/machine' m.hostname 'enable' ) %]">Stopped</a>
-          [% END %] <tt>[% m.hostname %]</tt> (<tt>[% comma=0; FOREACH ms IN m.buildmachinesystemtypes %][% IF comma; %], [% ELSE; comma = 1; END; ms.system; END %])</tt>
+            Stopped
+          [% END %] <tt>[% m.key %]</tt> (<tt>[% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END; system; END %])</tt>
         </th>
       </tr>
     </thead>
     <tbody>
       [% idle = 1 %]
       [% FOREACH step IN steps %]
-        [% IF step.machine.match('@(.*)').0 == m.hostname %]
+        [% IF step.machine.match('@(.*)').0 == m.key %]
           [% idle = 0 %]
           <tr>
             <td><tt>[% INCLUDE renderFullJobName project = step.build.project.name jobset = step.build.jobset.name job = step.build.job.name %]</tt></td>
@@ -29,7 +29,11 @@
         [% END %]
       [% END %]
       [% IF idle == 1 %]
-          <tr><td colspan="5">Idle since [% INCLUDE renderDuration duration = curTime - m.get_column('idle') %]</td></tr>
+        [% IF m.value.idle %] 
+          <tr><td colspan="5">Idle since [% INCLUDE renderDuration duration = curTime - m.value.idle %]</td></tr>
+        [% ELSE %]
+          <tr><td colspan="5">Never built</td></tr>
+        [% END %]
       [% END %]
     </tbody>
   [% END %]

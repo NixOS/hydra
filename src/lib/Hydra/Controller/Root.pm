@@ -74,12 +74,14 @@ sub status :Local {
 
 sub machines :Local Args(0) {
     my ($self, $c) = @_;
-    $c->stash->{machines} = [$c->model('DB::BuildMachines')->search(
-        {},
-        { order_by => ["enabled DESC", "hostname"]
-        , '+select' => ["(select bs.stoptime from buildsteps as bs where bs.machine = (me.username || '\@' || me.hostname) and not bs.stoptime is null order by bs.stoptime desc limit 1)"]
-        , '+as' => ['idle']
-        })];
+    my $machines = getMachines;
+    my $idles = $c->model('DB::BuildSteps')->search(
+            { stoptime => { '!=', undef } },
+            { select => [ 'machine', { max => 'stoptime', -as => 'max_stoptime' }], group_by => "machine" });
+    while (my $idle = $idles->next) {
+        ${$machines}{$idle->machine}{'idle'} = $idle->max_stoptime;
+    }
+    $c->stash->{machines} = $machines;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
         { finished => 0, 'me.busy' => 1, 'build.busy' => 1, },
         { join => [ 'build' ]
