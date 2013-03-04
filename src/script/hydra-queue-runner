@@ -73,6 +73,16 @@ sub checkBuilds {
 
     my @buildsStarted;
 
+    my $machines = getMachines;
+
+    my %maxConcurrent = ();
+
+    foreach my $machineName (keys %{$machines}) {
+        foreach my $system (${$machines}{$machineName}{'systemTypes'}) {
+            $maxConcurrent{$system} = (${$machines}{$machineName}{'maxJobs'} or 0) + ($maxConcurrent{$system} or 0)
+        }
+    }
+
     txn_do($db, sub {
 
         # Get the system types for the runnable builds.
@@ -89,10 +99,7 @@ sub checkBuilds {
             my $nrActive = $db->resultset('Builds')->search(
                 {finished => 0, busy => 1, system => $system->system})->count;
 
-            # How many extra builds can we start?
-            (my $systemTypeInfo) = $db->resultset('SystemTypes')->search({system => $system->system});
-            my $maxConcurrent = defined $systemTypeInfo ? $systemTypeInfo->maxconcurrent : 2;
-            my $extraAllowed = $maxConcurrent - $nrActive;
+            my $extraAllowed = $maxConcurrent{$system} - $nrActive;
             $extraAllowed = 0 if $extraAllowed < 0;
 
             # Select the highest-priority builds to start.
@@ -102,7 +109,7 @@ sub checkBuilds {
                   rows => $extraAllowed });
 
             print "system type `", $system->system,
-                "': $nrActive active, $maxConcurrent allowed, ",
+                "': $nrActive active, $maxConcurrent{$system} allowed, ",
                 "starting ", scalar(@builds), " builds\n";
 
             foreach my $build (@builds) {
