@@ -513,25 +513,6 @@ create table NewsItems (
 );
 
 
-create table BuildMachines (
-    hostname text primary key not null,
-    username text default '' not null,
-    ssh_key text default '' not null,
-    options text default '' not null,
-    maxconcurrent integer default 2 not null,
-    speedfactor integer default 1 not null,
-    enabled integer default 0 not null
-);
-
-
-create table BuildMachineSystemTypes (
-    hostname text NOT NULL,
-    system text NOT NULL,
-    primary key (hostname, system),
-    foreign key (hostname) references BuildMachines(hostname) on delete cascade
-);
-
-
 -- Some indices.
 
 create index IndexBuildInputsOnBuild on BuildInputs(build);
