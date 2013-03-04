@@ -12,7 +12,7 @@ our @EXPORT = qw(hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBui
 
 sub hydra_setup {
     my ($db) = @_;
-    $db->resultset('Users')->create({ username => "root", emailaddress => 'root@email.com', password => '' });
+    $db->resultset('Users')->create({ username => "root", emailaddress => 'root@invalid.org', password => '' });
 }
 
 sub nrBuildsForJobset {

@@ -4,6 +4,10 @@ use utf8;
 use strict;
 use Exporter;
 use Readonly;
+use Email::Simple;
+use Email::Sender::Simple qw(sendmail);
+use Email::Sender::Transport::SMTP;
+use Sys::Hostname::Long;
 use Nix::Store;
 use Hydra::Helper::Nix;
 
@@ -15,6 +19,9 @@ our @EXPORT = qw(
     trim
     getLatestFinishedEval
     parseJobsetName
+    sendEmail
+    paramToList
+    backToReferer
     $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE $userNameRE
     @buildListColumns
 );
@@ -97,8 +104,17 @@ sub notFound {
 }
 
 
+sub backToReferer {
+    my ($c) = @_;
+    $c->response->redirect($c->session->{referer} || $c->uri_for('/'));
+    $c->session->{referer} = undef;
+    $c->detach;
+}
+
+
 sub requireLogin {
     my ($c) = @_;
+    $c->session->{referer} = $c->request->uri;
     $c->response->redirect($c->uri_for('/login'));
     $c->detach; # doesn't return
 }
@@ -159,6 +175,39 @@ sub getLatestFinishedEval {
         , where => \ "not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0)"
         });
     return $eval;
+}
+
+
+sub sendEmail {
+    my ($c, $to, $subject, $body) = @_;
+
+    my $sender = $c->config->{'notification_sender'} ||
+        (($ENV{'USER'} || "hydra") .  "@" . hostname_long);
+
+    my $email = Email::Simple->create(
+        header => [
+            To      => $to,
+            From    => "Hydra <$sender>",
+            Subject => $subject
+        ],
+        body => $body
+    );
+
+    print STDERR "Sending email:\n", $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
+
+    sendmail($email);
+}
+
+
+# Catalyst request parameters can be an array or a scalar or
+# undefined, making them annoying to handle.  So this utility function
+# always returns a request parameter as a list.
+sub paramToList {
+    my ($c, $name) = @_;
+    my $x = $c->request->params->{$name};
+    return () unless defined $x;
+    return @$x if ref($x) eq 'ARRAY';
+    return ($x);
 }
 
 

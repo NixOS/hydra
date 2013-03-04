@@ -114,7 +114,7 @@ sub sendEmailNotification {
 
     my $status =  statusDescription($build->buildstatus);
 
-    my $baseurl = hostname_long ;
+    my $baseurl = hostname_long;
     my $sender = $config->{'notification_sender'} ||
         (($ENV{'USER'} || "hydra") .  "@" . $baseurl);
 

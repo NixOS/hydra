@@ -156,7 +156,15 @@ sub default :Path {
 sub end : ActionClass('RenderView') {
     my ($self, $c) = @_;
 
-    if (scalar @{$c->error}) {
+    if (defined $c->stash->{json}) {
+        if (scalar @{$c->error}) {
+            $c->stash->{json}->{error} = join "\n", @{$c->error};
+            $c->clear_errors;
+        }
+        $c->forward('View::JSON');
+    }
+
+    elsif (scalar @{$c->error}) {
         $c->stash->{template} = 'error.tt';
         $c->stash->{errors} = $c->error;
         $c->response->status(500) if $c->response->status == 200;
@@ -213,33 +221,6 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
     my $hash = $c->req->captures->[0];
     $c->stash->{storePath} = hashToPath($c, $hash);
     $c->stash->{current_view} = 'NARInfo';
-}
-
-
-sub change_password : Path('change-password') :Args(0) {
-    my ($self, $c) = @_;
-
-    requireLogin($c) if !$c->user_exists;
-
-    $c->stash->{template} = 'change-password.tt';
-}
-
-
-sub change_password_submit : Path('change-password/submit') : Args(0) {
-    my ($self, $c) = @_;
-
-    requireLogin($c) if !$c->user_exists;
-
-    my $password = $c->request->params->{"password"};
-    my $password_check = $c->request->params->{"password_check"};
-    print STDERR "$password \n";
-    print STDERR "$password_check \n";
-    error($c, "Passwords did not match, go back and try again!") if $password ne $password_check;
-
-    my $hashed = sha1_hex($password);
-    $c->user->update({ password => $hashed}) ;
-
-    $c->res->redirect("/");
 }
 
 

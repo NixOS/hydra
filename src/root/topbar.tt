@@ -202,7 +202,7 @@
   <ul class="nav" id="top-menu">
 
     [% IF c.user_exists %]
-      [% INCLUDE makeLink uri = c.uri_for(c.controller('Root').action_for('preferences')) title = "Preferences" %]
+      [% INCLUDE makeLink uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
       [% INCLUDE makeLink uri = c.uri_for(c.controller('Root').action_for('logout')) title = "Sign out" %]
     [% ELSE %]
       [% INCLUDE makeLink uri = c.uri_for(c.controller('Root').action_for('login')) title = "Sign in" %]

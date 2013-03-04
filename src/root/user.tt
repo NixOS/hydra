@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title=(create ? "Register new user" : "User $user.username") %]
+[% WRAPPER layout.tt title=(create ? "Register new user" : "Editing user $user.username") %]
 [% PROCESS common.tt %]
 
 [% BLOCK roleoption %]
@@ -61,7 +61,7 @@
       <div class="control-group">
         <div class="controls">
           <label class="checkbox">
-            <input type="checkbox" name="enabled" [% IF 1; 'checked="checked"'; END %]></input>Receive evaluation error notifications
+            <input type="checkbox" name="emailonerror" [% IF emailonerror; 'checked="checked"'; END %]></input>Receive evaluation error notifications
           </label>
         </div>
       </div>
@@ -99,6 +99,30 @@
         <i class="icon-ok icon-white"></i>
         [%IF create %]Create[% ELSE %]Apply changes[% END %]
       </button>
+      [% IF !create && c.check_user_roles('admin') %]
+        <button id="reset-password" type="submit" class="btn btn-warning" name="submit" value="reset-password">
+          <i class="icon-trash icon-white"></i>
+          Reset password
+        </button>
+        <script type="text/javascript">
+          $("#reset-password").click(function() {
+            bootbox.confirm(
+              'Are you sure you want to reset the password for this user?',
+              function(c) {
+                if (!c) return;
+                $.post("[% c.uri_for(c.controller('User').action_for('edit'), [user.username]) %]", { submit: 'reset-password' })
+                  .done(function(data) {
+                    if (data.error)
+                      bootbox.alert("Unable to reset password: " + data.error);
+                    else
+                      bootbox.alert("An email containing the new password has been sent to the user.");
+                  })
+                  .fail(function() { bootbox.alert("Server request failed!"); });
+              });
+            return false;
+          });
+        </script>
+      [% END %]
       [% IF !create %]
         <button id="delete-user" type="submit" class="btn btn-danger" name="submit" value="delete">
           <i class="icon-trash icon-white"></i>

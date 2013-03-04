@@ -9,24 +9,22 @@
       <th>Email</th>
       <th>Roles</th>
       <th>Eval. notifications</th>
-      <th>Options</th>
     </tr>
   </thead>
   <tbody>
     [% FOREACH u IN users %]
       <tr>
-        <td><a class="row-link" href="[% c.uri_for(c.controller('Admin').action_for('user_edit'), [u.username]) %]">[% u.username %]</a></td>
+        <td><a class="row-link" href="[% c.uri_for(c.controller('User').action_for('edit'), [u.username]) %]">[% u.username %]</a></td>
         <td>[% u.fullname %]</td>
         <td>[% u.emailaddress %]</td>
         <td>[% FOREACH r IN u.userroles %]<i>[% r.role %]</i> [% END %]</td>
         <td>[% IF u.emailonerror %]Yes[% ELSE %]No[% END %]</td>
-        <td>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('reset_password'), [u.username]) content = "Reset password" confirmmsg = "Are you sure you want to reset the password for this user?" class = "btn btn-mini" %]</td>
       </tr>
     [% END %]
   </tbody>
 </table>
 
-<p><a class="btn" href="[% c.uri_for(c.controller('Admin').action_for('create_user')) %]">
+<p><a class="btn" href="[% c.uri_for(c.controller('Root').action_for('register')) %]">
   <i class="icon-plus"></i> Add a new user
 </a></p>
 

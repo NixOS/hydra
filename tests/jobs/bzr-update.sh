@@ -14,7 +14,7 @@ export BZR_HOME; # Set by the Makefile
 case $state in
     (0) echo "::Create repo. -- continue -- updated::"
     bzr init bzr-repo
-    bzr whoami "build <build@donotemail.com>" -d bzr-repo
+    bzr whoami "build <build@invalid.org>" -d bzr-repo
     touch bzr-repo/bzr-file
     bzr add bzr-repo/bzr-file
     bzr commit -m "add bzr-file" bzr-repo/bzr-file
