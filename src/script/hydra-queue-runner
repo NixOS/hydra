@@ -75,7 +75,7 @@ sub checkBuilds {
 
     my $machines = getMachines;
 
-    my %maxConcurrent = ();
+    my %maxConcurrent;
 
     foreach my $machineName (keys %{$machines}) {
         foreach my $system (${$machines}{$machineName}{'systemTypes'}) {
@@ -99,7 +99,10 @@ sub checkBuilds {
             my $nrActive = $db->resultset('Builds')->search(
                 {finished => 0, busy => 1, system => $system->system})->count;
 
-            my $extraAllowed = $maxConcurrent{$system} - $nrActive;
+            (my $systemTypeInfo) = $db->resultset('SystemTypes')->search({system => $system->system});
+            my $max = defined $systemTypeInfo ? $systemTypeInfo->maxconcurrent : $maxConcurrent{$system} // 2;
+
+            my $extraAllowed = $max - $nrActive;
             $extraAllowed = 0 if $extraAllowed < 0;
 
             # Select the highest-priority builds to start.
@@ -109,7 +112,7 @@ sub checkBuilds {
                   rows => $extraAllowed });
 
             print "system type `", $system->system,
-                "': $nrActive active, $maxConcurrent{$system} allowed, ",
+                "': $nrActive active, $max allowed, ",
                 "starting ", scalar(@builds), " builds\n";
 
             foreach my $build (@builds) {
