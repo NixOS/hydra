@@ -1,6 +1,19 @@
 [% WRAPPER layout.tt title="Evaluation $eval.id of jobset $project.name:$jobset.name " %]
 [% PROCESS common.tt %]
 
+<div class="btn-group pull-right">
+  <a class="btn btn-primary dropdown-toggle" data-toggle="dropdown" href="#"><i class="icon-white icon-eye-open"></i> Compare to...</a>
+  <ul class="dropdown-menu">
+    <li><a href="?">Preceding evaluation in the same jobset</tt></a></li>
+    [% IF project.jobsets_rs.count > 1 %]
+      <li class="divider"></li>
+      [% FOREACH j IN project.jobsets; IF j.name != jobset.name %]
+        <li><a href="?compare=[% j.name %]">Jobset <tt>[% project.name %]:[% j.name %]</tt></a></li>
+      [% END; END %]
+    [% END %]
+  </ul>
+</div>
+
 [% IF otherEval %]
 <p>Comparisons are relative to [% INCLUDE renderFullJobsetName
 project=otherEval.jobset.project.name jobset=otherEval.jobset.name %] evaluation <a href="[%
