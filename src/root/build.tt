@@ -206,9 +206,9 @@
           <tr>
             <td></td>
             [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]
-              <td>[% INCLUDE renderInputDiff build1=prevSuccessfulBuild build2=firstBrokenBuild %]</td>
+              <td>[% INCLUDE renderInputDiff inputs1=prevSuccessfulBuild.inputs inputs2=firstBrokenBuild.inputs %]</td>
             [% END %]
-            <td>[% INCLUDE renderInputDiff build1=prevSuccessfulBuild , build2=build %]</td>
+            <td>[% INCLUDE renderInputDiff inputs1=prevSuccessfulBuild.inputs inputs2=build.inputs %]</td>
           </tr>
         </table>
       [% END %]
@@ -311,34 +311,11 @@
 
   <div id="tabs-buildinputs" class="tab-pane">
 
-    <table class="tablesorter table table-striped table-condensed">
-      <thead>
-        <tr><th>Name</th><th>Type</th><th>Value</th><th>Revision</th><th>Store path</th></tr>
-      </thead>
-      <tbody>
-        [% FOREACH input IN build.inputs %]
-          <tr>
-            <td><tt>[% input.name %]</tt></td>
-            <td><tt>[% type = input.type; inputTypes.$type %]</tt></td>
-            <td>
-              [% IF input.type == "build" || input.type == "sysbuild" %]
-                [% INCLUDE renderFullBuildLink build=input.dependency %]
-              [% ELSIF input.type == "string" || input.type == "boolean" %]
-                <tt>"[% input.value %]"</tt>
-              [% ELSE %]
-                <tt>[% input.uri %]</tt>
-              [% END %]
-            </td>
-            <td>[% IF input.revision %][% input.revision %][% END %]</td>
-            <td><tt>[% input.path %]</tt></td>
-          </tr>
-        [% END %]
-      </tbody>
-    </table>
+    [% INCLUDE renderInputs inputs=build.inputs %]
 
     [% IF prevBuild %]
       <h3>Changes since previous [% INCLUDE renderBuildLink build=prevBuild %]</h3>
-      [% INCLUDE renderInputDiff build2=build, build1=prevBuild %]
+      [% INCLUDE renderInputDiff inputs2=build.inputs inputs1=prevBuild.inputs %]
     [% END %]
 
   </div>

@@ -306,6 +306,34 @@ BLOCK renderDiffUri;
 END;
 
 
+BLOCK renderInputs; %]
+  <table class="tablesorter table table-striped table-condensed">
+    <thead>
+      <tr><th>Name</th><th>Type</th><th>Value</th><th>Revision</th><th>Store path</th></tr>
+    </thead>
+    <tbody>
+      [% FOREACH input IN inputs %]
+        <tr>
+          <td><tt>[% input.name %]</tt></td>
+          <td><tt>[% type = input.type; inputTypes.$type %]</tt></td>
+          <td>
+            [% IF input.type == "build" || input.type == "sysbuild" %]
+              [% INCLUDE renderFullBuildLink build=input.dependency %]
+            [% ELSIF input.type == "string" || input.type == "boolean" %]
+              <tt>"[% input.value %]"</tt>
+            [% ELSE %]
+              <tt>[% input.uri %]</tt>
+            [% END %]
+          </td>
+          <td>[% IF input.revision %][% input.revision %][% END %]</td>
+          <td><tt>[% input.path %]</tt></td>
+        </tr>
+      [% END %]
+    </tbody>
+  </table>
+[% END;
+
+
 BLOCK renderInputDiff; %]
   <table class="table table-striped table-condensed">
     [% IF !nestedDiff %]
@@ -316,9 +344,9 @@ BLOCK renderInputDiff; %]
     END;
 
     IF nestLevel <= 3;
-      FOREACH bi1 IN build1.inputs;
+      FOREACH bi1 IN inputs1;
         deletedInput = 1;
-        FOREACH bi2 IN build2.inputs;
+        FOREACH bi2 IN inputs2;
           IF bi1.name == bi2.name;
             IF bi1.type == bi2.type;
               IF bi1.value != bi2.value || bi1.uri != bi2.uri %]
@@ -338,7 +366,7 @@ BLOCK renderInputDiff; %]
                   <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %]</tt> to <tt>[% INCLUDE renderShortInputValue input=bi2 %]</tt>
                   <br/>
                   <br/>
-                  [% INCLUDE renderInputDiff build1=bi1.dependency, build2=bi2.dependency, nestedDiff=1, nestLevel=nestLevel+1 %]
+                  [% INCLUDE renderInputDiff inputs1=bi1.dependency.inputs inputs2=bi2.dependency.inputs nestedDiff=1 nestLevel=nestLevel+1 %]
                 </td></tr>
               [% END %]
             [% ELSE %]

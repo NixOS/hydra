@@ -8,68 +8,90 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 [otherEval.id]) %]">[% otherEval.id %]</a>.</p>
 [% END %]
 
-[% BLOCK renderSome %]
-  [% size = builds.size; max = full ? size : 30; %]
-  [% INCLUDE renderBuildListBody builds=builds.slice(0, (size > max ? max : size) - 1)
-       hideProjectName=1 hideJobsetName=1 %]
-  [% IF size > max; params = c.req.params; params.full = 1 %]
-  <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]"><em>([% size - max %] more builds omitted)</em></a></td></tr>
-  [% END %]
-[% END %]
+<ul class="nav nav-tabs">
+  <li class="active"><a href="#tabs-status" data-toggle="tab">Job status</a></li>
+  <li><a href="#tabs-inputs" data-toggle="tab">Inputs</a></li>
+</ul>
 
-[% INCLUDE renderBuildListHeader unsortable=1 %]
+<div class="tab-content">
 
-[% IF unfinished.size > 0 %]
-  <tr><th class="subheader" colspan="6"><strong>Queued</strong> jobs</th></tr>
-  [% INCLUDE renderSome builds=unfinished %]
-[% END %]
+  <div id="tabs-status" class="tab-pane active">
 
-[% IF new.size > 0 %]
-  <tr><th class="subheader" colspan="6"><strong>New</strong> jobs</th></tr>
-  [% INCLUDE renderSome builds=new %]
-[% END %]
+    [% BLOCK renderSome %]
+      [% size = builds.size; max = full ? size : 30; %]
+      [% INCLUDE renderBuildListBody builds=builds.slice(0, (size > max ? max : size) - 1)
+           hideProjectName=1 hideJobsetName=1 %]
+      [% IF size > max; params = c.req.params; params.full = 1 %]
+      <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]"><em>([% size - max %] more builds omitted)</em></a></td></tr>
+      [% END %]
+    [% END %]
 
-[% IF removed.size > 0 %]
-  <tr><th class="subheader" colspan="6"><strong>Removed</strong> jobs</th></tr>
-  [% size = removed.size; max = full ? size : 30; %]
-  [% FOREACH j IN removed.slice(0,(size > max ? max : size) - 1) %]
-    <tr>
-      <td colspan="2"></td>
-      <td colspan="2">[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.job %]</td>
-      <td colspan="2"><tt>[% j.system %]</tt></td>
-    </tr>
-  [% END %]
-  [% IF size > max; params = c.req.params; params.full = 1 %]
-  <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]"><em>([% size - max %] more jobs omitted)</em></a></td></tr>
-  [% END %]
-[% END %]
+    [% INCLUDE renderBuildListHeader unsortable=1 %]
 
-[% IF nowFail.size > 0 %]
-  <tr><th class="subheader" colspan="6">Jobs that now <strong>fail</strong></th></tr>
-  [% INCLUDE renderSome builds=nowFail %]
-[% END %]
+    [% IF unfinished.size > 0 %]
+      <tr><th class="subheader" colspan="6"><strong>Queued</strong> jobs</th></tr>
+      [% INCLUDE renderSome builds=unfinished %]
+    [% END %]
 
-[% IF nowSucceed.size > 0 %]
-  <tr><th class="subheader" colspan="6">Jobs that now <strong>succeed</strong></th></tr>
-  [% INCLUDE renderSome builds=nowSucceed %]
-[% END %]
+    [% IF new.size > 0 %]
+      <tr><th class="subheader" colspan="6"><strong>New</strong> jobs</th></tr>
+      [% INCLUDE renderSome builds=new %]
+    [% END %]
 
-[% IF stillFail.size > 0 %]
-  <tr><th class="subheader" colspan="6">Jobs that still <strong>fail</strong></th></tr>
-  [% INCLUDE renderSome builds=stillFail %]
-[% END %]
+    [% IF removed.size > 0 %]
+      <tr><th class="subheader" colspan="6"><strong>Removed</strong> jobs</th></tr>
+      [% size = removed.size; max = full ? size : 30; %]
+      [% FOREACH j IN removed.slice(0,(size > max ? max : size) - 1) %]
+        <tr>
+          <td colspan="2"></td>
+          <td colspan="2">[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j.job %]</td>
+          <td colspan="2"><tt>[% j.system %]</tt></td>
+        </tr>
+      [% END %]
+      [% IF size > max; params = c.req.params; params.full = 1 %]
+      <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]"><em>([% size - max %] more jobs omitted)</em></a></td></tr>
+      [% END %]
+    [% END %]
 
-[% IF stillSucceed.size > 0 %]
-  <tr><th class="subheader" colspan="6">Jobs that still <strong>succeed</strong></th></tr>
-  [% INCLUDE renderSome builds=stillSucceed %]
-[% END %]
+    [% IF nowFail.size > 0 %]
+      <tr><th class="subheader" colspan="6">Jobs that now <strong>fail</strong></th></tr>
+      [% INCLUDE renderSome builds=nowFail %]
+    [% END %]
 
-[% INCLUDE renderBuildListFooter %]
+    [% IF nowSucceed.size > 0 %]
+      <tr><th class="subheader" colspan="6">Jobs that now <strong>succeed</strong></th></tr>
+      [% INCLUDE renderSome builds=nowSucceed %]
+    [% END %]
 
-[% IF c.user_exists %]
-<p>
-<a class="btn" href="[% c.uri_for(c.controller('JobsetEval').action_for('release'), [eval.id]) %]">Release</a>
-</p>
-[% END %]
+    [% IF stillFail.size > 0 %]
+      <tr><th class="subheader" colspan="6">Jobs that still <strong>fail</strong></th></tr>
+      [% INCLUDE renderSome builds=stillFail %]
+    [% END %]
+
+    [% IF stillSucceed.size > 0 %]
+      <tr><th class="subheader" colspan="6">Jobs that still <strong>succeed</strong></th></tr>
+      [% INCLUDE renderSome builds=stillSucceed %]
+    [% END %]
+
+    [% INCLUDE renderBuildListFooter %]
+
+    [% IF c.user_exists %]
+    <p>
+    <a class="btn" href="[% c.uri_for(c.controller('JobsetEval').action_for('release'), [eval.id]) %]">Release</a>
+    </p>
+    [% END %]
+
+  </div>
+
+  <div id="tabs-inputs" class="tab-pane">
+    [% INCLUDE renderInputs inputs=eval.jobsetevalinputs %]
+
+    [% IF otherEval %]
+      <h3>Changes</h3>
+      [% INCLUDE renderInputDiff inputs2=eval.jobsetevalinputs inputs1=otherEval.jobsetevalinputs %]
+    [% END %]
+  </div>
+
+</div>
 
 [% END %]
