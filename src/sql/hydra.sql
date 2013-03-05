@@ -341,6 +341,12 @@ create table CachedCVSInputs (
 );
 
 
+create table SystemTypes (
+    system        text primary key not null,
+    maxConcurrent integer not null default 2
+);
+
+
 -- Views are a mechanism to automatically group related builds
 -- together.  A view definition consists of a build of some "primary"
 -- job, plus all builds of the other jobs named in ViewJobs that have

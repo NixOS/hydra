@@ -6,6 +6,10 @@
 
   $ DBIC_TRACE=1 ./script/hydra_server.pl
 
+* Setting the maximum number of concurrent builds per system type:
+
+  $ sqlite3 hydra.sqlite "insert into SystemTypes(system, maxConcurrent) values('i686-linux', 3);"
+
 * Creating a user:
 
   $ sqlite3 hydra.sqlite "insert into Users(userName, emailAddress, password) values('root', 'e.dolstra@tudelft.nl', '$(echo -n foobar | sha1sum | cut -c1-40)');"
