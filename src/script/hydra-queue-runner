@@ -100,7 +100,7 @@ sub checkBuilds {
                 {finished => 0, busy => 1, system => $system->system})->count;
 
             (my $systemTypeInfo) = $db->resultset('SystemTypes')->search({system => $system->system});
-            my $max = defined $systemTypeInfo ? $systemTypeInfo->maxconcurrent : $maxConcurrent{$system} // 2;
+            my $max = defined $systemTypeInfo ? $systemTypeInfo->maxconcurrent : $maxConcurrent{$system->system} // 2;
 
             my $extraAllowed = $max - $nrActive;
             $extraAllowed = 0 if $extraAllowed < 0;
