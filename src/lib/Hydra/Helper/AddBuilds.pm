@@ -735,7 +735,10 @@ sub evalJobs {
 
     (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(10800,
         $evaluator, $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo, $exprType));
-    die "cannot evaluate the Nix expression containing the jobs:\n$stderr" if $res;
+    if ($res) {
+        die "$evaluator returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
+            . ":\n" . ($stderr ? $stderr : "(no output)\n");
+    }
 
     print STDERR "$stderr";
 
