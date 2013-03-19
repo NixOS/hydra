@@ -1,13 +1,13 @@
 [% WRAPPER layout.tt title=(create ? "Create jobset in project $project.name" : "Editing jobset $project.name:$jobset.name") %]
 [% PROCESS common.tt %]
 
-[% BLOCK renderInputAlt %]
+[% BLOCK renderJobsetInputAlt %]
   <button type="button" class="btn btn-warning" onclick='$(this).parents(".inputalt").remove()'><i class="icon-trash icon-white"></i></button>
   <input type="text" [% HTML.attributes(value => alt.value, name => name) %]></input>
   <br />
 [% END %]
 
-[% BLOCK renderInput %]
+[% BLOCK renderJobsetInput %]
   <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
     <td>
       <button type="button" class="btn btn-warning" onclick='$(this).parents(".input").remove()'><i class="icon-trash icon-white"></i></button>
@@ -19,7 +19,7 @@
     <td class="inputalts" id="[% baseName %]">
       [% FOREACH alt IN input.jobsetinputalts %]
         <span class="inputalt">
-          [% INCLUDE renderInputAlt alt=alt name="$baseName-values" %]
+          [% INCLUDE renderJobsetInputAlt alt=alt name="$baseName-values" %]
         </span>
       [% END %]
       [% IF edit %]<button type="button" class="add-inputalt btn btn-success" onclick='return false'><i class="icon-plus icon-white"></i></button>[% END %]
@@ -27,14 +27,14 @@
   </tr>
 [% END %]
 
-[% BLOCK renderInputs %]
+[% BLOCK renderJobsetInputs %]
   <table class="table table-striped table-condensed">
     <thead>
       <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
     </thead>
     <tbody class="inputs">
       [% FOREACH input IN jobset.jobsetinputs %]
-        [% INCLUDE renderInput input=input baseName="input-$input.name" %]
+        [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
       <tr>
         <td colspan="3" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="icon-plus icon-white"></i> Add a new input</button></td
@@ -105,7 +105,7 @@
       </div>
     </div>
 
-    [% INCLUDE renderInputs %]
+    [% INCLUDE renderJobsetInputs %]
 
     <div class="form-actions">
       <button type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create %]Create[% ELSE %]Apply changes[% END %]</button>
@@ -126,11 +126,11 @@
   </fieldset>
 
   <table style="display: none">
-    [% INCLUDE renderInput input="" extraClass="template" id="input-template" baseName="input-template" %]
+    [% INCLUDE renderJobsetInput input="" extraClass="template" id="input-template" baseName="input-template" %]
   </table>
 
   <tt class="inputalt" id="inputalt-template" style="display: none">
-    [% INCLUDE renderInputAlt alt=alt %]
+    [% INCLUDE renderJobsetInputAlt alt=alt %]
   </tt>
 
   <script type="text/javascript">

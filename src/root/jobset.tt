@@ -2,7 +2,7 @@
 [% PROCESS common.tt %]
 
 
-[% BLOCK renderInput %]
+[% BLOCK renderJobsetInput %]
   <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
     <td>
       <tt>[% HTML.escape(input.name) %]</tt>
@@ -25,7 +25,7 @@
 [% END %]
 
 
-[% BLOCK renderInputs %]
+[% BLOCK renderJobsetInputs %]
   <h3>Inputs</h3>
   <table class="tablesorter table table-striped table-condensed">
     <thead>
@@ -33,7 +33,7 @@
     </thead>
     <tbody class="inputs">
       [% FOREACH input IN jobset.jobsetinputs %]
-        [% INCLUDE renderInput input=input baseName="input-$input.name" %]
+        [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
     </tbody>
   </table>
@@ -134,7 +134,7 @@
       </tr>
     </table>
 
-    [% INCLUDE renderInputs %]
+    [% INCLUDE renderJobsetInputs %]
   </div>
 
   [% INCLUDE makeLazyTab tabName="tabs-jobs" uri=c.uri_for('/jobset' project.name jobset.name "jobs-tab") %]
