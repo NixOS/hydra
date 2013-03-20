@@ -782,10 +782,10 @@ sub addBuildProducts {
 
             open LIST, "$outPath/nix-support/hydra-build-products" or die;
             while (<LIST>) {
-                /^([\w\-]+)\s+([\w\-]+)\s+(\S+)(\s+(\S+))?$/ or next;
+                /^([\w\-]+)\s+([\w\-]+)\s+("[^"]*"|\S+)(\s+(\S+))?$/ or next;
                 my $type = $1;
                 my $subtype = $2 eq "none" ? "" : $2;
-                my $path = File::Spec->canonpath($3);
+                my $path = File::Spec->canonpath((substr $3, 0, 1) eq "\"" ? substr $3, 1, -1 : $3);
                 my $defaultPath = $5;
 
                 # Ensure that the path exists and points into the Nix store.
