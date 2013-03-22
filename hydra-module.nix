@@ -5,6 +5,8 @@ with pkgs.lib;
 let
   cfg = config.services.hydra;
 
+  baseDir = "/var/lib/hydra";
+
   hydraConf = pkgs.writeScript "hydra.conf"
     ''
       using_frontend_proxy 1
@@ -16,8 +18,8 @@ let
   env =
     { NIX_REMOTE = "daemon";
       HYDRA_DBI = cfg.dbi;
-      HYDRA_CONFIG = "${cfg.baseDir}/data/hydra.conf";
-      HYDRA_DATA = "${cfg.baseDir}/data";
+      HYDRA_CONFIG = "${baseDir}/data/hydra.conf";
+      HYDRA_DATA = "${baseDir}/data";
       HYDRA_PORT = "${toString cfg.port}";
       OPENSSL_X509_CERT_FILE = "/etc/ssl/certs/ca-bundle.crt";
     };
@@ -40,22 +42,8 @@ in
         '';
       };
 
-      baseDir = mkOption {
-        default = "/home/${user.default}";
-        description = ''
-          The directory holding configuration, logs and temporary files.
-        '';
-      };
-
-      user = mkOption {
-        default = "hydra";
-        description = ''
-          The user the Hydra services should run as.
-        '';
-      };
-
       dbi = mkOption {
-        default = "dbi:Pg:dbname=hydra;host=localhost;user=root;";
+        default = "dbi:Pg:dbname=hydra;host=localhost;user=hydra;";
         example = "dbi:SQLite:/home/hydra/db/hydra.sqlite";
         description = ''
           The DBI string for Hydra database connection.
@@ -70,7 +58,6 @@ in
       };
 
       hydraURL = mkOption {
-        default = "http://hydra.nixos.org";
         description = ''
           The base URL for the Hydra webserver instance. Used for links in emails.
         '';
@@ -98,7 +85,6 @@ in
       };
 
       notificationSender = mkOption {
-        default = "e.dolstra@tudelft.nl";
         description = ''
           Sender email address used for email notifications.
         '';
@@ -118,13 +104,6 @@ in
         '';
       };
 
-      autoStart = mkOption {
-        default = true;
-        description = ''
-          If hydra upstart jobs should start automatically.
-        '';
-      };
-      
       useWAL = mkOption {
         default = true;
         description = ''
@@ -142,17 +121,13 @@ in
   config = mkIf cfg.enable {
     environment.systemPackages = [ cfg.hydra ];
 
-    users.extraUsers = [
-      { name = cfg.user;
-        description = "Hydra";
+    users.extraUsers.hydra =
+      { description = "Hydra";
         home = cfg.baseDir;
         createHome = true;
         useDefaultShell = true;
       }
     ];
-
-    # We have our own crontab entries for GC, see below.
-    nix.gc.automatic = false;
 
     nix.extraOptions = ''
       gc-keep-outputs = true
@@ -177,8 +152,8 @@ in
     jobs."hydra-init" =
       { wantedBy = [ "multi-user.target" ];
         script = ''
-          mkdir -p ${cfg.baseDir}/data
-          chown ${cfg.user} ${cfg.baseDir}/data
+          mkdir -p ${baseDir}/data
+          chown hydra ${cfg.baseDir}/data
           ln -sf ${hydraConf} ${cfg.baseDir}/data/hydra.conf
         '';
         task = true;
@@ -191,7 +166,7 @@ in
         environment = serverEnv;
         serviceConfig =
           { ExecStart = "@${cfg.hydra}/bin/hydra-server hydra-server -f -h \* --max_spare_servers 5 --max_servers 25 --max_requests 100";
-            User = cfg.user;
+            User = "hydra";
             Restart = "always";
           };
       };
@@ -205,7 +180,7 @@ in
         serviceConfig =
           { ExecStartPre = "${cfg.hydra}/bin/hydra-queue-runner --unlock";
             ExecStart = "@${cfg.hydra}/bin/hydra-queue-runner hydra-queue-runner";
-            User = cfg.user;
+            User = "hydra";
             Restart = "always";
           };
       };
@@ -218,7 +193,7 @@ in
         environment = env;
         serviceConfig =
           { ExecStart = "@${cfg.hydra}/bin/hydra-evaluator hydra-evaluator";
-            User = cfg.user;
+            User = "hydra";
             Restart = "always";
           };
       };
@@ -229,7 +204,7 @@ in
         environment = env;
         serviceConfig =
           { ExecStart = "@${cfg.hydra}/bin/hydra-update-gc-roots hydra-update-gc-roots";
-            User = cfg.user;
+            User = "hydra";
           };
       };
 
@@ -239,7 +214,7 @@ in
         # to prevent builds from failing or aborting.
         checkSpace = pkgs.writeScript "hydra-check-space"
           ''
-            #! /bin/sh
+            #! ${pkgs.stdenv.shell}
             if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFree} * 1024**3)) ]; then
                 stop hydra_queue_runner
             fi
@@ -249,7 +224,7 @@ in
           '';
 
         compressLogs = pkgs.writeScript "compress-logs" ''
-            #! /bin/sh -e
+            #! ${pkgs.stdenv.shell} -e
            touch -d 'last month' r
            find /nix/var/log/nix/drvs -type f -a ! -newer r -name '*.drv' | xargs bzip2 -v
          '';
