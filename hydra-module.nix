@@ -123,11 +123,10 @@ in
 
     users.extraUsers.hydra =
       { description = "Hydra";
-        home = cfg.baseDir;
+        home = baseDir;
         createHome = true;
         useDefaultShell = true;
-      }
-    ];
+      };
 
     nix.extraOptions = ''
       gc-keep-outputs = true
@@ -149,14 +148,16 @@ in
       use-sqlite-wal = ${if cfg.useWAL then "true" else "false"}
     '';
 
-    jobs."hydra-init" =
+    systemd.services."hydra-init" =
       { wantedBy = [ "multi-user.target" ];
+        environment = env;
         script = ''
           mkdir -p ${baseDir}/data
-          chown hydra ${cfg.baseDir}/data
-          ln -sf ${hydraConf} ${cfg.baseDir}/data/hydra.conf
+          chown hydra ${baseDir}/data
+          ln -sf ${hydraConf} ${baseDir}/data/hydra.conf
+          ${pkgs.shadow}/bin/su hydra -c ${cfg.hydra}/bin/hydra-init
         '';
-        task = true;
+        serviceConfig.Type = "oneshot";
       };
     
     systemd.services."hydra-server" =
@@ -229,8 +230,8 @@ in
            find /nix/var/log/nix/drvs -type f -a ! -newer r -name '*.drv' | xargs bzip2 -v
          '';
       in
-        [ "*/5 * * * * root  ${checkSpace} &> ${cfg.baseDir}/data/checkspace.log"
-          "15 5 * * * root  ${compressLogs} &> ${cfg.baseDir}/data/compress.log"
+        [ "*/5 * * * * root  ${checkSpace} &> ${baseDir}/data/checkspace.log"
+          "15 5 * * * root  ${compressLogs} &> ${baseDir}/data/compress.log"
           "15 2 * * * root  ${pkgs.systemd}/bin/systemctl start hydra-update-gc-roots.service"
         ];
   };
