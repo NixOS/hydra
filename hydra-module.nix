@@ -22,6 +22,7 @@ let
       HYDRA_DATA = "${baseDir}/data";
       HYDRA_PORT = "${toString cfg.port}";
       OPENSSL_X509_CERT_FILE = "/etc/ssl/certs/ca-bundle.crt";
+      GIT_SSL_CAINFO = "/etc/ssl/certs/ca-bundle.crt";
     };
   
   serverEnv = env //
