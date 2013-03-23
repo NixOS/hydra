@@ -301,7 +301,7 @@ while (1) {
             # isn't updated properly.
             sleep 1;
         } else {
-            print STDERR "sleeping...\n";
+            # print STDERR "sleeping...\n";
             sleep 30;
         }
     };
