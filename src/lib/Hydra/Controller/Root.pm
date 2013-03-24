@@ -79,7 +79,7 @@ sub machines :Local Args(0) {
             { stoptime => { '!=', undef } },
             { select => [ 'machine', { max => 'stoptime', -as => 'max_stoptime' }], group_by => "machine" });
     while (my $idle = $idles->next) {
-        ${$machines}{$idle->machine}{'idle'} = $idle->max_stoptime;
+        ${$machines}{$idle->machine}{'idle'} = $idle->get_column('max_stoptime');
     }
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
