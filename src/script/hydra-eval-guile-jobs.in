@@ -91,17 +91,11 @@ symbol/thunk pairs."
                 ;; XXX: Add <arg ...> tags?
                 `(job (@ (jobName ,name)
                          (drvPath ,drv)
-                         (outPath
-                          ;; Resolve Guix modules lazily.
-                          ,((guix-variable 'derivations
-                                           'derivation-path->output-path)
-                            drv))
                          ,@(opt-attr 'homepage 'home-page)
                          (license
                           ,(let loop ((license (assoc-ref result 'license)))
                              (match license
                                ((? struct?)
-                                ;; XXX: hack to access <license> objects
                                 (struct-ref license 0))
                                ((l ...)
                                 (string-join (map loop l)))
@@ -129,6 +123,14 @@ symbol/thunk pairs."
                              (compose %derivation-system
                                       (guix-variable 'derivations
                                                      'read-derivation)))))
+                      ;; Resolve Guix modules lazily.
+                      ,(map (match-lambda
+                             ((name . path)
+                              `(output (@ (name ,name) (path ,path)))))
+                            ((guix-variable 'derivations
+                                            'derivation-path->output-paths)
+                              drv))
+
                       "\n"))))
             jobs))))
 
