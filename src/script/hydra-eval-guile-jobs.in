@@ -2,11 +2,9 @@
 # Aside from this initial boilerplate, this is actually -*- scheme -*- code.
 main="(module-ref (resolve-interface '(hydra-eval-guile-jobs)) 'eval-guile-jobs)"
 
-# Make sure no undeclared dependency is leaked.  Guix has to be
-# provided as an input through Hydra.  Guix itself must thus be built via a
-# recipe written in the Nix language.
-unset GUILE_LOAD_PATH
-unset GUILE_LOAD_COMPILED_PATH
+# Keep the host's GUILE_LOAD_PATH unchanged to allow the installed Guix to
+# be used.  This moves Guix modules possibly out of control, but solves
+# bootstrapping issues.
 
 exec ${GUILE:-@GUILE@} --no-auto-compile   \
   -l "$0" -c "(apply $main (cdr (command-line)))" "$@"
