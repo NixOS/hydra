@@ -11,7 +11,7 @@ unset GUILE_LOAD_COMPILED_PATH
 exec ${GUILE:-@GUILE@} --no-auto-compile   \
   -l "$0" -c "(apply $main (cdr (command-line)))" "$@"
 !#
-;;; Copyright (C) 2012  Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; Hydra is free software: you can redistribute it and/or modify
 ;;; it under the terms of the GNU General Public License as published by
@@ -97,7 +97,15 @@ symbol/thunk pairs."
                                            'derivation-path->output-path)
                             drv))
                          ,@(opt-attr 'homepage 'home-page)
-                         ,@(opt-attr 'license 'license)
+                         (license
+                          ,(let loop ((license (assoc-ref result 'license)))
+                             (match license
+                               ((? struct?)
+                                ;; XXX: hack to access <license> objects
+                                (struct-ref license 0))
+                               ((l ...)
+                                (string-join (map loop l)))
+                               (_ ""))))
                          ,@(opt-attr 'description 'description)
                          ,@(opt-attr 'longDescription 'long-description)
                          (maintainers
