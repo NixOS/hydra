@@ -166,9 +166,11 @@
 
     [% END %]
 
+    <!--
     <p>
       <a class="btn" href="[% c.uri_for('/project' project.name 'create-view') %]"><i class="icon-plus"></i> Create a new view</a>
     </p>
+    -->
 
   </div>
 
