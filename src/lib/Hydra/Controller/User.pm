@@ -62,6 +62,8 @@ sub setPassword {
 sub register :Local Args(0) {
     my ($self, $c) = @_;
 
+    die "Not implemented!\n";
+
     $c->stash->{template} = 'user.tt';
     $c->stash->{create} = 1;
     return if $c->request->method ne "POST";
