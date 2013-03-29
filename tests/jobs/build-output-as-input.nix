@@ -8,7 +8,7 @@ let
       };
 
     build2 =
-      {build1 ? jobs.build1 }:
+      { build1 }:
       mkDerivation {
         name = "build2";
         builder = ./empty-dir-builder.sh;
