@@ -13,6 +13,7 @@ with pkgs;
   perlPackages.CatalystViewJSON
   perlPackages.CatalystViewTT
   perlPackages.CatalystXScriptServerStarman
+  perlPackages.CatalystTraitForRequestProxyBase
   perlPackages.CryptRandPasswd
   perlPackages.DBDPg
   perlPackages.DBDSQLite

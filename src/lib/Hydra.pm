@@ -3,6 +3,7 @@ package Hydra;
 use strict;
 use warnings;
 use parent 'Catalyst';
+use Moose;
 use Hydra::Model::DB;
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
@@ -16,6 +17,8 @@ use Catalyst qw/ConfigLoader
                 AccessLog
                 Captcha/,
                 '-Log=warn,fatal,error';
+use CatalystX::RoleApplicator;
+
 
 our $VERSION = '0.01';
 
@@ -76,6 +79,8 @@ __PACKAGE__->config(
         out => { force => 'jpeg' }
     },
 );
+
+__PACKAGE__->apply_request_class_roles(qw/Catalyst::TraitFor::Request::ProxyBase/);
 
 __PACKAGE__->setup();
 
