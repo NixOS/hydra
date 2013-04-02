@@ -170,10 +170,9 @@ sub defaultUriForProduct {
 
 sub checkPath {
     my ($self, $c, $path) = @_;
-    my $storeDir = $Nix::Config::storeDir . "/";
-    error($c, "Invalid path in build product.")
-        if substr($path, 0, length($storeDir)) ne $storeDir || $path =~ /\/\.\./;
-    error($c, "Path ‘$path’ is a symbolic link.") if -l $path;
+    my $path = pathIsInsidePrefix($path, $Nix::Config::storeDir);
+    error($c, "Build product refers outside of the Nix store.") unless defined $path;
+    return $path;
 }
 
 
@@ -203,7 +202,7 @@ sub download : Chained('build') PathPart {
     $path .= "/" . join("/", @path) if scalar @path > 0;
 
     # Make sure the file is in the Nix store.
-    checkPath($self, $c, $path);
+    $path = checkPath($self, $c, $path);
 
     # If this is a directory but no "/" is attached, then redirect.
     if (-d $path && substr($c->request->uri, -1) ne "/") {
@@ -247,7 +246,7 @@ sub contents : Chained('build') PathPart Args(1) {
 
     my $path = $product->path;
 
-    checkPath($self, $c, $path);
+    $path = checkPath($self, $c, $path);
 
     notFound($c, "Product $path has disappeared.") unless -e $path;
 

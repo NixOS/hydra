@@ -785,15 +785,14 @@ sub addBuildProducts {
                 /^([\w\-]+)\s+([\w\-]+)\s+("[^"]*"|\S+)(\s+(\S+))?$/ or next;
                 my $type = $1;
                 my $subtype = $2 eq "none" ? "" : $2;
-                my $path = File::Spec->canonpath((substr $3, 0, 1) eq "\"" ? substr $3, 1, -1 : $3);
+                my $path = substr($3, 0, 1) eq "\"" ? substr($3, 1, -1) : $3;
                 my $defaultPath = $5;
 
                 # Ensure that the path exists and points into the Nix store.
                 next unless File::Spec->file_name_is_absolute($path);
-                next if $path =~ /\/\.\./; # don't go up
-                next unless substr($path, 0, length($storeDir)) eq $storeDir;
+                $path = pathIsInsidePrefix($path, $Nix::Config::storeDir);
+                next unless defined $path;
                 next unless -e $path;
-                next if -l $path;
 
                 # FIXME: check that the path is in the input closure
                 # of the build?

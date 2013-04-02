@@ -16,7 +16,8 @@ our @EXPORT = qw(
     getViewResult getLatestSuccessfulViewResult
     jobsetOverview removeAsciiEscapes getDrvLogPath logContents
     getMainOutput
-    getEvals getMachines);
+    getEvals getMachines
+    pathIsInsidePrefix);
 
 
 sub getHydraHome {
@@ -399,6 +400,47 @@ sub getMachines {
         close CONF;
     }
     return \%machines;
+}
+
+
+# Check whether ‘$path’ is inside ‘$prefix’.  In particular, it checks
+# that resolving symlink components of ‘$path’ never takes us outside
+# of ‘$prefix’.  We use this to check that Nix build products don't
+# refer to things outside of the Nix store (e.g. /etc/passwd) or to
+# symlinks outside of the store that point into the store
+# (e.g. /run/current-system).  Return undef or the resolved path.
+sub pathIsInsidePrefix {
+    my ($path, $prefix) = @_;
+    my $n = 0;
+    $path =~ s/\/+/\//g; # remove redundant slashes
+    $path =~ s/\/*$//; # remove trailing slashes
+
+    return undef unless $path eq $prefix || substr($path, 0, length($prefix) + 1) eq "$prefix/";
+
+    my @cs = File::Spec->splitdir(substr($path, length($prefix) + 1));
+    my $cur = $prefix;
+
+    foreach my $c (@cs) {
+        next if $c eq ".";
+
+        # ‘..’ should not take us outside of the prefix.
+        if ($c eq "..") {
+            return if length($cur) <= length($prefix);
+            $cur =~ s/\/[^\/]*$// or die; # remove last component
+            next;
+        }
+
+        my $new = "$cur/$c";
+        if (-l $new) {
+            my $link = readlink $new or return undef;
+            $new = substr($link, 0, 1) eq "/" ? $link : "$cur/$link";
+            $new = pathIsInsidePrefix($new, $prefix);
+            return undef unless defined $new;
+        }
+        $cur = $new;
+    }
+
+    return $cur;
 }
 
 
