@@ -250,10 +250,15 @@ sub contents : Chained('build') PathPart Args(1) {
 
     notFound($c, "Product $path has disappeared.") unless -e $path;
 
+    # Sanitize $path to prevent shell injection attacks.
+    $path =~ /^\/[\/[A-Za-z0-9_\-\.=]+$/ or die "Filename contains illegal characters.\n";
+
+    # FIXME: don't use shell invocations below.
+
     my $res;
 
     if ($product->type eq "nix-build" && -d $path) {
-        $res = `cd $path && find . -print0 | xargs -0 ls -ld --`;
+        $res = `cd '$path' && find . -print0 | xargs -0 ls -ld --`;
         error($c, "`ls -lR' error: $?") if $? != 0;
 
         my $baseuri = $c->uri_for('/build', $c->stash->{build}->id, 'download', $product->productnr);
@@ -262,33 +267,33 @@ sub contents : Chained('build') PathPart Args(1) {
     }
 
     elsif ($path =~ /\.rpm$/) {
-        $res = `rpm --query --info --package "$path"`;
+        $res = `rpm --query --info --package '$path'`;
         error($c, "RPM error: $?") if $? != 0;
         $res .= "===\n";
-        $res .= `rpm --query --list --verbose --package "$path"`;
+        $res .= `rpm --query --list --verbose --package '$path'`;
         error($c, "RPM error: $?") if $? != 0;
     }
 
     elsif ($path =~ /\.deb$/) {
-        $res = `dpkg-deb --info "$path"`;
+        $res = `dpkg-deb --info '$path'`;
         error($c, "`dpkg-deb' error: $?") if $? != 0;
         $res .= "===\n";
-        $res .= `dpkg-deb --contents "$path"`;
+        $res .= `dpkg-deb --contents '$path'`;
         error($c, "`dpkg-deb' error: $?") if $? != 0;
     }
 
     elsif ($path =~ /\.(tar(\.gz|\.bz2|\.xz|\.lzma)?|tgz)$/ ) {
-        $res = `tar tvfa "$path"`;
+        $res = `tar tvfa '$path'`;
         error($c, "`tar' error: $?") if $? != 0;
     }
 
     elsif ($path =~ /\.(zip|jar)$/ ) {
-        $res = `unzip -v "$path"`;
+        $res = `unzip -v '$path'`;
         error($c, "`unzip' error: $?") if $? != 0;
     }
 
     elsif ($path =~ /\.iso$/ ) {
-        $res = `isoinfo -d -i "$path" && isoinfo -l -R -i "$path"`;
+        $res = `isoinfo -d -i '$path' && isoinfo -l -R -i '$path'`;
         error($c, "`isoinfo' error: $?") if $? != 0;
     }
 
