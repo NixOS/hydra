@@ -80,7 +80,7 @@ sub sendEmailNotification {
 
     die unless $build->finished;
 
-    return if ! ( $build->jobset->enableemail && ($build->maintainers ne "" || $build->jobset->emailoverride ne "") );
+    return unless $build->jobset->enableemail && ($build->maintainers ne "" || $build->jobset->emailoverride ne "");
 
     # Do we want to send mail?
 
@@ -96,14 +96,12 @@ sub sendEmailNotification {
         }, { order_by => ["id DESC"] }
         );
 
-    # if build is cancelled or aborted, do not send email
-    if ($build->buildstatus == 4 || $build->buildstatus == 3) {
-        return;
-    }
-    # if there is a previous (that is not cancelled or aborted) build with same buildstatus, do not send email
-    if (defined $prevBuild && ($build->buildstatus == $prevBuild->buildstatus)) {
-        return;
-    }
+    # If build is cancelled or aborted, do not send email.
+    return if $build->buildstatus == 4 || $build->buildstatus == 3;
+
+    # If there is a previous (that is not cancelled or aborted) build
+    # with same buildstatus, do not send email.
+    return if defined $prevBuild && ($build->buildstatus == $prevBuild->buildstatus);
 
     # Send mail.
     # !!! should use the Template Toolkit here.
@@ -112,7 +110,7 @@ sub sendEmailNotification {
 
     my $jobName = $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
 
-    my $status =  statusDescription($build->buildstatus);
+    my $status = statusDescription($build->buildstatus);
 
     my $baseurl = hostname_long;
     my $sender = $config->{'notification_sender'} ||
@@ -192,7 +190,7 @@ sub sendEmailNotification {
         header => [
             To      => $to,
             From    => "Hydra Build Daemon <$sender>",
-            Subject => "Hydra job $jobName on " . $build->system . ", build " . $build->id . ": $status",
+            Subject => "$status: Hydra job $jobName on " . $build->system . ", build " . $build->id,
             'X-Hydra-Instance' => $baseurl,
             'X-Hydra-Project'  => $build->project->name,
             'X-Hydra-Jobset'   => $build->jobset->name,
