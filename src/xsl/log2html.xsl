@@ -68,7 +68,7 @@
       <xsl:if test="@priority = 3">
         <xsl:attribute name="class">code prio3</xsl:attribute>
       </xsl:if>
-      <xsl:apply-templates/>
+      <xsl:apply-templates/><br/>
     </span>
   </xsl:template>
 
