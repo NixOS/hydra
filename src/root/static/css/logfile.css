@@ -48,3 +48,8 @@ span.code {
 .prio3 {
     font-style: italic;
 }
+
+a.lineno {
+    color: #909090;
+    float: right;
+}

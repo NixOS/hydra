@@ -56,6 +56,8 @@
 
 
   <xsl:template match="head|line">
+    <xsl:variable name="lineno"><xsl:number count="head|line" level="any" /></xsl:variable>
+    <a class="lineno" href="#line-{$lineno}" id="line-{$lineno}"><xsl:value-of select="$lineno" /> </a>
     <span class="code">
       <xsl:if test="@error">
         <xsl:attribute name="class">code errorLine</xsl:attribute>
