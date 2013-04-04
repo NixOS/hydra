@@ -186,8 +186,8 @@ create table Builds (
 
     keep          integer not null default 0, -- true means never garbage-collect the build output
 
-    foreign key   (project) references Projects(name) on update cascade,
-    foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
+    foreign key   (project) references Projects(name) on update cascade on delete cascade,
+    foreign key   (project, jobset) references Jobsets(project, name) on update cascade on delete cascade,
     foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade
 );
 
