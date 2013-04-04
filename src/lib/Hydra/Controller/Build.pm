@@ -593,4 +593,12 @@ sub evals : Chained('build') PathPart('evals') Args(0) {
 }
 
 
+sub reproduce : Chained('build') PathPart('reproduce') Args(0) {
+    my ($self, $c) = @_;
+    $c->response->content_type('text/x-shellscript');
+    $c->response->header('Content-Disposition', 'attachment; filename="reproduce-build-' . $c->stash->{build}->id . '.sh"');
+    $c->stash->{template} = 'reproduce.tt';
+}
+
+
 1;
