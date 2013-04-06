@@ -111,9 +111,11 @@ sub checkBuilds {
                 { join => ['project'], order_by => ["priority DESC", "timestamp"],
                   rows => $extraAllowed });
 
-            print "system type `", $system->system,
-                "': $nrActive active, $max allowed, ",
-                "starting ", scalar(@builds), " builds\n";
+            if (scalar(@builds) > 0) {
+              print "system type `", $system->system,
+                  "': $nrActive active, $max allowed, ",
+                  "starting ", scalar(@builds), " builds\n";
+            }
 
             foreach my $build (@builds) {
                 my $depbuild = findBuildDependencyInQueue($build);
