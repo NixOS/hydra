@@ -100,6 +100,7 @@ rec {
         machine =
           { config, pkgs, ... }:
           { services.postgresql.enable = true;
+            services.postgresql.package = pkgs.postgresql92;
             environment.systemPackages = [ hydra ];
           };
 
