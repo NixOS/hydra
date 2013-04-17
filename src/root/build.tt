@@ -77,6 +77,13 @@
 
   <div id="tabs-summary" class="tab-pane active">
 
+    [% IF build.nixexprinput %]
+      <a class="btn btn-info pull-right clearfix"
+         href="[%c.uri_for('/build' build.id 'reproduce')%]">
+        Reproduce this build locally
+      </a>
+    [% END %]
+
     <table>
       <tr>
         <td>

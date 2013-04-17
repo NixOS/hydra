@@ -1,0 +1,107 @@
+#! /bin/sh
+
+# This script has been generated automatically by Hydra from the build
+# at [% c.uri_for('/build' build.id) %].
+
+set -e
+
+export NIX_PATH=
+
+srcDir=${TMPDIR:-/tmp}/build-[% build.id +%]
+mkdir -p "$srcDir"/build
+cd "$srcDir"/build
+echo "storing sources in $srcDir" >&2
+
+declare -a args
+
+
+# Fetch the inputs.
+
+[%+ FOREACH input IN build.inputs %]
+inputDir=
+
+[%+ IF input.type == "git" %]
+
+inputDir="$srcDir/[% input.name %]/git-export"
+
+if ! [ -d "$inputDir" ]; then
+    echo "fetching Git input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
+    inputDirTmp="$inputDir.tmp"
+    rm -rf "$inputDirTmp"
+    mkdir -p "$inputDirTmp"
+    git clone '[% input.uri %]' "$inputDirTmp"
+    (cd "$inputDirTmp" && git checkout '[% input.revision %]')
+    revCount="$(cd "$inputDirTmp" && (git rev-list '[% input.revision %]' | wc -l))"
+    rm -rf "$inputDirTmp/.git"
+    mv "$inputDirTmp" "$inputDir"
+fi
+
+args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; shortRev = \"[% input.revision.substr(0, 7) %]\"; revCount = \"$revCount\"; }")
+
+[%+ ELSIF input.type == "hg" %]
+
+inputDir="$srcDir/[% input.name %]/hg-archive"
+
+if ! [ -d "$inputDir" ]; then
+    echo "fetching Mercurial input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
+    inputDirTmp="$inputDir.tmp"
+    rm -rf "$inputDirTmp"
+    hg clone '[% input.uri %]' "$inputDirTmp" -r '[% input.revision %]'
+    rm -rf "$inputDirTmp/.hg"
+    mv "$inputDirTmp" "$inputDir"
+fi
+
+args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; revCount = \"$revCount\"; }")
+
+[%+ ELSIF input.type == "svn" %]
+
+inputDir="$srcDir/[% input.name %]/svn-export"
+
+if ! [ -d "$inputDir" ]; then
+    echo "fetching Subversion input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
+    rm -rf "$inputDir.tmp"
+    svn export '[% input.uri %]@[% input.revision %]' "$inputDir.tmp"
+    mv "$inputDir.tmp" "$inputDir"
+fi
+
+args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; }")
+
+[% ELSIF input.type == "string" %]
+args+=(--arg '[% input.name %]' '"[% input.value %]"')
+
+[% ELSIF input.type == "boolean" %]
+args+=(--arg '[% input.name %]' '[% input.value %]')
+
+[% ELSE %]
+echo "$0: input ‘[% input.name %]’ has unsupported type ‘[% input.type %]’" >&2
+exit 1
+[% END %]
+
+[% IF input.name == build.nixexprinput +%]
+nixExprInputDir="$inputDir"
+[%+ END %]
+
+if [ -n "$inputDir" ]; then
+    NIX_PATH="$NIX_PATH${NIX_PATH:+:}[% input.name %]=$inputDir"
+fi
+
+[%+ END %]
+
+
+# Run nix-build.
+
+if [ -z "$nixExprInputDir" ]; then
+    echo "$0: don't know the path to the Nix expression!" >&2
+    exit 1
+fi
+
+#args+=(--option binary-caches '[% c.uri_for('/') %]')
+
+# Since Hydra runs on x86_64-linux, pretend we're one.  This matters
+# when evaluating jobs that rely on builtins.currentSystem.
+args+=(--option system x86_64-linux)
+
+echo "Nix path is $NIX_PATH" >&2
+echo "Nix args are ${args[@]}" >&2
+
+nix-build "$nixExprInputDir/[% build.nixexprpath %]" -A '[% build.job.name %]' "${args[@]}" "$@"

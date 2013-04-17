@@ -218,10 +218,10 @@ in
           ''
             #! ${pkgs.stdenv.shell}
             if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFree} * 1024**3)) ]; then
-                stop hydra_queue_runner
+                systemctl stop hydra-queue-runner
             fi
             if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFreeEvaluator} * 1024**3)) ]; then
-                stop hydra_evaluator
+                systemctl stop hydra-evaluator
             fi
           '';
 

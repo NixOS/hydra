@@ -5,8 +5,13 @@ main="(module-ref (resolve-interface '(hydra-eval-guile-jobs)) 'eval-guile-jobs)
 # Keep the host's GUILE_LOAD_PATH unchanged to allow the installed Guix to
 # be used.  This moves Guix modules possibly out of control, but solves
 # bootstrapping issues.
+#
+# Use `--fresh-auto-compile' to ignore any available .go, and force
+# recompilation.  This is because checkouts in the store has mtime set to
+# the epoch, and thus .go files look newer, even though they may not
+# correspond.
 
-exec ${GUILE:-@GUILE@} --no-auto-compile   \
+exec ${GUILE:-@GUILE@} --no-auto-compile --fresh-auto-compile   \
   -l "$0" -c "(apply $main (cdr (command-line)))" "$@"
 !#
 ;;; Copyright © 2012, 2013 Ludovic Courtès <ludo@gnu.org>
