@@ -3,28 +3,33 @@
 
 <table class="table table-condensed table-striped">
   [% FOREACH m IN machines %]
+    [% name = m.key ? m.key.match('@(.*)').0 : "localhost" %]
     <thead>
       <tr>
         <th colspan="5">
-          [% IF m.value.maxJobs > 0 %]
-            Running
+          [% IF !m.key || m.value.maxJobs %]
+            Enabled:
           [% ELSE %]
-            Stopped
-          [% END %] <tt>[% m.key %]</tt> (<tt>[% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END; system; END %])</tt>
+            Disabled:
+          [% END %] <tt>[% name %]</tt>
+          [% IF m.value.systemTypes %]
+            ([% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system %]</tt>[% END %])
+          [% END %]
         </th>
       </tr>
     </thead>
     <tbody>
       [% idle = 1 %]
       [% FOREACH step IN steps %]
-        [% IF step.machine.match('@(.*)').0 == m.key %]
+        [% name2 = step.machine ? step.machine.match('@(.*)').0 : "localhost" %]
+        [% IF name == name2 %]
           [% idle = 0 %]
           <tr>
             <td><tt>[% INCLUDE renderFullJobName project = step.build.project.name jobset = step.build.jobset.name job = step.build.job.name %]</tt></td>
             <td><tt>[% step.system %]</tt></td>
             <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
             <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
-            <td class='right'>[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
+            <td style="width: 10em">[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
           </tr>
         [% END %]
       [% END %]
@@ -32,13 +37,11 @@
         [% IF m.value.idle %] 
           <tr><td colspan="5">Idle since [% INCLUDE renderDuration duration = curTime - m.value.idle %]</td></tr>
         [% ELSE %]
-          <tr><td colspan="5">Never built</td></tr>
+          <tr><td colspan="5">Never used</td></tr>
         [% END %]
       [% END %]
     </tbody>
   [% END %]
 </table>
-
-
 
 [% END %]
