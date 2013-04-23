@@ -21,7 +21,7 @@
         [% IF name == name2 %]
           [% idle = 0 %]
           <tr>
-            <td><tt>[% INCLUDE renderFullJobName project = step.build.project.name jobset = step.build.jobset.name job = step.build.job.name %]</tt></td>
+            <td><tt>[% INCLUDE renderFullJobNameOfBuild build=step.build %]</tt></td>
             <td><tt>[% step.system %]</tt></td>
             <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
             <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
