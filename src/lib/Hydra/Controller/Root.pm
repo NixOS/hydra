@@ -215,19 +215,20 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
 }
 
 
-sub hashToPath {
-    my ($c, $hash) = @_;
-    die if length($hash) != 32;
-    my $path = queryPathFromHashPart($hash);
-    notFound($c, "Store path with hash ‘$hash’ does not exist.") unless $path;
-    return $path;
-}
-
-
 sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
     my ($self, $c) = @_;
     my $hash = $c->req->captures->[0];
-    $c->stash->{storePath} = hashToPath($c, $hash);
+
+    die if length($hash) != 32;
+    my $path = queryPathFromHashPart($hash);
+
+    if (!$path) {
+        $c->response->content_type('text/plain');
+        $c->stash->{'plain'}->{'data'} = "does not exist\n";
+        $c->forward('Hydra::View::Plain');
+    }
+    
+    $c->stash->{storePath} = $path;
     $c->stash->{current_view} = 'NARInfo';
 }
 
