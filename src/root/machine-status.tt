@@ -7,11 +7,7 @@
     <thead>
       <tr>
         <th colspan="5">
-          [% IF !m.key || m.value.maxJobs %]
-            Enabled:
-          [% ELSE %]
-            Disabled:
-          [% END %] <tt>[% name %]</tt>
+          <tt>[% name %]</tt>
           [% IF m.value.systemTypes %]
             ([% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system %]</tt>[% END %])
           [% END %]
@@ -35,7 +31,7 @@
       [% END %]
       [% IF idle == 1 %]
         [% IF m.value.idle %] 
-          <tr><td colspan="5">Idle since [% INCLUDE renderDuration duration = curTime - m.value.idle %]</td></tr>
+          <tr><td colspan="5">Idle for [% INCLUDE renderDuration duration = curTime - m.value.idle %]</td></tr>
         [% ELSE %]
           <tr><td colspan="5">Never used</td></tr>
         [% END %]
