@@ -203,14 +203,13 @@ sub nar :Local :Args(1) {
 sub nix_cache_info :Path('nix-cache-info') :Args(0) {
     my ($self, $c) = @_;
     $c->response->content_type('text/plain');
-    $c->stash->{'plain'} = { data =>
+    $c->stash->{plain}->{data} =
         #"StoreDir: $Nix::Config::storeDir\n" . # FIXME
         "StoreDir: /nix/store\n" .
         "WantMassQuery: 0\n" .
         # Give Hydra binary caches a very low priority (lower than the
         # static binary cache http://nixos.org/binary-cache).
-        "Priority: 100\n"
-    };
+        "Priority: 100\n";
     $c->forward('Hydra::View::Plain');
 }
 
@@ -224,12 +223,12 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
 
     if (!$path) {
         $c->response->content_type('text/plain');
-        $c->stash->{'plain'}->{'data'} = "does not exist\n";
+        $c->stash->{plain}->{data} = "does not exist\n";
         $c->forward('Hydra::View::Plain');
     }
     
     $c->stash->{storePath} = $path;
-    $c->stash->{current_view} = 'NARInfo';
+    $c->forward('Hydra::View::NARInfo');
 }
 
 
