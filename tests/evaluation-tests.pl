@@ -153,8 +153,8 @@ for my $build (queuedBuildsForJobset($jobset)) {
     my $buildproduct = $buildproducts->next;
     
     if($build->job->name eq "simple") {
-        ok($buildproduct->name eq "text.txt", "We should have text.txt, but found: ".$buildproduct->name."\n");
+        ok($buildproduct->name eq "text.txt", "We should have text.txt and found: ".$buildproduct->name."\n");
     } elsif ($build->job->name eq "with_spaces") {
-        ok($buildproduct->name eq "some text.txt", "We should have: \"some text.txt\", but found: ".$buildproduct->name."\n");
+        ok($buildproduct->name eq "some text.txt", "We should have: \"some text.txt\" and found: ".$buildproduct->name."\n");
     }
 }

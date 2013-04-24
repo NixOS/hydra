@@ -47,7 +47,10 @@ my $schemaVersion = $versions[0]->version;
 for (my $n = $schemaVersion; $n < $maxSchemaVersion; $n++) {
     my $m = $n + 1;
     print STDERR "upgrading Hydra schema from version $n to $m\n";
-    my $schema = read_file("$home/sql/upgrade-$m.sql");
+    my $schema = read_file(
+        $dbh->{Driver}->{Name} eq 'SQLite' ? "$home/sql/upgrade-sqlite-$m.sql" :
+        $dbh->{Driver}->{Name} eq 'Pg' ? "$home/sql/upgrade-postgresql-$m.sql" :
+        die "unsupported database type\n");
     my @statements = $sql_splitter->split($schema);
     eval {
         $dbh->begin_work;
