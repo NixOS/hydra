@@ -265,7 +265,7 @@ sub search :Local Args(0) {
 
     error($c, "Query is empty.") if $query eq "";
     error($c, "Invalid character in query.")
-        unless $query =~ /^[a-zA-Z0-9_\-]+$/;
+        unless $query =~ /^[a-zA-Z0-9_\-\/.]+$/;
 
     $c->stash->{limit} = 500;
 
@@ -295,6 +295,11 @@ sub search :Local Args(0) {
         , "+as" => ["enabled"]
         , rows => $c->stash->{limit} + 1
         } ) ];
+
+    $c->stash->{builds} = [ $c->model('DB::Builds')->search(
+        { -or => { "buildoutputs.path" => trim($query), "drvpath" => trim($query)} },
+        { order_by => ["id desc"], join => ["buildoutputs"] } ) ];
+
 }
 
 

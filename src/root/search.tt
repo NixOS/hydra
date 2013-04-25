@@ -60,6 +60,14 @@
 
 [% END %]
 
+[% IF builds.size > 0; matched = 1 %]
+
+  <p>The following builds match your query:[% IF jobs.size > limit %] <span class="text-warning">(first [% limit %] results only)</span>[% END %]</p>
+
+  [% INCLUDE renderBuildList %]
+
+[% END %]
+
 [% IF !matched %]
   <div class="alert alert-warn">Sorry! Nothing matches your
   query.</div>
