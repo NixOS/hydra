@@ -13,33 +13,22 @@
   </li>
 [% END %]
 
-[% BLOCK makeLinkWrapped %]
-  <li [% IF curUri == uri %]class="active"[% END %]>
-    <a href="[% uri %]">[% title %]</a>
-    [% content %]
-  </li>
-[% END %]
-
-[% BLOCK makeLink %]
-[% INCLUDE makeLinkWrapped content="" %]
-[% END %]
-
 <ul class="nav pull-left" id="top-menu">
 
   [% WRAPPER makeSubMenu title="Status" %]
-    [% INCLUDE makeLink
+    [% INCLUDE menuItem
        uri = c.uri_for(c.controller('Root').action_for('queue'))
        title = "Queue ("_ nrRunningBuilds _"/"_ nrQueuedBuilds _")" %]
-    [% INCLUDE makeLink
+    [% INCLUDE menuItem
        uri = c.uri_for(c.controller('Root').action_for('status'))
        title = "Active build steps" %]
-    [% INCLUDE makeLink
+    [% INCLUDE menuItem
        uri = c.uri_for(c.controller('Root').action_for('machines'))
        title = "Machine status" %]
-    [% INCLUDE makeLink
+    [% INCLUDE menuItem
        uri = c.uri_for(c.controller('Root').action_for('evals'))
        title = "Latest evaluations" %]
-    [% INCLUDE makeLink
+    [% INCLUDE menuItem
        uri = c.uri_for(c.controller('Root').action_for('all'))
        title = "Latest builds" %]
   [% END %]
@@ -62,19 +51,19 @@
 
   [% IF jobset %]
     [% WRAPPER makeSubMenu title=("Jobset: " _ ellipsize(jobset.name, 30)) %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Jobset').action_for('index'), [project.name, jobset.name])
         title = "Overview" %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name])
         title = "Evaluations" %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Jobset').action_for('all'), [project.name, jobset.name])
         title = "Latest builds" %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Jobset').action_for('jobstatus'), [project.name, jobset.name])
         title = "Job status" %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Jobset').action_for('errors'), [project.name, jobset.name])
         title = "Errors" %]
       <li class="divider"></li>
@@ -110,16 +99,16 @@
 
   [% IF job %]
     [% WRAPPER makeSubMenu title=("Job: " _ ellipsize(job.name, 30)) %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Job').action_for('overview'), [project.name, jobset.name, job.name])
         title = "Overview" %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Job').action_for('all'), [project.name, jobset.name, job.name])
         title = "Latest builds" %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Job').action_for('jobstatus'), [project.name, jobset.name, job.name])
         title = "Job status" %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Job').action_for('errors'), [project.name, jobset.name, job.name])
         title = "Errors" %]
       <li class="divider"></li>
@@ -129,32 +118,32 @@
 
   [% IF build %]
     [% WRAPPER makeSubMenu title=("Build: " _ build.id) %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for('/build' build.id)
         title = "Overview" %]
       [% IF c.user_exists %]
         <li class="divider"></li>
-        [% INCLUDE makeLink
+        [% INCLUDE menuItem
           uri = c.uri_for('/build' build.id 'clone')
           title = "Clone build" %]
         [% IF available %]
           [% IF build.keep %]
-            [% INCLUDE makeLink
+            [% INCLUDE menuItem
                uri = c.uri_for('/build' build.id 'keep' 0)
                title = "Unkeep build" %]
           [% ELSE %]
-            [% INCLUDE makeLink
+            [% INCLUDE menuItem
                uri = c.uri_for('/build' build.id 'keep' 1)
                title = "Keep build" %]
           [% END %]
         [% END %]
         [% IF build.finished %]
-          [% INCLUDE makeLink
+          [% INCLUDE menuItem
             uri = c.uri_for('/build' build.id 'restart')
             title = "Restart build" %]
         [% END %]
         [% IF !build.finished %]
-          [% INCLUDE makeLink
+          [% INCLUDE menuItem
             uri = c.uri_for('/build' build.id 'cancel')
             title = "Cancel build" %]
         [% END %]
@@ -168,13 +157,13 @@
         [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create')) title = "Create project" %]
         <li class="divider"></li>
       [% END %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Admin').action_for('machines'))
         title = "Manage machines" %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Admin').action_for('managenews'))
         title = "Manage news" %]
-      [% INCLUDE makeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Admin').action_for('users'))
         title = "Manage users" %]
       <li class="divider"></li>
@@ -202,10 +191,10 @@
   <ul class="nav" id="top-menu">
 
     [% IF c.user_exists %]
-      [% INCLUDE makeLink uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
-      [% INCLUDE makeLink uri = c.uri_for(c.controller('Root').action_for('logout')) title = "Sign out" %]
+      [% INCLUDE menuItem uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
+      [% INCLUDE menuItem uri = c.uri_for(c.controller('Root').action_for('logout')) title = "Sign out" %]
     [% ELSE %]
-      [% INCLUDE makeLink uri = c.uri_for(c.controller('Root').action_for('login')) title = "Sign in" %]
+      [% INCLUDE menuItem uri = c.uri_for(c.controller('Root').action_for('login')) title = "Sign in" %]
     [% END %]
 
   </ul>
