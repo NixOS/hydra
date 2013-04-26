@@ -315,7 +315,7 @@ BLOCK renderInputs; %]
       [% FOREACH input IN inputs %]
         <tr>
           <td><tt>[% input.name %]</tt></td>
-          <td><tt>[% type = input.type; inputTypes.$type %]</tt></td>
+          <td>[% type = input.type; inputTypes.$type %]</td>
           <td>
             [% IF input.type == "build" || input.type == "sysbuild" %]
               [% INCLUDE renderFullBuildLink build=input.dependency %]
