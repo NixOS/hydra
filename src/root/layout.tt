@@ -24,6 +24,10 @@
     <link rel="stylesheet" href="/static/css/hydra.css" type="text/css" />
     <link href="/static/bootstrap/css/bootstrap-responsive.min.css" rel="stylesheet" />
 
+    <style>
+      .popover { max-width: 40%; }
+    </style>
+
     <script type="text/javascript" src="/static/js/bootbox.min.js"></script>
 
     <link rel="stylesheet" href="/static/css/tree.css" type="text/css" />

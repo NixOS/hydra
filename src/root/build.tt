@@ -78,7 +78,7 @@
   <div id="tabs-summary" class="tab-pane active">
 
     [% IF build.nixexprinput %]
-      [% WRAPPER makePopover title="Reproduce locally" %]
+      [% WRAPPER makePopover title="Reproduce locally" classes="btn-info pull-right" placement="left" %]
         [% url = c.uri_for('/build' build.id 'reproduce') %]
 
         <p>You can reproduce this build on your own machine by
@@ -91,7 +91,7 @@
         run the following command:</p>
 
 <pre>
-bash <(curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a>)
+<span class="shell-prompt">$ </span>bash <(curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a>)
 </pre>
 
       [% END %]

@@ -493,7 +493,7 @@ BLOCK makeLazyTab %]
 
 
 BLOCK makePopover %]
-  <div class="btn btn-info pull-right hydra-popover" data-toggle="popover" data-placement="left" data-html="true" [% HTML.attributes('data-content' => content) %]>
+  <div class="btn hydra-popover [% classes %]" data-toggle="popover" data-html="true" [% HTML.attributes('data-content' => content, 'data-placement' => placement || 'bottom') %]>
     [% title %]
   </div>
 [% END;

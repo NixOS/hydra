@@ -79,3 +79,7 @@ div.page-header h1 {
 div.page-header h1 small {
     font-size: 45%;
 }
+
+.shell-prompt {
+    color: gray;
+}

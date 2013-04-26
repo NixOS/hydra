@@ -24,17 +24,14 @@
               <img src="/static/images/error_32.png" alt="Source" />
               Failed build produced output. Click here to inspect the output.
             </a>
-            <a class="productDetailsToggle btn btn-mini" href="javascript:">help</a>
-            <div class="well hide productDetails">
-                  <p>If you have Nix installed on your machine, this failed build output and
-                  all its dependencies can be unpacked into your local Nix store by doing:</p>
+            [% WRAPPER makePopover title="Help" classes="btn-mini" %]
+              <p>If you have Nix installed on your machine, this failed build output and
+              all its dependencies can be unpacked into your local Nix store by doing:</p>
 
-                  <pre>$ curl [% uri %] | gunzip | nix-store --import</pre>
+              <pre><span class="shell-prompt">$ </span>curl [% uri %] | gunzip | nix-store --import</pre>
 
-                  <p>The build output can then be found in the path <tt>[% product.path %]</tt>.</p>
-
-              </p>
-            </div>
+              <p>The build output can then be found in the path <tt>[% product.path %]</tt>.</p>
+            [% END %]
             </td>
           </tr>
 
@@ -46,8 +43,7 @@
               <img src="/static/images/nix-build.png" alt="Source" />
               One-click install of Nix package <tt>[% build.nixname %]</tt>
             </a>
-            <a class="productDetailsToggle btn btn-mini" href="javascript:">help</a> <a class="btn btn-mini" href="[% contents %]">contents</a>
-            <div class="well hide productDetails">
+            [% WRAPPER makePopover title="Help" classes="btn-mini" %]
               <p>If you have Nix installed on your machine, you can
               install this package and all its dependencies automatically
               by clicking on the link above.  This requires that you have
@@ -56,15 +52,12 @@
               browser.  Alternatively, you can install it from the
               command-line:</p>
 
-              <pre>$ nix-install-package --non-interactive --url [% uri %]</pre>
+              <pre><span class="shell-prompt">$ </span>nix-install-package --non-interactive --url [% uri %]</pre>
 
               <p>If you get an error message “Permission denied”, you
               should make sure that you have sufficient access rights to
-              the Nix store, e.g., run the command as <tt>root</tt>.
-
-              </p>
-            </div>
-
+              the Nix store, e.g., run the command as <tt>root</tt>.</p>
+            [% END %]
             </td>
           </tr>
           <tr class="product">
@@ -78,22 +71,21 @@
               Nix closure of path <tt>[% product.path %]</tt>
             </a>
 
-            <a class="productDetailsToggle btn btn-mini" href="javascript:">help</a>
-            <div class="well hide productDetails">
+            [% WRAPPER makePopover title="Help" classes="btn-mini" %]
               <p>If you have Nix installed on your machine, this build and
               all its dependencies can be unpacked into your local Nix
               store by doing:</p>
 
-              <pre>$ gunzip &lt; [% filename %] | nix-store --import</pre>
+              <pre><span class="shell-prompt">$ </span>gunzip &lt; [% filename %] | nix-store --import</pre>
 
               <p>or to download and unpack in one command:</p>
 
-              <pre>$ curl [% uri %] | gunzip | nix-store --import</pre>
+              <pre><span class="shell-prompt">$ </span>curl [% uri %] | gunzip | nix-store --import</pre>
 
               <p>The package can then be found in the path <tt>[%
               product.path %]</tt>.  You’ll probably also want to do</p>
 
-              <pre>$ nix-env -i [% product.path %]</pre>
+              <pre><span class="shell-prompt">$ </span>nix-env -i [% product.path %]</pre>
 
               <p>to actually install the package in your Nix user environment.</p>
 
@@ -101,7 +93,7 @@
               archive lacks a signature”, you should make sure that you have
               sufficient access rights to the Nix store, e.g., run the
               command as <tt>root</tt>.</p>
-            </div>
+            [% END %]
 
             </td>
           </tr>
@@ -130,9 +122,8 @@
             File <tt>[% product.name %]</tt> of type <tt>[% product.subtype %]</tt>
           [% END %]
         </a>
-        <a class="productDetailsToggle btn btn-mini" href="javascript:">details</a> <a class="btn btn-mini" href="[% contents %]">contents</a>
-        <div class="well hide productDetails">
-          <table>
+        [% WRAPPER makePopover title="Details" classes="btn-mini" %]
+          <table class="info-table">
             <tr>
               <th>URL:</th>
               <td><a href="[% uri %]"><tt>[% uri %]</tt></a></td>
@@ -159,8 +150,7 @@
             <tr><th>SHA-256 hash:</th><td><tt>[% product.sha256hash %]</tt></td></tr>
             <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
           </table>
-        </div>
-
+        [% END %]
         </td>
       </tr>
 
@@ -219,12 +209,3 @@
   </table>
 
 [% END %]
-
-<script type="text/javascript">
-  $(document).ready(function() {
-    $('.productDetailsToggle').toggle(
-      function () { $(".productDetails", $(this).parents(".product")).fadeIn(); },
-      function () { $(".productDetails", $(this).parents(".product")).hide(); }
-    );
-  });
-</script>
