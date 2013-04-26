@@ -15,7 +15,7 @@
 
 <p>The following projects are hosted on this server:</p>
 
-<table class="tablesorter table table-condensed table-striped clickable-rows">
+<table class="table table-condensed table-striped clickable-rows">
   <thead>
     <tr>
       <th>Id</th>

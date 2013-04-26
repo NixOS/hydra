@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Active build steps" %]
 [% PROCESS common.tt %]
 
-<table class="tablesorter table table-striped table-condensed clickable-rows">
+<table class="table table-striped table-condensed clickable-rows">
   <thead>
     <tr><th>Machine</th><th>Job</th><th>Type</th><th>Build</th><th>Step</th><th>What</th><th>Since</th></tr>
   </thead>

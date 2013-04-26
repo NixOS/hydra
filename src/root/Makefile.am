@@ -5,11 +5,10 @@ STATIC = \
   static/js/bootbox.min.js
 
 FLOT = flot-0.6.zip
-TABLESORTER = jquery.tablesorter.zip
 JQUERY = jquery-ui-1.8.5.custom.zip
 BOOTSTRAP = bootstrap-2.3.1.zip
 
-ZIPS = $(FLOT) $(TABLESORTER) $(JQUERY) $(BOOTSTRAP)
+ZIPS = $(FLOT) $(JQUERY) $(BOOTSTRAP)
 
 EXTRA_DIST = $(TEMPLATES) $(STATIC) $(ZIPS)
 
@@ -20,8 +19,6 @@ all:
 	mkdir -p $(srcdir)/static/js
 	unzip -u -d $(srcdir)/static/js/jquery $(JQUERY)
 	unzip -u -d $(srcdir)/static $(BOOTSTRAP)
-	rm -rf $(srcdir)/static/js/tablesorter
-	unzip -u -d $(srcdir)/static/js $(TABLESORTER)
 	unzip -u -d $(srcdir)/static/js $(FLOT)
 
 install-data-local: $(ZIPS)

@@ -9,7 +9,7 @@
 
 <p>Showing results [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + results.size %] out of [% totalResults %].</p>
 
-<table class="tablesorter table table-condensed table-striped clickable-rows">
+<table class="table table-condensed table-striped clickable-rows">
   <thead>
     <tr>
       <th></th>
