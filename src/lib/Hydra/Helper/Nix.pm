@@ -114,13 +114,9 @@ sub getPrimaryBuildTotal {
 
 sub getPrimaryBuildsForView {
     my ($project, $primaryJob, $page, $resultsPerPage) = @_;
-    $page = (defined $page ? int($page) : 1) || 1;
-    $resultsPerPage = (defined $resultsPerPage ? int($resultsPerPage) : 20) || 20;
 
-    my @primaryBuilds = allPrimaryBuilds($project, $primaryJob)->search( {},
-        { rows => $resultsPerPage
-        , page => $page
-        });
+    my @primaryBuilds = allPrimaryBuilds($project, $primaryJob)->search(
+        {}, defined $resultsPerPage ? { rows => $resultsPerPage, page => $page } : {});
 
     return @primaryBuilds;
 }
@@ -181,7 +177,7 @@ sub jobsetOverview {
 
 
 sub getViewResult {
-    my ($primaryBuild, $jobs) = @_;
+    my ($primaryBuild, $jobs, $finished) = @_;
 
     my @jobs = ();
 
@@ -193,6 +189,11 @@ sub getViewResult {
     # might not be a evaluation record, so $ev may be undefined.)
     my $ev = $primaryBuild->jobsetevalmembers->find({}, { rows => 1, order_by => "eval" });
     $ev = $ev->eval if defined $ev;
+
+    if ($finished) {
+        return undef unless defined $ev;
+        return undef if $ev->builds->search({ finished => 0 })->count > 0;
+    }
 
     # The timestamp of the view result is the highest timestamp of all
     # constitutent builds.
@@ -230,12 +231,9 @@ sub getLatestSuccessfulViewResult {
     my ($project, $primaryJob, $jobs, $finished) = @_;
     my $latest;
     foreach my $build (getPrimaryBuildsForView($project, $primaryJob)) {
-        my $result = getViewResult($build, $jobs);
+        my $result = getViewResult($build, $jobs, $finished);
+        next unless defined $result;
         next if $result->{status} != 0;
-        if ($finished) {
-            next unless defined $result->{eval};
-            next if $result->{eval}->builds->search({ finished => 0 })->count > 0;
-        }
         return $build;
     }
     return undef;
