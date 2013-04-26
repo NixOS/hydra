@@ -21,6 +21,13 @@ Makefile.in
 /src/sql/tmp.sqlite
 /src/c/hydra-eval-jobs
 /src/root/static/bootstrap
+/src/root/static/js/flot
+/src/root/static/js/jquery
 /doc/manual/images
 /doc/manual/manual.html
 /doc/manual/manual.pdf
+/tests/.bzr*
+/tests/.git*
+/tests/.hg*
+/tests/nix
+/inst
