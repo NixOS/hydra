@@ -296,9 +296,14 @@ sub search :Local Args(0) {
         , rows => $c->stash->{limit} + 1
         } ) ];
 
+    # Perform build search in separate queries to prevent seq scan on buildoutputs table.
     $c->stash->{builds} = [ $c->model('DB::Builds')->search(
-        { -or => { "buildoutputs.path" => trim($query), "drvpath" => trim($query)} },
+        { "buildoutputs.path" => trim($query) },
         { order_by => ["id desc"], join => ["buildoutputs"] } ) ];
+
+    $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
+        { "drvpath" => trim($query) },
+        { order_by => ["id desc"] } ) ];
 
 }
 

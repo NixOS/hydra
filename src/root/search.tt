@@ -1,6 +1,21 @@
 [% WRAPPER layout.tt title="Search results" %]
 [% PROCESS common.tt %]
 
+[% matched = 0 %]
+
+[% BLOCK renderBuildSearch %]
+
+[% IF builds.size > 0 %]
+
+  <p>The following builds match your query:[% IF builds.size > limit %] <span class="text-warning">(first [% limit %] results only)</span>[% END %]</p>
+
+  [% INCLUDE renderBuildList %]
+
+[% END %]
+
+[% END; %]
+
+
 [% IF projects.size > 0; matched = 1 %]
 
   <p>The following projects match your query:</p>
@@ -60,17 +75,13 @@
 
 [% END %]
 
-[% IF builds.size > 0; matched = 1 %]
+[% INCLUDE renderBuildSearch %]
+[% INCLUDE renderBuildSearch builds=buildsdrv %]
 
-  <p>The following builds match your query:[% IF jobs.size > limit %] <span class="text-warning">(first [% limit %] results only)</span>[% END %]</p>
-
-  [% INCLUDE renderBuildList %]
-
-[% END %]
+[% IF builds.size > 0 || buildsdrv.size > 0 ; matched = 1 ; END %]
 
 [% IF !matched %]
-  <div class="alert alert-warn">Sorry! Nothing matches your
-  query.</div>
+  <div class="alert alert-warn">Sorry! Nothing matches your query.</div>
 [% END %]
 
 [% END %]
