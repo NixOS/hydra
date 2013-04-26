@@ -78,10 +78,23 @@
   <div id="tabs-summary" class="tab-pane active">
 
     [% IF build.nixexprinput %]
-      <a class="btn btn-info pull-right clearfix"
-         href="[%c.uri_for('/build' build.id 'reproduce')%]">
-        Reproduce this build locally
-      </a>
+      [% WRAPPER makePopover title="Reproduce locally" %]
+        [% url = c.uri_for('/build' build.id 'reproduce') %]
+
+        <p>You can reproduce this build on your own machine by
+        downloading <a [% HTML.attributes(href => url) %]>a script</a>
+        that checks out all inputs of the build and then invokes Nix
+        to perform the build.  This script requires that you have Nix
+        on your system.</p>
+
+        <p>To download and execute the script from the command line,
+        run the following command:</p>
+
+<pre>
+bash <(curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a>)
+</pre>
+
+      [% END %]
     [% END %]
 
     <table>
@@ -193,13 +206,13 @@
         <h3>Changes</h3>
         <table class="table table-striped table-condensed">
           <thead>
-            <th>Last successful build <tt>[% INCLUDE renderDateTime timestamp = prevSuccessfulBuild.timestamp %]</tt></th>
+            <th>Last successful build [% INCLUDE renderDateTime timestamp = prevSuccessfulBuild.timestamp %]</th>
             [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]
-              <th>First broken build <tt>[% INCLUDE renderDateTime timestamp = firstBrokenBuild.timestamp %]</tt>
+              <th>First broken build [% INCLUDE renderDateTime timestamp = firstBrokenBuild.timestamp %]
                 <a class="btn btn-mini" href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id firstBrokenBuild.id ) %]">log diff</a>
               </th>
             [% END %]
-            <th>This build <tt>[% INCLUDE renderDateTime timestamp = build.timestamp %]</tt>
+            <th>This build [% INCLUDE renderDateTime timestamp = build.timestamp %]
               <a class="btn btn-mini" href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id build.id) %]">log diff</a>
             </th>
           </thead>

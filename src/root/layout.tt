@@ -80,6 +80,7 @@
 
           bootbox.animate(false);
 
+          $(".hydra-popover").popover({});
       });
 
     </script>
