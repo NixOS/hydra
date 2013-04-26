@@ -7,8 +7,8 @@
 <p>Showing evaluations [% (page - 1) * resultsPerPage + 1 %] - [%
 (page - 1) * resultsPerPage + evals.size %] out of [% total %].</p>
 
-[% INCLUDE renderPager %]
-
 [% INCLUDE renderEvals %]
+
+[% INCLUDE renderPager %]
 
 [% END %]
