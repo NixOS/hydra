@@ -56,7 +56,26 @@ table.clickable-rows > tbody > tr {
     cursor: pointer;
 }
 
+h2 {
+    font-size: 150%;
+    margin-bottom: 0em;
+}
+
 h3 {
+    font-size: 120%;
     margin-top: 0.5em;
-    margin-bottom: 0.5em;
+    margin-bottom: 0em;
+}
+
+div.page-header {
+    margin-top: 0em;
+    margin-bottom: 1em;
+}
+
+div.page-header h1 {
+    margin-bottom: 0em;
+}
+
+div.page-header h1 small {
+    font-size: 45%;
 }

@@ -1,5 +1,5 @@
 [% BLOCK menuItem %]
-  <li class="[% IF "${root}${curUri}" == uri %]active[% END %]">
+  <li class="[% IF "${root}${curUri}" == uri %]active[% END %]" [% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>
     <a href="[% uri %]">[% title %]</a>
   </li>
 [% END %]
@@ -167,14 +167,14 @@
         uri = c.uri_for(c.controller('Admin').action_for('users'))
         title = "Manage users" %]
       <li class="divider"></li>
-      [% INCLUDE maybeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Admin').action_for('clearfailedcache'))
-        content = "Clear failed builds cache"
+        title = "Clear failed builds cache"
         confirmmsg = "Are you sure you want to clear the failed builds cache?"
         class = "" %]
-      [% INCLUDE maybeLink
+      [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Admin').action_for('clear_queue_non_current'))
-        content = "Clear all non-running old builds from queue"
+        title = "Clear all non-running old builds from queue"
         confirmmsg = "Are you sure you want to clear the queue?"
         class = "" %]
     [% END %]
