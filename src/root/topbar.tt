@@ -61,7 +61,7 @@
   [% END %]
 
   [% IF jobset %]
-    [% WRAPPER makeSubMenu title=("Jobset: " _ jobset.name) %]
+    [% WRAPPER makeSubMenu title=("Jobset: " _ ellipsize(jobset.name, 30)) %]
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Jobset').action_for('index'), [project.name, jobset.name])
         title = "Overview" %]
@@ -109,7 +109,7 @@
   [% END %]
 
   [% IF job %]
-    [% WRAPPER makeSubMenu title=("Job: " _ job.name) %]
+    [% WRAPPER makeSubMenu title=("Job: " _ ellipsize(job.name, 30)) %]
       [% INCLUDE makeLink
         uri = c.uri_for(c.controller('Job').action_for('overview'), [project.name, jobset.name, job.name])
         title = "Overview" %]
