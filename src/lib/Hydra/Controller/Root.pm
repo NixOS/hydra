@@ -225,8 +225,9 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
         $c->response->content_type('text/plain');
         $c->stash->{plain}->{data} = "does not exist\n";
         $c->forward('Hydra::View::Plain');
+        return;
     }
-    
+
     $c->stash->{storePath} = $path;
     $c->forward('Hydra::View::NARInfo');
 }
