@@ -291,11 +291,12 @@ sub push : Chained('api') PathPart('push') Args(0) {
 
     $c->{stash}->{json}->{jobsetsTriggered} = [];
 
+    my $force = exists $c->request->query_params->{force};
     my @jobsets = split /,/, ($c->request->query_params->{jobsets} // "");
     foreach my $s (@jobsets) {
         my ($p, $j) = parseJobsetName($s);
         my $jobset = $c->model('DB::Jobsets')->find($p, $j);
-        next unless defined $jobset && $jobset->project->enabled && $jobset->enabled;
+        next unless defined $jobset && ($force || ($jobset->project->enabled && $jobset->enabled));
         triggerJobset($self, $c, $jobset);
     }
 
