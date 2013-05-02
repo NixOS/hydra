@@ -59,7 +59,17 @@ export NIX_PATH=
 
 mkdir -p "$tmpDir"
 cd "$tmpDir"
-echo "storing sources in $tmpDir" >&2
+echo "storing inputs and results in $tmpDir" >&2
+
+
+requireCommand() {
+    local cmd="$1"
+    if ! type -P "$cmd" > /dev/null; then
+        echo "$0: command ‘$cmd’ is not installed; please install it and try again" >&2
+        exit 1
+    fi
+    return 0
+}
 
 
 # Fetch the inputs.
@@ -72,7 +82,9 @@ inputDir=
 inputDir="$tmpDir/[% input.name %]/git-export"
 
 if ! [ -d "$inputDir" ]; then
+    echo
     echo "fetching Git input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
+    requireCommand git
     inputDirTmp="$inputDir.tmp"
     rm -rf "$inputDirTmp"
     mkdir -p "$inputDirTmp"
@@ -90,7 +102,9 @@ args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revisio
 inputDir="$tmpDir/[% input.name %]/hg-archive"
 
 if ! [ -d "$inputDir" ]; then
+    echo
     echo "fetching Mercurial input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
+    requireCommand hg
     inputDirTmp="$inputDir.tmp"
     rm -rf "$inputDirTmp"
     hg clone '[% input.uri %]' "$inputDirTmp" -r '[% input.revision %]'
@@ -105,7 +119,9 @@ args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revisio
 inputDir="$tmpDir/[% input.name %]/svn-export"
 
 if ! [ -d "$inputDir" ]; then
+    echo
     echo "fetching Subversion input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
+    requireCommand svn
     rm -rf "$inputDir.tmp"
     svn export '[% input.uri %]@[% input.revision %]' "$inputDir.tmp"
     mv "$inputDir.tmp" "$inputDir"
@@ -137,6 +153,8 @@ fi
 
 # Run nix-build.
 
+requireCommand nix-build
+
 if [ -z "$nixExprInputDir" ]; then
     echo "$0: don't know the path to the Nix expression!" >&2
     exit 1
@@ -148,6 +166,7 @@ fi
 # when evaluating jobs that rely on builtins.currentSystem.
 args+=(--option system x86_64-linux)
 
+echo
 echo "Nix path is $NIX_PATH" >&2
 echo "Nix args are ${args[@]}" >&2
 
