@@ -268,11 +268,12 @@ sub checkSomeJobset {
         { join => 'project', order_by => [ 'triggertime' ], rows => 1 });
 
     # Otherwise, check the jobset that hasn't been checked for the
-    # longest time (but don't check more often than the minimal check
-    # interval).
+    # longest time (but don't check more often than the jobset's
+    # minimal check interval).
     ($jobset) = $db->resultset('Jobsets')->search(
         { 'project.enabled' => 1, 'me.enabled' => 1,
-        , -or => [ 'lastcheckedtime' => undef, 'lastcheckedtime' => { '<', time() - $minCheckInterval } ] },
+        , 'checkinterval' => { '!=', 0 }
+        , -or => [ 'lastcheckedtime' => undef, 'lastcheckedtime' => { '<', \ (time() . " - me.checkinterval") } ] },
         { join => 'project', order_by => [ 'lastcheckedtime nulls first' ], rows => 1 })
         unless defined $jobset;
 

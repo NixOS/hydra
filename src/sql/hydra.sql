@@ -60,6 +60,7 @@ create table Jobsets (
     hidden        integer not null default 0,
     emailOverride text not null,
     keepnr        integer not null default 3,
+    checkInterval integer not null default 300, -- minimum time in seconds between polls (0 = disable polling)
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade
 #ifdef SQLITE

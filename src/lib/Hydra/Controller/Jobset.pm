@@ -206,7 +206,8 @@ sub updateJobset {
         , enableemail => defined $c->request->params->{enableemail} ? 1 : 0
         , emailoverride => trim($c->request->params->{emailoverride}) || ""
         , hidden => defined $c->request->params->{visible} ? 0 : 1
-        , keepnr => trim($c->request->params->{keepnr}) || 3
+        , keepnr => int(trim($c->request->params->{keepnr})) || 3
+        , checkinterval => int(trim($c->request->params->{checkinterval}))
         , triggertime => $jobset->triggertime // time()
         });
 

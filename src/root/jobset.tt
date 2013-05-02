@@ -121,6 +121,10 @@
         <td>[% jobset.enabled ? "Yes" : "No" %]</td>
       </tr>
       <tr>
+        <th>Check interval:</th>
+        <td>[% jobset.checkinterval || "<em>disabled</em>"  %]</td>
+      </tr>
+      <tr>
         <th>Enable email notification:</th>
         <td>[% jobset.enableemail ? "Yes" : "No" %]</td>
       </tr>

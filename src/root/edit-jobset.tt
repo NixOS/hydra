@@ -84,6 +84,17 @@
     </div>
 
     <div class="control-group">
+      <label class="control-label">Check interval</label>
+      <div class="controls">
+        <div class="input-append">
+          <input type="number" class="span3" name="checkinterval" [% HTML.attributes(value => jobset.checkinterval) %]></input>
+          <span class="add-on">sec</span>
+        </div>
+        <span class="help-inline">(0 to disable polling)</span>
+      </div>
+    </div>
+
+    <div class="control-group">
       <div class="controls">
         <label class="checkbox">
           <input type="checkbox" name="enableemail" [% IF jobset.enableemail; 'checked="checked"'; END %]></input>Email notification

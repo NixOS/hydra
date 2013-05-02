@@ -100,6 +100,12 @@ __PACKAGE__->table("Jobsets");
   default_value: 3
   is_nullable: 0
 
+=head2 checkinterval
+
+  data_type: 'integer'
+  default_value: 300
+  is_nullable: 0
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -131,6 +137,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "keepnr",
   { data_type => "integer", default_value => 3, is_nullable => 0 },
+  "checkinterval",
+  { data_type => "integer", default_value => 300, is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -252,7 +260,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-02-25 19:10:12
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SvBgR0iH9NjVH4jvBATYPA
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-05-02 14:50:55
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:q4amPCWRoWMThnRa/n/y1w
 
 1;
