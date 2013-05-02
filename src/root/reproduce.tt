@@ -1,18 +1,65 @@
-#! /bin/sh
+#! /usr/bin/env bash
 
 # This script has been generated automatically by Hydra from the build
 # at [% c.uri_for('/build' build.id) %].
 
 set -e
 
+tmpDir=${TMPDIR:-/tmp}/build-[% build.id +%]
+declare -a args extraArgs
+
+
+# Process the command line.
+while [ $# -gt 0 ]; do
+    arg="$1"
+    shift
+    if [ "$arg" = --help ]; then
+        cat <<EOF
+Usage: $0 [--dir PATH] [--run-env]
+
+This script will reproduce Hydra build [% build.id %] of job [%
+build.project.name %]:[% build.jobset.name %]:[% build.job.name +%]
+(available at [%+ c.uri_for('/build' build.id) +%]).  It will fetch
+all inputs of the Hydra build, then invoke Nix to build the job and
+all its dependencies.
+
+The inputs will be stored in $tmpDir.  This can be overriden using the
+--dir flag.  After the build, the result of the build is available via
+the symlink $tmpDir/result.
+
+Flags:
+
+  --dir PATH
+    Override the location where the inputs and result symlink are stored.
+
+  --run-env
+    Fetch the inputs and build the dependencies, then start an
+    interactive shell in which the environment is equal to that used
+    to perform the build.  See the description of the --run-env flag
+    in the nix-build(1) manpage for more details.
+
+Any additional flags are passed to nix-build.  See the nix-build(1)
+manpage for details.
+EOF
+        exit 0
+    elif [ "$arg" = --dir ]; then
+        tmpDir="$1"
+        if [ -z "$tmpDir" ]; then
+            echo "$0: --dir requires an argument" >&2
+            exit 1
+        fi
+        shift
+    else
+        extraArgs+=("$arg")
+    fi
+done
+
+
 export NIX_PATH=
 
-srcDir=${TMPDIR:-/tmp}/build-[% build.id +%]
-mkdir -p "$srcDir"/build
-cd "$srcDir"/build
-echo "storing sources in $srcDir" >&2
-
-declare -a args
+mkdir -p "$tmpDir"
+cd "$tmpDir"
+echo "storing sources in $tmpDir" >&2
 
 
 # Fetch the inputs.
@@ -22,7 +69,7 @@ inputDir=
 
 [%+ IF input.type == "git" %]
 
-inputDir="$srcDir/[% input.name %]/git-export"
+inputDir="$tmpDir/[% input.name %]/git-export"
 
 if ! [ -d "$inputDir" ]; then
     echo "fetching Git input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
@@ -40,7 +87,7 @@ args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revisio
 
 [%+ ELSIF input.type == "hg" %]
 
-inputDir="$srcDir/[% input.name %]/hg-archive"
+inputDir="$tmpDir/[% input.name %]/hg-archive"
 
 if ! [ -d "$inputDir" ]; then
     echo "fetching Mercurial input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
@@ -55,7 +102,7 @@ args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revisio
 
 [%+ ELSIF input.type == "svn" %]
 
-inputDir="$srcDir/[% input.name %]/svn-export"
+inputDir="$tmpDir/[% input.name %]/svn-export"
 
 if ! [ -d "$inputDir" ]; then
     echo "fetching Subversion input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
@@ -104,4 +151,4 @@ args+=(--option system x86_64-linux)
 echo "Nix path is $NIX_PATH" >&2
 echo "Nix args are ${args[@]}" >&2
 
-nix-build "$nixExprInputDir/[% build.nixexprpath %]" -A '[% build.job.name %]' "${args[@]}" "$@"
+nix-build "$nixExprInputDir/[% build.nixexprpath %]" -A '[% build.job.name %]' "${args[@]}" "${extraArgs[@]}"
