@@ -9,6 +9,11 @@ tmpDir=${TMPDIR:-/tmp}/build-[% build.id +%]
 declare -a args extraArgs
 
 
+info() {
+    echo "[1;32m$1[0m" >&2
+}
+
+
 # Process the command line.
 while [ $# -gt 0 ]; do
     arg="$1"
@@ -59,7 +64,7 @@ export NIX_PATH=
 
 mkdir -p "$tmpDir"
 cd "$tmpDir"
-echo "storing inputs and results in $tmpDir" >&2
+info "storing inputs and results in $tmpDir..."
 
 
 requireCommand() {
@@ -82,8 +87,7 @@ inputDir=
 inputDir="$tmpDir/[% input.name %]/git-export"
 
 if ! [ -d "$inputDir" ]; then
-    echo
-    echo "fetching Git input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
+    info "fetching Git input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..."
     requireCommand git
     inputDirTmp="$inputDir.tmp"
     rm -rf "$inputDirTmp"
@@ -102,8 +106,7 @@ args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revisio
 inputDir="$tmpDir/[% input.name %]/hg-archive"
 
 if ! [ -d "$inputDir" ]; then
-    echo
-    echo "fetching Mercurial input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
+    info "fetching Mercurial input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..."
     requireCommand hg
     inputDirTmp="$inputDir.tmp"
     rm -rf "$inputDirTmp"
@@ -119,8 +122,7 @@ args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revisio
 inputDir="$tmpDir/[% input.name %]/svn-export"
 
 if ! [ -d "$inputDir" ]; then
-    echo
-    echo "fetching Subversion input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..." >&2
+    info "fetching Subversion input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..."
     requireCommand svn
     rm -rf "$inputDir.tmp"
     svn export '[% input.uri %]@[% input.revision %]' "$inputDir.tmp"
@@ -166,8 +168,8 @@ fi
 # when evaluating jobs that rely on builtins.currentSystem.
 args+=(--option system x86_64-linux)
 
-echo
+info "running nix-build..."
 echo "Nix path is $NIX_PATH" >&2
 echo "Nix args are ${args[@]}" >&2
 
-nix-build "$nixExprInputDir/[% build.nixexprpath %]" -A '[% build.job.name %]' "${args[@]}" "${extraArgs[@]}"
+exec nix-build "$nixExprInputDir/[% build.nixexprpath %]" -A '[% build.job.name %]' "${args[@]}" "${extraArgs[@]}"
