@@ -70,48 +70,6 @@
   - Start hydra_evaluator and hydra_queue_runner
 
 
-* Upgrade notes:
-
-  alter table builds add column longDescription text;
-  alter table builds add column license text;
-  alter table projects add column homepage text;
-  alter table builds add column homepage text;
-  alter table BuildProducts add column defaultPath text;
-  alter table BuildResultInfo add column failedDepBuild integer;
-  alter table BuildResultInfo add column failedDepStepNr integer;
-  alter table ReleaseSetJobs add column jobset text not null default "trunk";
-  === (DB dump/load needed after Sqlite upgrade) ===
-  insert into jobs(project, jobset, name, active) select distinct project, jobset, job, 0 from builds b where not exists (select 1 from jobs where project = b.project and jobset = b.jobset and name = b.job);
-
-  create index IndexBuildInputsByBuild on BuildInputs(build);
-  create index IndexBuildInputsByDependency on BuildInputs(dependency);
-  
-  create index IndexBuildsByTimestamp on Builds(timestamp);
-
-  alter table jobs add column disabled integer not null default 0;
-  alter table builds add column maintainers text;
-
-  # Add the isCurrent column to Builds and use the obsolete Jobs.active to fill it in.
-  alter table builds add column isCurrent integer default 0;
-  update builds set isCurrent = 1 where id in (select max(id) from builds natural join (select distinct b.project, b.jobset, b.job, b.system from builds b join (select project, jobset, name from jobs where active = 1) j on b.project = j.project and b.jobset = j.jobset and b.job = j.name) b2 group by project, jobset, job, system);
-
-  alter table Jobsets add column enabled integer not null default 1;
-
-  # Releases -> Views.
-  alter table ReleaseSets rename to Views;
-  alter table ReleaseSetJobs rename to ViewJobs;
-  alter table ViewJobs rename column release_ to view_;
-  alter table ViewJobs drop column mayFail;
-  alter table ViewJobs add column autorelease integer not null default 0;
-
-  alter table Builds add column nixExprInput text;
-  alter table Builds add column nixExprPath text;
-
-  # Adding JobsetEvals.
-  drop table JobsetInputHashes;
-  (add JobsetEvals, JobsetEvalMembers)
-
-  
 * Job selection:
   
     php-sat:build [system = "i686-linux"]

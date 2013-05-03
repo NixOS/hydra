@@ -55,7 +55,7 @@ sub findBuildDependencyInQueue {
     my @deps = grep { /\.drv$/ && $_ ne $build->drvpath } computeFSClosure(0, 0, $build->drvpath);
     return unless scalar @deps > 0;
     return $db->resultset('Builds')->search(
-        { drvpath => [ @deps ], finished => 0, enabled => 1, disabled => 0 },
+        { drvpath => [ @deps ], finished => 0, enabled => 1 },
         { join => ['project'], rows => 1 })->single;
 }
 
@@ -79,7 +79,7 @@ sub checkBuilds {
 
         # Get the system types for the runnable builds.
         my @systemTypes = $db->resultset('Builds')->search(
-            { finished => 0, busy => 0, enabled => 1, disabled => 0 },
+            { finished => 0, busy => 0, enabled => 1 },
             { join => ['project'], select => ['system'], as => ['system'], distinct => 1 });
 
         # For each system type, select up to the maximum number of
@@ -99,7 +99,7 @@ sub checkBuilds {
 
             # Select the highest-priority builds to start.
             my @builds = $extraAllowed == 0 ? () : $db->resultset('Builds')->search(
-                { finished => 0, busy => 0, system => $system->system, enabled => 1, disabled => 0 },
+                { finished => 0, busy => 0, system => $system->system, enabled => 1 },
                 { join => ['project'], order_by => ["priority DESC", "timestamp"],
                   rows => $extraAllowed });
 

@@ -147,12 +147,6 @@ __PACKAGE__->table("Builds");
   data_type: 'text'
   is_nullable: 1
 
-=head2 disabled
-
-  data_type: 'integer'
-  default_value: 0
-  is_nullable: 0
-
 =head2 starttime
 
   data_type: 'integer'
@@ -248,8 +242,6 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "logfile",
   { data_type => "text", is_nullable => 1 },
-  "disabled",
-  { data_type => "integer", default_value => 0, is_nullable => 0 },
   "starttime",
   { data_type => "integer", is_nullable => 1 },
   "stoptime",
@@ -465,8 +457,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-30 16:22:11
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:YBdqPWScG4dtGx+U3dJcwA
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-05-03 14:35:11
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:aYVEk+AeDsgTRi5GAqOhEw
 
 __PACKAGE__->has_many(
   "dependents",

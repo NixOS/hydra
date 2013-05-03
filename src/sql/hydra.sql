@@ -107,8 +107,6 @@ create table Jobs (
     firstEvalTime integer, -- first time the evaluator saw this job
     lastEvalTime  integer, -- last time the evaluator saw this job
 
-    disabled      integer not null default 0, -- !!! not currently used
-
     primary key   (project, jobset, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
@@ -159,8 +157,6 @@ create table Builds (
     locker        text, -- !!! hostname/pid of the process building this job?
 
     logfile       text, -- if busy, the path of the logfile
-
-    disabled      integer not null default 0, -- !!! boolean
 
     startTime     integer, -- if busy, time we started
     stopTime      integer,

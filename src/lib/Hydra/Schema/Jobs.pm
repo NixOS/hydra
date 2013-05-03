@@ -61,12 +61,6 @@ __PACKAGE__->table("Jobs");
   data_type: 'integer'
   is_nullable: 1
 
-=head2 disabled
-
-  data_type: 'integer'
-  default_value: 0
-  is_nullable: 0
-
 =cut
 
 __PACKAGE__->add_columns(
@@ -84,8 +78,6 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 1 },
   "lastevaltime",
   { data_type => "integer", is_nullable => 1 },
-  "disabled",
-  { data_type => "integer", default_value => 0, is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -156,7 +148,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-22 13:29:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Vfl4QtuyeKeEk9+Ap7FP2A
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-05-03 14:35:11
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uZ27Dcbywi99pCW7Ml4j3A
 
 1;
