@@ -58,6 +58,7 @@
               should make sure that you have sufficient access rights to
               the Nix store, e.g., run the command as <tt>root</tt>.</p>
             [% END %]
+            <a class="btn btn-mini" href="[% contents %]">Contents</a>
             </td>
           </tr>
           <tr class="product">
@@ -151,6 +152,7 @@
             <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
           </table>
         [% END %]
+        <a class="btn btn-mini" href="[% contents %]">Contents</a>
         </td>
       </tr>
 
