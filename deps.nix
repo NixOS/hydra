@@ -24,7 +24,6 @@ with pkgs;
   perlPackages.IOCompress
   perlPackages.IPCRun
   perlPackages.JSONXS
-  perlPackages.NetTwitterLite
   perlPackages.PadWalker
   perlPackages.CatalystDevel
   perlPackages.Readonly

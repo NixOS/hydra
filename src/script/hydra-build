@@ -17,7 +17,6 @@ use Sys::Hostname::Long;
 use Config::General;
 use Text::Table;
 use POSIX qw(strftime);
-use Net::Twitter::Lite;
 use Data::Dump qw(dump);
 use feature qw/switch/;
 
@@ -26,38 +25,6 @@ STDOUT->autoflush();
 my $db = Hydra::Model::DB->new();
 
 my $config = getHydraConfig();
-
-
-sub sendTwitterNotification {
-    my ($build) = @_;
-
-    return unless (defined $ENV{'TWITTER_USER'} && defined $ENV{'TWITTER_PASS'});
-
-    my $addURL = defined $config->{'base_uri'};
-
-    my $jobName  = $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
-    my $status   = $build->buildstatus == 0 ? "SUCCEEDED" : "FAILED";
-    my $system   = $build->system;
-    my $duration = ($build->stoptime - $build->starttime) . " seconds";
-    my $url = $config->{'base_uri'}."/build/".$build->id ;
-
-    my $nt = Net::Twitter::Lite->new(
-        username => $ENV{'TWITTER_USER'},
-        password => $ENV{'TWITTER_PASS'},
-        clientname => "Hydra Build Daemon"
-      );
-
-    my $tag = $build->project->name;
-    my $msg = "$jobName ($system): $status in $duration #$tag";
-    if (length($msg) + 1 + length($url) <= 140) {
-      $msg = "$msg $url" ;
-    }
-
-    eval {
-        my $result = eval { $nt->update($msg) };
-    };
-    warn "$@\n" if $@;
-}
 
 
 sub statusDescription {
@@ -478,7 +445,6 @@ sub doBuild {
     });
 
     sendEmailNotification $build;
-    sendTwitterNotification $build;
 }
 
 
@@ -487,10 +453,6 @@ print STDERR "performing build $buildId\n";
 
 if ($ENV{'HYDRA_MAIL_TEST'}) {
     sendEmailNotification $db->resultset('Builds')->find($buildId);
-    exit 0;
-}
-if ($ENV{'HYDRA_TWITTER_TEST'}) {
-    sendTwitterNotification $db->resultset('Builds')->find($buildId);
     exit 0;
 }
 
