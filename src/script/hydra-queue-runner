@@ -48,23 +48,15 @@ sub unlockDeadBuilds {
 }
 
 
+# Given a build, return an arbitrary queued build on which this build
+# depends; or undef if no such build exists.
 sub findBuildDependencyInQueue {
     my ($build) = @_;
-    my $drvpath = $build->drvpath;
-    my @paths = reverse(split '\n', `nix-store -qR $drvpath`);
-
-    my $depBuild;
-    my @drvs = ();
-    foreach my $path (@paths) {
-        push @drvs, $path if $path =~ /\.drv$/ && $path ne $drvpath;
-    }
-
-    return unless scalar @drvs > 0;
-
-    ($depBuild) = $db->resultset('Builds')->search(
-        { drvpath => [ @drvs ], finished => 0, busy => 0, enabled => 1, disabled => 0 },
-        { join => ['project'], rows => 1 } ) ;
-    return $depBuild;
+    my @deps = grep { /\.drv$/ && $_ ne $build->drvpath } computeFSClosure(0, 0, $build->drvpath);
+    return unless scalar @deps > 0;
+    return $db->resultset('Builds')->search(
+        { drvpath => [ @deps ], finished => 0, enabled => 1, disabled => 0 },
+        { join => ['project'], rows => 1 })->single;
 }
 
 
@@ -116,8 +108,15 @@ sub checkBuilds {
                 "starting ", scalar(@builds), " builds\n";
 
             foreach my $build (@builds) {
-                my $depbuild = findBuildDependencyInQueue($build);
-                $build = $depbuild if defined $depbuild;
+                # Find a dependency of $build that has no queued
+                # dependencies itself.  This isn't strictly necessary,
+                # but it ensures that Nix builds are done as part of
+                # their corresponding Hydra builds, rather than as a
+                # dependency of some other Hydra build.
+                while (my $dep = findBuildDependencyInQueue($build)) {
+                    $build = $dep;
+                }
+                next if $build->busy;
 
                 my $logfile = getcwd . "/logs/" . $build->id;
                 mkdir(dirname $logfile);
