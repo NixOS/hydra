@@ -2,13 +2,15 @@
 [% PROCESS common.tt %]
 
 [% IF newItems.size != 0 %]
-    <div class="alert alert-info">
-        [% FOREACH i IN newsItems %]
-            [% contents = String.new(i.contents) %]
-            <h4 class="alert-heading">[% INCLUDE renderDateTime timestamp=i.createtime %] by [% i.author.fullname %]</h4>
-            [% contents.replace('\n','<br />\n') %]
-        [% END %]
-    </div>
+  <div class="alert alert-info">
+    [% FOREACH i IN newsItems %]
+      <div class="news-item">
+        [% contents = String.new(i.contents) %]
+        <h4 class="alert-heading">[% INCLUDE renderDateTime timestamp=i.createtime %] by [% i.author.fullname %]</h4>
+        [% contents.replace('\n','<br />\n') %]
+      </div>
+    [% END %]
+  </div>
 [% END %]
 
 <h2>Projects</h2>

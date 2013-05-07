@@ -83,3 +83,7 @@ div.page-header h1 small {
 .shell-prompt {
     color: gray;
 }
+
+div.news-item:not(:first-child) {
+    margin-top: 1em;
+}
