@@ -162,7 +162,7 @@ if [ -z "$nixExprInputDir" ]; then
     exit 1
 fi
 
-#args+=(--option binary-caches '[% c.uri_for('/') %]')
+args+=(--option extra-binary-caches '[% c.uri_for('/') %]')
 
 # Since Hydra runs on x86_64-linux, pretend we're one.  This matters
 # when evaluating jobs that rely on builtins.currentSystem.
