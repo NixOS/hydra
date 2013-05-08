@@ -17,6 +17,8 @@ my $db = Hydra::Model::DB->new();
 
 my $config = getHydraConfig();
 
+my @plugins = Hydra::Plugin->plugins(db => $db, config => $config);
+
 
 sub addBuildStepOutputs {
     my ($step) = @_;
@@ -79,10 +81,9 @@ sub failDependents {
 
 sub notify {
     my ($build, $dependents) = @_;
-    foreach my $plugin (Hydra::Plugin->plugins) {
-        next unless $plugin->can('buildFinished');
+    foreach my $plugin (@plugins) {
         eval {
-            $plugin->buildFinished($db, $config, $build, []);
+            $plugin->buildFinished($build, []);
         };
         if ($@) {
             print STDERR "$plugin->buildFinished: $@\n";

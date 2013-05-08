@@ -1,6 +1,7 @@
 package Hydra::Plugin::EmailNotification;
 
 use strict;
+use parent 'Hydra::Plugin';
 use feature qw/switch/;
 use POSIX qw(strftime);
 use Email::Sender::Simple qw(sendmail);
@@ -29,12 +30,12 @@ sub statusDescription {
 
 
 sub buildFinished {
-    my ($self, $db, $config, $build, $dependents) = @_;
+    my ($self, $build, $dependents) = @_;
 
     die unless $build->finished;
 
     my $prevBuild;
-    ($prevBuild) = $db->resultset('Builds')->search(
+    ($prevBuild) = $self->{db}->resultset('Builds')->search(
         { project => $build->project->name
         , jobset => $build->jobset->name
         , job => $build->job->name
@@ -68,10 +69,10 @@ sub buildFinished {
     my $status = statusDescription($build->buildstatus);
 
     my $baseurl = hostname_long;
-    my $sender = $config->{'notification_sender'} ||
+    my $sender = $self->{config}->{'notification_sender'} ||
         (($ENV{'USER'} || "hydra") .  "@" . $baseurl);
 
-    my $selfURI = $config->{'base_uri'} || "http://localhost:3000";
+    my $selfURI = $self->{config}->{'base_uri'} || "http://localhost:3000";
 
     sub showTime { my ($x) = @_; return strftime('%Y-%m-%d %H:%M:%S', localtime($x)); }
 
@@ -162,5 +163,6 @@ sub buildFinished {
         sendmail($email);
     }
 }
+
 
 1;
