@@ -37,7 +37,7 @@ sub nextFreeStepNr {
 
 
 sub failDependents {
-    my ($drvPath, $errorMsg) = @_;
+    my ($drvPath, $errorMsg, $dependents) = @_;
 
     # Get the referrer closure of $drvPath.
     my @dependentDrvs = computeFSClosure(1, 0, $drvPath);
@@ -73,6 +73,8 @@ sub failDependents {
                 , errormsg => $errorMsg
                 });
             addBuildStepOutputs($step);
+
+            push @$dependents, $d;
         }
 
     });
@@ -83,7 +85,7 @@ sub notify {
     my ($build, $dependents) = @_;
     foreach my $plugin (@plugins) {
         eval {
-            $plugin->buildFinished($build, []);
+            $plugin->buildFinished($build, $dependents);
         };
         if ($@) {
             print STDERR "$plugin->buildFinished: $@\n";
@@ -110,6 +112,8 @@ sub doBuild {
     my $buildStatus = 0; # = succeeded
 
     my $errormsg = undef;
+
+    my $dependents = [];
 
     unless (all { isValidPath($_) } values(%outputs)) {
         $isCachedBuild = 0;
@@ -204,7 +208,7 @@ sub doBuild {
                 });
 
                 # Immediately fail all builds that depend on this derivation.
-                failDependents($drvPathStep, $errorMsg);
+                failDependents($drvPathStep, $errorMsg, $dependents);
             }
 
             elsif (/^@\s+substituter-started\s+(\S+)\s+(\S+)$/) {
@@ -303,7 +307,7 @@ sub doBuild {
 
     });
 
-    notify($build, []);
+    notify($build, $dependents);
 }
 
 
