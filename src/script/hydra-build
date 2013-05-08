@@ -77,6 +77,20 @@ sub failDependents {
 }
 
 
+sub notify {
+    my ($build, $dependents) = @_;
+    foreach my $plugin (Hydra::Plugin->plugins) {
+        next unless $plugin->can('buildFinished');
+        eval {
+            $plugin->buildFinished($db, $config, $build, []);
+        };
+        if ($@) {
+            print STDERR "$plugin->buildFinished: $@\n";
+        }
+    }
+}
+
+
 sub doBuild {
     my ($build) = @_;
 
@@ -288,14 +302,7 @@ sub doBuild {
 
     });
 
-    foreach my $plugin (Hydra::Plugin->plugins) {
-        eval {
-            $plugin->buildFinished($db, $config, $build, []);
-        };
-        if ($@) {
-            print STDERR "$plugin->buildFinished: $@\n";
-        }
-    }
+    notify($build, []);
 }
 
 
@@ -304,7 +311,7 @@ print STDERR "performing build $buildId\n";
 
 if ($ENV{'HYDRA_MAIL_TEST'}) {
     my $build = $db->resultset('Builds')->find($buildId);
-    $_->buildFinished($db, $config, $build, []) foreach Hydra::Plugin->plugins;
+    notify($build, []);
     exit 0;
 }
 
