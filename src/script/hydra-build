@@ -260,8 +260,8 @@ sub doBuild {
         $stopTime = time();
 
         if ($res != 0) {
-            if ($thisBuildFailed && $res == 100 << 8) { $buildStatus = 1; }
-            elsif (!$thisBuildFailed && $someBuildFailed) { $buildStatus = 2; }
+            if ($thisBuildFailed) { $buildStatus = 1; }
+            elsif ($someBuildFailed) { $buildStatus = 2; }
             else { $buildStatus = 3; }
         }
 
