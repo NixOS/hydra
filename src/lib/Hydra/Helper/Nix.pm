@@ -4,6 +4,7 @@ use strict;
 use Exporter;
 use File::Path;
 use File::Basename;
+use Config::General;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
 
