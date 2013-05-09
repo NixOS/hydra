@@ -190,21 +190,17 @@
 
 </ul>
 
-<div class="pull-right">
+<ul class="nav pull-right" id="top-menu">
 
   <form class="navbar-search" action="[% c.uri_for('/search') %]">
     <input name="query" type="text" class="search-query span2" placeholder="Search" [% HTML.attributes(value => c.req.params.query) %]></input>
   </form>
 
-  <ul class="nav" id="top-menu">
+  [% IF c.user_exists %]
+    [% INCLUDE menuItem uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
+    [% INCLUDE menuItem uri = c.uri_for(c.controller('Root').action_for('logout')) title = "Sign out" %]
+  [% ELSE %]
+    [% INCLUDE menuItem uri = c.uri_for(c.controller('Root').action_for('login')) title = "Sign in" %]
+  [% END %]
 
-    [% IF c.user_exists %]
-      [% INCLUDE menuItem uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
-      [% INCLUDE menuItem uri = c.uri_for(c.controller('Root').action_for('logout')) title = "Sign out" %]
-    [% ELSE %]
-      [% INCLUDE menuItem uri = c.uri_for(c.controller('Root').action_for('login')) title = "Sign in" %]
-    [% END %]
-
-  </ul>
-
-</div>
+</ul>
