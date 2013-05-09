@@ -292,6 +292,9 @@ sub doBuild {
             addBuildProducts($db, $build);
         }
 
+        # Mark any remaining active build steps as aborted.
+        $build->buildsteps->search({ busy => 1 })->update({ busy => 0, status => 4, stoptime => time });
+
         $build->update(
             { finished => 1
             , busy => 0
