@@ -50,6 +50,10 @@
                 Succeeded
               [% ELSIF step.status == 4 %]
                 <span class="error">Aborted</span>
+              [% ELSIF step.status == 7 %]
+                <span class="error">Timed out</span>
+              [% ELSIF step.status == 8 %]
+                <span class="error">Cached failure</span>
               [% ELSE %]
                 <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
               [% END %]

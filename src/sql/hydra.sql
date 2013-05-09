@@ -208,7 +208,13 @@ create table BuildSteps (
 
     busy          integer not null,
 
-    status        integer, -- 0 = success, 1 = failed
+    -- Status codes:
+    --   0 = succeeded
+    --   1 = failed normally
+    --   4 = aborted
+    --   7 = timed out
+    --   8 = cached failure
+    status        integer,
 
     errorMsg      text,
 
