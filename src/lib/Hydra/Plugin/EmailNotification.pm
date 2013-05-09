@@ -134,8 +134,6 @@ sub buildFinished {
         # stripping trailing spaces from lines
         $body =~ s/[\ ]+$//gm;
 
-        print "$body\n";
-
         my $sender = $self->{config}->{'notification_sender'} ||
             (($ENV{'USER'} || "hydra") .  "@" . hostname_long);
 
