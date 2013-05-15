@@ -21,9 +21,10 @@ sub showStatus {
     my $status = "Failed";
     given ($build->buildstatus) {
         when (0) { $status = "Success"; }
-        when (1) { $status = "Failed with non-zero exit code"; }
+        when (1) { $status = "Failed"; }
         when (2) { $status = "Dependency failed"; }
         when (4) { $status = "Cancelled"; }
+        when (6) { $status = "Failed with output"; }
     }
 
    return $status;
