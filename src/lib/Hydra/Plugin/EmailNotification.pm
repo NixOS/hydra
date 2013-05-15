@@ -55,7 +55,7 @@ sub getPrevBuild {
 my $template = <<EOF;
 Hi,
 
-The status of Hydra job [% showJobName(build) %] (on [% build.system %]) [% IF prevBuild && build.buildstatus != prevBuild.buildstatus %]has changed from "[% showStatus(prevBuild) %]" to "[% showStatus(build) %]"[% ELSE %]is "[% showStatus(build) %]"[% END %].  For details, see
+The status of Hydra job [% showJobName(build) %] [% IF showSystem %](on [% build.system %]) [% END %][% IF prevBuild && build.buildstatus != prevBuild.buildstatus %]has changed from "[% showStatus(prevBuild) %]" to "[% showStatus(build) %]"[% ELSE %]is "[% showStatus(build) %]"[% END %].  For details, see
 
   [% baseurl %]/build/[% build.id %]
 
@@ -126,6 +126,7 @@ sub buildFinished {
             , dependents => [grep { $_->id != $build->id } @builds]
             , baseurl => $self->{config}->{'base_uri'} || "http://localhost:3000"
             , showJobName => \&showJobName, showStatus => \&showStatus
+            , showSystem => index($build->job->name, $build->system) == -1
             };
 
         my $body;
@@ -146,7 +147,7 @@ sub buildFinished {
             header => [
                 To      => $to,
                 From    => "Hydra Build Daemon <$sender>",
-                Subject => showStatus($build) . ": Hydra job " . showJobName($build) . " on " . $build->system,
+                Subject => showStatus($build) . ": Hydra job " . showJobName($build) . ($vars->{showSystem} ? " on " . $build->system : ""),
                 'X-Hydra-Instance' => $vars->{baseurl},
                 'X-Hydra-Project'  => $build->project->name,
                 'X-Hydra-Jobset'   => $build->jobset->name,
