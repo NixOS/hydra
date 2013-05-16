@@ -110,7 +110,9 @@ if ! [ -d "$inputDir" ]; then
     requireCommand hg
     inputDirTmp="$inputDir.tmp"
     rm -rf "$inputDirTmp"
-    hg clone '[% input.uri %]' "$inputDirTmp" -r '[% input.revision %]'
+    hg clone '[% input.uri %]' "$inputDirTmp"
+    (cd "$inputDirTmp" && hg update '[% input.revision %]')
+    revCount="$(cd "$inputDirTmp" && (hg log -r '[% input.revision %]' --template "{rev}"))"
     rm -rf "$inputDirTmp/.hg"
     mv "$inputDirTmp" "$inputDir"
 fi
