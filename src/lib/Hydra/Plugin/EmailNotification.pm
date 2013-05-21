@@ -147,7 +147,10 @@ sub buildFinished {
             header => [
                 To      => $to,
                 From    => "Hydra Build Daemon <$sender>",
-                Subject => showStatus($build) . ": Hydra job " . showJobName($build) . ($vars->{showSystem} ? " on " . $build->system : ""),
+                Subject =>
+                    showStatus($build) . ": Hydra job " . showJobName($build)
+                    . ($vars->{showSystem} ? " on " . $build->system : "")
+                    . (scalar @{$vars->{dependents}} > 0 ? " (and " . scalar @{$vars->{dependents}} . " others)" : ""),
                 'X-Hydra-Instance' => $vars->{baseurl},
                 'X-Hydra-Project'  => $build->project->name,
                 'X-Hydra-Jobset'   => $build->jobset->name,
