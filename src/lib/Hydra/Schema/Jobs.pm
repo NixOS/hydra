@@ -40,25 +40,9 @@ __PACKAGE__->table("Jobs");
   data_type: 'text'
   is_nullable: 0
 
-=head2 active
-
-  data_type: 'integer'
-  default_value: 1
-  is_nullable: 0
-
 =head2 errormsg
 
   data_type: 'text'
-  is_nullable: 1
-
-=head2 firstevaltime
-
-  data_type: 'integer'
-  is_nullable: 1
-
-=head2 lastevaltime
-
-  data_type: 'integer'
   is_nullable: 1
 
 =cut
@@ -70,14 +54,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "name",
   { data_type => "text", is_nullable => 0 },
-  "active",
-  { data_type => "integer", default_value => 1, is_nullable => 0 },
   "errormsg",
   { data_type => "text", is_nullable => 1 },
-  "firstevaltime",
-  { data_type => "integer", is_nullable => 1 },
-  "lastevaltime",
-  { data_type => "integer", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -148,7 +126,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-05-03 14:35:11
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uZ27Dcbywi99pCW7Ml4j3A
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-05-23 16:09:46
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:JgxEaCz/TW9YKa+HavRzXw
 
 1;

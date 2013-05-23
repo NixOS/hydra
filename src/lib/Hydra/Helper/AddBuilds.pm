@@ -876,14 +876,9 @@ sub checkBuild {
     my $build;
 
     txn_do($db, sub {
-        # Update the last evaluation time in the database.
         my $job = $jobset->jobs->update_or_create(
             { name => $jobName
-            , lastevaltime => time
             });
-
-        $job->update({firstevaltime => time})
-            unless defined $job->firstevaltime;
 
         # Don't add a build that has already been scheduled for this
         # job, or has been built but is still a "current" build for

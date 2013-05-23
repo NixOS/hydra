@@ -100,12 +100,7 @@ create table Jobs (
     jobset        text not null,
     name          text not null,
 
-    active        integer not null default 1, -- !!! obsolete, remove
-
     errorMsg      text, -- evalution error for this job
-
-    firstEvalTime integer, -- first time the evaluator saw this job
-    lastEvalTime  integer, -- last time the evaluator saw this job
 
     primary key   (project, jobset, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
