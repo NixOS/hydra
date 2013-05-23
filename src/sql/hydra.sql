@@ -183,6 +183,9 @@ create table Builds (
 
     keep          integer not null default 0, -- true means never garbage-collect the build output
 
+    check (finished = 0 or (stoptime is not null and stoptime != 0)),
+    check (finished = 0 or (starttime is not null and starttime != 0)),
+
     foreign key   (project) references Projects(name) on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
     foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade
