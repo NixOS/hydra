@@ -96,8 +96,8 @@ sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
 sub latest : Chained('get_builds') PathPart('latest') {
     my ($self, $c, @rest) = @_;
 
-    my ($latest) = $c->stash->{allBuilds}->search(
-        {finished => 1, buildstatus => 0}, {order_by => ["id DESC"]});
+    my $latest = $c->stash->{allBuilds}->find(
+        { finished => 1, buildstatus => 0 }, { order_by => ["id DESC"], rows => 1 });
 
     notFound($c, "There is no successful build to redirect to.") unless defined $latest;
 
@@ -111,8 +111,8 @@ sub latest_for : Chained('get_builds') PathPart('latest-for') {
 
     notFound($c, "You need to specify a platform type in the URL.") unless defined $system;
 
-    my ($latest) = $c->stash->{allBuilds}->search(
-        {finished => 1, buildstatus => 0, system => $system}, {order_by => ["id DESC"]});
+    my $latest = $c->stash->{allBuilds}->find(
+        { finished => 1, buildstatus => 0, system => $system }, { order_by => ["id DESC"], rows => 1 });
 
     notFound($c, "There is no successful build for platform `$system' to redirect to.") unless defined $latest;
 
