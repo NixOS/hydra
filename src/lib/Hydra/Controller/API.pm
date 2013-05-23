@@ -90,7 +90,7 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     $filter->{job} = $job if !$job eq "";
     $filter->{system} = $system if !$system eq "";
 
-    my @latest = $c->model('DB::Builds')->search($filter, {rows => $nr, order_by => ["timestamp DESC"] });
+    my @latest = $c->model('DB::Builds')->search($filter, {rows => $nr, order_by => ["id DESC"] });
 
     my @list;
     push @list, buildToHash($_) foreach @latest;
@@ -142,7 +142,7 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
     my $nr = $c->request->params->{nr};
     error($c, "Parameter not defined!") if !defined $nr;
 
-    my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["busy DESC", "priority DESC", "timestamp"]});
+    my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["busy DESC", "priority DESC", "id"]});
 
     my @list;
     push @list, buildToHash($_) foreach @builds;

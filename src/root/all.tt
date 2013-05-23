@@ -4,7 +4,7 @@
      project ? " for project $project.name" : "") %]
 [% PROCESS common.tt %]
 
-<p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %] out of [% total %] in order of descending timestamp.</p>
+<p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %] out of [% total %] in order of descending finish time.</p>
 
 [% INCLUDE renderBuildList hideProjectName=project hideJobsetName=jobset hideJobName=job %]
 [% INCLUDE renderPager %]

@@ -122,7 +122,7 @@ create table Builds (
 
     finished      integer not null, -- 0 = scheduled, 1 = finished
 
-    timestamp     integer not null, -- time this build was scheduled / finished building
+    timestamp     integer not null, -- time this build was added
 
     -- Info about the inputs.
     project       text not null,
@@ -158,8 +158,8 @@ create table Builds (
 
     logfile       text, -- if busy, the path of the logfile
 
-    startTime     integer, -- if busy, time we started
-    stopTime      integer,
+    startTime     integer, -- if busy/finished, time we started
+    stopTime      integer, -- if finished, time we finished
 
     -- Information about finished builds.
     isCachedBuild integer, -- boolean

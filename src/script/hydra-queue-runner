@@ -100,7 +100,7 @@ sub checkBuilds {
             # Select the highest-priority builds to start.
             my @builds = $extraAllowed == 0 ? () : $db->resultset('Builds')->search(
                 { finished => 0, busy => 0, system => $system->system, enabled => 1 },
-                { join => ['project'], order_by => ["priority DESC", "timestamp"],
+                { join => ['project'], order_by => ["priority DESC", "id"],
                   rows => $extraAllowed });
 
             if (scalar(@builds) > 0) {

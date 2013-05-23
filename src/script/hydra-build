@@ -54,7 +54,6 @@ sub failDependents {
             $d->update(
                 { finished => 1
                 , logfile => ''
-                , timestamp => time # !!! Why change the timestamp?
                 , iscachedbuild => 0
                 , buildstatus => $drvPath eq $d->drvpath ? 1 : 2
                 , starttime => $time
@@ -307,7 +306,6 @@ sub doBuild {
             , busy => 0
             , locker => ''
             , logfile => ''
-            , timestamp => time # !!! Why change the timestamp?
             , iscachedbuild => $isCachedBuild
             , buildstatus => $buildStatus
             , starttime => $startTime

@@ -150,8 +150,8 @@
             <tr>
               <th>Duration:</th>
               <td>[% actualBuild = build.iscachedbuild ? cachedBuild : build;
-                     INCLUDE renderDuration duration = actualBuild.stoptime - actualBuild.starttime %]; finished at [% INCLUDE renderDateTime timestamp = actualBuild.stoptime
-                  %]</td>
+                     INCLUDE renderDuration duration = actualBuild.stoptime - actualBuild.starttime %];
+                     finished at [% INCLUDE renderDateTime timestamp = actualBuild.stoptime %]</td>
             </tr>
             [% END %]
             [% IF log_exists(build.drvpath) %]
@@ -297,17 +297,17 @@
         <td><tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt></td>
       </tr>
       <tr>
-        <th>Time added:</th>
+        <th>Queued:</th>
         <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
       </tr>
-      [% IF build.finished && build.buildstatus != 4 %]
+      [% IF build.finished && !build.iscachedbuild %]
         <tr>
           <th>Build started:</th>
-          <td>[% IF build.starttime %][% INCLUDE renderDateTime timestamp = build.starttime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+          <td>[% INCLUDE renderDateTime timestamp = build.starttime %]</td>
         </tr>
         <tr>
           <th>Build finished:</th>
-          <td>[% IF build.stoptime %][% INCLUDE renderDateTime timestamp = build.stoptime %][% ELSE %]<em>(cached build)</em>[% END %]</td>
+          <td>[% INCLUDE renderDateTime timestamp = build.stoptime %]</td>
         </tr>
       [% END %]
       [% IF !build.finished %]

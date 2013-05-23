@@ -25,13 +25,13 @@ sub overview : Chained('job') PathPart('') Args(0) {
 
     $c->stash->{lastBuilds} =
         [ $c->stash->{job}->builds->search({ finished => 1 },
-            { order_by => 'timestamp DESC', rows => 10, columns => [@buildListColumns] }) ];
+            { order_by => 'id DESC', rows => 10, columns => [@buildListColumns] }) ];
 
     $c->stash->{queuedBuilds} = [
         $c->stash->{job}->builds->search(
             { finished => 0 },
             { join => ['project']
-            , order_by => ["priority DESC", "timestamp"]
+            , order_by => ["priority DESC", "id"]
             , '+select' => ['project.enabled']
             , '+as' => ['enabled']
             }

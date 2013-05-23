@@ -28,7 +28,7 @@ our @EXPORT = qw(
 
 
 # Columns from the Builds table needed to render build lists.
-Readonly our @buildListColumns => ('id', 'finished', 'timestamp', 'project', 'jobset', 'job', 'nixname', 'system', 'priority', 'busy', 'buildstatus', 'releasename');
+Readonly our @buildListColumns => ('id', 'finished', 'timestamp', 'stoptime', 'project', 'jobset', 'job', 'nixname', 'system', 'priority', 'busy', 'buildstatus', 'releasename');
 
 
 sub getBuild {

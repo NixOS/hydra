@@ -216,7 +216,7 @@ sub download : Chained('build') PathPart {
     notFound($c, "Path $path is a directory.") if -d $path;
 
     $c->serve_static_file($path);
-    $c->response->headers->last_modified($c->stash->{build}->timestamp);
+    $c->response->headers->last_modified($c->stash->{build}->stoptime);
 }
 
 
@@ -423,9 +423,12 @@ sub cancel : Chained('build') PathPart Args(0) {
         # builds as well, but we would have to send a signal or
         # something to the build process.
 
+        my $time = time();
         $build->update(
-            { finished => 1, busy => 0, timestamp => time
+            { finished => 1, busy => 0
             , iscachedbuild => 0, buildstatus => 4 # = cancelled
+            , starttime => $time
+            , stoptime => $time
             });
     });
 

@@ -100,7 +100,7 @@ sub allPrimaryBuilds {
     my ($project, $primaryJob) = @_;
     my $allPrimaryBuilds = $project->builds->search(
         { jobset => $primaryJob->get_column('jobset'), job => $primaryJob->get_column('job'), finished => 1 },
-        { order_by => "timestamp DESC"
+        { order_by => "id DESC"
         , where => \ attrsToSQL($primaryJob->attrs, "me.id")
         });
     return $allPrimaryBuilds;
@@ -153,7 +153,7 @@ sub findLastJobForBuilds {
         , job => $job->get_column('job'), finished => 1
         },
         { rows => 1
-        , order_by => ["buildstatus", "timestamp"]
+        , order_by => ["buildstatus", "id"]
         , where => \ attrsToSQL($job->attrs, "build.id")
         })
         unless defined $thisBuild;

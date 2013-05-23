@@ -1039,7 +1039,6 @@ sub restartBuild {
 
         $build->update(
             { finished => 0
-            , timestamp => time
             , busy => 0
             , locker => ""
             , iscachedbuild => 0

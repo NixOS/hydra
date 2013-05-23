@@ -80,7 +80,7 @@ BLOCK renderBuildListHeader %]
         [% END %]
         <th>Release Name</th>
         <th>System</th>
-        <th>Timestamp</th>
+        <th>[% IF showSchedulingInfo %]Queued at[% ELSE %]Finished at[% END %]</th>
         [% IF showStatusChange %]
           <th class="headerSortUp">Last status change</th>
         [% END %]
@@ -113,7 +113,7 @@ BLOCK renderBuildListBody;
       [% END %]
       <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
       <td><tt>[% build.system %]</tt></td>
-      <td>[% date.format(build.timestamp, '%Y-%m-%d %H:%M:%S') %]</td>
+      <td>[% date.format(showSchedulingInfo ? build.timestamp : build.stoptime, '%Y-%m-%d %H:%M:%S') %]</td>
       [% IF showStatusChange %]
         <td>
           [% IF build.get_column('statusChangeTime') %]
