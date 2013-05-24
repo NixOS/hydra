@@ -93,11 +93,6 @@
   delete from builds where finished = 0 and not exists (select 1 from buildschedulinginfo s where s.id = builds.id and busy = 1);
 
 
-* Installing deps.nix in a profile for testing:
-
-  $ nix-env -p $NIX_USER_PROFILE_DIR/hydra-deps -f deps.nix -i \* --arg pkgs 'import /etc/nixos/nixpkgs {}'
-  
-
 * select x.project, x.jobset, x.job, x.system, x.id, x.timestamp, r.buildstatus, b.id, b.timestamp
   from (select project, jobset, job, system, max(id) as id from Builds where finished = 1 group by project, jobset, job, system) as a_
   natural join Builds x

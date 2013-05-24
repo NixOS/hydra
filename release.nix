@@ -47,7 +47,52 @@ rec {
 
     with pkgs;
 
-    let nix = nixUnstable; in
+    let
+
+      nix = nixUnstable;
+
+      perlDeps = buildEnv {
+        name = "hydra-perl-deps";
+        paths = with perlPackages;
+          [ CatalystAuthenticationStoreDBIxClass
+            CatalystPluginAccessLog
+            CatalystPluginAuthorizationRoles
+            CatalystPluginCaptcha
+            CatalystPluginSessionStateCookie
+            CatalystPluginSessionStoreFastMmap
+            CatalystPluginStackTrace
+            CatalystViewDownload
+            CatalystViewJSON
+            CatalystViewTT
+            CatalystXScriptServerStarman
+            CatalystTraitForRequestProxyBase
+            CryptRandPasswd
+            DBDPg
+            DBDSQLite
+            DataDump
+            DateTime
+            DigestSHA1
+            EmailSender
+            FileSlurp
+            IOCompress
+            IPCRun
+            JSONXS
+            PadWalker
+            CatalystDevel
+            Readonly
+            SQLSplitStatement
+            Starman
+            Switch # XXX: seems to be an indirect dep of `hydra-build'
+            SysHostnameLong
+            TestMore
+            TextDiff
+            TextTable
+            XMLSimple
+            nix git
+          ];
+      };
+
+    in
 
     releaseTools.nixBuild {
       name = "hydra";
@@ -55,9 +100,11 @@ rec {
       configureFlags = "--with-nix=${nix}";
 
       buildInputs =
-        [ perl makeWrapper libtool nix unzip nukeReferences pkgconfig boehmgc sqlite
-          git gitAndTools.topGit mercurial subversion bazaar openssl bzip2
-        ] ++ (import ./deps.nix) { inherit pkgs; };
+        [ makeWrapper libtool unzip nukeReferences pkgconfig boehmgc sqlite
+          gitAndTools.topGit mercurial subversion bazaar openssl bzip2
+          guile # optional, for Guile + Guix support
+          perl perlDeps
+        ];
 
       hydraPath = lib.makeSearchPath "bin" (
         [ libxslt sqlite subversion openssh nix coreutils findutils
