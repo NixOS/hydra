@@ -105,8 +105,8 @@ sub doBuild {
 
     my $isCachedBuild = 1;
     my $outputCreated = 1; # i.e., the Nix build succeeded (but it could be a positive failure)
-    my $startTime = 0;
-    my $stopTime = 0;
+    my $startTime = time();
+    my $stopTime = undef;
 
     my $buildStatus = 0; # = succeeded
 
@@ -118,8 +118,6 @@ sub doBuild {
         $isCachedBuild = 0;
 
         # Do the build.
-        $startTime = time();
-
         my $thisBuildFailed = 0;
         my $someBuildFailed = 0;
 
@@ -309,7 +307,7 @@ sub doBuild {
             , iscachedbuild => $isCachedBuild
             , buildstatus => $buildStatus
             , starttime => $startTime
-            , stoptime => $stopTime
+            , stoptime => $stopTime // time()
             , errormsg => $errormsg
             });
 
