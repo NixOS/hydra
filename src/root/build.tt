@@ -143,7 +143,7 @@
             [% IF build.iscachedbuild %]
               <tr>
                 <th>Cached from:</th>
-                <td>[% INCLUDE renderFullBuildLink build=cachedBuild %]</td>
+                <td>[% IF cachedBuild; INCLUDE renderFullBuildLink build=cachedBuild; ELSE %]<em>unknown</em>[% END %]</td>
               </tr>
             [% END %]
             [% IF build.finished %]
@@ -266,23 +266,23 @@
       </tr>
       <tr>
         <th>Short description:</th>
-        <td>[% IF build.description %][% HTML.escape(build.description) %][% ELSE %]<em>(not given)</em>[% END %]</td>
+        <td>[% IF build.description %][% HTML.escape(build.description) %][% ELSE %]<em>not given</em>[% END %]</td>
       </tr>
       <tr>
         <th>Long description:</th>
-        <td>[% IF build.longdescription %][% HTML.escape(build.longdescription) %][% ELSE %]<em>(not given)</em>[% END %]</td>
+        <td>[% IF build.longdescription %][% HTML.escape(build.longdescription) %][% ELSE %]<em>not given</em>[% END %]</td>
       </tr>
       <tr>
         <th>License:</th>
-        <td>[% IF build.license %][% HTML.escape(build.license) %][% ELSE %]<em>(not given)</em>[% END %]</td>
+        <td>[% IF build.license %][% HTML.escape(build.license) %][% ELSE %]<em>not given</em>[% END %]</td>
       </tr>
       <tr>
         <th>Homepage:</th>
-        <td>[% IF build.homepage %]<a [% HTML.attributes(href => build.homepage) %]>[% HTML.escape(build.homepage) %]</a>[% ELSE %]<em>(not given)</em>[% END %]</td>
+        <td>[% IF build.homepage %]<a [% HTML.attributes(href => build.homepage) %]>[% HTML.escape(build.homepage) %]</a>[% ELSE %]<em>not given</em>[% END %]</td>
       </tr>
       <tr>
         <th>Maintainer(s):</th>
-        <td>[% IF build.maintainers %][% HTML.escape(build.maintainers) %][% ELSE %]<em>(not given)</em>[% END %]</td>
+        <td>[% IF build.maintainers %][% HTML.escape(build.maintainers) %][% ELSE %]<em>not given</em>[% END %]</td>
       </tr>
       <tr>
         <th>System:</th>
