@@ -4,20 +4,6 @@ USE String;
 USE HTML;
 
 
-inputTypes =
-  { "svn" = "Subversion export"
-  , "svn-checkout" = "Subversion checkout"
-  , "bzr" = "Bazaar export"
-  , "bzr-checkout" = "Bazaar checkout"
-  , "git" = "Git checkout"
-  , "hg" = "Mercurial checkout"
-  , "string" = "String value"
-  , "boolean" = "Boolean"
-  , "path" = "Local path"
-  , "build" = "Build output"
-  , "sysbuild" = "Build output (same system)"
-  };
-
 BLOCK renderDateTime;
 date.format(timestamp, '%Y-%m-%d %H:%M:%S');
 END;

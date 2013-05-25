@@ -11,6 +11,7 @@ use Hydra::Model::DB;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     getHydraHome getHydraConfig txn_do
+    getSCMCacheDir
     registerRoot getGCRootsDir gcRootFor
     getPrimaryBuildsForView
     getPrimaryBuildTotal
@@ -18,7 +19,8 @@ our @EXPORT = qw(
     jobsetOverview removeAsciiEscapes getDrvLogPath logContents
     getMainOutput
     getEvals getMachines
-    pathIsInsidePrefix);
+    pathIsInsidePrefix
+    captureStdoutStderr);
 
 
 sub getHydraHome {
@@ -47,6 +49,11 @@ sub txn_do {
         last if !$@;
         die $@ unless $@ =~ "database is locked";
     }
+}
+
+
+sub getSCMCacheDir {
+    return Hydra::Model::DB::getHydraPath . "/scm" ;
 }
 
 
@@ -440,6 +447,28 @@ sub pathIsInsidePrefix {
     }
 
     return $cur;
+}
+
+
+sub captureStdoutStderr {
+    my ($timeout, @cmd) = @_;
+    my $stdin = "";
+    my $stdout;
+    my $stderr;
+
+    eval {
+        local $SIG{ALRM} = sub { die "timeout\n" }; # NB: \n required
+        alarm $timeout;
+        IPC::Run::run(\@cmd, \$stdin, \$stdout, \$stderr);
+        alarm 0;
+    };
+
+    if ($@) {
+        die unless $@ eq "timeout\n"; # propagate unexpected errors
+        return (-1, "", "timeout\n");
+    } else {
+        return ($?, $stdout, $stderr);
+    }
 }
 
 

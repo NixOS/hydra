@@ -533,7 +533,7 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
             # should be done asynchronously.  But then error reporting
             # becomes harder.
             my $info = fetchInput(
-                $c->model('DB'), $build->project, $build->jobset,
+                $c->hydra_plugins, $c->model('DB'), $build->project, $build->jobset,
                 $inputName, $inputType, $inputValue);
             push @{$$inputInfo{$inputName}}, $info if defined $info;
         };

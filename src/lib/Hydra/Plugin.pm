@@ -20,4 +20,18 @@ sub buildFinished {
     my ($self, $build, $dependents) = @_;
 }
 
+# Called to determine the set of supported input types.  The plugin
+# should add these to the $inputTypes hashref, e.g. $inputTypes{'svn'}
+# = 'Subversion checkout'.
+sub supportedInputTypes {
+    my ($self, $inputTypes) = @_;
+}
+
+# Called to fetch an input of type ‘$type’.  ‘$value’ is the input
+# location, typically the repository URL.
+sub fetchInput {
+    my ($self, $type, $name, $value) = @_;
+    return undef;
+}
+
 1;

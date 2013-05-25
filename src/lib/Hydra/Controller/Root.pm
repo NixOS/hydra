@@ -28,6 +28,15 @@ sub begin :Private {
         $c->stash->{nrRunningBuilds} = $c->model('DB::Builds')->search({ finished => 0, busy => 1 }, {})->count();
         $c->stash->{nrQueuedBuilds} = $c->model('DB::Builds')->search({ finished => 0 })->count();
     }
+
+    # Gather the supported input types.
+    $c->stash->{inputTypes} = {
+        'string' => 'String value',
+        'boolean' => 'Boolean',
+        'build' => 'Build output',
+        'sysbuild' => 'Build output (same system)'
+    };
+    $_->supportedInputTypes($c->stash->{inputTypes}) foreach @{$c->hydra_plugins};
 }
 
 

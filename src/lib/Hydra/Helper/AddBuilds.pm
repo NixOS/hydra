@@ -3,7 +3,6 @@ package Hydra::Helper::AddBuilds;
 use strict;
 use feature 'switch';
 use XML::Simple;
-use POSIX qw(strftime);
 use IPC::Run;
 use Nix::Store;
 use Nix::Config;
@@ -19,29 +18,10 @@ use File::Slurp;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    fetchInput evalJobs checkBuild inputsToArgs captureStdoutStderr
-    getReleaseName addBuildProducts restartBuild scmPath
+    fetchInput evalJobs checkBuild inputsToArgs
+    getReleaseName addBuildProducts restartBuild
     getPrevJobsetEval
 );
-
-
-sub scmPath {
-    return Hydra::Model::DB::getHydraPath . "/scm" ;
-}
-
-
-sub getStorePathHash {
-    my ($storePath) = @_;
-    my $hash = `nix-store --query --hash $storePath`
-        or die "cannot get hash of $storePath";
-    chomp $hash;
-    die unless $hash =~ /^sha256:(.*)$/;
-    $hash = $1;
-    $hash = `nix-hash --to-base16 --type sha256 $hash`
-        or die "cannot convert hash";
-    chomp $hash;
-    return $hash;
-}
 
 
 sub getReleaseName {
@@ -89,140 +69,6 @@ sub attrsToSQL {
     }
 
     return $query;
-}
-
-
-sub fetchInputPath {
-    my ($db, $project, $jobset, $name, $value) = @_;
-
-    my $uri = $value;
-
-    my $timestamp = time;
-    my $sha256;
-    my $storePath;
-
-    # Some simple caching: don't check a path more than once every N seconds.
-    (my $cachedInput) = $db->resultset('CachedPathInputs')->search(
-        {srcpath => $uri, lastseen => {">", $timestamp - 30}},
-        {rows => 1, order_by => "lastseen DESC"});
-
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-        $storePath = $cachedInput->storepath;
-        $sha256 = $cachedInput->sha256hash;
-        $timestamp = $cachedInput->timestamp;
-    } else {
-
-        print STDERR "copying input ", $name, " from $uri\n";
-        $storePath = `nix-store --add "$uri"`
-            or die "cannot copy path $uri to the Nix store.\n";
-        chomp $storePath;
-
-        $sha256 = getStorePathHash $storePath;
-
-        ($cachedInput) = $db->resultset('CachedPathInputs')->search(
-            {srcpath => $uri, sha256hash => $sha256});
-
-        # Path inputs don't have a natural notion of a "revision", so
-        # we simulate it by using the timestamp that we first saw this
-        # path have this SHA-256 hash.  So if the contents of the path
-        # changes, we get a new "revision", but if it doesn't change
-        # (or changes back), we don't get a new "revision".
-        if (!defined $cachedInput) {
-            txn_do($db, sub {
-                $db->resultset('CachedPathInputs')->update_or_create(
-                    { srcpath => $uri
-                    , timestamp => $timestamp
-                    , lastseen => $timestamp
-                    , sha256hash => $sha256
-                    , storepath => $storePath
-                    });
-                });
-        } else {
-            $timestamp = $cachedInput->timestamp;
-            txn_do($db, sub {
-                $cachedInput->update({lastseen => time});
-            });
-        }
-    }
-
-    return
-        { uri => $uri
-        , storePath => $storePath
-        , sha256hash => $sha256
-        , revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp)
-        };
-}
-
-
-sub fetchInputSVN {
-    my ($db, $project, $jobset, $name, $value, $checkout) = @_;
-
-    # Allow users to specify a revision number next to the URI.
-    my ($uri, $revision) = split ' ', $value;
-
-    my $sha256;
-    my $storePath;
-    my $stdout; my $stderr;
-
-    unless (defined $revision) {
-        # First figure out the last-modified revision of the URI.
-        my @cmd = (["svn", "ls", "-v", "--depth", "empty", $uri],
-                   "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
-        IPC::Run::run(@cmd, \$stdout, \$stderr);
-        die "cannot get head revision of Subversion repository at `$uri':\n$stderr" if $?;
-        $revision = $stdout; $revision =~ s/\s*([0-9]+)\s*/$1/sm;
-    }
-
-    die unless $revision =~ /^\d+$/;
-
-    # Do we already have this revision in the store?
-    # !!! This needs to take $checkout into account!  Otherwise "svn"
-    # and "svn-checkout" inputs can get mixed up.
-    (my $cachedInput) = $db->resultset('CachedSubversionInputs')->search(
-        {uri => $uri, revision => $revision});
-
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-        $storePath = $cachedInput->storepath;
-        $sha256 = $cachedInput->sha256hash;
-    } else {
-
-        # No, do a checkout.  The working copy is reused between
-        # invocations to speed things up.
-        my $wcPath = scmPath . "/svn/" . sha256_hex($uri) . "/svn-checkout";
-
-        print STDERR "checking out Subversion input ", $name, " from $uri revision $revision into $wcPath\n";
-
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600, "svn", "checkout", $uri, "-r", $revision, $wcPath);
-        die "error checking out Subversion repo at `$uri':\n$stderr" if $res;
-
-        if ($checkout) {
-            $storePath = addToStore($wcPath, 1, "sha256");
-        } else {
-            # Hm, if the Nix Perl bindings supported filters in
-            # addToStore(), then we wouldn't need to make a copy here.
-            my $tmpDir = File::Temp->newdir("hydra-svn-export.XXXXXX", CLEANUP => 1, TMPDIR => 1) or die;
-            (system "svn", "export", $wcPath, "$tmpDir/svn-export", "--quiet") == 0 or die "svn export failed";
-            $storePath = addToStore("$tmpDir/svn-export", 1, "sha256");
-        }
-
-        $sha256 = queryPathHash($storePath); $sha256 =~ s/sha256://;
-
-        txn_do($db, sub {
-            $db->resultset('CachedSubversionInputs')->update_or_create(
-                { uri => $uri
-                , revision => $revision
-                , sha256hash => $sha256
-                , storepath => $storePath
-                });
-            });
-    }
-
-    return
-        { uri => $uri
-        , storePath => $storePath
-        , sha256hash => $sha256
-        , revision => $revision
-        };
 }
 
 
@@ -278,7 +124,7 @@ sub fetchInputSystemBuild {
 
     if (scalar(@validBuilds) == 0) {
         print STDERR "input `", $name, "': no previous build available\n";
-        return undef;
+        return ();
     }
 
     my @inputs = ();
@@ -303,323 +149,37 @@ sub fetchInputSystemBuild {
 }
 
 
-sub fetchInputGit {
-    my ($db, $project, $jobset, $name, $value) = @_;
-
-    (my $uri, my $branch, my $deepClone) = split ' ', $value;
-    $branch = defined $branch ? $branch : "master";
-
-    my $timestamp = time;
-    my $sha256;
-    my $storePath;
-
-    mkpath(scmPath);
-    my $clonePath = scmPath . "/" . sha256_hex($uri);
-
-    my $stdout = ""; my $stderr = ""; my $res;
-    if (! -d $clonePath) {
-        # Clone everything and fetch the branch.
-        # TODO: Optimize the first clone by using "git init $clonePath" and "git remote add origin $uri".
-        ($res, $stdout, $stderr) = captureStdoutStderr(600, "git", "clone", "--branch", $branch, $uri, $clonePath);
-        die "error cloning git repo at `$uri':\n$stderr" if $res;
-    }
-
-    chdir $clonePath or die $!; # !!! urgh, shouldn't do a chdir
-
-    # This command force the update of the local branch to be in the same as
-    # the remote branch for whatever the repository state is.  This command mirror
-    # only one branch of the remote repository.
-    ($res, $stdout, $stderr) = captureStdoutStderr(600,
-        "git", "fetch", "-fu", "origin", "+$branch:$branch");
-    ($res, $stdout, $stderr) = captureStdoutStderr(600,
-        "git", "fetch", "-fu", "origin") if $res;
-    die "error fetching latest change from git repo at `$uri':\n$stderr" if $res;
-
-    ($res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("git", "rev-parse", "$branch"));
-    die "error getting revision number of Git branch '$branch' at `$uri':\n$stderr" if $res;
-
-    my ($revision) = split /\n/, $stdout;
-    die "error getting a well-formated revision number of Git branch '$branch' at `$uri':\n$stdout"
-        unless $revision =~ /^[0-9a-fA-F]+$/;
-
-    my $ref = "refs/heads/$branch";
-
-    # If deepClone is defined, then we look at the content of the repository
-    # to determine if this is a top-git branch.
-    if (defined $deepClone) {
-
-        # Checkout the branch to look at its content.
-        ($res, $stdout, $stderr) = captureStdoutStderr(600, "git", "checkout", "$branch");
-        die "error checking out Git branch '$branch' at `$uri':\n$stderr" if $res;
-
-        if (-f ".topdeps") {
-            # This is a TopGit branch.  Fetch all the topic branches so
-            # that builders can run "tg patch" and similar.
-            ($res, $stdout, $stderr) = captureStdoutStderr(600,
-                "tg", "remote", "--populate", "origin");
-            print STDERR "warning: `tg remote --populate origin' failed:\n$stderr" if $res;
-        }
-    }
-
-    # Some simple caching: don't check a uri/branch/revision more than once.
-    # TODO: Fix case where the branch is reset to a previous commit.
-    my $cachedInput ;
-    ($cachedInput) = $db->resultset('CachedGitInputs')->search(
-        {uri => $uri, branch => $branch, revision => $revision},
-        {rows => 1});
-
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-        $storePath = $cachedInput->storepath;
-        $sha256 = $cachedInput->sha256hash;
-        $revision = $cachedInput->revision;
-    } else {
-        # Then download this revision into the store.
-        print STDERR "checking out Git branch $branch from $uri\n";
-        $ENV{"NIX_HASH_ALGO"} = "sha256";
-        $ENV{"PRINT_PATH"} = "1";
-        $ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "0";
-        $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "";
-
-        if (defined $deepClone) {
-            # Checked out code often wants to be able to run `git
-            # describe', e.g., code that uses Gnulib's `git-version-gen'
-            # script.  Thus, we leave `.git' in there.  Same for
-            # Subversion (e.g., libgcrypt's build system uses that.)
-            $ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
-
-            # Ask for a "deep clone" to allow "git describe" and similar
-            # tools to work.  See
-            # http://thread.gmane.org/gmane.linux.distributions.nixos/3569
-            # for a discussion.
-            $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
-        }
-
-        ($res, $stdout, $stderr) = captureStdoutStderr(600, "nix-prefetch-git", $clonePath, $revision);
-        die "cannot check out Git repository branch '$branch' at `$uri':\n$stderr" if $res;
-
-        ($sha256, $storePath) = split ' ', $stdout;
-
-        txn_do($db, sub {
-            $db->resultset('CachedGitInputs')->update_or_create(
-                { uri => $uri
-                , branch => $branch
-                , revision => $revision
-                , sha256hash => $sha256
-                , storepath => $storePath
-                });
-            });
-    }
-
-    # For convenience in producing readable version names, pass the
-    # number of commits in the history of this revision (‘revCount’)
-    # the output of git-describe (‘gitTag’), and the abbreviated
-    # revision (‘shortRev’).
-    my $revCount = `git rev-list $revision | wc -l`; chomp $revCount;
-    die "git rev-list failed" if $? != 0;
-    my $gitTag = `git describe --always $revision`; chomp $gitTag;
-    die "git describe failed" if $? != 0;
-    my $shortRev = `git rev-parse --short $revision`; chomp $shortRev;
-    die "git rev-parse failed" if $? != 0;
-
-    return
-        { uri => $uri
-        , storePath => $storePath
-        , sha256hash => $sha256
-        , revision => $revision
-        , revCount => int($revCount)
-        , gitTag => $gitTag
-        , shortRev => $shortRev
-        };
-}
-
-
-sub fetchInputBazaar {
-    my ($db, $project, $jobset, $name, $value, $checkout) = @_;
-
-    my $uri = $value;
-
-    my $sha256;
-    my $storePath;
-
-    my $stdout; my $stderr;
-
-    mkpath(scmPath);
-    my $clonePath = scmPath . "/" . sha256_hex($uri);
-
-    if (! -d $clonePath) {
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600, "bzr", "branch", $uri, $clonePath);
-        die "error cloning bazaar branch at `$uri':\n$stderr" if $res;
-    }
-
-    chdir $clonePath or die $!;
-    (my $res, $stdout, $stderr) = captureStdoutStderr(600, "bzr", "pull");
-    die "error pulling latest change bazaar branch at `$uri':\n$stderr" if $res;
-
-    # First figure out the last-modified revision of the URI.
-    my @cmd = (["bzr", "revno"], "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
-
-    IPC::Run::run(@cmd, \$stdout, \$stderr);
-    die "cannot get head revision of Bazaar branch at `$uri':\n$stderr" if $?;
-    my $revision = $stdout; chomp $revision;
-    die unless $revision =~ /^\d+$/;
-
-    (my $cachedInput) = $db->resultset('CachedBazaarInputs')->search(
-        {uri => $uri, revision => $revision});
-
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-        $storePath = $cachedInput->storepath;
-        $sha256 = $cachedInput->sha256hash;
-    } else {
-
-        # Then download this revision into the store.
-        print STDERR "checking out Bazaar input ", $name, " from $uri revision $revision\n";
-        $ENV{"NIX_HASH_ALGO"} = "sha256";
-        $ENV{"PRINT_PATH"} = "1";
-        $ENV{"NIX_PREFETCH_BZR_LEAVE_DOT_BZR"} = "$checkout";
-
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            "nix-prefetch-bzr", $clonePath, $revision);
-        die "cannot check out Bazaar branch `$uri':\n$stderr" if $res;
-
-        ($sha256, $storePath) = split ' ', $stdout;
-
-        txn_do($db, sub {
-            $db->resultset('CachedBazaarInputs')->create(
-                { uri => $uri
-                , revision => $revision
-                , sha256hash => $sha256
-                , storepath => $storePath
-                });
-            });
-    }
-
-    return
-        { uri => $uri
-        , storePath => $storePath
-        , sha256hash => $sha256
-        , revision => $revision
-        };
-}
-
-
-sub fetchInputHg {
-    my ($db, $project, $jobset, $name, $value) = @_;
-
-    (my $uri, my $id) = split ' ', $value;
-    $id = defined $id ? $id : "default";
-
-    # init local hg clone
-
-    my $stdout = ""; my $stderr = "";
-
-    mkpath(scmPath);
-    my $clonePath = scmPath . "/" . sha256_hex($uri);
-
-    if (! -d $clonePath) {
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            "hg", "clone", $uri, $clonePath);
-        die "error cloning mercurial repo at `$uri':\n$stderr" if $res;
-    }
-
-    # hg pull + check rev
-    chdir $clonePath or die $!;
-    (my $res, $stdout, $stderr) = captureStdoutStderr(600, "hg", "pull");
-    die "error pulling latest change mercurial repo at `$uri':\n$stderr" if $res;
-
-    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
-        "hg", "log", "-r", $id, "--template", "{node|short} {rev} {branch}");
-    die "error getting branch and revision of $id from `$uri':\n$stderr" if $res1;
-
-    my ($revision, $revCount, $branch) = split ' ', $stdout;
-
-    my $storePath;
-    my $sha256;
-    (my $cachedInput) = $db->resultset('CachedHgInputs')->search(
-        {uri => $uri, branch => $branch, revision => $revision});
-
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-        $storePath = $cachedInput->storepath;
-        $sha256 = $cachedInput->sha256hash;
-    } else {
-        print STDERR "checking out Mercurial input from $uri $branch revision $revision\n";
-        $ENV{"NIX_HASH_ALGO"} = "sha256";
-        $ENV{"PRINT_PATH"} = "1";
-
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            "nix-prefetch-hg", $clonePath, $revision);
-        die "cannot check out Mercurial repository `$uri':\n$stderr" if $res;
-
-        ($sha256, $storePath) = split ' ', $stdout;
-
-        txn_do($db, sub {
-            $db->resultset('CachedHgInputs')->update_or_create(
-                { uri => $uri
-                , branch => $branch
-                , revision => $revision
-                , sha256hash => $sha256
-                , storepath => $storePath
-                });
-            });
-    }
-
-    return
-        { uri => $uri
-        , branch => $branch
-        , storePath => $storePath
-        , sha256hash => $sha256
-        , revision => $revision
-        , revCount => int($revCount)
-        };
-}
-
-
 sub fetchInput {
-    my ($db, $project, $jobset, $name, $type, $value) = @_;
+    my ($plugins, $db, $project, $jobset, $name, $type, $value) = @_;
     my @inputs;
 
-    if ($type eq "path") {
-        push @inputs, fetchInputPath($db, $project, $jobset, $name, $value);
-    }
-    elsif ($type eq "svn") {
-        push @inputs, fetchInputSVN($db, $project, $jobset, $name, $value, 0);
-    }
-    elsif ($type eq "svn-checkout") {
-        push @inputs, fetchInputSVN($db, $project, $jobset, $name, $value, 1);
-    }
-    elsif ($type eq "build") {
-        push @inputs, fetchInputBuild($db, $project, $jobset, $name, $value);
+    if ($type eq "build") {
+        @inputs = fetchInputBuild($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "sysbuild") {
-        push @inputs, fetchInputSystemBuild($db, $project, $jobset, $name, $value);
-    }
-    elsif ($type eq "git") {
-        push @inputs, fetchInputGit($db, $project, $jobset, $name, $value);
-    }
-    elsif ($type eq "hg") {
-        push @inputs, fetchInputHg($db, $project, $jobset, $name, $value);
-    }
-    elsif ($type eq "bzr") {
-        push @inputs, fetchInputBazaar($db, $project, $jobset, $name, $value, 0);
-    }
-    elsif ($type eq "bzr-checkout") {
-        push @inputs, fetchInputBazaar($db, $project, $jobset, $name, $value, 1);
+        @inputs = fetchInputSystemBuild($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "string") {
         die unless defined $value;
-        push @inputs, { value => $value };
+        @inputs = { value => $value };
     }
     elsif ($type eq "boolean") {
         die unless defined $value && ($value eq "true" || $value eq "false");
-        push @inputs, { value => $value };
+        @inputs = { value => $value };
     }
     else {
-        die "input `" . $name . "' has unknown type `$type'.";
+        my $found = 0;
+        foreach my $plugin (@{$plugins}) {
+            @inputs = $plugin->fetchInput($type, $name, $value);
+            if (defined $inputs[0]) {
+                $found = 1;
+                last;
+            }
+        }
+        die "input `$name' has unknown type `$type'." unless $found;
     }
 
-    foreach my $input (@inputs) {
-        $input->{type} = $type if defined $input;
-    }
+    $_->{type} = $type foreach @inputs;
 
     return @inputs;
 }
@@ -641,6 +201,7 @@ sub booleanToString {
     return $result;
 }
 
+
 sub buildInputToString {
     my ($exprType, $input) = @_;
     my $result;
@@ -654,6 +215,7 @@ sub buildInputToString {
             ")";
     } else {
         $result = "{ outPath = builtins.storePath " . $input->{storePath} . "" .
+            (defined $input->{revNumber} ? "; rev = " . $input->{revNumber} . "" : "") .
             (defined $input->{revision} ? "; rev = \"" . $input->{revision} . "\"" : "") .
             (defined $input->{revCount} ? "; revCount = " . $input->{revCount} . "" : "") .
             (defined $input->{gitTag} ? "; gitTag = \"" . $input->{gitTag} . "\"" : "") .
@@ -681,43 +243,14 @@ sub inputsToArgs {
                 when ("boolean") {
                     push @res, "--arg", $input, booleanToString($exprType, $alt->{value});
                 }
-                when (["path", "build", "git", "hg", "sysbuild"]) {
+                default {
                     push @res, "--arg", $input, buildInputToString($exprType, $alt);
-                }
-                when (["svn", "svn-checkout", "bzr", "bzr-checkout"]) {
-                    push @res, "--arg", $input, (
-                        "{ outPath = builtins.storePath " . $alt->{storePath} . "" .
-                        (defined $alt->{revision} ? "; rev = " . $alt->{revision} . "" : "") .
-                        ";}"
-                    );
                 }
             }
         }
     }
 
     return @res;
-}
-
-
-sub captureStdoutStderr {
-    my ($timeout, @cmd) = @_;
-    my $stdin = "";
-    my $stdout;
-    my $stderr;
-
-    eval {
-        local $SIG{ALRM} = sub { die "timeout\n" }; # NB: \n required
-        alarm $timeout;
-        IPC::Run::run(\@cmd, \$stdin, \$stdout, \$stderr);
-        alarm 0;
-    };
-
-    if ($@) {
-        die unless $@ eq "timeout\n"; # propagate unexpected errors
-        return (-1, "", "timeout\n");
-    } else {
-        return ($?, $stdout, $stderr);
-    }
 }
 
 

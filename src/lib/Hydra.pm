@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use parent 'Catalyst';
 use Moose;
+use Hydra::Plugin;
 use Hydra::Model::DB;
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
@@ -81,6 +82,18 @@ __PACKAGE__->config(
 );
 
 __PACKAGE__->apply_request_class_roles(qw/Catalyst::TraitFor::Request::ProxyBase/);
+
+my $plugins;
+
+has 'hydra_plugins' => (
+    is => 'ro',
+    default => sub { return $plugins; }
+);
+
+after setup_finalize => sub {
+    my $class = shift;
+    $plugins = [Hydra::Plugin->plugins(db => $class->model('DB'), config => $class->config)];
+};
 
 __PACKAGE__->setup();
 

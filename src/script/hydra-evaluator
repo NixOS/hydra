@@ -3,6 +3,7 @@
 use strict;
 use feature 'switch';
 use Hydra::Schema;
+use Hydra::Plugin;
 use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
 use Hydra::Model::DB;
@@ -20,6 +21,8 @@ STDOUT->autoflush();
 my $db = Hydra::Model::DB->new();
 my $config = getHydraConfig();
 
+my $plugins = [Hydra::Plugin->plugins(db => $db, config => $config)];
+
 # Don't check a jobset more than once every five minutes.
 my $minCheckInterval = 5 * 60;
 
@@ -29,10 +32,8 @@ sub fetchInputs {
     my ($project, $jobset, $inputInfo) = @_;
     foreach my $input ($jobset->jobsetinputs->all) {
         foreach my $alt ($input->jobsetinputalts->all) {
-            my @info = fetchInput($db, $project, $jobset, $input->name, $input->type, $alt->value);
-            foreach my $info_el (@info) {
-                push @{$$inputInfo{$input->name}}, $info_el if defined $info_el;
-            }
+            push @{$$inputInfo{$input->name}}, $_
+                foreach fetchInput($plugins, $db, $project, $jobset, $input->name, $input->type, $alt->value);
         }
     }
 }
