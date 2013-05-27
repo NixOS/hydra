@@ -298,7 +298,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
     notFound($c, "Product $path has disappeared.") unless -e $path;
 
     # Sanitize $path to prevent shell injection attacks.
-    $path =~ /^\/[\/[A-Za-z0-9_\-\.=]+$/ or die "Filename contains illegal characters.\n";
+    $path =~ /^\/[\/[A-Za-z0-9_\-\.=+:]+$/ or die "Filename contains illegal characters.\n";
 
     # FIXME: don't use shell invocations below.
 
