@@ -362,6 +362,7 @@ sub addBuildProducts {
 
     foreach my $output ($build->buildoutputs->all) {
         my $outPath = $output->path;
+        next unless -d $outPath;
         $db->resultset('BuildProducts')->create(
             { build => $build->id
             , productnr => $productnr++
