@@ -1,5 +1,24 @@
 [% USE mibs=format("%.2f") %]
 
+[% BLOCK renderProductLinks %]
+  <tr>
+    <th>URL:</th>
+    <td><a href="[% uri %]"><tt>[% uri %]</tt></a></td>
+  </tr>
+  [% IF latestRoot %]
+  <tr>
+    <th>Links to latest:</th>
+    <td>
+      [% uri2 = "${c.uri_for(latestRoot.join('/') 'download-by-type' product.type product.subtype)}" %]
+      <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
+      <br />
+      [% uri2 = "${c.uri_for(latestRoot.join('/') 'download' product.productnr)}" %]
+      <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
+    </td>
+  </tr>
+  [% END %]
+[% END %]
+
 [% BLOCK renderProductList %]
 
   <table class="productList">
@@ -125,22 +144,7 @@
         </a>
         [% WRAPPER makePopover title="Details" classes="btn-mini" %]
           <table class="info-table">
-            <tr>
-              <th>URL:</th>
-              <td><a href="[% uri %]"><tt>[% uri %]</tt></a></td>
-            </tr>
-            [% IF latestRoot %]
-            <tr>
-              <th>Links to latest:</th>
-              <td>
-                [% uri2 = "${c.uri_for(latestRoot.join('/') 'download-by-type' product.type product.subtype)}" %]
-                <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
-                <br />
-                [% uri2 = "${c.uri_for(latestRoot.join('/') 'download' product.productnr)}" %]
-                <a href="[% uri2 %]"><tt>[% uri2 %]</tt></a>
-              </td>
-            </tr>
-            [% END %]
+            [% INCLUDE renderProductLinks %]
             <tr><th>File size:</th><td>[% product.filesize %] bytes ([% mibs(product.filesize / (1024 * 1024)) %] MiB)</td></tr>
             <tr><th>SHA-1 hash:</th><td><tt>[% product.sha1hash %]</tt></td></tr>
             <tr><th>SHA-256 hash:</th><td><tt>[% product.sha256hash %]</tt></td></tr>
@@ -188,6 +192,11 @@
             Documentation of type <tt>[% product.subtype %]</tt>
           [% END %]
         </a>
+        [% WRAPPER makePopover title="Details" classes="btn-mini" %]
+          <table class="info-table">
+            [% INCLUDE renderProductLinks %]
+          </table>
+        [% END %]
         </td>
       </tr>
 
