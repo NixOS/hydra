@@ -5,6 +5,14 @@ with pkgs.lib;
 let
   cfg = config.services.hydra;
 
+  sendmail = pkgs.stdenv.mkDerivation {
+    name = "sendmail-setuid-wrapper";
+    buildCommand = ''
+      ensureDir $out/bin
+      ln -s /var/setuid-wrappers/sendmail $out/bin/sendmail
+    '';
+  };
+
   baseDir = "/var/lib/hydra";
 
   hydraConf = pkgs.writeScript "hydra.conf"
@@ -177,7 +185,7 @@ in
       { wantedBy = [ "multi-user.target" ];
         wants = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
-        path = [ pkgs.nettools pkgs.ssmtp ];
+        path = [ pkgs.nettools sendmail ];
         environment = env;
         serviceConfig =
           { ExecStartPre = "${cfg.hydra}/bin/hydra-queue-runner --unlock";
@@ -191,7 +199,7 @@ in
       { wantedBy = [ "multi-user.target" ];
         wants = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
-        path = [ pkgs.nettools pkgs.ssmtp ];
+        path = [ pkgs.nettools sendmail ];
         environment = env;
         serviceConfig =
           { ExecStart = "@${cfg.hydra}/bin/hydra-evaluator hydra-evaluator";
