@@ -54,7 +54,8 @@ rec {
       perlDeps = buildEnv {
         name = "hydra-perl-deps";
         paths = with perlPackages;
-          [ CatalystAuthenticationStoreDBIxClass
+          [ ModulePluggable
+            CatalystAuthenticationStoreDBIxClass
             CatalystPluginAccessLog
             CatalystPluginAuthorizationRoles
             CatalystPluginCaptcha
@@ -103,7 +104,7 @@ rec {
         [ makeWrapper libtool unzip nukeReferences pkgconfig boehmgc sqlite
           gitAndTools.topGit mercurial subversion bazaar openssl bzip2
           guile # optional, for Guile + Guix support
-          perl perlDeps
+          perlDeps perl
         ];
 
       hydraPath = lib.makeSearchPath "bin" (
