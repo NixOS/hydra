@@ -158,7 +158,7 @@ sub showLog {
             . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
             . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " - | tail -n +2";
         $c->stash->{template} = 'log.tt';
-        $c->stash->{logtext} = `$pipeline`;
+        $c->stash->{logtext} = `ulimit -t 5 ; $pipeline`;
     }
 
     elsif ($mode eq "raw") {
