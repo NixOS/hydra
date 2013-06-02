@@ -170,9 +170,9 @@ sub defaultUriForProduct {
 
 sub checkPath {
     my ($self, $c, $path) = @_;
-    my $path = pathIsInsidePrefix($path, $Nix::Config::storeDir);
-    error($c, "Build product refers outside of the Nix store.") unless defined $path;
-    return $path;
+    my $p = pathIsInsidePrefix($path, $Nix::Config::storeDir);
+    error($c, "Build product refers outside of the Nix store.") unless defined $p;
+    return $p;
 }
 
 
