@@ -100,15 +100,9 @@ sub checkBuilds {
             # Select the highest-priority builds to start.
             my @builds = $extraAllowed == 0 ? () : $db->resultset('Builds')->search(
                 { finished => 0, busy => 0, system => $system->system, enabled => 1 },
-                { join => ['project'], order_by => ["priority DESC", "id"],
-                  rows => $extraAllowed });
+                { join => ['project'], order_by => ["priority DESC", "id"] });
 
-            if (scalar(@builds) > 0) {
-              print "system type `", $system->system,
-                  "': $nrActive active, $max allowed, ",
-                  "starting ", scalar(@builds), " builds\n";
-            }
-
+            my $started = 0;
             foreach my $build (@builds) {
                 # Find a dependency of $build that has no queued
                 # dependencies itself.  This isn't strictly necessary,
@@ -130,6 +124,13 @@ sub checkBuilds {
                     , starttime => time()
                     });
                 push @buildsStarted, $build;
+
+                last if ++$started >= $extraAllowed;
+            }
+
+            if ($started > 0) {
+                print STDERR "system type `", $system->system,
+                    "': $nrActive active, $max allowed, started $started builds\n";
             }
         }
     });
