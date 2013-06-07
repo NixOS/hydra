@@ -15,6 +15,8 @@ my $db = Hydra::Model::DB->new();
 
 STDOUT->autoflush();
 
+my $lastTime;
+
 #$SIG{CHLD} = 'IGNORE';
 
 
@@ -26,13 +28,7 @@ sub unlockDeadBuilds {
             my $pid = $build->locker;
             my $unlock = 0;
             if ($pid == $$) {
-                # Work around sqlite locking timeouts: if the child
-                # barfed because of a locked DB before updating the
-                # `locker' field, then `locker' is still set to $$.
-                # So if after a minute it hasn't been updated,
-                # unlock the build.  !!! need a better fix for those
-                # locking timeouts.
-                if ($build->starttime + 60 < time) {
+                if (!defined $lastTime || $build->starttime < $lastTime - 300) {
                     $unlock = 1;
                 }
             } elsif (kill(0, $pid) != 1) { # see if we can signal the process
@@ -190,6 +186,8 @@ while (1) {
         unlockDeadBuilds;
 
         checkBuilds;
+
+        $lastTime = time();
     };
     warn $@ if $@;
 
