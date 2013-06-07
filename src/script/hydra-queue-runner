@@ -51,12 +51,15 @@ sub unlockDeadBuilds {
 # Given a build, return an arbitrary queued build on which this build
 # depends; or undef if no such build exists.
 sub findBuildDependencyInQueue {
-    my ($build) = @_;
+    my ($buildsByDrv, $build) = @_;
     my @deps = grep { /\.drv$/ && $_ ne $build->drvpath } computeFSClosure(0, 0, $build->drvpath);
     return unless scalar @deps > 0;
-    return $db->resultset('Builds')->search(
-        { drvpath => [ @deps ], finished => 0, enabled => 1 },
-        { join => ['project'], rows => 1 })->single;
+    foreach my $d (@deps) {
+        my $b = $buildsByDrv->{$d};
+        next unless defined $b;
+        return $db->resultset('Builds')->find($b);
+    }
+    return undef;
 }
 
 
@@ -76,6 +79,12 @@ sub checkBuilds {
     }
 
     txn_do($db, sub {
+
+        # Cache scheduled by derivation path to speed up
+        # findBuildDependencyInQueue.
+        my $buildsByDrv = {};
+        $buildsByDrv->{$_->drvpath} = $_->id
+            foreach $db->resultset('Builds')->search({ finished => 0, enabled => 1 }, { join => ['project'] });
 
         # Get the system types for the runnable builds.
         my @systemTypes = $db->resultset('Builds')->search(
@@ -109,7 +118,7 @@ sub checkBuilds {
                 # but it ensures that Nix builds are done as part of
                 # their corresponding Hydra builds, rather than as a
                 # dependency of some other Hydra build.
-                while (my $dep = findBuildDependencyInQueue($build)) {
+                while (my $dep = findBuildDependencyInQueue($buildsByDrv, $build)) {
                     $build = $dep;
                 }
                 next if $build->busy;
