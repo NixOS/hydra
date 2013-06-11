@@ -46,7 +46,11 @@ sub submit : Chained('project') PathPart Args(0) {
     requirePost($c);
 
     if (($c->request->params->{submit} // "") eq "delete") {
-        $c->stash->{project}->delete;
+        txn_do($c->model('DB')->schema, sub {
+            $c->stash->{project}->jobsetevals->delete_all;
+            $c->stash->{project}->builds->delete_all;
+            $c->stash->{project}->delete;
+        });
         return $c->res->redirect($c->uri_for("/"));
     }
 

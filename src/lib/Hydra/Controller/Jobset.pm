@@ -132,7 +132,11 @@ sub submit : Chained('jobset') PathPart Args(0) {
     requirePost($c);
 
     if (($c->request->params->{submit} // "") eq "delete") {
-        $c->stash->{jobset}->delete;
+        txn_do($c->model('DB')->schema, sub {
+            $c->stash->{jobset}->jobsetevals->delete_all;
+            $c->stash->{jobset}->builds->delete_all;
+            $c->stash->{jobset}->delete;
+        });
         return $c->res->redirect($c->uri_for($c->controller('Project')->action_for("view"), [$c->stash->{project}->name]));
     }
 
