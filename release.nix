@@ -56,17 +56,18 @@ rec {
         paths = with perlPackages;
           [ ModulePluggable
             CatalystAuthenticationStoreDBIxClass
+            CatalystDispatchTypeRegex
             CatalystPluginAccessLog
             CatalystPluginAuthorizationRoles
             CatalystPluginCaptcha
             CatalystPluginSessionStateCookie
             CatalystPluginSessionStoreFastMmap
             CatalystPluginStackTrace
+            CatalystTraitForRequestProxyBase
             CatalystViewDownload
             CatalystViewJSON
             CatalystViewTT
             CatalystXScriptServerStarman
-            CatalystTraitForRequestProxyBase
             CryptRandPasswd
             DBDPg
             DBDSQLite
