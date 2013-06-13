@@ -78,9 +78,14 @@
     --if system i686-linux --arg build {...}
 
 
-* Restart all aborted builds in a given evaluation (e.g. 820909).
+* Restart all aborted builds in a given evaluation (e.g. 820909):
 
   > update builds set finished = 0 where id in (select id from builds where finished = 1 and buildstatus = 3 and exists (select 1 from jobsetevalmembers where eval = 820909 and build = id));
+
+
+* Restart all builds in a given evaluation that had a build step time out:
+
+  > update builds set finished = 0 where id in (select id from builds where finished = 1 and buildstatus != 0 and exists (select 1 from jobsetevalmembers where eval = 926992 and build = id) and exists (select 1 from buildsteps where build = id and status = 7));
 
 
 * select * from (select project, jobset, job, system, max(timestamp) timestamp from builds where finished = 1 group by project, jobset, job, system) x join builds y on x.timestamp = y.timestamp and x.project = y.project and x.jobset = y.jobset and x.job = y.job and x.system = y.system;
