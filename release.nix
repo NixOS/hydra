@@ -84,7 +84,6 @@ rec {
             Readonly
             SQLSplitStatement
             Starman
-            Switch # XXX: seems to be an indirect dep of `hydra-build'
             SysHostnameLong
             TestMore
             TextDiff
