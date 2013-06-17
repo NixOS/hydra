@@ -6,7 +6,7 @@
     <tr><th>Machine</th><th>Job</th><th>Type</th><th>Build</th><th>Step</th><th>What</th><th>Since</th></tr>
   </thead>
   <tbody>
-    [% FOREACH step IN steps %]
+    [% FOREACH step IN resource %]
       <tr>
         <td><tt>[% IF step.machine; step.machine.match('@(.*)').0; ELSE; 'localhost'; END %]</tt></td>
         <td><tt>[% INCLUDE renderFullJobName project = step.build.project.name jobset = step.build.jobset.name job = step.build.job.name %]</tt></td>

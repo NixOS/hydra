@@ -37,7 +37,16 @@ sub begin :Private {
         'sysbuild' => 'Build output (same system)'
     };
     $_->supportedInputTypes($c->stash->{inputTypes}) foreach @{$c->hydra_plugins};
+
+    $c->forward('deserialize');
+
+    $c->stash->{params} = $c->request->data or $c->request->params;
+    unless (defined $c->stash->{params} and %{$c->stash->{params}}) {
+        $c->stash->{params} = $c->request->params;
+    }
 }
+
+sub deserialize :ActionClass('Deserialize') { }
 
 
 sub index :Path :Args(0) {
@@ -45,15 +54,27 @@ sub index :Path :Args(0) {
     $c->stash->{template} = 'overview.tt';
     $c->stash->{projects} = [$c->model('DB::Projects')->search(isAdmin($c) ? {} : {hidden => 0}, {order_by => 'name'})];
     $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, { order_by => ['createtime DESC'], rows => 5 })];
+    $self->status_ok(
+        $c,
+        entity => [$c->model('DB::Projects')->search(isAdmin($c) ? {} : {hidden => 0}, {
+                    order_by => 'name',
+                    columns => [ 'name', 'displayname' ]
+                })]
+    );
 }
 
 
-sub queue :Local {
+sub queue :Local :Args(0) :ActionClass('REST') { }
+
+sub queue_GET {
     my ($self, $c) = @_;
     $c->stash->{template} = 'queue.tt';
-    $c->stash->{queue} = [$c->model('DB::Builds')->search(
-        {finished => 0}, { join => ['project'], order_by => ["priority DESC", "id"], columns => [@buildListColumns], '+select' => ['project.enabled'], '+as' => ['enabled'] })];
     $c->stash->{flashMsg} //= $c->flash->{buildMsg};
+    $self->status_ok(
+        $c,
+        entity => [$c->model('DB::Builds')->search(
+            {finished => 0}, { join => ['project'], order_by => ["priority DESC", "id"], columns => [@buildListColumns], '+select' => ['project.enabled'], '+as' => ['enabled'] })]
+    );
 }
 
 
@@ -71,13 +92,32 @@ sub timeline :Local {
 }
 
 
-sub status :Local {
+sub status :Local :Args(0) :ActionClass('REST') { }
+
+sub status_GET {
     my ($self, $c) = @_;
-    $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
-        { 'me.busy' => 1, 'build.finished' => 0, 'build.busy' => 1 },
-        { join => [ 'build' ]
-        , order_by => [ 'machine' ]
-        } ) ];
+    $self->status_ok(
+        $c,
+        entity => [ $c->model('DB::BuildSteps')->search(
+            { 'me.busy' => 1, 'build.finished' => 0, 'build.busy' => 1 },
+            { join => { build => [ 'project', 'job', 'jobset' ] },
+                columns => [
+                    'me.machine',
+                    'me.system',
+                    'me.stepnr',
+                    'me.drvpath',
+                    'me.starttime',
+                    'build.id',
+                    {
+                    'build.project.name' => 'project.name',
+                    'build.jobset.name' => 'jobset.name',
+                    'build.job.name' => 'job.name'
+                    }
+                ],
+                order_by => [ 'machine' ]
+            }
+        ) ]
+    );
 }
 
 
@@ -181,7 +221,8 @@ sub end : ActionClass('RenderView') {
         $c->forward('View::JSON');
     }
 
-    elsif (scalar @{$c->error}) {
+    if (scalar @{$c->error}) {
+        $c->stash->{resource} = { errors => "$c->error" };
         $c->stash->{template} = 'error.tt';
         $c->stash->{errors} = $c->error;
         $c->response->status(500) if $c->response->status == 200;
@@ -190,8 +231,18 @@ sub end : ActionClass('RenderView') {
                 $c->response->status . " " . HTTP::Status::status_message($c->response->status);
         }
         $c->clear_errors;
+    } elsif (defined $c->stash->{resource} and
+        (ref $c->stash->{resource} eq ref {}) and
+        defined $c->stash->{resource}->{error}) {
+        $c->stash->{template} = 'error.tt';
+        $c->stash->{httpStatus} =
+            $c->response->status . " " . HTTP::Status::status_message($c->response->status);
     }
+
+    $c->forward('serialize');
 }
+
+sub serialize : ActionClass('Serialize') { }
 
 
 sub nar :Local :Args(1) {

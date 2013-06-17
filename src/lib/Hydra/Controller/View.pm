@@ -118,7 +118,7 @@ sub submit : Chained('view') PathPart('submit') Args(0) {
     requireProjectOwner($c, $c->stash->{project});
     if (($c->request->params->{submit} || "") eq "delete") {
         $c->stash->{view}->delete;
-        $c->res->redirect($c->uri_for($c->controller('Project')->action_for('view'),
+        $c->res->redirect($c->uri_for($c->controller('Project')->action_for('project'),
             [$c->stash->{project}->name]));
     }
     txn_do($c->model('DB')->schema, sub {
@@ -224,7 +224,7 @@ sub result : Chained('view') PathPart('') {
         notFound($c, "View doesn't have a job named ‘$jobName’" . ($system ? " for ‘$system’" : "") . ".")
             unless defined $build;
         error($c, "Job `$jobName' isn't unique.") if @others;
-        return $c->res->redirect($c->uri_for($c->controller('Build')->action_for('view_build'),
+        return $c->res->redirect($c->uri_for($c->controller('Build')->action_for('build'),
             [$build->{build}->id], @args));
     }
 }

@@ -15,6 +15,18 @@ use warnings;
 
 use base 'DBIx::Class::Core';
 
+=head1 COMPONENTS LOADED
+
+=over 4
+
+=item * L<Hydra::Component::ToJSON>
+
+=back
+
+=cut
+
+__PACKAGE__->load_components("+Hydra::Component::ToJSON");
+
 =head1 TABLE: C<SystemTypes>
 
 =cut
@@ -56,7 +68,7 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("system");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zg8db3Cbi0QOv+gLJqH8cQ
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:8cC34cEw9T3+x+7uRs4KHQ
 
 1;

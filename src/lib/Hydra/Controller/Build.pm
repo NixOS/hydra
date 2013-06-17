@@ -14,7 +14,7 @@ use Nix::Config;
 use List::MoreUtils qw(all);
 
 
-sub build : Chained('/') PathPart CaptureArgs(1) {
+sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     my ($self, $c, $id) = @_;
 
     $c->stash->{id} = $id;
@@ -50,7 +50,9 @@ sub findBuildStepByDrvPath {
 }
 
 
-sub view_build : Chained('build') PathPart('') Args(0) {
+sub build :Chained('buildChain') :PathPart('') :Args(0) :ActionClass('REST') { }
+
+sub build_GET {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
@@ -96,10 +98,26 @@ sub view_build : Chained('build') PathPart('') Args(0) {
     ($c->stash->{eval}) = $c->stash->{build}->jobsetevals->search(
         { hasnewbuilds => 1},
         { limit => 1, order_by => ["id"] });
+    $self->status_ok(
+        $c,
+        entity => $c->model('DB::Builds')->find($build->id,{
+                columns => [
+                    'id',
+                    'finished',
+                    'timestamp',
+                    'buildstatus',
+                    'job',
+                    'project',
+                    'jobset',
+                    'starttime',
+                    'stoptime',
+                ]
+            })
+    );
 }
 
 
-sub view_nixlog : Chained('build') PathPart('nixlog') {
+sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
     my ($self, $c, $stepnr, $mode) = @_;
 
     my $step = $c->stash->{build}->buildsteps->find({stepnr => $stepnr});
@@ -111,7 +129,7 @@ sub view_nixlog : Chained('build') PathPart('nixlog') {
 }
 
 
-sub view_log : Chained('build') PathPart('log') {
+sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
     showLog($c, $c->stash->{build}->drvpath, $mode);
 }
@@ -176,7 +194,7 @@ sub checkPath {
 }
 
 
-sub download : Chained('build') PathPart {
+sub download : Chained('buildChain') PathPart {
     my ($self, $c, $productnr, @path) = @_;
 
     $productnr = 1 if !defined $productnr;
@@ -223,7 +241,7 @@ sub download : Chained('build') PathPart {
 # Redirect to a download with the given type.  Useful when you want to
 # link to some build product of the latest build (i.e. in conjunction
 # with the .../latest redirect).
-sub download_by_type : Chained('build') PathPart('download-by-type') {
+sub download_by_type : Chained('buildChain') PathPart('download-by-type') {
     my ($self, $c, $type, $subtype, @path) = @_;
 
     notFound($c, "You need to specify a type and a subtype in the URI.")
@@ -238,7 +256,7 @@ sub download_by_type : Chained('build') PathPart('download-by-type') {
 }
 
 
-sub contents : Chained('build') PathPart Args(1) {
+sub contents : Chained('buildChain') PathPart Args(1) {
     my ($self, $c, $productnr) = @_;
 
     my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
@@ -342,7 +360,7 @@ sub getDependencyGraph {
 }
 
 
-sub build_deps : Chained('build') PathPart('build-deps') {
+sub build_deps : Chained('buildChain') PathPart('build-deps') {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
     my $drvPath = $build->drvpath;
@@ -355,7 +373,7 @@ sub build_deps : Chained('build') PathPart('build-deps') {
 }
 
 
-sub runtime_deps : Chained('build') PathPart('runtime-deps') {
+sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
     my @outPaths = map { $_->path } $build->buildoutputs->all;
@@ -369,7 +387,7 @@ sub runtime_deps : Chained('build') PathPart('runtime-deps') {
 }
 
 
-sub nix : Chained('build') PathPart('nix') CaptureArgs(0) {
+sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
@@ -389,7 +407,7 @@ sub nix : Chained('build') PathPart('nix') CaptureArgs(0) {
 }
 
 
-sub restart : Chained('build') PathPart Args(0) {
+sub restart : Chained('buildChain') PathPart Args(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
@@ -404,11 +422,11 @@ sub restart : Chained('build') PathPart Args(0) {
 
     $c->flash->{buildMsg} = "Build has been restarted.";
 
-    $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
+    $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }
 
 
-sub cancel : Chained('build') PathPart Args(0) {
+sub cancel : Chained('buildChain') PathPart Args(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
@@ -434,11 +452,11 @@ sub cancel : Chained('build') PathPart Args(0) {
 
     $c->flash->{buildMsg} = "Build has been cancelled.";
 
-    $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
+    $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }
 
 
-sub keep : Chained('build') PathPart Args(1) {
+sub keep : Chained('buildChain') PathPart Args(1) {
     my ($self, $c, $x) = @_;
     my $keep = $x eq "1" ? 1 : 0;
 
@@ -457,11 +475,11 @@ sub keep : Chained('build') PathPart Args(1) {
     $c->flash->{buildMsg} =
         $keep ? "Build will be kept." : "Build will not be kept.";
 
-    $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
+    $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }
 
 
-sub add_to_release : Chained('build') PathPart('add-to-release') Args(0) {
+sub add_to_release : Chained('buildChain') PathPart('add-to-release') Args(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
@@ -486,11 +504,11 @@ sub add_to_release : Chained('build') PathPart('add-to-release') Args(0) {
 
     $c->flash->{buildMsg} = "Build added to project <tt>$releaseName</tt>.";
 
-    $c->res->redirect($c->uri_for($self->action_for("view_build"), $c->req->captures));
+    $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }
 
 
-sub clone : Chained('build') PathPart('clone') Args(0) {
+sub clone : Chained('buildChain') PathPart('clone') Args(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
@@ -501,7 +519,7 @@ sub clone : Chained('build') PathPart('clone') Args(0) {
 }
 
 
-sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
+sub clone_submit : Chained('buildChain') PathPart('clone/submit') Args(0) {
     my ($self, $c) = @_;
 
     my $build = $c->stash->{build};
@@ -567,7 +585,7 @@ sub clone_submit : Chained('build') PathPart('clone/submit') Args(0) {
 }
 
 
-sub get_info : Chained('build') PathPart('api/get-info') Args(0) {
+sub get_info : Chained('buildChain') PathPart('api/get-info') Args(0) {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
     $c->stash->{json}->{buildId} = $build->id;
@@ -578,7 +596,7 @@ sub get_info : Chained('build') PathPart('api/get-info') Args(0) {
 }
 
 
-sub evals : Chained('build') PathPart('evals') Args(0) {
+sub evals : Chained('buildChain') PathPart('evals') Args(0) {
     my ($self, $c) = @_;
 
     $c->stash->{template} = 'evals.tt';
@@ -596,7 +614,7 @@ sub evals : Chained('build') PathPart('evals') Args(0) {
 }
 
 
-sub reproduce : Chained('build') PathPart('reproduce') Args(0) {
+sub reproduce : Chained('buildChain') PathPart('reproduce') Args(0) {
     my ($self, $c) = @_;
     $c->response->content_type('text/x-shellscript');
     $c->response->header('Content-Disposition', 'attachment; filename="reproduce-build-' . $c->stash->{build}->id . '.sh"');

@@ -71,6 +71,7 @@ in rec {
             CatalystViewJSON
             CatalystViewTT
             CatalystXScriptServerStarman
+            CatalystActionREST
             CryptRandPasswd
             DBDPg
             DBDSQLite
@@ -167,4 +168,40 @@ in rec {
         '';
     });
 
+  tests.api = genAttrs' (system:
+    with import <nixos/lib/testing.nix> { inherit system; };
+    let hydra = builtins.getAttr system build; in # build.${system}
+    simpleTest {
+      machine =
+        { config, pkgs, ... }:
+        { services.postgresql.enable = true;
+          services.postgresql.package = pkgs.postgresql92;
+          environment.systemPackages = [ hydra pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
+          virtualisation.memorySize = 2048;
+        };
+
+      testScript =
+        ''
+          $machine->waitForJob("postgresql");
+
+          # Initialise the database and the state.
+          $machine->mustSucceed
+              ( "createdb -O root hydra"
+              , "psql hydra -f ${hydra}/libexec/hydra/sql/hydra-postgresql.sql"
+              , "mkdir /var/lib/hydra"
+              , "echo \"insert into Users(userName, emailAddress, password) values('root', 'e.dolstra\@tudelft.nl', '\$(echo -n foobar | sha1sum | cut -c1-40)');\" | psql hydra"
+              , "echo \"insert into UserRoles(userName, role) values('root', 'admin');\" | psql hydra"
+              , "mkdir /run/jobset"
+              , "chmod 755 /run/jobset"
+              , "cp ${./tests/api-test.nix} /run/jobset/default.nix"
+              , "chmod 644 /run/jobset/default.nix"
+              );
+
+          # Start the web interface.
+          $machine->mustSucceed("NIX_STORE_DIR=/run/nix NIX_LOG_DIR=/run/nix/var/log/nix NIX_STATE_DIR=/run/nix/var/nix HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=root;' LOGNAME=root DBIC_TRACE=1 hydra-server -d >&2 &");
+          $machine->waitForOpenPort("3000");
+
+          $machine->mustSucceed("perl ${./tests/api-test.pl} >&2");
+        '';
+  });
 }

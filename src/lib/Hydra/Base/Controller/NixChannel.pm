@@ -2,7 +2,7 @@ package Hydra::Base::Controller::NixChannel;
 
 use strict;
 use warnings;
-use base 'Catalyst::Controller';
+use base 'Hydra::Base::Controller::REST';
 use List::MoreUtils qw(all);
 use Nix::Store;
 use Hydra::Helper::Nix;

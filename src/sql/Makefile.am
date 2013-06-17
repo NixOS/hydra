@@ -16,4 +16,4 @@ hydra-sqlite.sql: hydra.sql
 update-dbix: hydra-sqlite.sql
 	rm -f tmp.sqlite
 	sqlite3 tmp.sqlite < hydra-sqlite.sql
-	perl -MDBIx::Class::Schema::Loader=make_schema_at,dump_to_dir:../lib -e 'make_schema_at("Hydra::Schema", { naming => { ALL => "v5" }, relationships => 1, moniker_map => sub {return "$$_";} }, ["dbi:SQLite:tmp.sqlite"])'
+	perl -I ../lib -MDBIx::Class::Schema::Loader=make_schema_at,dump_to_dir:../lib -e 'make_schema_at("Hydra::Schema", { naming => { ALL => "v5" }, relationships => 1, moniker_map => sub {return "$$_";}, components => [ "+Hydra::Component::ToJSON" ], }, ["dbi:SQLite:tmp.sqlite"])'

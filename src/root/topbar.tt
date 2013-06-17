@@ -37,7 +37,7 @@
     [% WRAPPER makeSubMenu title="Project"  %]
       <li class="nav-header">[% HTML.escape(project.name) %]</li>
       <li class="divider"></li>
-      [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('view'), [project.name]) title = "Overview" %]
+      [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('project'), [project.name]) title = "Overview" %]
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('all'), [project.name]) title = "Latest builds" %]
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('jobstatus'), [project.name]) title = "Job status" %]
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('errors'), [project.name]) title = "Errors" %]
@@ -56,7 +56,7 @@
       <li class="nav-header">[% HTML.escape(jobset.name) %]</li>
       <li class="divider"></li>
       [% INCLUDE menuItem
-        uri = c.uri_for(c.controller('Jobset').action_for('index'), [project.name, jobset.name])
+        uri = c.uri_for(c.controller('Jobset').action_for('jobset'), [project.name, jobset.name])
         title = "Overview" %]
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Jobset').action_for('evals'), [project.name, jobset.name])
