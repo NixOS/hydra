@@ -58,7 +58,7 @@ sub submit : Chained('project') PathPart Args(0) {
         updateProject($c, $c->stash->{project});
     });
 
-    $c->res->redirect($c->uri_for($self->action_for("view"), [$c->stash->{project}->name]));
+    $c->res->redirect($c->uri_for($self->action_for("view"), [$c->stash->{project}->name]) . "#tabs-configuration");
 }
 
 

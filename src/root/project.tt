@@ -3,7 +3,7 @@
 
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-project" data-toggle="tab">Jobsets</a></li>
-  <li><a href="#tabs-settings" data-toggle="tab">Configuration</a></li>
+  <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
   <li><a href="#tabs-releases" data-toggle="tab">Releases</a></li>
   <li><a href="#tabs-views" data-toggle="tab">Views</a></li>
 </ul>
@@ -77,7 +77,7 @@
 
   </div>
 
-  <div id="tabs-settings" class="tab-pane">
+  <div id="tabs-configuration" class="tab-pane">
     <a class="btn pull-right" href="[% c.uri_for('/project' project.name "edit") %]"><i class="icon-edit"></i> Edit</a>
     <table class="info-table">
       <tr>

@@ -145,7 +145,7 @@ sub submit : Chained('jobset') PathPart Args(0) {
     });
 
     $c->res->redirect($c->uri_for($self->action_for("index"),
-        [$c->stash->{project}->name, $c->stash->{jobset}->name]));
+        [$c->stash->{project}->name, $c->stash->{jobset}->name]) . "#tabs-configuration");
 }
 
 
