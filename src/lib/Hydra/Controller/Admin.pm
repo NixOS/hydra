@@ -50,16 +50,16 @@ sub clearfailedcache : Chained('admin') PathPart('clear-failed-cache') Args(0) {
 sub clearvcscache : Chained('admin') PathPart('clear-vcs-cache') Args(0) {
     my ($self, $c) = @_;
 
-    print "Clearing path cache\n";
+    print STDERR "Clearing path cache\n";
     $c->model('DB::CachedPathInputs')->delete_all;
 
-    print "Clearing git cache\n";
+    print STDERR "Clearing git cache\n";
     $c->model('DB::CachedGitInputs')->delete_all;
 
-    print "Clearing subversion cache\n";
+    print STDERR "Clearing subversion cache\n";
     $c->model('DB::CachedSubversionInputs')->delete_all;
 
-    print "Clearing bazaar cache\n";
+    print STDERR "Clearing bazaar cache\n";
     $c->model('DB::CachedBazaarInputs')->delete_all;
 
     $c->res->redirect($c->request->referer // "/admin");
