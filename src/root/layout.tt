@@ -85,6 +85,23 @@
           bootbox.animate(false);
 
           $(".hydra-popover").popover({});
+
+          /* Ensure that pressing the back button on another page
+             navigates back to the previously selected tab on this
+             page. */
+          $(function() {
+              $('.nav-tabs').bind('show', function(e) {
+                  var pattern = /#.+/gi;
+                  var id = e.target.toString().match(pattern)[0];
+                  history.replaceState(null, "", id);
+              });
+          });
+
+          $(function() {
+              if (window.location.hash) {
+                  $(".nav a[href='" + window.location.hash + "']").tab('show');
+              }
+          })
       });
 
     </script>
