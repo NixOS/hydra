@@ -2,7 +2,8 @@ TEMPLATES = $(wildcard *.tt)
 STATIC = \
   $(wildcard static/images/*) \
   $(wildcard static/css/*) \
-  static/js/bootbox.min.js
+  static/js/bootbox.min.js \
+  static/js/common.js
 
 FLOT = flot-0.6.zip
 JQUERY = jquery-ui-1.8.5.custom.zip
