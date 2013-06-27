@@ -10,6 +10,7 @@ use Email::Sender::Transport::SMTP;
 use Sys::Hostname::Long;
 use Nix::Store;
 use Hydra::Helper::Nix;
+use feature qw/switch/;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -18,12 +19,14 @@ our @EXPORT = qw(
     requireLogin requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
     getLatestFinishedEval
-    parseJobsetName
     sendEmail
     paramToList
     backToReferer
     $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE $userNameRE
     @buildListColumns
+    parseJobsetName
+    showJobName
+    showStatus
 );
 
 
@@ -39,19 +42,14 @@ sub getBuild {
 
 
 sub getPreviousBuild {
-    my ($c, $build) = @_;
+    my ($build) = @_;
     return undef if !defined $build;
-
-    (my $prevBuild) = $c->model('DB::Builds')->search(
+    return $build->job->builds->search(
       { finished => 1
       , system => $build->system
-      , project => $build->project->name
-      , jobset => $build->jobset->name
-      , job => $build->job->name
       , 'me.id' =>  { '<' => $build->id }
-      }, {rows => 1, order_by => "me.id DESC"});
-
-    return $prevBuild;
+        , -not => { buildstatus => { -in => [4, 3]} }
+      }, { rows => 1, order_by => "me.id DESC" })->single;
 }
 
 
@@ -227,6 +225,28 @@ sub parseJobsetName {
     my ($s) = @_;
     $s =~ /^($projectNameRE):($jobsetNameRE)$/ or die "invalid jobset specifier ‘$s’\n";
     return ($1, $2);
+}
+
+
+sub showJobName {
+    my ($build) = @_;
+    return $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
+}
+
+
+sub showStatus {
+    my ($build) = @_;
+
+    my $status = "Failed";
+    given ($build->buildstatus) {
+        when (0) { $status = "Success"; }
+        when (1) { $status = "Failed"; }
+        when (2) { $status = "Dependency failed"; }
+        when (4) { $status = "Cancelled"; }
+        when (6) { $status = "Failed with output"; }
+    }
+
+   return $status;
 }
 
 

@@ -2,7 +2,6 @@ package Hydra::Plugin::EmailNotification;
 
 use strict;
 use parent 'Hydra::Plugin';
-use feature qw/switch/;
 use POSIX qw(strftime);
 use Email::Sender::Simple qw(sendmail);
 use Email::Sender::Transport::SMTP;
@@ -13,43 +12,6 @@ use File::Slurp;
 use Template;
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
-
-
-sub showStatus {
-    my ($build) = @_;
-
-    my $status = "Failed";
-    given ($build->buildstatus) {
-        when (0) { $status = "Success"; }
-        when (1) { $status = "Failed"; }
-        when (2) { $status = "Dependency failed"; }
-        when (4) { $status = "Cancelled"; }
-        when (6) { $status = "Failed with output"; }
-    }
-
-   return $status;
-}
-
-
-sub showJobName {
-    my ($build) = @_;
-    return $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
-}
-
-
-sub getPrevBuild {
-    my ($self, $build) = @_;
-    return $self->{db}->resultset('Builds')->search(
-        { project => $build->project->name
-        , jobset => $build->jobset->name
-        , job => $build->job->name
-        , system => $build->system
-        , finished => 1
-        , id => { '<', $build->id }
-        , -not => { buildstatus => { -in => [4, 3]} }
-        }, { order_by => ["id DESC"], rows => 1 }
-        )->single;
-}
 
 
 my $template = <<EOF;
@@ -89,7 +51,7 @@ sub buildFinished {
     # relevant builds for that address.
     my %addresses;
     foreach my $b ($build, @{$dependents}) {
-        my $prevBuild = getPrevBuild($self, $b);
+        my $prevBuild = getPreviousBuild($b);
         my $to = $b->jobset->emailoverride ne "" ? $b->jobset->emailoverride : $b->maintainers;
 
         foreach my $address (split ",", $to) {
@@ -122,7 +84,7 @@ sub buildFinished {
         my $tt = Template->new({});
 
         my $vars =
-            { build => $build, prevBuild => getPrevBuild($self, $build)
+            { build => $build, prevBuild => getPreviousBuild($build)
             , dependents => [grep { $_->id != $build->id } @builds]
             , baseurl => $self->{config}->{'base_uri'} || "http://localhost:3000"
             , showJobName => \&showJobName, showStatus => \&showStatus
