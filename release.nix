@@ -76,6 +76,8 @@ rec {
             DigestSHA1
             EmailSender
             FileSlurp
+            LWP
+            LWPProtocolHttps
             IOCompress
             IPCRun
             JSONXS
