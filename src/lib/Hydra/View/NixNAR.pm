@@ -4,7 +4,7 @@ use strict;
 use base qw/Catalyst::View/;
 
 sub file_compression {
-    my ($file) = $@_;
+    my ($file) = @_;
 
     if /\\.(gz|bz2|xz|lz|zip)/
 	return "none";
