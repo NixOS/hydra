@@ -2,6 +2,7 @@ package Hydra::View::NARInfo;
 
 use strict;
 use base qw/Catalyst::View/;
+use Hydra::View::NixNAR;
 use File::Basename;
 use Nix::Store;
 
@@ -17,7 +18,7 @@ sub process {
     my $info;
     $info .= "StorePath: $storePath\n";
     $info .= "URL: nar/" . basename $storePath. "\n";
-    $info .= "Compression: bzip2\n";
+    $info .= "Compression: " . file_compression $storePath . "\n";
     $info .= "NarHash: $narHash\n";
     $info .= "NarSize: $narSize\n";
     $info .= "References: " . join(" ", map { basename $_ } @{$refs}) . "\n";
