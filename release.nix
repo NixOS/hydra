@@ -2,7 +2,13 @@
 , officialRelease ? false
 }:
 
-rec {
+let
+
+  pkgs = import <nixpkgs> {};
+
+  genAttrs' = pkgs.lib.genAttrs [ "x86_64-linux" "i686-linux" ];
+
+in rec {
 
   tarball =
     with import <nixpkgs> { };
@@ -40,12 +46,9 @@ rec {
     };
 
 
-  build =
-    { system ? "x86_64-linux" }:
+  build = genAttrs' (system:
 
-    let pkgs = import <nixpkgs> {inherit system;}; in
-
-    with pkgs;
+    with import <nixpkgs> { inherit system; };
 
     let
 
@@ -133,46 +136,35 @@ rec {
       LOGNAME = "foo";
 
       meta.description = "Build of Hydra on ${system}";
-    };
+    });
 
 
-  tests =
-    { nixos ? ../nixos, system ? "x86_64-linux" }:
-
-    let hydra = build { inherit system; }; in
-
+  tests.install = genAttrs' (system:
     with import <nixos/lib/testing.nix> { inherit system; };
+    let hydra = builtins.getAttr system build; in # build.${system}
+    simpleTest {
+      machine =
+        { config, pkgs, ... }:
+        { services.postgresql.enable = true;
+          services.postgresql.package = pkgs.postgresql92;
+          environment.systemPackages = [ hydra ];
+        };
 
-    {
+      testScript =
+        ''
+          $machine->waitForJob("postgresql");
 
-      install = simpleTest {
+          # Initialise the database and the state.
+          $machine->mustSucceed
+              ( "createdb -O root hydra",
+              , "psql hydra -f ${hydra}/libexec/hydra/sql/hydra-postgresql.sql"
+              , "mkdir /var/lib/hydra"
+              );
 
-        machine =
-          { config, pkgs, ... }:
-          { services.postgresql.enable = true;
-            services.postgresql.package = pkgs.postgresql92;
-            environment.systemPackages = [ hydra ];
-          };
-
-        testScript =
-          ''
-            $machine->waitForJob("postgresql");
-
-            # Initialise the database and the state.
-            $machine->mustSucceed
-                ( "createdb -O root hydra",
-                , "psql hydra -f ${hydra}/libexec/hydra/sql/hydra-postgresql.sql"
-                , "mkdir /var/lib/hydra"
-                );
-
-            # Start the web interface.
-            $machine->mustSucceed("HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=hydra;' hydra-server >&2 &");
-            $machine->waitForOpenPort("3000");
-          '';
-
-      };
-
-    };
-
+          # Start the web interface.
+          $machine->mustSucceed("HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=hydra;' hydra-server >&2 &");
+          $machine->waitForOpenPort("3000");
+        '';
+    });
 
 }
