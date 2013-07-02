@@ -3,7 +3,7 @@ package Hydra::Controller::User;
 use utf8;
 use strict;
 use warnings;
-use base 'Catalyst::Controller';
+use base 'Hydra::Base::Controller::REST';
 use Crypt::RandPasswd;
 use Digest::SHA1 qw(sha1_hex);
 use Hydra::Helper::Nix;
@@ -13,31 +13,60 @@ use Hydra::Helper::CatalystUtils;
 __PACKAGE__->config->{namespace} = '';
 
 
-sub login :Local {
+sub login :Local :Args(0) :ActionClass('REST::ForBrowsers') { }
+
+sub login_GET {
     my ($self, $c) = @_;
 
-    my $username = $c->request->params->{username} || "";
-    my $password = $c->request->params->{password} || "";
-
-    if ($username eq "" && $password eq "" && !defined $c->session->{referer}) {
-        my $baseurl = $c->uri_for('/');
-        my $referer = $c->request->referer;
-        $c->session->{referer} = $referer if defined $referer && $referer =~ m/^($baseurl)/;
-    }
-
-    if ($username && $password) {
-        backToReferer($c) if $c->authenticate({username => $username, password => $password});
-        $c->stash->{errorMsg} = "Bad username or password.";
-    }
+    my $baseurl = $c->uri_for('/');
+    my $referer = $c->request->referer;
+    $c->session->{referer} = $referer if defined $referer && $referer =~ m/^($baseurl)/;
 
     $c->stash->{template} = 'login.tt';
 }
 
+sub login_POST {
+    my ($self, $c) = @_;
 
-sub logout :Local {
+    my $username;
+    my $password;
+
+    $username = $c->stash->{params}->{username};
+    $password = $c->stash->{params}->{password};
+
+    if ($username && $password) {
+        if ($c->authenticate({username => $username, password => $password})) {
+            if ($c->request->looks_like_browser) {
+                backToReferer($c);
+            } else {
+                currentUser_GET($self, $c);
+            }
+        } else {
+            $self->status_forbidden($c, message => "Bad username or password.");
+            if ($c->request->looks_like_browser) {
+                login_GET($self, $c);
+            }
+        }
+    }
+}
+
+
+sub logout :Local :Args(0) :ActionClass('REST::ForBrowsers') { }
+
+sub logout_POST {
     my ($self, $c) = @_;
     $c->logout;
-    $c->response->redirect($c->request->referer || $c->uri_for('/'));
+    if ($c->request->looks_like_browser) {
+        $c->response->redirect($c->request->referer || $c->uri_for('/'));
+    } else {
+        $self->status_no_content($c);
+    }
+}
+
+sub logout_GET {
+    # Probably a better way to do this
+    my ($self, $c) = @_;
+    logout_POST($self, $c);
 }
 
 
@@ -116,6 +145,24 @@ sub register :Local Args(0) {
 }
 
 
+sub currentUser :Path('/current-user') :ActionClass('REST') { }
+
+sub currentUser_GET {
+    my ($self, $c) = @_;
+
+    requireLogin($c) if !$c->user_exists;
+
+    $self->status_ok(
+        $c,
+        entity => $c->model('DB::Users')->find({ 'me.username' => $c->user->username}, {
+          columns => [ "me.fullname", "me.emailaddress", "me.username", "userroles.role" ]
+        , join => [ "userroles" ]
+        , collapse => 1
+        })
+    );
+}
+
+
 sub user :Chained('/') PathPart('user') CaptureArgs(1) {
     my ($self, $c, $userName) = @_;
 
@@ -139,7 +186,9 @@ sub deleteUser {
 }
 
 
-sub edit :Chained('user') Args(0) {
+sub edit :Chained('user') :Args(0) :ActionClass('REST::ForBrowsers') { }
+
+sub edit_GET {
     my ($self, $c) = @_;
 
     my $user = $c->stash->{user};
@@ -148,18 +197,26 @@ sub edit :Chained('user') Args(0) {
 
     $c->session->{referer} = $c->request->referer if !defined $c->session->{referer};
 
-    if ($c->request->method ne "POST") {
-        $c->stash->{fullname} = $user->fullname;
-        $c->stash->{emailonerror} = $user->emailonerror;
-        return;
-    }
+    $c->stash->{fullname} = $user->fullname;
 
-    if (($c->request->params->{submit} // "") eq "delete") {
+    $c->stash->{emailonerror} = $user->emailonerror;
+}
+
+sub edit_POST {
+    my ($self, $c) = @_;
+
+    my $user = $c->stash->{user};
+
+    $c->stash->{template} = 'user.tt';
+
+    $c->session->{referer} = $c->request->referer if !defined $c->session->{referer};
+
+    if (($c->stash->{params}->{submit} // "") eq "delete") {
         deleteUser($self, $c, $user);
         backToReferer($c);
     }
 
-    if (($c->request->params->{submit} // "") eq "reset-password") {
+    if (($c->stash->{params}->{submit} // "") eq "reset-password") {
         $c->stash->{json} = {};
         error($c, "No email address is set for this user.")
             unless $user->emailaddress;
@@ -176,7 +233,7 @@ sub edit :Chained('user') Args(0) {
         return;
     }
 
-    my $fullName = trim $c->req->params->{fullname};
+    my $fullName = trim $c->stash->{params}->{fullname};
 
     txn_do($c->model('DB')->schema, sub {
 
@@ -184,15 +241,15 @@ sub edit :Chained('user') Args(0) {
 
         $user->update(
             { fullname => $fullName
-            , emailonerror => $c->request->params->{"emailonerror"} ? 1 : 0
+            , emailonerror => $c->stash->{params}->{"emailonerror"} ? 1 : 0
             });
 
-        my $password = $c->req->params->{password} // "";
+        my $password = $c->stash->{params}->{password} // "";
         if ($password ne "") {
             error($c, "You must specify a password of at least 6 characters.")
                 unless isValidPassword($password);
             error($c, "The passwords you specified did not match.")
-                if $password ne trim $c->req->params->{password2};
+                if $password ne trim $c->stash->{params}->{password2};
             setPassword($user, $password);
         }
 
@@ -204,7 +261,11 @@ sub edit :Chained('user') Args(0) {
 
     });
 
-    backToReferer($c);
+    if ($c->request->looks_like_browser) {
+        backToReferer($c);
+    } else {
+        $self->status_no_content($c);
+    }
 }
 
 

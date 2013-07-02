@@ -101,7 +101,7 @@ sub latest : Chained('get_builds') PathPart('latest') {
 
     notFound($c, "There is no successful build to redirect to.") unless defined $latest;
 
-    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("view_build"), [$latest->id], @rest));
+    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("build"), [$latest->id], @rest));
 }
 
 
@@ -116,7 +116,7 @@ sub latest_for : Chained('get_builds') PathPart('latest-for') {
 
     notFound($c, "There is no successful build for platform `$system' to redirect to.") unless defined $latest;
 
-    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("view_build"), [$latest->id], @rest));
+    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("build"), [$latest->id], @rest));
 }
 
 

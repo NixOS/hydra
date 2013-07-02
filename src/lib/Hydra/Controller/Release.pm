@@ -66,13 +66,13 @@ sub submit : Chained('release') PathPart('submit') Args(0) {
         txn_do($c->model('DB')->schema, sub {
             $c->stash->{release}->delete;
         });
-        $c->res->redirect($c->uri_for($c->controller('Project')->action_for('view'),
+        $c->res->redirect($c->uri_for($c->controller('Project')->action_for('project'),
             [$c->stash->{project}->name]));
     } else {
         txn_do($c->model('DB')->schema, sub {
             updateRelease($c, $c->stash->{release});
         });
-        $c->res->redirect($c->uri_for($self->action_for("view"),
+        $c->res->redirect($c->uri_for($self->action_for("project"),
             [$c->stash->{project}->name, $c->stash->{release}->name]));
     }
 }

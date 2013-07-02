@@ -15,6 +15,18 @@ use warnings;
 
 use base 'DBIx::Class::Core';
 
+=head1 COMPONENTS LOADED
+
+=over 4
+
+=item * L<Hydra::Component::ToJSON>
+
+=back
+
+=cut
+
+__PACKAGE__->load_components("+Hydra::Component::ToJSON");
+
 =head1 TABLE: C<CachedGitInputs>
 
 =cut
@@ -80,7 +92,7 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "branch", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fx3yosWMmJ+MnvL/dSWtFA
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:I4hI02FKRMkw76WV/KBocA
 
 1;

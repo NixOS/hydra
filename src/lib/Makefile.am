@@ -9,6 +9,7 @@ PERL_MODULES =					\
   $(wildcard Hydra/Base/*.pm)			\
   $(wildcard Hydra/Base/Controller/*.pm) 	\
   $(wildcard Hydra/Script/*.pm)			\
+  $(wildcard Hydra/Component/*.pm)		\
   $(wildcard Hydra/Plugin/*.pm)
 
 EXTRA_DIST = \

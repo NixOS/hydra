@@ -7,7 +7,7 @@
 
 [% ELSE %]
 
-  [% INCLUDE renderBuildList builds=queue showSchedulingInfo=1 hideResultInfo=1 %]
+  [% INCLUDE renderBuildList builds=resource showSchedulingInfo=1 hideResultInfo=1 %]
 
 [% END %]
 

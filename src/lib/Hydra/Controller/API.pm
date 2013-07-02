@@ -3,7 +3,7 @@ package Hydra::Controller::API;
 use utf8;
 use strict;
 use warnings;
-use base 'Catalyst::Controller';
+use base 'Hydra::Base::Controller::REST';
 use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
 use Hydra::Helper::CatalystUtils;
@@ -310,6 +310,11 @@ sub push : Chained('api') PathPart('push') Args(0) {
             , where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ]
             });
     }
+
+    $self->status_ok(
+        $c,
+        entity => { jobsetsTriggered => $c->stash->{json}->{jobsetsTriggered} }
+    );
 }
 
 

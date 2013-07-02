@@ -15,6 +15,18 @@ use warnings;
 
 use base 'DBIx::Class::Core';
 
+=head1 COMPONENTS LOADED
+
+=over 4
+
+=item * L<Hydra::Component::ToJSON>
+
+=back
+
+=cut
+
+__PACKAGE__->load_components("+Hydra::Component::ToJSON");
+
 =head1 TABLE: C<BuildOutputs>
 
 =cut
@@ -82,8 +94,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-30 16:22:11
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:UpVoKdd3OwMvlvyMjcYNVA
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:V8MbzKvZNEaeHBJV67+ZMQ
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

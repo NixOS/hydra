@@ -202,7 +202,7 @@ sub sendEmail {
 # always returns a request parameter as a list.
 sub paramToList {
     my ($c, $name) = @_;
-    my $x = $c->request->params->{$name};
+    my $x = $c->stash->{params}->{$name};
     return () unless defined $x;
     return @$x if ref($x) eq 'ARRAY';
     return ($x);
