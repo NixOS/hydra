@@ -115,11 +115,11 @@ sub doBuild {
     my $dependents = [];
 
     if (!isValidPath($drvPath)) {
-	$buildStatus = 3;
-	$errormsg = "derivation was garbage-collected prior to build";
-	goto done;
+        $buildStatus = 3;
+        $errormsg = "derivation was garbage-collected prior to build";
+        goto done;
     }
-    
+
     unless (all { isValidPath($_) } values(%outputs)) {
         $isCachedBuild = 0;
 
