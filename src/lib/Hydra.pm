@@ -92,7 +92,7 @@ has 'hydra_plugins' => (
 
 after setup_finalize => sub {
     my $class = shift;
-    $plugins = [Hydra::Plugin->plugins(db => $class->model('DB'), config => $class->config)];
+    $plugins = [Hydra::Plugin->instantiate(db => $class->model('DB'), config => $class->config)];
 };
 
 __PACKAGE__->setup();

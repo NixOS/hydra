@@ -21,7 +21,7 @@ STDOUT->autoflush();
 my $db = Hydra::Model::DB->new();
 my $config = getHydraConfig();
 
-my $plugins = [Hydra::Plugin->plugins(db => $db, config => $config)];
+my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
 
 # Don't check a jobset more than once every five minutes.
 my $minCheckInterval = 5 * 60;

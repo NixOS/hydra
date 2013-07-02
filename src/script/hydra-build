@@ -17,7 +17,7 @@ my $db = Hydra::Model::DB->new();
 
 my $config = getHydraConfig();
 
-my @plugins = Hydra::Plugin->plugins(db => $db, config => $config);
+my @plugins = Hydra::Plugin->instantiate(db => $db, config => $config);
 
 
 sub addBuildStepOutputs {

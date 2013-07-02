@@ -12,17 +12,9 @@ sub supportedInputTypes {
     $inputTypes->{'git'} = 'Git checkout';
 }
 
-sub fetchInput {
-    my ($self, $type, $name, $value) = @_;
-
-    return undef if $type ne "git";
-
-    (my $uri, my $branch, my $deepClone) = split ' ', $value;
-    $branch = defined $branch ? $branch : "master";
-
-    my $timestamp = time;
-    my $sha256;
-    my $storePath;
+# Clone or update a branch of a repository into our SCM cache.
+sub _cloneRepo {
+    my ($self, $uri, $branch, $deepClone) = @_;
 
     my $cacheDir = getSCMCacheDir . "/git";
     mkpath($cacheDir);
@@ -38,24 +30,14 @@ sub fetchInput {
 
     chdir $clonePath or die $!; # !!! urgh, shouldn't do a chdir
 
-    # This command force the update of the local branch to be in the same as
-    # the remote branch for whatever the repository state is.  This command mirror
+    # This command forces the update of the local branch to be in the same as
+    # the remote branch for whatever the repository state is.  This command mirrors
     # only one branch of the remote repository.
     ($res, $stdout, $stderr) = captureStdoutStderr(600,
         "git", "fetch", "-fu", "origin", "+$branch:$branch");
     ($res, $stdout, $stderr) = captureStdoutStderr(600,
         "git", "fetch", "-fu", "origin") if $res;
     die "error fetching latest change from git repo at `$uri':\n$stderr" if $res;
-
-    ($res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("git", "rev-parse", "$branch"));
-    die "error getting revision number of Git branch '$branch' at `$uri':\n$stderr" if $res;
-
-    my ($revision) = split /\n/, $stdout;
-    die "error getting a well-formated revision number of Git branch '$branch' at `$uri':\n$stdout"
-        unless $revision =~ /^[0-9a-fA-F]+$/;
-
-    my $ref = "refs/heads/$branch";
 
     # If deepClone is defined, then we look at the content of the repository
     # to determine if this is a top-git branch.
@@ -73,6 +55,40 @@ sub fetchInput {
             print STDERR "warning: `tg remote --populate origin' failed:\n$stderr" if $res;
         }
     }
+
+    return $clonePath;
+}
+
+sub _parseValue {
+    my ($value) = @_;
+    (my $uri, my $branch, my $deepClone) = split ' ', $value;
+    $branch = defined $branch ? $branch : "master";
+    return ($uri, $branch, $deepClone);
+
+}
+
+sub fetchInput {
+    my ($self, $type, $name, $value) = @_;
+
+    return undef if $type ne "git";
+
+    my ($uri, $branch, $deepClone) = _parseValue($value);
+
+    my $clonePath = $self->_cloneRepo($uri, $branch, $deepClone);
+
+    my $timestamp = time;
+    my $sha256;
+    my $storePath;
+
+    my ($res, $stdout, $stderr) = captureStdoutStderr(600,
+        ("git", "rev-parse", "$branch"));
+    die "error getting revision number of Git branch '$branch' at `$uri':\n$stderr" if $res;
+
+    my ($revision) = split /\n/, $stdout;
+    die "error getting a well-formated revision number of Git branch '$branch' at `$uri':\n$stdout"
+        unless $revision =~ /^[0-9a-fA-F]+$/;
+
+    my $ref = "refs/heads/$branch";
 
     # Some simple caching: don't check a uri/branch/revision more than once.
     # TODO: Fix case where the branch is reset to a previous commit.
@@ -143,6 +159,30 @@ sub fetchInput {
         , gitTag => $gitTag
         , shortRev => $shortRev
         };
+}
+
+sub getCommits {
+    my ($self, $type, $value, $rev1, $rev2) = @_;
+    return [] if $type ne "git";
+
+    return [] unless $rev1 =~ /^[0-9a-f]+$/;
+    return [] unless $rev2 =~ /^[0-9a-f]+$/;
+
+    my ($uri, $branch, $deepClone) = _parseValue($value);
+
+    my $clonePath = $self->_cloneRepo($uri, $branch, $deepClone);
+
+    my $out;
+    IPC::Run::run(["git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], \undef, \$out)
+        or die "cannot get git logs: $?";
+
+    my $res = [];
+    foreach my $line (split /\n/, $out) {
+        my ($revision, $author, $email, $date) = split "\t", $line;
+        push @$res, { revision => $revision, author => $author, email => $email };
+    }
+
+    return $res;
 }
 
 1;

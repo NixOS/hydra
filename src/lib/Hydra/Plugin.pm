@@ -7,9 +7,17 @@ use Module::Pluggable
 
 sub new {
     my ($class, %args) = @_;
-    my $self = { db => $args{db}, config => $args{config} };
+    my $self = { db => $args{db}, config => $args{config}, plugins => $args{plugins} };
     bless $self, $class;
     return $self;
+}
+
+sub instantiate {
+    my ($class, %args) = @_;
+    my $plugins = [];
+    $args{plugins} = $plugins;
+    push @$plugins, $class->plugins(%args);
+    return @$plugins;
 }
 
 # Called when build $build has finished.  If the build failed, then
@@ -32,6 +40,14 @@ sub supportedInputTypes {
 sub fetchInput {
     my ($self, $type, $name, $value) = @_;
     return undef;
+}
+
+# Get the commits to repository ‘$value’ between revisions ‘$rev1’ and
+# ‘$rev2’.  Each commit should be a hash ‘{ revision = "..."; author =
+# "..."; email = "..."; }’.
+sub getCommits {
+    my ($self, $type, $value, $rev1, $rev2) = @_;
+    return [];
 }
 
 1;
