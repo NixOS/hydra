@@ -177,7 +177,7 @@ in rec {
         { services.postgresql.enable = true;
           services.postgresql.package = pkgs.postgresql92;
           environment.systemPackages = [ hydra pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
-          virtualisation.memorySize = 2048;
+          virtualisation.memorySize = 2047;
         };
 
       testScript =
