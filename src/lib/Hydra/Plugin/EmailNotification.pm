@@ -12,6 +12,7 @@ use File::Slurp;
 use Template;
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use FileHandle;
 
 
 my $template = $ENV{'HYDRA_EMAIL_TEMPLATE'} || <<EOF;
@@ -92,8 +93,18 @@ sub buildFinished {
             };
 
         my $body;
+        if (-e $template) {
+            my $fh = FileHandle->new($template, "r");
+            if ($fh) {
+                $template = $fh;
+            }
+        }
         $tt->process(\$template, $vars, \$body)
             or die "failed to generate email from template";
+
+        if (ref($template) eq "FileHandle") {
+            $template->close();
+        }
 
         # stripping trailing spaces from lines
         $body =~ s/[\ ]+$//gm;
