@@ -52,22 +52,22 @@ sub buildFinished {
     my %addresses;
     foreach my $b ($build, @{$dependents}) {
         my $prevBuild = getPreviousBuild($b);
+        # Do we want to send mail for this build?
+        unless ($ENV{'HYDRA_FORCE_SEND_MAIL'}) {
+            next unless $b->jobset->enableemail;
+
+            # If build is cancelled or aborted, do not send email.
+            next if $b->buildstatus == 4 || $b->buildstatus == 3;
+
+            # If there is a previous (that is not cancelled or aborted) build
+            # with same buildstatus, do not send email.
+            next if defined $prevBuild && ($b->buildstatus == $prevBuild->buildstatus);
+        }
+
         my $to = $b->jobset->emailoverride ne "" ? $b->jobset->emailoverride : $b->maintainers;
 
         foreach my $address (split ",", $to) {
             $address = trim $address;
-
-            # Do we want to send mail for this build?
-            unless ($ENV{'HYDRA_FORCE_SEND_MAIL'}) {
-                next unless $b->jobset->enableemail;
-
-                # If build is cancelled or aborted, do not send email.
-                next if $b->buildstatus == 4 || $b->buildstatus == 3;
-
-                # If there is a previous (that is not cancelled or aborted) build
-                # with same buildstatus, do not send email.
-                next if defined $prevBuild && ($b->buildstatus == $prevBuild->buildstatus);
-            }
 
             $addresses{$address} //= { builds => [] };
             push @{$addresses{$address}->{builds}}, $b;
