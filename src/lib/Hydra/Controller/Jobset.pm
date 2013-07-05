@@ -284,7 +284,7 @@ sub checkInputValue {
 sub updateJobset {
     my ($c, $jobset) = @_;
 
-    my $jobsetName = $c->stash->{jobsetName} or $jobset->name;
+    my $jobsetName = $c->stash->{jobsetName} // $jobset->name;
     error($c, "Invalid jobset name: ‘$jobsetName’") if $jobsetName !~ /^$jobsetNameRE$/;
 
     # When the expression is in a .scm file, assume it's a Guile + Guix
