@@ -14,7 +14,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
 
-my $template = $ENV{'HYDRA_EMAIL_TEMPLATE'} || <<EOF;
+my $template = <<EOF;
 Hi,
 
 The status of Hydra job [% showJobName(build) %] [% IF showSystem %](on [% build.system %]) [% END %][% IF prevBuild && build.buildstatus != prevBuild.buildstatus %]has changed from "[% showStatus(prevBuild) %]" to "[% showStatus(build) %]"[% ELSE %]is "[% showStatus(build) %]"[% END %].  For details, see
