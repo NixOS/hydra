@@ -13,8 +13,7 @@ You can <a href="[% c.uri_for('/logout') %]">logout</a> here.
 c.uri_for('/register') %]">register</a> first.</p>
 -->
 
-<br/>
-
+<!--
 <form class="form-horizontal" method="post" action="[% c.uri_for('/login') %]">
 
   <fieldset>
@@ -38,6 +37,7 @@ c.uri_for('/register') %]">register</a> first.</p>
   </fieldset>
 
 </form>
+-->
 
 [% END %]
 

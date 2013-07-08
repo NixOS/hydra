@@ -1,6 +1,6 @@
 [% BLOCK menuItem %]
   <li class="[% IF "${root}${curUri}" == uri %]active[% END %]" [% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>
-    <a href="[% uri %]">[% title %]</a>
+    <a [% HTML.attributes(href => uri) %]>[% title %]</a>
   </li>
 [% END %]
 
@@ -198,9 +198,13 @@
 
   [% IF c.user_exists %]
     [% INCLUDE menuItem uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
-    [% INCLUDE menuItem uri = c.uri_for(c.controller('Root').action_for('logout')) title = "Sign out" %]
+    <li>
+      <a href="#" id="persona-signout">Sign out</a>
+    </li>
   [% ELSE %]
-    [% INCLUDE menuItem uri = c.uri_for(c.controller('Root').action_for('login')) title = "Sign in" %]
+    <li>
+      <a href="#" id="persona-signin">Sign in</a>
+    </li>
   [% END %]
 
 </ul>

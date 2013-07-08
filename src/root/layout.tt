@@ -11,6 +11,8 @@
   <head>
     <title>Hydra - [% HTML.escape(title) %]</title>
 
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+
     <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
     <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.1/jquery-ui.min.js"></script>
 
@@ -95,12 +97,46 @@
         <small>
           <em><a href="http://nixos.org/hydra" target="_new">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
           [% IF c.user_exists %]
-          You are logged in as <tt>[% c.user.username %]</tt>.
+          You are logged in as <tt>[% HTML.escape(c.user.username) %]</tt>.
           [% END %]
         </small>
       </footer>
 
     </div>
+
+    <script src="https://login.persona.org/include.js"></script>
+
+    <script>
+      navigator.id.watch({
+        loggedInUser: [% c.user_exists ? '"' _ HTML.escape(c.user.username) _ '"' : "null" %],
+        onlogin: function(assertion) {
+          $.post("[% c.uri_for('/persona-login') %]", { assertion: assertion })
+            .done(function(data) {
+              if (data.error)
+                bootbox.alert("Login failed: " + data.error);
+              else
+                window.location.reload();
+            })
+            .fail(function() { bootbox.alert("Server request failed!"); });
+        },
+        onlogout: function() {
+          $.ajax({
+            type: 'POST',
+            url: '/logout',
+            success: function(res, status, xhr) { window.location.reload(); },
+            error: function(xhr, status, err) { alert("Logout failure: " + err); }
+          });
+        }
+      });
+
+      $("#persona-signin").click(function() {
+        navigator.id.request();
+      });
+
+      $("#persona-signout").click(function() {
+        navigator.id.logout();
+      });
+    </script>
 
   </body>
 

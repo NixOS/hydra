@@ -8,6 +8,8 @@ use Crypt::RandPasswd;
 use Digest::SHA1 qw(sha1_hex);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use LWP::UserAgent;
+use JSON;
 
 
 __PACKAGE__->config->{namespace} = '';
@@ -67,6 +69,43 @@ sub logout_GET {
     # Probably a better way to do this
     my ($self, $c) = @_;
     logout_POST($self, $c);
+}
+
+
+sub persona_login :Path('/persona-login') Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{json} = {};
+    die if $c->request->method ne "POST";
+
+    my $assertion = $c->req->params->{assertion} or die;
+
+    my $ua = new LWP::UserAgent;
+    my $response = $ua->post(
+        'https://verifier.login.persona.org/verify',
+        { assertion => $assertion,
+          audience => "http://localhost:3000/"
+        });
+    Catalyst::Exception->throw("Did not get a response from Persona.") unless $response->is_success;
+
+    my $d = decode_json($response->decoded_content) or die;
+    Catalyst::Exception->throw("Persona says: $d->{reason}") if $d->{status} ne "okay";
+
+    my $email = $d->{email} or die;
+
+    my $user = $c->find_user({ username => $email });
+
+    if (!$user) {
+        $c->model('DB::Users')->create(
+            { username => $email
+            , password => "!"
+            , emailaddress => $email,
+            });
+        $user = $c->find_user({ username => $email }) or die;
+    }
+
+    $c->set_authenticated($user);
+
+    $c->stash->{json}->{result} = "ok";
 }
 
 

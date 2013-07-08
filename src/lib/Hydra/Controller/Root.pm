@@ -135,7 +135,7 @@ sub machines :Local Args(0) {
             { order_by => 'stoptime desc', rows => 1 });
         ${$machines}{$m}{'idle'} = $idle ? $idle->stoptime : 0;
     }
-    
+
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
         { finished => 0, 'me.busy' => 1, 'build.busy' => 1, },
