@@ -14,7 +14,7 @@ sub notifyBuildFinished {
             $plugin->buildFinished($build, $dependents);
         };
         if ($@) {
-            print STDERR "\$plugin->buildFinished: $@\n";
+            print STDERR "$plugin->buildFinished: $@\n";
         }
     }
 }
