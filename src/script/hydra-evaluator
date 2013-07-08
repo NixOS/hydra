@@ -148,7 +148,7 @@ sub checkJobsetWrapped {
         foreach my $job (permute @{$jobs->{job}}) {
             next if $job->{jobName} eq "";
             print STDERR "  considering job " . $project->name, ":", $jobset->name, ":", $job->{jobName} . "\n";
-            checkBuild($db, $project, $jobset, $inputInfo, $nixExprInput, $job, \%buildIds, $prevEval, $jobOutPathMap);
+            checkBuild($db, $project, $jobset, $inputInfo, $nixExprInput, $job, \%buildIds, $prevEval, $jobOutPathMap, $plugins);
         }
 
         # Update the last checked times and error messages for each

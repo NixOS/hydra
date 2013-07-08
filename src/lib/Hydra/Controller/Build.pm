@@ -575,7 +575,7 @@ sub clone_submit : Chained('buildChain') PathPart('clone/submit') Args(0) {
     my %currentBuilds;
     my $newBuild = checkBuild(
         $c->model('DB'), $build->project, $build->jobset,
-        $inputInfo, $nixExprInput, $job, \%currentBuilds, undef, {});
+        $inputInfo, $nixExprInput, $job, \%currentBuilds, undef, {}, $c->hydra_plugins);
 
     error($c, "This build has already been performed.") unless $newBuild;
 

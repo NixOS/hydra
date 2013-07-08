@@ -8,6 +8,7 @@ use Nix::Store;
 use Hydra::Plugin;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
+use Hydra::Helper::PluginHooks;
 use Hydra::Model::DB;
 use Hydra::Helper::AddBuilds;
 
@@ -77,19 +78,6 @@ sub failDependents {
         }
 
     });
-}
-
-
-sub notify {
-    my ($build, $dependents) = @_;
-    foreach my $plugin (@plugins) {
-        eval {
-            $plugin->buildFinished($build, $dependents);
-        };
-        if ($@) {
-            print STDERR "$plugin->buildFinished: $@\n";
-        }
-    }
 }
 
 
@@ -319,7 +307,7 @@ sub doBuild {
 
     });
 
-    notify($build, $dependents);
+    notifyBuildFinished(\@plugins, $build, $dependents);
 }
 
 
@@ -328,7 +316,7 @@ print STDERR "performing build $buildId\n";
 
 if ($ENV{'HYDRA_MAIL_TEST'}) {
     my $build = $db->resultset('Builds')->find($buildId);
-    notify($build, []);
+    notifyBuildFinished(\@plugins, $build, []);
     exit 0;
 }
 

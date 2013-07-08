@@ -15,6 +15,7 @@ use File::Path;
 use File::Temp;
 use File::Spec;
 use File::Slurp;
+use Hydra::Helper::PluginHooks;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -389,7 +390,7 @@ sub getPrevJobsetEval {
 
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
-    my ($db, $project, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildIds, $prevEval, $jobOutPathMap) = @_;
+    my ($db, $project, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildIds, $prevEval, $jobOutPathMap, $plugins) = @_;
 
     my @outputNames = sort keys %{$buildInfo->{output}};
     die unless scalar @outputNames;
@@ -517,6 +518,7 @@ sub checkBuild {
         if ($build->iscachedbuild) {
             print STDERR "    marked as cached build ", $build->id, "\n";
             addBuildProducts($db, $build);
+            notifyBuildFinished($plugins, $build, []);
         } else {
             print STDERR "    added to queue as build ", $build->id, "\n";
         }
