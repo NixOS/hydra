@@ -75,7 +75,7 @@ sub logout_GET {
 sub persona_login :Path('/persona-login') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{json} = {};
-    die if $c->request->method ne "POST";
+    requirePost($c);
 
     my $assertion = $c->req->params->{assertion} or die;
 
@@ -85,10 +85,10 @@ sub persona_login :Path('/persona-login') Args(0) {
         { assertion => $assertion,
           audience => "http://localhost:3000/"
         });
-    Catalyst::Exception->throw("Did not get a response from Persona.") unless $response->is_success;
+    error($c, "Did not get a response from Persona.") unless $response->is_success;
 
     my $d = decode_json($response->decoded_content) or die;
-    Catalyst::Exception->throw("Persona says: $d->{reason}") if $d->{status} ne "okay";
+    error($c, "Persona says: $d->{reason}") if $d->{status} ne "okay";
 
     my $email = $d->{email} or die;
 
@@ -106,6 +106,16 @@ sub persona_login :Path('/persona-login') Args(0) {
     $c->set_authenticated($user);
 
     $c->stash->{json}->{result} = "ok";
+    $c->flash->{flashMsg} = "You are now signed in as <tt>" . $email . "</tt>";
+}
+
+
+sub persona_logout :Path('/persona-logout') Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{json} = {};
+    requirePost($c);
+    $c->flash->{flashMsg} = "You are no longer signed in." if $c->user_exists();
+    $c->logout;
 }
 
 

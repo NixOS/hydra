@@ -89,7 +89,8 @@ sub getPreviousSuccessfulBuild {
 
 
 sub error {
-    my ($c, $msg) = @_;
+    my ($c, $msg, $status) = @_;
+    $c->response->status($status) if defined $status;
     $c->error($msg);
     $c->detach; # doesn't return
 }
@@ -97,8 +98,7 @@ sub error {
 
 sub notFound {
     my ($c, $msg) = @_;
-    $c->response->status(404);
-    error($c, $msg);
+    error($c, $msg, 404);
 }
 
 
@@ -113,8 +113,7 @@ sub backToReferer {
 sub requireLogin {
     my ($c) = @_;
     $c->session->{referer} = $c->request->uri;
-    $c->response->redirect($c->uri_for('/login'));
-    $c->detach; # doesn't return
+    error($c, "This page requires you to sign in.", 403);
 }
 
 
@@ -130,24 +129,21 @@ sub requireProjectOwner {
 
     requireLogin($c) if !$c->user_exists;
 
-    error($c, "Only the project members or administrators can perform this operation.")
+    error($c, "Only the project members or administrators can perform this operation.", 403)
         unless isProjectOwner($c, $project);
 }
 
 
 sub isAdmin {
     my ($c) = @_;
-
     return $c->user_exists && $c->check_user_roles('admin');
 }
 
 
 sub requireAdmin {
     my ($c) = @_;
-
     requireLogin($c) if !$c->user_exists;
-
-    error($c, "Only administrators can perform this operation.")
+    error($c, "Only administrators can perform this operation.", 403)
         unless isAdmin($c);
 }
 

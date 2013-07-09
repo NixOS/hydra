@@ -121,12 +121,11 @@
             .fail(function() { bootbox.alert("Server request failed!"); });
         },
         onlogout: function() {
-          $.ajax({
-            type: 'POST',
-            url: '/logout',
-            success: function(res, status, xhr) { window.location.reload(); },
-            error: function(xhr, status, err) { alert("Logout failure: " + err); }
-          });
+          $.post("[% c.uri_for('/persona-logout') %]")
+            .done(function(data) {
+              window.location.reload();
+            })
+            .fail(function() { bootbox.alert("Server request failed!"); });
         }
       });
 
