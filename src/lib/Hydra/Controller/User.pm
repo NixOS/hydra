@@ -10,6 +10,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use LWP::UserAgent;
 use JSON;
+use HTML::Entities;
 
 
 __PACKAGE__->config->{namespace} = '';
@@ -106,7 +107,7 @@ sub persona_login :Path('/persona-login') Args(0) {
     $c->set_authenticated($user);
 
     $c->stash->{json}->{result} = "ok";
-    $c->flash->{successMsg} = "You are now signed in as <tt>" . $email . "</tt>";
+    $c->flash->{successMsg} = "You are now signed in as <tt>" . encode_entities($email) . "</tt>";
 }
 
 
@@ -266,6 +267,7 @@ sub edit_POST {
     }
 
     if (($c->stash->{params}->{submit} // "") eq "reset-password") {
+        error($c, "This user's password cannot be reset.") if $user->password eq "!";
         $c->stash->{json} = {};
         error($c, "No email address is set for this user.")
             unless $user->emailaddress;
@@ -294,7 +296,7 @@ sub edit_POST {
             });
 
         my $password = $c->stash->{params}->{password} // "";
-        if ($password ne "") {
+        if ($user->password ne "!" && $password ne "") {
             error($c, "You must specify a password of at least 6 characters.")
                 unless isValidPassword($password);
             error($c, "The passwords you specified did not match.")
@@ -311,6 +313,7 @@ sub edit_POST {
     });
 
     if ($c->request->looks_like_browser) {
+        $c->flash->{successMsg} = "Your preferences have been updated.";
         backToReferer($c);
     } else {
         $self->status_no_content($c);
