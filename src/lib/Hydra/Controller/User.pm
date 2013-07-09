@@ -58,18 +58,9 @@ sub logout :Local :Args(0) :ActionClass('REST::ForBrowsers') { }
 
 sub logout_POST {
     my ($self, $c) = @_;
+    $c->flash->{flashMsg} = "You are no longer signed in." if $c->user_exists();
     $c->logout;
-    if ($c->request->looks_like_browser) {
-        $c->response->redirect($c->request->referer || $c->uri_for('/'));
-    } else {
-        $self->status_no_content($c);
-    }
-}
-
-sub logout_GET {
-    # Probably a better way to do this
-    my ($self, $c) = @_;
-    logout_POST($self, $c);
+    $self->status_no_content($c);
 }
 
 
@@ -107,16 +98,7 @@ sub persona_login :Path('/persona-login') Args(0) {
     $c->set_authenticated($user);
 
     $c->stash->{json}->{result} = "ok";
-    $c->flash->{successMsg} = "You are now signed in as <tt>" . encode_entities($email) . "</tt>";
-}
-
-
-sub persona_logout :Path('/persona-logout') Args(0) {
-    my ($self, $c) = @_;
-    $c->stash->{json} = {};
-    requirePost($c);
-    $c->flash->{flashMsg} = "You are no longer signed in." if $c->user_exists();
-    $c->logout;
+    $c->flash->{successMsg} = "You are now signed in as <tt>" . encode_entities($email) . "</tt>.";
 }
 
 

@@ -2,9 +2,8 @@
 [% PROCESS common.tt %]
 
 [% IF c.user_exists %]
-<p class="btn-info btn-large">
-You are already logged in as <tt>[% c.user.username %]</tt>.
-You can <a href="[% c.uri_for('/logout') %]">logout</a> here.
+<p class="alert alert-info">
+You are already signed in as <tt>[% HTML.escape(c.user.username) %]</tt>.
 </p>
 [% ELSE %]
 
@@ -13,7 +12,6 @@ You can <a href="[% c.uri_for('/logout') %]">logout</a> here.
 c.uri_for('/register') %]">register</a> first.</p>
 -->
 
-<!--
 <form class="form-horizontal" method="post" action="[% c.uri_for('/login') %]">
 
   <fieldset>
@@ -37,7 +35,6 @@ c.uri_for('/register') %]">register</a> first.</p>
   </fieldset>
 
 </form>
--->
 
 [% END %]
 

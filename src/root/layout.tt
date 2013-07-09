@@ -102,38 +102,48 @@
 
     </div>
 
-    <script src="https://login.persona.org/include.js"></script>
-
     <script>
-      navigator.id.watch({
-        loggedInUser: [% c.user_exists ? '"' _ HTML.escape(c.user.username) _ '"' : "null" %],
-        onlogin: function(assertion) {
-          $.post("[% c.uri_for('/persona-login') %]", { assertion: assertion })
-            .done(function(data) {
-              if (data.error)
-                bootbox.alert("Login failed: " + data.error);
-              else
-                window.location.reload();
-            })
-            .fail(function() { bootbox.alert("Server request failed!"); });
-        },
-        onlogout: function() {
-          $.post("[% c.uri_for('/persona-logout') %]")
-            .done(function(data) {
-              window.location.reload();
-            })
-            .fail(function() { bootbox.alert("Server request failed!"); });
-        }
-      });
-
-      $("#persona-signin").click(function() {
-        navigator.id.request();
-      });
-
-      $("#persona-signout").click(function() {
-        navigator.id.logout();
-      });
+      function doLogout() {
+        $.post("[% c.uri_for('/logout') %]")
+          .done(function(data) {
+            window.location.reload();
+          })
+          .fail(function() { bootbox.alert("Server request failed!"); });
+      }
     </script>
+
+    [% IF c.user_exists && c.user.password != '!' %]
+      <script>
+        $("#persona-signout").click(doLogout);
+      </script>
+    [% ELSE %]
+      <script src="https://login.persona.org/include.js"></script>
+
+      <script>
+        navigator.id.watch({
+          loggedInUser: [% c.user_exists ? '"' _ HTML.escape(c.user.username) _ '"' : "null" %],
+          onlogin: function(assertion) {
+            $.post("[% c.uri_for('/persona-login') %]", { assertion: assertion })
+              .done(function(data) {
+                if (data.error)
+                  bootbox.alert("Login failed: " + data.error);
+                else
+                  window.location.reload();
+              })
+              .fail(function() { bootbox.alert("Server request failed!"); });
+          },
+          onlogout: doLogout
+        });
+
+        $("#persona-signin").click(function() {
+          navigator.id.request();
+        });
+
+        $("#persona-signout").click(function() {
+          navigator.id.logout();
+        });
+      </script>
+    [% END %]
 
   </body>
 
