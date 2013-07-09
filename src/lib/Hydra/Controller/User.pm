@@ -106,7 +106,7 @@ sub persona_login :Path('/persona-login') Args(0) {
     $c->set_authenticated($user);
 
     $c->stash->{json}->{result} = "ok";
-    $c->flash->{flashMsg} = "You are now signed in as <tt>" . $email . "</tt>";
+    $c->flash->{successMsg} = "You are now signed in as <tt>" . $email . "</tt>";
 }
 
 

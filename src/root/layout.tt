@@ -95,7 +95,7 @@
         <small>
           <em><a href="http://nixos.org/hydra" target="_new">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
           [% IF c.user_exists %]
-          You are logged in as <tt>[% HTML.escape(c.user.username) %]</tt>.
+          You are signed in as <tt>[% HTML.escape(c.user.username) %]</tt>.
           [% END %]
         </small>
       </footer>
