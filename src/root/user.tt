@@ -69,11 +69,11 @@
       </div>
     [% END %]
 
-    [% IF !create && c.check_user_roles('admin') %]
+    [% IF !create %]
       <div class="control-group">
         <label class="control-label">Roles</label>
         <div class="controls">
-          <select multiple name="roles" class="span3">
+          <select multiple name="roles" class="span3" [% IF !c.check_user_roles('admin') %]disabled="1"[% END %]>
             [% INCLUDE roleoption role="admin" %]
             [% INCLUDE roleoption role="create-project" %]
           </select>
