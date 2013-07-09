@@ -7,11 +7,6 @@ You are already signed in as <tt>[% HTML.escape(c.user.username) %]</tt>.
 </p>
 [% ELSE %]
 
-<!--
-<p>Don't have an account yet? Please <a href="[%
-c.uri_for('/register') %]">register</a> first.</p>
--->
-
 <form class="form-horizontal" method="post" action="[% c.uri_for('/login') %]">
 
   <fieldset>

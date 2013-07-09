@@ -202,9 +202,17 @@
       <a href="#" id="persona-signout">Sign out</a>
     </li>
   [% ELSE %]
-    <li>
-      <a href="#" id="persona-signin">Sign in</a>
-    </li>
+    [% WRAPPER makeSubMenu title="Sign in" %]
+      <li>
+        <a href="#" id="persona-signin">
+          <img src="https://developer.mozilla.org/files/3963/persona_sign_in_blue.png" alt="Sign in with Persona" />
+        </a>
+      </li>
+      <li class="divider"></li>
+      <li>
+        <a href="[% c.uri_for('/login') %]">Sign in with a Hydra user name</a>
+      </li>
+    [% END %]
   [% END %]
 
 </ul>
