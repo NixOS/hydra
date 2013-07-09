@@ -75,7 +75,7 @@ sub persona_login :Path('/persona-login') Args(0) {
     my $response = $ua->post(
         'https://verifier.login.persona.org/verify',
         { assertion => $assertion,
-          audience => "http://localhost:3000/"
+          audience => $c->uri_for('/')
         });
     error($c, "Did not get a response from Persona.") unless $response->is_success;
 
