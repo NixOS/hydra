@@ -59,6 +59,7 @@ sub jobset_GET {
                     'me.name',
                     'me.project',
                     'me.errormsg',
+                    'me.emailoverride',
                     'jobsetinputs.name',
                     {
                         'jobsetinputs.jobsetinputalts.altnr' => 'jobsetinputalts.altnr',
