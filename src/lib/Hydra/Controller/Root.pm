@@ -282,6 +282,7 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
     my $path = queryPathFromHashPart($hash);
 
     if (!$path) {
+	$c->response->status(404);
         $c->response->content_type('text/plain');
         $c->stash->{plain}->{data} = "does not exist\n";
         $c->forward('Hydra::View::Plain');
