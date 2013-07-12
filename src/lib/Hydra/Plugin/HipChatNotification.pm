@@ -58,7 +58,7 @@ sub buildFinished {
             }
 
             foreach my $commit (@commits) {
-                print STDERR "$commit->{revision} by $commit->{author}\n";
+                #print STDERR "$commit->{revision} by $commit->{author}\n";
                 $authors{$commit->{author}} = $commit->{email};
                 $nrCommits++;
             }
@@ -92,7 +92,6 @@ sub buildFinished {
         }
 
         print STDERR "sending hipchat notification to room $roomId: $msg\n";
-        next;
 
         my $ua = LWP::UserAgent->new();
         my $resp = $ua->post('https://api.hipchat.com/v1/rooms/message?format=json&auth_token=' . $room->{room}->{token}, {
