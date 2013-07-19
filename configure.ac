@@ -52,8 +52,7 @@ then
     NIX_STATE_DIR="$TMPDIR"
     export NIX_STATE_DIR
 fi
-if "$NIX_STORE_PROGRAM" --timeout 123 -q > /dev/null 2>&1
-then
+if NIX_REMOTE=daemon "$NIX_STORE_PROGRAM" --timeout 123 -q; then 
     AC_MSG_RESULT([yes])
 else
     AC_MSG_RESULT([no])
