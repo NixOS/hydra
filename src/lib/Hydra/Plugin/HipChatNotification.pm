@@ -9,7 +9,7 @@ sub buildFinished {
     my ($self, $build, $dependents) = @_;
 
     my $cfg = $self->{config}->{hipchat};
-    my @config = ref $cfg eq "ARRAY" ? @$cfg : ($cfg);
+    my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
 
