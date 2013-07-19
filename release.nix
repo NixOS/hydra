@@ -24,7 +24,7 @@ in rec {
 
       versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
 
-      preConfigure = ''
+      preHook = ''
         # TeX needs a writable font cache.
         export VARTEXFONTS=$TMPDIR/texfonts
       '';
@@ -118,7 +118,7 @@ in rec {
           gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial gnused graphviz bazaar
         ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
-      preConfigure = "patchShebangs .";
+      preCheck = "patchShebangs .";
 
       postInstall = ''
         mkdir -p $out/nix-support
