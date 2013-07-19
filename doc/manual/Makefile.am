@@ -1,4 +1,4 @@
-DOCBOOK_FILES = installation.xml introduction.xml manual.xml projects.xml
+DOCBOOK_FILES = installation.xml introduction.xml manual.xml projects.xml hacking.xml
 
 EXTRA_DIST = $(DOCBOOK_FILES)
 
