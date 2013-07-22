@@ -25,21 +25,8 @@ sub fetchInput {
 
     my $stdout; my $stderr;
 
-    my $cacheDir = getSCMCacheDir . "/bzr";
-    mkpath($cacheDir);
-    my $clonePath = $cacheDir . "/" . sha256_hex($uri);
-
-    if (! -d $clonePath) {
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600, "bzr", "branch", $uri, $clonePath);
-        die "error cloning bazaar branch at `$uri':\n$stderr" if $res;
-    }
-
-    chdir $clonePath or die $!;
-    (my $res, $stdout, $stderr) = captureStdoutStderr(600, "bzr", "pull");
-    die "error pulling latest change bazaar branch at `$uri':\n$stderr" if $res;
-
     # First figure out the last-modified revision of the URI.
-    my @cmd = (["bzr", "revno"], "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
+    my @cmd = (["bzr", "revno", $uri], "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
 
     IPC::Run::run(@cmd, \$stdout, \$stderr);
     die "cannot get head revision of Bazaar branch at `$uri':\n$stderr" if $?;
@@ -61,7 +48,7 @@ sub fetchInput {
         $ENV{"NIX_PREFETCH_BZR_LEAVE_DOT_BZR"} = $type eq "bzr-checkout" ? "1" : "0";
 
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            "nix-prefetch-bzr", $clonePath, $revision);
+            "nix-prefetch-bzr", $uri, $revision);
         die "cannot check out Bazaar branch `$uri':\n$stderr" if $res;
 
         ($sha256, $storePath) = split ' ', $stdout;
