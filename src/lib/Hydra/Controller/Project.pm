@@ -23,6 +23,7 @@ sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
       "releases.name",
       "releases.timestamp",
       "jobsets.name",
+      "jobsets.disabled",
     ], join => [ 'owner', 'views', 'releases', 'jobsets' ], order_by => { -desc => "releases.timestamp" }, collapse => 1 });
 
     if ($project) {
