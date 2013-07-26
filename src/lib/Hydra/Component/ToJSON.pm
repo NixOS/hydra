@@ -16,7 +16,7 @@ sub TO_JSON {
         next unless defined $relinfo->{attrs}->{accessor};
         my $accessor = $relinfo->{attrs}->{accessor};
         if ($accessor eq "single" and exists $self->{_relationship_data}{$relname}) {
-            $json->{$relname} = $self->$relname->TO_JSON;
+            $json->{$relname} = $self->$relname;
         } else {
             unless (defined $self->{related_resultsets}{$relname}) {
                 my $cond = $relinfo->{cond};
@@ -30,9 +30,9 @@ sub TO_JSON {
             }
             if (defined $self->related_resultset($relname)->get_cache) {
                 if ($accessor eq "multi") {
-                    $json->{$relname} = [ map { $_->TO_JSON } $self->$relname ];
+                    $json->{$relname} = [ $self->$relname ];
                 } else {
-                    $json->{$relname} = $self->$relname->TO_JSON;
+                    $json->{$relname} = $self->$relname;
                 }
             }
         }
