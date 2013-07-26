@@ -239,7 +239,7 @@ sub end : ActionClass('RenderView') {
             $c->response->status . " " . HTTP::Status::status_message($c->response->status);
     }
 
-    $c->forward('serialize');
+    $c->forward('serialize') if defined $c->stash->{resource};
 }
 
 sub serialize : ActionClass('Serialize') { }
