@@ -151,14 +151,36 @@ in
 
     systemd.services."hydra-init" =
       { wantedBy = [ "multi-user.target" ];
+        requires = [ "postgresql.service" ];
+        after = [ "postgresql.service" ];
         environment = env;
         script = ''
           mkdir -p ${baseDir}/data
           chown hydra ${baseDir}/data
           ln -sf ${hydraConf} ${baseDir}/data/hydra.conf
+          pass=$(HOME=/root ${pkgs.openssl}/bin/openssl rand -base64 32)
+          if [ ! -f ${baseDir}/.pgpass ]; then
+              ${config.services.postgresql.package}/bin/psql postgres << EOF
+          CREATE USER hydra PASSWORD '$pass';
+          EOF
+              ${config.services.postgresql.package}/bin/createdb -O hydra hydra
+              cat > ${baseDir}/.pgpass-tmp << EOF
+          localhost:*:hydra:hydra:$pass
+          EOF
+              chown hydra ${baseDir}/.pgpass-tmp
+              chmod 600 ${baseDir}/.pgpass-tmp
+              mv ${baseDir}/.pgpass-tmp ${baseDir}/.pgpass
+          fi
           ${pkgs.shadow}/bin/su hydra -c ${cfg.hydra}/bin/hydra-init
+          ${config.services.postgresql.package}/bin/psql hydra << EOF
+            BEGIN;
+            INSERT INTO Users(userName, emailAddress, password) VALUES ('admin', '${cfg.notificationSender}', '$(echo -n $pass | sha1sum | cut -c1-40)');
+            INSERT INTO UserRoles(userName, role) values('admin', 'admin');
+            COMMIT;
+          EOF
         '';
         serviceConfig.Type = "oneshot";
+        serviceConfig.RemainAfterExit = true;
       };
     
     systemd.services."hydra-server" =
