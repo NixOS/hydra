@@ -28,7 +28,7 @@ let
   serverEnv = env //
     { HYDRA_LOGO = if cfg.logo != null then cfg.logo else "";
       HYDRA_TRACKER = cfg.tracker;
-    } // (optionalAttrs cfg.debugMode { DBIC_TRACE = 1; });
+    } // (optionalAttrs cfg.debugServer { DBIC_TRACE = 1; });
 in
 
 {
