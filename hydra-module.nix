@@ -199,7 +199,7 @@ in
       { wantedBy = [ "multi-user.target" ];
         wants = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
-        path = [ pkgs.nettools pkgs.ssmtp ];
+        path = [ pkgs.nettools ];
         environment = env;
         serviceConfig =
           { ExecStartPre = "${cfg.hydra}/bin/hydra-queue-runner --unlock";
@@ -213,7 +213,7 @@ in
       { wantedBy = [ "multi-user.target" ];
         wants = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
-        path = [ pkgs.nettools pkgs.ssmtp ];
+        path = [ pkgs.nettools ];
         environment = env;
         serviceConfig =
           { ExecStart = "@${cfg.hydra}/bin/hydra-evaluator hydra-evaluator";
