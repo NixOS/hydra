@@ -28,7 +28,7 @@ let
   serverEnv = env //
     { HYDRA_LOGO = if cfg.logo != null then cfg.logo else "";
       HYDRA_TRACKER = cfg.tracker;
-    };
+    } // (optionalAttrs cfg.debugMode { DBIC_TRACE = 1; });
 in
 
 {
@@ -112,6 +112,12 @@ in
         '';
       };
 
+      debugServer = mkOption {
+        default = false;
+        type = types.bool;
+        description = "Whether to run the server in debug mode";
+      };
+
     };
 
   };
@@ -189,7 +195,7 @@ in
         after = [ "hydra-init.service" ];
         environment = serverEnv;
         serviceConfig =
-          { ExecStart = "@${cfg.hydra}/bin/hydra-server hydra-server -f -h \* --max_spare_servers 5 --max_servers 25 --max_requests 100";
+          { ExecStart = "@${cfg.hydra}/bin/hydra-server hydra-server -f -h \* --max_spare_servers 5 --max_servers 25 --max_requests 100${optionalString cfg.debugServer " -d"}";
             User = "hydra";
             Restart = "always";
           };
