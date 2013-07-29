@@ -171,7 +171,7 @@ sub fetchInput {
     else {
         my $found = 0;
         foreach my $plugin (@{$plugins}) {
-            @inputs = $plugin->fetchInput($type, $name, $value);
+            @inputs = $plugin->fetchInput($type, $name, $value, $project, $jobset);
             if (defined $inputs[0]) {
                 $found = 1;
                 last;

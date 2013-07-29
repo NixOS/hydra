@@ -38,7 +38,7 @@ sub supportedInputTypes {
 # Called to fetch an input of type ‘$type’.  ‘$value’ is the input
 # location, typically the repository URL.
 sub fetchInput {
-    my ($self, $type, $name, $value) = @_;
+    my ($self, $type, $name, $value, $project, $jobset) = @_;
     return undef;
 }
 
