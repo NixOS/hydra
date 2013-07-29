@@ -328,10 +328,8 @@ sub updateJobset {
         error($c, "Invalid input name: $inputName") unless $inputName =~ /^[[:alpha:]]\w*$/;
 
         my $inputType = $inputData->{type};
-        error($c, "Invalid input type: $inputType") unless
-            $inputType eq "svn" || $inputType eq "svn-checkout" || $inputType eq "hg" || $inputType eq "tarball" ||
-            $inputType eq "string" || $inputType eq "path" || $inputType eq "boolean" || $inputType eq "bzr" || $inputType eq "bzr-checkout" ||
-            $inputType eq "git" || $inputType eq "build" || $inputType eq "sysbuild" ;
+
+        error($c, "Invalid input type: $inputType") unless defined $c->stash->{inputTypes}->{$inputType};
 
         my $input;
         unless (defined $inputData->{oldName}) {
