@@ -45,7 +45,7 @@ sub buildFinished {
 
     if ($prevBuild) {
         foreach my $curInput ($build->buildinputs_builds) {
-            next unless $curInput->type eq "git";
+            next unless ($curInput->type eq "git" || $curInput->type eq "hg");
             my $prevInput = $prevBuild->buildinputs_builds->find({ name => $curInput->name });
             next unless defined $prevInput;
 
