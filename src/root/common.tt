@@ -117,7 +117,7 @@ BLOCK renderBuildListBody;
     </tr>
   [% END;
   IF linkToAll %]
-    <td class="centered" colspan="5"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+    <tr><td class="centered" colspan="5"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
   [% END;
 END;
 
@@ -372,10 +372,10 @@ BLOCK renderInputDiff; %]
 
 BLOCK renderPager %]
   <ul class="pager">
-    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page=1" %]">&laquo; First</a></li>
-    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page - 1) %]">&lsaquo; Previous</a></li>
-    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page + 1) %]">Next &rsaquo;</a></li>
-    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last &raquo;</a></li>
+    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page=1" %]">« First</a></li>
+    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page - 1) %]">‹ Previous</a></li>
+    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page + 1) %]">Next ›</a></li>
+    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last »</a></li>
   </ul>
 [% END;
 
