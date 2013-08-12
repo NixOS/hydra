@@ -20,7 +20,7 @@ our @EXPORT = qw(
     getMainOutput
     getEvals getMachines
     pathIsInsidePrefix
-    captureStdoutStderr);
+    captureStdoutStderr run grab);
 
 
 sub getHydraHome {
@@ -469,6 +469,42 @@ sub captureStdoutStderr {
     } else {
         return ($?, $stdout, $stderr);
     }
+}
+
+
+sub run {
+    my (%args) = @_;
+    my $res = { stdout => "", stderr => "" };
+    my $stdin = "";
+
+    eval {
+        local $SIG{ALRM} = sub { die "timeout\n" }; # NB: \n required
+        alarm $args{timeout} if defined $args{timeout};
+        my @x = ($args{cmd}, \$stdin, \$res->{stdout});
+        push @x, \$res->{stderr} if $args{grabStderr} // 1;
+        IPC::Run::run(@x,
+            init => sub { chdir $args{dir} or die "changing to $args{dir}" if defined $args{dir}; });
+        alarm 0;
+    };
+
+    if ($@) {
+        die unless $@ eq "timeout\n"; # propagate unexpected errors
+        $res->{status} = -1;
+        $res->{stderr} = "timeout\n";
+    } else {
+        $res->{status} = $?;
+        chomp $res->{stdout} if $args{chomp} // 0;
+    }
+
+    return $res;
+}
+
+
+sub grab {
+    my (%args) = @_;
+    my $res = run(%args, grabStderr => 0);
+    die "command `@{$args{cmd}}' failed with exit status $res->{status}" if $res->{status};
+    return $res->{stdout};
 }
 
 
