@@ -119,4 +119,22 @@ sub latest_for : Chained('get_builds') PathPart('latest-for') {
 }
 
 
+# Redirect to the latest successful build in a finished evaluation
+# (i.e. an evaluation that has no unfinished builds).
+sub latest_finished : Chained('get_builds') PathPart('latest-finished') {
+    my ($self, $c, @rest) = @_;
+
+    my $latest = $c->stash->{allBuilds}->find(
+        { finished => 1, buildstatus => 0 },
+        { order_by => ["id DESC"], rows => 1, join => ["jobsetevalmembers"]
+        , where => \
+            "not exists (select 1 from jobsetevalmembers m2 join builds b2 on jobsetevalmembers.eval = m2.eval and m2.build = b2.id and b2.finished = 0)"
+        });
+
+    notFound($c, "There is no successful build to redirect to.") unless defined $latest;
+
+    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("build"), [$latest->id], @rest));
+}
+
+
 1;
