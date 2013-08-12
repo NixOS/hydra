@@ -148,4 +148,15 @@ sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
 }
 
 
+sub job : Chained('eval') PathPart('job') {
+    my ($self, $c, $job, @rest) = @_;
+
+    my $build = $c->stash->{eval}->builds->find({job => $job});
+
+    notFound($c, "This evaluation has no job with the specified name.") unless defined $build;
+
+    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("build"), [$build->id], @rest));
+}
+
+
 1;
