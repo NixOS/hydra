@@ -89,7 +89,7 @@ sub fetchInputBuild {
 
     if (!defined $prevBuild || !isValidPath(getMainOutput($prevBuild)->path)) {
         print STDERR "input `", $name, "': no previous build available\n";
-        return undef;
+        return ();
     }
 
     #print STDERR "input `", $name, "': using build ", $prevBuild->id, "\n";
