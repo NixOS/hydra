@@ -564,6 +564,7 @@ create index IndexBuildsOnJobAndSystem on Builds(project, jobset, job, system);
 create index IndexBuildsOnJobset on Builds(project, jobset);
 create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);
+create index IndexBuildsOnFinishedStopTime on Builds(finished, stoptime DESC);
 create index IndexBuildsOnJobsetFinishedTimestamp on Builds(project, jobset, finished, timestamp DESC); -- obsolete?
 create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
 create index IndexBuildsOnJobSystemCurrent on Builds(project, jobset, job, system, isCurrent);
