@@ -618,6 +618,22 @@ sub evals : Chained('buildChain') PathPart('evals') Args(0) {
 }
 
 
+# Redirect to the latest finished evaluation that contains this build.
+sub eval : Chained('buildChain') PathPart('eval') {
+    my ($self, $c, @rest) = @_;
+
+    my $eval = $c->stash->{build}->jobsetevals->find(
+        { hasnewbuilds => 1 },
+        { order_by => "id DESC", rows => 1
+        , "not exists (select 1 from jobsetevalmembers m2 join builds b2 on me.eval = m2.eval and m2.build = b2.id and b2.finished = 0)"
+        });
+
+    notFound($c, "There is no finished evaluation containing this build.") unless defined $eval;
+
+    $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for("view"), [$eval->id], @rest, $c->req->params));
+}
+
+
 sub reproduce : Chained('buildChain') PathPart('reproduce') Args(0) {
     my ($self, $c) = @_;
     $c->response->content_type('text/x-shellscript');
