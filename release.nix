@@ -27,6 +27,10 @@ in rec {
       preHook = ''
         # TeX needs a writable font cache.
         export VARTEXFONTS=$TMPDIR/texfonts
+
+        addToSearchPath PATH $(pwd)/src/script
+        addToSearchPath PATH $(pwd)/src/c
+        addToSearchPath PERL5LIB $(pwd)/src/lib
       '';
 
       configureFlags =
