@@ -111,6 +111,10 @@ sub build_GET {
                     'jobset',
                     'starttime',
                     'stoptime',
+                    'nixname',
+                    'description',
+                    'drvpath',
+                    'system',
                 ]
             })
     );
