@@ -155,6 +155,7 @@ sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {
     $c->stash->{allJobs} = $c->model('DB::Jobs');
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceeded');
     $c->stash->{channelBaseName} = "everything";
+    $c->stash->{total} = $c->model('DB::NrBuilds')->find('finished')->count;
 }
 
 

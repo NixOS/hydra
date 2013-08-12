@@ -514,6 +514,36 @@ create table NewsItems (
 );
 
 
+-- Cache of the number of finished builds.
+create table NrBuilds (
+    what  text primary key not null,
+    count integer not null
+);
+
+insert into NrBuilds(what, count) values('finished', 0);
+
+#ifdef POSTGRESQL
+
+create function modifyNrBuildsFinished() returns trigger as $$
+  begin
+    if ((tg_op = 'INSERT' and new.finished = 1) or
+        (tg_op = 'UPDATE' and old.finished = 0 and new.finished = 1)) then
+      update NrBuilds set count = count + 1 where what = 'finished';
+    elsif ((tg_op = 'DELETE' and old.finished = 1) or
+           (tg_op = 'UPDATE' and old.finished = 1 and new.finished = 0)) then
+      update NrBuilds set count = count - 1 where what = 'finished';
+    end if;
+    return null;
+  end;
+$$ language plpgsql;
+
+create trigger NrBuildsFinished after insert or update or delete on Builds
+  for each row
+  execute procedure modifyNrBuildsFinished();
+
+#endif
+
+
 -- Some indices.
 
 create index IndexBuildInputsOnBuild on BuildInputs(build);
@@ -534,7 +564,7 @@ create index IndexBuildsOnJobAndSystem on Builds(project, jobset, job, system);
 create index IndexBuildsOnJobset on Builds(project, jobset);
 create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);
-create index IndexBuildsOnJobsetFinishedTimestamp on Builds(project, jobset, finished, timestamp DESC);
+create index IndexBuildsOnJobsetFinishedTimestamp on Builds(project, jobset, finished, timestamp DESC); -- obsolete?
 create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
 create index IndexBuildsOnJobSystemCurrent on Builds(project, jobset, job, system, isCurrent);
 create index IndexBuildsOnDrvPath on Builds(drvPath);

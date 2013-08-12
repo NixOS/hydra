@@ -7,11 +7,11 @@ my $db = Hydra::Model::DB->new;
 my @sources = $db->schema->sources;
 my $nrtables = scalar(@sources);
 
-use Test::Simple tests => 43;
+use Test::Simple tests => 44;
 
 foreach my $source (@sources) {
     my $title = "Basic select query for $source";
-    if ($source eq "SchemaVersion") {
+    if ($source eq "SchemaVersion" || $source eq "NrBuilds") {
         ok(scalar($db->resultset($source)->all) == 1, $title);
     } elsif( $source !~ m/^(LatestSucceeded|JobStatus|ActiveJobs)/) {
         ok(scalar($db->resultset($source)->all) == 0, $title);

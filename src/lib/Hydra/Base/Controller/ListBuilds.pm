@@ -56,13 +56,12 @@ sub all : Chained('get_builds') PathPart {
 
     my $resultsPerPage = 20;
 
-    my $nrBuilds = $c->stash->{allBuilds}->search({finished => 1})->count;
-
     $c->stash->{baseUri} = $c->uri_for($self->action_for("all"), $c->req->captures);
 
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
-    $c->stash->{total} = $nrBuilds;
+    $c->stash->{total} = $c->stash->{allBuilds}->search({finished => 1})->count
+        unless defined $c->stash->{total};
 
     $c->stash->{builds} = [ $c->stash->{allBuilds}->search(
         { finished => 1 },
