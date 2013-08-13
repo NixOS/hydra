@@ -288,6 +288,36 @@ __PACKAGE__->set_primary_key("id");
 
 =head1 RELATIONS
 
+=head2 aggregatemembers_aggregates
+
+Type: has_many
+
+Related object: L<Hydra::Schema::AggregateMembers>
+
+=cut
+
+__PACKAGE__->has_many(
+  "aggregatemembers_aggregates",
+  "Hydra::Schema::AggregateMembers",
+  { "foreign.aggregate" => "self.id" },
+  undef,
+);
+
+=head2 aggregatemembers_members
+
+Type: has_many
+
+Related object: L<Hydra::Schema::AggregateMembers>
+
+=cut
+
+__PACKAGE__->has_many(
+  "aggregatemembers_members",
+  "Hydra::Schema::AggregateMembers",
+  { "foreign.member" => "self.id" },
+  undef,
+);
+
 =head2 buildinputs_builds
 
 Type: has_many
@@ -468,9 +498,29 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 aggregates
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:isCEXACY/PwkvgKHcXvAIg
+Type: many_to_many
+
+Composing rels: L</aggregatemembers_members> -> aggregate
+
+=cut
+
+__PACKAGE__->many_to_many("aggregates", "aggregatemembers_members", "aggregate");
+
+=head2 members
+
+Type: many_to_many
+
+Composing rels: L</aggregatemembers_members> -> member
+
+=cut
+
+__PACKAGE__->many_to_many("members", "aggregatemembers_members", "member");
+
+
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-08-13 22:17:52
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:9jqsol/evbHYjusT09hLtw
 
 __PACKAGE__->has_many(
   "dependents",

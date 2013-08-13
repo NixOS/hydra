@@ -288,13 +288,9 @@ sub evalJobs {
         my $validJob = 1;
         foreach my $arg (@{$job->{arg}}) {
             my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}];
-            if ($input->{type} eq "sysbuild" && $input->{system} ne $job->{system}) {
-                $validJob = 0;
-            }
+            $validJob = 0 if $input->{type} eq "sysbuild" && $input->{system} ne $job->{system};
         }
-        if ($validJob) {
-            push(@filteredJobs, $job);
-        }
+        push(@filteredJobs, $job) if $validJob;
     }
     $jobs->{job} = \@filteredJobs;
 
@@ -390,7 +386,7 @@ sub getPrevJobsetEval {
 
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
-    my ($db, $project, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildIds, $prevEval, $jobOutPathMap, $plugins) = @_;
+    my ($db, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
 
     my @outputNames = sort keys %{$buildInfo->{output}};
     die unless scalar @outputNames;
@@ -411,9 +407,7 @@ sub checkBuild {
     my $build;
 
     txn_do($db, sub {
-        my $job = $jobset->jobs->update_or_create(
-            { name => $jobName
-            });
+        my $job = $jobset->jobs->update_or_create({ name => $jobName });
 
         # Don't add a build that has already been scheduled for this
         # job, or has been built but is still a "current" build for
@@ -434,19 +428,19 @@ sub checkBuild {
                 # semantically unnecessary (because they're implied by
                 # the eval), but they give a factor 1000 speedup on
                 # the Nixpkgs jobset with PostgreSQL.
-                { project => $project->name, jobset => $jobset->name, job => $job->name,
+                { project => $jobset->project->name, jobset => $jobset->name, job => $jobName,
                   name => $firstOutputName, path => $firstOutputPath },
                 { rows => 1, columns => ['id'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
                 print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
-                $buildIds->{$prevBuild->id} = 0;
+                $buildMap->{$prevBuild->id} = { new => 0, drvPath => $drvPath };
                 return;
             }
         }
 
         # Prevent multiple builds with the same (job, outPath) from
         # being added.
-        my $prev = $$jobOutPathMap{$job->name . "\t" . $firstOutputPath};
+        my $prev = $$jobOutPathMap{$jobName . "\t" . $firstOutputPath};
         if (defined $prev) {
             print STDERR "    already scheduled as build ", $prev, "\n";
             return;
@@ -512,8 +506,8 @@ sub checkBuild {
         $build->buildoutputs->create({ name => $_, path => $buildInfo->{output}->{$_}->{path} })
             foreach @outputNames;
 
-        $buildIds->{$build->id} = 1;
-        $$jobOutPathMap{$job->name . "\t" . $firstOutputPath} = $build->id;
+        $buildMap->{$build->id} = { new => 1, drvPath => $drvPath };
+        $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
 
         if ($build->iscachedbuild) {
             print STDERR "    marked as cached build ", $build->id, "\n";

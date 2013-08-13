@@ -514,6 +514,13 @@ create table NewsItems (
 );
 
 
+create table AggregateMembers (
+    aggregate     integer not null references Builds(id) on delete cascade,
+    member        integer not null references Builds(id) on delete cascade,
+    primary key   (aggregate, member)
+);
+
+
 -- Cache of the number of finished builds.
 create table NrBuilds (
     what  text primary key not null,

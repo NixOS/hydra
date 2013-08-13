@@ -144,11 +144,11 @@ sub checkJobsetWrapped {
         $jobset->builds->search({iscurrent => 1})->update({iscurrent => 0});
 
         # Schedule each successfully evaluated job.
-        my %buildIds;
+        my %buildMap;
         foreach my $job (permute @{$jobs->{job}}) {
             next if $job->{jobName} eq "";
             print STDERR "  considering job " . $project->name, ":", $jobset->name, ":", $job->{jobName} . "\n";
-            checkBuild($db, $project, $jobset, $inputInfo, $nixExprInput, $job, \%buildIds, $prevEval, $jobOutPathMap, $plugins);
+            checkBuild($db, $jobset, $inputInfo, $nixExprInput, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins);
         }
 
         # Update the last checked times and error messages for each
@@ -162,8 +162,8 @@ sub checkJobsetWrapped {
             foreach $jobset->jobs->all;
 
         my $hasNewBuilds = 0;
-        while (my ($id, $new) = each %buildIds) {
-            $hasNewBuilds = 1 if $new;
+        while (my ($id, $x) = each %buildMap) {
+            $hasNewBuilds = 1 if $x->{new};
         }
 
         my $ev = $jobset->jobsetevals->create(
@@ -172,12 +172,29 @@ sub checkJobsetWrapped {
             , checkouttime => abs($checkoutStop - $checkoutStart)
             , evaltime => abs($evalStop - $evalStart)
             , hasnewbuilds => $hasNewBuilds
-            , nrbuilds => $hasNewBuilds ? scalar(keys %buildIds) : undef
+            , nrbuilds => $hasNewBuilds ? scalar(keys %buildMap) : undef
             });
 
         if ($hasNewBuilds) {
-            while (my ($id, $new) = each %buildIds) {
-                $ev->jobsetevalmembers->create({ build => $id, isnew => $new });
+            # Create JobsetEvalMembers mappings.
+            my %drvPathToId;
+            while (my ($id, $x) = each %buildMap) {
+                $ev->jobsetevalmembers->create({ build => $id, isnew => $x->{new} });
+                $drvPathToId{$x->{drvPath}} = $id;
+            }
+
+            # Create AggregateMembers mappings.
+            foreach my $job (@{$jobs->{job}}) {
+                next unless $job->{members};
+                my $id = $drvPathToId{$job->{drvPath}} or die;
+                foreach my $drvPath (split / /, $job->{members}) {
+                    my $member = $drvPathToId{$drvPath};
+                    if (defined $member) {
+                        $db->resultset('AggregateMembers')->update_or_create({aggregate => $id, member => $member});
+                    } else {
+                        warn "aggregate job ‘$job->{jobName}’ has a member ‘$drvPath’ that doesn't correspond to a Hydra build\n";
+                    }
+                }
             }
 
             foreach my $name (keys %{$inputInfo}) {
