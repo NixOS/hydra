@@ -68,6 +68,7 @@
 
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
+  [% IF build.members_ %]<li><a href="#tabs-members" data-toggle="tab">Members</a></li>[% END %]
   <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
   <li><a href="#tabs-buildinputs" data-toggle="tab">Inputs</a></li>
   [% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
@@ -250,6 +251,18 @@
     [% END %]
 
   </div>
+
+  [% IF build.members_ %]
+
+    <div id="tabs-members" class="tab-pane">
+
+      <p>This build is an aggregate of the following builds:</p>
+
+      [% INCLUDE renderBuildList builds=build.members_ %]
+
+    </div>
+
+  [% END %]
 
   <div id="tabs-details" class="tab-pane">
 

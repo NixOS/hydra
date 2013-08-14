@@ -99,7 +99,7 @@ BLOCK renderBuildListBody;
       [% END %]
       <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
       <td class="nowrap"><tt>[% build.system %]</tt></td>
-      <td class="nowrap">[% date.format(showSchedulingInfo ? build.timestamp : build.stoptime, '%Y-%m-%d %H:%M:%S') %]</td>
+      <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; date.format(showSchedulingInfo ? build.timestamp : build.stoptime, '%Y-%m-%d %H:%M:%S'); ELSE; "-"; END %]</td>
       [% IF showStatusChange %]
         <td>
           [% IF build.get_column('statusChangeTime') %]

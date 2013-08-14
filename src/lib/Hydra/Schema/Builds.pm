@@ -552,6 +552,8 @@ __PACKAGE__->has_many(
 
 __PACKAGE__->many_to_many("jobsetevals", "jobsetevalmembers", "eval");
 
+__PACKAGE__->many_to_many("members_", "aggregatemembers_aggregates", "member");
+
 sub makeSource {
     my ($name, $query) = @_;
     my $source = __PACKAGE__->result_source_instance();
