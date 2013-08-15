@@ -7,7 +7,7 @@
 [% project = build.project %]
 [% jobset = build.jobset %]
 [% job = build.job %]
-[% isAggregate = build.constituents_ ? 1 : 0 %]
+[% isAggregate = constituents ? 1 : 0 %]
 
 [% BLOCK renderOutputs %]
   [% start=1; FOREACH output IN outputs %]
@@ -122,7 +122,7 @@
                      nrConstituents = 0;
                      nrFinished = 0;
                      nrFailedConstituents = 0;
-                     FOREACH b IN build.constituents_;
+                     FOREACH b IN constituents;
                        nrConstituents = nrConstituents + 1;
                        IF b.finished; nrFinished = nrFinished + 1; END;
                        IF b.finished && b.buildstatus != 0; nrFailedConstituents = nrFailedConstituents + 1; END;
@@ -267,7 +267,7 @@
 
       <p>This build is an aggregate of the following builds:</p>
 
-      [% INCLUDE renderBuildList builds=build.constituents_ %]
+      [% INCLUDE renderBuildList builds=constituents %]
 
     </div>
 
