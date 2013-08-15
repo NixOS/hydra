@@ -5,7 +5,9 @@
   <li class="active"><a href="#tabs-project" data-toggle="tab">Jobsets</a></li>
   <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
   <li><a href="#tabs-releases" data-toggle="tab">Releases</a></li>
-  <li><a href="#tabs-views" data-toggle="tab">Views</a></li>
+  [% IF views.size > 0 %]
+    <li><a href="#tabs-views" data-toggle="tab">Views</a></li>
+  [% END %]
 </ul>
 
 <div class="tab-content">
