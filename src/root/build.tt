@@ -7,6 +7,7 @@
 [% project = build.project %]
 [% jobset = build.jobset %]
 [% job = build.job %]
+[% isAggregate = build.members_ ? 1 : 0 %]
 
 [% BLOCK renderOutputs %]
   [% start=1; FOREACH output IN outputs %]
@@ -68,7 +69,7 @@
 
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
-  [% IF build.members_ %]<li><a href="#tabs-members" data-toggle="tab">Members</a></li>[% END %]
+  [% IF isAggregate %]<li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>[% END %]
   <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
   <li><a href="#tabs-buildinputs" data-toggle="tab">Inputs</a></li>
   [% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
@@ -115,7 +116,28 @@
             </tr>
             <tr>
               <th>Status:</th>
-              <td>[% INCLUDE renderStatus build=build icon=0 %]</td>
+              <td>
+                [% INCLUDE renderStatus build=build icon=0 %]
+                [% IF isAggregate;
+                     nrMembers = 0;
+                     nrFinished = 0;
+                     nrFailedMembers = 0;
+                     FOREACH b IN build.members_;
+                       nrMembers = nrMembers + 1;
+                       IF b.finished; nrFinished = nrFinished + 1; END;
+                       IF b.finished && b.buildstatus != 0; nrFailedMembers = nrFailedMembers + 1; END;
+                     END;
+                %];
+                  [%+ IF nrFinished == 0 && nrFailedMembers == 0 %]
+                    all [% nrMembers %] constituent builds succeeded
+                  [% ELSE %]
+                    [% nrFailedMembers %] out of [% nrMembers %] constituent builds failed
+                    [% IF nrFinished < nrMembers %]
+                      ([% nrMembers - nrFinished %] still pending)
+                    [% END %]
+                  [% END %]
+                [% END %]
+              </td>
             </tr>
             <tr>
               <th>System:</th>
@@ -147,7 +169,7 @@
                 <td>[% IF cachedBuild; INCLUDE renderFullBuildLink build=cachedBuild; ELSE %]<em>unknown</em>[% END %]</td>
               </tr>
             [% END %]
-            [% IF build.finished %]
+            [% IF !isAggregate && build.finished %]
             <tr>
               <th>Duration:</th>
               <td>[% actualBuild = build.iscachedbuild ? cachedBuild : build;
@@ -155,7 +177,7 @@
                      finished at [% INCLUDE renderDateTime timestamp = actualBuild.stoptime %]</td>
             </tr>
             [% END %]
-            [% IF log_exists(build.drvpath) %]
+            [% IF !isAggregate && log_exists(build.drvpath) %]
               <tr>
                 <th>Logfile:</th>
                 <td>
@@ -183,7 +205,7 @@
       </form>
     [% END %]
 
-    [% IF build.buildproducts %]
+    [% IF build.buildproducts && !isAggregate %]
 
       <h3>Build products</h3>
 
@@ -252,9 +274,9 @@
 
   </div>
 
-  [% IF build.members_ %]
+  [% IF isAggregate %]
 
-    <div id="tabs-members" class="tab-pane">
+    <div id="tabs-constituents" class="tab-pane">
 
       <p>This build is an aggregate of the following builds:</p>
 
