@@ -64,7 +64,7 @@ BLOCK renderBuildListHeader %]
         [% IF !hideJobName %]
         <th>Job</th>
         [% END %]
-        <th>Release Name</th>
+        <th>Release name</th>
         <th>System</th>
         <th>[% IF showSchedulingInfo %]Queued at[% ELSE %]Finished at[% END %]</th>
         [% IF showStatusChange %]

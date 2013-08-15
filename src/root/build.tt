@@ -267,7 +267,7 @@
 
       <p>This build is an aggregate of the following builds:</p>
 
-      [% INCLUDE renderBuildList builds=constituents %]
+      [% INCLUDE renderBuildList builds=constituents hideProjectName=1 hideJobsetName=1 %]
 
     </div>
 
