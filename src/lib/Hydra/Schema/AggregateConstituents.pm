@@ -1,12 +1,12 @@
 use utf8;
-package Hydra::Schema::AggregateMembers;
+package Hydra::Schema::AggregateConstituents;
 
 # Created by DBIx::Class::Schema::Loader
 # DO NOT MODIFY THE FIRST PART OF THIS FILE
 
 =head1 NAME
 
-Hydra::Schema::AggregateMembers
+Hydra::Schema::AggregateConstituents
 
 =cut
 
@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<AggregateMembers>
+=head1 TABLE: C<AggregateConstituents>
 
 =cut
 
-__PACKAGE__->table("AggregateMembers");
+__PACKAGE__->table("AggregateConstituents");
 
 =head1 ACCESSORS
 
@@ -41,7 +41,7 @@ __PACKAGE__->table("AggregateMembers");
   is_foreign_key: 1
   is_nullable: 0
 
-=head2 member
+=head2 constituent
 
   data_type: 'integer'
   is_foreign_key: 1
@@ -52,7 +52,7 @@ __PACKAGE__->table("AggregateMembers");
 __PACKAGE__->add_columns(
   "aggregate",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
-  "member",
+  "constituent",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
 );
 
@@ -62,13 +62,13 @@ __PACKAGE__->add_columns(
 
 =item * L</aggregate>
 
-=item * L</member>
+=item * L</constituent>
 
 =back
 
 =cut
 
-__PACKAGE__->set_primary_key("aggregate", "member");
+__PACKAGE__->set_primary_key("aggregate", "constituent");
 
 =head1 RELATIONS
 
@@ -87,7 +87,7 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
-=head2 member
+=head2 constituent
 
 Type: belongs_to
 
@@ -96,15 +96,15 @@ Related object: L<Hydra::Schema::Builds>
 =cut
 
 __PACKAGE__->belongs_to(
-  "member",
+  "constituent",
   "Hydra::Schema::Builds",
-  { id => "member" },
+  { id => "constituent" },
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-08-13 22:17:52
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:jHJtO2baXiprv0OcWCLZ+w
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-08-15 00:20:01
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:TLNenyPLIWw2gWsOVhplZw
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

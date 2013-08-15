@@ -1,5 +1,5 @@
-create table AggregateMembers (
+create table AggregateConstituents (
     aggregate     integer not null references Builds(id) on delete cascade,
-    member        integer not null references Builds(id) on delete cascade,
-    primary key   (aggregate, member)
+    constituent   integer not null references Builds(id) on delete cascade,
+    primary key   (aggregate, constituent)
 );

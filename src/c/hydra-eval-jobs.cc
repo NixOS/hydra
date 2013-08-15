@@ -160,12 +160,12 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             }
             xmlAttrs["maintainers"] = maintainers;
 
-            /* If this is an aggregate, then get its members. */
+            /* If this is an aggregate, then get its constituents. */
             Bindings::iterator a = v.attrs->find(state.symbols.create("_hydraAggregate"));
             if (a != v.attrs->end() && state.forceBool(*a->value)) {
-                Bindings::iterator a = v.attrs->find(state.symbols.create("members"));
+                Bindings::iterator a = v.attrs->find(state.symbols.create("constituents"));
                 if (a == v.attrs->end())
-                    throw EvalError("derivation must have a ‘members’ attribute");
+                    throw EvalError("derivation must have a ‘constituents’ attribute");
                 PathSet context;
                 state.coerceToString(*a->value, context, true, false);
                 PathSet drvs;
@@ -174,7 +174,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
                         size_t index = i->find("!", 1);
                         drvs.insert(string(*i, index + 1));
                     }
-                xmlAttrs["members"] = concatStringsSep(" ", drvs);
+                xmlAttrs["constituents"] = concatStringsSep(" ", drvs);
             }
 
             /* Register the derivation as a GC root.  !!! This

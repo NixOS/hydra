@@ -288,33 +288,33 @@ __PACKAGE__->set_primary_key("id");
 
 =head1 RELATIONS
 
-=head2 aggregatemembers_aggregates
+=head2 aggregateconstituents_aggregates
 
 Type: has_many
 
-Related object: L<Hydra::Schema::AggregateMembers>
+Related object: L<Hydra::Schema::AggregateConstituents>
 
 =cut
 
 __PACKAGE__->has_many(
-  "aggregatemembers_aggregates",
-  "Hydra::Schema::AggregateMembers",
+  "aggregateconstituents_aggregates",
+  "Hydra::Schema::AggregateConstituents",
   { "foreign.aggregate" => "self.id" },
   undef,
 );
 
-=head2 aggregatemembers_members
+=head2 aggregateconstituents_constituents
 
 Type: has_many
 
-Related object: L<Hydra::Schema::AggregateMembers>
+Related object: L<Hydra::Schema::AggregateConstituents>
 
 =cut
 
 __PACKAGE__->has_many(
-  "aggregatemembers_members",
-  "Hydra::Schema::AggregateMembers",
-  { "foreign.member" => "self.id" },
+  "aggregateconstituents_constituents",
+  "Hydra::Schema::AggregateConstituents",
+  { "foreign.constituent" => "self.id" },
   undef,
 );
 
@@ -502,25 +502,33 @@ __PACKAGE__->has_many(
 
 Type: many_to_many
 
-Composing rels: L</aggregatemembers_members> -> aggregate
+Composing rels: L</aggregateconstituents_constituents> -> aggregate
 
 =cut
 
-__PACKAGE__->many_to_many("aggregates", "aggregatemembers_members", "aggregate");
+__PACKAGE__->many_to_many(
+  "aggregates",
+  "aggregateconstituents_constituents",
+  "aggregate",
+);
 
-=head2 members
+=head2 constituents
 
 Type: many_to_many
 
-Composing rels: L</aggregatemembers_members> -> member
+Composing rels: L</aggregateconstituents_constituents> -> constituent
 
 =cut
 
-__PACKAGE__->many_to_many("members", "aggregatemembers_members", "member");
+__PACKAGE__->many_to_many(
+  "constituents",
+  "aggregateconstituents_constituents",
+  "constituent",
+);
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-08-13 22:17:52
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:9jqsol/evbHYjusT09hLtw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-08-15 00:20:01
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:U1j/qm0vslb6Jvgu5mGMtw
 
 __PACKAGE__->has_many(
   "dependents",
@@ -552,7 +560,7 @@ __PACKAGE__->has_many(
 
 __PACKAGE__->many_to_many("jobsetevals", "jobsetevalmembers", "eval");
 
-__PACKAGE__->many_to_many("members_", "aggregatemembers_aggregates", "member");
+__PACKAGE__->many_to_many("constituents_", "aggregateconstituents_aggregates", "constituent");
 
 sub makeSource {
     my ($name, $query) = @_;

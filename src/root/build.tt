@@ -7,7 +7,7 @@
 [% project = build.project %]
 [% jobset = build.jobset %]
 [% job = build.job %]
-[% isAggregate = build.members_ ? 1 : 0 %]
+[% isAggregate = build.constituents_ ? 1 : 0 %]
 
 [% BLOCK renderOutputs %]
   [% start=1; FOREACH output IN outputs %]
@@ -119,21 +119,21 @@
               <td>
                 [% INCLUDE renderStatus build=build icon=0 %]
                 [% IF isAggregate;
-                     nrMembers = 0;
+                     nrConstituents = 0;
                      nrFinished = 0;
-                     nrFailedMembers = 0;
-                     FOREACH b IN build.members_;
-                       nrMembers = nrMembers + 1;
+                     nrFailedConstituents = 0;
+                     FOREACH b IN build.constituents_;
+                       nrConstituents = nrConstituents + 1;
                        IF b.finished; nrFinished = nrFinished + 1; END;
-                       IF b.finished && b.buildstatus != 0; nrFailedMembers = nrFailedMembers + 1; END;
+                       IF b.finished && b.buildstatus != 0; nrFailedConstituents = nrFailedConstituents + 1; END;
                      END;
                 %];
-                  [%+ IF nrFinished == 0 && nrFailedMembers == 0 %]
-                    all [% nrMembers %] constituent builds succeeded
+                  [%+ IF nrFinished == nrMembers && nrFailedConstituents == 0 %]
+                    all [% nrConstituents %] constituent builds succeeded
                   [% ELSE %]
-                    [% nrFailedMembers %] out of [% nrMembers %] constituent builds failed
-                    [% IF nrFinished < nrMembers %]
-                      ([% nrMembers - nrFinished %] still pending)
+                    [% nrFailedConstituents %] out of [% nrConstituents %] constituent builds failed
+                    [% IF nrFinished < nrConstituents %]
+                      ([% nrConstituents - nrFinished %] still pending)
                     [% END %]
                   [% END %]
                 [% END %]
@@ -280,7 +280,7 @@
 
       <p>This build is an aggregate of the following builds:</p>
 
-      [% INCLUDE renderBuildList builds=build.members_ %]
+      [% INCLUDE renderBuildList builds=build.constituents_ %]
 
     </div>
 

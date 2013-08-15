@@ -183,16 +183,16 @@ sub checkJobsetWrapped {
                 $drvPathToId{$x->{drvPath}} = $id;
             }
 
-            # Create AggregateMembers mappings.
+            # Create AggregateConstituents mappings.
             foreach my $job (@{$jobs->{job}}) {
-                next unless $job->{members};
+                next unless $job->{constituents};
                 my $id = $drvPathToId{$job->{drvPath}} or die;
-                foreach my $drvPath (split / /, $job->{members}) {
-                    my $member = $drvPathToId{$drvPath};
-                    if (defined $member) {
-                        $db->resultset('AggregateMembers')->update_or_create({aggregate => $id, member => $member});
+                foreach my $drvPath (split / /, $job->{constituents}) {
+                    my $constituent = $drvPathToId{$drvPath};
+                    if (defined $constituent) {
+                        $db->resultset('AggregateConstituents')->update_or_create({aggregate => $id, constituent => $constituent});
                     } else {
-                        warn "aggregate job ‘$job->{jobName}’ has a member ‘$drvPath’ that doesn't correspond to a Hydra build\n";
+                        warn "aggregate job ‘$job->{jobName}’ has a constituent ‘$drvPath’ that doesn't correspond to a Hydra build\n";
                     }
                 }
             }
