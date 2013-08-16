@@ -122,7 +122,10 @@ in rec {
           gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial gnused graphviz bazaar
         ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
-      preCheck = "patchShebangs .";
+      preCheck = ''
+        patchShebangs .
+        export LOGNAME=${LOGNAME:-foo}
+      '';
 
       postInstall = ''
         mkdir -p $out/nix-support
@@ -137,8 +140,6 @@ in rec {
                 --set NIX_RELEASE ${nix.name}
         done
       ''; # */
-
-      LOGNAME = "foo";
 
       meta.description = "Build of Hydra on ${system}";
     });
