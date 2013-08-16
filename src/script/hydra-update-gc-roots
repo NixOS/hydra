@@ -92,12 +92,12 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
         print STDERR "*** looking for all builds in the $keepnr most recent evaluations of jobset ",
             $project->name, ":", $jobset->name, "\n";
 
-	keepBuild $_ foreach $jobset->builds->search(
-            { finished => 1, buildStatus => 0 
-            , id => { -in => 
+        keepBuild $_ foreach $jobset->builds->search(
+            { finished => 1, buildStatus => { -in => [0, 6] }
+            , id => { -in =>
                 \ [ "select build from JobsetEvalMembers where eval in (select id from JobsetEvals where project = ? and jobset = ? and hasNewBuilds = 1 order by id desc limit ?)",
                     [ '', $project->name ], [ '', $jobset->name ], [ '', $keepnr ] ] }
-            }, 
+            },
             { order_by => ["job", "id"], columns => [ @columns ] });
     }
 
