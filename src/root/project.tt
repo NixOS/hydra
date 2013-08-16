@@ -43,7 +43,7 @@
               </td>
               <td><span class="[% IF !j.enabled %]disabled-jobset[% END %] [%+ IF j.hidden %]hidden-jobset[% END %]">[% INCLUDE renderJobsetName project=project.name jobset=j.name inRow=1 %]</span></td>
               <td>[% HTML.escape(j.description) %]</td>
-              <td>[% INCLUDE renderDateTime timestamp = j.lastcheckedtime %]</td>
+              <td>[% IF j.lastcheckedtime; INCLUDE renderDateTime timestamp = j.lastcheckedtime; ELSE; "-"; END %]</td>
               [% IF j.get_column('nrtotal') > 0 %]
                 [% successrate = ( j.get_column('nrsucceeded') / j.get_column('nrtotal') )*100 %]
                 [% IF j.get_column('nrscheduled') > 0 %]
