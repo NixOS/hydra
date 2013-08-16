@@ -36,8 +36,6 @@ sub overview : Chained('job') PathPart('') Args(0) {
             , '+as' => ['enabled']
             }
         ) ];
-
-    $c->stash->{systems} = [$c->stash->{job}->builds->search({iscurrent => 1}, {select => ["system"], distinct => 1})];
 }
 
 
