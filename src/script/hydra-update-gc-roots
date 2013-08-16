@@ -89,20 +89,16 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
             next;
         }
 
-        # FIXME: base this on jobset evals?
-        print STDERR "*** looking for the $keepnr most recent successful builds of each job in jobset ",
+        print STDERR "*** looking for all builds in the $keepnr most recent evaluations of jobset ",
             $project->name, ":", $jobset->name, "\n";
 
-        keepBuild $_ foreach $jobset->builds->search(
-            { 'me.id' => { 'in' => \
-                [ "select b2.id from Builds b2 join " .
-                  "  (select distinct job, system, coalesce( " .
-                  "    (select id from builds where project = b.project and jobset = b.jobset and job = b.job and system = b.system and finished = 1 and buildStatus = 0 order by id desc offset ? limit 1)" .
-                  "    , 0) as nth from builds b where project = ? and jobset = ? and isCurrent = 1) x " .
-                  "  on b2.project = ? and b2.jobset = ? and b2.job = x.job and b2.system = x.system and (id >= x.nth) where finished = 1 and buildStatus = 0"
-                , [ '', $keepnr - 1 ], [ '', $project->name ], [ '', $jobset->name ], [ '', $project->name ], [ '', $jobset->name ] ] }
-            },
-            { order_by => ["job", "system", "id"], columns => [ @columns ] });
+	keepBuild $_ foreach $jobset->builds->search(
+            { finished => 1, buildStatus => 0 
+            , id => { -in => 
+                \ [ "select build from JobsetEvalMembers where eval in (select id from JobsetEvals where project = ? and jobset = ? and hasNewBuilds = 1 order by id desc limit ?)",
+                    [ '', $project->name ], [ '', $jobset->name ], [ '', $keepnr ] ] }
+            }, 
+            { order_by => ["job", "id"], columns => [ @columns ] });
     }
 
     # Go over all views in this project.
@@ -115,7 +111,7 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
         # Keep all builds belonging to the most recent successful view result.
         my $latest = getLatestSuccessfulViewResult($project, $primaryJob, $jobs, 0);
         if (defined $latest) {
-            print STDERR "  keeping latest successful view result ", $latest->id, " (", $latest->get_column('releasename'), ")\n";
+            print STDERR "  keeping latest successful view result ", $latest->id, " (", $latest->get_column('releasename') // "unnamed", ")\n";
             my $result = getViewResult($latest, $jobs);
             keepBuild $_->{build} foreach @{$result->{jobs}};
         }

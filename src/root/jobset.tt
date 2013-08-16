@@ -133,7 +133,7 @@
         <td>[% HTML.escape(jobset.emailoverride) %]</td>
       </tr>
       <tr>
-        <th>Number of builds to keep:</th>
+        <th>Number of evaluations to keep:</th>
         <td>[% jobset.keepnr %]</td>
       </tr>
     </table>

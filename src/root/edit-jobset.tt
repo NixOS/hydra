@@ -110,7 +110,7 @@
     </div>
 
     <div class="control-group">
-      <label class="control-label">Number of builds to keep</label>
+      <label class="control-label">Number of evaluations to keep</label>
       <div class="controls">
         <input type="number" class="span3" name="keepnr" [% HTML.attributes(value => jobset.keepnr) %]></input>
       </div>
