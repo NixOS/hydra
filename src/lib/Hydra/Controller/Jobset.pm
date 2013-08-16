@@ -151,8 +151,8 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
     $c->stash->{activeJobs} = [];
     $c->stash->{inactiveJobs} = [];
 
-    (my $latestEval) = $c->stash->{jobset}->jobsetevals->search(
-        { hasnewbuilds => 1}, { limit => 1, order_by => ["id desc"] });
+    my $latestEval = $c->stash->{jobset}->jobsetevals->search(
+        { hasnewbuilds => 1}, { limit => 1, order_by => ["id desc"] })->single;
 
     my %activeJobs;
     if (defined $latestEval) {
@@ -170,42 +170,6 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
             push @{$c->stash->{inactiveJobs}}, $job->name;
         }
     }
-}
-
-
-sub status_tab : Chained('jobsetChain') PathPart('status-tab') Args(0) {
-    my ($self, $c) = @_;
-    $c->stash->{template} = 'jobset-status-tab.tt';
-
-    # FIXME: use latest eval instead of iscurrent.
-
-    $c->stash->{systems} =
-        [ $c->stash->{jobset}->builds->search({ iscurrent => 1 }, { select => ["system"], distinct => 1, order_by => "system" }) ];
-
-    # status per system
-    my @systems = ();
-    foreach my $system (@{$c->stash->{systems}}) {
-        push(@systems, $system->system);
-    }
-
-    my @select = ();
-    my @as = ();
-    push(@select, "job"); push(@as, "job");
-    foreach my $system (@systems) {
-        push(@select, "(select buildstatus from Builds b where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
-        push(@as, $system);
-        push(@select, "(select b.id from Builds b where b.id = (select max(id) from Builds t where t.project = me.project and t.jobset = me.jobset and t.job = me.job and t.system = '$system' and t.iscurrent = 1 ))");
-        push(@as, "$system-build");
-    }
-
-    $c->stash->{activeJobsStatus} = [
-        $c->model('DB')->resultset('ActiveJobsForJobset')->search(
-            {},
-            { bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]
-            , select => \@select
-            , as => \@as
-            , order_by => ["job"]
-            }) ];
 }
 
 
