@@ -13,7 +13,7 @@ foreach my $source (@sources) {
     my $title = "Basic select query for $source";
     if ($source eq "SchemaVersion" || $source eq "NrBuilds") {
         ok(scalar($db->resultset($source)->all) == 1, $title);
-    } elsif( $source !~ m/^(LatestSucceeded|JobStatus|ActiveJobs)/) {
+    } elsif( $source !~ m/^(LatestSucceeded|JobStatus)/) {
         ok(scalar($db->resultset($source)->all) == 0, $title);
     } else {
         ok(scalar($db->resultset($source)->search({},{ bind => ["", "", ""] })) == 0, $title);

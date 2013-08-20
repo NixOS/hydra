@@ -604,8 +604,6 @@ sub makeQueries {
 QUERY
     );
 
-    makeSource("ActiveJobs$name", "select distinct project, jobset, job from Builds where isCurrent = 1 $constraint");
-
     makeSource(
         "LatestSucceeded$name",
         <<QUERY
