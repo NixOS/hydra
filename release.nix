@@ -175,7 +175,7 @@ in rec {
 
   tests.api = genAttrs' (system:
     with import <nixos/lib/testing.nix> { inherit system; };
-    let hydra = builtins.getAttr system build; in # build.${system}
+    let hydra = builtins.getAttr system build; in # build."${system}"
     simpleTest {
       machine =
         { config, pkgs, ... }:
@@ -183,6 +183,7 @@ in rec {
           services.postgresql.package = pkgs.postgresql92;
           environment.systemPackages = [ hydra pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
           virtualisation.memorySize = 2047;
+          boot.kernelPackages = pkgs.linuxPackages_3_10;
         };
 
       testScript =
