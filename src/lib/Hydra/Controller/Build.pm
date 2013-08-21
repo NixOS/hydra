@@ -245,6 +245,21 @@ sub download : Chained('buildChain') PathPart {
 }
 
 
+sub output : Chained('buildChain') PathPart Args(1) {
+    my ($self, $c, $outputName) = @_;
+    my $build = $c->stash->{build};
+
+    error($c, "This build is not finished yet.") unless $build->finished;
+    my $output = $build->buildoutputs->find({name => $outputName});
+    notFound($c, "This build has no output named ‘$outputName’") unless defined $output;
+    error($c, "Output is not available.") unless isValidPath $output->path;
+
+    $c->response->header('Content-Disposition', "attachment; filename=\"build-${\$build->id}-${\$outputName}.nar.bz2\"");
+    $c->stash->{current_view} = 'NixNAR';
+    $c->stash->{storePath} = $output->path;
+}
+
+
 # Redirect to a download with the given type.  Useful when you want to
 # link to some build product of the latest build (i.e. in conjunction
 # with the .../latest redirect).
