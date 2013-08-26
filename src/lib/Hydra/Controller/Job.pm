@@ -20,15 +20,16 @@ sub job : Chained('/') PathPart('job') CaptureArgs(3) {
 
 sub overview : Chained('job') PathPart('') Args(0) {
     my ($self, $c) = @_;
+    my $job = $c->stash->{job};
 
     $c->stash->{template} = 'job.tt';
 
     $c->stash->{lastBuilds} =
-        [ $c->stash->{job}->builds->search({ finished => 1 },
+        [ $job->builds->search({ finished => 1 },
             { order_by => 'id DESC', rows => 10, columns => [@buildListColumns] }) ];
 
     $c->stash->{queuedBuilds} = [
-        $c->stash->{job}->builds->search(
+        $job->builds->search(
             { finished => 0 },
             { join => ['project']
             , order_by => ["priority DESC", "id"]
@@ -36,6 +37,27 @@ sub overview : Chained('job') PathPart('') Args(0) {
             , '+as' => ['enabled']
             }
         ) ];
+
+    # If this is an aggregate job, then get its constituents.
+    my @constituents = $c->model('DB::Builds')->search(
+	{ aggregate => { -in => $job->builds->search({}, { columns => ["id"], order_by => "id desc", rows => 10 })->as_query } },
+	{ join => 'aggregateconstituents_constituents', 
+	  columns => ['id', 'job', 'finished', 'buildstatus'],
+	  +select => ['aggregateconstituents_constituents.aggregate'],
+	  +as => ['aggregate']
+	});
+
+    my $aggregates = {};
+    my %constituentJobs;
+    foreach my $b (@constituents) {
+	my $jobName = $b->get_column('job');
+	$aggregates->{$b->get_column('aggregate')}->{$jobName} =
+	    { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus};
+	$constituentJobs{$jobName} = 1;
+    }
+
+    $c->stash->{aggregates} = $aggregates;
+    $c->stash->{constituentJobs} = [sort (keys %constituentJobs)];
 }
 
 

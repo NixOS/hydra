@@ -4,6 +4,9 @@
 
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-status" data-toggle="tab">Status</a></li>
+  [% IF constituentJobs.size > 0 %]
+    <li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>
+  [% END %]
   <li><a href="#tabs-links" data-toggle="tab">Links</a></li>
 </ul>
 
@@ -20,6 +23,71 @@
       [% INCLUDE renderBuildList builds=queuedBuilds showSchedulingInfo=1 hideResultInfo=1 %]
     [% END %]
   </div>
+
+  [% IF constituentJobs.size > 0 %]
+
+    <div id="tabs-constituents" class="tab-pane">
+
+      <table class="table table-striped table-condensed">
+	<thead>
+	  <tr>
+	    <th>#</th>
+	    [% FOREACH j IN constituentJobs %]
+	      <th>[% HTML.escape(j) %]</th>
+	    [% END %]
+	  </tr>
+	</thead>
+	<tbody>
+	  [% FOREACH agg IN aggregates.keys.nsort.reverse %]
+	    <tr>
+	      <td><a class="row-link" href="[% c.uri_for('/build' agg) %]">[% agg %]</a></td>
+	      [% FOREACH j IN constituentJobs %]
+		<td>
+		  [% r = aggregates.$agg.$j; IF r.id %]
+		    <a href="[% c.uri_for('/build' r.id) %]">
+		      [% INCLUDE renderBuildStatusIcon size=16 build=r %]
+		    </a>
+		  [% END %]
+		</td>
+	      [% END %]
+	    </tr>
+	  [% END %]
+	</tbody>
+      </table>
+      
+      <hr/>
+  
+      <table class="table table-striped table-condensed">
+	<thead>
+	  <tr>
+	    <th>#</th>
+	    [% FOREACH j IN constituentJobs %]
+	      <th>[% HTML.escape(j) %]</th>
+	    [% END %]
+	  </tr>
+	</thead>
+	<tbody>
+	  [% FOREACH agg IN aggregates.keys.nsort.reverse %]
+	    <tr>
+	      <td><a class="row-link" href="[% c.uri_for('/build' agg) %]">[% agg %]</a></td>
+	      [% FOREACH j IN constituentJobs %]
+		<td>
+		  [% r = aggregates.$agg.$j; IF r.id %]
+		    <a href="[% c.uri_for('/build' r.id) %]">
+		      [% INCLUDE renderBuildStatusIcon size=16 build=r %]
+		    </a>
+		  [% END %]
+		</td>
+	      [% END %]
+	    </tr>
+	  [% END %]
+	</tbody>
+      </table>
+
+
+    </div>
+  
+  [% END %]
 
   <div id="tabs-links" class="tab-pane">
     <ul>
