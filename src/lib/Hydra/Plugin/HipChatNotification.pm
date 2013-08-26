@@ -51,6 +51,7 @@ sub buildFinished {
 
             next if $curInput->type ne $prevInput->type;
             next if $curInput->uri ne $prevInput->uri;
+            next if $curInput->revision eq $prevInput->revision;
 
             my @commits;
             foreach my $plugin (@{$self->{plugins}}) {
