@@ -24,6 +24,7 @@
     <!-- hydra.css must be included before bootstrap-responsive to
          make the @media rule work. -->
     <link rel="stylesheet" href="/static/css/hydra.css" type="text/css" />
+    <link rel="stylesheet" href="/static/css/rotated-th.css" type="text/css" />
     <link href="/static/bootstrap/css/bootstrap-responsive.min.css" rel="stylesheet" />
 
     <style>

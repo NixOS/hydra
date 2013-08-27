@@ -91,3 +91,7 @@ div.news-item:not(:first-child) {
 td.nowrap {
     white-space: nowrap;
 }
+
+.override-link a {
+    color: inherit;
+}

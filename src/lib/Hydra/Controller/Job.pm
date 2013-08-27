@@ -40,7 +40,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
 
     # If this is an aggregate job, then get its constituents.
     my @constituents = $c->model('DB::Builds')->search(
-	{ aggregate => { -in => $job->builds->search({}, { columns => ["id"], order_by => "id desc", rows => 10 })->as_query } },
+	{ aggregate => { -in => $job->builds->search({}, { columns => ["id"], order_by => "id desc", rows => 15 })->as_query } },
 	{ join => 'aggregateconstituents_constituents', 
 	  columns => ['id', 'job', 'finished', 'buildstatus'],
 	  +select => ['aggregateconstituents_constituents.aggregate'],
@@ -51,9 +51,15 @@ sub overview : Chained('job') PathPart('') Args(0) {
     my %constituentJobs;
     foreach my $b (@constituents) {
 	my $jobName = $b->get_column('job');
-	$aggregates->{$b->get_column('aggregate')}->{$jobName} =
+	$aggregates->{$b->get_column('aggregate')}->{constituents}->{$jobName} =
 	    { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus};
 	$constituentJobs{$jobName} = 1;
+    }
+
+    foreach my $agg (keys %$aggregates) {
+	# FIXME: could be done in one query.
+	$aggregates->{$agg}->{build} = 
+	    $c->model('DB::Builds')->find({id => $agg}, {columns => [@buildListColumns]}) or die;
     }
 
     $c->stash->{aggregates} = $aggregates;

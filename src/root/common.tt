@@ -20,7 +20,7 @@ BLOCK renderJobsetName %]
 
 
 BLOCK renderJobName %]
-<a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/job' project jobset job) %]"><tt>[% job %]</tt></a>
+<a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/job' project jobset job) %]">[% job %]</a>
 [% END;
 
 
