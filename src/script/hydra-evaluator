@@ -65,7 +65,7 @@ sub sendJobsetErrorNotification() {
 
     my $body = "Hi,\n"
         . "\n"
-        . "This is to let you know that Hydra jobset evalation of $projectName:$jobsetName "
+        . "This is to let you know that Hydra jobset evaluation of $projectName:$jobsetName "
         . "resulted in the following error:\n"
         . "\n"
         . "$errorMsg"
