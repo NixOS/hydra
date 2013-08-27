@@ -433,7 +433,7 @@ sub checkBuild {
                 { rows => 1, columns => ['id'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
                 print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
-                $buildMap->{$prevBuild->id} = { new => 0, drvPath => $drvPath };
+                $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath };
                 return;
             }
         }
@@ -506,7 +506,7 @@ sub checkBuild {
         $build->buildoutputs->create({ name => $_, path => $buildInfo->{output}->{$_}->{path} })
             foreach @outputNames;
 
-        $buildMap->{$build->id} = { new => 1, drvPath => $drvPath };
+        $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath };
         $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
 
         if ($build->iscachedbuild) {

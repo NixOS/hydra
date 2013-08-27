@@ -177,20 +177,31 @@ sub checkJobsetWrapped {
 
         if ($hasNewBuilds) {
             # Create JobsetEvalMembers mappings.
-            my %drvPathToId;
             while (my ($id, $x) = each %buildMap) {
                 $ev->jobsetevalmembers->create({ build => $id, isnew => $x->{new} });
-                $drvPathToId{$x->{drvPath}} = $id;
             }
 
-            # Create AggregateConstituents mappings.
+            # Create AggregateConstituents mappings.  Since there can
+            # be jobs that alias each other, if there are multiple
+            # builds for the same derivation, pick the one with the
+            # shortest name.
+            my %drvPathToId;
+            while (my ($id, $x) = each %buildMap) {
+                my $y = $drvPathToId{$x->{drvPath}};
+                if (defined $y) {
+                    next if length $x->{jobName} > length $y->{jobName};
+                    next if length $x->{jobName} == length $y->{jobName} && $x->{jobName} ge $y->{jobName};
+                }
+                $drvPathToId{$x->{drvPath}} = $x;
+            }
+
             foreach my $job (@{$jobs->{job}}) {
                 next unless $job->{constituents};
-                my $id = $drvPathToId{$job->{drvPath}} or die;
+                my $x = $drvPathToId{$job->{drvPath}} or die;
                 foreach my $drvPath (split / /, $job->{constituents}) {
                     my $constituent = $drvPathToId{$drvPath};
                     if (defined $constituent) {
-                        $db->resultset('AggregateConstituents')->update_or_create({aggregate => $id, constituent => $constituent});
+                        $db->resultset('AggregateConstituents')->update_or_create({aggregate => $x->{id}, constituent => $constituent->{id}});
                     } else {
                         warn "aggregate job ‘$job->{jobName}’ has a constituent ‘$drvPath’ that doesn't correspond to a Hydra build\n";
                     }
