@@ -7,7 +7,7 @@ STATIC = \
 
 FLOT = flot-0.6.zip
 JQUERY = jquery-ui-1.8.5.custom.zip
-BOOTSTRAP = bootstrap-2.3.1.zip
+BOOTSTRAP = bootstrap-3.0.0-dist.zip
 
 ZIPS = $(FLOT) $(JQUERY) $(BOOTSTRAP)
 
@@ -19,7 +19,9 @@ nobase_hydra_DATA = $(EXTRA_DIST)
 all:
 	mkdir -p $(srcdir)/static/js
 	unzip -u -d $(srcdir)/static/js/jquery $(JQUERY)
+	rm -rf $(srcdir)/static/bootstrap
 	unzip -u -d $(srcdir)/static $(BOOTSTRAP)
+	mv $(srcdir)/static/dist $(srcdir)/static/bootstrap
 	unzip -u -d $(srcdir)/static/js $(FLOT)
 
 install-data-local: $(ZIPS)

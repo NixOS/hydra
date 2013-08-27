@@ -18,17 +18,17 @@ c.uri_for('/register') %]">register</a> first.</p>
 <form class="form-horizontal" method="post" action="[% c.uri_for('/login') %]">
 
   <fieldset>
-    <div class="control-group">
-      <label class="control-label">User name</label>
-      <div class="controls">
-        <input type="text" class="span3" name="username" value=""></input>
+    <div class="form-group">
+      <label class="col-lg-2 control-label">User name</label>
+      <div class="col-lg-3">
+        <input type="text" class="form-control" name="username" value=""></input>
       </div>
     </div>
 
-    <div class="control-group">
-      <label class="control-label">Password</label>
-      <div class="controls">
-        <input type="password" class="span3" name="password" value=""></input>
+    <div class="form-group">
+      <label class="col-lg-2 control-label">Password</label>
+      <div class="col-lg-3">
+        <input type="password" class="form-control" name="password" value=""></input>
       </div>
     </div>
 

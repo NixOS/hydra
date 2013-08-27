@@ -181,9 +181,9 @@
               <tr>
                 <th>Logfile:</th>
                 <td>
-                  <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log') %]">pretty</a>
-                  <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>
-                  <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>
+                  <a class="btn btn-default btn-xs" href="[% c.uri_for('/build' build.id 'log') %]">pretty</a>
+                  <a class="btn btn-default btn-xs" href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>
+                  <a class="btn btn-default btn-xs" href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>
                 </td>
               </tr>
             [% END %]
@@ -223,11 +223,11 @@
             <th>Last successful build [% INCLUDE renderDateTime timestamp = prevSuccessfulBuild.timestamp %]</th>
             [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]
               <th>First broken build [% INCLUDE renderDateTime timestamp = firstBrokenBuild.timestamp %]
-                <a class="btn btn-mini" href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id firstBrokenBuild.id ) %]">log diff</a>
+                <a class="btn btn-default btn-xs" href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id firstBrokenBuild.id ) %]">log diff</a>
               </th>
             [% END %]
             <th>This build [% INCLUDE renderDateTime timestamp = build.timestamp %]
-              <a class="btn btn-mini" href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id build.id) %]">log diff</a>
+              <a class="btn btn-default btn-xs" href="[% c.uri_for(c.controller('API').action_for('logdiff') prevSuccessfulBuild.id build.id) %]">log diff</a>
             </th>
           </thead>
           <tr>
