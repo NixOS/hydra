@@ -4,7 +4,11 @@
 <div class="btn-group pull-right">
   <a class="btn btn-primary dropdown-toggle" data-toggle="dropdown" href="#"><i class="icon-white icon-eye-open"></i> Compare to...</a>
   <ul class="dropdown-menu">
-    <li><a href="?">Preceding evaluation in the same jobset</tt></a></li>
+    <li><a href="?">Preceding evaluation in this jobset</tt></a></li>
+    <li class="divider"></li>
+    <li><a href="?compare=-[% 24 * 60 * 60 %]">This jobset <strong>one day</strong> earlier</tt></a></li>
+    <li><a href="?compare=-[% 7 * 24 * 60 * 60 %]">This jobset <strong>one week</strong> earlier</tt></a></li>
+    <li><a href="?compare=-[% 31 * 24 * 60 * 60 %]">This jobset <strong>one month</strong> earlier</tt></a></li>
     [% IF project.jobsets_rs.count > 1 %]
       <li class="divider"></li>
       [% FOREACH j IN project.jobsets.sort('name'); IF j.name != jobset.name %]
@@ -19,6 +23,8 @@
 project=otherEval.jobset.project.name jobset=otherEval.jobset.name %] evaluation <a href="[%
 c.uri_for(c.controller('JobsetEval').action_for('view'),
 [otherEval.id]) %]">[% otherEval.id %]</a>.</p>
+[% ELSE %]
+<div class="alert">Couldn't find an evaluation to compare to.</div>
 [% END %]
 
 <ul class="nav nav-tabs">

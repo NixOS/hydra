@@ -36,6 +36,11 @@ sub view : Chained('eval') PathPart('') Args(0) {
         if ($compare =~ /^\d+$/) {
             $eval2 = $c->model('DB::JobsetEvals')->find($compare)
                 or notFound($c, "Evaluation $compare doesn't exist.");
+	} elsif ($compare =~ /^-(\d+)$/) {
+	    my $t = int($1);
+            $eval2 = $c->stash->{jobset}->jobsetevals->find(
+		{ hasnewbuilds => 1, timestamp => {'<=', $eval->timestamp - $t} },
+		{ order_by => "timestamp desc", rows => 1});
         } elsif (defined $compare && $compare =~ /^($jobsetNameRE)$/) {
             my $j = $c->stash->{project}->jobsets->find({name => $compare})
                 or notFound($c, "Jobset $compare doesn't exist.");
