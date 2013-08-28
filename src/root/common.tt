@@ -200,6 +200,8 @@ BLOCK renderBuildStatusIcon;
       <img src="/static/images/error_[% size %].png" alt="Failed" />
     [% ELSIF buildstatus == 2 || buildstatus == 5 %]
       <img src="/static/images/dependency_[% size %].png" alt="Dependency failed" />
+    [% ELSIF buildstatus == 3 %]
+      <img src="/static/images/warning_[% size %].png" alt="Aborted" />
     [% ELSIF buildstatus == 4 %]
       <img src="/static/images/cancelled_[% size %].png" alt="Cancelled" />
     [% ELSIF buildstatus == 6 %]
@@ -230,8 +232,8 @@ BLOCK renderStatus;
     [% ELSIF buildstatus == 6 %]
       <span class="error">Build failed (with result)</span>
     [% ELSE %]
-      <span class="error">Build failed</span>
-      (see <a href="#nix-error">below</a>)
+      <span class="error">Aborted</span>
+      (Hydra failure; see <a href="#nix-error">below</a>)
     [% END;
   ELSIF build.busy %]
     <strong>Build in progress</strong>
