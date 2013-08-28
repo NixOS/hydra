@@ -50,7 +50,7 @@ sub jobset_GET {
 
     $c->stash->{evals} = getEvals($self, $c, scalar $c->stash->{jobset}->jobsetevals, 0, 10);
 
-    ($c->stash->{latestEval}) = $c->stash->{jobset}->jobsetevals->search({}, { limit => 1, order_by => ["id desc"] });
+    ($c->stash->{latestEval}) = $c->stash->{jobset}->jobsetevals->search({}, { rows => 1, order_by => ["id desc"] });
 
     $self->status_ok(
         $c,
@@ -152,7 +152,7 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
     $c->stash->{inactiveJobs} = [];
 
     my $latestEval = $c->stash->{jobset}->jobsetevals->search(
-        { hasnewbuilds => 1}, { limit => 1, order_by => ["id desc"] })->single;
+        { hasnewbuilds => 1 }, { rows => 1, order_by => ["id desc"] })->single;
 
     my %activeJobs;
     if (defined $latestEval) {
