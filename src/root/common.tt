@@ -198,12 +198,10 @@ BLOCK renderBuildStatusIcon;
       <img src="/static/images/checkmark_[% size %].png" alt="Succeeded" />
     [% ELSIF buildstatus == 1 %]
       <img src="/static/images/error_[% size %].png" alt="Failed" />
-    [% ELSIF buildstatus == 2 %]
+    [% ELSIF buildstatus == 2 || buildstatus == 5 %]
       <img src="/static/images/dependency_[% size %].png" alt="Dependency failed" />
     [% ELSIF buildstatus == 4 %]
       <img src="/static/images/cancelled_[% size %].png" alt="Cancelled" />
-    [% ELSIF buildstatus == 5 %]
-      <img src="/static/images/error_[% size %].png" alt="Failed" />
     [% ELSIF buildstatus == 6 %]
       <img src="/static/images/error_[% size %].png" alt="Failed (with result)" />
     [% ELSE %]
@@ -225,12 +223,10 @@ BLOCK renderStatus;
       <strong>Success</strong>
     [% ELSIF buildstatus == 1 %]
       <span class="error">Build returned a non-zero exit code</span>
-    [% ELSIF buildstatus == 2 %]
+    [% ELSIF buildstatus == 2 || buildstatus == 5 %]
       <span class="error">A dependency of the build failed</span>
     [% ELSIF buildstatus == 4 %]
       <span class="error">Cancelled by user</span>
-    [% ELSIF buildstatus == 5 %]
-      <span class="error">Build inhibited because a dependency previously failed to build</span>
     [% ELSIF buildstatus == 6 %]
       <span class="error">Build failed (with result)</span>
     [% ELSE %]
