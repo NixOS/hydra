@@ -51,10 +51,17 @@ sub view : Chained('eval') PathPart('') Args(0) {
 
     $c->stash->{otherEval} = $eval2 if defined $eval2;
 
-    my @builds = $eval->builds->search({}, { order_by => ["job", "system", "id"], columns => [@buildListColumns] });
-    my @builds2 = defined $eval2
-        ? $eval2->builds->search({}, { order_by => ["job", "system", "id"], columns => [@buildListColumns] })
-        : ();
+    sub cmpBuilds {
+        my ($a, $b) = @_;
+        return $a->get_column('job') cmp $b->get_column('job')
+            || $a->get_column('system') cmp $b->get_column('system')
+    }
+
+    my @builds = $eval->builds->search({}, { columns => [@buildListColumns] });
+    my @builds2 = defined $eval2 ? $eval2->builds->search({}, { columns => [@buildListColumns] }) : ();
+
+    @builds  = sort { cmpBuilds($a, $b) } @builds;
+    @builds2 = sort { cmpBuilds($a, $b) } @builds2;
 
     $c->stash->{stillSucceed} = [];
     $c->stash->{stillFail} = [];
@@ -70,8 +77,7 @@ sub view : Chained('eval') PathPart('') Args(0) {
         my $found = 0;
         while ($n < scalar(@builds2)) {
             my $build2 = $builds2[$n];
-            my $d = $build->get_column('job') cmp $build2->get_column('job')
-                || $build->get_column('system') cmp $build2->get_column('system');
+            my $d = cmpBuilds($build, $build2);
             last if $d == -1;
             if ($d == 0) {
                 $n++;
