@@ -36,6 +36,12 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 
   <div id="tabs-status" class="tab-pane active">
 
+    <form class="form-search">
+      <input name="filter" type="text" class="input-large search-query" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]/>
+      <input name="compare" type="hidden" [% HTML.attributes(value => otherEval.id) %]/>
+      <input name="full" type="hidden" [% HTML.attributes(value => full) %]/>
+    </form>
+
     [% BLOCK renderSome %]
       [% size = builds.size; max = full ? size : 30; %]
       [% INCLUDE renderBuildListBody builds=builds.slice(0, (size > max ? max : size) - 1)
@@ -96,7 +102,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 
     [% IF c.user_exists %]
     <p>
-    <a class="btn" href="[% c.uri_for(c.controller('JobsetEval').action_for('release'), [eval.id]) %]">Release</a>
+      <a class="btn" href="[% c.uri_for(c.controller('JobsetEval').action_for('release'), [eval.id]) %]">Release</a>
     </p>
     [% END %]
 

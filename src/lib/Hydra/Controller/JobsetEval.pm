@@ -26,6 +26,9 @@ sub view : Chained('eval') PathPart('') Args(0) {
 
     my $eval = $c->stash->{eval};
 
+    $c->stash->{filter} = $c->request->params->{filter} // "";
+    my $filter = $c->stash->{filter} eq "" ? {} : { job => { ilike => "%" . $c->stash->{filter} . "%" } };
+
     my $compare = $c->req->params->{compare};
     my $eval2;
 
@@ -62,8 +65,8 @@ sub view : Chained('eval') PathPart('') Args(0) {
             || $a->get_column('system') cmp $b->get_column('system')
     }
 
-    my @builds = $eval->builds->search({}, { columns => [@buildListColumns] });
-    my @builds2 = defined $eval2 ? $eval2->builds->search({}, { columns => [@buildListColumns] }) : ();
+    my @builds = $eval->builds->search($filter, { columns => [@buildListColumns] });
+    my @builds2 = defined $eval2 ? $eval2->builds->search($filter, { columns => [@buildListColumns] }) : ();
 
     @builds  = sort { cmpBuilds($a, $b) } @builds;
     @builds2 = sort { cmpBuilds($a, $b) } @builds2;
