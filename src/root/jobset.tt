@@ -45,8 +45,7 @@
   [% IF jobset.errormsg %]
     <li><a href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation errors</span></a></li>
   [% END %]
-  <li><a href="#tabs-job-status" data-toggle="tab">Job status</a></li>
-  <li><a href="#tabs-jobs" data-toggle="tab">All jobs</a></li>
+  <li><a href="#tabs-jobs" data-toggle="tab">Jobs</a></li>
   <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
 </ul>
 
@@ -140,8 +139,6 @@
   </div>
 
   [% INCLUDE makeLazyTab tabName="tabs-jobs" uri=c.uri_for('/jobset' project.name jobset.name "jobs-tab") %]
-
-  [% INCLUDE makeLazyTab tabName="tabs-job-status" uri=c.uri_for('/jobset' project.name jobset.name "job-status-tab") %]
 
 </div>
 

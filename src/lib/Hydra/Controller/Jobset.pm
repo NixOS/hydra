@@ -148,35 +148,8 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'jobset-jobs-tab.tt';
 
-    $c->stash->{activeJobs} = [];
-    $c->stash->{inactiveJobs} = [];
-
-    my $latestEval = $c->stash->{jobset}->jobsetevals->search(
-        { hasnewbuilds => 1 }, { rows => 1, order_by => ["id desc"] })->single;
-
-    my %activeJobs;
-    $c->stash->{activeJobs} = {};
-    if (defined $latestEval) {
-        foreach my $build ($latestEval->builds->search({}, { order_by => ["job"], select => ["job"] })) {
-            my $job = $build->get_column("job");
-            if (!defined $activeJobs{$job}) {
-                $activeJobs{$job} = 1;
-		$c->stash->{activeJobs}->{$job} = 1;
-            }
-        }
-    }
-
-    foreach my $job ($c->stash->{jobset}->jobs->search({}, { order_by => ["name"] })) {
-	push @{$c->stash->{jobs}}, $job->name;
-    }
-}
-
-
-sub job_status_tab : Chained('jobsetChain') PathPart('job-status-tab') Args(0) {
-    my ($self, $c) = @_;
-    $c->stash->{template} = 'jobset-job-status-tab.tt';
-
     $c->stash->{filter} = $c->request->params->{filter} // "";
+    my $filter = "%" . $c->stash->{filter} . "%";
 
     my @evals = $c->stash->{jobset}->jobsetevals->search({ hasnewbuilds => 1}, { order_by => "id desc", rows => 20 });
 
@@ -186,7 +159,7 @@ sub job_status_tab : Chained('jobsetChain') PathPart('job-status-tab') Args(0) {
 
     foreach my $eval (@evals) {
         my @builds = $eval->builds->search(
-            { job => { ilike => "%" . $c->stash->{filter} . "%" } },
+            { job => { ilike => $filter } },
             { columns => ['id', 'job', 'finished', 'buildstatus'] });
 	foreach my $b (@builds) {
 	    my $jobName = $b->get_column('job');
@@ -196,6 +169,14 @@ sub job_status_tab : Chained('jobsetChain') PathPart('job-status-tab') Args(0) {
 	    $nrBuilds++;
 	}
 	last if $nrBuilds >= 10000;
+    }
+
+    if ($c->request->params->{showInactive}) {
+	$c->stash->{showInactive} = 1;
+	foreach my $job ($c->stash->{jobset}->jobs->search({ name => { ilike => $filter } })) {
+	    next if defined $jobs{$job->name};
+	    $c->stash->{inactiveJobs}->{$job->name} = $jobs{$job->name} = 1;
+	}
     }
 
     $c->stash->{evals} = $evals;
