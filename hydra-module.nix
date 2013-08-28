@@ -58,6 +58,15 @@ in
         '';
       };
 
+      listenHost = mkOption {
+        default = "*";
+        example = "localhost";
+        description = ''
+          The hostname or address to listen on or <literal>*</literal> to listen
+          on all interfaces.
+        '';
+      };
+
       port = mkOption {
         default = 3000;
         description = ''
@@ -202,7 +211,7 @@ in
         after = [ "hydra-init.service" ];
         environment = serverEnv;
         serviceConfig =
-          { ExecStart = "@${cfg.hydra}/bin/hydra-server hydra-server -f -h \* --max_spare_servers 5 --max_servers 25 --max_requests 100${optionalString cfg.debugServer " -d"}";
+          { ExecStart = "@${cfg.hydra}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' --max_spare_servers 5 --max_servers 25 --max_requests 100${optionalString cfg.debugServer " -d"}";
             User = "hydra";
             Restart = "always";
           };
