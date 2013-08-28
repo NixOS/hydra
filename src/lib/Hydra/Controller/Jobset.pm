@@ -155,21 +155,51 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
         { hasnewbuilds => 1 }, { rows => 1, order_by => ["id desc"] })->single;
 
     my %activeJobs;
+    $c->stash->{activeJobs} = {};
     if (defined $latestEval) {
         foreach my $build ($latestEval->builds->search({}, { order_by => ["job"], select => ["job"] })) {
             my $job = $build->get_column("job");
             if (!defined $activeJobs{$job}) {
                 $activeJobs{$job} = 1;
-                push @{$c->stash->{activeJobs}}, $job;
+		$c->stash->{activeJobs}->{$job} = 1;
             }
         }
     }
 
     foreach my $job ($c->stash->{jobset}->jobs->search({}, { order_by => ["name"] })) {
-        if (!defined $activeJobs{$job->name}) {
-            push @{$c->stash->{inactiveJobs}}, $job->name;
-        }
+	push @{$c->stash->{jobs}}, $job->name;
     }
+}
+
+
+sub job_status_tab : Chained('jobsetChain') PathPart('job-status-tab') Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'jobset-job-status-tab.tt';
+
+    $c->stash->{filter} = $c->request->params->{filter} // "";
+
+    my @evals = $c->stash->{jobset}->jobsetevals->search({ hasnewbuilds => 1}, { order_by => "id desc", rows => 20 });
+
+    my $evals = {};
+    my %jobs;
+    my $nrBuilds = 0;
+
+    foreach my $eval (@evals) {
+        my @builds = $eval->builds->search(
+            { job => { ilike => "%" . $c->stash->{filter} . "%" } },
+            { columns => ['id', 'job', 'finished', 'buildstatus'] });
+	foreach my $b (@builds) {
+	    my $jobName = $b->get_column('job');
+	    $evals->{$eval->id}->{$jobName} = 
+	        { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
+	    $jobs{$jobName} = 1;
+	    $nrBuilds++;
+	}
+	last if $nrBuilds >= 10000;
+    }
+
+    $c->stash->{evals} = $evals;
+    $c->stash->{jobs} = [sort (keys %jobs)];
 }
 
 

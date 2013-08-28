@@ -1,0 +1,49 @@
+[% PROCESS common.tt; USE Math %]
+
+<form class="form-search" id="filter-jobs">
+  <input name="filter" type="text" class="input-large search-query" placeholder="Filter jobs..." [% HTML.attributes(value => filter) %]></input>
+</form>
+
+<script>
+  $('#filter-jobs').submit(function() {
+    $('#tabs-job-status').load("[% c.uri_for('/jobset' project.name jobset.name "job-status-tab") %]", $('#filter-jobs').serialize(), function(response, status, xhr) {
+      if (status == "error") {
+        $('#[% tabName %]').html("<div class='alert alert-error'>Error loading tab: " + xhr.status + " " + xhr.statusText + "</div>");
+      }
+    });
+    return false;
+  });
+</script>
+
+[% IF jobs.size == 0 %]
+
+  <div class="alert">There are no matching jobs.</div>
+
+[% ELSE %]
+
+  [% evalIds = evals.keys.nsort.reverse %]
+  <table class="table table-striped table-condensed table-header-rotated">
+    <thead>
+      <tr>
+        <th style="width: 1em;">Job</th>
+        [% FOREACH eval IN evalIds %]
+          <th class="rotate-45">
+            <div><span>
+              <a href="[% c.uri_for('/eval' eval) %]">[% eval %]</a>
+            </span></div></th>
+        [% END %]
+      </tr>
+    </thead>
+    <tbody>
+      [% FOREACH j IN jobs-%]
+        <tr>
+          <th>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]</th>
+          [% FOREACH eval IN evalIds %]
+            <td>[% r = evals.$eval.$j; IF r.id %]<a href="[% c.uri_for('/build' r.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
+          [% END %]
+        </tr>
+      [% END %]
+    </tbody>
+  </table>
+  
+[% END %]

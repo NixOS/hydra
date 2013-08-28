@@ -52,7 +52,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
     foreach my $b (@constituents) {
 	my $jobName = $b->get_column('job');
 	$aggregates->{$b->get_column('aggregate')}->{constituents}->{$jobName} =
-	    { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus};
+	    { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
 	$constituentJobs{$jobName} = 1;
     }
 
