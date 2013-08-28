@@ -7,7 +7,7 @@
     <li><a href="?">Preceding evaluation in the same jobset</tt></a></li>
     [% IF project.jobsets_rs.count > 1 %]
       <li class="divider"></li>
-      [% FOREACH j IN project.jobsets; IF j.name != jobset.name %]
+      [% FOREACH j IN project.jobsets.sort('name'); IF j.name != jobset.name %]
         <li><a href="?compare=[% j.name %]">Jobset <tt>[% project.name %]:[% j.name %]</tt></a></li>
       [% END; END %]
     [% END %]
