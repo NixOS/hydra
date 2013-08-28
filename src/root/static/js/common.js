@@ -50,18 +50,24 @@ $(document).ready(function() {
 
     $(".hydra-popover").popover({});
 
-    /* Ensure that pressing the back button on another page
-       navigates back to the previously selected tab on this
-       page. */
-    $('.nav-tabs').bind('show', function(e) {
-        var pattern = /#.+/gi;
-        var id = e.target.toString().match(pattern)[0];
-        history.replaceState(null, "", id);
-    });
-
     $(function() {
         if (window.location.hash) {
-            $(".nav a[href='" + window.location.hash + "']").tab('show');
+            $(".nav-tabs a[href='" + window.location.hash + "']").tab('show');
         }
+
+        /* If no tab is active, show the first one. */
+        $(".nav-tabs").each(function() {
+            if ($("li.active", this).length > 0) return;
+            $("a", $("li", this).first()).tab('show');
+        });
+
+        /* Ensure that pressing the back button on another page
+           navigates back to the previously selected tab on this
+           page. */
+        $('.nav-tabs').bind('show', function(e) {
+            var pattern = /#.+/gi;
+            var id = e.target.toString().match(pattern)[0];
+            history.replaceState(null, "", id);
+        });
     })
 });
