@@ -199,7 +199,10 @@ sub job_status_tab : Chained('jobsetChain') PathPart('job-status-tab') Args(0) {
     }
 
     $c->stash->{evals} = $evals;
-    $c->stash->{jobs} = [sort (keys %jobs)];
+    my @jobs = sort (keys %jobs);
+    $c->stash->{nrJobs} = scalar @jobs;
+    splice @jobs, 250 if $c->stash->{filter} eq "";
+    $c->stash->{jobs} = [@jobs];
 }
 
 
