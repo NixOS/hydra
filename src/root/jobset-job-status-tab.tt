@@ -2,10 +2,12 @@
 
 <form class="form-search" id="filter-jobs">
   <input name="filter" type="text" class="input-large search-query" placeholder="Filter jobs..." [% HTML.attributes(value => filter) %]></input>
+  <img src="/static/images/ajax-loader.gif" alt="Loading..." style="display: none;" id="filter-loading" />
 </form>
 
 <script>
   $('#filter-jobs').submit(function() {
+    $('#filter-loading').show();
     $('#tabs-job-status').load("[% c.uri_for('/jobset' project.name jobset.name "job-status-tab") %]", $('#filter-jobs').serialize(), function(response, status, xhr) {
       if (status == "error") {
         $('#[% tabName %]').html("<div class='alert alert-error'>Error loading tab: " + xhr.status + " " + xhr.statusText + "</div>");
