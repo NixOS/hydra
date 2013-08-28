@@ -39,7 +39,6 @@
       <li class="divider"></li>
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('project'), [project.name]) title = "Overview" %]
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('all'), [project.name]) title = "Latest builds" %]
-      [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('jobstatus'), [project.name]) title = "Job status" %]
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('errors'), [project.name]) title = "Errors" %]
       <li class="divider"></li>
       [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'channel' 'latest') title = "Channel" %]
@@ -64,9 +63,6 @@
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Jobset').action_for('all'), [project.name, jobset.name])
         title = "Latest builds" %]
-      [% INCLUDE menuItem
-        uri = c.uri_for(c.controller('Jobset').action_for('jobstatus'), [project.name, jobset.name])
-        title = "Job status" %]
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Jobset').action_for('errors'), [project.name, jobset.name])
         title = "Errors" %]
@@ -111,9 +107,6 @@
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Job').action_for('all'), [project.name, jobset.name, job.name])
         title = "Latest builds" %]
-      [% INCLUDE menuItem
-        uri = c.uri_for(c.controller('Job').action_for('jobstatus'), [project.name, jobset.name, job.name])
-        title = "Job status" %]
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Job').action_for('errors'), [project.name, jobset.name, job.name])
         title = "Errors" %]

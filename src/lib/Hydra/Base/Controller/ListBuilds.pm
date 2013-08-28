@@ -23,12 +23,11 @@ sub getJobStatus {
 }
 
 
-sub jobstatus : Chained('get_builds') PathPart Args(0) {
-    my ($self, $c) = @_;
-    $c->stash->{template} = 'jobstatus.tt';
-    $c->stash->{latestBuilds} = [getJobStatus($self, $c)->all];
-}
-
+#sub jobstatus : Chained('get_builds') PathPart Args(0) {
+#    my ($self, $c) = @_;
+#    $c->stash->{template} = 'jobstatus.tt';
+#    $c->stash->{latestBuilds} = [getJobStatus($self, $c)->all];
+#}
 
 
 # A convenient way to see all the errors - i.e. things demanding
