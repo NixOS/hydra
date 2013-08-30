@@ -270,22 +270,22 @@ sub findLog {
     my ($c, $drvPath, @outPaths) = @_;
 
     if (defined $drvPath) {
-	my $logPath = getDrvLogPath($drvPath);
-	return $logPath if defined $logPath;
+        my $logPath = getDrvLogPath($drvPath);
+        return $logPath if defined $logPath;
     }
     
     return undef if scalar @outPaths == 0;
 
     my @steps = $c->model('DB::BuildSteps')->search(
-	{ path => { -in => [@outPaths] } },
-	{ select => ["drvpath"]
+        { path => { -in => [@outPaths] } },
+        { select => ["drvpath"]
         , distinct => 1
-	, join => "buildstepoutputs"
-	});
+        , join => "buildstepoutputs"
+        });
 
     foreach my $step (@steps) {
-	my $logPath = getDrvLogPath($step->drvpath);
-	return $logPath if defined $logPath;
+        my $logPath = getDrvLogPath($step->drvpath);
+        return $logPath if defined $logPath;
     }
 
     return undef;

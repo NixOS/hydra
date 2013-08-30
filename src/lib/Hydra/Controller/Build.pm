@@ -145,7 +145,6 @@ sub showLog {
     my ($c, $mode, $drvPath, @outPaths) = @_;
 
     my $logPath = findLog($c, $drvPath, @outPaths);
-    print STDERR "log = $logPath\n";
 
     notFound($c, "The build log of derivation ‘$drvPath’ is not available.") unless defined $logPath;
 
@@ -159,8 +158,12 @@ sub showLog {
     }
 
     elsif ($mode eq "raw") {
-        $c->stash->{'plain'} = { data => (scalar logContents($logPath)) || " " };
-        $c->forward('Hydra::View::Plain');
+        if ($logPath !~ /.bz2$/) {
+            $c->serve_static_file($logPath);
+        } else {
+            $c->stash->{'plain'} = { data => (scalar logContents($logPath)) || " " };
+            $c->forward('Hydra::View::Plain');
+        }
     }
 
     elsif ($mode eq "tail-reload") {
