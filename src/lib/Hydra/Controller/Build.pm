@@ -148,6 +148,10 @@ sub showLog {
 
     notFound($c, "The build log of derivation ‘$drvPath’ is not available.") unless defined $logPath;
 
+    my $size = stat($logPath)->size;
+    error($c, "This build log is too big to display ($size bytes).")
+        if $size >= 64 * 1024 * 1024;
+
     if (!$mode) {
         # !!! quick hack
         my $pipeline = ($logPath =~ /.bz2$/ ? "bzip2 -d < $logPath" : "cat $logPath")
