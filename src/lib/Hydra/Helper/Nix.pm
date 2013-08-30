@@ -16,7 +16,7 @@ our @EXPORT = qw(
     getPrimaryBuildsForView
     getPrimaryBuildTotal
     getViewResult getLatestSuccessfulViewResult
-    jobsetOverview removeAsciiEscapes getDrvLogPath logContents
+    jobsetOverview removeAsciiEscapes getDrvLogPath findLog logContents
     getMainOutput
     getEvals getMachines
     pathIsInsidePrefix
@@ -264,10 +264,36 @@ sub getDrvLogPath {
 }
 
 
+# Find the log of the derivation denoted by $drvPath.  It it doesn't
+# exist, try other derivations that produced its outputs (@outPaths).
+sub findLog {
+    my ($c, $drvPath, @outPaths) = @_;
+
+    if (defined $drvPath) {
+	my $logPath = getDrvLogPath($drvPath);
+	return $logPath if defined $logPath;
+    }
+    
+    return undef if scalar @outPaths == 0;
+
+    my @steps = $c->model('DB::BuildSteps')->search(
+	{ path => { -in => [@outPaths] } },
+	{ select => ["drvpath"]
+        , distinct => 1
+	, join => "buildstepoutputs"
+	});
+
+    foreach my $step (@steps) {
+	my $logPath = getDrvLogPath($step->drvpath);
+	return $logPath if defined $logPath;
+    }
+
+    return undef;
+}
+
+
 sub logContents {
-    my ($drvPath, $tail) = @_;
-    my $logPath = getDrvLogPath($drvPath);
-    die unless defined $logPath;
+    my ($logPath, $tail) = @_;
     my $cmd;
     if ($logPath =~ /.bz2$/) {
         $cmd = "bzip2 -d < $logPath";

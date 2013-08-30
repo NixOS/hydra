@@ -23,7 +23,7 @@
     <tbody>
       [% FOREACH step IN build.buildsteps %]
         [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
-          [% has_log = log_exists(step.drvpath);
+          [% has_log = buildStepLogExists(step);
              log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
           <tr>
             <td>[% step.stepnr %]</td>
@@ -177,7 +177,7 @@
                      finished at [% INCLUDE renderDateTime timestamp = actualBuild.stoptime %]</td>
             </tr>
             [% END %]
-            [% IF !isAggregate && log_exists(build.drvpath) %]
+            [% IF !isAggregate && buildLogExists(build) %]
               <tr>
                 <th>Logfile:</th>
                 <td>

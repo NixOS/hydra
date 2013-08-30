@@ -35,18 +35,18 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
 
 
 sub findBuildStepByOutPath {
-    my ($self, $c, $path, $status) = @_;
+    my ($self, $c, $path) = @_;
     return $c->model('DB::BuildSteps')->search(
-        { path => $path, busy => 0, status => $status },
-        { join => ["buildstepoutputs"], order_by => ["stopTime"], limit => 1 })->single;
+        { path => $path, busy => 0 },
+        { join => ["buildstepoutputs"], order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
 
 sub findBuildStepByDrvPath {
-    my ($self, $c, $drvPath, $status) = @_;
+    my ($self, $c, $drvPath) = @_;
     return $c->model('DB::BuildSteps')->search(
-        { drvpath => $drvPath, busy => 0, status => $status },
-        { order_by => ["stopTime"], limit => 1 })->single;
+        { drvpath => $drvPath, busy => 0 },
+        { order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
 
@@ -68,8 +68,7 @@ sub build_GET {
 
     if ($build->finished && $build->iscachedbuild) {
         my $path = ($build->buildoutputs)[0]->path or die;
-        my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path,
-            $build->buildstatus == 0 || $build->buildstatus == 6 ? 0 : 1);
+        my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path);
         $c->stash->{cachedBuild} = $cachedBuildStep->build if defined $cachedBuildStep;
     }
 
@@ -95,9 +94,9 @@ sub build_GET {
 
     # Get the first eval of which this build was a part.
     ($c->stash->{nrEvals}) = $c->stash->{build}->jobsetevals->search({ hasnewbuilds => 1 })->count;
-    ($c->stash->{eval}) = $c->stash->{build}->jobsetevals->search(
+    $c->stash->{eval} = $c->stash->{build}->jobsetevals->search(
         { hasnewbuilds => 1},
-        { limit => 1, order_by => ["id"] });
+        { rows => 1, order_by => ["id"] })->single;
     $self->status_ok(
         $c,
         entity => $c->model('DB::Builds')->find($build->id,{
@@ -132,26 +131,27 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
 
     $c->stash->{step} = $step;
 
-    showLog($c, $step->drvpath, $mode);
+    showLog($c, $mode, $step->drvpath, map { $_->path } $step->buildstepoutputs->all);
 }
 
 
 sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
-    showLog($c, $c->stash->{build}->drvpath, $mode);
+    showLog($c, $mode, $c->stash->{build}->drvpath, map { $_->path } $c->stash->{build}->buildoutputs->all);
 }
 
 
 sub showLog {
-    my ($c, $drvPath, $mode) = @_;
+    my ($c, $mode, $drvPath, @outPaths) = @_;
 
-    my $logPath = getDrvLogPath($drvPath);
+    my $logPath = findLog($c, $drvPath, @outPaths);
+    print STDERR "log = $logPath\n";
 
     notFound($c, "The build log of derivation ‘$drvPath’ is not available.") unless defined $logPath;
 
     if (!$mode) {
         # !!! quick hack
-        my $pipeline = "nix-store -l $drvPath"
+        my $pipeline = ($logPath =~ /.bz2$/ ? "bzip2 -d < $logPath" : "cat $logPath")
             . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
             . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " - | tail -n +2";
         $c->stash->{template} = 'log.tt';
@@ -159,7 +159,7 @@ sub showLog {
     }
 
     elsif ($mode eq "raw") {
-        $c->stash->{'plain'} = { data => (scalar logContents($drvPath)) || " " };
+        $c->stash->{'plain'} = { data => (scalar logContents($logPath)) || " " };
         $c->forward('Hydra::View::Plain');
     }
 
@@ -169,12 +169,12 @@ sub showLog {
         $c->stash->{url} = $url;
         $c->stash->{reload} = !$c->stash->{build}->finished && $c->stash->{build}->busy;
         $c->stash->{title} = "";
-        $c->stash->{contents} = (scalar logContents($drvPath, 50)) || " ";
+        $c->stash->{contents} = (scalar logContents($logPath, 50)) || " ";
         $c->stash->{template} = 'plain-reload.tt';
     }
 
     elsif ($mode eq "tail") {
-        $c->stash->{'plain'} = { data => (scalar logContents($drvPath, 50)) || " " };
+        $c->stash->{'plain'} = { data => (scalar logContents($logPath, 50)) || " " };
         $c->forward('Hydra::View::Plain');
     }
 
@@ -361,8 +361,8 @@ sub getDependencyGraph {
             { path => $path
             , name => $name
             , buildStep => $runtime
-                ? findBuildStepByOutPath($self, $c, $path, 0)
-                : findBuildStepByDrvPath($self, $c, $path, 0)
+                ? findBuildStepByOutPath($self, $c, $path)
+                : findBuildStepByDrvPath($self, $c, $path)
             };
         $$done{$path} = $node;
         my @refs;
