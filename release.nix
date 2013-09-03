@@ -99,6 +99,7 @@ in rec {
             TextDiff
             TextTable
             XMLSimple
+            NetAmazonS3
             nix git
           ];
       };
@@ -142,6 +143,7 @@ in rec {
       ''; # */
 
       meta.description = "Build of Hydra on ${system}";
+      passthru.perlDeps = perlDeps;
     });
 
 
@@ -208,6 +210,45 @@ in rec {
           $machine->waitForOpenPort("3000");
 
           $machine->mustSucceed("perl ${./tests/api-test.pl} >&2");
+        '';
+  });
+
+  tests.s3backup = genAttrs' (system:
+    with import <nixos/lib/testing.nix> { inherit system; };
+    let hydra = builtins.getAttr system build; in # build."${system}"
+    simpleTest {
+      machine =
+        { config, pkgs, ... }:
+        { services.postgresql.enable = true;
+          services.postgresql.package = pkgs.postgresql92;
+          environment.systemPackages = [ hydra pkgs.rubyLibs.fakes3 ];
+          virtualisation.memorySize = 2047;
+          boot.kernelPackages = pkgs.linuxPackages_3_10;
+          virtualisation.writableStore = true;
+          networking.extraHosts = ''
+            127.0.0.1 hydra.s3.amazonaws.com
+          '';
+        };
+
+      testScript =
+        ''
+          $machine->waitForJob("postgresql");
+
+          # Initialise the database and the state.
+          $machine->mustSucceed
+              ( "createdb -O root hydra"
+              , "psql hydra -f ${hydra}/libexec/hydra/sql/hydra-postgresql.sql"
+              , "mkdir /var/lib/hydra"
+              , "mkdir /tmp/jobs"
+              , "cp ${./tests/s3-backup-test.pl} /tmp/s3-backup-test.pl"
+              , "cp ${./tests/api-test.nix} /tmp/jobs/default.nix"
+              );
+
+          # start fakes3
+          $machine->mustSucceed("fakes3 --root /tmp/s3 --port 80 &>/dev/null &");
+          $machine->waitForOpenPort("80");
+
+          $machine->mustSucceed("cd /tmp && LOGNAME=root AWS_ACCESS_KEY_ID=foo AWS_SECRET_ACCESS_KEY=bar HYDRA_DBI='dbi:Pg:dbname=hydra;user=root;' HYDRA_CONFIG=${./tests/s3-backup-test.config} perl -I ${hydra}/libexec/hydra/lib -I ${hydra.perlDeps}/lib/perl5/site_perl ./s3-backup-test.pl >&2");
         '';
   });
 }

@@ -1,6 +1,7 @@
 let
+  thisFile = builtins.toFile "default.nix" (builtins.readFile ./default.nix);
   builder = builtins.toFile "builder.sh" ''
-    echo -n ${builtins.readFile ./default.nix} > $out
+    echo ${thisFile} > $out
   '';
 in {
   job = derivation {
