@@ -8,13 +8,7 @@ __PACKAGE__->config(
     TEMPLATE_EXTENSION => '.tt',
     PRE_CHOMP => 1,
     POST_CHOMP => 1,
-    expose_methods => [qw/log_exists buildLogExists buildStepLogExists/]);
-
-sub log_exists {
-    my ($self, $c, $drvPath) = @_;
-    my $x = getDrvLogPath($drvPath);
-    return defined $x;
-}
+    expose_methods => [qw/buildLogExists buildStepLogExists/]);
 
 sub buildLogExists {
     my ($self, $c, $build) = @_;
