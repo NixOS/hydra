@@ -203,7 +203,7 @@ BLOCK renderBuildStatusIcon;
     [% ELSIF buildstatus == 3 %]
       <img src="/static/images/warning_[% size %].png" alt="Aborted" />
     [% ELSIF buildstatus == 4 %]
-      <img src="/static/images/cancelled_[% size %].png" alt="Cancelled" />
+      <img src="/static/images/forbidden_[% size %].png" alt="Cancelled" />
     [% ELSIF buildstatus == 6 %]
       <img src="/static/images/error_[% size %].png" alt="Failed (with result)" />
     [% ELSE %]
