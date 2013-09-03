@@ -284,6 +284,7 @@ sub findLog {
         });
 
     foreach my $step (@steps) {
+        next unless defined $step->drvpath;
         my $logPath = getDrvLogPath($step->drvpath);
         return $logPath if defined $logPath;
     }
