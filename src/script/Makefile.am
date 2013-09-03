@@ -10,6 +10,7 @@ distributable_scripts =				\
   hydra-queue-runner				\
   hydra-server					\
   hydra-update-gc-roots				\
+  hydra-s3-backup-collect-garbage		\
   nix-prefetch-git				\
   nix-prefetch-bzr				\
   nix-prefetch-hg
