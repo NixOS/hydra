@@ -2,7 +2,7 @@
 
 <form class="form-search" id="filter-jobs">
   <div class="input-append">
-    <input name="filter" type="text" class="input-large search-query" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]></input>
+    <input name="filter" type="text" class="input-large search-query" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]/>
     <button type="button" class="btn btn-info [% IF showInactive %]active[% END %]" id="active-toggle">Show inactive jobs</button>
   </div>
   &nbsp;

@@ -1,9 +1,6 @@
 [% USE date %]
 [% USE HTML %]
-<?xml version="1.0" encoding="UTF-8"?>
-
 [% PROCESS common.tt %]
-
 <!DOCTYPE html>
 
 <html lang="en">
@@ -96,7 +93,7 @@
       <footer class="navbar">
         <hr />
         <small>
-          <em><a href="http://nixos.org/hydra" target="_new">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
+          <em><a href="http://nixos.org/hydra" target="_blank">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
           [% IF c.user_exists %]
           You are logged in as <tt>[% c.user.username %]</tt>.
           [% END %]

@@ -8,12 +8,12 @@
     <div class="control-group">
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="enabled" [% IF project.enabled; 'checked="checked"'; END %]></input>Enabled
+          <input type="checkbox" name="enabled" [% IF project.enabled; 'checked="checked"'; END %]/>Enabled
         </label>
       </div>
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="visible" [% IF !project.hidden; 'checked="checked"'; END %]></input>Visible in the list of projects
+          <input type="checkbox" name="visible" [% IF !project.hidden; 'checked="checked"'; END %]/>Visible in the list of projects
         </label>
       </div>
     </div>
@@ -21,35 +21,35 @@
     <div class="control-group">
       <label class="control-label">Identifier</label>
       <div class="controls">
-        <input type="text" class="span3" name="name" [% HTML.attributes(value => project.name) %]></input>
+        <input type="text" class="span3" name="name" [% HTML.attributes(value => project.name) %]/>
       </div>
     </div>
 
     <div class="control-group">
       <label class="control-label">Display name</label>
       <div class="controls">
-        <input type="text" class="span3" name="displayname" [% HTML.attributes(value => project.displayname) %]></input>
+        <input type="text" class="span3" name="displayname" [% HTML.attributes(value => project.displayname) %]/>
       </div>
     </div>
 
     <div class="control-group">
       <label class="control-label">Description</label>
       <div class="controls">
-        <input type="text" class="span3" name="description" [% HTML.attributes(value => project.description) %]></input>
+        <input type="text" class="span3" name="description" [% HTML.attributes(value => project.description) %]/>
       </div>
     </div>
 
     <div class="control-group">
       <label class="control-label">Homepage</label>
       <div class="controls">
-        <input type="text" class="span3" name="homepage" [% HTML.attributes(value => project.homepage) %]></input>
+        <input type="text" class="span3" name="homepage" [% HTML.attributes(value => project.homepage) %]/>
       </div>
     </div>
 
     <div class="control-group">
       <label class="control-label">Owner</label>
       <div class="controls">
-        <input type="text" class="span3" name="owner" [% HTML.attributes(value => project.owner.username || c.user.username) %]></input>
+        <input type="text" class="span3" name="owner" [% HTML.attributes(value => project.owner.username || c.user.username) %]/>
       </div>
     </div>
 

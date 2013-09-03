@@ -26,14 +26,14 @@
   <div class="control-group">
     <label class="control-label">Identifier</label>
     <div class="controls">
-      <input type="text" class="span3" name="name" [% HTML.attributes(value => view.name) %]></input>
+      <input type="text" class="span3" name="name" [% HTML.attributes(value => view.name) %]/>
     </div>
   </div>
 
   <div class="control-group">
     <label class="control-label">Description</label>
     <div class="controls">
-      <input type="text" class="span3" name="description" [% HTML.attributes(value => view.description) %]></input>
+      <input type="text" class="span3" name="description" [% HTML.attributes(value => view.description) %]/>
     </div>
   </div>
 

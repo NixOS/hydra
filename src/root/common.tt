@@ -144,7 +144,7 @@ END;
 
 
 BLOCK maybeLink;
-  IF uri %]<a [% HTML.attributes(href => uri, class => class) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END;
+  IF uri %]<a [% HTML.attributes(href => uri, class => class); IF confirmmsg +%] onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END;
 END;
 
 
@@ -164,7 +164,7 @@ BLOCK renderSelection;
     [% ELSE %]
       <select [% HTML.attributes(id => param, name => param) %]>
         [% FOREACH name IN options.keys.sort %]
-          <option [% HTML.attributes(value => name) %] [% IF name == curValue; "selected='selected'"; END %]>[% options.$name %]</option>
+          <option [% IF name == curValue; "selected='selected'"; END; " "; HTML.attributes(value => name) %]>[% options.$name %]</option>
         [% END %]
       </select>
     [% END;
@@ -273,7 +273,7 @@ BLOCK renderDiffUri;
     url = bi1.uri;
     path = url.replace(base, '');
     IF url.match(base) %]
-      <a target="_new" href="[% m.uri.replace('_path_', path).replace('_1_', bi1.revision).replace('_2_', bi2.revision) %]">[% contents %]</a>
+      <a target="_blank" href="[% m.uri.replace('_path_', path).replace('_1_', bi1.revision).replace('_2_', bi2.revision) %]">[% contents %]</a>
       [% nouri = 0;
     END;
   END;
@@ -282,7 +282,7 @@ BLOCK renderDiffUri;
     url = res.0;
     branch = res.1;
     IF bi1.type == "hg" || bi1.type == "git" %]
-      <a target="_new" href="[% HTML.escape("/api/scmdiff?uri=$url&rev1=$bi1.revision&rev2=$bi2.revision&type=$bi1.type&branch=$branch") %]">[% contents %]</a>
+      <a target="_blank" href="[% HTML.escape("/api/scmdiff?uri=$url&rev1=$bi1.revision&rev2=$bi2.revision&type=$bi1.type&branch=$branch") %]">[% contents %]</a>
     [% ELSE;
       contents;
     END;
@@ -464,7 +464,7 @@ BLOCK makeLazyTab %]
       $('.nav-tabs').bind('show', function(e) {
         var pattern = /#.+/gi;
         var id = e.target.toString().match(pattern)[0];
-        if (id == "#[% tabName %]" && !tabsLoaded[id]) {
+        if (id == "#[% tabName %]" &amp;&amp; !tabsLoaded[id]) {
           tabsLoaded[id] = 1;
           $('#[% tabName %]').load("[% uri %]", function(response, status, xhr) {
             if (status == "error") {

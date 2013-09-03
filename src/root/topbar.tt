@@ -7,13 +7,13 @@
 [% BLOCK makeSubMenu %]
   <li class="dropdown">
     <a class="dropdown-toggle" href="#" data-toggle="dropdown">[% title %]<b class="caret"></b></a>
-    <ul id="left-menu" class="dropdown-menu">
+    <ul class="dropdown-menu">
       [% content %]
     </ul>
   </li>
 [% END %]
 
-<ul class="nav pull-left" id="top-menu">
+<ul class="nav pull-left">
 
   [% WRAPPER makeSubMenu title="Status" %]
     [% INCLUDE menuItem
@@ -79,7 +79,7 @@
               'Are you sure you want to force evaluation of this jobset?',
               function(c) {
                 if (!c) return;
-                $.post("[% c.uri_for('/api/push', { jobsets = project.name _ ':' _ jobset.name, force = "1" }) %]")
+                $.post("[% HTML.escape(c.uri_for('/api/push', { jobsets = project.name _ ':' _ jobset.name, force = "1" })) %]")
                   .done(function(data) {
                     if (data.error)
                       bootbox.alert("Unable to schedule the jobset for evaluation: " + data.error);
@@ -189,10 +189,10 @@
 
 </ul>
 
-<ul class="nav pull-right" id="top-menu">
+<ul class="nav pull-right">
 
   <form class="navbar-search" action="[% c.uri_for('/search') %]">
-    <input name="query" type="text" class="search-query span2" placeholder="Search" [% HTML.attributes(value => c.req.params.query) %]></input>
+    <input name="query" type="text" class="search-query span2" placeholder="Search" [% HTML.attributes(value => c.req.params.query) %]/>
   </form>
 
   [% IF c.user_exists %]

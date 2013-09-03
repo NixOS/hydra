@@ -3,7 +3,7 @@
 
 [% BLOCK renderJobsetInputAlt %]
   <button type="button" class="btn btn-warning" onclick='$(this).parents(".inputalt").remove()'><i class="icon-trash icon-white"></i></button>
-  <input type="text" [% HTML.attributes(value => alt.value, name => name) %]></input>
+  <input type="text" [% HTML.attributes(value => alt.value, name => name) %]/>
   <br />
 [% END %]
 
@@ -11,7 +11,7 @@
   <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
     <td>
       <button type="button" class="btn btn-warning" onclick='$(this).parents(".input").remove()'><i class="icon-trash icon-white"></i></button>
-      <tt><input type="text" id="[% baseName %]-name" name="[% baseName %]-name" [% HTML.attributes(value => input.name) %]></input>
+      <input type="text" id="[% baseName %]-name" name="[% baseName %]-name" [% HTML.attributes(value => input.name) %]/>
     </td>
     <td>
       [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
@@ -37,7 +37,7 @@
         [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
       <tr>
-        <td colspan="3" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="icon-plus icon-white"></i> Add a new input</button></td
+        <td colspan="3" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="icon-plus icon-white"></i> Add a new input</button></td>
       </tr>
     </tbody>
   </table>
@@ -50,12 +50,12 @@
     <div class="control-group">
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="enabled" [% IF jobset.enabled; 'checked="checked"'; END %]></input>Enabled
+          <input type="checkbox" name="enabled" [% IF jobset.enabled; 'checked="checked"'; END %]/>Enabled
         </label>
       </div>
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="visible" [% IF !jobset.hidden; 'checked="checked"'; END %]></input>Visible
+          <input type="checkbox" name="visible" [% IF !jobset.hidden; 'checked="checked"'; END %]/>Visible
         </label>
       </div>
     </div>
@@ -63,23 +63,23 @@
     <div class="control-group">
       <label class="control-label">Identifier</label>
       <div class="controls">
-        <input type="text" class="span3" name="name" [% HTML.attributes(value => jobset.name) %]></input>
+        <input type="text" class="span3" name="name" [% HTML.attributes(value => jobset.name) %]/>
       </div>
     </div>
 
     <div class="control-group">
       <label class="control-label">Description</label>
       <div class="controls">
-        <input type="text" class="span3" name="description" [% HTML.attributes(value => jobset.description) %]></input>
+        <input type="text" class="span3" name="description" [% HTML.attributes(value => jobset.description) %]/>
       </div>
     </div>
 
     <div class="control-group">
       <label class="control-label">Nix expression</label>
       <div class="controls">
-        <input type="text" class="span3" name="nixexprpath" [% HTML.attributes(value => jobset.nixexprpath) %]></input>
+        <input type="text" class="span3" name="nixexprpath" [% HTML.attributes(value => jobset.nixexprpath) %]/>
         in
-        <input type="text" class="span3" name="nixexprinput" [% HTML.attributes(value => jobset.nixexprinput) %]></input>
+        <input type="text" class="span3" name="nixexprinput" [% HTML.attributes(value => jobset.nixexprinput) %]/>
       </div>
     </div>
 
@@ -87,7 +87,7 @@
       <label class="control-label">Check interval</label>
       <div class="controls">
         <div class="input-append">
-          <input type="number" class="span3" name="checkinterval" [% HTML.attributes(value => jobset.checkinterval) %]></input>
+          <input type="number" class="span3" name="checkinterval" [% HTML.attributes(value => jobset.checkinterval) %]/>
           <span class="add-on">sec</span>
         </div>
         <span class="help-inline">(0 to disable polling)</span>
@@ -97,7 +97,7 @@
     <div class="control-group">
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="enableemail" [% IF jobset.enableemail; 'checked="checked"'; END %]></input>Email notification
+          <input type="checkbox" name="enableemail" [% IF jobset.enableemail; 'checked="checked"'; END %]/>Email notification
         </label>
       </div>
     </div>
@@ -105,14 +105,14 @@
     <div class="control-group">
       <label class="control-label">Email override</label>
       <div class="controls">
-        <input type="text" class="span3" name="emailoverride" [% HTML.attributes(value => jobset.emailoverride) %]></input>
+        <input type="text" class="span3" name="emailoverride" [% HTML.attributes(value => jobset.emailoverride) %]/>
       </div>
     </div>
 
     <div class="control-group">
       <label class="control-label">Number of evaluations to keep</label>
       <div class="controls">
-        <input type="number" class="span3" name="keepnr" [% HTML.attributes(value => jobset.keepnr) %]></input>
+        <input type="number" class="span3" name="keepnr" [% HTML.attributes(value => jobset.keepnr) %]/>
       </div>
     </div>
 
