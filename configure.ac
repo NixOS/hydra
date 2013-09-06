@@ -67,7 +67,7 @@ LDFLAGS="$LDFLAGS -L$nix/lib/nix"
 
 AC_CHECK_HEADER([store-api.hh], [:],
   [AC_MSG_ERROR([Nix headers not found; please install Nix or check the `--with-nix' option.])])
-AC_CHECK_LIB([expr], [_ZN3nix9EvalState17parseExprFromFileESs], [:],
+AC_CHECK_LIB([expr], [_ZN3nix9EvalState17parseExprFromFileERKSs], [:],
   [AC_MSG_ERROR([Nix library not found; please install Nix or check the `--with-nix' option.])])
 
 CPPFLAGS="$old_CPPFLAGS"
