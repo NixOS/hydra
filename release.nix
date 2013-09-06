@@ -34,7 +34,7 @@ in rec {
       '';
 
       configureFlags =
-        [ "--with-nix=${nix}"
+        [ "--with-nix=${nixUnstable}"
           "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook"
         ];
 

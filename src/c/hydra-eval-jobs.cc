@@ -284,9 +284,8 @@ void run(Strings args)
 
     store = openStore();
 
-    Expr * e = state.parseExprFromFile(releaseExpr);
     Value v;
-    state.mkThunk_(v, e);
+    state.evalFile(releaseExpr, v);
 
     XMLWriter doc(true, std::cout);
     XMLOpenElement root(doc, "jobs");
