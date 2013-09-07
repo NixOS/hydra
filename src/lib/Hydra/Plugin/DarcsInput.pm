@@ -27,14 +27,13 @@ sub fetchInput {
     my $clonePath = $cacheDir . "/" . sha256_hex($uri);
     $uri =~ s|^file://||; # darcs wants paths, not file:// uris
 
-    chdir $ENV{"TMPDIR"}; # sigh. darcs needs a writeable working directory
-
     my $stdout = ""; my $stderr = ""; my $res;
     if (! -d $clonePath) {
         # Clone the repository.
-        ($res, $stdout, $stderr) = captureStdoutStderr(600,
-            ("darcs", "get", "--lazy", $uri, $clonePath));
-        die "Error getting darcs repo at `$uri':\n$stderr" if $res;
+        $res = run(timeout => 600,
+                   cmd => ["darcs", "get", "--lazy", $uri, $clonePath],
+                   dir => $ENV{"TMPDIR"});
+        die "Error getting darcs repo at `$uri':\n$stderr" if $res->{status};
     }
 
     # Update the repository to match $uri.
