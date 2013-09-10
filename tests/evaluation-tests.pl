@@ -7,7 +7,7 @@ use Setup;
 
 my $db = Hydra::Model::DB->new;
 
-use Test::Simple tests => 68;
+use Test::Simple tests => 72;
 
 hydra_setup($db);
 
@@ -102,6 +102,13 @@ my @scminputs = (
         type => "hg",
         uri => "$jobsBaseUri/hg-repo",
         update => getcwd . "/jobs/hg-update.sh"
+    },
+    {
+        name => "darcs",
+        nixexpr => "darcs-input.nix",
+        type => "darcs",
+        uri => "$jobsBaseUri/darcs-repo",
+        update => getcwd . "/jobs/darcs-update.sh"
     }
 );
 

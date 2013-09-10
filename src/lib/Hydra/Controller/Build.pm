@@ -158,7 +158,7 @@ sub showLog {
             . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
             . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " - | tail -n +2";
         $c->stash->{template} = 'log.tt';
-        $c->stash->{logtext} = `$pipeline`;
+        $c->stash->{logtext} = `ulimit -t 5 ; $pipeline`;
     }
 
     elsif ($mode eq "raw") {
@@ -298,7 +298,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
     notFound($c, "Product $path has disappeared.") unless -e $path;
 
     # Sanitize $path to prevent shell injection attacks.
-    $path =~ /^\/[\/[A-Za-z0-9_\-\.=]+$/ or die "Filename contains illegal characters.\n";
+    $path =~ /^\/[\/[A-Za-z0-9_\-\.=+:]+$/ or die "Filename contains illegal characters.\n";
 
     # FIXME: don't use shell invocations below.
 

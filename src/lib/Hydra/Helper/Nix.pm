@@ -253,13 +253,11 @@ sub getLatestSuccessfulViewResult {
 sub getDrvLogPath {
     my ($drvPath) = @_;
     my $base = basename $drvPath;
-    my $fn =
-        ($ENV{NIX_LOG_DIR} || "/nix/var/log/nix") . "/drvs/"
-        . substr($base, 0, 2) . "/"
-        . substr($base, 2);
-    return $fn if -f $fn;
-    $fn .= ".bz2";
-    return $fn if -f $fn;
+    my $bucketed = substr($base, 0, 2) . "/" . substr($base, 2);
+    my $fn = ($ENV{NIX_LOG_DIR} || "/nix/var/log/nix") . "/drvs/";
+    for ($fn . $bucketed . ".bz2", $fn . $bucketed, $fn . $base . ".bz2", $fn . $base) {
+        return $_ if (-f $_);
+    }
     return undef;
 }
 

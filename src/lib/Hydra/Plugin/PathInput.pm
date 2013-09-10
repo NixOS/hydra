@@ -34,8 +34,13 @@ sub fetchInput {
     } else {
 
         print STDERR "copying input ", $name, " from $uri\n";
-        $storePath = `nix-store --add "$uri"`
-            or die "cannot copy path $uri to the Nix store.\n";
+        if ( $uri =~ /^\// ) {
+            $storePath = `nix-store --add "$uri"`
+                or die "cannot copy path $uri to the Nix store.\n";
+        } else {
+            $storePath = `PRINT_PATH=1 nix-prefetch-url "$uri" | tail -n 1`
+                or die "cannot fetch $uri to the Nix store.\n";
+        }
         chomp $storePath;
 
         $sha256 = (queryPathInfo($storePath, 0))[1] or die;
