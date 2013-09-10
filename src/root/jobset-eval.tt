@@ -33,6 +33,10 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   <input name="full" type="hidden" [% HTML.attributes(value => full) %]/>
 </form>
 
+[% IF c.user_exists %]
+  <a class="btn btn-warning pull-right" href="[% c.uri_for(c.controller('JobsetEval').action_for('release'), [eval.id]) %]">Release this evaluation</a>
+[% END %]
+
 <ul class="nav nav-tabs">
   [% IF nowFail.size > 0 %]
     <li><a href="#tabs-now-fail" data-toggle="tab"><span class="text-warning">Newly-failing jobs</span></a></li>
