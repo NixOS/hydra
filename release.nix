@@ -92,6 +92,7 @@ in rec {
             PadWalker
             CatalystDevel
             Readonly
+            SetScalar
             SQLSplitStatement
             Starman
             SysHostnameLong

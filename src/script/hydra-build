@@ -11,6 +11,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::PluginHooks;
 use Hydra::Model::DB;
 use Hydra::Helper::AddBuilds;
+use Set::Scalar;
 
 STDOUT->autoflush();
 
@@ -41,16 +42,18 @@ sub failDependents {
     my ($drvPath, $status, $errorMsg, $dependents) = @_;
 
     # Get the referrer closure of $drvPath.
-    my @dependentDrvs = computeFSClosure(1, 0, $drvPath);
+    my $dependentDrvs = Set::Scalar->new(computeFSClosure(1, 0, $drvPath));
 
     my $time = time();
 
     txn_do($db, sub {
 
         my @dependentBuilds = $db->resultset('Builds')->search(
-            { drvpath => [ @dependentDrvs ], finished => 0, busy => 0 });
+            { finished => 0, busy => 0 },
+            { columns => ["id", "project", "jobset", "job", "drvpath"] });
 
         for my $d (@dependentBuilds) {
+            next unless $dependentDrvs->has($d->drvpath);
             print STDERR "failing dependent build ", $d->id, " of ", $d->project->name, ":", $d->jobset->name, ":", $d->job->name, "\n";
             $d->update(
                 { finished => 1
