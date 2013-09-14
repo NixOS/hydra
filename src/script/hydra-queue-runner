@@ -565,11 +565,10 @@ while (1) {
     }
 
     eval {
-        # Clean up zombies.
-        # while ((waitpid(-1, &WNOHANG)) > 0) { };
         checkBuilds;
         $lastTime = time();
         if ($mux->count()) {
+            # can_read includes EOFd handles
             processIO($running{$_}) for ($mux->can_read(5));
         } else {
             sleep(5);
