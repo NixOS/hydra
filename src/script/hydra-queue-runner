@@ -223,6 +223,7 @@ sub finishBuild {
         my $res = $?;
 
         delete $running{$state->{outfd}};
+        $mux->remove($state->{outfd});
         $state->{stopTime} = time();
         $state->{logfd}->close();
         $state->{outfd}->close();
