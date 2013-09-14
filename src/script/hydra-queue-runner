@@ -27,6 +27,7 @@ my $lastTime;
 
 my %running;
 my $mux = new IO::Select;
+my %depcache; # drvpath -> [drvpath]
 
 #$SIG{CHLD} = 'IGNORE';
 
@@ -397,13 +398,22 @@ sub unlockDeadBuilds {
 sub findBuildDependencyInQueue {
     my ($buildsByDrv, $build) = @_;
     return undef unless isValidPath($build->drvpath);
-    my @deps = grep { /\.drv$/ && $_ ne $build->drvpath } computeFSClosure(0, 0, $build->drvpath);
-    return unless scalar @deps > 0;
-    foreach my $d (@deps) {
+
+    unless (exists $depcache{$build->drvpath}) {
+        my @deps = grep { /\.drv$/ && $_ ne $build->drvpath } queryReferences($build->drvpath);
+        $depcache{$build->drvpath} = \@deps;
+    }
+
+    my $deps = $depcache{$build->drvpath};
+
+    return unless scalar @$deps > 0;
+
+    foreach my $d (@$deps) {
         my $b = $buildsByDrv->{$d};
         next unless defined $b;
         return $db->resultset('Builds')->find($b);
     }
+
     return undef;
 }
 
@@ -521,9 +531,15 @@ if (scalar(@ARGV) == 1 && $ARGV[0] eq "--unlock") {
 }
 
 unlockDeadBuilds;
+my $dcvalidity = 0;
 
 while (1) {
 
+    if ($dcvalidity == 0) {
+        $dcvalidity = 5000;
+        %depcache = (); # free up resources
+    }
+    -- $dcvalidity;
 
     eval {
         # Clean up zombies.
