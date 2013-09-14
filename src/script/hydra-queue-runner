@@ -555,15 +555,14 @@ if (scalar(@ARGV) == 1) {
 }
 
 chdir Hydra::Model::DB::getHydraPath or die;
-my $dcvalidity = 0;
+my $dcvalidity = time();
 
 while (1) {
 
-    if ($dcvalidity == 0) {
-        $dcvalidity = 5000;
+    if (time() - $dcvalidity > 6 * 3600) {
+        $dcvalidity = time();
         %depcache = (); # free up resources
     }
-    -- $dcvalidity;
 
     eval {
         # Clean up zombies.
