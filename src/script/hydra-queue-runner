@@ -302,6 +302,7 @@ sub startBuild {
 
     my $state = {
         build => $build,
+        pid => 0,
         dependents => [],
         buildStatus => 0,
         startTime => time(),
