@@ -16,7 +16,6 @@ use File::stat;
 use List::MoreUtils qw(all);
 use IO::Select;
 
-chdir Hydra::Model::DB::getHydraPath or die;
 my $db = Hydra::Model::DB->new();
 my $config = getHydraConfig();
 my @plugins = Hydra::Plugin->instantiate(db => $db, config => $config);
@@ -343,7 +342,12 @@ sub startBuild {
         my $outfd = IO::Handle->new();
         my $logfd = IO::Handle->new();
 
-        open($logfd, ">", $build->logfile) or $problem = "Could not open logfile " . $build->logfile;
+        if ($build->logfile) {
+            open($logfd, ">", $build->logfile) or $problem = "Could not open logfile " . $build->logfile;
+        } else {
+            $logfd->fdopen(fileno(STDOUT), "w");
+        }
+
         $pid = open($outfd, "$cmd |") unless ($problem);
 
         if ($pid) {
@@ -355,7 +359,7 @@ sub startBuild {
             $mux->add($outfd);
         } else {
             if ($problem) {
-                warn ($problem . "(build " . $build->id);
+                warn ($problem . "(build " . $build->id . ")");
             } else {
                 $logfd->close();
                 warn "Could not start build for " . $build->id;
@@ -365,6 +369,7 @@ sub startBuild {
             });
         }
     }
+    return $state;
 }
 
 ## SCHEDULING
@@ -525,12 +530,30 @@ sub processIO {
     }
 }
 
-if (scalar(@ARGV) == 1 && $ARGV[0] eq "--unlock") {
-    unlockDeadBuilds;
+if (scalar(@ARGV) == 1) {
+    if ($ARGV[0] eq "--unlock") {
+        unlockDeadBuilds;
+    } else {
+        my $buildId = $ARGV[0];
+        my $build;
+        txn_do($db, sub {
+            $build = $db->resultset('Builds')->find($buildId);
+            die "build $buildId doesn't exist\n" unless defined $build;
+            die "build $buildId already done\n" if $build->finished;
+            if ($build->busy != 0) {
+                die "build $buildId is already being built";
+            }
+            $build->update({busy => 1, locker => $$});
+        });
+        my $state = startBuild $build;
+        processIO($state) while ($mux->can_read());
+    }
     exit 0;
+} else {
+    unlockDeadBuilds;
 }
 
-unlockDeadBuilds;
+chdir Hydra::Model::DB::getHydraPath or die;
 my $dcvalidity = 0;
 
 while (1) {
