@@ -56,6 +56,11 @@ my @roots = readdir DIR;
 closedir DIR;
 
 
+# For scheduled builds, we register the derivation as a GC root.
+print STDERR "*** looking for scheduled builds\n";
+keepBuild $_ foreach $db->resultset('Builds')->search({ finished => 0 }, { columns => [ @columns ] });
+
+
 # Keep every build in every release of every project.
 print STDERR "*** looking for release members\n";
 keepBuild $_ foreach $db->resultset('Builds')->search_literal(
@@ -84,19 +89,27 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
             next;
         }
 
-        if ($keepnr <= 0 ) {
-            print STDERR "*** jobset ", $project->name, ":", $jobset->name, " set to keep 0 builds\n";
-            next;
-        }
-
-        print STDERR "*** looking for all builds in the $keepnr most recent evaluations of jobset ",
+        print STDERR "*** looking for all builds in the unfinished and $keepnr most recent finished evaluations of jobset ",
             $project->name, ":", $jobset->name, "\n";
+
+        my @evals;
+
+        # Get the unfinished evals.
+        push @evals, $_->get_column("eval") foreach $jobset->builds->search(
+            { finished => 0 },
+            { join => "jobsetevalmembers", select => "jobsetevalmembers.eval", as => "eval", distinct => 1 });
+
+        # Get the N most recent finished evals.
+        if ($keepnr) {
+            push @evals, $_->get_column("id") foreach $jobset->jobsetevals->search(
+                { hasNewBuilds => 1 },
+                { where => \ "not exists (select 1 from builds b join jobsetevalmembers m on b.id = m.build where m.eval = me.id and b.finished = 0)"
+                , order_by => "id desc", rows => $keepnr });
+        }
 
         keepBuild $_ foreach $jobset->builds->search(
             { finished => 1, buildStatus => { -in => [0, 6] }
-            , id => { -in =>
-                \ [ "select build from JobsetEvalMembers where eval in (select id from JobsetEvals where project = ? and jobset = ? and hasNewBuilds = 1 order by id desc limit ?)",
-                    [ '', $project->name ], [ '', $jobset->name ], [ '', $keepnr ] ] }
+            , id => { -in => $db->resultset('JobsetEvalMembers')->search({ eval => { -in => [@evals] } }, { select => "build" })->as_query } 
             },
             { order_by => ["job", "id"], columns => [ @columns ] });
     }
@@ -117,11 +130,6 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
         }
     }
 }
-
-
-# For scheduled builds, we register the derivation as a GC root.
-print STDERR "*** looking for scheduled builds\n";
-keepBuild $_ foreach $db->resultset('Builds')->search({ finished => 0 }, { columns => [ @columns ] });
 
 
 # Remove existing roots that are no longer wanted.
