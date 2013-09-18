@@ -273,18 +273,20 @@ sub updateJobset {
 
     my ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
 
+    my $enabled = defined $c->stash->{params}->{enabled};
+
     $jobset->update(
         { name => $jobsetName
         , description => trim($c->stash->{params}->{"description"})
         , nixexprpath => $nixExprPath
         , nixexprinput => $nixExprInput
-        , enabled => defined $c->stash->{params}->{enabled} ? 1 : 0
+        , enabled => $enabled ? 1 : 0
         , enableemail => defined $c->stash->{params}->{enableemail} ? 1 : 0
         , emailoverride => trim($c->stash->{params}->{emailoverride}) || ""
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , keepnr => int(trim($c->stash->{params}->{keepnr})) || 3
         , checkinterval => int(trim($c->stash->{params}->{checkinterval}))
-        , triggertime => $jobset->triggertime // time()
+        , triggertime => $enabled ? $jobset->triggertime // time() : undef
         });
 
     # Process the inputs of this jobset.
