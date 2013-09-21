@@ -145,15 +145,15 @@ sub checkBuilds {
                         $timeSpentPerJobset->{$b->get_column('project')}->{$b->get_column('jobset')} = $timeSpent;
                     }
 
-                    my $share = $jobset->schedulingshares;
-                    my $delta = ($share / $totalShares) - ($duration / $totalWindowSize);
+                    my $share = $jobset->schedulingshares || 1; # prevent division by zero
+                    my $used = $timeSpent / ($totalWindowSize * ($share / $totalShares));
 
-                    #printf STDERR "%s:%s: %d s, %.3f%%, allowance = %.3f%%\n", $jobset->get_column('project'), $jobset->name, $duration, $duration / $totalWindowSize, $delta;
+                    #printf STDERR "%s:%s: %d s, total used = %.2f%%, share used = %.2f%%\n", $jobset->get_column('project'), $jobset->name, $timeSpent, $timeSpent / $totalWindowSize * 100, $used * 100;
 
-                    push @res, { jobset => $jobset, delta => $delta };
+                    push @res, { jobset => $jobset, used => $used };
                 }
 
-                foreach my $r (sort { $b->{delta} <=> $a->{delta} } @res) {
+                foreach my $r (sort { $a->{used} <=> $b->{used} } @res) {
                     my $jobset = $r->{jobset};
                     #print STDERR "selected ", $jobset->get_column('project'), ':', $jobset->name, "\n";
 
@@ -173,8 +173,8 @@ sub checkBuilds {
                         }
                         next if $build->busy;
 
-                        printf STDERR "starting build %d (%s:%s:%s) on %s (jobset allowance = %.3f%%)\n", 
-                            $build->id, $build->project->name, $build->jobset->name, $build->job->name, $build->system, $r->{delta};
+                        printf STDERR "starting build %d (%s:%s:%s) on %s; jobset at %.2f%% of its share\n", 
+                            $build->id, $build->project->name, $build->jobset->name, $build->job->name, $build->system, $r->{used} * 100;
 
                         my $logfile = getcwd . "/logs/" . $build->id;
                         mkdir(dirname $logfile);
