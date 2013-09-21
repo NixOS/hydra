@@ -308,13 +308,10 @@ sub checkSomeJobset {
 
     return 0 unless defined $jobset;
 
-    checkJobset($jobset);
-
-    return 1;
+    return system($0, $jobset->project->name, $jobset->name) == 0;
 }
 
 
-# For testing: evaluate a single jobset, then exit.
 if (scalar @ARGV == 2) {
     my $projectName = $ARGV[0];
     my $jobsetName = $ARGV[1];
