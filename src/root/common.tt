@@ -459,21 +459,7 @@ BLOCK makeLazyTab %]
     <center><img src="/static/images/ajax-loader.gif" alt="Loading..." /></center>
   </div>
   <script>
-    $(function() {
-      var tabsLoaded = {};
-      $('.nav-tabs').bind('show', function(e) {
-        var pattern = /#.+/gi;
-        var id = e.target.toString().match(pattern)[0];
-        if (id == "#[% tabName %]" &amp;&amp; !tabsLoaded[id]) {
-          tabsLoaded[id] = 1;
-          $('#[% tabName %]').load("[% uri %]", function(response, status, xhr) {
-            if (status == "error") {
-              $('#[% tabName %]').html("<div class='alert alert-error'>Error loading tab: " + xhr.status + " " + xhr.statusText + "</div>");
-            }
-          });
-        }
-      });
-    });
+    $(function() { makeLazyTab("[% tabName %]", "[% uri %]"); });
   </script>
 [% END;
 

@@ -71,3 +71,20 @@ $(document).ready(function() {
         });
     })
 });
+
+var tabsLoaded = {};
+
+var makeLazyTab = function(tabName, uri) {
+    $('.nav-tabs').bind('show', function(e) {
+        var pattern = /#.+/gi;
+        var id = e.target.toString().match(pattern)[0];
+        if (id == '#' + tabName && !tabsLoaded[id]) {
+          tabsLoaded[id] = 1;
+          $('#' + tabName).load(uri, function(response, status, xhr) {
+            if (status == "error") {
+              $('#' + tabName).html("<div class='alert alert-error'>Error loading tab: " + xhr.status + " " + xhr.statusText + "</div>");
+            }
+          });
+        }
+    });
+}
