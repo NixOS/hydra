@@ -28,7 +28,7 @@ sub unlockDeadBuilds {
             my $pid = $build->locker;
             my $unlock = 0;
             if ($pid == $$) {
-                if (!defined $lastTime || $build->starttime < $lastTime - 600) {
+                if (!defined $lastTime || $build->starttime < $lastTime - 180) {
                     $unlock = 1;
                 }
             } elsif (kill(0, $pid) != 1) { # see if we can signal the process
@@ -230,9 +230,9 @@ while (1) {
 
         unlockDeadBuilds;
 
-        checkBuilds;
-
         $lastTime = time();
+
+        checkBuilds;
     };
     warn $@ if $@;
 
