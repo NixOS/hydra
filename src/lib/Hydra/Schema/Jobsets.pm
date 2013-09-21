@@ -118,6 +118,12 @@ __PACKAGE__->table("Jobsets");
   default_value: 300
   is_nullable: 0
 
+=head2 schedulingshares
+
+  data_type: 'integer'
+  default_value: 100
+  is_nullable: 0
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -151,6 +157,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 3, is_nullable => 0 },
   "checkinterval",
   { data_type => "integer", default_value => 300, is_nullable => 0 },
+  "schedulingshares",
+  { data_type => "integer", default_value => 100, is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -272,7 +280,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:tsGR8MhZRIUeNwpcVczMUw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-09-20 12:15:23
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:pD6tGW0Ob3fuA1p0uQnBWw
 
 1;

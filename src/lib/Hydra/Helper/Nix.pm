@@ -20,7 +20,8 @@ our @EXPORT = qw(
     getMainOutput
     getEvals getMachines
     pathIsInsidePrefix
-    captureStdoutStderr run grab);
+    captureStdoutStderr run grab
+    getTotalShares);
 
 
 sub getHydraHome {
@@ -530,6 +531,14 @@ sub grab {
     my $res = run(%args, grabStderr => 0);
     die "command `@{$args{cmd}}' failed with exit status $res->{status}" if $res->{status};
     return $res->{stdout};
+}
+
+
+sub getTotalShares {
+    my ($db) = @_;
+    return $db->resultset('Jobsets')->search(
+        { 'project.enabled' => 1, 'me.enabled' => 1 },
+        { join => 'project', select => { sum => 'schedulingshares' }, as => 'sum' })->single->get_column('sum');
 }
 
 

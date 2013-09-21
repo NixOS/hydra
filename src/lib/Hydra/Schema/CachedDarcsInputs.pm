@@ -15,6 +15,18 @@ use warnings;
 
 use base 'DBIx::Class::Core';
 
+=head1 COMPONENTS LOADED
+
+=over 4
+
+=item * L<Hydra::Component::ToJSON>
+
+=back
+
+=cut
+
+__PACKAGE__->load_components("+Hydra::Component::ToJSON");
+
 =head1 TABLE: C<CachedDarcsInputs>
 
 =cut
@@ -24,11 +36,6 @@ __PACKAGE__->table("CachedDarcsInputs");
 =head1 ACCESSORS
 
 =head2 uri
-
-  data_type: 'text'
-  is_nullable: 0
-
-=head2 branch
 
   data_type: 'text'
   is_nullable: 0
@@ -48,6 +55,11 @@ __PACKAGE__->table("CachedDarcsInputs");
   data_type: 'text'
   is_nullable: 0
 
+=head2 revcount
+
+  data_type: 'integer'
+  is_nullable: 0
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -55,12 +67,12 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "revision",
   { data_type => "text", is_nullable => 0 },
-  "revcount",
-  { data_type => "integer", is_nullable => 0 },
   "sha256hash",
   { data_type => "text", is_nullable => 0 },
   "storepath",
   { data_type => "text", is_nullable => 0 },
+  "revcount",
+  { data_type => "integer", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -68,8 +80,6 @@ __PACKAGE__->add_columns(
 =over 4
 
 =item * L</uri>
-
-=item * L</branch>
 
 =item * L</revision>
 
@@ -80,7 +90,9 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07014 @ 2011-12-05 14:15:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fx3yosWMmJ+MnvL/dSWtFA
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-09-20 11:08:50
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Yl1slt3SAizijgu0KUTn0A
 
+
+# You can replace this text with custom code or comments, and it will be preserved on regeneration
 1;

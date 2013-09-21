@@ -1,5 +1,6 @@
 [% WRAPPER layout.tt title=(create ? "Create jobset in project $project.name" : "Editing jobset $project.name:$jobset.name") %]
 [% PROCESS common.tt %]
+[% USE format %]
 
 [% BLOCK renderJobsetInputAlt %]
   <button type="button" class="btn btn-warning" onclick='$(this).parents(".inputalt").remove()'><i class="icon-trash icon-white"></i></button>
@@ -91,6 +92,18 @@
           <span class="add-on">sec</span>
         </div>
         <span class="help-inline">(0 to disable polling)</span>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label class="control-label">Scheduling shares</label>
+      <div class="controls">
+        <div class="input-append">
+          <input type="number" class="span3" name="schedulingshares" [% HTML.attributes(value => jobset.schedulingshares) %]/>
+        </div>
+        [% IF totalShares %]
+          <span class="help-inline">([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% totalShares %] shares)</span>
+        [% END %]
       </div>
     </div>
 

@@ -50,7 +50,9 @@ sub jobset_GET {
 
     $c->stash->{evals} = getEvals($self, $c, scalar $c->stash->{jobset}->jobsetevals, 0, 10);
 
-    ($c->stash->{latestEval}) = $c->stash->{jobset}->jobsetevals->search({}, { rows => 1, order_by => ["id desc"] });
+    $c->stash->{latestEval} = $c->stash->{jobset}->jobsetevals->search({}, { rows => 1, order_by => ["id desc"] })->single;
+
+    $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 
     $self->status_ok(
         $c,
@@ -161,22 +163,22 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
         my @builds = $eval->builds->search(
             { job => { ilike => $filter } },
             { columns => ['id', 'job', 'finished', 'buildstatus'] });
-	foreach my $b (@builds) {
-	    my $jobName = $b->get_column('job');
-	    $evals->{$eval->id}->{$jobName} = 
-	        { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
-	    $jobs{$jobName} = 1;
-	    $nrBuilds++;
-	}
-	last if $nrBuilds >= 10000;
+        foreach my $b (@builds) {
+            my $jobName = $b->get_column('job');
+            $evals->{$eval->id}->{$jobName} = 
+                { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
+            $jobs{$jobName} = 1;
+            $nrBuilds++;
+        }
+        last if $nrBuilds >= 10000;
     }
 
     if ($c->request->params->{showInactive}) {
-	$c->stash->{showInactive} = 1;
-	foreach my $job ($c->stash->{jobset}->jobs->search({ name => { ilike => $filter } })) {
-	    next if defined $jobs{$job->name};
-	    $c->stash->{inactiveJobs}->{$job->name} = $jobs{$job->name} = 1;
-	}
+        $c->stash->{showInactive} = 1;
+        foreach my $job ($c->stash->{jobset}->jobs->search({ name => { ilike => $filter } })) {
+            next if defined $jobs{$job->name};
+            $c->stash->{inactiveJobs}->{$job->name} = $jobs{$job->name} = 1;
+        }
     }
 
     $c->stash->{evals} = $evals;
@@ -209,6 +211,7 @@ sub edit : Chained('jobsetChain') PathPart Args(0) {
 
     $c->stash->{template} = 'edit-jobset.tt';
     $c->stash->{edit} = 1;
+    $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 }
 
 
@@ -287,6 +290,7 @@ sub updateJobset {
         , keepnr => int(trim($c->stash->{params}->{keepnr}))
         , checkinterval => int(trim($c->stash->{params}->{checkinterval}))
         , triggertime => $enabled ? $jobset->triggertime // time() : undef
+        , schedulingshares => int($c->stash->{params}->{schedulingshares})
         });
 
     # Process the inputs of this jobset.

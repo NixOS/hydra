@@ -1,5 +1,6 @@
 [% WRAPPER layout.tt title="Jobset $project.name:$jobset.name" %]
 [% PROCESS common.tt %]
+[% USE format %]
 
 
 [% BLOCK renderJobsetInput %]
@@ -120,6 +121,10 @@
       <tr>
         <th>Check interval:</th>
         <td>[% jobset.checkinterval || "<em>disabled</em>"  %]</td>
+      </tr>
+      <tr>
+        <th>Scheduling shares:</th>
+        <td>[% jobset.schedulingshares %] [% IF totalShares %] ([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% totalShares %] shares)[% END %]</td>
       </tr>
       <tr>
         <th>Enable email notification:</th>
