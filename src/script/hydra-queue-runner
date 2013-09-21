@@ -108,6 +108,8 @@ sub checkBuilds {
 
             print STDERR "starting at most $extraAllowed builds for system ${\$system->system}\n";
 
+            my $timeSpentPerJobset;
+
             j: while ($extraAllowed-- > 0) {
 
                 my @runnableJobsets = $db->resultset('Builds')->search(
@@ -117,6 +119,7 @@ sub checkBuilds {
                 next if @runnableJobsets == 0;
 
                 my $windowSize = 24 * 3600;
+                my $costPerBuild = 30;
                 my $totalWindowSize = $windowSize * $max;
 
                 my @res;
@@ -124,17 +127,23 @@ sub checkBuilds {
                 foreach my $b (@runnableJobsets) {
                     my $jobset = $db->resultset('Jobsets')->find($b->get_column('project'), $b->get_column('jobset')) or die;
 
-                    my $duration = $jobset->builds->search(
-                        { },
-                        { where => \ ("(finished = 0 or (me.stoptime >= " . (time() - $windowSize) . "))")
-                        , join => 'buildsteps'
-                        , select => \ "sum(coalesce(buildsteps.stoptime, ${\time}) - buildsteps.starttime)"
-                        , as => "sum" })->single->get_column("sum") // 0;
+                    my $timeSpent = $timeSpentPerJobset->{$b->get_column('project')}->{$b->get_column('jobset')};
 
-                    # Add a 30s penalty for each started build.  This
-                    # is to account for jobsets that have running
-                    # builds but no build steps yet.
-                    $duration += $jobset->builds->search({ finished => 0, busy => 1 })->count * 30;
+                    if (!defined $timeSpent) {
+                        $timeSpent = $jobset->builds->search(
+                            { },
+                            { where => \ ("(finished = 0 or (me.stoptime >= " . (time() - $windowSize) . "))")
+                            , join => 'buildsteps'
+                            , select => \ "sum(coalesce(buildsteps.stoptime, ${\time}) - buildsteps.starttime)"
+                            , as => "sum" })->single->get_column("sum") // 0;
+
+                        # Add a 30s penalty for each started build.  This
+                        # is to account for jobsets that have running
+                        # builds but no build steps yet.
+                        $timeSpent += $jobset->builds->search({ finished => 0, busy => 1 })->count * $costPerBuild;
+
+                        $timeSpentPerJobset->{$b->get_column('project')}->{$b->get_column('jobset')} = $timeSpent;
+                    }
 
                     my $share = $jobset->schedulingshares;
                     my $delta = ($share / $totalShares) - ($duration / $totalWindowSize);
@@ -176,6 +185,9 @@ sub checkBuilds {
                             , logfile => $logfile
                             });
                         push @buildsStarted, $build;
+
+                        $timeSpentPerJobset->{$jobset->get_column('project')}->{$jobset->name} += $costPerBuild;
+
                         next j;
                     }
                 }
