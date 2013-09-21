@@ -48,6 +48,7 @@ sub unlockDeadBuilds {
 # depends; or undef if no such build exists.
 sub findBuildDependencyInQueue {
     my ($buildsByDrv, $build) = @_;
+    return undef; # FIXME
     return undef unless isValidPath($build->drvpath);
     my @deps = grep { /\.drv$/ && $_ ne $build->drvpath } computeFSClosure(0, 0, $build->drvpath);
     return unless scalar @deps > 0;
