@@ -7,13 +7,7 @@ let
 
   baseDir = "/var/lib/hydra";
 
-  hydraConf = pkgs.writeScript "hydra.conf"
-    ''
-      using_frontend_proxy 1
-      base_uri ${cfg.hydraURL}
-      notification_sender ${cfg.notificationSender}
-      max_servers 25
-    '';
+  hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
   env =
     { NIX_REMOTE = "daemon";
@@ -118,6 +112,11 @@ in
         description = "Whether to run the server in debug mode";
       };
 
+      extraConfig = mkOption {
+        type = types.lines;
+        description = "Extra lines for the hydra config";
+      };
+
     };
 
   };
@@ -126,6 +125,14 @@ in
   ###### implementation
 
   config = mkIf cfg.enable {
+    services.hydra.extraConfig =
+      ''
+        using_frontend_proxy 1
+        base_uri ${cfg.hydraURL}
+        notification_sender ${cfg.notificationSender}
+        max_servers 25
+      '';
+
     environment.systemPackages = [ cfg.hydra ];
 
     users.extraUsers.hydra =
