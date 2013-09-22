@@ -14,7 +14,7 @@ use Nix::Store;
 use Hydra::Model::DB;
 use Hydra::Helper::CatalystUtils;
 
-my $client = Net::Amazon::S3::Client->new( s3 => Net::Amazon::S3->new( retry => 1 ) );
+my $client;
 my %compressors = (
     xz => "| $Nix::Config::xz",
     bzip2 => "| $Nix::Config::bzip2",
@@ -39,6 +39,9 @@ sub buildFinished {
     }
 
     return unless @matching_configs;
+    unless (defined $client) {
+        $client = Net::Amazon::S3::Client->new( s3 => Net::Amazon::S3->new( retry => 1 ) );
+    }
 
     # !!! Maybe should do per-bucket locking?
     my $lockhandle = IO::File->new;
