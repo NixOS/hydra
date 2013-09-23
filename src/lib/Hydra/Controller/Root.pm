@@ -223,7 +223,7 @@ sub end : ActionClass('RenderView') {
     }
 
     if (scalar @{$c->error}) {
-        $c->stash->{resource} = { errors => "$c->error" };
+        $c->stash->{resource} = { errors => $c->error };
         $c->stash->{template} = 'error.tt';
         $c->stash->{errors} = $c->error;
         $c->response->status(500) if $c->response->status == 200;

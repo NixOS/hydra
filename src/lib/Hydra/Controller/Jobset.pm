@@ -248,7 +248,7 @@ sub nixExprPathFromParams {
     error($c, "Invalid Nix expression path: $nixExprPath") if $nixExprPath !~ /^$relPathRE$/;
 
     my $nixExprInput = trim $c->stash->{params}->{"nixexprinput"};
-    error($c, "Invalid Nix expression input name: $nixExprInput") unless $nixExprInput =~ /^\w+$/;
+    error($c, "Invalid Nix expression input name: $nixExprInput") unless $nixExprInput =~ /^[[:alpha:]][\w-]*$/;
 
     return ($nixExprPath, $nixExprInput);
 }
@@ -309,7 +309,7 @@ sub updateJobset {
 
     foreach my $inputName (keys %{$c->stash->{params}->{inputs}}) {
         my $inputData = $c->stash->{params}->{inputs}->{$inputName};
-        error($c, "Invalid input name: $inputName") unless $inputName =~ /^[[:alpha:]]\w*$/;
+        error($c, "Invalid input name: $inputName") unless $inputName =~ /^[[:alpha:]][\w-]*$/;
 
         my $inputType = $inputData->{type};
 
