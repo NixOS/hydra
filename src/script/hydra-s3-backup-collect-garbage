@@ -32,7 +32,7 @@ closedir DIR;
 my @actual_roots = ();
 foreach my $link (@roots) {
     next if $link eq "." || $link eq "..";
-    push @actual_roots, $Nix::Config::storeDir . "/$link";
+    push @actual_roots, readlink "$gcRootsDir/$link";
 }
 
 # Don't delete a nix-cache-info file, if present
