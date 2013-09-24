@@ -50,7 +50,7 @@ sub failDependents {
 
         my @dependentBuilds = $db->resultset('Builds')->search(
             { finished => 0, busy => 0 },
-            { columns => ["id", "project", "jobset", "job", "drvpath"] });
+            { columns => ["id", "project", "jobset", "job", "drvpath", "finished", "busy"] });
 
         for my $d (@dependentBuilds) {
             next unless $dependentDrvs->has($d->drvpath);
