@@ -41,12 +41,16 @@ sub fetchInputs {
 
 sub setJobsetError {
     my ($jobset, $errorMsg) = @_;
+    my $prevError = $jobset->errormsg;
+
     eval {
         txn_do($db, sub {
             $jobset->update({errormsg => $errorMsg, errortime => time});
         });
     };
-    sendJobsetErrorNotification($jobset, $errorMsg);
+    if ($errorMsg ne $prevError) {
+        sendJobsetErrorNotification($jobset, $errorMsg);
+    }
 }
 
 
