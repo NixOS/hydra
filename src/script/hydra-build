@@ -71,8 +71,8 @@ sub failDependents {
                 , drvpath => $drvPath
                 , busy => 0
                 , status => $status
-                , starttime => time
-                , stoptime => time
+                , starttime => $time
+                , stoptime => $time
                 , errormsg => $errorMsg
                 });
             addBuildStepOutputs($step);
