@@ -366,7 +366,7 @@ sub clone_submit : Chained('jobsetChain') PathPart('clone/submit') Args(0) {
     requirePost($c);
 
     my $newJobsetName = trim $c->stash->{params}->{"newjobset"};
-    error($c, "Invalid jobset name: $newJobsetName") unless $newJobsetName =~ /^[[:alpha:]][\w\-]*$/;
+    error($c, "Invalid jobset name: $newJobsetName") if $newJobsetName !~ /^$jobsetNameRE$/;
 
     my $newJobset;
     txn_do($c->model('DB')->schema, sub {
