@@ -46,7 +46,7 @@ sub setJobsetError {
 
     eval {
         txn_do($db, sub {
-            $jobset->update({errormsg => $errorMsg, errortime => time});
+            $jobset->update({ errormsg => $errorMsg, errortime => time, fetcherrormsg => undef });
         });
     };
     if ($errorMsg ne $prevError) {
@@ -115,7 +115,17 @@ sub checkJobsetWrapped {
 
     # Fetch all values for all inputs.
     my $checkoutStart = time;
-    fetchInputs($project, $jobset, $inputInfo);
+    eval {
+        fetchInputs($project, $jobset, $inputInfo);
+    };
+    if ($@) {
+        my $msg = $@;
+        print STDERR $msg;
+        txn_do($db, sub {
+            $jobset->update({ lastcheckedtime => time, fetcherrormsg => $msg });
+        });
+        return;
+    }
     my $checkoutStop = time;
 
     # Hash the arguments to hydra-eval-jobs and check the
@@ -127,7 +137,7 @@ sub checkJobsetWrapped {
     if (defined $prevEval && $prevEval->hash eq $argsHash) {
         print STDERR "  jobset is unchanged, skipping\n";
         txn_do($db, sub {
-            $jobset->update({lastcheckedtime => time});
+            $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
         });
         return;
     }
@@ -253,7 +263,7 @@ sub checkJobsetWrapped {
         }
         $msg .=
             ($error->{location} ne "" ? "in job ‘$error->{location}’" : "at top-level") .
-            " [$bindings]:\n" . $error->{msg} . "\n\n";
+            ":\n" . $error->{msg} . "\n\n";
     }
     setJobsetError($jobset, $msg);
 }
@@ -275,7 +285,7 @@ sub checkJobset {
 
     if ($@) {
         my $msg = $@;
-        print STDERR "error evaluating jobset ", $jobset->name, ": $msg";
+        print STDERR $msg;
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
             setJobsetError($jobset, $msg);

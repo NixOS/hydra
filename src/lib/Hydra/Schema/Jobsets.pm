@@ -124,6 +124,11 @@ __PACKAGE__->table("Jobsets");
   default_value: 100
   is_nullable: 0
 
+=head2 fetcherrormsg
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -159,6 +164,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 300, is_nullable => 0 },
   "schedulingshares",
   { data_type => "integer", default_value => 100, is_nullable => 0 },
+  "fetcherrormsg",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -280,7 +287,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-09-20 12:15:23
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:pD6tGW0Ob3fuA1p0uQnBWw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-09-25 14:10:28
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:cAZ4+c7OhqGW8ATru8Foiw
 
 1;

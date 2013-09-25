@@ -88,10 +88,7 @@ sub fetchInputBuild {
         { order_by => "me.id DESC", rows => 1
         , where => \ attrsToSQL($attrs, "me.id") });
 
-    if (!defined $prevBuild || !isValidPath(getMainOutput($prevBuild)->path)) {
-        print STDERR "input `", $name, "': no previous build available\n";
-        return ();
-    }
+    return () if !defined $prevBuild || !isValidPath(getMainOutput($prevBuild)->path);
 
     #print STDERR "input `", $name, "': using build ", $prevBuild->id, "\n";
 

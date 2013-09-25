@@ -43,7 +43,7 @@
 
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-evaluations" data-toggle="tab">Evaluations</a></li>
-  [% IF jobset.errormsg %]
+  [% IF jobset.errormsg || jobset.fetcherrormsg %]
     <li><a href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation errors</span></a></li>
   [% END %]
   <li><a href="#tabs-jobs" data-toggle="tab">Jobs</a></li>
@@ -59,7 +59,7 @@
         <th>Last checked:</th>
         <td>
           [% IF jobset.lastcheckedtime %]
-            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %], [% IF jobset.errormsg %]<em class="text-warning">with errors!</em>[% ELSE %]<em>no errors</em>[% END %]
+            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %], [% IF jobset.errormsg || jobset.fetcherrormsg %]<em class="text-warning">with errors!</em>[% ELSE %]<em>no errors</em>[% END %]
           [% ELSE %]
             <em>never</em>
           [% END %]
@@ -91,10 +91,10 @@
 
   </div>
 
-  [% IF jobset.errormsg %]
+  [% IF jobset.errormsg || jobset.fetcherrormsg %]
     <div id="tabs-errors" class="tab-pane">
       <p>Errors occurred at [% INCLUDE renderDateTime timestamp=jobset.errortime %].</p>
-      <pre class="alert alert-error">[% HTML.escape(jobset.errormsg) %]</pre>
+      <pre class="alert alert-error">[% HTML.escape(jobset.fetcherrormsg || jobset.errormsg) %]</pre>
     </div>
   [% END %]
 
