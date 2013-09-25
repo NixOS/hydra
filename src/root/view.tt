@@ -27,11 +27,11 @@
       <tr>
         <td>
           [% IF result.status == 0 %]
-            <img src="/static/images/checkmark_16.png" />
+            <img src="[% c.uri_for("/static/images/checkmark_16.png") %]" />
           [% ELSIF result.status == 1 %]
-            <img src="/static/images/error_16.png" />
+            <img src="[% c.uri_for("/static/images/error_16.png") %]" />
           [% ELSIF result.status == 2 %]
-            <img src="/static/images/help_16.png" />
+            <img src="[% c.uri_for("/static/images/help_16.png") %]" />
           [% END %]
         </td>
         <td><a class="row-link" href="[% c.uri_for('/view' project.name view.name result.id) %]">[% result.id %]</a></td>
@@ -48,9 +48,9 @@
             [% IF j.build %]
               <a href="[% c.uri_for('/build' j.build.id) %]">
                 [% IF j.build.get_column('buildstatus') == 0 %]
-                  <img src="/static/images/checkmark_16.png" />
+                  <img src="[% c.uri_for("/static/images/checkmark_16.png") %]" />
                 [% ELSE %]
-                  <img src="/static/images/error_16.png" />
+                  <img src="[% c.uri_for("/static/images/error_16.png") %]" />
                 [% END %]
               </a>
             [% END %]

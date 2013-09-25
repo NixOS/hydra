@@ -195,24 +195,24 @@ BLOCK renderBuildStatusIcon;
   buildstatus = buildstatus != undef ? buildstatus : build.buildstatus;
   IF finished;
     IF buildstatus == 0 %]
-      <img src="/static/images/checkmark_[% size %].png" alt="Succeeded" />
+      <img src="[% c.uri_for("/static/images/checkmark_${size}.png") %]" alt="Succeeded" />
     [% ELSIF buildstatus == 1 %]
-      <img src="/static/images/error_[% size %].png" alt="Failed" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" />
     [% ELSIF buildstatus == 2 || buildstatus == 5 %]
-      <img src="/static/images/dependency_[% size %].png" alt="Dependency failed" />
+      <img src="[% c.uri_for("/static/images/dependency_${size}.png") %]" alt="Dependency failed" />
     [% ELSIF buildstatus == 3 %]
-      <img src="/static/images/warning_[% size %].png" alt="Aborted" />
+      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Aborted" />
     [% ELSIF buildstatus == 4 %]
-      <img src="/static/images/forbidden_[% size %].png" alt="Cancelled" />
+      <img src="[% c.uri_for("/static/images/forbidden_${size}.png") %]" alt="Cancelled" />
     [% ELSIF buildstatus == 6 %]
-      <img src="/static/images/error_[% size %].png" alt="Failed (with result)" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed (with result)" />
     [% ELSE %]
-      <img src="/static/images/error_[% size %].png" alt="Failed" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" />
     [% END;
   ELSIF busy %]
-    <img src="/static/images/help_[% size %].png" alt="Busy" />
+    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Busy" />
   [% ELSE %]
-    <img src="/static/images/help_[% size %].png" alt="Scheduled" />
+    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Scheduled" />
   [% END;
 END;
 
@@ -456,7 +456,7 @@ BLOCK renderLogLinks %]
 
 BLOCK makeLazyTab %]
   <div id="[% tabName %]" class="tab-pane">
-    <center><img src="/static/images/ajax-loader.gif" alt="Loading..." /></center>
+    <center><img src="[% c.uri_for("/static/images/ajax-loader.gif") %]" alt="Loading..." /></center>
   </div>
   <script>
     $(function() { makeLazyTab("[% tabName %]", "[% uri %]"); });
