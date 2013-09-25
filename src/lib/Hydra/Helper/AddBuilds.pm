@@ -2,6 +2,7 @@ package Hydra::Helper::AddBuilds;
 
 use strict;
 use feature 'switch';
+use utf8;
 use XML::Simple;
 use IPC::Run;
 use Nix::Store;
@@ -290,6 +291,9 @@ sub evalJobs {
             $errors .= "warning: there are multiple jobs named ‘$job->{jobName}’; support for this will go away soon!\n\n";
         }
     }
+
+    # Handle utf-8 characters in error messages. No idea why this works.
+    utf8::decode($_->{msg}) foreach @{$jobs->{error}};
 
     return ($jobs, $nixExprInput, $errors);
 }

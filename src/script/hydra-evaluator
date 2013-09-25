@@ -2,6 +2,7 @@
 
 use strict;
 use feature 'switch';
+use utf8;
 use Hydra::Schema;
 use Hydra::Plugin;
 use Hydra::Helper::Nix;
@@ -250,7 +251,9 @@ sub checkJobsetWrapped {
                 default { $bindings .= "..."; }
             }
         }
-        $msg .= "at `" . $error->{location} . "' [$bindings]:\n" . $error->{msg} . "\n\n";
+        $msg .=
+            ($error->{location} ne "" ? "in job ‘$error->{location}’" : "at top-level") .
+            " [$bindings]:\n" . $error->{msg} . "\n\n";
     }
     setJobsetError($jobset, $msg);
 }
