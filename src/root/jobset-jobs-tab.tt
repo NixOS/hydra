@@ -6,7 +6,7 @@
     <button type="button" class="btn btn-info [% IF showInactive %]active[% END %]" id="active-toggle">Show inactive jobs</button>
   </div>
   &nbsp;
-  <img src="/static/images/ajax-loader.gif" alt="Loading..." style="display: none;" id="filter-loading" />
+  <img src="[% c.uri_for("/static/images/ajax-loader.gif") %]" alt="Loading..." style="display: none;" id="filter-loading" />
 </form>
 
 <script>

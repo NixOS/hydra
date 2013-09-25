@@ -44,7 +44,7 @@
     </tbody>
   </table>
 
-  <p><button type="submit"><img alt="Add" src="/static/images/success.gif" />Add to queue</button></p>
+  <p><button type="submit"><img alt="Add" src="[% c.uri_for("/static/images/success.gif") %]" />Add to queue</button></p>
 
 </form>
 

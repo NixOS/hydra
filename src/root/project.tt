@@ -32,13 +32,13 @@
             <tr>
               <td>
                 [% IF j.get_column('nrscheduled') > 0 %]
-                  <img src="/static/images/help_16.png" alt="Scheduled" />
+                  <img src="[% c.uri_for("/static/images/help_16.png") %]" alt="Scheduled" />
                 [% ELSIF j.get_column('nrfailed') == 0  %]
-                  <img src="/static/images/checkmark_16.png" alt="Succeeded" />
+                  <img src="[% c.uri_for("/static/images/checkmark_16.png") %]" alt="Succeeded" />
                 [% ELSIF j.get_column('nrfailed') > 0 && j.get_column('nrsucceeded') > 0 %]
-                  <img src="/static/images/error_some_16.png" alt="Some Failed" />
+                  <img src="[% c.uri_for("/static/images/error_some_16.png") %]" alt="Some Failed" />
                 [% ELSE %]
-                  <img src="/static/images/error_16.png" alt="All Failed" />
+                  <img src="[% c.uri_for("/static/images/error_16.png") %]" alt="All Failed" />
                 [% END %]
               </td>
               <td><span class="[% IF !j.enabled %]disabled-jobset[% END %] [%+ IF j.hidden %]hidden-jobset[% END %]">[% INCLUDE renderJobsetName project=project.name jobset=j.name inRow=1 %]</span></td>
