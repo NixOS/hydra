@@ -133,7 +133,7 @@ sub checkJobsetWrapped {
 
     # Evaluate the job expression.
     my $evalStart = time;
-    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
+    my ($jobs, $nixExprInput, $msg) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
     my $evalStop = time;
 
     my $jobOutPathMap = {};
@@ -238,7 +238,6 @@ sub checkJobsetWrapped {
     });
 
     # Store the error messages for jobs that failed to evaluate.
-    my $msg = "";
     foreach my $error (@{$jobs->{error}}) {
         my $bindings = "";
         foreach my $arg (@{$error->{arg}}) {

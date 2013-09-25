@@ -282,7 +282,16 @@ sub evalJobs {
         SuppressEmpty => '')
         or die "cannot parse XML output";
 
-    return ($jobs, $nixExprInput);
+    my %jobNames;
+    my $errors;
+    foreach my $job (@{$jobs->{job}}) {
+        $jobNames{$job->{jobName}}++;
+        if ($jobNames{$job->{jobName}} == 2) {
+            $errors .= "warning: there are multiple jobs named ‘$job->{jobName}’; support for this will go away soon!\n\n";
+        }
+    }
+
+    return ($jobs, $nixExprInput, $errors);
 }
 
 
