@@ -157,7 +157,7 @@ sub fetchInput {
     elsif ($type eq "sysbuild") {
         @inputs = fetchInputSystemBuild($db, $project, $jobset, $name, $value);
     }
-    elsif ($type eq "string") {
+    elsif ($type eq "string" || $type eq "nix") {
         die unless defined $value;
         @inputs = { value => $value };
     }
@@ -240,6 +240,9 @@ sub inputsToArgs {
                 }
                 when ("boolean") {
                     push @res, "--arg", $input, booleanToString($exprType, $alt->{value});
+                }
+                when ("nix") {
+                    push @res, "--arg", $input, $alt->{value};
                 }
                 default {
                     push @res, "--arg", $input, buildInputToString($exprType, $alt);

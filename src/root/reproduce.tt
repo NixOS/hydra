@@ -141,10 +141,13 @@ fi
 args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; }")
 
 [% ELSIF input.type == "string" %]
-args+=(--arg '[% input.name %]' '"[% input.value %]"')
+args+=(--arg '[% input.name %]' '"[% input.value %]"') # FIXME: escape
 
 [% ELSIF input.type == "boolean" %]
 args+=(--arg '[% input.name %]' '[% input.value %]')
+
+[% ELSIF input.type == "nix" %]
+args+=(--arg '[% input.name %]' '[% input.value %]') # FIXME: escape
 
 [% ELSE %]
 echo "$0: input ‘[% input.name %]’ has unsupported type ‘[% input.type %]’" >&2

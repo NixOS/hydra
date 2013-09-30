@@ -247,10 +247,12 @@ END;
 BLOCK renderShortInputValue;
   IF input.type == "build" || input.type == "sysbuild" %]
     <a href="[% c.uri_for('/build' input.dependency.id) %]">[% input.dependency.id %]</a>
-  [% ELSIF input.type == "string" || input.type == "boolean" %]
-    <tt>"[% input.value %]"</tt>
+  [% ELSIF input.type == "string" %]
+    <tt>"[% HTML.escape(input.value) %]"</tt>
+  [% ELSIF input.type == "nix" || input.type == "boolean" %]
+    <tt>[% HTML.escape(input.value) %]</tt>
   [% ELSE %]
-    <tt>[% input.uri %][% IF input.revision %] (r[% input.revision %])[% END %]</tt>
+    <tt>[% HTML.escape(input.uri) %][% IF input.revision %] (r[% HTML.escape(input.revision) %])[% END %]</tt>
   [% END %]
 [% END;
 
@@ -292,13 +294,15 @@ BLOCK renderInputs; %]
           <td>
             [% IF input.type == "build" || input.type == "sysbuild" %]
               [% INCLUDE renderFullBuildLink build=input.dependency %]
-            [% ELSIF input.type == "string" || input.type == "boolean" %]
-              <tt>"[% input.value %]"</tt>
+            [% ELSIF input.type == "string"  %]
+              <tt>"[% HTML.escape(input.value) %]"</tt>
+            [% ELSIF input.type == "nix" || input.type == "boolean" %]
+              <tt>[% HTML.escape(input.value) %]</tt>
             [% ELSE %]
-              <tt>[% input.uri %]</tt>
+              <tt>[% HTML.escape(input.uri) %]</tt>
             [% END %]
           </td>
-          <td>[% IF input.revision %][% input.revision %][% END %]</td>
+          <td>[% IF input.revision %][% HTML.escape(input.revision) %][% END %]</td>
           <td><tt>[% input.path %]</tt></td>
         </tr>
       [% END %]

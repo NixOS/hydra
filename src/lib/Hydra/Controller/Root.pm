@@ -33,6 +33,7 @@ sub begin :Private {
     $c->stash->{inputTypes} = {
         'string' => 'String value',
         'boolean' => 'Boolean',
+        'nix' => 'Nix expression',
         'build' => 'Build output',
         'sysbuild' => 'Build output (same system)'
     };
