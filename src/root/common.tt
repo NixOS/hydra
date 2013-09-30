@@ -244,17 +244,6 @@ BLOCK renderStatus;
 END;
 
 
-BLOCK renderInputValue;
-  IF input.type == "build" || input.type == "sysbuild";
-    INCLUDE renderFullBuildLink build=input.dependency;
-  ELSIF input.type == "string" || input.type == "boolean" %]
-    <tt>"[% input.value %]"</tt>
-  [% ELSE %]
-    <tt>[% input.uri %][% IF input.revision %] (r[% input.revision %])[% END %]</tt>
-  [% END;
-END;
-
-
 BLOCK renderShortInputValue;
   IF input.type == "build" || input.type == "sysbuild" %]
     <a href="[% c.uri_for('/build' input.dependency.id) %]">[% input.dependency.id %]</a>

@@ -250,17 +250,6 @@ sub checkJobsetWrapped {
 
     # Store the error messages for jobs that failed to evaluate.
     foreach my $error (@{$jobs->{error}}) {
-        my $bindings = "";
-        foreach my $arg (@{$error->{arg}}) {
-            my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}] or die "invalid input";
-            $bindings .= ", " if $bindings ne "";
-            $bindings .= $arg->{name} . " = ";
-            given ($input->{type}) {
-                when ("string") { $bindings .= "\"" . $input->{value} . "\""; }
-                when ("boolean") { $bindings .= $input->{value}; }
-                default { $bindings .= "..."; }
-            }
-        }
         $msg .=
             ($error->{location} ne "" ? "in job ‘$error->{location}’" : "at top-level") .
             ":\n" . $error->{msg} . "\n\n";
