@@ -49,7 +49,7 @@ sub setJobsetError {
             $jobset->update({ errormsg => $errorMsg, errortime => time, fetcherrormsg => undef });
         });
     };
-    if ($errorMsg ne $prevError) {
+    if (defined $errorMsg && $errorMsg ne ($prevError // "")) {
         sendJobsetErrorNotification($jobset, $errorMsg);
     }
 }
