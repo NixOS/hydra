@@ -68,6 +68,38 @@
 [% END %]
 
 <ul class="nav nav-tabs">
+  <li class="dropdown">
+    <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+      Actions
+      <b class="caret"></b>
+    </a>
+    <ul class="dropdown-menu">
+      [% IF build.nixexprinput %]
+        <li><a href="#reproduce" data-toggle="modal">Reproduce locally</a></li>
+      [% END %]
+      [% IF c.user_exists %]
+        <li><a href="[% c.uri_for('/build' build.id 'clone') %]">Clone</a></li>
+        [% IF available %]
+          [% IF build.keep %]
+            <li><a href="[% c.uri_for('/build' build.id 'keep' 0) %]">Unkeep</a></li>
+          [% ELSE %]
+            <li><a href="[% c.uri_for('/build' build.id 'keep' 1) %]">Keep</a></li>
+          [% END %]
+        [% END %]
+        [% IF build.finished %]
+          <li><a href="[% c.uri_for('/build' build.id 'restart') %]">Restart</a></li>
+        [% ELSE %]
+          <li><a href="[% c.uri_for('/build' build.id 'cancel') %]">Cancel</a></li>
+        [% END %]
+        [% IF available && project.releases %]
+          [% INCLUDE menuItem
+            uri = "#add-to-release"
+            title = "Add to release"
+            modal = 1 %]
+        [% END %]
+      [% END %]
+    </ul>
+  </li>
   <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
   [% IF isAggregate %]<li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>[% END %]
   <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
@@ -82,26 +114,6 @@
 <div id="generic-tabs" class="tab-content">
 
   <div id="tabs-summary" class="tab-pane active">
-
-    [% IF build.nixexprinput %]
-      [% WRAPPER makePopover title="Reproduce locally" classes="btn-info pull-right" placement="left" %]
-        [% url = c.uri_for('/build' build.id 'reproduce') %]
-
-        <p>You can reproduce this build on your own machine by
-        downloading <a [% HTML.attributes(href => url) %]>a script</a>
-        that checks out all inputs of the build and then invokes Nix
-        to perform the build.  This script requires that you have Nix
-        on your system.</p>
-
-        <p>To download and execute the script from the command line,
-        run the following command:</p>
-
-<pre>
-<span class="shell-prompt">$ </span>bash <(curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a>)
-</pre>
-
-      [% END %]
-    [% END %]
 
     <table>
       <tr>
@@ -568,6 +580,36 @@
   </form>
 </div>
 [% END %]
+
+
+<div id="reproduce" class="modal hide fade" tabindex="-1" role="dialog" aria-hidden="true">
+  [% url = c.uri_for('/build' build.id 'reproduce') %]
+
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+    <h3>Reproduce this build</h3>
+  </div>
+
+  <div class="modal-body">
+
+    <p>You can reproduce this build on your own machine by downloading
+    <a [% HTML.attributes(href => url) %]>a script</a> that checks out
+    all inputs of the build and then invokes Nix to perform the build.
+    This script requires that you have Nix on your system.</p>
+
+    <p>To download and execute the script from the command line, run the
+    following command:</p>
+
+<pre>
+<span class="shell-prompt">$ </span>bash <(curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a>)
+</pre>
+
+  </div>
+
+  <div class="modal-footer">
+    <a href="#" class="btn btn-primary clode" data-dismiss="modal">Close</a>
+  </div>
+</div>
 
 
 [% END %]

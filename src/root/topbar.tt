@@ -1,9 +1,3 @@
-[% BLOCK menuItem %]
-  <li class="[% IF "${root}${curUri}" == uri %]active[% END %]" [% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>
-    <a href="[% uri %]" [% IF modal %]data-toggle="modal"[% END %]>[% title %]</a>
-  </li>
-[% END %]
-
 [% BLOCK makeSubMenu %]
   <li class="dropdown">
     <a class="dropdown-toggle" href="#" data-toggle="dropdown">[% title %]<b class="caret"></b></a>
@@ -112,49 +106,6 @@
         title = "Errors" %]
       <li class="divider"></li>
       [% INCLUDE menuItem uri = c.uri_for('/job' project.name jobset.name job.name 'channel' 'latest') title = "Channel" %]
-    [% END %]
-  [% END %]
-
-  [% IF build %]
-    [% WRAPPER makeSubMenu title="Build" %]
-      <li class="nav-header">#[% build.id %]</li>
-      <li class="divider"></li>
-      [% INCLUDE menuItem
-        uri = c.uri_for('/build' build.id)
-        title = "Overview" %]
-      [% IF c.user_exists %]
-        <li class="divider"></li>
-        [% INCLUDE menuItem
-          uri = c.uri_for('/build' build.id 'clone')
-          title = "Clone build" %]
-        [% IF available %]
-          [% IF build.keep %]
-            [% INCLUDE menuItem
-               uri = c.uri_for('/build' build.id 'keep' 0)
-               title = "Unkeep build" %]
-          [% ELSE %]
-            [% INCLUDE menuItem
-               uri = c.uri_for('/build' build.id 'keep' 1)
-               title = "Keep build" %]
-          [% END %]
-        [% END %]
-        [% IF build.finished %]
-          [% INCLUDE menuItem
-            uri = c.uri_for('/build' build.id 'restart')
-            title = "Restart build" %]
-        [% END %]
-        [% IF !build.finished %]
-          [% INCLUDE menuItem
-            uri = c.uri_for('/build' build.id 'cancel')
-            title = "Cancel build" %]
-        [% END %]
-        [% IF available && project.releases %]
-          [% INCLUDE menuItem
-            uri = "#add-to-release"
-            title = "Add to release"
-            modal = 1 %]
-        [% END %]
-      [% END %]
     [% END %]
   [% END %]
 
