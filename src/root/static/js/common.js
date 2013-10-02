@@ -58,7 +58,7 @@ $(document).ready(function() {
         /* If no tab is active, show the first one. */
         $(".nav-tabs").each(function() {
             if ($("li.active", this).length > 0) return;
-            $("a", $("li", this).first()).tab('show');
+            $("a", $(this).children("li:not(.dropdown)").first()).tab('show');
         });
 
         /* Ensure that pressing the back button on another page

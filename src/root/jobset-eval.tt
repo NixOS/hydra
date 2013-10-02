@@ -33,11 +33,19 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   <input name="full" type="hidden" [% HTML.attributes(value => full) %]/>
 </form>
 
-[% IF c.user_exists %]
-  <a class="btn btn-warning pull-right" href="[% c.uri_for(c.controller('JobsetEval').action_for('release'), [eval.id]) %]">Release this evaluation</a>
-[% END %]
-
 <ul class="nav nav-tabs">
+  [% IF c.user_exists %]
+    <li class="dropdown">
+      <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+        Actions
+        <b class="caret"></b>
+      </a>
+      <ul class="dropdown-menu">
+        <li><a href="[% c.uri_for(c.controller('JobsetEval').action_for('release'), [eval.id]) %]">Create a release from this evaluation</a></li>
+      </ul>
+    </li>
+  [% END %]
+
   [% IF nowFail.size > 0 %]
     <li><a href="#tabs-now-fail" data-toggle="tab"><span class="text-warning">Newly-failing jobs</span></a></li>
   [% END %]
