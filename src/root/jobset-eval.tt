@@ -46,6 +46,9 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
     </li>
   [% END %]
 
+  [% IF aborted.size > 0 %]
+    <li><a href="#tabs-aborted" data-toggle="tab"><span class="text-warning">Aborted jobs</span></a></li>
+  [% END %]
   [% IF nowFail.size > 0 %]
     <li><a href="#tabs-now-fail" data-toggle="tab"><span class="text-warning">Newly-failing jobs</span></a></li>
   [% END %]
@@ -82,6 +85,10 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 [% END %]
 
 <div class="tab-content">
+
+  <div id="tabs-aborted" class="tab-pane">
+    [% INCLUDE renderSome builds=aborted %]
+  </div>
 
   <div id="tabs-now-fail" class="tab-pane">
     [% INCLUDE renderSome builds=nowFail %]
