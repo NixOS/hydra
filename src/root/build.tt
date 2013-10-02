@@ -100,6 +100,7 @@
       [% END %]
     </ul>
   </li>
+  
   <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
   [% IF isAggregate %]<li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>[% END %]
   <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
@@ -607,7 +608,7 @@
   </div>
 
   <div class="modal-footer">
-    <a href="#" class="btn btn-primary clode" data-dismiss="modal">Close</a>
+    <a href="#" class="btn btn-primary" data-dismiss="modal">Close</a>
   </div>
 </div>
 

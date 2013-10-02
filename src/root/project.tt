@@ -2,6 +2,20 @@
 [% PROCESS common.tt %]
 
 <ul class="nav nav-tabs">
+  [% IF c.user_exists %]
+    <li class="dropdown">
+      <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+        Actions
+        <b class="caret"></b>
+      </a>
+      <ul class="dropdown-menu">
+        [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit configuration" %]
+        [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create jobset" %]
+        [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'create-release') title = "Create release" %]
+      </ul>
+    </li>
+  [% END %]
+
   <li class="active"><a href="#tabs-project" data-toggle="tab">Jobsets</a></li>
   <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
   <li><a href="#tabs-releases" data-toggle="tab">Releases</a></li>
@@ -138,12 +152,6 @@
       </tbody>
     </table>
 
-    [% END %]
-
-    [% IF c.user_exists %]
-    <p><a class="btn" href="[% c.uri_for('/project' project.name 'create-release') %]">
-      <i class="icon-plus"></i> Create a release
-    </a></p>
     [% END %]
 
   </div>
