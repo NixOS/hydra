@@ -12,7 +12,7 @@ sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
 
     my $project = $c->model('DB::Projects')->find($projectName, { columns => [
       "me.name",
-      "me.displayName",
+      "me.displayname",
       "me.description",
       "me.enabled",
       "me.hidden",
