@@ -18,7 +18,7 @@
       [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
     </td>
     <td class="inputalts" id="[% baseName %]">
-      [% FOREACH alt IN input.jobsetinputalts %]
+      [% FOREACH alt IN input.search_related('jobsetinputalts', {}, { order_by => 'altnr' }) %]
         <span class="inputalt">
           [% INCLUDE renderJobsetInputAlt alt=alt name="$baseName-values" %]
         </span>
