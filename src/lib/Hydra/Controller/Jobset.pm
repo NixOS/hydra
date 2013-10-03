@@ -53,6 +53,8 @@ sub jobset_PUT {
 
         my $uri = $c->uri_for($self->action_for("jobset"), [$c->stash->{project}->name, $c->stash->{jobset}->name]) . "#tabs-configuration";
         $self->status_ok($c, entity => { redirect => "$uri" });
+
+        $c->flash->{successMsg} = "The jobset configuration has been updated.";
     }
 
     else {
@@ -85,6 +87,8 @@ sub jobset_DELETE {
 
     my $uri = $c->uri_for($c->controller('Project')->action_for("project"), [$c->stash->{project}->name]);
     $self->status_ok($c, entity => { redirect => "$uri" });
+
+    $c->flash->{successMsg} = "The jobset has been deleted.";
 }
 
 
@@ -107,7 +111,7 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
             { columns => ['id', 'job', 'finished', 'buildstatus'] });
         foreach my $b (@builds) {
             my $jobName = $b->get_column('job');
-            $evals->{$eval->id}->{$jobName} = 
+            $evals->{$eval->id}->{$jobName} =
                 { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
             $jobs{$jobName} = 1;
             $nrBuilds++;

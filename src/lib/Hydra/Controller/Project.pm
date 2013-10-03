@@ -59,6 +59,8 @@ sub project_PUT {
 
         my $uri = $c->uri_for($self->action_for("project"), [$c->stash->{project}->name]) . "#tabs-configuration";
         $self->status_ok($c, entity => { redirect => "$uri" });
+
+        $c->flash->{successMsg} = "The project configuration has been updated.";
     }
 
     else {
@@ -95,6 +97,8 @@ sub project_DELETE {
 
     my $uri = $c->res->redirect($c->uri_for("/"));
     $self->status_ok($c, entity => { redirect => "$uri" });
+
+    $c->flash->{successMsg} = "The project has been deleted.";
 }
 
 

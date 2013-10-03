@@ -67,17 +67,17 @@
 
       [% IF flashMsg %]
         <br />
-        <p class="btn-info btn-large">[% flashMsg %]</p>
+        <div class="alert alert-info">[% flashMsg %]</div>
       [% END %]
 
       [% IF successMsg %]
         <br />
-        <p class="btn-success btn-large">[% successMsg %]</p>
+        <div class="alert alert-success">[% successMsg %]</div>
       [% END %]
 
       [% IF errorMsg %]
         <br />
-        <p class="btn-warning btn-large">Error: [% errorMsg %]</p>
+        <div class="alert alert-warning">Error: [% errorMsg %]</div>
       [% END %]
 
       [% IF !hideHeader %]
