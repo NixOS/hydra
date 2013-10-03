@@ -452,7 +452,10 @@ BLOCK makePopover %]
 
 BLOCK menuItem %]
   <li class="[% IF "${root}${curUri}" == uri %]active[% END %]" [% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>
-    <a href="[% uri %]" [% IF modal %]data-toggle="modal"[% END %]>[% title %]</a>
+    <a href="[% uri %]" [% IF modal %]data-toggle="modal"[% END %]>
+      [% IF icon %]<i class="[% icon %] icon-black"></i> [%+ END %]
+      [% title %]
+    </a>
   </li>
 [% END;
 

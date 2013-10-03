@@ -1,5 +1,6 @@
 package Hydra::Controller::Jobset;
 
+use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
@@ -135,6 +136,21 @@ sub jobset_PUT {
     }
 }
 
+sub jobset_DELETE {
+    my ($self, $c) = @_;
+
+    requireProjectOwner($c, $c->stash->{project});
+
+    txn_do($c->model('DB')->schema, sub {
+        $c->stash->{jobset}->jobsetevals->delete_all;
+        $c->stash->{jobset}->builds->delete_all;
+        $c->stash->{jobset}->delete;
+    });
+
+    my $uri = $c->uri_for($c->controller('Project')->action_for("project"), [$c->stash->{project}->name]);
+    $self->status_ok($c, entity => { redirect => "$uri" });
+}
+
 
 sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
     my ($self, $c) = @_;
@@ -206,15 +222,6 @@ sub submit : Chained('jobsetChain') PathPart Args(0) {
 
     requirePost($c);
     requireProjectOwner($c, $c->stash->{project});
-
-    if (($c->request->params->{submit} // "") eq "delete") {
-        txn_do($c->model('DB')->schema, sub {
-            $c->stash->{jobset}->jobsetevals->delete_all;
-            $c->stash->{jobset}->builds->delete_all;
-            $c->stash->{jobset}->delete;
-        });
-        return $c->res->redirect($c->uri_for($c->controller('Project')->action_for("project"), [$c->stash->{project}->name]));
-    }
 
     my $newName = trim $c->stash->{params}->{name};
     my $oldName = trim $c->stash->{jobset}->name;

@@ -9,10 +9,10 @@
         <b class="caret"></b>
       </a>
       <ul class="dropdown-menu">
-        <li><a href="[% c.uri_for('/project' project.name 'edit') %]"><i class="icon-edit icon-black"></i> Edit configuration</a></li>
-        <li><a href="javascript:deleteProject()"><i class="icon-trash icon-black"></i> Delete this project</a></li>
-        [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create jobset" %]
-        [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'create-release') title = "Create release" %]
+        [% INCLUDE menuItem title="Edit configuration" icon="icon-edit" uri=c.uri_for(c.controller('Project').action_for('edit'), [project.name]) %]
+        [% INCLUDE menuItem title="Delete this project" icon="icon-trash" uri="javascript:deleteProject()" %]
+        [% INCLUDE menuItem title="Create jobset" icon="icon-plus" uri=c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) %]
+        [% INCLUDE menuItem title="Create release" icon="icon-plus" uri=c.uri_for(c.controller('Project').action_for('create_release'), [project.name]) %]
       </ul>
     </li>
   [% END %]

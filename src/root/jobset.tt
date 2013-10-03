@@ -49,9 +49,10 @@
         <b class="caret"></b>
       </a>
       <ul class="dropdown-menu">
-        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit configuration" %]
-        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'clone') title="Clone this jobset" %]
-        [% INCLUDE menuItem uri = "javascript:confirmEvaluateJobset()" title="Evaluate this jobset" %]
+        [% INCLUDE menuItem title="Edit configuration" icon="icon-edit" uri=c.uri_for(c.controller('Jobset').action_for('edit'), [project.name, jobset.name]) %]
+        [% INCLUDE menuItem title="Delete this jobset" icon="icon-trash" uri="javascript:deleteJobset()" %]
+        [% INCLUDE menuItem title="Clone this jobset" uri=c.uri_for('/jobset' project.name jobset.name 'clone') %]
+        [% INCLUDE menuItem title="Evaluate this jobset" uri="javascript:confirmEvaluateJobset()" %]
       </ul>
     </li>
   [% END %]
@@ -114,8 +115,6 @@
 
   <div id="tabs-configuration" class="tab-pane">
 
-    <a class="btn pull-right" href="[% c.uri_for('/jobset' project.name jobset.name "edit") %]"><i class="icon-edit"></i> Edit</a>
-
     <table class="info-table">
       <tr>
         <th>Description:</th>
@@ -167,16 +166,25 @@
       'Are you sure you want to force evaluation of this jobset?',
       function(c) {
         if (!c) return;
-        $.post("[% HTML.escape(c.uri_for('/api/push', { jobsets = project.name _ ':' _ jobset.name, force = "1" })) %]")
-          .done(function(data) {
-            if (data.error)
-              bootbox.alert("Unable to schedule the jobset for evaluation: " + data.error);
-            else
-              bootbox.alert("The jobset has been scheduled for evaluation.");
-          })
-          .fail(function() { bootbox.alert("Server request failed!"); });
+        requestJSON({
+          url: "[% HTML.escape(c.uri_for('/api/push', { jobsets = project.name _ ':' _ jobset.name, force = "1" })) %]",
+          success: function(data) {
+            bootbox.alert("The jobset has been scheduled for evaluation.");
+          }
+        });
       });
-    return;
+  };
+
+  function deleteJobset() {
+    bootbox.confirm(
+      'Are you sure you want to delete this jobset?',
+      function(c) {
+        if (!c) return;
+        redirectJSON({
+          url: "[% c.uri_for(c.controller('Jobset').action_for('jobset'), [project.name, jobset.name]) %]",
+          type: 'DELETE'
+        });
+      });
   };
 </script>
 
