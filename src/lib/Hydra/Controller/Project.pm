@@ -1,6 +1,5 @@
 package Hydra::Controller::Project;
 
-use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
@@ -27,10 +26,8 @@ sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
       "jobsets.enabled",
     ], join => [ 'owner', 'releases', 'jobsets' ], order_by => { -desc => "releases.timestamp" }, collapse => 1 });
 
-    if (!$c->stash->{project} && !($c->action->name eq "project" and $c->request->method eq "PUT")) {
-        $self->status_not_found($c, message => "Project ‘$projectName’ doesn't exist.");
-        $c->detach;
-    }
+    notFound($c, "Project ‘$projectName’ doesn't exist.")
+        if (!$c->stash->{project} && !($c->action->name eq "project" and $c->request->method eq "PUT"));
 }
 
 

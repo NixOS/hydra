@@ -12,31 +12,21 @@ sub jobsetChain :Chained('/') :PathPart('jobset') :CaptureArgs(2) {
 
     my $project = $c->model('DB::Projects')->find($projectName);
 
-    if ($project) {
-        $c->stash->{project} = $project;
+    notFound($c, "Project ‘$projectName’ doesn't exist.") if !$project;
 
-        $c->stash->{jobset_} = $project->jobsets->search({'me.name' => $jobsetName});
-        my $jobset = $c->stash->{jobset_}->single;
+    $c->stash->{project} = $project;
 
-        if ($jobset) {
-            $c->stash->{jobset} = $jobset;
-        } else {
-            if ($c->action->name eq "jobset" and $c->request->method eq "PUT") {
-                $c->stash->{jobsetName} = $jobsetName;
-            } else {
-                $self->status_not_found(
-                    $c,
-                    message => "Jobset $jobsetName doesn't exist."
-                );
-                $c->detach;
-            }
-        }
+    $c->stash->{jobset_} = $project->jobsets->search({'me.name' => $jobsetName});
+    my $jobset = $c->stash->{jobset_}->single;
+
+    if ($jobset) {
+        $c->stash->{jobset} = $jobset;
     } else {
-        $self->status_not_found(
-            $c,
-            message => "Project $projectName doesn't exist."
-        );
-        $c->detach;
+        if ($c->action->name eq "jobset" and $c->request->method eq "PUT") {
+            $c->stash->{jobsetName} = $jobsetName;
+        } else {
+            notFound($c, "Jobset ‘$jobsetName’ doesn't exist.");
+        }
     }
 }
 
