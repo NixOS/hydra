@@ -185,8 +185,6 @@ sub get_builds : Chained('jobsetChain') PathPart('') CaptureArgs(0) {
     $c->stash->{allBuilds} = $c->stash->{jobset}->builds;
     $c->stash->{jobStatus} = $c->model('DB')->resultset('JobStatusForJobset')
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]});
-    $c->stash->{allJobsets} = $c->stash->{jobset_};
-    $c->stash->{allJobs} = $c->stash->{jobset}->jobs;
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJobset')
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]});
     $c->stash->{channelBaseName} =

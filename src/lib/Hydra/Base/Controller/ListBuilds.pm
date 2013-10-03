@@ -7,38 +7,6 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
 
-sub getJobStatus {
-    my ($self, $c) = @_;
-
-    my $maintainer = $c->request->params->{"maintainer"};
-
-    my $latest = $c->stash->{jobStatus}->search(
-        defined $maintainer ? { maintainers => { like => "%$maintainer%" } } : {},
-        { '+select' => ["me.statusChangeId", "me.statusChangeTime"]
-        , '+as' => ["statusChangeId", "statusChangeTime"]
-        , order_by => "coalesce(statusChangeTime, 0) desc"
-        });
-
-    return $latest;
-}
-
-
-# A convenient way to see all the errors - i.e. things demanding
-# attention - at a glance.
-sub errors : Chained('get_builds') PathPart Args(0) {
-    my ($self, $c) = @_;
-    $c->stash->{template} = 'errors.tt';
-    $c->stash->{brokenJobsets} =
-        [$c->stash->{allJobsets}->search({errormsg => {'!=' => ''}})]
-        if defined $c->stash->{allJobsets};
-    $c->stash->{brokenJobs} =
-        [$c->stash->{allJobs}->search({errormsg => {'!=' => ''}})]
-        if defined $c->stash->{allJobs};
-    $c->stash->{brokenBuilds} =
-        [getJobStatus($self, $c)->search({buildStatus => {'!=' => 0}})];
-}
-
-
 sub all : Chained('get_builds') PathPart {
     my ($self, $c) = @_;
 

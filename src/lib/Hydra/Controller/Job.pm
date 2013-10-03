@@ -40,26 +40,26 @@ sub overview : Chained('job') PathPart('') Args(0) {
 
     # If this is an aggregate job, then get its constituents.
     my @constituents = $c->model('DB::Builds')->search(
-	{ aggregate => { -in => $job->builds->search({}, { columns => ["id"], order_by => "id desc", rows => 15 })->as_query } },
-	{ join => 'aggregateconstituents_constituents', 
-	  columns => ['id', 'job', 'finished', 'buildstatus'],
-	  +select => ['aggregateconstituents_constituents.aggregate'],
-	  +as => ['aggregate']
-	});
+        { aggregate => { -in => $job->builds->search({}, { columns => ["id"], order_by => "id desc", rows => 15 })->as_query } },
+        { join => 'aggregateconstituents_constituents', 
+          columns => ['id', 'job', 'finished', 'buildstatus'],
+          +select => ['aggregateconstituents_constituents.aggregate'],
+          +as => ['aggregate']
+        });
 
     my $aggregates = {};
     my %constituentJobs;
     foreach my $b (@constituents) {
-	my $jobName = $b->get_column('job');
-	$aggregates->{$b->get_column('aggregate')}->{constituents}->{$jobName} =
-	    { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
-	$constituentJobs{$jobName} = 1;
+        my $jobName = $b->get_column('job');
+        $aggregates->{$b->get_column('aggregate')}->{constituents}->{$jobName} =
+            { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
+        $constituentJobs{$jobName} = 1;
     }
 
     foreach my $agg (keys %$aggregates) {
-	# FIXME: could be done in one query.
-	$aggregates->{$agg}->{build} = 
-	    $c->model('DB::Builds')->find({id => $agg}, {columns => [@buildListColumns]}) or die;
+        # FIXME: could be done in one query.
+        $aggregates->{$agg}->{build} = 
+            $c->model('DB::Builds')->find({id => $agg}, {columns => [@buildListColumns]}) or die;
     }
 
     $c->stash->{aggregates} = $aggregates;
@@ -73,7 +73,6 @@ sub get_builds : Chained('job') PathPart('') CaptureArgs(0) {
     $c->stash->{allBuilds} = $c->stash->{job}->builds;
     $c->stash->{jobStatus} = $c->model('DB')->resultset('JobStatusForJob')
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name, $c->stash->{job}->name]});
-    $c->stash->{allJobs} = $c->stash->{job_};
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJob')
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name, $c->stash->{job}->name]});
     $c->stash->{channelBaseName} =
