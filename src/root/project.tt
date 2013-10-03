@@ -27,7 +27,7 @@
 <div class="tab-content">
 
   <div id="tabs-project" class="tab-pane active">
-    [% IF project.jobsets.size > 0 %]
+    [% IF project.jobsets %]
       <p>This project has the following jobsets:</p>
 
       <table class="table table-striped table-condensed clickable-rows">
