@@ -15,38 +15,10 @@ use Digest::SHA qw(sha256_hex);
 use Text::Diff;
 use File::Slurp;
 
-# !!! Rewrite this to use View::JSON.
-
 
 sub api : Chained('/') PathPart('api') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->response->content_type('application/json');
-}
-
-
-sub projectToHash {
-    my ($project) = @_;
-    return {
-        name => $project->name,
-        description => $project->description
-    };
-}
-
-
-sub projects : Chained('api') PathPart('projects') Args(0) {
-    my ($self, $c) = @_;
-
-    my @projects = $c->model('DB::Projects')->search({hidden => 0}, {order_by => 'name'});
-
-    my @list;
-    foreach my $p (@projects) {
-      push @list, projectToHash($p);
-    }
-
-    $c->stash->{'plain'} = {
-        data => scalar (JSON::Any->objToJson(\@list))
-    };
-    $c->forward('Hydra::View::Plain');
 }
 
 
