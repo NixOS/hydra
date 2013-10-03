@@ -219,6 +219,7 @@ sub submit : Chained('jobsetChain') PathPart Args(0) {
     my ($self, $c) = @_;
 
     requirePost($c);
+    requireProjectOwner($c, $c->stash->{project});
 
     if (($c->request->params->{submit} // "") eq "delete") {
         txn_do($c->model('DB')->schema, sub {

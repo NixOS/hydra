@@ -143,6 +143,8 @@ sub submit : Chained('projectChain') PathPart Args(0) {
     my ($self, $c) = @_;
 
     requirePost($c);
+    requireProjectOwner($c, $c->stash->{project});
+
     if (($c->request->params->{submit} // "") eq "delete") {
         txn_do($c->model('DB')->schema, sub {
             $c->stash->{project}->jobsetevals->delete_all;
