@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title=(create ? "New project" : "Editing project $project.name") %]
 [% PROCESS common.tt %]
 
-<form class="form-horizontal" action="[% IF create %][% c.uri_for('/create-project/submit') %][% ELSE %][% c.uri_for('/project' project.name 'submit') %][% END %]" method="post">
+<form class="form-horizontal">
 
   <fieldset>
 
@@ -54,21 +54,27 @@
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary">
+      <button id="submit-project" type="submit" class="btn btn-primary">
         <i class="icon-ok icon-white"></i>
         [%IF create %]Create[% ELSE %]Apply changes[% END %]
-      </button>
-      [% IF !create %]
-        <button id="delete-project" type="submit" class="btn btn-danger" name="submit" value="delete">
-          <i class="icon-trash icon-white"></i>
-          Delete this project
-        </button>
         <script type="text/javascript">
-          $("#delete-project").click(function() {
-            return confirm("Are you sure you want to delete this project?");
+          $("#submit-project").click(function() {
+            requestJSON({
+              [% IF create %]
+                url: "[% c.uri_for('/project' '.new') %]",
+              [% ELSE %]
+                url: "[% c.uri_for('/project' project.name) %]",
+              [% END %]
+              data: $(this).parents("form").serialize(),
+              type: 'PUT',
+              success: function(data) {
+                window.location = data.redirect;
+              },
+            });
+            return false;
           });
         </script>
-      [% END %]
+      </button>
     </div>
 
   </fieldset>

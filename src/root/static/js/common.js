@@ -88,3 +88,29 @@ var makeLazyTab = function(tabName, uri) {
         }
     });
 }
+
+var requestJSON = function(args) {
+    args.dataType = 'json';
+    args.error = function(data) {
+        json = {};
+        try {
+            if (data.responseText)
+                json = $.parseJSON(data.responseText);
+        } catch (err) {
+        }
+        if (json.error)
+            bootbox.alert(json.error);
+        else if (data.responseText)
+            bootbox.alert("Server error: " + data.responseText);
+        else
+            bootbox.alert("Unknown server error!");
+    };
+    return $.ajax(args);
+}
+
+var redirectJSON = function(args) {
+    args.success = function(data) {
+        window.location = data.redirect;
+    };
+    return requestJSON(args);
+}

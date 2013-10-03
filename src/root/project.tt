@@ -9,7 +9,8 @@
         <b class="caret"></b>
       </a>
       <ul class="dropdown-menu">
-        [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit configuration" %]
+        <li><a href="[% c.uri_for('/project' project.name 'edit') %]"><i class="icon-edit icon-black"></i> Edit configuration</a></li>
+        <li><a href="javascript:deleteProject()"><i class="icon-trash icon-black"></i> Delete this project</a></li>
         [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create jobset" %]
         [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'create-release') title = "Create release" %]
       </ul>
@@ -94,7 +95,6 @@
   </div>
 
   <div id="tabs-configuration" class="tab-pane">
-    <a class="btn pull-right" href="[% c.uri_for('/project' project.name "edit") %]"><i class="icon-edit"></i> Edit</a>
     <table class="info-table">
       <tr>
         <th>Display name:</th>
@@ -185,5 +185,19 @@
   </div>
 
 </div>
+
+<script>
+  function deleteProject() {
+    bootbox.confirm(
+      'Are you sure you want to delete this project?',
+      function(c) {
+        if (!c) return;
+        redirectJSON({
+          url: "[% c.uri_for('/project' project.name) %]",
+          type: 'DELETE'
+        });
+      });
+  };
+</script>
 
 [% END %]

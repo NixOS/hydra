@@ -1,5 +1,6 @@
 package Hydra::Controller::Project;
 
+use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
@@ -51,15 +52,13 @@ sub project_PUT {
 
     if (defined $c->stash->{project}) {
         requireProjectOwner($c, $c->stash->{project});
+
         txn_do($c->model('DB')->schema, sub {
             updateProject($c, $c->stash->{project});
         });
 
-        if ($c->req->looks_like_browser) {
-            $c->res->redirect($c->uri_for($self->action_for("project"), [$c->stash->{project}->name]) . "#tabs-configuration");
-        } else {
-            $self->status_no_content($c);
-        }
+        my $uri = $c->uri_for($self->action_for("project"), [$c->stash->{project}->name]) . "#tabs-configuration";
+        $self->status_ok($c, entity => { redirect => "$uri" });
     }
 
     else {
@@ -72,21 +71,30 @@ sub project_PUT {
             # valid.  Idem for the owner.
             my $owner = $c->user->username;
             $project = $c->model('DB::Projects')->create(
-                { name => ".tmp.$$." . int(rand(100000)), displayname => "", owner => $owner });
+                { name => ".tmp", displayname => "", owner => $owner });
             updateProject($c, $project);
         });
 
         my $uri = $c->uri_for($self->action_for("project"), [$project->name]);
-        if ($c->req->looks_like_browser) {
-            $c->res->redirect($uri . "#tabs-configuration");
-        } else {
-            $self->status_created(
-                $c,
-                location => "$uri",
-                entity => { name => $project->name, uri => "$uri", type => "project" }
-            );
-        }
+        $self->status_created($c,
+            location => "$uri",
+            entity => { name => $project->name, uri => "$uri", redirect => "$uri", type => "project" });
     }
+}
+
+sub project_DELETE {
+    my ($self, $c) = @_;
+
+    requireProjectOwner($c, $c->stash->{project});
+
+    txn_do($c->model('DB')->schema, sub {
+        $c->stash->{project}->jobsetevals->delete_all;
+        $c->stash->{project}->builds->delete_all;
+        $c->stash->{project}->delete;
+    });
+
+    my $uri = $c->res->redirect($c->uri_for("/"));
+    $self->status_ok($c, entity => { redirect => "$uri" });
 }
 
 
@@ -97,25 +105,6 @@ sub edit : Chained('projectChain') PathPart Args(0) {
 
     $c->stash->{template} = 'edit-project.tt';
     $c->stash->{edit} = 1;
-}
-
-
-sub submit : Chained('projectChain') PathPart Args(0) {
-    my ($self, $c) = @_;
-
-    requirePost($c);
-    requireProjectOwner($c, $c->stash->{project});
-
-    if (($c->request->params->{submit} // "") eq "delete") {
-        txn_do($c->model('DB')->schema, sub {
-            $c->stash->{project}->jobsetevals->delete_all;
-            $c->stash->{project}->builds->delete_all;
-            $c->stash->{project}->delete;
-        });
-        return $c->res->redirect($c->uri_for("/"));
-    }
-
-    project_PUT($self, $c);
 }
 
 
@@ -137,12 +126,6 @@ sub create : Path('/create-project') {
     $c->stash->{template} = 'edit-project.tt';
     $c->stash->{create} = 1;
     $c->stash->{edit} = 1;
-}
-
-
-sub create_submit : Path('/create-project/submit') {
-    my ($self, $c) = @_;
-    project_PUT($self, $c);
 }
 
 
@@ -178,9 +161,9 @@ sub updateProject {
     }
 
     my $projectName = $c->stash->{params}->{name};
-    error($c, "Invalid project name ‘$projectName’.") if $projectName !~ /^$projectNameRE$/;
+    error($c, "Invalid project identifier ‘$projectName’.") if $projectName !~ /^$projectNameRE$/;
 
-    error($c, "Cannot rename project to ‘$projectName’ since that name is already taken.")
+    error($c, "Cannot rename project to ‘$projectName’ since that identifier is already taken.")
         if $projectName ne $project->name && defined $c->model('DB::Projects')->find($projectName);
 
     my $displayName = trim $c->stash->{params}->{displayname};
