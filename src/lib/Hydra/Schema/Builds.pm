@@ -577,34 +577,6 @@ sub makeQueries {
     my $activeJobs = "(select distinct project, jobset, job, system from Builds where isCurrent = 1 $constraint)";
 
     makeSource(
-        "JobStatus$name",
-        # Urgh, can't use "*" in the "select" here because of the status change join.
-        <<QUERY
-          select x.*, b.id as statusChangeId, b.timestamp as statusChangeTime
-          from
-            (select
-               (select max(b.id) from Builds b
-                where
-                  project = activeJobs.project and jobset = activeJobs.jobset
-                  and job = activeJobs.job and system = activeJobs.system
-                  and finished = 1
-               ) as id
-             from $activeJobs as activeJobs
-            ) as latest
-          join Builds x using (id)
-          left join Builds b on
-            b.id =
-              (select max(c.id) from Builds c
-               where
-                 c.finished = 1 and
-                 x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system and
-                 x.id > c.id and
-                   ((x.buildStatus = 0 and c.buildStatus != 0) or
-                    (x.buildStatus != 0 and c.buildStatus = 0)))
-QUERY
-    );
-
-    makeSource(
         "LatestSucceeded$name",
         <<QUERY
           select *

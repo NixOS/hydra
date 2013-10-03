@@ -183,8 +183,6 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
 sub get_builds : Chained('jobsetChain') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->stash->{jobset}->builds;
-    $c->stash->{jobStatus} = $c->model('DB')->resultset('JobStatusForJobset')
-        ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]});
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJobset')
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]});
     $c->stash->{channelBaseName} =

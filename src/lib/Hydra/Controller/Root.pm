@@ -150,7 +150,6 @@ sub machines :Local Args(0) {
 sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->model('DB::Builds');
-    $c->stash->{jobStatus} = $c->model('DB')->resultset('JobStatus');
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceeded');
     $c->stash->{channelBaseName} = "everything";
     $c->stash->{total} = $c->model('DB::NrBuilds')->find('finished')->count;
