@@ -149,6 +149,7 @@ sub edit : Chained('jobsetChain') PathPart Args(0) {
 
     $c->stash->{template} = 'edit-jobset.tt';
     $c->stash->{edit} = 1;
+    $c->stash->{clone} = defined $c->stash->{params}->{clone};
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 }
 
@@ -209,57 +210,29 @@ sub updateJobset {
         , schedulingshares => int($c->stash->{params}->{schedulingshares})
         });
 
-    # Process the inputs of this jobset.
-    unless (defined $c->stash->{params}->{inputs}) {
-        $c->stash->{params}->{inputs} = {};
-        foreach my $param (keys %{$c->stash->{params}}) {
-            next unless $param =~ /^input-(\w+)-name$/;
-            my $baseName = $1;
-            next if $baseName eq "template";
-            $c->stash->{params}->{inputs}->{$c->stash->{params}->{$param}} = { type => $c->stash->{params}->{"input-$baseName-type"}, values => $c->stash->{params}->{"input-$baseName-values"} };
-            unless ($baseName =~ /^\d+$/) { # non-numeric base name is an existing entry
-                $c->stash->{params}->{inputs}->{$c->stash->{params}->{$param}}->{oldName} = $baseName;
-            }
-        }
-    }
+    # Set the inputs of this jobset.
+    $jobset->jobsetinputs->delete;
 
-    foreach my $inputName (keys %{$c->stash->{params}->{inputs}}) {
-        my $inputData = $c->stash->{params}->{inputs}->{$inputName};
-        error($c, "Invalid input name ‘$inputName’.") unless $inputName =~ /^[[:alpha:]][\w-]*$/;
+    foreach my $param (keys %{$c->stash->{params}}) {
+        next unless $param =~ /^input-(\w+)-name$/;
+        my $baseName = $1;
+        next if $baseName eq "template";
+        my $name = $c->stash->{params}->{$param};
+        my $type = $c->stash->{params}->{"input-$baseName-type"};
+        my $values = $c->stash->{params}->{"input-$baseName-values"};
 
-        my $inputType = $inputData->{type};
+        error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
+        error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
 
-        error($c, "Invalid input type ‘$inputType’.") unless defined $c->stash->{inputTypes}->{$inputType};
+        my $input = $jobset->jobsetinputs->create({ name => $name, type => $type });
 
-        my $input;
-        unless (defined $inputData->{oldName}) {
-            $input = $jobset->jobsetinputs->update_or_create(
-                { name => $inputName
-                , type => $inputType
-                });
-        } else { # it's an existing input
-            $input = ($jobset->jobsetinputs->search({name => $inputData->{oldName}}))[0];
-            die unless defined $input;
-            $input->update({name => $inputName, type => $inputType});
-        }
-
-        # Update the values for this input.  Just delete all the
-        # current ones, then create the new values.
-        $input->jobsetinputalts->delete_all;
-        my $values = $inputData->{values};
-        $values = [] unless defined $values;
-        $values = [$values] unless ref($values) eq 'ARRAY';
+        # Set the values for this input.
+        my @values = ref($values) eq 'ARRAY' ? @{$values} : ($values);
         my $altnr = 0;
-        foreach my $value (@{$values}) {
-            $value = checkInputValue($c, $inputType, $value);
+        foreach my $value (@values) {
+            $value = checkInputValue($c, $type, $value);
             $input->jobsetinputalts->create({altnr => $altnr++, value => $value});
         }
-    }
-
-    # Get rid of deleted inputs.
-    my @inputs = $jobset->jobsetinputs->all;
-    foreach my $input (@inputs) {
-        $input->delete unless defined $c->stash->{params}->{inputs}->{$input->name};
     }
 }
 
@@ -267,44 +240,11 @@ sub updateJobset {
 sub clone : Chained('jobsetChain') PathPart('clone') Args(0) {
     my ($self, $c) = @_;
 
-    my $jobset = $c->stash->{jobset};
-    requireProjectOwner($c, $jobset->project);
+    requireProjectOwner($c, $c->stash->{project});
 
-    $c->stash->{template} = 'clone-jobset.tt';
-}
-
-
-sub clone_submit : Chained('jobsetChain') PathPart('clone/submit') Args(0) {
-    my ($self, $c) = @_;
-
-    my $jobset = $c->stash->{jobset};
-    requireProjectOwner($c, $jobset->project);
-    requirePost($c);
-
-    my $newJobsetName = trim $c->stash->{params}->{"newjobset"};
-    error($c, "Invalid jobset name: $newJobsetName") if $newJobsetName !~ /^$jobsetNameRE$/;
-
-    my $newJobset;
-    txn_do($c->model('DB')->schema, sub {
-        $newJobset = $jobset->project->jobsets->create(
-            { name => $newJobsetName
-            , description => $jobset->description
-            , nixexprpath => $jobset->nixexprpath
-            , nixexprinput => $jobset->nixexprinput
-            , enabled => 0
-            , enableemail => $jobset->enableemail
-            , emailoverride => $jobset->emailoverride || ""
-            });
-
-        foreach my $input ($jobset->jobsetinputs) {
-            my $newinput = $newJobset->jobsetinputs->create({name => $input->name, type => $input->type});
-            foreach my $inputalt ($input->jobsetinputalts) {
-                $newinput->jobsetinputalts->create({altnr => $inputalt->altnr, value => $inputalt->value});
-            }
-        }
-    });
-
-    $c->res->redirect($c->uri_for($c->controller('Jobset')->action_for("edit"), [$jobset->project->name, $newJobsetName]));
+    $c->stash->{template} = 'edit-jobset.tt';
+    $c->stash->{clone} = 1;
+    $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 }
 
 

@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title=(create ? "Create jobset in project $project.name" : "Editing jobset $project.name:$jobset.name") %]
+[% WRAPPER layout.tt title=(create ? "Create jobset in project $project.name" : clone ? "Cloning jobset $project.name:$jobset.name" : "Editing jobset $project.name:$jobset.name") %]
 [% PROCESS common.tt %]
 [% USE format %]
 
@@ -64,7 +64,7 @@
     <div class="control-group">
       <label class="control-label">Identifier</label>
       <div class="controls">
-        <input type="text" class="span3" name="name" [% HTML.attributes(value => jobset.name) %]/>
+        <input type="text" class="span3" name="name" [% HTML.attributes(value => clone ? "" : jobset.name) %]/>
       </div>
     </div>
 
@@ -132,7 +132,7 @@
     [% INCLUDE renderJobsetInputs %]
 
     <div class="form-actions">
-      <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create %]Create[% ELSE %]Apply changes[% END %]</button>
+      <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create || clone %]Create jobset[% ELSE %]Apply changes[% END %]</button>
     </div>
 
   </fieldset>
@@ -168,7 +168,7 @@
 
   $("#submit-jobset").click(function() {
     requestJSON({
-      [% IF create %]
+      [% IF create || clone %]
         url: "[% c.uri_for('/jobset' project.name '.new') %]",
       [% ELSE %]
         url: "[% c.uri_for('/jobset' project.name jobset.name) %]",
