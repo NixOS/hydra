@@ -44,7 +44,7 @@
   </table>
 [% END %]
 
-<form class="form-horizontal" action="[% IF create %][% c.uri_for('/project' project.name 'create-jobset/submit') %][% ELSE %][% c.uri_for('/jobset' project.name jobset.name 'submit') %][% END %]" method="post">
+<form class="form-horizontal">
 
   <fieldset>
 
@@ -132,7 +132,7 @@
     [% INCLUDE renderJobsetInputs %]
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create %]Create[% ELSE %]Apply changes[% END %]</button>
+      <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create %]Create[% ELSE %]Apply changes[% END %]</button>
     </div>
 
   </fieldset>
@@ -145,26 +145,42 @@
     [% INCLUDE renderJobsetInputAlt alt=alt %]
   </tt>
 
-  <script type="text/javascript">
-    $(document).ready(function() {
-      var id = 0;
-
-      $(".add-input").click(function() {
-        var newid = "input-" + id++;
-        var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
-        $("#input-template-name", x).attr("name", newid + "-name");
-        $("#input-template-type", x).attr("name", newid + "-type");
-        $("#input-template", x).attr("id", newid);
-        return false;
-      });
-
-      $(".add-inputalt").click(function() {
-        var x = $("#inputalt-template").clone(true).insertBefore($(this)).attr("id", "").show();
-        $("input", x).attr("name", x.parents(".inputalts").attr("id") + "-values");
-      });
-    });
-  </script>
-
 </form>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+    var id = 0;
+
+    $(".add-input").click(function() {
+      var newid = "input-" + id++;
+      var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
+      $("#input-template-name", x).attr("name", newid + "-name");
+      $("#input-template-type", x).attr("name", newid + "-type");
+      $("#input-template", x).attr("id", newid);
+      return false;
+    });
+
+    $(".add-inputalt").click(function() {
+      var x = $("#inputalt-template").clone(true).insertBefore($(this)).attr("id", "").show();
+      $("input", x).attr("name", x.parents(".inputalts").attr("id") + "-values");
+    });
+  });
+
+  $("#submit-jobset").click(function() {
+    requestJSON({
+      [% IF create %]
+        url: "[% c.uri_for('/jobset' project.name '.new') %]",
+      [% ELSE %]
+        url: "[% c.uri_for('/jobset' project.name jobset.name) %]",
+      [% END %]
+      data: $(this).parents("form").serialize(),
+      type: 'PUT',
+      success: function(data) {
+        window.location = data.redirect;
+      },
+    });
+    return false;
+  });
+</script>
 
 [% END %]

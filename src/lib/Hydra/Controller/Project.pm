@@ -28,7 +28,7 @@ sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
     ], join => [ 'owner', 'releases', 'jobsets' ], order_by => { -desc => "releases.timestamp" }, collapse => 1 });
 
     notFound($c, "Project ‘$projectName’ doesn't exist.")
-        if (!$c->stash->{project} && !($c->action->name eq "project" and $c->request->method eq "PUT"));
+        if !$c->stash->{project} && !($c->action->name eq "project" and $c->request->method eq "PUT");
 }
 
 
@@ -138,15 +138,6 @@ sub create_jobset : Chained('projectChain') PathPart('create-jobset') Args(0) {
     $c->stash->{create} = 1;
     $c->stash->{edit} = 1;
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
-}
-
-
-sub create_jobset_submit : Chained('projectChain') PathPart('create-jobset/submit') Args(0) {
-    my ($self, $c) = @_;
-
-    $c->stash->{jobsetName} = trim $c->stash->{params}->{name};
-
-    Hydra::Controller::Jobset::jobset_PUT($self, $c);
 }
 
 

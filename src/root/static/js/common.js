@@ -74,7 +74,7 @@ $(document).ready(function() {
 
 var tabsLoaded = {};
 
-var makeLazyTab = function(tabName, uri) {
+function makeLazyTab(tabName, uri) {
     $('.nav-tabs').bind('show', function(e) {
         var pattern = /#.+/gi;
         var id = e.target.toString().match(pattern)[0];
@@ -87,9 +87,13 @@ var makeLazyTab = function(tabName, uri) {
           });
         }
     });
-}
+};
 
-var requestJSON = function(args) {
+function escapeHTML(s) {
+    return $('<div/>').text(s).html();
+};
+
+function requestJSON(args) {
     args.dataType = 'json';
     args.error = function(data) {
         json = {};
@@ -99,18 +103,18 @@ var requestJSON = function(args) {
         } catch (err) {
         }
         if (json.error)
-            bootbox.alert(json.error);
+            bootbox.alert(escapeHTML(json.error));
         else if (data.responseText)
-            bootbox.alert("Server error: " + data.responseText);
+            bootbox.alert("Server error: " + escapeHTML(data.responseText));
         else
             bootbox.alert("Unknown server error!");
     };
     return $.ajax(args);
-}
+};
 
-var redirectJSON = function(args) {
+function redirectJSON(args) {
     args.success = function(data) {
         window.location = data.redirect;
     };
     return requestJSON(args);
-}
+};

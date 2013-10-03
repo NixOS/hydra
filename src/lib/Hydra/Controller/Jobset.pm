@@ -10,6 +10,7 @@ use Hydra::Helper::CatalystUtils;
 
 sub jobsetChain :Chained('/') :PathPart('jobset') :CaptureArgs(2) {
     my ($self, $c, $projectName, $jobsetName) = @_;
+    $c->stash->{jobsetName} //= $jobsetName;
 
     my $project = $c->model('DB::Projects')->find($projectName);
 
@@ -17,18 +18,10 @@ sub jobsetChain :Chained('/') :PathPart('jobset') :CaptureArgs(2) {
 
     $c->stash->{project} = $project;
 
-    $c->stash->{jobset_} = $project->jobsets->search({'me.name' => $jobsetName});
-    my $jobset = $c->stash->{jobset_}->single;
+    $c->stash->{jobset} = $project->jobsets->find({ name => $jobsetName });
 
-    if ($jobset) {
-        $c->stash->{jobset} = $jobset;
-    } else {
-        if ($c->action->name eq "jobset" and $c->request->method eq "PUT") {
-            $c->stash->{jobsetName} = $jobsetName;
-        } else {
-            notFound($c, "Jobset ‘$jobsetName’ doesn't exist.");
-        }
-    }
+    notFound($c, "Jobset ‘$jobsetName’ doesn't exist.")
+        if !$c->stash->{jobset} && !($c->action->name eq "jobset" and $c->request->method eq "PUT");
 }
 
 
@@ -45,25 +38,7 @@ sub jobset_GET {
 
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 
-    $self->status_ok(
-        $c,
-        entity => $c->stash->{jobset_}->find({}, {
-                columns => [
-                    'me.name',
-                    'me.project',
-                    'me.errormsg',
-                    'me.emailoverride',
-                    'jobsetinputs.name',
-                    {
-                        'jobsetinputs.jobsetinputalts.altnr' => 'jobsetinputalts.altnr',
-                        'jobsetinputs.jobsetinputalts.value' => 'jobsetinputalts.value'
-                    }
-                ],
-                join => { 'jobsetinputs' => 'jobsetinputalts' },
-                collapse => 1,
-                order_by => "me.name"
-            })
-    );
+    $self->status_ok($c, entity => $c->stash->{jobset});
 }
 
 sub jobset_PUT {
@@ -72,67 +47,28 @@ sub jobset_PUT {
     requireProjectOwner($c, $c->stash->{project});
 
     if (defined $c->stash->{jobset}) {
-        error($c, "Cannot rename jobset `$c->stash->{params}->{oldName}' over existing jobset `$c->stash->{jobset}->name") if defined $c->stash->{params}->{oldName} and $c->stash->{params}->{oldName} ne $c->stash->{jobset}->name;
         txn_do($c->model('DB')->schema, sub {
             updateJobset($c, $c->stash->{jobset});
         });
 
-        if ($c->req->looks_like_browser) {
-            $c->res->redirect($c->uri_for($self->action_for("jobset"),
-                [$c->stash->{project}->name, $c->stash->{jobset}->name]) . "#tabs-configuration");
-        } else {
-            $self->status_no_content($c);
-        }
-    } elsif (defined $c->stash->{params}->{oldName}) {
-        my $jobset = $c->stash->{project}->jobsets->find({'me.name' => $c->stash->{params}->{oldName}});
+        my $uri = $c->uri_for($self->action_for("jobset"), [$c->stash->{project}->name, $c->stash->{jobset}->name]) . "#tabs-configuration";
+        $self->status_ok($c, entity => { redirect => "$uri" });
+    }
 
-        if (defined $jobset) {
-            txn_do($c->model('DB')->schema, sub {
-                updateJobset($c, $jobset);
-            });
-
-            my $uri = $c->uri_for($self->action_for("jobset"), [$c->stash->{project}->name, $jobset->name]);
-
-            if ($c->req->looks_like_browser) {
-                $c->res->redirect($uri . "#tabs-configuration");
-            } else {
-                $self->status_created(
-                    $c,
-                    location => "$uri",
-                    entity => { name => $jobset->name, uri => "$uri", type => "jobset" }
-                );
-            }
-        } else {
-            $self->status_not_found(
-                $c,
-                message => "Jobset $c->stash->{params}->{oldName} doesn't exist."
-            );
-        }
-    } else {
-        my $exprType =
-            $c->stash->{params}->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
-
-        error($c, "Invalid jobset name: ‘$c->stash->{jobsetName}’") if $c->stash->{jobsetName} !~ /^$jobsetNameRE$/;
-
+    else {
         my $jobset;
         txn_do($c->model('DB')->schema, sub {
             # Note: $jobsetName is validated in updateProject, which will
             # abort the transaction if the name isn't valid.
             $jobset = $c->stash->{project}->jobsets->create(
-                {name => $c->stash->{jobsetName}, nixexprinput => "", nixexprpath => "", emailoverride => ""});
+                {name => ".tmp", nixexprinput => "", nixexprpath => "", emailoverride => ""});
             updateJobset($c, $jobset);
         });
 
         my $uri = $c->uri_for($self->action_for("jobset"), [$c->stash->{project}->name, $jobset->name]);
-        if ($c->req->looks_like_browser) {
-            $c->res->redirect($uri . "#tabs-configuration");
-        } else {
-            $self->status_created(
-                $c,
-                location => "$uri",
-                entity => { name => $jobset->name, uri => "$uri", type => "jobset" }
-            );
-        }
+        $self->status_created($c,
+            location => "$uri",
+            entity => { name => $jobset->name, uri => "$uri", redirect => "$uri", type => "jobset" });
     }
 }
 
@@ -217,32 +153,15 @@ sub edit : Chained('jobsetChain') PathPart Args(0) {
 }
 
 
-sub submit : Chained('jobsetChain') PathPart Args(0) {
-    my ($self, $c) = @_;
-
-    requirePost($c);
-    requireProjectOwner($c, $c->stash->{project});
-
-    my $newName = trim $c->stash->{params}->{name};
-    my $oldName = trim $c->stash->{jobset}->name;
-    unless ($oldName eq $newName) {
-        $c->stash->{params}->{oldName} = $oldName;
-        $c->stash->{jobsetName} = $newName;
-        undef $c->stash->{jobset};
-    }
-    jobset_PUT($self, $c);
-}
-
-
 sub nixExprPathFromParams {
     my ($c) = @_;
 
     # The Nix expression path must be relative and can't contain ".." elements.
     my $nixExprPath = trim $c->stash->{params}->{"nixexprpath"};
-    error($c, "Invalid Nix expression path: $nixExprPath") if $nixExprPath !~ /^$relPathRE$/;
+    error($c, "Invalid Nix expression path ‘$nixExprPath’.") if $nixExprPath !~ /^$relPathRE$/;
 
     my $nixExprInput = trim $c->stash->{params}->{"nixexprinput"};
-    error($c, "Invalid Nix expression input name: $nixExprInput") unless $nixExprInput =~ /^[[:alpha:]][\w-]*$/;
+    error($c, "Invalid Nix expression input name ‘$nixExprInput’.") unless $nixExprInput =~ /^[[:alpha:]][\w-]*$/;
 
     return ($nixExprPath, $nixExprInput);
 }
@@ -251,7 +170,7 @@ sub nixExprPathFromParams {
 sub checkInputValue {
     my ($c, $type, $value) = @_;
     $value = trim $value;
-    error($c, "Invalid Boolean value: $value") if
+    error($c, "Invalid Boolean value ‘$value’.") if
         $type eq "boolean" && !($value eq "true" || $value eq "false");
     return $value;
 }
@@ -260,8 +179,11 @@ sub checkInputValue {
 sub updateJobset {
     my ($c, $jobset) = @_;
 
-    my $jobsetName = $c->stash->{jobsetName} // $jobset->name;
-    error($c, "Invalid jobset name: ‘$jobsetName’") if $jobsetName !~ /^$jobsetNameRE$/;
+    my $jobsetName = $c->stash->{params}->{name};
+    error($c, "Invalid jobset identifier ‘$jobsetName’.") if $jobsetName !~ /^$jobsetNameRE$/;
+
+    error($c, "Cannot rename jobset to ‘$jobsetName’ since that identifier is already taken.")
+        if $jobsetName ne $jobset->name && defined $c->stash->{project}->jobsets->find({ name => $jobsetName });
 
     # When the expression is in a .scm file, assume it's a Guile + Guix
     # build expression.
@@ -303,11 +225,11 @@ sub updateJobset {
 
     foreach my $inputName (keys %{$c->stash->{params}->{inputs}}) {
         my $inputData = $c->stash->{params}->{inputs}->{$inputName};
-        error($c, "Invalid input name: $inputName") unless $inputName =~ /^[[:alpha:]][\w-]*$/;
+        error($c, "Invalid input name ‘$inputName’.") unless $inputName =~ /^[[:alpha:]][\w-]*$/;
 
         my $inputType = $inputData->{type};
 
-        error($c, "Invalid input type: $inputType") unless defined $c->stash->{inputTypes}->{$inputType};
+        error($c, "Invalid input type ‘$inputType’.") unless defined $c->stash->{inputTypes}->{$inputType};
 
         my $input;
         unless (defined $inputData->{oldName}) {
