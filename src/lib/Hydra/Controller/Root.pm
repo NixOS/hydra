@@ -8,6 +8,7 @@ use Hydra::Helper::CatalystUtils;
 use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
 use Nix::Config;
+use Encode;
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -211,9 +212,11 @@ sub default :Path {
 sub end : ActionClass('RenderView') {
     my ($self, $c) = @_;
 
+    my @errors = map { encode_utf8($_); } @{$c->error};
+
     if (defined $c->stash->{json}) {
-        if (scalar @{$c->error}) {
-            $c->stash->{json}->{error} = join "\n", @{$c->error};
+        if (scalar @errors) {
+            $c->stash->{json}->{error} = join "\n", @errors;
             $c->clear_errors;
         }
         $c->forward('View::JSON');
@@ -222,7 +225,7 @@ sub end : ActionClass('RenderView') {
     elsif (scalar @{$c->error}) {
         $c->stash->{resource} = { error => join "\n", @{$c->error} };
         $c->stash->{template} = 'error.tt';
-        $c->stash->{errors} = $c->error;
+        $c->stash->{errors} = [@errors];
         $c->response->status(500) if $c->response->status == 200;
         if ($c->response->status >= 300) {
             $c->stash->{httpStatus} =
