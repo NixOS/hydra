@@ -570,7 +570,7 @@ sub restartBuild {
             , iscachedbuild => 0
             });
 
-        $build->buildproducts->delete_all;
+        $build->buildproducts->delete;
 
         # Reset the stats for the evals to which this build belongs.
         # !!! Should do this in a trigger.

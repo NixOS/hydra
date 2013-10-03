@@ -88,8 +88,8 @@ sub project_DELETE {
     requireProjectOwner($c, $c->stash->{project});
 
     txn_do($c->model('DB')->schema, sub {
-        $c->stash->{project}->jobsetevals->delete_all;
-        $c->stash->{project}->builds->delete_all;
+        $c->stash->{project}->jobsetevals->delete;
+        $c->stash->{project}->builds->delete;
         $c->stash->{project}->delete;
     });
 

@@ -354,8 +354,8 @@ txn_do($db, sub {
         die "build $buildId is already being built";
     }
     $build->update({busy => 1, locker => $$});
-    $build->buildsteps->search({busy => 1})->delete_all;
-    $build->buildproducts->delete_all;
+    $build->buildsteps->search({busy => 1})->delete;
+    $build->buildproducts->delete;
 });
 
 die unless $build;

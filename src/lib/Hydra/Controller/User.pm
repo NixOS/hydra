@@ -254,7 +254,7 @@ sub edit_POST {
         }
 
         if (isAdmin($c)) {
-            $user->userroles->delete_all;
+            $user->userroles->delete;
             $user->userroles->create({ role => $_})
                 foreach paramToList($c, "roles");
         }

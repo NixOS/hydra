@@ -78,8 +78,8 @@ sub jobset_DELETE {
     requireProjectOwner($c, $c->stash->{project});
 
     txn_do($c->model('DB')->schema, sub {
-        $c->stash->{jobset}->jobsetevals->delete_all;
-        $c->stash->{jobset}->builds->delete_all;
+        $c->stash->{jobset}->jobsetevals->delete;
+        $c->stash->{jobset}->builds->delete;
         $c->stash->{jobset}->delete;
     });
 

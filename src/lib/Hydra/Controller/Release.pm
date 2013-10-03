@@ -38,7 +38,7 @@ sub updateRelease {
         , description => trim $c->request->params->{description}
         });
 
-    $release->releasemembers->delete_all;
+    $release->releasemembers->delete;
     foreach my $param (keys %{$c->request->params}) {
         next unless $param =~ /^member-(\d+)-description$/;
         my $buildId = $1;
