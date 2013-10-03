@@ -223,8 +223,8 @@ sub end : ActionClass('RenderView') {
         $c->forward('View::JSON');
     }
 
-    if (scalar @{$c->error}) {
-        $c->stash->{resource} = { errors => $c->error };
+    elsif (scalar @{$c->error}) {
+        $c->stash->{resource} = { error => join "\n", @{$c->error} };
         $c->stash->{template} = 'error.tt';
         $c->stash->{errors} = $c->error;
         $c->response->status(500) if $c->response->status == 200;
@@ -233,16 +233,11 @@ sub end : ActionClass('RenderView') {
                 $c->response->status . " " . HTTP::Status::status_message($c->response->status);
         }
         $c->clear_errors;
-    } elsif (defined $c->stash->{resource} and
-        (ref $c->stash->{resource} eq ref {}) and
-        defined $c->stash->{resource}->{error}) {
-        $c->stash->{template} = 'error.tt';
-        $c->stash->{httpStatus} =
-            $c->response->status . " " . HTTP::Status::status_message($c->response->status);
     }
 
     $c->forward('serialize') if defined $c->stash->{resource};
 }
+
 
 sub serialize : ActionClass('Serialize') { }
 
