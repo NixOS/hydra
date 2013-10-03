@@ -67,9 +67,6 @@ BLOCK renderBuildListHeader %]
         <th>Release name</th>
         <th>System</th>
         <th>[% IF showSchedulingInfo %]Queued at[% ELSE %]Finished at[% END %]</th>
-        [% IF showStatusChange %]
-          <th class="headerSortUp">Last status change</th>
-        [% END %]
         [% IF showDescription %]
           <th>Description</th>
         [% END %]
@@ -100,17 +97,6 @@ BLOCK renderBuildListBody;
       <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
       <td class="nowrap"><tt>[% build.system %]</tt></td>
       <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; date.format(showSchedulingInfo ? build.timestamp : build.stoptime, '%Y-%m-%d %H:%M:%S'); ELSE; "-"; END %]</td>
-      [% IF showStatusChange %]
-        <td>
-          [% IF build.get_column('statusChangeTime') %]
-            <a href="[% c.uri_for('/build' build.get_column('statusChangeId')) %]">
-              [% date.format(build.get_column('statusChangeTime'), '%Y-%m-%d %H:%M:%S') %]
-            </a>
-          [% ELSE %]
-            <em>never</em>
-          [% END %]
-        </td>
-      [% END %]
       [% IF showDescription %]
         <td>[% build.description %]</td>
       [% END %]

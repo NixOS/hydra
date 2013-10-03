@@ -15,7 +15,7 @@
   <div id="tabs-status" class="tab-pane active">
     [% IF lastBuilds.size != 0 %]
       <h3>Lastest builds</h3>
-      [% INCLUDE renderBuildList builds=lastBuilds showStatusChange=0
+      [% INCLUDE renderBuildList builds=lastBuilds 
           linkToAll=c.uri_for('/job' project.name jobset.name job.name 'all') %]
     [% END %]
     [% IF queuedBuilds.size != 0 %]
