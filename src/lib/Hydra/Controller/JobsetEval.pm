@@ -82,6 +82,10 @@ sub view : Chained('eval') PathPart('') Args(0) {
 
     my $n = 0;
     foreach my $build (@builds) {
+        if ($build->finished != 0 && ($build->buildstatus == 3 || $build->buildstatus == 4)) {
+            push @{$c->stash->{aborted}}, $build;
+            next;
+        }
         my $d;
         my $found = 0;
         while ($n < scalar(@builds2)) {
@@ -91,9 +95,7 @@ sub view : Chained('eval') PathPart('') Args(0) {
             if ($d == 0) {
                 $n++;
                 $found = 1;
-                if ($build->finished != 0 && ($build->buildstatus == 3 || $build->buildstatus == 4)) {
-                    push @{$c->stash->{aborted}}, $build;
-                } elsif ($build->finished == 0 || $build2->finished == 0) {
+                if ($build->finished == 0 || $build2->finished == 0) {
                     push @{$c->stash->{unfinished}}, $build;
                 } elsif ($build->buildstatus == 0 && $build2->buildstatus == 0) {
                     push @{$c->stash->{stillSucceed}}, $build;
