@@ -91,7 +91,7 @@ sub view : Chained('eval') PathPart('') Args(0) {
             if ($d == 0) {
                 $n++;
                 $found = 1;
-                if ($build->buildstatus == 3 || $build->buildstatus == 4) {
+                if ($build->finished != 0 && ($build->buildstatus == 3 || $build->buildstatus == 4)) {
                     push @{$c->stash->{aborted}}, $build;
                 } elsif ($build->finished == 0 || $build2->finished == 0) {
                     push @{$c->stash->{unfinished}}, $build;
