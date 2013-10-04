@@ -553,29 +553,4 @@ sub checkBuild {
 };
 
 
-sub restartBuild {
-    my ($db, $build) = @_;
-
-    txn_do($db, sub {
-        my @paths;
-        push @paths, $build->drvpath;
-        push @paths, $_->drvpath foreach $build->buildsteps;
-
-        my $r = `nix-store --clear-failed-paths @paths`;
-
-        $build->update(
-            { finished => 0
-            , busy => 0
-            , locker => ""
-            , iscachedbuild => 0
-            });
-
-        $build->buildproducts->delete;
-
-        # Reset the stats for the evals to which this build belongs.
-        # !!! Should do this in a trigger.
-        foreach my $m ($build->jobsetevalmembers->all) {
-            $m->eval->update({nrsucceeded => undef});
-        }
-    });
-}
+1;

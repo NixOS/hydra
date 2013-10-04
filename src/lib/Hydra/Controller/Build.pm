@@ -437,18 +437,11 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
 
 sub restart : Chained('buildChain') PathPart Args(0) {
     my ($self, $c) = @_;
-
     my $build = $c->stash->{build};
-
     requireProjectOwner($c, $build->project);
-
-    error($c, "This build cannot be restarted.")
-        unless $build->finished && -f $build->drvpath;
-
-    restartBuild($c->model('DB')->schema, $build);
-
+    my $n = restartBuilds($c->model('DB')->schema, $c->model('DB::Builds')->search({ id => $build->id }));
+    error($c, "This build cannot be restarted.") if $n != 1;
     $c->flash->{successMsg} = "Build has been restarted.";
-
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }
 

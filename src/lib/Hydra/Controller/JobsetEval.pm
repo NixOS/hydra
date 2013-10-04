@@ -163,6 +163,16 @@ sub cancel : Chained('eval') PathPart('cancel') Args(0) {
 }
 
 
+sub restart_aborted : Chained('eval') PathPart('restart-aborted') Args(0) {
+    my ($self, $c) = @_;
+    requireProjectOwner($c, $c->stash->{eval}->project);
+    my $builds = $c->stash->{eval}->builds->search({ finished => 1, buildstatus => { -in => [3, 4] } });
+    my $n = restartBuilds($c->model('DB')->schema, $builds);
+    $c->flash->{successMsg} = "$n builds have been restarted.";
+    $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
+}
+
+
 # Hydra::Base::Controller::NixChannel needs this.
 sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
     my ($self, $c) = @_;

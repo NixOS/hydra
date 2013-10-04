@@ -7,6 +7,7 @@ use File::Basename;
 use Config::General;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
+use Nix::Store;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -22,7 +23,7 @@ our @EXPORT = qw(
     pathIsInsidePrefix
     captureStdoutStderr run grab
     getTotalShares
-    cancelBuilds);
+    cancelBuilds restartBuilds);
 
 
 sub getHydraHome {
@@ -274,7 +275,7 @@ sub findLog {
         my $logPath = getDrvLogPath($drvPath);
         return $logPath if defined $logPath;
     }
-    
+
     return undef if scalar @outPaths == 0;
 
     my @steps = $c->model('DB::BuildSteps')->search(
@@ -558,6 +559,41 @@ sub cancelBuilds($$) {
             });
         return $n;
     });
+}
+
+
+sub restartBuilds($$) {
+    my ($db, $builds) = @_;
+    my $n = 0;
+
+    txn_do($db, sub {
+        my @paths;
+
+        $builds = $builds->search({ finished => 1 });
+        foreach my $build ($builds->all) {
+            next if !isValidPath($build->drvpath);
+            push @paths, $build->drvpath;
+            push @paths, $_->drvpath foreach $build->buildsteps;
+
+            $build->update(
+                { finished => 0
+                , busy => 0
+                , locker => ""
+                , iscachedbuild => 0
+                });
+            $n++;
+
+            # Reset the stats for the evals to which this build belongs.
+            # !!! Should do this in a trigger.
+            $build->jobsetevals->update({nrsucceeded => undef});
+        }
+
+        # Clear Nix's negative failure cache.
+        # FIXME: Add this to the API.
+        system("nix-store", "--clear-failed-paths", @paths);
+    });
+
+    return $n;
 }
 
 
