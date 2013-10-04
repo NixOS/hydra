@@ -60,7 +60,6 @@ sub build_GET {
     $c->stash->{template} = 'build.tt';
     $c->stash->{available} = all { isValidPath($_->path) } $build->buildoutputs->all;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
-    $c->stash->{flashMsg} = $c->flash->{buildMsg};
 
     if (!$build->finished && $build->busy) {
         $c->stash->{logtext} = read_file($build->logfile, err_mode => 'quiet') // "";
@@ -448,7 +447,7 @@ sub restart : Chained('buildChain') PathPart Args(0) {
 
     restartBuild($c->model('DB')->schema, $build);
 
-    $c->flash->{buildMsg} = "Build has been restarted.";
+    $c->flash->{successMsg} = "Build has been restarted.";
 
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }
@@ -456,30 +455,11 @@ sub restart : Chained('buildChain') PathPart Args(0) {
 
 sub cancel : Chained('buildChain') PathPart Args(0) {
     my ($self, $c) = @_;
-
     my $build = $c->stash->{build};
-
     requireProjectOwner($c, $build->project);
-
-    txn_do($c->model('DB')->schema, sub {
-        error($c, "This build cannot be cancelled.")
-            if $build->finished || $build->busy;
-
-        # !!! Actually, it would be nice to be able to cancel busy
-        # builds as well, but we would have to send a signal or
-        # something to the build process.
-
-        my $time = time();
-        $build->update(
-            { finished => 1, busy => 0
-            , iscachedbuild => 0, buildstatus => 4 # = cancelled
-            , starttime => $time
-            , stoptime => $time
-            });
-    });
-
-    $c->flash->{buildMsg} = "Build has been cancelled.";
-
+    my $n = cancelBuilds($c->model('DB')->schema, $c->model('DB::Builds')->search({ id => $build->id }));
+    error($c, "This build cannot be cancelled.") if $n != 1;
+    $c->flash->{successMsg} = "Build has been cancelled.";
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }
 
@@ -500,7 +480,7 @@ sub keep : Chained('buildChain') PathPart Args(1) {
         $build->update({keep => $keep});
     });
 
-    $c->flash->{buildMsg} =
+    $c->flash->{successMsg} =
         $keep ? "Build will be kept." : "Build will not be kept.";
 
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
@@ -530,7 +510,7 @@ sub add_to_release : Chained('buildChain') PathPart('add-to-release') Args(0) {
 
     $release->releasemembers->create({build => $build->id, description => $build->description});
 
-    $c->flash->{buildMsg} = "Build added to project <tt>$releaseName</tt>.";
+    $c->flash->{successMsg} = "Build added to project <tt>$releaseName</tt>.";
 
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }
@@ -607,7 +587,7 @@ sub clone_submit : Chained('buildChain') PathPart('clone/submit') Args(0) {
 
     error($c, "This build has already been performed.") unless $newBuild;
 
-    $c->flash->{buildMsg} = "Build " . $newBuild->id . " added to the queue.";
+    $c->flash->{successMsg} = "Build " . $newBuild->id . " added to the queue.";
 
     $c->res->redirect($c->uri_for($c->controller('Root')->action_for('queue')));
 }

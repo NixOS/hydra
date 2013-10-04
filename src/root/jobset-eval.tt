@@ -42,6 +42,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
       </a>
       <ul class="dropdown-menu">
         <li><a href="[% c.uri_for(c.controller('JobsetEval').action_for('release'), [eval.id]) %]">Create a release from this evaluation</a></li>
+        <li><a href="[% c.uri_for(c.controller('JobsetEval').action_for('cancel'), [eval.id]) %]">Cancel all scheduled builds</a></li>
       </ul>
     </li>
   [% END %]

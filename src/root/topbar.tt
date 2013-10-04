@@ -91,7 +91,7 @@
         class = "" %]
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Admin').action_for('clear_queue_non_current'))
-        title = "Clear all non-running old builds from queue"
+        title = "Clear scheduled non-current builds from queue"
         confirmmsg = "Are you sure you want to clear the queue?"
         class = "" %]
       [% INCLUDE menuItem

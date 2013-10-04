@@ -34,12 +34,12 @@ sub machines : Chained('admin') PathPart('machines') Args(0) {
 
 sub clear_queue_non_current : Chained('admin') PathPart('clear-queue-non-current') Args(0) {
     my ($self, $c) = @_;
-    my $time = time();
-    $c->model('DB::Builds')->search(
+    my $builds = $c->model('DB::Builds')->search(
         { finished => 0, busy => 0
         , id => { -not_in => \ "select build from JobsetEvalMembers where eval in (select max(id) from JobsetEvals where hasNewBuilds = 1 group by project, jobset)" }
-        }, {})
-        ->update({ finished => 1, buildstatus => 4, starttime => $time, stoptime => $time });
+        });
+    my $n = cancelBuilds($c->model('DB')->schema, $builds);
+    $c->flash->{successMsg} = "$n builds have been cancelled.";
     $c->res->redirect($c->request->referer // "/admin");
 }
 

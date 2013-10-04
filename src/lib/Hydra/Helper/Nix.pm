@@ -21,7 +21,8 @@ our @EXPORT = qw(
     getEvals getMachines
     pathIsInsidePrefix
     captureStdoutStderr run grab
-    getTotalShares);
+    getTotalShares
+    cancelBuilds);
 
 
 sub getHydraHome {
@@ -43,11 +44,12 @@ sub getHydraConfig {
 # doesn't work.
 sub txn_do {
     my ($db, $coderef) = @_;
+    my $res;
     while (1) {
         eval {
-            $db->txn_do($coderef);
+            $res = $db->txn_do($coderef);
         };
-        last if !$@;
+        return $res if !$@;
         die $@ unless $@ =~ "database is locked";
     }
 }
@@ -539,6 +541,23 @@ sub getTotalShares {
     return $db->resultset('Jobsets')->search(
         { 'project.enabled' => 1, 'me.enabled' => 1 },
         { join => 'project', select => { sum => 'schedulingshares' }, as => 'sum' })->single->get_column('sum');
+}
+
+
+sub cancelBuilds($$) {
+    my ($db, $builds) = @_;
+    return txn_do($db, sub {
+        $builds = $builds->search({ finished => 0, busy => 0 });
+        my $n = $builds->count;
+        my $time = time();
+        $builds->update(
+            { finished => 1,
+            , iscachedbuild => 0, buildstatus => 4 # = cancelled
+            , starttime => $time
+            , stoptime => $time
+            });
+        return $n;
+    });
 }
 
 

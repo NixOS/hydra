@@ -152,6 +152,15 @@ sub release : Chained('eval') PathPart('release') Args(0) {
 }
 
 
+sub cancel : Chained('eval') PathPart('cancel') Args(0) {
+    my ($self, $c) = @_;
+    requireProjectOwner($c, $c->stash->{eval}->project);
+    my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->builds);
+    $c->flash->{successMsg} = "$n builds have been cancelled.";
+    $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
+}
+
+
 # Hydra::Base::Controller::NixChannel needs this.
 sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
     my ($self, $c) = @_;
