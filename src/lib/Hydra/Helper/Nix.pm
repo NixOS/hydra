@@ -575,6 +575,8 @@ sub restartBuilds($$) {
             push @paths, $build->drvpath;
             push @paths, $_->drvpath foreach $build->buildsteps;
 
+            registerRoot $build->drvpath;
+
             $build->update(
                 { finished => 0
                 , busy => 0
