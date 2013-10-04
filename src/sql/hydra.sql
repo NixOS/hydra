@@ -142,7 +142,7 @@ create table Builds (
     isCurrent     integer default 0,
 
     -- Copy of the nixExprInput/nixExprPath fields of the jobset that
-    -- instantiated this build.  Needed if we want to clone this
+    -- instantiated this build.  Needed if we want to reproduce this
     -- build.
     nixExprInput  text,
     nixExprPath   text,

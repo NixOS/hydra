@@ -78,7 +78,6 @@
         <li><a href="#reproduce" data-toggle="modal">Reproduce locally</a></li>
       [% END %]
       [% IF c.user_exists %]
-        <li><a href="[% c.uri_for('/build' build.id 'clone') %]">Clone</a></li>
         [% IF available %]
           [% IF build.keep %]
             <li><a href="[% c.uri_for('/build' build.id 'keep' 0) %]">Unkeep</a></li>
