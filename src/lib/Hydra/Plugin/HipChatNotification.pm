@@ -37,9 +37,6 @@ sub buildFinished {
 
     return if scalar keys %rooms == 0;
 
-    # Determine who broke/fixed the build.
-    my $prevBuild = getPreviousBuild($build);
-
     my ($authors, $nrCommits) = getResponsibleAuthors($build, $self->{plugins});
 
     # Send a message to each room.
