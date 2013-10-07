@@ -84,6 +84,9 @@ sub buildFinished {
     if (scalar keys %{authors} > 0) {
         my @x = map { "$_ <$authors->{$_}>" } (sort keys %{$authors});
         $authorList = join(" or ", scalar @x > 1 ? join(", ", @[0..scalar @x - 2]): (), $x[-1]);
+        if ($build->jobset->emailresponsible) {
+            $addresses{$authors->{$_}} = { builds => [ $build ] } foreach (keys %{$authors});
+        }
     }
 
     # Send an email to each interested address.
