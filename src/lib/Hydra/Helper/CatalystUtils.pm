@@ -262,7 +262,7 @@ sub getResponsibleAuthors {
 
     if ($prevBuild) {
         foreach my $curInput ($build->buildinputs_builds) {
-            next unless ($curInput->type eq "git" || $curInput->type eq "hg");
+            next unless (($curInput->type eq "git" || $curInput->type eq "hg") && $curInput->checkresponsible);
             my $prevInput = $prevBuild->buildinputs_builds->find({ name => $curInput->name });
             next unless defined $prevInput;
 
