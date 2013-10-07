@@ -40,31 +40,7 @@ sub buildFinished {
     # Determine who broke/fixed the build.
     my $prevBuild = getPreviousBuild($build);
 
-    my $nrCommits = 0;
-    my %authors;
-
-    if ($prevBuild) {
-        foreach my $curInput ($build->buildinputs_builds) {
-            next unless ($curInput->type eq "git" || $curInput->type eq "hg");
-            my $prevInput = $prevBuild->buildinputs_builds->find({ name => $curInput->name });
-            next unless defined $prevInput;
-
-            next if $curInput->type ne $prevInput->type;
-            next if $curInput->uri ne $prevInput->uri;
-            next if $curInput->revision eq $prevInput->revision;
-
-            my @commits;
-            foreach my $plugin (@{$self->{plugins}}) {
-                push @commits, @{$plugin->getCommits($curInput->type, $curInput->uri, $prevInput->revision, $curInput->revision)};
-            }
-
-            foreach my $commit (@commits) {
-                #print STDERR "$commit->{revision} by $commit->{author}\n";
-                $authors{$commit->{author}} = $commit->{email};
-                $nrCommits++;
-            }
-        }
-    }
+    my ($authors, $nrCommits) = getResponsibleAuthors($build, $self->{plugins});
 
     # Send a message to each room.
     foreach my $roomId (keys %rooms) {
@@ -84,9 +60,9 @@ sub buildFinished {
         $msg .= " (and ${\scalar @deps} others)" if scalar @deps > 0;
         $msg .= ": <a href='$baseurl/build/${\$build->id}'>" . showStatus($build) . "</a>";
 
-        if (scalar keys %authors > 0) {
+        if (scalar keys %{$authors} > 0) {
             # FIXME: HTML escaping
-            my @x = map { "<a href='mailto:$authors{$_}'>$_</a>" } (sort keys %authors);
+            my @x = map { "<a href='mailto:$authors->{$_}'>$_</a>" } (sort keys %{$authors});
             $msg .= ", likely due to ";
             $msg .= "$nrCommits commits by " if $nrCommits > 1;
             $msg .= join(" or ", scalar @x > 1 ? join(", ", @x[0..scalar @x - 2]) : (), $x[-1]);

@@ -27,6 +27,7 @@ our @EXPORT = qw(
     parseJobsetName
     showJobName
     showStatus
+    getResponsibleAuthors
 );
 
 
@@ -247,6 +248,42 @@ sub showStatus {
     }
 
    return $status;
+}
+
+
+# Determine who broke/fixed the build.
+sub getResponsibleAuthors {
+    my ($build, $plugins) = @_;
+
+    my $prevBuild = getPreviousBuild($build);
+
+    my $nrCommits = 0;
+    my %authors;
+
+    if ($prevBuild) {
+        foreach my $curInput ($build->buildinputs_builds) {
+            next unless ($curInput->type eq "git" || $curInput->type eq "hg");
+            my $prevInput = $prevBuild->buildinputs_builds->find({ name => $curInput->name });
+            next unless defined $prevInput;
+
+            next if $curInput->type ne $prevInput->type;
+            next if $curInput->uri ne $prevInput->uri;
+            next if $curInput->revision eq $prevInput->revision;
+
+            my @commits;
+            foreach my $plugin (@{$plugins}) {
+                push @commits, @{$plugin->getCommits($curInput->type, $curInput->uri, $prevInput->revision, $curInput->revision)};
+            }
+
+            foreach my $commit (@commits) {
+                #print STDERR "$commit->{revision} by $commit->{author}\n";
+                $authors{$commit->{author}} = $commit->{email};
+                $nrCommits++;
+            }
+        }
+    }
+
+    return (\%authors, $nrCommits);
 }
 
 
