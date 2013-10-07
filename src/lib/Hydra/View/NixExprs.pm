@@ -23,34 +23,69 @@ sub process {
 
     foreach my $pkg (@{$c->stash->{nixPkgs}}) {
         my $build = $pkg->{build};
-        my $s = "";
-        $s .= "  # $pkg->{name}\n";
-        $s .= "  ${\escape $build->get_column('job')} = {\n";
-        $s .= "    type = \"derivation\";\n";
-        $s .= "    name = ${\escape ($build->get_column('releasename') or $build->nixname)};\n";
-        $s .= "    system = ${\escape $build->system};\n";
-        $s .= "    outPath = ${\escape $pkg->{outPath}};\n";
-        $s .= "    meta = {\n";
-        $s .= "      description = ${\escape $build->description};\n"
-            if $build->description;
-        $s .= "      longDescription = ${\escape $build->longdescription};\n"
-            if $build->longdescription;
-        $s .= "      license = ${\escape $build->license};\n"
-            if $build->license;
-        $s .= "      maintainers = ${\escape $build->maintainers};\n"
-            if $build->maintainers;
-        $s .= "    };\n";
-        $s .= "  };\n\n";
-        $perSystem{$build->system} .= $s;
+        $perSystem{$build->system}->{$build->get_column('job')} = $pkg;
     }
 
-    my $res = "{ system ? builtins.currentSystem }:\n\n";
+    my $res = <<EOF;
+{ system ? builtins.currentSystem }:
+
+let
+
+  mkFakeDerivation = attrs: outputs:
+    let
+      outputNames = builtins.attrNames outputs;
+      common = attrs // outputsSet //
+        { type = "derivation";
+          outputs = outputNames;
+          all = outputsList;
+        };
+      outputToAttrListElement = outputName:
+        { name = outputName;
+          value = common // {
+            inherit outputName;
+            outPath = builtins.getAttr outputName outputs;
+          };
+        };
+      outputsList = map outputToAttrListElement outputNames;
+      outputsSet = builtins.listToAttrs outputsList;
+    in outputsSet;
+
+in
+
+EOF
 
     my $first = 1;
     foreach my $system (keys %perSystem) {
         $res .= "else " if !$first;
         $res .= "if system == ${\escape $system} then {\n\n";
-        $res .= $perSystem{$system};
+
+        foreach my $job (keys $perSystem{$system}) {
+            my $pkg = $perSystem{$system}->{$job};
+            my $build = $pkg->{build};
+            $res .= "  # Hydra build ${\$build->id}\n";
+            my $attr = $build->get_column('job');
+            $attr =~ s/\./-/g;
+            $res .= "  ${\escape $attr} = (mkFakeDerivation {\n";
+            $res .= "    type = \"derivation\";\n";
+            $res .= "    name = ${\escape ($build->get_column('releasename') or $build->nixname)};\n";
+            $res .= "    system = ${\escape $build->system};\n";
+            $res .= "    meta = {\n";
+            $res .= "      description = ${\escape $build->description};\n"
+                if $build->description;
+            $res .= "      longDescription = ${\escape $build->longdescription};\n"
+                if $build->longdescription;
+            $res .= "      license = ${\escape $build->license};\n"
+                if $build->license;
+            $res .= "      maintainers = ${\escape $build->maintainers};\n"
+                if $build->maintainers;
+            $res .= "    };\n";
+            $res .= "  } {\n";
+            my @outputNames = sort (keys $pkg->{outputs});
+            $res .= "    ${\escape $_} = ${\escape $pkg->{outputs}->{$_}};\n" foreach @outputNames;
+            my $out = defined $pkg->{outputs}->{"out"} ? "out" : $outputNames[0];
+            $res .= "  }).$out;\n\n";
+        }
+
         $res .= "}\n\n";
         $first = 0;
     }

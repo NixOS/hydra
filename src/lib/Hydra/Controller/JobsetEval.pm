@@ -182,6 +182,7 @@ sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
         ->search({ finished => 1, buildstatus => 0 },
                  { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
                  , join => ["buildoutputs"]
+                 , order_by => ["build.id", "buildoutputs.name"]
                  , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
 }
 
