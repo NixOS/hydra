@@ -77,6 +77,7 @@ create table JobsetInputs (
     jobset        text not null,
     name          text not null,
     type          text not null, -- "svn", "path", "uri", "string", "boolean", "nix"
+    emailResponsible integer not null default 0, -- whether to email committers to this input who change a build
     primary key   (project, jobset, name),
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );
@@ -257,6 +258,7 @@ create table BuildInputs (
     uri           text,
     revision      text,
     value         text,
+    emailResponsible integer not null default 0,
     dependency    integer, -- build ID of the input, for type == 'build'
 
     path          text,

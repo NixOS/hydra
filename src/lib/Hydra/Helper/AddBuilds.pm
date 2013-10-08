@@ -148,7 +148,7 @@ sub fetchInputSystemBuild {
 }
 
 sub fetchInput {
-    my ($plugins, $db, $project, $jobset, $name, $type, $value) = @_;
+    my ($plugins, $db, $project, $jobset, $name, $type, $value, $emailresponsible) = @_;
     my @inputs;
 
     if ($type eq "build") {
@@ -177,7 +177,10 @@ sub fetchInput {
         die "input `$name' has unknown type `$type'." unless $found;
     }
 
-    $_->{type} = $type foreach @inputs;
+    foreach my $input (@inputs) {
+        $input->{type} = $type;
+        $input->{emailresponsible} = $emailresponsible;
+    }
 
     return @inputs;
 }
@@ -542,6 +545,7 @@ sub checkBuild {
                 , uri => $input->{uri}
                 , revision => $input->{revision}
                 , value => $input->{value}
+                , emailresponsible => $input->{emailresponsible}
                 , dependency => $input->{id}
                 , path => $input->{storePath} || "" # !!! temporary hack
                 , sha256hash => $input->{sha256hash}
