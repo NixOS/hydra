@@ -95,3 +95,7 @@ td.nowrap {
 .override-link a {
     color: inherit;
 }
+
+.actions {
+  font-weight:bold;
+}
