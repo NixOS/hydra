@@ -259,10 +259,11 @@ sub getResponsibleAuthors {
 
     my $nrCommits = 0;
     my %authors;
+    my @emailable_authors;
 
     if ($prevBuild) {
         foreach my $curInput ($build->buildinputs_builds) {
-            next unless (($curInput->type eq "git" || $curInput->type eq "hg") && $curInput->checkresponsible);
+            next unless ($curInput->type eq "git" || $curInput->type eq "hg");
             my $prevInput = $prevBuild->buildinputs_builds->find({ name => $curInput->name });
             next unless defined $prevInput;
 
@@ -278,12 +279,13 @@ sub getResponsibleAuthors {
             foreach my $commit (@commits) {
                 #print STDERR "$commit->{revision} by $commit->{author}\n";
                 $authors{$commit->{author}} = $commit->{email};
+                push @emailable_authors, $commit->{email} if $curInput->emailresponsible;
                 $nrCommits++;
             }
         }
     }
 
-    return (\%authors, $nrCommits);
+    return (\%authors, $nrCommits, \@emailable_authors);
 }
 
 

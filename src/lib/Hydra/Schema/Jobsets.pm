@@ -95,12 +95,6 @@ __PACKAGE__->table("Jobsets");
   default_value: 1
   is_nullable: 0
 
-=head2 emailresponsible
-
-  data_type: 'integer'
-  default_value: 0
-  is_nullable: 0
-
 =head2 hidden
 
   data_type: 'integer'
@@ -160,8 +154,6 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 1, is_nullable => 0 },
   "enableemail",
   { data_type => "integer", default_value => 1, is_nullable => 0 },
-  "emailresponsible",
-  { data_type => "integer", default_value => 0, is_nullable => 0 },
   "hidden",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "emailoverride",
@@ -295,7 +287,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-07 14:04:49
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:hJ41oHEb9PjzluvL7f/ypw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-08 13:06:15
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:BjT60mlrN7bnljqCMHbPEw
 
 1;

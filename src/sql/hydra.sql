@@ -57,7 +57,6 @@ create table Jobsets (
     triggerTime   integer, -- set if we were triggered by a push event
     enabled       integer not null default 1,
     enableEmail   integer not null default 1,
-    emailResponsible integer not null default 0, -- whether to email committers responsible for a build change
     hidden        integer not null default 0,
     emailOverride text not null,
     keepnr        integer not null default 3,
@@ -78,7 +77,7 @@ create table JobsetInputs (
     jobset        text not null,
     name          text not null,
     type          text not null, -- "svn", "path", "uri", "string", "boolean", "nix"
-    checkResponsible integer not null default 0, -- whether this input should be checked for responsbile commits
+    emailResponsible integer not null default 0, -- whether to email committers to this input who change a build
     primary key   (project, jobset, name),
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );
@@ -259,7 +258,7 @@ create table BuildInputs (
     uri           text,
     revision      text,
     value         text,
-    checkResponsible integer not null default 0,
+    emailResponsible integer not null default 0,
     dependency    integer, -- build ID of the input, for type == 'build'
 
     path          text,

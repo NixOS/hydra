@@ -26,7 +26,7 @@
       [% IF edit %]<button type="button" class="add-inputalt btn btn-success" onclick='return false'><i class="icon-plus icon-white"></i></button>[% END %]
     </td>
     <td>
-      <input type="checkbox" id="[% baseName %]-checkresponsible" name="[% baseName %]-checkresponsible" [% if input.checkresponsible; 'checked="checked"'; END %]/>
+      <input type="checkbox" id="[% baseName %]-emailresponsible" name="[% baseName %]-emailresponsible" [% IF input.emailresponsible; 'checked="checked"'; END %]/>
     </td>
   </tr>
 [% END %]
@@ -34,7 +34,7 @@
 [% BLOCK renderJobsetInputs %]
   <table class="table table-striped table-condensed">
     <thead>
-      <tr><th>Input name</th><th>Type</th><th>Values</th><th>Check for responsible commits?</tr>
+      <tr><th>Input name</th><th>Type</th><th>Values</th><th>Notify committers</th></tr>
     </thead>
     <tbody class="inputs">
       [% FOREACH input IN jobset.jobsetinputs %]
@@ -119,14 +119,6 @@
     </div>
 
     <div class="control-group">
-      <div class="controls">
-        <label class="checkbox">
-          <input type="checkbox" name="emailresponsible" [% IF jobset.emailresponsible; 'checked="checked"'; END %]/>Notify responsible committers when build status changes
-        </label>
-      </div>
-    </div>
-
-    <div class="control-group">
       <label class="control-label">Email override</label>
       <div class="controls">
         <input type="text" class="span3" name="emailoverride" [% HTML.attributes(value => jobset.emailoverride) %]/>
@@ -167,7 +159,7 @@
       var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
       $("#input-template-name", x).attr("name", newid + "-name");
       $("#input-template-type", x).attr("name", newid + "-type");
-      $("#input-template-checkresponsible", x).attr("name", newid + "-checkresponsible");
+      $("#input-template-emailresponsible", x).attr("name", newid + "-emailresponsible");
       $("#input-template", x).attr("id", newid);
       return false;
     });

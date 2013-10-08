@@ -206,7 +206,6 @@ sub updateJobset {
         , nixexprinput => $nixExprInput
         , enabled => $enabled ? 1 : 0
         , enableemail => defined $c->stash->{params}->{enableemail} ? 1 : 0
-        , emailresponsible => defined $c->stash->{params}->{emailresponsible} ? 1 : 0
         , emailoverride => trim($c->stash->{params}->{emailoverride}) || ""
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , keepnr => int(trim($c->stash->{params}->{keepnr}))
@@ -232,7 +231,7 @@ sub updateJobset {
         my $input = $jobset->jobsetinputs->create({
                 name => $name,
                 type => $type,
-                checkresponsible => $c->stash->{params}->{"input-$baseName-checkresponsible"}
+                emailresponsible => defined $c->stash->{params}->{"input-$baseName-emailresponsible"} ? 1 : 0
             });
 
         # Set the values for this input.

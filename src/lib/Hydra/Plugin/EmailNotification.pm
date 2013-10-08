@@ -79,14 +79,12 @@ sub buildFinished {
         }
     }
 
-    my ($authors, $nrCommits) = getResponsibleAuthors($build, $self->{plugins});
+    my ($authors, $nrCommits, $emailable_authors) = getResponsibleAuthors($build, $self->{plugins});
     my $authorList;
     if (scalar keys %{authors} > 0) {
         my @x = map { "$_ <$authors->{$_}>" } (sort keys %{$authors});
         $authorList = join(" or ", scalar @x > 1 ? join(", ", @[0..scalar @x - 2]): (), $x[-1]);
-        if ($build->jobset->emailresponsible) {
-            $addresses{$authors->{$_}} = { builds => [ $build ] } foreach (keys %{$authors});
-        }
+        $addresses{$_} = { builds => [ $build ] } foreach (@{$emailable_authors});
     }
 
     # Send an email to each interested address.

@@ -57,7 +57,7 @@ __PACKAGE__->table("JobsetInputs");
   data_type: 'text'
   is_nullable: 0
 
-=head2 checkresponsible
+=head2 emailresponsible
 
   data_type: 'integer'
   default_value: 0
@@ -74,7 +74,7 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "type",
   { data_type => "text", is_nullable => 0 },
-  "checkresponsible",
+  "emailresponsible",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
 );
 
@@ -150,7 +150,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-07 14:04:49
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OvSrNdXWqco666sy+rvsKw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-08 13:06:15
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+mZZqLjQNwblb/EWW1alLQ
 
 1;

@@ -34,7 +34,7 @@ sub fetchInputs {
     foreach my $input ($jobset->jobsetinputs->all) {
         foreach my $alt ($input->jobsetinputalts->all) {
             push @{$$inputInfo{$input->name}}, $_
-                foreach fetchInput($plugins, $db, $project, $jobset, $input->name, $input->type, $alt->value, $input->checkresponsible);
+                foreach fetchInput($plugins, $db, $project, $jobset, $input->name, $input->type, $alt->value, $input->emailresponsible);
         }
     }
 }

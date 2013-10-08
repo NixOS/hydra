@@ -148,7 +148,7 @@ sub fetchInputSystemBuild {
 }
 
 sub fetchInput {
-    my ($plugins, $db, $project, $jobset, $name, $type, $value, $checkresponsbile) = @_;
+    my ($plugins, $db, $project, $jobset, $name, $type, $value, $emailresponsible) = @_;
     my @inputs;
 
     if ($type eq "build") {
@@ -179,7 +179,7 @@ sub fetchInput {
 
     foreach my $input (@inputs) {
         $input->{type} = $type;
-        $input->{checkresponsible} = $checkresponsible;
+        $input->{emailresponsible} = $emailresponsible;
     }
 
     return @inputs;
@@ -545,7 +545,7 @@ sub checkBuild {
                 , uri => $input->{uri}
                 , revision => $input->{revision}
                 , value => $input->{value}
-                , checkresponsible => $input->{checkresponsible}
+                , emailresponsible => $input->{emailresponsible}
                 , dependency => $input->{id}
                 , path => $input->{storePath} || "" # !!! temporary hack
                 , sha256hash => $input->{sha256hash}

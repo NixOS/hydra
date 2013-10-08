@@ -72,7 +72,7 @@ __PACKAGE__->table("BuildInputs");
   data_type: 'text'
   is_nullable: 1
 
-=head2 checkresponsible
+=head2 emailresponsible
 
   data_type: 'integer'
   default_value: 0
@@ -111,7 +111,7 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "value",
   { data_type => "text", is_nullable => 1 },
-  "checkresponsible",
+  "emailresponsible",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "dependency",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
@@ -176,7 +176,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-07 14:04:49
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ks8PxHXTwtG+Zco0CAzECg
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-08 13:08:15
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OaJPzRM+8XGsu3eIkqeYEw
 
 1;
