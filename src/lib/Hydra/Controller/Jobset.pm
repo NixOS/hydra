@@ -197,14 +197,15 @@ sub updateJobset {
 
     my ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
 
-    my $enabled = defined $c->stash->{params}->{enabled};
+    my $enabled = int($c->stash->{params}->{enabled});
+    die if $enabled < 0 || $enabled > 2;
 
     $jobset->update(
         { name => $jobsetName
         , description => trim($c->stash->{params}->{"description"})
         , nixexprpath => $nixExprPath
         , nixexprinput => $nixExprInput
-        , enabled => $enabled ? 1 : 0
+        , enabled => $enabled
         , enableemail => defined $c->stash->{params}->{enableemail} ? 1 : 0
         , emailoverride => trim($c->stash->{params}->{emailoverride}) || ""
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1

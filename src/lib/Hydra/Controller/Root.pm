@@ -74,7 +74,7 @@ sub queue_GET {
     $self->status_ok(
         $c,
         entity => [$c->model('DB::Builds')->search(
-            {finished => 0}, { join => ['project'], order_by => ["priority DESC", "id"], columns => [@buildListColumns], '+select' => ['project.enabled'], '+as' => ['enabled'] })]
+            {finished => 0}, { order_by => ["priority DESC", "id"], columns => [@buildListColumns] })]
     );
 }
 

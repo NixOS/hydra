@@ -246,6 +246,9 @@ sub checkJobsetWrapped {
             print STDERR "  created cached eval ", $ev->id, "\n";
             $prevEval->builds->update({iscurrent => 1}) if defined $prevEval;
         }
+
+        # If this is a one-shot jobset, disable it now.
+        $jobset->update({ enabled => 0 }) if $jobset->enabled == 2;
     });
 
     # Store the error messages for jobs that failed to evaluate.
@@ -305,7 +308,7 @@ sub checkSomeJobset {
     # longest time (but don't check more often than the jobset's
     # minimal check interval).
     ($jobset) = $db->resultset('Jobsets')->search(
-        { 'project.enabled' => 1, 'me.enabled' => 1,
+        { 'project.enabled' => 1, 'me.enabled' => { '!=' => 0 },
         , 'checkinterval' => { '!=', 0 }
         , -or => [ 'lastcheckedtime' => undef, 'lastcheckedtime' => { '<', \ (time() . " - me.checkinterval") } ] },
         { join => 'project', order_by => [ 'lastcheckedtime nulls first' ], rows => 1 })

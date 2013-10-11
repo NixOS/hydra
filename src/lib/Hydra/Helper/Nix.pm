@@ -540,7 +540,7 @@ sub grab {
 sub getTotalShares {
     my ($db) = @_;
     return $db->resultset('Jobsets')->search(
-        { 'project.enabled' => 1, 'me.enabled' => 1 },
+        { 'project.enabled' => 1, 'me.enabled' => { '!=' => 0 } },
         { join => 'project', select => { sum => 'schedulingshares' }, as => 'sum' })->single->get_column('sum');
 }
 

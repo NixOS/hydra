@@ -69,7 +69,17 @@ $(document).ready(function() {
             var id = e.target.toString().match(pattern)[0];
             history.replaceState(null, "", id);
         });
-    })
+    });
+
+    /* Automatically set Bootstrap radio buttons from hidden form controls. */
+    $('div[data-toggle="buttons-radio"] input[type="hidden"]').map(function(){
+        $('button[value="' + $(this).val() + '"]', $(this).parent()).addClass('active');
+    });
+
+    /* Automatically update hidden form controls from Bootstrap radio buttons. */
+    $('div[data-toggle="buttons-radio"] .btn').click(function(){
+        $('input', $(this).parent()).val($(this).val());
+    });
 });
 
 var tabsLoaded = {};

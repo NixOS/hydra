@@ -31,11 +31,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
     $c->stash->{queuedBuilds} = [
         $job->builds->search(
             { finished => 0 },
-            { join => ['project']
-            , order_by => ["priority DESC", "id"]
-            , '+select' => ['project.enabled']
-            , '+as' => ['enabled']
-            }
+            { order_by => ["priority DESC", "id"] }
         ) ];
 
     # If this is an aggregate job, then get its constituents.

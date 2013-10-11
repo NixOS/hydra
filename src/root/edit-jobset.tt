@@ -49,11 +49,18 @@
   <fieldset>
 
     <div class="control-group">
+      <label class="control-label">State</label>
       <div class="controls">
-        <label class="checkbox">
-          <input type="checkbox" name="enabled" [% IF jobset.enabled; 'checked="checked"'; END %]/>Enabled
-        </label>
+        <div class="btn-group" data-toggle="buttons-radio">
+          <input type="hidden" name="enabled" value="[% jobset.enabled %]" />
+          <button type="button" class="btn" value="1">Enabled</button>
+          <button type="button" class="btn" value="2">One-shot</button>
+          <button type="button" class="btn" value="0">Disabled</button>
+        </div>
       </div>
+    </div>
+
+    <div class="control-group">
       <div class="controls">
         <label class="checkbox">
           <input type="checkbox" name="visible" [% IF !jobset.hidden; 'checked="checked"'; END %]/>Visible

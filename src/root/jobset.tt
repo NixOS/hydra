@@ -117,6 +117,10 @@
 
     <table class="info-table">
       <tr>
+        <th>State:</th>
+        <td>[% IF jobset.enabled == 0; "Disabled"; ELSIF jobset.enabled == 1; "Enabled"; ELSIF jobset.enabled == 2; "One-shot"; END %]</td>
+      </tr>
+      <tr>
         <th>Description:</th>
         <td>[% HTML.escape(jobset.description) %]</td>
       </tr>
@@ -126,10 +130,6 @@
           <tt>[% HTML.escape(jobset.nixexprpath) %]</tt> in input
           <tt>[% HTML.escape(jobset.nixexprinput) %]</tt>
         </td>
-      </tr>
-      <tr>
-        <th>Enabled:</th>
-        <td>[% jobset.enabled ? "Yes" : "No" %]</td>
       </tr>
       <tr>
         <th>Check interval:</th>
