@@ -149,7 +149,7 @@ in rec {
 
 
   tests.install = genAttrs' (system:
-    with import <nixos/lib/testing.nix> { inherit system; };
+    with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
     let hydra = builtins.getAttr system build; in # build.${system}
     simpleTest {
       machine =
@@ -177,7 +177,7 @@ in rec {
     });
 
   tests.api = genAttrs' (system:
-    with import <nixos/lib/testing.nix> { inherit system; };
+    with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
     let hydra = builtins.getAttr system build; in # build."${system}"
     simpleTest {
       machine =
@@ -215,7 +215,7 @@ in rec {
   });
 
   tests.s3backup = genAttrs' (system:
-    with import <nixos/lib/testing.nix> { inherit system; };
+    with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
     let hydra = builtins.getAttr system build; in # build."${system}"
     simpleTest {
       machine =
