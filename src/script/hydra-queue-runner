@@ -9,6 +9,7 @@ use Hydra::Helper::Nix;
 use Hydra::Model::DB;
 use IO::Handle;
 use Nix::Store;
+use Set::Scalar;
 
 chdir Hydra::Model::DB::getHydraPath or die;
 my $db = Hydra::Model::DB->new();
@@ -52,11 +53,22 @@ sub findBuildDependencyInQueue {
     my @deps = grep { /\.drv$/ && $_ ne $build->drvpath } computeFSClosure(0, 0, $build->drvpath);
     return unless scalar @deps > 0;
     foreach my $d (@deps) {
-        my $b = $buildsByDrv->{$d};
-        next unless defined $b;
-        return $db->resultset('Builds')->find($b);
+        my $bs = $buildsByDrv->{$d};
+        next unless defined $bs;
+        return $db->resultset('Builds')->find((@$bs)[0]);
     }
     return undef;
+}
+
+
+sub blockBuilds {
+    my ($buildsByDrv, $blockedBuilds, $build) = @_;
+    my @rdeps = grep { /\.drv$/ && $_ ne $build->drvpath } computeFSClosure(1, 0, $build->drvpath);
+    foreach my $drv (@rdeps) {
+        my $bs = $buildsByDrv->{$drv};
+        next if !defined $bs;
+        $blockedBuilds->insert($_) foreach @$bs;
+    }
 }
 
 
@@ -80,8 +92,13 @@ sub checkBuilds {
         # Cache scheduled builds by derivation path to speed up
         # findBuildDependencyInQueue.
         my $buildsByDrv = {};
-        $buildsByDrv->{$_->drvpath} = $_->id
-            foreach $db->resultset('Builds')->search({ finished => 0 }, { join => ['project'] });
+        push @{$buildsByDrv->{$_->drvpath}}, $_->id
+            foreach $db->resultset('Builds')->search({ finished => 0 });
+
+        # Builds in the queue of which a dependency is already building.
+        my $blockedBuilds = Set::Scalar->new();
+        blockBuilds($buildsByDrv, $blockedBuilds, $_)
+            foreach $db->resultset('Builds')->search({ finished => 0, busy => 1 });
 
         # Get the system types for the runnable builds.
         my @systemTypes = $db->resultset('Builds')->search(
@@ -162,6 +179,8 @@ sub checkBuilds {
                         { order_by => ["priority DESC", "id"] });
 
                     foreach my $build (@builds) {
+                        next if $blockedBuilds->has($build->id);
+
                         # Find a dependency of $build that has no queued
                         # dependencies itself.  This isn't strictly necessary,
                         # but it ensures that Nix builds are done as part of
@@ -186,6 +205,8 @@ sub checkBuilds {
                         push @buildsStarted, $build;
 
                         $timeSpentPerJobset->{$jobset->get_column('project')}->{$jobset->name} += $costPerBuild;
+
+                        blockBuilds($buildsByDrv, $blockedBuilds, $build);
 
                         next j;
                     }
