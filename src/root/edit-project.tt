@@ -66,17 +66,14 @@
 
 <script type="text/javascript">
   $("#submit-project").click(function() {
-    requestJSON({
+    redirectJSON({
       [% IF create %]
         url: "[% c.uri_for('/project' '.new') %]",
       [% ELSE %]
         url: "[% c.uri_for('/project' project.name) %]",
       [% END %]
       data: $(this).parents("form").serialize(),
-      type: 'PUT',
-      success: function(data) {
-        window.location = data.redirect;
-      },
+      type: 'PUT'
     });
     return false;
   });

@@ -174,17 +174,14 @@
   });
 
   $("#submit-jobset").click(function() {
-    requestJSON({
+    redirectJSON({
       [% IF create || clone %]
         url: "[% c.uri_for('/jobset' project.name '.new') %]",
       [% ELSE %]
         url: "[% c.uri_for('/jobset' project.name jobset.name) %]",
       [% END %]
       data: $(this).parents("form").serialize(),
-      type: 'PUT',
-      success: function(data) {
-        window.location = data.redirect;
-      },
+      type: 'PUT'
     });
     return false;
   });
