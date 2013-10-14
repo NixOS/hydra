@@ -49,9 +49,9 @@
         <b class="caret"></b>
       </a>
       <ul class="dropdown-menu">
-        [% INCLUDE menuItem title="Edit configuration" icon="icon-edit" uri=c.uri_for(c.controller('Jobset').action_for('edit'), [project.name, jobset.name]) %]
+        [% INCLUDE menuItem title="Edit configuration" icon="icon-edit" uri=c.uri_for(c.controller('Jobset').action_for('edit'), c.req.captures) %]
         [% INCLUDE menuItem title="Delete this jobset" icon="icon-trash" uri="javascript:deleteJobset()" %]
-        [% INCLUDE menuItem title="Clone this jobset" uri=c.uri_for(c.controller('Jobset').action_for('edit'), [project.name, jobset.name], { clone => 1 }) %]
+        [% INCLUDE menuItem title="Clone this jobset" uri=c.uri_for(c.controller('Jobset').action_for('edit'), c.req.captures, { clone => 1 }) %]
         [% INCLUDE menuItem title="Evaluate this jobset" uri="javascript:confirmEvaluateJobset()" %]
       </ul>
     </li>
@@ -181,7 +181,7 @@
       function(c) {
         if (!c) return;
         redirectJSON({
-          url: "[% c.uri_for(c.controller('Jobset').action_for('jobset'), [project.name, jobset.name]) %]",
+          url: "[% c.uri_for(c.controller('Jobset').action_for('jobset'), c.req.captures) %]",
           type: 'DELETE'
         });
       });
