@@ -286,8 +286,26 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
+=head2 starredjobs
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-09-25 14:10:28
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:cAZ4+c7OhqGW8ATru8Foiw
+Type: has_many
+
+Related object: L<Hydra::Schema::StarredJobs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "starredjobs",
+  "Hydra::Schema::StarredJobs",
+  {
+    "foreign.jobset"  => "self.name",
+    "foreign.project" => "self.project",
+  },
+  undef,
+);
+
+
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-14 15:46:29
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DTAGxP5RFvcNxP/ciJGo4Q
 
 1;

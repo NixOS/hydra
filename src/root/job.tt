@@ -1,4 +1,7 @@
-[% WRAPPER layout.tt title="Job $project.name:$jobset.name:$job.name" %]
+[% WRAPPER layout.tt
+    title="Job $project.name:$jobset.name:$job.name"
+    starUri=c.uri_for(c.controller('Job').action_for('star'), c.req.captures)
+%]
 [% PROCESS common.tt %]
 [% hideProjectName=1 hideJobsetName=1 hideJobName=1 %]
 

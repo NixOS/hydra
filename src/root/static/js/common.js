@@ -80,6 +80,23 @@ $(document).ready(function() {
     $('div[data-toggle="buttons-radio"] .btn').click(function(){
         $('input', $(this).parent()).val($(this).val());
     });
+
+    $(".star").click(function(event) {
+        var star = $(this);
+        var active = star.text() != '★';
+        requestJSON({
+            url: star.attr("data-post"),
+            data: active ? "star=1" : "star=0",
+            type: 'POST',
+            success: function(res) {
+                if (active) {
+                    star.text('★');
+                } else {
+                    star.text('☆');
+                }
+            }
+        });
+    });
 });
 
 var tabsLoaded = {};

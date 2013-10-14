@@ -82,7 +82,7 @@
 
       [% IF !hideHeader %]
         <div class="page-header">
-          <h1><small>[% HTML.escape(title) %]</small></h1>
+          <h1><small>[% IF c.user_exists && starUri; INCLUDE makeStar; " "; END; HTML.escape(title) %]</small></h1>
         </div>
       [% ELSE %]
         <br />

@@ -97,5 +97,14 @@ td.nowrap {
 }
 
 .actions {
-  font-weight:bold;
+    font-weight: bold;
+}
+
+.star {
+    color: black;
+    font-size: 110%;
+}
+
+.star:hover {
+    cursor: pointer;
 }

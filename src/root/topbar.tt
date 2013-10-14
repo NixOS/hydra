@@ -9,6 +9,10 @@
 
 <ul class="nav pull-left">
 
+  [% IF c.user_exists %]
+    [% INCLUDE menuItem uri = c.uri_for(c.controller('User').action_for('dashboard'), [c.user.username]) title = "Dashboard" %]
+  [% END %]
+
   [% WRAPPER makeSubMenu title="Status" %]
     [% INCLUDE menuItem
        uri = c.uri_for(c.controller('Root').action_for('queue'))

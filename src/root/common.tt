@@ -459,4 +459,9 @@ BLOCK menuItem %]
   </li>
 [% END;
 
+
+BLOCK makeStar %]
+<span class="star" data-post="[% starUri %]">[% IF starred; "★"; ELSE; "☆"; END %]</span>
+[% END;
+
 %]

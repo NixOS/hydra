@@ -269,4 +269,19 @@ sub edit_POST {
 }
 
 
+sub dashboard :Chained('user') :Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'dashboard.tt';
+
+    # Get the N most recent builds for each starred job.
+    $c->stash->{starredJobs} = [];
+    foreach my $j ($c->stash->{user}->starredjobs->search({}, { order_by => ['project', 'jobset', 'job'] })) {
+        my @builds = $j->job->builds->search(
+            { },
+            { rows => 20, order_by => "id desc" });
+        push $c->stash->{starredJobs}, { job => $j->job, builds => [@builds] };
+    }
+}
+
+
 1;

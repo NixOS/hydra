@@ -60,6 +60,12 @@ sub overview : Chained('job') PathPart('') Args(0) {
 
     $c->stash->{aggregates} = $aggregates;
     $c->stash->{constituentJobs} = [sort (keys %constituentJobs)];
+
+    $c->stash->{starred} = $c->user->starredjobs(
+        { project => $c->stash->{project}->name
+        , jobset => $c->stash->{jobset}->name
+        , job => $c->stash->{job}->name
+        })->count == 1 if $c->user_exists;
 }
 
 
@@ -71,6 +77,24 @@ sub get_builds : Chained('job') PathPart('') CaptureArgs(0) {
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name, $c->stash->{job}->name]});
     $c->stash->{channelBaseName} =
         $c->stash->{project}->name . "-" . $c->stash->{jobset}->name . "-" . $c->stash->{job}->name;
+}
+
+
+sub star : Chained('job') PathPart('star') Args(0) {
+    my ($self, $c) = @_;
+    requirePost($c);
+    requireUser($c);
+    my $args =
+        { project => $c->stash->{project}->name
+        , jobset => $c->stash->{jobset}->name
+        , job => $c->stash->{job}->name
+        };
+    if ($c->request->params->{star} eq "1") {
+        $c->user->starredjobs->update_or_create($args);
+    } else {
+        $c->user->starredjobs->find($args)->delete;
+    }
+    $c->stash->{resource}->{success} = 1;
 }
 
 

@@ -1,0 +1,42 @@
+[% WRAPPER layout.tt title="Dashboard" %]
+[% PROCESS common.tt %]
+
+<ul class="nav nav-tabs">
+  <li class="active"><a href="#tabs-starred-jobs" data-toggle="tab">Starred jobs</a></li>
+</ul>
+
+<div id="generic-tabs" class="tab-content">
+
+  <div id="tabs-starred-jobs" class="tab-pane active">
+
+    [% IF starredJobs.size > 0 %]
+
+      <p>Below are the 20 most recent builds of your starred jobs.</p>
+
+      <table class="table table-striped table-condensed">
+        <thead>
+          <tr><th>Job</th></tr>
+        </thead>
+        <tdata>
+          [% FOREACH j IN starredJobs %]
+            <tr>
+              <td>[% INCLUDE renderFullJobName project=j.job.get_column('project') jobset=j.job.get_column('jobset') job=j.job.name %]</td>
+              [% FOREACH b IN j.builds %]
+                <td><a href="[% c.uri_for('/build' b.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=b %]</a></td>
+              [% END %]
+            </tr>
+          [% END %]
+        </tdata>
+      </table>
+
+    [% ELSE %]
+
+      <div class="alert alert-warning">You have no starred jobs.  You can add them by visiting a job page and clicking on the ☆ icon.</div>
+
+    [% END %]
+
+  </div>
+
+</div>
+
+[% END %]
