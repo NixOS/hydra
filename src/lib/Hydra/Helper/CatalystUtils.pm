@@ -15,8 +15,8 @@ use feature qw/switch/;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild
-    error notFound
-    requireLogin requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
+    error notFound accessDenied
+    forceLogin requireUser requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
     getLatestFinishedEval
     sendEmail
@@ -102,6 +102,13 @@ sub notFound {
 }
 
 
+sub accessDenied {
+    my ($c, $msg) = @_;
+    $c->response->status(403);
+    error($c, $msg);
+}
+
+
 sub backToReferer {
     my ($c) = @_;
     $c->response->redirect($c->session->{referer} || $c->uri_for('/'));
@@ -110,7 +117,7 @@ sub backToReferer {
 }
 
 
-sub requireLogin {
+sub forceLogin {
     my ($c) = @_;
     $c->session->{referer} = $c->request->uri;
     $c->response->redirect($c->uri_for('/login'));
@@ -118,36 +125,40 @@ sub requireLogin {
 }
 
 
+sub requireUser {
+    my ($c) = @_;
+    forceLogin($c) if !$c->user_exists;
+}
+
+
 sub isProjectOwner {
     my ($c, $project) = @_;
-
-    return $c->user_exists && ($c->check_user_roles('admin') || $c->user->username eq $project->owner->username || defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
+    return
+        $c->user_exists &&
+        (isAdmin($c) ||
+         $c->user->username eq $project->owner->username ||
+         defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
 }
 
 
 sub requireProjectOwner {
     my ($c, $project) = @_;
-
-    requireLogin($c) if !$c->user_exists;
-
-    error($c, "Only the project members or administrators can perform this operation.")
+    requireUser($c);
+    accessDenied($c, "Only the project members or administrators can perform this operation.")
         unless isProjectOwner($c, $project);
 }
 
 
 sub isAdmin {
     my ($c) = @_;
-
     return $c->user_exists && $c->check_user_roles('admin');
 }
 
 
 sub requireAdmin {
     my ($c) = @_;
-
-    requireLogin($c) if !$c->user_exists;
-
-    error($c, "Only administrators can perform this operation.")
+    requireUser($c);
+    accessDenied($c, "Only administrators can perform this operation.")
         unless isAdmin($c);
 }
 

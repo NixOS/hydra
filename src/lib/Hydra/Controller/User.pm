@@ -150,7 +150,7 @@ sub currentUser :Path('/current-user') :ActionClass('REST') { }
 sub currentUser_GET {
     my ($self, $c) = @_;
 
-    requireLogin($c) if !$c->user_exists;
+    requireUser($c);
 
     $self->status_ok(
         $c,
@@ -166,9 +166,9 @@ sub currentUser_GET {
 sub user :Chained('/') PathPart('user') CaptureArgs(1) {
     my ($self, $c, $userName) = @_;
 
-    requireLogin($c) if !$c->user_exists;
+    requireUser($c);
 
-    error($c, "You do not have permission to edit other users.")
+    accessDenied($c, "You do not have permission to edit other users.")
         if $userName ne $c->user->username && !isAdmin($c);
 
     $c->stash->{user} = $c->model('DB::Users')->find($userName)

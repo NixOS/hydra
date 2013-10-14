@@ -114,10 +114,8 @@ sub edit : Chained('projectChain') PathPart Args(0) {
 
 sub requireMayCreateProjects {
     my ($c) = @_;
-
-    requireLogin($c) if !$c->user_exists;
-
-    error($c, "Only administrators or authorised users can perform this operation.")
+    requireUser($c);
+    accessDenied($c, "Only administrators or authorised users can perform this operation.")
         unless $c->check_user_roles('admin') || $c->check_user_roles('create-projects');
 }
 
