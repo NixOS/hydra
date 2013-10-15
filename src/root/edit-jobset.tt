@@ -25,20 +25,23 @@
       [% END %]
       [% IF edit %]<button type="button" class="add-inputalt btn btn-success" onclick='return false'><i class="icon-plus icon-white"></i></button>[% END %]
     </td>
+    <td>
+      <input type="checkbox" id="[% baseName %]-emailresponsible" name="[% baseName %]-emailresponsible" [% IF input.emailresponsible; 'checked="checked"'; END %]/>
+    </td>
   </tr>
 [% END %]
 
 [% BLOCK renderJobsetInputs %]
   <table class="table table-striped table-condensed">
     <thead>
-      <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
+      <tr><th>Input name</th><th>Type</th><th>Values</th><th>Notify committers</th></tr>
     </thead>
     <tbody class="inputs">
       [% FOREACH input IN jobset.jobsetinputs %]
         [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
       <tr>
-        <td colspan="3" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="icon-plus icon-white"></i> Add a new input</button></td>
+        <td colspan="4" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="icon-plus icon-white"></i> Add a new input</button></td>
       </tr>
     </tbody>
   </table>
@@ -163,6 +166,7 @@
       var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
       $("#input-template-name", x).attr("name", newid + "-name");
       $("#input-template-type", x).attr("name", newid + "-type");
+      $("#input-template-emailresponsible", x).attr("name", newid + "-emailresponsible");
       $("#input-template", x).attr("id", newid);
       return false;
     });

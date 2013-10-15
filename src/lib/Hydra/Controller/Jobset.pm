@@ -229,7 +229,11 @@ sub updateJobset {
         error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
         error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
 
-        my $input = $jobset->jobsetinputs->create({ name => $name, type => $type });
+        my $input = $jobset->jobsetinputs->create({
+                name => $name,
+                type => $type,
+                emailresponsible => defined $c->stash->{params}->{"input-$baseName-emailresponsible"} ? 1 : 0
+            });
 
         # Set the values for this input.
         my @values = ref($values) eq 'ARRAY' ? @{$values} : ($values);

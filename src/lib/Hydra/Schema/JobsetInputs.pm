@@ -57,6 +57,12 @@ __PACKAGE__->table("JobsetInputs");
   data_type: 'text'
   is_nullable: 0
 
+=head2 emailresponsible
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 0
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -68,6 +74,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "type",
   { data_type => "text", is_nullable => 0 },
+  "emailresponsible",
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -142,7 +150,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:UXBzqO0vHPql4LYyXpgEQg
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-08 13:06:15
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+mZZqLjQNwblb/EWW1alLQ
 
 1;
