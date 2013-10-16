@@ -154,11 +154,7 @@ sub currentUser_GET {
 
     $self->status_ok(
         $c,
-        entity => $c->model('DB::Users')->find({ 'me.username' => $c->user->username}, {
-          columns => [ "me.fullname", "me.emailaddress", "me.username", "userroles.role" ]
-        , join => [ "userroles" ]
-        , collapse => 1
-        })
+        entity => $c->model("DB::Users")->find($c->user->username)
     );
 }
 

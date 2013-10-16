@@ -178,12 +178,20 @@ __PACKAGE__->many_to_many("projects", "projectmembers", "project");
 
 # Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-14 15:46:29
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Hv9Ukqud0d3uIUot0ErKeg
-# These lines were loaded from '/home/rbvermaa/src/hydra/src/lib/Hydra/Schema/Users.pm' found in @INC.
-# They are now part of the custom portion of this file
-# for you to hand-edit.  If you do not either delete
-# this section or remove that file from @INC, this section
-# will be repeated redundantly when you re-create this
-# file again via Loader!  See skip_load_external to disable
-# this feature.
+
+my %hint = (
+    columns => [
+        "fullname",
+        "emailaddress",
+        "username"
+    ],
+    relations => {
+        userroles => "role"
+    }
+);
+
+sub json_hint {
+    return \%hint;
+}
 
 1;
