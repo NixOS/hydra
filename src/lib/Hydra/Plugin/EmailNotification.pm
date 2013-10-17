@@ -29,11 +29,10 @@ The following dependent jobs also failed:
 [% END -%]
 
 [% END -%]
-
 [% IF nrCommits > 0 -%]
 This is likely due to [% IF nrCommits > 1 -%][% nrCommits %] commits by [% END -%][% authorList %].
-[% END -%]
 
+[% END -%]
 [% IF build.buildstatus == 0 -%]
 Yay!
 [% ELSE -%]
