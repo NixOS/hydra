@@ -10,7 +10,7 @@ use Hydra::Helper::CatalystUtils;
 
 sub jobsetChain :Chained('/') :PathPart('jobset') :CaptureArgs(2) {
     my ($self, $c, $projectName, $jobsetName) = @_;
-    $c->stash->{jobsetName} //= $jobsetName;
+    $c->stash->{params}->{name} //= $jobsetName;
 
     my $project = $c->model('DB::Projects')->find($projectName);
 
