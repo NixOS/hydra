@@ -309,7 +309,7 @@ __PACKAGE__->has_many(
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DTAGxP5RFvcNxP/ciJGo4Q
 
 my %hint = (
-    relations => {
+    eager_relations => {
         jobsetinputs => "name"
     }
 );

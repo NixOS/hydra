@@ -1,6 +1,6 @@
 use LWP::UserAgent;
 use JSON;
-use Test::Simple tests => 9;
+use Test::Simple tests => 10;
 #use Test::Simple tests => 15;
 
 my $ua = LWP::UserAgent->new;
@@ -43,11 +43,11 @@ ok($result->code() == 201, "PUTting a new jobset creates it");
 
 my $jobset = decode_json(request_json({ uri => '/jobset/sample/default' })->content());
 
-ok($jobset->{jobsetinputs}->[0] eq "my-src", "The new jobset has a 'my-src' input");
+ok(exists $jobset->{jobsetinputs}->{"my-src"}, "The new jobset has a 'my-src' input");
+
+ok($jobset->{jobsetinputs}->{"my-src"}->{jobsetinputalts}->[0] eq "/run/jobset", "The 'my-src' input is in /run/jobset");
 
 =begin comment
-
-ok($jobset->{jobsetinputs}->[0]->{jobsetinputalts}->[0]->{value} eq "/run/jobset", "The 'my-src' input is in /run/jobset");
 
 system("LOGNAME=root NIX_STORE_DIR=/run/nix/store NIX_LOG_DIR=/run/nix/var/log/nix NIX_STATE_DIR=/run/nix/var/nix HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=root;' hydra-evaluator sample default");
 $result = request_json({ uri => '/jobset/sample/default/evals' });

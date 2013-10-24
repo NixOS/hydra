@@ -23,6 +23,11 @@ sub TO_JSON {
             $json{$relname} = [ map { $_->$key } $self->$relname ];
         }
 
+        foreach my $relname (keys %{$hint->{eager_relations}}) {
+            my $key = $hint->{eager_relations}->{$relname};
+            $json{$relname} = { map { $_->$key => $_ } $self->$relname };
+        }
+
         return \%json;
     } else {
         my $json = { $self->get_columns };
