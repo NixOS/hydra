@@ -308,4 +308,14 @@ __PACKAGE__->has_many(
 # Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-14 15:46:29
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DTAGxP5RFvcNxP/ciJGo4Q
 
+my %hint = (
+    relations => {
+        jobsetinputs => "name"
+    }
+);
+
+sub json_hint {
+    return \%hint;
+}
+
 1;
