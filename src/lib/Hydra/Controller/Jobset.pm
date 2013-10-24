@@ -218,13 +218,11 @@ sub updateJobset {
     # Set the inputs of this jobset.
     $jobset->jobsetinputs->delete;
 
-    foreach my $param (keys %{$c->stash->{params}}) {
-        next unless $param =~ /^input-(\w+)-name$/;
-        my $baseName = $1;
-        next if $baseName eq "template";
-        my $name = $c->stash->{params}->{$param};
-        my $type = $c->stash->{params}->{"input-$baseName-type"};
-        my $values = $c->stash->{params}->{"input-$baseName-values"};
+    foreach my $name (keys %{$c->stash->{params}->{inputs}}) {
+        my $inputData = $c->stash->{params}->{inputs}->{$name};
+        my $type = $inputData->{type};
+        my $values = $inputData->{values};
+        my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
 
         error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
         error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
@@ -232,7 +230,7 @@ sub updateJobset {
         my $input = $jobset->jobsetinputs->create({
                 name => $name,
                 type => $type,
-                emailresponsible => defined $c->stash->{params}->{"input-$baseName-emailresponsible"} ? 1 : 0
+                emailresponsible => $emailresponsible
             });
 
         # Set the values for this input.
