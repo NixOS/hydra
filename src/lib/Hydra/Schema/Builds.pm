@@ -601,4 +601,15 @@ makeQueries('ForJobset', "and project = ? and jobset = ?");
 makeQueries('ForJob', "and project = ? and jobset = ? and job = ?");
 
 
+my %hint = (
+    columns => [
+        "job",
+        "finished"
+    ]
+);
+
+sub json_hint {
+    return \%hint;
+}
+
 1;

@@ -98,23 +98,7 @@ sub build_GET {
         { rows => 1, order_by => ["id"] })->single;
     $self->status_ok(
         $c,
-        entity => $c->model('DB::Builds')->find($build->id,{
-                columns => [
-                    'id',
-                    'finished',
-                    'timestamp',
-                    'buildstatus',
-                    'job',
-                    'project',
-                    'jobset',
-                    'starttime',
-                    'stoptime',
-                    'nixname',
-                    'description',
-                    'drvpath',
-                    'system',
-                ]
-            })
+        entity => $build
     );
 
     # If this is an aggregate build, get its constituents.

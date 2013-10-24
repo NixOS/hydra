@@ -1,7 +1,6 @@
 use LWP::UserAgent;
 use JSON;
-use Test::Simple tests => 13;
-#use Test::Simple tests => 15;
+use Test::Simple tests => 15;
 
 my $ua = LWP::UserAgent->new;
 $ua->cookie_jar({});
@@ -60,12 +59,6 @@ system("echo >> /run/jobset/default.nix; LOGNAME=root NIX_STORE_DIR=/run/nix/sto
 my $evals = decode_json(request_json({ uri => '/jobset/sample/default/evals' })->content())->{evals};
 ok($evals->[0]->{eval}->{jobsetevalinputs}->{"my-src"}->{revision} != $evals->[1]->{eval}->{jobsetevalinputs}->{"my-src"}->{revision}, "Changing a jobset source changes its revision");
 
-=begin comment
-
-my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{jobsetevalmembers}->[0]->{build} })->content());
+my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{eval}->{builds}->[0] })->content());
 ok($build->{job} eq "job", "The build's job name is job");
 ok($build->{finished} == 0, "The build isn't finished yet");
-
-=end comment
-
-=cut
