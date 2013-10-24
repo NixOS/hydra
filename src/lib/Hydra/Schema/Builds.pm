@@ -603,8 +603,19 @@ makeQueries('ForJob', "and project = ? and jobset = ? and job = ?");
 
 my %hint = (
     columns => [
-        "job",
-        "finished"
+        'id',
+        'finished',
+        'timestamp',
+        'stoptime',
+        'project',
+        'jobset',
+        'job',
+        'nixname',
+        'system',
+        'priority',
+        'busy',
+        'buildstatus',
+        'releasename'
     ]
 );
 

@@ -57,10 +57,7 @@ sub index :Path :Args(0) {
     $c->stash->{projects} = [$c->model('DB::Projects')->search(isAdmin($c) ? {} : {hidden => 0}, {order_by => 'name'})];
     $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, { order_by => ['createtime DESC'], rows => 5 })];
     $self->status_ok($c,
-        entity => [$c->model('DB::Projects')->search(isAdmin($c) ? {} : {hidden => 0}, {
-                    order_by => 'name',
-                    columns => [ 'name', 'displayname', 'description' ]
-                })]
+        entity => $c->stash->{projects}
     );
 }
 
@@ -73,8 +70,7 @@ sub queue_GET {
     $c->stash->{flashMsg} //= $c->flash->{buildMsg};
     $self->status_ok(
         $c,
-        entity => [$c->model('DB::Builds')->search(
-            {finished => 0}, { order_by => ["priority DESC", "id"], columns => [@buildListColumns] })]
+        entity => [$c->model('DB::Builds')->search({finished => 0}, { order_by => ["priority DESC", "id"]})]
     );
 }
 
@@ -101,22 +97,7 @@ sub status_GET {
         $c,
         entity => [ $c->model('DB::BuildSteps')->search(
             { 'me.busy' => 1, 'build.finished' => 0, 'build.busy' => 1 },
-            { join => { build => [ 'project', 'job', 'jobset' ] },
-                columns => [
-                    'me.machine',
-                    'me.system',
-                    'me.stepnr',
-                    'me.drvpath',
-                    'me.starttime',
-                    'build.id',
-                    {
-                    'build.project.name' => 'project.name',
-                    'build.jobset.name' => 'jobset.name',
-                    'build.job.name' => 'job.name'
-                    }
-                ],
-                order_by => [ 'machine' ]
-            }
+            { order_by => [ 'machine' ] }
         ) ]
     );
 }
