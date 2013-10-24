@@ -1,6 +1,6 @@
 use LWP::UserAgent;
 use JSON;
-use Test::Simple tests => 4;
+use Test::Simple tests => 7;
 #use Test::Simple tests => 15;
 
 my $ua = LWP::UserAgent->new;
@@ -29,8 +29,6 @@ $user = decode_json(request_json({ uri => "/current-user" })->content());
 ok($user->{username} eq "root", "The current user is named root");
 ok($user->{userroles}->[0] eq "admin", "The current user is an admin");
 
-=begin comment
-
 ok(request_json({ uri => '/project/sample' })->code() == 404, "Non-existent projects don't exist");
 
 $result = request_json({ uri => '/project/sample', method => 'PUT', data => { displayname => "Sample", enabled => "1", } });
@@ -39,6 +37,8 @@ ok($result->code() == 201, "PUTting a new project creates it");
 my $project = decode_json(request_json({ uri => '/project/sample' })->content());
 
 ok((not @{$project->{jobsets}}), "A new project has no jobsets");
+
+=begin comment
 
 $result = request_json({ uri => '/jobset/sample/default', method => 'PUT', data => { nixexprpath => "default.nix", nixexprinput => "my-src", inputs => { "my-src" => { type => "path", values => "/run/jobset" } }, enabled => "1", checkinterval => "3600"} });
 ok($result->code() == 201, "PUTting a new jobset creates it");
