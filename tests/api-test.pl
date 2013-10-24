@@ -1,6 +1,6 @@
 use LWP::UserAgent;
 use JSON;
-use Test::Simple tests => 10;
+use Test::Simple tests => 13;
 #use Test::Simple tests => 15;
 
 my $ua = LWP::UserAgent->new;
@@ -47,20 +47,20 @@ ok(exists $jobset->{jobsetinputs}->{"my-src"}, "The new jobset has a 'my-src' in
 
 ok($jobset->{jobsetinputs}->{"my-src"}->{jobsetinputalts}->[0] eq "/run/jobset", "The 'my-src' input is in /run/jobset");
 
-=begin comment
-
 system("LOGNAME=root NIX_STORE_DIR=/run/nix/store NIX_LOG_DIR=/run/nix/var/log/nix NIX_STATE_DIR=/run/nix/var/nix HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=root;' hydra-evaluator sample default");
 $result = request_json({ uri => '/jobset/sample/default/evals' });
 ok($result->code() == 200, "Can get evals of a jobset");
 my $evals = decode_json($result->content())->{evals};
 my $eval = $evals->[0];
-ok($eval->{hasnewbuilds} == 1, "The first eval of a jobset has new builds");
+ok($eval->{eval}->{hasnewbuilds} == 1, "The first eval of a jobset has new builds");
 
 # Ugh, cached for 30s
 sleep 30;
 system("echo >> /run/jobset/default.nix; LOGNAME=root NIX_STORE_DIR=/run/nix/store NIX_LOG_DIR=/run/nix/var/log/nix NIX_STATE_DIR=/run/nix/var/nix HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=root;' hydra-evaluator sample default");
 my $evals = decode_json(request_json({ uri => '/jobset/sample/default/evals' })->content())->{evals};
-ok($evals->[0]->{jobsetevalinputs}->[0]->{revision} != $evals->[1]->{jobsetevalinputs}->[0]->{revision}, "Changing a jobset source changes its revision");
+ok($evals->[0]->{eval}->{jobsetevalinputs}->{"my-src"}->{revision} != $evals->[1]->{eval}->{jobsetevalinputs}->{"my-src"}->{revision}, "Changing a jobset source changes its revision");
+
+=begin comment
 
 my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{jobsetevalmembers}->[0]->{build} })->content());
 ok($build->{job} eq "job", "The build's job name is job");

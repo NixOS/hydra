@@ -274,24 +274,7 @@ sub evals_GET {
     my $offset = ($page - 1) * $resultsPerPage;
     $c->stash->{evals} = getEvals($self, $c, $evals, $offset, $resultsPerPage);
     my %entity = (
-        evals => [ $evals->search({ 'me.hasnewbuilds' => 1 }, {
-                    columns => [
-                        'me.hasnewbuilds',
-                        'me.id',
-                        'jobsetevalinputs.name',
-                        'jobsetevalinputs.altnr',
-                        'jobsetevalinputs.revision',
-                        'jobsetevalinputs.type',
-                        'jobsetevalinputs.uri',
-                        'jobsetevalinputs.dependency',
-                        'jobsetevalmembers.build',
-                    ],
-                    join => [ 'jobsetevalinputs', 'jobsetevalmembers' ],
-                    collapse => 1,
-                    rows => $resultsPerPage,
-                    offset => $offset,
-                    order_by => "me.id DESC",
-                 }) ],
+        evals => $c->stash->{evals},
         first => "?page=1",
         last => "?page=" . POSIX::ceil($c->stash->{total}/$resultsPerPage)
     );

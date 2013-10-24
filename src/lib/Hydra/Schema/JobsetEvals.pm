@@ -199,4 +199,22 @@ __PACKAGE__->has_many(
 
 __PACKAGE__->many_to_many(builds => 'buildIds', 'build');
 
+my %hint = (
+    columns => [
+        "hasnewbuilds",
+        "id"
+    ],
+    relations => {
+        "builds" => "id"
+    },
+    eager_relations => {
+        # altnr? Does anyone care?
+        jobsetevalinputs => "name"
+    }
+);
+
+sub json_hint {
+    return \%hint;
+}
+
 1;
