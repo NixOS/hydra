@@ -97,7 +97,7 @@ sub status_GET {
         $c,
         entity => [ $c->model('DB::BuildSteps')->search(
             { 'me.busy' => 1, 'build.finished' => 0, 'build.busy' => 1 },
-            { order_by => [ 'machine' ] }
+            { order_by => [ 'machine' ], join => [ 'build' ] }
         ) ]
     );
 }
