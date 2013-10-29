@@ -606,6 +606,7 @@ my %hint = (
         'id',
         'finished',
         'timestamp',
+        'starttime',
         'stoptime',
         'project',
         'jobset',

@@ -171,7 +171,9 @@ __PACKAGE__->belongs_to(
 
 my %hint = (
     columns => [
-        "revision"
+        "revision",
+        "type",
+        "uri"
     ],
 );
 
