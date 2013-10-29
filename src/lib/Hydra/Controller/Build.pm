@@ -493,6 +493,17 @@ sub add_to_release : Chained('buildChain') PathPart('add-to-release') Args(0) {
 }
 
 
+sub get_info : Chained('buildChain') PathPart('api/get-info') Args(0) {
+    my ($self, $c) = @_;
+    my $build = $c->stash->{build};
+    $c->stash->{json}->{buildId} = $build->id;
+    $c->stash->{json}->{drvPath} = $build->drvpath;
+    my $out = getMainOutput($build);
+    $c->stash->{json}->{outPath} = $out->path if defined $out;
+    $c->forward('View::JSON');
+}
+
+
 sub evals : Chained('buildChain') PathPart('evals') Args(0) {
     my ($self, $c) = @_;
 
