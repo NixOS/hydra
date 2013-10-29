@@ -1,6 +1,6 @@
 use LWP::UserAgent;
 use JSON;
-use Test::Simple tests => 15;
+use Test::Simple tests => 16;
 
 my $ua = LWP::UserAgent->new;
 $ua->cookie_jar({});
@@ -62,3 +62,4 @@ ok($evals->[0]->{jobsetevalinputs}->{"my-src"}->{revision} != $evals->[1]->{jobs
 my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{builds}->[0] })->content());
 ok($build->{job} eq "job", "The build's job name is job");
 ok($build->{finished} == 0, "The build isn't finished yet");
+ok($build->{buildoutputs}->{out}->{path} =~ /^\/run\/nix\/store\/[a-zA-Z0-9]{32}-job$/, "The build's outpath is in the nix store and named 'job'");

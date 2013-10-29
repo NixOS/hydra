@@ -617,7 +617,10 @@ my %hint = (
         'busy',
         'buildstatus',
         'releasename'
-    ]
+    ],
+    eager_relations => {
+        buildoutputs => 'name'
+    }
 );
 
 sub json_hint {
