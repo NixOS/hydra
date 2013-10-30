@@ -410,7 +410,7 @@ sub getEvals {
 }
 
 sub getMachines {
-    my $machinesConf = $ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix.machines";
+    my $machinesConf = $ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix/machines";
 
     # Read the list of machines.
     my %machines = ();
