@@ -73,7 +73,7 @@
         <div class="controls">
           <select multiple="multiple" name="roles" class="span3">
             [% INCLUDE roleoption role="admin" %]
-            [% INCLUDE roleoption role="create-project" %]
+            [% INCLUDE roleoption role="create-projects" %]
           </select>
         </div>
       </div>
