@@ -286,6 +286,17 @@ sub evalJobs {
         SuppressEmpty => '')
         or die "cannot parse XML output";
 
+    my @filteredJobs = ();
+    foreach my $job (@{$jobs->{job}}) {
+        my $validJob = 1;
+        foreach my $arg (@{$job->{arg}}) {
+            my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}];
+            $validJob = 0 if $input->{type} eq "sysbuild" && $input->{system} ne $job->{system};
+        }
+        push(@filteredJobs, $job) if $validJob;
+    }
+    $jobs->{job} = \@filteredJobs;
+
     my %jobNames;
     my $errors;
     foreach my $job (@{$jobs->{job}}) {
