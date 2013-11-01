@@ -176,21 +176,21 @@ sub checkJobsetWrapped {
         $_->update({ errormsg => $failedJobNames{$_->name} ? join '\n', @{$failedJobNames{$_->name}} : undef })
             foreach $jobset->jobs->all;
 
-        my $hasNewBuilds = 0;
-        while (my ($id, $x) = each %buildMap) {
-            $hasNewBuilds = 1 if $x->{new};
-        }
+        # Have any builds been added or removed since last time?
+        my $jobsetChanged =
+            (scalar(grep { $_->{new} } values(%buildMap)) > 0)
+            || (defined $prevEval && $prevEval->jobsetevalmembers->count != scalar(keys %buildMap));
 
         my $ev = $jobset->jobsetevals->create(
             { hash => $argsHash
             , timestamp => time
             , checkouttime => abs($checkoutStop - $checkoutStart)
             , evaltime => abs($evalStop - $evalStart)
-            , hasnewbuilds => $hasNewBuilds
-            , nrbuilds => $hasNewBuilds ? scalar(keys %buildMap) : undef
+            , hasnewbuilds => $jobsetChanged ? 1 : 0
+            , nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
             });
 
-        if ($hasNewBuilds) {
+        if ($jobsetChanged) {
             # Create JobsetEvalMembers mappings.
             while (my ($id, $x) = each %buildMap) {
                 $ev->jobsetevalmembers->create({ build => $id, isnew => $x->{new} });
