@@ -270,9 +270,10 @@ in
           '';
 
         compressLogs = pkgs.writeScript "compress-logs" ''
-            #! ${pkgs.stdenv.shell} -e
-           touch -d 'last month' r
-           find /nix/var/log/nix/drvs -type f -a ! -newer r -name '*.drv' | xargs bzip2 -v
+           #! ${pkgs.stdenv.shell} -e
+           find /nix/var/log/nix/drvs \
+                -type f -a ! -newermt 'last month' \
+                -name '*.drv' -exec bzip2 -v {} +
          '';
       in
         [ "*/5 * * * * root  ${checkSpace} &> ${baseDir}/data/checkspace.log"
