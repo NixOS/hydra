@@ -124,14 +124,12 @@
         navigator.id.watch({
           loggedInUser: [% c.user_exists ? '"' _ HTML.escape(c.user.username) _ '"' : "null" %],
           onlogin: function(assertion) {
-            $.post("[% c.uri_for('/persona-login') %]", { assertion: assertion })
-              .done(function(data) {
-                if (data.error)
-                  bootbox.alert("Login failed: " + data.error);
-                else
-                  window.location.reload();
-              })
-              .fail(function() { bootbox.alert("Server request failed!"); });
+            requestJSON({
+              url: "[% c.uri_for('/persona-login') %]",
+              data: "assertion=" + assertion,
+              type: 'POST',
+              success: function(data) { window.location.reload(); }
+            });
           },
           onlogout: doLogout
         });

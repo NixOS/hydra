@@ -46,7 +46,6 @@ sub logout_POST {
 
 sub persona_login :Path('/persona-login') Args(0) {
     my ($self, $c) = @_;
-    $c->stash->{json} = {};
     requirePost($c);
 
     my $assertion = $c->req->params->{assertion} or die;
@@ -78,7 +77,7 @@ sub persona_login :Path('/persona-login') Args(0) {
 
     $c->set_authenticated($user);
 
-    $c->stash->{json}->{result} = "ok";
+    $self->status_no_content($c);
     $c->flash->{successMsg} = "You are now signed in as <tt>" . encode_entities($email) . "</tt>.";
 }
 
