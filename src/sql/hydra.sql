@@ -9,7 +9,8 @@ create table Users (
     fullName      text,
     emailAddress  text not null,
     password      text not null, -- sha256 hash
-    emailOnError  integer not null default 0
+    emailOnError  integer not null default 0,
+    type          text not null default 'hydra' -- either "hydra" or "persona"
 );
 
 

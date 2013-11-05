@@ -91,6 +91,7 @@ sub persona_login :Path('/persona-login') Args(0) {
             { username => $email
             , password => "!"
             , emailaddress => $email,
+            , type => "persona"
             });
         $user = $c->find_user({ username => $email }) or die;
     }
@@ -163,6 +164,7 @@ sub register :Local Args(0) {
             , fullname => $fullName
             , password => "!"
             , emailaddress => "",
+            , type => "hydra"
             });
         setPassword($user, $password);
     });
@@ -245,7 +247,7 @@ sub edit_POST {
     }
 
     if (($c->stash->{params}->{submit} // "") eq "reset-password") {
-        error($c, "This user's password cannot be reset.") if $user->password eq "!";
+        error($c, "This user's password cannot be reset.") if $user->type ne "hydra";
         $c->stash->{json} = {};
         error($c, "No email address is set for this user.")
             unless $user->emailaddress;
@@ -274,7 +276,7 @@ sub edit_POST {
             });
 
         my $password = $c->stash->{params}->{password} // "";
-        if ($user->password ne "!" && $password ne "") {
+        if ($user->type eq "hydra" && $password ne "") {
             error($c, "You must specify a password of at least 6 characters.")
                 unless isValidPassword($password);
             error($c, "The passwords you specified did not match.")

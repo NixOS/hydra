@@ -96,7 +96,7 @@
         <small>
           <em><a href="http://nixos.org/hydra" target="_blank">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
           [% IF c.user_exists %]
-          You are signed in as <tt>[% HTML.escape(c.user.username) %]</tt>.
+          You are signed in as <tt>[% HTML.escape(c.user.username) %]</tt>[% IF c.user.type == 'persona' %] via Persona[% END %].
           [% END %]
         </small>
       </footer>
@@ -113,7 +113,7 @@
       }
     </script>
 
-    [% IF c.user_exists && c.user.password != '!' %]
+    [% IF c.user_exists && c.user.type == 'hydra' %]
       <script>
         $("#persona-signout").click(doLogout);
       </script>

@@ -61,6 +61,12 @@ __PACKAGE__->table("Users");
   default_value: 0
   is_nullable: 0
 
+=head2 type
+
+  data_type: 'text'
+  default_value: 'hydra'
+  is_nullable: 0
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -74,6 +80,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "emailonerror",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
+  "type",
+  { data_type => "text", default_value => "hydra", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -176,8 +184,8 @@ Composing rels: L</projectmembers> -> project
 __PACKAGE__->many_to_many("projects", "projectmembers", "project");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-14 15:46:29
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Hv9Ukqud0d3uIUot0ErKeg
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-11-05 10:22:03
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Gd8KwFcnVShZ/WihvwfgQw
 
 my %hint = (
     columns => [

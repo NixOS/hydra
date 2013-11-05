@@ -128,7 +128,7 @@
       </li>
       <li class="divider"></li>
       <li>
-        <a href="[% c.uri_for('/login') %]">Sign in with a Hydra user name</a>
+        <a href="[% c.uri_for('/login') %]">Sign in with a Hydra account</a>
       </li>
     [% END %]
   [% END %]
