@@ -63,6 +63,10 @@ sub persona_login :Path('/persona-login') Args(0) {
 
     my $email = $d->{email} or die;
 
+    # Be paranoid about the email address format, since we do use it
+    # in URLs.
+    die "Illegal email address." unless $email =~ /^[a-zA-Z0-9\.\-\_]+@[a-zA-Z0-9\.\-\_]+$/;
+
     my $user = $c->find_user({ username => $email });
 
     if (!$user) {
