@@ -34,7 +34,7 @@
       </div>
     </div>
 
-    [% IF !create && user.type == 'hydra' %]
+    [% IF create || user.type == 'hydra' %]
     <div class="control-group">
       <label class="control-label">Password</label>
       <div class="controls">
@@ -50,26 +50,22 @@
     </div>
     [% END %]
 
-    <!--
     <div class="control-group">
       <label class="control-label">Email</label>
       <div class="controls">
-        <input type="text" class="span3" name="emailaddress" [% HTML.attributes(value => user.emailaddress) %]/>
+        <input type="text" class="span3" name="emailaddress" [% IF !create && user.type == 'persona' %]disabled="disabled"[% END %] [%+ HTML.attributes(value => user.emailaddress) %]/>
       </div>
     </div>
-    -->
 
-    [% IF !create %]
-      <div class="control-group">
-        <div class="controls">
-          <label class="checkbox">
-            <input type="checkbox" name="emailonerror" [% IF emailonerror; 'checked="checked"'; END %]/>Receive evaluation error notifications
-          </label>
-        </div>
+    <div class="control-group">
+      <div class="controls">
+        <label class="checkbox">
+          <input type="checkbox" name="emailonerror" [% IF emailonerror; 'checked="checked"'; END %]/>Receive evaluation error notifications
+        </label>
       </div>
-    [% END %]
+    </div>
 
-    [% IF !create %]
+    [% IF !create || c.check_user_roles('admin') %]
       <div class="control-group">
         <label class="control-label">Roles</label>
         <div class="controls">
@@ -81,7 +77,7 @@
       </div>
     [% END %]
 
-    [% IF create %]
+    [% IF create && !c.check_user_roles('admin') %]
       <div class="control-group">
         <div class="controls">
           <img src="[% c.uri_for('/captcha') %]" alt="CAPTCHA"/>

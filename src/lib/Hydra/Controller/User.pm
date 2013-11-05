@@ -124,58 +124,77 @@ sub setPassword {
 sub register :Local Args(0) {
     my ($self, $c) = @_;
 
-    die "Not implemented!\n";
+    accessDenied($c, "User registration is currently not implemented.") unless isAdmin($c);
 
     $c->stash->{template} = 'user.tt';
     $c->stash->{create} = 1;
     return if $c->request->method ne "POST";
 
     my $userName = trim $c->req->params->{username};
-    my $fullName = trim $c->req->params->{fullname};
-    my $password = trim $c->req->params->{password};
     $c->stash->{username} = $userName;
-    $c->stash->{fullname} = $fullName;
 
-    sub fail {
-        my ($c, $msg) = @_;
-        $c->stash->{errorMsg} = $msg;
-    }
+    error($c, "You did not enter the correct digits from the security image.")
+        unless isAdmin($c) || $c->validate_captcha($c->req->param('captcha'));
 
-    return fail($c, "You did not enter the correct digits from the security image.")
-        unless $c->validate_captcha($c->req->param('captcha'));
-
-    return fail($c, "Your user name is invalid. It must start with a lower-case letter followed by lower-case letters, digits, dots or underscores.")
+    error($c, "Your user name is invalid. It must start with a lower-case letter followed by lower-case letters, digits, dots or underscores.")
         if $userName !~ /^$userNameRE$/;
 
-    return fail($c, "Your user name is already taken.")
+    error($c, "Your user name is already taken.")
         if $c->find_user({ username => $userName });
-
-    return fail($c, "Your must specify your full name.") if $fullName eq "";
-
-    return fail($c, "You must specify a password of at least 6 characters.")
-        unless isValidPassword($password);
-
-    return fail($c, "The passwords you specified did not match.")
-        if $password ne trim $c->req->params->{password2};
 
     txn_do($c->model('DB')->schema, sub {
         my $user = $c->model('DB::Users')->create(
             { username => $userName
-            , fullname => $fullName
             , password => "!"
             , emailaddress => "",
             , type => "hydra"
             });
-        setPassword($user, $password);
+        updatePreferences($c, $user);
     });
 
     unless ($c->user_exists) {
-        $c->authenticate({username => $userName, password => $password})
+        $c->set_authenticated({username => $userName})
             or error($c, "Unable to authenticate the new user!");
     }
 
     $c->flash->{successMsg} = "User <tt>$userName</tt> has been created.";
     backToReferer($c);
+}
+
+
+sub updatePreferences {
+    my ($c, $user) = @_;
+
+    my $password = trim($c->req->params->{password} // "");
+    if ($user->type eq "hydra" && ($user->password eq "!" || $password ne "")) {
+        error($c, "You must specify a password of at least 6 characters.")
+            unless isValidPassword($password);
+
+        error($c, "The passwords you specified did not match.")
+            if $password ne trim $c->req->params->{password2};
+
+        setPassword($user, $password);
+    }
+
+    my $fullName = trim($c->req->params->{fullname} // "");
+    error($c, "Your must specify your full name.") if $fullName eq "";
+
+    my $emailAddress = trim($c->req->params->{emailaddress} // "");
+    # FIXME: validate email address?
+
+    $user->update(
+        { fullname => $fullName
+        , emailonerror => $c->stash->{params}->{"emailonerror"} ? 1 : 0
+        });
+
+    if (isAdmin($c)) {
+        $user->update({ emailaddress => $emailAddress })
+            if $user->type eq "hydra";
+
+        $user->userroles->delete;
+        $user->userroles->create({ role => $_ })
+            foreach paramToList($c, "roles");
+    }
 }
 
 
@@ -264,32 +283,8 @@ sub edit_POST {
         return;
     }
 
-    my $fullName = trim $c->stash->{params}->{fullname};
-
     txn_do($c->model('DB')->schema, sub {
-
-        error($c, "Your must specify your full name.") if $fullName eq "";
-
-        $user->update(
-            { fullname => $fullName
-            , emailonerror => $c->stash->{params}->{"emailonerror"} ? 1 : 0
-            });
-
-        my $password = $c->stash->{params}->{password} // "";
-        if ($user->type eq "hydra" && $password ne "") {
-            error($c, "You must specify a password of at least 6 characters.")
-                unless isValidPassword($password);
-            error($c, "The passwords you specified did not match.")
-                if $password ne trim $c->stash->{params}->{password2};
-            setPassword($user, $password);
-        }
-
-        if (isAdmin($c)) {
-            $user->userroles->delete;
-            $user->userroles->create({ role => $_})
-                foreach paramToList($c, "roles");
-        }
-
+        updatePreferences($c, $user);
     });
 
     if ($c->request->looks_like_browser) {
