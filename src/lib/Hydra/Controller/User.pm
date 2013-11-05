@@ -311,4 +311,20 @@ sub my_jobs_tab :Chained('user') :PathPart('my-jobs-tab') :Args(0) {
 }
 
 
+sub my_jobsets_tab :Chained('user') :PathPart('my-jobsets-tab') :Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'dashboard-my-jobsets-tab.tt';
+
+    my $jobsets = $c->model('DB::Jobsets')->search(
+        { "project.enabled" => 1, "me.enabled" => 1,
+        , owner => $c->stash->{user}->username
+        },
+        { order_by => ["project", "name"]
+        , join => ["project"]
+        });
+
+    $c->stash->{jobsets} = [jobsetOverview_($c, $jobsets)];
+}
+
+
 1;

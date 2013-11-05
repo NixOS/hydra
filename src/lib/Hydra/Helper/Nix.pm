@@ -17,7 +17,8 @@ our @EXPORT = qw(
     getPrimaryBuildsForView
     getPrimaryBuildTotal
     getViewResult getLatestSuccessfulViewResult
-    jobsetOverview removeAsciiEscapes getDrvLogPath findLog logContents
+    jobsetOverview jobsetOverview_
+    removeAsciiEscapes getDrvLogPath findLog logContents
     getMainOutput
     getEvals getMachines
     pathIsInsidePrefix
@@ -173,9 +174,9 @@ sub findLastJobForBuilds {
 }
 
 
-sub jobsetOverview {
-    my ($c, $project) = @_;
-    return $project->jobsets->search( isProjectOwner($c, $project) ? {} : { hidden => 0 },
+sub jobsetOverview_ {
+    my ($c, $jobsets) = @_;
+    return $jobsets->search({},
         { order_by => "name"
         , "+select" =>
           [ "(select count(*) from Builds as a where a.finished = 0 and me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
@@ -185,6 +186,13 @@ sub jobsetOverview {
           ]
         , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]
         });
+}
+
+
+sub jobsetOverview {
+    my ($c, $project) = @_;
+    my $jobsets = $project->jobsets->search(isProjectOwner($c, $project) ? {} : { hidden => 0 });
+    return jobsetOverview_($c, $jobsets);
 }
 
 

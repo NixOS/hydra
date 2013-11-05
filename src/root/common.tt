@@ -464,4 +464,65 @@ BLOCK makeStar %]
 <span class="star" data-post="[% starUri %]">[% IF starred; "★"; ELSE; "☆"; END %]</span>
 [% END;
 
+
+BLOCK renderJobsetOverview %]
+<table class="table table-striped table-condensed clickable-rows">
+  <thead>
+    <tr>
+      <th></th>
+      <th>Name</th>
+      <th>Description</th>
+      <th>Last evaluated</th>
+      <th colspan="2">Success</th>
+    </tr>
+  </thead>
+  <tbody>
+    [% FOREACH j IN jobsets %]
+      [% successrate = 0 %]
+      <tr>
+        <td>
+          [% IF j.get_column('nrscheduled') > 0 %]
+            <img src="[% c.uri_for("/static/images/help_16.png") %]" alt="Scheduled" />
+          [% ELSIF j.get_column('nrfailed') == 0  %]
+            <img src="[% c.uri_for("/static/images/checkmark_16.png") %]" alt="Succeeded" />
+          [% ELSIF j.get_column('nrfailed') > 0 && j.get_column('nrsucceeded') > 0 %]
+            <img src="[% c.uri_for("/static/images/error_some_16.png") %]" alt="Some Failed" />
+          [% ELSE %]
+            <img src="[% c.uri_for("/static/images/error_16.png") %]" alt="All Failed" />
+          [% END %]
+        </td>
+        <td><span class="[% IF !j.enabled %]disabled-jobset[% END %] [%+ IF j.hidden %]hidden-jobset[% END %]">[% IF showProject; INCLUDE renderFullJobsetName project=j.get_column('project') jobset=j.name inRow=1; ELSE; INCLUDE renderJobsetName project=j.get_column('project') jobset=j.name inRow=1; END %]</span></td>
+        <td>[% HTML.escape(j.description) %]</td>
+        <td>[% IF j.lastcheckedtime; INCLUDE renderDateTime timestamp = j.lastcheckedtime; ELSE; "-"; END %]</td>
+        [% IF j.get_column('nrtotal') > 0 %]
+          [% successrate = ( j.get_column('nrsucceeded') / j.get_column('nrtotal') )*100 %]
+          [% IF j.get_column('nrscheduled') > 0 %]
+            [% class = 'label' %]
+          [% ELSIF successrate < 25 %]
+            [% class = 'label label-important' %]
+          [% ELSIF successrate < 75 %]
+            [% class = 'label label-warning' %]
+          [% ELSIF successrate <= 100 %]
+            [% class = 'label label-success' %]
+          [% END %]
+        [% END %]
+        <td><span class="[% class %]">[% successrate FILTER format('%d') %]%</span></td>
+        <td>
+          [% IF j.get_column('nrsucceeded') > 0 %]
+            <span class="label label-success">[% j.get_column('nrsucceeded') %]</span>
+          [% END %]
+          [% IF j.get_column('nrfailed') > 0 %]
+            <span class="label label-important">[% j.get_column('nrfailed') %]</span>
+          [% END %]
+          [% IF j.get_column('nrscheduled') > 0 %]
+            <span class="label label">[% j.get_column('nrscheduled') %]</span>
+          [% END %]
+        </td>
+      </tr>
+    [% END %]
+  </tbody>
+</table>
+[% END;
+
+
 %]
