@@ -603,9 +603,6 @@ makeQueries('ForJob', "and project = ? and jobset = ? and job = ?");
 
 my %hint = (
     columns => [
-        'id',
-        'finished',
-        'timestamp',
         'starttime',
         'stoptime',
         'project',
@@ -619,7 +616,9 @@ my %hint = (
         'releasename'
     ],
     eager_relations => {
-        buildoutputs => 'name'
+        buildoutputs => 'name',
+        buildinputs => 'name'
+        buildproducts => 'productnr',
     }
 );
 

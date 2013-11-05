@@ -153,5 +153,22 @@ __PACKAGE__->belongs_to(
 # Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+0LkZiaRL5tGJvbLxnwD/g
 
-# You can replace this text with custom content, and it will be preserved on regeneration
+my %hint = (
+    columns => [
+        'type',
+        'subtype',
+        'name',
+        'fileSize',
+        'sha1hash',
+        'sha256hash',
+        'description',
+        'path',
+        'defaultPath'
+    ],
+);
+
+sub json_hint {
+    return \%hint;
+}
+
 1;
