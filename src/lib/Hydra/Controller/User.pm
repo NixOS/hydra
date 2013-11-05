@@ -288,4 +288,19 @@ sub dashboard :Chained('user') :Args(0) {
 }
 
 
+sub my_jobs_tab :Chained('user') :PathPart('my-jobs-tab') :Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'dashboard-my-jobs-tab.tt';
+
+    die unless $c->stash->{user}->emailaddress;
+
+    # Get all current builds of which this user is a maintainer.
+    $c->stash->{builds} = [$c->model('DB::Builds')->search(
+        { iscurrent => 1
+        , maintainers => { ilike => "%" . $c->stash->{user}->emailaddress . "%" }
+        },
+        { order_by => ["project", "jobset", "job"] })];
+}
+
+
 1;
