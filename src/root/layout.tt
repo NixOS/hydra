@@ -146,6 +146,45 @@
       </script>
     [% END %]
 
+    [% IF !c.user_exists %]
+      <div id="hydra-signin" class="modal hide fade" tabindex="-1" role="dialog" aria-hidden="true">
+        <form class="form-horizontal">
+          <div class="modal-body">
+            <div class="control-group">
+              <label class="control-label">User name</label>
+              <div class="controls">
+                <input type="text" class="span3" name="username" value=""/>
+              </div>
+            </div>
+            <div class="control-group">
+              <label class="control-label">Password</label>
+              <div class="controls">
+                <input type="password" class="span3" name="password" value=""/>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="do-signin" class="btn btn-primary">Sign in</button>
+            <button class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <script>
+          $("#do-signin").click(function() {
+            requestJSON({
+              url: "[% c.uri_for('/login') %]",
+              data: $(this).parents("form").serialize(),
+              type: 'POST',
+              success: function(data) {
+                window.location.reload();
+              }
+            });
+            return false;
+          });
+      </script>
+    [% END %]
+
   </body>
 
 </html>

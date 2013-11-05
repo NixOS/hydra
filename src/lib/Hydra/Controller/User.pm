@@ -18,39 +18,19 @@ __PACKAGE__->config->{namespace} = '';
 
 sub login :Local :Args(0) :ActionClass('REST::ForBrowsers') { }
 
-sub login_GET {
-    my ($self, $c) = @_;
-
-    my $baseurl = $c->uri_for('/');
-    my $referer = $c->request->referer;
-    $c->session->{referer} = $referer if defined $referer && $referer =~ m/^($baseurl)/;
-
-    $c->stash->{template} = 'login.tt';
-}
-
 sub login_POST {
     my ($self, $c) = @_;
 
-    my $username;
-    my $password;
+    my $username = $c->stash->{params}->{username} // "";
+    my $password = $c->stash->{params}->{password} // "";
 
-    $username = $c->stash->{params}->{username};
-    $password = $c->stash->{params}->{password};
+    error($c, "You must specify a user name.") if $username eq "";
+    error($c, "You must specify a password.") if $password eq "";
 
-    if ($username && $password) {
-        if ($c->authenticate({username => $username, password => $password})) {
-            if ($c->request->looks_like_browser) {
-                backToReferer($c);
-            } else {
-                currentUser_GET($self, $c);
-            }
-        } else {
-            $self->status_forbidden($c, message => "Bad username or password.");
-            if ($c->request->looks_like_browser) {
-                login_GET($self, $c);
-            }
-        }
-    }
+    accessDenied($c, "Bad username or password.")
+        if !$c->authenticate({username => $username, password => $password});
+
+    $self->status_ok($c, entity => { });
 }
 
 
