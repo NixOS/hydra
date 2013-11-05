@@ -73,7 +73,7 @@
       <div class="control-group">
         <label class="control-label">Roles</label>
         <div class="controls">
-          <select multiple="multiple" name="roles" class="span3" [% IF !c.check_user_roles('admin') %]disabled="1"[% END %]>
+          <select multiple="multiple" name="roles" class="span3" [% IF !c.check_user_roles('admin') %]disabled="disabled"[% END %]>
             [% INCLUDE roleoption role="admin" %]
             [% INCLUDE roleoption role="create-project" %]
           </select>
@@ -101,7 +101,7 @@
         <i class="icon-ok icon-white"></i>
         [%IF create %]Create[% ELSE %]Apply changes[% END %]
       </button>
-      [% IF !create && c.check_user_roles('admin') %]
+      [% IF !create && c.check_user_roles('admin') && user.password != '!' %]
         <button id="reset-password" type="submit" class="btn btn-warning" name="submit" value="reset-password">
           <i class="icon-trash icon-white"></i>
           Reset password
