@@ -302,8 +302,12 @@ sub my_jobs_tab :Chained('user') :PathPart('my-jobs-tab') :Args(0) {
     $c->stash->{builds} = [$c->model('DB::Builds')->search(
         { iscurrent => 1
         , maintainers => { ilike => "%" . $c->stash->{user}->emailaddress . "%" }
+        , "project.enabled" => 1
+        , "jobset.enabled" => 1
         },
-        { order_by => ["project", "jobset", "job"] })];
+        { order_by => ["project", "jobset", "job"]
+        , join => ["project", "jobset"]
+        })];
 }
 
 

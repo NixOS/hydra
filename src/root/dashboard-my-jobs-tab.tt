@@ -9,7 +9,7 @@
 
 [% ELSE %]
 
-  <p>Below is the most recent build of every job of which you
+  <p>Below are the most recent builds of the [% builds.size %] jobs of which you
   (<tt>[% HTML.escape(user.emailaddress) %]</tt>) are a maintainer.</p>
   
   [% INCLUDE renderBuildList %]
