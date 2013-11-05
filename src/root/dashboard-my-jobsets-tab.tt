@@ -1,6 +1,6 @@
 [% PROCESS common.tt %]
 
-[% IF builds.size == 0 %]
+[% IF jobsets.size == 0 %]
 
   <div class="alert alert-warning">You are not the owner of any
   jobset.</div>
