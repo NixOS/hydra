@@ -2,6 +2,7 @@ package Hydra::Helper::AddBuilds;
 
 use strict;
 use feature 'switch';
+use utf8;
 use XML::Simple;
 use IPC::Run;
 use Nix::Store;
@@ -15,6 +16,7 @@ use File::Path;
 use File::Temp;
 use File::Spec;
 use File::Slurp;
+use Hydra::Helper::PluginHooks;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -86,10 +88,7 @@ sub fetchInputBuild {
         { order_by => "me.id DESC", rows => 1
         , where => \ attrsToSQL($attrs, "me.id") });
 
-    if (!defined $prevBuild || !isValidPath(getMainOutput($prevBuild)->path)) {
-        print STDERR "input `", $name, "': no previous build available\n";
-        return undef;
-    }
+    return () if !defined $prevBuild || !isValidPath(getMainOutput($prevBuild)->path);
 
     #print STDERR "input `", $name, "': using build ", $prevBuild->id, "\n";
 
@@ -148,9 +147,8 @@ sub fetchInputSystemBuild {
     return @inputs;
 }
 
-
 sub fetchInput {
-    my ($plugins, $db, $project, $jobset, $name, $type, $value) = @_;
+    my ($plugins, $db, $project, $jobset, $name, $type, $value, $emailresponsible) = @_;
     my @inputs;
 
     if ($type eq "build") {
@@ -159,7 +157,7 @@ sub fetchInput {
     elsif ($type eq "sysbuild") {
         @inputs = fetchInputSystemBuild($db, $project, $jobset, $name, $value);
     }
-    elsif ($type eq "string") {
+    elsif ($type eq "string" || $type eq "nix") {
         die unless defined $value;
         @inputs = { value => $value };
     }
@@ -170,7 +168,7 @@ sub fetchInput {
     else {
         my $found = 0;
         foreach my $plugin (@{$plugins}) {
-            @inputs = $plugin->fetchInput($type, $name, $value);
+            @inputs = $plugin->fetchInput($type, $name, $value, $project, $jobset);
             if (defined $inputs[0]) {
                 $found = 1;
                 last;
@@ -179,7 +177,10 @@ sub fetchInput {
         die "input `$name' has unknown type `$type'." unless $found;
     }
 
-    $_->{type} = $type foreach @inputs;
+    foreach my $input (@inputs) {
+        $input->{type} = $type;
+        $input->{emailresponsible} = $emailresponsible;
+    }
 
     return @inputs;
 }
@@ -243,6 +244,9 @@ sub inputsToArgs {
                 when ("boolean") {
                     push @res, "--arg", $input, booleanToString($exprType, $alt->{value});
                 }
+                when ("nix") {
+                    push @res, "--arg", $input, $alt->{value};
+                }
                 default {
                     push @res, "--arg", $input, buildInputToString($exprType, $alt);
                 }
@@ -287,17 +291,25 @@ sub evalJobs {
         my $validJob = 1;
         foreach my $arg (@{$job->{arg}}) {
             my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}];
-            if ($input->{type} eq "sysbuild" && $input->{system} ne $job->{system}) {
-                $validJob = 0;
-            }
+            $validJob = 0 if $input->{type} eq "sysbuild" && $input->{system} ne $job->{system};
         }
-        if ($validJob) {
-            push(@filteredJobs, $job);
-        }
+        push(@filteredJobs, $job) if $validJob;
     }
     $jobs->{job} = \@filteredJobs;
 
-    return ($jobs, $nixExprInput);
+    my %jobNames;
+    my $errors;
+    foreach my $job (@{$jobs->{job}}) {
+        $jobNames{$job->{jobName}}++;
+        if ($jobNames{$job->{jobName}} == 2) {
+            $errors .= "warning: there are multiple jobs named ‘$job->{jobName}’; support for this will go away soon!\n\n";
+        }
+    }
+
+    # Handle utf-8 characters in error messages. No idea why this works.
+    utf8::decode($_->{msg}) foreach @{$jobs->{error}};
+
+    return ($jobs, $nixExprInput, $errors);
 }
 
 
@@ -389,7 +401,7 @@ sub getPrevJobsetEval {
 
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
-    my ($db, $project, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildIds, $prevEval, $jobOutPathMap) = @_;
+    my ($db, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
 
     my @outputNames = sort keys %{$buildInfo->{output}};
     die unless scalar @outputNames;
@@ -410,9 +422,7 @@ sub checkBuild {
     my $build;
 
     txn_do($db, sub {
-        my $job = $jobset->jobs->update_or_create(
-            { name => $jobName
-            });
+        my $job = $jobset->jobs->update_or_create({ name => $jobName });
 
         # Don't add a build that has already been scheduled for this
         # job, or has been built but is still a "current" build for
@@ -433,19 +443,19 @@ sub checkBuild {
                 # semantically unnecessary (because they're implied by
                 # the eval), but they give a factor 1000 speedup on
                 # the Nixpkgs jobset with PostgreSQL.
-                { project => $project->name, jobset => $jobset->name, job => $job->name,
+                { project => $jobset->project->name, jobset => $jobset->name, job => $jobName,
                   name => $firstOutputName, path => $firstOutputPath },
                 { rows => 1, columns => ['id'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
                 print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
-                $buildIds->{$prevBuild->id} = 0;
+                $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath };
                 return;
             }
         }
 
         # Prevent multiple builds with the same (job, outPath) from
         # being added.
-        my $prev = $$jobOutPathMap{$job->name . "\t" . $firstOutputPath};
+        my $prev = $$jobOutPathMap{$jobName . "\t" . $firstOutputPath};
         if (defined $prev) {
             print STDERR "    already scheduled as build ", $prev, "\n";
             return;
@@ -511,12 +521,13 @@ sub checkBuild {
         $build->buildoutputs->create({ name => $_, path => $buildInfo->{output}->{$_}->{path} })
             foreach @outputNames;
 
-        $buildIds->{$build->id} = 1;
-        $$jobOutPathMap{$job->name . "\t" . $firstOutputPath} = $build->id;
+        $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath };
+        $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
 
         if ($build->iscachedbuild) {
             print STDERR "    marked as cached build ", $build->id, "\n";
             addBuildProducts($db, $build);
+            notifyBuildFinished($plugins, $build, []);
         } else {
             print STDERR "    added to queue as build ", $build->id, "\n";
         }
@@ -545,6 +556,7 @@ sub checkBuild {
                 , uri => $input->{uri}
                 , revision => $input->{revision}
                 , value => $input->{value}
+                , emailresponsible => $input->{emailresponsible}
                 , dependency => $input->{id}
                 , path => $input->{storePath} || "" # !!! temporary hack
                 , sha256hash => $input->{sha256hash}
@@ -556,29 +568,4 @@ sub checkBuild {
 };
 
 
-sub restartBuild {
-    my ($db, $build) = @_;
-
-    txn_do($db, sub {
-        my @paths;
-        push @paths, $build->drvpath;
-        push @paths, $_->drvpath foreach $build->buildsteps;
-
-        my $r = `nix-store --clear-failed-paths @paths`;
-
-        $build->update(
-            { finished => 0
-            , busy => 0
-            , locker => ""
-            , iscachedbuild => 0
-            });
-
-        $build->buildproducts->delete_all;
-
-        # Reset the stats for the evals to which this build belongs.
-        # !!! Should do this in a trigger.
-        foreach my $m ($build->jobsetevalmembers->all) {
-            $m->eval->update({nrsucceeded => undef});
-        }
-    });
-}
+1;

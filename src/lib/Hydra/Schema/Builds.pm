@@ -288,6 +288,36 @@ __PACKAGE__->set_primary_key("id");
 
 =head1 RELATIONS
 
+=head2 aggregateconstituents_aggregates
+
+Type: has_many
+
+Related object: L<Hydra::Schema::AggregateConstituents>
+
+=cut
+
+__PACKAGE__->has_many(
+  "aggregateconstituents_aggregates",
+  "Hydra::Schema::AggregateConstituents",
+  { "foreign.aggregate" => "self.id" },
+  undef,
+);
+
+=head2 aggregateconstituents_constituents
+
+Type: has_many
+
+Related object: L<Hydra::Schema::AggregateConstituents>
+
+=cut
+
+__PACKAGE__->has_many(
+  "aggregateconstituents_constituents",
+  "Hydra::Schema::AggregateConstituents",
+  { "foreign.constituent" => "self.id" },
+  undef,
+);
+
 =head2 buildinputs_builds
 
 Type: has_many
@@ -468,9 +498,37 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 aggregates
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:isCEXACY/PwkvgKHcXvAIg
+Type: many_to_many
+
+Composing rels: L</aggregateconstituents_constituents> -> aggregate
+
+=cut
+
+__PACKAGE__->many_to_many(
+  "aggregates",
+  "aggregateconstituents_constituents",
+  "aggregate",
+);
+
+=head2 constituents
+
+Type: many_to_many
+
+Composing rels: L</aggregateconstituents_constituents> -> constituent
+
+=cut
+
+__PACKAGE__->many_to_many(
+  "constituents",
+  "aggregateconstituents_constituents",
+  "constituent",
+);
+
+
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-08-15 00:20:01
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:U1j/qm0vslb6Jvgu5mGMtw
 
 __PACKAGE__->has_many(
   "dependents",
@@ -502,6 +560,8 @@ __PACKAGE__->has_many(
 
 __PACKAGE__->many_to_many("jobsetevals", "jobsetevalmembers", "eval");
 
+__PACKAGE__->many_to_many("constituents_", "aggregateconstituents_aggregates", "constituent");
+
 sub makeSource {
     my ($name, $query) = @_;
     my $source = __PACKAGE__->result_source_instance();
@@ -515,36 +575,6 @@ sub makeQueries {
     my ($name, $constraint) = @_;
 
     my $activeJobs = "(select distinct project, jobset, job, system from Builds where isCurrent = 1 $constraint)";
-
-    makeSource(
-        "JobStatus$name",
-        # Urgh, can't use "*" in the "select" here because of the status change join.
-        <<QUERY
-          select x.*, b.id as statusChangeId, b.timestamp as statusChangeTime
-          from
-            (select
-               (select max(b.id) from Builds b
-                where
-                  project = activeJobs.project and jobset = activeJobs.jobset
-                  and job = activeJobs.job and system = activeJobs.system
-                  and finished = 1
-               ) as id
-             from $activeJobs as activeJobs
-            ) as latest
-          join Builds x using (id)
-          left join Builds b on
-            b.id =
-              (select max(c.id) from Builds c
-               where
-                 c.finished = 1 and
-                 x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system and
-                 x.id > c.id and
-                   ((x.buildStatus = 0 and c.buildStatus != 0) or
-                    (x.buildStatus != 0 and c.buildStatus = 0)))
-QUERY
-    );
-
-    makeSource("ActiveJobs$name", "select distinct project, jobset, job from Builds where isCurrent = 1 $constraint");
 
     makeSource(
         "LatestSucceeded$name",
@@ -570,5 +600,31 @@ makeQueries('ForProject', "and project = ?");
 makeQueries('ForJobset', "and project = ? and jobset = ?");
 makeQueries('ForJob', "and project = ? and jobset = ? and job = ?");
 
+
+my %hint = (
+    columns => [
+        'id',
+        'finished',
+        'timestamp',
+        'starttime',
+        'stoptime',
+        'project',
+        'jobset',
+        'job',
+        'nixname',
+        'system',
+        'priority',
+        'busy',
+        'buildstatus',
+        'releasename'
+    ],
+    eager_relations => {
+        buildoutputs => 'name'
+    }
+);
+
+sub json_hint {
+    return \%hint;
+}
 
 1;

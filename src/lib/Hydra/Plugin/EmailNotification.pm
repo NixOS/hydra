@@ -29,6 +29,10 @@ The following dependent jobs also failed:
 [% END -%]
 
 [% END -%]
+[% IF nrCommits > 0 -%]
+This is likely due to [% IF nrCommits > 1 -%][% nrCommits %] commits by [% END -%][% authorList %].
+
+[% END -%]
 [% IF build.buildstatus == 0 -%]
 Yay!
 [% ELSE -%]
@@ -66,12 +70,20 @@ sub buildFinished {
 
         my $to = $b->jobset->emailoverride ne "" ? $b->jobset->emailoverride : $b->maintainers;
 
-        foreach my $address (split ",", $to) {
+        foreach my $address (split ",", ($to // "")) {
             $address = trim $address;
 
             $addresses{$address} //= { builds => [] };
             push @{$addresses{$address}->{builds}}, $b;
         }
+    }
+
+    my ($authors, $nrCommits, $emailable_authors) = getResponsibleAuthors($build, $self->{plugins});
+    my $authorList;
+    if (scalar keys %{$authors} > 0) {
+        my @x = map { "$_ <$authors->{$_}>" } (sort keys %{$authors});
+        $authorList = join(" or ", scalar @x > 1 ? join(", ", @x[0..scalar @x - 2]): (), $x[-1]);
+        $addresses{$_} = { builds => [ $build ] } foreach (@{$emailable_authors});
     }
 
     # Send an email to each interested address.
@@ -89,6 +101,8 @@ sub buildFinished {
             , baseurl => $self->{config}->{'base_uri'} || "http://localhost:3000"
             , showJobName => \&showJobName, showStatus => \&showStatus
             , showSystem => index($build->job->name, $build->system) == -1
+            , nrCommits => $nrCommits
+            , authorList => $authorList
             };
 
         my $body;

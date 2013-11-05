@@ -91,3 +91,20 @@ div.news-item:not(:first-child) {
 td.nowrap {
     white-space: nowrap;
 }
+
+.override-link a {
+    color: inherit;
+}
+
+.actions {
+    font-weight: bold;
+}
+
+.star {
+    color: black;
+    font-size: 110%;
+}
+
+.star:hover {
+    cursor: pointer;
+}

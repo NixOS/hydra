@@ -169,4 +169,21 @@ __PACKAGE__->has_many(
 # Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OZsXJniZ/7EB2iSz7p5y4A
 
+my %hint = (
+    columns => [
+        "machine",
+        "system",
+        "stepnr",
+        "drvpath",
+        "starttime",
+    ],
+    eager_relations => {
+        build => 'id'
+    }
+);
+
+sub json_hint {
+    return \%hint;
+}
+
 1;

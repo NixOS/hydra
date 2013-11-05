@@ -7,6 +7,7 @@
 [% project = build.project %]
 [% jobset = build.jobset %]
 [% job = build.job %]
+[% isAggregate = constituents.size > 0 %]
 
 [% BLOCK renderOutputs %]
   [% start=1; FOREACH output IN outputs %]
@@ -22,7 +23,7 @@
     <tbody>
       [% FOREACH step IN build.buildsteps %]
         [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
-          [% has_log = log_exists(step.drvpath);
+          [% has_log = buildStepLogExists(step);
              log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
           <tr>
             <td>[% step.stepnr %]</td>
@@ -67,7 +68,40 @@
 [% END %]
 
 <ul class="nav nav-tabs">
+  <li class="dropdown">
+    <a class="dropdown-toggle actions" data-toggle="dropdown" href="#">
+      Actions
+      <b class="caret"></b>
+    </a>
+    <ul class="dropdown-menu">
+      [% IF build.nixexprinput %]
+        <li><a href="#reproduce" data-toggle="modal">Reproduce locally</a></li>
+      [% END %]
+      [% IF c.user_exists %]
+        [% IF available %]
+          [% IF build.keep %]
+            <li><a href="[% c.uri_for('/build' build.id 'keep' 0) %]">Unkeep</a></li>
+          [% ELSE %]
+            <li><a href="[% c.uri_for('/build' build.id 'keep' 1) %]">Keep</a></li>
+          [% END %]
+        [% END %]
+        [% IF build.finished %]
+          <li><a href="[% c.uri_for('/build' build.id 'restart') %]">Restart</a></li>
+        [% ELSE %]
+          <li><a href="[% c.uri_for('/build' build.id 'cancel') %]">Cancel</a></li>
+        [% END %]
+        [% IF available && project.releases %]
+          [% INCLUDE menuItem
+            uri = "#add-to-release"
+            title = "Add to release"
+            modal = 1 %]
+        [% END %]
+      [% END %]
+    </ul>
+  </li>
+  
   <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
+  [% IF isAggregate %]<li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>[% END %]
   <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
   <li><a href="#tabs-buildinputs" data-toggle="tab">Inputs</a></li>
   [% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
@@ -80,26 +114,6 @@
 <div id="generic-tabs" class="tab-content">
 
   <div id="tabs-summary" class="tab-pane active">
-
-    [% IF build.nixexprinput %]
-      [% WRAPPER makePopover title="Reproduce locally" classes="btn-info pull-right" placement="left" %]
-        [% url = c.uri_for('/build' build.id 'reproduce') %]
-
-        <p>You can reproduce this build on your own machine by
-        downloading <a [% HTML.attributes(href => url) %]>a script</a>
-        that checks out all inputs of the build and then invokes Nix
-        to perform the build.  This script requires that you have Nix
-        on your system.</p>
-
-        <p>To download and execute the script from the command line,
-        run the following command:</p>
-
-<pre>
-<span class="shell-prompt">$ </span>bash <(curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a>)
-</pre>
-
-      [% END %]
-    [% END %]
 
     <table>
       <tr>
@@ -114,7 +128,28 @@
             </tr>
             <tr>
               <th>Status:</th>
-              <td>[% INCLUDE renderStatus build=build icon=0 %]</td>
+              <td>
+                [% INCLUDE renderStatus build=build icon=0 %]
+                [% IF isAggregate;
+                     nrConstituents = 0;
+                     nrFinished = 0;
+                     nrFailedConstituents = 0;
+                     FOREACH b IN constituents;
+                       nrConstituents = nrConstituents + 1;
+                       IF b.finished; nrFinished = nrFinished + 1; END;
+                       IF b.finished && b.buildstatus != 0; nrFailedConstituents = nrFailedConstituents + 1; END;
+                     END;
+                %];
+                  [%+ IF nrFinished == nrMembers && nrFailedConstituents == 0 %]
+                    all [% nrConstituents %] constituent builds succeeded
+                  [% ELSE %]
+                    [% nrFailedConstituents %] out of [% nrConstituents %] constituent builds failed
+                    [% IF nrFinished < nrConstituents %]
+                      ([% nrConstituents - nrFinished %] still pending)
+                    [% END %]
+                  [% END %]
+                [% END %]
+              </td>
             </tr>
             <tr>
               <th>System:</th>
@@ -146,7 +181,7 @@
                 <td>[% IF cachedBuild; INCLUDE renderFullBuildLink build=cachedBuild; ELSE %]<em>unknown</em>[% END %]</td>
               </tr>
             [% END %]
-            [% IF build.finished %]
+            [% IF !isAggregate && build.finished %]
             <tr>
               <th>Duration:</th>
               <td>[% actualBuild = build.iscachedbuild ? cachedBuild : build;
@@ -154,7 +189,7 @@
                      finished at [% INCLUDE renderDateTime timestamp = actualBuild.stoptime %]</td>
             </tr>
             [% END %]
-            [% IF log_exists(build.drvpath) %]
+            [% IF !isAggregate && buildLogExists(build) %]
               <tr>
                 <th>Logfile:</th>
                 <td>
@@ -169,20 +204,7 @@
       </tr>
     </table>
 
-    [% IF c.user_exists && available %]
-      <br/>
-      <form class="form-horizontal" action="[% c.uri_for('/build' build.id 'add-to-release') %]" method="post">
-        <div class="control-group">
-          <label class="control-label">Add to release</label>
-          <div class="controls">
-            <input type="text" class="input" name="name"></input>
-            <button type="submit" class="btn btn-success">Apply</button>
-          </div>
-        </div>
-      </form>
-    [% END %]
-
-    [% IF build.buildproducts %]
+    [% IF build.buildproducts && !isAggregate %]
 
       <h3>Build products</h3>
 
@@ -250,6 +272,18 @@
     [% END %]
 
   </div>
+
+  [% IF isAggregate %]
+
+    <div id="tabs-constituents" class="tab-pane">
+
+      <p>This build is an aggregate of the following builds:</p>
+
+      [% INCLUDE renderBuildList builds=constituents hideProjectName=1 hideJobsetName=1 %]
+
+    </div>
+
+  [% END %]
 
   <div id="tabs-details" class="tab-pane">
 
@@ -380,8 +414,8 @@
       <div id="placeholder" style="width:800px;height:400px;"></div>
       <div id="overview" style="margin-left:50px;margin-top:20px;width:600px;height:50px"></div>
 
-      <script src="/static/js/flot/jquery.flot.js" type="text/javascript"></script>
-      <script src="/static/js/flot/jquery.flot.selection.js" type="text/javascript"></script>
+      <script src="[% c.uri_for("/static/js/flot/jquery.flot.js") %]" type="text/javascript"></script>
+      <script src="[% c.uri_for("/static/js/flot/jquery.flot.selection.js") %]" type="text/javascript"></script>
       <script type="text/javascript">
         $(function() {
           var d = [];
@@ -521,6 +555,60 @@
     [% INCLUDE makeLazyTab tabName="tabs-runtime-deps" uri=c.uri_for('/build' build.id 'runtime-deps') %]
   [% END %]
 
+</div>
+
+
+[% IF c.user_exists && available && project.releases %]
+<div id="add-to-release" class="modal hide fade" tabindex="-1" role="dialog" aria-hidden="true">
+  <form class="form-horizontal" action="[% c.uri_for('/build' build.id 'add-to-release') %]" method="post">
+    <div class="modal-body">
+      <div class="control-group">
+        <label class="control-label">Add to release</label>
+        <div class="controls">
+          <select class="span2" name="name">
+            [% FOREACH r IN project.releases %]
+            <option>[% HTML.escape(r.name) %]</option>
+            [% END %]
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="submit" class="btn btn-primary">Add</button>
+      <button class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
+    </div>
+  </form>
+</div>
+[% END %]
+
+
+<div id="reproduce" class="modal hide fade" tabindex="-1" role="dialog" aria-hidden="true">
+  [% url = c.uri_for('/build' build.id 'reproduce') %]
+
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+    <h3>Reproduce this build</h3>
+  </div>
+
+  <div class="modal-body">
+
+    <p>You can reproduce this build on your own machine by downloading
+    <a [% HTML.attributes(href => url) %]>a script</a> that checks out
+    all inputs of the build and then invokes Nix to perform the build.
+    This script requires that you have Nix on your system.</p>
+
+    <p>To download and execute the script from the command line, run the
+    following command:</p>
+
+<pre>
+<span class="shell-prompt">$ </span>bash <(curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a>)
+</pre>
+
+  </div>
+
+  <div class="modal-footer">
+    <a href="#" class="btn btn-primary" data-dismiss="modal">Close</a>
+  </div>
 </div>
 
 

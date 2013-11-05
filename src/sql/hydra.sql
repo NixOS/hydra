@@ -55,12 +55,14 @@ create table Jobsets (
     errorTime     integer, -- timestamp associated with errorMsg
     lastCheckedTime integer, -- last time the evaluator looked at this jobset
     triggerTime   integer, -- set if we were triggered by a push event
-    enabled       integer not null default 1,
+    enabled       integer not null default 1, -- 0 = disabled, 1 = enabled, 2 = one-shot
     enableEmail   integer not null default 1,
     hidden        integer not null default 0,
     emailOverride text not null,
     keepnr        integer not null default 3,
     checkInterval integer not null default 300, -- minimum time in seconds between polls (0 = disable polling)
+    schedulingShares integer not null default 100,
+    fetchErrorMsg text,
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade
 #ifdef SQLITE
@@ -74,7 +76,8 @@ create table JobsetInputs (
     project       text not null,
     jobset        text not null,
     name          text not null,
-    type          text not null, -- "svn", "path", "uri", "string", "boolean"
+    type          text not null, -- "svn", "path", "uri", "string", "boolean", "nix"
+    emailResponsible integer not null default 0, -- whether to email committers to this input who change a build
     primary key   (project, jobset, name),
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );
@@ -140,7 +143,7 @@ create table Builds (
     isCurrent     integer default 0,
 
     -- Copy of the nixExprInput/nixExprPath fields of the jobset that
-    -- instantiated this build.  Needed if we want to clone this
+    -- instantiated this build.  Needed if we want to reproduce this
     -- build.
     nixExprInput  text,
     nixExprPath   text,
@@ -255,6 +258,7 @@ create table BuildInputs (
     uri           text,
     revision      text,
     value         text,
+    emailResponsible integer not null default 0,
     dependency    integer, -- build ID of the input, for type == 'build'
 
     path          text,
@@ -320,6 +324,15 @@ create table CachedGitInputs (
     sha256hash    text not null,
     storePath     text not null,
     primary key   (uri, branch, revision)
+);
+
+create table CachedDarcsInputs (
+    uri           text not null,
+    revision      text not null,
+    sha256hash    text not null,
+    storePath     text not null,
+    revCount      integer not null,
+    primary key   (uri, revision)
 );
 
 create table CachedHgInputs (
@@ -514,6 +527,56 @@ create table NewsItems (
 );
 
 
+create table AggregateConstituents (
+    aggregate     integer not null references Builds(id) on delete cascade,
+    constituent   integer not null references Builds(id) on delete cascade,
+    primary key   (aggregate, constituent)
+);
+
+
+create table StarredJobs (
+    userName      text not null,
+    project       text not null,
+    jobset        text not null,
+    job           text not null,
+    primary key   (userName, project, jobset, job),
+    foreign key   (userName) references Users(userName) on update cascade on delete cascade,
+    foreign key   (project) references Projects(name) on update cascade on delete cascade,
+    foreign key   (project, jobset) references Jobsets(project, name) on update cascade on delete cascade,
+    foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade on delete cascade
+);
+
+
+-- Cache of the number of finished builds.
+create table NrBuilds (
+    what  text primary key not null,
+    count integer not null
+);
+
+insert into NrBuilds(what, count) values('finished', 0);
+
+#ifdef POSTGRESQL
+
+create function modifyNrBuildsFinished() returns trigger as $$
+  begin
+    if ((tg_op = 'INSERT' and new.finished = 1) or
+        (tg_op = 'UPDATE' and old.finished = 0 and new.finished = 1)) then
+      update NrBuilds set count = count + 1 where what = 'finished';
+    elsif ((tg_op = 'DELETE' and old.finished = 1) or
+           (tg_op = 'UPDATE' and old.finished = 1 and new.finished = 0)) then
+      update NrBuilds set count = count - 1 where what = 'finished';
+    end if;
+    return null;
+  end;
+$$ language plpgsql;
+
+create trigger NrBuildsFinished after insert or update or delete on Builds
+  for each row
+  execute procedure modifyNrBuildsFinished();
+
+#endif
+
+
 -- Some indices.
 
 create index IndexBuildInputsOnBuild on BuildInputs(build);
@@ -534,7 +597,8 @@ create index IndexBuildsOnJobAndSystem on Builds(project, jobset, job, system);
 create index IndexBuildsOnJobset on Builds(project, jobset);
 create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);
-create index IndexBuildsOnJobsetFinishedTimestamp on Builds(project, jobset, finished, timestamp DESC);
+create index IndexBuildsOnFinishedStopTime on Builds(finished, stoptime DESC);
+create index IndexBuildsOnJobsetFinishedTimestamp on Builds(project, jobset, finished, timestamp DESC); -- obsolete?
 create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
 create index IndexBuildsOnJobSystemCurrent on Builds(project, jobset, job, system, isCurrent);
 create index IndexBuildsOnDrvPath on Builds(drvPath);

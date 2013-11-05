@@ -118,6 +118,17 @@ __PACKAGE__->table("Jobsets");
   default_value: 300
   is_nullable: 0
 
+=head2 schedulingshares
+
+  data_type: 'integer'
+  default_value: 100
+  is_nullable: 0
+
+=head2 fetcherrormsg
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -151,6 +162,10 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 3, is_nullable => 0 },
   "checkinterval",
   { data_type => "integer", default_value => 300, is_nullable => 0 },
+  "schedulingshares",
+  { data_type => "integer", default_value => 100, is_nullable => 0 },
+  "fetcherrormsg",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -271,8 +286,42 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
+=head2 starredjobs
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:tsGR8MhZRIUeNwpcVczMUw
+Type: has_many
+
+Related object: L<Hydra::Schema::StarredJobs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "starredjobs",
+  "Hydra::Schema::StarredJobs",
+  {
+    "foreign.jobset"  => "self.name",
+    "foreign.project" => "self.project",
+  },
+  undef,
+);
+
+
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-14 15:46:29
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DTAGxP5RFvcNxP/ciJGo4Q
+
+my %hint = (
+    columns => [
+        "enabled",
+        "errormsg",
+        "fetcherrormsg",
+        "emailoverride"
+    ],
+    eager_relations => {
+        jobsetinputs => "name"
+    }
+);
+
+sub json_hint {
+    return \%hint;
+}
 
 1;

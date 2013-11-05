@@ -1,5 +1,6 @@
 [% WRAPPER layout.tt title="Jobset $project.name:$jobset.name" %]
 [% PROCESS common.tt %]
+[% USE format %]
 
 
 [% BLOCK renderJobsetInput %]
@@ -11,7 +12,7 @@
       [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
     </td>
     <td class="inputalts" id="[% baseName %]">
-      [% FOREACH alt IN input.jobsetinputalts %]
+      [% FOREACH alt IN input.search_related('jobsetinputalts', {}, { order_by => 'altnr' }) %]
         <tt class="inputalt">
           [% IF input.type == "string" %]
             "[% HTML.escape(alt.value) %]"
@@ -41,11 +42,25 @@
 
 
 <ul class="nav nav-tabs">
-  <li class="active"><a href="#tabs-evaluations" data-toggle="tab">Evaluations</a></li>
-  [% IF jobset.errormsg %]
-    <li><a href="#tabs-errors" data-toggle="tab"><img src="/static/images/error_16.png" /> Evaluation errors</a></li>
+  [% IF c.user_exists %]
+    <li class="dropdown">
+      <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+        Actions
+        <b class="caret"></b>
+      </a>
+      <ul class="dropdown-menu">
+        [% INCLUDE menuItem title="Edit configuration" icon="icon-edit" uri=c.uri_for(c.controller('Jobset').action_for('edit'), c.req.captures) %]
+        [% INCLUDE menuItem title="Delete this jobset" icon="icon-trash" uri="javascript:deleteJobset()" %]
+        [% INCLUDE menuItem title="Clone this jobset" uri=c.uri_for(c.controller('Jobset').action_for('edit'), c.req.captures, { clone => 1 }) %]
+        [% INCLUDE menuItem title="Evaluate this jobset" uri="javascript:confirmEvaluateJobset()" %]
+      </ul>
+    </li>
   [% END %]
-  <li><a href="#tabs-status" data-toggle="tab">Job status</a></li>
+
+  <li class="active"><a href="#tabs-evaluations" data-toggle="tab">Evaluations</a></li>
+  [% IF jobset.errormsg || jobset.fetcherrormsg %]
+    <li><a href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation errors</span></a></li>
+  [% END %]
   <li><a href="#tabs-jobs" data-toggle="tab">Jobs</a></li>
   <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
 </ul>
@@ -59,7 +74,7 @@
         <th>Last checked:</th>
         <td>
           [% IF jobset.lastcheckedtime %]
-            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %], [% IF jobset.errormsg %]<em class="text-warning">with errors!</em>[% ELSE %]<em>no errors</em>[% END %]
+            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %], [% IF jobset.errormsg || jobset.fetcherrormsg %]<em class="text-warning">with errors!</em>[% ELSE %]<em>no errors</em>[% END %]
           [% ELSE %]
             <em>never</em>
           [% END %]
@@ -91,20 +106,20 @@
 
   </div>
 
-  [% INCLUDE makeLazyTab tabName="tabs-status" uri=c.uri_for('/jobset' project.name jobset.name "status-tab") %]
-
-  [% IF jobset.errormsg %]
+  [% IF jobset.errormsg || jobset.fetcherrormsg %]
     <div id="tabs-errors" class="tab-pane">
       <p>Errors occurred at [% INCLUDE renderDateTime timestamp=jobset.errortime %].</p>
-      <pre class="alert alert-error">[% HTML.escape(jobset.errormsg) %]</pre>
+      <pre class="alert alert-error">[% HTML.escape(jobset.fetcherrormsg || jobset.errormsg) %]</pre>
     </div>
   [% END %]
 
   <div id="tabs-configuration" class="tab-pane">
 
-    <a class="btn pull-right" href="[% c.uri_for('/jobset' project.name jobset.name "edit") %]"><i class="icon-edit"></i> Edit</a>
-
     <table class="info-table">
+      <tr>
+        <th>State:</th>
+        <td>[% IF jobset.enabled == 0; "Disabled"; ELSIF jobset.enabled == 1; "Enabled"; ELSIF jobset.enabled == 2; "One-shot"; END %]</td>
+      </tr>
       <tr>
         <th>Description:</th>
         <td>[% HTML.escape(jobset.description) %]</td>
@@ -117,12 +132,12 @@
         </td>
       </tr>
       <tr>
-        <th>Enabled:</th>
-        <td>[% jobset.enabled ? "Yes" : "No" %]</td>
-      </tr>
-      <tr>
         <th>Check interval:</th>
         <td>[% jobset.checkinterval || "<em>disabled</em>"  %]</td>
+      </tr>
+      <tr>
+        <th>Scheduling shares:</th>
+        <td>[% jobset.schedulingshares %] [% IF totalShares %] ([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% totalShares %] shares)[% END %]</td>
       </tr>
       <tr>
         <th>Enable email notification:</th>
@@ -133,7 +148,7 @@
         <td>[% HTML.escape(jobset.emailoverride) %]</td>
       </tr>
       <tr>
-        <th>Number of builds to keep:</th>
+        <th>Number of evaluations to keep:</th>
         <td>[% jobset.keepnr %]</td>
       </tr>
     </table>
@@ -144,5 +159,33 @@
   [% INCLUDE makeLazyTab tabName="tabs-jobs" uri=c.uri_for('/jobset' project.name jobset.name "jobs-tab") %]
 
 </div>
+
+<script>
+  function confirmEvaluateJobset() {
+    bootbox.confirm(
+      'Are you sure you want to force evaluation of this jobset?',
+      function(c) {
+        if (!c) return;
+        requestJSON({
+          url: "[% HTML.escape(c.uri_for('/api/push', { jobsets = project.name _ ':' _ jobset.name, force = "1" })) %]",
+          success: function(data) {
+            bootbox.alert("The jobset has been scheduled for evaluation.");
+          }
+        });
+      });
+  };
+
+  function deleteJobset() {
+    bootbox.confirm(
+      'Are you sure you want to delete this jobset?',
+      function(c) {
+        if (!c) return;
+        redirectJSON({
+          url: "[% c.uri_for(c.controller('Jobset').action_for('jobset'), c.req.captures) %]",
+          type: 'DELETE'
+        });
+      });
+  };
+</script>
 
 [% END %]

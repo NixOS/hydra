@@ -1,0 +1,7 @@
+#! /bin/sh
+s=$(type -p nix-shell)
+exec $s release.nix -A build.x86_64-linux --exclude tarball --command "
+    export NIX_REMOTE=daemon
+    export NIX_PATH='$NIX_PATH'
+    export NIX_BUILD_SHELL=$(type -p bash)
+    exec $s release.nix -A tarball" "$@"

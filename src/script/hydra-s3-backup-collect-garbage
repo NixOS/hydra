@@ -1,0 +1,58 @@
+#! /var/run/current-system/sw/bin/perl -w
+
+use strict;
+use File::Basename;
+use Fcntl;
+use IO::File;
+use Net::Amazon::S3;
+use Net::Amazon::S3::Client;
+use Nix::Config;
+use Nix::Store;
+use Hydra::Model::DB;
+use Hydra::Helper::Nix;
+
+my $cfg = getHydraConfig()->{s3backup};
+my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
+
+exit 0 unless @config;
+
+my $lockfile = Hydra::Model::DB::getHydraPath . "/.hydra-s3backup.lock";
+my $lockhandle = IO::File->new;
+open($lockhandle, ">", $lockfile) or die "Opening $lockfile: $!";
+flock($lockhandle, Fcntl::LOCK_EX) or die "Write-locking $lockfile: $!";
+
+my $client = Net::Amazon::S3::Client->new( s3 => Net::Amazon::S3->new( retry => 1 ) );
+my $db = Hydra::Model::DB->new();
+
+my $gcRootsDir = getGCRootsDir;
+opendir DIR, $gcRootsDir or die;
+my @roots = readdir DIR;
+closedir DIR;
+
+my @actual_roots = ();
+foreach my $link (@roots) {
+    next if $link eq "." || $link eq "..";
+    push @actual_roots, readlink "$gcRootsDir/$link";
+}
+
+# Don't delete a nix-cache-info file, if present
+my %closure = ( "nix-cache-info" => undef );
+foreach my $path (computeFSClosure(0, 0, @actual_roots)) {
+    my $hash = substr basename($path), 0, 32;
+    $closure{"$hash.narinfo"} = undef;
+    $closure{"$hash.nar"} = undef;
+}
+
+foreach my $bucket_config (@config) {
+    my $bucket = $client->bucket( name => $bucket_config->{name} );
+    my $prefix = exists $bucket_config->{prefix} ? $bucket_config->{prefix} : "";
+
+    my $cache_stream = $bucket->list({ prefix => $prefix });
+    until ($cache_stream->is_done) {
+        foreach my $object ($cache_stream->items) {
+            $object->delete unless exists $closure{basename($object->key)};
+        }
+    }
+}
+
+1;

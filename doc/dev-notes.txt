@@ -127,3 +127,13 @@
   succeed in the nixpkgs:trunk jobset:
 
   select job, system from builds b natural join buildresultinfo where project = 'nixpkgs' and jobset = 'stdenv' and iscurrent = 1 and finished = 1 and buildstatus != 0 and exists (select 1 from builds natural join buildresultinfo where project = 'nixpkgs' and jobset = 'trunk' and job = b.job and system = b.system and iscurrent = 1 and finished = 1 and buildstatus = 0) order by job, system;
+
+
+* Get all Nixpkgs jobs that have never built succesfully:
+
+  select project, jobset, job from builds b1
+    where project = 'nixpkgs' and jobset = 'trunk' and iscurrent = 1
+    group by project, jobset, job
+    having not exists
+      (select 1 from builds b2 where b1.project = b2.project and b1.jobset = b2.jobset and b1.job = b2.job and finished = 1 and buildstatus = 0)
+    order by project, jobset, job;

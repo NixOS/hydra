@@ -12,21 +12,33 @@ sub supportedInputTypes {
     $inputTypes->{'hg'} = 'Mercurial checkout';
 }
 
+sub _parseValue {
+    my ($value) = @_;
+    (my $uri, my $id) = split ' ', $value;
+    $id = defined $id ? $id : "default";
+    return ($uri, $id);
+}
+
+sub _clonePath {
+    my ($uri) = @_;
+    my $cacheDir = getSCMCacheDir . "/hg";
+    mkpath($cacheDir);
+    return $cacheDir . "/" . sha256_hex($uri);
+}
+
 sub fetchInput {
     my ($self, $type, $name, $value) = @_;
 
     return undef if $type ne "hg";
 
-    (my $uri, my $id) = split ' ', $value;
+    (my $uri, my $id) = _parseValue($value);
     $id = defined $id ? $id : "default";
 
     # init local hg clone
 
     my $stdout = ""; my $stderr = "";
 
-    my $cacheDir = getSCMCacheDir . "/hg";
-    mkpath($cacheDir);
-    my $clonePath = $cacheDir . "/" . sha256_hex($uri);
+    my $clonePath = _clonePath($uri);
 
     if (! -d $clonePath) {
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
@@ -84,5 +96,33 @@ sub fetchInput {
         , revCount => int($revCount)
         };
 }
+
+sub getCommits {
+    my ($self, $type, $value, $rev1, $rev2) = @_;
+    return [] if $type ne "hg";
+
+    return [] unless $rev1 =~ /^[0-9a-f]+$/;
+    return [] unless $rev2 =~ /^[0-9a-f]+$/;
+
+    my ($uri, $id) = _parseValue($value);
+
+    my $clonePath = _clonePath($uri);
+    chdir $clonePath or die $!;
+
+    my $out;
+    IPC::Run::run(["hg", "log", "--template", "{node|short}\t{author|person}\t{author|email}\n", "-r", "$rev1:$rev2", $clonePath], \undef, \$out)
+        or die "cannot get mercurial logs: $?";
+
+    my $res = [];
+    foreach my $line (split /\n/, $out) {
+        if ($line ne "") {
+            my ($revision, $author, $email) = split "\t", $line;
+            push @$res, { revision => $revision, author => $author, email => $email };
+        }
+    }
+
+    return $res;
+}
+
 
 1;

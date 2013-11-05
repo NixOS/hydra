@@ -6,7 +6,7 @@ let
 
   pkgs = import <nixpkgs> {};
 
-  genAttrs' = pkgs.lib.genAttrs [ "x86_64-linux" "i686-linux" ];
+  genAttrs' = pkgs.lib.genAttrs [ "x86_64-linux" ];
 
 in rec {
 
@@ -24,13 +24,17 @@ in rec {
 
       versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
 
-      preConfigure = ''
+      preHook = ''
         # TeX needs a writable font cache.
         export VARTEXFONTS=$TMPDIR/texfonts
+
+        addToSearchPath PATH $(pwd)/src/script
+        addToSearchPath PATH $(pwd)/src/c
+        addToSearchPath PERL5LIB $(pwd)/src/lib
       '';
 
       configureFlags =
-        [ "--with-nix=${nix}"
+        [ "--with-nix=${nixUnstable}"
           "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook"
         ];
 
@@ -88,6 +92,7 @@ in rec {
             PadWalker
             CatalystDevel
             Readonly
+            SetScalar
             SQLSplitStatement
             Starman
             SysHostnameLong
@@ -95,6 +100,7 @@ in rec {
             TextDiff
             TextTable
             XMLSimple
+            NetAmazonS3
             nix git
           ];
       };
@@ -108,17 +114,20 @@ in rec {
 
       buildInputs =
         [ makeWrapper libtool unzip nukeReferences pkgconfig boehmgc sqlite
-          gitAndTools.topGit mercurial subversion bazaar openssl bzip2
+          gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2
           guile # optional, for Guile + Guix support
           perlDeps perl
         ];
 
       hydraPath = lib.makeSearchPath "bin" (
         [ libxslt sqlite subversion openssh nix coreutils findutils
-          gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial gnused graphviz bazaar
+          gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused graphviz bazaar
         ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
-      preConfigure = "patchShebangs .";
+      preCheck = ''
+        patchShebangs .
+        export LOGNAME=${LOGNAME:-foo}
+      '';
 
       postInstall = ''
         mkdir -p $out/nix-support
@@ -134,14 +143,13 @@ in rec {
         done
       ''; # */
 
-      LOGNAME = "foo";
-
       meta.description = "Build of Hydra on ${system}";
+      passthru.perlDeps = perlDeps;
     });
 
 
   tests.install = genAttrs' (system:
-    with import <nixos/lib/testing.nix> { inherit system; };
+    with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
     let hydra = builtins.getAttr system build; in # build.${system}
     simpleTest {
       machine =
@@ -169,8 +177,8 @@ in rec {
     });
 
   tests.api = genAttrs' (system:
-    with import <nixos/lib/testing.nix> { inherit system; };
-    let hydra = builtins.getAttr system build; in # build.${system}
+    with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
+    let hydra = builtins.getAttr system build; in # build."${system}"
     simpleTest {
       machine =
         { config, pkgs, ... }:
@@ -178,6 +186,7 @@ in rec {
           services.postgresql.package = pkgs.postgresql92;
           environment.systemPackages = [ hydra pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
           virtualisation.memorySize = 2047;
+          boot.kernelPackages = pkgs.linuxPackages_3_10;
         };
 
       testScript =
@@ -202,6 +211,45 @@ in rec {
           $machine->waitForOpenPort("3000");
 
           $machine->mustSucceed("perl ${./tests/api-test.pl} >&2");
+        '';
+  });
+
+  tests.s3backup = genAttrs' (system:
+    with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
+    let hydra = builtins.getAttr system build; in # build."${system}"
+    simpleTest {
+      machine =
+        { config, pkgs, ... }:
+        { services.postgresql.enable = true;
+          services.postgresql.package = pkgs.postgresql92;
+          environment.systemPackages = [ hydra pkgs.rubyLibs.fakes3 ];
+          virtualisation.memorySize = 2047;
+          boot.kernelPackages = pkgs.linuxPackages_3_10;
+          virtualisation.writableStore = true;
+          networking.extraHosts = ''
+            127.0.0.1 hydra.s3.amazonaws.com
+          '';
+        };
+
+      testScript =
+        ''
+          $machine->waitForJob("postgresql");
+
+          # Initialise the database and the state.
+          $machine->mustSucceed
+              ( "createdb -O root hydra"
+              , "psql hydra -f ${hydra}/libexec/hydra/sql/hydra-postgresql.sql"
+              , "mkdir /var/lib/hydra"
+              , "mkdir /tmp/jobs"
+              , "cp ${./tests/s3-backup-test.pl} /tmp/s3-backup-test.pl"
+              , "cp ${./tests/api-test.nix} /tmp/jobs/default.nix"
+              );
+
+          # start fakes3
+          $machine->mustSucceed("fakes3 --root /tmp/s3 --port 80 &>/dev/null &");
+          $machine->waitForOpenPort("80");
+
+          $machine->mustSucceed("cd /tmp && LOGNAME=root AWS_ACCESS_KEY_ID=foo AWS_SECRET_ACCESS_KEY=bar HYDRA_DBI='dbi:Pg:dbname=hydra;user=root;' HYDRA_CONFIG=${./tests/s3-backup-test.config} perl -I ${hydra}/libexec/hydra/lib -I ${hydra.perlDeps}/lib/perl5/site_perl ./s3-backup-test.pl >&2");
         '';
   });
 }

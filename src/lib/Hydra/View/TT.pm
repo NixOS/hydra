@@ -8,17 +8,18 @@ __PACKAGE__->config(
     TEMPLATE_EXTENSION => '.tt',
     PRE_CHOMP => 1,
     POST_CHOMP => 1,
-    expose_methods => [qw/log_exists ellipsize/]);
+    expose_methods => [qw/buildLogExists buildStepLogExists/]);
 
-sub log_exists {
-    my ($self, $c, $drvPath) = @_;
-    my $x = getDrvLogPath($drvPath);
-    return defined $x;
+sub buildLogExists {
+    my ($self, $c, $build) = @_;
+    my @outPaths = map { $_->path } $build->buildoutputs->all;
+    return defined findLog($c, $build->drvpath, @outPaths);
 }
 
-sub ellipsize {
-    my ($self, $c, $s, $n) = @_;
-    return length $s <= $n ? $s : substr($s, 0, $n - 3) . "...";
+sub buildStepLogExists {
+    my ($self, $c, $step) = @_;
+    my @outPaths = map { $_->path } $step->buildstepoutputs->all;
+    return defined findLog($c, $step->drvpath, @outPaths);
 }
 
 1;

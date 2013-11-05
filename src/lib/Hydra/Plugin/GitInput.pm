@@ -20,39 +20,34 @@ sub _cloneRepo {
     mkpath($cacheDir);
     my $clonePath = $cacheDir . "/" . sha256_hex($uri);
 
-    my $stdout = ""; my $stderr = ""; my $res;
+    my $res;
     if (! -d $clonePath) {
         # Clone everything and fetch the branch.
         # TODO: Optimize the first clone by using "git init $clonePath" and "git remote add origin $uri".
-        ($res, $stdout, $stderr) = captureStdoutStderr(600, "git", "clone", "--branch", $branch, $uri, $clonePath);
-        die "error cloning git repo at `$uri':\n$stderr" if $res;
+        $res = run(cmd => ["git", "clone", "--branch", $branch, $uri, $clonePath], timeout => 600);
+        die "error cloning git repo at `$uri':\n$res->{stderr}" if $res->{status};
     }
-
-    chdir $clonePath or die $!; # !!! urgh, shouldn't do a chdir
 
     # This command forces the update of the local branch to be in the same as
     # the remote branch for whatever the repository state is.  This command mirrors
     # only one branch of the remote repository.
-    ($res, $stdout, $stderr) = captureStdoutStderr(600,
-        "git", "fetch", "-fu", "origin", "+$branch:$branch");
-    ($res, $stdout, $stderr) = captureStdoutStderr(600,
-        "git", "fetch", "-fu", "origin") if $res;
-    die "error fetching latest change from git repo at `$uri':\n$stderr" if $res;
+    $res = run(cmd => ["git", "fetch", "-fu", "origin", "+$branch:$branch"], dir => $clonePath, timeout => 600);
+    $res = run(cmd => ["git", "fetch", "-fu", "origin"], dir => $clonePath, timeout => 600) if $res->{status};
+    die "error fetching latest change from git repo at `$uri':\n$res->{stderr}" if $res->{status};
 
     # If deepClone is defined, then we look at the content of the repository
     # to determine if this is a top-git branch.
     if (defined $deepClone) {
 
         # Checkout the branch to look at its content.
-        ($res, $stdout, $stderr) = captureStdoutStderr(600, "git", "checkout", "$branch");
-        die "error checking out Git branch '$branch' at `$uri':\n$stderr" if $res;
+        $res = run(cmd => ["git", "checkout", "$branch"], dir => $clonePath);
+        die "error checking out Git branch '$branch' at `$uri':\n$res->{stderr}" if $res->{status};
 
         if (-f ".topdeps") {
             # This is a TopGit branch.  Fetch all the topic branches so
             # that builders can run "tg patch" and similar.
-            ($res, $stdout, $stderr) = captureStdoutStderr(600,
-                "tg", "remote", "--populate", "origin");
-            print STDERR "warning: `tg remote --populate origin' failed:\n$stderr" if $res;
+            $res = run(cmd => ["tg", "remote", "--populate", "origin"], dir => $clonePath, timeout => 600);
+            print STDERR "warning: `tg remote --populate origin' failed:\n$res->{stderr}" if $res->{status};
         }
     }
 
@@ -64,7 +59,6 @@ sub _parseValue {
     (my $uri, my $branch, my $deepClone) = split ' ', $value;
     $branch = defined $branch ? $branch : "master";
     return ($uri, $branch, $deepClone);
-
 }
 
 sub fetchInput {
@@ -80,19 +74,13 @@ sub fetchInput {
     my $sha256;
     my $storePath;
 
-    my ($res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("git", "rev-parse", "$branch"));
-    die "error getting revision number of Git branch '$branch' at `$uri':\n$stderr" if $res;
-
-    my ($revision) = split /\n/, $stdout;
-    die "error getting a well-formated revision number of Git branch '$branch' at `$uri':\n$stdout"
+    my $revision = grab(cmd => ["git", "rev-parse", "$branch"], dir => $clonePath, chomp => 1);
+    die "did not get a well-formated revision number of Git branch '$branch' at `$uri'"
         unless $revision =~ /^[0-9a-fA-F]+$/;
-
-    my $ref = "refs/heads/$branch";
 
     # Some simple caching: don't check a uri/branch/revision more than once.
     # TODO: Fix case where the branch is reset to a previous commit.
-    my $cachedInput ;
+    my $cachedInput;
     ($cachedInput) = $self->{db}->resultset('CachedGitInputs')->search(
         {uri => $uri, branch => $branch, revision => $revision},
         {rows => 1});
@@ -123,10 +111,7 @@ sub fetchInput {
             $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
         }
 
-        ($res, $stdout, $stderr) = captureStdoutStderr(600, "nix-prefetch-git", $clonePath, $revision);
-        die "cannot check out Git repository branch '$branch' at `$uri':\n$stderr" if $res;
-
-        ($sha256, $storePath) = split ' ', $stdout;
+        ($sha256, $storePath) = split ' ', grab(cmd => ["nix-prefetch-git", $clonePath, $revision], chomp => 1);
 
         txn_do($self->{db}, sub {
             $self->{db}->resultset('CachedGitInputs')->update_or_create(
@@ -143,12 +128,9 @@ sub fetchInput {
     # number of commits in the history of this revision (‘revCount’)
     # the output of git-describe (‘gitTag’), and the abbreviated
     # revision (‘shortRev’).
-    my $revCount = `git rev-list $revision | wc -l`; chomp $revCount;
-    die "git rev-list failed" if $? != 0;
-    my $gitTag = `git describe --always $revision`; chomp $gitTag;
-    die "git describe failed" if $? != 0;
-    my $shortRev = `git rev-parse --short $revision`; chomp $shortRev;
-    die "git rev-parse failed" if $? != 0;
+    my $revCount = scalar(split '\n', grab(cmd => ["git", "rev-list", "$revision"], dir => $clonePath));
+    my $gitTag = grab(cmd => ["git", "describe", "--always", "$revision"], dir => $clonePath, chomp => 1);
+    my $shortRev = grab(cmd => ["git", "rev-parse", "--short", "$revision"], dir => $clonePath, chomp => 1);
 
     return
         { uri => $uri
@@ -172,9 +154,7 @@ sub getCommits {
 
     my $clonePath = $self->_cloneRepo($uri, $branch, $deepClone);
 
-    my $out;
-    IPC::Run::run(["git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], \undef, \$out)
-        or die "cannot get git logs: $?";
+    my $out = grab(cmd => ["git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], dir => $clonePath);
 
     my $res = [];
     foreach my $line (split /\n/, $out) {

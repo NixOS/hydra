@@ -41,7 +41,7 @@ sub updateView {
         { name => $viewName
         , description => trim $c->request->params->{description} });
 
-    $view->viewjobs->delete_all;
+    $view->viewjobs->delete;
 
     foreach my $param (keys %{$c->request->params}) {
         next unless $param =~ /^job-(\d+)-name$/;

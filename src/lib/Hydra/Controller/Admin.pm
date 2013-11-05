@@ -34,8 +34,12 @@ sub machines : Chained('admin') PathPart('machines') Args(0) {
 
 sub clear_queue_non_current : Chained('admin') PathPart('clear-queue-non-current') Args(0) {
     my ($self, $c) = @_;
-    my $time = time();
-    $c->model('DB::Builds')->search({finished => 0, iscurrent => 0, busy => 0})->update({ finished => 1, buildstatus => 4, starttime => $time, stoptime => $time });
+    my $builds = $c->model('DB::Builds')->search(
+        { finished => 0, busy => 0
+        , id => { -not_in => \ "select build from JobsetEvalMembers where eval in (select max(id) from JobsetEvals where hasNewBuilds = 1 group by project, jobset)" }
+        });
+    my $n = cancelBuilds($c->model('DB')->schema, $builds);
+    $c->flash->{successMsg} = "$n builds have been cancelled.";
     $c->res->redirect($c->request->referer // "/admin");
 }
 
@@ -49,19 +53,11 @@ sub clearfailedcache : Chained('admin') PathPart('clear-failed-cache') Args(0) {
 
 sub clearvcscache : Chained('admin') PathPart('clear-vcs-cache') Args(0) {
     my ($self, $c) = @_;
-
-    print STDERR "Clearing path cache\n";
-    $c->model('DB::CachedPathInputs')->delete_all;
-
-    print STDERR "Clearing git cache\n";
-    $c->model('DB::CachedGitInputs')->delete_all;
-
-    print STDERR "Clearing subversion cache\n";
-    $c->model('DB::CachedSubversionInputs')->delete_all;
-
-    print STDERR "Clearing bazaar cache\n";
-    $c->model('DB::CachedBazaarInputs')->delete_all;
-
+    $c->model('DB::CachedPathInputs')->delete;
+    $c->model('DB::CachedGitInputs')->delete;
+    $c->model('DB::CachedSubversionInputs')->delete;
+    $c->model('DB::CachedBazaarInputs')->delete;
+    $c->flash->{successMsg} = "VCS caches have been cleared.";
     $c->res->redirect($c->request->referer // "/admin");
 }
 

@@ -9,7 +9,7 @@ sub buildFinished {
     my ($self, $build, $dependents) = @_;
 
     my $cfg = $self->{config}->{hipchat};
-    my @config = ref $cfg eq "ARRAY" ? @$cfg : ($cfg);
+    my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
 
@@ -37,33 +37,7 @@ sub buildFinished {
 
     return if scalar keys %rooms == 0;
 
-    # Determine who broke/fixed the build.
-    my $prevBuild = getPreviousBuild($build);
-
-    my $nrCommits = 0;
-    my %authors;
-
-    if ($prevBuild) {
-        foreach my $curInput ($build->buildinputs_builds) {
-            next unless $curInput->type eq "git";
-            my $prevInput = $prevBuild->buildinputs_builds->find({ name => $curInput->name });
-            next unless defined $prevInput;
-
-            next if $curInput->type ne $prevInput->type;
-            next if $curInput->uri ne $prevInput->uri;
-
-            my @commits;
-            foreach my $plugin (@{$self->{plugins}}) {
-                push @commits, @{$plugin->getCommits($curInput->type, $curInput->uri, $prevInput->revision, $curInput->revision)};
-            }
-
-            foreach my $commit (@commits) {
-                print STDERR "$commit->{revision} by $commit->{author}\n";
-                $authors{$commit->{author}} = $commit->{email};
-                $nrCommits++;
-            }
-        }
-    }
+    my ($authors, $nrCommits) = getResponsibleAuthors($build, $self->{plugins});
 
     # Send a message to each room.
     foreach my $roomId (keys %rooms) {
@@ -83,16 +57,15 @@ sub buildFinished {
         $msg .= " (and ${\scalar @deps} others)" if scalar @deps > 0;
         $msg .= ": <a href='$baseurl/build/${\$build->id}'>" . showStatus($build) . "</a>";
 
-        if (scalar keys %authors > 0) {
+        if (scalar keys %{$authors} > 0) {
             # FIXME: HTML escaping
-            my @x = map { "<a href='mailto:$authors{$_}'>$_</a>" } (sort keys %authors);
+            my @x = map { "<a href='mailto:$authors->{$_}'>$_</a>" } (sort keys %{$authors});
             $msg .= ", likely due to ";
             $msg .= "$nrCommits commits by " if $nrCommits > 1;
             $msg .= join(" or ", scalar @x > 1 ? join(", ", @x[0..scalar @x - 2]) : (), $x[-1]);
         }
 
         print STDERR "sending hipchat notification to room $roomId: $msg\n";
-        next;
 
         my $ua = LWP::UserAgent->new();
         my $resp = $ua->post('https://api.hipchat.com/v1/rooms/message?format=json&auth_token=' . $room->{room}->{token}, {

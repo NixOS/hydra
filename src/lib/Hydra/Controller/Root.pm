@@ -8,6 +8,7 @@ use Hydra::Helper::CatalystUtils;
 use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
 use Nix::Config;
+use Encode;
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -33,6 +34,7 @@ sub begin :Private {
     $c->stash->{inputTypes} = {
         'string' => 'String value',
         'boolean' => 'Boolean',
+        'nix' => 'Nix expression',
         'build' => 'Build output',
         'sysbuild' => 'Build output (same system)'
     };
@@ -54,12 +56,8 @@ sub index :Path :Args(0) {
     $c->stash->{template} = 'overview.tt';
     $c->stash->{projects} = [$c->model('DB::Projects')->search(isAdmin($c) ? {} : {hidden => 0}, {order_by => 'name'})];
     $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, { order_by => ['createtime DESC'], rows => 5 })];
-    $self->status_ok(
-        $c,
-        entity => [$c->model('DB::Projects')->search(isAdmin($c) ? {} : {hidden => 0}, {
-                    order_by => 'name',
-                    columns => [ 'name', 'displayname' ]
-                })]
+    $self->status_ok($c,
+        entity => $c->stash->{projects}
     );
 }
 
@@ -72,8 +70,7 @@ sub queue_GET {
     $c->stash->{flashMsg} //= $c->flash->{buildMsg};
     $self->status_ok(
         $c,
-        entity => [$c->model('DB::Builds')->search(
-            {finished => 0}, { join => ['project'], order_by => ["priority DESC", "id"], columns => [@buildListColumns], '+select' => ['project.enabled'], '+as' => ['enabled'] })]
+        entity => [$c->model('DB::Builds')->search({finished => 0}, { order_by => ["priority DESC", "id"]})]
     );
 }
 
@@ -100,22 +97,7 @@ sub status_GET {
         $c,
         entity => [ $c->model('DB::BuildSteps')->search(
             { 'me.busy' => 1, 'build.finished' => 0, 'build.busy' => 1 },
-            { join => { build => [ 'project', 'job', 'jobset' ] },
-                columns => [
-                    'me.machine',
-                    'me.system',
-                    'me.stepnr',
-                    'me.drvpath',
-                    'me.starttime',
-                    'build.id',
-                    {
-                    'build.project.name' => 'project.name',
-                    'build.jobset.name' => 'jobset.name',
-                    'build.job.name' => 'job.name'
-                    }
-                ],
-                order_by => [ 'machine' ]
-            }
+            { order_by => [ 'machine' ], join => [ 'build' ] }
         ) ]
     );
 }
@@ -150,11 +132,9 @@ sub machines :Local Args(0) {
 sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->model('DB::Builds');
-    $c->stash->{jobStatus} = $c->model('DB')->resultset('JobStatus');
-    $c->stash->{allJobsets} = $c->model('DB::Jobsets');
-    $c->stash->{allJobs} = $c->model('DB::Jobs');
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceeded');
     $c->stash->{channelBaseName} = "everything";
+    $c->stash->{total} = $c->model('DB::NrBuilds')->find('finished')->count;
 }
 
 
@@ -213,34 +193,31 @@ sub default :Path {
 sub end : ActionClass('RenderView') {
     my ($self, $c) = @_;
 
+    my @errors = map { encode_utf8($_); } @{$c->error};
+
     if (defined $c->stash->{json}) {
-        if (scalar @{$c->error}) {
-            $c->stash->{json}->{error} = join "\n", @{$c->error};
+        if (scalar @errors) {
+            $c->stash->{json}->{error} = join "\n", @errors;
             $c->clear_errors;
         }
         $c->forward('View::JSON');
     }
 
-    if (scalar @{$c->error}) {
-        $c->stash->{resource} = { errors => "$c->error" };
+    elsif (scalar @{$c->error}) {
+        $c->stash->{resource} = { error => join "\n", @{$c->error} };
         $c->stash->{template} = 'error.tt';
-        $c->stash->{errors} = $c->error;
+        $c->stash->{errors} = [@errors];
         $c->response->status(500) if $c->response->status == 200;
         if ($c->response->status >= 300) {
             $c->stash->{httpStatus} =
                 $c->response->status . " " . HTTP::Status::status_message($c->response->status);
         }
         $c->clear_errors;
-    } elsif (defined $c->stash->{resource} and
-        (ref $c->stash->{resource} eq ref {}) and
-        defined $c->stash->{resource}->{error}) {
-        $c->stash->{template} = 'error.tt';
-        $c->stash->{httpStatus} =
-            $c->response->status . " " . HTTP::Status::status_message($c->response->status);
     }
 
-    $c->forward('serialize');
+    $c->forward('serialize') if defined $c->stash->{resource};
 }
+
 
 sub serialize : ActionClass('Serialize') { }
 
@@ -282,6 +259,7 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
     my $path = queryPathFromHashPart($hash);
 
     if (!$path) {
+        $c->response->status(404);
         $c->response->content_type('text/plain');
         $c->stash->{plain}->{data} = "does not exist\n";
         $c->forward('Hydra::View::Plain');

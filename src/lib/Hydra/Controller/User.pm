@@ -182,15 +182,11 @@ sub currentUser :Path('/current-user') :ActionClass('REST') { }
 sub currentUser_GET {
     my ($self, $c) = @_;
 
-    requireLogin($c) if !$c->user_exists;
+    requireUser($c);
 
     $self->status_ok(
         $c,
-        entity => $c->model('DB::Users')->find({ 'me.username' => $c->user->username}, {
-          columns => [ "me.fullname", "me.emailaddress", "me.username", "userroles.role" ]
-        , join => [ "userroles" ]
-        , collapse => 1
-        })
+        entity => $c->model("DB::Users")->find($c->user->username)
     );
 }
 
@@ -198,9 +194,9 @@ sub currentUser_GET {
 sub user :Chained('/') PathPart('user') CaptureArgs(1) {
     my ($self, $c, $userName) = @_;
 
-    requireLogin($c) if !$c->user_exists;
+    requireUser($c);
 
-    error($c, "You do not have permission to edit other users.")
+    accessDenied($c, "You do not have permission to edit other users.")
         if $userName ne $c->user->username && !isAdmin($c);
 
     $c->stash->{user} = $c->model('DB::Users')->find($userName)
@@ -287,7 +283,7 @@ sub edit_POST {
         }
 
         if (isAdmin($c)) {
-            $user->userroles->delete_all;
+            $user->userroles->delete;
             $user->userroles->create({ role => $_})
                 foreach paramToList($c, "roles");
         }
@@ -299,6 +295,21 @@ sub edit_POST {
         backToReferer($c);
     } else {
         $self->status_no_content($c);
+    }
+}
+
+
+sub dashboard :Chained('user') :Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'dashboard.tt';
+
+    # Get the N most recent builds for each starred job.
+    $c->stash->{starredJobs} = [];
+    foreach my $j ($c->stash->{user}->starredjobs->search({}, { order_by => ['project', 'jobset', 'job'] })) {
+        my @builds = $j->job->builds->search(
+            { },
+            { rows => 20, order_by => "id desc" });
+        push $c->stash->{starredJobs}, { job => $j->job, builds => [@builds] };
     }
 }
 

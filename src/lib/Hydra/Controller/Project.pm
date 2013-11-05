@@ -1,5 +1,6 @@
 package Hydra::Controller::Project;
 
+use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
@@ -9,35 +10,15 @@ use Hydra::Helper::CatalystUtils;
 
 sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
     my ($self, $c, $projectName) = @_;
+    $c->stash->{params}->{name} //= $projectName;
 
-    my $project = $c->model('DB::Projects')->find($projectName, { columns => [
-      "me.name",
-      "me.displayName",
-      "me.description",
-      "me.enabled",
-      "me.hidden",
-      "me.homepage",
-      "owner.username",
-      "owner.fullname",
-      "views.name",
-      "releases.name",
-      "releases.timestamp",
-      "jobsets.name",
-    ], join => [ 'owner', 'views', 'releases', 'jobsets' ], order_by => { -desc => "releases.timestamp" }, collapse => 1 });
+    $c->stash->{project} = $c->model('DB::Projects')->find($projectName, {
+        join => [ 'releases' ],
+        order_by => { -desc => "releases.timestamp" },
+    });
 
-    if ($project) {
-        $c->stash->{project} = $project;
-    } else {
-        if ($c->action->name eq "project" and $c->request->method eq "PUT") {
-            $c->stash->{projectName} = $projectName;
-        } else {
-            $self->status_not_found(
-                $c,
-                message => "Project $projectName doesn't exist."
-            );
-            $c->detach;
-        }
-    }
+    notFound($c, "Project ‘$projectName’ doesn't exist.")
+        if !$c->stash->{project} && !($c->action->name eq "project" and $c->request->method eq "PUT");
 }
 
 
@@ -53,55 +34,27 @@ sub project_GET {
     $c->stash->{releases} = [$c->stash->{project}->releases->search({},
         {order_by => ["timestamp DESC"]})];
 
-    $self->status_ok(
-        $c,
-        entity => $c->stash->{project}
-    );
+    $self->status_ok($c, entity => $c->stash->{project});
 }
 
 sub project_PUT {
     my ($self, $c) = @_;
 
     if (defined $c->stash->{project}) {
-        error($c, "Cannot rename project `$c->stash->{params}->{oldName}' over existing project `$c->stash->{project}->name") if defined $c->stash->{params}->{oldName};
         requireProjectOwner($c, $c->stash->{project});
+
         txn_do($c->model('DB')->schema, sub {
             updateProject($c, $c->stash->{project});
         });
 
-        if ($c->req->looks_like_browser) {
-            $c->res->redirect($c->uri_for($self->action_for("project"), [$c->stash->{project}->name]) . "#tabs-configuration");
-        } else {
-            $self->status_no_content($c);
-        }
-    } elsif (defined $c->stash->{params}->{oldName}) {
-        my $project = $c->model('DB::Projects')->find($c->stash->{params}->{oldName});
-        if (defined $project) {
-            requireProjectOwner($c, $project);
-            txn_do($c->model('DB')->schema, sub {
-                updateProject($c, $project);
-            });
+        my $uri = $c->uri_for($self->action_for("project"), [$c->stash->{project}->name]) . "#tabs-configuration";
+        $self->status_ok($c, entity => { redirect => "$uri" });
 
-            my $uri = $c->uri_for($self->action_for("project"), [$project->name]);
+        $c->flash->{successMsg} = "The project configuration has been updated.";
+    }
 
-            if ($c->req->looks_like_browser) {
-                $c->res->redirect($uri . "#tabs-configuration");
-            } else {
-                $self->status_created(
-                    $c,
-                    location => "$uri",
-                    entity => { name => $project->name, uri => "$uri", type => "project" }
-                );
-            }
-        } else {
-            $self->status_not_found(
-                $c,
-                message => "Project $c->stash->{params}->{oldName} doesn't exist."
-            );
-        }
-    } else {
+    else {
         requireMayCreateProjects($c);
-        error($c, "Invalid project name: ‘$c->stash->{projectName}’") if $c->stash->{projectName} !~ /^$projectNameRE$/;
 
         my $project;
         txn_do($c->model('DB')->schema, sub {
@@ -110,21 +63,32 @@ sub project_PUT {
             # valid.  Idem for the owner.
             my $owner = $c->user->username;
             $project = $c->model('DB::Projects')->create(
-                {name => $c->stash->{projectName}, displayname => "", owner => $owner});
+                { name => ".tmp", displayname => "", owner => $owner });
             updateProject($c, $project);
         });
 
         my $uri = $c->uri_for($self->action_for("project"), [$project->name]);
-        if ($c->req->looks_like_browser) {
-            $c->res->redirect($uri . "#tabs-configuration");
-        } else {
-            $self->status_created(
-                $c,
-                location => "$uri",
-                entity => { name => $project->name, uri => "$uri", type => "project" }
-            );
-        }
+        $self->status_created($c,
+            location => "$uri",
+            entity => { name => $project->name, uri => "$uri", redirect => "$uri", type => "project" });
     }
+}
+
+sub project_DELETE {
+    my ($self, $c) = @_;
+
+    requireProjectOwner($c, $c->stash->{project});
+
+    txn_do($c->model('DB')->schema, sub {
+        $c->stash->{project}->jobsetevals->delete;
+        $c->stash->{project}->builds->delete;
+        $c->stash->{project}->delete;
+    });
+
+    my $uri = $c->res->redirect($c->uri_for("/"));
+    $self->status_ok($c, entity => { redirect => "$uri" });
+
+    $c->flash->{successMsg} = "The project has been deleted.";
 }
 
 
@@ -138,36 +102,10 @@ sub edit : Chained('projectChain') PathPart Args(0) {
 }
 
 
-sub submit : Chained('projectChain') PathPart Args(0) {
-    my ($self, $c) = @_;
-
-    requirePost($c);
-    if (($c->request->params->{submit} // "") eq "delete") {
-        txn_do($c->model('DB')->schema, sub {
-            $c->stash->{project}->jobsetevals->delete_all;
-            $c->stash->{project}->builds->delete_all;
-            $c->stash->{project}->delete;
-        });
-        return $c->res->redirect($c->uri_for("/"));
-    }
-
-    my $newName = trim $c->stash->{params}->{name};
-    my $oldName = trim $c->stash->{project}->name;
-    unless ($oldName eq $newName) {
-        $c->stash->{params}->{oldName} = $oldName;
-        $c->stash->{projectName} = $newName;
-        undef $c->stash->{project};
-    }
-    project_PUT($self, $c);
-}
-
-
 sub requireMayCreateProjects {
     my ($c) = @_;
-
-    requireLogin($c) if !$c->user_exists;
-
-    error($c, "Only administrators or authorised users can perform this operation.")
+    requireUser($c);
+    accessDenied($c, "Only administrators or authorised users can perform this operation.")
         unless $c->check_user_roles('admin') || $c->check_user_roles('create-projects');
 }
 
@@ -183,15 +121,6 @@ sub create : Path('/create-project') {
 }
 
 
-sub create_submit : Path('/create-project/submit') {
-    my ($self, $c) = @_;
-
-    $c->stash->{projectName} = trim $c->stash->{params}->{name};
-
-    project_PUT($self, $c);
-}
-
-
 sub create_jobset : Chained('projectChain') PathPart('create-jobset') Args(0) {
     my ($self, $c) = @_;
 
@@ -200,15 +129,7 @@ sub create_jobset : Chained('projectChain') PathPart('create-jobset') Args(0) {
     $c->stash->{template} = 'edit-jobset.tt';
     $c->stash->{create} = 1;
     $c->stash->{edit} = 1;
-}
-
-
-sub create_jobset_submit : Chained('projectChain') PathPart('create-jobset/submit') Args(0) {
-    my ($self, $c) = @_;
-
-    $c->stash->{jobsetName} = trim $c->stash->{params}->{name};
-
-    Hydra::Controller::Jobset::jobset_PUT($self, $c);
+    $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 }
 
 
@@ -218,15 +139,18 @@ sub updateProject {
     my $owner = $project->owner;
     if ($c->check_user_roles('admin') and defined $c->stash->{params}->{owner}) {
         $owner = trim $c->stash->{params}->{owner};
-        error($c, "Invalid owner: $owner")
-            unless defined $c->model('DB::Users')->find({username => $owner});
+        error($c, "The user name ‘$owner’ does not exist.")
+            unless defined $c->model('DB::Users')->find($owner);
     }
 
-    my $projectName = $c->stash->{projectName} or $project->name;
-    error($c, "Invalid project name: ‘$projectName’") if $projectName !~ /^$projectNameRE$/;
+    my $projectName = $c->stash->{params}->{name};
+    error($c, "Invalid project identifier ‘$projectName’.") if $projectName !~ /^$projectNameRE$/;
+
+    error($c, "Cannot rename project to ‘$projectName’ since that identifier is already taken.")
+        if $projectName ne $project->name && defined $c->model('DB::Projects')->find($projectName);
 
     my $displayName = trim $c->stash->{params}->{displayname};
-    error($c, "Invalid display name: $displayName") if $displayName eq "";
+    error($c, "You must specify a display name.") if $displayName eq "";
 
     $project->update(
         { name => $projectName
@@ -244,10 +168,6 @@ sub updateProject {
 sub get_builds : Chained('projectChain') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->stash->{project}->builds;
-    $c->stash->{jobStatus} = $c->model('DB')->resultset('JobStatusForProject')
-        ->search({}, {bind => [$c->stash->{project}->name]});
-    $c->stash->{allJobsets} = $c->stash->{project}->jobsets;
-    $c->stash->{allJobs} = $c->stash->{project}->jobs;
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForProject')
         ->search({}, {bind => [$c->stash->{project}->name]});
     $c->stash->{channelBaseName} = $c->stash->{project}->name;

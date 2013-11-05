@@ -7,13 +7,7 @@ let
 
   baseDir = "/var/lib/hydra";
 
-  hydraConf = pkgs.writeScript "hydra.conf"
-    ''
-      using_frontend_proxy 1
-      base_uri ${cfg.hydraURL}
-      notification_sender ${cfg.notificationSender}
-      max_servers 25
-    '';
+  hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
   env =
     { NIX_REMOTE = "daemon";
@@ -28,7 +22,7 @@ let
   serverEnv = env //
     { HYDRA_LOGO = if cfg.logo != null then cfg.logo else "";
       HYDRA_TRACKER = cfg.tracker;
-    };
+    } // (optionalAttrs cfg.debugServer { DBIC_TRACE = 1; });
 in
 
 {
@@ -61,6 +55,15 @@ in
       hydraURL = mkOption {
         description = ''
           The base URL for the Hydra webserver instance. Used for links in emails.
+        '';
+      };
+
+      listenHost = mkOption {
+        default = "*";
+        example = "localhost";
+        description = ''
+          The hostname or address to listen on or <literal>*</literal> to listen
+          on all interfaces.
         '';
       };
 
@@ -112,6 +115,17 @@ in
         '';
       };
 
+      debugServer = mkOption {
+        default = false;
+        type = types.bool;
+        description = "Whether to run the server in debug mode";
+      };
+
+      extraConfig = mkOption {
+        type = types.lines;
+        description = "Extra lines for the hydra config";
+      };
+
     };
 
   };
@@ -120,6 +134,14 @@ in
   ###### implementation
 
   config = mkIf cfg.enable {
+    services.hydra.extraConfig =
+      ''
+        using_frontend_proxy 1
+        base_uri ${cfg.hydraURL}
+        notification_sender ${cfg.notificationSender}
+        max_servers 25
+      '';
+
     environment.systemPackages = [ cfg.hydra ];
 
     users.extraUsers.hydra =
@@ -151,14 +173,36 @@ in
 
     systemd.services."hydra-init" =
       { wantedBy = [ "multi-user.target" ];
+        requires = [ "postgresql.service" ];
+        after = [ "postgresql.service" ];
         environment = env;
         script = ''
           mkdir -p ${baseDir}/data
           chown hydra ${baseDir}/data
           ln -sf ${hydraConf} ${baseDir}/data/hydra.conf
+          pass=$(HOME=/root ${pkgs.openssl}/bin/openssl rand -base64 32)
+          if [ ! -f ${baseDir}/.pgpass ]; then
+              ${config.services.postgresql.package}/bin/psql postgres << EOF
+          CREATE USER hydra PASSWORD '$pass';
+          EOF
+              ${config.services.postgresql.package}/bin/createdb -O hydra hydra
+              cat > ${baseDir}/.pgpass-tmp << EOF
+          localhost:*:hydra:hydra:$pass
+          EOF
+              chown hydra ${baseDir}/.pgpass-tmp
+              chmod 600 ${baseDir}/.pgpass-tmp
+              mv ${baseDir}/.pgpass-tmp ${baseDir}/.pgpass
+          fi
           ${pkgs.shadow}/bin/su hydra -c ${cfg.hydra}/bin/hydra-init
+          ${config.services.postgresql.package}/bin/psql hydra << EOF
+            BEGIN;
+            INSERT INTO Users(userName, emailAddress, password) VALUES ('admin', '${cfg.notificationSender}', '$(echo -n $pass | sha1sum | cut -c1-40)');
+            INSERT INTO UserRoles(userName, role) values('admin', 'admin');
+            COMMIT;
+          EOF
         '';
         serviceConfig.Type = "oneshot";
+        serviceConfig.RemainAfterExit = true;
       };
     
     systemd.services."hydra-server" =
@@ -167,7 +211,7 @@ in
         after = [ "hydra-init.service" ];
         environment = serverEnv;
         serviceConfig =
-          { ExecStart = "@${cfg.hydra}/bin/hydra-server hydra-server -f -h \* --max_spare_servers 5 --max_servers 25 --max_requests 100";
+          { ExecStart = "@${cfg.hydra}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' --max_spare_servers 5 --max_servers 25 --max_requests 100${optionalString cfg.debugServer " -d"}";
             User = "hydra";
             Restart = "always";
           };
@@ -177,7 +221,7 @@ in
       { wantedBy = [ "multi-user.target" ];
         wants = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
-        path = [ pkgs.nettools pkgs.ssmtp ];
+        path = [ pkgs.nettools ];
         environment = env;
         serviceConfig =
           { ExecStartPre = "${cfg.hydra}/bin/hydra-queue-runner --unlock";
@@ -191,7 +235,7 @@ in
       { wantedBy = [ "multi-user.target" ];
         wants = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
-        path = [ pkgs.nettools pkgs.ssmtp ];
+        path = [ pkgs.nettools ];
         environment = env;
         serviceConfig =
           { ExecStart = "@${cfg.hydra}/bin/hydra-evaluator hydra-evaluator";
@@ -226,9 +270,10 @@ in
           '';
 
         compressLogs = pkgs.writeScript "compress-logs" ''
-            #! ${pkgs.stdenv.shell} -e
-           touch -d 'last month' r
-           find /nix/var/log/nix/drvs -type f -a ! -newer r -name '*.drv' | xargs bzip2 -v
+           #! ${pkgs.stdenv.shell} -e
+           find /nix/var/log/nix/drvs \
+                -type f -a ! -newermt 'last month' \
+                -name '*.drv' -exec bzip2 -v {} +
          '';
       in
         [ "*/5 * * * * root  ${checkSpace} &> ${baseDir}/data/checkspace.log"

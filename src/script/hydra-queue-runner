@@ -9,6 +9,7 @@ use Hydra::Helper::Nix;
 use Hydra::Model::DB;
 use IO::Handle;
 use Nix::Store;
+use Set::Scalar;
 
 chdir Hydra::Model::DB::getHydraPath or die;
 my $db = Hydra::Model::DB->new();
@@ -36,7 +37,7 @@ sub unlockDeadBuilds {
             }
             if ($unlock) {
                 print "build ", $build->id, " pid $pid died, unlocking\n";
-                $build->update({ busy => 0, locker => ""});
+                $build->update({ busy => 0, locker => "" });
                 $build->buildsteps->search({ busy => 1 })->update({ busy => 0, status => 4, stoptime => time });
             }
         }
@@ -52,11 +53,22 @@ sub findBuildDependencyInQueue {
     my @deps = grep { /\.drv$/ && $_ ne $build->drvpath } computeFSClosure(0, 0, $build->drvpath);
     return unless scalar @deps > 0;
     foreach my $d (@deps) {
-        my $b = $buildsByDrv->{$d};
-        next unless defined $b;
-        return $db->resultset('Builds')->find($b);
+        my $bs = $buildsByDrv->{$d};
+        next unless defined $bs;
+        return $db->resultset('Builds')->find((@$bs)[0]);
     }
     return undef;
+}
+
+
+sub blockBuilds {
+    my ($buildsByDrv, $blockedBuilds, $build) = @_;
+    my @rdeps = grep { /\.drv$/ && $_ ne $build->drvpath } computeFSClosure(1, 0, $build->drvpath);
+    foreach my $drv (@rdeps) {
+        my $bs = $buildsByDrv->{$drv};
+        next if !defined $bs;
+        $blockedBuilds->insert($_) foreach @$bs;
+    }
 }
 
 
@@ -70,27 +82,34 @@ sub checkBuilds {
     my %maxConcurrent;
 
     foreach my $machineName (keys %{$machines}) {
-        foreach my $system (${$machines}{$machineName}{'systemTypes'}) {
+        foreach my $system (@{${$machines}{$machineName}{'systemTypes'}}) {
             $maxConcurrent{$system} = (${$machines}{$machineName}{'maxJobs'} or 0) + ($maxConcurrent{$system} or 0)
         }
     }
 
     txn_do($db, sub {
 
-        # Cache scheduled by derivation path to speed up
+        # Cache scheduled builds by derivation path to speed up
         # findBuildDependencyInQueue.
         my $buildsByDrv = {};
-        $buildsByDrv->{$_->drvpath} = $_->id
-            foreach $db->resultset('Builds')->search({ finished => 0, enabled => 1 }, { join => ['project'] });
+        push @{$buildsByDrv->{$_->drvpath}}, $_->id
+            foreach $db->resultset('Builds')->search({ finished => 0 });
+
+        # Builds in the queue of which a dependency is already building.
+        my $blockedBuilds = Set::Scalar->new();
+        blockBuilds($buildsByDrv, $blockedBuilds, $_)
+            foreach $db->resultset('Builds')->search({ finished => 0, busy => 1 });
 
         # Get the system types for the runnable builds.
         my @systemTypes = $db->resultset('Builds')->search(
-            { finished => 0, busy => 0, enabled => 1 },
+            { finished => 0, busy => 0 },
             { join => ['project'], select => ['system'], as => ['system'], distinct => 1 });
 
+        # Get the total number of scheduling shares.
+        my $totalShares = getTotalShares($db);
+
         # For each system type, select up to the maximum number of
-        # concurrent build for that system type.  Choose the highest
-        # priority builds first, then the oldest builds.
+        # concurrent build for that system type.
         foreach my $system (@systemTypes) {
             # How many builds are already currently executing for this
             # system type?
@@ -101,51 +120,111 @@ sub checkBuilds {
             my $max = defined $systemTypeInfo ? $systemTypeInfo->maxconcurrent : $maxConcurrent{$system->system} // 2;
 
             my $extraAllowed = $max - $nrActive;
-            $extraAllowed = 0 if $extraAllowed < 0;
+            next if $extraAllowed <= 0;
 
-            # Select the highest-priority builds to start.
-            my @builds = $extraAllowed == 0 ? () : $db->resultset('Builds')->search(
-                { finished => 0, busy => 0, system => $system->system, enabled => 1 },
-                { join => ['project'], order_by => ["priority DESC", "id"] });
+            print STDERR "starting at most $extraAllowed builds for system ${\$system->system}\n";
 
-            my $started = 0;
-            foreach my $build (@builds) {
-                # Find a dependency of $build that has no queued
-                # dependencies itself.  This isn't strictly necessary,
-                # but it ensures that Nix builds are done as part of
-                # their corresponding Hydra builds, rather than as a
-                # dependency of some other Hydra build.
-                while (my $dep = findBuildDependencyInQueue($buildsByDrv, $build)) {
-                    $build = $dep;
+            my $timeSpentPerJobset;
+
+            j: while ($extraAllowed-- > 0) {
+
+                my @runnableJobsets = $db->resultset('Builds')->search(
+                    { finished => 0, busy => 0, system => $system->system },
+                    { select => ['project', 'jobset'], distinct => 1 });
+
+                next if @runnableJobsets == 0;
+
+                my $windowSize = 24 * 3600;
+                my $costPerBuild = 30;
+                my $totalWindowSize = $windowSize * $max;
+
+                my @res;
+
+                foreach my $b (@runnableJobsets) {
+                    my $jobset = $db->resultset('Jobsets')->find($b->get_column('project'), $b->get_column('jobset')) or die;
+
+                    my $timeSpent = $timeSpentPerJobset->{$b->get_column('project')}->{$b->get_column('jobset')};
+
+                    if (!defined $timeSpent) {
+                        $timeSpent = $jobset->builds->search(
+                            { },
+                            { where => \ ("(finished = 0 or (me.stoptime >= " . (time() - $windowSize) . "))")
+                            , join => 'buildsteps'
+                            , select => \ "sum(coalesce(buildsteps.stoptime, ${\time}) - buildsteps.starttime)"
+                            , as => "sum" })->single->get_column("sum") // 0;
+
+                        # Add a 30s penalty for each started build.  This
+                        # is to account for jobsets that have running
+                        # builds but no build steps yet.
+                        $timeSpent += $jobset->builds->search({ finished => 0, busy => 1 })->count * $costPerBuild;
+
+                        $timeSpentPerJobset->{$b->get_column('project')}->{$b->get_column('jobset')} = $timeSpent;
+                    }
+
+                    my $share = $jobset->schedulingshares || 1; # prevent division by zero
+                    my $used = $timeSpent / ($totalWindowSize * ($share / $totalShares));
+
+                    #printf STDERR "%s:%s: %d s, total used = %.2f%%, share used = %.2f%%\n", $jobset->get_column('project'), $jobset->name, $timeSpent, $timeSpent / $totalWindowSize * 100, $used * 100;
+
+                    push @res, { jobset => $jobset, used => $used };
                 }
-                next if $build->busy;
 
-                my $logfile = getcwd . "/logs/" . $build->id;
-                mkdir(dirname $logfile);
-                unlink($logfile);
-                $build->update(
-                    { busy => 1
-                    , locker => $$
-                    , logfile => $logfile
-                    , starttime => time()
-                    });
-                push @buildsStarted, $build;
+                foreach my $r (sort { $a->{used} <=> $b->{used} } @res) {
+                    my $jobset = $r->{jobset};
+                    #print STDERR "selected ", $jobset->get_column('project'), ':', $jobset->name, "\n";
 
-                last if ++$started >= $extraAllowed;
-            }
+                    # Select the highest-priority build for this jobset.
+                    my @builds = $jobset->builds->search(
+                        { finished => 0, busy => 0, system => $system->system },
+                        { order_by => ["priority DESC", "id"] });
 
-            if ($started > 0) {
-                print STDERR "system type `", $system->system,
-                    "': $nrActive active, $max allowed, started $started builds\n";
+                    foreach my $build (@builds) {
+                        next if $blockedBuilds->has($build->id);
+
+                        # Find a dependency of $build that has no queued
+                        # dependencies itself.  This isn't strictly necessary,
+                        # but it ensures that Nix builds are done as part of
+                        # their corresponding Hydra builds, rather than as a
+                        # dependency of some other Hydra build.
+                        while (my $dep = findBuildDependencyInQueue($buildsByDrv, $build)) {
+                            $build = $dep;
+                        }
+                        next if $build->busy;
+
+                        printf STDERR "starting build %d (%s:%s:%s) on %s; jobset at %.2f%% of its share\n", 
+                            $build->id, $build->project->name, $build->jobset->name, $build->job->name, $build->system, $r->{used} * 100;
+
+                        my $logfile = getcwd . "/logs/" . $build->id;
+                        mkdir(dirname $logfile);
+                        unlink($logfile);
+                        $build->update(
+                            { busy => 1
+                            , locker => $$
+                            , logfile => $logfile
+                            });
+                        push @buildsStarted, $build;
+
+                        $timeSpentPerJobset->{$jobset->get_column('project')}->{$jobset->name} += $costPerBuild;
+
+                        blockBuilds($buildsByDrv, $blockedBuilds, $build);
+
+                        next j;
+                    }
+                }
+
+                last; # nothing found, give up on this system type
             }
         }
+
+        $lastTime = time();
+
+        $_->update({ starttime => time() }) foreach @buildsStarted;
     });
 
     # Actually start the builds we just selected.  We need to do this
     # outside the transaction in case it aborts or something.
     foreach my $build (@buildsStarted) {
         my $id = $build->id;
-        print "starting build $id (", $build->project->name, ":", $build->jobset->name, ':', $build->job->name, ") on ", $build->system, "\n";
         eval {
             my $logfile = $build->logfile;
             my $child = fork();
@@ -164,9 +243,7 @@ sub checkBuilds {
         if ($@) {
             warn $@;
             txn_do($db, sub {
-                $build->busy(0);
-                $build->locker($$);
-                $build->update;
+                $build->update({ busy => 0, locker => $$ });
             });
         }
     }
@@ -187,8 +264,6 @@ while (1) {
         unlockDeadBuilds;
 
         checkBuilds;
-
-        $lastTime = time();
     };
     warn $@ if $@;
 

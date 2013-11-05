@@ -35,18 +35,18 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
 
 
 sub findBuildStepByOutPath {
-    my ($self, $c, $path, $status) = @_;
+    my ($self, $c, $path) = @_;
     return $c->model('DB::BuildSteps')->search(
-        { path => $path, busy => 0, status => $status },
-        { join => ["buildstepoutputs"], order_by => ["stopTime"], limit => 1 })->single;
+        { path => $path, busy => 0 },
+        { join => ["buildstepoutputs"], order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
 
 sub findBuildStepByDrvPath {
-    my ($self, $c, $drvPath, $status) = @_;
+    my ($self, $c, $drvPath) = @_;
     return $c->model('DB::BuildSteps')->search(
-        { drvpath => $drvPath, busy => 0, status => $status },
-        { order_by => ["stopTime"], limit => 1 })->single;
+        { drvpath => $drvPath, busy => 0 },
+        { order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
 
@@ -60,7 +60,6 @@ sub build_GET {
     $c->stash->{template} = 'build.tt';
     $c->stash->{available} = all { isValidPath($_->path) } $build->buildoutputs->all;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
-    $c->stash->{flashMsg} = $c->flash->{buildMsg};
 
     if (!$build->finished && $build->busy) {
         $c->stash->{logtext} = read_file($build->logfile, err_mode => 'quiet') // "";
@@ -68,8 +67,7 @@ sub build_GET {
 
     if ($build->finished && $build->iscachedbuild) {
         my $path = ($build->buildoutputs)[0]->path or die;
-        my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path,
-            $build->buildstatus == 0 || $build->buildstatus == 6 ? 0 : 1);
+        my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path);
         $c->stash->{cachedBuild} = $cachedBuildStep->build if defined $cachedBuildStep;
     }
 
@@ -95,25 +93,16 @@ sub build_GET {
 
     # Get the first eval of which this build was a part.
     ($c->stash->{nrEvals}) = $c->stash->{build}->jobsetevals->search({ hasnewbuilds => 1 })->count;
-    ($c->stash->{eval}) = $c->stash->{build}->jobsetevals->search(
+    $c->stash->{eval} = $c->stash->{build}->jobsetevals->search(
         { hasnewbuilds => 1},
-        { limit => 1, order_by => ["id"] });
+        { rows => 1, order_by => ["id"] })->single;
     $self->status_ok(
         $c,
-        entity => $c->model('DB::Builds')->find($build->id,{
-                columns => [
-                    'id',
-                    'finished',
-                    'timestamp',
-                    'buildstatus',
-                    'job',
-                    'project',
-                    'jobset',
-                    'starttime',
-                    'stoptime',
-                ]
-            })
+        entity => $build
     );
+
+    # If this is an aggregate build, get its constituents.
+    $c->stash->{constituents} = [$c->stash->{build}->constituents_->search({}, {order_by => ["job"]})];
 }
 
 
@@ -125,35 +114,43 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
 
     $c->stash->{step} = $step;
 
-    showLog($c, $step->drvpath, $mode);
+    showLog($c, $mode, $step->drvpath, map { $_->path } $step->buildstepoutputs->all);
 }
 
 
 sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
-    showLog($c, $c->stash->{build}->drvpath, $mode);
+    showLog($c, $mode, $c->stash->{build}->drvpath, map { $_->path } $c->stash->{build}->buildoutputs->all);
 }
 
 
 sub showLog {
-    my ($c, $drvPath, $mode) = @_;
+    my ($c, $mode, $drvPath, @outPaths) = @_;
 
-    my $logPath = getDrvLogPath($drvPath);
+    my $logPath = findLog($c, $drvPath, @outPaths);
 
     notFound($c, "The build log of derivation ‘$drvPath’ is not available.") unless defined $logPath;
 
+    my $size = stat($logPath)->size;
+    error($c, "This build log is too big to display ($size bytes).")
+        if $size >= 64 * 1024 * 1024;
+
     if (!$mode) {
         # !!! quick hack
-        my $pipeline = "nix-store -l $drvPath"
+        my $pipeline = ($logPath =~ /.bz2$/ ? "bzip2 -d < $logPath" : "cat $logPath")
             . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
             . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " - | tail -n +2";
         $c->stash->{template} = 'log.tt';
-        $c->stash->{logtext} = `$pipeline`;
+        $c->stash->{logtext} = `ulimit -t 5 ; $pipeline`;
     }
 
     elsif ($mode eq "raw") {
-        $c->stash->{'plain'} = { data => (scalar logContents($drvPath)) || " " };
-        $c->forward('Hydra::View::Plain');
+        if ($logPath !~ /.bz2$/) {
+            $c->serve_static_file($logPath);
+        } else {
+            $c->stash->{'plain'} = { data => (scalar logContents($logPath)) || " " };
+            $c->forward('Hydra::View::Plain');
+        }
     }
 
     elsif ($mode eq "tail-reload") {
@@ -162,12 +159,12 @@ sub showLog {
         $c->stash->{url} = $url;
         $c->stash->{reload} = !$c->stash->{build}->finished && $c->stash->{build}->busy;
         $c->stash->{title} = "";
-        $c->stash->{contents} = (scalar logContents($drvPath, 50)) || " ";
+        $c->stash->{contents} = (scalar logContents($logPath, 50)) || " ";
         $c->stash->{template} = 'plain-reload.tt';
     }
 
     elsif ($mode eq "tail") {
-        $c->stash->{'plain'} = { data => (scalar logContents($drvPath, 50)) || " " };
+        $c->stash->{'plain'} = { data => (scalar logContents($logPath, 50)) || " " };
         $c->forward('Hydra::View::Plain');
     }
 
@@ -238,6 +235,21 @@ sub download : Chained('buildChain') PathPart {
 }
 
 
+sub output : Chained('buildChain') PathPart Args(1) {
+    my ($self, $c, $outputName) = @_;
+    my $build = $c->stash->{build};
+
+    error($c, "This build is not finished yet.") unless $build->finished;
+    my $output = $build->buildoutputs->find({name => $outputName});
+    notFound($c, "This build has no output named ‘$outputName’") unless defined $output;
+    error($c, "Output is not available.") unless isValidPath $output->path;
+
+    $c->response->header('Content-Disposition', "attachment; filename=\"build-${\$build->id}-${\$outputName}.nar.bz2\"");
+    $c->stash->{current_view} = 'NixNAR';
+    $c->stash->{storePath} = $output->path;
+}
+
+
 # Redirect to a download with the given type.  Useful when you want to
 # link to some build product of the latest build (i.e. in conjunction
 # with the .../latest redirect).
@@ -269,7 +281,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
     notFound($c, "Product $path has disappeared.") unless -e $path;
 
     # Sanitize $path to prevent shell injection attacks.
-    $path =~ /^\/[\/[A-Za-z0-9_\-\.=]+$/ or die "Filename contains illegal characters.\n";
+    $path =~ /^\/[\/[A-Za-z0-9_\-\.=+:]+$/ or die "Filename contains illegal characters.\n";
 
     # FIXME: don't use shell invocations below.
 
@@ -339,8 +351,8 @@ sub getDependencyGraph {
             { path => $path
             , name => $name
             , buildStep => $runtime
-                ? findBuildStepByOutPath($self, $c, $path, 0)
-                : findBuildStepByDrvPath($self, $c, $path, 0)
+                ? findBuildStepByOutPath($self, $c, $path)
+                : findBuildStepByDrvPath($self, $c, $path)
             };
         $$done{$path} = $node;
         my @refs;
@@ -409,49 +421,22 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
 
 sub restart : Chained('buildChain') PathPart Args(0) {
     my ($self, $c) = @_;
-
     my $build = $c->stash->{build};
-
     requireProjectOwner($c, $build->project);
-
-    my $drvpath = $build->drvpath;
-    error($c, "This build cannot be restarted.")
-        unless $build->finished && -f $drvpath;
-
-    restartBuild($c->model('DB')->schema, $build);
-
-    $c->flash->{buildMsg} = "Build has been restarted.";
-
+    my $n = restartBuilds($c->model('DB')->schema, $c->model('DB::Builds')->search({ id => $build->id }));
+    error($c, "This build cannot be restarted.") if $n != 1;
+    $c->flash->{successMsg} = "Build has been restarted.";
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }
 
 
 sub cancel : Chained('buildChain') PathPart Args(0) {
     my ($self, $c) = @_;
-
     my $build = $c->stash->{build};
-
     requireProjectOwner($c, $build->project);
-
-    txn_do($c->model('DB')->schema, sub {
-        error($c, "This build cannot be cancelled.")
-            if $build->finished || $build->busy;
-
-        # !!! Actually, it would be nice to be able to cancel busy
-        # builds as well, but we would have to send a signal or
-        # something to the build process.
-
-        my $time = time();
-        $build->update(
-            { finished => 1, busy => 0
-            , iscachedbuild => 0, buildstatus => 4 # = cancelled
-            , starttime => $time
-            , stoptime => $time
-            });
-    });
-
-    $c->flash->{buildMsg} = "Build has been cancelled.";
-
+    my $n = cancelBuilds($c->model('DB')->schema, $c->model('DB::Builds')->search({ id => $build->id }));
+    error($c, "This build cannot be cancelled.") if $n != 1;
+    $c->flash->{successMsg} = "Build has been cancelled.";
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }
 
@@ -472,7 +457,7 @@ sub keep : Chained('buildChain') PathPart Args(1) {
         $build->update({keep => $keep});
     });
 
-    $c->flash->{buildMsg} =
+    $c->flash->{successMsg} =
         $keep ? "Build will be kept." : "Build will not be kept.";
 
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
@@ -502,86 +487,9 @@ sub add_to_release : Chained('buildChain') PathPart('add-to-release') Args(0) {
 
     $release->releasemembers->create({build => $build->id, description => $build->description});
 
-    $c->flash->{buildMsg} = "Build added to project <tt>$releaseName</tt>.";
+    $c->flash->{successMsg} = "Build added to project <tt>$releaseName</tt>.";
 
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
-}
-
-
-sub clone : Chained('buildChain') PathPart('clone') Args(0) {
-    my ($self, $c) = @_;
-
-    my $build = $c->stash->{build};
-
-    requireProjectOwner($c, $build->project);
-
-    $c->stash->{template} = 'clone-build.tt';
-}
-
-
-sub clone_submit : Chained('buildChain') PathPart('clone/submit') Args(0) {
-    my ($self, $c) = @_;
-
-    my $build = $c->stash->{build};
-
-    requireProjectOwner($c, $build->project);
-
-    my ($nixExprPath, $nixExprInputName) = Hydra::Controller::Jobset::nixExprPathFromParams $c;
-
-    # When the expression is in a .scm file, assume it's a Guile + Guix
-    # build expression.
-    my $exprType =
-        $c->request->params->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
-
-    my $jobName = trim $c->request->params->{"jobname"};
-    error($c, "Invalid job name: $jobName") if $jobName !~ /^$jobNameRE$/;
-
-    my $inputInfo = {};
-
-    foreach my $param (keys %{$c->request->params}) {
-        next unless $param =~ /^input-(\w+)-name$/;
-        my $baseName = $1;
-        my ($inputName, $inputType) =
-            Hydra::Controller::Jobset::checkInput($c, $baseName);
-        my $inputValue = Hydra::Controller::Jobset::checkInputValue(
-            $c, $inputType, $c->request->params->{"input-$baseName-value"});
-        eval {
-            # !!! fetchInput can take a long time, which might cause
-            # the current HTTP request to time out.  So maybe this
-            # should be done asynchronously.  But then error reporting
-            # becomes harder.
-            my $info = fetchInput(
-                $c->hydra_plugins, $c->model('DB'), $build->project, $build->jobset,
-                $inputName, $inputType, $inputValue);
-            push @{$$inputInfo{$inputName}}, $info if defined $info;
-        };
-        error($c, $@) if $@;
-    }
-
-    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $nixExprInputName, $nixExprPath);
-
-    my $job;
-    foreach my $j (@{$jobs->{job}}) {
-        print STDERR $j->{jobName}, "\n";
-        if ($j->{jobName} eq $jobName) {
-            error($c, "Nix expression returned multiple builds for job $jobName.")
-                if $job;
-            $job = $j;
-        }
-    }
-
-    error($c, "Nix expression did not return a job named $jobName.") unless $job;
-
-    my %currentBuilds;
-    my $newBuild = checkBuild(
-        $c->model('DB'), $build->project, $build->jobset,
-        $inputInfo, $nixExprInput, $job, \%currentBuilds, undef, {});
-
-    error($c, "This build has already been performed.") unless $newBuild;
-
-    $c->flash->{buildMsg} = "Build " . $newBuild->id . " added to the queue.";
-
-    $c->res->redirect($c->uri_for($c->controller('Root')->action_for('queue')));
 }
 
 
@@ -611,6 +519,22 @@ sub evals : Chained('buildChain') PathPart('evals') Args(0) {
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
     $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
+}
+
+
+# Redirect to the latest finished evaluation that contains this build.
+sub eval : Chained('buildChain') PathPart('eval') {
+    my ($self, $c, @rest) = @_;
+
+    my $eval = $c->stash->{build}->jobsetevals->find(
+        { hasnewbuilds => 1 },
+        { order_by => "id DESC", rows => 1
+        , "not exists (select 1 from jobsetevalmembers m2 join builds b2 on me.eval = m2.eval and m2.build = b2.id and b2.finished = 0)"
+        });
+
+    notFound($c, "There is no finished evaluation containing this build.") unless defined $eval;
+
+    $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for("view"), [$eval->id], @rest, $c->req->params));
 }
 
 

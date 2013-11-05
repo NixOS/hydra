@@ -1,9 +1,10 @@
-[% WRAPPER layout.tt title=(create ? "Create jobset in project $project.name" : "Editing jobset $project.name:$jobset.name") %]
+[% WRAPPER layout.tt title=(create ? "Create jobset in project $project.name" : clone ? "Cloning jobset $project.name:$jobset.name" : "Editing jobset $project.name:$jobset.name") %]
 [% PROCESS common.tt %]
+[% USE format %]
 
 [% BLOCK renderJobsetInputAlt %]
   <button type="button" class="btn btn-warning" onclick='$(this).parents(".inputalt").remove()'><i class="icon-trash icon-white"></i></button>
-  <input type="text" [% HTML.attributes(value => alt.value, name => name) %]></input>
+  <input type="text" [% HTML.attributes(value => alt.value, name => name) %]/>
   <br />
 [% END %]
 
@@ -11,18 +12,21 @@
   <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
     <td>
       <button type="button" class="btn btn-warning" onclick='$(this).parents(".input").remove()'><i class="icon-trash icon-white"></i></button>
-      <tt><input type="text" id="[% baseName %]-name" name="[% baseName %]-name" [% HTML.attributes(value => input.name) %]></input>
+      <input type="text" id="[% baseName %]-name" name="[% baseName %]-name" [% HTML.attributes(value => input.name) %]/>
     </td>
     <td>
       [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
     </td>
     <td class="inputalts" id="[% baseName %]">
-      [% FOREACH alt IN input.jobsetinputalts %]
+      [% FOREACH alt IN input.search_related('jobsetinputalts', {}, { order_by => 'altnr' }) %]
         <span class="inputalt">
           [% INCLUDE renderJobsetInputAlt alt=alt name="$baseName-values" %]
         </span>
       [% END %]
       [% IF edit %]<button type="button" class="add-inputalt btn btn-success" onclick='return false'><i class="icon-plus icon-white"></i></button>[% END %]
+    </td>
+    <td>
+      <input type="checkbox" id="[% baseName %]-emailresponsible" name="[% baseName %]-emailresponsible" [% IF input.emailresponsible; 'checked="checked"'; END %]/>
     </td>
   </tr>
 [% END %]
@@ -30,32 +34,39 @@
 [% BLOCK renderJobsetInputs %]
   <table class="table table-striped table-condensed">
     <thead>
-      <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
+      <tr><th>Input name</th><th>Type</th><th>Values</th><th>Notify committers</th></tr>
     </thead>
     <tbody class="inputs">
       [% FOREACH input IN jobset.jobsetinputs %]
         [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
       <tr>
-        <td colspan="3" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="icon-plus icon-white"></i> Add a new input</button></td
+        <td colspan="4" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="icon-plus icon-white"></i> Add a new input</button></td>
       </tr>
     </tbody>
   </table>
 [% END %]
 
-<form class="form-horizontal" action="[% IF create %][% c.uri_for('/project' project.name 'create-jobset/submit') %][% ELSE %][% c.uri_for('/jobset' project.name jobset.name 'submit') %][% END %]" method="post">
+<form class="form-horizontal">
 
   <fieldset>
 
     <div class="control-group">
+      <label class="control-label">State</label>
       <div class="controls">
-        <label class="checkbox">
-          <input type="checkbox" name="enabled" [% IF jobset.enabled; 'checked="checked"'; END %]></input>Enabled
-        </label>
+        <div class="btn-group" data-toggle="buttons-radio">
+          <input type="hidden" name="enabled" value="[% jobset.enabled %]" />
+          <button type="button" class="btn" value="1">Enabled</button>
+          <button type="button" class="btn" value="2">One-shot</button>
+          <button type="button" class="btn" value="0">Disabled</button>
+        </div>
       </div>
+    </div>
+
+    <div class="control-group">
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="visible" [% IF !jobset.hidden; 'checked="checked"'; END %]></input>Visible
+          <input type="checkbox" name="visible" [% IF !jobset.hidden; 'checked="checked"'; END %]/>Visible
         </label>
       </div>
     </div>
@@ -63,23 +74,23 @@
     <div class="control-group">
       <label class="control-label">Identifier</label>
       <div class="controls">
-        <input type="text" class="span3" name="name" [% HTML.attributes(value => jobset.name) %]></input>
+        <input type="text" class="span3" name="name" [% HTML.attributes(value => clone ? "" : jobset.name) %]/>
       </div>
     </div>
 
     <div class="control-group">
       <label class="control-label">Description</label>
       <div class="controls">
-        <input type="text" class="span3" name="description" [% HTML.attributes(value => jobset.description) %]></input>
+        <input type="text" class="span3" name="description" [% HTML.attributes(value => jobset.description) %]/>
       </div>
     </div>
 
     <div class="control-group">
       <label class="control-label">Nix expression</label>
       <div class="controls">
-        <input type="text" class="span3" name="nixexprpath" [% HTML.attributes(value => jobset.nixexprpath) %]></input>
+        <input type="text" class="span3" name="nixexprpath" [% HTML.attributes(value => jobset.nixexprpath) %]/>
         in
-        <input type="text" class="span3" name="nixexprinput" [% HTML.attributes(value => jobset.nixexprinput) %]></input>
+        <input type="text" class="span3" name="nixexprinput" [% HTML.attributes(value => jobset.nixexprinput) %]/>
       </div>
     </div>
 
@@ -87,7 +98,7 @@
       <label class="control-label">Check interval</label>
       <div class="controls">
         <div class="input-append">
-          <input type="number" class="span3" name="checkinterval" [% HTML.attributes(value => jobset.checkinterval) %]></input>
+          <input type="number" class="span3" name="checkinterval" [% HTML.attributes(value => jobset.checkinterval) %]/>
           <span class="add-on">sec</span>
         </div>
         <span class="help-inline">(0 to disable polling)</span>
@@ -95,9 +106,21 @@
     </div>
 
     <div class="control-group">
+      <label class="control-label">Scheduling shares</label>
+      <div class="controls">
+        <div class="input-append">
+          <input type="number" class="span3" name="schedulingshares" [% HTML.attributes(value => jobset.schedulingshares) %]/>
+        </div>
+        [% IF totalShares %]
+          <span class="help-inline">([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% totalShares %] shares)</span>
+        [% END %]
+      </div>
+    </div>
+
+    <div class="control-group">
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="enableemail" [% IF jobset.enableemail; 'checked="checked"'; END %]></input>Email notification
+          <input type="checkbox" name="enableemail" [% IF jobset.enableemail; 'checked="checked"'; END %]/>Email notification
         </label>
       </div>
     </div>
@@ -105,33 +128,21 @@
     <div class="control-group">
       <label class="control-label">Email override</label>
       <div class="controls">
-        <input type="text" class="span3" name="emailoverride" [% HTML.attributes(value => jobset.emailoverride) %]></input>
+        <input type="text" class="span3" name="emailoverride" [% HTML.attributes(value => jobset.emailoverride) %]/>
       </div>
     </div>
 
     <div class="control-group">
-      <label class="control-label">Number of builds to keep</label>
+      <label class="control-label">Number of evaluations to keep</label>
       <div class="controls">
-        <input type="number" class="span3" name="keepnr" [% HTML.attributes(value => jobset.keepnr) %]></input>
+        <input type="number" class="span3" name="keepnr" [% HTML.attributes(value => jobset.keepnr) %]/>
       </div>
     </div>
 
     [% INCLUDE renderJobsetInputs %]
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create %]Create[% ELSE %]Apply changes[% END %]</button>
-
-      [% IF !create %]
-        <button id="delete-jobset" type="submit" class="btn btn-danger" name="submit" value="delete">
-          <i class="icon-trash icon-white"></i>
-          Delete this jobset
-        </button>
-        <script type="text/javascript">
-          $("#delete-jobset").click(function() {
-            return confirm("Are you sure you want to delete this jobset?");
-          });
-        </script>
-      [% END %]
+      <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create || clone %]Create jobset[% ELSE %]Apply changes[% END %]</button>
     </div>
 
   </fieldset>
@@ -144,26 +155,68 @@
     [% INCLUDE renderJobsetInputAlt alt=alt %]
   </tt>
 
-  <script type="text/javascript">
-    $(document).ready(function() {
-      var id = 0;
-
-      $(".add-input").click(function() {
-        var newid = "input-" + id++;
-        var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
-        $("#input-template-name", x).attr("name", newid + "-name");
-        $("#input-template-type", x).attr("name", newid + "-type");
-        $("#input-template", x).attr("id", newid);
-        return false;
-      });
-
-      $(".add-inputalt").click(function() {
-        var x = $("#inputalt-template").clone(true).insertBefore($(this)).attr("id", "").show();
-        $("input", x).attr("name", x.parents(".inputalts").attr("id") + "-values");
-      });
-    });
-  </script>
-
 </form>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+    var id = 0;
+
+    $(".add-input").click(function() {
+      var newid = "input-" + id++;
+      var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
+      $("#input-template-name", x).attr("name", newid + "-name");
+      $("#input-template-type", x).attr("name", newid + "-type");
+      $("#input-template-emailresponsible", x).attr("name", newid + "-emailresponsible");
+      $("#input-template", x).attr("id", newid);
+      return false;
+    });
+
+    $(".add-inputalt").click(function() {
+      var x = $("#inputalt-template").clone(true).insertBefore($(this)).attr("id", "").show();
+      $("input", x).attr("name", x.parents(".inputalts").attr("id") + "-values");
+    });
+  });
+
+  $("#submit-jobset").click(function() {
+    var formElements = $(this).parents("form").serializeArray();
+    var data = { 'inputs': {} };
+    var inputs = {};
+    for (var i = 0; i < formElements.length; i++) {
+      var elem = formElements[i];
+      var match = elem.name.match(/^input-(\w+)-(\w+)$/);
+      if (match === null) {
+        data[elem.name] = elem.value;
+      } else {
+        var baseName = match[1];
+        var param = match[2];
+
+        if (baseName === "template") {
+            continue;
+        }
+
+        if (!(baseName in inputs)) {
+            inputs[baseName] = {};
+        }
+
+        if (param === "name") {
+            data.inputs[elem.value] = inputs[baseName];
+        } else {
+            inputs[baseName][param] = elem.value;
+        }
+      }
+    }
+    redirectJSON({
+      [% IF create || clone %]
+        url: "[% c.uri_for('/jobset' project.name '.new') %]",
+      [% ELSE %]
+        url: "[% c.uri_for('/jobset' project.name jobset.name) %]",
+      [% END %]
+      data: JSON.stringify(data),
+      contentType: 'application/json',
+      type: 'PUT'
+    });
+    return false;
+  });
+</script>
 
 [% END %]

@@ -7,6 +7,7 @@ use File::Basename;
 use Config::General;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
+use Nix::Store;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -16,11 +17,13 @@ our @EXPORT = qw(
     getPrimaryBuildsForView
     getPrimaryBuildTotal
     getViewResult getLatestSuccessfulViewResult
-    jobsetOverview removeAsciiEscapes getDrvLogPath logContents
+    jobsetOverview removeAsciiEscapes getDrvLogPath findLog logContents
     getMainOutput
     getEvals getMachines
     pathIsInsidePrefix
-    captureStdoutStderr);
+    captureStdoutStderr run grab
+    getTotalShares
+    cancelBuilds restartBuilds);
 
 
 sub getHydraHome {
@@ -42,11 +45,12 @@ sub getHydraConfig {
 # doesn't work.
 sub txn_do {
     my ($db, $coderef) = @_;
+    my $res;
     while (1) {
         eval {
-            $db->txn_do($coderef);
+            $res = $db->txn_do($coderef);
         };
-        last if !$@;
+        return $res if !$@;
         die $@ unless $@ =~ "database is locked";
     }
 }
@@ -253,21 +257,46 @@ sub getLatestSuccessfulViewResult {
 sub getDrvLogPath {
     my ($drvPath) = @_;
     my $base = basename $drvPath;
-    my $fn =
-        ($ENV{NIX_LOG_DIR} || "/nix/var/log/nix") . "/drvs/"
-        . substr($base, 0, 2) . "/"
-        . substr($base, 2);
-    return $fn if -f $fn;
-    $fn .= ".bz2";
-    return $fn if -f $fn;
+    my $bucketed = substr($base, 0, 2) . "/" . substr($base, 2);
+    my $fn = ($ENV{NIX_LOG_DIR} || "/nix/var/log/nix") . "/drvs/";
+    for ($fn . $bucketed . ".bz2", $fn . $bucketed, $fn . $base . ".bz2", $fn . $base) {
+        return $_ if (-f $_);
+    }
+    return undef;
+}
+
+
+# Find the log of the derivation denoted by $drvPath.  It it doesn't
+# exist, try other derivations that produced its outputs (@outPaths).
+sub findLog {
+    my ($c, $drvPath, @outPaths) = @_;
+
+    if (defined $drvPath) {
+        my $logPath = getDrvLogPath($drvPath);
+        return $logPath if defined $logPath;
+    }
+
+    return undef if scalar @outPaths == 0;
+
+    my @steps = $c->model('DB::BuildSteps')->search(
+        { path => { -in => [@outPaths] } },
+        { select => ["drvpath"]
+        , distinct => 1
+        , join => "buildstepoutputs"
+        });
+
+    foreach my $step (@steps) {
+        next unless defined $step->drvpath;
+        my $logPath = getDrvLogPath($step->drvpath);
+        return $logPath if defined $logPath;
+    }
+
     return undef;
 }
 
 
 sub logContents {
-    my ($drvPath, $tail) = @_;
-    my $logPath = getDrvLogPath($drvPath);
-    die unless defined $logPath;
+    my ($logPath, $tail) = @_;
     my $cmd;
     if ($logPath =~ /.bz2$/) {
         $cmd = "bzip2 -d < $logPath";
@@ -381,7 +410,7 @@ sub getEvals {
 }
 
 sub getMachines {
-    my $machinesConf = $ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix.machines";
+    my $machinesConf = $ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix/machines";
 
     # Read the list of machines.
     my %machines = ();
@@ -469,6 +498,104 @@ sub captureStdoutStderr {
     } else {
         return ($?, $stdout, $stderr);
     }
+}
+
+
+sub run {
+    my (%args) = @_;
+    my $res = { stdout => "", stderr => "" };
+    my $stdin = "";
+
+    eval {
+        local $SIG{ALRM} = sub { die "timeout\n" }; # NB: \n required
+        alarm $args{timeout} if defined $args{timeout};
+        my @x = ($args{cmd}, \$stdin, \$res->{stdout});
+        push @x, \$res->{stderr} if $args{grabStderr} // 1;
+        IPC::Run::run(@x,
+            init => sub { chdir $args{dir} or die "changing to $args{dir}" if defined $args{dir}; });
+        alarm 0;
+    };
+
+    if ($@) {
+        die unless $@ eq "timeout\n"; # propagate unexpected errors
+        $res->{status} = -1;
+        $res->{stderr} = "timeout\n";
+    } else {
+        $res->{status} = $?;
+        chomp $res->{stdout} if $args{chomp} // 0;
+    }
+
+    return $res;
+}
+
+
+sub grab {
+    my (%args) = @_;
+    my $res = run(%args, grabStderr => 0);
+    die "command `@{$args{cmd}}' failed with exit status $res->{status}" if $res->{status};
+    return $res->{stdout};
+}
+
+
+sub getTotalShares {
+    my ($db) = @_;
+    return $db->resultset('Jobsets')->search(
+        { 'project.enabled' => 1, 'me.enabled' => { '!=' => 0 } },
+        { join => 'project', select => { sum => 'schedulingshares' }, as => 'sum' })->single->get_column('sum');
+}
+
+
+sub cancelBuilds($$) {
+    my ($db, $builds) = @_;
+    return txn_do($db, sub {
+        $builds = $builds->search({ finished => 0, busy => 0 });
+        my $n = $builds->count;
+        my $time = time();
+        $builds->update(
+            { finished => 1,
+            , iscachedbuild => 0, buildstatus => 4 # = cancelled
+            , starttime => $time
+            , stoptime => $time
+            });
+        return $n;
+    });
+}
+
+
+sub restartBuilds($$) {
+    my ($db, $builds) = @_;
+    my $n = 0;
+
+    txn_do($db, sub {
+        my @paths;
+
+        $builds = $builds->search({ finished => 1 });
+        foreach my $build ($builds->all) {
+            next if !isValidPath($build->drvpath);
+            push @paths, $build->drvpath;
+            push @paths, $_->drvpath foreach $build->buildsteps;
+
+            registerRoot $build->drvpath;
+
+            $build->update(
+                { finished => 0
+                , busy => 0
+                , locker => ""
+                , iscachedbuild => 0
+                });
+            $n++;
+
+            # Reset the stats for the evals to which this build belongs.
+            # !!! Should do this in a trigger.
+            $build->jobsetevals->update({nrsucceeded => undef});
+        }
+
+        # Clear Nix's negative failure cache.
+        # FIXME: Add this to the API.
+        system("nix-store", "--clear-failed-paths", @paths);
+    });
+
+    return $n;
 }
 
 

@@ -14,20 +14,36 @@ sub getChannelData {
 
     my @storePaths = ();
     $c->stash->{nixPkgs} = [];
-    foreach my $build ($c->stash->{channelBuilds}->all) {
-        my $outPath = $build->get_column("outpath");
-        my $outName = $build->get_column("outname");
-        next if $checkValidity && !isValidPath($outPath);
-        push @storePaths, $outPath;
-        my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id . ($outName ne "out" ? "-" . $outName : "");
-        push @{$c->stash->{nixPkgs}}, { build => $build, name => $pkgName, outPath => $outPath, outName => $outName };
-        # Put the system type in the manifest (for top-level paths) as
-        # a hint to the binary patch generator.  (It shouldn't try to
-        # generate patches between builds for different systems.)  It
-        # would be nice if Nix stored this info for every path but it
-        # doesn't.
-        $c->stash->{systemForPath}->{$outPath} = $build->system;
-    };
+
+    my @builds = $c->stash->{channelBuilds}->all;
+
+    for (my $n = 0; $n < scalar @builds; ) {
+        # Since channelData is a join of Builds and BuildOutputs, we
+        # need to gather the rows that belong to a single build.
+        my $build = $builds[$n++];
+        my @outputs = ($build);
+        push @outputs, $builds[$n++] while $n < scalar @builds && $builds[$n]->id == $build->id;
+        @outputs = grep { $_->get_column("outpath") } @outputs;
+
+        my $outputs = {};
+        foreach my $output (@outputs) {
+            my $outPath = $output->get_column("outpath");
+            next if $checkValidity && !isValidPath($outPath);
+            $outputs->{$output->get_column("outname")} = $outPath;
+            push @storePaths, $outPath;
+            # Put the system type in the manifest (for top-level
+            # paths) as a hint to the binary patch generator.  (It
+            # shouldn't try to generate patches between builds for
+            # different systems.)  It would be nice if Nix stored this
+            # info for every path but it doesn't.
+            $c->stash->{systemForPath}->{$outPath} = $build->system;
+        }
+
+        next if !%$outputs;
+
+        my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id;
+        push @{$c->stash->{nixPkgs}}, { build => $build, name => $pkgName, outputs => $outputs };
+    }
 
     $c->stash->{storePaths} = [@storePaths];
 }

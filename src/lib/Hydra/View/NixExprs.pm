@@ -19,31 +19,83 @@ sub escape {
 sub process {
     my ($self, $c) = @_;
 
-    my $res = "[\n";
+    my %perSystem;
 
     foreach my $pkg (@{$c->stash->{nixPkgs}}) {
         my $build = $pkg->{build};
-        $res .= "  # $pkg->{name}\n";
-        $res .= "  { type = \"derivation\";\n";
-        $res .= "    name = " . escape ($build->get_column("releasename") or $build->nixname) . ";\n";
-        $res .= "    system = " . (escape $build->system) . ";\n";
-        $res .= "    outPath = " . (escape $pkg->{outPath}) . ";\n";
-        $res .= "    meta = {\n";
-        $res .= "      description = " . (escape $build->description) . ";\n"
-            if $build->description;
-        $res .= "      longDescription = " . (escape $build->longdescription) . ";\n"
-            if $build->longdescription;
-        $res .= "      license = " . (escape $build->license) . ";\n"
-            if $build->license;
-        $res .= "    };\n";
-        $res .= "  }\n";
+        $perSystem{$build->system}->{$build->get_column('job')} = $pkg;
     }
 
-    $res .= "]\n";
+    my $res = <<EOF;
+{ system ? builtins.currentSystem }:
+
+let
+
+  mkFakeDerivation = attrs: outputs:
+    let
+      outputNames = builtins.attrNames outputs;
+      common = attrs // outputsSet //
+        { type = "derivation";
+          outputs = outputNames;
+          all = outputsList;
+        };
+      outputToAttrListElement = outputName:
+        { name = outputName;
+          value = common // {
+            inherit outputName;
+            outPath = builtins.getAttr outputName outputs;
+          };
+        };
+      outputsList = map outputToAttrListElement outputNames;
+      outputsSet = builtins.listToAttrs outputsList;
+    in outputsSet;
+
+in
+
+EOF
+
+    my $first = 1;
+    foreach my $system (keys %perSystem) {
+        $res .= "else " if !$first;
+        $res .= "if system == ${\escape $system} then {\n\n";
+
+        foreach my $job (keys $perSystem{$system}) {
+            my $pkg = $perSystem{$system}->{$job};
+            my $build = $pkg->{build};
+            $res .= "  # Hydra build ${\$build->id}\n";
+            my $attr = $build->get_column('job');
+            $attr =~ s/\./-/g;
+            $res .= "  ${\escape $attr} = (mkFakeDerivation {\n";
+            $res .= "    type = \"derivation\";\n";
+            $res .= "    name = ${\escape ($build->get_column('releasename') or $build->nixname)};\n";
+            $res .= "    system = ${\escape $build->system};\n";
+            $res .= "    meta = {\n";
+            $res .= "      description = ${\escape $build->description};\n"
+                if $build->description;
+            $res .= "      longDescription = ${\escape $build->longdescription};\n"
+                if $build->longdescription;
+            $res .= "      license = ${\escape $build->license};\n"
+                if $build->license;
+            $res .= "      maintainers = ${\escape $build->maintainers};\n"
+                if $build->maintainers;
+            $res .= "    };\n";
+            $res .= "  } {\n";
+            my @outputNames = sort (keys $pkg->{outputs});
+            $res .= "    ${\escape $_} = ${\escape $pkg->{outputs}->{$_}};\n" foreach @outputNames;
+            my $out = defined $pkg->{outputs}->{"out"} ? "out" : $outputNames[0];
+            $res .= "  }).$out;\n\n";
+        }
+
+        $res .= "}\n\n";
+        $first = 0;
+    }
+
+    $res .= "else " if !$first;
+    $res .= "{}\n";
 
     my $tar = Archive::Tar->new;
-    $tar->add_data("channel/channel-name", ($c->stash->{channelName} or "unnamed-channel"), {mtime => 0});
-    $tar->add_data("channel/default.nix", $res, {mtime => 0});
+    $tar->add_data("channel/channel-name", ($c->stash->{channelName} or "unnamed-channel"), {mtime => 1});
+    $tar->add_data("channel/default.nix", $res, {mtime => 1});
 
     my $tardata = $tar->write;
     my $bzip2data;

@@ -3,6 +3,7 @@ TESTS_ENVIRONMENT = \
   HYDRA_DBI="dbi:SQLite:db.sqlite"			\
   HYDRA_DATA="$(abs_builddir)/data"			\
   HYDRA_HOME="$(top_srcdir)/src"			\
+  HYDRA_CONFIG=						\
   NIX_REMOTE=						\
   NIX_CONF_DIR="$(abs_builddir)/nix/etc/nix"		\
   NIX_STATE_DIR="$(abs_builddir)/nix/var/nix"		\

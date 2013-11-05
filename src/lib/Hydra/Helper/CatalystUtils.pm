@@ -15,8 +15,8 @@ use feature qw/switch/;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild
-    error notFound
-    requireLogin requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
+    error notFound accessDenied
+    forceLogin requireUser requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
     getLatestFinishedEval
     sendEmail
@@ -27,6 +27,7 @@ our @EXPORT = qw(
     parseJobsetName
     showJobName
     showStatus
+    getResponsibleAuthors
 );
 
 
@@ -102,6 +103,12 @@ sub notFound {
 }
 
 
+sub accessDenied {
+    my ($c, $msg) = @_;
+    error($c, $msg, 403);
+}
+
+
 sub backToReferer {
     my ($c) = @_;
     $c->response->redirect($c->session->{referer} || $c->uri_for('/'));
@@ -110,26 +117,33 @@ sub backToReferer {
 }
 
 
-sub requireLogin {
+sub forceLogin {
     my ($c) = @_;
     $c->session->{referer} = $c->request->uri;
-    error($c, "This page requires you to sign in.", 403);
+    accessDenied($c, "This page requires you to sign in.");
+}
+
+
+sub requireUser {
+    my ($c) = @_;
+    forceLogin($c) if !$c->user_exists;
 }
 
 
 sub isProjectOwner {
     my ($c, $project) = @_;
-
-    return $c->user_exists && ($c->check_user_roles('admin') || $c->user->username eq $project->owner->username || defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
+    return
+        $c->user_exists &&
+        (isAdmin($c) ||
+         $c->user->username eq $project->owner->username ||
+         defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
 }
 
 
 sub requireProjectOwner {
     my ($c, $project) = @_;
-
-    requireLogin($c) if !$c->user_exists;
-
-    error($c, "Only the project members or administrators can perform this operation.", 403)
+    requireUser($c);
+    accessDenied($c, "Only the project members or administrators can perform this operation.")
         unless isProjectOwner($c, $project);
 }
 
@@ -142,8 +156,8 @@ sub isAdmin {
 
 sub requireAdmin {
     my ($c) = @_;
-    requireLogin($c) if !$c->user_exists;
-    error($c, "Only administrators can perform this operation.", 403)
+    requireUser($c);
+    accessDenied($c, "Only administrators can perform this operation.")
         unless isAdmin($c);
 }
 
@@ -206,12 +220,12 @@ sub paramToList {
 
 
 # Security checking of filenames.
-Readonly our $pathCompRE    => "(?:[A-Za-z0-9-\+\._\$][A-Za-z0-9-\+\._\$]*)";
+Readonly our $pathCompRE    => "(?:[A-Za-z0-9-\+\._\$][A-Za-z0-9-\+\._\$:]*)";
 Readonly our $relPathRE     => "(?:$pathCompRE(?:/$pathCompRE)*)";
 Readonly our $relNameRE     => "(?:[A-Za-z0-9-_][A-Za-z0-9-\._]*)";
 Readonly our $attrNameRE    => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 Readonly our $projectNameRE => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
-Readonly our $jobsetNameRE  => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
+Readonly our $jobsetNameRE  => "(?:[A-Za-z_][A-Za-z0-9-_\.]*)";
 Readonly our $jobNameRE     => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
 Readonly our $systemRE      => "(?:[a-z0-9_]+-[a-z0-9_]+)";
 Readonly our $userNameRE    => "(?:[a-z][a-z0-9_\.]*)";
@@ -243,6 +257,44 @@ sub showStatus {
     }
 
    return $status;
+}
+
+
+# Determine who broke/fixed the build.
+sub getResponsibleAuthors {
+    my ($build, $plugins) = @_;
+
+    my $prevBuild = getPreviousBuild($build);
+
+    my $nrCommits = 0;
+    my %authors;
+    my @emailable_authors;
+
+    if ($prevBuild) {
+        foreach my $curInput ($build->buildinputs_builds) {
+            next unless ($curInput->type eq "git" || $curInput->type eq "hg");
+            my $prevInput = $prevBuild->buildinputs_builds->find({ name => $curInput->name });
+            next unless defined $prevInput;
+
+            next if $curInput->type ne $prevInput->type;
+            next if $curInput->uri ne $prevInput->uri;
+            next if $curInput->revision eq $prevInput->revision;
+
+            my @commits;
+            foreach my $plugin (@{$plugins}) {
+                push @commits, @{$plugin->getCommits($curInput->type, $curInput->uri, $prevInput->revision, $curInput->revision)};
+            }
+
+            foreach my $commit (@commits) {
+                #print STDERR "$commit->{revision} by $commit->{author}\n";
+                $authors{$commit->{author}} = $commit->{email};
+                push @emailable_authors, $commit->{email} if $curInput->emailresponsible;
+                $nrCommits++;
+            }
+        }
+    }
+
+    return (\%authors, $nrCommits, \@emailable_authors);
 }
 
 

@@ -52,8 +52,7 @@ then
     NIX_STATE_DIR="$TMPDIR"
     export NIX_STATE_DIR
 fi
-if "$NIX_STORE_PROGRAM" --timeout 123 -q > /dev/null 2>&1
-then
+if NIX_REMOTE=daemon "$NIX_STORE_PROGRAM" --timeout 123 -q; then 
     AC_MSG_RESULT([yes])
 else
     AC_MSG_RESULT([no])
@@ -68,7 +67,7 @@ LDFLAGS="$LDFLAGS -L$nix/lib/nix"
 
 AC_CHECK_HEADER([store-api.hh], [:],
   [AC_MSG_ERROR([Nix headers not found; please install Nix or check the `--with-nix' option.])])
-AC_CHECK_LIB([expr], [_ZN3nix9EvalState17parseExprFromFileESs], [:],
+AC_CHECK_LIB([expr], [_ZN3nix9EvalState8evalFileERKSsRNS_5ValueE], [:],
   [AC_MSG_ERROR([Nix library not found; please install Nix or check the `--with-nix' option.])])
 
 CPPFLAGS="$old_CPPFLAGS"

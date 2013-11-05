@@ -51,12 +51,12 @@ for (my $n = $schemaVersion; $n < $maxSchemaVersion; $n++) {
     my @statements = $sql_splitter->split($schema);
     eval {
         $dbh->begin_work;
-        sub run {
+        sub run_ {
             my ($stm) = @_;
             print STDERR "executing SQL statement: $stm\n";
             $dbh->do($_);
         }
-        run($_) foreach @statements;
+        run_($_) foreach @statements;
         $db->resultset('SchemaVersion')->update({version => $m});
         $dbh->commit;
     };

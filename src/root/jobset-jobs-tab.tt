@@ -1,15 +1,69 @@
-[% PROCESS common.tt %]
+[% PROCESS common.tt; USE Math %]
 
-<p>This jobset currently contains the following [% activeJobs.size %] jobs:
-  <blockquote>
-    [% IF activeJobs.size == 0 %]<em>(none)</em>[% END %]
-    [% FOREACH j IN activeJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]
-  </blockquote>
-</p>
+<form class="form-search" id="filter-jobs">
+  <div class="input-append">
+    <input name="filter" type="text" class="input-large search-query" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]/>
+    <button type="button" class="btn btn-info [% IF showInactive %]active[% END %]" id="active-toggle">Show inactive jobs</button>
+  </div>
+  &nbsp;
+  <img src="[% c.uri_for("/static/images/ajax-loader.gif") %]" alt="Loading..." style="display: none;" id="filter-loading" />
+</form>
 
-<p>This jobset used to contain the following [% inactiveJobs.size %] jobs:
-  <blockquote>
-    [% IF inactiveJobs.size == 0 %]<em>(none)</em>[% END %]
-    [% FOREACH j IN inactiveJobs %][% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]<br/>[% END %]
-  </blockquote>
-</p>
+<script>
+  function setFilter(filter) {
+    $('#filter-loading').show();
+    if ($('#active-toggle').hasClass('active')) filter += '&amp;showInactive=1';
+    $('#tabs-jobs').load("[% c.uri_for('/jobset' project.name jobset.name "jobs-tab") %]", filter, function(response, status, xhr) {
+      if (status == "error") {
+        $('#[% tabName %]').html("<div class='alert alert-error'>Error loading tab: " + xhr.status + " " + xhr.statusText + "</div>");
+      }
+    });
+  };
+
+  $('#filter-jobs').submit(function() {    
+    setFilter($('#filter-jobs').serialize());
+    return false;
+  });
+
+  $('#active-toggle').click(function() {
+    $(this).toggleClass('active');
+    $('#filter-jobs').submit();
+  });
+</script>
+
+[% IF jobs.size == 0 %]
+
+  <div class="alert">There are no matching jobs.</div>
+
+[% ELSE %]
+
+  [% IF nrJobs > jobs.size %]
+    <div class="alert">Showing the first [% jobs.size %] jobs.  <a href="javascript:setFilter('filter=%')">Show all [% nrJobs %] jobs...</a></div>
+  [% END %]
+
+  [% evalIds = evals.keys.nsort.reverse %]
+  <table class="table table-striped table-condensed table-header-rotated">
+    <thead>
+      <tr>
+        <th style="width: 1em;">Job</th>
+        [% FOREACH eval IN evalIds %]
+          <th class="rotate-45">
+            <div><span>
+              <a href="[% c.uri_for('/eval' eval) %]">[% eval %]</a>
+            </span></div></th>
+        [% END %]
+      </tr>
+    </thead>
+    <tbody>
+      [% FOREACH j IN jobs-%]
+        <tr>
+          <th><span [% IF inactiveJobs.$j %]class="muted override-link"[% END %]>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]</span></th>
+          [% FOREACH eval IN evalIds %]
+            <td>[% r = evals.$eval.$j; IF r.id %]<a href="[% c.uri_for('/build' r.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
+          [% END %]
+        </tr>
+      [% END %]
+    </tbody>
+  </table>
+  
+[% END %]

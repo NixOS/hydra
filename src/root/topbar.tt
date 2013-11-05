@@ -1,19 +1,17 @@
-[% BLOCK menuItem %]
-  <li class="[% IF "${root}${curUri}" == uri %]active[% END %]" [% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>
-    <a [% HTML.attributes(href => uri) %]>[% title %]</a>
-  </li>
-[% END %]
-
 [% BLOCK makeSubMenu %]
   <li class="dropdown">
     <a class="dropdown-toggle" href="#" data-toggle="dropdown">[% title %]<b class="caret"></b></a>
-    <ul id="left-menu" class="dropdown-menu">
+    <ul class="dropdown-menu">
       [% content %]
     </ul>
   </li>
 [% END %]
 
-<ul class="nav pull-left" id="top-menu">
+<ul class="nav pull-left">
+
+  [% IF c.user_exists %]
+    [% INCLUDE menuItem uri = c.uri_for(c.controller('User').action_for('dashboard'), [c.user.username]) title = "Dashboard" %]
+  [% END %]
 
   [% WRAPPER makeSubMenu title="Status" %]
     [% INCLUDE menuItem
@@ -39,15 +37,7 @@
       <li class="divider"></li>
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('project'), [project.name]) title = "Overview" %]
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('all'), [project.name]) title = "Latest builds" %]
-      [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('jobstatus'), [project.name]) title = "Job status" %]
-      [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('errors'), [project.name]) title = "Errors" %]
-      <li class="divider"></li>
       [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'channel' 'latest') title = "Channel" %]
-      [% IF c.user_exists %]
-        <li class="divider"></li>
-        [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'edit') title="Edit" %]
-        [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create_jobset'), [project.name]) title = "Create jobset" %]
-      [% END %]
     [% END %]
   [% END %]
 
@@ -64,40 +54,7 @@
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Jobset').action_for('all'), [project.name, jobset.name])
         title = "Latest builds" %]
-      [% INCLUDE menuItem
-        uri = c.uri_for(c.controller('Jobset').action_for('jobstatus'), [project.name, jobset.name])
-        title = "Job status" %]
-      [% INCLUDE menuItem
-        uri = c.uri_for(c.controller('Jobset').action_for('errors'), [project.name, jobset.name])
-        title = "Errors" %]
-      <li class="divider"></li>
       [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'channel' 'latest') title = "Channel" %]
-      [% IF c.user_exists %]
-        <li class="divider"></li>
-        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'edit') title="Edit" %]
-        [% INCLUDE menuItem uri = c.uri_for('/jobset' project.name jobset.name 'clone') title="Clone" %]
-
-        <script>
-          function confirmEvaluateJobset() {
-            bootbox.confirm(
-              'Are you sure you want to force evaluation of this jobset?',
-              function(c) {
-                if (!c) return;
-                $.post("[% c.uri_for('/api/push', { jobsets = project.name _ ':' _ jobset.name, force = "1" }) %]")
-                  .done(function(data) {
-                    if (data.error)
-                      bootbox.alert("Unable to schedule the jobset for evaluation: " + data.error);
-                    else
-                      bootbox.alert("The jobset has been scheduled for evaluation.");
-                  })
-                  .fail(function() { bootbox.alert("Server request failed!"); });
-              });
-            return;
-          };
-        </script>
-        [% INCLUDE menuItem title="Evaluate" uri = "javascript:confirmEvaluateJobset()" %]
-
-      [% END %]
     [% END %]
   [% END %]
 
@@ -111,51 +68,7 @@
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Job').action_for('all'), [project.name, jobset.name, job.name])
         title = "Latest builds" %]
-      [% INCLUDE menuItem
-        uri = c.uri_for(c.controller('Job').action_for('jobstatus'), [project.name, jobset.name, job.name])
-        title = "Job status" %]
-      [% INCLUDE menuItem
-        uri = c.uri_for(c.controller('Job').action_for('errors'), [project.name, jobset.name, job.name])
-        title = "Errors" %]
-      <li class="divider"></li>
       [% INCLUDE menuItem uri = c.uri_for('/job' project.name jobset.name job.name 'channel' 'latest') title = "Channel" %]
-    [% END %]
-  [% END %]
-
-  [% IF build %]
-    [% WRAPPER makeSubMenu title="Build" %]
-      <li class="nav-header">#[% build.id %]</li>
-      <li class="divider"></li>
-      [% INCLUDE menuItem
-        uri = c.uri_for('/build' build.id)
-        title = "Overview" %]
-      [% IF c.user_exists %]
-        <li class="divider"></li>
-        [% INCLUDE menuItem
-          uri = c.uri_for('/build' build.id 'clone')
-          title = "Clone build" %]
-        [% IF available %]
-          [% IF build.keep %]
-            [% INCLUDE menuItem
-               uri = c.uri_for('/build' build.id 'keep' 0)
-               title = "Unkeep build" %]
-          [% ELSE %]
-            [% INCLUDE menuItem
-               uri = c.uri_for('/build' build.id 'keep' 1)
-               title = "Keep build" %]
-          [% END %]
-        [% END %]
-        [% IF build.finished %]
-          [% INCLUDE menuItem
-            uri = c.uri_for('/build' build.id 'restart')
-            title = "Restart build" %]
-        [% END %]
-        [% IF !build.finished %]
-          [% INCLUDE menuItem
-            uri = c.uri_for('/build' build.id 'cancel')
-            title = "Cancel build" %]
-        [% END %]
-      [% END %]
     [% END %]
   [% END %]
 
@@ -182,18 +95,23 @@
         class = "" %]
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Admin').action_for('clear_queue_non_current'))
-        title = "Clear all non-running old builds from queue"
+        title = "Clear scheduled non-current builds from queue"
         confirmmsg = "Are you sure you want to clear the queue?"
+        class = "" %]
+      [% INCLUDE menuItem
+        uri = c.uri_for(c.controller('Admin').action_for('clearvcscache'))
+        title = "Clear VCS caches"
+        confirmmsg = "Are you sure you want to clear the VCS cache?"
         class = "" %]
     [% END %]
   [% END %]
 
 </ul>
 
-<ul class="nav pull-right" id="top-menu">
+<ul class="nav pull-right">
 
   <form class="navbar-search" action="[% c.uri_for('/search') %]">
-    <input name="query" type="text" class="search-query span2" placeholder="Search" [% HTML.attributes(value => c.req.params.query) %]></input>
+    <input name="query" type="text" class="search-query span2" placeholder="Search" [% HTML.attributes(value => c.req.params.query) %]/>
   </form>
 
   [% IF c.user_exists %]

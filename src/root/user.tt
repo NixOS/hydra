@@ -9,7 +9,7 @@
       [% BREAK IF checked %]
     [% END %]
     [% IF checked %]
-      SELECTED
+      selected="selected"
     [% END %]
     >[% role %]</option>
 [% END %]
@@ -22,7 +22,7 @@
     <div class="control-group">
       <label class="control-label">User name</label>
       <div class="controls">
-        <input type="text" class="span3" name="username" [% HTML.attributes(value => username) %]></input>
+        <input type="text" class="span3" name="username" [% HTML.attributes(value => username) %]/>
       </div>
     </div>
     [% END %]
@@ -30,7 +30,7 @@
     <div class="control-group">
       <label class="control-label">Full name</label>
       <div class="controls">
-        <input type="text" class="span3" name="fullname" [% HTML.attributes(value => fullname) %]></input>
+        <input type="text" class="span3" name="fullname" [% HTML.attributes(value => fullname) %]/>
       </div>
     </div>
 
@@ -38,14 +38,14 @@
     <div class="control-group">
       <label class="control-label">Password</label>
       <div class="controls">
-        <input type="password" class="span3" name="password" value=""></input>
+        <input type="password" class="span3" name="password" value=""/>
       </div>
     </div>
 
     <div class="control-group">
       <label class="control-label">Confirm password</label>
       <div class="controls">
-        <input type="password" class="span3" name="password2" value=""></input>
+        <input type="password" class="span3" name="password2" value=""/>
       </div>
     </div>
     [% END %]
@@ -54,7 +54,7 @@
     <div class="control-group">
       <label class="control-label">Email</label>
       <div class="controls">
-        <input type="text" class="span3" name="emailaddress" [% HTML.attributes(value => user.emailaddress) %]></input>
+        <input type="text" class="span3" name="emailaddress" [% HTML.attributes(value => user.emailaddress) %]/>
       </div>
     </div>
     -->
@@ -63,7 +63,7 @@
       <div class="control-group">
         <div class="controls">
           <label class="checkbox">
-            <input type="checkbox" name="emailonerror" [% IF emailonerror; 'checked="checked"'; END %]></input>Receive evaluation error notifications
+            <input type="checkbox" name="emailonerror" [% IF emailonerror; 'checked="checked"'; END %]/>Receive evaluation error notifications
           </label>
         </div>
       </div>
@@ -73,7 +73,7 @@
       <div class="control-group">
         <label class="control-label">Roles</label>
         <div class="controls">
-          <select multiple name="roles" class="span3" [% IF !c.check_user_roles('admin') %]disabled="1"[% END %]>
+          <select multiple="multiple" name="roles" class="span3" [% IF !c.check_user_roles('admin') %]disabled="1"[% END %]>
             [% INCLUDE roleoption role="admin" %]
             [% INCLUDE roleoption role="create-project" %]
           </select>
@@ -91,7 +91,7 @@
       <div class="control-group">
         <label class="control-label">Type the digits shown in the image above</label>
         <div class="controls">
-          <input type="text" class="span3" name="captcha" value=""></input>
+          <input type="text" class="span3" name="captcha" value=""/>
         </div>
       </div>
     [% END %]
@@ -136,8 +136,9 @@
           });
         </script>
       [% END %]
-  </div>
-</p>
+    </div>
+
+  </fieldset>
 
 </form>
 

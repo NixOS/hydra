@@ -226,6 +226,21 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 starredjobs
+
+Type: has_many
+
+Related object: L<Hydra::Schema::StarredJobs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "starredjobs",
+  "Hydra::Schema::StarredJobs",
+  { "foreign.project" => "self.name" },
+  undef,
+);
+
 =head2 viewjobs
 
 Type: has_many
@@ -267,15 +282,26 @@ Composing rels: L</projectmembers> -> username
 __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:RffghAo9jAaqYk41y1Sdqw
-# These lines were loaded from '/home/rbvermaa/src/hydra/src/lib/Hydra/Schema/Projects.pm' found in @INC.
-# They are now part of the custom portion of this file
-# for you to hand-edit.  If you do not either delete
-# this section or remove that file from @INC, this section
-# will be repeated redundantly when you re-create this
-# file again via Loader!  See skip_load_external to disable
-# this feature.
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-14 15:46:29
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:PdNQ2mf5azBB6nI+iAm8fQ
 
-# You can replace this text with custom content, and it will be preserved on regeneration
+my %hint = (
+    columns => [
+        "name",
+        "displayname",
+        "description",
+        "enabled",
+        "hidden",
+        "owner"
+    ],
+    relations => {
+        releases => "name",
+        jobsets => "name"
+    }
+);
+
+sub json_hint {
+    return \%hint;
+}
+
 1;

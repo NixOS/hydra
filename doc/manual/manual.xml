@@ -52,8 +52,7 @@
 
 
     <copyright>
-      <year>2009</year>
-      <year>2010</year>
+      <year>2009-2013</year>
       <holder>Eelco Dolstra</holder>
     </copyright>
 
@@ -64,6 +63,7 @@
   <xi:include href="introduction.xml" />
   <xi:include href="installation.xml" />
   <xi:include href="projects.xml" />
+  <xi:include href="hacking.xml" />
 
 
 </book>

@@ -2,16 +2,33 @@
 [% PROCESS common.tt %]
 
 <ul class="nav nav-tabs">
+  [% IF c.user_exists %]
+    <li class="dropdown">
+      <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+        Actions
+        <b class="caret"></b>
+      </a>
+      <ul class="dropdown-menu">
+        [% INCLUDE menuItem title="Edit configuration" icon="icon-edit" uri=c.uri_for(c.controller('Project').action_for('edit'), c.req.captures) %]
+        [% INCLUDE menuItem title="Delete this project" icon="icon-trash" uri="javascript:deleteProject()" %]
+        [% INCLUDE menuItem title="Create jobset" icon="icon-plus" uri=c.uri_for(c.controller('Project').action_for('create_jobset'), c.req.captures) %]
+        [% INCLUDE menuItem title="Create release" icon="icon-plus" uri=c.uri_for(c.controller('Project').action_for('create_release'), c.req.captures) %]
+      </ul>
+    </li>
+  [% END %]
+
   <li class="active"><a href="#tabs-project" data-toggle="tab">Jobsets</a></li>
   <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
   <li><a href="#tabs-releases" data-toggle="tab">Releases</a></li>
-  <li><a href="#tabs-views" data-toggle="tab">Views</a></li>
+  [% IF views.size > 0 %]
+    <li><a href="#tabs-views" data-toggle="tab">Views</a></li>
+  [% END %]
 </ul>
 
 <div class="tab-content">
 
   <div id="tabs-project" class="tab-pane active">
-    [% IF project.jobsets.size > 0 %]
+    [% IF project.jobsets %]
       <p>This project has the following jobsets:</p>
 
       <table class="table table-striped table-condensed clickable-rows">
@@ -30,18 +47,18 @@
             <tr>
               <td>
                 [% IF j.get_column('nrscheduled') > 0 %]
-                  <img src="/static/images/help_16.png" alt="Scheduled" />
+                  <img src="[% c.uri_for("/static/images/help_16.png") %]" alt="Scheduled" />
                 [% ELSIF j.get_column('nrfailed') == 0  %]
-                  <img src="/static/images/checkmark_16.png" alt="Succeeded" />
+                  <img src="[% c.uri_for("/static/images/checkmark_16.png") %]" alt="Succeeded" />
                 [% ELSIF j.get_column('nrfailed') > 0 && j.get_column('nrsucceeded') > 0 %]
-                  <img src="/static/images/error_some_16.png" alt="Some Failed" />
+                  <img src="[% c.uri_for("/static/images/error_some_16.png") %]" alt="Some Failed" />
                 [% ELSE %]
-                  <img src="/static/images/error_16.png" alt="All Failed" />
+                  <img src="[% c.uri_for("/static/images/error_16.png") %]" alt="All Failed" />
                 [% END %]
               </td>
               <td><span class="[% IF !j.enabled %]disabled-jobset[% END %] [%+ IF j.hidden %]hidden-jobset[% END %]">[% INCLUDE renderJobsetName project=project.name jobset=j.name inRow=1 %]</span></td>
               <td>[% HTML.escape(j.description) %]</td>
-              <td>[% INCLUDE renderDateTime timestamp = j.lastcheckedtime %]</td>
+              <td>[% IF j.lastcheckedtime; INCLUDE renderDateTime timestamp = j.lastcheckedtime; ELSE; "-"; END %]</td>
               [% IF j.get_column('nrtotal') > 0 %]
                 [% successrate = ( j.get_column('nrsucceeded') / j.get_column('nrtotal') )*100 %]
                 [% IF j.get_column('nrscheduled') > 0 %]
@@ -78,7 +95,6 @@
   </div>
 
   <div id="tabs-configuration" class="tab-pane">
-    <a class="btn pull-right" href="[% c.uri_for('/project' project.name "edit") %]"><i class="icon-edit"></i> Edit</a>
     <table class="info-table">
       <tr>
         <th>Display name:</th>
@@ -138,12 +154,6 @@
 
     [% END %]
 
-    [% IF c.user_exists %]
-    <p><a class="btn" href="[% c.uri_for('/project' project.name 'create-release') %]">
-      <i class="icon-plus"></i> Create a release
-    </a></p>
-    [% END %]
-
   </div>
 
   <div id="tabs-views" class="tab-pane">
@@ -175,5 +185,19 @@
   </div>
 
 </div>
+
+<script>
+  function deleteProject() {
+    bootbox.confirm(
+      'Are you sure you want to delete this project?',
+      function(c) {
+        if (!c) return;
+        redirectJSON({
+          url: "[% c.uri_for('/project' project.name) %]",
+          type: 'DELETE'
+        });
+      });
+  };
+</script>
 
 [% END %]

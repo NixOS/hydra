@@ -20,24 +20,52 @@ sub job : Chained('/') PathPart('job') CaptureArgs(3) {
 
 sub overview : Chained('job') PathPart('') Args(0) {
     my ($self, $c) = @_;
+    my $job = $c->stash->{job};
 
     $c->stash->{template} = 'job.tt';
 
     $c->stash->{lastBuilds} =
-        [ $c->stash->{job}->builds->search({ finished => 1 },
+        [ $job->builds->search({ finished => 1 },
             { order_by => 'id DESC', rows => 10, columns => [@buildListColumns] }) ];
 
     $c->stash->{queuedBuilds} = [
-        $c->stash->{job}->builds->search(
+        $job->builds->search(
             { finished => 0 },
-            { join => ['project']
-            , order_by => ["priority DESC", "id"]
-            , '+select' => ['project.enabled']
-            , '+as' => ['enabled']
-            }
+            { order_by => ["priority DESC", "id"] }
         ) ];
 
-    $c->stash->{systems} = [$c->stash->{job}->builds->search({iscurrent => 1}, {select => ["system"], distinct => 1})];
+    # If this is an aggregate job, then get its constituents.
+    my @constituents = $c->model('DB::Builds')->search(
+        { aggregate => { -in => $job->builds->search({}, { columns => ["id"], order_by => "id desc", rows => 15 })->as_query } },
+        { join => 'aggregateconstituents_constituents', 
+          columns => ['id', 'job', 'finished', 'buildstatus'],
+          +select => ['aggregateconstituents_constituents.aggregate'],
+          +as => ['aggregate']
+        });
+
+    my $aggregates = {};
+    my %constituentJobs;
+    foreach my $b (@constituents) {
+        my $jobName = $b->get_column('job');
+        $aggregates->{$b->get_column('aggregate')}->{constituents}->{$jobName} =
+            { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
+        $constituentJobs{$jobName} = 1;
+    }
+
+    foreach my $agg (keys %$aggregates) {
+        # FIXME: could be done in one query.
+        $aggregates->{$agg}->{build} = 
+            $c->model('DB::Builds')->find({id => $agg}, {columns => [@buildListColumns]}) or die;
+    }
+
+    $c->stash->{aggregates} = $aggregates;
+    $c->stash->{constituentJobs} = [sort (keys %constituentJobs)];
+
+    $c->stash->{starred} = $c->user->starredjobs(
+        { project => $c->stash->{project}->name
+        , jobset => $c->stash->{jobset}->name
+        , job => $c->stash->{job}->name
+        })->count == 1 if $c->user_exists;
 }
 
 
@@ -45,13 +73,28 @@ sub overview : Chained('job') PathPart('') Args(0) {
 sub get_builds : Chained('job') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->stash->{job}->builds;
-    $c->stash->{jobStatus} = $c->model('DB')->resultset('JobStatusForJob')
-        ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name, $c->stash->{job}->name]});
-    $c->stash->{allJobs} = $c->stash->{job_};
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJob')
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name, $c->stash->{job}->name]});
     $c->stash->{channelBaseName} =
         $c->stash->{project}->name . "-" . $c->stash->{jobset}->name . "-" . $c->stash->{job}->name;
+}
+
+
+sub star : Chained('job') PathPart('star') Args(0) {
+    my ($self, $c) = @_;
+    requirePost($c);
+    requireUser($c);
+    my $args =
+        { project => $c->stash->{project}->name
+        , jobset => $c->stash->{jobset}->name
+        , job => $c->stash->{job}->name
+        };
+    if ($c->request->params->{star} eq "1") {
+        $c->user->starredjobs->update_or_create($args);
+    } else {
+        $c->user->starredjobs->find($args)->delete;
+    }
+    $c->stash->{resource}->{success} = 1;
 }
 
 

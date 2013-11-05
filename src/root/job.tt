@@ -1,9 +1,15 @@
-[% WRAPPER layout.tt title="Job $project.name:$jobset.name:$job.name" %]
+[% WRAPPER layout.tt
+    title="Job $project.name:$jobset.name:$job.name"
+    starUri=c.uri_for(c.controller('Job').action_for('star'), c.req.captures)
+%]
 [% PROCESS common.tt %]
 [% hideProjectName=1 hideJobsetName=1 hideJobName=1 %]
 
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-status" data-toggle="tab">Status</a></li>
+  [% IF constituentJobs.size > 0 %]
+    <li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>
+  [% END %]
   <li><a href="#tabs-links" data-toggle="tab">Links</a></li>
 </ul>
 
@@ -12,7 +18,7 @@
   <div id="tabs-status" class="tab-pane active">
     [% IF lastBuilds.size != 0 %]
       <h3>Lastest builds</h3>
-      [% INCLUDE renderBuildList builds=lastBuilds showStatusChange=0
+      [% INCLUDE renderBuildList builds=lastBuilds
           linkToAll=c.uri_for('/job' project.name jobset.name job.name 'all') %]
     [% END %]
     [% IF queuedBuilds.size != 0 %]
@@ -21,12 +27,57 @@
     [% END %]
   </div>
 
+  [% IF constituentJobs.size > 0 %]
+
+    <div id="tabs-constituents" class="tab-pane">
+
+      <div class="well well-small">This is an <em>aggregate job</em>:
+      its success or failure is determined entirely by the result of
+      building its <em>constituent jobs</em>. The table below shows
+      the status of each constituent job for the [%
+      aggregates.keys.size %] most recent builds of the
+      aggregate.</div>
+
+      [% aggs = aggregates.keys.nsort.reverse %]
+      <table class="table table-striped table-condensed table-header-rotated">
+        <thead>
+          <tr>
+            <th>Job</th>
+            [% FOREACH agg IN aggs %]
+              <th class="rotate-45">
+                [% agg_ = aggregates.$agg %]
+                <div><span class="[% agg_.build.finished == 0 ? "text-info" : (agg_.build.buildstatus == 0 ? "text-success" : "text-warning") %] override-link">
+                  <a href="[% c.uri_for('/build' agg) %]">[% agg %]</a>
+                </span></div></th>
+            [% END %]
+          </tr>
+        </thead>
+        <tbody>
+          [% FOREACH j IN constituentJobs %]
+            <tr>
+              <th style="width: 1em;">[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]</th>
+              [% FOREACH agg IN aggs %]
+                <td>
+                  [% r = aggregates.$agg.constituents.$j; IF r.id %]
+                    <a href="[% c.uri_for('/build' r.id) %]">
+                      [% INCLUDE renderBuildStatusIcon size=16 build=r %]
+                    </a>
+                  [% END %]
+                </td>
+              [% END %]
+            </tr>
+          [% END %]
+        </tbody>
+      </table>
+
+    </div>
+
+  [% END %]
+
   <div id="tabs-links" class="tab-pane">
     <ul>
       <li><a href="[% c.uri_for('/job' project.name jobset.name job.name 'latest') %]">Latest successful build</a></li>
-      [% FOREACH system IN systems %]
-        <li><a href="[% c.uri_for('/job' project.name jobset.name job.name 'latest-for' system.system) %]">Latest successful build for <tt>[% system.system %]</tt></a></li>
-      [% END %]
+      <li><a href="[% c.uri_for('/job' project.name jobset.name job.name 'latest-finished') %]">Latest successful build from a finished evaluation</a></li>
     </ul>
   </div>
 

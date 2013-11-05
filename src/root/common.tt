@@ -20,7 +20,7 @@ BLOCK renderJobsetName %]
 
 
 BLOCK renderJobName %]
-<a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/job' project jobset job) %]"><tt>[% job %]</tt></a>
+<a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/job' project jobset job) %]">[% job %]</a>
 [% END;
 
 
@@ -40,9 +40,9 @@ END;
 
 
 BLOCK renderDuration;
-  IF duration >= 24 * 60 * 60; duration div (24 * 60 * 60) %]d [% END;
-  IF duration >= 60 * 60; duration div (60 * 60) % 24 %]h [% END;
-  IF duration >= 60; duration div 60 % 60 %]m [% END;
+  IF duration >= 24 * 60 * 60; duration div (24 * 60 * 60) %]d&nbsp;[% END;
+  IF duration >= 60 * 60; duration div (60 * 60) % 24 %]h&nbsp;[% END;
+  IF duration >= 60; duration div 60 % 60 %]m&nbsp;[% END;
   duration % 60 %]s[%
 END;
 
@@ -64,12 +64,9 @@ BLOCK renderBuildListHeader %]
         [% IF !hideJobName %]
         <th>Job</th>
         [% END %]
-        <th>Release Name</th>
+        <th>Release name</th>
         <th>System</th>
         <th>[% IF showSchedulingInfo %]Queued at[% ELSE %]Finished at[% END %]</th>
-        [% IF showStatusChange %]
-          <th class="headerSortUp">Last status change</th>
-        [% END %]
         [% IF showDescription %]
           <th>Description</th>
         [% END %]
@@ -99,25 +96,14 @@ BLOCK renderBuildListBody;
       [% END %]
       <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
       <td class="nowrap"><tt>[% build.system %]</tt></td>
-      <td class="nowrap">[% date.format(showSchedulingInfo ? build.timestamp : build.stoptime, '%Y-%m-%d %H:%M:%S') %]</td>
-      [% IF showStatusChange %]
-        <td>
-          [% IF build.get_column('statusChangeTime') %]
-            <a href="[% c.uri_for('/build' build.get_column('statusChangeId')) %]">
-              [% date.format(build.get_column('statusChangeTime'), '%Y-%m-%d %H:%M:%S') %]
-            </a>
-          [% ELSE %]
-            <em>never</em>
-          [% END %]
-        </td>
-      [% END %]
+      <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; date.format(showSchedulingInfo ? build.timestamp : build.stoptime, '%Y-%m-%d %H:%M:%S'); ELSE; "-"; END %]</td>
       [% IF showDescription %]
         <td>[% build.description %]</td>
       [% END %]
     </tr>
   [% END;
   IF linkToAll %]
-    <td class="centered" colspan="5"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+    <tr><td class="centered" colspan="5"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
   [% END;
 END;
 
@@ -144,7 +130,7 @@ END;
 
 
 BLOCK maybeLink;
-  IF uri %]<a [% HTML.attributes(href => uri, class => class) %][% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END;
+  IF uri %]<a [% HTML.attributes(href => uri, class => class); IF confirmmsg +%] onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END;
 END;
 
 
@@ -164,7 +150,7 @@ BLOCK renderSelection;
     [% ELSE %]
       <select [% HTML.attributes(id => param, name => param) %]>
         [% FOREACH name IN options.keys.sort %]
-          <option [% HTML.attributes(value => name) %] [% IF name == curValue; "selected='selected'"; END %]>[% options.$name %]</option>
+          <option [% IF name == curValue; "selected='selected'"; END; " "; HTML.attributes(value => name) %]>[% options.$name %]</option>
         [% END %]
       </select>
     [% END;
@@ -195,24 +181,24 @@ BLOCK renderBuildStatusIcon;
   buildstatus = buildstatus != undef ? buildstatus : build.buildstatus;
   IF finished;
     IF buildstatus == 0 %]
-      <img src="/static/images/checkmark_[% size %].png" alt="Succeeded" />
+      <img src="[% c.uri_for("/static/images/checkmark_${size}.png") %]" alt="Succeeded" />
     [% ELSIF buildstatus == 1 %]
-      <img src="/static/images/error_[% size %].png" alt="Failed" />
-    [% ELSIF buildstatus == 2 %]
-      <img src="/static/images/dependency_[% size %].png" alt="Dependency failed" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" />
+    [% ELSIF buildstatus == 2 || buildstatus == 5 %]
+      <img src="[% c.uri_for("/static/images/dependency_${size}.png") %]" alt="Dependency failed" />
+    [% ELSIF buildstatus == 3 %]
+      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Aborted" />
     [% ELSIF buildstatus == 4 %]
-      <img src="/static/images/cancelled_[% size %].png" alt="Cancelled" />
-    [% ELSIF buildstatus == 5 %]
-      <img src="/static/images/error_[% size %].png" alt="Failed" />
+      <img src="[% c.uri_for("/static/images/forbidden_${size}.png") %]" alt="Cancelled" />
     [% ELSIF buildstatus == 6 %]
-      <img src="/static/images/error_[% size %].png" alt="Failed (with result)" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed (with result)" />
     [% ELSE %]
-      <img src="/static/images/error_[% size %].png" alt="Failed" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" />
     [% END;
   ELSIF busy %]
-    <img src="/static/images/help_[% size %].png" alt="Busy" />
+    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Busy" />
   [% ELSE %]
-    <img src="/static/images/help_[% size %].png" alt="Scheduled" />
+    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Scheduled" />
   [% END;
 END;
 
@@ -225,17 +211,15 @@ BLOCK renderStatus;
       <strong>Success</strong>
     [% ELSIF buildstatus == 1 %]
       <span class="error">Build returned a non-zero exit code</span>
-    [% ELSIF buildstatus == 2 %]
+    [% ELSIF buildstatus == 2 || buildstatus == 5 %]
       <span class="error">A dependency of the build failed</span>
     [% ELSIF buildstatus == 4 %]
       <span class="error">Cancelled by user</span>
-    [% ELSIF buildstatus == 5 %]
-      <span class="error">Build inhibited because a dependency previously failed to build</span>
     [% ELSIF buildstatus == 6 %]
       <span class="error">Build failed (with result)</span>
     [% ELSE %]
-      <span class="error">Build failed</span>
-      (see <a href="#nix-error">below</a>)
+      <span class="error">Aborted</span>
+      (Hydra failure; see <a href="#nix-error">below</a>)
     [% END;
   ELSIF build.busy %]
     <strong>Build in progress</strong>
@@ -246,24 +230,15 @@ BLOCK renderStatus;
 END;
 
 
-BLOCK renderInputValue;
-  IF input.type == "build" || input.type == "sysbuild";
-    INCLUDE renderFullBuildLink build=input.dependency;
-  ELSIF input.type == "string" || input.type == "boolean" %]
-    <tt>"[% input.value %]"</tt>
-  [% ELSE %]
-    <tt>[% input.uri %][% IF input.revision %] (r[% input.revision %])[% END %]</tt>
-  [% END;
-END;
-
-
 BLOCK renderShortInputValue;
   IF input.type == "build" || input.type == "sysbuild" %]
     <a href="[% c.uri_for('/build' input.dependency.id) %]">[% input.dependency.id %]</a>
-  [% ELSIF input.type == "string" || input.type == "boolean" %]
-    <tt>"[% input.value %]"</tt>
+  [% ELSIF input.type == "string" %]
+    <tt>"[% HTML.escape(input.value) %]"</tt>
+  [% ELSIF input.type == "nix" || input.type == "boolean" %]
+    <tt>[% HTML.escape(input.value) %]</tt>
   [% ELSE %]
-    <tt>[% input.uri %][% IF input.revision %] (r[% input.revision %])[% END %]</tt>
+    <tt>[% HTML.escape(input.uri) %][% IF input.revision %] (r[% HTML.escape(input.revision) %])[% END %]</tt>
   [% END %]
 [% END;
 
@@ -275,7 +250,7 @@ BLOCK renderDiffUri;
     url = bi1.uri;
     path = url.replace(base, '');
     IF url.match(base) %]
-      <a target="_new" href="[% m.uri.replace('_path_', path).replace('_1_', bi1.revision).replace('_2_', bi2.revision) %]">[% contents %]</a>
+      <a target="_blank" href="[% m.uri.replace('_path_', path).replace('_1_', bi1.revision).replace('_2_', bi2.revision) %]">[% contents %]</a>
       [% nouri = 0;
     END;
   END;
@@ -284,7 +259,7 @@ BLOCK renderDiffUri;
     url = res.0;
     branch = res.1;
     IF bi1.type == "hg" || bi1.type == "git" %]
-      <a target="_new" href="[% HTML.escape("/api/scmdiff?uri=$url&rev1=$bi1.revision&rev2=$bi2.revision&type=$bi1.type&branch=$branch") %]">[% contents %]</a>
+      <a target="_blank" href="[% HTML.escape("/api/scmdiff?uri=$url&rev1=$bi1.revision&rev2=$bi2.revision&type=$bi1.type&branch=$branch") %]">[% contents %]</a>
     [% ELSE;
       contents;
     END;
@@ -305,13 +280,15 @@ BLOCK renderInputs; %]
           <td>
             [% IF input.type == "build" || input.type == "sysbuild" %]
               [% INCLUDE renderFullBuildLink build=input.dependency %]
-            [% ELSIF input.type == "string" || input.type == "boolean" %]
-              <tt>"[% input.value %]"</tt>
+            [% ELSIF input.type == "string"  %]
+              <tt>"[% HTML.escape(input.value) %]"</tt>
+            [% ELSIF input.type == "nix" || input.type == "boolean" %]
+              <tt>[% HTML.escape(input.value) %]</tt>
             [% ELSE %]
-              <tt>[% input.uri %]</tt>
+              <tt>[% HTML.escape(input.uri) %]</tt>
             [% END %]
           </td>
-          <td>[% IF input.revision %][% input.revision %][% END %]</td>
+          <td>[% IF input.revision %][% HTML.escape(input.revision) %][% END %]</td>
           <td><tt>[% input.path %]</tt></td>
         </tr>
       [% END %]
@@ -372,10 +349,10 @@ BLOCK renderInputDiff; %]
 
 BLOCK renderPager %]
   <ul class="pager">
-    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page=1" %]">&laquo; First</a></li>
-    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page - 1) %]">&lsaquo; Previous</a></li>
-    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page + 1) %]">Next &rsaquo;</a></li>
-    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last &raquo;</a></li>
+    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page=1" %]">« First</a></li>
+    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page - 1) %]">‹ Previous</a></li>
+    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page + 1) %]">Next ›</a></li>
+    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last »</a></li>
   </ul>
 [% END;
 
@@ -458,22 +435,10 @@ BLOCK renderLogLinks %]
 
 BLOCK makeLazyTab %]
   <div id="[% tabName %]" class="tab-pane">
-    <center><img src="/static/images/ajax-loader.gif" alt="Loading..." /></center>
+    <center><img src="[% c.uri_for("/static/images/ajax-loader.gif") %]" alt="Loading..." /></center>
   </div>
   <script>
-    $(function() {
-      $('.nav-tabs').bind('show', function(e) {
-        var pattern = /#.+/gi;
-        var id = e.target.toString().match(pattern)[0];
-        if (id == "#[% tabName %]") {
-          $('#[% tabName %]').load("[% uri %]", function(response, status, xhr) {
-            if (status == "error") {
-              $('#[% tabName %]').html("<div class='alert alert-error'>Error loading tab: " + xhr.status + " " + xhr.statusText + "</div>");
-            }
-          });
-        }
-      });
-    });
+    $(function() { makeLazyTab("[% tabName %]", "[% uri %]"); });
   </script>
 [% END;
 
@@ -484,5 +449,19 @@ BLOCK makePopover %]
   </div>
 [% END;
 
+
+BLOCK menuItem %]
+  <li class="[% IF "${root}${curUri}" == uri %]active[% END %]" [% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>
+    <a [% HTML.attributes(href => uri) %] [%+ IF modal %]data-toggle="modal"[% END %]>
+      [% IF icon %]<i class="[% icon %] icon-black"></i> [%+ END %]
+      [% title %]
+    </a>
+  </li>
+[% END;
+
+
+BLOCK makeStar %]
+<span class="star" data-post="[% starUri %]">[% IF starred; "★"; ELSE; "☆"; END %]</span>
+[% END;
 
 %]

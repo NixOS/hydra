@@ -1,9 +1,6 @@
 [% USE date %]
 [% USE HTML %]
-<?xml version="1.0" encoding="UTF-8"?>
-
 [% PROCESS common.tt %]
-
 <!DOCTYPE html>
 
 <html lang="en">
@@ -19,24 +16,25 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <script type="text/javascript" src="/static/bootstrap/js/bootstrap.min.js"></script>
-    <link href="/static/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
+    <script type="text/javascript" src="[% c.uri_for("/static/bootstrap/js/bootstrap.min.js") %]"></script>
+    <link href="[% c.uri_for("/static/bootstrap/css/bootstrap.min.css") %]" rel="stylesheet" />
 
     <!-- hydra.css must be included before bootstrap-responsive to
          make the @media rule work. -->
-    <link rel="stylesheet" href="/static/css/hydra.css" type="text/css" />
-    <link href="/static/bootstrap/css/bootstrap-responsive.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="[% c.uri_for("/static/css/hydra.css") %]" type="text/css" />
+    <link rel="stylesheet" href="[% c.uri_for("/static/css/rotated-th.css") %]" type="text/css" />
+    <link href="[% c.uri_for("/static/bootstrap/css/bootstrap-responsive.min.css") %]" rel="stylesheet" />
 
     <style>
       .popover { max-width: 40%; }
     </style>
 
-    <script type="text/javascript" src="/static/js/bootbox.min.js"></script>
+    <script type="text/javascript" src="[% c.uri_for("/static/js/bootbox.min.js") %]"></script>
 
-    <link rel="stylesheet" href="/static/css/tree.css" type="text/css" />
-    <link rel="stylesheet" href="/static/css/logfile.css" type="text/css" />
+    <link rel="stylesheet" href="[% c.uri_for("/static/css/tree.css") %]" type="text/css" />
+    <link rel="stylesheet" href="[% c.uri_for("/static/css/logfile.css") %]" type="text/css" />
 
-    <script type="text/javascript" src="/static/js/common.js"></script>
+    <script type="text/javascript" src="[% c.uri_for("/static/js/common.js") %]"></script>
 
     [% tracker %]
 
@@ -68,24 +66,27 @@
 
     <div class="container">
 
-      [% IF !hideHeader %]
-        <div class="page-header">
-          <h1><small>[% HTML.escape(title) %]</small></h1>
-        </div>
-      [% ELSE %]
-        <br />
-      [% END %]
-
       [% IF flashMsg %]
+        <br />
         <div class="alert alert-info">[% flashMsg %]</div>
       [% END %]
 
       [% IF successMsg %]
+        <br />
         <div class="alert alert-success">[% successMsg %]</div>
       [% END %]
 
       [% IF errorMsg %]
-        <div class="alert alert-error">Error: [% errorMsg %]</div>
+        <br />
+        <div class="alert alert-warning">Error: [% errorMsg %]</div>
+      [% END %]
+
+      [% IF !hideHeader %]
+        <div class="page-header">
+          <h1><small>[% IF c.user_exists && starUri; INCLUDE makeStar; " "; END; HTML.escape(title) %]</small></h1>
+        </div>
+      [% ELSE %]
+        <br />
       [% END %]
 
       [% content %]
@@ -93,7 +94,7 @@
       <footer class="navbar">
         <hr />
         <small>
-          <em><a href="http://nixos.org/hydra" target="_new">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
+          <em><a href="http://nixos.org/hydra" target="_blank">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
           [% IF c.user_exists %]
           You are signed in as <tt>[% HTML.escape(c.user.username) %]</tt>.
           [% END %]

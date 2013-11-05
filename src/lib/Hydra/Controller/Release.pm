@@ -38,7 +38,7 @@ sub updateRelease {
         , description => trim $c->request->params->{description}
         });
 
-    $release->releasemembers->delete_all;
+    $release->releasemembers->delete;
     foreach my $param (keys %{$c->request->params}) {
         next unless $param =~ /^member-(\d+)-description$/;
         my $buildId = $1;
@@ -72,7 +72,7 @@ sub submit : Chained('release') PathPart('submit') Args(0) {
         txn_do($c->model('DB')->schema, sub {
             updateRelease($c, $c->stash->{release});
         });
-        $c->res->redirect($c->uri_for($self->action_for("project"),
+        $c->res->redirect($c->uri_for($self->action_for("view"),
             [$c->stash->{project}->name, $c->stash->{release}->name]));
     }
 }

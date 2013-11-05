@@ -50,18 +50,98 @@ $(document).ready(function() {
 
     $(".hydra-popover").popover({});
 
-    /* Ensure that pressing the back button on another page
-       navigates back to the previously selected tab on this
-       page. */
+    $(function() {
+        if (window.location.hash) {
+            $(".nav-tabs a[href='" + window.location.hash + "']").tab('show');
+        }
+
+        /* If no tab is active, show the first one. */
+        $(".nav-tabs").each(function() {
+            if ($("li.active", this).length > 0) return;
+            $("a", $(this).children("li:not(.dropdown)").first()).tab('show');
+        });
+
+        /* Ensure that pressing the back button on another page
+           navigates back to the previously selected tab on this
+           page. */
+        $('.nav-tabs').bind('show', function(e) {
+            var pattern = /#.+/gi;
+            var id = e.target.toString().match(pattern)[0];
+            history.replaceState(null, "", id);
+        });
+    });
+
+    /* Automatically set Bootstrap radio buttons from hidden form controls. */
+    $('div[data-toggle="buttons-radio"] input[type="hidden"]').map(function(){
+        $('button[value="' + $(this).val() + '"]', $(this).parent()).addClass('active');
+    });
+
+    /* Automatically update hidden form controls from Bootstrap radio buttons. */
+    $('div[data-toggle="buttons-radio"] .btn').click(function(){
+        $('input', $(this).parent()).val($(this).val());
+    });
+
+    $(".star").click(function(event) {
+        var star = $(this);
+        var active = star.text() != '★';
+        requestJSON({
+            url: star.attr("data-post"),
+            data: active ? "star=1" : "star=0",
+            type: 'POST',
+            success: function(res) {
+                if (active) {
+                    star.text('★');
+                } else {
+                    star.text('☆');
+                }
+            }
+        });
+    });
+});
+
+var tabsLoaded = {};
+
+function makeLazyTab(tabName, uri) {
     $('.nav-tabs').bind('show', function(e) {
         var pattern = /#.+/gi;
         var id = e.target.toString().match(pattern)[0];
-        history.replaceState(null, "", id);
-    });
-
-    $(function() {
-        if (window.location.hash) {
-            $(".nav a[href='" + window.location.hash + "']").tab('show');
+        if (id == '#' + tabName && !tabsLoaded[id]) {
+          tabsLoaded[id] = 1;
+          $('#' + tabName).load(uri, function(response, status, xhr) {
+            if (status == "error") {
+              $('#' + tabName).html("<div class='alert alert-error'>Error loading tab: " + xhr.status + " " + xhr.statusText + "</div>");
+            }
+          });
         }
-    })
-});
+    });
+};
+
+function escapeHTML(s) {
+    return $('<div/>').text(s).html();
+};
+
+function requestJSON(args) {
+    args.dataType = 'json';
+    args.error = function(data) {
+        json = {};
+        try {
+            if (data.responseText)
+                json = $.parseJSON(data.responseText);
+        } catch (err) {
+        }
+        if (json.error)
+            bootbox.alert(escapeHTML(json.error));
+        else if (data.responseText)
+            bootbox.alert("Server error: " + escapeHTML(data.responseText));
+        else
+            bootbox.alert("Unknown server error!");
+    };
+    return $.ajax(args);
+};
+
+function redirectJSON(args) {
+    args.success = function(data) {
+        window.location = data.redirect;
+    };
+    return requestJSON(args);
+};

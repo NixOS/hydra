@@ -26,6 +26,9 @@ sub view : Chained('eval') PathPart('') Args(0) {
 
     my $eval = $c->stash->{eval};
 
+    $c->stash->{filter} = $c->request->params->{filter} // "";
+    my $filter = $c->stash->{filter} eq "" ? {} : { job => { ilike => "%" . $c->stash->{filter} . "%" } };
+
     my $compare = $c->req->params->{compare};
     my $eval2;
 
@@ -36,6 +39,11 @@ sub view : Chained('eval') PathPart('') Args(0) {
         if ($compare =~ /^\d+$/) {
             $eval2 = $c->model('DB::JobsetEvals')->find($compare)
                 or notFound($c, "Evaluation $compare doesn't exist.");
+        } elsif ($compare =~ /^-(\d+)$/) {
+            my $t = int($1);
+            $eval2 = $c->stash->{jobset}->jobsetevals->find(
+                { hasnewbuilds => 1, timestamp => {'<=', $eval->timestamp - $t} },
+                { order_by => "timestamp desc", rows => 1});
         } elsif (defined $compare && $compare =~ /^($jobsetNameRE)$/) {
             my $j = $c->stash->{project}->jobsets->find({name => $compare})
                 or notFound($c, "Jobset $compare doesn't exist.");
@@ -51,10 +59,17 @@ sub view : Chained('eval') PathPart('') Args(0) {
 
     $c->stash->{otherEval} = $eval2 if defined $eval2;
 
-    my @builds = $eval->builds->search({}, { order_by => ["job", "system", "id"], columns => [@buildListColumns] });
-    my @builds2 = defined $eval2
-        ? $eval2->builds->search({}, { order_by => ["job", "system", "id"], columns => [@buildListColumns] })
-        : ();
+    sub cmpBuilds {
+        my ($a, $b) = @_;
+        return $a->get_column('job') cmp $b->get_column('job')
+            || $a->get_column('system') cmp $b->get_column('system')
+    }
+
+    my @builds = $eval->builds->search($filter, { columns => [@buildListColumns] });
+    my @builds2 = defined $eval2 ? $eval2->builds->search($filter, { columns => [@buildListColumns] }) : ();
+
+    @builds  = sort { cmpBuilds($a, $b) } @builds;
+    @builds2 = sort { cmpBuilds($a, $b) } @builds2;
 
     $c->stash->{stillSucceed} = [];
     $c->stash->{stillFail} = [];
@@ -63,15 +78,19 @@ sub view : Chained('eval') PathPart('') Args(0) {
     $c->stash->{new} = [];
     $c->stash->{removed} = [];
     $c->stash->{unfinished} = [];
+    $c->stash->{aborted} = [];
 
     my $n = 0;
     foreach my $build (@builds) {
+        if ($build->finished != 0 && ($build->buildstatus == 3 || $build->buildstatus == 4)) {
+            push @{$c->stash->{aborted}}, $build;
+            next;
+        }
         my $d;
         my $found = 0;
         while ($n < scalar(@builds2)) {
             my $build2 = $builds2[$n];
-            my $d = $build->get_column('job') cmp $build2->get_column('job')
-                || $build->get_column('system') cmp $build2->get_column('system');
+            my $d = cmpBuilds($build, $build2);
             last if $d == -1;
             if ($d == 0) {
                 $n++;
@@ -135,6 +154,25 @@ sub release : Chained('eval') PathPart('release') Args(0) {
 }
 
 
+sub cancel : Chained('eval') PathPart('cancel') Args(0) {
+    my ($self, $c) = @_;
+    requireProjectOwner($c, $c->stash->{eval}->project);
+    my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->builds);
+    $c->flash->{successMsg} = "$n builds have been cancelled.";
+    $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
+}
+
+
+sub restart_aborted : Chained('eval') PathPart('restart-aborted') Args(0) {
+    my ($self, $c) = @_;
+    requireProjectOwner($c, $c->stash->{eval}->project);
+    my $builds = $c->stash->{eval}->builds->search({ finished => 1, buildstatus => { -in => [3, 4] } });
+    my $n = restartBuilds($c->model('DB')->schema, $builds);
+    $c->flash->{successMsg} = "$n builds have been restarted.";
+    $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
+}
+
+
 # Hydra::Base::Controller::NixChannel needs this.
 sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
     my ($self, $c) = @_;
@@ -144,7 +182,19 @@ sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
         ->search({ finished => 1, buildstatus => 0 },
                  { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
                  , join => ["buildoutputs"]
+                 , order_by => ["build.id", "buildoutputs.name"]
                  , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
+}
+
+
+sub job : Chained('eval') PathPart('job') {
+    my ($self, $c, $job, @rest) = @_;
+
+    my $build = $c->stash->{eval}->builds->find({job => $job});
+
+    notFound($c, "This evaluation has no job with the specified name.") unless defined $build;
+
+    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("build"), [$build->id], @rest));
 }
 
 

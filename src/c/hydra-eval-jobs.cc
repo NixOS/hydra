@@ -109,6 +109,22 @@ static int queryMetaFieldInt(MetaInfo & meta, const string & name, int def)
 }
 
 
+static string queryMetaField(MetaInfo & meta, const string & name)
+{
+    string res;
+    MetaValue value = meta[name];
+    if (value.type == MetaValue::tpString)
+        res = value.stringValue;
+    else if (value.type == MetaValue::tpStrings) {
+        foreach (Strings::const_iterator, i, value.stringValues) {
+            if (res.size() != 0) res += ", ";
+            res += *i;
+        }
+    }
+    return res;
+}
+
+
 static void findJobsWrapped(EvalState & state, XMLWriter & doc,
     const ArgsUsed & argsUsed, const AutoArgs & argsLeft,
     Value & v, const string & attrPath)
@@ -136,8 +152,9 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             MetaInfo meta = drv.queryMetaInfo(state);
             xmlAttrs["description"] = queryMetaFieldString(meta, "description");
             xmlAttrs["longDescription"] = queryMetaFieldString(meta, "longDescription");
-            xmlAttrs["license"] = queryMetaFieldString(meta, "license");
+            xmlAttrs["license"] = queryMetaField(meta, "license");
             xmlAttrs["homepage"] = queryMetaFieldString(meta, "homepage");
+            xmlAttrs["maintainers"] = queryMetaField(meta, "maintainers");
 
             int prio = queryMetaFieldInt(meta, "schedulingPriority", 100);
             xmlAttrs["schedulingPriority"] = int2String(prio);
@@ -148,17 +165,22 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             int maxsilent = queryMetaFieldInt(meta, "maxSilent", 3600);
             xmlAttrs["maxSilent"] = int2String(maxsilent);
 
-            string maintainers;
-            MetaValue value = meta["maintainers"];
-            if (value.type == MetaValue::tpString)
-                maintainers = value.stringValue;
-            else if (value.type == MetaValue::tpStrings) {
-                foreach (Strings::const_iterator, i, value.stringValues) {
-                    if (maintainers.size() != 0) maintainers += ", ";
-                    maintainers += *i;
-                }
+            /* If this is an aggregate, then get its constituents. */
+            Bindings::iterator a = v.attrs->find(state.symbols.create("_hydraAggregate"));
+            if (a != v.attrs->end() && state.forceBool(*a->value)) {
+                Bindings::iterator a = v.attrs->find(state.symbols.create("constituents"));
+                if (a == v.attrs->end())
+                    throw EvalError("derivation must have a ‘constituents’ attribute");
+                PathSet context;
+                state.coerceToString(*a->value, context, true, false);
+                PathSet drvs;
+                foreach (PathSet::iterator, i, context)
+                    if (i->at(0) == '!') {
+                        size_t index = i->find("!", 1);
+                        drvs.insert(string(*i, index + 1));
+                    }
+                xmlAttrs["constituents"] = concatStringsSep(" ", drvs);
             }
-            xmlAttrs["maintainers"] = maintainers;
 
             /* Register the derivation as a GC root.  !!! This
                registers roots for jobs that we may have already
@@ -267,9 +289,8 @@ void run(Strings args)
 
     store = openStore();
 
-    Expr * e = state.parseExprFromFile(releaseExpr);
     Value v;
-    state.mkThunk_(v, e);
+    state.evalFile(releaseExpr, v);
 
     XMLWriter doc(true, std::cout);
     XMLOpenElement root(doc, "jobs");
