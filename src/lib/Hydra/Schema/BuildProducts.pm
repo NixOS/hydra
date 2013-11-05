@@ -158,12 +158,12 @@ my %hint = (
         'type',
         'subtype',
         'name',
-        'fileSize',
+        'filesize',
         'sha1hash',
         'sha256hash',
         'description',
         'path',
-        'defaultPath'
+        'defaultpath'
     ],
 );
 
