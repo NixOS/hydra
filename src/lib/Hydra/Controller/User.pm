@@ -16,7 +16,7 @@ use HTML::Entities;
 __PACKAGE__->config->{namespace} = '';
 
 
-sub login :Local :Args(0) :ActionClass('REST::ForBrowsers') { }
+sub login :Local :Args(0) :ActionClass('REST') { }
 
 sub login_POST {
     my ($self, $c) = @_;
@@ -30,11 +30,11 @@ sub login_POST {
     accessDenied($c, "Bad username or password.")
         if !$c->authenticate({username => $username, password => $password});
 
-    $self->status_ok($c, entity => { });
+    $self->status_no_content($c);
 }
 
 
-sub logout :Local :Args(0) :ActionClass('REST::ForBrowsers') { }
+sub logout :Local :Args(0) :ActionClass('REST') { }
 
 sub logout_POST {
     my ($self, $c) = @_;
@@ -106,9 +106,13 @@ sub register :Local Args(0) {
 
     accessDenied($c, "User registration is currently not implemented.") unless isAdmin($c);
 
-    $c->stash->{template} = 'user.tt';
-    $c->stash->{create} = 1;
-    return if $c->request->method ne "POST";
+    if ($c->request->method eq "GET") {
+        $c->stash->{template} = 'user.tt';
+        $c->stash->{create} = 1;
+        return;
+    }
+
+    die unless $c->request->method eq "PUT";
 
     my $userName = trim $c->req->params->{username};
     $c->stash->{username} = $userName;
@@ -138,12 +142,15 @@ sub register :Local Args(0) {
     }
 
     $c->flash->{successMsg} = "User <tt>$userName</tt> has been created.";
-    backToReferer($c);
+    $self->status_no_content($c);
 }
 
 
 sub updatePreferences {
     my ($c, $user) = @_;
+
+    my $fullName = trim($c->req->params->{fullname} // "");
+    error($c, "Your must specify your full name.") if $fullName eq "";
 
     my $password = trim($c->req->params->{password} // "");
     if ($user->type eq "hydra" && ($user->password eq "!" || $password ne "")) {
@@ -155,9 +162,6 @@ sub updatePreferences {
 
         setPassword($user, $password);
     }
-
-    my $fullName = trim($c->req->params->{fullname} // "");
-    error($c, "Your must specify your full name.") if $fullName eq "";
 
     my $emailAddress = trim($c->req->params->{emailaddress} // "");
     # FIXME: validate email address?
@@ -185,8 +189,7 @@ sub currentUser_GET {
 
     requireUser($c);
 
-    $self->status_ok(
-        $c,
+    $self->status_ok($c,
         entity => $c->model("DB::Users")->find($c->user->username)
     );
 }
@@ -205,61 +208,18 @@ sub user :Chained('/') PathPart('user') CaptureArgs(1) {
 }
 
 
-sub deleteUser {
-    my ($self, $c, $user) = @_;
-    my ($project) = $c->model('DB::Projects')->search({ owner => $user->username });
-    error($c, "User " . $user->username . " is still owner of project " . $project->name . ".")
-        if defined $project;
-    $c->logout() if $user->username eq $c->user->username;
-    $user->delete;
-}
-
-
-sub edit :Chained('user') :Args(0) :ActionClass('REST::ForBrowsers') { }
+sub edit :Chained('user') :PathPart('') :Args(0) :ActionClass('REST::ForBrowsers') { }
 
 sub edit_GET {
     my ($self, $c) = @_;
-
-    my $user = $c->stash->{user};
-
     $c->stash->{template} = 'user.tt';
-
-    $c->session->{referer} = $c->request->referer if !defined $c->session->{referer};
-
-    $c->stash->{fullname} = $user->fullname;
-
-    $c->stash->{emailonerror} = $user->emailonerror;
 }
 
-sub edit_POST {
+sub edit_PUT {
     my ($self, $c) = @_;
-
     my $user = $c->stash->{user};
 
-    $c->stash->{template} = 'user.tt';
-
-    $c->session->{referer} = $c->request->referer if !defined $c->session->{referer};
-
-    if (($c->stash->{params}->{submit} // "") eq "delete") {
-        deleteUser($self, $c, $user);
-        backToReferer($c);
-    }
-
     if (($c->stash->{params}->{submit} // "") eq "reset-password") {
-        error($c, "This user's password cannot be reset.") if $user->type ne "hydra";
-        $c->stash->{json} = {};
-        error($c, "No email address is set for this user.")
-            unless $user->emailaddress;
-        my $password = Crypt::RandPasswd->word(8,10);
-        setPassword($user, $password);
-        sendEmail($c,
-            $user->emailaddress,
-            "Hydra password reset",
-            "Hi,\n\n".
-            "Your password has been reset. Your new password is '$password'.\n\n".
-            "You can change your password at " . $c->uri_for($self->action_for('edit'), [$user->username]) . ".\n\n".
-            "With regards,\n\nHydra.\n"
-        );
         return;
     }
 
@@ -267,12 +227,50 @@ sub edit_POST {
         updatePreferences($c, $user);
     });
 
-    if ($c->request->looks_like_browser) {
-        $c->flash->{successMsg} = "Your preferences have been updated.";
-        backToReferer($c);
-    } else {
-        $self->status_no_content($c);
-    }
+    $c->flash->{successMsg} = "Your preferences have been updated.";
+    $self->status_no_content($c);
+}
+
+sub edit_DELETE {
+    my ($self, $c) = @_;
+    my $user = $c->stash->{user};
+
+    my ($project) = $c->model('DB::Projects')->search({ owner => $user->username });
+    error($c, "User " . $user->username . " is still owner of project " . $project->name . ".")
+        if defined $project;
+
+    $c->logout() if $user->username eq $c->user->username;
+
+    $user->delete;
+
+    $c->flash->{successMsg} = "The user has been deleted.";
+    $self->status_no_content($c);
+}
+
+
+sub reset_password :Chained('user') :PathPart('reset-password') :Args(0) {
+    my ($self, $c) = @_;
+    my $user = $c->stash->{user};
+
+    requirePost($c);
+
+    error($c, "This user's password cannot be reset.") if $user->type ne "hydra";
+    error($c, "No email address is set for this user.")
+        unless $user->emailaddress;
+
+    my $password = Crypt::RandPasswd->word(8,10);
+    setPassword($user, $password);
+    sendEmail($c,
+        $user->emailaddress,
+        "Hydra password reset",
+        "Hi,\n\n".
+        "Your password has been reset. Your new password is '$password'.\n\n".
+        "You can change your password at " . $c->uri_for($self->action_for('edit'), [$user->username]) . ".\n\n".
+        "With regards,\n\nHydra.\n"
+    );
+
+    $c->flash->{successMsg} = "A new password has been sent to ${\$user->emailaddress}.";
+    $self->status_no_content($c);
 }
 
 

@@ -145,3 +145,9 @@ function redirectJSON(args) {
     };
     return requestJSON(args);
 };
+
+function backToReferrer() {
+    // FIXME: should only do this if the referrer is another Hydra
+    // page.
+    window.location = document.referrer;
+}
