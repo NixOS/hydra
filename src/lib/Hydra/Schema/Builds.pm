@@ -620,7 +620,7 @@ my %hint = (
     ],
     eager_relations => {
         buildoutputs => 'name',
-        buildinputs => 'name',
+        buildinputs_builds => 'name',
         buildproducts => 'productnr',
     }
 );
