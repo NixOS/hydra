@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title="Overview" hideHeader=1 %]
 [% PROCESS common.tt %]
 
-[% IF newItems.size != 0 %]
+[% IF newsItems.size != 0 %]
   <div class="alert alert-info">
     [% FOREACH i IN newsItems %]
       <div class="news-item">
