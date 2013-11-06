@@ -54,7 +54,8 @@ __PACKAGE__->config(
     },
     'Plugin::Session' => {
         expires => 3600 * 24 * 2,
-        storage => Hydra::Model::DB::getHydraPath . "/session_data"
+        storage => Hydra::Model::DB::getHydraPath . "/session_data",
+        unlink_on_exit => 0
     },
     'Plugin::AccessLog' => {
         formatter => {
