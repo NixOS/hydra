@@ -20,7 +20,7 @@ sub begin :Private {
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
-    $c->stash->{logo} = $c->config->{hydra_logo} // ($ENV{"HYDRA_LOGO"} ? "/logo" : "");
+    $c->stash->{logo} = ($c->config->{hydra_logo} // $ENV{"HYDRA_LOGO"}) ? "/logo" : "";
     $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"};
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
@@ -274,7 +274,7 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
 
 sub logo :Local {
     my ($self, $c) = @_;
-    my $path = $ENV{"HYDRA_LOGO"} or die("Logo not set!");
+    my $path = $c->config->{hydra_logo} // $ENV{"HYDRA_LOGO"} // die("Logo not set!");
     $c->serve_static_file($path);
 }
 
