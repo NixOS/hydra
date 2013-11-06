@@ -195,7 +195,7 @@ in
 
     systemd.services."hydra-server" =
       { wantedBy = [ "multi-user.target" ];
-        wants = [ "hydra-init.service" ];
+        requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
         environment = serverEnv;
         serviceConfig =
@@ -207,7 +207,7 @@ in
 
     systemd.services."hydra-queue-runner" =
       { wantedBy = [ "multi-user.target" ];
-        wants = [ "hydra-init.service" ];
+        requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
         path = [ pkgs.nettools ];
         environment = env;
@@ -221,7 +221,7 @@ in
 
     systemd.services."hydra-evaluator" =
       { wantedBy = [ "multi-user.target" ];
-        wants = [ "hydra-init.service" ];
+        requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
         path = [ pkgs.nettools ];
         environment = env;
@@ -233,7 +233,7 @@ in
       };
 
     systemd.services."hydra-update-gc-roots" =
-      { wants = [ "hydra-init.service" ];
+      { requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
         environment = env;
         serviceConfig =
