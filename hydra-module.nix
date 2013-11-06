@@ -14,7 +14,6 @@ let
       HYDRA_DBI = cfg.dbi;
       HYDRA_CONFIG = "${baseDir}/data/hydra.conf";
       HYDRA_DATA = "${baseDir}/data";
-      HYDRA_PORT = "${toString cfg.port}";
       OPENSSL_X509_CERT_FILE = "/etc/ssl/certs/ca-bundle.crt";
       GIT_SSL_CAINFO = "/etc/ssl/certs/ca-bundle.crt";
     };
@@ -199,7 +198,10 @@ in
         after = [ "hydra-init.service" ];
         environment = serverEnv;
         serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' --max_spare_servers 5 --max_servers 25 --max_requests 100${optionalString cfg.debugServer " -d"}";
+          { ExecStart =
+              "@${cfg.package}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' "
+              + "-p ${toString cfg.port} --max_spare_servers 5 --max_servers 25 "
+              + "--max_requests 100 ${optionalString cfg.debugServer "-d"}";
             User = "hydra";
             Restart = "always";
           };
