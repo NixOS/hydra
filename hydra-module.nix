@@ -9,14 +9,17 @@ let
 
   hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
-  env =
-    { NIX_REMOTE = "daemon";
-      HYDRA_DBI = cfg.dbi;
+  hydraEnv =
+    { HYDRA_DBI = cfg.dbi;
       HYDRA_CONFIG = "${baseDir}/data/hydra.conf";
       HYDRA_DATA = "${baseDir}/data";
+    };
+
+  env =
+    { NIX_REMOTE = "daemon";
       OPENSSL_X509_CERT_FILE = "/etc/ssl/certs/ca-bundle.crt";
       GIT_SSL_CAINFO = "/etc/ssl/certs/ca-bundle.crt";
-    };
+    } // hydraEnv;
 
   serverEnv = env //
     { HYDRA_TRACKER = cfg.tracker;
@@ -148,6 +151,8 @@ in
       '';
 
     environment.systemPackages = [ cfg.package ];
+
+    environment.variables = hydraEnv;
 
     users.extraUsers.hydra =
       { description = "Hydra";
