@@ -160,18 +160,20 @@ in rec {
         };
 
       testScript =
+        let dbi = "dbi:Pg:dbname=hydra;user=root;"; in
         ''
           $machine->waitForJob("postgresql");
 
           # Initialise the database and the state.
           $machine->mustSucceed
-              ( "createdb -O root hydra",
-              , "psql hydra -f ${hydra}/libexec/hydra/sql/hydra-postgresql.sql"
+              ( "createdb -O root hydra"
+              , "HYDRA_DBI='${dbi}' hydra-init"
+              , "HYDRA_DBI='${dbi}' hydra-init" # again to test idempotence
               , "mkdir /var/lib/hydra"
               );
 
           # Start the web interface.
-          $machine->mustSucceed("HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=hydra;' hydra-server >&2 &");
+          $machine->mustSucceed("HYDRA_DATA=/var/lib/hydra HYDRA_DBI='${dbi}' hydra-server >&2 &");
           $machine->waitForOpenPort("3000");
         '';
     });
@@ -190,16 +192,16 @@ in rec {
         };
 
       testScript =
+        let dbi = "dbi:Pg:dbname=hydra;user=root;"; in
         ''
           $machine->waitForJob("postgresql");
 
           # Initialise the database and the state.
           $machine->mustSucceed
               ( "createdb -O root hydra"
-              , "psql hydra -f ${hydra}/libexec/hydra/sql/hydra-postgresql.sql"
+              , "HYDRA_DBI='${dbi}' hydra-init"
+              , "HYDRA_DBI='${dbi}' hydra-create-user root --email-address 'e.dolstra\@tudelft.nl' --password foobar --role admin"
               , "mkdir /var/lib/hydra"
-              , "echo \"insert into Users(userName, emailAddress, password) values('root', 'e.dolstra\@tudelft.nl', '\$(echo -n foobar | sha1sum | cut -c1-40)');\" | psql hydra"
-              , "echo \"insert into UserRoles(userName, role) values('root', 'admin');\" | psql hydra"
               , "mkdir /run/jobset"
               , "chmod 755 /run/jobset"
               , "cp ${./tests/api-test.nix} /run/jobset/default.nix"
@@ -207,7 +209,7 @@ in rec {
               );
 
           # Start the web interface.
-          $machine->mustSucceed("NIX_STORE_DIR=/run/nix NIX_LOG_DIR=/run/nix/var/log/nix NIX_STATE_DIR=/run/nix/var/nix HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=root;' LOGNAME=root DBIC_TRACE=1 hydra-server -d >&2 &");
+          $machine->mustSucceed("NIX_STORE_DIR=/run/nix NIX_LOG_DIR=/run/nix/var/log/nix NIX_STATE_DIR=/run/nix/var/nix HYDRA_DATA=/var/lib/hydra HYDRA_DBI='${dbi}' LOGNAME=root DBIC_TRACE=1 hydra-server -d >&2 &");
           $machine->waitForOpenPort("3000");
 
           $machine->mustSucceed("perl ${./tests/api-test.pl} >&2");
