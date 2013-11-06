@@ -65,6 +65,8 @@
     </div>
 
     <div class="container">
+      <div class="skip-topbar"></div>
+
       [% IF flashMsg %]
         <div class="alert alert-info">[% flashMsg %]</div>
       [% END %]

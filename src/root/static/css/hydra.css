@@ -1,9 +1,12 @@
-@media (min-width: 768px) {
-    body {
-        padding-top: 40px;
-    }
-    div.alert {
-        margin-top: 1em;
+div.skip-topbar {
+    padding-top: 40px;
+    margin-bottom: 1.5em;
+}
+
+@media (max-width: 979px) {
+    div.skip-topbar {
+        padding-top: 0;
+        margin-bottom: 0;
     }
 }
 
