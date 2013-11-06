@@ -180,7 +180,7 @@ in
         after = [ "postgresql.service" ];
         environment = env;
         script = ''
-          mkdir -p ${baseDir}/data
+          mkdir -m 0700 -p ${baseDir}/data
           chown hydra ${baseDir}/data
           ln -sf ${hydraConf} ${baseDir}/data/hydra.conf
           ${optionalString (cfg.dbi == "dbi:Pg:dbname=hydra;user=hydra;") ''
