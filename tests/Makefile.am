@@ -27,7 +27,7 @@ TESTS = \
 
 clean:
 	chmod -R a+w nix || true
-	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout svn-checkout-repo bzr-repo bzr-checkout-repo
+	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout svn-checkout-repo bzr-repo bzr-checkout-repo darcs-repo
 	rm -f .*-state
 
 check_SCRIPTS = db.sqlite repos
