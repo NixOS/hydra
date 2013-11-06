@@ -1,6 +1,6 @@
 use LWP::UserAgent;
 use JSON;
-use Test::Simple tests => 16;
+use Test::Simple tests => 17;
 
 my $ua = LWP::UserAgent->new;
 $ua->cookie_jar({});
@@ -16,6 +16,9 @@ sub request_json {
     print $res->as_string();
     return $res;
 }
+
+my $result = request_json({ uri => "/login", method => "POST", data => { username => "root", password => "wrong" } });
+ok($result->code() == 403, "Incorrect password rejected.");
 
 my $result = request_json({ uri => "/login", method => "POST", data => { username => "root", password => "foobar" } });
 
