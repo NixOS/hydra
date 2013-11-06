@@ -19,14 +19,14 @@ let
     };
 
   serverEnv = env //
-    { HYDRA_LOGO = if cfg.logo != null then cfg.logo else "";
-      HYDRA_TRACKER = cfg.tracker;
+    { HYDRA_TRACKER = cfg.tracker;
     } // (optionalAttrs cfg.debugServer { DBIC_TRACE = 1; });
 in
 
 {
   ###### interface
   options = {
+
     services.hydra = rec {
 
       enable = mkOption {
@@ -109,7 +109,7 @@ in
       };
 
       logo = mkOption {
-        type = types.nullOr types.str;
+        type = types.nullOr types.path;
         default = null;
         description = ''
           File name of an alternate logo to be displayed on the web pages.
@@ -135,12 +135,16 @@ in
   ###### implementation
 
   config = mkIf cfg.enable {
+
     services.hydra.extraConfig =
       ''
         using_frontend_proxy 1
         base_uri ${cfg.hydraURL}
         notification_sender ${cfg.notificationSender}
         max_servers 25
+        ${optionalString (cfg.logo != null) ''
+          hydra_logo ${cfg.logo}
+        ''}
       '';
 
     environment.systemPackages = [ cfg.package ];
