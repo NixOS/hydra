@@ -244,16 +244,6 @@ in
           };
       };
 
-    systemd.services."hydra-evaluator@" =
-      { path = [ pkgs.nettools ];
-        environment = env;
-        serviceConfig =
-          { ExecStart = "@${cfg.hydra}/bin/hydra-evaluator hydra-evaluator %I";
-            User = "hydra";
-            Type = "oneshot";
-          };
-      };
-
     systemd.services."hydra-update-gc-roots" =
       { wants = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
