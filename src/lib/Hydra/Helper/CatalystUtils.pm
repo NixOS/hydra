@@ -90,7 +90,8 @@ sub getPreviousSuccessfulBuild {
 
 
 sub error {
-    my ($c, $msg) = @_;
+    my ($c, $msg, $status) = @_;
+    $c->response->status($status) if defined $status;
     $c->error($msg);
     $c->detach; # doesn't return
 }
@@ -98,15 +99,13 @@ sub error {
 
 sub notFound {
     my ($c, $msg) = @_;
-    $c->response->status(404);
-    error($c, $msg);
+    error($c, $msg, 404);
 }
 
 
 sub accessDenied {
     my ($c, $msg) = @_;
-    $c->response->status(403);
-    error($c, $msg);
+    error($c, $msg, 403);
 }
 
 
@@ -121,8 +120,7 @@ sub backToReferer {
 sub forceLogin {
     my ($c) = @_;
     $c->session->{referer} = $c->request->uri;
-    $c->response->redirect($c->uri_for('/login'));
-    $c->detach; # doesn't return
+    accessDenied($c, "This page requires you to sign in.");
 }
 
 

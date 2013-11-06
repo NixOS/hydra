@@ -135,6 +135,7 @@ function requestJSON(args) {
             bootbox.alert("Server error: " + escapeHTML(data.responseText));
         else
             bootbox.alert("Unknown server error!");
+        if (args.postError) args.postError(data);
     };
     return $.ajax(args);
 };
@@ -145,3 +146,9 @@ function redirectJSON(args) {
     };
     return requestJSON(args);
 };
+
+function backToReferrer() {
+    // FIXME: should only do this if the referrer is another Hydra
+    // page.
+    window.location = document.referrer;
+}

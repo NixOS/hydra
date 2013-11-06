@@ -8,6 +8,23 @@ let
 
   genAttrs' = pkgs.lib.genAttrs [ "x86_64-linux" ];
 
+  hydraServer = hydraPkg:
+    { config, pkgs, ... }:
+    { imports = [ ./hydra-module.nix ];
+
+      virtualisation.memorySize = 1024;
+
+      services.hydra.enable = true;
+      services.hydra.package = hydraPkg;
+      services.hydra.hydraURL = "http://hydra.example.org";
+      services.hydra.notificationSender = "admin@hydra.example.org";
+
+      services.postgresql.enable = true;
+      services.postgresql.package = pkgs.postgresql92;
+
+      environment.systemPackages = [ pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
+    };
+
 in rec {
 
   tarball =
@@ -150,67 +167,45 @@ in rec {
 
   tests.install = genAttrs' (system:
     with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
-    let hydra = builtins.getAttr system build; in # build.${system}
     simpleTest {
-      machine =
-        { config, pkgs, ... }:
-        { services.postgresql.enable = true;
-          services.postgresql.package = pkgs.postgresql92;
-          environment.systemPackages = [ hydra ];
-        };
-
+      machine = hydraServer (builtins.getAttr system build); # build.${system}
       testScript =
         ''
-          $machine->waitForJob("postgresql");
-
-          # Initialise the database and the state.
-          $machine->mustSucceed
-              ( "createdb -O root hydra",
-              , "psql hydra -f ${hydra}/libexec/hydra/sql/hydra-postgresql.sql"
-              , "mkdir /var/lib/hydra"
-              );
-
-          # Start the web interface.
-          $machine->mustSucceed("HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=hydra;' hydra-server >&2 &");
+          $machine->waitForJob("hydra-init");
+          $machine->waitForJob("hydra-server");
+          $machine->waitForJob("hydra-evaluator");
+          $machine->waitForJob("hydra-queue-runner");
           $machine->waitForOpenPort("3000");
+          $machine->succeed("curl --fail http://localhost:3000/");
         '';
     });
 
   tests.api = genAttrs' (system:
     with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
-    let hydra = builtins.getAttr system build; in # build."${system}"
     simpleTest {
-      machine =
-        { config, pkgs, ... }:
-        { services.postgresql.enable = true;
-          services.postgresql.package = pkgs.postgresql92;
-          environment.systemPackages = [ hydra pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
-          virtualisation.memorySize = 2047;
-          boot.kernelPackages = pkgs.linuxPackages_3_10;
-        };
-
+      machine = hydraServer (builtins.getAttr system build); # build.${system}
       testScript =
+        let dbi = "dbi:Pg:dbname=hydra;user=root;"; in
         ''
-          $machine->waitForJob("postgresql");
+          $machine->waitForJob("hydra-init");
 
-          # Initialise the database and the state.
-          $machine->mustSucceed
-              ( "createdb -O root hydra"
-              , "psql hydra -f ${hydra}/libexec/hydra/sql/hydra-postgresql.sql"
-              , "mkdir /var/lib/hydra"
-              , "echo \"insert into Users(userName, emailAddress, password) values('root', 'e.dolstra\@tudelft.nl', '\$(echo -n foobar | sha1sum | cut -c1-40)');\" | psql hydra"
-              , "echo \"insert into UserRoles(userName, role) values('root', 'admin');\" | psql hydra"
-              , "mkdir /run/jobset"
-              , "chmod 755 /run/jobset"
+          # Create an admin account and some other state.
+          $machine->succeed
+              ( "su hydra -c \"hydra-create-user root --email-address 'e.dolstra\@tudelft.nl' --password foobar --role admin\""
+              , "mkdir /run/jobset /tmp/nix"
+              , "chmod 755 /run/jobset /tmp/nix"
               , "cp ${./tests/api-test.nix} /run/jobset/default.nix"
               , "chmod 644 /run/jobset/default.nix"
+              , "chown -R hydra /run/jobset /tmp/nix"
               );
 
-          # Start the web interface.
-          $machine->mustSucceed("NIX_STORE_DIR=/run/nix NIX_LOG_DIR=/run/nix/var/log/nix NIX_STATE_DIR=/run/nix/var/nix HYDRA_DATA=/var/lib/hydra HYDRA_DBI='dbi:Pg:dbname=hydra;user=root;' LOGNAME=root DBIC_TRACE=1 hydra-server -d >&2 &");
+          # Start the web interface with some weird settings.
+          $machine->succeed("systemctl stop hydra-server hydra-evaluator hydra-queue-runner");
+          $machine->mustSucceed("su hydra -c 'NIX_STORE_DIR=/tmp/nix/store NIX_LOG_DIR=/tmp/nix/var/log/nix NIX_STATE_DIR=/tmp/nix/var/nix DBIC_TRACE=1 hydra-server -d' >&2 &");
           $machine->waitForOpenPort("3000");
 
-          $machine->mustSucceed("perl ${./tests/api-test.pl} >&2");
+          # Run the API tests.
+          $machine->mustSucceed("su hydra -c 'perl ${./tests/api-test.pl}' >&2");
         '';
   });
 
@@ -236,7 +231,7 @@ in rec {
           $machine->waitForJob("postgresql");
 
           # Initialise the database and the state.
-          $machine->mustSucceed
+          $machine->succeed
               ( "createdb -O root hydra"
               , "psql hydra -f ${hydra}/libexec/hydra/sql/hydra-postgresql.sql"
               , "mkdir /var/lib/hydra"
@@ -246,10 +241,10 @@ in rec {
               );
 
           # start fakes3
-          $machine->mustSucceed("fakes3 --root /tmp/s3 --port 80 &>/dev/null &");
+          $machine->succeed("fakes3 --root /tmp/s3 --port 80 &>/dev/null &");
           $machine->waitForOpenPort("80");
 
-          $machine->mustSucceed("cd /tmp && LOGNAME=root AWS_ACCESS_KEY_ID=foo AWS_SECRET_ACCESS_KEY=bar HYDRA_DBI='dbi:Pg:dbname=hydra;user=root;' HYDRA_CONFIG=${./tests/s3-backup-test.config} perl -I ${hydra}/libexec/hydra/lib -I ${hydra.perlDeps}/lib/perl5/site_perl ./s3-backup-test.pl >&2");
+          $machine->succeed("cd /tmp && LOGNAME=root AWS_ACCESS_KEY_ID=foo AWS_SECRET_ACCESS_KEY=bar HYDRA_DBI='dbi:Pg:dbname=hydra;user=root;' HYDRA_CONFIG=${./tests/s3-backup-test.config} perl -I ${hydra}/libexec/hydra/lib -I ${hydra.perlDeps}/lib/perl5/site_perl ./s3-backup-test.pl >&2");
         '';
   });
 }

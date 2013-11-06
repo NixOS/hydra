@@ -1,0 +1,12 @@
+[% PROCESS common.tt %]
+
+[% IF jobsets.size == 0 %]
+
+  <div class="alert alert-warning">You are not the owner of any
+  jobset.</div>
+
+[% ELSE %]
+
+  [% INCLUDE renderJobsetOverview showProject=1 %]
+
+[% END %]

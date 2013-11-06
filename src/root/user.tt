@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title=(create ? "Register new user" : "Editing user $user.username") %]
+[% WRAPPER layout.tt title=(create ? "Add new user" : "Editing user $user.username") %]
 [% PROCESS common.tt %]
 
 [% BLOCK roleoption %]
@@ -14,7 +14,7 @@
     >[% role %]</option>
 [% END %]
 
-<form class="form-horizontal" method="post">
+<form class="form-horizontal">
 
   <fieldset>
 
@@ -30,10 +30,11 @@
     <div class="control-group">
       <label class="control-label">Full name</label>
       <div class="controls">
-        <input type="text" class="span3" name="fullname" [% HTML.attributes(value => fullname) %]/>
+        <input type="text" class="span3" name="fullname" [% HTML.attributes(value => create ? '' : user.fullname) %]/>
       </div>
     </div>
 
+    [% IF create || user.type == 'hydra' %]
     <div class="control-group">
       <label class="control-label">Password</label>
       <div class="controls">
@@ -47,31 +48,28 @@
         <input type="password" class="span3" name="password2" value=""/>
       </div>
     </div>
+    [% END %]
 
-    <!--
     <div class="control-group">
       <label class="control-label">Email</label>
       <div class="controls">
-        <input type="text" class="span3" name="emailaddress" [% HTML.attributes(value => user.emailaddress) %]/>
+        <input type="text" class="span3" name="emailaddress" [% IF !create && user.type == 'persona' %]disabled="disabled"[% END %] [%+ HTML.attributes(value => user.emailaddress) %]/>
       </div>
     </div>
-    -->
 
-    [% IF !create %]
-      <div class="control-group">
-        <div class="controls">
-          <label class="checkbox">
-            <input type="checkbox" name="emailonerror" [% IF emailonerror; 'checked="checked"'; END %]/>Receive evaluation error notifications
-          </label>
-        </div>
+    <div class="control-group">
+      <div class="controls">
+        <label class="checkbox">
+          <input type="checkbox" name="emailonerror" [% IF !create && user.emailonerror; 'checked="checked"'; END %]/>Receive evaluation error notifications
+        </label>
       </div>
-    [% END %]
+    </div>
 
-    [% IF !create && c.check_user_roles('admin') %]
+    [% IF !create || c.check_user_roles('admin') %]
       <div class="control-group">
         <label class="control-label">Roles</label>
         <div class="controls">
-          <select multiple="multiple" name="roles" class="span3">
+          <select multiple="multiple" name="roles" class="span3" [% IF !c.check_user_roles('admin') %]disabled="disabled"[% END %]>
             [% INCLUDE roleoption role="admin" %]
             [% INCLUDE roleoption role="create-projects" %]
           </select>
@@ -79,7 +77,7 @@
       </div>
     [% END %]
 
-    [% IF create %]
+    [% IF create && !c.check_user_roles('admin') %]
       <div class="control-group">
         <div class="controls">
           <img src="[% c.uri_for('/captcha') %]" alt="CAPTCHA"/>
@@ -95,49 +93,70 @@
     [% END %]
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary">
+      <button id="submit-user" class="btn btn-primary">
         <i class="icon-ok icon-white"></i>
         [%IF create %]Create[% ELSE %]Apply changes[% END %]
       </button>
-      [% IF !create && c.check_user_roles('admin') %]
-        <button id="reset-password" type="submit" class="btn btn-warning" name="submit" value="reset-password">
+      [% IF !create && c.check_user_roles('admin') && user.type == 'hydra' %]
+        <button id="reset-password" class="btn btn-warning">
           <i class="icon-trash icon-white"></i>
           Reset password
         </button>
-        <script type="text/javascript">
-          $("#reset-password").click(function() {
-            bootbox.confirm(
-              'Are you sure you want to reset the password for this user?',
-              function(c) {
-                if (!c) return;
-                $.post("[% c.uri_for(c.controller('User').action_for('edit'), [user.username]) %]", { submit: 'reset-password' })
-                  .done(function(data) {
-                    if (data.error)
-                      bootbox.alert("Unable to reset password: " + data.error);
-                    else
-                      bootbox.alert("An email containing the new password has been sent to the user.");
-                  })
-                  .fail(function() { bootbox.alert("Server request failed!"); });
-              });
-            return false;
-          });
-        </script>
       [% END %]
       [% IF !create %]
-        <button id="delete-user" type="submit" class="btn btn-danger" name="submit" value="delete">
+        <button id="delete-user" class="btn btn-danger">
           <i class="icon-trash icon-white"></i>
           Delete this user
         </button>
-        <script type="text/javascript">
-          $("#delete-user").click(function() {
-            return confirm("Are you sure you want to delete this user?");
-          });
-        </script>
       [% END %]
     </div>
 
   </fieldset>
 
 </form>
+
+<script>
+  $("#submit-user").click(function() {
+    requestJSON({
+      [% IF create %]
+        url: "[% c.uri_for(c.controller('User').action_for('register')) %]",
+      [% ELSE %]
+        url: "[% c.uri_for(c.controller('User').action_for('edit'), c.req.captures) %]",
+      [% END %]
+      data: $(this).parents("form").serialize(),
+      type: 'PUT',
+      success: backToReferrer
+    });
+    return false;
+  });
+
+  $("#reset-password").click(function() {
+    bootbox.confirm(
+      'Are you sure you want to reset the password for this user?',
+      function(c) {
+        if (!c) return;
+        requestJSON({
+          url: "[% c.uri_for(c.controller('User').action_for('reset_password'), [user.username]) %]",
+          type: 'POST',
+          success: backToReferrer
+        });
+      });
+    return false;
+  });
+
+  $("#delete-user").click(function() {
+    bootbox.confirm(
+      'Are you sure you want to delete this user?',
+      function(c) {
+        if (!c) return;
+        requestJSON({
+          url: "[% c.uri_for(c.controller('User').action_for('edit'), c.req.captures) %]",
+          type: 'DELETE',
+          success: backToReferrer
+        });
+      });
+    return false;
+  });
+</script>
 
 [% END %]

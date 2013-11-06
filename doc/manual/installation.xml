@@ -163,15 +163,16 @@ hydra-init</screen>
     </para>
 
     <para>
-      To add a user <emphasis>root</emphasis> with
-      <emphasis>admin</emphasis> privileges, execute:
-      <screen>
-echo "INSERT INTO Users(userName, emailAddress, password) VALUES ('root', 'some@email.adress.com', '$(echo -n foobar | sha1sum | cut -c1-40)');" | psql hydra
-echo "INSERT INTO UserRoles(userName, role) values('root', 'admin');" | psql hydra</screen>
+      To create projects, you need to create a user with
+      <emphasis>admin</emphasis> privileges.  This can be done using
+      the command <command>hydra-create-user</command>:
 
-      For SQLite the same commands can be used, with <command>psql
-      hydra</command> replaced by <command>sqlite3
-      /path/to/hydra.sqlite</command>.
+<screen>
+$ hydra-create-user alice --full-name 'Alice Q. User' \
+    --email-address 'alice@example.org' --password foobar --role admin
+</screen>
+
+      Additional users can be created through the web interface.
     </para>
 
   </section>

@@ -9,28 +9,31 @@ let
 
   hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
-  env =
-    { NIX_REMOTE = "daemon";
-      HYDRA_DBI = cfg.dbi;
+  hydraEnv =
+    { HYDRA_DBI = cfg.dbi;
       HYDRA_CONFIG = "${baseDir}/data/hydra.conf";
       HYDRA_DATA = "${baseDir}/data";
-      HYDRA_PORT = "${toString cfg.port}";
+    };
+
+  env =
+    { NIX_REMOTE = "daemon";
       OPENSSL_X509_CERT_FILE = "/etc/ssl/certs/ca-bundle.crt";
       GIT_SSL_CAINFO = "/etc/ssl/certs/ca-bundle.crt";
-    };
-  
+    } // hydraEnv;
+
   serverEnv = env //
-    { HYDRA_LOGO = if cfg.logo != null then cfg.logo else "";
-      HYDRA_TRACKER = cfg.tracker;
+    { HYDRA_TRACKER = cfg.tracker;
     } // (optionalAttrs cfg.debugServer { DBIC_TRACE = 1; });
 in
 
 {
   ###### interface
   options = {
+
     services.hydra = rec {
 
       enable = mkOption {
+        type = types.bool;
         default = false;
         description = ''
           Whether to run Hydra services.
@@ -38,27 +41,29 @@ in
       };
 
       dbi = mkOption {
-        default = "dbi:Pg:dbname=hydra;host=localhost;user=hydra;";
-        example = "dbi:SQLite:/home/hydra/db/hydra.sqlite";
+        type = types.string;
+        default = "dbi:Pg:dbname=hydra;user=hydra;";
+        example = "dbi:Pg:dbname=hydra;host=postgres.example.org;user=foo;";
         description = ''
           The DBI string for Hydra database connection.
         '';
       };
 
-      hydra = mkOption {
+      package = mkOption {
+        type = types.path;
         #default = pkgs.hydra;
-        description = ''
-          Location of hydra
-        '';
+        description = "The Hydra package.";
       };
 
       hydraURL = mkOption {
+        type = types.str;
         description = ''
           The base URL for the Hydra webserver instance. Used for links in emails.
         '';
       };
 
       listenHost = mkOption {
+        type = types.str;
         default = "*";
         example = "localhost";
         description = ''
@@ -68,6 +73,7 @@ in
       };
 
       port = mkOption {
+        type = types.int;
         default = 3000;
         description = ''
           TCP port the web server should listen to.
@@ -75,26 +81,30 @@ in
       };
 
       minimumDiskFree = mkOption {
+        type = types.int;
         default = 5;
         description = ''
-          Threshold of minimum disk space (G) to determine if queue runner should run or not.
+          Threshold of minimum disk space (GiB) to determine if queue runner should run or not.
         '';
       };
 
       minimumDiskFreeEvaluator = mkOption {
+        type = types.int;
         default = 2;
         description = ''
-          Threshold of minimum disk space (G) to determine if evaluator should run or not.
+          Threshold of minimum disk space (GiB) to determine if evaluator should run or not.
         '';
       };
 
       notificationSender = mkOption {
+        type = types.str;
         description = ''
           Sender email address used for email notifications.
         '';
       };
 
       tracker = mkOption {
+        type = types.str;
         default = "";
         description = ''
           Piece of HTML that is included on all pages.
@@ -102,22 +112,16 @@ in
       };
 
       logo = mkOption {
+        type = types.nullOr types.path;
         default = null;
         description = ''
           File name of an alternate logo to be displayed on the web pages.
         '';
       };
 
-      useWAL = mkOption {
-        default = true;
-        description = ''
-          Whether to use SQLite's Write-Ahead Logging, which may improve performance.
-        '';
-      };
-
       debugServer = mkOption {
-        default = false;
         type = types.bool;
+        default = false;
         description = "Whether to run the server in debug mode";
       };
 
@@ -134,15 +138,21 @@ in
   ###### implementation
 
   config = mkIf cfg.enable {
+
     services.hydra.extraConfig =
       ''
         using_frontend_proxy 1
         base_uri ${cfg.hydraURL}
         notification_sender ${cfg.notificationSender}
         max_servers 25
+        ${optionalString (cfg.logo != null) ''
+          hydra_logo ${cfg.logo}
+        ''}
       '';
 
-    environment.systemPackages = [ cfg.hydra ];
+    environment.systemPackages = [ cfg.package ];
+
+    environment.variables = hydraEnv;
 
     users.extraUsers.hydra =
       { description = "Hydra";
@@ -163,12 +173,10 @@ in
       build-cache-failure = true
 
       build-poll-interval = 10
-      
+
       # Online log compression makes it impossible to get the tail of
       # builds that are in progress.
       build-compress-log = false
-
-      use-sqlite-wal = ${if cfg.useWAL then "true" else "false"}
     '';
 
     systemd.services."hydra-init" =
@@ -177,41 +185,32 @@ in
         after = [ "postgresql.service" ];
         environment = env;
         script = ''
-          mkdir -p ${baseDir}/data
+          mkdir -m 0700 -p ${baseDir}/data
           chown hydra ${baseDir}/data
           ln -sf ${hydraConf} ${baseDir}/data/hydra.conf
-          pass=$(HOME=/root ${pkgs.openssl}/bin/openssl rand -base64 32)
-          if [ ! -f ${baseDir}/.pgpass ]; then
-              ${config.services.postgresql.package}/bin/psql postgres << EOF
-          CREATE USER hydra PASSWORD '$pass';
-          EOF
+          ${optionalString (cfg.dbi == "dbi:Pg:dbname=hydra;user=hydra;") ''
+            if ! [ -e ${baseDir}/.db-created ]; then
+              ${config.services.postgresql.package}/bin/createuser hydra
               ${config.services.postgresql.package}/bin/createdb -O hydra hydra
-              cat > ${baseDir}/.pgpass-tmp << EOF
-          localhost:*:hydra:hydra:$pass
-          EOF
-              chown hydra ${baseDir}/.pgpass-tmp
-              chmod 600 ${baseDir}/.pgpass-tmp
-              mv ${baseDir}/.pgpass-tmp ${baseDir}/.pgpass
-          fi
-          ${pkgs.shadow}/bin/su hydra -c ${cfg.hydra}/bin/hydra-init
-          ${config.services.postgresql.package}/bin/psql hydra << EOF
-            BEGIN;
-            INSERT INTO Users(userName, emailAddress, password) VALUES ('admin', '${cfg.notificationSender}', '$(echo -n $pass | sha1sum | cut -c1-40)');
-            INSERT INTO UserRoles(userName, role) values('admin', 'admin');
-            COMMIT;
-          EOF
+              touch ${baseDir}/.db-created
+            fi
+          ''}
+          ${pkgs.shadow}/bin/su hydra -c ${cfg.package}/bin/hydra-init
         '';
         serviceConfig.Type = "oneshot";
         serviceConfig.RemainAfterExit = true;
       };
-    
+
     systemd.services."hydra-server" =
       { wantedBy = [ "multi-user.target" ];
-        wants = [ "hydra-init.service" ];
+        requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
         environment = serverEnv;
         serviceConfig =
-          { ExecStart = "@${cfg.hydra}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' --max_spare_servers 5 --max_servers 25 --max_requests 100${optionalString cfg.debugServer " -d"}";
+          { ExecStart =
+              "@${cfg.package}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' "
+              + "-p ${toString cfg.port} --max_spare_servers 5 --max_servers 25 "
+              + "--max_requests 100 ${optionalString cfg.debugServer "-d"}";
             User = "hydra";
             Restart = "always";
           };
@@ -219,13 +218,13 @@ in
 
     systemd.services."hydra-queue-runner" =
       { wantedBy = [ "multi-user.target" ];
-        wants = [ "hydra-init.service" ];
+        requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
         path = [ pkgs.nettools ];
         environment = env;
         serviceConfig =
-          { ExecStartPre = "${cfg.hydra}/bin/hydra-queue-runner --unlock";
-            ExecStart = "@${cfg.hydra}/bin/hydra-queue-runner hydra-queue-runner";
+          { ExecStartPre = "${cfg.package}/bin/hydra-queue-runner --unlock";
+            ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner";
             User = "hydra";
             Restart = "always";
           };
@@ -233,25 +232,26 @@ in
 
     systemd.services."hydra-evaluator" =
       { wantedBy = [ "multi-user.target" ];
-        wants = [ "hydra-init.service" ];
+        requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
         path = [ pkgs.nettools ];
         environment = env;
         serviceConfig =
-          { ExecStart = "@${cfg.hydra}/bin/hydra-evaluator hydra-evaluator";
+          { ExecStart = "@${cfg.package}/bin/hydra-evaluator hydra-evaluator";
             User = "hydra";
             Restart = "always";
           };
       };
 
     systemd.services."hydra-update-gc-roots" =
-      { wants = [ "hydra-init.service" ];
+      { requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
         environment = env;
         serviceConfig =
-          { ExecStart = "@${cfg.hydra}/bin/hydra-update-gc-roots hydra-update-gc-roots";
+          { ExecStart = "@${cfg.package}/bin/hydra-update-gc-roots hydra-update-gc-roots";
             User = "hydra";
           };
+        startAt = "02:15";
       };
 
     services.cron.systemCronJobs =
@@ -278,7 +278,6 @@ in
       in
         [ "*/5 * * * * root  ${checkSpace} &> ${baseDir}/data/checkspace.log"
           "15 5 * * * root  ${compressLogs} &> ${baseDir}/data/compress.log"
-          "15 2 * * * root  ${pkgs.systemd}/bin/systemctl start hydra-update-gc-roots.service"
         ];
   };
 }

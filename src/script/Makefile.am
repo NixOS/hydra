@@ -1,6 +1,5 @@
 EXTRA_DIST =					\
   $(distributable_scripts)			\
-  hydra-control					\
   hydra-eval-guile-jobs.in
 
 distributable_scripts =				\
@@ -11,6 +10,7 @@ distributable_scripts =				\
   hydra-server					\
   hydra-update-gc-roots				\
   hydra-s3-backup-collect-garbage		\
+  hydra-create-user				\
   nix-prefetch-git				\
   nix-prefetch-bzr				\
   nix-prefetch-hg
