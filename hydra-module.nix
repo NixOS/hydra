@@ -31,6 +31,7 @@ in
     services.hydra = rec {
 
       enable = mkOption {
+        type = types.bool;
         default = false;
         description = ''
           Whether to run Hydra services.
@@ -38,27 +39,28 @@ in
       };
 
       dbi = mkOption {
+        type = types.string;
         default = "dbi:Pg:dbname=hydra;host=localhost;user=hydra;";
-        example = "dbi:SQLite:/home/hydra/db/hydra.sqlite";
         description = ''
           The DBI string for Hydra database connection.
         '';
       };
 
-      hydra = mkOption {
+      package = mkOption {
+        type = types.path;
         #default = pkgs.hydra;
-        description = ''
-          Location of hydra
-        '';
+        description = "The Hydra package.";
       };
 
       hydraURL = mkOption {
+        type = types.str;
         description = ''
           The base URL for the Hydra webserver instance. Used for links in emails.
         '';
       };
 
       listenHost = mkOption {
+        type = types.str;
         default = "*";
         example = "localhost";
         description = ''
@@ -68,6 +70,7 @@ in
       };
 
       port = mkOption {
+        type = types.int;
         default = 3000;
         description = ''
           TCP port the web server should listen to.
@@ -75,26 +78,30 @@ in
       };
 
       minimumDiskFree = mkOption {
+        type = types.int;
         default = 5;
         description = ''
-          Threshold of minimum disk space (G) to determine if queue runner should run or not.
+          Threshold of minimum disk space (GiB) to determine if queue runner should run or not.
         '';
       };
 
       minimumDiskFreeEvaluator = mkOption {
+        type = types.int;
         default = 2;
         description = ''
-          Threshold of minimum disk space (G) to determine if evaluator should run or not.
+          Threshold of minimum disk space (GiB) to determine if evaluator should run or not.
         '';
       };
 
       notificationSender = mkOption {
+        type = types.str;
         description = ''
           Sender email address used for email notifications.
         '';
       };
 
       tracker = mkOption {
+        type = types.str;
         default = "";
         description = ''
           Piece of HTML that is included on all pages.
@@ -102,6 +109,7 @@ in
       };
 
       logo = mkOption {
+        type = types.nullOr types.str;
         default = null;
         description = ''
           File name of an alternate logo to be displayed on the web pages.
@@ -109,8 +117,8 @@ in
       };
 
       debugServer = mkOption {
-        default = false;
         type = types.bool;
+        default = false;
         description = "Whether to run the server in debug mode";
       };
 
@@ -135,7 +143,7 @@ in
         max_servers 25
       '';
 
-    environment.systemPackages = [ cfg.hydra ];
+    environment.systemPackages = [ cfg.package ];
 
     users.extraUsers.hydra =
       { description = "Hydra";
@@ -184,7 +192,7 @@ in
               chmod 600 ${baseDir}/.pgpass-tmp
               mv ${baseDir}/.pgpass-tmp ${baseDir}/.pgpass
           fi
-          ${pkgs.shadow}/bin/su hydra -c ${cfg.hydra}/bin/hydra-init
+          ${pkgs.shadow}/bin/su hydra -c ${cfg.package}/bin/hydra-init
         '';
         serviceConfig.Type = "oneshot";
         serviceConfig.RemainAfterExit = true;
@@ -196,7 +204,7 @@ in
         after = [ "hydra-init.service" ];
         environment = serverEnv;
         serviceConfig =
-          { ExecStart = "@${cfg.hydra}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' --max_spare_servers 5 --max_servers 25 --max_requests 100${optionalString cfg.debugServer " -d"}";
+          { ExecStart = "@${cfg.package}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' --max_spare_servers 5 --max_servers 25 --max_requests 100${optionalString cfg.debugServer " -d"}";
             User = "hydra";
             Restart = "always";
           };
@@ -209,8 +217,8 @@ in
         path = [ pkgs.nettools ];
         environment = env;
         serviceConfig =
-          { ExecStartPre = "${cfg.hydra}/bin/hydra-queue-runner --unlock";
-            ExecStart = "@${cfg.hydra}/bin/hydra-queue-runner hydra-queue-runner";
+          { ExecStartPre = "${cfg.package}/bin/hydra-queue-runner --unlock";
+            ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner";
             User = "hydra";
             Restart = "always";
           };
@@ -223,7 +231,7 @@ in
         path = [ pkgs.nettools ];
         environment = env;
         serviceConfig =
-          { ExecStart = "@${cfg.hydra}/bin/hydra-evaluator hydra-evaluator";
+          { ExecStart = "@${cfg.package}/bin/hydra-evaluator hydra-evaluator";
             User = "hydra";
             Restart = "always";
           };
@@ -234,7 +242,7 @@ in
         after = [ "hydra-init.service" ];
         environment = env;
         serviceConfig =
-          { ExecStart = "@${cfg.hydra}/bin/hydra-update-gc-roots hydra-update-gc-roots";
+          { ExecStart = "@${cfg.package}/bin/hydra-update-gc-roots hydra-update-gc-roots";
             User = "hydra";
           };
       };
