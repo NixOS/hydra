@@ -246,6 +246,7 @@ in
           { ExecStart = "@${cfg.package}/bin/hydra-update-gc-roots hydra-update-gc-roots";
             User = "hydra";
           };
+        startAt = "02:15";
       };
 
     services.cron.systemCronJobs =
@@ -272,7 +273,6 @@ in
       in
         [ "*/5 * * * * root  ${checkSpace} &> ${baseDir}/data/checkspace.log"
           "15 5 * * * root  ${compressLogs} &> ${baseDir}/data/compress.log"
-          "15 2 * * * root  ${pkgs.systemd}/bin/systemctl start hydra-update-gc-roots.service"
         ];
   };
 }
