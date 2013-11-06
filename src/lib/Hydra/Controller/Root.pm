@@ -24,6 +24,7 @@ sub begin :Private {
     $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"};
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
+    $c->stash->{personaEnabled} = $c->config->{enable_persona} // "0" eq "1";
 
     if (scalar(@args) == 0 || $args[0] ne "static") {
         $c->stash->{nrRunningBuilds} = $c->model('DB::Builds')->search({ finished => 0, busy => 1 }, {})->count();

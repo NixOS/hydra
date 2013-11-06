@@ -135,6 +135,7 @@ function requestJSON(args) {
             bootbox.alert("Server error: " + escapeHTML(data.responseText));
         else
             bootbox.alert("Unknown server error!");
+        if (args.postError) args.postError(data);
     };
     return $.ajax(args);
 };

@@ -123,15 +123,21 @@
       <a href="#" id="persona-signout">Sign out</a>
     </li>
   [% ELSE %]
-    [% WRAPPER makeSubMenu title="Sign in" %]
+    [% IF personaEnabled %]
+      [% WRAPPER makeSubMenu title="Sign in" %]
+        <li>
+          <a href="#" id="persona-signin">
+            <img src="https://developer.mozilla.org/files/3963/persona_sign_in_blue.png" alt="Sign in with Persona" />
+          </a>
+        </li>
+        <li class="divider"></li>
+        <li>
+          <a href="#hydra-signin" data-toggle="modal">Sign in with a Hydra account</a>
+        </li>
+      [% END %]
+    [% ELSE %]
       <li>
-        <a href="#" id="persona-signin">
-          <img src="https://developer.mozilla.org/files/3963/persona_sign_in_blue.png" alt="Sign in with Persona" />
-        </a>
-      </li>
-      <li class="divider"></li>
-      <li>
-        <a href="#hydra-signin" data-toggle="modal">Sign in with a Hydra account</a>
+        <a href="#hydra-signin" data-toggle="modal">Sign in</a>
       </li>
     [% END %]
   [% END %]

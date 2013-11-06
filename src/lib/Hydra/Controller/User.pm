@@ -48,6 +48,8 @@ sub persona_login :Path('/persona-login') Args(0) {
     my ($self, $c) = @_;
     requirePost($c);
 
+    error($c, "Persona support is not enabled.") unless $c->stash->{personaEnabled};
+
     my $assertion = $c->req->params->{assertion} or die;
 
     my $ua = new LWP::UserAgent;

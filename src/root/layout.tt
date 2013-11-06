@@ -101,11 +101,13 @@
 
     <script>
       function doLogout() {
-        $.post("[% c.uri_for('/logout') %]")
-          .done(function(data) {
-            window.location.reload();
-          })
-          .fail(function() { bootbox.alert("Server request failed!"); });
+        [% IF c.user_exists %]
+          $.post("[% c.uri_for('/logout') %]")
+            .done(function(data) {
+              window.location.reload();
+            })
+            .fail(function() { bootbox.alert("Server request failed!"); });
+        [% END %]
       }
     </script>
 
@@ -124,7 +126,8 @@
               url: "[% c.uri_for('/persona-login') %]",
               data: "assertion=" + assertion,
               type: 'POST',
-              success: function(data) { window.location.reload(); }
+              success: function(data) { window.location.reload(); },
+              postError: function() { navigator.id.logout(); }
             });
           },
           onlogout: doLogout
