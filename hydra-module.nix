@@ -40,7 +40,8 @@ in
 
       dbi = mkOption {
         type = types.string;
-        default = "dbi:Pg:dbname=hydra;host=localhost;user=hydra;";
+        default = "dbi:Pg:dbname=hydra;user=hydra;";
+        example = "dbi:Pg:dbname=hydra;host=postgres.example.org;user=foo;";
         description = ''
           The DBI string for Hydra database connection.
         '';
@@ -179,19 +180,13 @@ in
           mkdir -p ${baseDir}/data
           chown hydra ${baseDir}/data
           ln -sf ${hydraConf} ${baseDir}/data/hydra.conf
-          pass=$(HOME=/root ${pkgs.openssl}/bin/openssl rand -base64 32)
-          if [ ! -f ${baseDir}/.pgpass ]; then
-              ${config.services.postgresql.package}/bin/psql postgres << EOF
-          CREATE USER hydra PASSWORD '$pass';
-          EOF
+          ${optionalString (cfg.dbi == "dbi:Pg:dbname=hydra;user=hydra;") ''
+            if ! [ -e ${baseDir}/.db-created ]; then
+              ${config.services.postgresql.package}/bin/createuser hydra
               ${config.services.postgresql.package}/bin/createdb -O hydra hydra
-              cat > ${baseDir}/.pgpass-tmp << EOF
-          localhost:*:hydra:hydra:$pass
-          EOF
-              chown hydra ${baseDir}/.pgpass-tmp
-              chmod 600 ${baseDir}/.pgpass-tmp
-              mv ${baseDir}/.pgpass-tmp ${baseDir}/.pgpass
-          fi
+              touch ${baseDir}/.db-created
+            fi
+          ''}
           ${pkgs.shadow}/bin/su hydra -c ${cfg.package}/bin/hydra-init
         '';
         serviceConfig.Type = "oneshot";
