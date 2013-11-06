@@ -1,6 +1,5 @@
 EXTRA_DIST =					\
   $(distributable_scripts)			\
-  hydra-control					\
   hydra-eval-guile-jobs.in
 
 distributable_scripts =				\
