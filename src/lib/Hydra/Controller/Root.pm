@@ -76,20 +76,6 @@ sub queue_GET {
 }
 
 
-sub timeline :Local {
-    my ($self, $c) = @_;
-    my $pit = time();
-    $c->stash->{pit} = $pit;
-    $pit = $pit-(24*60*60)-1;
-
-    $c->stash->{template} = 'timeline.tt';
-    $c->stash->{builds} = [ $c->model('DB::Builds')->search
-        ( { finished => 1, stoptime => { '>' => $pit } }
-        , { order_by => ["starttime"] }
-        ) ];
-}
-
-
 sub status :Local :Args(0) :ActionClass('REST') { }
 
 sub status_GET {
