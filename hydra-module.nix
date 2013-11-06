@@ -194,12 +194,6 @@ in
               mv ${baseDir}/.pgpass-tmp ${baseDir}/.pgpass
           fi
           ${pkgs.shadow}/bin/su hydra -c ${cfg.hydra}/bin/hydra-init
-          ${config.services.postgresql.package}/bin/psql hydra << EOF
-            BEGIN;
-            INSERT INTO Users(userName, emailAddress, password) VALUES ('admin', '${cfg.notificationSender}', '$(echo -n $pass | sha1sum | cut -c1-40)');
-            INSERT INTO UserRoles(userName, role) values('admin', 'admin');
-            COMMIT;
-          EOF
         '';
         serviceConfig.Type = "oneshot";
         serviceConfig.RemainAfterExit = true;
