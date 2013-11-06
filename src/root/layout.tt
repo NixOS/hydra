@@ -65,28 +65,24 @@
     </div>
 
     <div class="container">
-
       [% IF flashMsg %]
-        <br />
         <div class="alert alert-info">[% flashMsg %]</div>
       [% END %]
 
       [% IF successMsg %]
-        <br />
         <div class="alert alert-success">[% successMsg %]</div>
       [% END %]
 
       [% IF errorMsg %]
-        <br />
         <div class="alert alert-warning">Error: [% errorMsg %]</div>
       [% END %]
 
       [% IF !hideHeader %]
         <div class="page-header">
-          <h1><small>[% IF c.user_exists && starUri; INCLUDE makeStar; " "; END; HTML.escape(title) %]</small></h1>
+          [% IF c.user_exists && starUri; INCLUDE makeStar; " "; END; HTML.escape(title) %]
         </div>
       [% ELSE %]
-        <br />
+        [% IF first %]<br />[% first = 0; END; %]
       [% END %]
 
       [% content %]

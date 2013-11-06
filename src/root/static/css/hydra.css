@@ -2,6 +2,9 @@
     body {
         padding-top: 40px;
     }
+    div.alert {
+        margin-top: 1em;
+    }
 }
 
 .logo {
@@ -68,16 +71,13 @@ h3 {
 }
 
 div.page-header {
-    margin-top: 0em;
+    margin-top: 1em;
     margin-bottom: 1em;
-}
-
-div.page-header h1 {
-    margin-bottom: 0em;
-}
-
-div.page-header h1 small {
-    font-size: 45%;
+    padding-top: 0em;
+    padding-bottom: 0.5em;
+    color: #999999;
+    font-size: 123.809%;
+    font-weight: normal;
 }
 
 .shell-prompt {
