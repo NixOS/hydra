@@ -30,7 +30,7 @@ sub login_POST {
     accessDenied($c, "Bad username or password.")
         if !$c->authenticate({username => $username, password => $password});
 
-    $self->status_no_content($c);
+    currentUser_GET($self, $c);
 }
 
 
