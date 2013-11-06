@@ -18,7 +18,7 @@ let
       OPENSSL_X509_CERT_FILE = "/etc/ssl/certs/ca-bundle.crt";
       GIT_SSL_CAINFO = "/etc/ssl/certs/ca-bundle.crt";
     };
-  
+
   serverEnv = env //
     { HYDRA_LOGO = if cfg.logo != null then cfg.logo else "";
       HYDRA_TRACKER = cfg.tracker;
@@ -108,13 +108,6 @@ in
         '';
       };
 
-      useWAL = mkOption {
-        default = true;
-        description = ''
-          Whether to use SQLite's Write-Ahead Logging, which may improve performance.
-        '';
-      };
-
       debugServer = mkOption {
         default = false;
         type = types.bool;
@@ -163,12 +156,10 @@ in
       build-cache-failure = true
 
       build-poll-interval = 10
-      
+
       # Online log compression makes it impossible to get the tail of
       # builds that are in progress.
       build-compress-log = false
-
-      use-sqlite-wal = ${if cfg.useWAL then "true" else "false"}
     '';
 
     systemd.services."hydra-init" =
@@ -198,7 +189,7 @@ in
         serviceConfig.Type = "oneshot";
         serviceConfig.RemainAfterExit = true;
       };
-    
+
     systemd.services."hydra-server" =
       { wantedBy = [ "multi-user.target" ];
         wants = [ "hydra-init.service" ];
