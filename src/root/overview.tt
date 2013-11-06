@@ -13,7 +13,7 @@
   </div>
 [% END %]
 
-<h2>Projects</h2>
+<div class="page-header">Projects</div>
 
 [% IF projects.size != 0 %]
 
