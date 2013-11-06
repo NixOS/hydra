@@ -15,6 +15,8 @@
 
 <h2>Projects</h2>
 
+[% IF projects.size != 0 %]
+
 <p>The following projects are hosted on this server:</p>
 
 <table class="table table-condensed table-striped clickable-rows">
@@ -35,5 +37,12 @@
     [% END %]
   </tbody>
 </table>
+
+[% ELSE %]
+
+  <div class="alert alert-warning">Hydra has no projects yet. Please
+  <a href="[% c.uri_for(c.controller('Project').action_for('create')) %]">create a project</a>.</div>
+
+[% END %]
 
 [% END %]
