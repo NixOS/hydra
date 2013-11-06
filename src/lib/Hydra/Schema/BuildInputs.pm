@@ -179,4 +179,17 @@ __PACKAGE__->belongs_to(
 # Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-08 13:08:15
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OaJPzRM+8XGsu3eIkqeYEw
 
+my %hint = (
+    columns => [
+        'type',
+        'uri',
+        'value',
+        'revision',
+    ],
+);
+
+sub json_hint {
+    return \%hint;
+}
+
 1;

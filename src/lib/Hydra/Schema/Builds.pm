@@ -619,7 +619,9 @@ my %hint = (
         'releasename'
     ],
     eager_relations => {
-        buildoutputs => 'name'
+        buildoutputs => 'name',
+        buildinputs_builds => 'name',
+        buildproducts => 'productnr',
     }
 );
 

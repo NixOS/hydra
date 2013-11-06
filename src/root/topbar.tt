@@ -72,12 +72,14 @@
     [% END %]
   [% END %]
 
-  [% IF c.user_exists && c.check_user_roles('admin') %]
+  [% IF c.user_exists && (c.check_user_roles('admin') ||
+                          c.check_user_roles('create-projects')) %]
     [% WRAPPER makeSubMenu title="Admin" %]
-      [% IF c.check_user_roles('admin') %]
+      [% IF c.check_user_roles('admin') || c.check_user_roles('create-projects') %]
         [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create')) title = "Create project" %]
         <li class="divider"></li>
       [% END %]
+      [% IF c.check_user_roles('admin') %]
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Admin').action_for('machines'))
         title = "Manage machines" %]
@@ -103,6 +105,7 @@
         title = "Clear VCS caches"
         confirmmsg = "Are you sure you want to clear the VCS cache?"
         class = "" %]
+      [% END %]
     [% END %]
   [% END %]
 

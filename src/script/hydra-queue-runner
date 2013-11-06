@@ -106,7 +106,7 @@ sub checkBuilds {
             { join => ['project'], select => ['system'], as => ['system'], distinct => 1 });
 
         # Get the total number of scheduling shares.
-        my $totalShares = getTotalShares($db);
+        my $totalShares = getTotalShares($db) || 1;
 
         # For each system type, select up to the maximum number of
         # concurrent build for that system type.
