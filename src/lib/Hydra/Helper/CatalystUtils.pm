@@ -176,7 +176,7 @@ sub trim {
 
 
 sub getLatestFinishedEval {
-    my ($c, $jobset) = @_;
+    my ($jobset) = @_;
     my ($eval) = $jobset->jobsetevals->search(
         { hasnewbuilds => 1 },
         { order_by => "id DESC", rows => 1

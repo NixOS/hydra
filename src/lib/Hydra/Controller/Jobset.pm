@@ -173,10 +173,16 @@ sub nixExprPathFromParams {
 
 
 sub checkInputValue {
-    my ($c, $type, $value) = @_;
+    my ($c, $name, $type, $value) = @_;
     $value = trim $value;
-    error($c, "Invalid Boolean value ‘$value’.") if
+    error($c, "The value ‘$value’ of input ‘$name’ is not a Boolean (‘true’ or ‘false’).") if
         $type eq "boolean" && !($value eq "true" || $value eq "false");
+    error($c, "The value ‘$value’ of input ‘$name’ does not specify a Hydra evaluation.  "
+          . "It should be either the number of a specific evaluation, the name of "
+          . "a jobset (given as <project>:<jobset>), or the name of a job (<project>:<jobset>:<job>).")
+        if $type eq "eval" && $value !~ /^\d+$/
+            && $value !~ /^$projectNameRE:$jobsetNameRE$/
+            && $value !~ /^$projectNameRE:$jobsetNameRE:$jobNameRE$/;
     return $value;
 }
 
@@ -237,7 +243,7 @@ sub updateJobset {
         my @values = ref($values) eq 'ARRAY' ? @{$values} : ($values);
         my $altnr = 0;
         foreach my $value (@values) {
-            $value = checkInputValue($c, $type, $value);
+            $value = checkInputValue($c, $name, $type, $value);
             $input->jobsetinputalts->create({altnr => $altnr++, value => $value});
         }
     }
@@ -294,7 +300,7 @@ sub evals_GET {
 # Redirect to the latest finished evaluation of this jobset.
 sub latest_eval : Chained('jobsetChain') PathPart('latest-eval') {
     my ($self, $c, @args) = @_;
-    my $eval = getLatestFinishedEval($c, $c->stash->{jobset})
+    my $eval = getLatestFinishedEval($c->stash->{jobset})
         or notFound($c, "No evaluation found.");
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for("view"), [$eval->id], @args, $c->req->params));
 }

@@ -47,7 +47,7 @@ sub view : Chained('eval') PathPart('') Args(0) {
         } elsif (defined $compare && $compare =~ /^($jobsetNameRE)$/) {
             my $j = $c->stash->{project}->jobsets->find({name => $compare})
                 or notFound($c, "Jobset $compare doesn't exist.");
-            $eval2 = getLatestFinishedEval($c, $j);
+            $eval2 = getLatestFinishedEval($j);
         } else {
             notFound($c, "Unknown comparison source ‘$compare’.");
         }

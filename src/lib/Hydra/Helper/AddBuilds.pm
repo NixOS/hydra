@@ -17,6 +17,7 @@ use File::Temp;
 use File::Spec;
 use File::Slurp;
 use Hydra::Helper::PluginHooks;
+use Hydra::Helper::CatalystUtils;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -147,6 +148,51 @@ sub fetchInputSystemBuild {
     return @inputs;
 }
 
+
+sub fetchInputEval {
+    my ($db, $project, $jobset, $name, $value) = @_;
+
+    my $eval;
+
+    if ($value =~ /^\d+$/) {
+        $eval = $db->resultset('JobsetEvals')->find({ id => int($value) });
+        die "evaluation $eval->{id} does not exist\n" unless defined $eval;
+    } elsif ($value =~ /^($projectNameRE):($jobsetNameRE)$/) {
+        my $jobset = $db->resultset('Jobsets')->find({ project => $1, name => $2 });
+        die "jobset ‘$value’ does not exist\n" unless defined $jobset;
+        $eval = getLatestFinishedEval($jobset);
+        die "jobset ‘$value’ does not have a finished evaluation\n" unless defined $eval;
+    } elsif ($value =~ /^($projectNameRE):($jobsetNameRE):($jobNameRE)$/) {
+        $eval = $db->resultset('JobsetEvals')->find(
+            { project => $1, jobset => $2, hasnewbuilds => 1 },
+            { order_by => "id DESC", rows => 1
+            , where =>
+                \ [ # All builds in this jobset should be finished...
+                    "not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0) "
+                    # ...and the specified build must have succeeded.
+                    . "and exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.job = ? and b.buildstatus = 0)"
+                  , [ 'name', $3 ] ]
+            });
+        die "there is no successful build of ‘$value’ in a finished evaluation\n" unless defined $eval;
+    } else {
+        die;
+    }
+
+    my $jobs = {};
+    foreach my $build ($eval->builds) {
+        next unless $build->finished == 1 && $build->buildstatus == 0;
+        # FIXME: Handle multiple outputs.
+        my $out = $build->buildoutputs->find({ name => "out" });
+        next unless defined $out;
+        # FIXME: Should we fail if the path is not valid?
+        next unless isValidPath($out->path);
+        $jobs->{$build->get_column('job')} = $out->path;
+    }
+
+    return { jobs => $jobs };
+}
+
+
 sub fetchInput {
     my ($plugins, $db, $project, $jobset, $name, $type, $value, $emailresponsible) = @_;
     my @inputs;
@@ -156,6 +202,9 @@ sub fetchInput {
     }
     elsif ($type eq "sysbuild") {
         @inputs = fetchInputSystemBuild($db, $project, $jobset, $name, $value);
+    }
+    elsif ($type eq "eval") {
+        @inputs = fetchInputEval($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "string" || $type eq "nix") {
         die unless defined $value;
@@ -245,7 +294,17 @@ sub inputsToArgs {
                     push @res, "--arg", $input, booleanToString($exprType, $alt->{value});
                 }
                 when ("nix") {
+                    die "input type ‘nix’ only supported for Nix-based jobsets\n" unless $exprType eq "nix";
                     push @res, "--arg", $input, $alt->{value};
+                }
+                when ("eval") {
+                    die "input type ‘eval’ only supported for Nix-based jobsets\n" unless $exprType eq "nix";
+                    my $s = "{ ";
+                    # FIXME: escape $_.  But dots should not be escaped.
+                    $s .= "$_ = builtins.storePath ${\$alt->{jobs}->{$_}}; "
+                        foreach keys %{$alt->{jobs}};
+                    $s .= "}";
+                    push @res, "--arg", $input, $s;
                 }
                 default {
                     push @res, "--arg", $input, buildInputToString($exprType, $alt);

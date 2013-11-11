@@ -37,7 +37,8 @@ sub begin :Private {
         'boolean' => 'Boolean',
         'nix' => 'Nix expression',
         'build' => 'Build output',
-        'sysbuild' => 'Build output (same system)'
+        'sysbuild' => 'Build output (same system)',
+        'eval' => 'Previous Hydra evaluation'
     };
     $_->supportedInputTypes($c->stash->{inputTypes}) foreach @{$c->hydra_plugins};
 
