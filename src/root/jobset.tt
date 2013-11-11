@@ -63,6 +63,7 @@
   [% END %]
   <li><a href="#tabs-jobs" data-toggle="tab">Jobs</a></li>
   <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
+  <li><a href="#tabs-links" data-toggle="tab">Links</a></li>
 </ul>
 
 <div id="generic-tabs" class="tab-content">
@@ -157,6 +158,12 @@
   </div>
 
   [% INCLUDE makeLazyTab tabName="tabs-jobs" uri=c.uri_for('/jobset' project.name jobset.name "jobs-tab") %]
+
+  <div id="tabs-links" class="tab-pane">
+    <ul>
+      <li><a href="[% c.uri_for(c.controller('Jobset').action_for('latest_eval'), c.req.captures) %]">Latest finished evaluation</a></li>
+    </ul>
+  </div>
 
 </div>
 
