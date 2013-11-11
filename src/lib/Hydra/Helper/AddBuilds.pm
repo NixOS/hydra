@@ -78,16 +78,22 @@ sub attrsToSQL {
 sub fetchInputBuild {
     my ($db, $project, $jobset, $name, $value) = @_;
 
-    my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
-    $projectName ||= $project->name;
-    $jobsetName ||= $jobset->name;
+    my $prevBuild;
 
-    # Pick the most recent successful build of the specified job.
-    (my $prevBuild) = $db->resultset('Builds')->search(
-        { finished => 1, project => $projectName, jobset => $jobsetName
-        , job => $jobName, buildStatus => 0 },
-        { order_by => "me.id DESC", rows => 1
-        , where => \ attrsToSQL($attrs, "me.id") });
+    if ($value =~ /^\d+$/) {
+        $prevBuild = $db->resultset('Builds')->find({ id => int($value) });
+    } else {
+        my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
+        $projectName ||= $project->name;
+        $jobsetName ||= $jobset->name;
+
+        # Pick the most recent successful build of the specified job.
+        $prevBuild = $db->resultset('Builds')->search(
+            { finished => 1, project => $projectName, jobset => $jobsetName
+            , job => $jobName, buildStatus => 0 },
+            { order_by => "me.id DESC", rows => 1
+            , where => \ attrsToSQL($attrs, "me.id") })->single;
+    }
 
     return () if !defined $prevBuild || !isValidPath(getMainOutput($prevBuild)->path);
 

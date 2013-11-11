@@ -175,14 +175,17 @@ sub nixExprPathFromParams {
 sub checkInputValue {
     my ($c, $name, $type, $value) = @_;
     $value = trim $value;
+
     error($c, "The value ‘$value’ of input ‘$name’ is not a Boolean (‘true’ or ‘false’).") if
         $type eq "boolean" && !($value eq "true" || $value eq "false");
+
     error($c, "The value ‘$value’ of input ‘$name’ does not specify a Hydra evaluation.  "
           . "It should be either the number of a specific evaluation, the name of "
           . "a jobset (given as <project>:<jobset>), or the name of a job (<project>:<jobset>:<job>).")
         if $type eq "eval" && $value !~ /^\d+$/
             && $value !~ /^$projectNameRE:$jobsetNameRE$/
             && $value !~ /^$projectNameRE:$jobsetNameRE:$jobNameRE$/;
+
     return $value;
 }
 
