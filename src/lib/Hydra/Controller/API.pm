@@ -135,6 +135,36 @@ sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
     $c->forward('Hydra::View::Plain');
 }
 
+sub jobToHash {
+    my ($job) = @_;
+    return {
+        name => $job->name,
+        project => $job->project->name,
+        jobset => $job->jobset->name
+    };
+}
+
+sub jobs : Chained('api') PathPart('jobs') Args(0) {
+    my ($self, $c) = @_;
+
+    my $projectName = $c->request->params->{project};
+    my $jobsetName = $c->request->params->{jobset};
+
+    my $filter = {};
+    $filter->{project} = $projectName if defined $projectName;
+    $filter->{jobset} = $jobsetName if defined $jobsetName;
+
+    my @jobs = $c->model('DB::Jobs')->search($filter);
+
+    my @list;
+    push @list, jobToHash($_) foreach @jobs;
+
+    $c->stash->{'plain'} = {
+        data => scalar (JSON::Any->objToJson(\@list))
+    };
+    $c->forward('Hydra::View::Plain');
+}
+
 
 sub queue : Chained('api') PathPart('queue') Args(0) {
     my ($self, $c) = @_;
