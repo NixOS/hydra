@@ -102,6 +102,42 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
 }
 
 
+sub evalToHash {
+    my ($ev) = @_;
+    return {
+        id => $ev->id,
+        project => $ev->get_column("project"),
+        jobset => $ev->get_column("jobset"),
+        nrbuilds => $ev->get_column("nrbuilds"),
+        nrsucceeded => $ev->get_column("nrsucceeded"),
+        timestamp => $ev->timestamp
+    };
+};
+
+sub latestevals: Chained('api') PathPart('latestevals') Args(0) {
+    my ($self, $c) = @_;
+    my $nr = $c->request->params->{nr};
+    error($c, "Parameter not defined!") if !defined $nr;
+
+    my $project = $c->request->params->{project};
+    my $jobset = $c->request->params->{jobset};
+
+    my $filter;
+    $filter->{project} = $project if ! $project eq "";
+    $filter->{jobset} = $jobset if ! $jobset eq "";
+
+    my @latest = $c->model('DB::JobsetEvals')->search($filter, {rows => $nr, order_by => ["id DESC"] });
+
+    my @list;
+    push @list, evalToHash($_) foreach @latest;
+
+    $c->stash->{'plain'} = {
+        data => scalar (JSON::Any->objToJson(\@list))
+    };
+    $c->forward('Hydra::View::Plain');
+}
+
+
 sub jobsetToHash {
     my ($jobset) = @_;
     return {
