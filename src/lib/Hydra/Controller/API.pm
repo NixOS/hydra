@@ -193,7 +193,7 @@ sub jobs : Chained('api') PathPart('jobs') Args(0) {
 
     if (defined $evalId) {
         $filter->{name} =
-             { -in => $c->model('DB::Builds')->search($filter, {
+             { -in => $c->model('DB::Builds')->search({ eval => $evalId }, {
                  columns => ["job"], join => "jobsetevalmembers" })->as_query };
     }
 
