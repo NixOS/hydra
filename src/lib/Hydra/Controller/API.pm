@@ -185,10 +185,17 @@ sub jobs : Chained('api') PathPart('jobs') Args(0) {
 
     my $projectName = $c->request->params->{project};
     my $jobsetName = $c->request->params->{jobset};
+    my $evalId = $c->request->params->{eval};
 
     my $filter = {};
     $filter->{project} = $projectName if defined $projectName;
     $filter->{jobset} = $jobsetName if defined $jobsetName;
+
+    if (defined $evalId) {
+        $filter->{name} =
+             { -in => $c->model('DB::Builds')->search($filter, {
+                 columns => ["job"], join => "jobsetevalmembers" })->as_query };
+    }
 
     my @jobs = $c->model('DB::Jobs')->search($filter);
 
