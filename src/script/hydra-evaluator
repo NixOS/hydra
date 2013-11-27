@@ -275,6 +275,7 @@ sub checkJobset {
         checkJobsetWrapped($jobset);
     };
 
+    my $failed = 0;
     if ($@) {
         my $msg = $@;
         print STDERR $msg;
@@ -282,6 +283,7 @@ sub checkJobset {
             $jobset->update({lastcheckedtime => time});
             setJobsetError($jobset, $msg);
         });
+        $failed = 1;
     }
 
     if (defined $triggerTime) {
@@ -294,6 +296,7 @@ sub checkJobset {
                 if $new->triggertime == $triggerTime;
         });
     }
+    return $failed;
 }
 
 
@@ -324,8 +327,7 @@ if (scalar @ARGV == 2) {
     my $projectName = $ARGV[0];
     my $jobsetName = $ARGV[1];
     my $jobset = $db->resultset('Jobsets')->find($projectName, $jobsetName) or die;
-    checkJobset($jobset);
-    exit 0;
+    exit checkJobset($jobset);
 }
 
 
