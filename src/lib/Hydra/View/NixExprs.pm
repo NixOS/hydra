@@ -31,7 +31,7 @@ sub process {
 
 let
 
-  maybeStorePath = if builtins ? langVersion and builtins.lessThan 1 builtins.langVersion
+  maybeStorePath = if builtins ? langVersion && builtins.lessThan 1 builtins.langVersion
     then builtins.storePath
     else x: x;
 
