@@ -47,7 +47,7 @@ sub fetchInput {
         $ENV{"PRINT_PATH"} = "1";
         $ENV{"NIX_PREFETCH_BZR_LEAVE_DOT_BZR"} = $type eq "bzr-checkout" ? "1" : "0";
 
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
+        (my $res, $stdout, $stderr) = captureStdoutStderr(1200,
             "nix-prefetch-bzr", $uri, $revision);
         die "cannot check out Bazaar branch `$uri':\n$stderr" if $res;
 
