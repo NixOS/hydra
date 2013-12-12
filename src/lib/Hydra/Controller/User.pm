@@ -50,7 +50,7 @@ sub persona_login :Path('/persona-login') Args(0) {
 
     error($c, "Persona support is not enabled.") unless $c->stash->{personaEnabled};
 
-    my $assertion = $c->req->params->{assertion} or die;
+    my $assertion = $c->stash->{params}->{assertion} or die;
 
     my $ua = new LWP::UserAgent;
     my $response = $ua->post(
@@ -119,7 +119,7 @@ sub register :Local Args(0) {
 
     die unless $c->request->method eq "PUT";
 
-    my $userName = trim $c->req->params->{username};
+    my $userName = trim $c->stash->{params}->{username};
     $c->stash->{username} = $userName;
 
     error($c, "You did not enter the correct digits from the security image.")
@@ -154,21 +154,21 @@ sub register :Local Args(0) {
 sub updatePreferences {
     my ($c, $user) = @_;
 
-    my $fullName = trim($c->req->params->{fullname} // "");
+    my $fullName = trim($c->stash->{params}->{fullname} // "");
     error($c, "Your must specify your full name.") if $fullName eq "";
 
-    my $password = trim($c->req->params->{password} // "");
+    my $password = trim($c->stash->{params}->{password} // "");
     if ($user->type eq "hydra" && ($user->password eq "!" || $password ne "")) {
         error($c, "You must specify a password of at least 6 characters.")
             unless isValidPassword($password);
 
         error($c, "The passwords you specified did not match.")
-            if $password ne trim $c->req->params->{password2};
+            if $password ne trim $c->stash->{params}->{password2};
 
         setPassword($user, $password);
     }
 
-    my $emailAddress = trim($c->req->params->{emailaddress} // "");
+    my $emailAddress = trim($c->stash->{params}->{emailaddress} // "");
     # FIXME: validate email address?
 
     $user->update(
