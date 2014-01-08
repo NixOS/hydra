@@ -4,6 +4,7 @@ use strict;
 use base qw/Catalyst::View/;
 use File::Basename;
 use Nix::Store;
+use Nix::Crypto;
 
 sub process {
     my ($self, $c) = @_;
@@ -27,6 +28,15 @@ sub process {
             my $drv = derivationFromPath($deriver);
             $info .= "System: $drv->{platform}\n";
         }
+    }
+
+    # Optionally, sign the NAR info file we just created.
+    my $privateKeyFile = $c->config->{binary_cache_private_key_file};
+    my $keyName = $c->config->{binary_cache_key_name};
+
+    if (defined $privateKeyFile && defined $keyName) {
+        my $sig = signString($privateKeyFile, $info);
+        $info .= "Signature: 1;$keyName;$sig\n";
     }
 
     $c->response->body($info);
