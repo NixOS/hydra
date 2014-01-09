@@ -69,6 +69,20 @@ sub persona_login :Path('/persona-login') Args(0) {
     # in URLs.
     die "Illegal email address." unless $email =~ /^[a-zA-Z0-9\.\-\_]+@[a-zA-Z0-9\.\-\_]+$/;
 
+    # If persona_allowed_domains is set, check if the email address returned is on these domains.
+    # When not configured, allow all domains.
+    my $allowed_domains = $c->config->{persona_allowed_domains} || "";
+    if ( $allowed_domains ne "") {
+        my $email_ok = 0;
+        my @domains = split ',', $allowed_domains;
+        map { $_ =~ s/^\s*(.*?)\s*$/$1/ } @domains;
+
+        foreach my $domain (@domains) {
+            $email_ok = $email_ok || ((split '@', $email)[1] eq $domain);
+        }
+        die "Email address is not allowed to login." unless $email_ok;
+    }
+
     my $user = $c->find_user({ username => $email });
 
     if (!$user) {
