@@ -13,9 +13,18 @@ use Encode;
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
 
+sub noLoginNeeded {
+  my ($c) = @_;
+
+  return $c->request->path eq "persona-login" ||
+         $c->request->path eq "login" ||
+         $c->request->path eq "logo" ||
+         $c->request->path =~ /^static\//;
+}
 
 sub begin :Private {
     my ($self, $c, @args) = @_;
+
     $c->stash->{curUri} = $c->request->uri;
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
@@ -25,6 +34,12 @@ sub begin :Private {
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
     $c->stash->{personaEnabled} = $c->config->{enable_persona} // "0" eq "1";
+
+    $c->stash->{isPrivateHydra} = $c->config->{private} // "0" ne "0";
+
+    if ($c->stash->{isPrivateHydra} && ! noLoginNeeded($c)) {
+        requireUser($c);
+    }
 
     if (scalar(@args) == 0 || $args[0] ne "static") {
         $c->stash->{nrRunningBuilds} = $c->model('DB::Builds')->search({ finished => 0, busy => 1 }, {})->count();

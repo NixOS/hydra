@@ -6,7 +6,9 @@
     </ul>
   </li>
 [% END %]
+[% showPrivate = (isPrivateHydra && c.user_exists) || ! isPrivateHydra %]
 
+[% IF showPrivate %]
 <ul class="nav pull-left">
 
   [% IF c.user_exists %]
@@ -110,13 +112,15 @@
   [% END %]
 
 </ul>
+[% END %]
 
 <ul class="nav pull-right">
 
-  <form class="navbar-search" action="[% c.uri_for('/search') %]">
-    <input name="query" type="text" class="search-query span2" placeholder="Search" [% HTML.attributes(value => c.req.params.query) %]/>
-  </form>
-
+  [% IF showPrivate %]
+    <form class="navbar-search" action="[% c.uri_for('/search') %]">
+      <input name="query" type="text" class="search-query span2" placeholder="Search" [% HTML.attributes(value => c.req.params.query) %]/>
+    </form>
+  [% END %]
   [% IF c.user_exists %]
     [% INCLUDE menuItem uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
     <li>
