@@ -89,39 +89,27 @@ static void showArgsUsed(XMLWriter & doc, const ArgsUsed & argsUsed)
 }
 
 
-static string queryMetaFieldString(MetaInfo & meta, const string & name)
+static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name)
 {
-    MetaValue value = meta[name];
-    if (value.type != MetaValue::tpString) return "";
-    return value.stringValue;
-}
-
-
-static int queryMetaFieldInt(MetaInfo & meta, const string & name, int def)
-{
-    MetaValue value = meta[name];
-    if (value.type == MetaValue::tpInt) return value.intValue;
-    if (value.type == MetaValue::tpString) {
-        int n;
-        if (string2Int(value.stringValue, n)) return n;
-    }
-    return def;
-}
-
-
-static string queryMetaField(MetaInfo & meta, const string & name)
-{
-    string res;
-    MetaValue value = meta[name];
-    if (value.type == MetaValue::tpString)
-        res = value.stringValue;
-    else if (value.type == MetaValue::tpStrings) {
-        foreach (Strings::const_iterator, i, value.stringValues) {
-            if (res.size() != 0) res += ", ";
-            res += *i;
+    Value * v = drv.queryMeta(name);
+    if (v) {
+        state.forceValue(*v);
+        if (v->type == tString)
+            return v->string.s;
+        else if (v->type == tList) {
+            string res = "";
+            for (unsigned int n = 0; n < v->list.length; ++n) {
+                Value v2(*v->list.elems[n]);
+                state.forceValue(v2);
+                if (v2.type == tString) {
+                    if (res.size() != 0) res += ", ";
+                    res += v2.string.s;
+                }
+            }
+            return res;
         }
     }
-    return res;
+    return "";
 }
 
 
@@ -137,33 +125,29 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
 
     if (v.type == tAttrs) {
 
-        DrvInfo drv;
+        DrvInfo drv(state);
 
         if (getDerivation(state, v, drv, false)) {
             XMLAttrs xmlAttrs;
             Path drvPath;
 
-            DrvInfo::Outputs outputs = drv.queryOutputs(state);
+            DrvInfo::Outputs outputs = drv.queryOutputs();
 
             xmlAttrs["jobName"] = attrPath;
             xmlAttrs["nixName"] = drv.name;
             xmlAttrs["system"] = drv.system;
-            xmlAttrs["drvPath"] = drvPath = drv.queryDrvPath(state);
-            MetaInfo meta = drv.queryMetaInfo(state);
-            xmlAttrs["description"] = queryMetaFieldString(meta, "description");
-            xmlAttrs["longDescription"] = queryMetaFieldString(meta, "longDescription");
-            xmlAttrs["license"] = queryMetaField(meta, "license");
-            xmlAttrs["homepage"] = queryMetaFieldString(meta, "homepage");
-            xmlAttrs["maintainers"] = queryMetaField(meta, "maintainers");
+            xmlAttrs["drvPath"] = drvPath = drv.queryDrvPath();
+            xmlAttrs["description"] = drv.queryMetaString("description");
+            xmlAttrs["longDescription"] = drv.queryMetaString("longDescription");
+            xmlAttrs["license"] = queryMetaStrings(state, drv, "license");
+            xmlAttrs["homepage"] = drv.queryMetaString("homepage");
+            xmlAttrs["maintainers"] = queryMetaStrings(state, drv, "maintainers");
 
-            int prio = queryMetaFieldInt(meta, "schedulingPriority", 100);
-            xmlAttrs["schedulingPriority"] = int2String(prio);
+            xmlAttrs["schedulingPriority"] = int2String(drv.queryMetaInt("schedulingPriority", 100));
 
-            int timeout = queryMetaFieldInt(meta, "timeout", 36000);
-            xmlAttrs["timeout"] = int2String(timeout);
+            xmlAttrs["timeout"] = int2String(drv.queryMetaInt("timeout", 36000));
 
-            int maxsilent = queryMetaFieldInt(meta, "maxSilent", 3600);
-            xmlAttrs["maxSilent"] = int2String(maxsilent);
+            xmlAttrs["maxSilent"] = int2String(drv.queryMetaInt("maxSilent", 3600));
 
             /* If this is an aggregate, then get its constituents. */
             Bindings::iterator a = v.attrs->find(state.symbols.create("_hydraAggregate"));
