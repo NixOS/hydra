@@ -39,14 +39,14 @@ sub clear_queue_non_current : Chained('admin') PathPart('clear-queue-non-current
         });
     my $n = cancelBuilds($c->model('DB')->schema, $builds);
     $c->flash->{successMsg} = "$n builds have been cancelled.";
-    $c->res->redirect($c->request->referer // "/admin");
+    $c->res->redirect($c->request->referer // "/");
 }
 
 
 sub clearfailedcache : Chained('admin') PathPart('clear-failed-cache') Args(0) {
     my ($self, $c) = @_;
     my $r = `nix-store --clear-failed-paths '*'`;
-    $c->res->redirect($c->request->referer // "/admin");
+    $c->res->redirect($c->request->referer // "/");
 }
 
 
@@ -57,7 +57,7 @@ sub clearvcscache : Chained('admin') PathPart('clear-vcs-cache') Args(0) {
     $c->model('DB::CachedSubversionInputs')->delete;
     $c->model('DB::CachedBazaarInputs')->delete;
     $c->flash->{successMsg} = "VCS caches have been cleared.";
-    $c->res->redirect($c->request->referer // "/admin");
+    $c->res->redirect($c->request->referer // "/");
 }
 
 
