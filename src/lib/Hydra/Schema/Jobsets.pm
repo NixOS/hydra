@@ -313,7 +313,9 @@ my %hint = (
         "enabled",
         "errormsg",
         "fetcherrormsg",
-        "emailoverride"
+        "emailoverride",
+        "nixexprpath",
+        "nixexprinput"
     ],
     eager_relations => {
         jobsetinputs => "name"
