@@ -1,0 +1,141 @@
+[% PROCESS common.tt %]
+[% PROCESS "product-list.tt" %]
+[% USE HTML %]
+[% USE Date %]
+
+      <h3>Build time history (in seconds)</h3>
+
+      <div id="placeholder" style="width:800px;height:400px;"></div>
+      <div id="overview" style="margin-left:50px;margin-top:20px;width:600px;height:50px"></div>
+
+      <script src="[% c.uri_for("/static/js/flot/jquery.flot.js") %]" type="text/javascript"></script>
+      <script src="[% c.uri_for("/static/js/flot/jquery.flot.selection.js") %]" type="text/javascript"></script>
+      <script type="text/javascript">
+        $(function() {
+          var d = [];
+          var ids = [];
+          [% FOREACH prevbuild IN prevBuilds; IF prevbuild.build.starttime != 0 %]
+            d.push([[% prevbuild.starttime * 1000 %],[% prevbuild.get_column('actualBuildTime') %]]);
+            ids[[% prevbuild.starttime * 1000 %]] = [% prevbuild.id %] ;
+          [% END; END %]
+
+          var options = {
+            xaxis: { mode: "time" },
+            selection: { mode: "x" },
+            points: { show: true },
+            lines: { show: true },
+            grid: {
+              clickable: true,
+              hoverable: true,
+              hoverFill: '#444',
+              hoverRadius: 4,
+            },
+          };
+
+
+          var plot = $.plot($("#placeholder"), [d], options);
+
+          var overview = $.plot($("#overview"), [d], {
+            series: {
+              lines: { show: true, lineWidth: 1 },
+              shadowSize: 0
+            },
+            xaxis: { ticks: [], mode: "time" },
+            yaxis: { ticks: [], min: 0, autoscaleMargin: 0.1 },
+            selection: { mode: "x" }
+          });
+
+          // now connect the two
+
+          $("#placeholder").bind("plotselected", function (event, ranges) {
+            // do the zooming
+            plot = $.plot($("#placeholder"), [d],
+              $.extend(true, {}, options, {
+                xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to }
+              }));
+
+            // don't fire event on the overview to prevent eternal loop
+            overview.setSelection(ranges, true);
+          });
+
+          $("#overview").bind("plotselected", function (event, ranges) {
+            plot.setSelection(ranges);
+          });
+
+          $("#placeholder").bind("plotclick", function (e, pos, item) {
+            if (item) {
+              plot.highlight(item.series, item.datapoint);
+              buildid = ids[item.datapoint[0]];
+              window.location = "/build/"+buildid;
+            }
+          });
+        });
+      </script>
+
+      <h3>Store path size history (in MB)</h3>
+
+      <div id="placeholder-size" style="width:800px;height:400px;"></div>
+      <div id="overview-size" style="margin-left:50px;margin-top:20px;width:600px;height:50px"></div>
+
+      <script type="text/javascript">
+        $(function() {
+          var d = [];
+          var ids = [];
+          [% FOREACH prevbuild IN prevBuilds; IF prevbuild.size != 0 %]
+            d.push([[% prevbuild.starttime * 1000 %],[% prevbuild.size / (1024*1024.0) %]]);
+            ids[[% prevbuild.starttime * 1000 %]] = [% prevbuild.id %] ;
+          [% END; END %]
+
+          var options = {
+            xaxis: { mode: "time" },
+            selection: { mode: "x" },
+            points: { show: true },
+            lines: { show: true },
+            grid: {
+              clickable: true,
+              hoverable: true,
+              hoverFill: '#444',
+              hoverRadius: 4,
+            },
+          };
+
+          var plot = $.plot($("#placeholder-size"), [d], options);
+
+          var overview = $.plot($("#overview-size"), [d], {
+            series: {
+              lines: { show: true, lineWidth: 1 },
+              shadowSize: 0
+            },
+            xaxis: { ticks: [], mode: "time" },
+            yaxis: { ticks: [], min: 0, autoscaleMargin: 0.1 },
+            selection: { mode: "x" }
+          });
+
+          // now connect the two
+
+          $("#placeholder-size").bind("plotselected", function (event, ranges) {
+            // do the zooming
+            plot = $.plot($("#placeholder-size"), [d],
+              $.extend(true, {}, options, {
+                xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to }
+              }));
+
+            // don't fire event on the overview to prevent eternal loop
+            overview.setSelection(ranges, true);
+          });
+
+          $("#overview-size").bind("plotselected", function (event, ranges) {
+            plot.setSelection(ranges);
+          });
+
+          $("#placeholder-size").bind("plotclick", function (e, pos, item) {
+            if (item) {
+              plot.highlight(item.series, item.datapoint);
+              buildid = ids[item.datapoint[0]];
+              window.location = "/build/"+buildid;
+            }
+          });
+        });
+      </script>
+
+

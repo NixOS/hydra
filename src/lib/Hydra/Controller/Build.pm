@@ -71,7 +71,7 @@ sub build_GET {
         $c->stash->{cachedBuild} = $cachedBuildStep->build if defined $cachedBuildStep;
     }
 
-    if ($build->finished && 0) {
+    if ($build->finished) {
         $c->stash->{prevBuilds} = [$c->model('DB::Builds')->search(
             { project => $c->stash->{project}->name
             , jobset => $c->stash->{build}->jobset->name
@@ -396,6 +396,32 @@ sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
     $c->stash->{runtimeGraph} = [ map { getDependencyGraph($self, $c, 1, $done, $_) } @outPaths ];
 
     $c->stash->{template} = 'runtime-deps.tt';
+}
+
+
+sub history_graphs : Chained('buildChain') PathPart('history-graphs') {
+    my ($self, $c) = @_;
+    my $build = $c->stash->{build};
+    if ($build->finished) {
+        $c->stash->{prevBuilds} = [$c->model('DB::Builds')->search(
+            { project => $c->stash->{project}->name
+            , jobset => $c->stash->{build}->jobset->name
+            , job => $c->stash->{build}->job->name
+            , 'me.system' => $build->system
+            , finished => 1
+            , buildstatus => 0
+            , 'me.id' =>  { '<=' => $build->id }
+            }
+          , { join => "actualBuildStep"
+            , "+select" => ["actualBuildStep.stoptime - actualBuildStep.starttime"]
+            , "+as" => ["actualBuildTime"]
+            , order_by => "me.id DESC"
+            , rows => 50
+            }
+          )
+        ];
+    }
+    $c->stash->{template} = 'build-history-tab.tt';
 }
 
 

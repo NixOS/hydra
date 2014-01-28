@@ -550,13 +550,13 @@ __PACKAGE__->has_many(
   { "foreign.build" => "self.id" },
 );
 
-#__PACKAGE__->has_one(
-#  "actualBuildStep",
-#  "Hydra::Schema::BuildSteps",
-#  { 'foreign.outpath' => 'self.outpath'
-#  , 'foreign.build' => 'self.id'
-#  },
-#);
+__PACKAGE__->has_one(
+  "actualBuildStep",
+  "Hydra::Schema::BuildSteps",
+  { 'foreign.drvpath' => 'self.drvpath'
+  , 'foreign.build' => 'self.id'
+  },
+);
 
 __PACKAGE__->many_to_many("jobsetevals", "jobsetevalmembers", "eval");
 
