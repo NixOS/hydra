@@ -15,7 +15,7 @@
 
       <itemizedlist>
         <listitem><para>Nix</para></listitem>
-        <listitem><para>either PostgreSQL or SQLite</para></listitem>
+        <listitem><para>PostgreSQL</para></listitem>
         <listitem><para>many Perl packages, notably Catalyst, EmailSender,
         and NixPerl (see the <link
         xlink:href="https://svn.nixos.org/repos/nix/nixpkgs/trunk/pkgs/development/tools/misc/hydra/default.nix">Hydra
@@ -113,9 +113,7 @@ hydra-evaluator  hydra-server
   <section>
     <title>Creating the database</title>
     <para>
-      Hydra stores its results in a database, which can be a
-      PostgreSQL or SQLite database.  The latter is easier to setup,
-      but the former scales better.
+      Hydra stores its results in a PostgreSQL database.
     </para>
 
     <para>
@@ -150,9 +148,7 @@ dbserver.example.org:*:hydra:hydra:password</screen>
 
       Make sure that the <emphasis>HYDRA_DATA</emphasis> directory
       exists and is writable for the user which will run the Hydra
-      services.  For a SQLite database, the
-      <varname>HYDRA_DBI</varname> should be set to something like
-      <literal>dbi:SQLite:/path/to/hydra.sqlite</literal>
+      services. 
     </para>
 
     <para>
