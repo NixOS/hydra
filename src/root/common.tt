@@ -406,7 +406,9 @@ BLOCK renderEvals %]
           </td>
           <td align='right' class="nowrap">
             <span class="label label-success">[% e.nrSucceeded %]</span>
+            [% IF e.nrFailed > 0 %]
             <span class="label label-important">[% e.nrFailed %]</span>
+            [% END %]
             [% IF e.nrScheduled > 0 %]
             <span class="label">[% e.nrScheduled %]</span>
             [% END %]
