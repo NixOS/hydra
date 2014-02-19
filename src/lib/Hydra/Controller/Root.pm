@@ -349,5 +349,18 @@ sub search :Local Args(0) {
 
 }
 
+sub log :Local :Args(1) {
+    my ($self, $c, $path) = @_;
+
+    $path = ($ENV{NIX_STORE_DIR} || "/nix/store")."/$path";
+
+    my @outpaths = ($path);
+    my $logPath = findLog($c, $path, @outpaths);
+    notFound($c, "The build log of $path is not available.") unless defined $logPath;
+
+    $c->stash->{'plain'} = { data => (scalar logContents($logPath)) || " " };
+    $c->forward('Hydra::View::Plain');
+}
+
 
 1;
