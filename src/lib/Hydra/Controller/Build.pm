@@ -31,6 +31,8 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     $c->stash->{mappers} = [$c->model('DB::UriRevMapper')->all];
 
     $c->stash->{project} = $c->stash->{build}->project;
+    $c->stash->{jobset} = $c->stash->{build}->jobset;
+    $c->stash->{job} = $c->stash->{build}->job;
 }
 
 
@@ -74,8 +76,8 @@ sub build_GET {
     if ($build->finished) {
         $c->stash->{prevBuilds} = [$c->model('DB::Builds')->search(
             { project => $c->stash->{project}->name
-            , jobset => $c->stash->{build}->jobset->name
-            , job => $c->stash->{build}->job->name
+            , jobset => $c->stash->{jobset}->name
+            , job => $c->stash->{job}->name
             , 'me.system' => $build->system
             , finished => 1
             , buildstatus => 0
@@ -405,8 +407,8 @@ sub history_graphs : Chained('buildChain') PathPart('history-graphs') {
     if ($build->finished) {
         $c->stash->{prevBuilds} = [$c->model('DB::Builds')->search(
             { project => $c->stash->{project}->name
-            , jobset => $c->stash->{build}->jobset->name
-            , job => $c->stash->{build}->job->name
+            , jobset => $c->stash->{jobset}->name
+            , job => $c->stash->{job}->name
             , 'me.system' => $build->system
             , finished => 1
             , buildstatus => 0

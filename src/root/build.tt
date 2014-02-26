@@ -4,9 +4,6 @@
 [% USE HTML %]
 [% USE Date %]
 
-[% project = build.project %]
-[% jobset = build.jobset %]
-[% job = build.job %]
 [% isAggregate = constituents.size > 0 %]
 
 [% BLOCK renderOutputs %]
