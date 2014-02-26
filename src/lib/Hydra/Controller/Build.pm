@@ -242,7 +242,7 @@ sub output : Chained('buildChain') PathPart Args(1) {
     error($c, "This build is not finished yet.") unless $build->finished;
     my $output = $build->buildoutputs->find({name => $outputName});
     notFound($c, "This build has no output named ‘$outputName’") unless defined $output;
-    error($c, "Output is not available.") unless isValidPath $output->path;
+    gone($c, "Output is no longer available.") unless isValidPath $output->path;
 
     $c->response->header('Content-Disposition', "attachment; filename=\"build-${\$build->id}-${\$outputName}.nar.bz2\"");
     $c->stash->{current_view} = 'NixNAR';

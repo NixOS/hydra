@@ -230,10 +230,7 @@ sub nar :Local :Args(1) {
 
     $path = ($ENV{NIX_STORE_DIR} || "/nix/store")."/$path";
 
-    if (!isValidPath($path)) {
-        $c->response->status(410); # "Gone"
-        error($c, "Path " . $path . " is no longer available.");
-    }
+    gone($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
 
     $c->stash->{current_view} = 'NixNAR';
     $c->stash->{storePath} = $path;

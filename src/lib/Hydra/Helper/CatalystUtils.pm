@@ -15,7 +15,7 @@ use feature qw/switch/;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild
-    error notFound accessDenied
+    error notFound gone accessDenied
     forceLogin requireUser requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
     getLatestFinishedEval
@@ -100,6 +100,12 @@ sub error {
 sub notFound {
     my ($c, $msg) = @_;
     error($c, $msg, 404);
+}
+
+
+sub gone {
+    my ($c, $msg) = @_;
+    error($c, $msg, 410);
 }
 
 
