@@ -80,7 +80,9 @@ sub buildFinished {
 
     my ($authors, $nrCommits, $emailable_authors) = getResponsibleAuthors($build, $self->{plugins});
     my $authorList;
-    if (scalar keys %{$authors} > 0) {
+    my $prevBuild = getPreviousBuild($build);
+    if (scalar keys %{$authors} > 0 &&
+        ((!defined $prevBuild) || ($build->buildstatus != $prevBuild->buildstatus))) {
         my @x = map { "$_ <$authors->{$_}>" } (sort keys %{$authors});
         $authorList = join(" or ", scalar @x > 1 ? join(", ", @x[0..scalar @x - 2]): (), $x[-1]);
         $addresses{$_} = { builds => [ $build ] } foreach (@{$emailable_authors});
