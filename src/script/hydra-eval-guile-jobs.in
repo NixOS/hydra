@@ -14,7 +14,7 @@ main="(module-ref (resolve-interface '(hydra-eval-guile-jobs)) 'eval-guile-jobs)
 exec ${GUILE:-@GUILE@} --no-auto-compile --fresh-auto-compile   \
   -l "$0" -c "(apply $main (cdr (command-line)))" "$@"
 !#
-;;; Copyright © 2012, 2013 Ludovic Courtès <ludo@gnu.org>
+;;; Copyright © 2012, 2013, 2014 Ludovic Courtès <ludo@gnu.org>
 ;;;
 ;;; Hydra is free software: you can redistribute it and/or modify
 ;;; it under the terms of the GNU General Public License as published by
@@ -115,7 +115,7 @@ symbol/thunk pairs."
                                                3600)))
                          (timeout
                           ,(number->string (or (assoc-ref result 'timeout)
-                                               7200)))
+                                               72000)))
                          (nixName ,(derivation-path->name drv))
                          (schedulingPriority
                           ,(number->string (or (assoc-ref result
