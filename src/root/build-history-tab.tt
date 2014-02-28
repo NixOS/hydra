@@ -3,7 +3,7 @@
 [% USE HTML %]
 [% USE Date %]
 
-      <h3>Build time history (in seconds)</h3>
+      <h3>Build time history (in minutes)</h3>
 
       <div id="placeholder" style="width:800px;height:400px;"></div>
       <div id="overview" style="margin-left:50px;margin-top:20px;width:600px;height:50px"></div>
@@ -15,7 +15,7 @@
           var d = [];
           var ids = [];
           [% FOREACH prevbuild IN prevBuilds; IF prevbuild.build.starttime != 0 %]
-            d.push([[% prevbuild.starttime * 1000 %],[% prevbuild.get_column('actualBuildTime') %]]);
+            d.push([[% prevbuild.starttime * 1000 %],[% prevbuild.get_column('actualBuildTime') / 60 %]]);
             ids[[% prevbuild.starttime * 1000 %]] = [% prevbuild.id %] ;
           [% END; END %]
 
