@@ -242,7 +242,7 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
     $c->response->content_type('text/plain');
     $c->stash->{plain}->{data} =
         #"StoreDir: $Nix::Config::storeDir\n" . # FIXME
-        "StoreDir: /nix/store\n" .
+        "StoreDir: " . ($ENV{NIX_STORE_DIR} || "/nix/store") . "\n" .
         "WantMassQuery: 0\n" .
         # Give Hydra binary caches a very low priority (lower than the
         # static binary cache http://nixos.org/binary-cache).
