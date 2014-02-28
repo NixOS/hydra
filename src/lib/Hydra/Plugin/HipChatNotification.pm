@@ -73,7 +73,7 @@ sub buildFinished {
             from => 'Hydra',
             message => $msg,
             message_format => 'html',
-            notify => 0,
+            notify => $room->{room}->{notify} || 0,
             color => $build->buildstatus == 0 ? 'green' : 'red' });
 
         print STDERR $resp->status_line, ": ", $resp->decoded_content,"\n" if !$resp->is_success;
