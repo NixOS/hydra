@@ -183,7 +183,7 @@
     var inputs = {};
     for (var i = 0; i < formElements.length; i++) {
       var elem = formElements[i];
-      var match = elem.name.match(/^input-([A-Za-z][\w-]*)-(\w+)$/);
+      var match = elem.name.match(/^input-([\w-]+)-(\w+)$/);
       if (match === null) {
         data[elem.name] = elem.value;
       } else {
