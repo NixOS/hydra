@@ -71,7 +71,14 @@ fails in our case, leading to the creation of empty (guix ...) modules."
         (string-drop-right d 4)
         d)))
 
-(define (job-evaluations->sxml jobs)
+(define (register-gc-root drv roots-dir)
+  "Register a permanent garbage collector root under ROOTS-DIR for DRV."
+  (let ((root (string-append roots-dir "/" (basename drv))))
+    (unless (file-exists? root)
+      (symlink drv root))))
+
+(define* (job-evaluations->sxml jobs
+                                #:key gc-roots-dir)
   "Return the hydra-eval-jobs SXML form for the result of JOBS, a list of
 symbol/thunk pairs."
   `(*TOP*
@@ -92,6 +99,11 @@ symbol/thunk pairs."
                      `((,xml-name ,value)))
                     (_
                      '())))
+
+                (when gc-roots-dir
+                  ;; Register DRV as a GC root so that it's not collected by
+                  ;; the time 'hydra-build' attempts to build it.
+                  (register-gc-root drv gc-roots-dir))
 
                 ;; XXX: Add <arg ...> tags?
                 `(job (@ (jobName ,name)
@@ -139,9 +151,11 @@ symbol/thunk pairs."
                       "\n"))))
             jobs))))
 
-(define (job-evaluations->xml jobs port)
+(define* (job-evaluations->xml jobs port
+                               #:key gc-roots-dir)
   (set-port-encoding! port "UTF-8")
-  (sxml->xml (job-evaluations->sxml jobs) port))
+  (sxml->xml (job-evaluations->sxml jobs #:gc-roots-dir gc-roots-dir)
+             port))
 
 
 ;;;
@@ -226,4 +240,9 @@ directory or #f."
     (let* ((entry (eval entry %user-module))
            (store ((guix-variable 'store 'open-connection)))
            (jobs  (entry store args)))
-      (job-evaluations->xml jobs (current-output-port)))))
+      (unless (string? gc-roots-dir)
+        (format (current-error-port)
+                "warning: --gc-roots-dir not specified~%"))
+
+      (job-evaluations->xml jobs (current-output-port)
+                            #:gc-roots-dir gc-roots-dir))))
