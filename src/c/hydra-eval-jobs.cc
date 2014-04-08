@@ -156,7 +156,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
                 if (a == v.attrs->end())
                     throw EvalError("derivation must have a ‘constituents’ attribute");
                 PathSet context;
-                state.coerceToString(*a->value, context, true, false);
+                state.coerceToString(*a->pos, *a->value, context, true, false);
                 PathSet drvs;
                 foreach (PathSet::iterator, i, context)
                     if (i->at(0) == '!') {
