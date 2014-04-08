@@ -5,6 +5,13 @@
 [% PROCESS common.tt %]
 [% hideProjectName=1 hideJobsetName=1 hideJobName=1 %]
 
+[% IF !jobExists(job) %]
+<div class="alert alert-warning">This job is not a member of the <a
+href="[%c.uri_for('/jobset' project.name jobset.name
+'evals')%]">latest evaluation</a> of its jobset. This means it was
+removed or had an evaluation error.</div>
+[% END %]
+
 <ul class="nav nav-tabs">
   <li class="active"><a href="#tabs-status" data-toggle="tab">Status</a></li>
   [% IF constituentJobs.size > 0 %]

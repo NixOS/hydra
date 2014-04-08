@@ -8,7 +8,7 @@ __PACKAGE__->config(
     TEMPLATE_EXTENSION => '.tt',
     PRE_CHOMP => 1,
     POST_CHOMP => 1,
-    expose_methods => [qw/buildLogExists buildStepLogExists/]);
+    expose_methods => [qw/buildLogExists buildStepLogExists jobExists/]);
 
 sub buildLogExists {
     my ($self, $c, $build) = @_;
@@ -20,6 +20,17 @@ sub buildStepLogExists {
     my ($self, $c, $step) = @_;
     my @outPaths = map { $_->path } $step->buildstepoutputs->all;
     return defined findLog($c, $step->drvpath, @outPaths);
+}
+
+# Check whether the given job is a member of the most recent jobset
+# evaluation.
+sub jobExists {
+    my ($self, $c, $job) = @_;
+    my $latestEval = $job->jobset->jobsetevals->search(
+        { hasnewbuilds => 1},
+        { rows => 1, order_by => ["id desc"] })->single;
+    return 0 if !defined $latestEval; # can't happen
+    return scalar($latestEval->builds->search({ job => $job->name })) != 0;
 }
 
 1;
