@@ -53,8 +53,10 @@ fails in our case, leading to the creation of empty (guix ...) modules."
   (struct-ref drv 3))
 
 (define strip-store-path
-  (let ((store-path-rx
-         (make-regexp "^.*/nix/store/[^-]+-(.+)$")))
+  (let* ((store (or (getenv "NIX_STORE_DIR") "/nix/store"))
+         (store-path-rx
+          (make-regexp (string-append "^.*" (regexp-quote store)
+                                      "/[^-]+-(.+)$"))))
     (lambda (path)
       (or (and=> (regexp-exec store-path-rx path)
                  (lambda (match)
