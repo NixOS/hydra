@@ -21,22 +21,24 @@ sub addRoot {
 }
 
 
-my @columns = ( "id", "project", "jobset", "job", "system", "finished", "drvpath", "timestamp" );
+my @columns = ( "id", "project", "jobset", "job", "system", "finished", "drvpath", "timestamp", "buildstatus" );
 
 sub keepBuild {
-    my ($build) = @_;
+    my ($build, $keepFailedDrvs) = @_;
     print STDERR "  keeping ", ($build->finished ? "" : "scheduled "), "build ", $build->id, " (",
         $build->get_column('project'), ":", $build->get_column('jobset'), ":", $build->get_column('job'), "; ",
         $build->system, "; ",
         strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
-    foreach my $out ($build->buildoutputs->all) {
-        if (isValidPath($out->path)) {
-            addRoot $out->path;
-        } else {
-            print STDERR "    warning: output ", $out->path, " has disappeared\n" if $build->finished;
+    if ($build->finished && ($build->buildstatus == 0 || $build->buildstatus == 6)) {
+        foreach my $out ($build->buildoutputs->all) {
+            if (isValidPath($out->path)) {
+                addRoot $out->path;
+            } else {
+                print STDERR "    warning: output ", $out->path, " has disappeared\n" if $build->finished;
+            }
         }
     }
-    if (!$build->finished) {
+    if (!$build->finished || ($keepFailedDrvs && $build->buildstatus != 0)) {
         if (isValidPath($build->drvpath)) {
             addRoot $build->drvpath;
         } else {
@@ -58,12 +60,12 @@ closedir DIR;
 
 # For scheduled builds, we register the derivation as a GC root.
 print STDERR "*** looking for scheduled builds\n";
-keepBuild $_ foreach $db->resultset('Builds')->search({ finished => 0 }, { columns => [ @columns ] });
+keepBuild($_, 0) foreach $db->resultset('Builds')->search({ finished => 0 }, { columns => [ @columns ] });
 
 
 # Keep every build in every release of every project.
 print STDERR "*** looking for release members\n";
-keepBuild $_ foreach $db->resultset('Builds')->search_literal(
+keepBuild($_, 0) foreach $db->resultset('Builds')->search_literal(
     "exists (select 1 from releasemembers where build = me.id)",
     { order_by => ["project", "jobset", "job", "id"], columns => [ @columns ] });
 
@@ -72,7 +74,7 @@ keepBuild $_ foreach $db->resultset('Builds')->search_literal(
 print STDERR "*** looking for kept builds\n";
 my @buildsToKeep = $db->resultset('Builds')->search(
     { finished => 1, keep => 1 }, { order_by => ["project", "jobset", "job", "id"], columns => [ @columns ] });
-keepBuild $_ foreach @buildsToKeep;
+keepBuild($_, 0) foreach @buildsToKeep;
 
 
 # Go over all projects.
@@ -107,9 +109,8 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
                 , order_by => "id desc", rows => $keepnr });
         }
 
-        keepBuild $_ foreach $jobset->builds->search(
-            { finished => 1, buildStatus => { -in => [0, 6] }
-            , id => { -in => $db->resultset('JobsetEvalMembers')->search({ eval => { -in => [@evals] } }, { select => "build" })->as_query } 
+        keepBuild($_, 1) foreach $jobset->builds->search(
+            { id => { -in => $db->resultset('JobsetEvalMembers')->search({ eval => { -in => [@evals] } }, { select => "build" })->as_query }
             },
             { order_by => ["job", "id"], columns => [ @columns ] });
     }
