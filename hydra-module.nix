@@ -184,7 +184,7 @@ in
         requires = [ "postgresql.service" ];
         after = [ "postgresql.service" ];
         environment = env;
-        script = ''
+        preStart = ''
           mkdir -m 0700 -p ${baseDir}/data
           chown hydra ${baseDir}/data
           ln -sf ${hydraConf} ${baseDir}/data/hydra.conf
@@ -195,8 +195,9 @@ in
               touch ${baseDir}/.db-created
             fi
           ''}
-          ${pkgs.shadow}/bin/su hydra -c ${cfg.package}/bin/hydra-init
         '';
+        serviceConfig.ExecStart = "${cfg.package}/bin/hydra-init";
+        serviceConfig.User = "hydra";
         serviceConfig.Type = "oneshot";
         serviceConfig.RemainAfterExit = true;
       };
