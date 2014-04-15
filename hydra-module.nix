@@ -197,6 +197,7 @@ in
           ''}
         '';
         serviceConfig.ExecStart = "${cfg.package}/bin/hydra-init";
+        serviceConfig.PermissionsStartOnly = true;
         serviceConfig.User = "hydra";
         serviceConfig.Type = "oneshot";
         serviceConfig.RemainAfterExit = true;
