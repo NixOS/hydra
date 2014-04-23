@@ -20,8 +20,11 @@ sub jobsetChain :Chained('/') :PathPart('jobset') :CaptureArgs(2) {
 
     $c->stash->{jobset} = $project->jobsets->find({ name => $jobsetName });
 
-    notFound($c, "Jobset ‘$jobsetName’ doesn't exist.")
-        if !$c->stash->{jobset} && !($c->action->name eq "jobset" and $c->request->method eq "PUT");
+    if (!$c->stash->{jobset} && !($c->action->name eq "jobset" and $c->request->method eq "PUT")) {
+        my $rename = $project->jobsetrenames->find({ from_ => $jobsetName });
+        notFound($c, "Jobset ‘$jobsetName’ doesn't exist.") unless defined $rename;
+        $c->stash->{jobset} = $project->jobsets->find({ name => $rename->to_ }) or die;
+    }
 }
 
 
@@ -193,11 +196,12 @@ sub checkInputValue {
 sub updateJobset {
     my ($c, $jobset) = @_;
 
+    my $oldName = $jobset->name;
     my $jobsetName = $c->stash->{params}->{name};
     error($c, "Invalid jobset identifier ‘$jobsetName’.") if $jobsetName !~ /^$jobsetNameRE$/;
 
     error($c, "Cannot rename jobset to ‘$jobsetName’ since that identifier is already taken.")
-        if $jobsetName ne $jobset->name && defined $c->stash->{project}->jobsets->find({ name => $jobsetName });
+        if $jobsetName ne $oldName && defined $c->stash->{project}->jobsets->find({ name => $jobsetName });
 
     # When the expression is in a .scm file, assume it's a Guile + Guix
     # build expression.
@@ -223,6 +227,10 @@ sub updateJobset {
         , triggertime => $enabled ? $jobset->triggertime // time() : undef
         , schedulingshares => int($c->stash->{params}->{schedulingshares})
         });
+
+    $jobset->project->jobsetrenames->search({ from_ => $jobsetName })->delete;
+    $jobset->project->jobsetrenames->create({ from_ => $oldName, to_ => $jobsetName })
+        if $jobsetName ne $oldName;
 
     # Set the inputs of this jobset.
     $jobset->jobsetinputs->delete;

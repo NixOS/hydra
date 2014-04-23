@@ -271,6 +271,21 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 jobsetrenames
+
+Type: has_many
+
+Related object: L<Hydra::Schema::JobsetRenames>
+
+=cut
+
+__PACKAGE__->has_many(
+  "jobsetrenames",
+  "Hydra::Schema::JobsetRenames",
+  { "foreign.project" => "self.project", "foreign.to_" => "self.name" },
+  undef,
+);
+
 =head2 project
 
 Type: belongs_to
@@ -305,8 +320,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-14 15:46:29
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DTAGxP5RFvcNxP/ciJGo4Q
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-04-23 23:13:51
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:CO0aE+jrjB+UrwGRzWZLlw
 
 my %hint = (
     columns => [
