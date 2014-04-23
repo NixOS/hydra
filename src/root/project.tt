@@ -20,9 +20,6 @@
   <li class="active"><a href="#tabs-project" data-toggle="tab">Jobsets</a></li>
   <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
   <li><a href="#tabs-releases" data-toggle="tab">Releases</a></li>
-  [% IF views.size > 0 %]
-    <li><a href="#tabs-views" data-toggle="tab">Views</a></li>
-  [% END %]
 </ul>
 
 <div class="tab-content">
@@ -96,34 +93,6 @@
     </table>
 
     [% END %]
-
-  </div>
-
-  <div id="tabs-views" class="tab-pane">
-
-    [% IF views.size > 0 %]
-
-      <p>Project <tt>[% project.name %]</tt> has the following views:</p>
-
-      <ul>
-        [% FOREACH view IN views %]
-          <li>
-            <a href="[% c.uri_for('/view' project.name view.name) %]"><tt>[% view.name %]</tt></a>
-          </li>
-        [% END %]
-      </ul>
-
-    [% ELSE %]
-
-      <p>Project <tt>[% project.name %]</tt> has no views.</p>
-
-    [% END %]
-
-    <!--
-    <p>
-      <a class="btn" href="[% c.uri_for('/project' project.name 'create-view') %]"><i class="icon-plus"></i> Create a new view</a>
-    </p>
-    -->
 
   </div>
 

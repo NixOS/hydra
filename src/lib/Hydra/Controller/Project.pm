@@ -29,7 +29,6 @@ sub project_GET {
 
     $c->stash->{template} = 'project.tt';
 
-    $c->stash->{views} = [$c->stash->{project}->views->all];
     $c->stash->{jobsets} = [jobsetOverview($c, $c->stash->{project})];
     $c->stash->{releases} = [$c->stash->{project}->releases->search({},
         {order_by => ["timestamp DESC"]})];
@@ -171,36 +170,6 @@ sub get_builds : Chained('projectChain') PathPart('') CaptureArgs(0) {
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForProject')
         ->search({}, {bind => [$c->stash->{project}->name]});
     $c->stash->{channelBaseName} = $c->stash->{project}->name;
-}
-
-
-sub create_view_submit : Chained('projectChain') PathPart('create-view/submit') Args(0) {
-    my ($self, $c) = @_;
-
-    requireProjectOwner($c, $c->stash->{project});
-
-    my $viewName = $c->request->params->{name};
-
-    my $view;
-    txn_do($c->model('DB')->schema, sub {
-        # Note: $viewName is validated in updateView, which will abort
-        # the transaction if the name isn't valid.
-        $view = $c->stash->{project}->views->create({name => $viewName});
-        Hydra::Controller::View::updateView($c, $view);
-    });
-
-    $c->res->redirect($c->uri_for($c->controller('View')->action_for('view_view'),
-        [$c->stash->{project}->name, $view->name]));
-}
-
-
-sub create_view : Chained('projectChain') PathPart('create-view') Args(0) {
-    my ($self, $c) = @_;
-
-    requireProjectOwner($c, $c->stash->{project});
-
-    $c->stash->{template} = 'edit-view.tt';
-    $c->stash->{create} = 1;
 }
 
 

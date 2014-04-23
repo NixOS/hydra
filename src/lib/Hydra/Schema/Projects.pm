@@ -256,36 +256,6 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 viewjobs
-
-Type: has_many
-
-Related object: L<Hydra::Schema::ViewJobs>
-
-=cut
-
-__PACKAGE__->has_many(
-  "viewjobs",
-  "Hydra::Schema::ViewJobs",
-  { "foreign.project" => "self.name" },
-  undef,
-);
-
-=head2 views
-
-Type: has_many
-
-Related object: L<Hydra::Schema::Views>
-
-=cut
-
-__PACKAGE__->has_many(
-  "views",
-  "Hydra::Schema::Views",
-  { "foreign.project" => "self.name" },
-  undef,
-);
-
 =head2 usernames
 
 Type: many_to_many
@@ -297,8 +267,8 @@ Composing rels: L</projectmembers> -> username
 __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-04-23 22:48:21
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:l8eN9UAavdqnL7Sjv4rmFw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-04-23 23:13:08
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fkd9ruEoVSBGIktmAj4u4g
 
 my %hint = (
     columns => [
