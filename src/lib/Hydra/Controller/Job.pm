@@ -10,11 +10,22 @@ use Hydra::Helper::CatalystUtils;
 sub job : Chained('/') PathPart('job') CaptureArgs(3) {
     my ($self, $c, $projectName, $jobsetName, $jobName) = @_;
 
-    $c->stash->{job_} = $c->model('DB::Jobs')->search({project => $projectName, jobset => $jobsetName, name => $jobName});
-    $c->stash->{job} = $c->stash->{job_}->single
+    $c->stash->{jobset} = $c->model('DB::Jobsets')->find({ project => $projectName, name => $jobsetName });
+
+    if (!$c->stash->{jobset}) {
+        my $rename = $c->model('DB::JobsetRenames')->find({ project => $projectName, from_ => $jobsetName });
+        notFound($c, "Jobset ‘$jobsetName’ doesn't exist.") unless defined $rename;
+
+        # Return a permanent redirect to the new jobset name.
+        my @captures = @{$c->req->captures};
+        $captures[1] = $rename->to_;
+        $c->res->redirect($c->uri_for($c->action, \@captures, $c->req->params), 301);
+        $c->detach;
+    }
+
+    $c->stash->{job} = $c->stash->{jobset}->jobs->find({ name => $jobName })
         or notFound($c, "Job $projectName:$jobsetName:$jobName doesn't exist.");
     $c->stash->{project} = $c->stash->{job}->project;
-    $c->stash->{jobset} = $c->stash->{job}->jobset;
 }
 
 
