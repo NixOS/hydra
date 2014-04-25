@@ -94,7 +94,7 @@ nix-env -f /path/to/nixpkgs -iA hydra</screen>
       performing the following commands:
 
 <screen>
-nix-channel --add http://hydra.nixos.org/jobset/hydra/trunk/channel/latest
+nix-channel --add http://hydra.nixos.org/jobset/hydra/master/channel/latest
 nix-channel --update
 nix-env -i hydra</screen>
     </para>
