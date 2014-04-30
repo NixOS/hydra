@@ -236,7 +236,7 @@ sub updateJobset {
 
     $jobset->project->jobsetrenames->search({ from_ => $jobsetName })->delete;
     $jobset->project->jobsetrenames->create({ from_ => $oldName, to_ => $jobsetName })
-        if $jobsetName ne $oldName;
+        if $oldName ne ".tmp" && $jobsetName ne $oldName;
 
     # Set the inputs of this jobset.
     $jobset->jobsetinputs->delete;
