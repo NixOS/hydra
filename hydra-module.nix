@@ -19,7 +19,7 @@ let
     { NIX_REMOTE = "daemon";
       OPENSSL_X509_CERT_FILE = "/etc/ssl/certs/ca-bundle.crt";
       GIT_SSL_CAINFO = "/etc/ssl/certs/ca-bundle.crt";
-    } // hydraEnv;
+    } // hydraEnv // cfg.extraEnv;
 
   serverEnv = env //
     { HYDRA_TRACKER = cfg.tracker;
@@ -130,6 +130,11 @@ in
         description = "Extra lines for the hydra config";
       };
 
+      extraEnv = mkOption {
+        type = types.attrsOf types.str;
+        default = {};
+        description = "Extra environment variables for Hydra";
+      };
     };
 
   };
