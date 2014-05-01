@@ -87,6 +87,7 @@ in rec {
             CatalystPluginSessionStateCookie
             CatalystPluginSessionStoreFastMmap
             CatalystPluginStackTrace
+            CatalystPluginUnicodeEncoding
             CatalystTraitForRequestProxyBase
             CatalystViewDownload
             CatalystViewJSON

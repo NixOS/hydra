@@ -8,6 +8,7 @@ use Hydra::Plugin;
 use Hydra::Model::DB;
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
+                Unicode::Encoding
                 Static::Simple
                 StackTrace
                 Authentication
