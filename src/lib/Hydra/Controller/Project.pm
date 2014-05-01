@@ -12,10 +12,7 @@ sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
     my ($self, $c, $projectName) = @_;
     $c->stash->{params}->{name} //= $projectName;
 
-    $c->stash->{project} = $c->model('DB::Projects')->find($projectName, {
-        join => [ 'releases' ],
-        order_by => { -desc => "releases.timestamp" },
-    });
+    $c->stash->{project} = $c->model('DB::Projects')->find($projectName);
 
     notFound($c, "Project ‘$projectName’ doesn't exist.")
         if !$c->stash->{project} && !($c->action->name eq "project" and $c->request->method eq "PUT");
