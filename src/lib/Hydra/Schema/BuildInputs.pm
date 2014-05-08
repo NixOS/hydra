@@ -185,6 +185,7 @@ my %hint = (
         'uri',
         'value',
         'revision',
+        'dependency',
     ],
 );
 
