@@ -233,7 +233,16 @@ void run(Strings args)
        $NIX_PATH. */
     unsetenv("NIX_PATH");
 
-    EvalState state;
+    /* FIXME: hack */
+    Strings searchPath;
+    Strings args2;
+    for (Strings::iterator i = args.begin(); i != args.end(); ) {
+        string arg = *i++;
+        if (!parseSearchPathArg(arg, i, args.end(), searchPath))
+            args2.push_back(arg);
+    }
+    args = args2;
+    EvalState state(searchPath);
     Path releaseExpr;
     AutoArgs autoArgs;
 
@@ -259,8 +268,6 @@ void run(Strings args)
             if (i == args.end()) throw UsageError("missing argument");
             gcRootsDir = *i++;
         }
-        else if (parseSearchPathArg(arg, i, args.end(), state))
-            ;
         else if (arg[0] == '-')
             throw UsageError(format("unknown flag `%1%'") % arg);
         else
