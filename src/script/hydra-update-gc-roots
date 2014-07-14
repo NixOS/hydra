@@ -2,6 +2,7 @@
 
 use strict;
 use File::Path;
+use File::stat;
 use File::Basename;
 use Nix::Store;
 use Hydra::Schema;
@@ -48,9 +49,7 @@ sub keepBuild {
 }
 
 
-# Read the current GC roots.  We need to do that here so that we don't
-# delete roots that were added while we were determining the desired
-# roots.
+# Read the current GC roots.
 print STDERR "*** reading current roots...\n";
 my $gcRootsDir = getGCRootsDir;
 opendir DIR, $gcRootsDir or die;
@@ -122,14 +121,23 @@ print STDERR "*** removing unneeded GC roots\n";
 
 my $rootsKept = 0;
 my $rootsDeleted = 0;
+my $now = time();
 
 foreach my $link (@roots) {
     next if $link eq "." || $link eq "..";
     my $path = "/nix/store/$link";
     if (!defined $roots{$path}) {
-        print STDERR "removing root $path\n";
-        $rootsDeleted++;
-        unlink "$gcRootsDir/$link" or warn "cannot remove $gcRootsDir/$link";
+        # Don't delete roots that are less than a day old, to prevent
+        # a race where hydra-eval-jobs has added a root but
+        # hydra-evaluator hasn't added them to the database yet.
+        if (lstat($path)->ctime < $now - 24 * 60 * 60) {
+            print STDERR "removing root $path\n";
+            $rootsDeleted++;
+            unlink "$gcRootsDir/$link" or warn "cannot remove $gcRootsDir/$link";
+        } else {
+            print STDERR "NOT removing recent root $path\n";
+            $rootsKept++;
+        }
     } else {
         $rootsKept++;
     }
