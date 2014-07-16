@@ -130,7 +130,10 @@ foreach my $link (@roots) {
         # Don't delete roots that are less than a day old, to prevent
         # a race where hydra-eval-jobs has added a root but
         # hydra-evaluator hasn't added them to the database yet.
-        if (lstat($path)->ctime < $now - 24 * 60 * 60) {
+	my $st = lstat("$gcRootsDir/$link");
+	if (!defined $st) {
+            print STDERR "skipping link $link: $!\n";
+	} elsif ($st->ctime < $now - 24 * 60 * 60) {
             print STDERR "removing root $path\n";
             $rootsDeleted++;
             unlink "$gcRootsDir/$link" or warn "cannot remove $gcRootsDir/$link";
