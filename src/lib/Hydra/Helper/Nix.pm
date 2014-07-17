@@ -572,38 +572,37 @@ sub cancelBuilds($$) {
 
 sub restartBuilds($$) {
     my ($db, $builds) = @_;
-    my $n = 0;
+    my @buildIds;
 
     txn_do($db, sub {
         my @paths;
 
         $builds = $builds->search({ finished => 1 });
+
         foreach my $build ($builds->all) {
             next if !isValidPath($build->drvpath);
             push @paths, $build->drvpath;
-            push @paths, $_->drvpath foreach $build->buildsteps;
-
+            push @buildIds, $build->id;
             registerRoot $build->drvpath;
-
-            $build->update(
-                { finished => 0
-                , busy => 0
-                , locker => ""
-                , iscachedbuild => 0
-                });
-            $n++;
-
-            # Reset the stats for the evals to which this build belongs.
-            # !!! Should do this in a trigger.
-            $build->jobsetevals->update({nrsucceeded => undef});
         }
+
+        $db->resultset('Builds')->search({ id => \@buildIds })->update(
+            { finished => 0
+            , busy => 0
+            , locker => ""
+            , iscachedbuild => 0
+            });
+
+        # Reset the stats for the evals to which the builds belongs.
+        # !!! Should do this in a trigger.
+        $db->resultset('JobsetEvals')->search({ build => \@buildIds }, { join => 'buildIds' })->update({ nrsucceeded => undef });
 
         # Clear Nix's negative failure cache.
         # FIXME: Add this to the API.
         system("nix-store", "--clear-failed-paths", @paths);
     });
 
-    return $n;
+    return scalar(@buildIds);
 }
 
 
