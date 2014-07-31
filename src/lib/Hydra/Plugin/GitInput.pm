@@ -42,7 +42,7 @@ sub _cloneRepo {
         # Is the target branch a topgit branch?
         $res = run(cmd => ["git", "ls-tree", "-r", "$branch", ".topgit"], dir => $clonePath);
 
-        if ($res->{stdout} != "") {
+        if ($res->{stdout} ne "") {
             # Checkout the branch to look at its content.
             $res = run(cmd => ["git", "checkout", "--force", "$branch"], dir => $clonePath);
             die "error checking out Git branch '$branch' at `$uri':\n$res->{stderr}" if $res->{status};
