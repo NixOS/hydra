@@ -42,6 +42,9 @@ sub _cloneRepo {
         # Checkout the branch to look at its content.
         $res = run(cmd => ["git", "checkout", "--force", "$branch"], dir => $clonePath);
         die "error checking out Git branch '$branch' at `$uri':\n$res->{stderr}" if $res->{status};
+        # Clean to remove potentially present artifacts after forcing branch switch
+        $res = run(cmd => ["git", "clean", "-d", "-x", "--force", "--force"], dir => $clonePath);
+        print STDERR "warning: `git clean -d -x --force --force' failed::\n$res->{stderr}" if $res->{status};
 
         if (-f ".topdeps") {
             # This is a TopGit branch.  Fetch all the topic branches so
