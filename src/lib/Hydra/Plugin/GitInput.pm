@@ -39,14 +39,14 @@ sub _cloneRepo {
     # to determine if this is a top-git branch.
     if (defined $deepClone) {
 
-        # Checkout the branch to look at its content.
-        $res = run(cmd => ["git", "checkout", "--force", "$branch"], dir => $clonePath);
-        die "error checking out Git branch '$branch' at `$uri':\n$res->{stderr}" if $res->{status};
-        # Clean to remove potentially present artifacts after forcing branch switch
-        $res = run(cmd => ["git", "clean", "-d", "-x", "--force", "--force"], dir => $clonePath);
-        print STDERR "warning: `git clean -d -x --force --force' failed::\n$res->{stderr}" if $res->{status};
+        # Is the target branch a topgit branch?
+        $res = run(cmd => ["git", "ls-tree", "-r", "$branch", ".topgit"], dir => $clonePath);
 
-        if (-f ".topdeps") {
+        if ($res->{stdout} != "") {
+            # Checkout the branch to look at its content.
+            $res = run(cmd => ["git", "checkout", "--force", "$branch"], dir => $clonePath);
+            die "error checking out Git branch '$branch' at `$uri':\n$res->{stderr}" if $res->{status};
+
             # This is a TopGit branch.  Fetch all the topic branches so
             # that builders can run "tg patch" and similar.
             $res = run(cmd => ["tg", "remote", "--populate", "origin"], dir => $clonePath, timeout => 600);
