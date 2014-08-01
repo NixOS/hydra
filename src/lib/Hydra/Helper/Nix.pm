@@ -78,13 +78,9 @@ sub gcRootFor {
 
 sub registerRoot {
     my ($path) = @_;
-
     my $link = gcRootFor $path;
-
-    if (!-l $link) {
-        symlink($path, $link)
-            or die "cannot create GC root `$link' to `$path'";
-    }
+    open ROOT, ">$link" or die "cannot create GC root `$link' to `$path'";
+    close ROOT;
 }
 
 
