@@ -8,6 +8,7 @@ use Config::General;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
 use Nix::Store;
+use Encode;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -310,7 +311,7 @@ sub logContents {
     else {
         $cmd = defined $tail ? "tail -$tail $logPath" : "cat $logPath";
     }
-    return `$cmd`;
+    return decode("utf-8", `$cmd`);
 }
 
 

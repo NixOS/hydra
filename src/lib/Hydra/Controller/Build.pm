@@ -12,6 +12,7 @@ use Data::Dump qw(dump);
 use Nix::Store;
 use Nix::Config;
 use List::MoreUtils qw(all);
+use Encode;
 
 
 sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
@@ -141,9 +142,9 @@ sub showLog {
         # !!! quick hack
         my $pipeline = ($logPath =~ /.bz2$/ ? "bzip2 -d < $logPath" : "cat $logPath")
             . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
-            . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " - | tail -n +2";
+            . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " -";
         $c->stash->{template} = 'log.tt';
-        $c->stash->{logtext} = `ulimit -t 5 ; $pipeline`;
+        $c->stash->{logtext} = decode("utf-8", `ulimit -t 5 ; $pipeline`);
     }
 
     elsif ($mode eq "raw") {
