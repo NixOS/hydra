@@ -15,12 +15,6 @@
 using namespace nix;
 
 
-void printHelp()
-{
-    std::cout << "Syntax: hydra-eval-jobs <expr>\n";
-}
-
-
 static Path gcRootsDir;
 
 
@@ -227,68 +221,69 @@ static void findJobs(EvalState & state, XMLWriter & doc,
 }
 
 
-void run(Strings args)
+int main(int argc, char * * argv)
 {
     /* Prevent undeclared dependencies in the evaluation via
        $NIX_PATH. */
     unsetenv("NIX_PATH");
 
-    /* FIXME: hack */
-    Strings searchPath;
-    Strings args2;
-    for (Strings::iterator i = args.begin(); i != args.end(); ) {
-        string arg = *i++;
-        if (!parseSearchPathArg(arg, i, args.end(), searchPath))
-            args2.push_back(arg);
-    }
-    args = args2;
-    EvalState state(searchPath);
-    Path releaseExpr;
-    AutoArgs autoArgs;
+    return handleExceptions(argv[0], [&]() {
+        initNix();
 
-    for (Strings::iterator i = args.begin(); i != args.end(); ) {
-        string arg = *i++;
-        if (arg == "--arg" || arg == "--argstr") {
-            /* This is like --arg in nix-instantiate, except that it
-               supports multiple versions for the same argument.
-               That is, autoArgs is a mapping from variable names to
-               *lists* of values. */
-            if (i == args.end()) throw UsageError("missing argument");
-            string name = *i++;
-            if (i == args.end()) throw UsageError("missing argument");
-            string value = *i++;
-            Value * v = state.allocValue();
-            if (arg == "--arg")
-                state.eval(state.parseExprFromString(value, absPath(".")), *v);
+        Strings searchPath;
+        Path releaseExpr;
+        std::map<string, Strings> autoArgs_;
+
+        parseCmdLine(argc, argv, [&](Strings::iterator & arg, const Strings::iterator & end) {
+            if (*arg == "--arg" || *arg == "--argstr") {
+                /* This is like --arg in nix-instantiate, except that it
+                   supports multiple versions for the same argument.
+                   That is, autoArgs is a mapping from variable names to
+                   *lists* of values. */
+                auto what = *arg;
+                string name = getArg(what, arg, end);
+                string value = getArg(what, arg, end);
+                autoArgs_[name].push_back((what == "--arg" ? 'E' : 'S') + value);
+            }
+            else if (parseSearchPathArg(arg, end, searchPath))
+                ;
+            else if (*arg == "--gc-roots-dir")
+                gcRootsDir = getArg(*arg, arg, end);
+            else if (*arg != "" && arg->at(0) == '-')
+                return false;
             else
-                mkString(*v, value);
-            autoArgs[state.symbols.create(name)].push_back(v);
+                releaseExpr = absPath(*arg);
+            return true;
+        });
+
+        if (releaseExpr == "") throw UsageError("no expression specified");
+
+        if (gcRootsDir == "") printMsg(lvlError, "warning: `--gc-roots-dir' not specified");
+
+        EvalState state(searchPath);
+
+        AutoArgs autoArgs;
+        for (auto & i : autoArgs_) {
+            for (auto & j : i.second) {
+                Value * v = state.allocValue();
+                if (j[0] == 'E')
+                    state.eval(state.parseExprFromString(string(j, 1), absPath(".")), *v);
+                else
+                    mkString(*v, string(j, 1));
+                autoArgs[state.symbols.create(i.first)].push_back(v);
+            }
         }
-        else if (arg == "--gc-roots-dir") {
-            if (i == args.end()) throw UsageError("missing argument");
-            gcRootsDir = *i++;
-        }
-        else if (arg[0] == '-')
-            throw UsageError(format("unknown flag `%1%'") % arg);
-        else
-            releaseExpr = arg;
-    }
+        //evalAutoArgs(state, autoArgs_, autoArgs);
 
-    if (releaseExpr == "") throw UsageError("no expression specified");
+        store = openStore();
 
-    if (gcRootsDir == "") printMsg(lvlError, "warning: `--gc-roots-dir' not specified");
+        Value v;
+        state.evalFile(releaseExpr, v);
 
-    store = openStore();
+        XMLWriter doc(true, std::cout);
+        XMLOpenElement root(doc, "jobs");
+        findJobs(state, doc, ArgsUsed(), autoArgs, v, "");
 
-    Value v;
-    state.evalFile(releaseExpr, v);
-
-    XMLWriter doc(true, std::cout);
-    XMLOpenElement root(doc, "jobs");
-    findJobs(state, doc, ArgsUsed(), autoArgs, v, "");
-
-    state.printStats();
+        state.printStats();
+    });
 }
-
-
-string programId = "hydra-eval-jobs";
