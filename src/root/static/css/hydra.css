@@ -111,3 +111,7 @@ td.nowrap {
 .star:hover {
     cursor: pointer;
 }
+
+span.keep-whitespace {
+    white-space: pre-wrap;
+}

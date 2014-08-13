@@ -183,7 +183,7 @@ sub nixExprPathFromParams {
 
 sub checkInputValue {
     my ($c, $name, $type, $value) = @_;
-    $value = trim $value;
+    $value = trim $value unless $type eq "string";
 
     error($c, "The value ‘$value’ of input ‘$name’ is not a Boolean (‘true’ or ‘false’).") if
         $type eq "boolean" && !($value eq "true" || $value eq "false");
