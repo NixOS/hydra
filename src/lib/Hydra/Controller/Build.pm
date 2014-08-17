@@ -294,9 +294,9 @@ sub contents : Chained('buildChain') PathPart Args(1) {
         $res = `cd '$path' && find . -print0 | xargs -0 ls -ld --`;
         error($c, "`ls -lR' error: $?") if $? != 0;
 
-        my $baseuri = $c->uri_for('/build', $c->stash->{build}->id, 'download', $product->productnr);
-        $baseuri .= "/".$product->name if $product->name;
-        $res =~ s/(\.\/)($relPathRE)/<a href="$baseuri\/$2">$1$2<\/a>/g;
+        #my $baseuri = $c->uri_for('/build', $c->stash->{build}->id, 'download', $product->productnr);
+        #$baseuri .= "/".$product->name if $product->name;
+        #$res =~ s/(\.\/)($relPathRE)/<a href="$baseuri\/$2">$1$2<\/a>/g;
     }
 
     elsif ($path =~ /\.rpm$/) {
@@ -337,7 +337,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
     die unless $res;
 
     $c->stash->{title} = "Contents of ".$product->path;
-    $c->stash->{contents} = "<pre>$res</pre>";
+    $c->stash->{contents} = decode("utf-8", $res);
     $c->stash->{template} = 'plain.tt';
 }
 

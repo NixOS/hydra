@@ -5,6 +5,6 @@
 [% jobset = build.jobset %]
 [% job = build.job %]
 
-[% contents %]
+<pre>[% HTML.escape(contents) %]</pre>
 
 [% END %]
