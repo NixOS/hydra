@@ -142,22 +142,6 @@ sub doBuild {
                 next;
             }
 
-            # Hack to handle timeouts, which Nix doesn't report
-            # properly when they occur remotely.  If we get a "hook
-            # failed" error and $maxsilent seconds have passed since
-            # the start of the build step, then assume that a timeout
-            # occured.
-            if (/^@\s+hook-failed\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/ && $3 eq "256") {
-                my $drvPathStep = $1;
-                if ($buildSteps{$drvPathStep}) {
-                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
-                    print STDERR $step->starttime, " ", time(), "\n";
-                    if ($step->starttime + $maxsilent <= time) {
-                        $_ = "@ build-failed $1 $2 timeout $4";
-                    }
-                }
-            }
-
             if (/^@\s+build-started\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/) {
                 my $drvPathStep = $1;
                 txn_do($db, sub {
