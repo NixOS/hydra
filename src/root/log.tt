@@ -8,6 +8,8 @@
   [% END %]
 </p>
 
+<hr />
+
 <div class="buildlog">
 [% logtext %]
 </div>
