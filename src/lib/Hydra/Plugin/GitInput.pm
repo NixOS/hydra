@@ -6,6 +6,7 @@ use Digest::SHA qw(sha256_hex);
 use File::Path;
 use Hydra::Helper::Nix;
 use Nix::Store;
+use Encode;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -162,7 +163,7 @@ sub getCommits {
     my $res = [];
     foreach my $line (split /\n/, $out) {
         my ($revision, $author, $email, $date) = split "\t", $line;
-        push @$res, { revision => $revision, author => $author, email => $email };
+        push @$res, { revision => $revision, author => decode("utf-8", $author), email => $email };
     }
 
     return $res;
