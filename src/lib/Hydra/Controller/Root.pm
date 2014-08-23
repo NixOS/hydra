@@ -22,6 +22,7 @@ sub noLoginNeeded {
          $c->request->path =~ /^static\//;
 }
 
+
 sub begin :Private {
     my ($self, $c, @args) = @_;
 
@@ -196,11 +197,10 @@ sub default :Path {
 sub end : ActionClass('RenderView') {
     my ($self, $c) = @_;
 
-    my @errors = map { encode_utf8($_); } @{$c->error};
-
     if (defined $c->stash->{json}) {
-        if (scalar @errors) {
-            $c->stash->{json}->{error} = join "\n", @errors;
+        if (scalar @{$c->error}) {
+            # FIXME: dunno why we need to do decode_utf8 here.
+            $c->stash->{json}->{error} = join "\n", map { decode_utf8($_); } @{$c->error};
             $c->clear_errors;
         }
         $c->forward('View::JSON');
@@ -209,7 +209,7 @@ sub end : ActionClass('RenderView') {
     elsif (scalar @{$c->error}) {
         $c->stash->{resource} = { error => join "\n", @{$c->error} };
         $c->stash->{template} = 'error.tt';
-        $c->stash->{errors} = [@errors];
+        $c->stash->{errors} = $c->error;
         $c->response->status(500) if $c->response->status == 200;
         if ($c->response->status >= 300) {
             $c->stash->{httpStatus} =
