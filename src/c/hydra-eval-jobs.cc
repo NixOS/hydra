@@ -141,7 +141,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
 
             xmlAttrs["timeout"] = int2String(drv.queryMetaInt("timeout", 36000));
 
-            xmlAttrs["maxSilent"] = int2String(drv.queryMetaInt("maxSilent", 3600));
+            xmlAttrs["maxSilent"] = int2String(drv.queryMetaInt("maxSilent", 7200));
 
             /* If this is an aggregate, then get its constituents. */
             Bindings::iterator a = v.attrs->find(state.symbols.create("_hydraAggregate"));
