@@ -11,6 +11,7 @@
 #include "xml-writer.hh"
 #include "get-drvs.hh"
 #include "common-opts.hh"
+#include "globals.hh"
 
 using namespace nix;
 
@@ -249,6 +250,8 @@ int main(int argc, char * * argv)
                 ;
             else if (*arg == "--gc-roots-dir")
                 gcRootsDir = getArg(*arg, arg, end);
+            else if (*arg == "--dry-run")
+                settings.readOnlyMode = true;
             else if (*arg != "" && arg->at(0) == '-')
                 return false;
             else
