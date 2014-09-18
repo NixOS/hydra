@@ -35,14 +35,6 @@ fi
 
 NEED_PROG(perl, perl)
 
-AC_ARG_WITH(nix, AC_HELP_STRING([--with-nix=PATH],
-  [prefix of nix]),
-  nix=$withval, nix=/nix-missing)
-AC_SUBST(nix)
-
-PATH="$nix/bin:$PATH"
-export PATH
-
 NEED_PROG([NIX_STORE_PROGRAM], [nix-store])
 
 AC_MSG_CHECKING([whether $NIX_STORE_PROGRAM is recent enough])
@@ -61,21 +53,8 @@ else
     AC_MSG_ERROR([`$NIX_STORE_PROGRAM' doesn't support `--timeout'; please use a newer version.])
 fi
 
-old_CPPFLAGS="$CPPFLAGS"
-old_LIBS="$LIBS"
+PKG_CHECK_MODULES([NIX], [nix-main nix-expr nix-store])
 
-CPPFLAGS="$CPPFLAGS -I$nix/include/nix"
-LDFLAGS="$LDFLAGS -L$nix/lib"
-
-AC_CHECK_HEADER([store-api.hh], [:],
-  [AC_MSG_ERROR([Nix headers not found; please install Nix or check the `--with-nix' option.])])
-AC_CHECK_LIB([nixexpr], [_ZN3nix9EvalStateC1ERKSt4listISsSaISsEE], [:],
-  [AC_MSG_ERROR([Nix library not found; please install Nix or check the `--with-nix' option.])])
-
-CPPFLAGS="$old_CPPFLAGS"
-LIBS="$old_LIBS"
-
-PKG_CHECK_MODULES([BDW_GC], [bdw-gc])
 PKG_CHECK_MODULES([GUILE], [guile-2.0], [HAVE_GUILE=yes], [HAVE_GUILE=no])
 
 if test "x$HAVE_GUILE" = xyes; then

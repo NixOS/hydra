@@ -37,7 +37,7 @@ in rec {
       version = builtins.readFile ./version;
 
       buildInputs =
-        [ perl libxslt dblatex tetex nukeReferences pkgconfig boehmgc git openssl ];
+        [ perl libxslt dblatex tetex nukeReferences pkgconfig nixUnstable git openssl ];
 
       versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
 
@@ -51,9 +51,7 @@ in rec {
       '';
 
       configureFlags =
-        [ "--with-nix=${nixUnstable}"
-          "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook"
-        ];
+        [ "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook" ];
 
       postDist = ''
         make -C doc/manual install prefix="$out"
@@ -128,10 +126,9 @@ in rec {
     releaseTools.nixBuild {
       name = "hydra";
       src = tarball;
-      configureFlags = "--with-nix=${nix}";
 
       buildInputs =
-        [ makeWrapper libtool unzip nukeReferences pkgconfig boehmgc sqlite
+        [ makeWrapper libtool unzip nukeReferences pkgconfig sqlite
           gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2
           guile # optional, for Guile + Guix support
           perlDeps perl
