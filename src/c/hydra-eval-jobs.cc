@@ -191,10 +191,11 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
     }
 
     else if (v.type == tLambda && v.lambda.fun->matchAttrs) {
+        Bindings & tmp(*state.allocBindings(0));
         tryJobAlts(state, doc, argsUsed, argsLeft, attrPath, v,
             v.lambda.fun->formals->formals.begin(),
             v.lambda.fun->formals->formals.end(),
-            Bindings());
+            tmp);
     }
 
     else if (v.type == tNull) {
