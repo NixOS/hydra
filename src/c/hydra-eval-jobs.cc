@@ -128,6 +128,9 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
 
             DrvInfo::Outputs outputs = drv.queryOutputs();
 
+            if (drv.system == "unknown")
+                throw EvalError("derivation must have a ‘system’ attribute");
+
             xmlAttrs["jobName"] = attrPath;
             xmlAttrs["nixName"] = drv.name;
             xmlAttrs["system"] = drv.system;
