@@ -154,7 +154,7 @@ in rec {
                 --prefix PATH ':' $out/bin:$hydraPath \
                 --set HYDRA_RELEASE ${tarball.version} \
                 --set HYDRA_HOME $out/libexec/hydra \
-                --set NIX_RELEASE ${nix.name}
+                --set NIX_RELEASE ${nix.name or "unknown"}
         done
       ''; # */
 
@@ -207,6 +207,7 @@ in rec {
         '';
   });
 
+  /*
   tests.s3backup = genAttrs' (system:
     with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
     let hydra = builtins.getAttr system build; in # build."${system}"
@@ -245,4 +246,5 @@ in rec {
           $machine->succeed("cd /tmp && LOGNAME=root AWS_ACCESS_KEY_ID=foo AWS_SECRET_ACCESS_KEY=bar HYDRA_DBI='dbi:Pg:dbname=hydra;user=root;' HYDRA_CONFIG=${./tests/s3-backup-test.config} perl -I ${hydra}/libexec/hydra/lib -I ${hydra.perlDeps}/lib/perl5/site_perl ./s3-backup-test.pl >&2");
         '';
   });
+  */
 }
