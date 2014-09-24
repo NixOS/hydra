@@ -34,12 +34,12 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
     const string & attrPath, Value & fun,
     Formals::Formals_::iterator cur,
     Formals::Formals_::iterator last,
-    const Bindings & actualArgs)
+    Bindings & actualArgs) // FIXME: should be const
 {
     if (cur == last) {
         Value v, * arg = state.allocValue();
         state.mkAttrs(*arg, 0);
-        *arg->attrs = actualArgs;
+        arg->attrs = &actualArgs;
         mkApp(v, fun, *arg);
         findJobs(state, doc, argsUsed, argsLeft, v, attrPath);
         return;
@@ -59,7 +59,9 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
 
     int n = 0;
     foreach (ValueList::const_iterator, i, a->second) {
-        Bindings actualArgs2(actualArgs); // !!! inefficient
+        Bindings & actualArgs2(*state.allocBindings(actualArgs.size() + 1)); // !!! inefficient
+        for (auto & i: actualArgs)
+            actualArgs2.push_back(i);
         ArgsUsed argsUsed2(argsUsed);
         AutoArgs argsLeft2(argsLeft);
         actualArgs2.push_back(Attr(cur->name, *i));
@@ -280,7 +282,6 @@ int main(int argc, char * * argv)
                 autoArgs[state.symbols.create(i.first)].push_back(v);
             }
         }
-        //evalAutoArgs(state, autoArgs_, autoArgs);
 
         store = openStore();
 
