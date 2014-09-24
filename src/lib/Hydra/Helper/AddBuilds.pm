@@ -351,8 +351,19 @@ sub evalJobs {
         SuppressEmpty => '')
         or die "cannot parse XML output";
 
+    my %jobNames;
+    my $errors;
     my @filteredJobs = ();
     foreach my $job (@{$jobs->{job}}) {
+        # Ensure that there is only one job with the given
+        # name. FIXME: this check will become unnecessary after we
+        # remove support for multiple values per jobset input.
+        if (defined $jobNames{$job->{jobName}}) {
+            $errors .= "error: there are multiple jobs named ‘$job->{jobName}’\n\n";
+            next;
+        }
+        $jobNames{$job->{jobName}} = 1;
+
         my $validJob = 1;
         foreach my $arg (@{$job->{arg}}) {
             my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}];
@@ -361,15 +372,6 @@ sub evalJobs {
         push(@filteredJobs, $job) if $validJob;
     }
     $jobs->{job} = \@filteredJobs;
-
-    my %jobNames;
-    my $errors;
-    foreach my $job (@{$jobs->{job}}) {
-        $jobNames{$job->{jobName}}++;
-        if ($jobNames{$job->{jobName}} == 2) {
-            $errors .= "warning: there are multiple jobs named ‘$job->{jobName}’; support for this will go away soon!\n\n";
-        }
-    }
 
     # Handle utf-8 characters in error messages. No idea why this works.
     utf8::decode($_->{msg}) foreach @{$jobs->{error}};
