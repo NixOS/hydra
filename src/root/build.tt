@@ -366,11 +366,19 @@
 
   <div id="tabs-buildinputs" class="tab-pane">
 
-    [% INCLUDE renderInputs inputs=build.inputs %]
+    [% IF build.inputs.size > 0 %]
 
-    [% IF prevBuild %]
-      <h3>Changes since previous [% INCLUDE renderBuildLink build=prevBuild %]</h3>
-      [% INCLUDE renderInputDiff inputs2=build.inputs inputs1=prevBuild.inputs %]
+      [% INCLUDE renderInputs inputs=build.inputs %]
+
+      [% IF prevBuild %]
+        <h3>Changes since previous [% INCLUDE renderBuildLink build=prevBuild %]</h3>
+        [% INCLUDE renderInputDiff inputs2=build.inputs inputs1=prevBuild.inputs %]
+      [% END %]
+
+    [% ELSIF eval %]
+
+      [% INCLUDE renderInputs inputs=eval.jobsetevalinputs %]
+
     [% END %]
 
   </div>
