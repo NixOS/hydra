@@ -2,28 +2,25 @@
 [% PROCESS common.tt %]
 [% USE format %]
 
-[% BLOCK renderJobsetInputAlt %]
-  <button type="button" class="btn btn-warning" onclick='$(this).parents(".inputalt").remove()'><i class="icon-trash icon-white"></i></button>
-  <input type="text" [% HTML.attributes(value => alt.value, name => name) %]/>
-  <br />
-[% END %]
-
 [% BLOCK renderJobsetInput %]
   <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
     <td>
       <button type="button" class="btn btn-warning" onclick='$(this).parents(".input").remove()'><i class="icon-trash icon-white"></i></button>
+    </td>
+    <td>
       <input type="text" id="[% baseName %]-name" name="[% baseName %]-name" [% HTML.attributes(value => input.name) %]/>
     </td>
     <td>
       [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
     </td>
-    <td class="inputalts" id="[% baseName %]">
-      [% FOREACH alt IN input.search_related('jobsetinputalts', {}, { order_by => 'altnr' }) %]
-        <span class="inputalt">
-          [% INCLUDE renderJobsetInputAlt alt=alt name="$baseName-values" %]
-        </span>
+    <td id="[% baseName %]">
+      [% alt = input.search_related('jobsetinputalts', {altnr => 0}) %]
+      <input type="text" [% HTML.attributes(value => alt.value, id => "$baseName-value", name => "$baseName-value") %]/>
+      [% IF input.jobsetinputalts_rs.count > 1 %]
+        <div class="alert alert-warning">Warning: This input had more
+        than one value. This is no longer supported. The additional
+        values have been removed.</div>
       [% END %]
-      [% IF edit %]<button type="button" class="add-inputalt btn btn-success" onclick='return false'><i class="icon-plus icon-white"></i></button>[% END %]
     </td>
     <td>
       <input type="checkbox" id="[% baseName %]-emailresponsible" name="[% baseName %]-emailresponsible" [% IF input.emailresponsible; 'checked="checked"'; END %]/>
@@ -34,7 +31,7 @@
 [% BLOCK renderJobsetInputs %]
   <table class="table table-striped table-condensed">
     <thead>
-      <tr><th>Input name</th><th>Type</th><th>Values</th><th>Notify committers</th></tr>
+      <tr><th></th><th>Input name</th><th>Type</th><th>Value</th><th>Notify committers</th></tr>
     </thead>
     <tbody class="inputs">
       [% FOREACH input IN jobset.jobsetinputs %]
@@ -151,10 +148,6 @@
     [% INCLUDE renderJobsetInput input="" extraClass="template" id="input-template" baseName="input-template" %]
   </table>
 
-  <tt class="inputalt" id="inputalt-template" style="display: none">
-    [% INCLUDE renderJobsetInputAlt alt=alt %]
-  </tt>
-
 </form>
 
 <script type="text/javascript">
@@ -166,14 +159,10 @@
       var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
       $("#input-template-name", x).attr("name", newid + "-name");
       $("#input-template-type", x).attr("name", newid + "-type");
+      $("#input-template-value", x).attr("name", newid + "-value");
       $("#input-template-emailresponsible", x).attr("name", newid + "-emailresponsible");
       $("#input-template", x).attr("id", newid);
       return false;
-    });
-
-    $(".add-inputalt").click(function() {
-      var x = $("#inputalt-template").clone(true).insertBefore($(this)).attr("id", "").show();
-      $("input", x).attr("name", x.parents(".inputalts").attr("id") + "-values");
     });
   });
 
@@ -181,7 +170,7 @@
     var formElements = $(this).parents("form").serializeArray();
     var data = { 'inputs': {} };
     var inputs = {};
-    for (var i = 0; i < formElements.length; i++) {
+    for (var i = 0; formElements.length > i; i++) {
       var elem = formElements[i];
       var match = elem.name.match(/^input-([\w-]+)-(\w+)$/);
       if (match === null) {
@@ -190,19 +179,15 @@
         var baseName = match[1];
         var param = match[2];
 
-        if (baseName === "template") {
-            continue;
-        }
+        if (baseName === "template") continue;
 
-        if (!(baseName in inputs)) {
+        if (!(baseName in inputs))
             inputs[baseName] = {};
-        }
 
-        if (param === "name") {
+        if (param === "name")
             data.inputs[elem.value] = inputs[baseName];
-        } else {
+        else
             inputs[baseName][param] = elem.value;
-        }
       }
     }
     redirectJSON({

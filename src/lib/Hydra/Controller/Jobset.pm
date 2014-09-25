@@ -244,25 +244,20 @@ sub updateJobset {
     foreach my $name (keys %{$c->stash->{params}->{inputs}}) {
         my $inputData = $c->stash->{params}->{inputs}->{$name};
         my $type = $inputData->{type};
-        my $values = $inputData->{values};
+        my $value = $inputData->{value};
         my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
 
         error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
         error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
 
-        my $input = $jobset->jobsetinputs->create({
-                name => $name,
-                type => $type,
-                emailresponsible => $emailresponsible
+        my $input = $jobset->jobsetinputs->create(
+            { name => $name,
+              type => $type,
+              emailresponsible => $emailresponsible
             });
 
-        # Set the values for this input.
-        my @values = ref($values) eq 'ARRAY' ? @{$values} : ($values);
-        my $altnr = 0;
-        foreach my $value (@values) {
-            $value = checkInputValue($c, $name, $type, $value);
-            $input->jobsetinputalts->create({altnr => $altnr++, value => $value});
-        }
+        $value = checkInputValue($c, $name, $type, $value);
+        $input->jobsetinputalts->create({altnr => 0, value => $value});
     }
 }
 

@@ -22,7 +22,7 @@ our @EXPORT = qw(
     sendEmail
     paramToList
     backToReferer
-    $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE $userNameRE
+    $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE $userNameRE $inputNameRE
     @buildListColumns
     parseJobsetName
     showJobName
@@ -235,6 +235,7 @@ Readonly our $jobsetNameRE  => "(?:[A-Za-z_][A-Za-z0-9-_\.]*)";
 Readonly our $jobNameRE     => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
 Readonly our $systemRE      => "(?:[a-z0-9_]+-[a-z0-9_]+)";
 Readonly our $userNameRE    => "(?:[a-z][a-z0-9_\.]*)";
+Readonly our $inputNameRE   => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 
 
 sub parseJobsetName {
