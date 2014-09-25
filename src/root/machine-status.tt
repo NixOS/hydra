@@ -2,11 +2,21 @@
 [% PROCESS common.tt %]
 
 <table class="table table-condensed table-striped">
+  <thead>
+    <tr>
+      <th>Job</th>
+      <th>System</th>
+      <th>Build</th>
+      <th>Step</th>
+      <th>What</th>
+      <th>Since</th>
+    </tr>
+  </thead>
   [% FOREACH m IN machines %]
     [% name = m.key ? m.key.match('@(.*)').0 : "localhost" %]
     <thead>
       <tr>
-        <th colspan="5">
+        <th colspan="6">
           <tt>[% name %]</tt>
           [% IF m.value.systemTypes %]
             ([% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system %]</tt>[% END %])
@@ -24,6 +34,7 @@
             <td><tt>[% INCLUDE renderFullJobNameOfBuild build=step.build %]</tt></td>
             <td><tt>[% step.system %]</tt></td>
             <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
+            <td><a class="row-link" href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail-reload') %]">[% step.stepnr %]</a></td>
             <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
             <td style="width: 10em">[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
           </tr>
