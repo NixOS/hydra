@@ -363,13 +363,7 @@ sub evalJobs {
             next;
         }
         $jobNames{$job->{jobName}} = 1;
-
-        my $validJob = 1;
-        foreach my $arg (@{$job->{arg}}) {
-            my $input = $inputInfo->{$arg->{name}}->[$arg->{altnr}];
-            $validJob = 0 if $input->{type} eq "sysbuild" && $input->{system} ne $job->{system};
-        }
-        push(@filteredJobs, $job) if $validJob;
+        push @filteredJobs, $job;
     }
     $jobs->{job} = \@filteredJobs;
 

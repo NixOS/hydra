@@ -19,19 +19,16 @@ using namespace nix;
 static Path gcRootsDir;
 
 
-typedef std::map<Symbol, std::pair<unsigned int, Value *> > ArgsUsed;
 typedef std::list<Value *, traceable_allocator<Value *> > ValueList;
 typedef std::map<Symbol, ValueList> AutoArgs;
 
 
 static void findJobs(EvalState & state, XMLWriter & doc,
-    const ArgsUsed & argsUsed, const AutoArgs & argsLeft,
-    Value & v, const string & attrPath);
+    const AutoArgs & argsLeft, Value & v, const string & attrPath);
 
 
 static void tryJobAlts(EvalState & state, XMLWriter & doc,
-    const ArgsUsed & argsUsed, const AutoArgs & argsLeft,
-    const string & attrPath, Value & fun,
+    const AutoArgs & argsLeft, const string & attrPath, Value & fun,
     Formals::Formals_::iterator cur,
     Formals::Formals_::iterator last,
     Bindings & actualArgs) // FIXME: should be const
@@ -41,7 +38,7 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
         state.mkAttrs(*arg, 0);
         arg->attrs = &actualArgs;
         mkApp(v, fun, *arg);
-        findJobs(state, doc, argsUsed, argsLeft, v, attrPath);
+        findJobs(state, doc, argsLeft, v, attrPath);
         return;
     }
 
@@ -53,7 +50,7 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
         if (!cur->def)
             throw TypeError(format("job `%1%' requires an argument named `%2%'")
                 % attrPath % cur->name);
-        tryJobAlts(state, doc, argsUsed, argsLeft, attrPath, fun, next, last, actualArgs);
+        tryJobAlts(state, doc, argsLeft, attrPath, fun, next, last, actualArgs);
         return;
     }
 
@@ -62,26 +59,12 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
         Bindings & actualArgs2(*state.allocBindings(actualArgs.size() + 1)); // !!! inefficient
         for (auto & i: actualArgs)
             actualArgs2.push_back(i);
-        ArgsUsed argsUsed2(argsUsed);
         AutoArgs argsLeft2(argsLeft);
         actualArgs2.push_back(Attr(cur->name, *i));
         actualArgs2.sort(); // !!! inefficient
-        argsUsed2[cur->name] = std::pair<unsigned int, Value *>(n, *i);
         argsLeft2.erase(cur->name);
-        tryJobAlts(state, doc, argsUsed2, argsLeft2, attrPath, fun, next, last, actualArgs2);
+        tryJobAlts(state, doc, argsLeft2, attrPath, fun, next, last, actualArgs2);
         ++n;
-    }
-}
-
-
-static void showArgsUsed(XMLWriter & doc, const ArgsUsed & argsUsed)
-{
-    foreach (ArgsUsed::const_iterator, i, argsUsed) {
-        XMLAttrs xmlAttrs2;
-        xmlAttrs2["name"] = i->first;
-        xmlAttrs2["value"] = (format("%1%") % *i->second.second).str();
-        xmlAttrs2["altnr"] = int2String(i->second.first);
-        doc.writeEmptyElement("arg", xmlAttrs2);
     }
 }
 
@@ -111,8 +94,7 @@ static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & 
 
 
 static void findJobsWrapped(EvalState & state, XMLWriter & doc,
-    const ArgsUsed & argsUsed, const AutoArgs & argsLeft,
-    Value & v, const string & attrPath)
+    const AutoArgs & argsLeft, Value & v, const string & attrPath)
 {
     debug(format("at path `%1%'") % attrPath);
 
@@ -182,14 +164,12 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
                 attrs2["path"] = j->second;
                 doc.writeEmptyElement("output", attrs2);
             }
-
-            showArgsUsed(doc, argsUsed);
         }
 
         else {
             if (!state.isDerivation(v)) {
                 foreach (Bindings::iterator, i, *v.attrs)
-                    findJobs(state, doc, argsUsed, argsLeft, *i->value,
+                    findJobs(state, doc, argsLeft, *i->value,
                         (attrPath.empty() ? "" : attrPath + ".") + (string) i->name);
             }
         }
@@ -197,7 +177,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
 
     else if (v.type == tLambda && v.lambda.fun->matchAttrs) {
         Bindings & tmp(*state.allocBindings(0));
-        tryJobAlts(state, doc, argsUsed, argsLeft, attrPath, v,
+        tryJobAlts(state, doc, argsLeft, attrPath, v,
             v.lambda.fun->formals->formals.begin(),
             v.lambda.fun->formals->formals.end(),
             tmp);
@@ -213,17 +193,15 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
 
 
 static void findJobs(EvalState & state, XMLWriter & doc,
-    const ArgsUsed & argsUsed, const AutoArgs & argsLeft,
-    Value & v, const string & attrPath)
+    const AutoArgs & argsLeft, Value & v, const string & attrPath)
 {
     try {
-        findJobsWrapped(state, doc, argsUsed, argsLeft, v, attrPath);
+        findJobsWrapped(state, doc, argsLeft, v, attrPath);
     } catch (EvalError & e) {
         XMLAttrs xmlAttrs;
         xmlAttrs["location"] = attrPath;
         xmlAttrs["msg"] = e.msg();
         XMLOpenElement _(doc, "error", xmlAttrs);
-        showArgsUsed(doc, argsUsed);
     }
 }
 
@@ -290,7 +268,7 @@ int main(int argc, char * * argv)
 
         XMLWriter doc(true, std::cout);
         XMLOpenElement root(doc, "jobs");
-        findJobs(state, doc, ArgsUsed(), autoArgs, v, "");
+        findJobs(state, doc, autoArgs, v, "");
 
         state.printStats();
     });
