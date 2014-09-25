@@ -1,23 +1,14 @@
-[% WRAPPER layout.tt title="Active build steps" %]
+[% WRAPPER layout.tt title="Running builds" %]
 [% PROCESS common.tt %]
 
-<table class="table table-striped table-condensed clickable-rows">
-  <thead>
-    <tr><th>Machine</th><th>Job</th><th>Type</th><th>Build</th><th>Step</th><th>What</th><th>Since</th></tr>
-  </thead>
-  <tbody>
-    [% FOREACH step IN resource %]
-      <tr>
-        <td><tt>[% IF step.machine; step.machine.match('@(.*)').0; ELSE; 'localhost'; END %]</tt></td>
-        <td><tt>[% INCLUDE renderFullJobName project = step.build.project.name jobset = step.build.jobset.name job = step.build.job.name %]</tt></td>
-        <td><tt>[% step.system %]</tt></td>
-        <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
-        <td><a class="row-link" href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail-reload') %]">[% step.stepnr %]</a></td>
-        <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
-        <td style="width: 10em">[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
-      </tr>
-    [% END %]
-  </tbody>
-</table>
+[% IF resource.size == 0 %]
+
+  <div class="alert alert-info">There are no running builds.</div>
+
+[% ELSE %]
+
+  [% INCLUDE renderBuildList builds=resource showSchedulingInfo=1 hideResultInfo=1 %]
+
+[% END %]
 
 [% END %]

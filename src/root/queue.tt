@@ -1,9 +1,9 @@
 [% WRAPPER layout.tt title="Queue" %]
 [% PROCESS common.tt %]
 
-[% IF queue.size == 0 %]
+[% IF resource.size == 0 %]
 
-  <p>The queue is empty.</p>
+  <div class="alert alert-info">There are no pending builds.</div>
 
 [% ELSE %]
 

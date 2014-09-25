@@ -99,10 +99,7 @@ sub status_GET {
     my ($self, $c) = @_;
     $self->status_ok(
         $c,
-        entity => [ $c->model('DB::BuildSteps')->search(
-            { 'me.busy' => 1, 'build.finished' => 0, 'build.busy' => 1 },
-            { order_by => [ 'machine' ], join => [ 'build' ] }
-        ) ]
+        entity => [$c->model('DB::Builds')->search({finished => 0, busy => 1}, { order_by => ["priority DESC", "id"]})]
     );
 }
 

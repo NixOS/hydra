@@ -21,7 +21,7 @@
        title = "Queue ("_ nrRunningBuilds _"/"_ nrQueuedBuilds _")" %]
     [% INCLUDE menuItem
        uri = c.uri_for(c.controller('Root').action_for('status'))
-       title = "Active build steps" %]
+       title = "Running builds" %]
     [% INCLUDE menuItem
        uri = c.uri_for(c.controller('Root').action_for('machines'))
        title = "Machine status" %]
