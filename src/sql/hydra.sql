@@ -541,14 +541,14 @@ create index IndexBuildInputsOnBuild on BuildInputs(build);
 create index IndexBuildInputsOnDependency on BuildInputs(dependency);
 create index IndexBuildProducstOnBuildAndType on BuildProducts(build, type);
 create index IndexBuildProductsOnBuild on BuildProducts(build);
-create index IndexBuildStepsOnBusy on BuildSteps(busy);
-create index IndexBuildStepsOnDrvpathTypeBusyStatus on BuildSteps(drvpath, type, busy, status);
+create index IndexBuildStepsOnBusy on BuildSteps(busy) where busy = 1;
+create index IndexBuildStepsOnDrvPath on BuildSteps(drvpath);
 create index IndexBuildStepOutputsOnPath on BuildStepOutputs(path);
-create index IndexBuildsOnFinished on Builds(finished);
-create index IndexBuildsOnFinishedBusy on Builds(finished, busy);
-create index IndexBuildsOnIsCurrent on Builds(isCurrent);
-create index IndexBuildsOnJobsetIsCurrent on Builds(project, jobset, isCurrent);
-create index IndexBuildsOnJobIsCurrent on Builds(project, jobset, job, isCurrent);
+create index IndexBuildsOnFinished on Builds(finished) where finished = 0;
+create index IndexBuildsOnFinishedBusy on Builds(finished, busy) where finished = 0;
+create index IndexBuildsOnIsCurrent on Builds(isCurrent) where isCurrent = 1;
+create index IndexBuildsOnJobsetIsCurrent on Builds(project, jobset, isCurrent) where isCurrent = 1;
+create index IndexBuildsOnJobIsCurrent on Builds(project, jobset, job, isCurrent) where isCurrent = 1;
 create index IndexBuildsOnJobset on Builds(project, jobset);
 create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);
@@ -567,7 +567,7 @@ create index IndexProjectsOnEnabled on Projects(enabled);
 create index IndexReleaseMembersOnBuild on ReleaseMembers(build);
 
 --  For hydra-update-gc-roots.
-create index IndexBuildsOnKeep on Builds(keep);
+create index IndexBuildsOnKeep on Builds(keep) where keep = 1;
 
 -- To get the most recent eval for a jobset.
 create index IndexJobsetEvalsOnJobsetId on JobsetEvals(project, jobset, hasNewBuilds, id desc);
