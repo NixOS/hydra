@@ -164,7 +164,7 @@ sub checkJobsetWrapped {
         my %buildMap;
         foreach my $job (permute(values %{$jobs})) {
             next if defined $job->{error};
-            print STDERR "  considering job " . $project->name, ":", $jobset->name, ":", $job->{jobName} . "\n";
+            #print STDERR "considering job " . $project->name, ":", $jobset->name, ":", $job->{jobName} . "\n";
             checkBuild($db, $jobset, $inputInfo, $nixExprInput, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins);
         }
 

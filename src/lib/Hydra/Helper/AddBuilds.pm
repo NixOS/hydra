@@ -477,7 +477,7 @@ sub checkBuild {
                   name => $firstOutputName, path => $firstOutputPath },
                 { rows => 1, columns => ['id'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
-                print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
+                #print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
                 $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath };
                 return;
             }
@@ -487,7 +487,7 @@ sub checkBuild {
         # being added.
         my $prev = $$jobOutPathMap{$jobName . "\t" . $firstOutputPath};
         if (defined $prev) {
-            print STDERR "    already scheduled as build ", $prev, "\n";
+            #print STDERR "    already scheduled as build ", $prev, "\n";
             return;
         }
 
@@ -555,11 +555,11 @@ sub checkBuild {
         $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
 
         if ($build->iscachedbuild) {
-            print STDERR "    marked as cached build ", $build->id, "\n";
+            #print STDERR "    marked as cached build ", $build->id, "\n";
             addBuildProducts($db, $build);
             notifyBuildFinished($plugins, $build, []);
         } else {
-            print STDERR "    added to queue as build ", $build->id, "\n";
+            print STDERR "added build ${\$build->id} (${\$jobset->project->name}:${\$jobset->name}:$jobName)\n";
         }
     });
 
