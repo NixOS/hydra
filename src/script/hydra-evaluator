@@ -144,8 +144,10 @@ sub checkJobsetWrapped {
 
     # Evaluate the job expression.
     my $evalStart = time;
-    my ($jobs, $nixExprInput, $msg) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
+    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
     my $evalStop = time;
+
+    $jobs->{$_}->{jobName} = $_ for keys %{$jobs};
 
     my $jobOutPathMap = {};
 
@@ -160,8 +162,8 @@ sub checkJobsetWrapped {
 
         # Schedule each successfully evaluated job.
         my %buildMap;
-        foreach my $job (permute @{$jobs->{job}}) {
-            next if $job->{jobName} eq "";
+        foreach my $job (permute(values %{$jobs})) {
+            next if defined $job->{error};
             print STDERR "  considering job " . $project->name, ":", $jobset->name, ":", $job->{jobName} . "\n";
             checkBuild($db, $jobset, $inputInfo, $nixExprInput, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins);
         }
@@ -244,10 +246,12 @@ sub checkJobsetWrapped {
     });
 
     # Store the error messages for jobs that failed to evaluate.
-    foreach my $error (@{$jobs->{error}}) {
+    my $msg = "";
+    foreach my $job (values %{$jobs}) {
+        next unless defined $job->{error};
         $msg .=
-            ($error->{location} ne "" ? "in job ‘$error->{location}’" : "at top-level") .
-            ":\n" . $error->{msg} . "\n\n";
+            ($job->{jobName} ne "" ? "in job ‘$job->{jobName}’" : "at top-level") .
+            ":\n" . $job->{error} . "\n\n";
     }
     setJobsetError($jobset, $msg);
 }

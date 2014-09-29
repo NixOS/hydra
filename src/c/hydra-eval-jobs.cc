@@ -8,7 +8,7 @@
 #include "eval.hh"
 #include "eval-inline.hh"
 #include "util.hh"
-#include "xml-writer.hh"
+#include "value-to-json.hh"
 #include "get-drvs.hh"
 #include "common-opts.hh"
 #include "globals.hh"
@@ -23,11 +23,11 @@ typedef std::list<Value *, traceable_allocator<Value *> > ValueList;
 typedef std::map<Symbol, ValueList> AutoArgs;
 
 
-static void findJobs(EvalState & state, XMLWriter & doc,
+static void findJobs(EvalState & state, JSONObject & top,
     const AutoArgs & argsLeft, Value & v, const string & attrPath);
 
 
-static void tryJobAlts(EvalState & state, XMLWriter & doc,
+static void tryJobAlts(EvalState & state, JSONObject & top,
     const AutoArgs & argsLeft, const string & attrPath, Value & fun,
     Formals::Formals_::iterator cur,
     Formals::Formals_::iterator last,
@@ -38,7 +38,7 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
         state.mkAttrs(*arg, 0);
         arg->attrs = &actualArgs;
         mkApp(v, fun, *arg);
-        findJobs(state, doc, argsLeft, v, attrPath);
+        findJobs(state, top, argsLeft, v, attrPath);
         return;
     }
 
@@ -50,7 +50,7 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
         if (!cur->def)
             throw TypeError(format("job `%1%' requires an argument named `%2%'")
                 % attrPath % cur->name);
-        tryJobAlts(state, doc, argsLeft, attrPath, fun, next, last, actualArgs);
+        tryJobAlts(state, top, argsLeft, attrPath, fun, next, last, actualArgs);
         return;
     }
 
@@ -63,7 +63,7 @@ static void tryJobAlts(EvalState & state, XMLWriter & doc,
         actualArgs2.push_back(Attr(cur->name, *i));
         actualArgs2.sort(); // !!! inefficient
         argsLeft2.erase(cur->name);
-        tryJobAlts(state, doc, argsLeft2, attrPath, fun, next, last, actualArgs2);
+        tryJobAlts(state, top, argsLeft2, attrPath, fun, next, last, actualArgs2);
         ++n;
     }
 }
@@ -93,7 +93,7 @@ static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & 
 }
 
 
-static void findJobsWrapped(EvalState & state, XMLWriter & doc,
+static void findJobsWrapped(EvalState & state, JSONObject & top,
     const AutoArgs & argsLeft, Value & v, const string & attrPath)
 {
     debug(format("at path `%1%'") % attrPath);
@@ -107,7 +107,6 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
         DrvInfo drv(state);
 
         if (getDerivation(state, v, drv, false)) {
-            XMLAttrs xmlAttrs;
             Path drvPath;
 
             DrvInfo::Outputs outputs = drv.queryOutputs();
@@ -115,21 +114,19 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
             if (drv.system == "unknown")
                 throw EvalError("derivation must have a ‘system’ attribute");
 
-            xmlAttrs["jobName"] = attrPath;
-            xmlAttrs["nixName"] = drv.name;
-            xmlAttrs["system"] = drv.system;
-            xmlAttrs["drvPath"] = drvPath = drv.queryDrvPath();
-            xmlAttrs["description"] = drv.queryMetaString("description");
-            xmlAttrs["longDescription"] = drv.queryMetaString("longDescription");
-            xmlAttrs["license"] = queryMetaStrings(state, drv, "license");
-            xmlAttrs["homepage"] = drv.queryMetaString("homepage");
-            xmlAttrs["maintainers"] = queryMetaStrings(state, drv, "maintainers");
-
-            xmlAttrs["schedulingPriority"] = int2String(drv.queryMetaInt("schedulingPriority", 100));
-
-            xmlAttrs["timeout"] = int2String(drv.queryMetaInt("timeout", 36000));
-
-            xmlAttrs["maxSilent"] = int2String(drv.queryMetaInt("maxSilent", 7200));
+            top.attr(attrPath);
+            JSONObject res(top.str);
+            res.attr("nixName", drv.name);
+            res.attr("system", drv.system);
+            res.attr("drvPath", drvPath = drv.queryDrvPath());
+            res.attr("description", drv.queryMetaString("description"));
+            res.attr("longDescription", drv.queryMetaString("longDescription"));
+            res.attr("license", queryMetaStrings(state, drv, "license"));
+            res.attr("homepage", drv.queryMetaString("homepage"));
+            res.attr("maintainers", queryMetaStrings(state, drv, "maintainers"));
+            res.attr("schedulingPriority", drv.queryMetaInt("schedulingPriority", 100));
+            res.attr("timeout", drv.queryMetaInt("timeout", 36000));
+            res.attr("maxSilent", drv.queryMetaInt("maxSilent", 7200));
 
             /* If this is an aggregate, then get its constituents. */
             Bindings::iterator a = v.attrs->find(state.symbols.create("_hydraAggregate"));
@@ -145,7 +142,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
                         size_t index = i->find("!", 1);
                         drvs.insert(string(*i, index + 1));
                     }
-                xmlAttrs["constituents"] = concatStringsSep(" ", drvs);
+                res.attr("constituents", concatStringsSep(" ", drvs));
             }
 
             /* Register the derivation as a GC root.  !!! This
@@ -156,20 +153,16 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
                 if (!pathExists(root)) addPermRoot(*store, drvPath, root, false);
             }
 
-            XMLOpenElement _(doc, "job", xmlAttrs);
-
-            foreach (DrvInfo::Outputs::iterator, j, outputs) {
-                XMLAttrs attrs2;
-                attrs2["name"] = j->first;
-                attrs2["path"] = j->second;
-                doc.writeEmptyElement("output", attrs2);
-            }
+            res.attr("outputs");
+            JSONObject res2(res.str);
+            for (auto & j : outputs)
+                res2.attr(j.first, j.second);
         }
 
         else {
             if (!state.isDerivation(v)) {
                 foreach (Bindings::iterator, i, *v.attrs)
-                    findJobs(state, doc, argsLeft, *i->value,
+                    findJobs(state, top, argsLeft, *i->value,
                         (attrPath.empty() ? "" : attrPath + ".") + (string) i->name);
             }
         }
@@ -177,7 +170,7 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
 
     else if (v.type == tLambda && v.lambda.fun->matchAttrs) {
         Bindings & tmp(*state.allocBindings(0));
-        tryJobAlts(state, doc, argsLeft, attrPath, v,
+        tryJobAlts(state, top, argsLeft, attrPath, v,
             v.lambda.fun->formals->formals.begin(),
             v.lambda.fun->formals->formals.end(),
             tmp);
@@ -192,16 +185,16 @@ static void findJobsWrapped(EvalState & state, XMLWriter & doc,
 }
 
 
-static void findJobs(EvalState & state, XMLWriter & doc,
+static void findJobs(EvalState & state, JSONObject & top,
     const AutoArgs & argsLeft, Value & v, const string & attrPath)
 {
     try {
-        findJobsWrapped(state, doc, argsLeft, v, attrPath);
+        findJobsWrapped(state, top, argsLeft, v, attrPath);
     } catch (EvalError & e) {
-        XMLAttrs xmlAttrs;
-        xmlAttrs["location"] = attrPath;
-        xmlAttrs["msg"] = e.msg();
-        XMLOpenElement _(doc, "error", xmlAttrs);
+        top.attr(attrPath);
+        JSONObject res(top.str);
+        res.attr("error", e.msg());
+        top.str << "\n";
     }
 }
 
@@ -266,9 +259,8 @@ int main(int argc, char * * argv)
         Value v;
         state.evalFile(releaseExpr, v);
 
-        XMLWriter doc(true, std::cout);
-        XMLOpenElement root(doc, "jobs");
-        findJobs(state, doc, autoArgs, v, "");
+        JSONObject json(std::cout);
+        findJobs(state, json, autoArgs, v, "");
 
         state.printStats();
     });

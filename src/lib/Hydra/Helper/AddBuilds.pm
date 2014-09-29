@@ -3,7 +3,7 @@ package Hydra::Helper::AddBuilds;
 use strict;
 use feature 'switch';
 use utf8;
-use XML::Simple;
+use JSON;
 use IPC::Run;
 use Nix::Store;
 use Nix::Config;
@@ -335,42 +335,15 @@ sub evalJobs {
     my $evaluator = ($exprType eq "guile") ? "hydra-eval-guile-jobs" : "hydra-eval-jobs";
     print STDERR "evaluator ${evaluator}\n";
 
-    (my $res, my $jobsXml, my $stderr) = captureStdoutStderr(10800,
+    (my $res, my $jobsJSON, my $stderr) = captureStdoutStderr(10800,
         $evaluator, $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo, $exprType));
-    if ($res) {
-        die "$evaluator returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
-            . ":\n" . ($stderr ? $stderr : "(no output)\n");
-    }
+    die "$evaluator returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
+        . ":\n" . ($stderr ? $stderr : "(no output)\n")
+        if $res;
 
     print STDERR "$stderr";
 
-    my $jobs = XMLin(
-        $jobsXml,
-        ForceArray => ['error', 'job', 'arg', 'output'],
-        KeyAttr => { output => "+name" },
-        SuppressEmpty => '')
-        or die "cannot parse XML output";
-
-    my %jobNames;
-    my $errors;
-    my @filteredJobs = ();
-    foreach my $job (@{$jobs->{job}}) {
-        # Ensure that there is only one job with the given
-        # name. FIXME: this check will become unnecessary after we
-        # remove support for multiple values per jobset input.
-        if (defined $jobNames{$job->{jobName}}) {
-            $errors .= "error: there are multiple jobs named ‘$job->{jobName}’\n\n";
-            next;
-        }
-        $jobNames{$job->{jobName}} = 1;
-        push @filteredJobs, $job;
-    }
-    $jobs->{job} = \@filteredJobs;
-
-    # Handle utf-8 characters in error messages. No idea why this works.
-    utf8::decode($_->{msg}) foreach @{$jobs->{error}};
-
-    return ($jobs, $nixExprInput, $errors);
+    return (decode_json($jobsJSON), $nixExprInput);
 }
 
 
@@ -464,21 +437,17 @@ sub getPrevJobsetEval {
 sub checkBuild {
     my ($db, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
 
-    my @outputNames = sort keys %{$buildInfo->{output}};
+    my @outputNames = sort keys %{$buildInfo->{outputs}};
     die unless scalar @outputNames;
 
     # In various checks we can use an arbitrary output (the first)
     # rather than all outputs, since if one output is the same, the
     # others will be as well.
     my $firstOutputName = $outputNames[0];
-    my $firstOutputPath = $buildInfo->{output}->{$firstOutputName}->{path};
+    my $firstOutputPath = $buildInfo->{outputs}->{$firstOutputName};
 
     my $jobName = $buildInfo->{jobName} or die;
     my $drvPath = $buildInfo->{drvPath} or die;
-
-    my $priority = 100;
-    $priority = int($buildInfo->{schedulingPriority})
-        if $buildInfo->{schedulingPriority} =~ /^\d+$/;
 
     my $build;
 
@@ -531,7 +500,7 @@ sub checkBuild {
         my $buildStatus;
         my $releaseName;
         foreach my $name (@outputNames) {
-            my $path = $buildInfo->{output}->{$name}->{path};
+            my $path = $buildInfo->{outputs}->{$name};
             if (isValidPath($path)) {
                 if (-f "$path/nix-support/failed") {
                     $buildStatus = 6;
@@ -573,13 +542,13 @@ sub checkBuild {
             , system => $buildInfo->{system}
             , nixexprinput => $jobset->nixexprinput
             , nixexprpath => $jobset->nixexprpath
-            , priority => $priority
+            , priority => $buildInfo->{schedulingPriority}
             , busy => 0
             , locker => ""
             , %extraFlags
             });
 
-        $build->buildoutputs->create({ name => $_, path => $buildInfo->{output}->{$_}->{path} })
+        $build->buildoutputs->create({ name => $_, path => $buildInfo->{outputs}->{$_} })
             foreach @outputNames;
 
         $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath };
