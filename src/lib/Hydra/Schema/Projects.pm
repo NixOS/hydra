@@ -166,7 +166,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobsets
+=head2 jobsets_2s
 
 Type: has_many
 
@@ -175,7 +175,7 @@ Related object: L<Hydra::Schema::Jobsets>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsets",
+  "jobsets_2s",
   "Hydra::Schema::Jobsets",
   { "foreign.project" => "self.name" },
   undef,
@@ -256,6 +256,16 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 jobsets
+
+Type: many_to_many
+
+Composing rels: L</jobs> -> jobset
+
+=cut
+
+__PACKAGE__->many_to_many("jobsets", "jobs", "jobset");
+
 =head2 usernames
 
 Type: many_to_many
@@ -267,8 +277,8 @@ Composing rels: L</projectmembers> -> username
 __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-04-23 23:13:08
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fkd9ruEoVSBGIktmAj4u4g
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-09-29 19:41:42
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fTCp0shW7pisnCztza68xA
 
 my %hint = (
     columns => [

@@ -114,8 +114,6 @@ create table Jobs (
     jobset        text not null,
     name          text not null,
 
-    errorMsg      text, -- evalution error for this job
-
     primary key   (project, jobset, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade

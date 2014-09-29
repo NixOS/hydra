@@ -52,11 +52,6 @@ __PACKAGE__->table("Jobs");
   data_type: 'text'
   is_nullable: 0
 
-=head2 errormsg
-
-  data_type: 'text'
-  is_nullable: 1
-
 =cut
 
 __PACKAGE__->add_columns(
@@ -66,8 +61,6 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "name",
   { data_type => "text", is_nullable => 0 },
-  "errormsg",
-  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -157,7 +150,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-14 15:46:29
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uYKWjewvKBEAuK53u7vKuw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-09-29 19:41:42
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:lnZSd0gDXgLk8WQeAFqByA
 
 1;
