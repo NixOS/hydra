@@ -545,6 +545,7 @@ sub checkBuild {
             , priority => $buildInfo->{schedulingPriority}
             , busy => 0
             , locker => ""
+            , iscurrent => 1
             , %extraFlags
             });
 
