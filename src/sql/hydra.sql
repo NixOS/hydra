@@ -142,7 +142,6 @@ create table Builds (
     drvPath       text not null,
     system        text not null,
 
-    longDescription text, -- meta.longDescription
     license       text, -- meta.license
     homepage      text, -- meta.homepage
     maintainers   text, -- meta.maintainers (concatenated, comma-separated)

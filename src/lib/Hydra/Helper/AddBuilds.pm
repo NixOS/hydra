@@ -531,7 +531,6 @@ sub checkBuild {
         $build = $job->builds->create(
             { timestamp => $time
             , description => $buildInfo->{description}
-            , longdescription => $buildInfo->{longDescription}
             , license => $buildInfo->{license}
             , homepage => $buildInfo->{homepage}
             , maintainers => $buildInfo->{maintainers}

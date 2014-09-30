@@ -72,8 +72,6 @@ EOF
             $res .= "    meta = {\n";
             $res .= "      description = ${\escape $build->description};\n"
                 if $build->description;
-            $res .= "      longDescription = ${\escape $build->longdescription};\n"
-                if $build->longdescription;
             $res .= "      license = ${\escape $build->license};\n"
                 if $build->license;
             $res .= "      maintainers = ${\escape $build->maintainers};\n"

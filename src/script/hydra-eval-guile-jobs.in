@@ -120,7 +120,6 @@ symbol/thunk pairs."
                                 (string-join (map loop l)))
                                (_ ""))))
                          ,@(opt-attr 'description 'description)
-                         ,@(opt-attr 'longDescription 'long-description)
                          (maintainers
                           ,(string-join (or (assoc-ref result 'maintainers)
                                             '())

@@ -120,7 +120,6 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
             res.attr("system", drv.system);
             res.attr("drvPath", drvPath = drv.queryDrvPath());
             res.attr("description", drv.queryMetaString("description"));
-            res.attr("longDescription", drv.queryMetaString("longDescription"));
             res.attr("license", queryMetaStrings(state, drv, "license"));
             res.attr("homepage", drv.queryMetaString("homepage"));
             res.attr("maintainers", queryMetaStrings(state, drv, "maintainers"));

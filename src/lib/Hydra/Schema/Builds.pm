@@ -89,11 +89,6 @@ __PACKAGE__->table("Builds");
   data_type: 'text'
   is_nullable: 0
 
-=head2 longdescription
-
-  data_type: 'text'
-  is_nullable: 1
-
 =head2 license
 
   data_type: 'text'
@@ -228,8 +223,6 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "system",
   { data_type => "text", is_nullable => 0 },
-  "longdescription",
-  { data_type => "text", is_nullable => 1 },
   "license",
   { data_type => "text", is_nullable => 1 },
   "homepage",
@@ -527,8 +520,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-08-15 00:20:01
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:U1j/qm0vslb6Jvgu5mGMtw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-09-30 15:38:03
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:kMPje7yi/yDqxGRQcC2I/Q
 
 __PACKAGE__->has_many(
   "dependents",
