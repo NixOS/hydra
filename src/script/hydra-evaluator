@@ -202,7 +202,7 @@ sub checkJobsetWrapped {
                 $drvPathToId{$x->{drvPath}} = $x;
             }
 
-            foreach my $job (@{$jobs->{job}}) {
+            foreach my $job (values %{$jobs}) {
                 next unless $job->{constituents};
                 my $x = $drvPathToId{$job->{drvPath}} or die;
                 foreach my $drvPath (split / /, $job->{constituents}) {
