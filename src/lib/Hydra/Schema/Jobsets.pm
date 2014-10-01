@@ -319,19 +319,9 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 projects
 
-Type: many_to_many
-
-Composing rels: L</jobs> -> project
-
-=cut
-
-__PACKAGE__->many_to_many("projects", "jobs", "project");
-
-
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-09-29 19:41:42
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ln8UftPqK+aHCCrGkVxeyA
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-04-23 23:13:51
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:CO0aE+jrjB+UrwGRzWZLlw
 
 my %hint = (
     columns => [
