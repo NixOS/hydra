@@ -1,5 +1,6 @@
 package Hydra::Controller::Build;
 
+use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
@@ -17,6 +18,8 @@ use Encode;
 
 sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     my ($self, $c, $id) = @_;
+
+    $id =~ /^[0-9]+$/ or error($c, "Invalid build ID ‘$id’.");
 
     $c->stash->{id} = $id;
 
