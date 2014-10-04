@@ -68,6 +68,12 @@ static void tryJobAlts(EvalState & state, JSONObject & top,
     }
 }
 
+static string queryMetaInt(DrvInfo & drv, const string & name, int i)
+{
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%d", drv.queryMetaInt(name, i));
+  return buf;
+}
 
 static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name)
 {
@@ -123,9 +129,9 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
             res.attr("license", queryMetaStrings(state, drv, "license"));
             res.attr("homepage", drv.queryMetaString("homepage"));
             res.attr("maintainers", queryMetaStrings(state, drv, "maintainers"));
-            res.attr("schedulingPriority", drv.queryMetaInt("schedulingPriority", 100));
-            res.attr("timeout", drv.queryMetaInt("timeout", 36000));
-            res.attr("maxSilent", drv.queryMetaInt("maxSilent", 7200));
+            res.attr("schedulingPriority", queryMetaInt(drv, "schedulingPriority", 100));
+            res.attr("timeout", queryMetaInt(drv, "timeout", 36000));
+            res.attr("maxSilent", queryMetaInt(drv, "maxSilent", 7200));
 
             /* If this is an aggregate, then get its constituents. */
             Bindings::iterator a = v.attrs->find(state.symbols.create("_hydraAggregate"));
