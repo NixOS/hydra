@@ -582,10 +582,18 @@ BLOCK createChart %]
           // now connect the two
 
           $("#[%id%]-chart").bind("plotselected", function (event, ranges) {
+            var ymax = 0;
+            d.forEach(function(x) {
+              if (x[0] < ranges.xaxis.from) return;
+              if (x[0] > ranges.xaxis.to) return;
+              ymax = Math.max(x[1], ymax);
+            });
+
             // do the zooming
             plot = $.plot($("#[%id%]-chart"), [d],
               $.extend(true, {}, options, {
-                xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to }
+                xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to },
+                yaxis: { min: 0, max: ymax * 1.1 }
               }));
 
             // don't fire event on the overview to prevent eternal loop
