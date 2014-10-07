@@ -284,6 +284,26 @@
   <div id="tabs-details" class="tab-pane">
 
     <table class="info-table">
+      <tr>
+        <th>Queued:</th>
+        <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
+      </tr>
+      [% IF build.finished && !build.iscachedbuild %]
+        <tr>
+          <th>Build started:</th>
+          <td>[% INCLUDE renderDateTime timestamp = build.starttime %]</td>
+        </tr>
+        <tr>
+          <th>Build finished:</th>
+          <td>[% INCLUDE renderDateTime timestamp = build.stoptime %]</td>
+        </tr>
+      [% END %]
+      [% IF !build.finished %]
+        <tr>
+          <th>Priority:</th>
+          <td>[% build.priority %]</td>
+        </tr>
+      [% END %]
       [% IF build.nixexprinput %]
         <tr>
           <th>Nix expression:</th>
@@ -322,26 +342,6 @@
         <th>Output store paths:</th>
         <td><tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt></td>
       </tr>
-      <tr>
-        <th>Queued:</th>
-        <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
-      </tr>
-      [% IF build.finished && !build.iscachedbuild %]
-        <tr>
-          <th>Build started:</th>
-          <td>[% INCLUDE renderDateTime timestamp = build.starttime %]</td>
-        </tr>
-        <tr>
-          <th>Build finished:</th>
-          <td>[% INCLUDE renderDateTime timestamp = build.stoptime %]</td>
-        </tr>
-      [% END %]
-      [% IF !build.finished %]
-        <tr>
-          <th>Priority:</th>
-          <td>[% build.priority %]</td>
-        </tr>
-      [% END %]
       [% IF build.finished && build.buildproducts %]
         <tr>
           <th>Availability:</th>
