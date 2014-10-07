@@ -533,4 +533,85 @@ BLOCK includeFlot %]
 [% END;
 
 
+BLOCK createChart %]
+
+  <div id="[%id%]-chart" style="width: 1000px; height: 400px;"></div>
+  <div id="[%id%]-overview" style="margin-top: 20px; margin-left: 50px; margin-right: 50px; width: 900px; height: 100px"></div>
+
+  <script type="text/javascript">
+    $(function() {
+      requestJSON({
+        url: "[%dataUrl%]",
+        success: function(data) {
+          var ids = [];
+          var d = [];
+          var max = 0;
+          data.forEach(function(x) {
+            var t = x.timestamp * 1000;
+            ids[t] = x.id;
+            d.push([t, x.value / (1024.0 * 1024.0)]);
+            max = Math.max(t, max);
+          });
+
+          var options = {
+            xaxis: { mode: "time" },
+            yaxis: { min: 0 },
+            selection: { mode: "x" },
+            points: { show: true },
+            lines: { show: true },
+            grid: {
+              clickable: true,
+              hoverable: true,
+              hoverFill: '#444',
+              hoverRadius: 4,
+            },
+          };
+
+          var plot = $.plot($("#[%id%]-chart"), [d], options);
+
+          var overview = $.plot($("#[%id%]-overview"), [d], {
+            series: {
+              lines: { show: true, lineWidth: 1 },
+              shadowSize: 0
+            },
+            xaxis: { ticks: [], mode: "time" },
+            yaxis: { ticks: [], min: 0, autoscaleMargin: 0.1 },
+            selection: { mode: "x" }
+          });
+
+          // now connect the two
+
+          $("#[%id%]-chart").bind("plotselected", function (event, ranges) {
+            // do the zooming
+            plot = $.plot($("#[%id%]-chart"), [d],
+              $.extend(true, {}, options, {
+                xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to }
+              }));
+
+            // don't fire event on the overview to prevent eternal loop
+            overview.setSelection(ranges, true);
+          });
+
+          $("#[%id%]-overview").bind("plotselected", function (event, ranges) {
+            plot.setSelection(ranges);
+          });
+
+          $("#[%id%]-chart").bind("plotclick", function (e, pos, item) {
+            if (item) {
+              plot.highlight(item.series, item.datapoint);
+              buildid = data[item.dataIndex].id;
+              window.location = "/build/"+buildid;
+            }
+          });
+
+          // Zoom in to the last two months by default.
+          plot.setSelection({ xaxis: { from: max - 60 * 24 * 60 * 60 * 1000, to: max } });
+        }
+      });
+    });
+  </script>
+
+[% END;
+
+
 %]
