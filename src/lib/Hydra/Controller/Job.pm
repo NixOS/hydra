@@ -80,6 +80,15 @@ sub overview : Chained('job') PathPart('') Args(0) {
 }
 
 
+sub closure_sizes : Chained('job') PathPart('closure-sizes') Args(0) {
+    my ($self, $c) = @_;
+    my @res = $c->stash->{job}->builds->search(
+        { finished => 1, buildstatus => 0, closuresize => { '!=', 0 } },
+        { order_by => "id", columns => [ "id", "timestamp", "closuresize" ] });
+    $self->status_ok($c, entity => [ map { { id => $_->id, timestamp => $_ ->timestamp, value => $_->closuresize } } @res ]);
+}
+
+
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('job') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;

@@ -5,6 +5,8 @@
 [% PROCESS common.tt %]
 [% hideProjectName=1 hideJobsetName=1 hideJobName=1 %]
 
+[% INCLUDE includeFlot %]
+
 [% IF !jobExists(job) %]
 <div class="alert alert-warning">This job is not a member of the <a
 href="[%c.uri_for('/jobset' project.name jobset.name
@@ -17,6 +19,7 @@ removed or had an evaluation error.</div>
   [% IF constituentJobs.size > 0 %]
     <li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>
   [% END %]
+  <li><a href="#tabs-charts" data-toggle="tab">Charts</a></li>
   <li><a href="#tabs-links" data-toggle="tab">Links</a></li>
 </ul>
 
@@ -80,6 +83,88 @@ removed or had an evaluation error.</div>
     </div>
 
   [% END %]
+
+  <div id="tabs-charts" class="tab-pane">
+
+    <h3>Closure size (in MiB)</h3>
+
+    <div id="placeholder" style="width: 1000px; height: 400px;"></div>
+    <div id="overview" style="margin-top: 20px; margin-left: 50px; margin-right: 50px; width: 900px; height: 100px"></div>
+
+    <script type="text/javascript">
+      $(function() {
+        requestJSON({
+          url: "[%c.uri_for('/job' project.name jobset.name job.name 'closure-sizes')%]",
+          success: function(data) {
+            var ids = [];
+            var d = [];
+            var max = 0;
+            data.forEach(function(x) {
+              var t = x.timestamp * 1000;
+              ids[t] = x.id;
+              d.push([t, x.value / (1024.0 * 1024.0)]);
+              max = Math.max(t, max);
+            });
+
+            var options = {
+              xaxis: { mode: "time" },
+              yaxis: { min: 0 },
+              selection: { mode: "x" },
+              points: { show: true },
+              lines: { show: true },
+              grid: {
+                clickable: true,
+                hoverable: true,
+                hoverFill: '#444',
+                hoverRadius: 4,
+              },
+            };
+
+            var plot = $.plot($("#placeholder"), [d], options);
+
+            var overview = $.plot($("#overview"), [d], {
+              series: {
+                lines: { show: true, lineWidth: 1 },
+                shadowSize: 0
+              },
+              xaxis: { ticks: [], mode: "time" },
+              yaxis: { ticks: [], min: 0, autoscaleMargin: 0.1 },
+              selection: { mode: "x" }
+            });
+
+            // now connect the two
+
+            $("#placeholder").bind("plotselected", function (event, ranges) {
+              // do the zooming
+              plot = $.plot($("#placeholder"), [d],
+                $.extend(true, {}, options, {
+                  xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to }
+                }));
+
+              // don't fire event on the overview to prevent eternal loop
+              overview.setSelection(ranges, true);
+            });
+
+            $("#overview").bind("plotselected", function (event, ranges) {
+              plot.setSelection(ranges);
+            });
+
+            $("#placeholder").bind("plotclick", function (e, pos, item) {
+              if (item) {
+                plot.highlight(item.series, item.datapoint);
+                buildid = data[item.dataIndex].id;
+                window.location = "/build/"+buildid;
+              }
+            });
+
+            // Zoom in to the last two months by default.
+            plot.setSelection({ xaxis: { from: max - 60 * 24 * 60 * 60 * 1000, to: max } });
+          }
+        });
+      });
+    </script>
+
+  </div>
 
   <div id="tabs-links" class="tab-pane">
     <ul>
