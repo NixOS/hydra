@@ -1,5 +1,3 @@
-[% USE mibs=format("%.2f") %]
-
 [% BLOCK renderProductLinks %]
   <tr>
     <th>URL:</th>

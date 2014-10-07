@@ -342,6 +342,21 @@
         <th>Output store paths:</th>
         <td><tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt></td>
       </tr>
+      [% chartsURL = c.uri_for('/job' build.project.name build.jobset.name build.job.name) _ "#tabs-charts" %]
+      [% IF build.finished && build.closuresize %]
+        <tr>
+          <th>Closure size:</th>
+          <td>[% mibs(build.closuresize / (1024 * 1024)) %] MiB
+            (<a href="[%chartsURL%]">history</a>)</td>
+        </tr>
+      [% END %]
+      [% IF build.finished && build.closuresize %]
+        <tr>
+          <th>Output size:</th>
+          <td>[% mibs(build.size / (1024 * 1024)) %] MiB
+            (<a href="[%chartsURL%]">history</a>)</td>
+        </tr>
+      [% END %]
       [% IF build.finished && build.buildproducts %]
         <tr>
           <th>Availability:</th>

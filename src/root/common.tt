@@ -4,6 +4,9 @@ USE String;
 USE HTML;
 
 
+USE mibs=format("%.2f");
+
+
 BLOCK renderDateTime;
 date.format(timestamp, '%Y-%m-%d %H:%M:%S');
 END;
