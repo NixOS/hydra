@@ -528,8 +528,9 @@ BLOCK renderJobsetOverview %]
 
 
 BLOCK includeFlot %]
-  <script src="[% c.uri_for("/static/js/flot/jquery.flot.js") %]" type="text/javascript"></script>
-  <script src="[% c.uri_for("/static/js/flot/jquery.flot.selection.js") %]" type="text/javascript"></script>
+  <script src="[% c.uri_for("/static/js/flot/jquery.flot.min.js") %]" type="text/javascript"></script>
+  <script src="[% c.uri_for("/static/js/flot/jquery.flot.time.min.js") %]" type="text/javascript"></script>
+  <script src="[% c.uri_for("/static/js/flot/jquery.flot.selection.min.js") %]" type="text/javascript"></script>
 [% END;
 
 

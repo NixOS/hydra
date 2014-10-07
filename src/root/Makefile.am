@@ -5,7 +5,7 @@ STATIC = \
   static/js/bootbox.min.js \
   static/js/common.js
 
-FLOT = flot-0.6.zip
+FLOT = flot-0.8.3.zip
 JQUERY = jquery-ui-1.8.5.custom.zip
 BOOTSTRAP = bootstrap-2.3.1.zip
 
