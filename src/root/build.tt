@@ -103,7 +103,6 @@
   <li><a href="#tabs-buildinputs" data-toggle="tab">Inputs</a></li>
   [% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
   [% IF build.dependents %]<li><a href="#tabs-usedby" data-toggle="tab">Used by</a></li>[% END%]
-  <li><a href="#tabs-history" data-toggle="tab">History chart</a></li>
   [% IF drvAvailable %]<li><a href="#tabs-build-deps" data-toggle="tab">Build dependencies</a></li>[% END %]
   [% IF available %]<li><a href="#tabs-runtime-deps" data-toggle="tab">Runtime dependencies</a></li>[% END %]
 </ul>
@@ -407,8 +406,6 @@
       </table>
     </div>
   [% END %]
-
-  [% INCLUDE makeLazyTab tabName="tabs-history" uri=c.uri_for('/build' build.id 'history-graphs') %]
 
   [% IF drvAvailable %]
     [% INCLUDE makeLazyTab tabName="tabs-build-deps" uri=c.uri_for('/build' build.id 'build-deps') %]

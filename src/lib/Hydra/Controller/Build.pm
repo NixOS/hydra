@@ -405,32 +405,6 @@ sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
 }
 
 
-sub history_graphs : Chained('buildChain') PathPart('history-graphs') {
-    my ($self, $c) = @_;
-    my $build = $c->stash->{build};
-    if ($build->finished) {
-        $c->stash->{prevBuilds} = [$c->model('DB::Builds')->search(
-            { project => $c->stash->{project}->name
-            , jobset => $c->stash->{jobset}->name
-            , job => $c->stash->{job}->name
-            , 'me.system' => $build->system
-            , finished => 1
-            , buildstatus => 0
-            , 'me.id' =>  { '<=' => $build->id }
-            }
-          , { join => "actualBuildStep"
-            , "+select" => ["actualBuildStep.stoptime - actualBuildStep.starttime"]
-            , "+as" => ["actualBuildTime"]
-            , order_by => "me.id DESC"
-            , rows => 50
-            }
-          )
-        ];
-    }
-    $c->stash->{template} = 'build-history-tab.tt';
-}
-
-
 sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
     my ($self, $c) = @_;
 

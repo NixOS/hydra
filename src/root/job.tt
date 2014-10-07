@@ -86,13 +86,17 @@ removed or had an evaluation error.</div>
 
   <div id="tabs-charts" class="tab-pane">
 
+    <h3>Build time (in seconds)</h3>
+
+    [% INCLUDE createChart id="build-times" yaxis="sec" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'build-times') %]
+
     <h3>Closure size (in MiB)</h3>
 
-    [% INCLUDE createChart id="closure-size" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'closure-sizes') %]
+    [% INCLUDE createChart id="closure-size" yaxis="mib" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'closure-sizes') %]
 
     <h3>Output size (in MiB)</h3>
 
-    [% INCLUDE createChart id="output-size" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'output-sizes') %]
+    [% INCLUDE createChart id="output-size" yaxis="mib" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'output-sizes') %]
 
   </div>
 

@@ -80,6 +80,18 @@ sub overview : Chained('job') PathPart('') Args(0) {
 }
 
 
+sub build_times : Chained('job') PathPart('build-times') Args(0) {
+    my ($self, $c) = @_;
+    my @res = $c->stash->{job}->builds->search(
+        { finished => 1, buildstatus => 0, closuresize => { '!=', 0 } },
+        { join => "actualBuildStep"
+        , "+select" => ["actualBuildStep.stoptime - actualBuildStep.starttime"]
+        , "+as" => ["actualBuildTime"],
+        , order_by => "id" });
+    $self->status_ok($c, entity => [ map { { id => $_->id, timestamp => $_ ->timestamp, value => $_->get_column('actualBuildTime') } } @res ]);
+}
+
+
 sub closure_sizes : Chained('job') PathPart('closure-sizes') Args(0) {
     my ($self, $c) = @_;
     my @res = $c->stash->{job}->builds->search(

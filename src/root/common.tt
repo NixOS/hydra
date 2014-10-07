@@ -549,7 +549,7 @@ BLOCK createChart %]
           data.forEach(function(x) {
             var t = x.timestamp * 1000;
             ids[t] = x.id;
-            d.push([t, x.value / (1024.0 * 1024.0)]);
+            d.push([t, x.value [% IF yaxis == "mib" %] / (1024.0 * 1024.0)[% END %]]);
             max = Math.max(t, max);
           });
 
