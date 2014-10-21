@@ -21,14 +21,15 @@ sub buildFinished {
         my $jobName = showJobName $b;
 
         foreach my $room (@config) {
+            my $force = $room->{force};
             next unless $jobName =~ /^$room->{jobs}$/;
 
             # If build is cancelled or aborted, do not send email.
-            next if $b->buildstatus == 4 || $b->buildstatus == 3;
+            next if ! $force && ($b->buildstatus == 4 || $b->buildstatus == 3);
 
             # If there is a previous (that is not cancelled or aborted) build
             # with same buildstatus, do not send email.
-            next if defined $prevBuild && ($b->buildstatus == $prevBuild->buildstatus);
+            next if ! $force && defined $prevBuild && ($b->buildstatus == $prevBuild->buildstatus);
 
             $rooms{$room->{room}} //= { room => $room, builds => [] };
             push @{$rooms{$room->{room}}->{builds}}, $b;
