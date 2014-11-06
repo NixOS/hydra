@@ -244,6 +244,7 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
         # Give Hydra binary caches a very low priority (lower than the
         # static binary cache http://nixos.org/binary-cache).
         "Priority: 100\n";
+    setCacheHeaders($c, 365 * 24 * 60 * 60);
     $c->forward('Hydra::View::Plain');
 }
 
@@ -260,6 +261,7 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
         $c->response->content_type('text/plain');
         $c->stash->{plain}->{data} = "does not exist\n";
         $c->forward('Hydra::View::Plain');
+        setCacheHeaders($c, 60 * 60);
         return;
     }
 

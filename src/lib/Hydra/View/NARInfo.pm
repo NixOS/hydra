@@ -5,6 +5,7 @@ use base qw/Catalyst::View/;
 use File::Basename;
 use Nix::Store;
 use Nix::Crypto;
+use Hydra::Helper::CatalystUtils;
 
 sub process {
     my ($self, $c) = @_;
@@ -38,6 +39,8 @@ sub process {
         my $sig = signString($privateKeyFile, $info);
         $info .= "Signature: 1;$keyName;$sig\n";
     }
+
+    setCacheHeaders($c, 24 * 60 * 60);
 
     $c->response->body($info);
 

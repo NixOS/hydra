@@ -28,6 +28,7 @@ our @EXPORT = qw(
     showJobName
     showStatus
     getResponsibleAuthors
+    setCacheHeaders
 );
 
 
@@ -302,6 +303,14 @@ sub getResponsibleAuthors {
     }
 
     return (\%authors, $nrCommits, \@emailable_authors);
+}
+
+
+# Set HTTP headers for the Nix binary cache.
+sub setCacheHeaders {
+    my ($c, $expiration) = @_;
+    $c->response->headers->expires(time + $expiration);
+    delete $c->response->cookies->{hydra_session};
 }
 
 
