@@ -244,7 +244,7 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
         # Give Hydra binary caches a very low priority (lower than the
         # static binary cache http://nixos.org/binary-cache).
         "Priority: 100\n";
-    setCacheHeaders($c, 365 * 24 * 60 * 60);
+    setCacheHeaders($c, 24 * 60 * 60);
     $c->forward('Hydra::View::Plain');
 }
 
