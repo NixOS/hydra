@@ -77,7 +77,9 @@ in rec {
         name = "hydra-perl-deps";
         paths = with perlPackages;
           [ ModulePluggable
+            CatalystActionREST
             CatalystAuthenticationStoreDBIxClass
+            CatalystDevel
             CatalystDispatchTypeRegex
             CatalystPluginAccessLog
             CatalystPluginAuthorizationRoles
@@ -91,7 +93,6 @@ in rec {
             CatalystViewJSON
             CatalystViewTT
             CatalystXScriptServerStarman
-            CatalystActionREST
             CryptRandPasswd
             DBDPg
             DBDSQLite
@@ -100,23 +101,23 @@ in rec {
             DigestSHA1
             EmailSender
             FileSlurp
-            LWP
-            LWPProtocolHttps
             IOCompress
             IPCRun
             JSONXS
+            LWP
+            LWPProtocolHttps
+            NetAmazonS3
             PadWalker
-            CatalystDevel
             Readonly
-            SetScalar
             SQLSplitStatement
+            SetScalar
             Starman
             SysHostnameLong
+            TermSizeAny
             TestMore
             TextDiff
             TextTable
             XMLSimple
-            NetAmazonS3
             nix git
           ];
       };
