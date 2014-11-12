@@ -212,7 +212,7 @@ in
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
-        environment = serverEnv;
+        environment = serverEnv // { COLUMNS = "80"; };
         serviceConfig =
           { ExecStart =
               "@${cfg.package}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' "
