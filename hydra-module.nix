@@ -275,16 +275,8 @@ in
                 systemctl stop hydra-evaluator
             fi
           '';
-
-        compressLogs = pkgs.writeScript "compress-logs" ''
-           #! ${pkgs.stdenv.shell} -e
-           find /nix/var/log/nix/drvs \
-                -type f -a ! -newermt 'last month' \
-                -name '*.drv' -exec bzip2 -v {} +
-         '';
       in
         [ "*/5 * * * * root  ${checkSpace} &> ${baseDir}/data/checkspace.log"
-          "15 5 * * * root  ${compressLogs} &> ${baseDir}/data/compress.log"
         ];
   };
 }
