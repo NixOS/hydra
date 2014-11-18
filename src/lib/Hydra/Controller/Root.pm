@@ -162,7 +162,8 @@ sub robots_txt : Path('robots.txt') {
     # robots.txt.  Note: wildcards are not universally supported in
     # robots.txt, but apparently Google supports them.
     my @rules =
-        ( uri_for($c, 'Build', 'deps', ["*"])
+        ( uri_for($c, 'Build', 'build_deps', ["*"])
+        , uri_for($c, 'Build', 'runtime_deps', ["*"])
         , uri_for($c, 'Build', 'view_nixlog', ["*"], "*")
         , uri_for($c, 'Build', 'view_log', ["*"], "*")
         , uri_for($c, 'Build', 'view_log', ["*"])
