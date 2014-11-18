@@ -224,8 +224,13 @@
         [% INCLUDE renderBuildSteps type="Failed" %]
       [% END %]
 
-      [% IF prevSuccessfulBuild %]
+      [% IF otherEval %]
         <h3>Changes</h3>
+        [% INCLUDE renderInputDiff inputs2=eval.jobsetevalinputs inputs1=otherEval.jobsetevalinputs %]
+      [% END %]
+
+      [% IF prevSuccessfulBuild %]
+        <h3>Previous builds</h3>
         <table class="table table-striped table-condensed">
           <thead>
             <th>Last successful build [% INCLUDE renderDateTime timestamp = prevSuccessfulBuild.timestamp %]</th>
@@ -250,7 +255,6 @@
             [% IF prevSuccessfulBuild && firstBrokenBuild && firstBrokenBuild.id != build.id %]
               <td>[% INCLUDE renderInputDiff inputs1=prevSuccessfulBuild.inputs inputs2=firstBrokenBuild.inputs %]</td>
             [% END %]
-            <td>[% INCLUDE renderInputDiff inputs1=prevSuccessfulBuild.inputs inputs2=build.inputs %]</td>
           </tr>
         </table>
       [% END %]
@@ -379,11 +383,6 @@
     [% IF build.inputs.size > 0 %]
 
       [% INCLUDE renderInputs inputs=build.inputs %]
-
-      [% IF prevBuild %]
-        <h3>Changes since previous [% INCLUDE renderBuildLink build=prevBuild %]</h3>
-        [% INCLUDE renderInputDiff inputs2=build.inputs inputs1=prevBuild.inputs %]
-      [% END %]
 
     [% ELSIF eval %]
 
