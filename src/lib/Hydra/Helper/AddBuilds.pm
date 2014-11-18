@@ -95,7 +95,7 @@ sub fetchInputBuild {
             , where => \ attrsToSQL($attrs, "me.id") })->single;
     }
 
-    return () if !defined $prevBuild || !isValidPath(getMainOutput($prevBuild)->path);
+    die "Input $name: No builds available at $value" if !defined $prevBuild || !isValidPath(getMainOutput($prevBuild)->path);
 
     #print STDERR "input `", $name, "': using build ", $prevBuild->id, "\n";
 
