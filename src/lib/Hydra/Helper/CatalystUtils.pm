@@ -14,7 +14,7 @@ our @EXPORT = qw(
     error notFound gone accessDenied
     forceLogin requireUser requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
-    getLatestFinishedEval
+    getLatestFinishedEval getFirstEval
     paramToList
     backToReferer
     $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE $userNameRE $inputNameRE
@@ -188,6 +188,14 @@ sub getLatestFinishedEval {
 }
 
 
+sub getFirstEval {
+    my ($build) = @_;
+    return $build->jobsetevals->search(
+        { hasnewbuilds => 1},
+        { rows => 1, order_by => ["id"] })->single;
+}
+
+
 # Catalyst request parameters can be an array or a scalar or
 # undefined, making them annoying to handle.  So this utility function
 # always returns a request parameter as a list.
@@ -247,32 +255,35 @@ sub getResponsibleAuthors {
     my ($build, $plugins) = @_;
 
     my $prevBuild = getPreviousBuild($build);
+    return ({}, 0, []) unless $prevBuild;
 
     my $nrCommits = 0;
     my %authors;
     my @emailable_authors;
 
-    if ($prevBuild) {
-        foreach my $curInput ($build->buildinputs_builds) {
-            next unless ($curInput->type eq "git" || $curInput->type eq "hg");
-            my $prevInput = $prevBuild->buildinputs_builds->find({ name => $curInput->name });
-            next unless defined $prevInput;
+    my $prevEval = getFirstEval($prevBuild);
+    my $eval = getFirstEval($build);
 
-            next if $curInput->type ne $prevInput->type;
-            next if $curInput->uri ne $prevInput->uri;
-            next if $curInput->revision eq $prevInput->revision;
+    foreach my $curInput ($eval->jobsetevalinputs) {
+        next unless ($curInput->type eq "git" || $curInput->type eq "hg");
+        my $prevInput = $prevEval->jobsetevalinputs->find({ name => $curInput->name });
+        next unless defined $prevInput;
 
-            my @commits;
-            foreach my $plugin (@{$plugins}) {
-                push @commits, @{$plugin->getCommits($curInput->type, $curInput->uri, $prevInput->revision, $curInput->revision)};
-            }
+        next if $curInput->type ne $prevInput->type;
+        next if $curInput->uri ne $prevInput->uri;
+        next if $curInput->revision eq $prevInput->revision;
 
-            foreach my $commit (@commits) {
-                #print STDERR "$commit->{revision} by $commit->{author}\n";
-                $authors{$commit->{author}} = $commit->{email};
-                push @emailable_authors, $commit->{email} if $curInput->emailresponsible;
-                $nrCommits++;
-            }
+        my @commits;
+        foreach my $plugin (@{$plugins}) {
+            push @commits, @{$plugin->getCommits($curInput->type, $curInput->uri, $prevInput->revision, $curInput->revision)};
+        }
+
+        foreach my $commit (@commits) {
+            #print STDERR "$commit->{revision} by $commit->{author}\n";
+            $authors{$commit->{author}} = $commit->{email};
+            my $inputSpec = $build->jobset->jobsetinputs->find({ name => $curInput->name });
+            push @emailable_authors, $commit->{email} if $inputSpec && $inputSpec->emailresponsible;
+            $nrCommits++;
         }
     }
 
