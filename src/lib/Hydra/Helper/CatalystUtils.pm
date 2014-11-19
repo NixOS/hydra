@@ -4,10 +4,6 @@ use utf8;
 use strict;
 use Exporter;
 use Readonly;
-use Email::Simple;
-use Email::Sender::Simple qw(sendmail);
-use Email::Sender::Transport::SMTP;
-use Sys::Hostname::Long;
 use Nix::Store;
 use Hydra::Helper::Nix;
 use feature qw/switch/;
@@ -19,7 +15,6 @@ our @EXPORT = qw(
     forceLogin requireUser requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
     getLatestFinishedEval
-    sendEmail
     paramToList
     backToReferer
     $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE $userNameRE $inputNameRE
@@ -190,27 +185,6 @@ sub getLatestFinishedEval {
         , where => \ "not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0)"
         });
     return $eval;
-}
-
-
-sub sendEmail {
-    my ($c, $to, $subject, $body) = @_;
-
-    my $sender = $c->config->{'notification_sender'} ||
-        (($ENV{'USER'} || "hydra") .  "@" . hostname_long);
-
-    my $email = Email::Simple->create(
-        header => [
-            To      => $to,
-            From    => "Hydra <$sender>",
-            Subject => $subject
-        ],
-        body => $body
-    );
-
-    print STDERR "Sending email:\n", $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
-
-    sendmail($email);
 }
 
 

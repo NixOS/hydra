@@ -99,6 +99,7 @@ in rec {
             DataDump
             DateTime
             DigestSHA1
+            EmailMIME
             EmailSender
             FileSlurp
             IOCompress

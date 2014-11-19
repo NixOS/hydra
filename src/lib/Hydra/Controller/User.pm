@@ -8,6 +8,7 @@ use Crypt::RandPasswd;
 use Digest::SHA1 qw(sha1_hex);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Email;
 use LWP::UserAgent;
 use JSON;
 use HTML::Entities;
@@ -279,13 +280,15 @@ sub reset_password :Chained('user') :PathPart('reset-password') :Args(0) {
 
     my $password = Crypt::RandPasswd->word(8,10);
     setPassword($user, $password);
-    sendEmail($c,
+    sendEmail(
+        $c->config,
         $user->emailaddress,
         "Hydra password reset",
         "Hi,\n\n".
         "Your password has been reset. Your new password is '$password'.\n\n".
         "You can change your password at " . $c->uri_for($self->action_for('edit'), [$user->username]) . ".\n\n".
-        "With regards,\n\nHydra.\n"
+        "With regards,\n\nHydra.\n",
+        []
     );
 
     $c->flash->{successMsg} = "A new password has been sent to ${\$user->emailaddress}.";

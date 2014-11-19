@@ -7,17 +7,16 @@ use Hydra::Schema;
 use Hydra::Plugin;
 use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
+use Hydra::Helper::Email;
 use Hydra::Model::DB;
 use Digest::SHA qw(sha256_hex);
-use Email::Sender::Simple qw(sendmail);
-use Email::Sender::Transport::SMTP;
-use Email::Simple;
-use Email::Simple::Creator;
-use Sys::Hostname::Long;
 use Config::General;
 use Data::Dump qw(dump);
+use Try::Tiny;
 
 STDOUT->autoflush();
+STDERR->autoflush(1);
+binmode STDERR, ":encoding(utf8)";
 
 my $db = Hydra::Model::DB->new();
 my $config = getHydraConfig();
@@ -49,7 +48,7 @@ sub setJobsetError {
             $jobset->update({ errormsg => $errorMsg, errortime => time, fetcherrormsg => undef });
         });
     };
-    if (defined $errorMsg && $errorMsg ne ($prevError // "")) {
+    if (defined $errorMsg && $errorMsg ne ($prevError // "") || $ENV{'HYDRA_MAIL_TEST'}) {
         sendJobsetErrorNotification($jobset, $errorMsg);
     }
 }
@@ -58,42 +57,34 @@ sub setJobsetError {
 sub sendJobsetErrorNotification() {
     my ($jobset, $errorMsg) = @_;
 
+    chomp $errorMsg;
+
     return if $jobset->project->owner->emailonerror == 0;
     return if $errorMsg eq "";
 
-    my $url = hostname_long;
     my $projectName = $jobset->project->name;
     my $jobsetName = $jobset->name;
-
-    my $sender = $config->{'notification_sender'} ||
-        (($ENV{'USER'} || "hydra") .  "@" . $url);
-
     my $body = "Hi,\n"
         . "\n"
-        . "This is to let you know that Hydra jobset evaluation of $projectName:$jobsetName "
+        . "This is to let you know that evaluation of the Hydra jobset ‘$projectName:$jobsetName’\n"
         . "resulted in the following error:\n"
         . "\n"
         . "$errorMsg"
         . "\n"
         . "Regards,\n\nThe Hydra build daemon.\n";
 
-    my $email = Email::Simple->create(
-        header => [
-            To      => $jobset->project->owner->emailaddress,
-            From    => "Hydra Build Daemon <$sender>",
-            Subject => "Hydra $projectName:$jobsetName evaluation error",
-
-            'X-Hydra-Instance' => $url,
-            'X-Hydra-Project' => $projectName,
-            'X-Hydra-Jobset'  => $jobsetName
-        ],
-        body => ""
-    );
-    $email->body_set($body);
-
-    print STDERR $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
-
-    sendmail($email);
+    try {
+        sendEmail(
+            $config,
+            $jobset->project->owner->emailaddress,
+            "Hydra $projectName:$jobsetName evaluation error",
+            $body,
+            [ 'X-Hydra-Project' => $projectName
+            , 'X-Hydra-Jobset'  => $jobsetName
+            ]);
+    } catch {
+        warn "error sending email: $_\n";
+    };
 }
 
 

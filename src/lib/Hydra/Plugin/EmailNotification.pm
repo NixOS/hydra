@@ -1,23 +1,19 @@
 package Hydra::Plugin::EmailNotification;
 
+use utf8;
 use strict;
 use parent 'Hydra::Plugin';
 use POSIX qw(strftime);
-use Email::Sender::Simple qw(sendmail);
-use Email::Sender::Transport::SMTP;
-use Email::Simple;
-use Email::Simple::Creator;
-use Sys::Hostname::Long;
-use File::Slurp;
 use Template;
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Email;
 
 
 my $template = <<EOF;
 Hi,
 
-The status of Hydra job [% showJobName(build) %] [% IF showSystem %](on [% build.system %]) [% END %][% IF prevBuild && build.buildstatus != prevBuild.buildstatus %]has changed from "[% showStatus(prevBuild) %]" to "[% showStatus(build) %]"[% ELSE %]is "[% showStatus(build) %]"[% END %].  For details, see
+The status of Hydra job ‘[% showJobName(build) %]’ [% IF showSystem %](on [% build.system %]) [% END %][% IF prevBuild && build.buildstatus != prevBuild.buildstatus %]has changed from "[% showStatus(prevBuild) %]" to "[% showStatus(build) %]"[% ELSE %]is "[% showStatus(build) %]"[% END %].  For details, see
 
   [% baseurl %]/build/[% build.id %]
 
@@ -100,7 +96,7 @@ sub buildFinished {
         my $vars =
             { build => $build, prevBuild => getPreviousBuild($build)
             , dependents => [grep { $_->id != $build->id } @builds]
-            , baseurl => $self->{config}->{'base_uri'} || "http://localhost:3000"
+            , baseurl => getBaseUrl($self->{config})
             , showJobName => \&showJobName, showStatus => \&showStatus
             , showSystem => index($build->job->name, $build->system) == -1
             , nrCommits => $nrCommits
@@ -114,37 +110,18 @@ sub buildFinished {
         # stripping trailing spaces from lines
         $body =~ s/[\ ]+$//gm;
 
-        my $sender = $self->{config}->{'notification_sender'} ||
-            (($ENV{'USER'} || "hydra") .  "@" . hostname_long);
+        my $subject =
+            showStatus($build) . ": Hydra job " . showJobName($build)
+            . ($vars->{showSystem} ? " on " . $build->system : "")
+            . (scalar @{$vars->{dependents}} > 0 ? " (and " . scalar @{$vars->{dependents}} . " others)" : "");
 
-        #my $loglines = 50;
-        #my $logtext = logContents($build->drvpath, $loglines);
-        #$logtext = removeAsciiEscapes($logtext);
-
-        my $email = Email::Simple->create(
-            header => [
-                To      => $to,
-                From    => "Hydra Build Daemon <$sender>",
-                Subject =>
-                    showStatus($build) . ": Hydra job " . showJobName($build)
-                    . ($vars->{showSystem} ? " on " . $build->system : "")
-                    . (scalar @{$vars->{dependents}} > 0 ? " (and " . scalar @{$vars->{dependents}} . " others)" : ""),
-                'X-Hydra-Instance' => $vars->{baseurl},
-                'X-Hydra-Project'  => $build->project->name,
-                'X-Hydra-Jobset'   => $build->jobset->name,
-                'X-Hydra-Job'      => $build->job->name,
-                'X-Hydra-System'   => $build->system
-            ],
-            body => "",
-        );
-        $email->body_set($body);
-
-        if (defined $ENV{'HYDRA_MAIL_SINK'}) {
-            # For testing, redirect all mail to a file.
-            write_file($ENV{'HYDRA_MAIL_SINK'}, { append => 1 }, $email->as_string . "\n");
-        } else {
-            sendmail($email);
-        }
+        sendEmail(
+            $self->{config}, $to, $subject, $body,
+            [ 'X-Hydra-Project'  => $build->project->name,
+            , 'X-Hydra-Jobset'   => $build->jobset->name,
+            , 'X-Hydra-Job'      => $build->job->name,
+            , 'X-Hydra-System'   => $build->system
+            ]);
     }
 }
 
