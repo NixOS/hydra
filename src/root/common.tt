@@ -127,11 +127,6 @@ END;
 BLOCK renderLink %]<a href="[% uri %]">[% title %]</a>[% END;
 
 
-BLOCK renderViewJobName;
-  IF job.description; HTML.escape(job.description); ELSE %]<tt>[% job.job %]</tt> ([% job.attrs %])[% END;
-END;
-
-
 BLOCK maybeLink;
   IF uri %]<a [% HTML.attributes(href => uri, class => class); IF confirmmsg +%] onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END;
 END;

@@ -15,9 +15,6 @@ our @EXPORT = qw(
     getHydraHome getHydraConfig txn_do
     getSCMCacheDir
     registerRoot getGCRootsDir gcRootFor
-    getPrimaryBuildsForView
-    getPrimaryBuildTotal
-    getViewResult getLatestSuccessfulViewResult
     jobsetOverview jobsetOverview_
     removeAsciiEscapes getDrvLogPath findLog logContents
     getMainOutput
@@ -106,71 +103,6 @@ sub attrsToSQL {
     return $query;
 }
 
-sub allPrimaryBuilds {
-    my ($project, $primaryJob) = @_;
-    my $allPrimaryBuilds = $project->builds->search(
-        { jobset => $primaryJob->get_column('jobset'), job => $primaryJob->get_column('job'), finished => 1 },
-        { order_by => "id DESC"
-        , where => \ attrsToSQL($primaryJob->attrs, "me.id")
-        });
-    return $allPrimaryBuilds;
-}
-
-
-sub getPrimaryBuildTotal {
-    my ($project, $primaryJob) = @_;
-    return scalar(allPrimaryBuilds($project, $primaryJob));
-}
-
-
-sub getPrimaryBuildsForView {
-    my ($project, $primaryJob, $page, $resultsPerPage) = @_;
-
-    my @primaryBuilds = allPrimaryBuilds($project, $primaryJob)->search(
-        {}, defined $resultsPerPage ? { rows => $resultsPerPage, page => $page } : {});
-
-    return @primaryBuilds;
-}
-
-
-sub findLastJobForBuilds {
-    my ($ev, $depBuilds, $job) = @_;
-    my $thisBuild;
-
-    my $project = $job->get_column('project');
-    my $jobset = $job->get_column('jobset');
-
-    # If the job is in the same jobset as the primary build, then
-    # search for a build of the job among the members of the jobset
-    # evaluation ($ev) that produced the primary build.
-    if (defined $ev && $project eq $ev->get_column('project')
-        && $jobset eq $ev->get_column('jobset'))
-    {
-        $thisBuild = $ev->builds->find(
-            { job => $job->get_column('job'), finished => 1 },
-            { rows => 1
-            , order_by => ["build.id"]
-            , where => \ attrsToSQL($job->attrs, "build.id")
-            });
-    }
-
-    # As backwards compatibility, find a build of this job that had
-    # the primary build as input.  If there are multiple, prefer
-    # successful ones, and then oldest.  !!! order_by buildstatus is
-    # hacky
-    $thisBuild = $depBuilds->find(
-        { project => $project, jobset => $jobset
-        , job => $job->get_column('job'), finished => 1
-        },
-        { rows => 1
-        , order_by => ["buildstatus", "id"]
-        , where => \ attrsToSQL($job->attrs, "build.id")
-        })
-        unless defined $thisBuild;
-
-    return $thisBuild;
-}
-
 
 sub jobsetOverview_ {
     my ($c, $jobsets) = @_;
@@ -191,70 +123,6 @@ sub jobsetOverview {
     my ($c, $project) = @_;
     my $jobsets = $project->jobsets->search(isProjectOwner($c, $project) ? {} : { hidden => 0 });
     return jobsetOverview_($c, $jobsets);
-}
-
-
-sub getViewResult {
-    my ($primaryBuild, $jobs, $finished) = @_;
-
-    my @jobs = ();
-
-    my $status = 0; # = okay
-
-    # Get the jobset evaluation of which the primary build is a
-    # member.  If there are multiple, pick the oldest one (i.e. the
-    # lowest id).  (Note that for old builds in the database there
-    # might not be a evaluation record, so $ev may be undefined.)
-    my $ev = $primaryBuild->jobsetevalmembers->find({}, { rows => 1, order_by => "eval" });
-    $ev = $ev->eval if defined $ev;
-
-    if ($finished) {
-        return undef unless defined $ev;
-        return undef if $ev->builds->search({ finished => 0 })->count > 0;
-    }
-
-    # The timestamp of the view result is the highest timestamp of all
-    # constitutent builds.
-    my $timestamp = 0;
-
-    foreach my $job (@{$jobs}) {
-        my $thisBuild = $job->isprimary
-            ? $primaryBuild
-            : findLastJobForBuilds($ev, scalar $primaryBuild->dependentBuilds, $job);
-
-        if (!defined $thisBuild) {
-            $status = 2 if $status == 0; # = unfinished
-        } elsif ($thisBuild->get_column('buildstatus') != 0) {
-            $status = 1; # = failed
-        }
-
-        $timestamp = $thisBuild->timestamp
-            if defined $thisBuild && $thisBuild->timestamp > $timestamp;
-
-        push @jobs, { build => $thisBuild, job => $job };
-    }
-
-    return
-        { id => $primaryBuild->id
-        , releasename => $primaryBuild->get_column('releasename')
-        , jobs => [@jobs]
-        , status => $status
-        , timestamp => $timestamp
-        , eval => $ev
-        };
-}
-
-
-sub getLatestSuccessfulViewResult {
-    my ($project, $primaryJob, $jobs, $finished) = @_;
-    my $latest;
-    foreach my $build (getPrimaryBuildsForView($project, $primaryJob)) {
-        my $result = getViewResult($build, $jobs, $finished);
-        next unless defined $result;
-        next if $result->{status} != 0;
-        return $build;
-    }
-    return undef;
 }
 
 
@@ -414,6 +282,7 @@ sub getEvals {
 
     return [@res];
 }
+
 
 sub getMachines {
     my $machinesConf = $ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix/machines";
