@@ -25,7 +25,7 @@ The following dependent jobs also failed:
 [% END -%]
 
 [% END -%]
-[% IF nrCommits > 0 -%]
+[% IF nrCommits > 0 && authorList -%]
 This is likely due to [% IF nrCommits > 1 -%][% nrCommits %] commits by [% END -%][% authorList %].
 
 [% END -%]
@@ -85,8 +85,6 @@ sub buildFinished {
     }
 
     # Send an email to each interested address.
-    # !!! should use the Template Toolkit here.
-
     for my $to (keys %addresses) {
         print STDERR "sending mail notification to ", $to, "\n";
         my @builds = @{$addresses{$to}->{builds}};
