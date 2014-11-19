@@ -26,7 +26,7 @@ The following dependent jobs also failed:
 
 [% END -%]
 [% IF nrCommits > 0 && authorList -%]
-This is likely due to [% IF nrCommits > 1 -%][% nrCommits %] commits by [% END -%][% authorList %].
+This may be due to [% IF nrCommits > 1 -%][% nrCommits %] commits[%- ELSE -%]a commit[%- END -%] by [% authorList %].
 
 [% END -%]
 [% IF build.buildstatus == 0 -%]
