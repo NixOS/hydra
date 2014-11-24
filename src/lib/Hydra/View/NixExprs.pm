@@ -59,7 +59,7 @@ EOF
         $res .= "else " if !$first;
         $res .= "if system == ${\escape $system} then {\n\n";
 
-        foreach my $job (keys $perSystem{$system}) {
+        foreach my $job (keys %{$perSystem{$system}}) {
             my $pkg = $perSystem{$system}->{$job};
             my $build = $pkg->{build};
             $res .= "  # Hydra build ${\$build->id}\n";
@@ -78,7 +78,7 @@ EOF
                 if $build->maintainers;
             $res .= "    };\n";
             $res .= "  } {\n";
-            my @outputNames = sort (keys $pkg->{outputs});
+            my @outputNames = sort (keys %{$pkg->{outputs}});
             $res .= "    ${\escape $_} = ${\escape $pkg->{outputs}->{$_}};\n" foreach @outputNames;
             my $out = defined $pkg->{outputs}->{"out"} ? "out" : $outputNames[0];
             $res .= "  }).$out;\n\n";

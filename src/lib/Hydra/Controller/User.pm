@@ -306,7 +306,7 @@ sub dashboard :Chained('user') :Args(0) {
         my @builds = $j->job->builds->search(
             { },
             { rows => 20, order_by => "id desc" });
-        push $c->stash->{starredJobs}, { job => $j->job, builds => [@builds] };
+        push @{$c->stash->{starredJobs}}, { job => $j->job, builds => [@builds] };
     }
 }
 
