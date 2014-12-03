@@ -179,24 +179,24 @@ BLOCK renderBuildStatusIcon;
   buildstatus = buildstatus != undef ? buildstatus : build.buildstatus;
   IF finished;
     IF buildstatus == 0 %]
-      <img src="[% c.uri_for("/static/images/checkmark_${size}.png") %]" alt="Succeeded" />
+      <img src="[% c.uri_for("/static/images/checkmark_${size}.png") %]" alt="Succeeded" class="build-status" />
     [% ELSIF buildstatus == 1 %]
-      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
     [% ELSIF buildstatus == 2 || buildstatus == 5 %]
-      <img src="[% c.uri_for("/static/images/dependency_${size}.png") %]" alt="Dependency failed" />
+      <img src="[% c.uri_for("/static/images/dependency_${size}.png") %]" alt="Dependency failed" class="build-status" />
     [% ELSIF buildstatus == 3 %]
-      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Aborted" />
+      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Aborted" class="build-status" />
     [% ELSIF buildstatus == 4 %]
-      <img src="[% c.uri_for("/static/images/forbidden_${size}.png") %]" alt="Cancelled" />
+      <img src="[% c.uri_for("/static/images/forbidden_${size}.png") %]" alt="Cancelled" class="build-status" />
     [% ELSIF buildstatus == 6 %]
-      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed (with result)" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed (with result)" class="build-status" />
     [% ELSE %]
-      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
     [% END;
   ELSIF busy %]
-    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Busy" />
+    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Busy" class="build-status" />
   [% ELSE %]
-    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Scheduled" />
+    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Scheduled" class="build-status" />
   [% END;
 END;
 

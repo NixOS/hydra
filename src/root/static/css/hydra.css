@@ -115,3 +115,7 @@ td.nowrap {
 span.keep-whitespace {
     white-space: pre-wrap;
 }
+
+.build-status {
+    max-width: none; /* don't apply responsive design to status images */
+}
