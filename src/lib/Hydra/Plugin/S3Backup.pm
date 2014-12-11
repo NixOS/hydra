@@ -96,7 +96,7 @@ sub buildFinished {
             }
             next unless @incomplete_buckets;
             my $compressor = $compressors{$compression_type};
-            system("$Nix::Config::binDir/nix-store --export $path $compressor > $tempdir/nar") == 0 or die;
+            system("$Nix::Config::binDir/nix-store --dump $path $compressor > $tempdir/nar") == 0 or die;
             my $digest = Digest::SHA->new(256);
             $digest->addfile("$tempdir/nar");
             my $file_hash = $digest->hexdigest;
