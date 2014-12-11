@@ -68,7 +68,7 @@ sub buildFinished {
     }
 
     my $build_id = $build->id;
-    my $tempdir = File::Temp->newdir("s3-backup-nars-$build_id" . "XXXXX");
+    my $tempdir = File::Temp->newdir("s3-backup-nars-$build_id" . "XXXXX", TMPDIR => 1);
 
     my %seen = ();
     # Upload nars and build narinfos
