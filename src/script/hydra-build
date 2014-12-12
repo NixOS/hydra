@@ -166,11 +166,28 @@ sub doBuild {
                 });
             }
 
+            elsif (/^@\s+build-remote-start\s+(\S+)\s+/) {
+                my $drvPathStep = $1;
+                txn_do($db, sub {
+                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
+                    $step->update({starttime => time});
+                });
+            }
+
+            elsif (/^@\s+build-remote-done\s+(\S+)\s+/) {
+                my $drvPathStep = $1;
+                txn_do($db, sub {
+                    my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
+                    $step->update({stoptime => time});
+                });
+            }
+
             elsif (/^@\s+build-succeeded\s+(\S+)\s+(\S+)$/) {
                 my $drvPathStep = $1;
                 txn_do($db, sub {
                     my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
                     $step->update({busy => 0, status => 0, stoptime => time});
+                    $step->update({stoptime => time}) unless defined $step->update;
                 });
             }
 
