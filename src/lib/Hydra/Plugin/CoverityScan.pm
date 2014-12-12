@@ -1,7 +1,6 @@
 package Hydra::Plugin::CoverityScan;
 
 use strict;
-use feature 'switch';
 use parent 'Hydra::Plugin';
 use File::Basename;
 use LWP::UserAgent;
@@ -63,14 +62,12 @@ sub buildFinished {
     my @exts = qw(.xz .bz2 .lzma .zip .tgz);
     my ($dir, $file, $ext) = fileparse($covTarball, @exts);
     my $mimetype;
-    given ($ext) {
-        when ('.xz')   { $mimetype = "application/x-xz"; }
-        when ('.lzma') { $mimetype = "application/x-xz"; }
-        when ('.zip')  { $mimetype = "application/zip"; }
-        when ('.bz2')  { $mimetype = "application/x-bzip2"; }
-        when ('.tgz')  { $mimetype = "application/x-gzip"; }
-        default { die "couldn't parse extension of $covTarball"; }
-    }
+    if ($ext eq '.xz') { $mimetype = "application/x-xz"; }
+    elsif ($ext eq '.lzma') { $mimetype = "application/x-xz"; }
+    elsif ($ext eq '.zip') { $mimetype = "application/zip"; }
+    elsif ($ext eq '.bz2') { $mimetype = "application/x-bzip2"; }
+    elsif ($ext eq '.tgz') { $mimetype = "application/x-gzip"; }
+    else { die "couldn't parse extension of $covTarball"; }
 
     die "couldn't detect mimetype of $covTarball" unless defined $mimetype;
 

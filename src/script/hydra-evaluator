@@ -1,7 +1,6 @@
 #! /var/run/current-system/sw/bin/perl -w
 
 use strict;
-use feature 'switch';
 use utf8;
 use Hydra::Schema;
 use Hydra::Plugin;

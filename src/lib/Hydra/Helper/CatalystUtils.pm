@@ -6,7 +6,6 @@ use Exporter;
 use Readonly;
 use Nix::Store;
 use Hydra::Helper::Nix;
-use feature qw/switch/;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -238,15 +237,13 @@ sub showStatus {
     my ($build) = @_;
 
     my $status = "Failed";
-    given ($build->buildstatus) {
-        when (0) { $status = "Success"; }
-        when (1) { $status = "Failed"; }
-        when (2) { $status = "Dependency failed"; }
-        when (4) { $status = "Cancelled"; }
-        when (6) { $status = "Failed with output"; }
-    }
+    if ($build->buildstatus == 0) { $status = "Success"; }
+    elsif ($build->buildstatus == 1) { $status = "Failed"; }
+    elsif ($build->buildstatus == 2) { $status = "Dependency failed"; }
+    elsif ($build->buildstatus == 4) { $status = "Cancelled"; }
+    elsif ($build->buildstatus == 6) { $status = "Failed with output"; }
 
-   return $status;
+    return $status;
 }
 
 
