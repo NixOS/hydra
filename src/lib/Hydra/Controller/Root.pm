@@ -162,12 +162,7 @@ sub robots_txt : Path('robots.txt') {
     # robots.txt.  Note: wildcards are not universally supported in
     # robots.txt, but apparently Google supports them.
     my @rules =
-        ( uri_for($c, 'Build', 'build_deps', ["*"])
-        , uri_for($c, 'Build', 'runtime_deps', ["*"])
-        , uri_for($c, 'Build', 'view_nixlog', ["*"], "*")
-        , uri_for($c, 'Build', 'view_log', ["*"], "*")
-        , uri_for($c, 'Build', 'view_log', ["*"])
-        , uri_for($c, 'Build', 'download', ["*"], "*")
+        ( uri_for($c, 'Build', 'build', ["*"])
         , uri_for($c, 'Root', 'nar', [], "*")
         , uri_for($c, 'Root', 'status', [])
         , uri_for($c, 'Root', 'all', [])
@@ -178,7 +173,6 @@ sub robots_txt : Path('robots.txt') {
         , channelUris($c, 'Project', ["*", "*"])
         , channelUris($c, 'Jobset', ["*", "*", "*"])
         , channelUris($c, 'Job', ["*", "*", "*", "*"])
-        , channelUris($c, 'Build', ["*"])
         );
 
     $c->stash->{'plain'} = { data => "User-agent: *\n" . join('', map { "Disallow: $_\n" } @rules) };
