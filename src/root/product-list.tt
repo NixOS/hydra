@@ -131,7 +131,7 @@
           [% CASE "srpm" %]
             <img src="[% c.uri_for("/static/images/rpm.png") %]" alt="Source RPM" /> Source RPM package <tt>[% product.name %]</tt>
           [% CASE "deb" %]
-            <img src="[% c.uri_for("/static/images/debian.png") %]" alt="RPM" /> Debian package <tt>[% product.name %]</tt>
+            <img src="[% c.uri_for("/static/images/debian.png") %]" alt="Debian" /> Debian package <tt>[% product.name %]</tt>
           [% CASE "iso" %]
             <img src="[% c.uri_for("/static/images/iso.png") %]" alt="ISO" /> ISO-9660 CD/DVD image <tt>[% product.name %]</tt>
           [% CASE "binary-dist" %]
