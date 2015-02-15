@@ -14,7 +14,7 @@ sub process {
     my $fh = new IO::Handle;
     my $numThreads = ($c->config->{'compress_num_threads'} // 1);
 
-    open $fh, "nix-store --dump '$storePath' | pbzip2 -q -p$numThreads |";
+    open $fh, "nix-store --dump '$storePath' | pbzip2 |";
 
     setCacheHeaders($c, 365 * 24 * 60 * 60);
 
