@@ -13,7 +13,7 @@ sub process {
 
     my $fh = new IO::Handle;
 
-    open $fh, "nix-store --dump '$storePath' | bzip2 |";
+    open $fh, "nix-store --dump '$storePath' | pbzip2 |";
 
     setCacheHeaders($c, 365 * 24 * 60 * 60);
 

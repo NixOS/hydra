@@ -162,6 +162,7 @@ in
     users.extraUsers.hydra =
       { description = "Hydra";
         home = baseDir;
+        uid = 121;
         createHome = true;
         useDefaultShell = true;
       };
