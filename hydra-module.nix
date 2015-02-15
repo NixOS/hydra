@@ -201,6 +201,14 @@ in
 
     environment.variables = hydraEnv;
 
+    users.extraUsers.hydra =
+      { description = "Hydra";
+        home = baseDir;
+        uid = 121;
+        createHome = true;
+        useDefaultShell = true;
+      };
+
     nix.extraOptions = ''
       gc-keep-outputs = true
       gc-keep-derivations = true
