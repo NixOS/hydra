@@ -1,11 +1,13 @@
 package Hydra::View::NARInfo;
 
-use strict;
-use base qw/Catalyst::View/;
 use File::Basename;
-use Nix::Store;
-use Nix::Crypto;
 use Hydra::Helper::CatalystUtils;
+use MIME::Base64;
+use Nix::Manifest;
+use Nix::Store;
+use Nix::Utils;
+use base qw/Catalyst::View/;
+use strict;
 
 sub process {
     my ($self, $c) = @_;
@@ -32,12 +34,15 @@ sub process {
     }
 
     # Optionally, sign the NAR info file we just created.
-    my $privateKeyFile = $c->config->{binary_cache_private_key_file};
-    my $keyName = $c->config->{binary_cache_key_name};
-
-    if (defined $privateKeyFile && defined $keyName) {
-        my $sig = signString($privateKeyFile, $info);
-        $info .= "Signature: 1;$keyName;$sig\n";
+    my $secretKeyFile = $c->config->{binary_cache_secret_key_file};
+    if (defined $secretKeyFile) {
+        my $s = readFile $secretKeyFile;
+        chomp $s;
+        my ($keyName, $secretKey) = split ":", $s;
+        die "invalid secret key file\n" unless defined $keyName && defined $secretKey;
+        my $fingerprint = fingerprintPath($storePath, $narHash, $narSize, $refs);
+        my $sig = encode_base64(signString(decode_base64($secretKey), $fingerprint), "");
+        $info .= "Sig: $keyName:$sig\n";
     }
 
     setCacheHeaders($c, 24 * 60 * 60);
