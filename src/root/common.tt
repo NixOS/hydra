@@ -146,7 +146,7 @@ BLOCK renderSelection;
         [% END %]
       </div>
     [% ELSE %]
-      <select [% HTML.attributes(id => param, name => param) %]>
+      <select style='width: 15em;' [% HTML.attributes(id => param, name => param) %]>
         [% FOREACH name IN options.keys.sort %]
           <option [% IF name == curValue; "selected='selected'"; END; " "; HTML.attributes(value => name) %]>[% options.$name %]</option>
         [% END %]

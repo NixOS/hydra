@@ -15,7 +15,7 @@
     </td>
     <td id="[% baseName %]">
       [% alt = input.search_related('jobsetinputalts', {altnr => 0}) %]
-      <input type="text" [% HTML.attributes(value => alt.value, id => "$baseName-value", name => "$baseName-value") %]/>
+      <input style="width: 95%" type="text" [% HTML.attributes(value => alt.value, id => "$baseName-value", name => "$baseName-value") %]/>
       [% IF input.jobsetinputalts_rs.count > 1 %]
         <div class="alert alert-warning">Warning: This input had more
         than one value. This is no longer supported. The additional
@@ -31,7 +31,7 @@
 [% BLOCK renderJobsetInputs %]
   <table class="table table-striped table-condensed">
     <thead>
-      <tr><th></th><th>Input name</th><th>Type</th><th>Value</th><th>Notify committers</th></tr>
+      <tr><th></th><th>Input name</th><th>Type</th><th style="width: 50%">Value</th><th>Notify committers</th></tr>
     </thead>
     <tbody class="inputs">
       [% FOREACH input IN jobset.jobsetinputs %]
