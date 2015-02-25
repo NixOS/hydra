@@ -92,6 +92,12 @@ __PACKAGE__->table("BuildSteps");
   data_type: 'text'
   is_nullable: 1
 
+=head2 propagatedfrom
+
+  data_type: 'integer'
+  is_foreign_key: 1
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -117,6 +123,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", default_value => "", is_nullable => 0 },
   "system",
   { data_type => "text", is_nullable => 1 },
+  "propagatedfrom",
+  { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -165,9 +173,29 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 propagatedfrom
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OZsXJniZ/7EB2iSz7p5y4A
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Builds>
+
+=cut
+
+__PACKAGE__->belongs_to(
+  "propagatedfrom",
+  "Hydra::Schema::Builds",
+  { id => "propagatedfrom" },
+  {
+    is_deferrable => 0,
+    join_type     => "LEFT",
+    on_delete     => "CASCADE",
+    on_update     => "NO ACTION",
+  },
+);
+
+
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2015-02-25 16:27:20
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZbOxzCzFN7fIT9M2BFY0iQ
 
 my %hint = (
     columns => [

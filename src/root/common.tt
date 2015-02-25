@@ -168,9 +168,12 @@ BLOCK renderFullBuildLink;
 END;
 
 
-BLOCK renderBuildLink; %]
-<a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>
+BLOCK renderBuildIdLink; %]
+<a href="[% c.uri_for('/build' id) %]">build [% id %]</a>
 [% END;
+
+
+BLOCK renderBuildLink; INCLUDE renderBuildIdLink id=build.id; END;
 
 
 BLOCK renderBuildStatusIcon;

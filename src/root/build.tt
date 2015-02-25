@@ -56,6 +56,7 @@
                 <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
               [% END %]
               [%%] [%+ IF has_log; INCLUDE renderLogLinks url=log inRow=1; END %]
+              [%+ IF step.propagatedfrom; %](propagated from [% INCLUDE renderBuildIdLink id=step.propagatedfrom.get_column('id') %])[% END %]
             </td>
           </tr>
         [% END %]

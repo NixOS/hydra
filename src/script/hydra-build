@@ -39,7 +39,7 @@ sub nextFreeStepNr {
 
 
 sub failDependents {
-    my ($drvPath, $status, $errorMsg, $dependents, $startTime, $stopTime, $machine) = @_;
+    my ($drvPath, $status, $errorMsg, $dependents, $startTime, $stopTime, $machine, $propagatedFrom) = @_;
 
     # Get the referrer closure of $drvPath.
     my $dependentDrvs = Set::Scalar->new(computeFSClosure(1, 0, $drvPath));
@@ -75,6 +75,7 @@ sub failDependents {
                 , stoptime => $stopTime
                 , errormsg => $errorMsg
                 , machine => $machine
+                , propagatedfrom => $propagatedFrom->id
                 });
             addBuildStepOutputs($step);
 
@@ -236,7 +237,7 @@ sub doBuild {
                 });
 
                 # Immediately fail all builds that depend on this derivation.
-                failDependents($drvPathStep, $status, $errorMsg, $dependents, $stepStartTime, $stepStopTime, $machine);
+                failDependents($drvPathStep, $status, $errorMsg, $dependents, $stepStartTime, $stepStopTime, $machine, $build);
             }
 
             elsif (/^@\s+substituter-started\s+(\S+)\s+(\S+)$/) {

@@ -233,8 +233,11 @@ create table BuildSteps (
     machine       text not null default '',
     system        text,
 
+    propagatedFrom integer,
+
     primary key   (build, stepnr),
-    foreign key   (build) references Builds(id) on delete cascade
+    foreign key   (build) references Builds(id) on delete cascade,
+    foreign key   (propagatedFrom) references Builds(id) on delete cascade
 );
 
 
