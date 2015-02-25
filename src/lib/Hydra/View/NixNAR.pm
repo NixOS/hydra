@@ -12,6 +12,7 @@ sub process {
     $c->response->content_type('application/x-nix-archive'); # !!! check MIME type
 
     my $fh = new IO::Handle;
+
     my $numThreads = ($c->config->{'compress_num_threads'} // 1);
 
     open $fh, "nix-store --dump '$storePath' | pbzip2 -q -p$numThreads |";
