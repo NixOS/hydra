@@ -39,7 +39,7 @@ sub nextFreeStepNr {
 
 
 sub failDependents {
-    my ($drvPath, $status, $errorMsg, $dependents) = @_;
+    my ($drvPath, $status, $errorMsg, $dependents, $startTime, $stopTime, $machine) = @_;
 
     # Get the referrer closure of $drvPath.
     my $dependentDrvs = Set::Scalar->new(computeFSClosure(1, 0, $drvPath));
@@ -71,9 +71,10 @@ sub failDependents {
                 , drvpath => $drvPath
                 , busy => 0
                 , status => $status
-                , starttime => $time
-                , stoptime => $time
+                , starttime => $startTime
+                , stoptime => $stopTime
                 , errormsg => $errorMsg
+                , machine => $machine
                 });
             addBuildStepOutputs($step);
 
@@ -204,10 +205,17 @@ sub doBuild {
                 } else {
                     $errorMsg = $4;
                 }
+                my $now = time;
+                my $stepStartTime = $now;
+                my $stepStopTime = $now;
+                my $machine = undef;
                 txn_do($db, sub {
                     if ($buildSteps{$drvPathStep}) {
                         my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
-                        $step->update({busy => 0, status => $status, errormsg => $errorMsg, stoptime => time});
+                        $stepStartTime = $step->starttime;
+                        $stepStopTime = $now;
+                        $machine = $step->machine;
+                        $step->update({busy => 0, status => $status, errormsg => $errorMsg, stoptime => $now});
                     }
                     # Don't write a record if this derivation already
                     # failed previously.  This can happen if this is a
@@ -219,8 +227,8 @@ sub doBuild {
                             , drvpath => $drvPathStep
                             , busy => 0
                             , status => $status
-                            , starttime => time
-                            , stoptime => time
+                            , starttime => $now
+                            , stoptime => $now
                             , errormsg => $errorMsg
                             });
                         addBuildStepOutputs($step);
@@ -228,7 +236,7 @@ sub doBuild {
                 });
 
                 # Immediately fail all builds that depend on this derivation.
-                failDependents($drvPathStep, $status, $errorMsg, $dependents);
+                failDependents($drvPathStep, $status, $errorMsg, $dependents, $stepStartTime, $stepStopTime, $machine);
             }
 
             elsif (/^@\s+substituter-started\s+(\S+)\s+(\S+)$/) {
