@@ -260,7 +260,7 @@ sub getEvals {
 
         # Compute what inputs changed between each eval.
         my @changedInputs;
-        foreach my $input (values %{$curInfo->{inputs}}) {
+        foreach my $input (sort { $a->name cmp $b->name } values(%{$curInfo->{inputs}})) {
             my $p = $prevInfo->{inputs}->{$input->name};
             push @changedInputs, $input if
                 !defined $p
