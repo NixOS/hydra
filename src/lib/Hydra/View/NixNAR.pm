@@ -12,8 +12,9 @@ sub process {
     $c->response->content_type('application/x-nix-archive'); # !!! check MIME type
 
     my $fh = new IO::Handle;
+    my $numThreads = $c->config->{'compress_num_threads'};
 
-    open $fh, "nix-store --dump '$storePath' | pbzip2 |";
+    open $fh, "nix-store --dump '$storePath' | pbzip2 -q -p$numThreads |";
 
     setCacheHeaders($c, 365 * 24 * 60 * 60);
 

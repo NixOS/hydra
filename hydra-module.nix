@@ -150,6 +150,7 @@ in
         base_uri ${cfg.hydraURL}
         notification_sender ${cfg.notificationSender}
         max_servers 25
+        compress_num_threads 1
         ${optionalString (cfg.logo != null) ''
           hydra_logo ${cfg.logo}
         ''}
