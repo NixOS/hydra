@@ -395,7 +395,6 @@ BLOCK renderEvals %]
         [% IF !jobset && !build %]
           <th>Jobset</th>
         [% END %]
-        <th>#</th>
         <th style="width: 10em">Date</th>
         <th>Input changes</th>
         <th colspan='2' style="width: 25em">Success</th>
@@ -409,8 +408,7 @@ BLOCK renderEvals %]
           [% IF !jobset && !build %]
             <td>[% INCLUDE renderFullJobsetName project=eval.get_column('project') jobset=eval.get_column('jobset') %]</td>
           [% END %]
-          <td><a class="row-link" href="[% link %]">[% eval.id %]</a></td>
-          <td class="nowrap">[% INCLUDE renderDateTime timestamp = eval.timestamp %]</td>
+          <td class="nowrap"><a class="row-link" href="[% link %]">[% INCLUDE renderRelativeDate timestamp = eval.timestamp %]</a></td>
           <td>
             [% IF e.changedInputs.size > 0;
               sep='';
