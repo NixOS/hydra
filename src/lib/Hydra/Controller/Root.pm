@@ -88,7 +88,7 @@ sub queue_GET {
     $c->stash->{flashMsg} //= $c->flash->{buildMsg};
     $self->status_ok(
         $c,
-        entity => [$c->model('DB::Builds')->search({finished => 0}, { order_by => ["priority DESC", "id"]})]
+        entity => [$c->model('DB::Builds')->search({finished => 0}, { order_by => ["id"]})]
     );
 }
 

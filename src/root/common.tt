@@ -78,9 +78,6 @@ BLOCK renderBuildListHeader %]
           <th></th>
         [% END %]
         <th>#</th>
-        [% IF showSchedulingInfo %]
-          <th>P</th>
-        [% END %]
         [% IF !hideJobName %]
         <th>Job</th>
         [% END %]
@@ -108,9 +105,6 @@ BLOCK renderBuildListBody;
         <td>[% IF build.busy %]<span class="label label-success">Started</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
       [% END %]
       <td><a class="row-link" href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
-      [% IF showSchedulingInfo %]
-        <td>[% build.priority %]</td>
-      [% END %]
       [% IF !hideJobName %]
         <td>[% INCLUDE renderFullJobNameOfBuild %]</td>
       [% END %]
