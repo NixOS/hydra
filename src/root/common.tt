@@ -77,13 +77,12 @@ BLOCK renderBuildListHeader %]
         [% IF showSchedulingInfo %]
           <th></th>
         [% END %]
-        <th>#</th>
         [% IF !hideJobName %]
         <th>Job</th>
         [% END %]
-        <th>Release name</th>
-        <th>System</th>
         <th>[% IF showSchedulingInfo %]Queued at[% ELSE %]Finished at[% END %]</th>
+        <th>Package/release name</th>
+        <th>System</th>
         [% IF showDescription %]
           <th>Description</th>
         [% END %]
@@ -94,7 +93,7 @@ BLOCK renderBuildListHeader %]
 
 
 BLOCK renderBuildListBody;
-  FOREACH build IN builds; %]
+  FOREACH build IN builds; link = c.uri_for('/build' build.id) %]
     <tr>
       [% IF !hideResultInfo %]
         <td>
@@ -104,13 +103,12 @@ BLOCK renderBuildListBody;
       [% IF showSchedulingInfo %]
         <td>[% IF build.busy %]<span class="label label-success">Started</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
       [% END %]
-      <td><a class="row-link" href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a></td>
       [% IF !hideJobName %]
-        <td>[% INCLUDE renderFullJobNameOfBuild %]</td>
+        <td><a href="[%link%]">[%build.get_column("project")%]:[%build.get_column("jobset")%]:[%build.get_column("job")%]</td>
       [% END %]
+      <td class="nowrap"><a class="row-link" href="[%link%]">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; INCLUDE renderRelativeDate timestamp=(showSchedulingInfo ? build.timestamp : build.stoptime); ELSE; "-"; END %]</a></td>
       <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
       <td class="nowrap"><tt>[% build.system %]</tt></td>
-      <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; date.format(showSchedulingInfo ? build.timestamp : build.stoptime, '%Y-%m-%d %H:%M:%S'); ELSE; "-"; END %]</td>
       [% IF showDescription %]
         <td>[% build.description %]</td>
       [% END %]
