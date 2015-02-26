@@ -18,6 +18,10 @@
   </ul>
 </div>
 
+<p>This evaluation was performed on [% INCLUDE renderDateTime
+timestamp=eval.timestamp %]. Fetching the dependencies took [%
+eval.checkouttime %]s and evaluation took [% eval.evaltime %]s.</p>
+
 [% IF otherEval %]
 <p>Comparisons are relative to [% INCLUDE renderFullJobsetName
 project=otherEval.jobset.project.name jobset=otherEval.jobset.name %] evaluation <a href="[%
