@@ -20,7 +20,7 @@
     });
   };
 
-  $('#filter-jobs').submit(function() {    
+  $('#filter-jobs').submit(function() {
     setFilter($('#filter-jobs').serialize());
     return false;
   });
@@ -49,7 +49,7 @@
         [% FOREACH eval IN evalIds %]
           <th class="rotate-45">
             <div><span>
-              <a href="[% c.uri_for('/eval' eval) %]">[% eval %]</a>
+              <a href="[% c.uri_for('/eval' eval) %]">[% INCLUDE renderRelativeDate timestamp=evals.$eval.timestamp %]</a>
             </span></div></th>
         [% END %]
       </tr>
@@ -59,11 +59,11 @@
         <tr>
           <th><span [% IF inactiveJobs.$j %]class="muted override-link"[% END %]>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]</span></th>
           [% FOREACH eval IN evalIds %]
-            <td>[% r = evals.$eval.$j; IF r.id %]<a href="[% c.uri_for('/build' r.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
+            <td>[% r = evals.$eval.jobs.$j; IF r.id %]<a href="[% c.uri_for('/build' r.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
           [% END %]
         </tr>
       [% END %]
     </tbody>
   </table>
-  
+
 [% END %]

@@ -2,6 +2,7 @@
 USE date;
 USE String;
 USE HTML;
+USE Math;
 
 
 USE mibs=format("%.2f");
@@ -9,6 +10,22 @@ USE mibs=format("%.2f");
 
 BLOCK renderDateTime;
 date.format(timestamp, '%Y-%m-%d %H:%M:%S');
+END;
+
+
+BLOCK renderRelativeDate;
+  ago = date.now - timestamp;
+  IF ago >= 0 && ago < 60; THEN;
+    ago _ 's ago';
+  ELSIF ago >= 0 && ago < 60 * 60; THEN;
+    Math.int(ago / 60) _ 'm ago';
+  ELSIF ago >= 0 && ago < 24 * 60 * 60; THEN;
+    Math.int(ago / (60 * 60)) _ 'h ago';
+  ELSIF ago >= 0 && ago < 7 * 24 * 60 * 60; THEN;
+    Math.int(ago / (24 * 60 * 60)) _ 'd ago';
+  ELSE;
+    date.format(timestamp, '%Y-%m-%d');
+  END;
 END;
 
 

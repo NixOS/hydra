@@ -120,7 +120,8 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
             { columns => ['id', 'job', 'finished', 'buildstatus'] });
         foreach my $b (@builds) {
             my $jobName = $b->get_column('job');
-            $evals->{$eval->id}->{$jobName} =
+            $evals->{$eval->id}->{timestamp} = $eval->timestamp;
+            $evals->{$eval->id}->{jobs}->{$jobName} =
                 { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
             $jobs{$jobName} = 1;
             $nrBuilds++;

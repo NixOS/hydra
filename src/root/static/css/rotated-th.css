@@ -9,7 +9,7 @@ td.centered {
     text-align: center;
 }
 
-.table-header-rotated th.rotate-45{
+.table-header-rotated th.rotate-45 {
     height: 80px;
     width: 40px;
     min-width: 40px;
