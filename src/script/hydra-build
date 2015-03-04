@@ -127,6 +127,7 @@ sub doBuild {
             "--timeout $timeout " .
             "--max-silent-time $maxsilent " .
             "--option build-max-log-size 67108864 " .
+            "--option print-missing false " .
             "--keep-going --fallback " .
             "--no-build-output --log-type flat --print-build-trace " .
             "--add-root " . gcRootFor($outputs{out} // $outputs{(sort keys %outputs)[0]}) . " 2>&1";
