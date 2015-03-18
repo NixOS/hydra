@@ -114,6 +114,7 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
             if (drv.system == "unknown")
                 throw EvalError("derivation must have a ‘system’ attribute");
 
+            {
             top.attr(attrPath);
             JSONObject res(top.str);
             res.attr("nixName", drv.name);
@@ -156,6 +157,9 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
             JSONObject res2(res.str);
             for (auto & j : outputs)
                 res2.attr(j.first, j.second);
+
+            }
+            top.str << std::endl;
         }
 
         else {
@@ -193,7 +197,7 @@ static void findJobs(EvalState & state, JSONObject & top,
         top.attr(attrPath);
         JSONObject res(top.str);
         res.attr("error", e.msg());
-        top.str << "\n";
+        top.str << std::endl;
     }
 }
 
