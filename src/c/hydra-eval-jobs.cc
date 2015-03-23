@@ -194,9 +194,11 @@ static void findJobs(EvalState & state, JSONObject & top,
     try {
         findJobsWrapped(state, top, argsLeft, v, attrPath);
     } catch (EvalError & e) {
+        {
         top.attr(attrPath);
         JSONObject res(top.str);
         res.attr("error", e.msg());
+        }
         top.str << std::endl;
     }
 }
