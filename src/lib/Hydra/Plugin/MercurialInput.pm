@@ -110,7 +110,7 @@ sub getCommits {
     chdir $clonePath or die $!;
 
     my $out;
-    IPC::Run::run(["hg", "log", "--template", "{node|short}\t{author|person}\t{author|email}\n", "-r", "$rev1:$rev2", $clonePath], \undef, \$out)
+    IPC::Run::run(["hg", "log", "--template", "{node|short}\t{author|person}\t{author|email}\n", "-r", "$rev1::$rev2", $clonePath], \undef, \$out)
         or die "cannot get mercurial logs: $?";
 
     my $res = [];
