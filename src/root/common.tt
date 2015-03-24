@@ -106,7 +106,7 @@ BLOCK renderBuildListBody;
       [% END %]
       <td><a class="row-link" href="[% link %]">[% build.id %]</a></td>
       [% IF !hideJobName %]
-        <td><a href="[%link%]">[%build.get_column("project")%]:[%build.get_column("jobset")%]:[%build.get_column("job")%]</td>
+        <td><a href="[%link%]">[% IF !hideJobsetName %][%build.get_column("project")%]:[%build.get_column("jobset")%]:[% END %][%build.get_column("job")%]</td>
       [% END %]
       <td class="nowrap"><a class="row-link" href="[%link%]">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; INCLUDE renderRelativeDate timestamp=(showSchedulingInfo ? build.timestamp : build.stoptime); ELSE; "-"; END %]</a></td>
       <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
