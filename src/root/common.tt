@@ -108,7 +108,7 @@ BLOCK renderBuildListBody;
       [% IF !hideJobName %]
         <td><a href="[%link%]">[% IF !hideJobsetName %][%build.get_column("project")%]:[%build.get_column("jobset")%]:[% END %][%build.get_column("job")%]</td>
       [% END %]
-      <td class="nowrap"><a class="row-link" href="[%link%]">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; INCLUDE renderRelativeDate timestamp=(showSchedulingInfo ? build.timestamp : build.stoptime); ELSE; "-"; END %]</a></td>
+      <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; INCLUDE renderRelativeDate timestamp=(showSchedulingInfo ? build.timestamp : build.stoptime); ELSE; "-"; END %]</td>
       <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
       <td class="nowrap"><tt>[% build.system %]</tt></td>
       [% IF showDescription %]
@@ -404,7 +404,7 @@ BLOCK renderEvals %]
           [% IF !jobset && !build %]
             <td>[% INCLUDE renderFullJobsetName project=eval.get_column('project') jobset=eval.get_column('jobset') %]</td>
           [% END %]
-          <td class="nowrap"><a class="row-link" href="[% link %]">[% INCLUDE renderRelativeDate timestamp = eval.timestamp %]</a></td>
+          <td class="nowrap">[% INCLUDE renderRelativeDate timestamp = eval.timestamp %]</td>
           <td>
             [% IF e.changedInputs.size > 0;
               sep='';
