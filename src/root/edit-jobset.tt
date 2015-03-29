@@ -92,6 +92,13 @@
     </div>
 
     <div class="control-group">
+      <label class="control-label">Channel job attribute</label>
+      <div class="controls">
+        <input type="text" class="span3" name="channelattr" [% HTML.attributes(value => jobset.channelattr) %]/>
+      </div>
+    </div>
+
+    <div class="control-group">
       <label class="control-label">Check interval</label>
       <div class="controls">
         <div class="input-append">
