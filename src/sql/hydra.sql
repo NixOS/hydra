@@ -52,6 +52,7 @@ create table Jobsets (
     description   text,
     nixExprInput  text not null, -- name of the jobsetInput containing the Nix or Guix expression
     nixExprPath   text not null, -- relative path of the Nix or Guix expression
+    channelAttr   text, -- attribute path to use for channel expressions
     errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
     errorTime     integer, -- timestamp associated with errorMsg
     lastCheckedTime integer, -- last time the evaluator looked at this jobset

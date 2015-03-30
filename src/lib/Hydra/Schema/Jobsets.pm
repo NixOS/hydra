@@ -63,6 +63,11 @@ __PACKAGE__->table("Jobsets");
   data_type: 'text'
   is_nullable: 0
 
+=head2 channelattr
+
+  data_type: 'text'
+  is_nullable: 1
+
 =head2 errormsg
 
   data_type: 'text'
@@ -142,6 +147,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "nixexprpath",
   { data_type => "text", is_nullable => 0 },
+  "channelattr",
+  { data_type => "text", is_nullable => 1 },
   "errormsg",
   { data_type => "text", is_nullable => 1 },
   "errortime",
@@ -320,8 +327,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-04-23 23:13:51
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:CO0aE+jrjB+UrwGRzWZLlw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2015-03-30 04:42:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:JPQyW/9O8fCaPtRS2mWPhA
 
 my %hint = (
     columns => [
