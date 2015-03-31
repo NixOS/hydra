@@ -208,6 +208,36 @@ in rec {
         '';
   });
 
+  tests.channels = genAttrs' (system: let
+    testLib = import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
+    hydra = builtins.getAttr system build;
+    perlLibs = pkgs.lib.concatStringsSep ":" [
+      "${hydra}/libexec/hydra/lib"
+      "${hydra.perlDeps}/lib/perl5/site_perl"
+    ];
+    runPerl = script:
+      "PERL5LIB=\\\"${perlLibs}\\\" NIX_REMOTE=daemon perl ${script}";
+  in testLib.simpleTest {
+    name = "channels";
+    machine = {
+      imports = [ (hydraServer hydra) ];
+      virtualisation.writableStore = true;
+      nix.useChroot = false;
+    };
+    testScript = ''
+      $machine->waitForJob("hydra-init");
+      $machine->waitForOpenPort("3000");
+      $machine->succeed("systemctl stop hydra-evaluator hydra-queue-runner");
+      $machine->succeed
+        ( "mkdir /tmp/jobs"
+        , "cp \"${./tests/channels.nix}\" /tmp/jobs/default.nix"
+        , "chown -R hydra /tmp/jobs"
+        , "chmod -R u+w /tmp/jobs"
+        );
+      $machine->succeed("su hydra -c '${runPerl ./tests/channels.pl}' >&2");
+    '';
+  });
+
   /*
   tests.s3backup = genAttrs' (system:
     with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
