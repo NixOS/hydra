@@ -9,18 +9,23 @@
 
 [% IF reload %]
 <script>
+function scrollDown() {
+    $("#contents").scrollTop($("#contents").get(0).scrollHeight);
+}
+
 function injectTail() {
     $.ajax({
         url: "[% url %]",
         dataType: "text",
         success: function (tail) {
             $("#contents").text(tail);
-            $("#contents").scrollTop($("#contents").get(0).scrollHeight);
+            scrollDown();
         }
     });
 }
 
 $(document).ready(function() {
+    scrollDown();
     injectTail();
     setInterval(injectTail, 5000);
 });
