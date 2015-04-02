@@ -15,6 +15,7 @@ function injectTail() {
         dataType: "text",
         success: function (tail) {
             $("#contents").text(tail);
+            $("#contents").scrollTop($("#contents").get(0).scrollHeight);
         }
     });
 }

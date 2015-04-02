@@ -119,3 +119,9 @@ span.keep-whitespace {
 .build-status {
     max-width: none; /* don't apply responsive design to status images */
 }
+
+pre.taillog {
+    line-height: 1.2em;
+    max-height: 60em;
+    overflow: hidden;
+}
