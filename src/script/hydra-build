@@ -210,7 +210,7 @@ sub doBuild {
                 my $now = time;
                 my $stepStartTime = $now;
                 my $stepStopTime = $now;
-                my $machine = undef;
+                my $machine = "";
                 txn_do($db, sub {
                     if ($buildSteps{$drvPathStep}) {
                         my $step = $build->buildsteps->find({stepnr => $buildSteps{$drvPathStep}}) or die;
