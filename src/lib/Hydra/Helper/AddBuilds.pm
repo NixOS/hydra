@@ -330,10 +330,20 @@ sub evalJobs {
     my $nixExprFullPath = $nixExprInput->{storePath} . "/" . $nixExprPath;
 
     my $evaluator = ($exprType eq "guile") ? "hydra-eval-guile-jobs" : "hydra-eval-jobs";
-    print STDERR "evaluator ${evaluator}\n";
 
-    (my $res, my $jobsJSON, my $stderr) = captureStdoutStderr(10800,
-        $evaluator, $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo, $exprType));
+    my @cmd = ($evaluator, $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo, $exprType));
+
+    if (defined $ENV{'HYDRA_DEBUG'}) {
+        sub escape {
+            my $s = $_;
+            $s =~ s/'/'\\''/g;
+            return "'" . $s . "'";
+        }
+        my @escaped = map escape, @cmd;
+        print STDERR "evaluator: @escaped\n";
+    }
+
+    (my $res, my $jobsJSON, my $stderr) = captureStdoutStderr(10800, @cmd);
     die "$evaluator returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
         . ":\n" . ($stderr ? $stderr : "(no output)\n")
         if $res;

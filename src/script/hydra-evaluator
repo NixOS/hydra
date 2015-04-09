@@ -25,6 +25,7 @@ my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
 # Don't check a jobset more than once every five minutes.
 my $minCheckInterval = 5 * 60;
 
+my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
 
 
 sub fetchInputs {
@@ -112,7 +113,7 @@ sub checkJobsetWrapped {
         my $msg = $@;
         print STDERR $msg;
         txn_do($db, sub {
-            $jobset->update({ lastcheckedtime => time, fetcherrormsg => $msg });
+            $jobset->update({ lastcheckedtime => time, fetcherrormsg => $msg }) if !$dryRun;
         });
         return;
     }
@@ -124,7 +125,7 @@ sub checkJobsetWrapped {
     my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo, $exprType));
     my $argsHash = sha256_hex("@args");
     my $prevEval = getPrevJobsetEval($db, $jobset, 0);
-    if (defined $prevEval && $prevEval->hash eq $argsHash) {
+    if (defined $prevEval && $prevEval->hash eq $argsHash && !$dryRun) {
         print STDERR "  jobset is unchanged, skipping\n";
         txn_do($db, sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
@@ -136,6 +137,18 @@ sub checkJobsetWrapped {
     my $evalStart = time;
     my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
     my $evalStop = time;
+
+    if ($dryRun) {
+        foreach my $name (keys %{$jobs}) {
+            my $job = $jobs->{$name};
+            if (defined $job->{drvPath}) {
+                print STDERR "good job $name: $job->{drvPath}\n";
+            } else {
+                print STDERR "failed job $name: $job->{error}\n";
+            }
+        }
+        return;
+    }
 
     $jobs->{$_}->{jobName} = $_ for keys %{$jobs};
 
@@ -268,7 +281,7 @@ sub checkJobset {
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
             setJobsetError($jobset, $msg);
-        });
+        }) if !$dryRun;
         $failed = 1;
     }
 
@@ -280,8 +293,9 @@ sub checkJobset {
             my $new = $jobset->get_from_storage();
             $jobset->update({ triggertime => undef })
                 if $new->triggertime == $triggerTime;
-        });
+        }) if !$dryRun;
     }
+
     return $failed;
 }
 
