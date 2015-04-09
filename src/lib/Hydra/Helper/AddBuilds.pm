@@ -291,28 +291,28 @@ sub inputsToArgs {
             if scalar @{$inputInfo->{$input}} == 1
                && defined $inputInfo->{$input}->[0]->{storePath};
         foreach my $alt (@{$inputInfo->{$input}}) {
-	    if ($alt->{type} eq "string") {
-		push @res, "--argstr", $input, $alt->{value};
-	    }
-	    elsif ($alt->{type} eq "boolean") {
-		push @res, "--arg", $input, booleanToString($exprType, $alt->{value});
-	    }
+            if ($alt->{type} eq "string") {
+                push @res, "--argstr", $input, $alt->{value};
+            }
+            elsif ($alt->{type} eq "boolean") {
+                push @res, "--arg", $input, booleanToString($exprType, $alt->{value});
+            }
             elsif ($alt->{type} eq "nix") {
-		die "input type ‘nix’ only supported for Nix-based jobsets\n" unless $exprType eq "nix";
-		push @res, "--arg", $input, $alt->{value};
-	    }
+                die "input type ‘nix’ only supported for Nix-based jobsets\n" unless $exprType eq "nix";
+                push @res, "--arg", $input, $alt->{value};
+            }
             elsif ($alt->{type} eq "eval") {
-		die "input type ‘eval’ only supported for Nix-based jobsets\n" unless $exprType eq "nix";
-		my $s = "{ ";
-		# FIXME: escape $_.  But dots should not be escaped.
-		$s .= "$_ = builtins.storePath ${\$alt->{jobs}->{$_}}; "
-		    foreach keys %{$alt->{jobs}};
-		$s .= "}";
-		push @res, "--arg", $input, $s;
-	    }
-	    else {
-		push @res, "--arg", $input, buildInputToString($exprType, $alt);
-	    }
+                die "input type ‘eval’ only supported for Nix-based jobsets\n" unless $exprType eq "nix";
+                my $s = "{ ";
+                # FIXME: escape $_.  But dots should not be escaped.
+                $s .= "$_ = builtins.storePath ${\$alt->{jobs}->{$_}}; "
+                    foreach keys %{$alt->{jobs}};
+                $s .= "}";
+                push @res, "--arg", $input, $s;
+            }
+            else {
+                push @res, "--arg", $input, buildInputToString($exprType, $alt);
+            }
         }
     }
 
