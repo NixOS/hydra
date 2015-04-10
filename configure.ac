@@ -1,6 +1,6 @@
 AC_INIT([Hydra], [m4_esyscmd([echo -n $(cat ./version)$VERSION_SUFFIX])],
         [nix-dev@cs.uu.nl], [hydra], [http://nixos.org/hydra/])
-AM_INIT_AUTOMAKE([foreign])
+AM_INIT_AUTOMAKE([foreign serial-tests])
 
 AC_LANG([C++])
 
