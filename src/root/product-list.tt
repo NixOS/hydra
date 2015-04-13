@@ -136,6 +136,8 @@
             <img src="[% c.uri_for("/static/images/iso.png") %]" alt="ISO" /> ISO-9660 CD/DVD image <tt>[% product.name %]</tt>
           [% CASE "binary-dist" %]
             <img src="[% c.uri_for("/static/images/binary-dist.png") %]" alt="Binary distribution" /> Binary distribution <tt>[% product.name %]</tt>
+          [% CASE "channel" %]
+            <img src="[% c.uri_for("/static/images/channel.png") %]" alt="Channel" /> Channel expressions <tt>[% product.name %]</tt>
           [% CASE DEFAULT %]
             File <tt>[% product.name %]</tt> of type <tt>[% product.subtype %]</tt>
           [% END %]
