@@ -2,6 +2,7 @@ package Hydra::Helper::AddBuilds;
 
 use strict;
 use utf8;
+use Encode;
 use JSON;
 use IPC::Run;
 use Nix::Store;
@@ -345,7 +346,7 @@ sub evalJobs {
 
     (my $res, my $jobsJSON, my $stderr) = captureStdoutStderr(10800, @cmd);
     die "$evaluator returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
-        . ":\n" . ($stderr ? $stderr : "(no output)\n")
+        . ":\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
         if $res;
 
     print STDERR "$stderr";
