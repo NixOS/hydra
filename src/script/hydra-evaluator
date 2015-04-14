@@ -326,7 +326,7 @@ sub checkSomeJobset {
 if (scalar @ARGV == 2) {
     my $projectName = $ARGV[0];
     my $jobsetName = $ARGV[1];
-    my $jobset = $db->resultset('Jobsets')->find($projectName, $jobsetName) or die;
+    my $jobset = $db->resultset('Jobsets')->find($projectName, $jobsetName) or die "$0: specified jobset does not exist\n";
     exit checkJobset($jobset);
 }
 
