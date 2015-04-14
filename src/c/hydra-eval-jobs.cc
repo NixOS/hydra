@@ -242,6 +242,10 @@ int main(int argc, char * * argv)
             return true;
         });
 
+        /* Prevent access to paths outside of the Nix search path and
+           to the environment. */
+        settings.set("restrict-eval", "true");
+
         if (releaseExpr == "") throw UsageError("no expression specified");
 
         if (gcRootsDir == "") printMsg(lvlError, "warning: `--gc-roots-dir' not specified");
