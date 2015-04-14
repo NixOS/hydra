@@ -145,6 +145,46 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
 }
 
 
+# XXX: Pretty much a rip-off of jobs-tab, make it DRY!
+sub channels_tab : Chained('jobsetChain') PathPart('channels-tab') Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'jobset-channels-tab.tt';
+
+    my @evals = $c->stash->{jobset}->jobsetevals->search(
+        { hasnewbuilds => 1},
+        { order_by => "id desc", rows => 20 }
+    );
+
+    my $evals = {};
+    my %channels;
+
+    foreach my $eval (@evals) {
+        my @builds = $eval->builds->search(
+            { 'buildproducts.type' => 'file'
+            , 'buildproducts.subtype' => 'channel' },
+            { join => ["buildproducts"]
+            , columns => ['id', 'job', 'finished', 'buildstatus'] }
+        );
+        foreach my $b (@builds) {
+            my $jobName = $b->get_column('job');
+
+            $evals->{$eval->id}->{timestamp} = $eval->timestamp;
+            $evals->{$eval->id}->{channels}->{$jobName} = {
+                id => $b->id,
+                finished => $b->finished,
+                buildstatus => $b->buildstatus
+            };
+
+            $channels{$jobName} = 1;
+        }
+    }
+
+    $c->stash->{evals} = $evals;
+    my @channels = sort (keys %channels);
+    $c->stash->{channels} = [@channels];
+}
+
+
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('jobsetChain') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
