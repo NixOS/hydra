@@ -97,7 +97,26 @@ sub pkg : Chained('nix') PathPart Args(1) {
 
 sub nixexprs : Chained('nix') PathPart('nixexprs.tar.bz2') Args(0) {
     my ($self, $c) = @_;
-    $c->stash->{current_view} = 'NixExprs';
+    my $channelAttr = $c->stash->{jobset}->channelattr;
+
+    if ($channelAttr) {
+        my $build = $c->stash->{latestSucceeded}->find(
+            { job => $channelAttr
+            },
+            { join => ["buildoutputs"]
+            , '+select' => ['buildoutputs.path']
+            }
+        ) or notFound($c, "Build for $channelAttr is not available.");
+
+        my @outPaths = map { $_->path } $build->buildoutputs->all;
+        notFound($c, "Build $build->id for channel $channelAttr ".
+                     "is not available.")
+            unless isValidPath(@outPaths[0]);
+        $c->stash->{storePath} = File::Spec->canonpath(@outPaths[0]);
+        $c->stash->{current_view} = 'CustomNixExprs';
+    } else {
+        $c->stash->{current_view} = 'NixExprs';
+    }
     getChannelData($c, 1);
 }
 

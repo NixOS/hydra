@@ -72,7 +72,8 @@ sub jobset_PUT {
             # Note: $jobsetName is validated in updateProject, which will
             # abort the transaction if the name isn't valid.
             $jobset = $c->stash->{project}->jobsets->create(
-                {name => ".tmp", nixexprinput => "", nixexprpath => "", emailoverride => ""});
+                {name => ".tmp", nixexprinput => "", nixexprpath => "",
+                 emailoverride => "", channelattr => ""});
             updateJobset($c, $jobset);
         });
 
@@ -225,6 +226,7 @@ sub updateJobset {
         , description => trim($c->stash->{params}->{"description"})
         , nixexprpath => $nixExprPath
         , nixexprinput => $nixExprInput
+        , channelattr => $c->stash->{params}->{"channelattr"}
         , enabled => $enabled
         , enableemail => defined $c->stash->{params}->{enableemail} ? 1 : 0
         , emailoverride => trim($c->stash->{params}->{emailoverride}) || ""

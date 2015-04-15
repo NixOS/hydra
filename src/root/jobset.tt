@@ -133,6 +133,10 @@
         </td>
       </tr>
       <tr>
+        <th>Channel job attribute:</th>
+        <td>[% HTML.escape(jobset.channelattr) %]</td>
+      </tr>
+      <tr>
         <th>Check interval:</th>
         <td>[% jobset.checkinterval || "<em>disabled</em>"  %]</td>
       </tr>
