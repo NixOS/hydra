@@ -160,8 +160,7 @@ sub channels_tab : Chained('jobsetChain') PathPart('channels-tab') Args(0) {
 
     foreach my $eval (@evals) {
         my @builds = $eval->builds->search(
-            { 'buildproducts.type' => 'file'
-            , 'buildproducts.subtype' => 'channel' },
+            { 'buildproducts.type' => 'channel' },
             { join => ["buildproducts"]
             , columns => ['id', 'job', 'finished', 'buildstatus'] }
         );
