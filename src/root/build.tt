@@ -188,7 +188,7 @@
                 <td>[% IF cachedBuild; INCLUDE renderFullBuildLink build=cachedBuild; ELSE %]<em>unknown</em>[% END %]</td>
               </tr>
             [% END %]
-            [% IF (!isAggregate || !isChannel) && build.finished; actualBuild = build.iscachedbuild ? cachedBuild : build %]
+            [% IF (!isAggregate || !build.isChannel) && build.finished; actualBuild = build.iscachedbuild ? cachedBuild : build %]
               [% IF actualBuild %]
                 <tr>
                   <th>Duration:</th>
@@ -200,7 +200,7 @@
                 <td>[% INCLUDE renderDateTime timestamp = build.stoptime; %]</td>
               </tr>
             [% END %]
-            [% IF (!isAggregate || !isChannel) && buildLogExists(build) %]
+            [% IF (!isAggregate || !build.isChannel) && buildLogExists(build) %]
               <tr>
                 <th>Logfile:</th>
                 <td>
@@ -215,7 +215,7 @@
       </tr>
     </table>
 
-    [% IF isChannel || (build.buildproducts && !isAggregate) %]
+    [% IF build.isChannel || (build.buildproducts && !isAggregate) %]
 
       <h3>Build products</h3>
 

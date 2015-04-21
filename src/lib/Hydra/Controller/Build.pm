@@ -108,10 +108,6 @@ sub build_GET {
 
     # If this is an aggregate build, get its constituents.
     $c->stash->{constituents} = [$c->stash->{build}->constituents_->search({}, {order_by => ["job"]})];
-
-    $c->stash->{isChannel} = $c->stash->{build}->buildproducts->search(
-        {type => "channel"}
-    )->count > 0;
 }
 
 
