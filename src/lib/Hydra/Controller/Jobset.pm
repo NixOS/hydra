@@ -116,7 +116,7 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
 
     foreach my $eval (@evals) {
         my @builds = $eval->builds->search(
-            { job => { ilike => $filter } },
+            { job => { ilike => $filter }, ischannel => 0 },
             { columns => ['id', 'job', 'finished', 'buildstatus'] });
         foreach my $b (@builds) {
             my $jobName = $b->get_column('job');
