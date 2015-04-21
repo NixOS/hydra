@@ -127,6 +127,7 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
             res.attr("schedulingPriority", drv.queryMetaInt("schedulingPriority", 100));
             res.attr("timeout", drv.queryMetaInt("timeout", 36000));
             res.attr("maxSilent", drv.queryMetaInt("maxSilent", 7200));
+            res.attr("isChannel", drv.queryMetaBool("isHydraChannel", false));
 
             /* If this is an aggregate, then get its constituents. */
             Bindings::iterator a = v.attrs->find(state.symbols.create("_hydraAggregate"));

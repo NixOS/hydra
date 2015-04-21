@@ -448,6 +448,7 @@ sub checkBuild {
             , busy => 0
             , locker => ""
             , iscurrent => 1
+            , ischannel => $buildInfo->{isChannel}
             });
 
         $build->buildoutputs->create({ name => $_, path => $buildInfo->{outputs}->{$_} })
