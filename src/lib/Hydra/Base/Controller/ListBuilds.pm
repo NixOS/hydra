@@ -32,23 +32,16 @@ sub all : Chained('get_builds') PathPart {
 }
 
 
-sub nix : Chained('get_builds') PathPart('channel') CaptureArgs(1) {
+sub nix : Chained('get_builds') PathPart('channel/latest') CaptureArgs(1) {
     my ($self, $c, $channelName) = @_;
-    eval {
-        if ($channelName eq "latest") {
-            $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
-            $c->stash->{channelBuilds} = $c->stash->{latestSucceeded}
-                ->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')")
-                ->search({}, { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
-                             , join => ["buildoutputs"]
-                             , order_by => ["me.id", "buildoutputs.name"]
-                             , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
-        }
-        else {
-            notFound($c, "Unknown channel `$channelName'.");
-        }
-    };
-    error($c, $@) if $@;
+
+    $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
+    $c->stash->{channelBuilds} = $c->stash->{latestSucceeded}
+        ->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')")
+        ->search({}, { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
+                     , join => ["buildoutputs"]
+                     , order_by => ["me.id", "buildoutputs.name"]
+                     , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
 }
 
 
