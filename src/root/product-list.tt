@@ -117,19 +117,7 @@
           </tr>
         [% END %]
 
-      [% CASE "channel" %]
-
-      <tr class="product">
-        <td>
-          <a href="[% uri %]">
-            <img src="[% c.uri_for("/static/images/channel.png") %]" alt="Channel" />
-            Channel expression tarball <tt>[% product.name %]</tt>
-            [% IF product.subtype != "-" %]for <tt>[% product.subtype %]</tt>[% END %]
-          </a>
-        </td>
-      </tr>
-
-      [% CASE "file" %]
+      [% CASE ["file", "channel"] %]
 
       <tr class="product">
         <td>
@@ -148,7 +136,13 @@
           [% CASE "binary-dist" %]
             <img src="[% c.uri_for("/static/images/binary-dist.png") %]" alt="Binary distribution" /> Binary distribution <tt>[% product.name %]</tt>
           [% CASE DEFAULT %]
-            File <tt>[% product.name %]</tt> of type <tt>[% product.subtype %]</tt>
+            [% IF product.type == "channel" %]
+              <img src="[% c.uri_for("/static/images/channel.png") %]" alt="Channel" />
+              Channel expression tarball <tt>[% product.name %]</tt>
+              [% IF product.subtype != "-" %]for <tt>[% product.subtype %]</tt>[% END %]
+            [% ELSE %]
+              File <tt>[% product.name %]</tt> of type <tt>[% product.subtype %]</tt>
+            [% END %]
           [% END %]
         </a>
         [% WRAPPER makePopover title="Details" classes="btn-mini" %]
