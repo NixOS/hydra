@@ -24,7 +24,7 @@
         <tr>
           <th><span>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=chan %]</span></th>
           [% FOREACH eval IN evalIds %]
-            <td>[% r = evals.$eval.channels.$chan; IF r.id %]<a href="[% c.uri_for('/build' r.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
+            <td>[% r = evals.$eval.builds.$chan; IF r.id %]<a href="[% c.uri_for('/build' r.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
           [% END %]
         </tr>
       [% END %]

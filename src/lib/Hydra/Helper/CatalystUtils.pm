@@ -10,6 +10,7 @@ use Hydra::Helper::Nix;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild
+    searchBuildsAndEvalsForJobset
     error notFound gone accessDenied
     forceLogin requireUser requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
     trim
@@ -82,6 +83,44 @@ sub getPreviousSuccessfulBuild {
       }, {rows => 1, order_by => "me.id DESC"});
 
     return $prevBuild;
+}
+
+
+sub searchBuildsAndEvalsForJobset {
+    my ($jobset, $condition, $maxBuilds) = @_;
+
+    my @evals = $jobset->jobsetevals->search(
+        { hasnewbuilds => 1},
+        { order_by => "id desc",
+        rows => 20
+    });
+
+    my $evals = {};
+    my %builds;
+    my $nrBuilds = 0;
+
+    foreach my $eval (@evals) {
+        my @allBuilds = $eval->builds->search(
+            $condition,
+            { columns => ['id', 'job', 'finished', 'buildstatus'] }
+        );
+
+        foreach my $b (@allBuilds) {
+            my $jobName = $b->get_column('job');
+
+            $evals->{$eval->id}->{timestamp} = $eval->timestamp;
+            $evals->{$eval->id}->{builds}->{$jobName} = {
+                id => $b->id,
+                finished => $b->finished,
+                buildstatus => $b->buildstatus
+            };
+            $builds{$jobName} = 1;
+            $nrBuilds++;
+        }
+        last if $maxBuilds && $nrBuilds >= $maxBuilds;
+    }
+
+    return ($evals, \%builds);
 }
 
 
