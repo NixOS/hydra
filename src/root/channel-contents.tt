@@ -27,6 +27,7 @@ $ nix-env -u '*'</pre>
 <tt>nix-install-package</tt> program in your web browser, you can
 install the package simply by clicking on the packages below.</p>
 
+[% IF genericChannel %]
 
 <h2>Packages</h2>
 
@@ -69,5 +70,17 @@ install the package simply by clicking on the packages below.</p>
 
 </table>
 
+[% ELSE %]
+[% PROCESS "product-list.tt" %]
+
+<h2>Contents</h2>
+
+[% INCLUDE renderProductList build=lastSuccessful %]
+
+<p>Upgrades depend on the success/failure of the following constituents:</p>
+
+[% INCLUDE renderBuildList builds=constituents %]
+
+[% END %]
 
 [% END %]

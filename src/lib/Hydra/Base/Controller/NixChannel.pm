@@ -130,6 +130,7 @@ sub channel_contents : Chained('nix') PathPart('') Args(0) {
     # garbage-collected.  That should be true for the "latest"
     # channel.
     getChannelData($c, 0);
+    $c->stash->{genericChannel} = 1;
     $c->stash->{template} = 'channel-contents.tt';
     $c->stash->{nixPkgs} = [sortPkgs @{$c->stash->{nixPkgs}}];
 }
