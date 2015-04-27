@@ -54,4 +54,30 @@ sub overview : Chained('channel') PathPart('') Args(0) {
 }
 
 
+sub nixexprs : Chained('channel') PathPart('') Args(1) {
+    my ($self, $c, $productName) = @_;
+
+    my $product = $c->stash->{lastSuccessful}->buildproducts->find(
+        { type => "channel", name => $productName }
+    );
+
+    my $url = $c->uri_for(
+        $c->controller("Build")->action_for("download"),
+        [$c->stash->{lastSuccessful}->id],
+        $product->productnr,
+        $productName
+    );
+
+    $c->res->redirect($url);
+}
+
+
+sub binary_cache_url : Chained('channel') PathPart('binary-cache-url') Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{'plain'} = { data => $c->uri_for('/') };
+    $c->response->content_type('text/plain');
+    $c->forward('Hydra::View::Plain');
+}
+
+
 1;
