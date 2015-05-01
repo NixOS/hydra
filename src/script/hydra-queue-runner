@@ -148,7 +148,14 @@ sub checkBuilds {
                     if (!defined $timeSpent) {
                         $timeSpent = $jobset->builds->search(
                             { },
-                            { where => \ ("(finished = 0 or (me.stoptime >= " . (time() - $windowSize) . "))")
+                            { where => \ ("(finished = 0)")
+                            , join => 'buildsteps'
+                            , select => \ "sum(coalesce(buildsteps.stoptime, ${\time}) - buildsteps.starttime)"
+                            , as => "sum" })->single->get_column("sum") // 0;
+
+                        $timeSpent += $jobset->builds->search(
+                            { },
+                            { where => \ ("(me.stoptime >= " . (time() - $windowSize) . ")")
                             , join => 'buildsteps'
                             , select => \ "sum(coalesce(buildsteps.stoptime, ${\time}) - buildsteps.starttime)"
                             , as => "sum" })->single->get_column("sum") // 0;
