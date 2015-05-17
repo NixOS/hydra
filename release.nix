@@ -6,7 +6,7 @@ let
 
   pkgs = import <nixpkgs> {};
 
-  genAttrs' = pkgs.lib.genAttrs [ "x86_64-linux" ];
+  genAttrs' = pkgs.lib.genAttrs [ "x86_64-linux" "i686-linux" ];
 
   hydraServer = hydraPkg:
     { config, pkgs, ... }:
