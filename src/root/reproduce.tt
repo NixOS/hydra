@@ -15,6 +15,7 @@ info() {
 
 
 # Process the command line.
+fetchOnly=
 while [ $# -gt 0 ]; do
     arg="$1"
     shift
@@ -43,6 +44,9 @@ Flags:
     to perform the build.  See the description of the --run-env flag
     in the nix-build(1) manpage for more details.
 
+  --fetch
+    Fetch the inputs and then exit.
+
 Any additional flags are passed to nix-build.  See the nix-build(1)
 manpage for details.
 EOF
@@ -54,6 +58,8 @@ EOF
             exit 1
         fi
         shift
+    elif [ "$arg" = --fetch ]; then
+        fetchOnly=1
     else
         extraArgs+=("$arg")
     fi
@@ -165,6 +171,8 @@ if [ -n "$inputDir" ]; then
 fi
 
 [%+ END %]
+
+if [ -n "$fetchOnly" ]; then exit 0; fi
 
 
 # Run nix-build.
