@@ -1,5 +1,7 @@
 #! /usr/bin/env bash
 
+main() {
+
 # This script has been generated automatically by Hydra from the build
 # at [% c.uri_for('/build' build.id) %].
 
@@ -211,3 +213,7 @@ info "running nix-build..."
 echo "using these flags: ${args[@]}" >&2
 
 exec nix-build "${args[@]}" "${extraArgs[@]}"
+
+}
+
+main
