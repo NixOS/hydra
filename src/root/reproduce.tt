@@ -16,6 +16,7 @@ info() {
 
 # Process the command line.
 fetchOnly=
+printFlags=
 while [ $# -gt 0 ]; do
     arg="$1"
     shift
@@ -47,6 +48,10 @@ Flags:
   --fetch
     Fetch the inputs and then exit.
 
+  --print-flags
+    Fetch the inputs, then print the argument to nix-build on stdout
+    and exit.
+
 Any additional flags are passed to nix-build.  See the nix-build(1)
 manpage for details.
 EOF
@@ -60,6 +65,8 @@ EOF
         shift
     elif [ "$arg" = --fetch ]; then
         fetchOnly=1
+    elif [ "$arg" = --print-flags ]; then
+        printFlags=1
     else
         extraArgs+=("$arg")
     fi
@@ -188,7 +195,19 @@ args+=(--option extra-binary-caches '[% c.uri_for('/') %]')
 # when evaluating jobs that rely on builtins.currentSystem.
 args+=(--option system x86_64-linux)
 
+args+=("$nixExprInputDir/[% build.nixexprpath %]" -A '[% build.job.name %]')
+
+if [ -n "$printFlags" ]; then
+    first=1
+    for i in "${args[@]}"; do
+        if [ -z "$first" ]; then printf " "; fi
+        first=
+        printf "%q" "$i"
+    done
+    exit 0
+fi
+
 info "running nix-build..."
 echo "using these flags: ${args[@]}" >&2
 
-exec nix-build "$nixExprInputDir/[% build.nixexprpath %]" -A '[% build.job.name %]' "${args[@]}" "${extraArgs[@]}"
+exec nix-build "${args[@]}" "${extraArgs[@]}"
