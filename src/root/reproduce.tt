@@ -66,8 +66,6 @@ EOF
 done
 
 
-export NIX_PATH=
-
 mkdir -p "$tmpDir"
 cd "$tmpDir"
 info "storing inputs and results in $tmpDir..."
@@ -85,7 +83,7 @@ requireCommand() {
 
 # Fetch the inputs.
 
-[% inputs = build.inputs.size > 0 ? build.inputs : eval.jobsetevalinputs %]
+[% inputs = build.inputs ? build.inputs : eval.jobsetevalinputs %]
 
 [%+ FOREACH input IN inputs %]
 inputDir=
@@ -167,7 +165,7 @@ nixExprInputDir="$inputDir"
 [%+ END %]
 
 if [ -n "$inputDir" ]; then
-    NIX_PATH="$NIX_PATH${NIX_PATH:+:}[% input.name %]=$inputDir"
+    args+=(-I [% input.name %]=$inputDir)
 fi
 
 [%+ END %]
@@ -191,7 +189,6 @@ args+=(--option extra-binary-caches '[% c.uri_for('/') %]')
 args+=(--option system x86_64-linux)
 
 info "running nix-build..."
-echo "Nix path is $NIX_PATH" >&2
-echo "Nix args are ${args[@]}" >&2
+echo "using these flags: ${args[@]}" >&2
 
 exec nix-build "$nixExprInputDir/[% build.nixexprpath %]" -A '[% build.job.name %]' "${args[@]}" "${extraArgs[@]}"
