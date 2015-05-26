@@ -19,7 +19,7 @@ Makefile.in
 /src/sql/hydra-postgresql.sql
 /src/sql/hydra-sqlite.sql
 /src/sql/tmp.sqlite
-/src/c/hydra-eval-jobs
+/src/hydra-eval-jobs/hydra-eval-jobs
 /src/root/static/bootstrap
 /src/root/static/js/flot
 /src/root/static/js/jquery

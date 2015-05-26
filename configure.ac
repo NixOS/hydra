@@ -72,7 +72,7 @@ AC_CONFIG_FILES([
   doc/Makefile
   doc/manual/Makefile
   src/Makefile
-  src/c/Makefile
+  src/hydra-eval-jobs/Makefile
   src/sql/Makefile
   src/xsl/Makefile
   src/ttf/Makefile

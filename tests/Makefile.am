@@ -12,7 +12,7 @@ TESTS_ENVIRONMENT = \
   NIX_LOG_DIR="$(abs_builddir)/nix/var/log/nix"		\
   NIX_BUILD_HOOK=					\
   PERL5LIB="$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB"	\
-  PATH=$(abs_top_srcdir)/src/script:$(abs_top_srcdir)/src/c:$$PATH \
+  PATH=$(abs_top_srcdir)/src/script:$(abs_top_srcdir)/src/hydra-eval-jobs:$$PATH \
   perl -w
 
 EXTRA_DIST = \
