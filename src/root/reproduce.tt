@@ -79,7 +79,9 @@ requireCommand() {
 
 # Fetch the inputs.
 
-[%+ FOREACH input IN build.inputs %]
+[% inputs = build.inputs.size > 0 ? build.inputs : eval.jobsetevalinputs %]
+
+[%+ FOREACH input IN inputs %]
 inputDir=
 
 [%+ IF input.type == "git" %]

@@ -99,9 +99,7 @@ sub build_GET {
 
     # Get the first eval of which this build was a part.
     ($c->stash->{nrEvals}) = $c->stash->{build}->jobsetevals->search({ hasnewbuilds => 1 })->count;
-    $c->stash->{eval} = $c->stash->{build}->jobsetevals->search(
-        { hasnewbuilds => 1},
-        { rows => 1, order_by => ["id"] })->single;
+    $c->stash->{eval} = getFirstEval($build);
     $self->status_ok(
         $c,
         entity => $build
@@ -554,6 +552,7 @@ sub reproduce : Chained('buildChain') PathPart('reproduce') Args(0) {
     $c->response->content_type('text/x-shellscript');
     $c->response->header('Content-Disposition', 'attachment; filename="reproduce-build-' . $c->stash->{build}->id . '.sh"');
     $c->stash->{template} = 'reproduce.tt';
+    $c->stash->{eval} = getFirstEval($c->stash->{build});
 }
 
 
