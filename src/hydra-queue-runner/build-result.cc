@@ -6,7 +6,7 @@
 using namespace nix;
 
 
-BuildResult getBuildResult(const Derivation & drv)
+BuildResult getBuildResult(std::shared_ptr<StoreAPI> store, const Derivation & drv)
 {
     BuildResult res;
 

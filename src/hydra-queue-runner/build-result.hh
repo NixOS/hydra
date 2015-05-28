@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "hash.hh"
 #include "derivations.hh"
 
@@ -22,4 +24,4 @@ struct BuildResult
     std::list<BuildProduct> products;
 };
 
-BuildResult getBuildResult(const nix::Derivation & drv);
+BuildResult getBuildResult(std::shared_ptr<nix::StoreAPI> store, const nix::Derivation & drv);
