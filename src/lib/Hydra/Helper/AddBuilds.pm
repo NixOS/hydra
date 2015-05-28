@@ -22,18 +22,8 @@ use Hydra::Helper::CatalystUtils;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     fetchInput evalJobs checkBuild inputsToArgs
-    getReleaseName addBuildProducts restartBuild
-    getPrevJobsetEval
+    restartBuild getPrevJobsetEval
 );
-
-
-sub getReleaseName {
-    my ($outPath) = @_;
-    return undef unless -f "$outPath/nix-support/hydra-release-name";
-    my $releaseName = read_file("$outPath/nix-support/hydra-release-name");
-    chomp $releaseName;
-    return $releaseName;
-}
 
 
 sub parseJobName {
@@ -355,80 +345,6 @@ sub evalJobs {
 }
 
 
-sub addBuildProducts {
-    my ($db, $build) = @_;
-
-    my $productnr = 1;
-    my $explicitProducts = 0;
-    my $storeDir = $Nix::Config::storeDir . "/";
-
-    foreach my $output ($build->buildoutputs->all) {
-        my $outPath = $output->path;
-        if (-e "$outPath/nix-support/hydra-build-products") {
-            $explicitProducts = 1;
-
-            open LIST, "$outPath/nix-support/hydra-build-products" or die;
-            while (<LIST>) {
-                /^([\w\-]+)\s+([\w\-]+)\s+("[^"]*"|\S+)(\s+(\S+))?$/ or next;
-                my $type = $1;
-                my $subtype = $2 eq "none" ? "" : $2;
-                my $path = substr($3, 0, 1) eq "\"" ? substr($3, 1, -1) : $3;
-                my $defaultPath = $5;
-
-                # Ensure that the path exists and points into the Nix store.
-                next unless File::Spec->file_name_is_absolute($path);
-                $path = pathIsInsidePrefix($path, $Nix::Config::storeDir);
-                next unless defined $path;
-                next unless -e $path;
-
-                # FIXME: check that the path is in the input closure
-                # of the build?
-
-                my $fileSize, my $sha1, my $sha256;
-
-                if (-f $path) {
-                    my $st = stat($path) or die "cannot stat $path: $!";
-                    $fileSize = $st->size;
-                    $sha1 = hashFile("sha1", 0, $path);
-                    $sha256 = hashFile("sha256", 0, $path);
-                }
-
-                my $name = $path eq $outPath ? "" : basename $path;
-
-                $db->resultset('BuildProducts')->create(
-                    { build => $build->id
-                    , productnr => $productnr++
-                    , type => $type
-                    , subtype => $subtype
-                    , path => $path
-                    , filesize => $fileSize
-                    , sha1hash => $sha1
-                    , sha256hash => $sha256
-                    , name => $name
-                    , defaultpath => $defaultPath
-                    });
-            }
-            close LIST;
-        }
-    }
-
-    return if $explicitProducts;
-
-    foreach my $output ($build->buildoutputs->all) {
-        my $outPath = $output->path;
-        next unless -d $outPath;
-        $db->resultset('BuildProducts')->create(
-            { build => $build->id
-            , productnr => $productnr++
-            , type => "nix-build"
-            , subtype => $output->name eq "out" ? "" : $output->name
-            , path => $outPath
-            , name => $build->nixname
-            });
-    }
-}
-
-
 # Return the most recent evaluation of the given jobset (that
 # optionally had new builds), or undefined if no such evaluation
 # exists.
@@ -501,40 +417,6 @@ sub checkBuild {
 
         my $time = time();
 
-        # Are the outputs already in the Nix store?  Then add a cached
-        # build.
-        my %extraFlags;
-        my $allValid = 1;
-        my $buildStatus;
-        my $releaseName;
-        foreach my $name (@outputNames) {
-            my $path = $buildInfo->{outputs}->{$name};
-            if (isValidPath($path)) {
-                if (-f "$path/nix-support/failed") {
-                    $buildStatus = 6;
-                } else {
-                    $buildStatus //= 0;
-                }
-                $releaseName //= getReleaseName($path);
-            } else {
-                $allValid = 0;
-                last;
-            }
-        }
-
-        if ($allValid) {
-            %extraFlags =
-                ( finished => 1
-                , iscachedbuild => 1
-                , buildstatus => $buildStatus
-                , starttime => $time
-                , stoptime => $time
-                , releasename => $releaseName
-                );
-        } else {
-            %extraFlags = ( finished => 0 );
-        }
-
         # Add the build to the database.
         $build = $job->builds->create(
             { timestamp => $time
@@ -550,10 +432,10 @@ sub checkBuild {
             , nixexprinput => $jobset->nixexprinput
             , nixexprpath => $jobset->nixexprpath
             , priority => $buildInfo->{schedulingPriority}
+            , finished => 0
             , busy => 0
             , locker => ""
             , iscurrent => 1
-            , %extraFlags
             });
 
         $build->buildoutputs->create({ name => $_, path => $buildInfo->{outputs}->{$_} })
@@ -562,13 +444,7 @@ sub checkBuild {
         $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath };
         $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
 
-        if ($build->iscachedbuild) {
-            #print STDERR "    marked as cached build ", $build->id, "\n";
-            addBuildProducts($db, $build);
-            notifyBuildFinished($plugins, $build, []);
-        } else {
-            print STDERR "added build ${\$build->id} (${\$jobset->project->name}:${\$jobset->name}:$jobName)\n";
-        }
+        print STDERR "added build ${\$build->id} (${\$jobset->project->name}:${\$jobset->name}:$jobName)\n";
     });
 
     return $build;

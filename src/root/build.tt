@@ -33,7 +33,11 @@
             </td>
             <td>
               [% IF step.busy == 0;
-                   INCLUDE renderDuration duration = step.stoptime - step.starttime;
+                   IF step.stoptime;
+                     INCLUDE renderDuration duration = step.stoptime - step.starttime;
+                   ELSE;
+                     %]?[%
+                   END;
                  ELSIF build.finished;
                    INCLUDE renderDuration duration = build.stoptime - step.starttime;
                  ELSE;
@@ -52,8 +56,10 @@
                 <span class="error">Timed out</span>
               [% ELSIF step.status == 8 %]
                 <span class="error">Cached failure</span>
-              [% ELSE %]
+              [% ELSIF step.errormsg %]
                 <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
+              [% ELSE %]
+                <span class="error">Failed</span>
               [% END %]
               [%%] [%+ IF has_log; INCLUDE renderLogLinks url=log inRow=1; END %]
               [%+ IF step.propagatedfrom; %](propagated from [% INCLUDE renderBuildIdLink id=step.propagatedfrom.get_column('id') %])[% END %]

@@ -159,11 +159,13 @@ create table Builds (
     -- Information about scheduled builds.
     priority      integer not null default 0,
 
+    -- FIXME: remove (obsolete with the new queue runner)
     busy          integer not null default 0, -- true means someone is building this job now
     locker        text, -- !!! hostname/pid of the process building this job?
 
     logfile       text, -- if busy, the path of the logfile
 
+    -- FIXME: remove startTime?
     startTime     integer, -- if busy/finished, time we started
     stopTime      integer, -- if finished, time we finished
 
@@ -207,6 +209,8 @@ create table BuildOutputs (
 );
 
 
+-- TODO: normalize this. Currently there can be multiple BuildSteps
+-- for a single step.
 create table BuildSteps (
     build         integer not null,
     stepnr        integer not null,

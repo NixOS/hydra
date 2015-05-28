@@ -129,7 +129,7 @@ in rec {
       src = tarball;
 
       buildInputs =
-        [ makeWrapper libtool unzip nukeReferences pkgconfig sqlite
+        [ makeWrapper libtool unzip nukeReferences pkgconfig sqlite libpqxx
           gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2
           guile # optional, for Guile + Guix support
           perlDeps perl
