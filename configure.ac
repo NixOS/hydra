@@ -87,4 +87,6 @@ AC_CONFIG_FILES([
 AC_CONFIG_COMMANDS([executable-scripts],
   [chmod +x src/script/hydra-eval-guile-jobs])
 
+AC_CONFIG_HEADER([hydra-config.h])
+
 AC_OUTPUT

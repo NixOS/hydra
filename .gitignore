@@ -31,3 +31,5 @@ Makefile.in
 /tests/.hg*
 /tests/nix
 /inst
+hydra-config.h
+hydra-config.h.in
