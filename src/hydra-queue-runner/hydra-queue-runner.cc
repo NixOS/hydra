@@ -137,11 +137,10 @@ State::~State()
 void State::markActiveBuildStepsAsAborted(pqxx::connection & conn, time_t stopTime)
 {
     pqxx::work txn(conn);
-    auto stm = txn.parameterized
+    txn.parameterized
         ("update BuildSteps set busy = 0, status = $1, stopTime = $2 where busy = 1")
-        ((int) bssAborted);
-    if (stopTime) stm(stopTime); else stm();
-    stm.exec();
+        ((int) bssAborted)
+        (stopTime, stopTime != 0).exec();
     txn.commit();
 }
 
@@ -152,14 +151,13 @@ int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build,
     auto res = txn.parameterized("select max(stepnr) from BuildSteps where build = $1")(build->id).exec();
     int stepNr = res[0][0].is_null() ? 1 : res[0][0].as<int>() + 1;
 
-    auto stm = txn.parameterized
+    txn.parameterized
         ("insert into BuildSteps (build, stepnr, type, drvPath, busy, startTime, system, status, propagatedFrom, errorMsg, stopTime) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
-        (build->id)(stepNr)(0)(step->drvPath)(status == bssBusy ? 1 : 0)(startTime)(step->drv.platform);
-    if (status == bssBusy) stm(); else stm((int) status);
-    if (propagatedFrom) stm(propagatedFrom); else stm();
-    if (errorMsg != "") stm(errorMsg); else stm();
-    if (status == bssBusy) stm(); else stm(startTime);
-    stm.exec();
+        (build->id)(stepNr)(0)(step->drvPath)(status == bssBusy ? 1 : 0)(startTime)(step->drv.platform)
+        ((int) status, status != bssBusy)
+        (propagatedFrom, propagatedFrom != 0)
+        (errorMsg, errorMsg != "")
+        (startTime, status != bssBusy).exec();
 
     for (auto & output : step->drv.outputs)
         txn.parameterized
@@ -173,13 +171,12 @@ int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build,
 void State::finishBuildStep(pqxx::work & txn, time_t stopTime, BuildID buildId, int stepNr,
     BuildStepStatus status, const std::string & errorMsg, BuildID propagatedFrom)
 {
-    auto stm = txn.parameterized
+    txn.parameterized
         ("update BuildSteps set busy = 0, status = $1, propagatedFrom = $4, errorMsg = $5, stopTime = $6 where build = $2 and stepnr = $3")
-        ((int) status)(buildId)(stepNr);
-    if (propagatedFrom) stm(propagatedFrom); else stm();
-    if (errorMsg != "") stm(errorMsg); else stm();
-    if (stopTime) stm(stopTime); else stm();
-    stm.exec();
+        ((int) status)(buildId)(stepNr)
+        (propagatedFrom, propagatedFrom != 0)
+        (errorMsg, errorMsg != "")
+        (stopTime, stopTime != 0).exec();
 }
 
 
@@ -456,30 +453,28 @@ void State::doBuildStep(Step::ptr step)
 void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
     const BuildResult & res, bool isCachedBuild, time_t startTime, time_t stopTime)
 {
-    auto stm = txn.parameterized
+    txn.parameterized
         ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8 where id = $1")
         (build->id)
         ((int) bsSuccess)
         (startTime)
         (stopTime)
         (res.size)
-        (res.closureSize);
-    if (res.releaseName != "") stm(res.releaseName); else stm();
-    stm(isCachedBuild ? 1 : 0);
-    stm.exec();
+        (res.closureSize)
+        (res.releaseName, res.releaseName != "")
+        (isCachedBuild ? 1 : 0).exec();
 
     unsigned int productNr = 1;
     for (auto & product : res.products) {
-        auto stm = txn.parameterized
+        txn.parameterized
             ("insert into BuildProducts (build, productnr, type, subtype, fileSize, sha1hash, sha256hash, path, name, defaultPath) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)")
             (build->id)
             (productNr++)
             (product.type)
-            (product.subtype);
-        if (product.isRegular) stm(product.fileSize); else stm();
-        if (product.isRegular) stm(printHash(product.sha1hash)); else stm();
-        if (product.isRegular) stm(printHash(product.sha256hash)); else stm();
-        stm
+            (product.subtype)
+            (product.fileSize, product.isRegular)
+            (printHash(product.sha1hash), product.isRegular)
+            (printHash(product.sha256hash), product.isRegular)
             (product.path)
             (product.name)
             (product.defaultPath).exec();
