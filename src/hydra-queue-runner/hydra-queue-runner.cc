@@ -9,6 +9,7 @@
 
 #include "build-result.hh"
 #include "sync.hh"
+#include "pool.hh"
 
 #include "store-api.hh"
 #include "derivations.hh"
@@ -145,8 +146,10 @@ class State
 private:
 
     std::thread queueMonitorThread;
-    std::mutex queueMonitorMutex;
+
+    /* CV for waking up the queue. */
     std::condition_variable queueMonitorWakeup;
+    std::mutex queueMonitorMutex;
 
     /* The queued builds. */
     typedef std::map<BuildID, Build::ptr> Builds;
@@ -165,12 +168,15 @@ private:
 
     std::condition_variable_any runnableWakeup;
 
+    /* PostgreSQL connection pool. */
+    Pool<Connection> dbPool;
+
 public:
     State();
 
     ~State();
 
-    void markActiveBuildStepsAsAborted(pqxx::connection & conn, time_t stopTime);
+    void markActiveBuildStepsAsAborted(time_t stopTime);
 
     int createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
         BuildStepStatus status, const std::string & errorMsg = "", BuildID propagatedFrom = 0);
@@ -182,7 +188,7 @@ public:
 
     void queueMonitor();
 
-    void getQueuedBuilds(std::shared_ptr<StoreAPI> store, pqxx::connection & conn);
+    void getQueuedBuilds(std::shared_ptr<StoreAPI> store);
 
     Step::ptr createStep(std::shared_ptr<StoreAPI> store, const Path & drvPath,
         std::set<Step::ptr> & newRunnable);
@@ -213,18 +219,18 @@ State::State()
 State::~State()
 {
     try {
-        Connection conn;
         printMsg(lvlError, "clearing active build steps...");
-        markActiveBuildStepsAsAborted(conn, time(0));
+        markActiveBuildStepsAsAborted(time(0));
     } catch (...) {
         ignoreException();
     }
 }
 
 
-void State::markActiveBuildStepsAsAborted(pqxx::connection & conn, time_t stopTime)
+void State::markActiveBuildStepsAsAborted(time_t stopTime)
 {
-    pqxx::work txn(conn);
+    auto conn(dbPool.get());
+    pqxx::work txn(*conn);
     txn.parameterized
         ("update BuildSteps set busy = 0, status = $1, stopTime = $2 where busy = 1")
         ((int) bssAborted)
@@ -272,10 +278,8 @@ void State::queueMonitor()
 {
     auto store = openStore(); // FIXME: pool
 
-    Connection conn;
-
     while (!exitRequested) {
-        getQueuedBuilds(store, conn);
+        getQueuedBuilds(store);
 
         {
             std::unique_lock<std::mutex> lock(queueMonitorMutex);
@@ -287,9 +291,11 @@ void State::queueMonitor()
 }
 
 
-void State::getQueuedBuilds(std::shared_ptr<StoreAPI> store, pqxx::connection & conn)
+void State::getQueuedBuilds(std::shared_ptr<StoreAPI> store)
 {
     printMsg(lvlError, "checking the queue...");
+
+    auto conn(dbPool.get());
 
 #if 0
     {
@@ -308,7 +314,7 @@ void State::getQueuedBuilds(std::shared_ptr<StoreAPI> store, pqxx::connection & 
     std::list<Build::ptr> newBuilds; // FIXME: use queue
 
     {
-        pqxx::work txn(conn);
+        pqxx::work txn(*conn);
 
         // FIXME: query only builds with ID higher than the previous
         // highest.
@@ -340,7 +346,7 @@ void State::getQueuedBuilds(std::shared_ptr<StoreAPI> store, pqxx::connection & 
 
         if (!store->isValidPath(build->drvPath)) {
             /* Derivation has been GC'ed prematurely. */
-            pqxx::work txn(conn);
+            pqxx::work txn(*conn);
             txn.parameterized
                 ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1")
                 (build->id)
@@ -360,7 +366,7 @@ void State::getQueuedBuilds(std::shared_ptr<StoreAPI> store, pqxx::connection & 
             Derivation drv = readDerivation(build->drvPath);
             BuildResult res = getBuildResult(store, drv);
 
-            pqxx::work txn(conn);
+            pqxx::work txn(*conn);
             time_t now = time(0);
             markSucceededBuild(txn, build, res, true, now, now);
             txn.commit();
@@ -618,11 +624,11 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step)
 
     /* Create a build step record indicating that we started
        building. */
-    Connection conn;
+    auto conn(dbPool.get());
     time_t startTime = time(0);
     int stepNr;
     {
-        pqxx::work txn(conn);
+        pqxx::work txn(*conn);
         stepNr = createBuildStep(txn, startTime, build, step, bssBusy);
         txn.commit();
     }
@@ -668,7 +674,7 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step)
 
     /* Update the database. */
     {
-        pqxx::work txn(conn);
+        pqxx::work txn(*conn);
 
         if (success) {
 
@@ -757,10 +763,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 
 void State::run()
 {
-    {
-        Connection conn;
-        markActiveBuildStepsAsAborted(conn, 0);
-    }
+    markActiveBuildStepsAsAborted(0);
 
     queueMonitorThread = std::thread(&State::queueMonitor, this);
 
@@ -785,6 +788,8 @@ void State::run()
     { auto runnable_(runnable.lock()); } // barrier
     runnableWakeup.notify_all();
     for (auto & thread : builderThreads) thread.join();
+
+    printMsg(lvlError, format("psql connections = %1%") % dbPool.count());
 }
 
 
