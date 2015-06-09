@@ -234,7 +234,7 @@ public:
 
     void loadMachines();
 
-    void markActiveBuildStepsAsAborted(time_t stopTime);
+    void clearBusy(time_t stopTime);
 
     int createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
         BuildStepStatus status, const std::string & errorMsg = "", BuildID propagatedFrom = 0);
@@ -289,8 +289,8 @@ State::State()
 State::~State()
 {
     try {
-        printMsg(lvlError, "clearing active build steps...");
-        markActiveBuildStepsAsAborted(time(0));
+        printMsg(lvlError, "clearing active builds / build steps...");
+        clearBusy(time(0));
     } catch (...) {
         ignoreException();
     }
@@ -340,7 +340,7 @@ void State::loadMachines()
 }
 
 
-void State::markActiveBuildStepsAsAborted(time_t stopTime)
+void State::clearBusy(time_t stopTime)
 {
     auto conn(dbPool.get());
     pqxx::work txn(*conn);
@@ -348,6 +348,7 @@ void State::markActiveBuildStepsAsAborted(time_t stopTime)
         ("update BuildSteps set busy = 0, status = $1, stopTime = $2 where busy = 1")
         ((int) bssAborted)
         (stopTime, stopTime != 0).exec();
+    txn.exec("update Builds set busy = 0 where finished = 0 and busy = 1");
     txn.commit();
 }
 
@@ -464,7 +465,7 @@ void State::getQueuedBuilds(std::shared_ptr<StoreAPI> store)
             printMsg(lvlInfo, format("aborting GC'ed build %1%") % build->id);
             pqxx::work txn(*conn);
             txn.parameterized
-                ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1")
+                ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1")
                 (build->id)
                 ((int) bsAborted)
                 (time(0))
@@ -820,7 +821,7 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     }
 
     /* Create a build step record indicating that we started
-       building. */
+       building. Also, mark the selected build as busy. */
     auto conn(dbPool.get());
     RemoteResult result;
     result.startTime = time(0);
@@ -828,6 +829,9 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     {
         pqxx::work txn(*conn);
         stepNr = createBuildStep(txn, result.startTime, build, step, bssBusy);
+
+        txn.parameterized("update Builds set busy = 1 where id = $1")(build->id).exec();
+
         txn.commit();
     }
 
@@ -897,7 +901,7 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
             for (auto build2 : dependents) {
                 printMsg(lvlError, format("marking build %1% as failed") % build2->id);
                 txn.parameterized
-                    ("update Builds set finished = 1, isCachedBuild = 0, buildStatus = $2, startTime = $3, stopTime = $4 where id = $1")
+                    ("update Builds set finished = 1, busy = 0, isCachedBuild = 0, buildStatus = $2, startTime = $3, stopTime = $4 where id = $1")
                     (build2->id)
                     ((int) (build2->drvPath == step->drvPath ? bsFailed : bsDepFailed))
                     (result.startTime)
@@ -932,7 +936,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
     printMsg(lvlError, format("marking build %1% as succeeded") % build->id);
 
     txn.parameterized
-        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8 where id = $1")
+        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8 where id = $1")
         (build->id)
         ((int) bsSuccess)
         (startTime)
@@ -964,7 +968,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 
 void State::run()
 {
-    markActiveBuildStepsAsAborted(0);
+    clearBusy(0);
 
     loadMachines();
 
