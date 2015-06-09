@@ -133,8 +133,9 @@ sub getDrvLogPath {
     my $base = basename $drvPath;
     my $bucketed = substr($base, 0, 2) . "/" . substr($base, 2);
     my $fn = ($ENV{NIX_LOG_DIR} || "/nix/var/log/nix") . "/drvs/";
-    for ($fn . $bucketed . ".bz2", $fn . $bucketed, $fn . $base . ".bz2", $fn . $base) {
-        return $_ if (-f $_);
+    my $fn2 = Hydra::Model::DB::getHydraPath . "/build-logs/";
+    for ($fn2 . $bucketed, $fn . $bucketed . ".bz2", $fn . $bucketed, $fn . $base . ".bz2", $fn . $base) {
+        return $_ if -f $_;
     }
     return undef;
 }
