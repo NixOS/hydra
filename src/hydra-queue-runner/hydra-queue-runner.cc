@@ -358,6 +358,10 @@ void State::clearBusy(time_t stopTime)
 int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
     const std::string & machine, BuildStepStatus status, const std::string & errorMsg, BuildID propagatedFrom)
 {
+    /* Acquire an exclusive lock on BuildSteps to ensure that we don't
+       race with other threads creating a step of the same build. */
+    txn.exec("lock table BuildSteps in exclusive mode");
+
     auto res = txn.parameterized("select max(stepnr) from BuildSteps where build = $1")(build->id).exec();
     int stepNr = res[0][0].is_null() ? 1 : res[0][0].as<int>() + 1;
 
@@ -892,12 +896,12 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         } else {
             /* Create failed build steps for every build that depends
                on this. */
-            finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, machine->sshName, bssFailed, result.errorMsg);
-
             for (auto build2 : dependents) {
                 if (build == build2) continue;
                 createBuildStep(txn, result.stopTime, build2, step, machine->sshName, bssFailed, result.errorMsg, build->id);
             }
+
+            finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, machine->sshName, bssFailed, result.errorMsg);
 
             /* Mark all builds that depend on this derivation as failed. */
             for (auto build2 : dependents) {
