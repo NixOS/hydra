@@ -237,10 +237,12 @@ public:
     void clearBusy(time_t stopTime);
 
     int createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
-        BuildStepStatus status, const std::string & errorMsg = "", BuildID propagatedFrom = 0);
+        const std::string & machine, BuildStepStatus status, const std::string & errorMsg = "",
+        BuildID propagatedFrom = 0);
 
     void finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime, BuildID buildId, int stepNr,
-        BuildStepStatus status, const string & errorMsg = "", BuildID propagatedFrom = 0);
+        const std::string & machine, BuildStepStatus status, const string & errorMsg = "",
+        BuildID propagatedFrom = 0);
 
     void updateBuild(pqxx::work & txn, Build::ptr build, BuildStatus status);
 
@@ -354,18 +356,19 @@ void State::clearBusy(time_t stopTime)
 
 
 int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
-    BuildStepStatus status, const std::string & errorMsg, BuildID propagatedFrom)
+    const std::string & machine, BuildStepStatus status, const std::string & errorMsg, BuildID propagatedFrom)
 {
     auto res = txn.parameterized("select max(stepnr) from BuildSteps where build = $1")(build->id).exec();
     int stepNr = res[0][0].is_null() ? 1 : res[0][0].as<int>() + 1;
 
     txn.parameterized
-        ("insert into BuildSteps (build, stepnr, type, drvPath, busy, startTime, system, status, propagatedFrom, errorMsg, stopTime) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
+        ("insert into BuildSteps (build, stepnr, type, drvPath, busy, startTime, system, status, propagatedFrom, errorMsg, stopTime, machine) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)")
         (build->id)(stepNr)(0)(step->drvPath)(status == bssBusy ? 1 : 0)(startTime)(step->drv.platform)
         ((int) status, status != bssBusy)
         (propagatedFrom, propagatedFrom != 0)
         (errorMsg, errorMsg != "")
-        (startTime, status != bssBusy).exec();
+        (startTime, status != bssBusy)
+        (machine, machine != "").exec();
 
     for (auto & output : step->drv.outputs)
         txn.parameterized
@@ -377,16 +380,17 @@ int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build,
 
 
 void State::finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime, BuildID buildId, int stepNr,
-    BuildStepStatus status, const std::string & errorMsg, BuildID propagatedFrom)
+    const std::string & machine, BuildStepStatus status, const std::string & errorMsg, BuildID propagatedFrom)
 {
     assert(startTime);
     assert(stopTime);
     txn.parameterized
-        ("update BuildSteps set busy = 0, status = $1, propagatedFrom = $4, errorMsg = $5, startTime = $6, stopTime = $7 where build = $2 and stepnr = $3")
+        ("update BuildSteps set busy = 0, status = $1, propagatedFrom = $4, errorMsg = $5, startTime = $6, stopTime = $7, machine = $8 where build = $2 and stepnr = $3")
         ((int) status)(buildId)(stepNr)
         (propagatedFrom, propagatedFrom != 0)
         (errorMsg, errorMsg != "")
-        (startTime)(stopTime).exec();
+        (startTime)(stopTime)
+        (machine, machine != "").exec();
 }
 
 
@@ -828,10 +832,8 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     int stepNr;
     {
         pqxx::work txn(*conn);
-        stepNr = createBuildStep(txn, result.startTime, build, step, bssBusy);
-
+        stepNr = createBuildStep(txn, result.startTime, build, step, machine->sshName, bssBusy);
         txn.parameterized("update Builds set busy = 1 where id = $1")(build->id).exec();
-
         txn.commit();
     }
 
@@ -880,7 +882,7 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
         if (result.status == RemoteResult::rrSuccess) {
 
-            finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, bssSuccess);
+            finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, machine->sshName, bssSuccess);
 
             /* Mark all builds of which this derivation is the top
                level as succeeded. */
@@ -890,11 +892,11 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         } else {
             /* Create failed build steps for every build that depends
                on this. */
-            finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, bssFailed, result.errorMsg);
+            finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, machine->sshName, bssFailed, result.errorMsg);
 
             for (auto build2 : dependents) {
                 if (build == build2) continue;
-                createBuildStep(txn, result.stopTime, build2, step, bssFailed, result.errorMsg, build->id);
+                createBuildStep(txn, result.stopTime, build2, step, machine->sshName, bssFailed, result.errorMsg, build->id);
             }
 
             /* Mark all builds that depend on this derivation as failed. */
