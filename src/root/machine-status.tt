@@ -42,9 +42,9 @@
       [% END %]
       [% IF idle == 1 %]
         [% IF m.value.idle %] 
-          <tr><td colspan="5">Idle for [% INCLUDE renderDuration duration = curTime - m.value.idle %]</td></tr>
+          <tr><td colspan="6">Idle for [% INCLUDE renderDuration duration = curTime - m.value.idle %]</td></tr>
         [% ELSE %]
-          <tr><td colspan="5">Never used</td></tr>
+          <tr><td colspan="6">Never used</td></tr>
         [% END %]
       [% END %]
     </tbody>
