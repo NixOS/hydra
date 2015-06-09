@@ -62,8 +62,6 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
     for (auto & path : paths)
         computeFSClosure(*store, path, closure);
 
-    Paths sorted = topoSortPaths(*store, closure);
-
     /* Send the "query valid paths" command with the "lock" option
        enabled. This prevents a race where the remote host
        garbage-collect paths that are already there. Optionally, ask
@@ -71,21 +69,29 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
     writeInt(cmdQueryValidPaths, to);
     writeInt(1, to); // == lock paths
     writeInt(useSubstitutes, to);
-    writeStrings(sorted, to);
+    writeStrings(closure, to);
     to.flush();
 
     /* Get back the set of paths that are already valid on the remote
        host. */
     auto present = readStorePaths<PathSet>(from);
 
-    PathSet missing;
-    std::set_difference(closure.begin(), closure.end(), present.begin(), present.end(),
-        std::inserter(missing, missing.end()));
+    if (present.size() == closure.size()) return;
+
+    Paths sorted = topoSortPaths(*store, closure);
+
+    Paths missing;
+    for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
+        if (present.find(*i) == present.end()) missing.push_back(*i);
 
     printMsg(lvlError, format("sending %1% missing paths") % missing.size());
-    if (missing.empty()) return;
 
-    throw Error("NOT IMPL 1");
+    writeInt(cmdImportPaths, to);
+    exportPaths(*store, missing, false, to);
+    to.flush();
+
+    if (readInt(from) != 1)
+        throw Error("remote machine failed to import closure");
 }
 
 
