@@ -39,7 +39,7 @@ static void openConnection(const string & sshName, const string & sshKey,
         if (dup2(stderrFD, STDERR_FILENO) == -1)
             throw SysError("cannot dup stderr");
 
-        Strings argv({"ssh", "-x", "-a", sshName, "--", "nix-store", "--serve", "--write"});
+        Strings argv({"ssh", sshName, "-i", sshKey, "-x", "-a", "--", "nix-store", "--serve", "--write"});
 
         execvp("ssh", (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
 
