@@ -421,18 +421,6 @@ void State::getQueuedBuilds(std::shared_ptr<StoreAPI> store)
 
     auto conn(dbPool.get());
 
-#if 0
-    {
-        auto runnable_(runnable.lock());
-        auto builds_(builds.lock());
-        auto steps_(steps.lock());
-        printMsg(lvlError, format("%1% builds, %2% steps, %3% runnable steps")
-            % builds_->size()
-            % steps_->size()
-            % runnable_->size());
-    }
-#endif
-
     /* Grab the queued builds from the database, but don't process
        them yet (since we don't want a long-running transaction). */
     std::list<Build::ptr> newBuilds; // FIXME: use queue
@@ -444,9 +432,8 @@ void State::getQueuedBuilds(std::shared_ptr<StoreAPI> store)
         // highest.
         auto res = txn.exec("select * from Builds where finished = 0 order by id");
 
-        auto builds_(builds.lock());
-
         for (auto const & row : res) {
+            auto builds_(builds.lock());
             BuildID id = row["id"].as<BuildID>();
             if (has(*builds_, id)) continue;
 
