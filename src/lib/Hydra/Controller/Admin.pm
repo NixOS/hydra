@@ -45,7 +45,7 @@ sub clear_queue_non_current : Chained('admin') PathPart('clear-queue-non-current
 
 sub clearfailedcache : Chained('admin') PathPart('clear-failed-cache') Args(0) {
     my ($self, $c) = @_;
-    my $r = `nix-store --clear-failed-paths '*'`;
+    $c->model('DB::FailedPaths')->delete;
     $c->res->redirect($c->request->referer // "/");
 }
 

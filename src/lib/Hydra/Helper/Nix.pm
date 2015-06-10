@@ -465,9 +465,10 @@ sub restartBuilds($$) {
         # !!! Should do this in a trigger.
         $db->resultset('JobsetEvals')->search({ build => \@buildIds }, { join => 'buildIds' })->update({ nrsucceeded => undef });
 
-        # Clear Nix's negative failure cache.
+        # Clear the failed paths cache.
         # FIXME: Add this to the API.
-        system("nix-store", "--clear-failed-paths", @paths);
+        # FIXME: clear the dependencies?
+        $db->resultset('FailedPaths')->search({ path => [ @paths ]})->delete;
     });
 
     return scalar(@buildIds);

@@ -780,7 +780,7 @@ void State::builder(Step::ptr step, MachineReservation::ptr reservation)
         auto store = openStore(); // FIXME: pool
         doBuildStep(store, step, reservation->machine);
     } catch (std::exception & e) {
-        printMsg(lvlError, format("build thread for ‘%1%’: %2%") % step->drvPath % e.what());
+        printMsg(lvlError, format("error building ‘%1%’: %2%") % step->drvPath % e.what());
         // FIXME: put step back in runnable and retry
     }
 
@@ -828,34 +828,54 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         printMsg(lvlInfo, format("performing build step ‘%1%’ (needed by %2% builds)") % step->drvPath % dependents.size());
     }
 
-    /* Create a build step record indicating that we started
-       building. Also, mark the selected build as busy. */
     auto conn(dbPool.get());
+
     RemoteResult result;
+    BuildResult res;
+    int stepNr = 0;
+
     result.startTime = time(0);
-    int stepNr;
+
+    /* If any of the outputs have previously failed, then don't
+       retry. */
+    bool cachedFailure = false;
     {
         pqxx::work txn(*conn);
-        stepNr = createBuildStep(txn, result.startTime, build, step, machine->sshName, bssBusy);
-        txn.parameterized("update Builds set busy = 1 where id = $1")(build->id).exec();
-        txn.commit();
+        for (auto & path : outputPaths(step->drv))
+            if (!txn.parameterized("select 1 from FailedPaths where path = $1")(path).exec().empty()) {
+                cachedFailure = true;
+                break;
+            }
     }
 
-    try {
-        buildRemote(store, machine->sshName, machine->sshKey, step->drvPath, step->drv, logDir, result);
-    } catch (Error & e) {
-        result.status = RemoteResult::rrMiscFailure;
-        result.errorMsg = e.msg();
-        printMsg(lvlError, format("ERROR: %1%") % e.msg());
-        abort();
+    if (cachedFailure)
+        result.status = RemoteResult::rrPermanentFailure;
+    else {
+
+        /* Create a build step record indicating that we started
+           building. Also, mark the selected build as busy. */
+        {
+            pqxx::work txn(*conn);
+            stepNr = createBuildStep(txn, result.startTime, build, step, machine->sshName, bssBusy);
+            txn.parameterized("update Builds set busy = 1 where id = $1")(build->id).exec();
+            txn.commit();
+        }
+
+        try {
+            buildRemote(store, machine->sshName, machine->sshKey, step->drvPath, step->drv, logDir, result);
+        } catch (Error & e) {
+            result.status = RemoteResult::rrMiscFailure;
+            result.errorMsg = e.msg();
+            printMsg(lvlError, format("ERROR: %1%") % e.msg());
+            abort();
+        }
+
+        if (result.status == RemoteResult::rrSuccess) res = getBuildResult(store, step->drv);
+
+        // FIXME: handle failed-with-output
     }
 
     if (!result.stopTime) result.stopTime = time(0);
-
-    BuildResult res;
-    if (result.status == RemoteResult::rrSuccess) res = getBuildResult(store, step->drv);
-
-    // FIXME: handle failed-with-output
 
     /* Remove this step. After this, incoming builds that depend on
        drvPath will either see that the output paths exist, or will
@@ -894,26 +914,42 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 markSucceededBuild(txn, build2, res, false, result.startTime, result.stopTime);
 
         } else {
-            /* Create failed build steps for every build that depends
-               on this. */
-            for (auto build2 : dependents) {
-                if (build == build2) continue;
-                createBuildStep(txn, result.stopTime, build2, step, machine->sshName, bssFailed, result.errorMsg, build->id);
-            }
+            /* Failure case. */
 
-            finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, machine->sshName, bssFailed, result.errorMsg);
+            /* For regular failures, we don't care about the error
+               message. */
+            if (result.status != RemoteResult::rrMiscFailure) result.errorMsg = "";
+
+            if (!cachedFailure) {
+
+                /* Create failed build steps for every build that depends
+                   on this. */
+                for (auto build2 : dependents) {
+                    if (build == build2) continue;
+                    createBuildStep(txn, result.stopTime, build2, step, machine->sshName, bssFailed, result.errorMsg, build->id);
+                }
+
+                finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, machine->sshName, bssFailed, result.errorMsg);
+            }
 
             /* Mark all builds that depend on this derivation as failed. */
             for (auto build2 : dependents) {
                 printMsg(lvlError, format("marking build %1% as failed") % build2->id);
                 txn.parameterized
-                    ("update Builds set finished = 1, busy = 0, isCachedBuild = 0, buildStatus = $2, startTime = $3, stopTime = $4 where id = $1")
+                    ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1")
                     (build2->id)
                     ((int) (build2->drvPath == step->drvPath ? bsFailed : bsDepFailed))
                     (result.startTime)
-                    (result.stopTime).exec();
+                    (result.stopTime)
+                    (cachedFailure ? 1 : 0).exec();
                 build2->finishedInDB = true; // FIXME: txn might fail
             }
+
+            /* Remember failed paths in the database so that they
+               won't be built again. */
+            if (!cachedFailure && result.status == RemoteResult::rrPermanentFailure)
+                for (auto & path : outputPaths(step->drv))
+                    txn.parameterized("insert into FailedPaths values ($1)")(path).exec();
         }
 
         txn.commit();

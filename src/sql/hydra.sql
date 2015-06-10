@@ -511,6 +511,22 @@ create table StarredJobs (
 );
 
 
+-- The output paths that have permanently failed.
+create table FailedPaths (
+    path text primary key not null
+);
+
+#ifdef POSTGRESQL
+
+-- Needed because Postgres doesn't have "ignore duplicate" or upsert
+-- yet.
+create rule IdempotentInsert as on insert to FailedPaths
+  where exists (select 1 from FailedPaths where path = new.path)
+  do instead nothing;
+
+#endif
+
+
 -- Cache of the number of finished builds.
 create table NrBuilds (
     what  text primary key not null,
