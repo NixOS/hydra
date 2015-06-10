@@ -27,40 +27,6 @@ bool has(const C & c, const V & v)
 }
 
 
-std::mutex exitRequestMutex;
-std::condition_variable exitRequest;
-std::atomic<bool> exitRequested(false);
-
-static std::atomic_int _int(0);
-
-void sigintHandler(int signo)
-{
-    _int = 1;
-}
-
-
-void signalThread()
-{
-    struct sigaction act;
-    act.sa_handler = sigintHandler;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
-    if (sigaction(SIGINT, &act, 0))
-        throw SysError("installing handler for SIGINT");
-
-    while (true) {
-        sleep(1000000);
-        if (_int) break;
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(exitRequestMutex);
-        exitRequested = true;
-    }
-    exitRequest.notify_all();
-}
-
-
 typedef enum {
     bsSuccess = 0,
     bsFailed = 1,
@@ -402,7 +368,7 @@ void State::queueMonitor()
 {
     auto store = openStore(); // FIXME: pool
 
-    while (!exitRequested) {
+    while (true) {
         getQueuedBuilds(store);
 
         {
@@ -685,7 +651,7 @@ void State::makeRunnable(Step::ptr step)
 
 void State::dispatcher()
 {
-    while (!exitRequested) {
+    while (true) {
         printMsg(lvlError, "dispatcher woken up");
 
         {
@@ -1003,25 +969,11 @@ void State::run()
 
     auto queueMonitorThread = std::thread(&State::queueMonitor, this);
 
-    auto dispatcherThread = std::thread(&State::dispatcher, this);
+    std::thread(&State::dispatcher, this).detach();
 
-    /* Wait for SIGINT. */
-    {
-        std::unique_lock<std::mutex> lock(exitRequestMutex);
-        while (!exitRequested)
-            exitRequest.wait(lock);
-    }
-
-    printMsg(lvlError, "exiting...");
-
-    /* Shut down the various threads. */
-    { std::lock_guard<std::mutex> lock(queueMonitorMutex); } // barrier
-    queueMonitorWakeup.notify_all();
     queueMonitorThread.join();
 
-    wakeDispatcher();
-    dispatcherThread.join();
-
+    printMsg(lvlError, "exiting...");
     printMsg(lvlError, format("psql connections = %1%") % dbPool.count());
 }
 
@@ -1031,15 +983,9 @@ int main(int argc, char * * argv)
     return handleExceptions(argv[0], [&]() {
         initNix();
 
-        std::thread(signalThread).detach();
-
-        /* Ignore signals. This is inherited by the other threads. */
-        sigset_t set;
-        sigemptyset(&set);
-        sigaddset(&set, SIGHUP);
-        sigaddset(&set, SIGINT);
-        sigaddset(&set, SIGTERM);
-        sigprocmask(SIG_BLOCK, &set, NULL);
+        signal(SIGINT, SIG_DFL);
+        signal(SIGTERM, SIG_DFL);
+        signal(SIGHUP, SIG_DFL);
 
         settings.buildVerbosity = lvlVomit;
         settings.useSubstitutes = false;
