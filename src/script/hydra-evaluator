@@ -246,6 +246,8 @@ sub checkJobsetWrapped {
         $jobset->update({ enabled => 0 }) if $jobset->enabled == 2;
 
         $jobset->update({ lastcheckedtime => time });
+
+        $db->storage->dbh->do("notify builds_added");
     });
 
     # Store the error messages for jobs that failed to evaluate.

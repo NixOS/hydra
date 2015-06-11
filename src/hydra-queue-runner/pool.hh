@@ -57,7 +57,7 @@ public:
             if (r) state_->idle.push_back(r);
         }
 
-        R * operator -> () { return r; }
+        R * operator -> () { return r.get(); }
         R & operator * () { return *r; }
     };
 

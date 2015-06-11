@@ -469,6 +469,8 @@ sub restartBuilds($$) {
         # FIXME: Add this to the API.
         # FIXME: clear the dependencies?
         $db->resultset('FailedPaths')->search({ path => [ @paths ]})->delete;
+
+        $db->storage->dbh->do("notify builds_restarted");
     });
 
     return scalar(@buildIds);
