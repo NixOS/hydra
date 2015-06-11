@@ -433,6 +433,7 @@ sub cancelBuilds($$) {
             , starttime => $time
             , stoptime => $time
             });
+        $db->storage->dbh->do("notify builds_cancelled");
         return $n;
     });
 }
