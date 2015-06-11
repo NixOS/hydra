@@ -424,7 +424,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
     {
         pqxx::work txn(conn);
 
-        auto res = txn.parameterized("select * from Builds where id > $1 and finished = 0 order by id")(lastBuildId).exec();
+        auto res = txn.parameterized("select id, project, jobset, job, drvPath from Builds where id > $1 and finished = 0 order by id")(lastBuildId).exec();
 
         for (auto const & row : res) {
             auto builds_(builds.lock());
