@@ -22,7 +22,10 @@ sub addRoot {
 }
 
 
-my @columns = ( "id", "project", "jobset", "job", "system", "finished", "drvpath", "timestamp", "buildstatus" );
+my @columns =
+    ( "id", "project", "jobset", "job", "system", "finished", "drvpath", "timestamp", "buildstatus"
+    , { "outpaths" => \ "(select string_agg(path, ' ') from BuildOutputs where build = me.id)" }
+    );
 
 my %seenBuilds;
 
@@ -35,11 +38,11 @@ sub keepBuild {
         $build->system, "; ",
         strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
     if ($build->finished && ($build->buildstatus == 0 || $build->buildstatus == 6)) {
-        foreach my $out ($build->buildoutputs->all) {
-            if (isValidPath($out->path)) {
-                addRoot $out->path;
+        foreach my $path (split / /, $build->get_column('outpaths')) {
+            if (isValidPath($path)) {
+                addRoot $path;
             } else {
-                print STDERR "    warning: output ", $out->path, " has disappeared\n" if $build->finished;
+                print STDERR "    warning: output ", $path, " has disappeared\n" if $build->finished;
             }
         }
     }
