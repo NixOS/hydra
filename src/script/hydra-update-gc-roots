@@ -24,8 +24,12 @@ sub addRoot {
 
 my @columns = ( "id", "project", "jobset", "job", "system", "finished", "drvpath", "timestamp", "buildstatus" );
 
+my %seenBuilds;
+
 sub keepBuild {
     my ($build, $keepFailedDrvs) = @_;
+    return if defined $seenBuilds{$build->id};
+    $seenBuilds{$build->id} = 1;
     print STDERR "  keeping ", ($build->finished ? "" : "scheduled "), "build ", $build->id, " (",
         $build->get_column('project'), ":", $build->get_column('jobset'), ":", $build->get_column('job'), "; ",
         $build->system, "; ",
@@ -108,10 +112,33 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
                 , order_by => "id desc", rows => $keepnr });
         }
 
+        # Note: we also keep the derivations of failed builds so that
+        # they can be restarted.
         keepBuild($_, 1) foreach $jobset->builds->search(
             { id => { -in => $db->resultset('JobsetEvalMembers')->search({ eval => { -in => [@evals] } }, { select => "build" })->as_query }
+            , finished => 1
             },
             { order_by => ["job", "id"], columns => [ @columns ] });
+
+        print STDERR "*** looking for the most recent successful builds of current jobs in ",
+            $project->name, ":", $jobset->name, "\n";
+
+        # Keep the most recently succeeded build of a current job. Oh
+        # I really need to stop using DBIx::Class.
+        keepBuild($_, 1) foreach $jobset->builds->search(
+            { id => { -in => $jobset->builds->search(
+                { finished => 1
+                , buildstatus => [0, 6]
+                , job => { -in => $jobset->builds->search(
+                                { eval => { -in => [@evals] } },
+                                { select => "job", distinct => 1, join => "jobsetevalmembers" }
+                               )->as_query }
+                },
+                { group_by => 'job'
+                , select => [ { max => 'id', -as => 'm' } ]
+                })->as_query }
+            },
+            { columns => [ @columns ] });
     }
 }
 
