@@ -50,6 +50,13 @@ in rec {
         addToSearchPath PERL5LIB $(pwd)/src/lib
       '';
 
+      postUnpack = ''
+        # Clean up when building from a working tree.
+        if [ -z "$IN_NIX_SHELL" ]; then
+          (cd $sourceRoot && (git ls-files -o --directory | xargs -r rm -rfv)) || true
+        fi
+      '';
+
       configureFlags =
         [ "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook" ];
 
