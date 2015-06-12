@@ -174,7 +174,7 @@ in rec {
   tests.install = genAttrs' (system:
     with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
     simpleTest {
-      machine = hydraServer (builtins.getAttr system build); # build.${system}
+      machine = hydraServer build.${system};
       testScript =
         ''
           $machine->waitForJob("hydra-init");
@@ -189,7 +189,7 @@ in rec {
   tests.api = genAttrs' (system:
     with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
     simpleTest {
-      machine = hydraServer (builtins.getAttr system build); # build.${system}
+      machine = hydraServer build.${system};
       testScript =
         let dbi = "dbi:Pg:dbname=hydra;user=root;"; in
         ''
@@ -218,7 +218,7 @@ in rec {
   /*
   tests.s3backup = genAttrs' (system:
     with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
-    let hydra = builtins.getAttr system build; in # build."${system}"
+    let hydra = build.${system}
     simpleTest {
       machine =
         { config, pkgs, ... }:
