@@ -6,7 +6,7 @@ let
 
   pkgs = import <nixpkgs> {};
 
-  genAttrs' = pkgs.lib.genAttrs [ "x86_64-linux" "i686-linux" ];
+  genAttrs' = pkgs.lib.genAttrs [ "x86_64-linux" /* "i686-linux" */ ];
 
   hydraServer = hydraPkg:
     { config, pkgs, ... }:
@@ -48,6 +48,13 @@ in rec {
         addToSearchPath PATH $(pwd)/src/script
         addToSearchPath PATH $(pwd)/src/hydra-eval-jobs
         addToSearchPath PERL5LIB $(pwd)/src/lib
+      '';
+
+      postUnpack = ''
+        # Clean up when building from a working tree.
+        if [ -z "$IN_NIX_SHELL" ]; then
+          (cd $sourceRoot && (git ls-files -o --directory | xargs -r rm -rfv)) || true
+        fi
       '';
 
       configureFlags =
@@ -167,7 +174,7 @@ in rec {
   tests.install = genAttrs' (system:
     with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
     simpleTest {
-      machine = hydraServer (builtins.getAttr system build); # build.${system}
+      machine = hydraServer build.${system};
       testScript =
         ''
           $machine->waitForJob("hydra-init");
@@ -182,7 +189,7 @@ in rec {
   tests.api = genAttrs' (system:
     with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
     simpleTest {
-      machine = hydraServer (builtins.getAttr system build); # build.${system}
+      machine = hydraServer build.${system};
       testScript =
         let dbi = "dbi:Pg:dbname=hydra;user=root;"; in
         ''
@@ -190,7 +197,7 @@ in rec {
 
           # Create an admin account and some other state.
           $machine->succeed
-              ( "su hydra -c \"hydra-create-user root --email-address 'e.dolstra\@tudelft.nl' --password foobar --role admin\""
+              ( "su - hydra -c \"hydra-create-user root --email-address 'alice\@example.org' --password foobar --role admin\""
               , "mkdir /run/jobset /tmp/nix"
               , "chmod 755 /run/jobset /tmp/nix"
               , "cp ${./tests/api-test.nix} /run/jobset/default.nix"
@@ -200,18 +207,18 @@ in rec {
 
           # Start the web interface with some weird settings.
           $machine->succeed("systemctl stop hydra-server hydra-evaluator hydra-queue-runner");
-          $machine->mustSucceed("su hydra -c 'NIX_STORE_DIR=/tmp/nix/store NIX_LOG_DIR=/tmp/nix/var/log/nix NIX_STATE_DIR=/tmp/nix/var/nix DBIC_TRACE=1 hydra-server -d' >&2 &");
+          $machine->mustSucceed("su - hydra -c 'NIX_STORE_DIR=/tmp/nix/store NIX_LOG_DIR=/tmp/nix/var/log/nix NIX_STATE_DIR=/tmp/nix/var/nix NIX_REMOTE= DBIC_TRACE=1 hydra-server -d' >&2 &");
           $machine->waitForOpenPort("3000");
 
           # Run the API tests.
-          $machine->mustSucceed("su hydra -c 'perl ${./tests/api-test.pl}' >&2");
+          $machine->mustSucceed("su - hydra -c 'perl ${./tests/api-test.pl}' >&2");
         '';
   });
 
   /*
   tests.s3backup = genAttrs' (system:
     with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
-    let hydra = builtins.getAttr system build; in # build."${system}"
+    let hydra = build.${system}
     simpleTest {
       machine =
         { config, pkgs, ... }:

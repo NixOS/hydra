@@ -49,7 +49,7 @@ ok(exists $jobset->{jobsetinputs}->{"my-src"}, "The new jobset has a 'my-src' in
 
 ok($jobset->{jobsetinputs}->{"my-src"}->{jobsetinputalts}->[0] eq "/run/jobset", "The 'my-src' input is in /run/jobset");
 
-system("NIX_STORE_DIR=/tmp/nix/store NIX_LOG_DIR=/tmp/nix/var/log/nix NIX_STATE_DIR=/tmp/nix/var/nix hydra-evaluator sample default");
+system("NIX_STORE_DIR=/tmp/nix/store NIX_LOG_DIR=/tmp/nix/var/log/nix NIX_STATE_DIR=/tmp/nix/var/nix NIX_REMOTE= hydra-evaluator sample default");
 $result = request_json({ uri => '/jobset/sample/default/evals' });
 ok($result->code() == 200, "Can get evals of a jobset");
 my $evals = decode_json($result->content())->{evals};
