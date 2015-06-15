@@ -202,6 +202,10 @@ private:
        worth it. */
     // std::vector<std::thread> builderThreads;
 
+
+    /* Various stats. */
+    std::atomic<int> nrQueueWakeups;
+
 public:
     State();
 
@@ -256,12 +260,16 @@ public:
 
     bool checkCachedFailure(Step::ptr step, Connection & conn);
 
+    void dumpStatus();
+
     void run();
 };
 
 
 State::State()
 {
+    nrQueueWakeups = 0;
+
     hydraData = getEnv("HYDRA_DATA");
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
 
@@ -419,6 +427,7 @@ void State::queueMonitorLoop()
     receiver buildsAdded(*conn, "builds_added");
     receiver buildsRestarted(*conn, "builds_restarted");
     receiver buildsCancelled(*conn, "builds_cancelled");
+    receiver dumpStatus(*conn, "dump_status");
 
     auto store = openStore(); // FIXME: pool
 
@@ -430,6 +439,7 @@ void State::queueMonitorLoop()
         /* Sleep until we get notification from the database about an
            event. */
         conn->await_notification();
+        nrQueueWakeups++;
 
         if (buildsAdded.get())
             printMsg(lvlTalkative, "got notification: new builds added to the queue");
@@ -441,6 +451,9 @@ void State::queueMonitorLoop()
             printMsg(lvlTalkative, "got notification: builds cancelled");
             removeCancelledBuilds(*conn);
         }
+
+        if (dumpStatus.get())
+            State::dumpStatus();
     }
 }
 
@@ -1095,6 +1108,36 @@ bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 }
 
 
+void State::dumpStatus()
+{
+    {
+        auto builds_(builds.lock());
+        printMsg(lvlError, format("%1% queued builds") % builds_->size());
+    }
+    {
+        auto steps_(steps.lock());
+        for (auto i = steps_->begin(); i != steps_->end(); )
+            if (i->second.lock()) ++i; else i = steps_->erase(i);
+        printMsg(lvlError, format("%1% pending/active build steps") % steps_->size());
+    }
+    {
+        auto runnable_(runnable.lock());
+        for (auto i = runnable_->begin(); i != runnable_->end(); )
+            if (i->lock()) ++i; else i = runnable_->erase(i);
+        printMsg(lvlError, format("%1% runnable build steps") % runnable_->size());
+    }
+    printMsg(lvlError, format("%1% times woken up to check the queue") % nrQueueWakeups);
+    {
+        auto machines_(machines.lock());
+        for (auto & m : *machines_) {
+            auto currentJobs_(m->currentJobs.lock());
+            printMsg(lvlError, format("machine %1%: %2%/%3% active")
+                % m->sshName % *currentJobs_ % m->maxJobs);
+        }
+    }
+}
+
+
 void State::run()
 {
     clearBusy(0);
@@ -1116,6 +1159,10 @@ int main(int argc, char * * argv)
 {
     return handleExceptions(argv[0], [&]() {
         initNix();
+
+        parseCmdLine(argc, argv, [&](Strings::iterator & arg, const Strings::iterator & end) {
+            return false;
+        });
 
         signal(SIGINT, SIG_DFL);
         signal(SIGTERM, SIG_DFL);
