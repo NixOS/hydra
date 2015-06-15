@@ -128,6 +128,13 @@ struct Machine
         auto currentJobs_(currentJobs.lock());
         *currentJobs_ = 0;
     }
+
+    bool supportsStep(Step::ptr step)
+    {
+        if (systemTypes.find(step->drv.platform) == systemTypes.end()) return false;
+        // FIXME: check features
+        return true;
+    }
 };
 
 
@@ -452,7 +459,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
 
         if (!store->isValidPath(build->drvPath)) {
             /* Derivation has been GC'ed prematurely. */
-            printMsg(lvlInfo, format("aborting GC'ed build %1%") % build->id);
+            printMsg(lvlError, format("aborting GC'ed build %1%") % build->id);
             pqxx::work txn(conn);
             txn.parameterized
                 ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1")
@@ -480,6 +487,32 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             markSucceededBuild(txn, build, res, true, now, now);
             txn.commit();
 
+            continue;
+        }
+
+        /* If any step has an unsupported system type, then fail the
+           build. */
+        bool allSupported = true;
+        for (auto & r : newRunnable) {
+            bool supported = false;
+            {
+                auto machines_(machines.lock()); // FIXME: use shared_mutex
+                for (auto & m : *machines_)
+                    if (m->supportsStep(r)) { supported = true; break; }
+            }
+            if (!supported) { allSupported = false; break; }
+        }
+
+        if (!allSupported) {
+            printMsg(lvlError, format("aborting unsupported build %1%") % build->id);
+            pqxx::work txn(conn);
+            txn.parameterized
+                ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1")
+                (build->id)
+                ((int) bsAborted)
+                (time(0))
+                ("unsupported system type").exec();
+            txn.commit();
             continue;
         }
 
@@ -763,8 +796,7 @@ MachineReservation::ptr State::findMachine(Step::ptr step)
     auto machines_(machines.lock());
 
     for (auto & machine : *machines_) {
-        if (!has(machine->systemTypes, step->drv.platform)) continue;
-        // FIXME: check features
+        if (!machine->supportsStep(step)) continue;
         {
             auto currentJobs_(machine->currentJobs.lock());
             if (*currentJobs_ >= machine->maxJobs) continue;
