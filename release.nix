@@ -37,7 +37,7 @@ in rec {
       version = builtins.readFile ./version;
 
       buildInputs =
-        [ perl libxslt dblatex tetex nukeReferences pkgconfig nixUnstable git openssl ];
+        [ perl libxslt dblatex tetex nukeReferences pkgconfig nix git openssl ];
 
       versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
 
@@ -71,7 +71,7 @@ in rec {
 
     let
 
-      nix = nixUnstable;
+      #nix = nixUnstable;
 
       perlDeps = buildEnv {
         name = "hydra-perl-deps";
