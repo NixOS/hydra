@@ -224,7 +224,7 @@ public:
     void removeCancelledBuilds(Connection & conn);
 
     Step::ptr createStep(std::shared_ptr<StoreAPI> store, const Path & drvPath,
-        std::set<Step::ptr> & newRunnable);
+        std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable);
 
     void destroyStep(Step::ptr step, bool proceed);
 
@@ -473,8 +473,8 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             continue;
         }
 
-        std::set<Step::ptr> newRunnable;
-        Step::ptr step = createStep(store, build->drvPath, newRunnable);
+        std::set<Step::ptr> newSteps, newRunnable;
+        Step::ptr step = createStep(store, build->drvPath, newSteps, newRunnable);
 
         /* If we didn't get a step, it means the step's outputs are
            all valid. So we mark this as a finished, cached build. */
@@ -495,7 +495,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
         /* If any step has an unsupported system type, then fail the
            build. */
         bool allSupported = true;
-        for (auto & r : newRunnable) {
+        for (auto & r : newSteps) {
             bool supported = false;
             {
                 auto machines_(machines.lock()); // FIXME: use shared_mutex
@@ -531,8 +531,8 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             build->toplevel = step;
         }
 
-        printMsg(lvlInfo, format("added build %1% (top-level step %2%, %3% new runnable steps)")
-            % build->id % step->drvPath % newRunnable.size());
+        printMsg(lvlInfo, format("added build %1% (top-level step %2%, %3% new steps, %4% new runnable steps)")
+            % build->id % step->drvPath % newSteps.size() % newRunnable.size());
 
         /* Prior to this, the build is not visible to
            getDependentBuilds().  Now it is, so the build can be
@@ -572,7 +572,7 @@ void State::removeCancelledBuilds(Connection & conn)
 
 
 Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPath,
-    std::set<Step::ptr> & newRunnable)
+    std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable)
 {
     /* Check if the requested step already exists. */
     {
@@ -592,6 +592,7 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
     auto step = std::make_shared<Step>();
     step->drvPath = drvPath;
     step->drv = readDerivation(drvPath);
+    newSteps.insert(step);
 
     /* Are all outputs valid? */
     bool valid = true;
@@ -611,7 +612,7 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
     /* Create steps for the dependencies. */
     bool hasDeps = false;
     for (auto & i : step->drv.inputDrvs) {
-        Step::ptr dep = createStep(store, i.first, newRunnable);
+        Step::ptr dep = createStep(store, i.first, newSteps, newRunnable);
         if (dep) {
             hasDeps = true;
             auto step_(step->state.lock());
