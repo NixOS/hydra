@@ -197,7 +197,7 @@ in rec {
 
           # Create an admin account and some other state.
           $machine->succeed
-              ( "su hydra -c \"hydra-create-user root --email-address 'e.dolstra\@tudelft.nl' --password foobar --role admin\""
+              ( "su - hydra -c \"hydra-create-user root --email-address 'alice\@example.org' --password foobar --role admin\""
               , "mkdir /run/jobset /tmp/nix"
               , "chmod 755 /run/jobset /tmp/nix"
               , "cp ${./tests/api-test.nix} /run/jobset/default.nix"
@@ -207,11 +207,11 @@ in rec {
 
           # Start the web interface with some weird settings.
           $machine->succeed("systemctl stop hydra-server hydra-evaluator hydra-queue-runner");
-          $machine->mustSucceed("su hydra -c 'NIX_STORE_DIR=/tmp/nix/store NIX_LOG_DIR=/tmp/nix/var/log/nix NIX_STATE_DIR=/tmp/nix/var/nix DBIC_TRACE=1 hydra-server -d' >&2 &");
+          $machine->mustSucceed("su - hydra -c 'NIX_STORE_DIR=/tmp/nix/store NIX_LOG_DIR=/tmp/nix/var/log/nix NIX_STATE_DIR=/tmp/nix/var/nix NIX_REMOTE= DBIC_TRACE=1 hydra-server -d' >&2 &");
           $machine->waitForOpenPort("3000");
 
           # Run the API tests.
-          $machine->mustSucceed("su hydra -c 'perl ${./tests/api-test.pl}' >&2");
+          $machine->mustSucceed("su - hydra -c 'perl ${./tests/api-test.pl}' >&2");
         '';
   });
 
