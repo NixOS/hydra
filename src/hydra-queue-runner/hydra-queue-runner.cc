@@ -342,11 +342,13 @@ int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build,
 
     txn.parameterized
         ("insert into BuildSteps (build, stepnr, type, drvPath, busy, startTime, system, status, propagatedFrom, errorMsg, stopTime, machine) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)")
-        (build->id)(stepNr)(0)(step->drvPath)(status == bssBusy ? 1 : 0)(startTime)(step->drv.platform)
+        (build->id)(stepNr)(0)(step->drvPath)(status == bssBusy ? 1 : 0)
+        (startTime, startTime != 0)
+        (step->drv.platform)
         ((int) status, status != bssBusy)
         (propagatedFrom, propagatedFrom != 0)
         (errorMsg, errorMsg != "")
-        (startTime, status != bssBusy)
+        (startTime, startTime != 0 && status != bssBusy)
         (machine).exec();
 
     for (auto & output : step->drv.outputs)
@@ -530,7 +532,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
                     ((int) buildStatus)
                     (now)
                     (buildStatus != bsUnsupported ? 1 : 0).exec();
-                createBuildStep(txn, now, build, r, "", buildStepStatus);
+                createBuildStep(txn, 0, build, r, "", buildStepStatus);
                 txn.commit();
                 badStep = true;
                 break;
@@ -980,7 +982,7 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                    on this. */
                 for (auto build2 : dependents) {
                     if (build == build2) continue;
-                    createBuildStep(txn, result.stopTime, build2, step, machine->sshName, bssFailed, result.errorMsg, build->id);
+                    createBuildStep(txn, 0, build2, step, machine->sshName, bssFailed, result.errorMsg, build->id);
                 }
 
                 finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, machine->sshName, bssFailed, result.errorMsg);

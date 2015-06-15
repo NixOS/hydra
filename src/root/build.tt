@@ -36,7 +36,7 @@
                    IF step.stoptime;
                      INCLUDE renderDuration duration = step.stoptime - step.starttime;
                    ELSE;
-                     %]?[%
+                     %]<em>n/a</em>[%
                    END;
                  ELSIF build.finished;
                    INCLUDE renderDuration duration = build.stoptime - step.starttime;
@@ -186,13 +186,17 @@
                 <td>[% IF cachedBuild; INCLUDE renderFullBuildLink build=cachedBuild; ELSE %]<em>unknown</em>[% END %]</td>
               </tr>
             [% END %]
-            [% IF !isAggregate && build.finished %]
-            <tr>
-              <th>Duration:</th>
-              <td>[% actualBuild = build.iscachedbuild ? cachedBuild : build;
-                     INCLUDE renderDuration duration = actualBuild.stoptime - actualBuild.starttime %];
-                     finished at [% INCLUDE renderDateTime timestamp = actualBuild.stoptime %]</td>
-            </tr>
+            [% IF !isAggregate && build.finished; actualBuild = build.iscachedbuild ? cachedBuild : build %]
+              [% IF actualBuild %]
+                <tr>
+                  <th>Duration:</th>
+                  <td>[% INCLUDE renderDuration duration = actualBuild.stoptime - actualBuild.starttime %]</td>
+                </tr>
+              [% END %]
+              <tr>
+                <th>Finished at:</th>
+                <td>[% INCLUDE renderDateTime timestamp = build.stoptime; %]</td>
+              </tr>
             [% END %]
             [% IF !isAggregate && buildLogExists(build) %]
               <tr>
@@ -298,7 +302,7 @@
 
     <table class="info-table">
       <tr>
-        <th>Queued:</th>
+        <th>Queued at:</th>
         <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
       </tr>
       [% IF build.finished && !build.iscachedbuild %]
