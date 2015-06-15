@@ -88,6 +88,7 @@ struct Step
 
     Path drvPath;
     Derivation drv;
+    std::set<std::string> requiredSystemFeatures;
 
     struct State
     {
@@ -134,7 +135,10 @@ struct Machine
     bool supportsStep(Step::ptr step)
     {
         if (systemTypes.find(step->drv.platform) == systemTypes.end()) return false;
-        // FIXME: check features
+        for (auto & f : mandatoryFeatures)
+            if (step->requiredSystemFeatures.find(f) == step->requiredSystemFeatures.end()) return false;
+        for (auto & f : step->requiredSystemFeatures)
+            if (supportedFeatures.find(f) == supportedFeatures.end()) return false;
         return true;
     }
 };
@@ -299,6 +303,8 @@ void State::loadMachines()
             machine->speedFactor = atof(tokens[4].c_str());
             machine->supportedFeatures = tokenizeString<StringSet>(tokens[5], ",");
             machine->mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
+            for (auto & f : machine->mandatoryFeatures)
+                machine->supportedFeatures.insert(f);
             newMachines.push_back(machine);
         }
 
@@ -502,7 +508,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
         bool badStep = false;
         for (auto & r : newSteps) {
             BuildStatus buildStatus = bsSuccess;
-            BuildStepStatus buildStepStatus;
+            BuildStepStatus buildStepStatus = bssFailed;
 
             bool supported = false;
             {
@@ -613,6 +619,11 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
     auto step = std::make_shared<Step>();
     step->drvPath = drvPath;
     step->drv = readDerivation(drvPath);
+    {
+        auto i = step->drv.env.find("requiredSystemFeatures");
+        if (i != step->drv.env.end())
+            step->requiredSystemFeatures = tokenizeString<std::set<std::string>>(i->second);
+    }
     newSteps.insert(step);
 
     /* Are all outputs valid? */
