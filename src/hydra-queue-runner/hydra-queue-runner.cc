@@ -248,6 +248,8 @@ public:
     void markSucceededBuild(pqxx::work & txn, Build::ptr build,
         const BuildResult & res, bool isCachedBuild, time_t startTime, time_t stopTime);
 
+    bool checkCachedFailure(Step::ptr step, Connection & conn);
+
     void run();
 };
 
@@ -492,33 +494,50 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             continue;
         }
 
-        /* If any step has an unsupported system type, then fail the
-           build. */
-        bool allSupported = true;
+        /* If any step has an unsupported system type or has a
+           previously failed output path, then fail the build right
+           away. */
+        bool badStep = false;
         for (auto & r : newSteps) {
+            BuildStatus buildStatus = bsSuccess;
+            BuildStepStatus buildStepStatus;
+
             bool supported = false;
             {
                 auto machines_(machines.lock()); // FIXME: use shared_mutex
                 for (auto & m : *machines_)
                     if (m->supportsStep(r)) { supported = true; break; }
             }
+
             if (!supported) {
-                allSupported = false;
                 printMsg(lvlError, format("aborting unsupported build %1%") % build->id);
-                pqxx::work txn(conn);
+                buildStatus = bsUnsupported;
+                buildStepStatus = bssUnsupported;
+            }
+
+            if (checkCachedFailure(r, conn)) {
+                printMsg(lvlError, format("failing build %1% due to previous failure") % build->id);
+                buildStatus = step == r ? bsFailed : bsFailed;
+                buildStepStatus = bssFailed;
+            }
+
+            if (buildStatus != bsSuccess) {
                 time_t now = time(0);
+                pqxx::work txn(conn);
                 txn.parameterized
-                    ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1")
+                    ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = $4 where id = $1")
                     (build->id)
-                    ((int) bsUnsupported)
-                    (now).exec();
-                createBuildStep(txn, now, build, r, "", bssUnsupported);
+                    ((int) buildStatus)
+                    (now)
+                    (buildStatus != bsUnsupported ? 1 : 0).exec();
+                createBuildStep(txn, now, build, r, "", buildStepStatus);
                 txn.commit();
+                badStep = true;
                 break;
             }
         }
 
-        if (!allSupported) continue;
+        if (badStep) continue;
 
         /* Note: if we exit this scope prior to this, the build and
            all newly created steps are destroyed. */
@@ -881,15 +900,7 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
     /* If any of the outputs have previously failed, then don't
        retry. */
-    bool cachedFailure = false;
-    {
-        pqxx::work txn(*conn);
-        for (auto & path : outputPaths(step->drv))
-            if (!txn.parameterized("select 1 from FailedPaths where path = $1")(path).exec().empty()) {
-                cachedFailure = true;
-                break;
-            }
-    }
+    bool cachedFailure = checkCachedFailure(step, *conn);
 
     if (cachedFailure)
         result.status = RemoteResult::rrPermanentFailure;
@@ -1048,6 +1059,16 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
     }
 
     build->finishedInDB = true; // FIXME: txn might fail
+}
+
+
+bool State::checkCachedFailure(Step::ptr step, Connection & conn)
+{
+    pqxx::work txn(conn);
+    for (auto & path : outputPaths(step->drv))
+        if (!txn.parameterized("select 1 from FailedPaths where path = $1")(path).exec().empty())
+            return true;
+    return false;
 }
 
 
