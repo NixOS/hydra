@@ -56,6 +56,8 @@
                 <span class="error">Timed out</span>
               [% ELSIF step.status == 8 %]
                 <span class="error">Cached failure</span>
+              [% ELSIF step.status == 9 %]
+                <span class="error">Unsupported system type</span>
               [% ELSIF step.errormsg %]
                 <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
               [% ELSE %]

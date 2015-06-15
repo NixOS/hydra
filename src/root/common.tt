@@ -198,7 +198,7 @@ BLOCK renderBuildStatusIcon;
       <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
     [% ELSIF buildstatus == 2 || buildstatus == 5 %]
       <img src="[% c.uri_for("/static/images/dependency_${size}.png") %]" alt="Dependency failed" class="build-status" />
-    [% ELSIF buildstatus == 3 %]
+    [% ELSIF buildstatus == 3 || buildstatus == 9 %]
       <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Aborted" class="build-status" />
     [% ELSIF buildstatus == 4 %]
       <img src="[% c.uri_for("/static/images/forbidden_${size}.png") %]" alt="Cancelled" class="build-status" />
@@ -229,6 +229,8 @@ BLOCK renderStatus;
       <span class="error">Cancelled by user</span>
     [% ELSIF buildstatus == 6 %]
       <span class="error">Build failed (with result)</span>
+    [% ELSIF buildstatus == 9 %]
+      <span class="error">Unsupported system type</span>
     [% ELSE %]
       <span class="error">Aborted</span>
       (Hydra failure; see <a href="#nix-error">below</a>)

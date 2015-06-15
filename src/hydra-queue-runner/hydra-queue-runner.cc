@@ -33,6 +33,7 @@ typedef enum {
     bsDepFailed = 2,
     bsAborted = 3,
     bsFailedWithOutput = 6,
+    bsUnsupported = 9,
 } BuildStatus;
 
 
@@ -40,6 +41,7 @@ typedef enum {
     bssSuccess = 0,
     bssFailed = 1,
     bssAborted = 4,
+    bssUnsupported = 9,
     bssBusy = 100, // not stored
 } BuildStepStatus;
 
@@ -343,7 +345,7 @@ int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build,
         (propagatedFrom, propagatedFrom != 0)
         (errorMsg, errorMsg != "")
         (startTime, status != bssBusy)
-        (machine, machine != "").exec();
+        (machine).exec();
 
     for (auto & output : step->drv.outputs)
         txn.parameterized
@@ -500,21 +502,23 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
                 for (auto & m : *machines_)
                     if (m->supportsStep(r)) { supported = true; break; }
             }
-            if (!supported) { allSupported = false; break; }
+            if (!supported) {
+                allSupported = false;
+                printMsg(lvlError, format("aborting unsupported build %1%") % build->id);
+                pqxx::work txn(conn);
+                time_t now = time(0);
+                txn.parameterized
+                    ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1")
+                    (build->id)
+                    ((int) bsUnsupported)
+                    (now).exec();
+                createBuildStep(txn, now, build, r, "", bssUnsupported);
+                txn.commit();
+                break;
+            }
         }
 
-        if (!allSupported) {
-            printMsg(lvlError, format("aborting unsupported build %1%") % build->id);
-            pqxx::work txn(conn);
-            txn.parameterized
-                ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1")
-                (build->id)
-                ((int) bsAborted)
-                (time(0))
-                ("unsupported system type").exec();
-            txn.commit();
-            continue;
-        }
+        if (!allSupported) continue;
 
         /* Note: if we exit this scope prior to this, the build and
            all newly created steps are destroyed. */
