@@ -197,12 +197,6 @@ private:
     typedef std::list<Machine::ptr> Machines;
     Sync<Machines> machines;
 
-    /* The currently active builder threads. FIXME: We could re-use
-       these, but since they're fairly long-running, it's probably not
-       worth it. */
-    // std::vector<std::thread> builderThreads;
-
-
     /* Various stats. */
     std::atomic<int> nrQueueWakeups;
 
@@ -536,23 +530,25 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             BuildStatus buildStatus = bsSuccess;
             BuildStepStatus buildStepStatus = bssFailed;
 
-            bool supported = false;
-            {
-                auto machines_(machines.lock()); // FIXME: use shared_mutex
-                for (auto & m : *machines_)
-                    if (m->supportsStep(r)) { supported = true; break; }
-            }
-
-            if (!supported) {
-                printMsg(lvlError, format("aborting unsupported build %1%") % build->id);
-                buildStatus = bsUnsupported;
-                buildStepStatus = bssUnsupported;
-            }
-
             if (checkCachedFailure(r, conn)) {
                 printMsg(lvlError, format("marking build %1% as cached failure") % build->id);
                 buildStatus = step == r ? bsFailed : bsFailed;
                 buildStepStatus = bssFailed;
+            }
+
+            if (buildStatus == bsSuccess) {
+                bool supported = false;
+                {
+                    auto machines_(machines.lock()); // FIXME: use shared_mutex
+                    for (auto & m : *machines_)
+                        if (m->supportsStep(r)) { supported = true; break; }
+                }
+
+                if (!supported) {
+                    printMsg(lvlError, format("aborting unsupported build %1%") % build->id);
+                    buildStatus = bsUnsupported;
+                    buildStepStatus = bssUnsupported;
+                }
             }
 
             if (buildStatus != bsSuccess) {
