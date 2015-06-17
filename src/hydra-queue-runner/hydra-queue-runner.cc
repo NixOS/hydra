@@ -930,10 +930,6 @@ MachineReservation::ptr State::findMachine(Step::ptr step)
         return std::make_shared<MachineReservation>(machine);
     }
 
-    /* FIXME: distinguish between permanent failures (a matching
-       machine doesn't exist) and temporary failures (a matching
-       machine is not available). */
-
     return 0;
 }
 
@@ -1048,8 +1044,6 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         }
 
         if (result.status == RemoteResult::rrSuccess) res = getBuildResult(store, step->drv);
-
-        // FIXME: handle failed-with-output
     }
 
     if (!result.stopTime) result.stopTime = time(0);
@@ -1181,7 +1175,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
     txn.parameterized
         ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8 where id = $1")
         (build->id)
-        ((int) bsSuccess)
+        ((int) (res.failed ? bsFailedWithOutput : bsSuccess))
         (startTime)
         (stopTime)
         (res.size)

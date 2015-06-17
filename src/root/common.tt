@@ -203,7 +203,7 @@ BLOCK renderBuildStatusIcon;
     [% ELSIF buildstatus == 4 %]
       <img src="[% c.uri_for("/static/images/forbidden_${size}.png") %]" alt="Cancelled" class="build-status" />
     [% ELSIF buildstatus == 6 %]
-      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed (with result)" class="build-status" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed with output" class="build-status" />
     [% ELSIF buildstatus == 7 %]
       <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Timed out" class="build-status" />
     [% ELSE %]
@@ -230,7 +230,7 @@ BLOCK renderStatus;
     [% ELSIF buildstatus == 4 %]
       <span class="error">Cancelled by user</span>
     [% ELSIF buildstatus == 6 %]
-      <span class="error">Build failed (with result)</span>
+      <span class="error">Build failed with output</span>
     [% ELSIF buildstatus == 7 %]
       <span class="error">Timed out</span>
     [% ELSIF buildstatus == 9 %]

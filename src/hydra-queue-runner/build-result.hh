@@ -17,6 +17,11 @@ struct BuildProduct
 
 struct BuildResult
 {
+    /* Whether this build has failed with output, i.e., the build
+       finished with exit code 0 but produced a file
+       $out/nix-support/failed. */
+    bool failed = false;
+
     std::string releaseName;
 
     unsigned long long closureSize = 0, size = 0;

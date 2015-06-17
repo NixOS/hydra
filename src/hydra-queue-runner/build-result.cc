@@ -27,6 +27,9 @@ BuildResult getBuildResult(std::shared_ptr<StoreAPI> store, const Derivation & d
     bool explicitProducts = false;
 
     for (auto & output : outputs) {
+        Path failedFile = output + "/nix-support/failed";
+        if (pathExists(failedFile)) res.failed = true;
+
         Path productsFile = output + "/nix-support/hydra-build-products";
         if (!pathExists(productsFile)) continue;
         explicitProducts = true;
