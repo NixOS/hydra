@@ -60,7 +60,16 @@ typedef enum {
 
 struct Connection : pqxx::connection
 {
-    Connection() : pqxx::connection("dbname=hydra") { };
+    Connection() : pqxx::connection(getFlags()) { };
+
+    string getFlags()
+    {
+        string s = getEnv("HYDRA_DBI", "dbi:Pg:dbname=hydra;");
+        string prefix = "dbi:Pg:";
+        if (string(s, 0, prefix.size()) != prefix)
+            throw Error("$HYDRA_DBI does not denote a PostgreSQL database");
+        return concatStringsSep(" ", tokenizeString<Strings>(string(s, prefix.size()), ";"));
+    }
 };
 
 
