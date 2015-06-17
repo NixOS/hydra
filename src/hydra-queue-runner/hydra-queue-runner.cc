@@ -37,6 +37,9 @@ bool has(const C & c, const V & v)
 }
 
 
+typedef std::atomic<unsigned int> counter;
+
+
 typedef enum {
     bsSuccess = 0,
     bsFailed = 1,
@@ -223,10 +226,13 @@ private:
     Sync<Machines> machines;
 
     /* Various stats. */
-    std::atomic<unsigned int> nrRetries;
-    std::atomic<unsigned int> maxNrRetries;
-    std::atomic<unsigned int> nrQueueWakeups;
-    std::atomic<unsigned int> nrDispatcherWakeups;
+    counter nrBuildsRead{0};
+    counter nrBuildsDone{0};
+    counter nrStepsDone{0};
+    counter nrRetries{0};
+    counter maxNrRetries{0};
+    counter nrQueueWakeups{0};
+    counter nrDispatcherWakeups{0};
 
 public:
     State();
@@ -292,8 +298,6 @@ public:
 
 State::State()
 {
-    nrRetries = maxNrRetries = nrQueueWakeups = nrDispatcherWakeups = 0;
-
     hydraData = getEnv("HYDRA_DATA");
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
 
@@ -531,6 +535,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
                 (time(0))
                 ("derivation was garbage-collected prior to build").exec();
             txn.commit();
+            nrBuildsDone++;
             return;
         }
 
@@ -607,6 +612,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
                     (buildStatus != bsUnsupported ? 1 : 0).exec();
                 createBuildStep(txn, 0, build, r, "", buildStepStatus);
                 txn.commit();
+                nrBuildsDone++;
                 badStep = true;
                 break;
             }
@@ -651,6 +657,8 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
         printMsg(lvlChatty, format("got %1% new runnable steps from %2% new builds") % newRunnable.size() % nrAdded);
         for (auto & r : newRunnable)
             makeRunnable(r);
+
+        nrBuildsRead += nrAdded;
     }
 }
 
@@ -753,6 +761,8 @@ void State::destroyStep(Step::ptr step, bool proceed)
     step->destroyed = true;
 
     printMsg(lvlDebug, format("destroying build step ‘%1%’") % step->drvPath);
+
+    nrStepsDone++;
 
     {
         auto steps_(steps.lock());
@@ -1143,6 +1153,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                         (result.stopTime)
                         (cachedFailure ? 1 : 0).exec();
                     build2->finishedInDB = true; // FIXME: txn might fail
+                    nrBuildsDone++;
                 }
 
             /* Remember failed paths in the database so that they
@@ -1209,6 +1220,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
     }
 
     build->finishedInDB = true; // FIXME: txn might fail
+    nrBuildsDone++;
 }
 
 
@@ -1240,6 +1252,9 @@ void State::dumpStatus()
             if (i->lock()) ++i; else i = runnable_->erase(i);
         printMsg(lvlError, format("%1% runnable build steps") % runnable_->size());
     }
+    printMsg(lvlError, format("%1% builds read from queue") % nrBuildsRead);
+    printMsg(lvlError, format("%1% builds done") % nrBuildsDone);
+    printMsg(lvlError, format("%1% build steps done") % nrStepsDone);
     printMsg(lvlError, format("%1% build step retries") % nrRetries);
     printMsg(lvlError, format("%1% most retries for any build step") % maxNrRetries);
     printMsg(lvlError, format("%1% queue wakeups") % nrQueueWakeups);
