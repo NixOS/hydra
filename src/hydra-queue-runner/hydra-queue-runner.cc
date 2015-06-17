@@ -39,6 +39,13 @@ bool has(const C & c, const V & v)
 
 typedef std::atomic<unsigned int> counter;
 
+struct MaintainCount
+{
+    counter & c;
+    MaintainCount(counter & c) : c(c) { c++; }
+    ~MaintainCount() { c--; }
+};
+
 
 typedef enum {
     bsSuccess = 0,
@@ -229,6 +236,7 @@ private:
     counter nrBuildsRead{0};
     counter nrBuildsDone{0};
     counter nrStepsDone{0};
+    counter nrActiveSteps{0};
     counter nrRetries{0};
     counter maxNrRetries{0};
     counter nrQueueWakeups{0};
@@ -957,6 +965,8 @@ void State::builder(Step::ptr step, MachineReservation::ptr reservation)
 {
     bool retry = true;
 
+    MaintainCount mc(nrActiveSteps);
+
     try {
         auto store = openStore(); // FIXME: pool
         retry = doBuildStep(store, step, reservation->machine);
@@ -1252,6 +1262,7 @@ void State::dumpStatus()
             if (i->lock()) ++i; else i = runnable_->erase(i);
         printMsg(lvlError, format("%1% runnable build steps") % runnable_->size());
     }
+    printMsg(lvlError, format("%1% active build steps") % nrActiveSteps);
     printMsg(lvlError, format("%1% builds read from queue") % nrBuildsRead);
     printMsg(lvlError, format("%1% builds done") % nrBuildsDone);
     printMsg(lvlError, format("%1% build steps done") % nrStepsDone);
