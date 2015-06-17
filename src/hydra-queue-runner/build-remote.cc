@@ -109,7 +109,8 @@ static void copyClosureFrom(std::shared_ptr<StoreAPI> store,
 void buildRemote(std::shared_ptr<StoreAPI> store,
     const string & sshName, const string & sshKey,
     const Path & drvPath, const Derivation & drv,
-    const nix::Path & logDir, RemoteResult & result)
+    const nix::Path & logDir, unsigned int maxSilentTime, unsigned int buildTimeout,
+    RemoteResult & result)
 {
     string base = baseNameOf(drvPath);
     Path logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
@@ -152,8 +153,9 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     printMsg(lvlDebug, format("building ‘%1%’ on ‘%2%’") % drvPath % sshName);
     writeInt(cmdBuildPaths, to);
     writeStrings(PathSet({drvPath}), to);
-    writeInt(3600, to); // == maxSilentTime, FIXME
-    writeInt(7200, to); // == buildTimeout, FIXME
+    writeInt(maxSilentTime, to);
+    writeInt(buildTimeout, to);
+    // FIXME: send maxLogSize.
     to.flush();
     result.startTime = time(0);
     int res = readInt(from);

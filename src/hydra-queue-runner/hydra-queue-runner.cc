@@ -43,6 +43,7 @@ typedef enum {
     bsDepFailed = 2,
     bsAborted = 3,
     bsFailedWithOutput = 6,
+    bsTimedOut = 7,
     bsUnsupported = 9,
 } BuildStatus;
 
@@ -51,6 +52,7 @@ typedef enum {
     bssSuccess = 0,
     bssFailed = 1,
     bssAborted = 4,
+    bssTimedOut = 7,
     bssUnsupported = 9,
     bssBusy = 100, // not stored
 } BuildStepStatus;
@@ -77,6 +79,7 @@ struct Build
     Path drvPath;
     std::map<string, Path> outputs;
     std::string fullJobName;
+    unsigned int maxSilentTime, buildTimeout;
 
     std::shared_ptr<Step> toplevel;
 
@@ -481,7 +484,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
     {
         pqxx::work txn(conn);
 
-        auto res = txn.parameterized("select id, project, jobset, job, drvPath from Builds where id > $1 and finished = 0 order by id")(lastBuildId).exec();
+        auto res = txn.parameterized("select id, project, jobset, job, drvPath, maxsilent, timeout from Builds where id > $1 and finished = 0 order by id")(lastBuildId).exec();
 
         for (auto const & row : res) {
             auto builds_(builds.lock());
@@ -493,6 +496,9 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             build->id = id;
             build->drvPath = row["drvPath"].as<string>();
             build->fullJobName = row["project"].as<string>() + ":" + row["jobset"].as<string>() + ":" + row["job"].as<string>();
+            build->maxSilentTime = row["maxsilent"].as<int>();
+            build->buildTimeout = row["timeout"].as<int>();
+            std::cerr << build->id << " " << build->buildTimeout  << std::endl;
 
             newBuilds.push_back(build);
         }
@@ -975,8 +981,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
         if (!build) build = *dependents.begin();
 
-        printMsg(lvlInfo, format("performing step ‘%1%’ on ‘%2%’ (needed by %3% builds)")
-            % step->drvPath % machine->sshName % dependents.size());
+        printMsg(lvlInfo, format("performing step ‘%1%’ on ‘%2%’ (needed by build %3% and %4% others)")
+            % step->drvPath % machine->sshName % build->id % (dependents.size() - 1));
     }
 
     auto conn(dbPool.get());
@@ -1005,7 +1011,9 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         }
 
         try {
-            buildRemote(store, machine->sshName, machine->sshKey, step->drvPath, step->drv, logDir, result);
+            /* FIXME: referring builds may have conflicting timeouts. */
+            buildRemote(store, machine->sshName, machine->sshKey, step->drvPath, step->drv,
+                logDir, build->maxSilentTime, build->buildTimeout, result);
         } catch (Error & e) {
             result.status = RemoteResult::rrMiscFailure;
             result.errorMsg = e.msg();
@@ -1066,9 +1074,13 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
             /* Failure case. */
 
             BuildStatus buildStatus =
-                result.status == RemoteResult::rrPermanentFailure ? bsFailed : bsAborted;
+                result.status == RemoteResult::rrPermanentFailure ? bsFailed :
+                result.status == RemoteResult::rrTimedOut ? bsTimedOut :
+                bsAborted;
             BuildStepStatus buildStepStatus =
-                result.status == RemoteResult::rrPermanentFailure ? bssFailed : bssAborted;
+                result.status == RemoteResult::rrPermanentFailure ? bssFailed :
+                result.status == RemoteResult::rrTimedOut ? bssTimedOut :
+                bssAborted;
 
             /* For regular failures, we don't care about the error
                message. */
@@ -1222,6 +1234,8 @@ void State::run()
     loadMachines();
 
     auto queueMonitorThread = std::thread(&State::queueMonitor, this);
+
+    sleep(5);
 
     std::thread(&State::dispatcher, this).detach();
 

@@ -180,6 +180,7 @@ create table Builds (
     --   4 = build cancelled (removed from queue; never built)
     --   5 = build not done because a dependency failed previously (obsolete)
     --   6 = failure with output
+    --   7 = timed out
     --   9 = unsupported system type
     buildStatus   integer,
 

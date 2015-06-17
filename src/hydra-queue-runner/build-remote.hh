@@ -18,4 +18,5 @@ struct RemoteResult
 void buildRemote(std::shared_ptr<nix::StoreAPI> store,
     const std::string & sshName, const std::string & sshKey,
     const nix::Path & drvPath, const nix::Derivation & drv,
-    const nix::Path & logDir, RemoteResult & result);
+    const nix::Path & logDir, unsigned int maxSilentTime, unsigned int buildTimeout,
+    RemoteResult & result);
