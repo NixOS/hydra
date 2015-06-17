@@ -145,9 +145,19 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
         throw Error(format("cannot connect to ‘%1%’: %2%") % sshName % chomp(readFile(logFile)));
     }
 
+    /* Gather the inputs. */
+    PathSet inputs({drvPath});
+    for (auto & input : drv.inputDrvs) {
+        Derivation drv2 = readDerivation(input.first);
+        for (auto & name : input.second) {
+            auto i = drv2.outputs.find(name);
+            if (i != drv2.outputs.end()) inputs.insert(i->second.path);
+        }
+    }
+
     /* Copy the input closure. */
     printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % drvPath % sshName);
-    copyClosureTo(store, from, to, PathSet({drvPath}));
+    copyClosureTo(store, from, to, inputs);
 
     /* Do the build. */
     printMsg(lvlDebug, format("building ‘%1%’ on ‘%2%’") % drvPath % sshName);
