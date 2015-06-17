@@ -4,6 +4,8 @@
 #include <map>
 #include <memory>
 #include <thread>
+#include <cmath>
+#include <chrono>
 
 #include <pqxx/pqxx>
 
@@ -18,6 +20,14 @@
 #include "globals.hh"
 
 using namespace nix;
+
+
+const int maxTries = 5;
+const int retryInterval = 60; // seconds
+const float retryBackoff = 3.0;
+
+
+typedef std::chrono::time_point<std::chrono::system_clock> system_time;
 
 
 template <class C, class V>
@@ -100,6 +110,12 @@ struct Step
 
         /* Builds that have this step as the top-level derivation. */
         std::vector<Build::wptr> builds;
+
+        /* Number of times we've tried this step. */
+        unsigned int tries = 0;
+
+        /* Point in time after which the step can be retried. */
+        system_time after;
     };
 
     Sync<State> state;
@@ -108,10 +124,7 @@ struct Step
 
     Step() : destroyed(false) { }
 
-    ~Step()
-    {
-        printMsg(lvlDebug, format("destroying step %1%") % drvPath);
-    }
+    ~Step() { }
 };
 
 
@@ -198,7 +211,10 @@ private:
     Sync<Machines> machines;
 
     /* Various stats. */
-    std::atomic<int> nrQueueWakeups;
+    std::atomic<unsigned int> nrRetries;
+    std::atomic<unsigned int> maxNrRetries;
+    std::atomic<unsigned int> nrQueueWakeups;
+    std::atomic<unsigned int> nrDispatcherWakeups;
 
 public:
     State();
@@ -246,7 +262,9 @@ public:
 
     void builder(Step::ptr step, MachineReservation::ptr reservation);
 
-    void doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
+    /* Perform the given build step. Return true if the step is to be
+       retried. */
+    bool doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         Machine::ptr machine);
 
     void markSucceededBuild(pqxx::work & txn, Build::ptr build,
@@ -262,7 +280,7 @@ public:
 
 State::State()
 {
-    nrQueueWakeups = 0;
+    nrRetries = maxNrRetries = nrQueueWakeups = nrDispatcherWakeups = 0;
 
     hydraData = getEnv("HYDRA_DATA");
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
@@ -799,12 +817,16 @@ void State::dispatcher()
     while (true) {
         printMsg(lvlDebug, "dispatcher woken up");
 
+        auto sleepUntil = system_time::max();
+
         {
             auto runnable_(runnable.lock());
             printMsg(lvlDebug, format("%1% runnable builds") % runnable_->size());
 
             /* FIXME: we're holding the runnable lock too long
                here. This could be more efficient. */
+
+            system_time now = std::chrono::system_clock::now();
 
             for (auto i = runnable_->begin(); i != runnable_->end(); ) {
                 auto step = i->lock();
@@ -813,6 +835,18 @@ void State::dispatcher()
                 if (!step) {
                     i = runnable_->erase(i);
                     continue;
+                }
+
+                /* Skip previously failed steps that aren't ready to
+                   be retried. */
+                {
+                    auto step_(step->state.lock());
+                    if (step_->tries > 0 && step_->after > now) {
+                        if (step_->after < sleepUntil)
+                            sleepUntil = step_->after;
+                        ++i;
+                        continue;
+                    }
                 }
 
                 auto reservation = findMachine(step);
@@ -833,7 +867,10 @@ void State::dispatcher()
            is added, or because a build finishes). */
         {
             std::unique_lock<std::mutex> lock(dispatcherMutex);
-            dispatcherWakeup.wait(lock);
+            printMsg(lvlDebug, format("dispatcher sleeping for %1%s") %
+                std::chrono::duration_cast<std::chrono::seconds>(sleepUntil - std::chrono::system_clock::now()).count());
+            dispatcherWakeup.wait_until(lock, sleepUntil);
+            nrDispatcherWakeups++;
         }
     }
 
@@ -871,22 +908,40 @@ MachineReservation::ptr State::findMachine(Step::ptr step)
 
 void State::builder(Step::ptr step, MachineReservation::ptr reservation)
 {
+    bool retry = true;
+
     try {
         auto store = openStore(); // FIXME: pool
-        doBuildStep(store, step, reservation->machine);
+        retry = doBuildStep(store, step, reservation->machine);
     } catch (std::exception & e) {
-        printMsg(lvlError, format("error building ‘%1%’: %2%") % step->drvPath % e.what());
-        // FIXME: put step back in runnable and retry
+        printMsg(lvlError, format("uncaught exception building ‘%1%’ on ‘%2%’: %3%")
+            % step->drvPath % reservation->machine->sshName % e.what());
     }
 
     /* Release the machine and wake up the dispatcher. */
     assert(reservation.unique());
     reservation = 0;
     wakeDispatcher();
+
+    /* If there was a temporary failure, retry the step after an
+       exponentially increasing interval. */
+    if (retry) {
+        {
+            auto step_(step->state.lock());
+            step_->tries++;
+            nrRetries++;
+            if (step_->tries > maxNrRetries) maxNrRetries = step_->tries; // yeah yeah, not atomic
+            int delta = retryInterval * powf(retryBackoff, step_->tries - 1);
+            printMsg(lvlInfo, format("will retry ‘%1%’ after %2%s") % step->drvPath % delta);
+            step_->after = std::chrono::system_clock::now() + std::chrono::seconds(delta);
+        }
+
+        makeRunnable(step);
+    }
 }
 
 
-void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
+bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     Machine::ptr machine)
 {
     /* There can be any number of builds in the database that depend
@@ -903,14 +958,16 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
         if (dependents.empty()) {
             /* Apparently all builds that depend on this derivation
-               are gone (e.g. cancelled). So don't bother. (This is
+               are gone (e.g. cancelled). So don't bother. This is
                very unlikely to happen, because normally Steps are
                only kept alive by being reachable from a
-               Build). FIXME: what if a new Build gets a reference to
-               this step? */
+               Build. However, it's possible that a new Build just
+               created a reference to this step. So to handle that
+               possibility, we retry this step (putting it back in
+               the runnable queue). If there are really no strong
+               pointers to the step, it will be deleted. */
             printMsg(lvlInfo, format("cancelling build step ‘%1%’") % step->drvPath);
-            destroyStep(step, false);
-            return;
+            return true;
         }
 
         for (auto build2 : dependents)
@@ -930,8 +987,8 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
     result.startTime = time(0);
 
-    /* If any of the outputs have previously failed, then don't
-       retry. */
+    /* If any of the outputs have previously failed, then don't bother
+       building again. */
     bool cachedFailure = checkCachedFailure(step, *conn);
 
     if (cachedFailure)
@@ -952,8 +1009,8 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         } catch (Error & e) {
             result.status = RemoteResult::rrMiscFailure;
             result.errorMsg = e.msg();
-            printMsg(lvlError, format("ERROR: %1%") % e.msg());
-            abort(); // FIXME
+            printMsg(lvlError, format("irregular failure building ‘%1%’ on ‘%2%’: %3%")
+                % step->drvPath % machine->sshName % e.msg());
         }
 
         if (result.status == RemoteResult::rrSuccess) res = getBuildResult(store, step->drv);
@@ -963,13 +1020,19 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
     if (!result.stopTime) result.stopTime = time(0);
 
+    bool retry = false;
+    if (result.status == RemoteResult::rrMiscFailure) {
+        auto step_(step->state.lock());
+        retry = step_->tries + 1 < maxTries;
+    }
+
     /* Remove this step. After this, incoming builds that depend on
        drvPath will either see that the output paths exist, or will
        create a new build step for drvPath. The latter is fine - it
        won't conflict with this one, because we're removing it. In any
        case, the set of dependent builds for ‘step’ can't increase
        anymore because ‘step’ is no longer visible to createStep(). */
-    {
+    if (!retry) {
         auto steps_(steps.lock());
         steps_->erase(step->drvPath);
     }
@@ -1002,34 +1065,44 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         } else {
             /* Failure case. */
 
+            BuildStatus buildStatus =
+                result.status == RemoteResult::rrPermanentFailure ? bsFailed : bsAborted;
+            BuildStepStatus buildStepStatus =
+                result.status == RemoteResult::rrPermanentFailure ? bssFailed : bssAborted;
+
             /* For regular failures, we don't care about the error
                message. */
-            if (result.status != RemoteResult::rrMiscFailure) result.errorMsg = "";
+            if (buildStatus != bsAborted) result.errorMsg = "";
 
-            if (!cachedFailure) {
+            if (!cachedFailure && !retry) {
 
                 /* Create failed build steps for every build that depends
                    on this. */
                 for (auto build2 : dependents) {
                     if (build == build2) continue;
-                    createBuildStep(txn, 0, build2, step, machine->sshName, bssFailed, result.errorMsg, build->id);
+                    createBuildStep(txn, 0, build2, step, machine->sshName,
+                        buildStepStatus, result.errorMsg, build->id);
                 }
 
-                finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, machine->sshName, bssFailed, result.errorMsg);
             }
 
+            if (!cachedFailure)
+                finishBuildStep(txn, result.startTime, result.stopTime, build->id,
+                    stepNr, machine->sshName, buildStepStatus, result.errorMsg);
+
             /* Mark all builds that depend on this derivation as failed. */
-            for (auto build2 : dependents) {
-                printMsg(lvlError, format("marking build %1% as failed") % build2->id);
-                txn.parameterized
-                    ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1")
-                    (build2->id)
-                    ((int) (build2->drvPath == step->drvPath ? bsFailed : bsDepFailed))
-                    (result.startTime)
-                    (result.stopTime)
-                    (cachedFailure ? 1 : 0).exec();
-                build2->finishedInDB = true; // FIXME: txn might fail
-            }
+            if (!retry)
+                for (auto build2 : dependents) {
+                    printMsg(lvlError, format("marking build %1% as failed") % build2->id);
+                    txn.parameterized
+                        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1")
+                        (build2->id)
+                        ((int) (build2->drvPath != step->drvPath && buildStatus == bsFailed ? bsDepFailed : buildStatus))
+                        (result.startTime)
+                        (result.stopTime)
+                        (cachedFailure ? 1 : 0).exec();
+                    build2->finishedInDB = true; // FIXME: txn might fail
+                }
 
             /* Remember failed paths in the database so that they
                won't be built again. */
@@ -1045,16 +1118,20 @@ void State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
        is the top-level derivation. In case of failure, destroy all
        dependent Build objects. Any Steps not referenced by other
        Builds will be destroyed as well. */
-    for (auto build2 : dependents)
-        if (build2->toplevel == step || result.status != RemoteResult::rrSuccess) {
-            auto builds_(builds.lock());
-            builds_->erase(build2->id);
-        }
+    if (!retry)
+        for (auto build2 : dependents)
+            if (build2->toplevel == step || result.status != RemoteResult::rrSuccess) {
+                auto builds_(builds.lock());
+                builds_->erase(build2->id);
+            }
 
     /* Remove the step from the graph. In case of success, make
        dependent build steps runnable if they have no other
        dependencies. */
-    destroyStep(step, result.status == RemoteResult::rrSuccess);
+    if (!retry)
+        destroyStep(step, result.status == RemoteResult::rrSuccess);
+
+    return retry;
 }
 
 
@@ -1122,7 +1199,11 @@ void State::dumpStatus()
             if (i->lock()) ++i; else i = runnable_->erase(i);
         printMsg(lvlError, format("%1% runnable build steps") % runnable_->size());
     }
-    printMsg(lvlError, format("%1% times woken up to check the queue") % nrQueueWakeups);
+    printMsg(lvlError, format("%1% build step retries") % nrRetries);
+    printMsg(lvlError, format("%1% most retries for any build step") % maxNrRetries);
+    printMsg(lvlError, format("%1% queue wakeups") % nrQueueWakeups);
+    printMsg(lvlError, format("%1% dispatcher wakeups") % nrDispatcherWakeups);
+    printMsg(lvlError, format("%1% database connections") % dbPool.count());
     {
         auto machines_(machines.lock());
         for (auto & m : *machines_) {
@@ -1145,9 +1226,6 @@ void State::run()
     std::thread(&State::dispatcher, this).detach();
 
     queueMonitorThread.join();
-
-    //printMsg(lvlInfo, "exiting...");
-    //printMsg(lvlInfo, format("psql connections = %1%") % dbPool.count());
 }
 
 

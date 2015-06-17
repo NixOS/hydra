@@ -372,6 +372,7 @@ create table CachedCVSInputs (
 );
 
 
+-- FIXME: remove
 create table SystemTypes (
     system        text primary key not null,
     maxConcurrent integer not null default 2

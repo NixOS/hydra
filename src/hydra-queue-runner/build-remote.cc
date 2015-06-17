@@ -84,7 +84,7 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
     for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
         if (present.find(*i) == present.end()) missing.push_back(*i);
 
-    printMsg(lvlError, format("sending %1% missing paths") % missing.size());
+    printMsg(lvlDebug, format("sending %1% missing paths") % missing.size());
 
     writeInt(cmdImportPaths, to);
     exportPaths(*store, missing, false, to);
@@ -128,23 +128,28 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     FdSink to(child.to);
 
     /* Handshake. */
-    writeInt(SERVE_MAGIC_1, to);
-    writeInt(SERVE_PROTOCOL_VERSION, to);
-    to.flush();
+    try {
+        writeInt(SERVE_MAGIC_1, to);
+        writeInt(SERVE_PROTOCOL_VERSION, to);
+        to.flush();
 
-    unsigned int magic = readInt(from);
-    if (magic != SERVE_MAGIC_2)
-        throw Error(format("protocol mismatch with ‘nix-store --serve’ on ‘%1%’") % sshName);
-    unsigned int version = readInt(from);
-    if (GET_PROTOCOL_MAJOR(version) != 0x200)
-        throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % sshName);
+        unsigned int magic = readInt(from);
+        if (magic != SERVE_MAGIC_2)
+            throw Error(format("protocol mismatch with ‘nix-store --serve’ on ‘%1%’") % sshName);
+        unsigned int version = readInt(from);
+        if (GET_PROTOCOL_MAJOR(version) != 0x200)
+            throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % sshName);
+    } catch (EndOfFile & e) {
+        child.pid.wait(true);
+        throw Error(format("cannot connect to ‘%1%’: %2%") % sshName % chomp(readFile(logFile)));
+    }
 
     /* Copy the input closure. */
-    printMsg(lvlError, format("sending closure of ‘%1%’ to ‘%2%’") % drvPath % sshName);
+    printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % drvPath % sshName);
     copyClosureTo(store, from, to, PathSet({drvPath}));
 
     /* Do the build. */
-    printMsg(lvlError, format("building ‘%1%’ on ‘%2%’") % drvPath % sshName);
+    printMsg(lvlDebug, format("building ‘%1%’ on ‘%2%’") % drvPath % sshName);
     writeInt(cmdBuildPaths, to);
     writeStrings(PathSet({drvPath}), to);
     writeInt(3600, to); // == maxSilentTime, FIXME
@@ -162,7 +167,7 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     }
 
     /* Copy the output paths. */
-    printMsg(lvlError, format("copying outputs of ‘%1%’ from ‘%2%’") % drvPath % sshName);
+    printMsg(lvlDebug, format("copying outputs of ‘%1%’ from ‘%2%’") % drvPath % sshName);
     PathSet outputs;
     for (auto & output : drv.outputs)
         outputs.insert(output.second.path);
