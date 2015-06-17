@@ -1266,13 +1266,19 @@ int main(int argc, char * * argv)
     return handleExceptions(argv[0], [&]() {
         initNix();
 
-        parseCmdLine(argc, argv, [&](Strings::iterator & arg, const Strings::iterator & end) {
-            return false;
-        });
-
         signal(SIGINT, SIG_DFL);
         signal(SIGTERM, SIG_DFL);
         signal(SIGHUP, SIG_DFL);
+
+        bool unlock = false;
+
+        parseCmdLine(argc, argv, [&](Strings::iterator & arg, const Strings::iterator & end) {
+            if (*arg == "--unlock")
+                unlock = true;
+            else
+                return false;
+            return true;
+        });
 
         settings.buildVerbosity = lvlVomit;
         settings.useSubstitutes = false;
@@ -1281,6 +1287,9 @@ int main(int argc, char * * argv)
         /* FIXME: need some locking to prevent multiple instances of
            hydra-queue-runner. */
         State state;
-        state.run();
+        if (unlock)
+            state.clearBusy(0);
+        else
+            state.run();
     });
 }
