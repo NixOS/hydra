@@ -601,13 +601,13 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             if (buildStatus != bsSuccess) {
                 time_t now = time(0);
                 pqxx::work txn(conn);
+                createBuildStep(txn, 0, build, r, "", buildStepStatus);
                 txn.parameterized
                     ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = $4 where id = $1")
                     (build->id)
                     ((int) buildStatus)
                     (now)
                     (buildStatus != bsUnsupported ? 1 : 0).exec();
-                createBuildStep(txn, 0, build, r, "", buildStepStatus);
                 txn.commit();
                 nrBuildsDone++;
                 badStep = true;
