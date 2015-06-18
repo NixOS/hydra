@@ -28,6 +28,9 @@ private:
 
 public:
 
+    Sync() { }
+    Sync(const T & data) : data(data) { }
+
     class Lock
     {
     private:

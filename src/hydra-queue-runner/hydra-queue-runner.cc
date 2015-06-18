@@ -163,7 +163,7 @@ struct Step
 
     ~Step()
     {
-        printMsg(lvlError, format("destroying step %1%") % drvPath);
+        //printMsg(lvlError, format("destroying step %1%") % drvPath);
     }
 };
 
@@ -520,17 +520,18 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
         if (!store->isValidPath(build->drvPath)) {
             /* Derivation has been GC'ed prematurely. */
             printMsg(lvlError, format("aborting GC'ed build %1%") % build->id);
-            pqxx::work txn(conn);
-            assert(!build->finishedInDB);
-            txn.parameterized
-                ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1")
-                (build->id)
-                ((int) bsAborted)
-                (time(0))
-                ("derivation was garbage-collected prior to build").exec();
-            txn.commit();
-            build->finishedInDB = true;
-            nrBuildsDone++;
+            if (!build->finishedInDB) {
+                pqxx::work txn(conn);
+                txn.parameterized
+                    ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1 and finished = 0")
+                    (build->id)
+                    ((int) bsAborted)
+                    (time(0))
+                    ("derivation was garbage-collected prior to build").exec();
+                txn.commit();
+                build->finishedInDB = true;
+                nrBuildsDone++;
+            }
             return;
         }
 
@@ -598,18 +599,19 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
 
             if (buildStatus != bsSuccess) {
                 time_t now = time(0);
-                pqxx::work txn(conn);
-                createBuildStep(txn, 0, build, r, "", buildStepStatus);
-                assert(!build->finishedInDB);
-                txn.parameterized
-                    ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = $4 where id = $1")
-                    (build->id)
-                    ((int) buildStatus)
-                    (now)
-                    (buildStatus != bsUnsupported ? 1 : 0).exec();
-                txn.commit();
-                build->finishedInDB = true;
-                nrBuildsDone++;
+                if (!build->finishedInDB) {
+                    pqxx::work txn(conn);
+                    createBuildStep(txn, 0, build, r, "", buildStepStatus);
+                    txn.parameterized
+                        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = $4 where id = $1 and finished = 0")
+                        (build->id)
+                        ((int) buildStatus)
+                        (now)
+                        (buildStatus != bsUnsupported ? 1 : 0).exec();
+                    txn.commit();
+                    build->finishedInDB = true;
+                    nrBuildsDone++;
+                }
                 badStep = true;
                 break;
             }
@@ -622,7 +624,8 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
 
         {
             auto builds_(builds.lock());
-            (*builds_)[build->id] = build;
+            if (!build->finishedInDB) // FIXME: can this happen?
+                (*builds_)[build->id] = build;
             build->toplevel = step;
         }
 
@@ -1232,9 +1235,9 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 /* Mark all builds that depend on this derivation as failed. */
                 for (auto & build2 : indirect) {
                     printMsg(lvlError, format("marking build %1% as failed") % build2->id);
-                    assert(!build->finishedInDB);
+                    if (build->finishedInDB) continue;
                     txn.parameterized
-                        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1")
+                        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1 and finished = 0")
                         (build2->id)
                         ((int) (build2->drvPath != step->drvPath && buildStatus == bsFailed ? bsDepFailed : buildStatus))
                         (result.startTime)
@@ -1272,10 +1275,10 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 {
     printMsg(lvlInfo, format("marking build %1% as succeeded") % build->id);
 
-    assert(!build->finishedInDB);
+    if (build->finishedInDB) return;
 
     txn.parameterized
-        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8 where id = $1")
+        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8 where id = $1 and finished = 0")
         (build->id)
         ((int) (res.failed ? bsFailedWithOutput : bsSuccess))
         (startTime)
