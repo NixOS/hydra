@@ -1100,10 +1100,21 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
     if (!result.stopTime) result.stopTime = time(0);
 
-    bool retry = false;
+    /* The step had a hopefully temporary failure (e.g. network
+       issue). Retry a number of times. */
     if (result.status == RemoteResult::rrMiscFailure) {
-        auto step_(step->state.lock());
-        retry = step_->tries + 1 < maxTries;
+        bool retry;
+        {
+            auto step_(step->state.lock());
+            retry = step_->tries + 1 < maxTries;
+        }
+        if (retry) {
+            pqxx::work txn(*conn);
+            finishBuildStep(txn, result.startTime, result.stopTime, build->id,
+                stepNr, machine->sshName, bssAborted, result.errorMsg);
+            txn.commit();
+            return true;
+        }
     }
 
     /* Remove this step. After this, incoming builds that depend on
@@ -1112,10 +1123,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
        won't conflict with this one, because we're removing it. In any
        case, the set of dependent builds for ‘step’ can't increase
        anymore because ‘step’ is no longer visible to createStep(). */
-    if (!retry) {
-        auto steps_(steps.lock());
-        steps_->erase(step->drvPath);
-    }
+    auto steps_(steps.lock());
+    steps_->erase(step->drvPath);
 
     /* Get the final set of dependent builds. */
     auto dependents = getDependentBuilds(step);
@@ -1159,20 +1168,16 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                message. */
             if (buildStatus != bsAborted) result.errorMsg = "";
 
-            if (!retry) {
-
-                /* Create failed build steps for every build that
-                   depends on this. For cached failures, only create a
-                   step for builds that don't have this step as
-                   top-level (otherwise the user won't be able to see
-                   what caused the build to fail). */
-                for (auto build2 : dependents) {
-                    if (build == build2) continue;
-		    if (cachedFailure && build2->drvPath == step->drvPath) continue;
-                    createBuildStep(txn, 0, build2, step, machine->sshName,
-                        buildStepStatus, result.errorMsg, build->id);
-                }
-
+            /* Create failed build steps for every build that depends
+               on this. For cached failures, only create a step for
+               builds that don't have this step as top-level
+               (otherwise the user won't be able to see what caused
+               the build to fail). */
+            for (auto build2 : dependents) {
+                if (build == build2) continue;
+                if (cachedFailure && build2->drvPath == step->drvPath) continue;
+                createBuildStep(txn, 0, build2, step, machine->sshName,
+                    buildStepStatus, result.errorMsg, build->id);
             }
 
             if (!cachedFailure)
@@ -1180,19 +1185,18 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                     stepNr, machine->sshName, buildStepStatus, result.errorMsg);
 
             /* Mark all builds that depend on this derivation as failed. */
-            if (!retry)
-                for (auto build2 : dependents) {
-                    printMsg(lvlError, format("marking build %1% as failed") % build2->id);
-                    txn.parameterized
-                        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1")
-                        (build2->id)
-                        ((int) (build2->drvPath != step->drvPath && buildStatus == bsFailed ? bsDepFailed : buildStatus))
-                        (result.startTime)
-                        (result.stopTime)
-                        (cachedFailure ? 1 : 0).exec();
-                    build2->finishedInDB = true; // FIXME: txn might fail
-                    nrBuildsDone++;
-                }
+            for (auto build2 : dependents) {
+                printMsg(lvlError, format("marking build %1% as failed") % build2->id);
+                txn.parameterized
+                    ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1")
+                    (build2->id)
+                    ((int) (build2->drvPath != step->drvPath && buildStatus == bsFailed ? bsDepFailed : buildStatus))
+                    (result.startTime)
+                    (result.stopTime)
+                    (cachedFailure ? 1 : 0).exec();
+                build2->finishedInDB = true; // FIXME: txn might fail
+                nrBuildsDone++;
+            }
 
             /* Remember failed paths in the database so that they
                won't be built again. */
@@ -1208,20 +1212,18 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
        is the top-level derivation. In case of failure, destroy all
        dependent Build objects. Any Steps not referenced by other
        Builds will be destroyed as well. */
-    if (!retry)
-        for (auto build2 : dependents)
-            if (build2->toplevel == step || result.status != RemoteResult::rrSuccess) {
-                auto builds_(builds.lock());
-                builds_->erase(build2->id);
-            }
+    for (auto build2 : dependents)
+        if (build2->toplevel == step || result.status != RemoteResult::rrSuccess) {
+            auto builds_(builds.lock());
+            builds_->erase(build2->id);
+        }
 
     /* Remove the step from the graph. In case of success, make
        dependent build steps runnable if they have no other
        dependencies. */
-    if (!retry)
-        destroyStep(step, result.status == RemoteResult::rrSuccess);
+    destroyStep(step, result.status == RemoteResult::rrSuccess);
 
-    return retry;
+    return false;
 }
 
 
