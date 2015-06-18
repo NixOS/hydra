@@ -1138,7 +1138,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
             /* Mark all builds of which this derivation is the top
                level as succeeded. */
             for (auto build2 : direct)
-                markSucceededBuild(txn, build2, res, false, result.startTime, result.stopTime);
+                markSucceededBuild(txn, build2, res, build != build2,
+                  result.startTime, result.stopTime);
 
         } else {
             /* Failure case. */
