@@ -1159,12 +1159,16 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                message. */
             if (buildStatus != bsAborted) result.errorMsg = "";
 
-            if (!cachedFailure && !retry) {
+            if (!retry) {
 
-                /* Create failed build steps for every build that depends
-                   on this. */
+                /* Create failed build steps for every build that
+                   depends on this. For cached failures, only create a
+                   step for builds that don't have this step as
+                   top-level (otherwise the user won't be able to see
+                   what caused the build to fail). */
                 for (auto build2 : dependents) {
                     if (build == build2) continue;
+		    if (cachedFailure && build2->drvPath == step->drvPath) continue;
                     createBuildStep(txn, 0, build2, step, machine->sshName,
                         buildStepStatus, result.errorMsg, build->id);
                 }
