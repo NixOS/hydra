@@ -532,6 +532,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
                 (time(0))
                 ("derivation was garbage-collected prior to build").exec();
             txn.commit();
+            build->finishedInDB = true;
             nrBuildsDone++;
             return;
         }
@@ -609,6 +610,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
                     (now)
                     (buildStatus != bsUnsupported ? 1 : 0).exec();
                 txn.commit();
+                build->finishedInDB = true;
                 nrBuildsDone++;
                 badStep = true;
                 break;
