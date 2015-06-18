@@ -722,12 +722,12 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
         (*steps_)[drvPath] = step;
     }
 
-    printMsg(lvlDebug, format("considering derivation ‘%1%’") % drvPath);
-
     if (!isNew) {
         assert(step->created);
         return step;
     }
+
+    printMsg(lvlDebug, format("considering derivation ‘%1%’") % drvPath);
 
     /* Initialize the step. Note that the step may be visible in
        ‘steps’ before this point, but that doesn't matter because
