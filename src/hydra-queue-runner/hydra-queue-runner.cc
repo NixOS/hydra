@@ -1119,7 +1119,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 }
 
                 /* If there are no builds left to update in the DB,
-                   then we're done. Delete the step from
+                   then we're done (except for calling
+                   finishBuildStep()). Delete the step from
                    ‘steps’. Since we've been holding the ‘steps’ lock,
                    no new referrers can have been added in the
                    meantime or be added afterwards. */
@@ -1127,7 +1128,6 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                     printMsg(lvlDebug, format("finishing build step ‘%1%’") % step->drvPath);
                     nrStepsDone++;
                     steps_->erase(step->drvPath);
-                    break;
                 }
             }
 
@@ -1143,6 +1143,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
                 txn.commit();
             }
+
+            if (direct.empty()) break;
 
             /* Remove the direct dependencies from ‘builds’. This will
                cause them to be destroyed. */
