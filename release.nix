@@ -32,7 +32,7 @@ in rec {
 
     releaseTools.makeSourceTarball {
       name = "hydra-tarball";
-      src = hydraSrc;
+      src = if lib.inNixShell then null else hydraSrc;
       inherit officialRelease;
       version = builtins.readFile ./version;
 
