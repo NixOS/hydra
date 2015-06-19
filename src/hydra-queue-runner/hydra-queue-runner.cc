@@ -656,7 +656,12 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
 
         newRunnable.clear();
         nrAdded = 0;
-        createBuild(build);
+        try {
+            createBuild(build);
+        } catch (Error & e) {
+            printMsg(lvlError, format("while loading build %1%: %2%") % build->id % e.what());
+            continue; // FIXME: retry later?
+        }
 
         /* Add the new runnable build steps to ‘runnable’ and wake up
            the builder threads. */
