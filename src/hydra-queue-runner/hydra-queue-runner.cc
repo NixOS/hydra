@@ -1070,8 +1070,6 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         } catch (Error & e) {
             result.status = RemoteResult::rrMiscFailure;
             result.errorMsg = e.msg();
-            printMsg(lvlError, format("irregular failure building ‘%1%’ on ‘%2%’: %3%")
-                % step->drvPath % machine->sshName % e.msg());
         }
 
         if (result.status == RemoteResult::rrSuccess) res = getBuildResult(store, step->drv);
@@ -1082,6 +1080,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     /* The step had a hopefully temporary failure (e.g. network
        issue). Retry a number of times. */
     if (result.status == RemoteResult::rrMiscFailure) {
+        printMsg(lvlError, format("irregular failure building ‘%1%’ on ‘%2%’: %3%")
+            % step->drvPath % machine->sshName % result.errorMsg);
         bool retry;
         {
             auto step_(step->state.lock());
