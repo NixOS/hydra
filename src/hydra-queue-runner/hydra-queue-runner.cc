@@ -1253,7 +1253,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                         build2->finishedInDB)
                         continue;
                     createBuildStep(txn, 0, build2, step, machine->sshName,
-                        buildStepStatus, result.errorMsg, build->id);
+                        buildStepStatus, result.errorMsg, build == build2 ? 0 : build->id);
                 }
 
                 if (!cachedFailure)
