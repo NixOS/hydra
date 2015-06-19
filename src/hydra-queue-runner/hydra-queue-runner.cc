@@ -887,9 +887,9 @@ void State::dispatcher()
                     float ta = roundf(a->currentJobs / a->speedFactor);
                     float tb = roundf(b->currentJobs / b->speedFactor);
                     return
-                        ta != tb ? ta > tb :
+                        ta != tb ? ta < tb :
                         a->speedFactor != b->speedFactor ? a->speedFactor > b->speedFactor :
-                        a->maxJobs > b->maxJobs;
+                        a->currentJobs > b->currentJobs;
                 });
 
             /* Find a machine with a free slot and find a step to run
