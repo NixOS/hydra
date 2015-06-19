@@ -58,8 +58,8 @@ BuildResult getBuildResult(std::shared_ptr<StoreAPI> store, const Derivation & d
             }
             product.defaultPath = words.empty() ? "" : words.front();
 
-            /*  Ensure that the path exists and points into the
-                Nix store. */
+            /* Ensure that the path exists and points into the Nix
+               store. */
             if (product.path == "" || product.path[0] != '/') continue;
             product.path = canonPath(product.path, true);
             if (!isInStore(product.path) || !pathExists(product.path)) continue;

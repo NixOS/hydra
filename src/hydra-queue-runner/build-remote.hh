@@ -13,6 +13,7 @@ struct RemoteResult
     } status = rrMiscFailure;
     std::string errorMsg;
     time_t startTime = 0, stopTime = 0;
+    nix::Path logFile;
 };
 
 void buildRemote(std::shared_ptr<nix::StoreAPI> store,

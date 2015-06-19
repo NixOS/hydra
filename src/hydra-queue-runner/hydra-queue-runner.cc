@@ -2,6 +2,7 @@
 #include <condition_variable>
 #include <iostream>
 #include <map>
+#include <queue>
 #include <memory>
 #include <thread>
 #include <cmath>
@@ -9,6 +10,10 @@
 #include <algorithm>
 
 #include <pqxx/pqxx>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "build-result.hh"
 #include "build-remote.hh"
@@ -229,8 +234,6 @@ private:
     typedef std::list<Step::wptr> Runnable;
     Sync<Runnable> runnable;
 
-    std::condition_variable_any runnableWakeup;
-
     /* CV for waking up the dispatcher. */
     std::condition_variable dispatcherWakeup;
     std::mutex dispatcherMutex;
@@ -252,14 +255,20 @@ private:
     counter nrQueueWakeups{0};
     counter nrDispatcherWakeups{0};
 
+    /* Log compressor work queue. */
+    Sync<std::queue<Path>> logCompressorQueue;
+    std::condition_variable_any logCompressorWakeup;
+
 public:
     State();
 
     ~State();
 
-    void loadMachines();
-
     void clearBusy(time_t stopTime);
+
+private:
+
+    void loadMachines();
 
     int createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
         const std::string & machine, BuildStepStatus status, const std::string & errorMsg = "",
@@ -301,6 +310,11 @@ public:
         const BuildResult & res, bool isCachedBuild, time_t startTime, time_t stopTime);
 
     bool checkCachedFailure(Step::ptr step, Connection & conn);
+
+    /* Thread that asynchronously bzips logs of finished steps. */
+    void logCompressor();
+
+public:
 
     void dumpStatus();
 
@@ -951,7 +965,7 @@ void State::dispatcher()
 void State::wakeDispatcher()
 {
     { std::lock_guard<std::mutex> lock(dispatcherMutex); } // barrier
-    dispatcherWakeup.notify_all();
+    dispatcherWakeup.notify_one();
 }
 
 
@@ -1063,6 +1077,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
             txn.commit();
         }
 
+        /* Do the build. */
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
             buildRemote(store, machine->sshName, machine->sshKey, step->drvPath, step->drv,
@@ -1076,6 +1091,15 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     }
 
     if (!result.stopTime) result.stopTime = time(0);
+
+    /* Asynchronously compress the log. */
+    if (result.logFile != "") {
+        {
+            auto logCompressorQueue_(logCompressorQueue.lock());
+            logCompressorQueue_->push(result.logFile);
+        }
+        logCompressorWakeup.notify_one();
+    }
 
     /* The step had a hopefully temporary failure (e.g. network
        issue). Retry a number of times. */
@@ -1321,6 +1345,57 @@ bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 }
 
 
+void State::logCompressor()
+{
+    while (true) {
+        try {
+
+            Path logPath;
+            {
+                auto logCompressorQueue_(logCompressorQueue.lock());
+                while (logCompressorQueue_->empty())
+                    logCompressorQueue_.wait(logCompressorWakeup);
+                logPath = logCompressorQueue_->front();
+                logCompressorQueue_->pop();
+            }
+
+            if (!pathExists(logPath)) continue;
+
+            printMsg(lvlChatty, format("compressing log file ‘%1%’") % logPath);
+
+            Path tmpPath = logPath + ".bz2.tmp";
+
+            AutoCloseFD fd = open(tmpPath.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
+
+            // FIXME: use libbz2
+
+            Pid pid = startProcess([&]() {
+                if (dup2(fd, STDOUT_FILENO) == -1)
+                    throw SysError("cannot dup output pipe to stdout");
+                execlp("bzip2", "bzip2", "-c", logPath.c_str(), nullptr);
+                throw SysError("cannot start ssh");
+            });
+
+            int res = pid.wait(true);
+
+            if (res != 0)
+                throw Error(format("bzip2 returned exit code %1% while compressing ‘%2%’")
+                    % res % logPath);
+
+            if (rename(tmpPath.c_str(), (logPath + ".bz2").c_str()) != 0)
+                throw SysError(format("renaming ‘%1%’") % tmpPath);
+
+            if (unlink(logPath.c_str()) != 0)
+                throw SysError(format("unlinking ‘%1%’") % logPath);
+
+        } catch (std::exception & e) {
+            printMsg(lvlError, format("log compressor: %1%") % e.what());
+            sleep(5);
+        }
+    }
+}
+
+
 void State::dumpStatus()
 {
     {
@@ -1367,6 +1442,10 @@ void State::run()
     auto queueMonitorThread = std::thread(&State::queueMonitor, this);
 
     std::thread(&State::dispatcher, this).detach();
+
+    /* Run a log compressor thread. If needed, we could start more
+       than one. */
+    std::thread(&State::logCompressor, this).detach();
 
     while (true) {
         try {

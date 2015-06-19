@@ -117,12 +117,13 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     RemoteResult & result)
 {
     string base = baseNameOf(drvPath);
-    Path logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
+    result.logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
+    AutoDelete autoDelete(result.logFile, false);
 
-    createDirs(dirOf(logFile));
+    createDirs(dirOf(result.logFile));
 
-    AutoCloseFD logFD(open(logFile.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0666));
-    if (logFD == -1) throw SysError(format("creating log file ‘%1%’") % logFile);
+    AutoCloseFD logFD(open(result.logFile.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0666));
+    if (logFD == -1) throw SysError(format("creating log file ‘%1%’") % result.logFile);
 
     Child child;
     openConnection(sshName, sshKey, logFD, child);
@@ -146,7 +147,8 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
             throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % sshName);
     } catch (EndOfFile & e) {
         child.pid.wait(true);
-        throw Error(format("cannot connect to ‘%1%’: %2%") % sshName % chomp(readFile(logFile)));
+        string s = chomp(readFile(result.logFile));
+        throw Error(format("cannot connect to ‘%1%’: %2%") % sshName % s);
     }
 
     /* Gather the inputs. */
@@ -162,6 +164,8 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     /* Copy the input closure. */
     printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % drvPath % sshName);
     copyClosureTo(store, from, to, inputs);
+
+    autoDelete.cancel();
 
     /* Do the build. */
     printMsg(lvlDebug, format("building ‘%1%’ on ‘%2%’") % drvPath % sshName);
