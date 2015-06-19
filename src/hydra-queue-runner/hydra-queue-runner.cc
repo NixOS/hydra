@@ -1249,7 +1249,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                    the build to fail). */
                 for (auto & build2 : indirect) {
                     if ((cachedFailure && build2->drvPath == step->drvPath) ||
-                        (!cachedFailure && build == build2))
+                        (!cachedFailure && build == build2) ||
+                        build2->finishedInDB)
                         continue;
                     createBuildStep(txn, 0, build2, step, machine->sshName,
                         buildStepStatus, result.errorMsg, build->id);
@@ -1261,8 +1262,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
                 /* Mark all builds that depend on this derivation as failed. */
                 for (auto & build2 : indirect) {
+                    if (build2->finishedInDB) continue;
                     printMsg(lvlError, format("marking build %1% as failed") % build2->id);
-                    if (build->finishedInDB) continue;
                     txn.parameterized
                         ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1 and finished = 0")
                         (build2->id)
