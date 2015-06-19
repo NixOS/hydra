@@ -2,6 +2,7 @@
 #include "store-api.hh"
 #include "misc.hh"
 #include "util.hh"
+#include "regex.hh"
 
 using namespace nix;
 
@@ -26,6 +27,15 @@ BuildResult getBuildResult(std::shared_ptr<StoreAPI> store, const Derivation & d
     /* Get build products. */
     bool explicitProducts = false;
 
+    Regex regex(
+        "(([a-zA-Z0-9_-]+)" // type (e.g. "doc")
+        "[[:space:]]+"
+        "([a-zA-Z0-9_-]+)" // subtype (e.g. "readme")
+        "[[:space:]]+"
+        "(\"[^\"]+\"|[^[:space:]\"]+))" // path (may be quoted)
+        "([[:space:]]+([^[:space:]]+))?" // entry point
+        , true);
+
     for (auto & output : outputs) {
         Path failedFile = output + "/nix-support/failed";
         if (pathExists(failedFile)) res.failed = true;
@@ -35,33 +45,33 @@ BuildResult getBuildResult(std::shared_ptr<StoreAPI> store, const Derivation & d
         explicitProducts = true;
 
         /* For security, resolve symlinks. */
-        productsFile = canonPath(productsFile, true);
+        try {
+            productsFile = canonPath(productsFile, true);
+        } catch (Error & e) { continue; }
         if (!isInStore(productsFile)) continue;
 
-        // FIXME: handle I/O errors
+        string contents;
+        try {
+            contents = readFile(productsFile);
+        } catch (Error & e) { continue; }
 
-        auto contents = readFile(productsFile);
-        auto lines = tokenizeString<Strings>(contents, "\n");
-
-        for (auto & line : lines) {
+        for (auto & line : tokenizeString<Strings>(contents, "\n")) {
             BuildProduct product;
 
-            auto words = tokenizeString<Strings>(line);
-            if (words.size() < 3) continue;
-            product.type = words.front(); words.pop_front();
-            product.subtype = words.front(); words.pop_front();
-            if (string(words.front(), 0, 1) == "\"") {
-                // FIXME:
-                throw Error("FIXME");
-            } else {
-                product.path = words.front(); words.pop_front();
-            }
-            product.defaultPath = words.empty() ? "" : words.front();
+            Regex::Subs subs;
+            if (!regex.matches(line, subs)) continue;
+
+            product.type = subs[1];
+            product.subtype = subs[2];
+            product.path = subs[3][0] == '"' ? string(subs[3], 1, subs[3].size() - 2) : subs[3];
+            product.defaultPath = subs[5];
 
             /* Ensure that the path exists and points into the Nix
                store. */
             if (product.path == "" || product.path[0] != '/') continue;
-            product.path = canonPath(product.path, true);
+            try {
+                product.path = canonPath(product.path, true);
+            } catch (Error & e) { continue; }
             if (!isInStore(product.path) || !pathExists(product.path)) continue;
 
             /*  FIXME: check that the path is in the input closure
@@ -106,8 +116,9 @@ BuildResult getBuildResult(std::shared_ptr<StoreAPI> store, const Derivation & d
     for (auto & output : outputs) {
         Path p = output + "/nix-support/hydra-release-name";
         if (!pathExists(p)) continue;
-        // FIXME: handle I/O error
-        res.releaseName = trim(readFile(p));
+        try {
+            res.releaseName = trim(readFile(p));
+        } catch (Error & e) { continue; }
         // FIXME: validate release name
     }
 
