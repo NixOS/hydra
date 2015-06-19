@@ -1224,8 +1224,9 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                    (otherwise the user won't be able to see what caused
                    the build to fail). */
                 for (auto & build2 : indirect) {
-                    if (build == build2) continue;
-                    if (cachedFailure && build2->drvPath == step->drvPath) continue;
+                    if ((cachedFailure && build2->drvPath == step->drvPath) ||
+                        (!cachedFailure && build == build2))
+                        continue;
                     createBuildStep(txn, 0, build2, step, machine->sshName,
                         buildStepStatus, result.errorMsg, build->id);
                 }
