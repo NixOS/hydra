@@ -531,6 +531,12 @@ create rule IdempotentInsert as on insert to FailedPaths
 #endif
 
 
+create table SystemStatus (
+    what text primary key not null,
+    status json not null
+);
+
+
 -- Cache of the number of finished builds.
 create table NrBuilds (
     what  text primary key not null,
