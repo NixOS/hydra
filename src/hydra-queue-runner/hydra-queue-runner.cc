@@ -177,7 +177,10 @@ struct Machine
     unsigned int maxJobs = 1;
     float speedFactor = 1.0;
 
-    std::atomic<unsigned int> currentJobs{0};
+    counter currentJobs{0};
+    counter nrStepsDone{0};
+    counter totalStepTime{0}; // total time for steps, including closure copying
+    counter totalStepBuildTime{0}; // total build time for steps
 
     bool supportsStep(Step::ptr step)
     {
@@ -241,6 +244,7 @@ private:
     Sync<Machines> machines;
 
     /* Various stats. */
+    time_t startedAt;
     counter nrBuildsRead{0};
     counter nrBuildsDone{0};
     counter nrStepsDone{0};
@@ -1299,9 +1303,13 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
     }
 
+    // FIXME: keep stats about aborted steps?
     nrStepsDone++;
     totalStepTime += stepStopTime - stepStartTime;
     totalStepBuildTime += result.stopTime - result.startTime;
+    machine->nrStepsDone++;
+    machine->totalStepTime += stepStopTime - stepStartTime;
+    machine->totalStepBuildTime += result.stopTime - result.startTime;
 
     return false;
 }
@@ -1423,8 +1431,10 @@ void State::dumpStatus(Connection & conn, bool log)
 
     {
         JSONObject root(out);
+        time_t now = time(0);
         root.attr("status", "up");
         root.attr("time", time(0));
+        root.attr("uptime", now - startedAt);
         root.attr("pid", getpid());
         {
             auto builds_(builds.lock());
@@ -1449,9 +1459,9 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("nrStepsDone", nrStepsDone);
         root.attr("nrRetries", nrRetries);
         root.attr("maxNrRetries", maxNrRetries);
-        root.attr("totalStepTime", totalStepTime);
-        root.attr("totalStepBuildTime", totalStepBuildTime);
         if (nrStepsDone) {
+            root.attr("totalStepTime", totalStepTime);
+            root.attr("totalStepBuildTime", totalStepBuildTime);
             root.attr("avgStepTime"); out << (float) totalStepTime / nrStepsDone;
             root.attr("avgStepBuildTime"); out << (float) totalStepBuildTime / nrStepsDone;
         }
@@ -1466,7 +1476,13 @@ void State::dumpStatus(Connection & conn, bool log)
                 nested.attr(m->sshName);
                 JSONObject nested2(out);
                 nested2.attr("currentJobs", m->currentJobs);
-                nested2.attr("maxJobs", m->maxJobs);
+                nested2.attr("nrStepsDone", m->nrStepsDone);
+                if (m->nrStepsDone) {
+                    nested2.attr("totalStepTime", m->totalStepTime);
+                    nested2.attr("totalStepBuildTime", m->totalStepBuildTime);
+                    nested2.attr("avgStepTime"); out << (float) m->totalStepTime / m->nrStepsDone;
+                    nested2.attr("avgStepBuildTime"); out << (float) m->totalStepBuildTime / m->nrStepsDone;
+                }
             }
         }
     }
@@ -1550,6 +1566,8 @@ void State::unlock()
 
 void State::run()
 {
+    startedAt = time(0);
+
     auto lock = acquireGlobalLock();
     if (!lock)
         throw Error("hydra-queue-runner is already running");
