@@ -863,8 +863,8 @@ void State::dispatcher()
 
         do {
             /* Copy the currentJobs field of each machine. This is
-               necessary to ensure that the sort comparator below is a
-               ordering. std::sort() can segfault if it isn't. */
+               necessary to ensure that the sort comparator below is
+               an ordering. std::sort() can segfault if it isn't. */
             struct MachineInfo
             {
                 Machine::ptr machine;
@@ -1203,7 +1203,10 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 {
                     auto rdep_(rdep->state.lock());
                     rdep_->deps.erase(step);
-                    if (rdep_->deps.empty()) runnable = true;
+                    /* Note: if the step has not finished
+                       initialisation yet, it will be made runnable in
+                       createStep(), if appropriate. */
+                    if (rdep_->deps.empty() && rdep->created) runnable = true;
                 }
 
                 if (runnable) makeRunnable(rdep);
