@@ -248,6 +248,8 @@ private:
     counter nrStepsBuilding{0};
     counter nrRetries{0};
     counter maxNrRetries{0};
+    counter totalStepTime{0}; // total time for steps, including closure copying
+    counter totalStepBuildTime{0}; // total build time for steps
     counter nrQueueWakeups{0};
     counter nrDispatcherWakeups{0};
 
@@ -1040,7 +1042,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                possibility, we retry this step (putting it back in
                the runnable queue). If there are really no strong
                pointers to the step, it will be deleted. */
-            printMsg(lvlInfo, format("cancelling build step ‘%1%’") % step->drvPath);
+            printMsg(lvlInfo, format("maybe cancelling build step ‘%1%’") % step->drvPath);
             return true;
         }
 
@@ -1059,7 +1061,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     BuildResult res;
     int stepNr = 0;
 
-    result.startTime = time(0);
+    time_t stepStartTime = result.startTime = time(0);
 
     /* If any of the outputs have previously failed, then don't bother
        building again. */
@@ -1091,7 +1093,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         if (result.status == RemoteResult::rrSuccess) res = getBuildResult(store, step->drv);
     }
 
-    if (!result.stopTime) result.stopTime = time(0);
+    time_t stepStopTime = time(0);
+    if (!result.stopTime) result.stopTime = stepStopTime;
 
     /* Asynchronously compress the log. */
     if (result.logFile != "") {
@@ -1151,7 +1154,6 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                    meantime or be added afterwards. */
                 if (direct.empty()) {
                     printMsg(lvlDebug, format("finishing build step ‘%1%’") % step->drvPath);
-                    nrStepsDone++;
                     steps_->erase(step->drvPath);
                 }
             }
@@ -1222,7 +1224,6 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 if (indirect.empty()) {
                     for (auto & s : steps) {
                         printMsg(lvlDebug, format("finishing build step ‘%1%’") % step->drvPath);
-                        nrStepsDone++;
                         steps_->erase(s->drvPath);
                     }
                     break;
@@ -1297,6 +1298,10 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         }
 
     }
+
+    nrStepsDone++;
+    totalStepTime += stepStopTime - stepStartTime;
+    totalStepBuildTime += result.stopTime - result.startTime;
 
     return false;
 }
@@ -1444,6 +1449,12 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("nrStepsDone", nrStepsDone);
         root.attr("nrRetries", nrRetries);
         root.attr("maxNrRetries", maxNrRetries);
+        root.attr("totalStepTime", totalStepTime);
+        root.attr("totalStepBuildTime", totalStepBuildTime);
+        if (nrStepsDone) {
+            root.attr("avgStepTime"); out << (float) totalStepTime / nrStepsDone;
+            root.attr("avgStepBuildTime"); out << (float) totalStepBuildTime / nrStepsDone;
+        }
         root.attr("nrQueueWakeups", nrQueueWakeups);
         root.attr("nrDispatcherWakeups", nrDispatcherWakeups);
         root.attr("nrDbConnections", dbPool.count());
