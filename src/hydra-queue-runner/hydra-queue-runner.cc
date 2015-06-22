@@ -145,6 +145,9 @@ struct Step
 
     struct State
     {
+        /* Whether the step has finished initialisation. */
+        bool created = false;
+
         /* The build steps on which this step depends. */
         std::set<Step::ptr> deps;
 
@@ -161,7 +164,6 @@ struct Step
         system_time after;
     };
 
-    std::atomic_bool created{false}; // debugging
     std::atomic_bool finished{false}; // debugging
 
     Sync<State> state;
@@ -732,6 +734,8 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
 
         auto step_(step->state.lock());
 
+        assert(step_->created != isNew);
+
         if (referringBuild)
             step_->builds.push_back(referringBuild);
 
@@ -741,10 +745,7 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
         (*steps_)[drvPath] = step;
     }
 
-    if (!isNew) {
-        assert(step->created);
-        return step;
-    }
+    if (!isNew) return step;
 
     printMsg(lvlDebug, format("considering derivation ‘%1%’") % drvPath);
 
@@ -788,8 +789,8 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
        runnable. */
     {
         auto step_(step->state.lock());
-        assert(!step->created);
-        step->created = true;
+        assert(!step_->created);
+        step_->created = true;
         if (step_->deps.empty())
             newRunnable.insert(step);
     }
@@ -838,7 +839,7 @@ void State::makeRunnable(Step::ptr step)
 
     {
         auto step_(step->state.lock());
-        assert(step->created);
+        assert(step_->created);
         assert(!step->finished);
         assert(step_->deps.empty());
     }
@@ -1023,7 +1024,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 {
     {
         auto step_(step->state.lock());
-        assert(step->created);
+        assert(step_->created);
         assert(!step->finished);
     }
 
@@ -1206,7 +1207,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                     /* Note: if the step has not finished
                        initialisation yet, it will be made runnable in
                        createStep(), if appropriate. */
-                    if (rdep_->deps.empty() && rdep->created) runnable = true;
+                    if (rdep_->deps.empty() && rdep_->created) runnable = true;
                 }
 
                 if (runnable) makeRunnable(rdep);
