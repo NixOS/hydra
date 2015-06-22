@@ -584,7 +584,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
 
             if (checkCachedFailure(r, conn)) {
                 printMsg(lvlError, format("marking build %1% as cached failure") % build->id);
-                buildStatus = step == r ? bsFailed : bsFailed;
+                buildStatus = step == r ? bsFailed : bsDepFailed;
                 buildStepStatus = bssFailed;
             }
 
