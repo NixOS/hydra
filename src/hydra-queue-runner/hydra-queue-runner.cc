@@ -19,6 +19,7 @@
 #include "build-remote.hh"
 #include "sync.hh"
 #include "pool.hh"
+#include "counter.hh"
 
 #include "store-api.hh"
 #include "derivations.hh"
@@ -41,16 +42,6 @@ bool has(const C & c, const V & v)
 {
     return c.find(v) != c.end();
 }
-
-
-typedef std::atomic<unsigned int> counter;
-
-struct MaintainCount
-{
-    counter & c;
-    MaintainCount(counter & c) : c(c) { c++; }
-    ~MaintainCount() { c--; }
-};
 
 
 typedef enum {
@@ -252,6 +243,7 @@ private:
     counter nrBuildsDone{0};
     counter nrStepsDone{0};
     counter nrActiveSteps{0};
+    counter nrStepsBuilding{0};
     counter nrRetries{0};
     counter maxNrRetries{0};
     counter nrQueueWakeups{0};
@@ -1094,7 +1086,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
             buildRemote(store, machine->sshName, machine->sshKey, step->drvPath, step->drv,
-                logDir, build->maxSilentTime, build->buildTimeout, result);
+                logDir, build->maxSilentTime, build->buildTimeout, result, nrStepsBuilding);
         } catch (Error & e) {
             result.status = RemoteResult::rrMiscFailure;
             result.errorMsg = e.msg();
@@ -1432,6 +1424,7 @@ void State::dumpStatus()
         printMsg(lvlError, format("%1% runnable build steps") % runnable_->size());
     }
     printMsg(lvlError, format("%1% active build steps") % nrActiveSteps);
+    printMsg(lvlError, format("%1% build steps currently building") % nrStepsBuilding);
     printMsg(lvlError, format("%1% builds read from queue") % nrBuildsRead);
     printMsg(lvlError, format("%1% builds done") % nrBuildsDone);
     printMsg(lvlError, format("%1% build steps done") % nrStepsDone);

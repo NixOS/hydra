@@ -114,7 +114,7 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     const string & sshName, const string & sshKey,
     const Path & drvPath, const Derivation & drv,
     const nix::Path & logDir, unsigned int maxSilentTime, unsigned int buildTimeout,
-    RemoteResult & result)
+    RemoteResult & result, counter & nrStepsBuilding)
 {
     string base = baseNameOf(drvPath);
     result.logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
@@ -176,7 +176,11 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     // FIXME: send maxLogSize.
     to.flush();
     result.startTime = time(0);
-    int res = readInt(from);
+    int res;
+    {
+        MaintainCount mc(nrStepsBuilding);
+        res = readInt(from);
+    }
     result.stopTime = time(0);
     if (res) {
         result.errorMsg = (format("%1% on ‘%2%’") % readString(from) % sshName).str();
