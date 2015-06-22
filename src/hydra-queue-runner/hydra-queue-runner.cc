@@ -1615,8 +1615,6 @@ int main(int argc, char * * argv)
         settings.useSubstitutes = false;
         settings.lockCPU = false;
 
-        /* FIXME: need some locking to prevent multiple instances of
-           hydra-queue-runner. */
         State state;
         if (status)
             state.showStatus();
