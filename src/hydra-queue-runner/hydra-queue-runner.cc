@@ -26,6 +26,7 @@
 #include "shared.hh"
 #include "globals.hh"
 #include "value-to-json.hh"
+#include "pathlocks.hh"
 
 using namespace nix;
 
@@ -306,6 +307,10 @@ private:
 
     /* Thread that asynchronously bzips logs of finished steps. */
     void logCompressor();
+
+    /* Acquire the global queue runner lock, or null if somebody else
+       has it. */
+    std::shared_ptr<PathLocks> acquireGlobalLock();
 
     void dumpStatus(Connection & conn, bool log);
 
@@ -1396,6 +1401,17 @@ void State::logCompressor()
 }
 
 
+std::shared_ptr<PathLocks> State::acquireGlobalLock()
+{
+    Path lockPath = hydraData + "/queue-runner";
+
+    auto lock = std::make_shared<PathLocks>();
+    if (!lock->lockPaths(PathSet({lockPath}), "", false)) return 0;
+
+    return lock;
+}
+
+
 void State::dumpStatus(Connection & conn, bool log)
 {
     std::ostringstream out;
@@ -1505,6 +1521,10 @@ void State::showStatus()
 
 void State::unlock()
 {
+    auto lock = acquireGlobalLock();
+    if (!lock)
+        throw Error("hydra-queue-runner is currently running");
+
     auto conn(dbPool.get());
 
     clearBusy(*conn, 0);
@@ -1519,6 +1539,10 @@ void State::unlock()
 
 void State::run()
 {
+    auto lock = acquireGlobalLock();
+    if (!lock)
+        throw Error("hydra-queue-runner is already running");
+
     {
         auto conn(dbPool.get());
         clearBusy(*conn, 0);
