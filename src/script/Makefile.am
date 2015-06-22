@@ -9,6 +9,7 @@ distributable_scripts =				\
   hydra-update-gc-roots				\
   hydra-s3-backup-collect-garbage		\
   hydra-create-user				\
+  hydra-notify					\
   nix-prefetch-git				\
   nix-prefetch-bzr				\
   nix-prefetch-hg

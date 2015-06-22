@@ -1,0 +1,35 @@
+#! /run/current-system/sw/bin/perl
+
+use strict;
+use utf8;
+use Hydra::Plugin;
+use Hydra::Helper::Nix;
+use Hydra::Helper::PluginHooks;
+
+STDERR->autoflush(1);
+binmode STDERR, ":encoding(utf8)";
+
+my $config = getHydraConfig();
+
+my $db = Hydra::Model::DB->new();
+
+my @plugins = Hydra::Plugin->instantiate(db => $db, config => $config);
+
+my $cmd = shift @ARGV or die "Syntax: hydra-notify build BUILD-ID [BUILD-IDs...]\n";
+
+if ($cmd eq "build") {
+    my $buildId = shift @ARGV or die;
+    my $build = $db->resultset('Builds')->find($buildId)
+        or die "build $buildId does not exist\n";
+    my @dependents;
+    foreach my $id (@ARGV) {
+        my $dep = $db->resultset('Builds')->find($id)
+            or die "build $id does not exist\n";
+        push @dependents, $dep;
+    }
+    notifyBuildFinished(\@plugins, $build, [@dependents]);
+}
+
+else {
+    die "unknown action ‘$cmd’";
+}

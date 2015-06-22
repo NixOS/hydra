@@ -1,4 +1,4 @@
-#! /var/run/current-system/sw/bin/perl
+#! /run/current-system/sw/bin/perl
 
 use strict;
 use utf8;

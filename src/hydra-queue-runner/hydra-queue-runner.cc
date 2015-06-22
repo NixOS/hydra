@@ -261,6 +261,14 @@ private:
     Sync<std::queue<Path>> logCompressorQueue;
     std::condition_variable_any logCompressorWakeup;
 
+    /* Notification sender work queue. FIXME: if hydra-queue-runner is
+       killed before it has finished sending notifications about a
+       build, then the notifications may be lost. It would be better
+       to mark builds with pending notification in the database. */
+    typedef std::pair<BuildID, std::vector<BuildID>> NotificationItem;
+    Sync<std::queue<NotificationItem>> notificationSenderQueue;
+    std::condition_variable_any notificationSenderWakeup;
+
 public:
     State();
 
@@ -313,6 +321,10 @@ private:
 
     /* Thread that asynchronously bzips logs of finished steps. */
     void logCompressor();
+
+    /* Thread that asynchronously invokes hydra-notify to send build
+       notifications. */
+    void notificationSender();
 
     /* Acquire the global queue runner lock, or null if somebody else
        has it. */
@@ -1186,6 +1198,13 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
             }
         }
 
+        /* Send notification about this build. */
+        {
+            auto notificationSenderQueue_(notificationSenderQueue.lock());
+            notificationSenderQueue_->push(NotificationItem(build->id, std::vector<BuildID>()));
+        }
+        notificationSenderWakeup.notify_one();
+
         /* Wake up any dependent steps that have no other
            dependencies. */
         {
@@ -1212,6 +1231,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
         /* Register failure in the database for all Build objects that
            directly or indirectly depend on this step. */
+
+        std::vector<BuildID> dependentIDs;
 
         while (true) {
 
@@ -1273,6 +1294,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 for (auto & build2 : indirect) {
                     if (build2->finishedInDB) continue;
                     printMsg(lvlError, format("marking build %1% as failed") % build2->id);
+                    dependentIDs.push_back(build2->id);
                     txn.parameterized
                         ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1 and finished = 0")
                         (build2->id)
@@ -1300,6 +1322,13 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 builds_->erase(b->id);
             }
         }
+
+        /* Send notification about this build and its dependents. */
+        {
+            auto notificationSenderQueue_(notificationSenderQueue.lock());
+            notificationSenderQueue_->push(NotificationItem(build->id, dependentIDs));
+        }
+        notificationSenderWakeup.notify_one();
 
     }
 
@@ -1391,7 +1420,7 @@ void State::logCompressor()
                 if (dup2(fd, STDOUT_FILENO) == -1)
                     throw SysError("cannot dup output pipe to stdout");
                 execlp("bzip2", "bzip2", "-c", logPath.c_str(), nullptr);
-                throw SysError("cannot start ssh");
+                throw SysError("cannot start bzip2");
             });
 
             int res = pid.wait(true);
@@ -1408,6 +1437,44 @@ void State::logCompressor()
 
         } catch (std::exception & e) {
             printMsg(lvlError, format("log compressor: %1%") % e.what());
+            sleep(5);
+        }
+    }
+}
+
+
+void State::notificationSender()
+{
+    while (true) {
+        try {
+
+            NotificationItem item;
+            {
+                auto notificationSenderQueue_(notificationSenderQueue.lock());
+                while (notificationSenderQueue_->empty())
+                    notificationSenderQueue_.wait(notificationSenderWakeup);
+                item = notificationSenderQueue_->front();
+                notificationSenderQueue_->pop();
+            }
+
+            printMsg(lvlChatty, format("sending notification about build %1%") % item.first);
+
+            Pid pid = startProcess([&]() {
+                Strings argv({"hydra-notify", "build", int2String(item.first)});
+                for (auto id : item.second)
+                    argv.push_back(int2String(id));
+                execvp("hydra-notify", (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
+                throw SysError("cannot start hydra-notify");
+            });
+
+            int res = pid.wait(true);
+
+            if (res != 0)
+                throw Error(format("hydra-build returned exit code %1% notifying about build %2%")
+                    % res % item.first);
+
+        } catch (std::exception & e) {
+            printMsg(lvlError, format("notification sender: %1%") % e.what());
             sleep(5);
         }
     }
@@ -1580,7 +1647,7 @@ void State::run()
 
     loadMachines();
 
-    auto queueMonitorThread = std::thread(&State::queueMonitor, this);
+    std::thread(&State::queueMonitor, this).detach();
 
     std::thread(&State::dispatcher, this).detach();
 
@@ -1588,6 +1655,11 @@ void State::run()
        than one. */
     std::thread(&State::logCompressor, this).detach();
 
+    /* Idem for notification sending. */
+    std::thread(&State::notificationSender, this).detach();
+
+    /* Monitor the database for status dump requests (e.g. from
+       ‘hydra-queue-runner --status’). */
     while (true) {
         try {
             auto conn(dbPool.get());
@@ -1601,9 +1673,6 @@ void State::run()
             sleep(10); // probably a DB problem, so don't retry right away
         }
     }
-
-    // Never reached.
-    queueMonitorThread.join();
 }
 
 
