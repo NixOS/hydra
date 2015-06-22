@@ -47,6 +47,7 @@ in rec {
 
         addToSearchPath PATH $(pwd)/src/script
         addToSearchPath PATH $(pwd)/src/hydra-eval-jobs
+        addToSearchPath PATH $(pwd)/src/hydra-queue-runner
         addToSearchPath PERL5LIB $(pwd)/src/lib
       '';
 
