@@ -307,7 +307,7 @@ private:
     /* Thread that asynchronously bzips logs of finished steps. */
     void logCompressor();
 
-    void dumpStatus(Connection & conn);
+    void dumpStatus(Connection & conn, bool log);
 
 public:
 
@@ -1396,7 +1396,7 @@ void State::logCompressor()
 }
 
 
-void State::dumpStatus(Connection & conn)
+void State::dumpStatus(Connection & conn, bool log)
 {
     std::ostringstream out;
 
@@ -1443,6 +1443,8 @@ void State::dumpStatus(Connection & conn)
             }
         }
     }
+
+    if (log) printMsg(lvlInfo, format("status: %1%") % out.str());
 
     {
         pqxx::work txn(conn);
@@ -1520,7 +1522,7 @@ void State::run()
     {
         auto conn(dbPool.get());
         clearBusy(*conn, 0);
-        dumpStatus(*conn);
+        dumpStatus(*conn, false);
     }
 
     loadMachines();
@@ -1538,9 +1540,8 @@ void State::run()
             auto conn(dbPool.get());
             receiver dumpStatus(*conn, "dump_status");
             while (true) {
-                conn->await_notification();
-                if (dumpStatus.get())
-                    State::dumpStatus(*conn);
+                bool timeout = conn->await_notification(300, 0) == 0;
+                State::dumpStatus(*conn, timeout);
             }
         } catch (std::exception & e) {
             printMsg(lvlError, format("main thread: %1%") % e.what());
