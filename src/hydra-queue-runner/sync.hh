@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <condition_variable>
+#include <cassert>
 
 /* This template class ensures synchronized access to a value of type
    T. It is used as follows:
@@ -49,6 +50,15 @@ public:
         {
             assert(s);
             cv.wait(s->mutex);
+        }
+
+        template<class Rep, class Period, class Predicate>
+        bool wait_for(std::condition_variable_any & cv,
+            const std::chrono::duration<Rep, Period> & duration,
+            Predicate pred)
+        {
+            assert(s);
+            return cv.wait_for(s->mutex, duration, pred);
         }
     };
 

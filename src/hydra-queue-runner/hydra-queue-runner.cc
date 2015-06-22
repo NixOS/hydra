@@ -20,6 +20,7 @@
 #include "sync.hh"
 #include "pool.hh"
 #include "counter.hh"
+#include "token-server.hh"
 
 #include "store-api.hh"
 #include "derivations.hh"
@@ -31,9 +32,11 @@
 using namespace nix;
 
 
-const int maxTries = 5;
-const int retryInterval = 60; // seconds
+// FIXME: Make configurable.
+const unsigned int maxTries = 5;
+const unsigned int retryInterval = 60; // seconds
 const float retryBackoff = 3.0;
+const unsigned int maxParallelCopyClosure = 4;
 
 
 typedef std::chrono::time_point<std::chrono::system_clock> system_time;
@@ -242,6 +245,10 @@ private:
     /* The build machines. */
     typedef std::list<Machine::ptr> Machines;
     Sync<Machines> machines;
+
+    /* Token server limiting the number of threads copying closures in
+       parallel to prevent excessive I/O load. */
+    TokenServer copyClosureTokenServer{maxParallelCopyClosure};
 
     /* Various stats. */
     time_t startedAt;
@@ -1100,7 +1107,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
             buildRemote(store, machine->sshName, machine->sshKey, step->drvPath, step->drv,
-                logDir, build->maxSilentTime, build->buildTimeout, result, nrStepsBuilding);
+                logDir, build->maxSilentTime, build->buildTimeout, copyClosureTokenServer,
+                result, nrStepsBuilding);
         } catch (Error & e) {
             result.status = RemoteResult::rrMiscFailure;
             result.errorMsg = e.msg();

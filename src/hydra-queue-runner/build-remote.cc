@@ -60,6 +60,7 @@ static void openConnection(const string & sshName, const string & sshKey,
 
 static void copyClosureTo(std::shared_ptr<StoreAPI> store,
     FdSource & from, FdSink & to, const PathSet & paths,
+    TokenServer & copyClosureTokenServer,
     bool useSubstitutes = false)
 {
     PathSet closure;
@@ -88,6 +89,19 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
     for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
         if (present.find(*i) == present.end()) missing.push_back(*i);
 
+    /* Ensure that only a limited number of threads can copy closures
+       at the same time. However, proceed anyway after a timeout to
+       prevent starvation by a handful of really huge closures. */
+    time_t start = time(0);
+    int timeout = 60 * (10 + rand() % 5);
+    auto token(copyClosureTokenServer.get(timeout));
+    time_t stop = time(0);
+
+    if (token())
+        printMsg(lvlDebug, format("got copy closure token after %1%s") % (stop - start));
+    else
+        printMsg(lvlDebug, format("dit not get copy closure token after %1%s") % (stop - start));
+
     printMsg(lvlDebug, format("sending %1% missing paths") % missing.size());
 
     writeInt(cmdImportPaths, to);
@@ -114,6 +128,7 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     const string & sshName, const string & sshKey,
     const Path & drvPath, const Derivation & drv,
     const nix::Path & logDir, unsigned int maxSilentTime, unsigned int buildTimeout,
+    TokenServer & copyClosureTokenServer,
     RemoteResult & result, counter & nrStepsBuilding)
 {
     string base = baseNameOf(drvPath);
@@ -163,7 +178,7 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
 
     /* Copy the input closure. */
     printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % drvPath % sshName);
-    copyClosureTo(store, from, to, inputs);
+    copyClosureTo(store, from, to, inputs, copyClosureTokenServer);
 
     autoDelete.cancel();
 
