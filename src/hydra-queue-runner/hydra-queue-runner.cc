@@ -1157,6 +1157,9 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
            this in a loop, marking all known builds, repeating until
            there are no unmarked builds.
         */
+
+        std::vector<BuildID> buildIDs;
+
         while (true) {
 
             /* Get the builds that have this one as the top-level. */
@@ -1203,15 +1206,19 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 auto builds_(builds.lock());
                 b->finishedInDB = true;
                 builds_->erase(b->id);
+                buildIDs.push_back(b->id);
             }
         }
 
-        /* Send notification about this build. */
-        {
-            auto notificationSenderQueue_(notificationSenderQueue.lock());
-            notificationSenderQueue_->push(NotificationItem(build->id, std::vector<BuildID>()));
+        /* Send notification about the builds that have this step as
+           the top-level. */
+        for (auto id : buildIDs) {
+            {
+                auto notificationSenderQueue_(notificationSenderQueue.lock());
+                notificationSenderQueue_->push(NotificationItem(id, std::vector<BuildID>()));
+            }
+            notificationSenderWakeup.notify_one();
         }
-        notificationSenderWakeup.notify_one();
 
         /* Wake up any dependent steps that have no other
            dependencies. */
@@ -1302,7 +1309,6 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 for (auto & build2 : indirect) {
                     if (build2->finishedInDB) continue;
                     printMsg(lvlError, format("marking build %1% as failed") % build2->id);
-                    dependentIDs.push_back(build2->id);
                     txn.parameterized
                         ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1 and finished = 0")
                         (build2->id)
@@ -1328,6 +1334,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 auto builds_(builds.lock());
                 b->finishedInDB = true;
                 builds_->erase(b->id);
+                dependentIDs.push_back(b->id);
             }
         }
 
