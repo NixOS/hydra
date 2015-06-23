@@ -100,7 +100,7 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
     if (token())
         printMsg(lvlDebug, format("got copy closure token after %1%s") % (stop - start));
     else
-        printMsg(lvlDebug, format("dit not get copy closure token after %1%s") % (stop - start));
+        printMsg(lvlDebug, format("did not get copy closure token after %1%s") % (stop - start));
 
     printMsg(lvlDebug, format("sending %1% missing paths") % missing.size());
 
