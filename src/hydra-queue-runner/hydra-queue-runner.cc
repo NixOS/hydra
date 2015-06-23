@@ -1269,7 +1269,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                    be certain no new referrers can be added. */
                 if (indirect.empty()) {
                     for (auto & s : steps) {
-                        printMsg(lvlDebug, format("finishing build step ‘%1%’") % step->drvPath);
+                        printMsg(lvlDebug, format("finishing build step ‘%1%’") % s->drvPath);
                         steps_->erase(s->drvPath);
                     }
                     break;
