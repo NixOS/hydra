@@ -304,7 +304,7 @@ private:
     void removeCancelledBuilds(Connection & conn);
 
     Step::ptr createStep(std::shared_ptr<StoreAPI> store, const Path & drvPath,
-        Build::ptr referringBuild, Step::ptr referringStep,
+        Build::ptr referringBuild, Step::ptr referringStep, std::set<Path> & finishedDrvs,
         std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable);
 
     void makeRunnable(Step::ptr step);
@@ -565,7 +565,8 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
         }
 
         std::set<Step::ptr> newSteps;
-        Step::ptr step = createStep(store, build->drvPath, build, 0, newSteps, newRunnable);
+        std::set<Path> finishedDrvs; // FIXME: re-use?
+        Step::ptr step = createStep(store, build->drvPath, build, 0, finishedDrvs, newSteps, newRunnable);
 
         /* Some of the new steps may be the top level of builds that
            we haven't processed yet. So do them now. This ensures that
@@ -714,9 +715,11 @@ void State::removeCancelledBuilds(Connection & conn)
 
 
 Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPath,
-    Build::ptr referringBuild, Step::ptr referringStep,
+    Build::ptr referringBuild, Step::ptr referringStep, std::set<Path> & finishedDrvs,
     std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable)
 {
+    if (finishedDrvs.find(drvPath) != finishedDrvs.end()) return 0;
+
     /* Check if the requested step already exists. If not, create a
        new step. In any case, make the step reachable from
        referringBuild or referringStep. This is done atomically (with
@@ -783,7 +786,10 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
     }
 
     // FIXME: check whether all outputs are in the binary cache.
-    if (valid) return 0;
+    if (valid) {
+        finishedDrvs.insert(drvPath);
+        return 0;
+    }
 
     /* No, we need to build. */
     printMsg(lvlDebug, format("creating build step ‘%1%’") % drvPath);
@@ -791,7 +797,7 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
 
     /* Create steps for the dependencies. */
     for (auto & i : step->drv.inputDrvs) {
-        auto dep = createStep(store, i.first, 0, step, newSteps, newRunnable);
+        auto dep = createStep(store, i.first, 0, step, finishedDrvs, newSteps, newRunnable);
         if (dep) {
             auto step_(step->state.lock());
             step_->deps.insert(dep);
