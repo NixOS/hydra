@@ -23,5 +23,5 @@ void buildRemote(std::shared_ptr<nix::StoreAPI> store,
     const std::string & sshName, const std::string & sshKey,
     const nix::Path & drvPath, const nix::Derivation & drv,
     const nix::Path & logDir, unsigned int maxSilentTime, unsigned int buildTimeout,
-    TokenServer & copyClosureTokenServer,
-    RemoteResult & result, counter & nrStepsBuilding);
+    TokenServer & copyClosureTokenServer, RemoteResult & result,
+    counter & nrStepsBuilding, counter & nrStepsCopyingTo, counter & nrStepsCopyingFrom);

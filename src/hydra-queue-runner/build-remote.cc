@@ -128,8 +128,8 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     const string & sshName, const string & sshKey,
     const Path & drvPath, const Derivation & drv,
     const nix::Path & logDir, unsigned int maxSilentTime, unsigned int buildTimeout,
-    TokenServer & copyClosureTokenServer,
-    RemoteResult & result, counter & nrStepsBuilding)
+    TokenServer & copyClosureTokenServer, RemoteResult & result,
+    counter & nrStepsBuilding, counter & nrStepsCopyingTo, counter & nrStepsCopyingFrom)
 {
     string base = baseNameOf(drvPath);
     result.logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
@@ -178,7 +178,10 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
 
     /* Copy the input closure. */
     printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % drvPath % sshName);
-    copyClosureTo(store, from, to, inputs, copyClosureTokenServer);
+    {
+        MaintainCount mc(nrStepsCopyingTo);
+        copyClosureTo(store, from, to, inputs, copyClosureTokenServer);
+    }
 
     autoDelete.cancel();
 
@@ -210,7 +213,10 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     PathSet outputs;
     for (auto & output : drv.outputs)
         outputs.insert(output.second.path);
-    copyClosureFrom(store, from, to, outputs);
+    {
+        MaintainCount mc(nrStepsCopyingFrom);
+        copyClosureFrom(store, from, to, outputs);
+    }
 
     /* Shut down the connection. */
     child.to.close();

@@ -257,6 +257,8 @@ private:
     counter nrStepsDone{0};
     counter nrActiveSteps{0};
     counter nrStepsBuilding{0};
+    counter nrStepsCopyingTo{0};
+    counter nrStepsCopyingFrom{0};
     counter nrRetries{0};
     counter maxNrRetries{0};
     counter totalStepTime{0}; // total time for steps, including closure copying
@@ -1114,7 +1116,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
             /* FIXME: referring builds may have conflicting timeouts. */
             buildRemote(store, machine->sshName, machine->sshKey, step->drvPath, step->drv,
                 logDir, build->maxSilentTime, build->buildTimeout, copyClosureTokenServer,
-                result, nrStepsBuilding);
+                result, nrStepsBuilding, nrStepsCopyingTo, nrStepsCopyingFrom);
         } catch (Error & e) {
             result.status = RemoteResult::rrMiscFailure;
             result.errorMsg = e.msg();
@@ -1542,6 +1544,8 @@ void State::dumpStatus(Connection & conn, bool log)
         }
         root.attr("nrActiveSteps", nrActiveSteps);
         root.attr("nrStepsBuilding", nrStepsBuilding);
+        root.attr("nrStepsCopyingTo", nrStepsCopyingTo);
+        root.attr("nrStepsCopyingFrom", nrStepsCopyingFrom);
         root.attr("nrBuildsRead", nrBuildsRead);
         root.attr("nrBuildsDone", nrBuildsDone);
         root.attr("nrStepsDone", nrStepsDone);

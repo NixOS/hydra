@@ -3,6 +3,7 @@
 use strict;
 use utf8;
 use Net::Statsd;
+use File::Slurp;
 use JSON;
 
 STDERR->autoflush(1);
@@ -20,10 +21,14 @@ sub sendQueueRunnerStats {
 
     my $json = decode_json($s) or die "cannot decode queue runner status";
 
+    gauge("hydra.queue.up", $json->{status} eq "up" ? 1 : 0);
+
     return if $json->{status} ne "up";
 
     gauge("hydra.queue.steps.active", $json->{nrActiveSteps});
     gauge("hydra.queue.steps.building", $json->{nrStepsBuilding});
+    gauge("hydra.queue.steps.copying_to", $json->{nrStepsCopyingTo});
+    gauge("hydra.queue.steps.copying_from", $json->{nrStepsCopyingFrom});
     gauge("hydra.queue.steps.runnable", $json->{nrRunnableSteps});
     gauge("hydra.queue.steps.unfinished", $json->{nrUnfinishedSteps});
     gauge("hydra.queue.steps.finished", $json->{nrStepsDone});
@@ -44,5 +49,13 @@ sub sendQueueRunnerStats {
 while (1) {
     eval { sendQueueRunnerStats(); };
     if ($@) { warn "$@"; }
+
+    my $meminfo = read_file("/proc/meminfo", err_mode => 'quiet') // "";
+    $meminfo =~ m/Dirty:\s*(\d+) kB/;
+    if (defined $1) {
+        my $dirty = $1 / (1024.0 * 1024.0);
+        gauge("hydra.mem.dirty", $dirty);
+    }
+
     sleep(30);
 }
