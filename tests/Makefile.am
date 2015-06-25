@@ -1,6 +1,6 @@
 TESTS_ENVIRONMENT = \
   BZR_HOME="$(abs_builddir)/data"			\
-  HYDRA_DBI="dbi:SQLite:db.sqlite"			\
+  HYDRA_DBI="dbi:Pg:dbname=hydra-test-suite;"		\
   HYDRA_DATA="$(abs_builddir)/data"			\
   HYDRA_HOME="$(top_srcdir)/src"			\
   HYDRA_CONFIG=						\
@@ -22,15 +22,11 @@ EXTRA_DIST = \
   $(TESTS)
 
 TESTS = \
-  query-all-tables.pl \
-  evaluation-tests.pl
+  set-up.pl \
+  evaluation-tests.pl \
+  tear-down.pl
 
-clean:
-	chmod -R a+w nix || true
-	rm -rf db.sqlite data nix git-repo hg-repo svn-repo svn-checkout svn-checkout-repo bzr-repo bzr-checkout-repo darcs-repo
-	rm -f .*-state
-
-check_SCRIPTS = db.sqlite repos
+check_SCRIPTS = repos
 
 db.sqlite: $(top_srcdir)/src/sql/hydra-sqlite.sql
 	$(TESTS_ENVIRONMENT) $(top_srcdir)/src/script/hydra-init

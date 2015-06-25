@@ -232,7 +232,7 @@ private:
 
     /* The build machines. */
     typedef std::map<string, Machine::ptr> Machines;
-    Sync<Machines> machines;
+    Sync<Machines> machines; // FIXME: use atomic_shared_ptr
 
     Path machinesFile;
     struct stat machinesFileStat;
@@ -268,6 +268,9 @@ private:
     typedef std::pair<BuildID, std::vector<BuildID>> NotificationItem;
     Sync<std::queue<NotificationItem>> notificationSenderQueue;
     std::condition_variable_any notificationSenderWakeup;
+
+    /* Specific build to do for --build-one (testing only). */
+    BuildID buildOne;
 
 public:
     State();
@@ -342,7 +345,7 @@ public:
 
     void unlock();
 
-    void run();
+    void run(BuildID buildOne = 0);
 };
 
 
@@ -562,6 +565,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
         for (auto const & row : res) {
             auto builds_(builds.lock());
             BuildID id = row["id"].as<BuildID>();
+            if (buildOne && id != buildOne) continue;
             if (id > lastBuildId) lastBuildId = id;
             if (has(*builds_, id)) continue;
 
@@ -1122,6 +1126,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
             % step->drvPath % machine->sshName % build->id % (dependents.size() - 1));
     }
 
+    bool quit = build->id == buildOne;
+
     auto conn(dbPool.get());
 
     RemoteResult result;
@@ -1188,6 +1194,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
             finishBuildStep(txn, result.startTime, result.stopTime, build->id,
                 stepNr, machine->sshName, bssAborted, result.errorMsg);
             txn.commit();
+            if (quit) exit(1);
             return true;
         }
     }
@@ -1379,6 +1386,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 b->finishedInDB = true;
                 builds_->erase(b->id);
                 dependentIDs.push_back(b->id);
+                if (buildOne == b->id) quit = true;
             }
         }
 
@@ -1398,6 +1406,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     machine->state->nrStepsDone++;
     machine->state->totalStepTime += stepStopTime - stepStartTime;
     machine->state->totalStepBuildTime += result.stopTime - result.startTime;
+
+    if (quit) exit(0); // testing hack
 
     return false;
 }
@@ -1694,9 +1704,10 @@ void State::unlock()
 }
 
 
-void State::run()
+void State::run(BuildID buildOne)
 {
     startedAt = time(0);
+    this->buildOne = buildOne;
 
     auto lock = acquireGlobalLock();
     if (!lock)
@@ -1752,13 +1763,17 @@ int main(int argc, char * * argv)
 
         bool unlock = false;
         bool status = false;
+        BuildID buildOne = 0;
 
         parseCmdLine(argc, argv, [&](Strings::iterator & arg, const Strings::iterator & end) {
             if (*arg == "--unlock")
                 unlock = true;
             else if (*arg == "--status")
                 status = true;
-            else
+            else if (*arg == "--build-one") {
+                if (!string2Int<BuildID>(getArg(*arg, arg, end), buildOne))
+                    throw Error("‘--build-one’ requires a build ID");
+            } else
                 return false;
             return true;
         });
@@ -1773,6 +1788,6 @@ int main(int argc, char * * argv)
         else if (unlock)
             state.unlock();
         else
-            state.run();
+            state.run(buildOne);
     });
 }

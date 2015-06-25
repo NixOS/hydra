@@ -21,6 +21,12 @@ struct Child
 };
 
 
+static void append(Strings & dst, const Strings & src)
+{
+    dst.insert(dst.end(), src.begin(), src.end());
+}
+
+
 static void openConnection(const string & sshName, const string & sshKey,
     int stderrFD, Child & child)
 {
@@ -39,13 +45,18 @@ static void openConnection(const string & sshName, const string & sshKey,
         if (dup2(stderrFD, STDERR_FILENO) == -1)
             throw SysError("cannot dup stderr");
 
-        // FIXME: connection timeouts
-        Strings argv(
-            { "ssh", sshName, "-i", sshKey, "-x", "-a"
-            , "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
-            , "--", "nix-store", "--serve", "--write" });
+        Strings argv;
+        if (sshName == "localhost")
+            argv = {"nix-store", "--serve", "--write"};
+        else {
+            argv = {"ssh", sshName};
+            if (sshKey != "" && sshKey != "-") append(argv, {"-i", sshKey});
+            append(argv,
+                { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
+                , "--", "nix-store", "--serve", "--write" });
+        }
 
-        execvp("ssh", (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
+        execvp(argv.front().c_str(), (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
 
         throw SysError("cannot start ssh");
     });
