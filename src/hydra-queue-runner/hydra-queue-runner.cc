@@ -256,6 +256,8 @@ private:
     counter totalStepBuildTime{0}; // total build time for steps
     counter nrQueueWakeups{0};
     counter nrDispatcherWakeups{0};
+    counter bytesSent{0};
+    counter bytesReceived{0};
 
     /* Log compressor work queue. */
     Sync<std::queue<Path>> logCompressorQueue;
@@ -1158,7 +1160,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
             /* FIXME: referring builds may have conflicting timeouts. */
             buildRemote(store, machine->sshName, machine->sshKey, step->drvPath, step->drv,
                 logDir, build->maxSilentTime, build->buildTimeout, copyClosureTokenServer,
-                result, nrStepsBuilding, nrStepsCopyingTo, nrStepsCopyingFrom);
+                result, nrStepsBuilding, nrStepsCopyingTo, nrStepsCopyingFrom,
+                bytesSent, bytesReceived);
         } catch (Error & e) {
             result.status = RemoteResult::rrMiscFailure;
             result.errorMsg = e.msg();
@@ -1592,6 +1595,8 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("nrStepsBuilding", nrStepsBuilding);
         root.attr("nrStepsCopyingTo", nrStepsCopyingTo);
         root.attr("nrStepsCopyingFrom", nrStepsCopyingFrom);
+        root.attr("bytesSent", bytesSent);
+        root.attr("bytesReceived", bytesReceived);
         root.attr("nrBuildsRead", nrBuildsRead);
         root.attr("nrBuildsDone", nrBuildsDone);
         root.attr("nrStepsDone", nrStepsDone);

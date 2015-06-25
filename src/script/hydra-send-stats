@@ -44,6 +44,9 @@ sub sendQueueRunnerStats {
     gauge("hydra.queue.builds.finished", $json->{nrBuildsDone});
 
     gauge("hydra.queue.checks", $json->{nrQueueWakeups});
+
+    gauge("hydra.queue.bytes_sent", $json->{bytesSent});
+    gauge("hydra.queue.bytes_received", $json->{bytesReceived});
 }
 
 while (1) {

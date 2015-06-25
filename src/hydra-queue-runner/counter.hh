@@ -2,7 +2,7 @@
 
 #include <atomic>
 
-typedef std::atomic<unsigned int> counter;
+typedef std::atomic<unsigned long> counter;
 
 struct MaintainCount
 {

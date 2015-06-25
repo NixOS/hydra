@@ -24,4 +24,5 @@ void buildRemote(std::shared_ptr<nix::StoreAPI> store,
     const nix::Path & drvPath, const nix::Derivation & drv,
     const nix::Path & logDir, unsigned int maxSilentTime, unsigned int buildTimeout,
     TokenServer & copyClosureTokenServer, RemoteResult & result,
-    counter & nrStepsBuilding, counter & nrStepsCopyingTo, counter & nrStepsCopyingFrom);
+    counter & nrStepsBuilding, counter & nrStepsCopyingTo, counter & nrStepsCopyingFrom,
+    counter & bytesSent, counter & bytesReceived);
