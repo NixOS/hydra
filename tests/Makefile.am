@@ -1,6 +1,6 @@
 TESTS_ENVIRONMENT = \
   BZR_HOME="$(abs_builddir)/data"			\
-  HYDRA_DBI="dbi:Pg:dbname=hydra-test-suite;"		\
+  HYDRA_DBI="dbi:Pg:dbname=hydra-test-suite;port=6433"	\
   HYDRA_DATA="$(abs_builddir)/data"			\
   HYDRA_HOME="$(top_srcdir)/src"			\
   HYDRA_CONFIG=						\
@@ -12,7 +12,7 @@ TESTS_ENVIRONMENT = \
   NIX_LOG_DIR="$(abs_builddir)/nix/var/log/nix"		\
   NIX_BUILD_HOOK=					\
   PERL5LIB="$(srcdir):$(top_srcdir)/src/lib:$$PERL5LIB"	\
-  PATH=$(abs_top_srcdir)/src/script:$(abs_top_srcdir)/src/hydra-eval-jobs:$$PATH \
+  PATH=$(abs_top_srcdir)/src/script:$(abs_top_srcdir)/src/hydra-eval-jobs:$(abs_top_srcdir)/src/hydra-queue-runner:$$PATH \
   perl -w
 
 EXTRA_DIST = \

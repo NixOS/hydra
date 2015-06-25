@@ -154,6 +154,7 @@ in rec {
           gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2
           guile # optional, for Guile + Guix support
           perlDeps perl
+          postgresql92 # for running the tests
         ];
 
       hydraPath = lib.makeSearchPath "bin" (
