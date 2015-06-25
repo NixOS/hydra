@@ -1595,8 +1595,8 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("nrStepsBuilding", nrStepsBuilding);
         root.attr("nrStepsCopyingTo", nrStepsCopyingTo);
         root.attr("nrStepsCopyingFrom", nrStepsCopyingFrom);
-        root.attr("bytesSent", bytesSent);
-        root.attr("bytesReceived", bytesReceived);
+        root.attr("bytesSent"); out << bytesSent;
+        root.attr("bytesReceived"); out << bytesReceived;
         root.attr("nrBuildsRead", nrBuildsRead);
         root.attr("nrBuildsDone", nrBuildsDone);
         root.attr("nrStepsDone", nrStepsDone);
