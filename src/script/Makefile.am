@@ -10,6 +10,7 @@ distributable_scripts =				\
   hydra-s3-backup-collect-garbage		\
   hydra-create-user				\
   hydra-notify					\
+  hydra-send-stats				\
   nix-prefetch-git				\
   nix-prefetch-bzr				\
   nix-prefetch-hg

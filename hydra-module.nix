@@ -186,7 +186,7 @@ in
       build-compress-log = false
     '';
 
-    systemd.services."hydra-init" =
+    systemd.services.hydra-init =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "postgresql.service" ];
         after = [ "postgresql.service" ];
@@ -210,7 +210,7 @@ in
         serviceConfig.RemainAfterExit = true;
       };
 
-    systemd.services."hydra-server" =
+    systemd.services.hydra-server =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
@@ -225,7 +225,7 @@ in
           };
       };
 
-    systemd.services."hydra-queue-runner" =
+    systemd.services.hydra-queue-runner =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
@@ -239,7 +239,7 @@ in
           };
       };
 
-    systemd.services."hydra-evaluator" =
+    systemd.services.hydra-evaluator =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
@@ -252,7 +252,7 @@ in
           };
       };
 
-    systemd.services."hydra-update-gc-roots" =
+    systemd.services.hydra-update-gc-roots =
       { requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
         environment = env;
@@ -261,6 +261,16 @@ in
             User = "hydra";
           };
         startAt = "02:15";
+      };
+
+    systemd.services.hydra-send-stats =
+      { wantedBy = [ "multi-user.target" ];
+        after = [ "hydra-init.service" ];
+        environment = env;
+        serviceConfig =
+          { ExecStart = "@${cfg.package}/bin/hydra-send-stats hydra-send-stats";
+            User = "hydra";
+          };
       };
 
     services.cron.systemCronJobs =
