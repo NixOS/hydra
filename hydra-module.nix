@@ -144,6 +144,8 @@ in
 
   config = mkIf cfg.enable {
 
+    services.hydra.package = mkDefault ((import ./release.nix {}).build.x86_64-linux);
+
     services.hydra.extraConfig =
       ''
         using_frontend_proxy 1
