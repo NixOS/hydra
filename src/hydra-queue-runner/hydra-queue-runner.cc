@@ -719,8 +719,8 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
         try {
             createBuild(build);
         } catch (Error & e) {
-            printMsg(lvlError, format("while loading build %1%: %2%") % build->id % e.what());
-            continue; // FIXME: retry later?
+            e.addPrefix(format("while loading build %1%: ") % build->id);
+            throw;
         }
 
         /* Add the new runnable build steps to ‘runnable’ and wake up
