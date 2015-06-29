@@ -41,7 +41,7 @@ in
       };
 
       dbi = mkOption {
-        type = types.string;
+        type = types.str;
         default = "dbi:Pg:dbname=hydra;user=hydra;";
         example = "dbi:Pg:dbname=hydra;host=postgres.example.org;user=foo;";
         description = ''
