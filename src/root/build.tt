@@ -18,9 +18,10 @@
       <tr><th>Nr</th><th>What</th><th>Duration</th><th>Machine</th><th>Status</th></tr>
     </thead>
     <tbody>
-      [% FOREACH step IN build.buildsteps %]
+      [% FOREACH step IN build.buildsteps.reverse %]
         [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
-          [% has_log = buildStepLogExists(step);
+          [% has_log = seen.${step.drvpath} ? 0 : buildStepLogExists(step);
+             seen.${step.drvpath} = 1;
              log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
           <tr>
             <td>[% step.stepnr %]</td>
