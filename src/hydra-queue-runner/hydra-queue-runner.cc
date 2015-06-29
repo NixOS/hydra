@@ -138,6 +138,7 @@ struct Step
     Path drvPath;
     Derivation drv;
     std::set<std::string> requiredSystemFeatures;
+    bool preferLocalBuild;
 
     struct State
     {
@@ -194,7 +195,9 @@ struct Machine
     {
         if (systemTypes.find(step->drv.platform) == systemTypes.end()) return false;
         for (auto & f : mandatoryFeatures)
-            if (step->requiredSystemFeatures.find(f) == step->requiredSystemFeatures.end()) return false;
+            if (step->requiredSystemFeatures.find(f) == step->requiredSystemFeatures.end()
+                && !(step->preferLocalBuild && f == "local"))
+                return false;
         for (auto & f : step->requiredSystemFeatures)
             if (supportedFeatures.find(f) == supportedFeatures.end()) return false;
         return true;
@@ -207,6 +210,8 @@ class State
 private:
 
     Path hydraData, logDir;
+
+    StringSet localPlatforms;
 
     /* The queued builds. */
     typedef std::map<BuildID, Build::ptr> Builds;
@@ -361,6 +366,10 @@ State::State()
     machinesFile = getEnv("NIX_REMOTE_SYSTEMS", "/etc/nix/machines");
     machinesFileStat.st_ino = 0;
     machinesFileStat.st_mtime = 0;
+
+    localPlatforms = {settings.thisSystem};
+    if (settings.thisSystem == "x86_64-linux")
+        localPlatforms.insert("i686-linux");
 }
 
 
@@ -377,10 +386,7 @@ void State::loadMachinesFile()
         contents = readFile(machinesFile);
         machinesFileStat = st;
     } else {
-        StringSet systems = StringSet({settings.thisSystem});
-        if (settings.thisSystem == "x86_64-linux")
-            systems.insert("i686-linux");
-        contents = "localhost " + concatStringsSep(",", systems)
+        contents = "localhost " + concatStringsSep(",", localPlatforms)
             + " - " + int2String(settings.maxBuildJobs) + " 1";
     }
 
@@ -405,7 +411,9 @@ void State::loadMachinesFile()
         else
             machine->maxJobs = 1;
         machine->speedFactor = atof(tokens[4].c_str());
+        if (tokens[5] == "-") tokens[5] = "";
         machine->supportedFeatures = tokenizeString<StringSet>(tokens[5], ",");
+        if (tokens[6] == "-") tokens[6] = "";
         machine->mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
         for (auto & f : machine->mandatoryFeatures)
             machine->supportedFeatures.insert(f);
@@ -819,6 +827,11 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
         if (i != step->drv.env.end())
             step->requiredSystemFeatures = tokenizeString<std::set<std::string>>(i->second);
     }
+
+    auto attr = step->drv.env.find("preferLocalBuild");
+    step->preferLocalBuild =
+        attr != step->drv.env.end() && attr->second == "1"
+        && has(localPlatforms, step->drv.platform);
 
     /* Are all outputs valid? */
     bool valid = true;
