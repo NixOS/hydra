@@ -1568,7 +1568,9 @@ void State::notificationSender()
 
 std::shared_ptr<PathLocks> State::acquireGlobalLock()
 {
-    Path lockPath = hydraData + "/queue-runner";
+    Path lockPath = hydraData + "/queue-runner/lock";
+
+    createDirs(dirOf(lockPath));
 
     auto lock = std::make_shared<PathLocks>();
     if (!lock->lockPaths(PathSet({lockPath}), "", false)) return 0;
