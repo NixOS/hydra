@@ -117,7 +117,7 @@
       <script>
         $("#persona-signout").click(doLogout);
       </script>
-    [% ELSE %]
+    [% ELSIF personaEnabled %]
       <script src="https://login.persona.org/include.js"></script>
 
       <script>
