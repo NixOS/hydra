@@ -175,15 +175,6 @@ in
       # The default (`true') slows Nix down a lot since the build farm
       # has so many GC roots.
       gc-check-reachability = false
-
-      # Hydra needs caching of build failures.
-      build-cache-failure = true
-
-      build-poll-interval = 10
-
-      # Online log compression makes it impossible to get the tail of
-      # builds that are in progress.
-      build-compress-log = false
     '';
 
     nix.trustedUsers = [ "hydra" ];
