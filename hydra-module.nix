@@ -186,6 +186,8 @@ in
       build-compress-log = false
     '';
 
+    nix.trustedUsers = [ "hydra" ];
+
     systemd.services.hydra-init =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "postgresql.service" ];
