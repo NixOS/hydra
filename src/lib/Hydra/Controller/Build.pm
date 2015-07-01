@@ -67,10 +67,6 @@ sub build_GET {
     $c->stash->{available} = all { isValidPath($_->path) } $build->buildoutputs->all;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
 
-    if (!$build->finished && $build->busy) {
-        $c->stash->{logtext} = decode("utf-8", read_file($build->logfile, err_mode => 'quiet') // "");
-    }
-
     if ($build->finished && $build->iscachedbuild) {
         my $path = ($build->buildoutputs)[0]->path or die;
         my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path);

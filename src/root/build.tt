@@ -280,11 +280,6 @@
 
     [% END %]
 
-    [% IF logtext %]
-      <h2>Log</h2>
-      <pre class="buildlog">[% HTML.escape(logtext) %]</pre>
-    [% END %]
-
   </div>
 
   [% IF isAggregate %]
