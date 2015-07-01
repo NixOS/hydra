@@ -22,9 +22,6 @@ my $config = getHydraConfig();
 
 my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
 
-# Don't check a jobset more than once every five minutes.
-my $minCheckInterval = 5 * 60;
-
 my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
 
 
@@ -305,8 +302,7 @@ sub checkJobset {
 sub checkSomeJobset {
     # If any jobset has been triggered by a push, check it.
     my ($jobset) = $db->resultset('Jobsets')->search(
-        { 'triggertime' => { '!=', undef },
-        , -or => [ 'lastcheckedtime' => undef, 'lastcheckedtime' => { '<', time() - $minCheckInterval } ] },
+        { 'triggertime' => { '!=', undef } },
         { join => 'project', order_by => [ 'triggertime' ], rows => 1 });
 
     # Otherwise, check the jobset that hasn't been checked for the
