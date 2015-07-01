@@ -156,7 +156,7 @@ sub getCommits {
 
     my ($uri, $branch, $deepClone) = _parseValue($value);
 
-    my $clonePath = $self->_cloneRepo($uri, $branch, $deepClone);
+    my $clonePath = getSCMCacheDir . "/git/" . sha256_hex($uri);
 
     my $out = grab(cmd => ["git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], dir => $clonePath);
 
