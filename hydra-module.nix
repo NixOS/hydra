@@ -203,8 +203,8 @@ in
 
     systemd.services.hydra-init =
       { wantedBy = [ "multi-user.target" ];
-        requires = [ "postgresql.service" ];
-        after = [ "postgresql.service" ];
+        requires = optional haveLocalDB "postgresql.service";
+        after = optional haveLocalDB "postgresql.service";
         environment = env;
         preStart = ''
           mkdir -p ${baseDir}
