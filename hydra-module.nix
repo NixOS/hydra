@@ -25,6 +25,7 @@ let
   serverEnv = env //
     { HYDRA_TRACKER = cfg.tracker;
       COLUMNS = "80";
+      PGPASSFILE = "${baseDir}/pgpass-www"; # grrr
     } // (optionalAttrs cfg.debugServer { DBIC_TRACE = 1; });
 
   localDB = "dbi:Pg:dbname=hydra;user=hydra;";
@@ -165,6 +166,7 @@ in
       { description = "Hydra queue runner";
         group = "hydra";
         useDefaultShell = true;
+        home = "${baseDir}/queue-runner"; # really only to keep SSH happy
       };
 
     users.extraUsers.hydra-www =
@@ -256,7 +258,9 @@ in
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
         path = [ pkgs.nettools ];
-        environment = env;
+        environment = env // {
+          PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
+        };
         serviceConfig =
           { ExecStartPre = "${cfg.package}/bin/hydra-queue-runner --unlock";
             ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner";
