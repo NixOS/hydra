@@ -213,12 +213,12 @@ in
 
           ln -sf ${hydraConf} ${baseDir}/hydra.conf
 
-          mkdir -m 0700 -p /var/lib/hydra/www
-          chown hydra-www.hydra /var/lib/hydra/www
+          mkdir -m 0700 -p ${baseDir}/www
+          chown hydra-www.hydra ${baseDir}/www
 
-          mkdir -m 0700 -p /var/lib/hydra/queue-runner
-          mkdir -m 0750 -p /var/lib/hydra/build-logs
-          chown hydra-queue-runner.hydra /var/lib/hydra/queue-runner /var/lib/hydra/build-logs
+          mkdir -m 0700 -p ${baseDir}/queue-runner
+          mkdir -m 0750 -p ${baseDir}/build-logs
+          chown hydra-queue-runner.hydra ${baseDir}/queue-runner ${baseDir}/build-logs
 
           ${optionalString haveLocalDB ''
             if ! [ -e ${baseDir}/.db-created ]; then
