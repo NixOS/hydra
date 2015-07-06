@@ -374,6 +374,8 @@ BLOCK renderShortEvalInput;
     r[% input.revision %]
   [% ELSIF input.type == "git" %]
     <tt>[% input.revision.substr(0, 7) %]</tt>
+  [% ELSIF input.type == "hg" %]
+    <tt>[% input.revision.substr(0, 12) %]</tt>
   [% ELSIF input.type == "build" || input.type == "sysbuild" %]
     <a href="[% c.uri_for('/build' input.get_column('dependency')) %]">[% input.get_column('dependency') %]</a>
   [% ELSE %]

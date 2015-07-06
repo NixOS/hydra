@@ -52,7 +52,7 @@ sub fetchInput {
     die "error pulling latest change mercurial repo at `$uri':\n$stderr" if $res;
 
     (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
-        "hg", "log", "-r", $id, "--template", "{node|short} {rev} {branch}");
+        "hg", "log", "-r", $id, "--template", "{node} {rev} {branch}");
     die "error getting branch and revision of $id from `$uri':\n$stderr" if $res1;
 
     my ($revision, $revCount, $branch) = split ' ', $stdout;
