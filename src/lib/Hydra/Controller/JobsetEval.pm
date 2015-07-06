@@ -157,6 +157,17 @@ sub release : Chained('eval') PathPart('release') Args(0) {
 }
 
 
+sub create_jobset : Chained('eval') PathPart('create-jobset') Args(0) {
+    my ($self, $c) = @_;
+    my $eval = $c->stash->{eval};
+
+    requireProjectOwner($c, $c->stash->{project});
+
+    $c->stash->{template} = 'edit-jobset.tt';
+    $c->stash->{createFromEval} = 1;
+}
+
+
 sub cancel : Chained('eval') PathPart('cancel') Args(0) {
     my ($self, $c) = @_;
     requireProjectOwner($c, $c->stash->{eval}->project);

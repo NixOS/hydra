@@ -13,6 +13,11 @@ sub supportedInputTypes {
     $inputTypes->{'git'} = 'Git checkout';
 }
 
+sub _isHash {
+    my ($rev) = @_;
+    return length($rev) == 40 && $rev =~ /^[0-9a-f]+$/;
+}
+
 # Clone or update a branch of a repository into our SCM cache.
 sub _cloneRepo {
     my ($self, $uri, $branch, $deepClone) = @_;
@@ -24,15 +29,16 @@ sub _cloneRepo {
     my $res;
     if (! -d $clonePath) {
         # Clone everything and fetch the branch.
-        # TODO: Optimize the first clone by using "git init $clonePath" and "git remote add origin $uri".
-        $res = run(cmd => ["git", "clone", "--branch", $branch, $uri, $clonePath], timeout => 600);
-        die "error cloning git repo at `$uri':\n$res->{stderr}" if $res->{status};
+        $res = run(cmd => ["git", "init", $clonePath]);
+        $res = run(cmd => ["git", "remote", "add", "origin", "--", $uri], dir => $clonePath) unless $res->{status};
+        die "error creating git repo in `$clonePath':\n$res->{stderr}" if $res->{status};
     }
 
     # This command forces the update of the local branch to be in the same as
     # the remote branch for whatever the repository state is.  This command mirrors
     # only one branch of the remote repository.
-    $res = run(cmd => ["git", "fetch", "-fu", "origin", "+$branch:$branch"], dir => $clonePath, timeout => 600);
+    my $localBranch = _isHash($branch) ? "_hydra_tmp" : $branch;
+    $res = run(cmd => ["git", "fetch", "-fu", "origin", "+$branch:$localBranch"], dir => $clonePath, timeout => 600);
     $res = run(cmd => ["git", "fetch", "-fu", "origin"], dir => $clonePath, timeout => 600) if $res->{status};
     die "error fetching latest change from git repo at `$uri':\n$res->{stderr}" if $res->{status};
 
@@ -78,7 +84,8 @@ sub fetchInput {
     my $sha256;
     my $storePath;
 
-    my $revision = grab(cmd => ["git", "rev-parse", "$branch"], dir => $clonePath, chomp => 1);
+    my $revision = _isHash($branch) ? $branch
+        : grab(cmd => ["git", "rev-parse", "$branch"], dir => $clonePath, chomp => 1);
     die "did not get a well-formated revision number of Git branch '$branch' at `$uri'"
         unless $revision =~ /^[0-9a-fA-F]+$/;
 
@@ -104,8 +111,7 @@ sub fetchInput {
         if (defined $deepClone) {
             # Checked out code often wants to be able to run `git
             # describe', e.g., code that uses Gnulib's `git-version-gen'
-            # script.  Thus, we leave `.git' in there.  Same for
-            # Subversion (e.g., libgcrypt's build system uses that.)
+            # script.  Thus, we leave `.git' in there.
             $ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "1";
 
             # Ask for a "deep clone" to allow "git describe" and similar
@@ -115,6 +121,7 @@ sub fetchInput {
             $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
         }
 
+        # FIXME: Don't use nix-prefetch-git.
         ($sha256, $storePath) = split ' ', grab(cmd => ["nix-prefetch-git", $clonePath, $revision], chomp => 1);
 
         txn_do($self->{db}, sub {

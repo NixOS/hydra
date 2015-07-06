@@ -113,7 +113,6 @@ sub create : Path('/create-project') {
 
     $c->stash->{template} = 'edit-project.tt';
     $c->stash->{create} = 1;
-    $c->stash->{edit} = 1;
 }
 
 
@@ -124,7 +123,6 @@ sub create_jobset : Chained('projectChain') PathPart('create-jobset') Args(0) {
 
     $c->stash->{template} = 'edit-jobset.tt';
     $c->stash->{create} = 1;
-    $c->stash->{edit} = 1;
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 }
 
