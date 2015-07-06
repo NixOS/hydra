@@ -1,4 +1,8 @@
-[% WRAPPER layout.tt title=(create ? "Create jobset in project $project.name" : clone ? "Cloning jobset $project.name:$jobset.name" : "Editing jobset $project.name:$jobset.name") %]
+[% WRAPPER layout.tt title=
+    (create ? "Creating jobset in project $project.name" :
+     createFromEval ? "Creating jobset from evaluation $eval.id of $project.name:$jobset.name" :
+     cloneJobset ? "Cloning jobset $project.name:$jobset.name" :
+     "Editing jobset $project.name:$jobset.name") %]
 [% PROCESS common.tt %]
 [% USE format %]
 
@@ -11,16 +15,25 @@
       <input type="text" id="[% baseName %]-name" name="[% baseName %]-name" [% HTML.attributes(value => input.name) %]/>
     </td>
     <td>
-      [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
+      [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes edit=1 %]
     </td>
     <td id="[% baseName %]">
-      [% alt = input.search_related('jobsetinputalts', {altnr => 0}) %]
-      <input style="width: 95%" type="text" [% HTML.attributes(value => alt.value, id => "$baseName-value", name => "$baseName-value") %]/>
-      [% IF input.jobsetinputalts_rs.count > 1 %]
+      [% IF createFromEval %]
+        [% value = (input.uri or input.value); IF input.revision; value = value _ " " _ input.revision; END;
+           warn = input.altnr != 0;
+        %]
+      [% ELSE %]
+        [% alt = input.search_related('jobsetinputalts', {altnr => 0});
+           value = alt.value
+           warn = input.jobsetinputalts_rs.count > 1;
+        %]
+      [% END %]
+      [% IF warn %]
         <div class="alert alert-warning">Warning: This input had more
         than one value. This is no longer supported. The additional
         values have been removed.</div>
       [% END %]
+      <input style="width: 95%" type="text" [% HTML.attributes(value => value, id => "$baseName-value", name => "$baseName-value") %]/>
     </td>
     <td>
       <input type="checkbox" id="[% baseName %]-emailresponsible" name="[% baseName %]-emailresponsible" [% IF input.emailresponsible; 'checked="checked"'; END %]/>
@@ -34,7 +47,7 @@
       <tr><th></th><th>Input name</th><th>Type</th><th style="width: 50%">Value</th><th>Notify committers</th></tr>
     </thead>
     <tbody class="inputs">
-      [% FOREACH input IN jobset.jobsetinputs %]
+      [% inputs = createFromEval ? eval.jobsetevalinputs : jobset.jobsetinputs; FOREACH input IN inputs %]
         [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
       <tr>
@@ -71,7 +84,7 @@
     <div class="control-group">
       <label class="control-label">Identifier</label>
       <div class="controls">
-        <input type="text" class="span3" name="name" [% HTML.attributes(value => clone ? "" : jobset.name) %]/>
+        <input type="text" class="span3" name="name" [% HTML.attributes(value => edit ? jobset.name : "") %]/>
       </div>
     </div>
 
@@ -139,7 +152,7 @@
     [% INCLUDE renderJobsetInputs %]
 
     <div class="form-actions">
-      <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF create || clone %]Create jobset[% ELSE %]Apply changes[% END %]</button>
+      <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF !edit %]Create jobset[% ELSE %]Apply changes[% END %]</button>
     </div>
 
   </fieldset>
@@ -191,7 +204,7 @@
       }
     }
     redirectJSON({
-      [% IF create || clone %]
+      [% IF !edit %]
         url: "[% c.uri_for('/jobset' project.name '.new') %]",
       [% ELSE %]
         url: "[% c.uri_for('/jobset' project.name jobset.name) %]",
