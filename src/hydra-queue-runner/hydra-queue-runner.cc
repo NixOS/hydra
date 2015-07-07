@@ -32,7 +32,6 @@ bool has(const C & c, const V & v)
 
 
 State::State()
-    : copyClosureTokenServer{maxParallelCopyClosure}
 {
     hydraData = getEnv("HYDRA_DATA");
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");

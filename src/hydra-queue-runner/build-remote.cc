@@ -70,7 +70,7 @@ static void openConnection(const string & sshName, const string & sshKey,
 
 static void copyClosureTo(std::shared_ptr<StoreAPI> store,
     FdSource & from, FdSink & to, const PathSet & paths,
-    TokenServer & copyClosureTokenServer, counter & bytesSent,
+    counter & bytesSent,
     bool useSubstitutes = false)
 {
     PathSet closure;
@@ -98,19 +98,6 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
     Paths missing;
     for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
         if (present.find(*i) == present.end()) missing.push_back(*i);
-
-    /* Ensure that only a limited number of threads can copy closures
-       at the same time. However, proceed anyway after a timeout to
-       prevent starvation by a handful of really huge closures. */
-    time_t start = time(0);
-    int timeout = 60 * (10 + rand() % 5);
-    auto token(copyClosureTokenServer.get(timeout));
-    time_t stop = time(0);
-
-    if (token())
-        printMsg(lvlDebug, format("got copy closure token after %1%s") % (stop - start));
-    else
-        printMsg(lvlDebug, format("did not get copy closure token after %1%s") % (stop - start));
 
     printMsg(lvlDebug, format("sending %1% missing paths") % missing.size());
 
@@ -194,7 +181,8 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
     if (machine->sshName != "localhost") {
         printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % step->drvPath % machine->sshName);
         MaintainCount mc(nrStepsCopyingTo);
-        copyClosureTo(store, from, to, inputs, copyClosureTokenServer, bytesSent);
+        std::lock_guard<std::mutex> sendLock(machine->state->sendLock);
+        copyClosureTo(store, from, to, inputs, bytesSent);
     }
 
     autoDelete.cancel();

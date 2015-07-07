@@ -12,7 +12,6 @@
 #include "pathlocks.hh"
 #include "pool.hh"
 #include "sync.hh"
-#include "token-server.hh"
 
 #include "store-api.hh"
 #include "derivations.hh"
@@ -136,6 +135,10 @@ struct Machine
         counter nrStepsDone{0};
         counter totalStepTime{0}; // total time for steps, including closure copying
         counter totalStepBuildTime{0}; // total build time for steps
+
+        /* Mutex to prevent multiple threads from sending data to the
+           same machine (which would be inefficient). */
+        std::mutex sendLock;
     };
 
     State::ptr state;
@@ -190,10 +193,6 @@ private:
 
     nix::Path machinesFile;
     struct stat machinesFileStat;
-
-    /* Token server limiting the number of threads copying closures in
-       parallel to prevent excessive I/O load. */
-    TokenServer copyClosureTokenServer;
 
     /* Various stats. */
     time_t startedAt;
