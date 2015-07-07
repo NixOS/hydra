@@ -8,7 +8,6 @@
 #include <fcntl.h>
 
 #include "build-result.hh"
-#include "build-remote.hh"
 #include "state.hh"
 
 #include "shared.hh"
@@ -848,10 +847,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         /* Do the build. */
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(store, machine->sshName, machine->sshKey, step->drvPath, step->drv,
-                logDir, build->maxSilentTime, build->buildTimeout, copyClosureTokenServer,
-                result, nrStepsBuilding, nrStepsCopyingTo, nrStepsCopyingFrom,
-                bytesSent, bytesReceived);
+            buildRemote(store, machine, step, build->maxSilentTime, build->buildTimeout, result);
         } catch (Error & e) {
             result.status = RemoteResult::rrMiscFailure;
             result.errorMsg = e.msg();

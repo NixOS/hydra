@@ -4,11 +4,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "build-remote.hh"
-
-#include "util.hh"
 #include "misc.hh"
 #include "serve-protocol.hh"
+#include "state.hh"
+#include "util.hh"
 #include "worker-protocol.hh"
 
 using namespace nix;
@@ -141,15 +140,12 @@ static void copyClosureFrom(std::shared_ptr<StoreAPI> store,
 }
 
 
-void buildRemote(std::shared_ptr<StoreAPI> store,
-    const string & sshName, const string & sshKey,
-    const Path & drvPath, const Derivation & drv,
-    const nix::Path & logDir, unsigned int maxSilentTime, unsigned int buildTimeout,
-    TokenServer & copyClosureTokenServer, RemoteResult & result,
-    counter & nrStepsBuilding, counter & nrStepsCopyingTo, counter & nrStepsCopyingFrom,
-    counter & bytesSent, counter & bytesReceived)
+void State::buildRemote(std::shared_ptr<StoreAPI> store,
+    Machine::ptr machine, Step::ptr step,
+    unsigned int maxSilentTime, unsigned int buildTimeout,
+    RemoteResult & result)
 {
-    string base = baseNameOf(drvPath);
+    string base = baseNameOf(step->drvPath);
     result.logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
     AutoDelete autoDelete(result.logFile, false);
 
@@ -159,7 +155,7 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     if (logFD == -1) throw SysError(format("creating log file ‘%1%’") % result.logFile);
 
     Child child;
-    openConnection(sshName, sshKey, logFD, child);
+    openConnection(machine->sshName, machine->sshKey, logFD, child);
 
     logFD.close();
 
@@ -174,19 +170,19 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
 
         unsigned int magic = readInt(from);
         if (magic != SERVE_MAGIC_2)
-            throw Error(format("protocol mismatch with ‘nix-store --serve’ on ‘%1%’") % sshName);
+            throw Error(format("protocol mismatch with ‘nix-store --serve’ on ‘%1%’") % machine->sshName);
         unsigned int version = readInt(from);
         if (GET_PROTOCOL_MAJOR(version) != 0x200)
-            throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % sshName);
+            throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % machine->sshName);
     } catch (EndOfFile & e) {
         child.pid.wait(true);
         string s = chomp(readFile(result.logFile));
-        throw Error(format("cannot connect to ‘%1%’: %2%") % sshName % s);
+        throw Error(format("cannot connect to ‘%1%’: %2%") % machine->sshName % s);
     }
 
     /* Gather the inputs. */
-    PathSet inputs({drvPath});
-    for (auto & input : drv.inputDrvs) {
+    PathSet inputs({step->drvPath});
+    for (auto & input : step->drv.inputDrvs) {
         Derivation drv2 = readDerivation(input.first);
         for (auto & name : input.second) {
             auto i = drv2.outputs.find(name);
@@ -195,8 +191,8 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     }
 
     /* Copy the input closure. */
-    if (sshName != "localhost") {
-        printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % drvPath % sshName);
+    if (machine->sshName != "localhost") {
+        printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % step->drvPath % machine->sshName);
         MaintainCount mc(nrStepsCopyingTo);
         copyClosureTo(store, from, to, inputs, copyClosureTokenServer, bytesSent);
     }
@@ -204,9 +200,9 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     autoDelete.cancel();
 
     /* Do the build. */
-    printMsg(lvlDebug, format("building ‘%1%’ on ‘%2%’") % drvPath % sshName);
+    printMsg(lvlDebug, format("building ‘%1%’ on ‘%2%’") % step->drvPath % machine->sshName);
     writeInt(cmdBuildPaths, to);
-    writeStrings(PathSet({drvPath}), to);
+    writeStrings(PathSet({step->drvPath}), to);
     writeInt(maxSilentTime, to);
     writeInt(buildTimeout, to);
     // FIXME: send maxLogSize.
@@ -219,7 +215,7 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     }
     result.stopTime = time(0);
     if (res) {
-        result.errorMsg = (format("%1% on ‘%2%’") % readString(from) % sshName).str();
+        result.errorMsg = (format("%1% on ‘%2%’") % readString(from) % machine->sshName).str();
         if (res == 100) result.status = RemoteResult::rrPermanentFailure;
         else if (res == 101) result.status = RemoteResult::rrTimedOut;
         else result.status = RemoteResult::rrMiscFailure;
@@ -227,10 +223,10 @@ void buildRemote(std::shared_ptr<StoreAPI> store,
     }
 
     /* Copy the output paths. */
-    if (sshName != "localhost") {
-        printMsg(lvlDebug, format("copying outputs of ‘%1%’ from ‘%2%’") % drvPath % sshName);
+    if (machine->sshName != "localhost") {
+        printMsg(lvlDebug, format("copying outputs of ‘%1%’ from ‘%2%’") % step->drvPath % machine->sshName);
         PathSet outputs;
-        for (auto & output : drv.outputs)
+        for (auto & output : step->drv.outputs)
             outputs.insert(output.second.path);
         MaintainCount mc(nrStepsCopyingFrom);
         copyClosureFrom(store, from, to, outputs, bytesReceived);

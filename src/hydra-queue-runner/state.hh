@@ -46,6 +46,20 @@ typedef enum {
 } BuildStepStatus;
 
 
+struct RemoteResult
+{
+    enum {
+        rrSuccess = 0,
+        rrPermanentFailure = 1,
+        rrTimedOut = 2,
+        rrMiscFailure = 3
+    } status = rrMiscFailure;
+    std::string errorMsg;
+    time_t startTime = 0, stopTime = 0;
+    nix::Path logFile;
+};
+
+
 struct Step;
 struct BuildResult;
 
@@ -264,6 +278,11 @@ private:
        retried. */
     bool doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         Machine::ptr machine);
+
+    void buildRemote(std::shared_ptr<nix::StoreAPI> store,
+        Machine::ptr machine, Step::ptr step,
+        unsigned int maxSilentTime, unsigned int buildTimeout,
+        RemoteResult & result);
 
     void markSucceededBuild(pqxx::work & txn, Build::ptr build,
         const BuildResult & res, bool isCachedBuild, time_t startTime, time_t stopTime);
