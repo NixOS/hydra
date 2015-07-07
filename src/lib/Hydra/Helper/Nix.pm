@@ -424,7 +424,7 @@ sub getTotalShares {
 sub cancelBuilds($$) {
     my ($db, $builds) = @_;
     return txn_do($db, sub {
-        $builds = $builds->search({ finished => 0, busy => 0 });
+        $builds = $builds->search({ finished => 0 });
         my $n = $builds->count;
         my $time = time();
         $builds->update(
