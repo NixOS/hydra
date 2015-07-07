@@ -17,8 +17,6 @@
 #include "store-api.hh"
 #include "derivations.hh"
 
-using namespace nix;
-
 
 typedef unsigned int BuildID;
 
@@ -70,8 +68,8 @@ struct Build
     typedef std::weak_ptr<Build> wptr;
 
     BuildID id;
-    Path drvPath;
-    std::map<string, Path> outputs;
+    nix::Path drvPath;
+    std::map<std::string, nix::Path> outputs;
     std::string fullJobName;
     unsigned int maxSilentTime, buildTimeout;
 
@@ -86,8 +84,8 @@ struct Step
     typedef std::shared_ptr<Step> ptr;
     typedef std::weak_ptr<Step> wptr;
 
-    Path drvPath;
-    Derivation drv;
+    nix::Path drvPath;
+    nix::Derivation drv;
     std::set<std::string> requiredSystemFeatures;
     bool preferLocalBuild;
 
@@ -160,9 +158,9 @@ class State
 {
 private:
 
-    Path hydraData, logDir;
+    nix::Path hydraData, logDir;
 
-    StringSet localPlatforms;
+    nix::StringSet localPlatforms;
 
     /* The queued builds. */
     typedef std::map<BuildID, Build::ptr> Builds;
@@ -172,7 +170,7 @@ private:
        queued builds). Note that these are weak pointers. Steps are
        kept alive by being reachable from Builds or by being in
        progress. */
-    typedef std::map<Path, Step::wptr> Steps;
+    typedef std::map<nix::Path, Step::wptr> Steps;
     Sync<Steps> steps;
 
     /* Build steps that have no unbuilt dependencies. */
@@ -187,10 +185,10 @@ private:
     Pool<Connection> dbPool;
 
     /* The build machines. */
-    typedef std::map<string, Machine::ptr> Machines;
+    typedef std::map<std::string, Machine::ptr> Machines;
     Sync<Machines> machines; // FIXME: use atomic_shared_ptr
 
-    Path machinesFile;
+    nix::Path machinesFile;
     struct stat machinesFileStat;
 
     /* Token server limiting the number of threads copying closures in
@@ -216,7 +214,7 @@ private:
     counter bytesReceived{0};
 
     /* Log compressor work queue. */
-    Sync<std::queue<Path>> logCompressorQueue;
+    Sync<std::queue<nix::Path>> logCompressorQueue;
     std::condition_variable_any logCompressorWakeup;
 
     /* Notification sender work queue. FIXME: if hydra-queue-runner is
@@ -248,7 +246,7 @@ private:
         BuildID propagatedFrom = 0);
 
     void finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime, BuildID buildId, int stepNr,
-        const std::string & machine, BuildStepStatus status, const string & errorMsg = "",
+        const std::string & machine, BuildStepStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
 
     void updateBuild(pqxx::work & txn, Build::ptr build, BuildStatus status);
@@ -257,12 +255,12 @@ private:
 
     void queueMonitorLoop();
 
-    void getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, unsigned int & lastBuildId);
+    void getQueuedBuilds(Connection & conn, std::shared_ptr<nix::StoreAPI> store, unsigned int & lastBuildId);
 
     void removeCancelledBuilds(Connection & conn);
 
-    Step::ptr createStep(std::shared_ptr<StoreAPI> store, const Path & drvPath,
-        Build::ptr referringBuild, Step::ptr referringStep, std::set<Path> & finishedDrvs,
+    Step::ptr createStep(std::shared_ptr<nix::StoreAPI> store, const nix::Path & drvPath,
+        Build::ptr referringBuild, Step::ptr referringStep, std::set<nix::Path> & finishedDrvs,
         std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable);
 
     void makeRunnable(Step::ptr step);
@@ -276,7 +274,7 @@ private:
 
     /* Perform the given build step. Return true if the step is to be
        retried. */
-    bool doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
+    bool doBuildStep(std::shared_ptr<nix::StoreAPI> store, Step::ptr step,
         Machine::ptr machine);
 
     void buildRemote(std::shared_ptr<nix::StoreAPI> store,
@@ -298,7 +296,7 @@ private:
 
     /* Acquire the global queue runner lock, or null if somebody else
        has it. */
-    std::shared_ptr<PathLocks> acquireGlobalLock();
+    std::shared_ptr<nix::PathLocks> acquireGlobalLock();
 
     void dumpStatus(Connection & conn, bool log);
 

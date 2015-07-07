@@ -4,18 +4,17 @@
 
 #include "util.hh"
 
-using namespace nix;
-
 
 struct Connection : pqxx::connection
 {
     Connection() : pqxx::connection(getFlags()) { };
 
-    string getFlags()
+    std::string getFlags()
     {
-        string s = getEnv("HYDRA_DBI", "dbi:Pg:dbname=hydra;");
-        string prefix = "dbi:Pg:";
-        if (string(s, 0, prefix.size()) != prefix)
+        using namespace nix;
+        auto s = getEnv("HYDRA_DBI", "dbi:Pg:dbname=hydra;");
+        std::string prefix = "dbi:Pg:";
+        if (std::string(s, 0, prefix.size()) != prefix)
             throw Error("$HYDRA_DBI does not denote a PostgreSQL database");
         return concatStringsSep(" ", tokenizeString<Strings>(string(s, prefix.size()), ";"));
     }
@@ -27,7 +26,7 @@ struct receiver : public pqxx::notification_receiver
     bool status = false;
     receiver(pqxx::connection_base & c, const std::string & channel)
         : pqxx::notification_receiver(c, channel) { }
-    void operator() (const string & payload, int pid) override
+    void operator() (const std::string & payload, int pid) override
     {
         status = true;
     };
