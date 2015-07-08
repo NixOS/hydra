@@ -352,8 +352,8 @@ sub log :Local :Args(1) {
     my $logPath = findLog($c, $path, @outpaths);
     notFound($c, "The build log of $path is not available.") unless defined $logPath;
 
-    $c->stash->{'plain'} = { data => (scalar logContents($logPath)) || " " };
-    $c->forward('Hydra::View::Plain');
+    $c->stash->{logPath} = $logPath;
+    $c->forward('Hydra::View::NixLog');
 }
 
 

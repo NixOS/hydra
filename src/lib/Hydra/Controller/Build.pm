@@ -136,9 +136,12 @@ sub showLog {
 
     notFound($c, "The build log of derivation ‘$drvPath’ is not available.") unless defined $logPath;
 
-    my $size = stat($logPath)->size;
-    error($c, "This build log is too big to display ($size bytes).")
-        if $size >= 64 * 1024 * 1024;
+    # Don't send logs that we can't stream.
+    my $size = stat($logPath)->size; # FIXME: not so meaningful for compressed logs
+    error($c, "This build log is too big to display ($size bytes).") unless
+        $mode eq "raw"
+        || (($mode eq "tail" || $mode eq "tail-reload") && $logPath !~ /\.bz2$/)
+        || $size < 64 * 1024 * 1024;
 
     if (!$mode) {
         # !!! quick hack
@@ -150,12 +153,9 @@ sub showLog {
     }
 
     elsif ($mode eq "raw") {
-        if ($logPath !~ /.bz2$/) {
-            $c->serve_static_file($logPath);
-        } else {
-            $c->stash->{'plain'} = { data => (scalar logContents($logPath)) || " " };
-            $c->forward('Hydra::View::Plain');
-        }
+        $c->stash->{logPath} = $logPath;
+        $c->forward('Hydra::View::NixLog');
+        return;
     }
 
     elsif ($mode eq "tail-reload") {
