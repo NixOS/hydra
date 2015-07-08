@@ -206,6 +206,7 @@ void State::queueMonitorLoop()
     receiver buildsAdded(*conn, "builds_added");
     receiver buildsRestarted(*conn, "builds_restarted");
     receiver buildsCancelled(*conn, "builds_cancelled");
+    receiver buildsDeleted(*conn, "builds_deleted");
 
     auto store = openStore(); // FIXME: pool
 
@@ -225,7 +226,7 @@ void State::queueMonitorLoop()
             printMsg(lvlTalkative, "got notification: builds restarted");
             lastBuildId = 0; // check all builds
         }
-        if (buildsCancelled.get()) {
+        if (buildsCancelled.get() || buildsDeleted.get()) {
             printMsg(lvlTalkative, "got notification: builds cancelled");
             removeCancelledBuilds(*conn);
         }
