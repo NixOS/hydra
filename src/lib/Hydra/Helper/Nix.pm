@@ -433,7 +433,6 @@ sub cancelBuilds($$) {
             , starttime => $time
             , stoptime => $time
             });
-        $db->storage->dbh->do("notify builds_cancelled");
         return $n;
     });
 }
@@ -470,8 +469,6 @@ sub restartBuilds($$) {
         # FIXME: Add this to the API.
         # FIXME: clear the dependencies?
         $db->resultset('FailedPaths')->search({ path => [ @paths ]})->delete;
-
-        $db->storage->dbh->do("notify builds_restarted");
     });
 
     return scalar(@buildIds);

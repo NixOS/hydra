@@ -234,8 +234,6 @@ sub checkJobsetWrapped {
 
             print STDERR "  created new eval ", $ev->id, "\n";
             $ev->builds->update({iscurrent => 1});
-
-            $db->storage->dbh->do("notify builds_added");
         } else {
             print STDERR "  created cached eval ", $ev->id, "\n";
             $prevEval->builds->update({iscurrent => 1}) if defined $prevEval;
