@@ -37,7 +37,7 @@ in rec {
       version = builtins.readFile ./version;
 
       buildInputs =
-        [ perl libxslt dblatex tetex nukeReferences pkgconfig nix git openssl ];
+        [ perl libxslt nukeReferences pkgconfig nix git openssl ];
 
       versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
 
@@ -63,11 +63,8 @@ in rec {
 
       postDist = ''
         make -C doc/manual install prefix="$out"
-        nuke-refs "$out/share/doc/hydra/manual.pdf"
 
         echo "doc manual $out/share/doc/hydra manual.html" >> \
-          "$out/nix-support/hydra-build-products"
-        echo "doc-pdf manual $out/share/doc/hydra/manual.pdf" >> \
           "$out/nix-support/hydra-build-products"
       '';
     };
@@ -169,7 +166,6 @@ in rec {
 
       postInstall = ''
         mkdir -p $out/nix-support
-        nuke-refs $out/share/doc/hydra/manual/manual.pdf
 
         for i in $out/bin/*; do
             wrapProgram $i \
