@@ -111,14 +111,6 @@ sub machines :Local Args(0) {
     # Add entry for localhost.
     ${$machines}{''} //= {};
 
-    # Get the last finished build step for each machine.
-    foreach my $m (keys %{$machines}) {
-        my $idle = $c->model('DB::BuildSteps')->find(
-            { machine => "$m", stoptime => { '!=', undef } },
-            { order_by => 'stoptime desc', rows => 1 });
-        ${$machines}{$m}{'idle'} = $idle ? $idle->stoptime : 0;
-    }
-
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
         { finished => 0, 'me.busy' => 1, 'build.busy' => 1, },
