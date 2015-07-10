@@ -595,6 +595,7 @@ create index IndexBuildProductsOnBuild on BuildProducts(build);
 create index IndexBuildStepsOnBusy on BuildSteps(busy) where busy = 1;
 create index IndexBuildStepsOnDrvPath on BuildSteps(drvpath);
 create index IndexBuildStepsOnPropagatedFrom on BuildSteps(propagatedFrom) where propagatedFrom is not null;
+create index IndexBuildStepsOnStopTime on BuildSteps(stopTime desc) where startTime is not null and stopTime is not null;
 create index IndexBuildStepOutputsOnPath on BuildStepOutputs(path);
 create index IndexBuildsOnFinished on Builds(finished) where finished = 0;
 create index IndexBuildsOnFinishedBusy on Builds(finished, busy) where finished = 0;

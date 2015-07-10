@@ -45,7 +45,7 @@
                    INCLUDE renderDuration duration = curTime - step.starttime;
                  END %]
             </td>
-            <td>[% step.machine.split('@').1 || step.machine %]</td>
+            <td>[% INCLUDE renderMachineName machine=step.machine %]</td>
             <td>
               [% IF step.busy == 1 %]
                 <strong>Building</strong>

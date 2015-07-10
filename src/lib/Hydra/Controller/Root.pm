@@ -293,6 +293,30 @@ sub evals :Local Args(0) {
 }
 
 
+sub steps :Local Args(0) {
+    my ($self, $c) = @_;
+
+    $c->stash->{template} = 'steps.tt';
+
+    my $page = int($c->req->param('page') || "1") || 1;
+
+    my $resultsPerPage = 20;
+
+    $c->stash->{page} = $page;
+    $c->stash->{resultsPerPage} = $resultsPerPage;
+    $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
+        { starttime => { '!=', undef },
+          stoptime => { '!=', undef }
+        },
+        { order_by => [ "stoptime desc" ],
+          rows => $resultsPerPage,
+          offset => ($page - 1) * $resultsPerPage
+        }) ];
+
+    $c->stash->{total} = approxTableSize($c, "IndexBuildStepsOnStopTime");
+}
+
+
 sub search :Local Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'search.tt';
@@ -340,8 +364,8 @@ sub search :Local Args(0) {
     $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
         { "drvpath" => trim($query) },
         { order_by => ["id desc"] } ) ];
-
 }
+
 
 sub log :Local :Args(1) {
     my ($self, $c, $path) = @_;

@@ -23,6 +23,7 @@ our @EXPORT = qw(
     showStatus
     getResponsibleAuthors
     setCacheHeaders
+    approxTableSize
 );
 
 
@@ -293,6 +294,13 @@ sub setCacheHeaders {
     my ($c, $expiration) = @_;
     $c->response->headers->expires(time + $expiration);
     delete $c->response->cookies->{hydra_session};
+}
+
+
+sub approxTableSize {
+    my ($c, $name) = @_;
+    return $c->model('DB')->schema->storage->dbh->selectrow_hashref(
+        "select reltuples::int from pg_class where relname = lower(?)", { }, $name)->{"reltuples"};
 }
 
 
