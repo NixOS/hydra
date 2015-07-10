@@ -449,7 +449,7 @@ sub restartBuilds($$) {
 
         foreach my $build ($builds->all) {
             next if !isValidPath($build->drvpath);
-            push @paths, $build->drvpath;
+            push @paths, $_->path foreach $build->buildoutputs->all;
             push @buildIds, $build->id;
             registerRoot $build->drvpath;
         }
