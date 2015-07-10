@@ -29,6 +29,7 @@ sub sendQueueRunnerStats {
     gauge("hydra.queue.steps.building", $json->{nrStepsBuilding});
     gauge("hydra.queue.steps.copying_to", $json->{nrStepsCopyingTo});
     gauge("hydra.queue.steps.copying_from", $json->{nrStepsCopyingFrom});
+    gauge("hydra.queue.steps.waiting", $json->{nrStepsWaiting});
     gauge("hydra.queue.steps.runnable", $json->{nrRunnableSteps});
     gauge("hydra.queue.steps.unfinished", $json->{nrUnfinishedSteps});
     gauge("hydra.queue.steps.finished", $json->{nrStepsDone});

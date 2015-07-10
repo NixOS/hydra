@@ -179,9 +179,11 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
 
     /* Copy the input closure. */
     if (machine->sshName != "localhost") {
-        printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % step->drvPath % machine->sshName);
-        MaintainCount mc(nrStepsCopyingTo);
+        auto mc1 = std::make_shared<MaintainCount>(nrStepsWaiting);
         std::lock_guard<std::mutex> sendLock(machine->state->sendLock);
+        mc1.reset();
+        MaintainCount mc2(nrStepsCopyingTo);
+        printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % step->drvPath % machine->sshName);
         copyClosureTo(store, from, to, inputs, bytesSent);
     }
 

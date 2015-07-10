@@ -1283,6 +1283,7 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("nrStepsBuilding", nrStepsBuilding);
         root.attr("nrStepsCopyingTo", nrStepsCopyingTo);
         root.attr("nrStepsCopyingFrom", nrStepsCopyingFrom);
+        root.attr("nrStepsWaiting", nrStepsWaiting);
         root.attr("bytesSent"); out << bytesSent;
         root.attr("bytesReceived"); out << bytesReceived;
         root.attr("nrBuildsRead", nrBuildsRead);
