@@ -12,6 +12,8 @@ use Digest::SHA qw(sha256_hex);
 use Config::General;
 use Data::Dump qw(dump);
 use Try::Tiny;
+use Net::Statsd;
+use Time::HiRes qw(clock_gettime CLOCK_REALTIME);
 
 STDOUT->autoflush();
 STDERR->autoflush(1);
@@ -102,11 +104,17 @@ sub checkJobsetWrapped {
     my $exprType = $jobset->nixexprpath =~ /.scm$/ ? "guile" : "nix";
 
     # Fetch all values for all inputs.
-    my $checkoutStart = time;
+    my $checkoutStart = clock_gettime(CLOCK_REALTIME);
     eval {
         fetchInputs($project, $jobset, $inputInfo);
     };
+
+    Net::Statsd::increment("hydra.evaluator.checkouts");
+    my $checkoutStop = clock_gettime(CLOCK_REALTIME);
+    Net::Statsd::timing("hydra.evaluator.checkout_time", int(($checkoutStop - $checkoutStart) * 1000));
+
     if ($@) {
+        Net::Statsd::increment("hydra.evaluator.failed_checkouts");
         my $msg = $@;
         print STDERR $msg;
         txn_do($db, sub {
@@ -114,7 +122,6 @@ sub checkJobsetWrapped {
         });
         return;
     }
-    my $checkoutStop = time;
 
     # Hash the arguments to hydra-eval-jobs and check the
     # JobsetInputHashes to see if the previous evaluation had the same
@@ -124,6 +131,7 @@ sub checkJobsetWrapped {
     my $prevEval = getPrevJobsetEval($db, $jobset, 0);
     if (defined $prevEval && $prevEval->hash eq $argsHash && !$dryRun) {
         print STDERR "  jobset is unchanged, skipping\n";
+        Net::Statsd::increment("hydra.evaluator.unchanged_checkouts");
         txn_do($db, sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
         });
@@ -131,9 +139,11 @@ sub checkJobsetWrapped {
     }
 
     # Evaluate the job expression.
-    my $evalStart = time;
+    my $evalStart = clock_gettime(CLOCK_REALTIME);
     my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
-    my $evalStop = time;
+    my $evalStop = clock_gettime(CLOCK_REALTIME);
+
+    Net::Statsd::timing("hydra.evaluator.eval_time", int(($evalStop - $evalStart) * 1000));
 
     if ($dryRun) {
         foreach my $name (keys %{$jobs}) {
@@ -150,6 +160,8 @@ sub checkJobsetWrapped {
     $jobs->{$_}->{jobName} = $_ for keys %{$jobs};
 
     my $jobOutPathMap = {};
+    my $jobsetChanged = 0;
+    my $dbStart = clock_gettime(CLOCK_REALTIME);
 
     txn_do($db, sub {
 
@@ -169,15 +181,15 @@ sub checkJobsetWrapped {
         }
 
         # Have any builds been added or removed since last time?
-        my $jobsetChanged =
+        $jobsetChanged =
             (scalar(grep { $_->{new} } values(%buildMap)) > 0)
             || (defined $prevEval && $prevEval->jobsetevalmembers->count != scalar(keys %buildMap));
 
         my $ev = $jobset->jobsetevals->create(
             { hash => $argsHash
             , timestamp => time
-            , checkouttime => abs($checkoutStop - $checkoutStart)
-            , evaltime => abs($evalStop - $evalStart)
+            , checkouttime => abs(int($checkoutStop - $checkoutStart))
+            , evaltime => abs(int($evalStop - $evalStart))
             , hasnewbuilds => $jobsetChanged ? 1 : 0
             , nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
             });
@@ -245,6 +257,12 @@ sub checkJobsetWrapped {
         $jobset->update({ lastcheckedtime => time });
     });
 
+    my $dbStop = clock_gettime(CLOCK_REALTIME);
+
+    Net::Statsd::timing("hydra.evaluator.db_time", int(($dbStop - $dbStart) * 1000));
+    Net::Statsd::increment("hydra.evaluator.evals");
+    Net::Statsd::increment("hydra.evaluator.cached_evals") unless $jobsetChanged;
+
     # Store the error messages for jobs that failed to evaluate.
     my $msg = "";
     foreach my $job (values %{$jobs}) {
@@ -267,9 +285,14 @@ sub checkJobset {
 
     my $triggerTime = $jobset->triggertime;
 
+    my $startTime = clock_gettime(CLOCK_REALTIME);
+
     eval {
         checkJobsetWrapped($jobset);
     };
+
+    my $stopTime = clock_gettime(CLOCK_REALTIME);
+    Net::Statsd::timing("hydra.evaluator.total_time", int(($stopTime - $startTime) * 1000));
 
     my $failed = 0;
     if ($@) {
