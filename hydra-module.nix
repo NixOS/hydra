@@ -186,8 +186,6 @@ in
 
     systemd.services."hydra-init" =
       { wantedBy = [ "multi-user.target" ];
-        requires = [ "postgresql.service" ];
-        after = [ "postgresql.service" ];
         environment = env;
         preStart = ''
           mkdir -m 0700 -p ${baseDir}/data
@@ -206,7 +204,10 @@ in
         serviceConfig.User = "hydra";
         serviceConfig.Type = "oneshot";
         serviceConfig.RemainAfterExit = true;
-      };
+      } // (optionalAttrs (cfg.dbi == "dbi:Pg:dbname=hydra;user=hydra;") {
+        requires = [ "postgresql.service" ];
+        after = [ "postgresql.service" ];
+      });
 
     systemd.services."hydra-server" =
       { wantedBy = [ "multi-user.target" ];
