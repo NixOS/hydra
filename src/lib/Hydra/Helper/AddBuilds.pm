@@ -277,7 +277,7 @@ sub inputsToArgs {
     my ($inputInfo, $exprType) = @_;
     my @res = ();
 
-    foreach my $input (keys %{$inputInfo}) {
+    foreach my $input (sort keys %{$inputInfo}) {
         push @res, "-I", "$input=$inputInfo->{$input}->[0]->{storePath}"
             if scalar @{$inputInfo->{$input}} == 1
                && defined $inputInfo->{$input}->[0]->{storePath};
