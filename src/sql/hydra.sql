@@ -623,4 +623,4 @@ create index IndexReleaseMembersOnBuild on ReleaseMembers(build);
 create index IndexBuildsOnKeep on Builds(keep) where keep = 1;
 
 -- To get the most recent eval for a jobset.
-create index IndexJobsetEvalsOnJobsetId on JobsetEvals(project, jobset, hasNewBuilds, id desc);
+create index IndexJobsetEvalsOnJobsetId on JobsetEvals(project, jobset, id desc) where hasNewBuilds = 1;
