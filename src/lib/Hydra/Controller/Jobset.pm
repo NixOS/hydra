@@ -162,7 +162,7 @@ sub edit : Chained('jobsetChain') PathPart Args(0) {
     requireProjectOwner($c, $c->stash->{project});
 
     $c->stash->{template} = 'edit-jobset.tt';
-    $c->stash->{edit} = 1;
+    $c->stash->{edit} = !defined $c->stash->{params}->{cloneJobset};
     $c->stash->{cloneJobset} = defined $c->stash->{params}->{cloneJobset};
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 }
