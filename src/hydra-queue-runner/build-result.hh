@@ -15,7 +15,7 @@ struct BuildProduct
     BuildProduct() { }
 };
 
-struct BuildResult
+struct BuildOutput
 {
     /* Whether this build has failed with output, i.e., the build
        finished with exit code 0 but produced a file
@@ -29,4 +29,4 @@ struct BuildResult
     std::list<BuildProduct> products;
 };
 
-BuildResult getBuildResult(std::shared_ptr<nix::StoreAPI> store, const nix::Derivation & drv);
+BuildOutput getBuildOutput(std::shared_ptr<nix::StoreAPI> store, const nix::Derivation & drv);

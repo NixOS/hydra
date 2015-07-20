@@ -314,7 +314,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
            all valid. So we mark this as a finished, cached build. */
         if (!step) {
             Derivation drv = readDerivation(build->drvPath);
-            BuildResult res = getBuildResult(store, drv);
+            BuildOutput res = getBuildOutput(store, drv);
 
             pqxx::work txn(conn);
             time_t now = time(0);
@@ -822,7 +822,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     auto conn(dbPool.get());
 
     RemoteResult result;
-    BuildResult res;
+    BuildOutput res;
     int stepNr = 0;
 
     time_t stepStartTime = result.startTime = time(0);
@@ -832,7 +832,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     bool cachedFailure = checkCachedFailure(step, *conn);
 
     if (cachedFailure)
-        result.status = RemoteResult::rrPermanentFailure;
+        result.status = BuildResult::CachedFailure;
     else {
 
         /* Create a build step record indicating that we started
@@ -849,11 +849,11 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
             /* FIXME: referring builds may have conflicting timeouts. */
             buildRemote(store, machine, step, build->maxSilentTime, build->buildTimeout, result);
         } catch (Error & e) {
-            result.status = RemoteResult::rrMiscFailure;
+            result.status = BuildResult::MiscFailure;
             result.errorMsg = e.msg();
         }
 
-        if (result.status == RemoteResult::rrSuccess) res = getBuildResult(store, step->drv);
+        if (result.success()) res = getBuildOutput(store, step->drv);
     }
 
     time_t stepStopTime = time(0);
@@ -870,8 +870,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
     /* The step had a hopefully temporary failure (e.g. network
        issue). Retry a number of times. */
-    if (result.status == RemoteResult::rrMiscFailure) {
-        printMsg(lvlError, format("irregular failure building ‘%1%’ on ‘%2%’: %3%")
+    if (result.canRetry()) {
+        printMsg(lvlError, format("possibly transient failure building ‘%1%’ on ‘%2%’: %3%")
             % step->drvPath % machine->sshName % result.errorMsg);
         bool retry;
         {
@@ -888,7 +888,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
         }
     }
 
-    if (result.status == RemoteResult::rrSuccess) {
+    if (result.success()) {
 
         /* Register success in the database for all Build objects that
            have this step as the top-level step. Since the queue
@@ -932,7 +932,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, machine->sshName, bssSuccess);
 
                 for (auto & b : direct)
-                    markSucceededBuild(txn, b, res, build != b,
+                    markSucceededBuild(txn, b, res, build != b || result.status != BuildResult::Built,
                         result.startTime, result.stopTime);
 
                 txn.commit();
@@ -1015,17 +1015,21 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 pqxx::work txn(*conn);
 
                 BuildStatus buildStatus =
-                    result.status == RemoteResult::rrPermanentFailure ? bsFailed :
-                    result.status == RemoteResult::rrTimedOut ? bsTimedOut :
-                    bsAborted;
+                    result.status == BuildResult::TimedOut ? bsTimedOut :
+                    result.canRetry() ? bsAborted :
+                    bsFailed;
                 BuildStepStatus buildStepStatus =
-                    result.status == RemoteResult::rrPermanentFailure ? bssFailed :
-                    result.status == RemoteResult::rrTimedOut ? bssTimedOut :
-                    bssAborted;
+                    result.status == BuildResult::TimedOut ? bssTimedOut :
+                    result.canRetry() ? bssAborted :
+                    bssFailed;
 
-                /* For regular failures, we don't care about the error
+                /* For standard failures, we don't care about the error
                    message. */
-                if (buildStatus != bsAborted) result.errorMsg = "";
+                if (result.status == BuildResult::PermanentFailure ||
+                    result.status == BuildResult::TransientFailure ||
+                    result.status == BuildResult::CachedFailure ||
+                    result.status == BuildResult::TimedOut)
+                    result.errorMsg = "";
 
                 /* Create failed build steps for every build that depends
                    on this. For cached failures, only create a step for
@@ -1061,7 +1065,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
                 /* Remember failed paths in the database so that they
                    won't be built again. */
-                if (!cachedFailure && result.status == RemoteResult::rrPermanentFailure)
+                if (!cachedFailure && result.status == BuildResult::PermanentFailure)
                     for (auto & path : outputPaths(step->drv))
                         txn.parameterized("insert into FailedPaths values ($1)")(path).exec();
 
@@ -1103,7 +1107,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
 
 void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
-    const BuildResult & res, bool isCachedBuild, time_t startTime, time_t stopTime)
+    const BuildOutput & res, bool isCachedBuild, time_t startTime, time_t stopTime)
 {
     printMsg(lvlInfo, format("marking build %1% as succeeded") % build->id);
 

@@ -7,9 +7,9 @@
 using namespace nix;
 
 
-BuildResult getBuildResult(std::shared_ptr<StoreAPI> store, const Derivation & drv)
+BuildOutput getBuildOutput(std::shared_ptr<StoreAPI> store, const Derivation & drv)
 {
-    BuildResult res;
+    BuildOutput res;
 
     /* Compute the closure size. */
     PathSet outputs;

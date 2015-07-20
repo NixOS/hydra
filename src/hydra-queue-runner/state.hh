@@ -43,22 +43,20 @@ typedef enum {
 } BuildStepStatus;
 
 
-struct RemoteResult
+struct RemoteResult : nix::BuildResult
 {
-    enum {
-        rrSuccess = 0,
-        rrPermanentFailure = 1,
-        rrTimedOut = 2,
-        rrMiscFailure = 3
-    } status = rrMiscFailure;
-    std::string errorMsg;
     time_t startTime = 0, stopTime = 0;
     nix::Path logFile;
+
+    bool canRetry()
+    {
+        return status == TransientFailure || status == MiscFailure;
+    }
 };
 
 
 struct Step;
-struct BuildResult;
+struct BuildOutput;
 
 
 struct Build
@@ -283,7 +281,7 @@ private:
         RemoteResult & result);
 
     void markSucceededBuild(pqxx::work & txn, Build::ptr build,
-        const BuildResult & res, bool isCachedBuild, time_t startTime, time_t stopTime);
+        const BuildOutput & res, bool isCachedBuild, time_t startTime, time_t stopTime);
 
     bool checkCachedFailure(Step::ptr step, Connection & conn);
 

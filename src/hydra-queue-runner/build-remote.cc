@@ -81,10 +81,7 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
        enabled. This prevents a race where the remote host
        garbage-collect paths that are already there. Optionally, ask
        the remote host to substitute missing paths. */
-    writeInt(cmdQueryValidPaths, to);
-    writeInt(1, to); // == lock paths
-    writeInt(useSubstitutes, to);
-    writeStrings(closure, to);
+    to << cmdQueryValidPaths << 1 << useSubstitutes << closure;
     to.flush();
 
     /* Get back the set of paths that are already valid on the remote
@@ -104,7 +101,7 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
     for (auto & p : missing)
         bytesSent += store->queryPathInfo(p).narSize;
 
-    writeInt(cmdImportPaths, to);
+    to << cmdImportPaths;
     exportPaths(*store, missing, false, to);
     to.flush();
 
@@ -116,9 +113,7 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
 static void copyClosureFrom(std::shared_ptr<StoreAPI> store,
     FdSource & from, FdSink & to, const PathSet & paths, counter & bytesReceived)
 {
-    writeInt(cmdExportPaths, to);
-    writeInt(0, to); // == don't sign
-    writeStrings(paths, to);
+    to << cmdExportPaths << 0 << paths;
     to.flush();
     store->importPaths(false, from);
 
@@ -150,9 +145,9 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
     FdSink to(child.to);
 
     /* Handshake. */
+    bool sendDerivation = true;
     try {
-        writeInt(SERVE_MAGIC_1, to);
-        writeInt(SERVE_PROTOCOL_VERSION, to);
+        to << SERVE_MAGIC_1 << SERVE_PROTOCOL_VERSION;
         to.flush();
 
         unsigned int magic = readInt(from);
@@ -161,19 +156,33 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
         unsigned int version = readInt(from);
         if (GET_PROTOCOL_MAJOR(version) != 0x200)
             throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % machine->sshName);
+        if (GET_PROTOCOL_MINOR(version) >= 1)
+            sendDerivation = false;
     } catch (EndOfFile & e) {
         child.pid.wait(true);
         string s = chomp(readFile(result.logFile));
         throw Error(format("cannot connect to ‘%1%’: %2%") % machine->sshName % s);
     }
 
-    /* Gather the inputs. */
-    PathSet inputs({step->drvPath});
+    /* Gather the inputs. If the remote side is Nix <= 1.9, we have to
+       copy the entire closure of ‘drvPath’, as well the required
+       outputs of the input derivations. On Nix > 1.9, we only need to
+       copy the immediate sources of the derivation and the required
+       outputs of the input derivations. */
+    PathSet inputs;
+
+    if (sendDerivation)
+        inputs.insert(step->drvPath);
+    else
+        for (auto & p : step->drv.inputSrcs)
+            inputs.insert(p);
+
     for (auto & input : step->drv.inputDrvs) {
         Derivation drv2 = readDerivation(input.first);
         for (auto & name : input.second) {
             auto i = drv2.outputs.find(name);
-            if (i != drv2.outputs.end()) inputs.insert(i->second.path);
+            if (i == drv2.outputs.end()) continue;
+            inputs.insert(i->second.path);
         }
     }
 
@@ -191,12 +200,14 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
 
     /* Do the build. */
     printMsg(lvlDebug, format("building ‘%1%’ on ‘%2%’") % step->drvPath % machine->sshName);
-    writeInt(cmdBuildPaths, to);
-    writeStrings(PathSet({step->drvPath}), to);
-    writeInt(maxSilentTime, to);
-    writeInt(buildTimeout, to);
-    // FIXME: send maxLogSize.
+
+    if (sendDerivation)
+        to << cmdBuildPaths << PathSet({step->drvPath}) << maxSilentTime << buildTimeout;
+    else
+        to << cmdBuildDerivation << step->drvPath << step->drv << maxSilentTime << buildTimeout;
+        // FIXME: send maxLogSize.
     to.flush();
+
     result.startTime = time(0);
     int res;
     {
@@ -204,12 +215,27 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
         res = readInt(from);
     }
     result.stopTime = time(0);
-    if (res) {
-        result.errorMsg = (format("%1% on ‘%2%’") % readString(from) % machine->sshName).str();
-        if (res == 100) result.status = RemoteResult::rrPermanentFailure;
-        else if (res == 101) result.status = RemoteResult::rrTimedOut;
-        else result.status = RemoteResult::rrMiscFailure;
-        return;
+
+    if (sendDerivation) {
+        if (res) {
+            result.errorMsg = (format("%1% on ‘%2%’") % readString(from) % machine->sshName).str();
+            if (res == 100) result.status = BuildResult::PermanentFailure;
+            else if (res == 101) result.status = BuildResult::TimedOut;
+            else result.status = BuildResult::MiscFailure;
+            return;
+        }
+        result.status = BuildResult::Built;
+    } else {
+        result.status = (BuildResult::Status) res;
+        result.errorMsg = readString(from);
+        if (!result.success()) return;
+    }
+
+    /* If the path was substituted or already valid, then we didn't
+       get a build log. */
+    if (result.status == BuildResult::Substituted || result.status == BuildResult::AlreadyValid) {
+        unlink(result.logFile.c_str());
+        result.logFile = "";
     }
 
     /* Copy the output paths. */
@@ -226,5 +252,4 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
     child.to.close();
     child.pid.wait(true);
 
-    result.status = RemoteResult::rrSuccess;
 }
