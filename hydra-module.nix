@@ -261,10 +261,11 @@ in
         path = [ pkgs.nettools ];
         environment = env // {
           PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
+          IN_SYSTEMD = "1"; # to get log severity levels
         };
         serviceConfig =
           { ExecStartPre = "${cfg.package}/bin/hydra-queue-runner --unlock";
-            ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner";
+            ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner -v";
             ExecStopPost = "${cfg.package}/bin/hydra-queue-runner --unlock";
             User = "hydra-queue-runner";
             Restart = "always";
