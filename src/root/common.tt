@@ -644,7 +644,7 @@ BLOCK createChart %]
 
 
 BLOCK renderMachineName;
-machine ? stripSSHUser(machine).match('^([^\.]*)').0 : "localhost";
+machine ? stripSSHUser(machine).match('^(([^\.]|\.[0-9])*)').0 : "localhost";
 END;
 
 
