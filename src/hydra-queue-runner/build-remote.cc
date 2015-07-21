@@ -160,8 +160,31 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
             sendDerivation = false;
     } catch (EndOfFile & e) {
         child.pid.wait(true);
+
+        {
+            /* Disable this machine until a certain period of time has
+               passed. This period increases on every consecutive
+               failure. However, don't count failures that occurred
+               soon after the last one (to take into account steps
+               started in parallel). */
+            auto info(machine->state->connectInfo.lock());
+            auto now = std::chrono::system_clock::now();
+            if (info->consecutiveFailures == 0 || info->lastFailure < now - std::chrono::seconds(30)) {
+                info->consecutiveFailures = std::min(info->consecutiveFailures + 1, (unsigned int) 4);
+                info->lastFailure = now;
+                int delta = retryInterval * powf(retryBackoff, info->consecutiveFailures - 1) + (rand() % 30);
+                printMsg(lvlInfo, format("will disable machine ‘%1%’ for %2%s") % machine->sshName % delta);
+                info->disabledUntil = now + std::chrono::seconds(delta);
+            }
+        }
+
         string s = chomp(readFile(result.logFile));
         throw Error(format("cannot connect to ‘%1%’: %2%") % machine->sshName % s);
+    }
+
+    {
+        auto info(machine->state->connectInfo.lock());
+        info->consecutiveFailures = 0;
     }
 
     /* Gather the inputs. If the remote side is Nix <= 1.9, we have to

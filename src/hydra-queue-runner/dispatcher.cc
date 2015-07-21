@@ -36,9 +36,12 @@ void State::dispatcher()
         bool keepGoing;
 
         do {
+            system_time now = std::chrono::system_clock::now();
+
             /* Copy the currentJobs field of each machine. This is
                necessary to ensure that the sort comparator below is
-               an ordering. std::sort() can segfault if it isn't. */
+               an ordering. std::sort() can segfault if it isn't. Also
+               filter out temporarily disabled machines. */
             struct MachineInfo
             {
                 Machine::ptr machine;
@@ -47,8 +50,15 @@ void State::dispatcher()
             std::vector<MachineInfo> machinesSorted;
             {
                 auto machines_(machines.lock());
-                for (auto & m : *machines_)
+                for (auto & m : *machines_) {
+                    auto info(m.second->state->connectInfo.lock());
+                    if (info->consecutiveFailures && info->disabledUntil > now) {
+                        if (info->disabledUntil < sleepUntil)
+                            sleepUntil = info->disabledUntil;
+                        continue;
+                    }
                     machinesSorted.push_back({m.second, m.second->state->currentJobs});
+                }
             }
 
             /* Sort the machines by a combination of speed factor and
@@ -77,7 +87,6 @@ void State::dispatcher()
                on it. Once we find such a pair, we restart the outer
                loop because the machine sorting will have changed. */
             keepGoing = false;
-            system_time now = std::chrono::system_clock::now();
 
             for (auto & mi : machinesSorted) {
                 // FIXME: can we lose a wakeup if a builder exits concurrently?

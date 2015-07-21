@@ -137,6 +137,13 @@ struct Machine
         counter totalStepTime{0}; // total time for steps, including closure copying
         counter totalStepBuildTime{0}; // total build time for steps
 
+        struct ConnectInfo
+        {
+            system_time lastFailure, disabledUntil;
+            unsigned int consecutiveFailures;
+        };
+        Sync<ConnectInfo> connectInfo;
+
         /* Mutex to prevent multiple threads from sending data to the
            same machine (which would be inefficient). */
         std::mutex sendLock;

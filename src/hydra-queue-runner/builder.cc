@@ -33,7 +33,7 @@ void State::builder(Step::ptr step, Machine::ptr machine, std::shared_ptr<Mainta
             step_->tries++;
             nrRetries++;
             if (step_->tries > maxNrRetries) maxNrRetries = step_->tries; // yeah yeah, not atomic
-            int delta = retryInterval * powf(retryBackoff, step_->tries - 1);
+            int delta = retryInterval * powf(retryBackoff, step_->tries - 1) + (rand() % 10);
             printMsg(lvlInfo, format("will retry ‘%1%’ after %2%s") % step->drvPath % delta);
             step_->after = std::chrono::system_clock::now() + std::chrono::seconds(delta);
         }
