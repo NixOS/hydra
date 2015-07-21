@@ -118,6 +118,9 @@ struct Step
 };
 
 
+void getDependents(Step::ptr step, std::set<Build::ptr> & builds, std::set<Step::ptr> & steps);
+
+
 struct Machine
 {
     typedef std::shared_ptr<Machine> ptr;
@@ -158,6 +161,12 @@ struct Machine
 class State
 {
 private:
+
+    // FIXME: Make configurable.
+    const unsigned int maxTries = 5;
+    const unsigned int retryInterval = 60; // seconds
+    const float retryBackoff = 3.0;
+    const unsigned int maxParallelCopyClosure = 4;
 
     nix::Path hydraData, logDir;
 
@@ -306,3 +315,10 @@ public:
 
     void run(BuildID buildOne = 0);
 };
+
+
+template <class C, class V>
+bool has(const C & c, const V & v)
+{
+    return c.find(v) != c.end();
+}
