@@ -271,7 +271,13 @@ BLOCK renderDiffUri;
     url = res.0;
     branch = res.1;
     IF bi1.type == "hg" || bi1.type == "git" %]
-      <a target="_blank" href="[% HTML.escape("/api/scmdiff?uri=$url&rev1=$bi1.revision&rev2=$bi2.revision&type=$bi1.type&branch=$branch") %]">[% contents %]</a>
+      <a target="_blank" href="[% HTML.escape(c.uri_for('/api/scmdiff', {
+        uri = url,
+        rev1 = bi1.revision,
+        rev2 = bi2.revision,
+        type = bi1.type,
+        branch = branch
+      })) %]">[% contents %]</a>
     [% ELSE;
       contents;
     END;
