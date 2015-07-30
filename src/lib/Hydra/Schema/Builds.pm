@@ -401,6 +401,21 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 buildsteps_propagatedfroms
+
+Type: has_many
+
+Related object: L<Hydra::Schema::BuildSteps>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildsteps_propagatedfroms",
+  "Hydra::Schema::BuildSteps",
+  { "foreign.propagatedfrom" => "self.id" },
+  undef,
+);
+
 =head2 job
 
 Type: belongs_to
@@ -509,19 +524,19 @@ __PACKAGE__->many_to_many(
 
 Type: many_to_many
 
-Composing rels: L</aggregateconstituents_constituents> -> constituent
+Composing rels: L</aggregateconstituents_aggregates> -> constituent
 
 =cut
 
 __PACKAGE__->many_to_many(
   "constituents",
-  "aggregateconstituents_constituents",
+  "aggregateconstituents_aggregates",
   "constituent",
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-09-30 15:38:03
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:kMPje7yi/yDqxGRQcC2I/Q
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:03:55
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:EwxiaQpqbdzI9RvU0uUtLQ
 
 __PACKAGE__->has_many(
   "dependents",
