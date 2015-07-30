@@ -81,6 +81,25 @@ __PACKAGE__->set_primary_key("project", "jobset", "name");
 
 =head1 RELATIONS
 
+=head2 buildmetrics
+
+Type: has_many
+
+Related object: L<Hydra::Schema::BuildMetrics>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildmetrics",
+  "Hydra::Schema::BuildMetrics",
+  {
+    "foreign.job"     => "self.name",
+    "foreign.jobset"  => "self.jobset",
+    "foreign.project" => "self.project",
+  },
+  undef,
+);
+
 =head2 builds
 
 Type: has_many
@@ -150,7 +169,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-09-29 19:41:42
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:lnZSd0gDXgLk8WQeAFqByA
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:52:20
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:vDAo9bzLca+QWfhOb9OLMg
 
 1;

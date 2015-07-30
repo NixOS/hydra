@@ -77,6 +77,9 @@ sub overview : Chained('job') PathPart('') Args(0) {
         , jobset => $c->stash->{jobset}->name
         , job => $c->stash->{job}->name
         })->count == 1 if $c->user_exists;
+
+    $c->stash->{metrics} = [ $job->buildmetrics->search(
+        { }, { select => ["name"], distinct => 1, order_by => "timestamp desc",  }) ];
 }
 
 
@@ -107,6 +110,20 @@ sub output_sizes : Chained('job') PathPart('output-sizes') Args(0) {
         { finished => 1, buildstatus => 0, size => { '!=', 0 } },
         { order_by => "id", columns => [ "id", "timestamp", "size" ] });
     $self->status_ok($c, entity => [ map { { id => $_->id, timestamp => $_ ->timestamp, value => $_->size } } @res ]);
+}
+
+
+sub metric : Chained('job') PathPart('metric') Args(1) {
+    my ($self, $c, $metricName) = @_;
+
+    $c->stash->{template} = 'metric.tt';
+    $c->stash->{metricName} = $metricName;
+
+    my @res = $c->stash->{job}->buildmetrics->search(
+        { name => $metricName },
+        { order_by => "timestamp", columns => [ "build", "name", "timestamp", "value", "unit" ] });
+
+    $self->status_ok($c, entity => [ map { { id => $_->get_column("build"), timestamp => $_ ->timestamp, value => $_->value, unit => $_->unit } } @res ]);
 }
 
 

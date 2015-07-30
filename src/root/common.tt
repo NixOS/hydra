@@ -566,12 +566,14 @@ BLOCK createChart %]
         success: function(data) {
           var ids = [];
           var d = [];
-          var max = 0;
+          var maxTime = 0;
+          var minTime = Number.MAX_SAFE_INTEGER;
           data.forEach(function(x) {
             var t = x.timestamp * 1000;
             ids[t] = x.id;
             d.push([t, x.value [% IF yaxis == "mib" %] / (1024.0 * 1024.0)[% END %]]);
-            max = Math.max(t, max);
+            maxTime = Math.max(t, maxTime);
+            minTime = Math.min(t, minTime);
           });
 
           var options = {
@@ -634,7 +636,7 @@ BLOCK createChart %]
           });
 
           // Zoom in to the last two months by default.
-          plot.setSelection({ xaxis: { from: max - 60 * 24 * 60 * 60 * 1000, to: max } });
+          plot.setSelection({ xaxis: { from: Math.max(minTime, maxTime - 60 * 24 * 60 * 60 * 1000), to: maxTime } });
         }
       });
     });

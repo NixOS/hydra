@@ -7,6 +7,21 @@
 using namespace nix;
 
 
+static std::tuple<bool, string> secureRead(Path fileName)
+{
+    auto fail = std::make_tuple(false, "");
+
+    if (!pathExists(fileName)) return fail;
+
+    try {
+        /* For security, resolve symlinks. */
+        fileName = canonPath(fileName, true);
+        if (!isInStore(fileName)) return fail;
+        return std::make_tuple(true, readFile(fileName));
+    } catch (Error & e) { return fail; }
+}
+
+
 BuildOutput getBuildOutput(std::shared_ptr<StoreAPI> store, const Derivation & drv)
 {
     BuildOutput res;
@@ -40,22 +55,12 @@ BuildOutput getBuildOutput(std::shared_ptr<StoreAPI> store, const Derivation & d
         Path failedFile = output + "/nix-support/failed";
         if (pathExists(failedFile)) res.failed = true;
 
-        Path productsFile = output + "/nix-support/hydra-build-products";
-        if (!pathExists(productsFile)) continue;
+        auto file = secureRead(output + "/nix-support/hydra-build-products");
+        if (!std::get<0>(file)) continue;
+
         explicitProducts = true;
 
-        /* For security, resolve symlinks. */
-        try {
-            productsFile = canonPath(productsFile, true);
-        } catch (Error & e) { continue; }
-        if (!isInStore(productsFile)) continue;
-
-        string contents;
-        try {
-            contents = readFile(productsFile);
-        } catch (Error & e) { continue; }
-
-        for (auto & line : tokenizeString<Strings>(contents, "\n")) {
+        for (auto & line : tokenizeString<Strings>(std::get<1>(file), "\n")) {
             BuildProduct product;
 
             Regex::Subs subs;
@@ -120,6 +125,20 @@ BuildOutput getBuildOutput(std::shared_ptr<StoreAPI> store, const Derivation & d
             res.releaseName = trim(readFile(p));
         } catch (Error & e) { continue; }
         // FIXME: validate release name
+    }
+
+    /* Get metrics. */
+    for (auto & output : outputs) {
+        auto file = secureRead(output + "/nix-support/hydra-metrics");
+        for (auto & line : tokenizeString<Strings>(std::get<1>(file), "\n")) {
+            auto fields = tokenizeString<std::vector<std::string>>(line);
+            if (fields.size() < 2) continue;
+            BuildMetric metric;
+            metric.name = fields[0]; // FIXME: validate
+            metric.value = atof(fields[1].c_str()); // FIXME
+            metric.unit = fields.size() >= 3 ? fields[2] : "";
+            res.metrics[metric.name] = metric;
+        }
     }
 
     return res;

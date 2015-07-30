@@ -106,7 +106,7 @@
       [% END %]
     </ul>
   </li>
-  
+
   <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
   [% IF isAggregate %]<li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>[% END %]
   <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
@@ -385,6 +385,25 @@
         </tr>
       [% END %]
     </table>
+
+    [% IF build.finished && build.buildmetrics %]
+      <h3>Metrics</h3>
+
+      <table class="table table-small table-striped table-hover clickable-rows">
+        <thead>
+          <tr><th>Name</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+          [% FOREACH metric IN build.buildmetrics %]
+            <tr>
+              <td><tt><a class="row-link" href="[% c.uri_for('/job' project.name jobset.name job.name 'metric' metric.name) %]">[%HTML.escape(metric.name)%]</a></tt></td>
+              <td>[%metric.value%][%metric.unit%]</td>
+            </tr>
+          [% END %]
+        </tbody>
+      </table>
+    [% END %]
+
   </div>
 
   <div id="tabs-buildinputs" class="tab-pane">

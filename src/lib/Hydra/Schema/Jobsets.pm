@@ -184,6 +184,24 @@ __PACKAGE__->set_primary_key("project", "name");
 
 =head1 RELATIONS
 
+=head2 buildmetrics
+
+Type: has_many
+
+Related object: L<Hydra::Schema::BuildMetrics>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildmetrics",
+  "Hydra::Schema::BuildMetrics",
+  {
+    "foreign.jobset"  => "self.name",
+    "foreign.project" => "self.project",
+  },
+  undef,
+);
+
 =head2 builds
 
 Type: has_many
@@ -320,8 +338,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-04-23 23:13:51
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:CO0aE+jrjB+UrwGRzWZLlw
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:52:20
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Coci9FdBAvUO9T3st2NEqA
 
 my %hint = (
     columns => [

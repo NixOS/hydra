@@ -38,6 +38,7 @@ typedef enum {
     bssFailed = 1,
     bssAborted = 4,
     bssTimedOut = 7,
+    bssCachedFailure = 8,
     bssUnsupported = 9,
     bssBusy = 100, // not stored
 } BuildStepStatus;
@@ -67,12 +68,18 @@ struct Build
     BuildID id;
     nix::Path drvPath;
     std::map<std::string, nix::Path> outputs;
-    std::string fullJobName;
+    std::string projectName, jobsetName, jobName;
+    time_t timestamp;
     unsigned int maxSilentTime, buildTimeout;
 
     std::shared_ptr<Step> toplevel;
 
     std::atomic_bool finishedInDB{false};
+
+    std::string fullJobName()
+    {
+        return projectName + ":" + jobsetName + ":" + jobName;
+    }
 };
 
 

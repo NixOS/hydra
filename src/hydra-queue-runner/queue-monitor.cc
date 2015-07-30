@@ -64,7 +64,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
     {
         pqxx::work txn(conn);
 
-        auto res = txn.parameterized("select id, project, jobset, job, drvPath, maxsilent, timeout from Builds where id > $1 and finished = 0 order by id")(lastBuildId).exec();
+        auto res = txn.parameterized("select id, project, jobset, job, drvPath, maxsilent, timeout, timestamp from Builds where id > $1 and finished = 0 order by id")(lastBuildId).exec();
 
         for (auto const & row : res) {
             auto builds_(builds.lock());
@@ -76,9 +76,12 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             auto build = std::make_shared<Build>();
             build->id = id;
             build->drvPath = row["drvPath"].as<string>();
-            build->fullJobName = row["project"].as<string>() + ":" + row["jobset"].as<string>() + ":" + row["job"].as<string>();
+            build->projectName = row["project"].as<string>();
+            build->jobsetName = row["jobset"].as<string>();
+            build->jobName = row["job"].as<string>();
             build->maxSilentTime = row["maxsilent"].as<int>();
             build->buildTimeout = row["timeout"].as<int>();
+            build->timestamp = row["timestamp"].as<time_t>();
 
             newBuilds.emplace(std::make_pair(build->drvPath, build));
         }
@@ -89,7 +92,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
     std::function<void(Build::ptr)> createBuild;
 
     createBuild = [&](Build::ptr build) {
-        printMsg(lvlTalkative, format("loading build %1% (%2%)") % build->id % build->fullJobName);
+        printMsg(lvlTalkative, format("loading build %1% (%2%)") % build->id % build->fullJobName());
         nrAdded++;
 
         if (!store->isValidPath(build->drvPath)) {

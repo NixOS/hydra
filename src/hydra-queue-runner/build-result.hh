@@ -15,6 +15,12 @@ struct BuildProduct
     BuildProduct() { }
 };
 
+struct BuildMetric
+{
+    std::string name, unit;
+    double value;
+};
+
 struct BuildOutput
 {
     /* Whether this build has failed with output, i.e., the build
@@ -27,6 +33,8 @@ struct BuildOutput
     unsigned long long closureSize = 0, size = 0;
 
     std::list<BuildProduct> products;
+
+    std::map<std::string, BuildMetric> metrics;
 };
 
 BuildOutput getBuildOutput(std::shared_ptr<nix::StoreAPI> store, const nix::Derivation & drv);

@@ -341,6 +341,21 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 buildmetrics
+
+Type: has_many
+
+Related object: L<Hydra::Schema::BuildMetrics>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildmetrics",
+  "Hydra::Schema::BuildMetrics",
+  { "foreign.build" => "self.id" },
+  undef,
+);
+
 =head2 buildoutputs
 
 Type: has_many
@@ -535,8 +550,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:03:55
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:EwxiaQpqbdzI9RvU0uUtLQ
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:52:20
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Y2lDtgY8EBLOuCHAI8fWRQ
 
 __PACKAGE__->has_many(
   "dependents",
@@ -630,6 +645,7 @@ my %hint = (
         buildoutputs => 'name',
         buildinputs_builds => 'name',
         buildproducts => 'productnr',
+        buildmetrics => 'name',
     }
 );
 

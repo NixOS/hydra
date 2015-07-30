@@ -324,6 +324,28 @@ create table BuildProducts (
 );
 
 
+create table BuildMetrics (
+    build         integer not null,
+    name          text not null,
+
+    unit          text,
+    value         double precision not null,
+
+    -- Denormalisation for performance: copy some columns from the
+    -- corresponding build.
+    project       text not null,
+    jobset        text not null,
+    job           text not null,
+    timestamp     integer not null,
+
+    primary key   (build, name),
+    foreign key   (build) references Builds(id) on delete cascade,
+    foreign key   (project) references Projects(name) on update cascade,
+    foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
+    foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade
+);
+
+
 -- Cache for inputs of type "path" (used for testing Hydra), storing
 -- the SHA-256 hash and store path for each source path.  Also stores
 -- the timestamp when we first saw the path have these contents, which
@@ -590,6 +612,7 @@ create trigger NrBuildsFinished after insert or update or delete on Builds
 
 create index IndexBuildInputsOnBuild on BuildInputs(build);
 create index IndexBuildInputsOnDependency on BuildInputs(dependency);
+create index IndexBuildMetricsOnJobTimestamp on BuildMetrics(project, jobset, job, timestamp desc);
 create index IndexBuildProducstOnBuildAndType on BuildProducts(build, type);
 create index IndexBuildProductsOnBuild on BuildProducts(build);
 create index IndexBuildStepsOnBusy on BuildSteps(busy) where busy = 1;

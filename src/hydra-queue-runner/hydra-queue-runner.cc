@@ -238,6 +238,19 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
             (product.defaultPath).exec();
     }
 
+    for (auto & metric : res.metrics) {
+        txn.parameterized
+            ("insert into BuildMetrics (build, name, unit, value, project, jobset, job, timestamp) values ($1, $2, $3, $4, $5, $6, $7, $8)")
+            (build->id)
+            (metric.second.name)
+            (metric.second.unit, metric.second.unit != "")
+            (metric.second.value)
+            (build->projectName)
+            (build->jobsetName)
+            (build->jobName)
+            (build->timestamp).exec();
+    }
+
     nrBuildsDone++;
 }
 

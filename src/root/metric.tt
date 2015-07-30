@@ -1,0 +1,7 @@
+[% WRAPPER layout.tt title="Job metric ‘$metricName’" %]
+[% PROCESS common.tt %]
+
+[% INCLUDE includeFlot %]
+[% INCLUDE createChart id="chart" dataUrl=c.req.uri %]
+
+[% END %]
