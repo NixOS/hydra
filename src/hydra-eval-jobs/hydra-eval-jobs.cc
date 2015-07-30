@@ -55,12 +55,12 @@ static void tryJobAlts(EvalState & state, JSONObject & top,
     }
 
     int n = 0;
-    foreach (ValueList::const_iterator, i, a->second) {
+    for (auto & i : a->second) {
         Bindings & actualArgs2(*state.allocBindings(actualArgs.size() + 1)); // !!! inefficient
-        for (auto & i: actualArgs)
-            actualArgs2.push_back(i);
+        for (auto & j : actualArgs)
+            actualArgs2.push_back(j);
         AutoArgs argsLeft2(argsLeft);
-        actualArgs2.push_back(Attr(cur->name, *i));
+        actualArgs2.push_back(Attr(cur->name, i));
         actualArgs2.sort(); // !!! inefficient
         argsLeft2.erase(cur->name);
         tryJobAlts(state, top, argsLeft2, attrPath, fun, next, last, actualArgs2);
@@ -76,10 +76,10 @@ static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & 
         state.forceValue(*v);
         if (v->type == tString)
             return v->string.s;
-        else if (v->type == tList) {
+        else if (v->isList()) {
             string res = "";
-            for (unsigned int n = 0; n < v->list.length; ++n) {
-                Value v2(*v->list.elems[n]);
+            for (unsigned int n = 0; n < v->listSize(); ++n) {
+                Value v2(*v->listElems()[n]);
                 state.forceValue(v2);
                 if (v2.type == tString) {
                     if (res.size() != 0) res += ", ";
@@ -137,10 +137,10 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
                 PathSet context;
                 state.coerceToString(*a->pos, *a->value, context, true, false);
                 PathSet drvs;
-                foreach (PathSet::iterator, i, context)
-                    if (i->at(0) == '!') {
-                        size_t index = i->find("!", 1);
-                        drvs.insert(string(*i, index + 1));
+                for (auto & i : context)
+                    if (i.at(0) == '!') {
+                        size_t index = i.find("!", 1);
+                        drvs.insert(string(i, index + 1));
                     }
                 res.attr("constituents", concatStringsSep(" ", drvs));
             }
@@ -164,9 +164,9 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
 
         else {
             if (!state.isDerivation(v)) {
-                foreach (Bindings::iterator, i, *v.attrs)
-                    findJobs(state, top, argsLeft, *i->value,
-                        (attrPath.empty() ? "" : attrPath + ".") + (string) i->name);
+                for (auto & i : *v.attrs)
+                    findJobs(state, top, argsLeft, *i.value,
+                        (attrPath.empty() ? "" : attrPath + ".") + (string) i.name);
             }
         }
     }
