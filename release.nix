@@ -76,7 +76,7 @@ in rec {
 
     let
 
-      #nix = nixUnstable;
+      nix = nixUnstable;
 
       NetStatsd = buildPerlPackage {
         name = "Net-Statsd-0.11";
