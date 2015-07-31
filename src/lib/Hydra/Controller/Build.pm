@@ -197,12 +197,18 @@ sub checkPath {
 
 
 sub download : Chained('buildChain') PathPart {
-    my ($self, $c, $productnr, @path) = @_;
+    my ($self, $c, $productRef, @path) = @_;
 
-    $productnr = 1 if !defined $productnr;
+    $productRef = 1 if !defined $productRef;
 
-    my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
-    notFound($c, "Build doesn't have a product #$productnr.") if !defined $product;
+    my $product;
+    if ($productRef =~ /^[0-9]+$/) {
+        $product = $c->stash->{build}->buildproducts->find({productnr => $productRef});
+    } else {
+        $product = $c->stash->{build}->buildproducts->find({name => $productRef});
+        @path = ($productRef, @path);
+    }
+    notFound($c, "Build doesn't have a product $productRef.") if !defined $product;
 
     notFound($c, "Build product " . $product->path . " has disappeared.") unless -e $product->path;
 
