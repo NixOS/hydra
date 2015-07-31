@@ -189,11 +189,12 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
     }
 
     /* Gather the inputs. If the remote side is Nix <= 1.9, we have to
-       copy the entire closure of ‘drvPath’, as well the required
+       copy the entire closure of ‘drvPath’, as well as the required
        outputs of the input derivations. On Nix > 1.9, we only need to
        copy the immediate sources of the derivation and the required
        outputs of the input derivations. */
     PathSet inputs;
+    BasicDerivation basicDrv(step->drv);
 
     if (sendDerivation)
         inputs.insert(step->drvPath);
@@ -207,6 +208,7 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
             auto i = drv2.outputs.find(name);
             if (i == drv2.outputs.end()) continue;
             inputs.insert(i->second.path);
+            basicDrv.inputSrcs.insert(i->second.path);
         }
     }
 
@@ -228,7 +230,7 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
     if (sendDerivation)
         to << cmdBuildPaths << PathSet({step->drvPath}) << maxSilentTime << buildTimeout;
     else
-        to << cmdBuildDerivation << step->drvPath << step->drv << maxSilentTime << buildTimeout;
+        to << cmdBuildDerivation << step->drvPath << basicDrv << maxSilentTime << buildTimeout;
         // FIXME: send maxLogSize.
     to.flush();
 
