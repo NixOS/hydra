@@ -156,8 +156,9 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
         unsigned int version = readInt(from);
         if (GET_PROTOCOL_MAJOR(version) != 0x200)
             throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % machine->sshName);
-        if (GET_PROTOCOL_MINOR(version) >= 1)
+        if (GET_PROTOCOL_MINOR(version) >= 1 && machine->sshName != "localhost") // FIXME
             sendDerivation = false;
+
     } catch (EndOfFile & e) {
         child.pid.wait(true);
 
