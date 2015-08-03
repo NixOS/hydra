@@ -183,16 +183,16 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
             /* Pass all the remaining args. */
             Value v2, * arg = state.allocValue();
             state.mkAttrs(*arg, argsLeft.size());
-            for (const auto & arg : argsLeft) {
-                if (arg.second.size() != 1) {
+            for (const auto & a : argsLeft) {
+                if (a.second.size() != 1) {
                     /* Currently don't support multiple values for an arg, so
                      * fall back on the old behavior
                      */
                     throw TypeError(format("unsupported value: %1%") % v);
                 }
-                arg->attrs->push_back(Attr(arg.first, arg.second.front()));
+                arg->attrs->push_back(Attr(a.first, a.second.front()));
             }
-            arg->attrs.sort();
+            arg->attrs->sort();
             mkApp(v, v2, *arg);
             findJobs(state, top, argsLeft, v2, attrPath);
             return;
