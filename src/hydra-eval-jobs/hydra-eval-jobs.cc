@@ -171,7 +171,7 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
         }
     }
 
-    else if (v.type == tLambda && v.lambda.fun->matchAttrs) {
+    else if (v.type == tLambda) {
         if (v.lambda.fun->matchAttrs) {
             Bindings & tmp(*state.allocBindings(0));
             tryJobAlts(state, top, argsLeft, attrPath, v,
