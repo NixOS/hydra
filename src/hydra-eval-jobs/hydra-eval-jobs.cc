@@ -193,7 +193,7 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
                 arg->attrs->push_back(Attr(a.first, a.second.front()));
             }
             arg->attrs->sort();
-            mkApp(v, v2, *arg);
+            mkApp(v2, v, *arg);
             findJobs(state, top, argsLeft, v2, attrPath);
             return;
         }
