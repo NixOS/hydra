@@ -261,6 +261,8 @@ sub buildInputToString {
             ")";
     } else {
         $result = "{ outPath = builtins.storePath " . $input->{storePath} . "" .
+            "; inputType = \"" . $input->{type} . "\"" .
+            (defined $input->{uri} ? "; uri = \"" . $input->{uri} . "\"" : "") .
             (defined $input->{revNumber} ? "; rev = " . $input->{revNumber} . "" : "") .
             (defined $input->{revision} ? "; rev = \"" . $input->{revision} . "\"" : "") .
             (defined $input->{revCount} ? "; revCount = " . $input->{revCount} . "" : "") .
