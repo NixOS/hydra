@@ -253,15 +253,27 @@ int main(int argc, char * * argv)
         EvalState state(searchPath);
 
         AutoArgs autoArgs;
+        Value * inputsSet = state.allocValue();
+        state.mkAttrs(*inputsSet, autoArgs_.size());
         for (auto & i : autoArgs_) {
+            Symbol inputName = state.symbols.create(i.first);
+            Value * inputAttr = state.allocAttr(*inputsSet, inputName);
+            state.mkList(*inputAttr, i.second.size());
+            int altIndex = 0;
             for (auto & j : i.second) {
                 Value * v = state.allocValue();
                 if (j[0] == 'E')
                     state.eval(state.parseExprFromString(string(j, 1), absPath(".")), *v);
                 else
                     mkString(*v, string(j, 1));
-                autoArgs[state.symbols.create(i.first)].push_back(v);
+                autoArgs[inputName].push_back(v);
+                inputAttr->list.elems[altIndex++] = v;
             }
+        }
+        Symbol sInputs = state.symbols.create("inputs");
+        if (autoArgs.find(sInputs) == autoArgs.end()) {
+            inputsSet->attrs->sort();
+            autoArgs[sInputs].push_back(inputsSet);
         }
 
         store = openStore();
