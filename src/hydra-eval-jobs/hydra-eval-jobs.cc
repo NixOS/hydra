@@ -266,7 +266,7 @@ int main(int argc, char * * argv)
                     mkString(*v, string(j, 1));
                 autoArgs[inputName].push_back(v);
                 if (first) {
-                    inputsSet->attrs->push_back(Attr(inputName, *v));
+                    inputsSet->attrs->push_back(Attr(inputName, v));
                     first = false;
                 }
             }
