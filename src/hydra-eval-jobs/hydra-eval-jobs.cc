@@ -257,9 +257,7 @@ int main(int argc, char * * argv)
         state.mkAttrs(*inputsSet, autoArgs_.size());
         for (auto & i : autoArgs_) {
             Symbol inputName = state.symbols.create(i.first);
-            Value * inputAttr = state.allocAttr(*inputsSet, inputName);
-            state.mkList(*inputAttr, i.second.size());
-            int altIndex = 0;
+            bool first = true;
             for (auto & j : i.second) {
                 Value * v = state.allocValue();
                 if (j[0] == 'E')
@@ -267,7 +265,10 @@ int main(int argc, char * * argv)
                 else
                     mkString(*v, string(j, 1));
                 autoArgs[inputName].push_back(v);
-                inputAttr->list.elems[altIndex++] = v;
+                if (first) {
+                    inputsSet->attrs->push_back(Attr(inputName, *v));
+                    first = false;
+                }
             }
         }
         Symbol sInputs = state.symbols.create("inputs");
