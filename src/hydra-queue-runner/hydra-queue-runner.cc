@@ -214,7 +214,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
     if (txn.parameterized("select 1 from Builds where id = $1 and finished = 0")(build->id).exec().empty()) return;
 
     txn.parameterized
-        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8 where id = $1 and finished = 0")
+        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8 where id = $1")
         (build->id)
         ((int) (res.failed ? bsFailedWithOutput : bsSuccess))
         (startTime)
