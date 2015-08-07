@@ -211,6 +211,8 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 
     if (build->finishedInDB) return;
 
+    if (txn.parameterized("select 1 from Builds where id = $1 and finished = 0")(build->id).exec().empty()) return;
+
     txn.parameterized
         ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8 where id = $1 and finished = 0")
         (build->id)
@@ -221,6 +223,8 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
         (res.closureSize)
         (res.releaseName, res.releaseName != "")
         (isCachedBuild ? 1 : 0).exec();
+
+    txn.parameterized("delete from BuildProducts where build = $1")(build->id).exec();
 
     unsigned int productNr = 1;
     for (auto & product : res.products) {
@@ -237,6 +241,8 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
             (product.name)
             (product.defaultPath).exec();
     }
+
+    txn.parameterized("delete from BuildMetrics where build = $1")(build->id).exec();
 
     for (auto & metric : res.metrics) {
         txn.parameterized
