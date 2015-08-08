@@ -79,11 +79,8 @@ in rec {
     let
 
       nix = nixUnstable;
-
-      perlDeps = buildEnv {
-        name = "hydra-perl-deps";
-        paths = with perlPackages;
-          [ ModulePluggable
+      perlPaths = with perlPackages; [ 
+            ModulePluggable
             CatalystActionREST
             CatalystAuthenticationStoreDBIxClass
             CatalystDevel
@@ -121,12 +118,16 @@ in rec {
             SetScalar
             Starman
             SysHostnameLong
-            TestMore
             TextDiff
             TextTable
             XMLSimple
             nix git
+            BHooksEndOfScope
           ];
+
+      perlDeps = buildEnv {
+        name = "hydra-perl-deps";
+        paths = perlPaths;
       };
 
     in
@@ -158,6 +159,7 @@ in rec {
 
         for i in $out/bin/*; do
             wrapProgram $i \
+                --set PERL5LIB "${stdenv.lib.makePerlPath perlPaths}" \
                 --prefix PERL5LIB ':' $out/libexec/hydra/lib:$PERL5LIB \
                 --prefix PATH ':' $out/bin:$hydraPath \
                 --set HYDRA_RELEASE ${tarball.version} \
