@@ -105,10 +105,14 @@ sub fetchInputBuild {
     my $relName = ($prevBuild->releasename or $prevBuild->nixname);
     my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
 
+    my $mainOutput = getMainOutput($prevBuild);
+
     return
-        { storePath => getMainOutput($prevBuild)->path
+        { storePath => $mainOutput->path
         , id => $prevBuild->id
         , version => $version
+        , outputName => $mainOutput->name
+        , drvPath => $prevBuild->drvPath
         };
 }
 
@@ -279,6 +283,8 @@ sub buildInputToString {
             (defined $input->{gitTag} ? "; gitTag = \"" . $input->{gitTag} . "\"" : "") .
             (defined $input->{shortRev} ? "; shortRev = \"" . $input->{shortRev} . "\"" : "") .
             (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
+            (defined $input->{outputName} ? "; outputName = \"" . $input->{outputName} . "\"" : "") .
+            (defined $input->{drvPath} ? "; drvPath = " . $input->{drvPath} . "" : "") .
             ";}";
     }
     return $result;
