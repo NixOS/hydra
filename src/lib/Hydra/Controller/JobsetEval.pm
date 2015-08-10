@@ -187,6 +187,19 @@ sub restart_aborted : Chained('eval') PathPart('restart-aborted') Args(0) {
 }
 
 
+sub bump : Chained('eval') PathPart('bump') Args(0) {
+    my ($self, $c) = @_;
+    requireProjectOwner($c, $c->stash->{eval}->project); # FIXME: require admin?
+    my $builds = $c->stash->{eval}->builds->search({ finished => 0 });
+    my $n = $builds->count();
+    $c->model('DB')->schema->txn_do(sub {
+        $builds->update({globalpriority => time()});
+    });
+    $c->flash->{successMsg} = "$n builds have been bumped to the front of the queue.";
+    $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
+}
+
+
 # Hydra::Base::Controller::NixChannel needs this.
 sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
     my ($self, $c) = @_;
