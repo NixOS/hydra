@@ -164,6 +164,7 @@ in
         home = baseDir;
         createHome = true;
         useDefaultShell = true;
+        uid = config.ids.uids.hydra;
       };
 
     nix.extraOptions = ''
