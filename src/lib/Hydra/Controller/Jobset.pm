@@ -248,7 +248,7 @@ sub updateJobset {
         my $value = $inputData->{value};
         my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
 
-        error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
+        error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-.]*$/;
         error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
 
         my $input = $jobset->jobsetinputs->create(
