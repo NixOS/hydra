@@ -107,13 +107,17 @@ sub fetchInputBuild {
 
     my $mainOutput = getMainOutput($prevBuild);
 
-    return
+    my $result =
         { storePath => $mainOutput->path
         , id => $prevBuild->id
         , version => $version
         , outputName => $mainOutput->name
-        , drvPath => $prevBuild->drvPath
         };
+    if (isValidPath($prevBuild->drvPath)) {
+        $input->{drvPath} = $prevBuild->drvPath;
+    }
+
+    return $result;
 }
 
 
