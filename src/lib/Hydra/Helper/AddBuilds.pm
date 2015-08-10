@@ -114,7 +114,7 @@ sub fetchInputBuild {
         , outputName => $mainOutput->name
         };
     if (isValidPath($prevBuild->drvPath)) {
-        $input->{drvPath} = $prevBuild->drvPath;
+        $result->{drvPath} = $prevBuild->drvPath;
     }
 
     return $result;
