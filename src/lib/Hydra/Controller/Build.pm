@@ -475,6 +475,23 @@ sub keep : Chained('buildChain') PathPart Args(1) {
 }
 
 
+sub bump : Chained('buildChain') PathPart('bump') {
+    my ($self, $c, $x) = @_;
+
+    my $build = $c->stash->{build};
+
+    requireProjectOwner($c, $build->project); # FIXME: require admin?
+
+    $c->model('DB')->schema->txn_do(sub {
+        $build->update({globalpriority => time()});
+    });
+
+    $c->flash->{successMsg} = "Build has been bumped to the front of the queue.";
+
+    $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
+}
+
+
 sub add_to_release : Chained('buildChain') PathPart('add-to-release') Args(0) {
     my ($self, $c) = @_;
 

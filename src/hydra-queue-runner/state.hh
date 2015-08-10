@@ -71,6 +71,7 @@ struct Build
     std::string projectName, jobsetName, jobName;
     time_t timestamp;
     unsigned int maxSilentTime, buildTimeout;
+    int globalPriority;
 
     std::shared_ptr<Step> toplevel;
 
@@ -80,6 +81,8 @@ struct Build
     {
         return projectName + ":" + jobsetName + ":" + jobName;
     }
+
+    void propagatePriorities();
 };
 
 
@@ -113,7 +116,11 @@ struct Step
         /* Point in time after which the step can be retried. */
         system_time after;
 
-        /* The lowest build ID depending on this step. */
+        /* The highest global priority of any build depending on this
+           step. */
+        int highestGlobalPriority{0};
+
+        /* The lowest ID of any build depending on this step. */
         BuildID lowestBuildID{std::numeric_limits<BuildID>::max()};
     };
 
@@ -282,9 +289,11 @@ private:
 
     void queueMonitorLoop();
 
+    /* Check the queue for new builds. */
     void getQueuedBuilds(Connection & conn, std::shared_ptr<nix::StoreAPI> store, unsigned int & lastBuildId);
 
-    void removeCancelledBuilds(Connection & conn);
+    /* Handle cancellation, deletion and priority bumps. */
+    void processQueueChange(Connection & conn);
 
     Step::ptr createStep(std::shared_ptr<nix::StoreAPI> store, const nix::Path & drvPath,
         Build::ptr referringBuild, Step::ptr referringStep, std::set<nix::Path> & finishedDrvs,

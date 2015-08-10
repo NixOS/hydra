@@ -144,7 +144,9 @@ system_time State::doDispatch()
             {
                 auto a_(a->state.lock());
                 auto b_(b->state.lock()); // FIXME: deadlock?
-                return a_->lowestBuildID < b_->lowestBuildID;
+                return
+                    a_->highestGlobalPriority != b_->highestGlobalPriority ? a_->highestGlobalPriority > b_->highestGlobalPriority :
+                    a_->lowestBuildID < b_->lowestBuildID;
             });
 
         /* Find a machine with a free slot and find a step to run

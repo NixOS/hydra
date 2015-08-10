@@ -96,6 +96,7 @@
           <li><a href="[% c.uri_for('/build' build.id 'restart') %]">Restart</a></li>
         [% ELSE %]
           <li><a href="[% c.uri_for('/build' build.id 'cancel') %]">Cancel</a></li>
+          <li><a href="[% c.uri_for('/build' build.id 'bump') %]">Bump up</a></li>
         [% END %]
         [% IF available && project.releases %]
           [% INCLUDE menuItem

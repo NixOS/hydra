@@ -138,6 +138,12 @@ __PACKAGE__->table("Builds");
   default_value: 0
   is_nullable: 0
 
+=head2 globalpriority
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 0
+
 =head2 busy
 
   data_type: 'integer'
@@ -240,6 +246,8 @@ __PACKAGE__->add_columns(
   "nixexprpath",
   { data_type => "text", is_nullable => 1 },
   "priority",
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
+  "globalpriority",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "busy",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
@@ -550,8 +558,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:52:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Y2lDtgY8EBLOuCHAI8fWRQ
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-08-10 15:10:41
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:rjifgnPtjY96MaQ7eiGzaA
 
 __PACKAGE__->has_many(
   "dependents",

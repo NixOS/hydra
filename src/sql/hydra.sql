@@ -156,8 +156,12 @@ create table Builds (
     nixExprInput  text,
     nixExprPath   text,
 
-    -- Information about scheduled builds.
+    -- Priority within a jobset, set via meta.schedulingPriority.
     priority      integer not null default 0,
+
+    -- Priority among all builds, used by the admin to bump builds to
+    -- the front of the queue via the web interface.
+    globalPriority integer not null default 0,
 
     -- FIXME: remove (obsolete with the new queue runner)
     busy          integer not null default 0, -- true means someone is building this job now
@@ -217,6 +221,10 @@ create trigger BuildRestarted after update on Builds for each row
 create function notifyBuildCancelled() returns trigger as 'begin notify builds_cancelled; return null; end;' language plpgsql;
 create trigger BuildCancelled after update on Builds for each row
   when (old.finished = 0 and new.finished = 1 and new.buildStatus = 4) execute procedure notifyBuildCancelled();
+
+create function notifyBuildBumped() returns trigger as 'begin notify builds_bumped; return null; end;' language plpgsql;
+create trigger BuildBumped after update on Builds for each row
+  when (old.globalPriority != new.globalPriority) execute procedure notifyBuildBumped();
 
 #endif
 

@@ -25,6 +25,7 @@ void State::queueMonitorLoop()
     receiver buildsRestarted(*conn, "builds_restarted");
     receiver buildsCancelled(*conn, "builds_cancelled");
     receiver buildsDeleted(*conn, "builds_deleted");
+    receiver buildsBumped(*conn, "builds_bumped");
 
     auto store = openStore(); // FIXME: pool
 
@@ -44,9 +45,9 @@ void State::queueMonitorLoop()
             printMsg(lvlTalkative, "got notification: builds restarted");
             lastBuildId = 0; // check all builds
         }
-        if (buildsCancelled.get() || buildsDeleted.get()) {
-            printMsg(lvlTalkative, "got notification: builds cancelled");
-            removeCancelledBuilds(*conn);
+        if (buildsCancelled.get() || buildsDeleted.get() || buildsBumped.get()) {
+            printMsg(lvlTalkative, "got notification: builds cancelled or bumped");
+            processQueueChange(*conn);
         }
 
     }
@@ -64,7 +65,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
     {
         pqxx::work txn(conn);
 
-        auto res = txn.parameterized("select id, project, jobset, job, drvPath, maxsilent, timeout, timestamp from Builds where id > $1 and finished = 0 order by id")(lastBuildId).exec();
+        auto res = txn.parameterized("select id, project, jobset, job, drvPath, maxsilent, timeout, timestamp, globalPriority from Builds where id > $1 and finished = 0 order by id")(lastBuildId).exec();
 
         for (auto const & row : res) {
             auto builds_(builds.lock());
@@ -82,6 +83,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             build->maxSilentTime = row["maxsilent"].as<int>();
             build->buildTimeout = row["timeout"].as<int>();
             build->timestamp = row["timestamp"].as<time_t>();
+            build->globalPriority = row["globalPriority"].as<int>();
 
             newBuilds.emplace(std::make_pair(build->drvPath, build));
         }
@@ -228,13 +230,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             throw;
         }
 
-        /* Update the lowest build ID field of each dependency. This
-           is used by the dispatcher to start steps in order of build
-           ID. */
-        visitDependencies([&](const Step::ptr & step) {
-            auto step_(step->state.lock());
-            step_->lowestBuildID = std::min(step_->lowestBuildID, build->id);
-        }, build->toplevel);
+        build->propagatePriorities();
 
         /* Add the new runnable build steps to ‘runnable’ and wake up
            the builder threads. */
@@ -247,26 +243,47 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
 }
 
 
-void State::removeCancelledBuilds(Connection & conn)
+void Build::propagatePriorities()
+{
+    /* Update the highest global priority and lowest build ID fields
+       of each dependency. This is used by the dispatcher to start
+       steps in order of descending global priority and ascending
+       build ID. */
+    visitDependencies([&](const Step::ptr & step) {
+        auto step_(step->state.lock());
+        step_->highestGlobalPriority = std::max(step_->highestGlobalPriority, globalPriority);
+        step_->lowestBuildID = std::min(step_->lowestBuildID, id);
+    }, toplevel);
+}
+
+
+void State::processQueueChange(Connection & conn)
 {
     /* Get the current set of queued builds. */
-    std::set<BuildID> currentIds;
+    std::map<BuildID, int> currentIds;
     {
         pqxx::work txn(conn);
-        auto res = txn.exec("select id from Builds where finished = 0");
+        auto res = txn.exec("select id, globalPriority from Builds where finished = 0");
         for (auto const & row : res)
-            currentIds.insert(row["id"].as<BuildID>());
+            currentIds[row["id"].as<BuildID>()] = row["globalPriority"].as<BuildID>();
     }
 
     auto builds_(builds.lock());
 
     for (auto i = builds_->begin(); i != builds_->end(); ) {
-        if (currentIds.find(i->first) == currentIds.end()) {
+        auto b = currentIds.find(i->first);
+        if (b == currentIds.end()) {
             printMsg(lvlInfo, format("discarding cancelled build %1%") % i->first);
             i = builds_->erase(i);
             // FIXME: ideally we would interrupt active build steps here.
-        } else
-            ++i;
+            continue;
+        }
+        if (i->second->globalPriority < b->second) {
+            printMsg(lvlInfo, format("priority of build %1% increased") % i->first);
+            i->second->globalPriority = b->second;
+            i->second->propagatePriorities();
+        }
+        ++i;
     }
 }
 
