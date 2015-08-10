@@ -112,6 +112,9 @@ struct Step
 
         /* Point in time after which the step can be retried. */
         system_time after;
+
+        /* The lowest build ID depending on this step. */
+        BuildID lowestBuildID{std::numeric_limits<BuildID>::max()};
     };
 
     std::atomic_bool finished{false}; // debugging
@@ -126,6 +129,9 @@ struct Step
 
 
 void getDependents(Step::ptr step, std::set<Build::ptr> & builds, std::set<Step::ptr> & steps);
+
+/* Call ‘visitor’ for a step and all its dependencies. */
+void visitDependencies(std::function<void(Step::ptr)> visitor, Step::ptr step);
 
 
 struct Machine

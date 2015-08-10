@@ -204,6 +204,28 @@ void getDependents(Step::ptr step, std::set<Build::ptr> & builds, std::set<Step:
 }
 
 
+void visitDependencies(std::function<void(Step::ptr)> visitor, Step::ptr start)
+{
+    std::set<Step::ptr> queued;
+    std::queue<Step::ptr> todo;
+    todo.push(start);
+
+    while (!todo.empty()) {
+        auto step = todo.front();
+        todo.pop();
+
+        visitor(step);
+
+        auto state(step->state.lock());
+        for (auto & dep : state->deps)
+            if (queued.find(dep) == queued.end()) {
+                queued.insert(dep);
+                todo.push(dep);
+            }
+    }
+}
+
+
 void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
     const BuildOutput & res, bool isCachedBuild, time_t startTime, time_t stopTime)
 {

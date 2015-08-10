@@ -228,6 +228,14 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             throw;
         }
 
+        /* Update the lowest build ID field of each dependency. This
+           is used by the dispatcher to start steps in order of build
+           ID. */
+        visitDependencies([&](const Step::ptr & step) {
+            auto step_(step->state.lock());
+            step_->lowestBuildID = std::min(step_->lowestBuildID, build->id);
+        }, build->toplevel);
+
         /* Add the new runnable build steps to ‘runnable’ and wake up
            the builder threads. */
         printMsg(lvlChatty, format("got %1% new runnable steps from %2% new builds") % newRunnable.size() % nrAdded);

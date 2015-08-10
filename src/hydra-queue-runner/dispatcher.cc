@@ -1,3 +1,4 @@
+#include <iostream>
 #include <algorithm>
 #include <thread>
 
@@ -53,8 +54,8 @@ void State::dispatcher()
 
 system_time State::doDispatch()
 {
+    /* Start steps until we're out of steps or slots. */
     auto sleepUntil = system_time::max();
-
     bool keepGoing;
 
     do {
@@ -105,35 +106,23 @@ system_time State::doDispatch()
                     a.currentJobs > b.currentJobs;
             });
 
-        /* Find a machine with a free slot and find a step to run
-           on it. Once we find such a pair, we restart the outer
-           loop because the machine sorting will have changed. */
-        keepGoing = false;
-
-        for (auto & mi : machinesSorted) {
-            // FIXME: can we lose a wakeup if a builder exits concurrently?
-            if (mi.machine->state->currentJobs >= mi.machine->maxJobs) continue;
-
+        /* Sort the runnable steps by priority. FIXME: O(n lg n);
+           obviously, it would be better to keep a runnable queue sorted
+           by priority. */
+        std::vector<Step::ptr> runnableSorted;
+        {
             auto runnable_(runnable.lock());
-            //printMsg(lvlDebug, format("%1% runnable builds") % runnable_->size());
-
-            /* FIXME: we're holding the runnable lock too long
-               here. This could be more efficient. */
-
+            runnableSorted.reserve(runnable_->size());
             for (auto i = runnable_->begin(); i != runnable_->end(); ) {
                 auto step = i->lock();
 
-                /* Delete dead steps. */
+                /* Remove dead steps. */
                 if (!step) {
                     i = runnable_->erase(i);
                     continue;
                 }
 
-                /* Can this machine do this step? */
-                if (!mi.machine->supportsStep(step)) {
-                    ++i;
-                    continue;
-                }
+                ++i;
 
                 /* Skip previously failed steps that aren't ready
                    to be retried. */
@@ -142,15 +131,52 @@ system_time State::doDispatch()
                     if (step_->tries > 0 && step_->after > now) {
                         if (step_->after < sleepUntil)
                             sleepUntil = step_->after;
-                        ++i;
                         continue;
                     }
+                }
+
+                runnableSorted.push_back(step);
+            }
+        }
+
+        sort(runnableSorted.begin(), runnableSorted.end(),
+            [](const Step::ptr & a, const Step::ptr & b)
+            {
+                auto a_(a->state.lock());
+                auto b_(b->state.lock()); // FIXME: deadlock?
+                return a_->lowestBuildID < b_->lowestBuildID;
+            });
+
+        /* Find a machine with a free slot and find a step to run
+           on it. Once we find such a pair, we restart the outer
+           loop because the machine sorting will have changed. */
+        keepGoing = false;
+
+        for (auto & mi : machinesSorted) {
+            if (mi.machine->state->currentJobs >= mi.machine->maxJobs) continue;
+
+            for (auto & step : runnableSorted) {
+
+                /* Can this machine do this step? */
+                if (!mi.machine->supportsStep(step)) continue;
+
+                /* Let's do this step. Remove it from the runnable
+                   list. FIXME: O(n). */
+                {
+                    auto runnable_(runnable.lock());
+                    bool removed = false;
+                    for (auto i = runnable_->begin(); i != runnable_->end(); )
+                        if (i->lock() == step) {
+                            i = runnable_->erase(i);
+                            removed = true;
+                            break;
+                        } else ++i;
+                    assert(removed);
                 }
 
                 /* Make a slot reservation and start a thread to
                    do the build. */
                 auto reservation = std::make_shared<MaintainCount>(mi.machine->state->currentJobs);
-                i = runnable_->erase(i);
 
                 auto builderThread = std::thread(&State::builder, this, step, mi.machine, reservation);
                 builderThread.detach(); // FIXME?
