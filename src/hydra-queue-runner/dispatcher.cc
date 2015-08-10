@@ -1,4 +1,3 @@
-#include <iostream>
 #include <algorithm>
 #include <thread>
 
@@ -54,6 +53,19 @@ void State::dispatcher()
 
 system_time State::doDispatch()
 {
+    /* Prune old historical build step info from the jobsets. */
+    {
+        auto jobsets_(jobsets.lock());
+        for (auto & jobset : *jobsets_) {
+            auto s1 = jobset.second->shareUsed();
+            jobset.second->pruneSteps();
+            auto s2 = jobset.second->shareUsed();
+            if (s1 != s2)
+                printMsg(lvlDebug, format("pruned scheduling window of ‘%1%:%2%’ from %3% to %4%")
+                    % jobset.first.first % jobset.first.second % s1 % s2);
+        }
+    }
+
     /* Start steps until we're out of steps or slots. */
     auto sleepUntil = system_time::max();
     bool keepGoing;
@@ -139,6 +151,13 @@ system_time State::doDispatch()
             }
         }
 
+        for (auto & step : runnableSorted) {
+            auto step_(step->state.lock());
+            step_->lowestShareUsed = 1e9;
+            for (auto & jobset : step_->jobsets)
+                step_->lowestShareUsed = std::min(step_->lowestShareUsed, jobset->shareUsed());
+        }
+
         sort(runnableSorted.begin(), runnableSorted.end(),
             [](const Step::ptr & a, const Step::ptr & b)
             {
@@ -146,6 +165,7 @@ system_time State::doDispatch()
                 auto b_(b->state.lock()); // FIXME: deadlock?
                 return
                     a_->highestGlobalPriority != b_->highestGlobalPriority ? a_->highestGlobalPriority > b_->highestGlobalPriority :
+                    a_->lowestShareUsed != b_->lowestShareUsed ? a_->lowestShareUsed < b_->lowestShareUsed :
                     a_->lowestBuildID < b_->lowestBuildID;
             });
 
@@ -203,4 +223,25 @@ void State::wakeDispatcher()
         *dispatcherWakeup_ = true;
     }
     dispatcherWakeupCV.notify_one();
+}
+
+
+void Jobset::addStep(time_t startTime, time_t duration)
+{
+    auto steps_(steps.lock());
+    (*steps_)[startTime] = duration;
+    seconds += duration;
+}
+
+
+void Jobset::pruneSteps()
+{
+    time_t now = time(0);
+    auto steps_(steps.lock());
+    while (!steps_->empty()) {
+        auto i = steps_->begin();
+        if (i->first > now - schedulingWindow) break;
+        seconds -= i->second;
+        steps_->erase(i);
+    }
 }

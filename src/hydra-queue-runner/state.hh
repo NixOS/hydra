@@ -60,6 +60,40 @@ struct Step;
 struct BuildOutput;
 
 
+class Jobset
+{
+public:
+
+    typedef std::shared_ptr<Jobset> ptr;
+    typedef std::weak_ptr<Jobset> wptr;
+
+    Jobset(unsigned int shares) : shares(shares) { }
+
+    static const time_t schedulingWindow = 24 * 60 * 60;
+
+private:
+
+    std::atomic<time_t> seconds{0};
+    std::atomic<unsigned int> shares;
+
+    /* The start time and duration of the most recent build steps. */
+    Sync<std::map<time_t, time_t>> steps;
+
+public:
+
+    double shareUsed()
+    {
+        return (double) seconds / shares;
+    }
+
+    time_t getSeconds() { return seconds; }
+
+    void addStep(time_t startTime, time_t duration);
+
+    void pruneSteps();
+};
+
+
 struct Build
 {
     typedef std::shared_ptr<Build> ptr;
@@ -74,6 +108,8 @@ struct Build
     int globalPriority;
 
     std::shared_ptr<Step> toplevel;
+
+    Jobset::ptr jobset;
 
     std::atomic_bool finishedInDB{false};
 
@@ -110,6 +146,10 @@ struct Step
         /* Builds that have this step as the top-level derivation. */
         std::vector<Build::wptr> builds;
 
+        /* Jobsets to which this step belongs. Used for determining
+           scheduling priority. */
+        std::set<Jobset::ptr> jobsets;
+
         /* Number of times we've tried this step. */
         unsigned int tries = 0;
 
@@ -119,6 +159,10 @@ struct Step
         /* The highest global priority of any build depending on this
            step. */
         int highestGlobalPriority{0};
+
+        /* The lowest share used of any jobset depending on this
+           step. */
+        double lowestShareUsed;
 
         /* The lowest ID of any build depending on this step. */
         BuildID lowestBuildID{std::numeric_limits<BuildID>::max()};
@@ -202,6 +246,10 @@ private:
     /* The queued builds. */
     typedef std::map<BuildID, Build::ptr> Builds;
     Sync<Builds> builds;
+
+    /* The jobsets. */
+    typedef std::map<std::pair<std::string, std::string>, Jobset::ptr> Jobsets;
+    Sync<Jobsets> jobsets;
 
     /* All active or pending build steps (i.e. dependencies of the
        queued builds). Note that these are weak pointers. Steps are
@@ -298,6 +346,9 @@ private:
     Step::ptr createStep(std::shared_ptr<nix::StoreAPI> store, const nix::Path & drvPath,
         Build::ptr referringBuild, Step::ptr referringStep, std::set<nix::Path> & finishedDrvs,
         std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable);
+
+    Jobset::ptr createJobset(pqxx::work & txn,
+        const std::string & projectName, const std::string & jobsetName);
 
     void makeRunnable(Step::ptr step);
 

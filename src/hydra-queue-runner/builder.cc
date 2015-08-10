@@ -131,6 +131,16 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     time_t stepStopTime = time(0);
     if (!result.stopTime) result.stopTime = stepStopTime;
 
+    /* Account the time we spent building this step by dividing it
+       among the jobsets that depend on it. */
+    {
+        auto step_(step->state.lock());
+        // FIXME: loss of precision.
+        time_t charge = (result.stopTime - result.startTime) / step_->jobsets.size();
+        for (auto & jobset : step_->jobsets)
+            jobset->addStep(result.startTime, charge);
+    }
+
     /* Asynchronously compress the log. */
     if (result.logFile != "") {
         {

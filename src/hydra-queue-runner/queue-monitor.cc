@@ -49,7 +49,6 @@ void State::queueMonitorLoop()
             printMsg(lvlTalkative, "got notification: builds cancelled or bumped");
             processQueueChange(*conn);
         }
-
     }
 }
 
@@ -84,6 +83,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             build->buildTimeout = row["timeout"].as<int>();
             build->timestamp = row["timestamp"].as<time_t>();
             build->globalPriority = row["globalPriority"].as<int>();
+            build->jobset = createJobset(txn, build->projectName, build->jobsetName);
 
             newBuilds.emplace(std::make_pair(build->drvPath, build));
         }
@@ -210,6 +210,8 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             build->toplevel = step;
         }
 
+        build->propagatePriorities();
+
         printMsg(lvlChatty, format("added build %1% (top-level step %2%, %3% new steps)")
             % build->id % step->drvPath % newSteps.size());
     };
@@ -229,8 +231,6 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             e.addPrefix(format("while loading build %1%: ") % build->id);
             throw;
         }
-
-        build->propagatePriorities();
 
         /* Add the new runnable build steps to ‘runnable’ and wake up
            the builder threads. */
@@ -253,6 +253,7 @@ void Build::propagatePriorities()
         auto step_(step->state.lock());
         step_->highestGlobalPriority = std::max(step_->highestGlobalPriority, globalPriority);
         step_->lowestBuildID = std::min(step_->lowestBuildID, id);
+        step_->jobsets.insert(jobset);
     }, toplevel);
 }
 
@@ -394,4 +395,40 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
     }
 
     return step;
+}
+
+
+Jobset::ptr State::createJobset(pqxx::work & txn,
+    const std::string & projectName, const std::string & jobsetName)
+{
+    auto jobsets_(jobsets.lock());
+
+    auto p = std::make_pair(projectName, jobsetName);
+
+    auto i = jobsets_->find(p);
+    if (i != jobsets_->end()) return i->second;
+
+    auto res = txn.parameterized
+        ("select schedulingShares from Jobsets where project = $1 and name = $2")
+        (projectName)(jobsetName).exec();
+    if (res.empty()) throw Error("missing jobset - can't happen");
+
+    auto shares = res[0]["schedulingShares"].as<unsigned int>();
+    if (shares == 0) shares = 1;
+
+    auto jobset = std::make_shared<Jobset>(shares);
+
+    /* Load the build steps from the last 24 hours. */
+    res = txn.parameterized
+        ("select s.startTime, s.stopTime from BuildSteps s join Builds b on build = id "
+         "where s.startTime is not null and s.stopTime > $1 and project = $2 and jobset = $3")
+        (time(0) - Jobset::schedulingWindow * 10)(projectName)(jobsetName).exec();
+    for (auto const & row : res) {
+        time_t startTime = row["startTime"].as<time_t>();
+        time_t stopTime = row["stopTime"].as<time_t>();
+        jobset->addStep(startTime, stopTime - startTime);
+    }
+
+    (*jobsets_)[p] = jobset;
+    return jobset;
 }

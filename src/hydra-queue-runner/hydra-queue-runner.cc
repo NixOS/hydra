@@ -462,6 +462,17 @@ void State::dumpStatus(Connection & conn, bool log)
                 }
             }
         }
+        {
+            root.attr("jobsets");
+            JSONObject nested(out);
+            auto jobsets_(jobsets.lock());
+            for (auto & jobset : *jobsets_) {
+                nested.attr(jobset.first.first + ":" + jobset.first.second);
+                JSONObject nested2(out);
+                nested2.attr("shareUsed"); out << jobset.second->shareUsed();
+                nested2.attr("seconds", jobset.second->getSeconds());
+            }
+        }
     }
 
     if (log) printMsg(lvlInfo, format("status: %1%") % out.str());
