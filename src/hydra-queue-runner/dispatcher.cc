@@ -36,11 +36,14 @@ void State::dispatcher()
         /* Sleep until we're woken up (either because a runnable build
            is added, or because a build finishes). */
         {
-            std::unique_lock<std::mutex> lock(dispatcherMutex);
-            printMsg(lvlDebug, format("dispatcher sleeping for %1%s") %
-                std::chrono::duration_cast<std::chrono::seconds>(sleepUntil - std::chrono::system_clock::now()).count());
-            dispatcherWakeup.wait_until(lock, sleepUntil);
+            auto dispatcherWakeup_(dispatcherWakeup.lock());
+            if (!*dispatcherWakeup_) {
+                printMsg(lvlDebug, format("dispatcher sleeping for %1%s") %
+                    std::chrono::duration_cast<std::chrono::seconds>(sleepUntil - std::chrono::system_clock::now()).count());
+                dispatcherWakeup_.wait_until(dispatcherWakeupCV, sleepUntil);
+            }
             nrDispatcherWakeups++;
+            *dispatcherWakeup_ = false;
         }
     }
 
@@ -167,6 +170,9 @@ system_time State::doDispatch()
 
 void State::wakeDispatcher()
 {
-    { std::lock_guard<std::mutex> lock(dispatcherMutex); } // barrier
-    dispatcherWakeup.notify_one();
+    {
+        auto dispatcherWakeup_(dispatcherWakeup.lock());
+        *dispatcherWakeup_ = true;
+    }
+    dispatcherWakeupCV.notify_one();
 }

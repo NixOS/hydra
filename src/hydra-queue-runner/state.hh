@@ -202,8 +202,8 @@ private:
     Sync<Runnable> runnable;
 
     /* CV for waking up the dispatcher. */
-    std::condition_variable dispatcherWakeup;
-    std::mutex dispatcherMutex;
+    Sync<bool> dispatcherWakeup;
+    std::condition_variable_any dispatcherWakeupCV;
 
     /* PostgreSQL connection pool. */
     Pool<Connection> dbPool;

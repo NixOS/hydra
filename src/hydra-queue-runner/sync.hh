@@ -60,6 +60,14 @@ public:
             assert(s);
             return cv.wait_for(s->mutex, duration, pred);
         }
+
+        template<class Clock, class Duration>
+        std::cv_status wait_until(std::condition_variable_any & cv,
+            const std::chrono::time_point<Clock, Duration> & duration)
+        {
+            assert(s);
+            return cv.wait_until(s->mutex, duration);
+        }
     };
 
     Lock lock() { return Lock(this); }
