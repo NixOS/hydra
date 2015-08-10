@@ -289,6 +289,8 @@ private:
     /* The thread that selects and starts runnable builds. */
     void dispatcher();
 
+    system_time doDispatch();
+
     void wakeDispatcher();
 
     void builder(Step::ptr step, Machine::ptr machine, std::shared_ptr<MaintainCount> reservation);
