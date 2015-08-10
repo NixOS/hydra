@@ -288,7 +288,7 @@ sub buildInputToString {
             (defined $input->{shortRev} ? "; shortRev = \"" . $input->{shortRev} . "\"" : "") .
             (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
             (defined $input->{outputName} ? "; outputName = \"" . $input->{outputName} . "\"" : "") .
-            (defined $input->{drvPath} ? "; drvPath = " . $input->{drvPath} . "" : "") .
+            (defined $input->{drvPath} ? "; drvPath = builtins.storePath " . $input->{drvPath} . "" : "") .
             ";}";
     }
     return $result;
