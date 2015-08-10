@@ -105,11 +105,19 @@ sub fetchInputBuild {
     my $relName = ($prevBuild->releasename or $prevBuild->nixname);
     my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
 
-    return
-        { storePath => getMainOutput($prevBuild)->path
+    my $mainOutput = getMainOutput($prevBuild);
+
+    my $result =
+        { storePath => $mainOutput->path
         , id => $prevBuild->id
         , version => $version
+        , outputName => $mainOutput->name
         };
+    if (isValidPath($prevBuild->drvpath)) {
+        $result->{drvPath} = $prevBuild->drvpath;
+    }
+
+    return $result;
 }
 
 
@@ -279,6 +287,8 @@ sub buildInputToString {
             (defined $input->{gitTag} ? "; gitTag = \"" . $input->{gitTag} . "\"" : "") .
             (defined $input->{shortRev} ? "; shortRev = \"" . $input->{shortRev} . "\"" : "") .
             (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
+            (defined $input->{outputName} ? "; outputName = \"" . $input->{outputName} . "\"" : "") .
+            (defined $input->{drvPath} ? "; drvPath = builtins.storePath " . $input->{drvPath} . "" : "") .
             ";}";
     }
     return $result;
