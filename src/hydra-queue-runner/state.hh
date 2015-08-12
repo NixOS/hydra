@@ -67,14 +67,12 @@ public:
     typedef std::shared_ptr<Jobset> ptr;
     typedef std::weak_ptr<Jobset> wptr;
 
-    Jobset(unsigned int shares) : shares(shares) { }
-
     static const time_t schedulingWindow = 24 * 60 * 60;
 
 private:
 
     std::atomic<time_t> seconds{0};
-    std::atomic<unsigned int> shares;
+    std::atomic<unsigned int> shares{1};
 
     /* The start time and duration of the most recent build steps. */
     Sync<std::map<time_t, time_t>> steps;
@@ -84,6 +82,12 @@ public:
     double shareUsed()
     {
         return (double) seconds / shares;
+    }
+
+    void setShares(int shares_)
+    {
+        assert(shares_ > 0);
+        shares = shares_;
     }
 
     time_t getSeconds() { return seconds; }
@@ -353,6 +357,8 @@ private:
 
     Jobset::ptr createJobset(pqxx::work & txn,
         const std::string & projectName, const std::string & jobsetName);
+
+    void processJobsetSharesChange(Connection & conn);
 
     void makeRunnable(Step::ptr step);
 

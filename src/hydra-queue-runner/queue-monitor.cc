@@ -26,6 +26,7 @@ void State::queueMonitorLoop()
     receiver buildsCancelled(*conn, "builds_cancelled");
     receiver buildsDeleted(*conn, "builds_deleted");
     receiver buildsBumped(*conn, "builds_bumped");
+    receiver jobsetSharesChanged(*conn, "jobset_shares_changed");
 
     auto store = openStore(); // FIXME: pool
 
@@ -48,6 +49,10 @@ void State::queueMonitorLoop()
         if (buildsCancelled.get() || buildsDeleted.get() || buildsBumped.get()) {
             printMsg(lvlTalkative, "got notification: builds cancelled or bumped");
             processQueueChange(*conn);
+        }
+        if (jobsetSharesChanged.get()) {
+            printMsg(lvlTalkative, "got notification: jobset shares changed");
+            processJobsetSharesChange(*conn);
         }
     }
 }
@@ -410,12 +415,13 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
 Jobset::ptr State::createJobset(pqxx::work & txn,
     const std::string & projectName, const std::string & jobsetName)
 {
-    auto jobsets_(jobsets.lock());
-
     auto p = std::make_pair(projectName, jobsetName);
 
-    auto i = jobsets_->find(p);
-    if (i != jobsets_->end()) return i->second;
+    {
+        auto jobsets_(jobsets.lock());
+        auto i = jobsets_->find(p);
+        if (i != jobsets_->end()) return i->second;
+    }
 
     auto res = txn.parameterized
         ("select schedulingShares from Jobsets where project = $1 and name = $2")
@@ -423,9 +429,9 @@ Jobset::ptr State::createJobset(pqxx::work & txn,
     if (res.empty()) throw Error("missing jobset - can't happen");
 
     auto shares = res[0]["schedulingShares"].as<unsigned int>();
-    if (shares == 0) shares = 1;
 
-    auto jobset = std::make_shared<Jobset>(shares);
+    auto jobset = std::make_shared<Jobset>();
+    jobset->setShares(shares);
 
     /* Load the build steps from the last 24 hours. */
     res = txn.parameterized
@@ -438,6 +444,23 @@ Jobset::ptr State::createJobset(pqxx::work & txn,
         jobset->addStep(startTime, stopTime - startTime);
     }
 
+    auto jobsets_(jobsets.lock());
+    // Can't happen because only this thread adds to "jobsets".
+    assert(jobsets_->find(p) == jobsets_->end());
     (*jobsets_)[p] = jobset;
     return jobset;
+}
+
+
+void State::processJobsetSharesChange(Connection & conn)
+{
+    /* Get the current set of jobsets. */
+    pqxx::work txn(conn);
+    auto res = txn.exec("select project, name, schedulingShares from Jobsets");
+    for (auto const & row : res) {
+        auto jobsets_(jobsets.lock());
+        auto i = jobsets_->find(std::make_pair(row["project"].as<string>(), row["name"].as<string>()));
+        if (i == jobsets_->end()) continue;
+        i->second->setShares(row["schedulingShares"].as<unsigned int>());
+    }
 }

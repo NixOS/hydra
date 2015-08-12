@@ -64,6 +64,7 @@ create table Jobsets (
     checkInterval integer not null default 300, -- minimum time in seconds between polls (0 = disable polling)
     schedulingShares integer not null default 100,
     fetchErrorMsg text,
+    check schedulingShares > 0,
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade
 #ifdef SQLITE
@@ -71,6 +72,14 @@ create table Jobsets (
     foreign key   (project, name, nixExprInput) references JobsetInputs(project, jobset, name)
 #endif
 );
+
+#ifdef POSTGRESQL
+
+create function notifyJobsetSharesChanged() returns trigger as 'begin notify jobset_shares_changed; return null; end;' language plpgsql;
+create trigger JobsetSharesChanged after update on Jobsets for each row
+  when (old.schedulingShares != new.schedulingShares) execute procedure notifyJobsetSharesChanged();
+
+#endif
 
 
 create table JobsetRenames (
