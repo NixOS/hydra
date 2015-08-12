@@ -119,18 +119,21 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
 
     $c->stash->{step} = $step;
 
-    showLog($c, $mode, $step->drvpath, map { $_->path } $step->buildstepoutputs->all);
+    showLog($c, $mode, $step->busy == 0, $step->drvpath,
+            map { $_->path } $step->buildstepoutputs->all);
 }
 
 
 sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
-    showLog($c, $mode, $c->stash->{build}->drvpath, map { $_->path } $c->stash->{build}->buildoutputs->all);
+    showLog($c, $mode, $c->stash->{build}->finished,
+            $c->stash->{build}->drvpath,
+            map { $_->path } $c->stash->{build}->buildoutputs->all);
 }
 
 
 sub showLog {
-    my ($c, $mode, $drvPath, @outPaths) = @_;
+    my ($c, $mode, $finished, $drvPath, @outPaths) = @_;
 
     my $logPath = findLog($c, $drvPath, @outPaths);
 
@@ -154,6 +157,7 @@ sub showLog {
 
     elsif ($mode eq "raw") {
         $c->stash->{logPath} = $logPath;
+        $c->stash->{finished} = $finished;
         $c->forward('Hydra::View::NixLog');
         return;
     }

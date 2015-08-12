@@ -20,7 +20,7 @@ sub process {
     }
     binmode($fh);
 
-    setCacheHeaders($c, 365 * 24 * 60 * 60);
+    setCacheHeaders($c, 365 * 24 * 60 * 60) if $c->stash->{finished};
 
     $c->response->body($fh);
 
