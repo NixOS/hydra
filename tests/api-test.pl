@@ -49,20 +49,18 @@ ok(exists $jobset->{jobsetinputs}->{"my-src"}, "The new jobset has a 'my-src' in
 
 ok($jobset->{jobsetinputs}->{"my-src"}->{jobsetinputalts}->[0] eq "/run/jobset", "The 'my-src' input is in /run/jobset");
 
-system("NIX_STORE_DIR=/tmp/nix/store NIX_LOG_DIR=/tmp/nix/var/log/nix NIX_STATE_DIR=/tmp/nix/var/nix NIX_REMOTE= hydra-evaluator sample default");
+system("hydra-evaluator sample default");
 $result = request_json({ uri => '/jobset/sample/default/evals' });
 ok($result->code() == 200, "Can get evals of a jobset");
 my $evals = decode_json($result->content())->{evals};
 my $eval = $evals->[0];
 ok($eval->{hasnewbuilds} == 1, "The first eval of a jobset has new builds");
 
-# Ugh, cached for 30s
-sleep 30;
-system("echo >> /run/jobset/default.nix; NIX_STORE_DIR=/tmp/nix/store NIX_LOG_DIR=/tmp/nix/var/log/nix NIX_STATE_DIR=/tmp/nix/var/nix hydra-evaluator sample default");
+system("echo >> /run/jobset/default.nix; hydra-evaluator sample default");
 my $evals = decode_json(request_json({ uri => '/jobset/sample/default/evals' })->content())->{evals};
 ok($evals->[0]->{jobsetevalinputs}->{"my-src"}->{revision} != $evals->[1]->{jobsetevalinputs}->{"my-src"}->{revision}, "Changing a jobset source changes its revision");
 
 my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{builds}->[0] })->content());
 ok($build->{job} eq "job", "The build's job name is job");
 ok($build->{finished} == 0, "The build isn't finished yet");
-ok($build->{buildoutputs}->{out}->{path} =~ /^\/tmp\/nix\/store\/[a-zA-Z0-9]{32}-job$/, "The build's outpath is in the nix store and named 'job'");
+ok($build->{buildoutputs}->{out}->{path} =~ /^\/nix\/store\/[a-zA-Z0-9]{32}-job$/, "The build's outpath is in the Nix store and named 'job'");

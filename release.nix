@@ -13,6 +13,7 @@ let
     { imports = [ ./hydra-module.nix ];
 
       virtualisation.memorySize = 1024;
+      virtualisation.writableStore = true;
 
       services.hydra.enable = true;
       services.hydra.package = hydraPkg;
@@ -216,9 +217,8 @@ in rec {
               , "chown -R hydra /run/jobset /tmp/nix"
               );
 
-          # Start the web interface with some weird settings.
-          $machine->succeed("systemctl stop hydra-server hydra-evaluator hydra-queue-runner");
-          $machine->mustSucceed("su - hydra -c 'NIX_STORE_DIR=/tmp/nix/store NIX_LOG_DIR=/tmp/nix/var/log/nix NIX_STATE_DIR=/tmp/nix/var/nix NIX_REMOTE= DBIC_TRACE=1 hydra-server -d' >&2 &");
+          $machine->succeed("systemctl stop hydra-evaluator hydra-queue-runner");
+          $machine->waitForJob("hydra-server");
           $machine->waitForOpenPort("3000");
 
           # Run the API tests.
