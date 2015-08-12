@@ -67,7 +67,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
         pqxx::work txn(conn);
 
         auto res = txn.parameterized
-            ("select id, project, jobset, job, drvPath, maxsilent, timeout, timestamp, globalPriority from Builds "
+            ("select id, project, jobset, job, drvPath, maxsilent, timeout, timestamp, globalPriority, priority from Builds "
              "where id > $1 and finished = 0 order by globalPriority desc, id")
             (lastBuildId).exec();
 
@@ -88,6 +88,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             build->buildTimeout = row["timeout"].as<int>();
             build->timestamp = row["timestamp"].as<time_t>();
             build->globalPriority = row["globalPriority"].as<int>();
+            build->localPriority = row["priority"].as<int>();
             build->jobset = createJobset(txn, build->projectName, build->jobsetName);
 
             newIDs.push_back(id);
@@ -259,6 +260,7 @@ void Build::propagatePriorities()
     visitDependencies([&](const Step::ptr & step) {
         auto step_(step->state.lock());
         step_->highestGlobalPriority = std::max(step_->highestGlobalPriority, globalPriority);
+        step_->highestLocalPriority = std::max(step_->highestLocalPriority, localPriority);
         step_->lowestBuildID = std::min(step_->lowestBuildID, id);
         step_->jobsets.insert(jobset);
     }, toplevel);

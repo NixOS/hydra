@@ -105,7 +105,7 @@ struct Build
     std::string projectName, jobsetName, jobName;
     time_t timestamp;
     unsigned int maxSilentTime, buildTimeout;
-    int globalPriority;
+    int localPriority, globalPriority;
 
     std::shared_ptr<Step> toplevel;
 
@@ -163,6 +163,10 @@ struct Step
         /* The lowest share used of any jobset depending on this
            step. */
         double lowestShareUsed;
+
+        /* The highest local priority of any build depending on this
+           step. */
+        int highestLocalPriority{0};
 
         /* The lowest ID of any build depending on this step. */
         BuildID lowestBuildID{std::numeric_limits<BuildID>::max()};

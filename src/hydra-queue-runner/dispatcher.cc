@@ -118,9 +118,29 @@ system_time State::doDispatch()
                     a.currentJobs > b.currentJobs;
             });
 
-        /* Sort the runnable steps by priority. FIXME: O(n lg n);
-           obviously, it would be better to keep a runnable queue sorted
-           by priority. */
+        /* Sort the runnable steps by priority. Priority is establised
+           as follows (in order of precedence):
+
+           - The global priority of the builds that depend on the
+             step. This allows admins to bump a build to the front of
+             the queue.
+
+           - The lowest used scheduling share of the jobsets depending
+             on the step.
+
+           - The local priority of the build, as set via the build's
+             meta.schedulingPriority field. Note that this is not
+             quite correct: the local priority should only be used to
+             establish priority between builds in the same jobset, but
+             here it's used between steps in different jobsets if they
+             happen to have the same lowest used scheduling share. But
+             that's not every likely.
+
+           - The lowest ID of the builds depending on the step;
+             i.e. older builds take priority over new ones.
+
+           FIXME: O(n lg n); obviously, it would be better to keep a
+           runnable queue sorted by priority. */
         std::vector<Step::ptr> runnableSorted;
         {
             auto runnable_(runnable.lock());
@@ -166,6 +186,7 @@ system_time State::doDispatch()
                 return
                     a_->highestGlobalPriority != b_->highestGlobalPriority ? a_->highestGlobalPriority > b_->highestGlobalPriority :
                     a_->lowestShareUsed != b_->lowestShareUsed ? a_->lowestShareUsed < b_->lowestShareUsed :
+                    a_->highestLocalPriority != b_->highestLocalPriority ? a_->highestLocalPriority > b_->highestLocalPriority :
                     a_->lowestBuildID < b_->lowestBuildID;
             });
 
