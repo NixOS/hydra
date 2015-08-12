@@ -64,7 +64,7 @@ create table Jobsets (
     checkInterval integer not null default 300, -- minimum time in seconds between polls (0 = disable polling)
     schedulingShares integer not null default 100,
     fetchErrorMsg text,
-    check schedulingShares > 0,
+    check (schedulingShares > 0),
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade
 #ifdef SQLITE
