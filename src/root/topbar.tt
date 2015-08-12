@@ -31,6 +31,9 @@
     [% INCLUDE menuItem
        uri = c.uri_for(c.controller('Root').action_for('all'))
        title = "Latest builds" %]
+    [% INCLUDE menuItem
+       uri = c.uri_for(c.controller('Root').action_for('steps'))
+       title = "Latest steps" %]
   [% END %]
 
   [% IF project %]

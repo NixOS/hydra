@@ -1,0 +1,39 @@
+[% WRAPPER layout.tt title="Latest steps" %]
+[% PROCESS common.tt %]
+
+<p>Showing steps [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1)
+* resultsPerPage + steps.size %] of about [% total %] in
+order of descending finish time.</p>
+
+<table class="table table-striped table-condensed clickable-rows">
+  <thead>
+    <tr>
+      <th></th>
+      <th>What</th>
+      <th>Job</th>
+      <th>Build</th>
+      <th>Step</th>
+      <th>When</th>
+      <th>Duration</th>
+      <th>Machine</th>
+    </tr>
+  </thead>
+  <tbody>
+    [% FOREACH step IN steps %]
+    <tr>
+        <td>[% INCLUDE renderBuildStatusIcon buildstatus=step.status size=16 %]</td>
+        <td><tt>[% step.drvpath.match('-(.*).drv').0 %]</tt></td>
+        <td><tt>[% INCLUDE renderFullJobNameOfBuild build=step.build %]</tt></td>
+        <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
+        <td><a class="row-link" href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail-reload') %]">[% step.stepnr %]</a></td>
+        <td>[% INCLUDE renderRelativeDate timestamp=step.stoptime %]</td>
+        <td style="width: 10em">[% INCLUDE renderDuration duration = step.stoptime - step.starttime %] </td>
+        <td><tt>[% INCLUDE renderMachineName machine=step.machine %]</tt></td>
+      </tr>
+    [% END %]
+  </tbody>
+</table>
+
+[% INCLUDE renderPager %]
+
+[% END %]

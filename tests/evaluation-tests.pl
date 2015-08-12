@@ -28,7 +28,7 @@ ok(nrQueuedBuildsForJobset($jobset) == 3 , "Evaluating jobs/basic.nix should res
 for my $build (queuedBuildsForJobset($jobset)) {
     ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
     my $newbuild = $db->resultset('Builds')->find($build->id);
-    my $expected = $build->job->name eq "fails" ? 1 : 0;
+    my $expected = $build->job->name eq "fails" ? 1 : $build->job->name =~ /with_failed/ ? 6 : 0;
     ok($newbuild->finished == 1 && $newbuild->buildstatus == $expected, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus $expected");
 }
 

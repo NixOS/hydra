@@ -13,7 +13,7 @@ sub sendEmail {
     my ($config, $to, $subject, $body, $extraHeaders) = @_;
 
     my $url = getBaseUrl($config);
-    my $sender = $config->{'notification_sender'} // (($ENV{'USER'} // "hydra") .  "@" . $url);
+    my $sender = $config->{'notification_sender'} // (($ENV{'USER'} // "hydra") .  "@" . hostname_long);
 
     my @headers = (
         To => $to,

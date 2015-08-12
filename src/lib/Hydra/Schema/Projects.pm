@@ -106,6 +106,21 @@ __PACKAGE__->set_primary_key("name");
 
 =head1 RELATIONS
 
+=head2 buildmetrics
+
+Type: has_many
+
+Related object: L<Hydra::Schema::BuildMetrics>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildmetrics",
+  "Hydra::Schema::BuildMetrics",
+  { "foreign.project" => "self.name" },
+  undef,
+);
+
 =head2 builds
 
 Type: has_many
@@ -267,8 +282,8 @@ Composing rels: L</projectmembers> -> username
 __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-04-23 23:13:08
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fkd9ruEoVSBGIktmAj4u4g
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:52:20
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:67kWIE0IGmEJTvOIATAKaw
 
 my %hint = (
     columns => [

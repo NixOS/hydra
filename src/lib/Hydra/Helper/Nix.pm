@@ -133,8 +133,9 @@ sub getDrvLogPath {
     my $base = basename $drvPath;
     my $bucketed = substr($base, 0, 2) . "/" . substr($base, 2);
     my $fn = ($ENV{NIX_LOG_DIR} || "/nix/var/log/nix") . "/drvs/";
-    for ($fn . $bucketed . ".bz2", $fn . $bucketed, $fn . $base . ".bz2", $fn . $base) {
-        return $_ if (-f $_);
+    my $fn2 = Hydra::Model::DB::getHydraPath . "/build-logs/";
+    for ($fn2 . $bucketed, $fn2 . $bucketed . ".bz2", $fn . $bucketed . ".bz2", $fn . $bucketed, $fn . $base . ".bz2", $fn . $base) {
+        return $_ if -f $_;
     }
     return undef;
 }
@@ -423,7 +424,7 @@ sub getTotalShares {
 sub cancelBuilds($$) {
     my ($db, $builds) = @_;
     return txn_do($db, sub {
-        $builds = $builds->search({ finished => 0, busy => 0 });
+        $builds = $builds->search({ finished => 0 });
         my $n = $builds->count;
         my $time = time();
         $builds->update(
@@ -448,7 +449,7 @@ sub restartBuilds($$) {
 
         foreach my $build ($builds->all) {
             next if !isValidPath($build->drvpath);
-            push @paths, $build->drvpath;
+            push @paths, $_->path foreach $build->buildoutputs->all;
             push @buildIds, $build->id;
             registerRoot $build->drvpath;
         }
@@ -464,9 +465,10 @@ sub restartBuilds($$) {
         # !!! Should do this in a trigger.
         $db->resultset('JobsetEvals')->search({ build => \@buildIds }, { join => 'buildIds' })->update({ nrsucceeded => undef });
 
-        # Clear Nix's negative failure cache.
+        # Clear the failed paths cache.
         # FIXME: Add this to the API.
-        system("nix-store", "--clear-failed-paths", @paths);
+        # FIXME: clear the dependencies?
+        $db->resultset('FailedPaths')->search({ path => [ @paths ]})->delete;
     });
 
     return scalar(@buildIds);

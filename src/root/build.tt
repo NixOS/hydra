@@ -18,9 +18,10 @@
       <tr><th>Nr</th><th>What</th><th>Duration</th><th>Machine</th><th>Status</th></tr>
     </thead>
     <tbody>
-      [% FOREACH step IN build.buildsteps %]
+      [% FOREACH step IN build.buildsteps.reverse %]
         [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
-          [% has_log = buildStepLogExists(step);
+          [% has_log = seen.${step.drvpath} ? 0 : buildStepLogExists(step);
+             seen.${step.drvpath} = 1;
              log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
           <tr>
             <td>[% step.stepnr %]</td>
@@ -33,27 +34,35 @@
             </td>
             <td>
               [% IF step.busy == 0;
-                   INCLUDE renderDuration duration = step.stoptime - step.starttime;
+                   IF step.stoptime;
+                     INCLUDE renderDuration duration = step.stoptime - step.starttime;
+                   ELSE;
+                     %]<em>n/a</em>[%
+                   END;
                  ELSIF build.finished;
                    INCLUDE renderDuration duration = build.stoptime - step.starttime;
                  ELSE;
                    INCLUDE renderDuration duration = curTime - step.starttime;
                  END %]
             </td>
-            <td>[% step.machine.split('@').1 || step.machine %]</td>
+            <td>[% IF step.busy == 1 || step.status == 0 || step.status == 1 || step.status == 4 || step.status == 7; INCLUDE renderMachineName machine=step.machine; ELSE; "<em>n/a</em>"; END %]</td>
             <td>
               [% IF step.busy == 1 %]
                 <strong>Building</strong>
               [% ELSIF step.status == 0 %]
                 Succeeded
               [% ELSIF step.status == 4 %]
-                <span class="error">Aborted</span>
+                <span class="error"><strong>Aborted</strong>[% IF step.errormsg %]: [% HTML.escape(step.errormsg); END %]</span>
               [% ELSIF step.status == 7 %]
                 <span class="error">Timed out</span>
               [% ELSIF step.status == 8 %]
                 <span class="error">Cached failure</span>
-              [% ELSE %]
+              [% ELSIF step.status == 9 %]
+                <span class="error">Unsupported system type</span>
+              [% ELSIF step.errormsg %]
                 <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
+              [% ELSE %]
+                <span class="error">Failed</span>
               [% END %]
               [%%] [%+ IF has_log; INCLUDE renderLogLinks url=log inRow=1; END %]
               [%+ IF step.propagatedfrom; %](propagated from [% INCLUDE renderBuildIdLink id=step.propagatedfrom.get_column('id') %])[% END %]
@@ -87,6 +96,7 @@
           <li><a href="[% c.uri_for('/build' build.id 'restart') %]">Restart</a></li>
         [% ELSE %]
           <li><a href="[% c.uri_for('/build' build.id 'cancel') %]">Cancel</a></li>
+          <li><a href="[% c.uri_for('/build' build.id 'bump') %]">Bump up</a></li>
         [% END %]
         [% IF available && project.releases %]
           [% INCLUDE menuItem
@@ -97,7 +107,7 @@
       [% END %]
     </ul>
   </li>
-  
+
   <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
   [% IF isAggregate %]<li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>[% END %]
   <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
@@ -178,13 +188,17 @@
                 <td>[% IF cachedBuild; INCLUDE renderFullBuildLink build=cachedBuild; ELSE %]<em>unknown</em>[% END %]</td>
               </tr>
             [% END %]
-            [% IF !isAggregate && build.finished %]
-            <tr>
-              <th>Duration:</th>
-              <td>[% actualBuild = build.iscachedbuild ? cachedBuild : build;
-                     INCLUDE renderDuration duration = actualBuild.stoptime - actualBuild.starttime %];
-                     finished at [% INCLUDE renderDateTime timestamp = actualBuild.stoptime %]</td>
-            </tr>
+            [% IF !isAggregate && build.finished; actualBuild = build.iscachedbuild ? cachedBuild : build %]
+              [% IF actualBuild %]
+                <tr>
+                  <th>Duration:</th>
+                  <td>[% INCLUDE renderDuration duration = actualBuild.stoptime - actualBuild.starttime %]</td>
+                </tr>
+              [% END %]
+              <tr>
+                <th>Finished at:</th>
+                <td>[% INCLUDE renderDateTime timestamp = build.stoptime; %]</td>
+              </tr>
             [% END %]
             [% IF !isAggregate && buildLogExists(build) %]
               <tr>
@@ -267,11 +281,6 @@
 
     [% END %]
 
-    [% IF logtext %]
-      <h2>Log</h2>
-      <pre class="buildlog">[% HTML.escape(logtext) %]</pre>
-    [% END %]
-
   </div>
 
   [% IF isAggregate %]
@@ -290,7 +299,7 @@
 
     <table class="info-table">
       <tr>
-        <th>Queued:</th>
+        <th>Queued at:</th>
         <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
       </tr>
       [% IF build.finished && !build.iscachedbuild %]
@@ -377,6 +386,25 @@
         </tr>
       [% END %]
     </table>
+
+    [% IF build.finished && build.buildmetrics %]
+      <h3>Metrics</h3>
+
+      <table class="table table-small table-striped table-hover clickable-rows">
+        <thead>
+          <tr><th>Name</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+          [% FOREACH metric IN build.buildmetrics %]
+            <tr>
+              <td><tt><a class="row-link" href="[% c.uri_for('/job' project.name jobset.name job.name 'metric' metric.name) %]">[%HTML.escape(metric.name)%]</a></tt></td>
+              <td>[%metric.value%][%metric.unit%]</td>
+            </tr>
+          [% END %]
+        </tbody>
+      </table>
+    [% END %]
+
   </div>
 
   <div id="tabs-buildinputs" class="tab-pane">

@@ -64,6 +64,7 @@ create table Jobsets (
     checkInterval integer not null default 300, -- minimum time in seconds between polls (0 = disable polling)
     schedulingShares integer not null default 100,
     fetchErrorMsg text,
+    check (schedulingShares > 0),
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade
 #ifdef SQLITE
@@ -71,6 +72,14 @@ create table Jobsets (
     foreign key   (project, name, nixExprInput) references JobsetInputs(project, jobset, name)
 #endif
 );
+
+#ifdef POSTGRESQL
+
+create function notifyJobsetSharesChanged() returns trigger as 'begin notify jobset_shares_changed; return null; end;' language plpgsql;
+create trigger JobsetSharesChanged after update on Jobsets for each row
+  when (old.schedulingShares != new.schedulingShares) execute procedure notifyJobsetSharesChanged();
+
+#endif
 
 
 create table JobsetRenames (
@@ -156,14 +165,20 @@ create table Builds (
     nixExprInput  text,
     nixExprPath   text,
 
-    -- Information about scheduled builds.
+    -- Priority within a jobset, set via meta.schedulingPriority.
     priority      integer not null default 0,
 
+    -- Priority among all builds, used by the admin to bump builds to
+    -- the front of the queue via the web interface.
+    globalPriority integer not null default 0,
+
+    -- FIXME: remove (obsolete with the new queue runner)
     busy          integer not null default 0, -- true means someone is building this job now
     locker        text, -- !!! hostname/pid of the process building this job?
 
     logfile       text, -- if busy, the path of the logfile
 
+    -- FIXME: remove startTime?
     startTime     integer, -- if busy/finished, time we started
     stopTime      integer, -- if finished, time we finished
 
@@ -178,6 +193,8 @@ create table Builds (
     --   4 = build cancelled (removed from queue; never built)
     --   5 = build not done because a dependency failed previously (obsolete)
     --   6 = failure with output
+    --   7 = timed out
+    --   9 = unsupported system type
     buildStatus   integer,
 
     errorMsg      text, -- error message in case of a Nix failure
@@ -198,6 +215,29 @@ create table Builds (
 );
 
 
+#ifdef POSTGRESQL
+
+create function notifyBuildsAdded() returns trigger as 'begin notify builds_added; return null; end;' language plpgsql;
+create trigger BuildsAdded after insert on Builds execute procedure notifyBuildsAdded();
+
+create function notifyBuildsDeleted() returns trigger as 'begin notify builds_deleted; return null; end;' language plpgsql;
+create trigger BuildsDeleted after delete on Builds execute procedure notifyBuildsDeleted();
+
+create function notifyBuildRestarted() returns trigger as 'begin notify builds_restarted; return null; end;' language plpgsql;
+create trigger BuildRestarted after update on Builds for each row
+  when (old.finished = 1 and new.finished = 0) execute procedure notifyBuildRestarted();
+
+create function notifyBuildCancelled() returns trigger as 'begin notify builds_cancelled; return null; end;' language plpgsql;
+create trigger BuildCancelled after update on Builds for each row
+  when (old.finished = 0 and new.finished = 1 and new.buildStatus = 4) execute procedure notifyBuildCancelled();
+
+create function notifyBuildBumped() returns trigger as 'begin notify builds_bumped; return null; end;' language plpgsql;
+create trigger BuildBumped after update on Builds for each row
+  when (old.globalPriority != new.globalPriority) execute procedure notifyBuildBumped();
+
+#endif
+
+
 create table BuildOutputs (
     build         integer not null,
     name          text not null,
@@ -207,6 +247,8 @@ create table BuildOutputs (
 );
 
 
+-- TODO: normalize this. Currently there can be multiple BuildSteps
+-- for a single step.
 create table BuildSteps (
     build         integer not null,
     stepnr        integer not null,
@@ -223,6 +265,7 @@ create table BuildSteps (
     --   4 = aborted
     --   7 = timed out
     --   8 = cached failure
+    --   9 = unsupported system type
     status        integer,
 
     errorMsg      text,
@@ -298,6 +341,28 @@ create table BuildProducts (
 );
 
 
+create table BuildMetrics (
+    build         integer not null,
+    name          text not null,
+
+    unit          text,
+    value         double precision not null,
+
+    -- Denormalisation for performance: copy some columns from the
+    -- corresponding build.
+    project       text not null,
+    jobset        text not null,
+    job           text not null,
+    timestamp     integer not null,
+
+    primary key   (build, name),
+    foreign key   (build) references Builds(id) on delete cascade,
+    foreign key   (project) references Projects(name) on update cascade,
+    foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
+    foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade
+);
+
+
 -- Cache for inputs of type "path" (used for testing Hydra), storing
 -- the SHA-256 hash and store path for each source path.  Also stores
 -- the timestamp when we first saw the path have these contents, which
@@ -366,6 +431,7 @@ create table CachedCVSInputs (
 );
 
 
+-- FIXME: remove
 create table SystemTypes (
     system        text primary key not null,
     maxConcurrent integer not null default 2
@@ -507,6 +573,28 @@ create table StarredJobs (
 );
 
 
+-- The output paths that have permanently failed.
+create table FailedPaths (
+    path text primary key not null
+);
+
+#ifdef POSTGRESQL
+
+-- Needed because Postgres doesn't have "ignore duplicate" or upsert
+-- yet.
+create rule IdempotentInsert as on insert to FailedPaths
+  where exists (select 1 from FailedPaths where path = new.path)
+  do instead nothing;
+
+#endif
+
+
+create table SystemStatus (
+    what text primary key not null,
+    status json not null
+);
+
+
 -- Cache of the number of finished builds.
 create table NrBuilds (
     what  text primary key not null,
@@ -541,10 +629,13 @@ create trigger NrBuildsFinished after insert or update or delete on Builds
 
 create index IndexBuildInputsOnBuild on BuildInputs(build);
 create index IndexBuildInputsOnDependency on BuildInputs(dependency);
+create index IndexBuildMetricsOnJobTimestamp on BuildMetrics(project, jobset, job, timestamp desc);
 create index IndexBuildProducstOnBuildAndType on BuildProducts(build, type);
 create index IndexBuildProductsOnBuild on BuildProducts(build);
 create index IndexBuildStepsOnBusy on BuildSteps(busy) where busy = 1;
 create index IndexBuildStepsOnDrvPath on BuildSteps(drvpath);
+create index IndexBuildStepsOnPropagatedFrom on BuildSteps(propagatedFrom) where propagatedFrom is not null;
+create index IndexBuildStepsOnStopTime on BuildSteps(stopTime desc) where startTime is not null and stopTime is not null;
 create index IndexBuildStepOutputsOnPath on BuildStepOutputs(path);
 create index IndexBuildsOnFinished on Builds(finished) where finished = 0;
 create index IndexBuildsOnFinishedBusy on Builds(finished, busy) where finished = 0;
@@ -572,4 +663,4 @@ create index IndexReleaseMembersOnBuild on ReleaseMembers(build);
 create index IndexBuildsOnKeep on Builds(keep) where keep = 1;
 
 -- To get the most recent eval for a jobset.
-create index IndexJobsetEvalsOnJobsetId on JobsetEvals(project, jobset, hasNewBuilds, id desc);
+create index IndexJobsetEvalsOnJobsetId on JobsetEvals(project, jobset, id desc) where hasNewBuilds = 1;

@@ -162,7 +162,7 @@ sub edit : Chained('jobsetChain') PathPart Args(0) {
     requireProjectOwner($c, $c->stash->{project});
 
     $c->stash->{template} = 'edit-jobset.tt';
-    $c->stash->{edit} = 1;
+    $c->stash->{edit} = !defined $c->stash->{params}->{cloneJobset};
     $c->stash->{cloneJobset} = defined $c->stash->{params}->{cloneJobset};
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 }
@@ -220,6 +220,9 @@ sub updateJobset {
     my $enabled = int($c->stash->{params}->{enabled});
     die if $enabled < 0 || $enabled > 2;
 
+    my $shares = int($c->stash->{params}->{schedulingshares} // 1);
+    error($c, "The number of scheduling shares must be positive.") if $shares <= 0;
+
     $jobset->update(
         { name => $jobsetName
         , description => trim($c->stash->{params}->{"description"})
@@ -232,7 +235,7 @@ sub updateJobset {
         , keepnr => int(trim($c->stash->{params}->{keepnr}))
         , checkinterval => int(trim($c->stash->{params}->{checkinterval}))
         , triggertime => $enabled ? $jobset->triggertime // time() : undef
-        , schedulingshares => int($c->stash->{params}->{schedulingshares})
+        , schedulingshares => $shares
         });
 
     $jobset->project->jobsetrenames->search({ from_ => $jobsetName })->delete;

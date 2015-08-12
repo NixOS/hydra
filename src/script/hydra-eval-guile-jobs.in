@@ -104,7 +104,7 @@ symbol/thunk pairs."
 
                 (when gc-roots-dir
                   ;; Register DRV as a GC root so that it's not collected by
-                  ;; the time 'hydra-build' attempts to build it.
+                  ;; the time 'hydra-queue-runner' attempts to build it.
                   (register-gc-root drv gc-roots-dir))
 
                 ;; XXX: Add <arg ...> tags?

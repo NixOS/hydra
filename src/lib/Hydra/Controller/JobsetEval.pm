@@ -180,9 +180,22 @@ sub cancel : Chained('eval') PathPart('cancel') Args(0) {
 sub restart_aborted : Chained('eval') PathPart('restart-aborted') Args(0) {
     my ($self, $c) = @_;
     requireProjectOwner($c, $c->stash->{eval}->project);
-    my $builds = $c->stash->{eval}->builds->search({ finished => 1, buildstatus => { -in => [3, 4] } });
+    my $builds = $c->stash->{eval}->builds->search({ finished => 1, buildstatus => { -in => [3, 4, 9] } });
     my $n = restartBuilds($c->model('DB')->schema, $builds);
     $c->flash->{successMsg} = "$n builds have been restarted.";
+    $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
+}
+
+
+sub bump : Chained('eval') PathPart('bump') Args(0) {
+    my ($self, $c) = @_;
+    requireProjectOwner($c, $c->stash->{eval}->project); # FIXME: require admin?
+    my $builds = $c->stash->{eval}->builds->search({ finished => 0 });
+    my $n = $builds->count();
+    $c->model('DB')->schema->txn_do(sub {
+        $builds->update({globalpriority => time()});
+    });
+    $c->flash->{successMsg} = "$n builds have been bumped to the front of the queue.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
 }
 

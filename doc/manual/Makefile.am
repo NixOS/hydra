@@ -16,7 +16,7 @@ dblatex_opts = \
 
 # Include the manual in the tarball.
 dist_html_DATA = manual.html style.css
-dist_pdf_DATA = manual.pdf
+#dist_pdf_DATA = manual.pdf
 
 # Embed Docbook's callout images in the distribution.
 EXTRA_DIST += images

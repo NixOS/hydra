@@ -13,6 +13,7 @@ let
     { imports = [ ./hydra-module.nix ];
 
       virtualisation.memorySize = 1024;
+      virtualisation.writableStore = true;
 
       services.hydra.enable = true;
       services.hydra.package = hydraPkg;
@@ -32,12 +33,12 @@ in rec {
 
     releaseTools.makeSourceTarball {
       name = "hydra-tarball";
-      src = hydraSrc;
+      src = if lib.inNixShell then null else hydraSrc;
       inherit officialRelease;
       version = builtins.readFile ./version;
 
       buildInputs =
-        [ perl libxslt dblatex tetex nukeReferences pkgconfig nixUnstable git openssl ];
+        [ perl libxslt nukeReferences pkgconfig nix git openssl ];
 
       versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
 
@@ -47,6 +48,7 @@ in rec {
 
         addToSearchPath PATH $(pwd)/src/script
         addToSearchPath PATH $(pwd)/src/hydra-eval-jobs
+        addToSearchPath PATH $(pwd)/src/hydra-queue-runner
         addToSearchPath PERL5LIB $(pwd)/src/lib
       '';
 
@@ -62,11 +64,8 @@ in rec {
 
       postDist = ''
         make -C doc/manual install prefix="$out"
-        nuke-refs "$out/share/doc/hydra/manual.pdf"
 
         echo "doc manual $out/share/doc/hydra manual.html" >> \
-          "$out/nix-support/hydra-build-products"
-        echo "doc-pdf manual $out/share/doc/hydra/manual.pdf" >> \
           "$out/nix-support/hydra-build-products"
       '';
     };
@@ -79,6 +78,18 @@ in rec {
     let
 
       nix = nixUnstable;
+
+      NetStatsd = buildPerlPackage {
+        name = "Net-Statsd-0.11";
+        src = fetchurl {
+          url = mirror://cpan/authors/id/C/CO/COSIMO/Net-Statsd-0.11.tar.gz;
+          sha256 = "0f56c95846c7e65e6d32cec13ab9df65716429141f106d2dc587f1de1e09e163";
+        };
+        meta = {
+          description = "Sends statistics to the stats daemon over UDP";
+          license = "perl";
+        };
+      };
 
       perlDeps = buildEnv {
         name = "hydra-perl-deps";
@@ -115,6 +126,7 @@ in rec {
             LWP
             LWPProtocolHttps
             NetAmazonS3
+            NetStatsd
             PadWalker
             Readonly
             SQLSplitStatement
@@ -136,15 +148,16 @@ in rec {
       src = tarball;
 
       buildInputs =
-        [ makeWrapper libtool unzip nukeReferences pkgconfig sqlite
+        [ makeWrapper libtool unzip nukeReferences pkgconfig sqlite libpqxx
           gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2
           guile # optional, for Guile + Guix support
           perlDeps perl
+          postgresql92 # for running the tests
         ];
 
       hydraPath = lib.makeSearchPath "bin" (
         [ libxslt sqlite subversion openssh nix coreutils findutils
-          gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused graphviz bazaar
+          gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
         ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
       preCheck = ''
@@ -154,7 +167,6 @@ in rec {
 
       postInstall = ''
         mkdir -p $out/nix-support
-        nuke-refs $out/share/doc/hydra/manual/manual.pdf
 
         for i in $out/bin/*; do
             wrapProgram $i \
@@ -205,9 +217,8 @@ in rec {
               , "chown -R hydra /run/jobset /tmp/nix"
               );
 
-          # Start the web interface with some weird settings.
-          $machine->succeed("systemctl stop hydra-server hydra-evaluator hydra-queue-runner");
-          $machine->mustSucceed("su - hydra -c 'NIX_STORE_DIR=/tmp/nix/store NIX_LOG_DIR=/tmp/nix/var/log/nix NIX_STATE_DIR=/tmp/nix/var/nix NIX_REMOTE= DBIC_TRACE=1 hydra-server -d' >&2 &");
+          $machine->succeed("systemctl stop hydra-evaluator hydra-queue-runner");
+          $machine->waitForJob("hydra-server");
           $machine->waitForOpenPort("3000");
 
           # Run the API tests.

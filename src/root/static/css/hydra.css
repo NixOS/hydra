@@ -29,6 +29,10 @@ table.productList {
     border-spacing: 0em 1em;
 }
 
+table.table-small {
+    width: auto !important;
+}
+
 span:target > span.dep-tree-line {
     font-style: italic;
     font-weight: bold;

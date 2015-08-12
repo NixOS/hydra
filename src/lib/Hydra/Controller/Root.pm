@@ -30,7 +30,7 @@ sub begin :Private {
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
-    $c->stash->{logo} = ($c->config->{hydra_logo} // $ENV{"HYDRA_LOGO"}) ? "/logo" : "";
+    $c->stash->{logo} = defined $c->config->{hydra_logo} ? "/logo" : "";
     $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"};
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
@@ -88,7 +88,7 @@ sub queue_GET {
     $c->stash->{flashMsg} //= $c->flash->{buildMsg};
     $self->status_ok(
         $c,
-        entity => [$c->model('DB::Builds')->search({finished => 0}, { order_by => ["id"]})]
+        entity => [$c->model('DB::Builds')->search({finished => 0}, { order_by => ["globalpriority desc", "id"]})]
     );
 }
 
@@ -110,14 +110,6 @@ sub machines :Local Args(0) {
 
     # Add entry for localhost.
     ${$machines}{''} //= {};
-
-    # Get the last finished build step for each machine.
-    foreach my $m (keys %{$machines}) {
-        my $idle = $c->model('DB::BuildSteps')->find(
-            { machine => "$m", stoptime => { '!=', undef } },
-            { order_by => 'stoptime desc', rows => 1 });
-        ${$machines}{$m}{'idle'} = $idle ? $idle->stoptime : 0;
-    }
 
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
@@ -270,7 +262,7 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
 
 sub logo :Local {
     my ($self, $c) = @_;
-    my $path = $c->config->{hydra_logo} // $ENV{"HYDRA_LOGO"} // die("Logo not set!");
+    my $path = $c->config->{hydra_logo} // die("Logo not set!");
     $c->serve_static_file($path);
 }
 
@@ -290,6 +282,30 @@ sub evals :Local Args(0) {
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
     $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
+}
+
+
+sub steps :Local Args(0) {
+    my ($self, $c) = @_;
+
+    $c->stash->{template} = 'steps.tt';
+
+    my $page = int($c->req->param('page') || "1") || 1;
+
+    my $resultsPerPage = 20;
+
+    $c->stash->{page} = $page;
+    $c->stash->{resultsPerPage} = $resultsPerPage;
+    $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
+        { starttime => { '!=', undef },
+          stoptime => { '!=', undef }
+        },
+        { order_by => [ "stoptime desc" ],
+          rows => $resultsPerPage,
+          offset => ($page - 1) * $resultsPerPage
+        }) ];
+
+    $c->stash->{total} = approxTableSize($c, "IndexBuildStepsOnStopTime");
 }
 
 
@@ -340,8 +356,8 @@ sub search :Local Args(0) {
     $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
         { "drvpath" => trim($query) },
         { order_by => ["id desc"] } ) ];
-
 }
+
 
 sub log :Local :Args(1) {
     my ($self, $c, $path) = @_;
@@ -352,8 +368,8 @@ sub log :Local :Args(1) {
     my $logPath = findLog($c, $path, @outpaths);
     notFound($c, "The build log of $path is not available.") unless defined $logPath;
 
-    $c->stash->{'plain'} = { data => (scalar logContents($logPath)) || " " };
-    $c->forward('Hydra::View::Plain');
+    $c->stash->{logPath} = $logPath;
+    $c->forward('Hydra::View::NixLog');
 }
 
 

@@ -67,10 +67,6 @@ sub build_GET {
     $c->stash->{available} = all { isValidPath($_->path) } $build->buildoutputs->all;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
 
-    if (!$build->finished && $build->busy) {
-        $c->stash->{logtext} = decode("utf-8", read_file($build->logfile, err_mode => 'quiet') // "");
-    }
-
     if ($build->finished && $build->iscachedbuild) {
         my $path = ($build->buildoutputs)[0]->path or die;
         my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path);
@@ -123,26 +119,32 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
 
     $c->stash->{step} = $step;
 
-    showLog($c, $mode, $step->drvpath, map { $_->path } $step->buildstepoutputs->all);
+    showLog($c, $mode, $step->busy == 0, $step->drvpath,
+            map { $_->path } $step->buildstepoutputs->all);
 }
 
 
 sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
-    showLog($c, $mode, $c->stash->{build}->drvpath, map { $_->path } $c->stash->{build}->buildoutputs->all);
+    showLog($c, $mode, $c->stash->{build}->finished,
+            $c->stash->{build}->drvpath,
+            map { $_->path } $c->stash->{build}->buildoutputs->all);
 }
 
 
 sub showLog {
-    my ($c, $mode, $drvPath, @outPaths) = @_;
+    my ($c, $mode, $finished, $drvPath, @outPaths) = @_;
 
     my $logPath = findLog($c, $drvPath, @outPaths);
 
     notFound($c, "The build log of derivation ‘$drvPath’ is not available.") unless defined $logPath;
 
-    my $size = stat($logPath)->size;
-    error($c, "This build log is too big to display ($size bytes).")
-        if $size >= 64 * 1024 * 1024;
+    # Don't send logs that we can't stream.
+    my $size = stat($logPath)->size; # FIXME: not so meaningful for compressed logs
+    error($c, "This build log is too big to display ($size bytes).") unless
+        $mode eq "raw"
+        || (($mode eq "tail" || $mode eq "tail-reload") && $logPath !~ /\.bz2$/)
+        || $size < 64 * 1024 * 1024;
 
     if (!$mode) {
         # !!! quick hack
@@ -154,12 +156,10 @@ sub showLog {
     }
 
     elsif ($mode eq "raw") {
-        if ($logPath !~ /.bz2$/) {
-            $c->serve_static_file($logPath);
-        } else {
-            $c->stash->{'plain'} = { data => (scalar logContents($logPath)) || " " };
-            $c->forward('Hydra::View::Plain');
-        }
+        $c->stash->{logPath} = $logPath;
+        $c->stash->{finished} = $finished;
+        $c->forward('Hydra::View::NixLog');
+        return;
     }
 
     elsif ($mode eq "tail-reload") {
@@ -201,12 +201,18 @@ sub checkPath {
 
 
 sub download : Chained('buildChain') PathPart {
-    my ($self, $c, $productnr, @path) = @_;
+    my ($self, $c, $productRef, @path) = @_;
 
-    $productnr = 1 if !defined $productnr;
+    $productRef = 1 if !defined $productRef;
 
-    my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
-    notFound($c, "Build doesn't have a product #$productnr.") if !defined $product;
+    my $product;
+    if ($productRef =~ /^[0-9]+$/) {
+        $product = $c->stash->{build}->buildproducts->find({productnr => $productRef});
+    } else {
+        $product = $c->stash->{build}->buildproducts->find({name => $productRef});
+        @path = ($productRef, @path);
+    }
+    notFound($c, "Build doesn't have a product $productRef.") if !defined $product;
 
     notFound($c, "Build product " . $product->path . " has disappeared.") unless -e $product->path;
 
@@ -468,6 +474,23 @@ sub keep : Chained('buildChain') PathPart Args(1) {
 
     $c->flash->{successMsg} =
         $keep ? "Build will be kept." : "Build will not be kept.";
+
+    $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
+}
+
+
+sub bump : Chained('buildChain') PathPart('bump') {
+    my ($self, $c, $x) = @_;
+
+    my $build = $c->stash->{build};
+
+    requireProjectOwner($c, $build->project); # FIXME: require admin?
+
+    $c->model('DB')->schema->txn_do(sub {
+        $build->update({globalpriority => time()});
+    });
+
+    $c->flash->{successMsg} = "Build has been bumped to the front of the queue.";
 
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }

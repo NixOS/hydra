@@ -13,7 +13,7 @@
     </tr>
   </thead>
   [% FOREACH m IN machines %]
-    [% name = m.key ? m.key.match('@(.*)').0 : "localhost" %]
+    [% name = m.key ? stripSSHUser(m.key) : "localhost" %]
     <thead>
       <tr>
         <th colspan="6">
@@ -27,7 +27,7 @@
     <tbody>
       [% idle = 1 %]
       [% FOREACH step IN steps %]
-        [% name2 = step.machine ? step.machine.match('@(.*)').0 : "localhost" %]
+        [% name2 = step.machine ? stripSSHUser(step.machine) : "localhost" %]
         [% IF name == name2 %]
           [% idle = 0 %]
           <tr>
@@ -41,11 +41,7 @@
         [% END %]
       [% END %]
       [% IF idle == 1 %]
-        [% IF m.value.idle %] 
-          <tr><td colspan="5">Idle for [% INCLUDE renderDuration duration = curTime - m.value.idle %]</td></tr>
-        [% ELSE %]
-          <tr><td colspan="5">Never used</td></tr>
-        [% END %]
+        <tr><td colspan="6">Idle</td></tr>
       [% END %]
     </tbody>
   [% END %]

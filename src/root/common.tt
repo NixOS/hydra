@@ -198,12 +198,14 @@ BLOCK renderBuildStatusIcon;
       <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
     [% ELSIF buildstatus == 2 || buildstatus == 5 %]
       <img src="[% c.uri_for("/static/images/dependency_${size}.png") %]" alt="Dependency failed" class="build-status" />
-    [% ELSIF buildstatus == 3 %]
+    [% ELSIF buildstatus == 3 || buildstatus == 9 %]
       <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Aborted" class="build-status" />
     [% ELSIF buildstatus == 4 %]
       <img src="[% c.uri_for("/static/images/forbidden_${size}.png") %]" alt="Cancelled" class="build-status" />
     [% ELSIF buildstatus == 6 %]
-      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed (with result)" class="build-status" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed with output" class="build-status" />
+    [% ELSIF buildstatus == 7 %]
+      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Timed out" class="build-status" />
     [% ELSE %]
       <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
     [% END;
@@ -228,7 +230,11 @@ BLOCK renderStatus;
     [% ELSIF buildstatus == 4 %]
       <span class="error">Cancelled by user</span>
     [% ELSIF buildstatus == 6 %]
-      <span class="error">Build failed (with result)</span>
+      <span class="error">Build failed with output</span>
+    [% ELSIF buildstatus == 7 %]
+      <span class="error">Timed out</span>
+    [% ELSIF buildstatus == 9 %]
+      <span class="error">Unsupported system type</span>
     [% ELSE %]
       <span class="error">Aborted</span>
       (Hydra failure; see <a href="#nix-error">below</a>)
@@ -566,12 +572,14 @@ BLOCK createChart %]
         success: function(data) {
           var ids = [];
           var d = [];
-          var max = 0;
+          var maxTime = 0;
+          var minTime = Number.MAX_SAFE_INTEGER;
           data.forEach(function(x) {
             var t = x.timestamp * 1000;
             ids[t] = x.id;
             d.push([t, x.value [% IF yaxis == "mib" %] / (1024.0 * 1024.0)[% END %]]);
-            max = Math.max(t, max);
+            maxTime = Math.max(t, maxTime);
+            minTime = Math.min(t, minTime);
           });
 
           var options = {
@@ -634,13 +642,18 @@ BLOCK createChart %]
           });
 
           // Zoom in to the last two months by default.
-          plot.setSelection({ xaxis: { from: max - 60 * 24 * 60 * 60 * 1000, to: max } });
+          plot.setSelection({ xaxis: { from: Math.max(minTime, maxTime - 60 * 24 * 60 * 60 * 1000), to: maxTime } });
         }
       });
     });
   </script>
 
 [% END;
+
+
+BLOCK renderMachineName;
+machine ? stripSSHUser(machine).match('^(([^\.]|\.[0-9])*)').0 : "localhost";
+END;
 
 
 %]

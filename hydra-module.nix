@@ -3,6 +3,7 @@
 with lib;
 
 let
+
   cfg = config.services.hydra;
 
   baseDir = "/var/lib/hydra";
@@ -11,19 +12,27 @@ let
 
   hydraEnv =
     { HYDRA_DBI = cfg.dbi;
-      HYDRA_CONFIG = "${baseDir}/data/hydra.conf";
-      HYDRA_DATA = "${baseDir}/data";
+      HYDRA_CONFIG = "${baseDir}/hydra.conf";
+      HYDRA_DATA = "${baseDir}";
     };
 
   env =
     { NIX_REMOTE = "daemon";
-      OPENSSL_X509_CERT_FILE = "/etc/ssl/certs/ca-bundle.crt";
-      GIT_SSL_CAINFO = "/etc/ssl/certs/ca-bundle.crt";
+      SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt";
+      OPENSSL_X509_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt"; # FIXME: remove on NixOS >= 15.07
+      PGPASSFILE = "${baseDir}/pgpass";
     } // hydraEnv // cfg.extraEnv;
 
   serverEnv = env //
     { HYDRA_TRACKER = cfg.tracker;
+      COLUMNS = "80";
+      PGPASSFILE = "${baseDir}/pgpass-www"; # grrr
     } // (optionalAttrs cfg.debugServer { DBIC_TRACE = 1; });
+
+  localDB = "dbi:Pg:dbname=hydra;user=hydra;";
+
+  haveLocalDB = cfg.dbi == localDB;
+
 in
 
 {
@@ -41,8 +50,8 @@ in
       };
 
       dbi = mkOption {
-        type = types.string;
-        default = "dbi:Pg:dbname=hydra;user=hydra;";
+        type = types.str;
+        default = localDB;
         example = "dbi:Pg:dbname=hydra;host=postgres.example.org;user=foo;";
         description = ''
           The DBI string for Hydra database connection.
@@ -82,7 +91,7 @@ in
 
       minimumDiskFree = mkOption {
         type = types.int;
-        default = 5;
+        default = 0;
         description = ''
           Threshold of minimum disk space (GiB) to determine if queue runner should run or not.
         '';
@@ -90,7 +99,7 @@ in
 
       minimumDiskFreeEvaluator = mkOption {
         type = types.int;
-        default = 2;
+        default = 0;
         description = ''
           Threshold of minimum disk space (GiB) to determine if evaluator should run or not.
         '';
@@ -115,25 +124,25 @@ in
         type = types.nullOr types.path;
         default = null;
         description = ''
-          File name of an alternate logo to be displayed on the web pages.
+          Path to a file containing the logo of your Hydra instance.
         '';
       };
 
       debugServer = mkOption {
         type = types.bool;
         default = false;
-        description = "Whether to run the server in debug mode";
+        description = "Whether to run the server in debug mode.";
       };
 
       extraConfig = mkOption {
         type = types.lines;
-        description = "Extra lines for the hydra config";
+        description = "Extra lines for the Hydra configuration.";
       };
 
       extraEnv = mkOption {
         type = types.attrsOf types.str;
         default = {};
-        description = "Extra environment variables for Hydra";
+        description = "Extra environment variables for Hydra.";
       };
     };
 
@@ -143,6 +152,33 @@ in
   ###### implementation
 
   config = mkIf cfg.enable {
+
+    users.extraGroups.hydra = { };
+
+    users.extraUsers.hydra =
+      { description = "Hydra";
+        group = "hydra";
+        createHome = true;
+        home = baseDir;
+        useDefaultShell = true;
+      };
+
+    users.extraUsers.hydra-queue-runner =
+      { description = "Hydra queue runner";
+        group = "hydra";
+        useDefaultShell = true;
+        home = "${baseDir}/queue-runner"; # really only to keep SSH happy
+      };
+
+    users.extraUsers.hydra-www =
+      { description = "Hydra web server";
+        group = "hydra";
+        useDefaultShell = true;
+      };
+
+    nix.trustedUsers = [ "hydra-queue-runner" ];
+
+    services.hydra.package = mkDefault ((import ./release.nix {}).build.x86_64-linux);
 
     services.hydra.extraConfig =
       ''
@@ -159,13 +195,6 @@ in
 
     environment.variables = hydraEnv;
 
-    users.extraUsers.hydra =
-      { description = "Hydra";
-        home = baseDir;
-        createHome = true;
-        useDefaultShell = true;
-      };
-
     nix.extraOptions = ''
       gc-keep-outputs = true
       gc-keep-derivations = true
@@ -173,25 +202,28 @@ in
       # The default (`true') slows Nix down a lot since the build farm
       # has so many GC roots.
       gc-check-reachability = false
-
-      # Hydra needs caching of build failures.
-      build-cache-failure = true
-
-      build-poll-interval = 10
-
-      # Online log compression makes it impossible to get the tail of
-      # builds that are in progress.
-      build-compress-log = false
     '';
 
-    systemd.services."hydra-init" =
+    systemd.services.hydra-init =
       { wantedBy = [ "multi-user.target" ];
+        requires = optional haveLocalDB "postgresql.service";
+        after = optional haveLocalDB "postgresql.service";
         environment = env;
         preStart = ''
-          mkdir -m 0700 -p ${baseDir}/data
-          chown hydra ${baseDir}/data
-          ln -sf ${hydraConf} ${baseDir}/data/hydra.conf
-          ${optionalString (cfg.dbi == "dbi:Pg:dbname=hydra;user=hydra;") ''
+          mkdir -p ${baseDir}
+          chown hydra.hydra ${baseDir}
+          chmod 0750 ${baseDir}
+
+          ln -sf ${hydraConf} ${baseDir}/hydra.conf
+
+          mkdir -m 0700 -p ${baseDir}/www
+          chown hydra-www.hydra ${baseDir}/www
+
+          mkdir -m 0700 -p ${baseDir}/queue-runner
+          mkdir -m 0750 -p ${baseDir}/build-logs
+          chown hydra-queue-runner.hydra ${baseDir}/queue-runner ${baseDir}/build-logs
+
+          ${optionalString haveLocalDB ''
             if ! [ -e ${baseDir}/.db-created ]; then
               ${config.services.postgresql.package}/bin/createuser hydra
               ${config.services.postgresql.package}/bin/createdb -O hydra hydra
@@ -204,41 +236,43 @@ in
         serviceConfig.User = "hydra";
         serviceConfig.Type = "oneshot";
         serviceConfig.RemainAfterExit = true;
-      } // (optionalAttrs (cfg.dbi == "dbi:Pg:dbname=hydra;user=hydra;") {
-        requires = [ "postgresql.service" ];
-        after = [ "postgresql.service" ];
-      });
+      };
 
-    systemd.services."hydra-server" =
+    systemd.services.hydra-server =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
-        environment = serverEnv // { COLUMNS = "80"; };
+        environment = serverEnv;
         serviceConfig =
           { ExecStart =
               "@${cfg.package}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' "
               + "-p ${toString cfg.port} --max_spare_servers 5 --max_servers 25 "
               + "--max_requests 100 ${optionalString cfg.debugServer "-d"}";
-            User = "hydra";
+            User = "hydra-www";
+            PermissionsStartOnly = true;
             Restart = "always";
           };
       };
 
-    systemd.services."hydra-queue-runner" =
+    systemd.services.hydra-queue-runner =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
         path = [ pkgs.nettools ];
-        environment = env;
+        environment = env // {
+          PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
+          IN_SYSTEMD = "1"; # to get log severity levels
+        };
         serviceConfig =
           { ExecStartPre = "${cfg.package}/bin/hydra-queue-runner --unlock";
-            ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner";
-            User = "hydra";
+            ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner -v";
+            ExecStopPost = "${cfg.package}/bin/hydra-queue-runner --unlock";
+            User = "hydra-queue-runner";
             Restart = "always";
           };
       };
 
-    systemd.services."hydra-evaluator" =
+    systemd.services.hydra-evaluator =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
@@ -251,7 +285,7 @@ in
           };
       };
 
-    systemd.services."hydra-update-gc-roots" =
+    systemd.services.hydra-update-gc-roots =
       { requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
         environment = env;
@@ -259,25 +293,51 @@ in
           { ExecStart = "@${cfg.package}/bin/hydra-update-gc-roots hydra-update-gc-roots";
             User = "hydra";
           };
-        startAt = "02:15";
+        startAt = "2,14:15";
       };
 
-    services.cron.systemCronJobs =
-      let
-        # If there is less than ... GiB of free disk space, stop the queue
-        # to prevent builds from failing or aborting.
-        checkSpace = pkgs.writeScript "hydra-check-space"
+    systemd.services.hydra-send-stats =
+      { wantedBy = [ "multi-user.target" ];
+        after = [ "hydra-init.service" ];
+        environment = env;
+        serviceConfig =
+          { ExecStart = "@${cfg.package}/bin/hydra-send-stats hydra-send-stats";
+            User = "hydra";
+          };
+      };
+
+    # If there is less than a certain amount of free disk space, stop
+    # the queue/evaluator to prevent builds from failing or aborting.
+    systemd.services.hydra-check-space =
+      { script =
           ''
-            #! ${pkgs.stdenv.shell}
             if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFree} * 1024**3)) ]; then
+                echo "stopping Hydra queue runner due to lack of free space..."
                 systemctl stop hydra-queue-runner
             fi
             if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFreeEvaluator} * 1024**3)) ]; then
+                echo "stopping Hydra evaluator due to lack of free space..."
                 systemctl stop hydra-evaluator
             fi
           '';
-      in
-        [ "*/5 * * * * root  ${checkSpace} &> ${baseDir}/data/checkspace.log"
-        ];
+        startAt = "*:0/5";
+      };
+
+    services.postgresql.enable = mkIf haveLocalDB true;
+
+    services.postgresql.identMap = optionalString haveLocalDB
+      ''
+        hydra-users hydra hydra
+        hydra-users hydra-queue-runner hydra
+        hydra-users hydra-www hydra
+        hydra-users root hydra
+      '';
+
+    services.postgresql.authentication = optionalString haveLocalDB
+      ''
+        local hydra all ident map=hydra-users
+      '';
+
   };
+
 }
