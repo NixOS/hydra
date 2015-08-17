@@ -484,8 +484,11 @@ void State::dumpStatus(Connection & conn, bool log)
                 JSONObject nested2(out);
                 nested2.attr("runnable", i.second.runnable);
                 nested2.attr("running", i.second.running);
+                if (i.second.runnable > 0)
+                    nested2.attr("waitTime", i.second.waitTime.count() +
+                        i.second.runnable * (time(0) - lastDispatcherCheck));
                 if (i.second.running == 0)
-                    nested2.attr("lastActive", i.second.lastActive);
+                    nested2.attr("lastActive", std::chrono::system_clock::to_time_t(i.second.lastActive));
             }
         }
     }

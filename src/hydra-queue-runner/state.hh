@@ -175,6 +175,9 @@ struct Step
 
         /* The lowest ID of any build depending on this step. */
         BuildID lowestBuildID{std::numeric_limits<BuildID>::max()};
+
+        /* The time at which this step became runnable. */
+        system_time runnableSince;
     };
 
     std::atomic_bool finished{false}; // debugging
@@ -324,7 +327,8 @@ private:
     struct MachineType
     {
         unsigned int runnable{0}, running{0};
-        time_t lastActive{0};
+        system_time lastActive;
+        std::chrono::seconds waitTime; // time runnable steps have been waiting
     };
 
     Sync<std::map<std::string, MachineType>> machineTypes;
@@ -338,6 +342,8 @@ private:
         MachineReservation(State & state, Step::ptr step, Machine::ptr machine);
         ~MachineReservation();
     };
+
+    std::atomic<time_t> lastDispatcherCheck{0};
 
 public:
     State();

@@ -16,6 +16,7 @@ void State::makeRunnable(Step::ptr step)
         assert(step_->created);
         assert(!step->finished);
         assert(step_->deps.empty());
+        step_->runnableSince = std::chrono::system_clock::now();
     }
 
     {
@@ -143,7 +144,12 @@ system_time State::doDispatch()
            FIXME: O(n lg n); obviously, it would be better to keep a
            runnable queue sorted by priority. */
         std::vector<Step::ptr> runnableSorted;
-        std::unordered_map<std::string, unsigned int> runnablePerType;
+        struct RunnablePerType
+        {
+            unsigned int count{0};
+            std::chrono::seconds waitTime{0};
+        };
+        std::unordered_map<std::string, RunnablePerType> runnablePerType;
         {
             auto runnable_(runnable.lock());
             runnableSorted.reserve(runnable_->size());
@@ -158,12 +164,14 @@ system_time State::doDispatch()
 
                 ++i;
 
-                runnablePerType[step->systemType]++;
+                auto & r = runnablePerType[step->systemType];
+                r.count++;
 
                 /* Skip previously failed steps that aren't ready
                    to be retried. */
                 {
                     auto step_(step->state.lock());
+                    r.waitTime += std::chrono::duration_cast<std::chrono::seconds>(now - step_->runnableSince);
                     if (step_->tries > 0 && step_->after > now) {
                         if (step_->after < sleepUntil)
                             sleepUntil = step_->after;
@@ -219,8 +227,9 @@ system_time State::doDispatch()
                             break;
                         } else ++i;
                     assert(removed);
-                    assert(runnablePerType[step->systemType]);
-                    runnablePerType[step->systemType]--;
+                    auto & r = runnablePerType[step->systemType];
+                    assert(r.count);
+                    r.count--;
                 }
 
                 /* Make a slot reservation and start a thread to
@@ -243,9 +252,14 @@ system_time State::doDispatch()
             for (auto & i : *machineTypes_)
                 i.second.runnable = 0;
 
-            for (auto & i : runnablePerType)
-                (*machineTypes_)[i.first].runnable = i.second;
+            for (auto & i : runnablePerType) {
+                auto & j = (*machineTypes_)[i.first];
+                j.runnable = i.second.count;
+                j.waitTime = i.second.waitTime;
+            }
         }
+
+        lastDispatcherCheck = std::chrono::system_clock::to_time_t(now);
 
     } while (keepGoing);
 
@@ -309,6 +323,6 @@ State::MachineReservation::~MachineReservation()
         assert(machineType.running);
         machineType.running--;
         if (machineType.running == 0)
-            machineType.lastActive = time(0);
+            machineType.lastActive = std::chrono::system_clock::now();
     }
 }
