@@ -135,6 +135,7 @@ struct Step
     nix::Derivation drv;
     std::set<std::string> requiredSystemFeatures;
     bool preferLocalBuild;
+    std::string systemType; // concatenation of drv.platform and requiredSystemFeatures
 
     struct State
     {

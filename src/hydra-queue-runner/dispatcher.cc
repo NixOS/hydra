@@ -158,7 +158,7 @@ system_time State::doDispatch()
 
                 ++i;
 
-                runnablePerType[step->drv.platform]++;
+                runnablePerType[step->systemType]++;
 
                 /* Skip previously failed steps that aren't ready
                    to be retried. */
@@ -219,8 +219,8 @@ system_time State::doDispatch()
                             break;
                         } else ++i;
                     assert(removed);
-                    assert(runnablePerType[step->drv.platform]);
-                    runnablePerType[step->drv.platform]--;
+                    assert(runnablePerType[step->systemType]);
+                    runnablePerType[step->systemType]--;
                 }
 
                 /* Make a slot reservation and start a thread to
@@ -291,7 +291,7 @@ State::MachineReservation::MachineReservation(State & state, Step::ptr step, Mac
 
     {
         auto machineTypes_(state.machineTypes.lock());
-        (*machineTypes_)[step->drv.platform].running++;
+        (*machineTypes_)[step->systemType].running++;
     }
 }
 
@@ -305,7 +305,7 @@ State::MachineReservation::~MachineReservation()
 
     {
         auto machineTypes_(state.machineTypes.lock());
-        auto & machineType = (*machineTypes_)[step->drv.platform];
+        auto & machineType = (*machineTypes_)[step->systemType];
         assert(machineType.running);
         machineType.running--;
         if (machineType.running == 0)
