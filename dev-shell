@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /usr/bin/env bash
 s=$(type -p nix-shell)
 exec $s release.nix -A build.x86_64-linux --exclude tarball --command "
     export NIX_REMOTE=daemon
