@@ -96,6 +96,8 @@ void State::loadMachinesFile()
 
     auto machines_(machines.lock());
     *machines_ = newMachines;
+
+    wakeDispatcher();
 }
 
 
