@@ -1,4 +1,4 @@
-#! /var/run/current-system/sw/bin/perl
+#! /usr/bin/env perl
 
 use strict;
 use Hydra::Schema;
