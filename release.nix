@@ -38,7 +38,7 @@ in rec {
       version = builtins.readFile ./version;
 
       buildInputs =
-        [ perl libxslt nukeReferences pkgconfig nix git openssl ];
+        [ perl libxslt nukeReferences pkgconfig nixUnstable git openssl ];
 
       versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
 
