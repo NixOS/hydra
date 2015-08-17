@@ -161,46 +161,20 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             return;
         }
 
-        /* If any step has an unsupported system type or has a
-           previously failed output path, then fail the build right
-           away. */
+        /* If any step has a previously failed output path, then fail
+           the build right away. */
         bool badStep = false;
-        for (auto & r : newSteps) {
-            BuildStatus buildStatus = bsSuccess;
-            BuildStepStatus buildStepStatus = bssFailed;
-
+        for (auto & r : newSteps)
             if (checkCachedFailure(r, conn)) {
                 printMsg(lvlError, format("marking build %1% as cached failure") % build->id);
-                buildStatus = step == r ? bsFailed : bsDepFailed;
-                buildStepStatus = bssFailed;
-            }
-
-            if (buildStatus == bsSuccess) {
-                bool supported = false;
-                {
-                    auto machines_(machines.lock()); // FIXME: use shared_mutex
-                    for (auto & m : *machines_)
-                        if (m.second->supportsStep(r)) { supported = true; break; }
-                }
-
-                if (!supported) {
-                    printMsg(lvlError, format("aborting unsupported build %1%") % build->id);
-                    buildStatus = bsUnsupported;
-                    buildStepStatus = bssUnsupported;
-                }
-            }
-
-            if (buildStatus != bsSuccess) {
-                time_t now = time(0);
                 if (!build->finishedInDB) {
                     pqxx::work txn(conn);
-                    createBuildStep(txn, 0, build, r, "", buildStepStatus);
+                    createBuildStep(txn, 0, build, r, "", bssFailed);
                     txn.parameterized
-                        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = $4 where id = $1 and finished = 0")
+                        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = 1 where id = $1 and finished = 0")
                         (build->id)
-                        ((int) buildStatus)
-                        (now)
-                        (buildStatus != bsUnsupported ? 1 : 0).exec();
+                        ((int) (step == r ? bsFailed : bsDepFailed))
+                        (time(0)).exec();
                     txn.commit();
                     build->finishedInDB = true;
                     nrBuildsDone++;
@@ -208,7 +182,6 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
                 badStep = true;
                 break;
             }
-        }
 
         if (badStep) return;
 
