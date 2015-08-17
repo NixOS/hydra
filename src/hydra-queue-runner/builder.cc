@@ -6,18 +6,20 @@
 using namespace nix;
 
 
-void State::builder(Step::ptr step, Machine::ptr machine, std::shared_ptr<MaintainCount> reservation)
+void State::builder(MachineReservation::ptr reservation)
 {
     bool retry = true;
 
     MaintainCount mc(nrActiveSteps);
 
+    auto step = reservation->step;
+
     try {
         auto store = openStore(); // FIXME: pool
-        retry = doBuildStep(store, step, machine);
+        retry = doBuildStep(store, step, reservation->machine);
     } catch (std::exception & e) {
         printMsg(lvlError, format("uncaught exception building ‘%1%’ on ‘%2%’: %3%")
-            % step->drvPath % machine->sshName % e.what());
+            % step->drvPath % reservation->machine->sshName % e.what());
     }
 
     /* Release the machine and wake up the dispatcher. */

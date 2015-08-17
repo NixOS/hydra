@@ -208,6 +208,7 @@ struct Machine
         counter nrStepsDone{0};
         counter totalStepTime{0}; // total time for steps, including closure copying
         counter totalStepBuildTime{0}; // total build time for steps
+        std::atomic<time_t> idleSince{0};
 
         struct ConnectInfo
         {
@@ -318,6 +319,25 @@ private:
     /* Specific build to do for --build-one (testing only). */
     BuildID buildOne;
 
+    /* Statistics per machine type for the Hydra auto-scaler. */
+    struct MachineType
+    {
+        unsigned int runnable{0}, running{0};
+        time_t lastActive{0};
+    };
+
+    Sync<std::map<std::string, MachineType>> machineTypes;
+
+    struct MachineReservation
+    {
+        typedef std::shared_ptr<MachineReservation> ptr;
+        State & state;
+        Step::ptr step;
+        Machine::ptr machine;
+        MachineReservation(State & state, Step::ptr step, Machine::ptr machine);
+        ~MachineReservation();
+    };
+
 public:
     State();
 
@@ -369,7 +389,7 @@ private:
 
     void wakeDispatcher();
 
-    void builder(Step::ptr step, Machine::ptr machine, std::shared_ptr<MaintainCount> reservation);
+    void builder(MachineReservation::ptr reservation);
 
     /* Perform the given build step. Return true if the step is to be
        retried. */

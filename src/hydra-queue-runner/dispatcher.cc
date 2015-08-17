@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <thread>
+#include <unordered_map>
 
 #include "state.hh"
 
@@ -142,6 +143,7 @@ system_time State::doDispatch()
            FIXME: O(n lg n); obviously, it would be better to keep a
            runnable queue sorted by priority. */
         std::vector<Step::ptr> runnableSorted;
+        std::unordered_map<std::string, unsigned int> runnablePerType;
         {
             auto runnable_(runnable.lock());
             runnableSorted.reserve(runnable_->size());
@@ -155,6 +157,8 @@ system_time State::doDispatch()
                 }
 
                 ++i;
+
+                runnablePerType[step->drv.platform]++;
 
                 /* Skip previously failed steps that aren't ready
                    to be retried. */
@@ -215,13 +219,14 @@ system_time State::doDispatch()
                             break;
                         } else ++i;
                     assert(removed);
+                    assert(runnablePerType[step->drv.platform]);
+                    runnablePerType[step->drv.platform]--;
                 }
 
                 /* Make a slot reservation and start a thread to
                    do the build. */
-                auto reservation = std::make_shared<MaintainCount>(mi.machine->state->currentJobs);
-
-                auto builderThread = std::thread(&State::builder, this, step, mi.machine, reservation);
+                auto builderThread = std::thread(&State::builder, this,
+                    std::make_shared<MachineReservation>(*this, step, mi.machine));
                 builderThread.detach(); // FIXME?
 
                 keepGoing = true;
@@ -229,6 +234,17 @@ system_time State::doDispatch()
             }
 
             if (keepGoing) break;
+        }
+
+        /* Update the stats for the auto-scaler. */
+        {
+            auto machineTypes_(machineTypes.lock());
+
+            for (auto & i : *machineTypes_)
+                i.second.runnable = 0;
+
+            for (auto & i : runnablePerType)
+                (*machineTypes_)[i.first].runnable = i.second;
         }
 
     } while (keepGoing);
@@ -264,5 +280,35 @@ void Jobset::pruneSteps()
         if (i->first > now - schedulingWindow) break;
         seconds -= i->second;
         steps_->erase(i);
+    }
+}
+
+
+State::MachineReservation::MachineReservation(State & state, Step::ptr step, Machine::ptr machine)
+    : state(state), step(step), machine(machine)
+{
+    machine->state->currentJobs++;
+
+    {
+        auto machineTypes_(state.machineTypes.lock());
+        (*machineTypes_)[step->drv.platform].running++;
+    }
+}
+
+
+State::MachineReservation::~MachineReservation()
+{
+    auto prev = machine->state->currentJobs--;
+    assert(prev);
+    if (prev == 1)
+        machine->state->idleSince = time(0);
+
+    {
+        auto machineTypes_(state.machineTypes.lock());
+        auto & machineType = (*machineTypes_)[step->drv.platform];
+        assert(machineType.running);
+        machineType.running--;
+        if (machineType.running == 0)
+            machineType.lastActive = time(0);
     }
 }

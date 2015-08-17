@@ -8,5 +8,5 @@ struct MaintainCount
 {
     counter & c;
     MaintainCount(counter & c) : c(c) { c++; }
-    ~MaintainCount() { c--; }
+    ~MaintainCount() { auto prev = c--; assert(prev); }
 };

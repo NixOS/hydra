@@ -453,6 +453,8 @@ void State::dumpStatus(Connection & conn, bool log)
                 nested.attr(m->sshName);
                 JSONObject nested2(out);
                 nested2.attr("currentJobs", s->currentJobs);
+                if (s->currentJobs == 0)
+                    nested2.attr("idleSince", s->idleSince);
                 nested2.attr("nrStepsDone", s->nrStepsDone);
                 if (m->state->nrStepsDone) {
                     nested2.attr("totalStepTime", s->totalStepTime);
@@ -471,6 +473,19 @@ void State::dumpStatus(Connection & conn, bool log)
                 JSONObject nested2(out);
                 nested2.attr("shareUsed"); out << jobset.second->shareUsed();
                 nested2.attr("seconds", jobset.second->getSeconds());
+            }
+        }
+        {
+            root.attr("machineTypes");
+            JSONObject nested(out);
+            auto machineTypes_(machineTypes.lock());
+            for (auto & i : *machineTypes_) {
+                nested.attr(i.first);
+                JSONObject nested2(out);
+                nested2.attr("runnable", i.second.runnable);
+                nested2.attr("running", i.second.running);
+                if (i.second.running == 0)
+                    nested2.attr("lastActive", i.second.lastActive);
             }
         }
     }
