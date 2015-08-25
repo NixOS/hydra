@@ -286,9 +286,6 @@ private:
     typedef std::map<std::string, Machine::ptr> Machines;
     Sync<Machines> machines; // FIXME: use atomic_shared_ptr
 
-    nix::Path machinesFile;
-    struct stat machinesFileStat;
-
     /* Various stats. */
     time_t startedAt;
     counter nrBuildsRead{0};
@@ -352,8 +349,7 @@ private:
 
     void clearBusy(Connection & conn, time_t stopTime);
 
-    /* (Re)load /etc/nix/machines. */
-    void loadMachinesFile();
+    void parseMachines(const std::string & contents);
 
     /* Thread to reload /etc/nix/machines periodically. */
     void monitorMachinesFile();

@@ -286,12 +286,13 @@ sub getEvals {
 
 
 sub getMachines {
-    my $machinesConf = $ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix/machines";
-
-    # Read the list of machines.
     my %machines = ();
-    if (-e $machinesConf) {
-        open CONF, "<$machinesConf" or die;
+
+    my @machinesFiles = split /:/, ($ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix/machines");
+
+    for my $machinesFile (@machinesFiles) {
+        next unless -e $machinesFile;
+        open CONF, "<$machinesFile" or die;
         while (<CONF>) {
             chomp;
             s/\#.*$//g;
@@ -310,6 +311,7 @@ sub getMachines {
         }
         close CONF;
     }
+
     return \%machines;
 }
 

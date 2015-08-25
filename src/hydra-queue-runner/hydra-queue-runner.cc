@@ -22,33 +22,14 @@ State::State()
 
     logDir = canonPath(hydraData + "/build-logs");
 
-    machinesFile = getEnv("NIX_REMOTE_SYSTEMS", "/etc/nix/machines");
-    machinesFileStat.st_ino = 0;
-    machinesFileStat.st_mtime = 0;
-
     localPlatforms = {settings.thisSystem};
     if (settings.thisSystem == "x86_64-linux")
         localPlatforms.insert("i686-linux");
 }
 
 
-void State::loadMachinesFile()
+void State::parseMachines(const std::string & contents)
 {
-    string contents;
-    if (pathExists(machinesFile)) {
-        struct stat st;
-        if (stat(machinesFile.c_str(), &st) != 0)
-            throw SysError(format("getting stats about ‘%1%’") % machinesFile);
-        if (st.st_ino == machinesFileStat.st_ino && st.st_mtime == machinesFileStat.st_mtime)
-            return;
-        printMsg(lvlDebug, "reloading machines");
-        contents = readFile(machinesFile);
-        machinesFileStat = st;
-    } else {
-        contents = "localhost " + concatStringsSep(",", localPlatforms)
-            + " - " + int2String(settings.maxBuildJobs) + " 1";
-    }
-
     Machines newMachines, oldMachines;
     {
         auto machines_(machines.lock());
@@ -103,11 +84,63 @@ void State::loadMachinesFile()
 
 void State::monitorMachinesFile()
 {
+    string defaultMachinesFile = "/etc/nix/machines";
+    auto machinesFiles = tokenizeString<std::vector<Path>>(
+        getEnv("NIX_REMOTE_SYSTEMS", pathExists(defaultMachinesFile) ? defaultMachinesFile : ""), ":");
+
+    if (machinesFiles.empty()) {
+        parseMachines("localhost " + concatStringsSep(",", localPlatforms)
+            + " - " + int2String(settings.maxBuildJobs) + " 1");
+        return;
+    }
+
+    std::vector<struct stat> fileStats;
+    fileStats.resize(machinesFiles.size());
+    for (unsigned int n = 0; n < machinesFiles.size(); ++n) {
+        auto & st(fileStats[n]);
+        st.st_ino = st.st_mtime = 0;
+    }
+
+    auto readMachinesFiles = [&]() {
+
+        /* Check if any of the machines files changed. */
+        bool anyChanged = false;
+        for (unsigned int n = 0; n < machinesFiles.size(); ++n) {
+            Path machinesFile = machinesFiles[n];
+            struct stat st;
+            if (stat(machinesFile.c_str(), &st) != 0) {
+                if (errno != ENOENT)
+                    throw SysError(format("getting stats about ‘%1%’") % machinesFile);
+                st.st_ino = st.st_mtime = 0;
+            }
+            auto & old(fileStats[n]);
+            if (old.st_ino != st.st_ino || old.st_mtime != st.st_mtime)
+                anyChanged = true;
+            old = st;
+        }
+
+        if (!anyChanged) return;
+
+        debug("reloading machines files");
+
+        string contents;
+        for (auto & machinesFile : machinesFiles) {
+            try {
+                contents += readFile(machinesFile);
+                contents += '\n';
+            } catch (SysError & e) {
+                if (e.errNo != ENOENT) throw;
+            }
+        }
+
+        parseMachines(contents);
+    };
+
     while (true) {
         try {
+            readMachinesFiles();
             // FIXME: use inotify.
-            sleep(60);
-            loadMachinesFile();
+            sleep(30);
         } catch (std::exception & e) {
             printMsg(lvlError, format("reloading machines file: %1%") % e.what());
         }
@@ -586,8 +619,6 @@ void State::run(BuildID buildOne)
         clearBusy(*conn, 0);
         dumpStatus(*conn, false);
     }
-
-    loadMachinesFile();
 
     std::thread(&State::monitorMachinesFile, this).detach();
 
