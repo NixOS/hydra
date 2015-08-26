@@ -26,8 +26,7 @@ static void append(Strings & dst, const Strings & src)
 }
 
 
-static void openConnection(const string & sshName, const string & sshKey,
-    int stderrFD, Child & child)
+static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Child & child)
 {
     Pipe to, from;
     to.create();
@@ -45,11 +44,18 @@ static void openConnection(const string & sshName, const string & sshKey,
             throw SysError("cannot dup stderr");
 
         Strings argv;
-        if (sshName == "localhost")
+        if (machine->sshName == "localhost")
             argv = {"nix-store", "--serve", "--write"};
         else {
-            argv = {"ssh", sshName};
-            if (sshKey != "" && sshKey != "-") append(argv, {"-i", sshKey});
+            argv = {"ssh", machine->sshName};
+            if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
+            if (machine->sshPublicHostKey != "") {
+                Path fileName = tmpDir + "/host-key";
+                auto p = machine->sshName.find("@");
+                string host = p != string::npos ? string(machine->sshName, p + 1) : machine->sshName;
+                writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
+                append(argv, {"-oUserKnownHostsFile=" + fileName});
+            }
             append(argv,
                 { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
                 , "--", "nix-store", "--serve", "--write" });
@@ -136,8 +142,11 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
     AutoCloseFD logFD(open(result.logFile.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0666));
     if (logFD == -1) throw SysError(format("creating log file ‘%1%’") % result.logFile);
 
+    nix::Path tmpDir = createTempDir();
+    AutoDelete tmpDirDel(tmpDir, true);
+
     Child child;
-    openConnection(machine->sshName, machine->sshKey, logFD, child);
+    openConnection(machine, tmpDir, logFD, child);
 
     logFD.close();
 
@@ -277,5 +286,4 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
     /* Shut down the connection. */
     child.to.close();
     child.pid.wait(true);
-
 }

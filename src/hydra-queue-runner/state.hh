@@ -205,6 +205,7 @@ struct Machine
     std::set<std::string> systemTypes, supportedFeatures, mandatoryFeatures;
     unsigned int maxJobs = 1;
     float speedFactor = 1.0;
+    std::string sshPublicHostKey;
 
     struct State {
         typedef std::shared_ptr<State> ptr;

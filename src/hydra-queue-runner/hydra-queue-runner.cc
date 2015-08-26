@@ -40,12 +40,12 @@ void State::parseMachines(const std::string & contents)
         line = trim(string(line, 0, line.find('#')));
         auto tokens = tokenizeString<std::vector<std::string>>(line);
         if (tokens.size() < 3) continue;
-        tokens.resize(7);
+        tokens.resize(8);
 
         auto machine = std::make_shared<Machine>();
         machine->sshName = tokens[0];
         machine->systemTypes = tokenizeString<StringSet>(tokens[1], ",");
-        machine->sshKey = tokens[2];
+        machine->sshKey = tokens[2] == "-" ? string("") : tokens[2];
         if (tokens[3] != "")
             string2Int(tokens[3], machine->maxJobs);
         else
@@ -57,6 +57,8 @@ void State::parseMachines(const std::string & contents)
         machine->mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
         for (auto & f : machine->mandatoryFeatures)
             machine->supportedFeatures.insert(f);
+        if (tokens[7] != "" && tokens[7] != "-")
+            machine->sshPublicHostKey = base64Decode(tokens[7]);
 
         /* Re-use the State object of the previous machine with the
            same name. */

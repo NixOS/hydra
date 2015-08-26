@@ -10,7 +10,7 @@ AC_PROG_LN_S
 AC_PROG_LIBTOOL
 AC_PROG_CXX
 
-CXXFLAGS+=" -std=c++0x"
+CXXFLAGS+=" -std=c++11"
 
 dnl Optional dependencies to build the manual, normally not needed
 dnl since the tarball comes with the PDF and HTML manuals.
