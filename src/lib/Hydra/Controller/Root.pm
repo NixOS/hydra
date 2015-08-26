@@ -110,6 +110,7 @@ sub machines :Local Args(0) {
 
     # Add entry for localhost.
     ${$machines}{''} //= {};
+    delete ${$machines}{'localhost'};
 
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
