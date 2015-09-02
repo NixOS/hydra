@@ -7,7 +7,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
 
-sub eval : Chained('/') PathPart('eval') CaptureArgs(1) {
+sub evalChain : Chained('/') PathPart('eval') CaptureArgs(1) {
     my ($self, $c, $evalId) = @_;
 
     my $eval = $c->model('DB::JobsetEvals')->find($evalId)
@@ -19,7 +19,9 @@ sub eval : Chained('/') PathPart('eval') CaptureArgs(1) {
 }
 
 
-sub view : Chained('eval') PathPart('') Args(0) {
+sub view :Chained('evalChain') :PathPart('') :Args(0) :ActionClass('REST') { }
+
+sub view_GET {
     my ($self, $c) = @_;
 
     $c->stash->{template} = 'jobset-eval.tt';
@@ -118,10 +120,15 @@ sub view : Chained('eval') PathPart('') Args(0) {
     }
 
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
+
+    $self->status_ok(
+        $c,
+        entity => $eval
+    );
 }
 
 
-sub release : Chained('eval') PathPart('release') Args(0) {
+sub release : Chained('evalChain') PathPart('release') Args(0) {
     my ($self, $c) = @_;
     my $eval = $c->stash->{eval};
 
@@ -157,7 +164,7 @@ sub release : Chained('eval') PathPart('release') Args(0) {
 }
 
 
-sub create_jobset : Chained('eval') PathPart('create-jobset') Args(0) {
+sub create_jobset : Chained('evalChain') PathPart('create-jobset') Args(0) {
     my ($self, $c) = @_;
     my $eval = $c->stash->{eval};
 
@@ -168,7 +175,7 @@ sub create_jobset : Chained('eval') PathPart('create-jobset') Args(0) {
 }
 
 
-sub cancel : Chained('eval') PathPart('cancel') Args(0) {
+sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
     my ($self, $c) = @_;
     requireProjectOwner($c, $c->stash->{eval}->project);
     my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->builds);
@@ -177,7 +184,7 @@ sub cancel : Chained('eval') PathPart('cancel') Args(0) {
 }
 
 
-sub restart_aborted : Chained('eval') PathPart('restart-aborted') Args(0) {
+sub restart_aborted : Chained('evalChain') PathPart('restart-aborted') Args(0) {
     my ($self, $c) = @_;
     requireProjectOwner($c, $c->stash->{eval}->project);
     my $builds = $c->stash->{eval}->builds->search({ finished => 1, buildstatus => { -in => [3, 4, 9] } });
@@ -187,7 +194,7 @@ sub restart_aborted : Chained('eval') PathPart('restart-aborted') Args(0) {
 }
 
 
-sub bump : Chained('eval') PathPart('bump') Args(0) {
+sub bump : Chained('evalChain') PathPart('bump') Args(0) {
     my ($self, $c) = @_;
     requireProjectOwner($c, $c->stash->{eval}->project); # FIXME: require admin?
     my $builds = $c->stash->{eval}->builds->search({ finished => 0 });
@@ -201,7 +208,7 @@ sub bump : Chained('eval') PathPart('bump') Args(0) {
 
 
 # Hydra::Base::Controller::NixChannel needs this.
-sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
+sub nix : Chained('evalChain') PathPart('channel') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{channelName} = $c->stash->{project}->name . "-" . $c->stash->{jobset}->name . "-latest";
     $c->stash->{channelBuilds} = $c->stash->{eval}->builds
@@ -214,7 +221,7 @@ sub nix : Chained('eval') PathPart('channel') CaptureArgs(0) {
 }
 
 
-sub job : Chained('eval') PathPart('job') {
+sub job : Chained('evalChain') PathPart('job') {
     my ($self, $c, $job, @rest) = @_;
 
     my $build = $c->stash->{eval}->builds->find({job => $job});
