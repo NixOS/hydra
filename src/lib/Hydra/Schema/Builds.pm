@@ -575,12 +575,6 @@ __PACKAGE__->has_many(
   { "foreign.build" => "self.id" },
 );
 
-__PACKAGE__->has_many(
-  "evals",
-  "Hydra::Schema::BuildInputs",
-  { "foreign.build" => "self.id" },
-);
-
 __PACKAGE__->has_one(
   "actualBuildStep",
   "Hydra::Schema::BuildSteps",
@@ -649,9 +643,11 @@ my %hint = (
         'buildstatus',
         'releasename'
     ],
+    relations => {
+        jobsetevals => 'id'
+    },
     eager_relations => {
         buildoutputs => 'name',
-        buildinputs_builds => 'name',
         buildproducts => 'productnr',
         buildmetrics => 'name',
     }
