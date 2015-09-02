@@ -332,20 +332,25 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
        it's not runnable yet, and other threads won't make it
        runnable while step->created == false. */
     step->drv = readDerivation(drvPath);
-    step->systemType = step->drv.platform;
-    {
-        auto i = step->drv.env.find("requiredSystemFeatures");
-        if (i != step->drv.env.end()) {
-            step->requiredSystemFeatures = tokenizeString<std::set<std::string>>(i->second);
-            step->systemType += ":";
-            step->systemType += concatStringsSep(",", step->requiredSystemFeatures);
-        }
-    }
 
     auto attr = step->drv.env.find("preferLocalBuild");
     step->preferLocalBuild =
         attr != step->drv.env.end() && attr->second == "1"
         && has(localPlatforms, step->drv.platform);
+
+    step->systemType = step->drv.platform;
+    {
+        auto i = step->drv.env.find("requiredSystemFeatures");
+        StringSet features;
+        if (i != step->drv.env.end())
+            features = step->requiredSystemFeatures = tokenizeString<std::set<std::string>>(i->second);
+        if (step->preferLocalBuild)
+            features.insert("local");
+        if (!features.empty()) {
+            step->systemType += ":";
+            step->systemType += concatStringsSep(",", features);
+        }
+    }
 
     /* Are all outputs valid? */
     bool valid = true;
