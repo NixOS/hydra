@@ -201,6 +201,8 @@ struct Machine
 {
     typedef std::shared_ptr<Machine> ptr;
 
+    bool enabled{true};
+
     std::string sshName, sshKey;
     std::set<std::string> systemTypes, supportedFeatures, mandatoryFeatures;
     unsigned int maxJobs = 1;

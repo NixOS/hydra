@@ -89,6 +89,7 @@ system_time State::doDispatch()
             auto machines_(machines.lock());
             for (auto & m : *machines_) {
                 auto info(m.second->state->connectInfo.lock());
+                if (!m.second->enabled) continue;
                 if (info->consecutiveFailures && info->disabledUntil > now) {
                     if (info->disabledUntil < sleepUntil)
                         sleepUntil = info->disabledUntil;

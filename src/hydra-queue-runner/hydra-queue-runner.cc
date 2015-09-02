@@ -74,8 +74,14 @@ void State::parseMachines(const std::string & contents)
     }
 
     for (auto & m : oldMachines)
-        if (newMachines.find(m.first) == newMachines.end())
+        if (newMachines.find(m.first) == newMachines.end()) {
             printMsg(lvlInfo, format("removing machine ‘%1%’") % m.first);
+            /* Add a disabled Machine object to make sure stats are
+               maintained. */
+            auto machine = std::make_shared<Machine>(*(m.second));
+            machine->enabled = false;
+            newMachines[m.first] = machine;
+        }
 
     auto machines_(machines.lock());
     *machines_ = newMachines;
@@ -489,6 +495,7 @@ void State::dumpStatus(Connection & conn, bool log)
                 auto & s(m->state);
                 nested.attr(m->sshName);
                 JSONObject nested2(out);
+                nested2.attr("enabled", m->enabled);
                 nested2.attr("currentJobs", s->currentJobs);
                 if (s->currentJobs == 0)
                     nested2.attr("idleSince", s->idleSince);
