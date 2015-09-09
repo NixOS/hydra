@@ -1,5 +1,6 @@
 [% WRAPPER layout.tt title="Machine status" %]
 [% PROCESS common.tt %]
+[% USE format %]
 
 <table class="table table-condensed table-striped">
   <thead>
@@ -17,9 +18,16 @@
     <thead>
       <tr>
         <th colspan="6">
-          <tt>[% name %]</tt>
+          <tt [% IF m.value.disabled %]style="text-decoration: line-through;"[% END %]>[% name %]</tt>
           [% IF m.value.systemTypes %]
-            ([% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system %]</tt>[% END %])
+            <span class="muted" style="font-weight: normal;">
+              ([% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system %]</tt>[% END %])
+            </span>
+          [% END %]
+          [% IF m.value.nrStepsDone %]
+            <span class="muted" style="font-weight: normal;">
+              ([% m.value.nrStepsDone %] steps done, [% f = format("%.1f"); f(m.value.avgStepBuildTime) %] s/step)
+            </span>
           [% END %]
         </th>
       </tr>

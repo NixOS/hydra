@@ -9,6 +9,7 @@ use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
 use Nix::Config;
 use Encode;
+use JSON;
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -109,8 +110,19 @@ sub machines :Local Args(0) {
     my $machines = getMachines;
 
     # Add entry for localhost.
-    ${$machines}{''} //= {};
-    delete ${$machines}{'localhost'};
+    $machines->{''} //= {};
+    delete $machines->{'localhost'};
+
+    my $status = $c->model('DB::SystemStatus')->find("queue-runner");
+    if ($status) {
+        my $ms = decode_json($status->status)->{"machines"};
+        foreach my $name (keys %{$ms}) {
+            $name = "" if $name eq "localhost";
+            $machines->{$name} //= {disabled => 1};
+            $machines->{$name}->{nrStepsDone} = $ms->{$name}->{nrStepsDone};
+            $machines->{$name}->{avgStepBuildTime} = $ms->{$name}->{avgStepBuildTime} // 0;
+        }
+    }
 
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
