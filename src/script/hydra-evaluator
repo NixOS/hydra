@@ -108,17 +108,17 @@ sub checkJobsetWrapped {
     eval {
         fetchInputs($project, $jobset, $inputInfo);
     };
+    my $fetchError = $@;
 
     Net::Statsd::increment("hydra.evaluator.checkouts");
     my $checkoutStop = clock_gettime(CLOCK_REALTIME);
     Net::Statsd::timing("hydra.evaluator.checkout_time", int(($checkoutStop - $checkoutStart) * 1000));
 
-    if ($@) {
+    if ($fetchError) {
         Net::Statsd::increment("hydra.evaluator.failed_checkouts");
-        my $msg = $@;
-        print STDERR $msg;
+        print STDERR $fetchError;
         txn_do($db, sub {
-            $jobset->update({ lastcheckedtime => time, fetcherrormsg => $msg }) if !$dryRun;
+            $jobset->update({ lastcheckedtime => time, fetcherrormsg => $fetchError }) if !$dryRun;
         });
         return;
     }
@@ -290,17 +290,17 @@ sub checkJobset {
     eval {
         checkJobsetWrapped($jobset);
     };
+    my $checkError = $@;
 
     my $stopTime = clock_gettime(CLOCK_REALTIME);
     Net::Statsd::timing("hydra.evaluator.total_time", int(($stopTime - $startTime) * 1000));
 
     my $failed = 0;
-    if ($@) {
-        my $msg = $@;
-        print STDERR $msg;
+    if ($checkError) {
+        print STDERR $checkError;
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
-            setJobsetError($jobset, $msg);
+            setJobsetError($jobset, $checkError);
         }) if !$dryRun;
         $failed = 1;
     }
