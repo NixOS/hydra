@@ -169,7 +169,29 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
                 printMsg(lvlError, format("marking build %1% as cached failure") % build->id);
                 if (!build->finishedInDB) {
                     pqxx::work txn(conn);
-                    createBuildStep(txn, 0, build, r, "", bssFailed);
+
+                    /* Find the previous build step record, first by
+                       derivation path, then by output path. */
+                    BuildID propagatedFrom = 0;
+
+                    auto res = txn.parameterized
+                        ("select max(build) from BuildSteps where drvPath = $1 and startTime != 0 and stopTime != 0 and status = 1")
+                        (r->drvPath).exec();
+                    if (!res[0][0].is_null()) propagatedFrom = res[0][0].as<BuildID>();
+
+                    if (!propagatedFrom) {
+                        for (auto & output : r->drv.outputs) {
+                            auto res = txn.parameterized
+                                ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1")
+                                (output.second.path).exec();
+                            if (!res[0][0].is_null()) {
+                                propagatedFrom = res[0][0].as<BuildID>();
+                                break;
+                            }
+                        }
+                    }
+
+                    createBuildStep(txn, 0, build, r, "", bssCachedFailure, "", propagatedFrom);
                     txn.parameterized
                         ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = 1 where id = $1 and finished = 0")
                         (build->id)
