@@ -45,7 +45,7 @@
                    INCLUDE renderDuration duration = curTime - step.starttime;
                  END %]
             </td>
-            <td>[% IF step.busy == 1 || step.status == 0 || step.status == 1 || step.status == 4 || step.status == 7; INCLUDE renderMachineName machine=step.machine; ELSE; "<em>n/a</em>"; END %]</td>
+            <td>[% IF step.busy == 1 || ((step.machine || step.starttime) && (step.status == 0 || step.status == 1 || step.status == 4 || step.status == 7)); INCLUDE renderMachineName machine=step.machine; ELSE; "<em>n/a</em>"; END %]</td>
             <td>
               [% IF step.busy == 1 %]
                 <strong>Building</strong>
