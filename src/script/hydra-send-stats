@@ -49,7 +49,7 @@ sub sendQueueRunnerStats {
     gauge("hydra.queue.bytes_sent", $json->{bytesSent});
     gauge("hydra.queue.bytes_received", $json->{bytesReceived});
 
-    gauge("hydra.queue.machines.total", scalar(keys %{$json->{machines}}));
+    gauge("hydra.queue.machines.total", scalar(grep { $_->{enabled} } (values %{$json->{machines}})));
     gauge("hydra.queue.machines.in_use", scalar(grep { $_->{currentJobs} > 0 } (values %{$json->{machines}})));
 }
 
