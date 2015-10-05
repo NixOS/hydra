@@ -1,5 +1,7 @@
 #include "state.hh"
 #include "build-result.hh"
+#include "globals.hh"
+
 
 using namespace nix;
 
@@ -131,7 +133,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
 
         std::set<Step::ptr> newSteps;
         std::set<Path> finishedDrvs; // FIXME: re-use?
-        Step::ptr step = createStep(store, build->drvPath, build, 0, finishedDrvs, newSteps, newRunnable);
+        Step::ptr step = createStep(store, conn, build, build->drvPath, build, 0, finishedDrvs, newSteps, newRunnable);
 
         /* Some of the new steps may be the top level of builds that
            we haven't processed yet. So do them now. This ensures that
@@ -298,7 +300,8 @@ void State::processQueueChange(Connection & conn)
 }
 
 
-Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPath,
+Step::ptr State::createStep(std::shared_ptr<StoreAPI> store,
+    Connection & conn, Build::ptr build, const Path & drvPath,
     Build::ptr referringBuild, Step::ptr referringStep, std::set<Path> & finishedDrvs,
     std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable)
 {
@@ -376,10 +379,44 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
 
     /* Are all outputs valid? */
     bool valid = true;
-    for (auto & i : step->drv.outputs) {
+    PathSet outputs = outputPaths(step->drv);
+    DerivationOutputs missing;
+    PathSet missingPaths;
+    for (auto & i : step->drv.outputs)
         if (!store->isValidPath(i.second.path)) {
             valid = false;
-            break;
+            missing[i.first] = i.second;
+            missingPaths.insert(i.second.path);
+        }
+
+    /* Try to substitute the missing paths. Note: can't use the more
+       efficient querySubstitutablePaths() here because upstream Hydra
+       servers don't allow it (they have "WantMassQuery: 0"). */
+    assert(missing.size() == missingPaths.size());
+    if (!missing.empty() && settings.useSubstitutes) {
+        SubstitutablePathInfos infos;
+        store->querySubstitutablePathInfos(missingPaths, infos);
+        if (infos.size() == missingPaths.size()) {
+            valid = true;
+            for (auto & i : missing) {
+                try {
+                    printMsg(lvlInfo, format("substituting output ‘%1%’ of ‘%2%’") % i.second.path % drvPath);
+
+                    time_t startTime = time(0);
+                    store->ensurePath(i.second.path);
+                    time_t stopTime = time(0);
+
+                    {
+                        pqxx::work txn(conn);
+                        createSubstitutionStep(txn, startTime, stopTime, build, drvPath, "out", i.second.path);
+                        txn.commit();
+                    }
+
+                } catch (Error & e) {
+                    valid = false;
+                    break;
+                }
+            }
         }
     }
 
@@ -395,7 +432,7 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store, const Path & drvPat
 
     /* Create steps for the dependencies. */
     for (auto & i : step->drv.inputDrvs) {
-        auto dep = createStep(store, i.first, 0, step, finishedDrvs, newSteps, newRunnable);
+        auto dep = createStep(store, conn, build, i.first, 0, step, finishedDrvs, newSteps, newRunnable);
         if (dep) {
             auto step_(step->state.lock());
             step_->deps.insert(dep);

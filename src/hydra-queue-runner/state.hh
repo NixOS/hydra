@@ -357,6 +357,8 @@ private:
     /* Thread to reload /etc/nix/machines periodically. */
     void monitorMachinesFile();
 
+    int allocBuildStep(pqxx::work & txn, Build::ptr build);
+
     int createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
         const std::string & machine, BuildStepStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
@@ -364,6 +366,9 @@ private:
     void finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime, BuildID buildId, int stepNr,
         const std::string & machine, BuildStepStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
+
+    int createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
+        Build::ptr build, const nix::Path & drvPath, const std::string & outputName, const nix::Path & storePath);
 
     void updateBuild(pqxx::work & txn, Build::ptr build, BuildStatus status);
 
@@ -377,7 +382,8 @@ private:
     /* Handle cancellation, deletion and priority bumps. */
     void processQueueChange(Connection & conn);
 
-    Step::ptr createStep(std::shared_ptr<nix::StoreAPI> store, const nix::Path & drvPath,
+    Step::ptr createStep(std::shared_ptr<nix::StoreAPI> store,
+        Connection & conn, Build::ptr build, const nix::Path & drvPath,
         Build::ptr referringBuild, Step::ptr referringStep, std::set<nix::Path> & finishedDrvs,
         std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable);
 

@@ -168,19 +168,29 @@ void State::clearBusy(Connection & conn, time_t stopTime)
 }
 
 
-int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
-    const std::string & machine, BuildStepStatus status, const std::string & errorMsg, BuildID propagatedFrom)
+int State::allocBuildStep(pqxx::work & txn, Build::ptr build)
 {
     /* Acquire an exclusive lock on BuildSteps to ensure that we don't
        race with other threads creating a step of the same build. */
     txn.exec("lock table BuildSteps in exclusive mode");
 
     auto res = txn.parameterized("select max(stepnr) from BuildSteps where build = $1")(build->id).exec();
-    int stepNr = res[0][0].is_null() ? 1 : res[0][0].as<int>() + 1;
+    return res[0][0].is_null() ? 1 : res[0][0].as<int>() + 1;
+}
+
+
+int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
+    const std::string & machine, BuildStepStatus status, const std::string & errorMsg, BuildID propagatedFrom)
+{
+    int stepNr = allocBuildStep(txn, build);
 
     txn.parameterized
         ("insert into BuildSteps (build, stepnr, type, drvPath, busy, startTime, system, status, propagatedFrom, errorMsg, stopTime, machine) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)")
-        (build->id)(stepNr)(0)(step->drvPath)(status == bssBusy ? 1 : 0)
+        (build->id)
+        (stepNr)
+        (0) // == build
+        (step->drvPath)
+        (status == bssBusy ? 1 : 0)
         (startTime, startTime != 0)
         (step->drv.platform)
         ((int) status, status != bssBusy)
@@ -210,6 +220,30 @@ void State::finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime,
         (errorMsg, errorMsg != "")
         (startTime)(stopTime)
         (machine, machine != "").exec();
+}
+
+
+int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
+    Build::ptr build, const Path & drvPath, const string & outputName, const Path & storePath)
+{
+    int stepNr = allocBuildStep(txn, build);
+
+    txn.parameterized
+        ("insert into BuildSteps (build, stepnr, type, drvPath, busy, status, startTime, stopTime) values ($1, $2, $3, $4, $5, $6, $7, $8)")
+        (build->id)
+        (stepNr)
+        (1) // == substitution
+        (drvPath)
+        (0)
+        (0)
+        (startTime)
+        (stopTime).exec();
+
+    txn.parameterized
+        ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)")
+        (build->id)(stepNr)(outputName)(storePath).exec();
+
+    return stepNr;
 }
 
 
@@ -687,7 +721,6 @@ int main(int argc, char * * argv)
         });
 
         settings.buildVerbosity = lvlVomit;
-        settings.useSubstitutes = false;
         settings.lockCPU = false;
 
         State state;
