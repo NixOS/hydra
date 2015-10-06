@@ -59,6 +59,8 @@
                 <span class="error">Cached failure</span>
               [% ELSIF step.status == 9 %]
                 <span class="error">Unsupported system type</span>
+              [% ELSIF step.status == 10 %]
+                <span class="error">Log limit exceeded</span>
               [% ELSIF step.errormsg %]
                 <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
               [% ELSE %]

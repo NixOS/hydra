@@ -155,17 +155,19 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
 
     /* Handshake. */
     bool sendDerivation = true;
+    unsigned int remoteVersion;
+
     try {
-        to << SERVE_MAGIC_1 << SERVE_PROTOCOL_VERSION;
+        to << SERVE_MAGIC_1 << 0x202;
         to.flush();
 
         unsigned int magic = readInt(from);
         if (magic != SERVE_MAGIC_2)
             throw Error(format("protocol mismatch with ‘nix-store --serve’ on ‘%1%’") % machine->sshName);
-        unsigned int version = readInt(from);
-        if (GET_PROTOCOL_MAJOR(version) != 0x200)
+        remoteVersion = readInt(from);
+        if (GET_PROTOCOL_MAJOR(remoteVersion) != 0x200)
             throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % machine->sshName);
-        if (GET_PROTOCOL_MINOR(version) >= 1)
+        if (GET_PROTOCOL_MINOR(remoteVersion) >= 1)
             sendDerivation = false;
 
     } catch (EndOfFile & e) {
@@ -237,10 +239,12 @@ void State::buildRemote(std::shared_ptr<StoreAPI> store,
     printMsg(lvlDebug, format("building ‘%1%’ on ‘%2%’") % step->drvPath % machine->sshName);
 
     if (sendDerivation)
-        to << cmdBuildPaths << PathSet({step->drvPath}) << maxSilentTime << buildTimeout;
+        to << cmdBuildPaths << PathSet({step->drvPath});
     else
-        to << cmdBuildDerivation << step->drvPath << basicDrv << maxSilentTime << buildTimeout;
-        // FIXME: send maxLogSize.
+        to << cmdBuildDerivation << step->drvPath << basicDrv;
+    to << maxSilentTime << buildTimeout;
+    if (GET_PROTOCOL_MINOR(remoteVersion) >= 2)
+        to << 64 * 1024 * 1024; // == maxLogSize
     to.flush();
 
     result.startTime = time(0);

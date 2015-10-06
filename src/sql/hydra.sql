@@ -195,6 +195,7 @@ create table Builds (
     --   6 = failure with output
     --   7 = timed out
     --   9 = unsupported system type
+    --  10 = log limit exceeded
     buildStatus   integer,
 
     errorMsg      text, -- error message in case of a Nix failure
@@ -266,6 +267,7 @@ create table BuildSteps (
     --   7 = timed out
     --   8 = cached failure
     --   9 = unsupported system type
+    --  10 = log limit exceeded
     status        integer,
 
     errorMsg      text,

@@ -300,10 +300,12 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
 
                 BuildStatus buildStatus =
                     result.status == BuildResult::TimedOut ? bsTimedOut :
+                    result.status == BuildResult::LogLimitExceeded ? bsLogLimitExceeded :
                     result.canRetry() ? bsAborted :
                     bsFailed;
                 BuildStepStatus buildStepStatus =
                     result.status == BuildResult::TimedOut ? bssTimedOut :
+                    result.status == BuildResult::LogLimitExceeded ? bssLogLimitExceeded :
                     result.canRetry() ? bssAborted :
                     bssFailed;
 
@@ -312,7 +314,8 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 if (result.status == BuildResult::PermanentFailure ||
                     result.status == BuildResult::TransientFailure ||
                     result.status == BuildResult::CachedFailure ||
-                    result.status == BuildResult::TimedOut)
+                    result.status == BuildResult::TimedOut ||
+                    result.status == BuildResult::LogLimitExceeded)
                     result.errorMsg = "";
 
                 /* Create failed build steps for every build that depends

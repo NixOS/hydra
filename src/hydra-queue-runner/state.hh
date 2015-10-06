@@ -30,6 +30,7 @@ typedef enum {
     bsFailedWithOutput = 6,
     bsTimedOut = 7,
     bsUnsupported = 9,
+    bsLogLimitExceeded = 10,
 } BuildStatus;
 
 
@@ -40,6 +41,7 @@ typedef enum {
     bssTimedOut = 7,
     bssCachedFailure = 8,
     bssUnsupported = 9,
+    bssLogLimitExceeded = 10,
     bssBusy = 100, // not stored
 } BuildStepStatus;
 
