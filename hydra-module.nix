@@ -93,7 +93,7 @@ in
         type = types.int;
         default = 0;
         description = ''
-          Threshold of minimum disk space (GiB) to determine if queue runner should run or not.
+          Threshold of minimum disk space (GiB) to determine if the queue runner should run or not.
         '';
       };
 
@@ -101,7 +101,7 @@ in
         type = types.int;
         default = 0;
         description = ''
-          Threshold of minimum disk space (GiB) to determine if evaluator should run or not.
+          Threshold of minimum disk space (GiB) to determine if the evaluator should run or not.
         '';
       };
 
@@ -321,6 +321,18 @@ in
             fi
           '';
         startAt = "*:0/5";
+      };
+
+    # Periodically compress build logs. The queue runner compresses
+    # logs automatically after a step finishes, but this doesn't work
+    # if the queue runner is stopped prematurely.
+    systemd.services.hydra-compress-logs =
+      { path = [ pkgs.bzip2 ];
+        script =
+          ''
+            find /var/lib/hydra/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v
+          '';
+        startAt = "Sun 01:45";
       };
 
     services.postgresql.enable = mkIf haveLocalDB true;
