@@ -71,25 +71,27 @@ static void tryJobAlts(EvalState & state, JSONObject & top,
 
 static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name)
 {
-    Value * v = drv.queryMeta(name);
-    if (v) {
-        state.forceValue(*v);
-        if (v->type == tString)
-            return v->string.s;
-        else if (v->isList()) {
-            string res = "";
-            for (unsigned int n = 0; n < v->listSize(); ++n) {
-                Value v2(*v->listElems()[n]);
-                state.forceValue(v2);
-                if (v2.type == tString) {
-                    if (res.size() != 0) res += ", ";
-                    res += v2.string.s;
-                }
-            }
-            return res;
+    Strings res;
+    std::function<void(Value & v)> rec;
+
+    rec = [&](Value & v) {
+        state.forceValue(v);
+        if (v.type == tString)
+            res.push_back(v.string.s);
+        else if (v.isList())
+            for (unsigned int n = 0; n < v.listSize(); ++n)
+                rec(*v.listElems()[n]);
+        else if (v.type == tAttrs) {
+            auto a = v.attrs->find(state.symbols.create("shortName"));
+            if (a != v.attrs->end())
+                res.push_back(state.forceString(*a->value));
         }
-    }
-    return "";
+    };
+
+    Value * v = drv.queryMeta(name);
+    if (v) rec(*v);
+
+    return concatStringsSep(", ", res);
 }
 
 
