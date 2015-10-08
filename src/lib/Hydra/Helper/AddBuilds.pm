@@ -429,13 +429,18 @@ sub checkBuild {
 
         my $time = time();
 
+        sub null {
+            my ($s) = @_;
+            return $s eq "" ? undef : $s;
+        }
+
         # Add the build to the database.
         $build = $job->builds->create(
             { timestamp => $time
-            , description => $buildInfo->{description}
-            , license => $buildInfo->{license}
-            , homepage => $buildInfo->{homepage}
-            , maintainers => $buildInfo->{maintainers}
+            , description => null($buildInfo->{description})
+            , license => null($buildInfo->{license})
+            , homepage => null($buildInfo->{homepage})
+            , maintainers => null($buildInfo->{maintainers})
             , maxsilent => $buildInfo->{maxSilent}
             , timeout => $buildInfo->{timeout}
             , nixname => $buildInfo->{nixName}
