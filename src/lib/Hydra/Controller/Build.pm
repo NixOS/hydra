@@ -134,6 +134,7 @@ sub view_log : Chained('buildChain') PathPart('log') {
 
 sub showLog {
     my ($c, $mode, $finished, $drvPath, @outPaths) = @_;
+    $mode //= "pretty";
 
     my $logPath = findLog($c, $drvPath, @outPaths);
 
@@ -146,7 +147,7 @@ sub showLog {
         || (($mode eq "tail" || $mode eq "tail-reload") && $logPath !~ /\.bz2$/)
         || $size < 64 * 1024 * 1024;
 
-    if (!$mode) {
+    if ($mode eq "pretty") {
         # !!! quick hack
         my $pipeline = ($logPath =~ /.bz2$/ ? "bzip2 -d < $logPath" : "cat $logPath")
             . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
