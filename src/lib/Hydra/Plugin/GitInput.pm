@@ -96,6 +96,8 @@ sub fetchInput {
         {uri => $uri, branch => $branch, revision => $revision},
         {rows => 1});
 
+    addTempRoot($cachedInput->storepath) if defined $cachedInput;
+
     if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
@@ -123,6 +125,9 @@ sub fetchInput {
 
         # FIXME: Don't use nix-prefetch-git.
         ($sha256, $storePath) = split ' ', grab(cmd => ["nix-prefetch-git", $clonePath, $revision], chomp => 1);
+
+        # FIXME: time window between nix-prefetch-git and addTempRoot.
+        addTempRoot($storePath);
 
         txn_do($self->{db}, sub {
             $self->{db}->resultset('CachedGitInputs')->update_or_create(

@@ -36,6 +36,8 @@ sub fetchInput {
     (my $cachedInput) = $self->{db}->resultset('CachedBazaarInputs')->search(
         {uri => $uri, revision => $revision});
 
+    addTempRoot($cachedInput->storepath) if defined $cachedInput;
+
     if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
@@ -52,6 +54,9 @@ sub fetchInput {
         die "cannot check out Bazaar branch `$uri':\n$stderr" if $res;
 
         ($sha256, $storePath) = split ' ', $stdout;
+
+        # FIXME: time window between nix-prefetch-bzr and addTempRoot.
+        addTempRoot($storePath);
 
         txn_do($self->{db}, sub {
             $self->{db}->resultset('CachedBazaarInputs')->create(

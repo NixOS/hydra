@@ -62,6 +62,8 @@ sub fetchInput {
     (my $cachedInput) = $self->{db}->resultset('CachedHgInputs')->search(
         {uri => $uri, branch => $branch, revision => $revision});
 
+    addTempRoot($cachedInput->storepath) if defined $cachedInput;
+
     if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
@@ -75,6 +77,9 @@ sub fetchInput {
         die "cannot check out Mercurial repository `$uri':\n$stderr" if $res;
 
         ($sha256, $storePath) = split ' ', $stdout;
+
+        # FIXME: time window between nix-prefetch-hg and addTempRoot.
+        addTempRoot($storePath);
 
         txn_do($self->{db}, sub {
             $self->{db}->resultset('CachedHgInputs')->update_or_create(
