@@ -445,13 +445,14 @@ sub restartBuilds($$) {
     my @buildIds;
 
     txn_do($db, sub {
-        my @paths;
+        my %paths;
 
         $builds = $builds->search({ finished => 1 });
 
         foreach my $build ($builds->all) {
             next if !isValidPath($build->drvpath);
-            push @paths, $_->path foreach $build->buildoutputs->all;
+            $paths{$_->path} = 1 foreach $build->buildoutputs->all;
+            $paths{$_->path} = 1 foreach $build->buildstepoutputs->all;
             push @buildIds, $build->id;
             registerRoot $build->drvpath;
         }
@@ -469,8 +470,7 @@ sub restartBuilds($$) {
 
         # Clear the failed paths cache.
         # FIXME: Add this to the API.
-        # FIXME: clear the dependencies?
-        $db->resultset('FailedPaths')->search({ path => [ @paths ]})->delete;
+        $db->resultset('FailedPaths')->search({ path => [ keys %paths ]})->delete;
     });
 
     return scalar(@buildIds);
