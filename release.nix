@@ -2,11 +2,13 @@
 , officialRelease ? false
 }:
 
+with import <nixpkgs/lib>;
+
 let
 
   pkgs = import <nixpkgs> {};
 
-  genAttrs' = pkgs.lib.genAttrs [ "x86_64-linux" /* "i686-linux" */ ];
+  genAttrs' = genAttrs [ "x86_64-linux" /* "i686-linux" */ ];
 
   hydraServer = hydraPkg:
     { config, pkgs, ... }:
@@ -26,10 +28,14 @@ let
       environment.systemPackages = [ pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
     };
 
-in rec {
+in
+
+assert versionAtLeast (getVersion pkgs.nixUnstable) "1.11pre4244_133a421";
+
+rec {
 
   tarball =
-    with import <nixpkgs> { };
+    with pkgs;
 
     releaseTools.makeSourceTarball {
       name = "hydra-tarball";
