@@ -157,7 +157,7 @@ create table Builds (
     maxsilent     integer default 3600, -- meta.maxsilent
     timeout       integer default 36000, -- meta.timeout
 
-    isChannel     integer default 0, -- meta.isHydraChannel
+    isChannel     integer not null default 0, -- meta.isHydraChannel
     isCurrent     integer default 0,
 
     -- Copy of the nixExprInput/nixExprPath fields of the jobset that
