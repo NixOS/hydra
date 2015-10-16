@@ -22,11 +22,12 @@ $ nix-env -i foo</pre>
 $ nix-channel --update
 $ nix-env -u '*'</pre>
 
+[% IF genericChannel %]
+
 <p>Alternatively, if you have associated the
 <tt>application/nix-package</tt> MIME type with the
 <tt>nix-install-package</tt> program in your web browser, you can
 install the package simply by clicking on the packages below.</p>
-
 
 <h2>Packages</h2>
 
@@ -69,5 +70,17 @@ install the package simply by clicking on the packages below.</p>
 
 </table>
 
+[% ELSE %]
+[% PROCESS "product-list.tt" %]
+
+<h2>Contents</h2>
+
+[% INCLUDE renderProductList build=lastSuccessful %]
+
+<p>Upgrades depend on the success/failure of the following constituents:</p>
+
+[% INCLUDE renderBuildList builds=constituents %]
+
+[% END %]
 
 [% END %]

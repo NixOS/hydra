@@ -116,6 +116,12 @@ __PACKAGE__->table("Builds");
   default_value: 36000
   is_nullable: 1
 
+=head2 ischannel
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 1
+
 =head2 iscurrent
 
   data_type: 'integer'
@@ -239,6 +245,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 3600, is_nullable => 1 },
   "timeout",
   { data_type => "integer", default_value => 36000, is_nullable => 1 },
+  "ischannel",
+  { data_type => "integer", default_value => 0, is_nullable => 1 },
   "iscurrent",
   { data_type => "integer", default_value => 0, is_nullable => 1 },
   "nixexprinput",
@@ -558,8 +566,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-08-10 15:10:41
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:rjifgnPtjY96MaQ7eiGzaA
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-09-10 17:34:23
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:JRelp13Cyfi+QVxC92xuqQ
 
 __PACKAGE__->has_many(
   "dependents",

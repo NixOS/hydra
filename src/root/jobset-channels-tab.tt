@@ -1,0 +1,34 @@
+[% PROCESS common.tt %]
+
+[% IF channels.size == 0 %]
+
+  <div class="alert">There are no channels available.</div>
+
+[% ELSE %]
+
+  [% evalIds = evals.keys.nsort.reverse %]
+  <table class="table table-striped table-condensed table-header-rotated">
+    <thead>
+      <tr>
+        <th style="width: 1em;">Channel</th>
+        [% FOREACH eval IN evalIds %]
+          <th class="rotate-45">
+            <div><span>
+              <a href="[% c.uri_for('/eval' eval) %]">[% INCLUDE renderRelativeDate timestamp=evals.$eval.timestamp %]</a>
+            </span></div></th>
+        [% END %]
+      </tr>
+    </thead>
+    <tbody>
+      [% FOREACH chan IN channels-%]
+        <tr>
+          <th><span><a href="[% c.uri_for('/channel/custom' project.name jobset.name chan) %]">[% chan %]</a></span></th>
+          [% FOREACH eval IN evalIds %]
+            <td>[% r = evals.$eval.builds.$chan; IF r.id %]<a href="[% c.uri_for('/build' r.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
+          [% END %]
+        </tr>
+      [% END %]
+    </tbody>
+  </table>
+
+[% END %]

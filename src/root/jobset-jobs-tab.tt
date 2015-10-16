@@ -59,7 +59,7 @@
         <tr>
           <th><span [% IF inactiveJobs.$j %]class="muted override-link"[% END %]>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]</span></th>
           [% FOREACH eval IN evalIds %]
-            <td>[% r = evals.$eval.jobs.$j; IF r.id %]<a href="[% c.uri_for('/build' r.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
+            <td>[% r = evals.$eval.builds.$j; IF r.id %]<a href="[% c.uri_for('/build' r.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
           [% END %]
         </tr>
       [% END %]

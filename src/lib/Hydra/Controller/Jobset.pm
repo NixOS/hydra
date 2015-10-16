@@ -108,40 +108,40 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
     $c->stash->{filter} = $c->request->params->{filter} // "";
     my $filter = "%" . $c->stash->{filter} . "%";
 
-    my @evals = $c->stash->{jobset}->jobsetevals->search({ hasnewbuilds => 1}, { order_by => "id desc", rows => 20 });
-
-    my $evals = {};
-    my %jobs;
-    my $nrBuilds = 0;
-
-    foreach my $eval (@evals) {
-        my @builds = $eval->builds->search(
-            { job => { ilike => $filter } },
-            { columns => ['id', 'job', 'finished', 'buildstatus'] });
-        foreach my $b (@builds) {
-            my $jobName = $b->get_column('job');
-            $evals->{$eval->id}->{timestamp} = $eval->timestamp;
-            $evals->{$eval->id}->{jobs}->{$jobName} =
-                { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
-            $jobs{$jobName} = 1;
-            $nrBuilds++;
-        }
-        last if $nrBuilds >= 10000;
-    }
+    my ($evals, $builds) = searchBuildsAndEvalsForJobset(
+        $c->stash->{jobset},
+        { job => { ilike => $filter }, ischannel => 0 },
+        10000
+    );
 
     if ($c->request->params->{showInactive}) {
         $c->stash->{showInactive} = 1;
         foreach my $job ($c->stash->{jobset}->jobs->search({ name => { ilike => $filter } })) {
-            next if defined $jobs{$job->name};
-            $c->stash->{inactiveJobs}->{$job->name} = $jobs{$job->name} = 1;
+            next if defined $builds->{$job->name};
+            $c->stash->{inactiveJobs}->{$job->name} = $builds->{$job->name} = 1;
         }
     }
 
     $c->stash->{evals} = $evals;
-    my @jobs = sort (keys %jobs);
+    my @jobs = sort (keys %$builds);
     $c->stash->{nrJobs} = scalar @jobs;
     splice @jobs, 250 if $c->stash->{filter} eq "";
     $c->stash->{jobs} = [@jobs];
+}
+
+
+sub channels_tab : Chained('jobsetChain') PathPart('channels-tab') Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'jobset-channels-tab.tt';
+
+    my ($evals, $builds) = searchBuildsAndEvalsForJobset(
+        $c->stash->{jobset},
+        { ischannel => 1 }
+    );
+
+    $c->stash->{evals} = $evals;
+    my @channels = sort (keys %$builds);
+    $c->stash->{channels} = [@channels];
 }
 
 
