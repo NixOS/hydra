@@ -259,8 +259,6 @@ private:
 
     nix::Path hydraData, logDir;
 
-    nix::StringSet localPlatforms;
-
     /* The queued builds. */
     typedef std::map<BuildID, Build::ptr> Builds;
     Sync<Builds> builds;

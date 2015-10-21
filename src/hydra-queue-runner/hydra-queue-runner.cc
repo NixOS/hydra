@@ -21,10 +21,6 @@ State::State()
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
 
     logDir = canonPath(hydraData + "/build-logs");
-
-    localPlatforms = {settings.thisSystem};
-    if (settings.thisSystem == "x86_64-linux")
-        localPlatforms.insert("i686-linux");
 }
 
 
@@ -97,7 +93,7 @@ void State::monitorMachinesFile()
         getEnv("NIX_REMOTE_SYSTEMS", pathExists(defaultMachinesFile) ? defaultMachinesFile : ""), ":");
 
     if (machinesFiles.empty()) {
-        parseMachines("localhost " + concatStringsSep(",", localPlatforms)
+        parseMachines("localhost " + settings.thisSystem
             + " - " + int2String(settings.maxBuildJobs) + " 1");
         return;
     }

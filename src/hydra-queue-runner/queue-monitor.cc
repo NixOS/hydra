@@ -1,6 +1,7 @@
 #include "state.hh"
 #include "build-result.hh"
 #include "globals.hh"
+#include "misc.hh"
 
 
 using namespace nix;
@@ -358,10 +359,7 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store,
        runnable while step->created == false. */
     step->drv = readDerivation(drvPath);
 
-    auto attr = step->drv.env.find("preferLocalBuild");
-    step->preferLocalBuild =
-        attr != step->drv.env.end() && attr->second == "1"
-        && has(localPlatforms, step->drv.platform);
+    step->preferLocalBuild = willBuildLocally(step->drv);
 
     step->systemType = step->drv.platform;
     {
