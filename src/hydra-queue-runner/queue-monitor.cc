@@ -36,12 +36,15 @@ void State::queueMonitorLoop()
     unsigned int lastBuildId = 0;
 
     while (true) {
-        getQueuedBuilds(*conn, store, lastBuildId);
+        bool done = getQueuedBuilds(*conn, store, lastBuildId);
 
         /* Sleep until we get notification from the database about an
            event. */
-        conn->await_notification();
-        nrQueueWakeups++;
+        if (done) {
+            conn->await_notification();
+            nrQueueWakeups++;
+        } else
+            conn->get_notifs();
 
         if (buildsAdded.get())
             printMsg(lvlTalkative, "got notification: new builds added to the queue");
@@ -61,7 +64,7 @@ void State::queueMonitorLoop()
 }
 
 
-void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, unsigned int & lastBuildId)
+bool State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, unsigned int & lastBuildId)
 {
     printMsg(lvlInfo, format("checking the queue for builds > %1%...") % lastBuildId);
 
@@ -70,6 +73,8 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
     std::vector<BuildID> newIDs;
     std::map<BuildID, Build::ptr> newBuildsByID;
     std::multimap<Path, BuildID> newBuildsByPath;
+
+    unsigned int newLastBuildId = lastBuildId;
 
     {
         pqxx::work txn(conn);
@@ -83,7 +88,7 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             auto builds_(builds.lock());
             BuildID id = row["id"].as<BuildID>();
             if (buildOne && id != buildOne) continue;
-            if (id > lastBuildId) lastBuildId = id;
+            if (id > newLastBuildId) newLastBuildId = id;
             if (has(*builds_, id)) continue;
 
             auto build = std::make_shared<Build>();
@@ -229,6 +234,8 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
     /* Now instantiate build steps for each new build. The builder
        threads can start building the runnable build steps right away,
        even while we're still processing other new builds. */
+    system_time start = std::chrono::system_clock::now();
+
     for (auto id : newIDs) {
         auto i = newBuildsByID.find(id);
         if (i == newBuildsByID.end()) continue;
@@ -250,7 +257,14 @@ void State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             makeRunnable(r);
 
         nrBuildsRead += nrAdded;
+
+        /* Stop after a certain time to allow priority bumps to be
+           processed. */
+        if (std::chrono::system_clock::now() > start + std::chrono::seconds(600)) break;
     }
+
+    lastBuildId = newBuildsByID.empty() ? newLastBuildId : newBuildsByID.begin()->first - 1;
+    return newBuildsByID.empty();
 }
 
 
