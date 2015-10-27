@@ -330,7 +330,7 @@ in
       { path = [ pkgs.bzip2 ];
         script =
           ''
-            find /var/lib/hydra/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v
+            find /var/lib/hydra/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v -f
           '';
         startAt = "Sun 01:45";
       };
