@@ -442,22 +442,18 @@ sub cancelBuilds($$) {
 
 sub restartBuilds($$) {
     my ($db, $builds) = @_;
-    my @buildIds;
+
+    $builds = $builds->search({ finished => 1 });
+
+    foreach my $build ($builds->search({}, { columns => ["drvpath"] })) {
+        next if !isValidPath($build->drvpath);
+        registerRoot $build->drvpath;
+    }
+
+    my $nrRestarted = 0;
 
     txn_do($db, sub {
-        my %paths;
-
-        $builds = $builds->search({ finished => 1 });
-
-        foreach my $build ($builds->all) {
-            next if !isValidPath($build->drvpath);
-            $paths{$_->path} = 1 foreach $build->buildoutputs->all;
-            $paths{$_->path} = 1 foreach $build->buildstepoutputs->all;
-            push @buildIds, $build->id;
-            registerRoot $build->drvpath;
-        }
-
-        $db->resultset('Builds')->search({ id => \@buildIds })->update(
+        $nrRestarted = $builds->update(
             { finished => 0
             , busy => 0
             , locker => ""
@@ -466,14 +462,22 @@ sub restartBuilds($$) {
 
         # Reset the stats for the evals to which the builds belongs.
         # !!! Should do this in a trigger.
-        $db->resultset('JobsetEvals')->search({ build => \@buildIds }, { join => 'buildIds' })->update({ nrsucceeded => undef });
+        $db->resultset('JobsetEvals')->search(
+            { id => { -in => $builds->search({}, { join => { 'jobsetevalmembers' => 'eval' }, select => "jobsetevalmembers.eval", as => "eval", distinct => 1 })->as_query }
+            })->update({ nrsucceeded => undef });
 
         # Clear the failed paths cache.
         # FIXME: Add this to the API.
-        $db->resultset('FailedPaths')->search({ path => [ keys %paths ]})->delete;
+        my $cleared = $db->resultset('FailedPaths')->search(
+            { path => { -in => $builds->search({}, { join => "buildoutputs", select => "buildoutputs.path", as => "path", distinct => 1 })->as_query }
+            })->delete;
+        $cleared += $db->resultset('FailedPaths')->search(
+            { path => { -in => $builds->search({}, { join => "buildstepoutputs", select => "buildstepoutputs.path", as => "path", distinct => 1 })->as_query }
+            })->delete;
+        print STDERR "cleared $cleared failed paths\n";
     });
 
-    return scalar(@buildIds);
+    return $nrRestarted;
 }
 
 
