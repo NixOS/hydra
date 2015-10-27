@@ -98,11 +98,11 @@ BLOCK renderBuildListBody;
     <tr>
       [% IF !hideResultInfo %]
         <td>
-          [% INCLUDE renderBuildStatusIcon size=16 busy=(showSchedulingInfo ? 1 : 0) buildstatus=build.buildstatus %]
+          [% INCLUDE renderBuildStatusIcon size=16 buildstatus=build.buildstatus %]
         </td>
       [% END %]
       [% IF showSchedulingInfo %]
-        <td>[% IF build.busy %]<span class="label label-success">Started</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
+        <td>[% IF busy %]<span class="label label-success">Started</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
       [% END %]
       <td><a class="row-link" href="[% link %]">[% build.id %]</a></td>
       [% IF !hideJobName %]
@@ -189,7 +189,6 @@ BLOCK renderBuildLink; INCLUDE renderBuildIdLink id=build.id; END;
 
 BLOCK renderBuildStatusIcon;
   finished = build != undef ? build.finished : 1;
-  busy = busy != undef ? busy : build.busy;
   buildstatus = buildstatus != undef ? buildstatus : build.buildstatus;
   IF finished;
     IF buildstatus == 0 %]
@@ -211,10 +210,8 @@ BLOCK renderBuildStatusIcon;
     [% ELSE %]
       <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
     [% END;
-  ELSIF busy %]
-    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Busy" class="build-status" />
-  [% ELSE %]
-    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Scheduled" class="build-status" />
+  ELSE %]
+    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Queued" class="build-status" />
   [% END;
 END;
 
@@ -243,9 +240,8 @@ BLOCK renderStatus;
       <span class="error">Aborted</span>
       (Hydra failure; see <a href="#nix-error">below</a>)
     [% END;
-  ELSIF build.busy %]
-    <strong>Build in progress</strong>
-    since [% INCLUDE renderDateTime timestamp = build.starttime;
+  ELSIF busy %]
+    <strong>Build in progress</strong>[%-
   ELSE %]
     <strong>Scheduled to be built</strong>
   [% END;

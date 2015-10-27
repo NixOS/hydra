@@ -125,7 +125,7 @@ bool State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             if (!build->finishedInDB) {
                 pqxx::work txn(conn);
                 txn.parameterized
-                    ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1 and finished = 0")
+                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1 and finished = 0")
                     (build->id)
                     ((int) bsAborted)
                     (time(0))
@@ -201,7 +201,7 @@ bool State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
 
                     createBuildStep(txn, 0, build, r, "", bssCachedFailure, "", propagatedFrom);
                     txn.parameterized
-                        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = 1 where id = $1 and finished = 0")
+                        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = 1 where id = $1 and finished = 0")
                         (build->id)
                         ((int) (step == r ? bsFailed : bsDepFailed))
                         (time(0)).exec();

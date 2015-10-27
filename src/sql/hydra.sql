@@ -173,12 +173,6 @@ create table Builds (
     -- the front of the queue via the web interface.
     globalPriority integer not null default 0,
 
-    -- FIXME: remove (obsolete with the new queue runner)
-    busy          integer not null default 0, -- true means someone is building this job now
-    locker        text, -- !!! hostname/pid of the process building this job?
-
-    logfile       text, -- if busy, the path of the logfile
-
     -- FIXME: remove startTime?
     startTime     integer, -- if busy/finished, time we started
     stopTime      integer, -- if finished, time we finished
@@ -641,7 +635,6 @@ create index IndexBuildStepsOnPropagatedFrom on BuildSteps(propagatedFrom) where
 create index IndexBuildStepsOnStopTime on BuildSteps(stopTime desc) where startTime is not null and stopTime is not null;
 create index IndexBuildStepOutputsOnPath on BuildStepOutputs(path);
 create index IndexBuildsOnFinished on Builds(finished) where finished = 0;
-create index IndexBuildsOnFinishedBusy on Builds(finished, busy) where finished = 0;
 create index IndexBuildsOnIsCurrent on Builds(isCurrent) where isCurrent = 1;
 create index IndexBuildsOnJobsetIsCurrent on Builds(project, jobset, isCurrent) where isCurrent = 1;
 create index IndexBuildsOnJobIsCurrent on Builds(project, jobset, job, isCurrent) where isCurrent = 1;

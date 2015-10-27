@@ -4,7 +4,12 @@
 [% USE HTML %]
 [% USE Date %]
 
-[% isAggregate = constituents.size > 0 %]
+[%
+isAggregate = constituents.size > 0;
+steps = build.buildsteps;
+busy = 0;
+FOR step IN steps; IF step.busy; busy = 1; END; END;
+%]
 
 [% BLOCK renderOutputs %]
   [% start=1; FOREACH output IN outputs %]
@@ -18,7 +23,7 @@
       <tr><th>Nr</th><th>What</th><th>Duration</th><th>Machine</th><th>Status</th></tr>
     </thead>
     <tbody>
-      [% FOREACH step IN build.buildsteps.reverse %]
+      [% FOREACH step IN steps.reverse %]
         [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
           [% has_log = seen.${step.drvpath} ? 0 : buildStepLogExists(step);
              seen.${step.drvpath} = 1;
@@ -114,7 +119,7 @@
   [% IF isAggregate %]<li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>[% END %]
   <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
   <li><a href="#tabs-buildinputs" data-toggle="tab">Inputs</a></li>
-  [% IF build.buildsteps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
+  [% IF steps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
   [% IF build.dependents %]<li><a href="#tabs-usedby" data-toggle="tab">Used by</a></li>[% END%]
   [% IF drvAvailable %]<li><a href="#tabs-build-deps" data-toggle="tab">Build dependencies</a></li>[% END %]
   [% IF available %]<li><a href="#tabs-runtime-deps" data-toggle="tab">Runtime dependencies</a></li>[% END %]
@@ -138,7 +143,7 @@
             <tr>
               <th>Status:</th>
               <td>
-                [% INCLUDE renderStatus build=build icon=0 %]
+                [% INCLUDE renderStatus build=build icon=0 busy=busy %]
                 [% IF isAggregate;
                      nrConstituents = 0;
                      nrFinished = 0;
@@ -229,14 +234,14 @@
 
     [% END %]
 
-    [% IF build.busy %]
+    [% IF busy %]
       <h3>Running build steps</h3>
       [% INCLUDE renderBuildSteps type="Running" %]
     [% END %]
 
     [% IF build.finished %]
 
-      [% IF build.buildsteps && build.buildstatus != 0 && build.buildstatus != 6 %]
+      [% IF steps && build.buildstatus != 0 && build.buildstatus != 6 %]
         <h3>Failed build steps</h3>
         [% INCLUDE renderBuildSteps type="Failed" %]
       [% END %]
@@ -423,7 +428,7 @@
 
   </div>
 
-  [% IF build.buildsteps %]
+  [% IF steps %]
     <div id="tabs-buildsteps" class="tab-pane">
       [% INCLUDE renderBuildSteps type="All" %]
     </div>

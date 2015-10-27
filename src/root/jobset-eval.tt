@@ -91,7 +91,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% INCLUDE renderBuildListHeader unsortable=1 %]
   [% size = builds.size; max = full ? size : 250; %]
   [% INCLUDE renderBuildListBody builds=builds.slice(0, (size > max ? max : size) - 1)
-       hideProjectName=1 hideJobsetName=1 %]
+       hideProjectName=1 hideJobsetName=1 busy=0 %]
   [% IF size > max; params = c.req.params; params.full = 1 %]
   <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]"><em>([% size - max %] more builds omitted)</em></a></td></tr>
   [% END %]

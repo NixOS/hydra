@@ -44,7 +44,9 @@ sub begin :Private {
     }
 
     if (scalar(@args) == 0 || $args[0] ne "static") {
-        $c->stash->{nrRunningBuilds} = $c->model('DB::Builds')->search({ finished => 0, busy => 1 }, {})->count();
+        $c->stash->{nrRunningBuilds} = $c->model('DB::Builds')->search(
+            { finished => 0, 'buildsteps.busy' => 1 },
+            { join => 'buildsteps', select => ["id"], distinct => 1 })->count();
         $c->stash->{nrQueuedBuilds} = $c->model('DB::Builds')->search({ finished => 0 })->count();
     }
 
@@ -89,7 +91,11 @@ sub queue_GET {
     $c->stash->{flashMsg} //= $c->flash->{buildMsg};
     $self->status_ok(
         $c,
-        entity => [$c->model('DB::Builds')->search({finished => 0}, { order_by => ["globalpriority desc", "id"]})]
+        entity => [$c->model('DB::Builds')->search(
+            { finished => 0 },
+            { order_by => ["globalpriority desc", "id"],
+            , columns => [@buildListColumns]
+            })]
     );
 }
 
@@ -100,7 +106,12 @@ sub status_GET {
     my ($self, $c) = @_;
     $self->status_ok(
         $c,
-        entity => [$c->model('DB::Builds')->search({finished => 0, busy => 1}, { order_by => ["priority DESC", "id"]})]
+        entity => [$c->model('DB::Builds')->search(
+            { finished => 0, "buildsteps.busy" => 1 },
+            { order_by => ["globalpriority DESC", "id"],
+              join => "buildsteps",
+              columns => [@buildListColumns]
+            })]
     );
 }
 
@@ -126,7 +137,7 @@ sub machines :Local Args(0) {
 
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
-        { finished => 0, 'me.busy' => 1, 'build.busy' => 1, },
+        { finished => 0, 'me.busy' => 1, },
         { join => [ 'build' ]
         , order_by => [ 'machine', 'stepnr' ]
         } ) ];

@@ -455,8 +455,6 @@ sub restartBuilds($$) {
     txn_do($db, sub {
         $nrRestarted = $builds->update(
             { finished => 0
-            , busy => 0
-            , locker => ""
             , iscachedbuild => 0
             });
 

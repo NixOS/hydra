@@ -38,7 +38,6 @@ sub buildToHash {
     if($build->finished) {
         $result->{'buildstatus'} = $build->get_column("buildstatus");
     } else {
-        $result->{'busy'} = $build->get_column("busy");
         $result->{'priority'} = $build->get_column("priority");
     }
 
@@ -114,7 +113,7 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
     my $nr = $c->request->params->{nr};
     error($c, "Parameter not defined!") if !defined $nr;
 
-    my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["busy DESC", "priority DESC", "id"]});
+    my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["priority DESC", "id"]});
 
     my @list;
     push @list, buildToHash($_) foreach @builds;
@@ -131,16 +130,6 @@ sub nrqueue : Chained('api') PathPart('nrqueue') Args(0) {
     my $nrQueuedBuilds = $c->model('DB::Builds')->search({finished => 0})->count();
     $c->stash->{'plain'} = {
         data => "$nrQueuedBuilds"
-    };
-    $c->forward('Hydra::View::Plain');
-}
-
-
-sub nrrunning : Chained('api') PathPart('nrrunning') Args(0) {
-    my ($self, $c) = @_;
-    my $nrRunningBuilds = $c->model('DB::Builds')->search({finished => 0, busy => 1 })->count();
-    $c->stash->{'plain'} = {
-        data => "$nrRunningBuilds"
     };
     $c->forward('Hydra::View::Plain');
 }
@@ -207,44 +196,6 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
         $diff .= `(cd $clonePath; git diff $rev1..$rev2)`;
     }
 
-    $c->stash->{'plain'} = { data => (scalar $diff) || " " };
-    $c->forward('Hydra::View::Plain');
-}
-
-
-sub readNormalizedLog {
-    my ($file) = @_;
-    my $pipe = (-f "$file.bz2" ? "cat $file.bz2 | bzip2 -d" : "cat $file");
-    my $res = `$pipe`;
-
-    $res =~ s/\/nix\/store\/[a-z0-9]*-/\/nix\/store\/...-/g;
-    $res =~ s/nix-build-[a-z0-9]*-/nix-build-...-/g;
-    $res =~ s/[0-9]{2}:[0-9]{2}:[0-9]{2}/00:00:00/g;
-    return $res;
-}
-
-
-sub logdiff : Chained('api') PathPart('logdiff') Args(2) {
-    my ($self, $c, $buildid1, $buildid2) = @_;
-
-    my $diff = "";
-
-    my $build1 = getBuild($c, $buildid1);
-    notFound($c, "Build with ID $buildid1 doesn't exist.")
-        if !defined $build1;
-    my $build2 = getBuild($c, $buildid2);
-    notFound($c, "Build with ID $buildid2 doesn't exist.")
-        if !defined $build2;
-
-    if (-f $build1->logfile && -f $build2->logfile) {
-        my $logtext1 = readNormalizedLog($build1->logfile);
-        my $logtext2 = readNormalizedLog($build2->logfile);
-        $diff = diff \$logtext1, \$logtext2;
-    } else {
-        $c->response->status(404);
-    }
-
-    $c->response->content_type('text/x-diff');
     $c->stash->{'plain'} = { data => (scalar $diff) || " " };
     $c->forward('Hydra::View::Plain');
 }

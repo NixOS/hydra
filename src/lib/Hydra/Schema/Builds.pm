@@ -120,7 +120,7 @@ __PACKAGE__->table("Builds");
 
   data_type: 'integer'
   default_value: 0
-  is_nullable: 1
+  is_nullable: 0
 
 =head2 iscurrent
 
@@ -149,22 +149,6 @@ __PACKAGE__->table("Builds");
   data_type: 'integer'
   default_value: 0
   is_nullable: 0
-
-=head2 busy
-
-  data_type: 'integer'
-  default_value: 0
-  is_nullable: 0
-
-=head2 locker
-
-  data_type: 'text'
-  is_nullable: 1
-
-=head2 logfile
-
-  data_type: 'text'
-  is_nullable: 1
 
 =head2 starttime
 
@@ -246,7 +230,7 @@ __PACKAGE__->add_columns(
   "timeout",
   { data_type => "integer", default_value => 36000, is_nullable => 1 },
   "ischannel",
-  { data_type => "integer", default_value => 0, is_nullable => 1 },
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
   "iscurrent",
   { data_type => "integer", default_value => 0, is_nullable => 1 },
   "nixexprinput",
@@ -257,12 +241,6 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "globalpriority",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
-  "busy",
-  { data_type => "integer", default_value => 0, is_nullable => 0 },
-  "locker",
-  { data_type => "text", is_nullable => 1 },
-  "logfile",
-  { data_type => "text", is_nullable => 1 },
   "starttime",
   { data_type => "integer", is_nullable => 1 },
   "stoptime",
@@ -566,8 +544,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-09-10 17:34:23
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:JRelp13Cyfi+QVxC92xuqQ
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-10-27 13:54:16
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:iN9vwO5i3dURKOTgaPTHxw
 
 __PACKAGE__->has_many(
   "dependents",
@@ -647,7 +625,6 @@ my %hint = (
         'nixname',
         'system',
         'priority',
-        'busy',
         'buildstatus',
         'releasename'
     ],

@@ -110,11 +110,10 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
     else {
 
         /* Create a build step record indicating that we started
-           building. Also, mark the selected build as busy. */
+           building. */
         {
             pqxx::work txn(*conn);
             stepNr = createBuildStep(txn, result.startTime, build, step, machine->sshName, bssBusy);
-            txn.parameterized("update Builds set busy = 1 where id = $1")(build->id).exec();
             txn.commit();
         }
 
@@ -341,7 +340,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                     if (build2->finishedInDB) continue;
                     printMsg(lvlError, format("marking build %1% as failed") % build2->id);
                     txn.parameterized
-                        ("update Builds set finished = 1, busy = 0, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1 and finished = 0")
+                        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1 and finished = 0")
                         (build2->id)
                         ((int) (build2->drvPath != step->drvPath && buildStatus == bsFailed ? bsDepFailed : buildStatus))
                         (result.startTime)

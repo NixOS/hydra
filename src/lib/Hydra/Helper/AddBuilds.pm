@@ -450,8 +450,6 @@ sub checkBuild {
             , nixexprpath => $jobset->nixexprpath
             , priority => $buildInfo->{schedulingPriority}
             , finished => 0
-            , busy => 0
-            , locker => ""
             , iscurrent => 1
             , ischannel => $buildInfo->{isChannel}
             });

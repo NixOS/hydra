@@ -167,7 +167,7 @@ sub showLog {
         my $url = $c->request->uri->as_string;
         $url =~ s/tail-reload/tail/g;
         $c->stash->{url} = $url;
-        $c->stash->{reload} = !$c->stash->{build}->finished && $c->stash->{build}->busy;
+        $c->stash->{reload} = !$c->stash->{build}->finished;
         $c->stash->{title} = "";
         $c->stash->{contents} = (scalar logContents($logPath, 50)) || " ";
         $c->stash->{template} = 'plain-reload.tt';
