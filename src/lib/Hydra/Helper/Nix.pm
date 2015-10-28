@@ -453,11 +453,6 @@ sub restartBuilds($$) {
     my $nrRestarted = 0;
 
     txn_do($db, sub {
-        $nrRestarted = $builds->update(
-            { finished => 0
-            , iscachedbuild => 0
-            });
-
         # Reset the stats for the evals to which the builds belongs.
         # !!! Should do this in a trigger.
         $db->resultset('JobsetEvals')->search(
@@ -473,6 +468,11 @@ sub restartBuilds($$) {
             { path => { -in => $builds->search({}, { join => "buildstepoutputs", select => "buildstepoutputs.path", as => "path", distinct => 1 })->as_query }
             })->delete;
         print STDERR "cleared $cleared failed paths\n";
+
+        $nrRestarted = $builds->update(
+            { finished => 0
+            , iscachedbuild => 0
+            });
     });
 
     return $nrRestarted;
