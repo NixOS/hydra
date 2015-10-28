@@ -50,6 +50,9 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
         [% IF unfinished.size > 0 %]
           <li><a href="[% c.uri_for(c.controller('JobsetEval').action_for('cancel'), [eval.id]) %]">Cancel all scheduled builds</a></li>
         [% END %]
+        [% IF aborted.size > 0 || stillFail.size > 0 || nowFail.size > 0 %]
+          <li><a href="[% c.uri_for(c.controller('JobsetEval').action_for('restart_failed'), [eval.id]) %]">Restart all failed builds</a></li>
+        [% END %]
         [% IF aborted.size > 0 %]
           <li><a href="[% c.uri_for(c.controller('JobsetEval').action_for('restart_aborted'), [eval.id]) %]">Restart all aborted builds</a></li>
         [% END %]

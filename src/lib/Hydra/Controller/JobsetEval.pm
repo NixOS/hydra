@@ -184,13 +184,25 @@ sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
 }
 
 
-sub restart_aborted : Chained('evalChain') PathPart('restart-aborted') Args(0) {
-    my ($self, $c) = @_;
+sub restart {
+    my ($self, $c, $condition) = @_;
     requireProjectOwner($c, $c->stash->{eval}->project);
-    my $builds = $c->stash->{eval}->builds->search({ finished => 1, buildstatus => { -in => [3, 4, 9] } });
+    my $builds = $c->stash->{eval}->builds->search({ finished => 1, buildstatus => $condition });
     my $n = restartBuilds($c->model('DB')->schema, $builds);
     $c->flash->{successMsg} = "$n builds have been restarted.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
+}
+
+
+sub restart_aborted : Chained('evalChain') PathPart('restart-aborted') Args(0) {
+    my ($self, $c) = @_;
+    restart($self, $c, { -in => [3, 4, 9] });
+}
+
+
+sub restart_failed : Chained('evalChain') PathPart('restart-failed') Args(0) {
+    my ($self, $c) = @_;
+    restart($self, $c, { 'not in' => [0] });
 }
 
 
