@@ -94,7 +94,7 @@ void State::monitorMachinesFile()
 
     if (machinesFiles.empty()) {
         parseMachines("localhost " + settings.thisSystem
-            + " - " + int2String(settings.maxBuildJobs) + " 1");
+            + " - " + std::to_string(settings.maxBuildJobs) + " 1");
         return;
     }
 
@@ -433,9 +433,9 @@ void State::notificationSender()
             printMsg(lvlChatty, format("sending notification about build %1%") % item.first);
 
             Pid pid = startProcess([&]() {
-                Strings argv({"hydra-notify", "build", int2String(item.first)});
+                Strings argv({"hydra-notify", "build", std::to_string(item.first)});
                 for (auto id : item.second)
-                    argv.push_back(int2String(id));
+                    argv.push_back(std::to_string(id));
                 execvp("hydra-notify", (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
                 throw SysError("cannot start hydra-notify");
             });
