@@ -136,10 +136,12 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
        among the jobsets that depend on it. */
     {
         auto step_(step->state.lock());
-        // FIXME: loss of precision.
-        time_t charge = (result.stopTime - result.startTime) / step_->jobsets.size();
-        for (auto & jobset : step_->jobsets)
-            jobset->addStep(result.startTime, charge);
+        if (!step_->jobsets.empty()) {
+            // FIXME: loss of precision.
+            time_t charge = (result.stopTime - result.startTime) / step_->jobsets.size();
+            for (auto & jobset : step_->jobsets)
+                jobset->addStep(result.startTime, charge);
+        }
     }
 
     /* Asynchronously compress the log. */
