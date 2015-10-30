@@ -71,7 +71,8 @@ void State::parseMachines(const std::string & contents)
 
     for (auto & m : oldMachines)
         if (newMachines.find(m.first) == newMachines.end()) {
-            printMsg(lvlInfo, format("removing machine ‘%1%’") % m.first);
+            if (m.second->enabled)
+                printMsg(lvlInfo, format("removing machine ‘%1%’") % m.first);
             /* Add a disabled Machine object to make sure stats are
                maintained. */
             auto machine = std::make_shared<Machine>(*(m.second));
