@@ -184,6 +184,8 @@ rec {
         done
       ''; # */
 
+      separateDebugInfo = true;
+
       meta.description = "Build of Hydra on ${system}";
       passthru.perlDeps = perlDeps;
     });
