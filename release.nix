@@ -175,6 +175,7 @@ rec {
         mkdir -p $out/nix-support
 
         for i in $out/bin/*; do
+            if [ $(basename $i) = hydra-queue-runner -o $(basename $i) = hydra-eval-jobs ]; then continue; fi
             wrapProgram $i \
                 --prefix PERL5LIB ':' $out/libexec/hydra/lib:$PERL5LIB \
                 --prefix PATH ':' $out/bin:$hydraPath \
