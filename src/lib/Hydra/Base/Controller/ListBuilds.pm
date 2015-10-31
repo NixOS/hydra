@@ -32,8 +32,8 @@ sub all : Chained('get_builds') PathPart {
 }
 
 
-sub nix : Chained('get_builds') PathPart('channel/latest') CaptureArgs(1) {
-    my ($self, $c, $channelName) = @_;
+sub nix : Chained('get_builds') PathPart('channel/latest') {
+    my ($self, $c) = @_;
 
     $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
     $c->stash->{channelBuilds} = $c->stash->{latestSucceeded}
