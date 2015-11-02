@@ -89,7 +89,7 @@ bool State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, 
             BuildID id = row["id"].as<BuildID>();
             if (buildOne && id != buildOne) continue;
             if (id > newLastBuildId) newLastBuildId = id;
-            if (has(*builds_, id)) continue;
+            if (builds_->count(id)) continue;
 
             auto build = std::make_shared<Build>();
             build->id = id;

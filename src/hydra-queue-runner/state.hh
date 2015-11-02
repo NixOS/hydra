@@ -439,10 +439,3 @@ public:
 
     void run(BuildID buildOne = 0);
 };
-
-
-template <class C, class V>
-bool has(const C & c, const V & v)
-{
-    return c.find(v) != c.end();
-}

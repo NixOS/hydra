@@ -249,7 +249,7 @@ void getDependents(Step::ptr step, std::set<Build::ptr> & builds, std::set<Step:
     std::function<void(Step::ptr)> visit;
 
     visit = [&](Step::ptr step) {
-        if (has(steps, step)) return;
+        if (steps.count(step)) return;
         steps.insert(step);
 
         std::vector<Step::wptr> rdeps;
