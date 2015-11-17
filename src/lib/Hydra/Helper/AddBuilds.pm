@@ -34,7 +34,7 @@ sub parseJobName {
     our $key;
     our %attrs = ();
     # hm, maybe I should stop programming Perl before it's too late...
-    $s =~ / ^ (?: (?: ([\w\-]+) : )? ([\w\-\.]+) : )? ([\w\-\.]+) \s*
+    $s =~ / ^ (?: (?: ($projectNameRE) : )? ($jobsetNameRE) : )? ($jobNameRE) \s*
             (\[ \s* (
               ([\w]+) (?{ $key = $^N; }) \s* = \s* \"
               ([\w\-]+) (?{ $attrs{$key} = $^N; }) \"
@@ -327,7 +327,7 @@ sub evalJobs {
     my ($inputInfo, $exprType, $nixExprInputName, $nixExprPath) = @_;
 
     my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
-        or die "cannot find the input containing the job expression.\n";
+        or die "cannot find the input containing the job expression\n";
     die "multiple alternatives for the input containing the Nix expression are not supported.\n"
         if scalar @{$inputInfo->{$nixExprInputName}} != 1;
     my $nixExprFullPath = $nixExprInput->{storePath} . "/" . $nixExprPath;
