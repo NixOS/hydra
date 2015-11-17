@@ -9,10 +9,11 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
 use Nix::Store;
 use Encode;
+use Sys::Hostname::Long;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getHydraHome getHydraConfig txn_do
+    getHydraHome getHydraConfig getBaseUrl txn_do
     getSCMCacheDir
     registerRoot getGCRootsDir gcRootFor
     jobsetOverview jobsetOverview_
@@ -36,6 +37,12 @@ sub getHydraConfig {
     return {} unless -f $conf;
     my %config = new Config::General($conf)->getall;
     return \%config;
+}
+
+
+sub getBaseUrl {
+    my ($config) = @_;
+    return $config->{'base_uri'} // "http://" . hostname_long . ":3000";
 }
 
 

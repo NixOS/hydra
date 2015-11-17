@@ -1,13 +1,14 @@
 package Hydra::Helper::Email;
 
 use strict;
-use Exporter 'import';
-use Email::Sender::Simple qw(sendmail);
 use Email::MIME;
+use Email::Sender::Simple qw(sendmail);
+use Exporter 'import';
 use File::Slurp;
+use Hydra::Helper::Nix;
 use Sys::Hostname::Long;
 
-our @EXPORT = qw(sendEmail getBaseUrl);
+our @EXPORT = qw(sendEmail);
 
 sub sendEmail {
     my ($config, $to, $subject, $body, $extraHeaders) = @_;
@@ -39,11 +40,6 @@ sub sendEmail {
     } else {
         sendmail($email, { from => $sender });
     }
-}
-
-sub getBaseUrl {
-    my ($config) = @_;
-    return $config->{'base_uri'} // "http://" . hostname_long . ":3000";
 }
 
 1;
