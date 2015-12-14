@@ -32,11 +32,18 @@ sub getHydraHome {
 }
 
 
+my $hydraConfig;
+
 sub getHydraConfig {
+    return $hydraConfig if defined $hydraConfig;
     my $conf = $ENV{"HYDRA_CONFIG"} || (Hydra::Model::DB::getHydraPath . "/hydra.conf");
-    return {} unless -f $conf;
-    my %config = new Config::General($conf)->getall;
-    return \%config;
+    if (-f $conf) {
+        my %h = new Config::General($conf)->getall;
+        $hydraConfig = \%h;
+    } else {
+        $hydraConfig = {};
+    }
+    return $hydraConfig;
 }
 
 
@@ -68,8 +75,12 @@ sub getSCMCacheDir {
 
 
 sub getGCRootsDir {
-    die unless defined $ENV{LOGNAME};
-    my $dir = ($ENV{NIX_STATE_DIR} || "/nix/var/nix" ) . "/gcroots/per-user/$ENV{LOGNAME}/hydra-roots";
+    my $config = getHydraConfig();
+    my $dir = $config->{gc_roots_dir};
+    unless (defined $dir) {
+        die unless defined $ENV{LOGNAME};
+        $dir = ($ENV{NIX_STATE_DIR} || "/nix/var/nix" ) . "/gcroots/per-user/$ENV{LOGNAME}/hydra-roots";
+    }
     mkpath $dir if !-e $dir;
     return $dir;
 }

@@ -144,6 +144,12 @@ in
         default = {};
         description = "Extra environment variables for Hydra.";
       };
+
+      gcRootsDir = mkOption {
+        type = types.path;
+        default = "/nix/var/nix/gcroots/hydra";
+        description = "Directory that holds Hydra garbage collector roots.";
+      };
     };
 
   };
@@ -189,6 +195,7 @@ in
         ${optionalString (cfg.logo != null) ''
           hydra_logo ${cfg.logo}
         ''}
+        gc_roots_dir ${cfg.gcRootsDir}
       '';
 
     environment.systemPackages = [ cfg.package ];
@@ -230,6 +237,26 @@ in
               touch ${baseDir}/.db-created
             fi
           ''}
+
+          if [ ! -e ${cfg.gcRootsDir} ]; then
+
+            # Move legacy roots directory.
+            if [ -e /nix/var/nix/gcroots/per-user/hydra/hydra-roots ]; then
+              mv /nix/var/nix/gcroots/per-user/hydra/hydra-roots ${cfg.gcRootsDir}
+            fi
+
+            mkdir -p ${cfg.gcRootsDir}
+          fi
+
+          # Move legacy hydra-www roots.
+          if [ -e /nix/var/nix/gcroots/per-user/hydra-www/hydra-roots ]; then
+            find /nix/var/nix/gcroots/per-user/hydra-www/hydra-roots/ -type f \
+              | xargs -r mv -f -t ${cfg.gcRootsDir}/
+            rmdir /nix/var/nix/gcroots/per-user/hydra-www/hydra-roots
+          fi
+
+          chown hydra.hydra ${cfg.gcRootsDir}
+          chmod 2775 ${cfg.gcRootsDir}
         '';
         serviceConfig.ExecStart = "${cfg.package}/bin/hydra-init";
         serviceConfig.PermissionsStartOnly = true;
