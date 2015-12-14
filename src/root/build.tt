@@ -6,7 +6,7 @@
 
 [%
 isAggregate = constituents.size > 0;
-steps = build.buildsteps;
+steps = build.buildsteps.nsort('stepnr').reverse;
 busy = 0;
 FOR step IN steps; IF step.busy; busy = 1; END; END;
 %]
@@ -23,7 +23,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
       <tr><th>Nr</th><th>What</th><th>Duration</th><th>Machine</th><th>Status</th></tr>
     </thead>
     <tbody>
-      [% FOREACH step IN steps.reverse %]
+      [% FOREACH step IN steps %]
         [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
           [% has_log = seen.${step.drvpath} ? 0 : buildStepLogExists(step);
              seen.${step.drvpath} = 1;
