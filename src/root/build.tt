@@ -415,7 +415,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
 
   <div id="tabs-buildinputs" class="tab-pane">
 
-    [% IF build.inputs.size > 0 %]
+    [% IF build.inputs && build.inputs.size > 0 %]
 
       [% INCLUDE renderInputs inputs=build.inputs %]
 
