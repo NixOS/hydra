@@ -94,7 +94,7 @@ sub build_GET {
     }
 
     # Get the first eval of which this build was a part.
-    ($c->stash->{nrEvals}) = $c->stash->{build}->jobsetevals->search({ hasnewbuilds => 1 })->count;
+    ($c->stash->{nrEvals}) = $build->jobsetevals->search({ hasnewbuilds => 1 })->count;
     $c->stash->{eval} = getFirstEval($build);
     $self->status_ok(
         $c,
@@ -107,7 +107,9 @@ sub build_GET {
     $c->stash->{otherEval} = $eval2 if defined $eval2;
 
     # If this is an aggregate build, get its constituents.
-    $c->stash->{constituents} = [$c->stash->{build}->constituents_->search({}, {order_by => ["job"]})];
+    $c->stash->{constituents} = [$build->constituents_->search({}, {order_by => ["job"]})];
+
+    $c->stash->{steps} = [$build->buildsteps->search({}, {order_by => "stepnr desc"})];
 }
 
 

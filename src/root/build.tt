@@ -6,7 +6,6 @@
 
 [%
 isAggregate = constituents.size > 0;
-steps = build.buildsteps.nsort('stepnr').reverse;
 busy = 0;
 FOR step IN steps; IF step.busy; busy = 1; END; END;
 %]
