@@ -91,7 +91,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
             % step->drvPath % machine->sshName % build->id % (dependents.size() - 1));
     }
 
-    bool quit = build->id == buildOne;
+    bool quit = build->id == buildOne && step->drvPath == build->drvPath;
 
     auto conn(dbPool.get());
 
