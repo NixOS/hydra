@@ -346,7 +346,7 @@ sub evalJobs {
         print STDERR "evaluator: @escaped\n";
     }
 
-    (my $res, my $jobsJSON, my $stderr) = captureStdoutStderr(10800, @cmd);
+    (my $res, my $jobsJSON, my $stderr) = captureStdoutStderr(21600, @cmd);
     die "$evaluator returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
         . ":\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
         if $res;
