@@ -3,6 +3,7 @@ package Hydra::Helper::Email;
 use strict;
 use Email::MIME;
 use Email::Sender::Simple qw(sendmail);
+use Email::MessageID;
 use Exporter 'import';
 use File::Slurp;
 use Hydra::Helper::Nix;
@@ -15,13 +16,15 @@ sub sendEmail {
 
     my $url = getBaseUrl($config);
     my $sender = $config->{'notification_sender'} // (($ENV{'USER'} // "hydra") .  "@" . hostname_long);
+    my $mid = Email::MessageID->new(host => hostname_long);
 
     my @headers = (
         To => $to,
         From => "Hydra Build Daemon <$sender>",
         Subject => $subject,
+        'Message-ID' => $mid->in_brackets,
         'X-Hydra-Instance' => $url, @{$extraHeaders}
-        );
+    );
 
     my $email = Email::MIME->create(
         attributes => {
