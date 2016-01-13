@@ -36,6 +36,11 @@
 
     <script type="text/javascript" src="[% c.uri_for("/static/js/common.js") %]"></script>
 
+    [% IF c.config.enable_google_login %]
+      <meta name="google-signin-client_id" content="[% c.config.google_client_id %]">
+      <script src="https://apis.google.com/js/platform.js" async="1" defer="1"></script>
+    [% END %]
+
     [% tracker %]
 
   </head>
@@ -94,95 +99,16 @@
         <small>
           <em><a href="http://nixos.org/hydra" target="_blank">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
           [% IF c.user_exists %]
-          You are signed in as <tt>[% HTML.escape(c.user.username) %]</tt>[% IF c.user.type == 'persona' %] via Persona[% END %].
+          You are signed in as <tt>[% HTML.escape(c.user.username) %]</tt>
+            [%- IF c.user.type == 'persona' %] via Persona
+            [%- ELSIF c.user.type == 'google' %] via Google[% END %].
           [% END %]
         </small>
       </footer>
 
     </div>
 
-    <script>
-      function doLogout() {
-        [% IF c.user_exists %]
-          $.post("[% c.uri_for('/logout') %]")
-            .done(function(data) {
-              window.location.reload();
-            })
-            .fail(function() { bootbox.alert("Server request failed!"); });
-        [% END %]
-      }
-    </script>
-
-    [% IF c.user_exists && c.user.type == 'hydra' %]
-      <script>
-        $("#persona-signout").click(doLogout);
-      </script>
-    [% ELSIF personaEnabled %]
-      <script src="https://login.persona.org/include.js"></script>
-
-      <script>
-        navigator.id.watch({
-          loggedInUser: [% c.user_exists ? '"' _ HTML.escape(c.user.username) _ '"' : "null" %],
-          onlogin: function(assertion) {
-            requestJSON({
-              url: "[% c.uri_for('/persona-login') %]",
-              data: "assertion=" + assertion,
-              type: 'POST',
-              success: function(data) { window.location.reload(); },
-              postError: function() { navigator.id.logout(); }
-            });
-          },
-          onlogout: doLogout
-        });
-
-        $("#persona-signin").click(function() {
-          navigator.id.request({ siteName: 'Hydra' });
-        });
-
-        $("#persona-signout").click(function() {
-          navigator.id.logout();
-        });
-      </script>
-    [% END %]
-
-    [% IF !c.user_exists %]
-      <div id="hydra-signin" class="modal hide fade" tabindex="-1" role="dialog" aria-hidden="true">
-        <form class="form-horizontal">
-          <div class="modal-body">
-            <div class="control-group">
-              <label class="control-label">User name</label>
-              <div class="controls">
-                <input type="text" class="span3" name="username" value=""/>
-              </div>
-            </div>
-            <div class="control-group">
-              <label class="control-label">Password</label>
-              <div class="controls">
-                <input type="password" class="span3" name="password" value=""/>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button id="do-signin" class="btn btn-primary">Sign in</button>
-            <button class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
-          </div>
-        </form>
-      </div>
-
-      <script>
-          $("#do-signin").click(function() {
-            requestJSON({
-              url: "[% c.uri_for('/login') %]",
-              data: $(this).parents("form").serialize(),
-              type: 'POST',
-              success: function(data) {
-                window.location.reload();
-              }
-            });
-            return false;
-          });
-      </script>
-    [% END %]
+    [% PROCESS auth.tt %]
 
   </body>
 

@@ -53,7 +53,7 @@
     <div class="control-group">
       <label class="control-label">Email</label>
       <div class="controls">
-        <input type="text" class="span3" name="emailaddress" [% IF !create && user.type == 'persona' %]disabled="disabled"[% END %] [%+ HTML.attributes(value => user.emailaddress) %]/>
+        <input type="text" class="span3" name="emailaddress" [% IF !create && user.username.search('@') %]disabled="disabled"[% END %] [%+ HTML.attributes(value => user.emailaddress) %]/>
       </div>
     </div>
 

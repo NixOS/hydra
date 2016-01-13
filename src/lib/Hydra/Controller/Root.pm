@@ -14,10 +14,12 @@ use JSON;
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
 
+
 sub noLoginNeeded {
   my ($c) = @_;
 
   return $c->request->path eq "persona-login" ||
+         $c->request->path eq "google-login" ||
          $c->request->path eq "login" ||
          $c->request->path eq "logo" ||
          $c->request->path =~ /^static\//;
@@ -35,7 +37,6 @@ sub begin :Private {
     $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"};
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
-    $c->stash->{personaEnabled} = $c->config->{enable_persona} // "0" eq "1";
 
     $c->stash->{isPrivateHydra} = $c->config->{private} // "0" ne "0";
 
@@ -68,6 +69,7 @@ sub begin :Private {
         $c->stash->{params} = $c->request->params;
     }
 }
+
 
 sub deserialize :ActionClass('Deserialize') { }
 

@@ -127,24 +127,26 @@
   [% IF c.user_exists %]
     [% INCLUDE menuItem uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
     <li>
-      <a href="#" id="persona-signout">Sign out</a>
+      <a href="#" onclick="signOut();">Sign out</a>
     </li>
   [% ELSE %]
-    [% IF personaEnabled %]
-      [% WRAPPER makeSubMenu title="Sign in" %]
+    [% WRAPPER makeSubMenu title="Sign in" %]
+      [% IF c.config.enable_google_login %]
+        <li>
+          <a><div class="g-signin2" data-onsuccess="onGoogleSignIn" data-theme="dark"></div></a>
+        </li>
+        <li class="divider"></li>
+      [% END %]
+      [% IF c.config.enable_persona %]
         <li>
           <a href="#" id="persona-signin">
             <img src="[% c.uri_for("/static/images/persona_sign_in_blue.png") %]" alt="Sign in with Persona" />
           </a>
         </li>
         <li class="divider"></li>
-        <li>
-          <a href="#hydra-signin" data-toggle="modal">Sign in with a Hydra account</a>
-        </li>
       [% END %]
-    [% ELSE %]
       <li>
-        <a href="#hydra-signin" data-toggle="modal">Sign in</a>
+        <a href="#hydra-signin" data-toggle="modal">Sign in with a Hydra account</a>
       </li>
     [% END %]
   [% END %]

@@ -4,6 +4,7 @@ use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::REST';
+use Crypt::JWT qw(decode_jwt);
 use Crypt::RandPasswd;
 use Digest::SHA1 qw(sha1_hex);
 use Hydra::Helper::Nix;
@@ -45,11 +46,63 @@ sub logout_POST {
 }
 
 
+sub doEmailLogin {
+    my ($self, $c, $type, $email, $fullName) = @_;
+
+    die "No email address provided.\n" unless defined $email;
+
+    # Be paranoid about the email address format, since we do use it
+    # in URLs.
+    die "Illegal email address.\n" unless $email =~ /^[a-zA-Z0-9\.\-\_]+@[a-zA-Z0-9\.\-\_]+$/;
+
+    # If persona_allowed_domains is set, check if the email address
+    # returned is on these domains.  When not configured, allow all
+    # domains.
+    my $allowed_domains = $c->config->{persona_allowed_domains} || "";
+    if ($allowed_domains ne "") {
+        my $email_ok = 0;
+        my @domains = split ',', $allowed_domains;
+        map { $_ =~ s/^\s*(.*?)\s*$/$1/ } @domains;
+
+        foreach my $domain (@domains) {
+            $email_ok = $email_ok || ((split '@', $email)[1] eq $domain);
+        }
+        error($c, "Your email address does not belong to a domain that is allowed to log in.\n")
+            unless $email_ok;
+    }
+
+    my $user = $c->find_user({ username => $email });
+
+    if ($user) {
+        # Automatically upgrade Persona accounts to Google accounts.
+        if ($user->type eq "persona" && $type eq "google") {
+            $user->update({type => "google"});
+        }
+
+        die "You cannot login via login type '$type'.\n" if $user->type ne $type;
+    } else {
+        $c->model('DB::Users')->create(
+            { username => $email
+            , fullname => $fullName,
+            , password => "!"
+            , emailaddress => $email,
+            , type => $type
+            });
+        $user = $c->find_user({ username => $email }) or die;
+    }
+
+    $c->set_authenticated($user);
+
+    $self->status_no_content($c);
+    $c->flash->{successMsg} = "You are now signed in as <tt>" . encode_entities($email) . "</tt>.";
+}
+
+
 sub persona_login :Path('/persona-login') Args(0) {
     my ($self, $c) = @_;
     requirePost($c);
 
-    error($c, "Persona support is not enabled.") unless $c->stash->{personaEnabled};
+    error($c, "Logging in via Persona is not enabled.") unless $c->config->{enable_persona};
 
     my $assertion = $c->stash->{params}->{assertion} or die;
 
@@ -64,42 +117,54 @@ sub persona_login :Path('/persona-login') Args(0) {
     my $d = decode_json($response->decoded_content) or die;
     error($c, "Persona says: $d->{reason}") if $d->{status} ne "okay";
 
-    my $email = $d->{email} or die;
+    doEmailLogin($self, $c, "persona", $d->{email}, undef);
+}
 
-    # Be paranoid about the email address format, since we do use it
-    # in URLs.
-    die "Illegal email address." unless $email =~ /^[a-zA-Z0-9\.\-\_]+@[a-zA-Z0-9\.\-\_]+$/;
 
-    # If persona_allowed_domains is set, check if the email address returned is on these domains.
-    # When not configured, allow all domains.
-    my $allowed_domains = $c->config->{persona_allowed_domains} || "";
-    if ( $allowed_domains ne "") {
-        my $email_ok = 0;
-        my @domains = split ',', $allowed_domains;
-        map { $_ =~ s/^\s*(.*?)\s*$/$1/ } @domains;
+# From https://www.googleapis.com/oauth2/v3/certs. Should probably not
+# hard-code this.
+my $googleKeys = <<'EOF';
+{
+ "keys": [
+  {
+   "kty": "RSA",
+   "alg": "RS256",
+   "use": "sig",
+   "kid": "10685afd5291883ce668345afd77201390406f82",
+   "n": "xeNopuszp35W6H1w2Tw4OrSwT8BZ9f7-2PoOyWZmfMmUDmYT2uxrZezDK0YLap5LVmpLNcpZP5Hj67_32NU3my4qfA-SlxuJMUxHWJF7Dqr-QNAqld0SZ_po4qz5ZTHDxNxoZ4iw_T-4lhIBGm0RIZprDDGPI7Vo8qIeIMjZywoh_nq32zB6tnjEUBvHcgay0qXEnQkKkavzHO_c5sLc1qXM0jDQVqyO1enevW2yA_8gP0Qb7014ycN5umCvEHc66c2_iNT-R4zgw8gd1g05n2xwyET8qb_3wi5LqUV-Cri4mJ2xwGY8uynlD2I4jVtOYJusBgNs6AfwyehzsLdwSQ",
+   "e": "AQAB"
+  },
+  {
+   "kty": "RSA",
+   "alg": "RS256",
+   "use": "sig",
+   "kid": "5a68fc8a3ec0c30e0be95aa08db99a68a725467f",
+   "n": "zmXvUwXYSo8VouhnkURp-3xywch-jPrk7q0gugqC7QIchBPnvdXdS-bj6sr1AqDl_hEDtiLGfiVr3Ft_U022rtHAl5n5NxyybUtZXWyT5yQZM4jopGBajavEUdCl9b4pqb-q_3fVaxUXe7re23sVjI5Bntd-8RYZ70tq-ZvCWBqsnz6lHi9Ditp3CZGWLMMBZlIv3nKnClOrZXL98Jmt7AAod-Gtk65saqnrMwWtBcI_Q-3u23ytywbMLanCeFFNUWlIOgZqyYYkOm-ylLRJzVaZ1THtcWILWCYUgxXjyF9DtXO3a8nct2JhdacD3LzRiPv3sXr31cg4arwUk19JoQ",
+   "e": "AQAB"
+  }
+ ]
+}
+EOF
 
-        foreach my $domain (@domains) {
-            $email_ok = $email_ok || ((split '@', $email)[1] eq $domain);
-        }
-        die "Email address is not allowed to login." unless $email_ok;
-    }
 
-    my $user = $c->find_user({ username => $email });
+sub google_login :Path('/google-login') Args(0) {
+    my ($self, $c) = @_;
+    requirePost($c);
 
-    if (!$user) {
-        $c->model('DB::Users')->create(
-            { username => $email
-            , password => "!"
-            , emailaddress => $email,
-            , type => "persona"
-            });
-        $user = $c->find_user({ username => $email }) or die;
-    }
+    error($c, "Logging in via Google is not enabled.") unless $c->config->{enable_google_login};
 
-    $c->set_authenticated($user);
+    my $data = decode_jwt(
+        token => ($c->stash->{params}->{id_token} // die "No token."),
+        kid_keys => $googleKeys,
+        verify_exp => 1,
+    );
 
-    $self->status_no_content($c);
-    $c->flash->{successMsg} = "You are now signed in as <tt>" . encode_entities($email) . "</tt>.";
+    die unless $data->{aud} eq $c->config->{google_client_id};
+    die unless $data->{iss} eq "accounts.google.com" || $data->{iss} eq "https://accounts.google.com";
+    die "Email address is not verified" unless $data->{email_verified};
+    # FIXME: verify hosted domain claim?
+
+    doEmailLogin($self, $c, "google", $data->{email}, $data->{name} // undef);
 }
 
 

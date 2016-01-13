@@ -1,0 +1,108 @@
+[% IF c.user_exists  %]
+
+  <script>
+    function finishSignOut() {
+      $.post("[% c.uri_for('/logout') %]")
+        .done(function(data) {
+          window.location.reload();
+        })
+        .fail(function() { bootbox.alert("Server request failed!"); });
+    }
+
+    function signOut() {
+      [% IF c.user.type == 'google' %]
+        gapi.load('auth2', function() {
+          gapi.auth2.init();
+          var auth2 = gapi.auth2.getAuthInstance();
+          auth2.then(function () {
+            auth2.signOut().then(finishSignOut, finishSignOut);
+          });
+        });
+      [% ELSE %]
+        finishSignOut();
+      [% END %]
+    }
+  </script>
+
+[% ELSE %]
+
+  <div id="hydra-signin" class="modal hide fade" tabindex="-1" role="dialog" aria-hidden="true">
+    <form class="form-horizontal">
+      <div class="modal-body">
+        <div class="control-group">
+          <label class="control-label">User name</label>
+          <div class="controls">
+            <input type="text" class="span3" name="username" value=""/>
+          </div>
+        </div>
+        <div class="control-group">
+          <label class="control-label">Password</label>
+          <div class="controls">
+            <input type="password" class="span3" name="password" value=""/>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="do-signin" class="btn btn-primary">Sign in</button>
+        <button class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+
+    function finishSignOut() { }
+
+    $("#do-signin").click(function() {
+      requestJSON({
+        url: "[% c.uri_for('/login') %]",
+        data: $(this).parents("form").serialize(),
+        type: 'POST',
+        success: function(data) {
+          window.location.reload();
+        }
+      });
+      return false;
+    });
+
+  </script>
+
+  [% IF c.config.enable_google_login %]
+    <script>
+      function onGoogleSignIn(googleUser) {
+        requestJSON({
+          url: "[% c.uri_for('/google-login') %]",
+          data: "id_token=" + googleUser.getAuthResponse().id_token,
+          type: 'POST',
+          success: function(data) {
+            window.location.reload();
+          }
+        });
+        return false;
+      };
+    </script>
+  [% END %]
+
+[% END %]
+
+[% IF c.config.enable_persona %]
+  <script src="https://login.persona.org/include.js"></script>
+
+  <script>
+    navigator.id.watch({
+      onlogin: function(assertion) {
+        requestJSON({
+          url: "[% c.uri_for('/persona-login') %]",
+          data: "assertion=" + assertion,
+          type: 'POST',
+          success: function(data) { window.location.reload(); },
+          postError: function() { navigator.id.logout(); }
+        });
+      }
+    });
+
+    $("#persona-signin").click(function() {
+      navigator.id.request({ siteName: 'Hydra' });
+    });
+  </script>
+[% END %]
