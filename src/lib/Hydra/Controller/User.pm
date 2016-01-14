@@ -4,7 +4,6 @@ use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::REST';
-use Crypt::JWT qw(decode_jwt);
 use Crypt::RandPasswd;
 use Digest::SHA1 qw(sha1_hex);
 use Hydra::Helper::Nix;
@@ -121,46 +120,22 @@ sub persona_login :Path('/persona-login') Args(0) {
 }
 
 
-# From https://www.googleapis.com/oauth2/v3/certs. Should probably not
-# hard-code this.
-my $googleKeys = <<'EOF';
-{
- "keys": [
-  {
-   "kty": "RSA",
-   "alg": "RS256",
-   "use": "sig",
-   "kid": "10685afd5291883ce668345afd77201390406f82",
-   "n": "xeNopuszp35W6H1w2Tw4OrSwT8BZ9f7-2PoOyWZmfMmUDmYT2uxrZezDK0YLap5LVmpLNcpZP5Hj67_32NU3my4qfA-SlxuJMUxHWJF7Dqr-QNAqld0SZ_po4qz5ZTHDxNxoZ4iw_T-4lhIBGm0RIZprDDGPI7Vo8qIeIMjZywoh_nq32zB6tnjEUBvHcgay0qXEnQkKkavzHO_c5sLc1qXM0jDQVqyO1enevW2yA_8gP0Qb7014ycN5umCvEHc66c2_iNT-R4zgw8gd1g05n2xwyET8qb_3wi5LqUV-Cri4mJ2xwGY8uynlD2I4jVtOYJusBgNs6AfwyehzsLdwSQ",
-   "e": "AQAB"
-  },
-  {
-   "kty": "RSA",
-   "alg": "RS256",
-   "use": "sig",
-   "kid": "5a68fc8a3ec0c30e0be95aa08db99a68a725467f",
-   "n": "zmXvUwXYSo8VouhnkURp-3xywch-jPrk7q0gugqC7QIchBPnvdXdS-bj6sr1AqDl_hEDtiLGfiVr3Ft_U022rtHAl5n5NxyybUtZXWyT5yQZM4jopGBajavEUdCl9b4pqb-q_3fVaxUXe7re23sVjI5Bntd-8RYZ70tq-ZvCWBqsnz6lHi9Ditp3CZGWLMMBZlIv3nKnClOrZXL98Jmt7AAod-Gtk65saqnrMwWtBcI_Q-3u23ytywbMLanCeFFNUWlIOgZqyYYkOm-ylLRJzVaZ1THtcWILWCYUgxXjyF9DtXO3a8nct2JhdacD3LzRiPv3sXr31cg4arwUk19JoQ",
-   "e": "AQAB"
-  }
- ]
-}
-EOF
-
-
 sub google_login :Path('/google-login') Args(0) {
     my ($self, $c) = @_;
     requirePost($c);
 
     error($c, "Logging in via Google is not enabled.") unless $c->config->{enable_google_login};
 
-    my $data = decode_jwt(
-        token => ($c->stash->{params}->{id_token} // die "No token."),
-        kid_keys => $googleKeys,
-        verify_exp => 1,
-    );
+    my $ua = new LWP::UserAgent;
+    my $response = $ua->post(
+        'https://www.googleapis.com/oauth2/v3/tokeninfo',
+        { id_token => ($c->stash->{params}->{id_token} // die "No token."),
+        });
+    error($c, "Did not get a response from Google.") unless $response->is_success;
+
+    my $data = decode_json($response->decoded_content) or die;
 
     die unless $data->{aud} eq $c->config->{google_client_id};
-    die unless $data->{iss} eq "accounts.google.com" || $data->{iss} eq "https://accounts.google.com";
     die "Email address is not verified" unless $data->{email_verified};
     # FIXME: verify hosted domain claim?
 
