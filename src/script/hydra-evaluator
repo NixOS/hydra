@@ -26,6 +26,8 @@ my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
 
 my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
 
+$Net::Statsd::HOST = $config->{'statsd_host'} // 'localhost';
+$Net::Statsd::PORT = $config->{'statsd_port'} // 8125;
 
 sub fetchInputs {
     my ($project, $jobset, $inputInfo) = @_;
