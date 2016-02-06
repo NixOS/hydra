@@ -9,6 +9,11 @@ use JSON;
 STDERR->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
 
+my $config = getHydraConfig();
+my $statsdConfig = Hydra::Helper::Nix::getStatsdConfig($config);
+$Net::Statsd::HOST = $statsdConfig->{'host'};
+$Net::Statsd::PORT = $statsdConfig->{'port'};
+
 sub gauge {
     my ($name, $val) = @_;
     die unless defined $val;

@@ -33,6 +33,10 @@ my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
 
 my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
 
+my $statsdConfig = Hydra::Helper::Nix::getStatsdConfig($config);
+$Net::Statsd::HOST = $statsdConfig->{'host'};
+$Net::Statsd::PORT = $statsdConfig->{'port'};
+
 alarm 3600; # FIXME: make configurable
 
 
