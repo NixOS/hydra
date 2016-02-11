@@ -4,7 +4,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "misc.hh"
 #include "serve-protocol.hh"
 #include "state.hh"
 #include "util.hh"
@@ -74,14 +73,14 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 }
 
 
-static void copyClosureTo(std::shared_ptr<StoreAPI> store,
+static void copyClosureTo(ref<Store> store,
     FdSource & from, FdSink & to, const PathSet & paths,
     counter & bytesSent,
     bool useSubstitutes = false)
 {
     PathSet closure;
     for (auto & path : paths)
-        computeFSClosure(*store, path, closure);
+        store->computeFSClosure(path, closure);
 
     /* Send the "query valid paths" command with the "lock" option
        enabled. This prevents a race where the remote host
@@ -96,7 +95,7 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
 
     if (present.size() == closure.size()) return;
 
-    Paths sorted = topoSortPaths(*store, closure);
+    Paths sorted = store->topoSortPaths(closure);
 
     Paths missing;
     for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
@@ -108,7 +107,7 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
         bytesSent += store->queryPathInfo(p).narSize;
 
     to << cmdImportPaths;
-    exportPaths(*store, missing, false, to);
+    store->exportPaths(missing, false, to);
     to.flush();
 
     if (readInt(from) != 1)
@@ -116,7 +115,7 @@ static void copyClosureTo(std::shared_ptr<StoreAPI> store,
 }
 
 
-static void copyClosureFrom(std::shared_ptr<StoreAPI> store,
+static void copyClosureFrom(ref<Store> store,
     FdSource & from, FdSink & to, const PathSet & paths, counter & bytesReceived)
 {
     to << cmdExportPaths << 0 << paths;
@@ -128,7 +127,7 @@ static void copyClosureFrom(std::shared_ptr<StoreAPI> store,
 }
 
 
-void State::buildRemote(std::shared_ptr<StoreAPI> store,
+void State::buildRemote(ref<Store> store,
     Machine::ptr machine, Step::ptr step,
     unsigned int maxSilentTime, unsigned int buildTimeout,
     RemoteResult & result)

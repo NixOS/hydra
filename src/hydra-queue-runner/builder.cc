@@ -45,7 +45,7 @@ void State::builder(MachineReservation::ptr reservation)
 }
 
 
-bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
+bool State::doBuildStep(nix::ref<Store> store, Step::ptr step,
     Machine::ptr machine)
 {
     {
@@ -354,7 +354,7 @@ bool State::doBuildStep(std::shared_ptr<StoreAPI> store, Step::ptr step,
                 /* Remember failed paths in the database so that they
                    won't be built again. */
                 if (!cachedFailure && result.status == BuildResult::PermanentFailure)
-                    for (auto & path : outputPaths(step->drv))
+                    for (auto & path : step->drv.outputPaths())
                         txn.parameterized("insert into FailedPaths values ($1)")(path).exec();
 
                 txn.commit();

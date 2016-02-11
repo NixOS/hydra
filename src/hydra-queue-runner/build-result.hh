@@ -37,4 +37,4 @@ struct BuildOutput
     std::map<std::string, BuildMetric> metrics;
 };
 
-BuildOutput getBuildOutput(std::shared_ptr<nix::StoreAPI> store, const nix::Derivation & drv);
+BuildOutput getBuildOutput(nix::ref<nix::Store> store, const nix::Derivation & drv);

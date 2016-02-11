@@ -1,6 +1,5 @@
 #include "build-result.hh"
 #include "store-api.hh"
-#include "misc.hh"
 #include "util.hh"
 #include "regex.hh"
 
@@ -22,7 +21,7 @@ static std::tuple<bool, string> secureRead(Path fileName)
 }
 
 
-BuildOutput getBuildOutput(std::shared_ptr<StoreAPI> store, const Derivation & drv)
+BuildOutput getBuildOutput(nix::ref<Store> store, const Derivation & drv)
 {
     BuildOutput res;
 
@@ -32,7 +31,7 @@ BuildOutput getBuildOutput(std::shared_ptr<StoreAPI> store, const Derivation & d
         outputs.insert(output.second.path);
     PathSet closure;
     for (auto & output : outputs)
-        computeFSClosure(*store, output, closure);
+        store->computeFSClosure(output, closure);
     for (auto & path : closure) {
         auto info = store->queryPathInfo(path);
         res.closureSize += info.narSize;

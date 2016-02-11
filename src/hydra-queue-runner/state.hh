@@ -377,12 +377,12 @@ private:
     void queueMonitorLoop();
 
     /* Check the queue for new builds. */
-    bool getQueuedBuilds(Connection & conn, std::shared_ptr<nix::StoreAPI> store, unsigned int & lastBuildId);
+    bool getQueuedBuilds(Connection & conn, nix::ref<nix::Store> store, unsigned int & lastBuildId);
 
     /* Handle cancellation, deletion and priority bumps. */
     void processQueueChange(Connection & conn);
 
-    Step::ptr createStep(std::shared_ptr<nix::StoreAPI> store,
+    Step::ptr createStep(nix::ref<nix::Store> store,
         Connection & conn, Build::ptr build, const nix::Path & drvPath,
         Build::ptr referringBuild, Step::ptr referringStep, std::set<nix::Path> & finishedDrvs,
         std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable);
@@ -405,10 +405,10 @@ private:
 
     /* Perform the given build step. Return true if the step is to be
        retried. */
-    bool doBuildStep(std::shared_ptr<nix::StoreAPI> store, Step::ptr step,
+    bool doBuildStep(nix::ref<nix::Store> store, Step::ptr step,
         Machine::ptr machine);
 
-    void buildRemote(std::shared_ptr<nix::StoreAPI> store,
+    void buildRemote(nix::ref<nix::Store> store,
         Machine::ptr machine, Step::ptr step,
         unsigned int maxSilentTime, unsigned int buildTimeout,
         RemoteResult & result);

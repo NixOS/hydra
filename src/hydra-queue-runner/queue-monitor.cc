@@ -1,7 +1,6 @@
 #include "state.hh"
 #include "build-result.hh"
 #include "globals.hh"
-#include "misc.hh"
 
 
 using namespace nix;
@@ -64,7 +63,7 @@ void State::queueMonitorLoop()
 }
 
 
-bool State::getQueuedBuilds(Connection & conn, std::shared_ptr<StoreAPI> store, unsigned int & lastBuildId)
+bool State::getQueuedBuilds(Connection & conn, ref<Store> store, unsigned int & lastBuildId)
 {
     printMsg(lvlInfo, format("checking the queue for builds > %1%...") % lastBuildId);
 
@@ -315,7 +314,7 @@ void State::processQueueChange(Connection & conn)
 }
 
 
-Step::ptr State::createStep(std::shared_ptr<StoreAPI> store,
+Step::ptr State::createStep(ref<Store> store,
     Connection & conn, Build::ptr build, const Path & drvPath,
     Build::ptr referringBuild, Step::ptr referringStep, std::set<Path> & finishedDrvs,
     std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable)
@@ -373,7 +372,7 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store,
        runnable while step->created == false. */
     step->drv = readDerivation(drvPath);
 
-    step->preferLocalBuild = willBuildLocally(step->drv);
+    step->preferLocalBuild = step->drv.willBuildLocally();
 
     step->systemType = step->drv.platform;
     {
@@ -391,7 +390,7 @@ Step::ptr State::createStep(std::shared_ptr<StoreAPI> store,
 
     /* Are all outputs valid? */
     bool valid = true;
-    PathSet outputs = outputPaths(step->drv);
+    PathSet outputs = step->drv.outputPaths();
     DerivationOutputs missing;
     PathSet missingPaths;
     for (auto & i : step->drv.outputs)

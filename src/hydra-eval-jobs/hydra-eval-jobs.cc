@@ -153,7 +153,7 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
                done. */
             if (gcRootsDir != "") {
                 Path root = gcRootsDir + "/" + baseNameOf(drvPath);
-                if (!pathExists(root)) addPermRoot(*store, drvPath, root, false);
+                if (!pathExists(root)) state.store->addPermRoot(drvPath, root, false);
             }
 
             res.attr("outputs");
@@ -253,7 +253,7 @@ int main(int argc, char * * argv)
 
         if (gcRootsDir == "") printMsg(lvlError, "warning: `--gc-roots-dir' not specified");
 
-        EvalState state(searchPath);
+        EvalState state(searchPath, openStore());
 
         AutoArgs autoArgs;
         Value * inputsSet = state.allocValue();
@@ -279,8 +279,6 @@ int main(int argc, char * * argv)
             inputsSet->attrs->sort();
             autoArgs[sInputs].push_back(inputsSet);
         }
-
-        store = openStore();
 
         Value v;
         state.evalFile(releaseExpr, v);

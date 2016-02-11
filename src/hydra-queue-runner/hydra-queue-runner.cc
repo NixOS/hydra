@@ -359,7 +359,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 {
     pqxx::work txn(conn);
-    for (auto & path : outputPaths(step->drv))
+    for (auto & path : step->drv.outputPaths())
         if (!txn.parameterized("select 1 from FailedPaths where path = $1")(path).exec().empty())
             return true;
     return false;
