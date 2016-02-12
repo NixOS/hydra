@@ -184,7 +184,7 @@ create table Builds (
     --   0 = succeeded
     --   1 = build of this derivation failed
     --   2 = build of some dependency failed
-    --   3 = other failure (see errorMsg)
+    --   3 = other failure
     --   4 = build cancelled (removed from queue; never built)
     --   5 = build not done because a dependency failed previously (obsolete)
     --   6 = failure with output
@@ -192,8 +192,6 @@ create table Builds (
     --   9 = unsupported system type
     --  10 = log limit exceeded
     buildStatus   integer,
-
-    errorMsg      text, -- error message in case of a Nix failure
 
     size          bigint,
     closureSize   bigint,

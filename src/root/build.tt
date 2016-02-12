@@ -280,11 +280,6 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
         </table>
       [% END %]
 
-      [% IF build.errormsg && build.buildstatus != 5 %]
-        <h2 id="nix-error">Nix error output</h2>
-        <pre class="buildlog">[% HTML.escape(build.errormsg) %]</pre>
-      [% END %]
-
     [% END %]
 
   </div>

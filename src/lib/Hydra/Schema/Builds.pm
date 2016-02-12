@@ -170,11 +170,6 @@ __PACKAGE__->table("Builds");
   data_type: 'integer'
   is_nullable: 1
 
-=head2 errormsg
-
-  data_type: 'text'
-  is_nullable: 1
-
 =head2 size
 
   data_type: 'bigint'
@@ -249,8 +244,6 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 1 },
   "buildstatus",
   { data_type => "integer", is_nullable => 1 },
-  "errormsg",
-  { data_type => "text", is_nullable => 1 },
   "size",
   { data_type => "bigint", is_nullable => 1 },
   "closuresize",
@@ -544,8 +537,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-10-27 13:54:16
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:iN9vwO5i3dURKOTgaPTHxw
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-02-12 17:20:42
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:/8aVtXu/+o0jmKHnSzwt+g
 
 __PACKAGE__->has_many(
   "dependents",
