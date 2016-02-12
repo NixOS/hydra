@@ -101,10 +101,12 @@ sub build_GET {
         entity => $build
     );
 
-    my ($eval2) = $c->stash->{eval}->jobset->jobsetevals->search(
-       { hasnewbuilds => 1, id => { '<', $c->stash->{eval}->id } },
-       { order_by => "id DESC", rows => 1 });
-    $c->stash->{otherEval} = $eval2 if defined $eval2;
+    if (defined $c->stash->{eval}) {
+        my ($eval2) = $c->stash->{eval}->jobset->jobsetevals->search(
+            { hasnewbuilds => 1, id => { '<', $c->stash->{eval}->id } },
+            { order_by => "id DESC", rows => 1 });
+        $c->stash->{otherEval} = $eval2 if defined $eval2;
+    }
 
     # If this is an aggregate build, get its constituents.
     $c->stash->{constituents} = [$build->constituents_->search({}, {order_by => ["job"]})];
