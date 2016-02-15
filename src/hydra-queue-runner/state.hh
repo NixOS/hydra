@@ -350,6 +350,13 @@ public:
 
 private:
 
+    /* Return a store object that can access derivations produced by
+       hydra-evaluator. */
+    nix::ref<nix::Store> getLocalStore();
+
+    /* Return a store object to store build results. */
+    nix::ref<nix::Store> getDestStore();
+
     void clearBusy(Connection & conn, time_t stopTime);
 
     void parseMachines(const std::string & contents);
@@ -377,7 +384,8 @@ private:
     void queueMonitorLoop();
 
     /* Check the queue for new builds. */
-    bool getQueuedBuilds(Connection & conn, nix::ref<nix::Store> store, unsigned int & lastBuildId);
+    bool getQueuedBuilds(Connection & conn, nix::ref<nix::Store> localStore,
+        nix::ref<nix::Store> destStore, unsigned int & lastBuildId);
 
     /* Handle cancellation, deletion and priority bumps. */
     void processQueueChange(Connection & conn);
@@ -405,10 +413,10 @@ private:
 
     /* Perform the given build step. Return true if the step is to be
        retried. */
-    bool doBuildStep(nix::ref<nix::Store> store, Step::ptr step,
+    bool doBuildStep(nix::ref<nix::Store> destStore, Step::ptr step,
         Machine::ptr machine);
 
-    void buildRemote(nix::ref<nix::Store> store,
+    void buildRemote(nix::ref<nix::Store> destStore,
         Machine::ptr machine, Step::ptr step,
         unsigned int maxSilentTime, unsigned int buildTimeout,
         RemoteResult & result);

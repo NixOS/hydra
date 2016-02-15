@@ -73,14 +73,14 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 }
 
 
-static void copyClosureTo(ref<Store> store,
+static void copyClosureTo(ref<Store> destStore,
     FdSource & from, FdSink & to, const PathSet & paths,
     counter & bytesSent,
     bool useSubstitutes = false)
 {
     PathSet closure;
     for (auto & path : paths)
-        store->computeFSClosure(path, closure);
+        destStore->computeFSClosure(path, closure);
 
     /* Send the "query valid paths" command with the "lock" option
        enabled. This prevents a race where the remote host
@@ -95,7 +95,7 @@ static void copyClosureTo(ref<Store> store,
 
     if (present.size() == closure.size()) return;
 
-    Paths sorted = store->topoSortPaths(closure);
+    Paths sorted = destStore->topoSortPaths(closure);
 
     Paths missing;
     for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
@@ -104,10 +104,10 @@ static void copyClosureTo(ref<Store> store,
     printMsg(lvlDebug, format("sending %1% missing paths") % missing.size());
 
     for (auto & p : missing)
-        bytesSent += store->queryPathInfo(p).narSize;
+        bytesSent += destStore->queryPathInfo(p).narSize;
 
     to << cmdImportPaths;
-    store->exportPaths(missing, false, to);
+    destStore->exportPaths(missing, false, to);
     to.flush();
 
     if (readInt(from) != 1)
@@ -115,19 +115,19 @@ static void copyClosureTo(ref<Store> store,
 }
 
 
-static void copyClosureFrom(ref<Store> store,
+static void copyClosureFrom(ref<Store> destStore,
     FdSource & from, FdSink & to, const PathSet & paths, counter & bytesReceived)
 {
     to << cmdExportPaths << 0 << paths;
     to.flush();
-    store->importPaths(false, from);
+    destStore->importPaths(false, from);
 
     for (auto & p : paths)
-        bytesReceived += store->queryPathInfo(p).narSize;
+        bytesReceived += destStore->queryPathInfo(p).narSize;
 }
 
 
-void State::buildRemote(ref<Store> store,
+void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
     unsigned int maxSilentTime, unsigned int buildTimeout,
     RemoteResult & result)
@@ -222,14 +222,20 @@ void State::buildRemote(ref<Store> store,
         }
     }
 
+    /* Ensure that the inputs exist in the destination store. This is
+       a no-op for regular stores, but for the binary cache store,
+       this will copy the inputs to the binary cache from the local
+       store. */
+    destStore->buildPaths(basicDrv.inputSrcs);
+
     /* Copy the input closure. */
-    if (machine->sshName != "localhost") {
+    if (/* machine->sshName != "localhost" */ true) {
         auto mc1 = std::make_shared<MaintainCount>(nrStepsWaiting);
         std::lock_guard<std::mutex> sendLock(machine->state->sendLock);
         mc1.reset();
         MaintainCount mc2(nrStepsCopyingTo);
         printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % step->drvPath % machine->sshName);
-        copyClosureTo(store, from, to, inputs, bytesSent);
+        copyClosureTo(destStore, from, to, inputs, bytesSent);
     }
 
     autoDelete.cancel();
@@ -277,13 +283,13 @@ void State::buildRemote(ref<Store> store,
     }
 
     /* Copy the output paths. */
-    if (machine->sshName != "localhost") {
+    if (/* machine->sshName != "localhost" */ true) {
         printMsg(lvlDebug, format("copying outputs of ‘%1%’ from ‘%2%’") % step->drvPath % machine->sshName);
         PathSet outputs;
         for (auto & output : step->drv.outputs)
             outputs.insert(output.second.path);
         MaintainCount mc(nrStepsCopyingFrom);
-        copyClosureFrom(store, from, to, outputs, bytesReceived);
+        copyClosureFrom(destStore, from, to, outputs, bytesReceived);
     }
 
     /* Shut down the connection. */

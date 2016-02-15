@@ -15,8 +15,8 @@ void State::builder(MachineReservation::ptr reservation)
     auto step = reservation->step;
 
     try {
-        auto store = openStore(); // FIXME: pool
-        retry = doBuildStep(store, step, reservation->machine);
+        auto destStore = getDestStore();
+        retry = doBuildStep(destStore, step, reservation->machine);
     } catch (std::exception & e) {
         printMsg(lvlError, format("uncaught exception building ‘%1%’ on ‘%2%’: %3%")
             % step->drvPath % reservation->machine->sshName % e.what());
@@ -45,7 +45,7 @@ void State::builder(MachineReservation::ptr reservation)
 }
 
 
-bool State::doBuildStep(nix::ref<Store> store, Step::ptr step,
+bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
     Machine::ptr machine)
 {
     {
@@ -120,13 +120,13 @@ bool State::doBuildStep(nix::ref<Store> store, Step::ptr step,
         /* Do the build. */
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(store, machine, step, build->maxSilentTime, build->buildTimeout, result);
+            buildRemote(destStore, machine, step, build->maxSilentTime, build->buildTimeout, result);
         } catch (Error & e) {
             result.status = BuildResult::MiscFailure;
             result.errorMsg = e.msg();
         }
 
-        if (result.success()) res = getBuildOutput(store, step->drv);
+        if (result.success()) res = getBuildOutput(destStore, step->drv);
     }
 
     time_t stepStopTime = time(0);

@@ -7,6 +7,7 @@
 
 #include "state.hh"
 #include "build-result.hh"
+#include "local-binary-cache.hh"
 
 #include "shared.hh"
 #include "globals.hh"
@@ -21,6 +22,18 @@ State::State()
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
 
     logDir = canonPath(hydraData + "/build-logs");
+}
+
+
+ref<Store> State::getLocalStore()
+{
+    return openStore(); // FIXME: pool
+}
+
+
+ref<Store> State::getDestStore()
+{
+    return make_ref<LocalBinaryCache>(getLocalStore(), "/tmp/binary-cache");
 }
 
 
@@ -94,7 +107,8 @@ void State::monitorMachinesFile()
         getEnv("NIX_REMOTE_SYSTEMS", pathExists(defaultMachinesFile) ? defaultMachinesFile : ""), ":");
 
     if (machinesFiles.empty()) {
-        parseMachines("localhost " + settings.thisSystem
+        parseMachines("localhost " +
+            (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem)
             + " - " + std::to_string(settings.maxBuildJobs) + " 1");
         return;
     }

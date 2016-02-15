@@ -41,6 +41,7 @@ BuildOutput getBuildOutput(nix::ref<Store> store, const Derivation & drv)
     /* Get build products. */
     bool explicitProducts = false;
 
+#if 0
     Regex regex(
         "(([a-zA-Z0-9_-]+)" // type (e.g. "doc")
         "[[:space:]]+"
@@ -97,6 +98,7 @@ BuildOutput getBuildOutput(nix::ref<Store> store, const Derivation & drv)
             res.products.push_back(product);
         }
     }
+#endif
 
     /* If no build products were explicitly declared, then add all
        outputs as a product of type "nix-build". */
@@ -108,14 +110,17 @@ BuildOutput getBuildOutput(nix::ref<Store> store, const Derivation & drv)
             product.subtype = output.first == "out" ? "" : output.first;
             product.name = storePathToName(product.path);
 
+#if 0
             struct stat st;
             if (stat(product.path.c_str(), &st))
                 throw SysError(format("getting status of ‘%1%’") % product.path);
             if (S_ISDIR(st.st_mode))
+#endif
                 res.products.push_back(product);
         }
     }
 
+#if 0
     /* Get the release name from $output/nix-support/hydra-release-name. */
     for (auto & output : outputs) {
         Path p = output + "/nix-support/hydra-release-name";
@@ -139,6 +144,7 @@ BuildOutput getBuildOutput(nix::ref<Store> store, const Derivation & drv)
             res.metrics[metric.name] = metric;
         }
     }
+#endif
 
     return res;
 }

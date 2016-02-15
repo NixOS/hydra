@@ -30,12 +30,13 @@ void State::queueMonitorLoop()
     receiver buildsBumped(*conn, "builds_bumped");
     receiver jobsetSharesChanged(*conn, "jobset_shares_changed");
 
-    auto store = openStore(); // FIXME: pool
+    auto localStore = getLocalStore();
+    auto destStore = getDestStore();
 
     unsigned int lastBuildId = 0;
 
     while (true) {
-        bool done = getQueuedBuilds(*conn, store, lastBuildId);
+        bool done = getQueuedBuilds(*conn, localStore, destStore, lastBuildId);
 
         /* Sleep until we get notification from the database about an
            event. */
@@ -63,7 +64,8 @@ void State::queueMonitorLoop()
 }
 
 
-bool State::getQueuedBuilds(Connection & conn, ref<Store> store, unsigned int & lastBuildId)
+bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
+    ref<Store> destStore, unsigned int & lastBuildId)
 {
     printMsg(lvlInfo, format("checking the queue for builds > %1%...") % lastBuildId);
 
@@ -118,7 +120,7 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> store, unsigned int & 
         nrAdded++;
         newBuildsByID.erase(build->id);
 
-        if (!store->isValidPath(build->drvPath)) {
+        if (!localStore->isValidPath(build->drvPath)) {
             /* Derivation has been GC'ed prematurely. */
             printMsg(lvlError, format("aborting GC'ed build %1%") % build->id);
             if (!build->finishedInDB) {
@@ -138,7 +140,8 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> store, unsigned int & 
 
         std::set<Step::ptr> newSteps;
         std::set<Path> finishedDrvs; // FIXME: re-use?
-        Step::ptr step = createStep(store, conn, build, build->drvPath, build, 0, finishedDrvs, newSteps, newRunnable);
+        Step::ptr step = createStep(destStore, conn, build, build->drvPath,
+            build, 0, finishedDrvs, newSteps, newRunnable);
 
         /* Some of the new steps may be the top level of builds that
            we haven't processed yet. So do them now. This ensures that
@@ -156,7 +159,7 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> store, unsigned int & 
            all valid. So we mark this as a finished, cached build. */
         if (!step) {
             Derivation drv = readDerivation(build->drvPath);
-            BuildOutput res = getBuildOutput(store, drv);
+            BuildOutput res = getBuildOutput(destStore, drv);
 
             pqxx::work txn(conn);
             time_t now = time(0);
@@ -314,7 +317,7 @@ void State::processQueueChange(Connection & conn)
 }
 
 
-Step::ptr State::createStep(ref<Store> store,
+Step::ptr State::createStep(ref<Store> destStore,
     Connection & conn, Build::ptr build, const Path & drvPath,
     Build::ptr referringBuild, Step::ptr referringStep, std::set<Path> & finishedDrvs,
     std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable)
@@ -394,7 +397,7 @@ Step::ptr State::createStep(ref<Store> store,
     DerivationOutputs missing;
     PathSet missingPaths;
     for (auto & i : step->drv.outputs)
-        if (!store->isValidPath(i.second.path)) {
+        if (!destStore->isValidPath(i.second.path)) {
             valid = false;
             missing[i.first] = i.second;
             missingPaths.insert(i.second.path);
@@ -406,7 +409,7 @@ Step::ptr State::createStep(ref<Store> store,
     assert(missing.size() == missingPaths.size());
     if (!missing.empty() && settings.useSubstitutes) {
         SubstitutablePathInfos infos;
-        store->querySubstitutablePathInfos(missingPaths, infos);
+        destStore->querySubstitutablePathInfos(missingPaths, infos); // FIXME
         if (infos.size() == missingPaths.size()) {
             valid = true;
             for (auto & i : missing) {
@@ -414,7 +417,7 @@ Step::ptr State::createStep(ref<Store> store,
                     printMsg(lvlInfo, format("substituting output ‘%1%’ of ‘%2%’") % i.second.path % drvPath);
 
                     time_t startTime = time(0);
-                    store->ensurePath(i.second.path);
+                    destStore->ensurePath(i.second.path);
                     time_t stopTime = time(0);
 
                     {
@@ -443,7 +446,7 @@ Step::ptr State::createStep(ref<Store> store,
 
     /* Create steps for the dependencies. */
     for (auto & i : step->drv.inputDrvs) {
-        auto dep = createStep(store, conn, build, i.first, 0, step, finishedDrvs, newSteps, newRunnable);
+        auto dep = createStep(destStore, conn, build, i.first, 0, step, finishedDrvs, newSteps, newRunnable);
         if (dep) {
             auto step_(step->state.lock());
             step_->deps.insert(dep);
