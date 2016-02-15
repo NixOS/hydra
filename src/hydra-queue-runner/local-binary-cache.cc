@@ -1,6 +1,7 @@
 #include "local-binary-cache.hh"
 
 #include "archive.hh"
+#include "compression.hh"
 #include "derivations.hh"
 #include "globals.hh"
 #include "worker-protocol.hh"
@@ -32,6 +33,9 @@ void atomicWrite(const Path & path, const std::string & s)
 void LocalBinaryCache::addToCache(const ValidPathInfo & info,
     const string & nar)
 {
+    Path narInfoFile = narInfoFileFor(info.path);
+    if (pathExists(narInfoFile)) return;
+
     size_t narSize = nar.size();
     Hash narHash = hashString(htSHA256, nar);
 
@@ -41,34 +45,33 @@ void LocalBinaryCache::addToCache(const ValidPathInfo & info,
     printMsg(lvlTalkative, format("copying path ‘%1%’ (%2% bytes) to binary cache")
         % info.path % narSize);
 
+    /* Compress the NAR. */
+    string narXz = compressXZ(nar);
+    Hash narXzHash = hashString(htSHA256, narXz);
+
     /* Atomically write the NAR file. */
-    string narFileRel = "nar/" + printHash(narHash) + ".nar";
+    string narFileRel = "nar/" + printHash32(narXzHash) + ".nar.xz";
     Path narFile = binaryCacheDir + "/" + narFileRel;
-    if (!pathExists(narFile)) atomicWrite(narFile, nar);
+    if (!pathExists(narFile)) atomicWrite(narFile, narXz);
 
     /* Atomically write the NAR info file.*/
-    Path narInfoFile = narInfoFileFor(info.path);
+    Strings refs;
+    for (auto & r : info.references)
+        refs.push_back(baseNameOf(r));
 
-    if (!pathExists(narInfoFile)) {
+    std::string narInfo;
+    narInfo += "StorePath: " + info.path + "\n";
+    narInfo += "URL: " + narFileRel + "\n";
+    narInfo += "Compression: xz\n";
+    narInfo += "FileHash: sha256:" + printHash32(narXzHash) + "\n";
+    narInfo += "FileSize: " + std::to_string(narXz.size()) + "\n";
+    narInfo += "NarHash: sha256:" + printHash32(narHash) + "\n";
+    narInfo += "NarSize: " + std::to_string(narSize) + "\n";
+    narInfo += "References: " + concatStringsSep(" ", refs) + "\n";
 
-        Strings refs;
-        for (auto & r : info.references)
-            refs.push_back(baseNameOf(r));
+    // FIXME: add signature
 
-        std::string narInfo;
-        narInfo += "StorePath: " + info.path + "\n";
-        narInfo += "URL: " + narFileRel + "\n";
-        narInfo += "Compression: none\n";
-        narInfo += "FileHash: sha256:" + printHash(narHash) + "\n";
-        narInfo += "FileSize: " + std::to_string(narSize) + "\n";
-        narInfo += "NarHash: sha256:" + printHash(narHash) + "\n";
-        narInfo += "NarSize: " + std::to_string(narSize) + "\n";
-        narInfo += "References: " + concatStringsSep(" ", refs) + "\n";
-
-        // FIXME: add signature
-
-        atomicWrite(narInfoFile, narInfo);
-    }
+    atomicWrite(narInfoFile, narInfo);
 }
 
 LocalBinaryCache::NarInfo LocalBinaryCache::readNarInfo(const Path & storePath)
@@ -111,6 +114,9 @@ LocalBinaryCache::NarInfo LocalBinaryCache::readNarInfo(const Path & storePath)
         else if (name == "URL") {
             res.narUrl = value;
         }
+        else if (name == "Compression") {
+            res.compression = value;
+        }
 
         pos = eol + 1;
     }
@@ -136,6 +142,15 @@ void LocalBinaryCache::exportPath(const Path & storePath, bool sign, Sink & sink
     auto res = readNarInfo(storePath);
 
     auto nar = readFile(binaryCacheDir + "/" + res.narUrl);
+
+    /* Decompress the NAR. FIXME: would be nice to have the remote
+       side do this. */
+    if (res.compression == "none")
+        ;
+    else if (res.compression == "xz")
+        nar = decompressXZ(nar);
+    else
+        throw Error(format("unknown NAR compression type ‘%1%’") % nar);
 
     printMsg(lvlTalkative, format("exporting path ‘%1%’ (%2% bytes)") % storePath % nar.size());
 

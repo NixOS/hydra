@@ -24,6 +24,7 @@ private:
     {
         ValidPathInfo info;
         std::string narUrl;
+        std::string compression = "none";
     };
 
     NarInfo readNarInfo(const Path & storePath);
