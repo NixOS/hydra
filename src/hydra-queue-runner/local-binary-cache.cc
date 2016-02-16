@@ -4,14 +4,30 @@
 #include "compression.hh"
 #include "derivations.hh"
 #include "globals.hh"
+#include "nar-info.hh"
 #include "worker-protocol.hh"
 
 namespace nix {
 
-LocalBinaryCache::LocalBinaryCache(ref<Store> localStore, const Path & binaryCacheDir)
-    : localStore(localStore), binaryCacheDir(binaryCacheDir)
+LocalBinaryCache::LocalBinaryCache(ref<Store> localStore, const Path & binaryCacheDir,
+    const Path & secretKeyFile, const Path & publicKeyFile)
+    : localStore(localStore)
+    , binaryCacheDir(binaryCacheDir)
 {
     createDirs(binaryCacheDir + "/nar");
+
+    Path cacheInfoFile = binaryCacheDir + "/nix-cache-info";
+    if (!pathExists(cacheInfoFile))
+        writeFile(cacheInfoFile, "StoreDir: " + settings.nixStore + "\n");
+
+    if (secretKeyFile != "")
+        secretKey = std::unique_ptr<SecretKey>(new SecretKey(readFile(secretKeyFile)));
+
+    if (publicKeyFile != "") {
+        publicKeys = std::unique_ptr<PublicKeys>(new PublicKeys);
+        auto key = PublicKey(readFile(publicKeyFile));
+        publicKeys->emplace(key.name, key);
+    }
 }
 
 Path LocalBinaryCache::narInfoFileFor(const Path & storePath)
@@ -36,103 +52,51 @@ void LocalBinaryCache::addToCache(const ValidPathInfo & info,
     Path narInfoFile = narInfoFileFor(info.path);
     if (pathExists(narInfoFile)) return;
 
-    size_t narSize = nar.size();
-    Hash narHash = hashString(htSHA256, nar);
+    NarInfo narInfo(info);
 
-    if (info.hash.type != htUnknown && info.hash != narHash)
+    narInfo.narSize = nar.size();
+    narInfo.narHash = hashString(htSHA256, nar);
+
+    if (info.narHash.type != htUnknown && info.narHash != narInfo.narHash)
         throw Error(format("refusing to copy corrupted path ‘%1%’ to binary cache") % info.path);
 
     printMsg(lvlTalkative, format("copying path ‘%1%’ (%2% bytes) to binary cache")
-        % info.path % narSize);
+        % info.path % info.narSize);
 
     /* Compress the NAR. */
+    narInfo.compression = "xz";
     string narXz = compressXZ(nar);
-    Hash narXzHash = hashString(htSHA256, narXz);
+    narInfo.fileHash = hashString(htSHA256, narXz);
+    narInfo.fileSize = narXz.size();
 
     /* Atomically write the NAR file. */
-    string narFileRel = "nar/" + printHash32(narXzHash) + ".nar.xz";
-    Path narFile = binaryCacheDir + "/" + narFileRel;
+    narInfo.url = "nar/" + printHash32(narInfo.fileHash) + ".nar.xz";
+    Path narFile = binaryCacheDir + "/" + narInfo.url;
     if (!pathExists(narFile)) atomicWrite(narFile, narXz);
 
     /* Atomically write the NAR info file.*/
-    Strings refs;
-    for (auto & r : info.references)
-        refs.push_back(baseNameOf(r));
+    if (secretKey) narInfo.sign(*secretKey);
 
-    std::string narInfo;
-    narInfo += "StorePath: " + info.path + "\n";
-    narInfo += "URL: " + narFileRel + "\n";
-    narInfo += "Compression: xz\n";
-    narInfo += "FileHash: sha256:" + printHash32(narXzHash) + "\n";
-    narInfo += "FileSize: " + std::to_string(narXz.size()) + "\n";
-    narInfo += "NarHash: sha256:" + printHash32(narHash) + "\n";
-    narInfo += "NarSize: " + std::to_string(narSize) + "\n";
-    narInfo += "References: " + concatStringsSep(" ", refs) + "\n";
-
-    // FIXME: add signature
-
-    atomicWrite(narInfoFile, narInfo);
+    atomicWrite(narInfoFile, narInfo.to_string());
 }
 
-LocalBinaryCache::NarInfo LocalBinaryCache::readNarInfo(const Path & storePath)
+NarInfo LocalBinaryCache::readNarInfo(const Path & storePath)
 {
-    NarInfo res;
-
     Path narInfoFile = narInfoFileFor(storePath);
-    if (!pathExists(narInfoFile))
-        abort();
-    std::string narInfo = readFile(narInfoFile);
+    NarInfo narInfo = NarInfo(readFile(narInfoFile), narInfoFile);
+    assert(narInfo.path == storePath);
 
-    auto corrupt = [&]() {
-        throw Error(format("corrupt NAR info file ‘%1%’") % narInfoFile);
-    };
-
-    size_t pos = 0;
-    while (pos < narInfo.size()) {
-
-        size_t colon = narInfo.find(':', pos);
-        if (colon == std::string::npos) corrupt();
-
-        std::string name(narInfo, pos, colon - pos);
-
-        size_t eol = narInfo.find('\n', colon + 2);
-        if (eol == std::string::npos) corrupt();
-
-        std::string value(narInfo, colon + 2, eol - colon - 2);
-
-        if (name == "StorePath") {
-            res.info.path = value;
-            if (value != storePath) corrupt();
-            res.info.path = value;
-        }
-        else if (name == "References") {
-            auto refs = tokenizeString<Strings>(value, " ");
-            if (!res.info.references.empty()) corrupt();
-            for (auto & r : refs)
-                res.info.references.insert(settings.nixStore + "/" + r);
-        }
-        else if (name == "URL") {
-            res.narUrl = value;
-        }
-        else if (name == "Compression") {
-            res.compression = value;
-        }
-
-        pos = eol + 1;
+    if (publicKeys) {
+        if (!narInfo.checkSignature(*publicKeys))
+            throw Error(format("invalid signature on NAR info file ‘%1%’") % narInfoFile);
     }
 
-    if (res.info.path.empty() || res.narUrl.empty()) corrupt();
-
-    return res;
+    return narInfo;
 }
 
 bool LocalBinaryCache::isValidPath(const Path & storePath)
 {
-    Path narInfoFile = narInfoFileFor(storePath);
-
-    printMsg(lvlDebug, format("checking %1% -> %2%") % storePath % narInfoFile);
-
-    return pathExists(narInfoFile);
+    return pathExists(narInfoFileFor(storePath));
 }
 
 void LocalBinaryCache::exportPath(const Path & storePath, bool sign, Sink & sink)
@@ -141,7 +105,7 @@ void LocalBinaryCache::exportPath(const Path & storePath, bool sign, Sink & sink
 
     auto res = readNarInfo(storePath);
 
-    auto nar = readFile(binaryCacheDir + "/" + res.narUrl);
+    auto nar = readFile(binaryCacheDir + "/" + res.url);
 
     /* Decompress the NAR. FIXME: would be nice to have the remote
        side do this. */
@@ -160,7 +124,7 @@ void LocalBinaryCache::exportPath(const Path & storePath, bool sign, Sink & sink
 
     // FIXME: check integrity of NAR.
 
-    sink << exportMagic << storePath << res.info.references << res.info.deriver << 0;
+    sink << exportMagic << storePath << res.references << res.deriver << 0;
 }
 
 Paths LocalBinaryCache::importPaths(bool requireSignature, Source & source)
@@ -225,7 +189,7 @@ Path LocalBinaryCache::importPath(Source & source)
 
 ValidPathInfo LocalBinaryCache::queryPathInfo(const Path & storePath)
 {
-    return readNarInfo(storePath).info;
+    return ValidPathInfo(readNarInfo(storePath));
 }
 
 void LocalBinaryCache::querySubstitutablePathInfos(const PathSet & paths,

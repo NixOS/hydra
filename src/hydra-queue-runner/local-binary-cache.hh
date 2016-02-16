@@ -1,8 +1,11 @@
 #pragma once
 
+#include "crypto.hh"
 #include "store-api.hh"
 
 namespace nix {
+
+struct NarInfo;
 
 class LocalBinaryCache : public nix::Store
 {
@@ -10,22 +13,19 @@ private:
     ref<Store> localStore;
     Path binaryCacheDir;
 
+    std::unique_ptr<SecretKey> secretKey;
+    std::unique_ptr<PublicKeys> publicKeys;
+
 public:
 
-    LocalBinaryCache(ref<Store> localStore, const Path & binaryCacheDir);
+    LocalBinaryCache(ref<Store> localStore, const Path & binaryCacheDir,
+        const Path & secretKeyFile, const Path & publicKeyFile);
 
 private:
 
     Path narInfoFileFor(const Path & storePath);
 
     void addToCache(const ValidPathInfo & info, const string & nar);
-
-    struct NarInfo
-    {
-        ValidPathInfo info;
-        std::string narUrl;
-        std::string compression = "none";
-    };
 
     NarInfo readNarInfo(const Path & storePath);
 
