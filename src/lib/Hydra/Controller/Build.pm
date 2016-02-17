@@ -168,7 +168,7 @@ sub showLog {
     }
 
     elsif ($mode eq "tail-reload") {
-        my $url = $c->request->uri->as_string;
+        my $url = $c->uri_for($c->request->uri->path);
         $url =~ s/tail-reload/tail/g;
         $c->stash->{url} = $url;
         $c->stash->{reload} = !$c->stash->{build}->finished;
