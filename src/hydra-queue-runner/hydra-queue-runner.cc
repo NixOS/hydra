@@ -221,18 +221,20 @@ int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build,
 }
 
 
-void State::finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime, BuildID buildId, int stepNr,
-    const std::string & machine, BuildStepStatus status, const std::string & errorMsg, BuildID propagatedFrom)
+void State::finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime, unsigned int overhead,
+    BuildID buildId, int stepNr, const std::string & machine, BuildStepStatus status,
+    const std::string & errorMsg, BuildID propagatedFrom)
 {
     assert(startTime);
     assert(stopTime);
     txn.parameterized
-        ("update BuildSteps set busy = 0, status = $1, propagatedFrom = $4, errorMsg = $5, startTime = $6, stopTime = $7, machine = $8 where build = $2 and stepnr = $3")
+        ("update BuildSteps set busy = 0, status = $1, propagatedFrom = $4, errorMsg = $5, startTime = $6, stopTime = $7, machine = $8, overhead = $9 where build = $2 and stepnr = $3")
         ((int) status)(buildId)(stepNr)
         (propagatedFrom, propagatedFrom != 0)
         (errorMsg, errorMsg != "")
         (startTime)(stopTime)
-        (machine, machine != "").exec();
+        (machine, machine != "")
+        (overhead, overhead != 0).exec();
 }
 
 

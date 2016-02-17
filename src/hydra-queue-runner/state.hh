@@ -49,6 +49,7 @@ typedef enum {
 struct RemoteResult : nix::BuildResult
 {
     time_t startTime = 0, stopTime = 0;
+    unsigned int overhead = 0;
     nix::Path logFile;
 
     bool canRetry()
@@ -370,7 +371,8 @@ private:
         const std::string & machine, BuildStepStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
 
-    void finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime, BuildID buildId, int stepNr,
+    void finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime,
+        unsigned int overhead, BuildID buildId, int stepNr,
         const std::string & machine, BuildStepStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
 

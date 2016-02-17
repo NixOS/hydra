@@ -98,6 +98,11 @@ __PACKAGE__->table("BuildSteps");
   is_foreign_key: 1
   is_nullable: 1
 
+=head2 overhead
+
+  data_type: 'integer'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -125,6 +130,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "propagatedfrom",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
+  "overhead",
+  { data_type => "integer", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -194,8 +201,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2015-02-25 16:27:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZbOxzCzFN7fIT9M2BFY0iQ
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-02-16 18:04:52
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:TRALbEoaF/OIOyERYCyxkw
 
 my %hint = (
     columns => [

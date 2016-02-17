@@ -165,7 +165,7 @@ bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         }
         if (retry) {
             pqxx::work txn(*conn);
-            finishBuildStep(txn, result.startTime, result.stopTime, build->id,
+            finishBuildStep(txn, result.startTime, result.stopTime, result.overhead, build->id,
                 stepNr, machine->sshName, bssAborted, result.errorMsg);
             txn.commit();
             if (quit) exit(1);
@@ -214,7 +214,8 @@ bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
             {
                 pqxx::work txn(*conn);
 
-                finishBuildStep(txn, result.startTime, result.stopTime, build->id, stepNr, machine->sshName, bssSuccess);
+                finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
+                    build->id, stepNr, machine->sshName, bssSuccess);
 
                 for (auto & b : direct)
                     markSucceededBuild(txn, b, res, build != b || result.status != BuildResult::Built,
@@ -334,8 +335,8 @@ bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                 }
 
                 if (!cachedFailure)
-                    finishBuildStep(txn, result.startTime, result.stopTime, build->id,
-                        stepNr, machine->sshName, buildStepStatus, result.errorMsg);
+                    finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
+                        build->id, stepNr, machine->sshName, buildStepStatus, result.errorMsg);
 
                 /* Mark all builds that depend on this derivation as failed. */
                 for (auto & build2 : indirect) {

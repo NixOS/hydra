@@ -235,7 +235,14 @@ void State::buildRemote(ref<Store> destStore,
         mc1.reset();
         MaintainCount mc2(nrStepsCopyingTo);
         printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % step->drvPath % machine->sshName);
+
+        auto now1 = std::chrono::steady_clock::now();
+
         copyClosureTo(destStore, from, to, inputs, bytesSent);
+
+        auto now2 = std::chrono::steady_clock::now();
+
+        result.overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
     }
 
     autoDelete.cancel();
@@ -289,7 +296,14 @@ void State::buildRemote(ref<Store> destStore,
         for (auto & output : step->drv.outputs)
             outputs.insert(output.second.path);
         MaintainCount mc(nrStepsCopyingFrom);
+
+        auto now1 = std::chrono::steady_clock::now();
+
         copyClosureFrom(destStore, from, to, outputs, bytesReceived);
+
+        auto now2 = std::chrono::steady_clock::now();
+
+        result.overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
     }
 
     /* Shut down the connection. */
