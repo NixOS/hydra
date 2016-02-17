@@ -273,6 +273,9 @@ create table BuildSteps (
 
     propagatedFrom integer,
 
+    -- Time in milliseconds spend copying stuff from/to build machines.
+    overhead      integer,
+
     primary key   (build, stepnr),
     foreign key   (build) references Builds(id) on delete cascade,
     foreign key   (propagatedFrom) references Builds(id) on delete cascade
