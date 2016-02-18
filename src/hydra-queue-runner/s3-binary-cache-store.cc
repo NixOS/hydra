@@ -122,7 +122,7 @@ std::string S3BinaryCacheStore::getFile(const std::string & path)
 
     auto res = dynamic_cast<std::stringstream &>(result.GetBody()).str();
 
-    printMsg(lvlError, format("downloaded ‘s3://%1%/%2%’ (%3%) in %4% ms")
+    printMsg(lvlError, format("downloaded ‘s3://%1%/%2%’ (%3% bytes) in %4% ms")
         % bucketName % path
         % res.size()
         % std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count());
