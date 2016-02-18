@@ -346,6 +346,9 @@ private:
 
     std::atomic<time_t> lastDispatcherCheck{0};
 
+    /* Destination store. */
+    std::shared_ptr<nix::Store> _destStore;
+
 public:
     State();
 

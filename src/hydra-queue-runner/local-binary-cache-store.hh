@@ -12,7 +12,7 @@ private:
 
 public:
 
-    LocalBinaryCacheStore(ref<Store> localStore,
+    LocalBinaryCacheStore(const StoreFactory & storeFactory,
         const Path & secretKeyFile, const Path & publicKeyFile,
         const Path & binaryCacheDir);
 

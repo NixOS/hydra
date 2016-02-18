@@ -20,10 +20,10 @@ R && checkAws(Aws::Utils::Outcome<R, E> && outcome)
     return outcome.GetResultWithOwnership();
 }
 
-S3BinaryCacheStore::S3BinaryCacheStore(ref<Store> localStore,
+S3BinaryCacheStore::S3BinaryCacheStore(const StoreFactory & storeFactory,
     const Path & secretKeyFile, const Path & publicKeyFile,
     const std::string & bucketName)
-    : BinaryCacheStore(localStore, secretKeyFile, publicKeyFile)
+    : BinaryCacheStore(storeFactory, secretKeyFile, publicKeyFile)
     , bucketName(bucketName)
     , config(makeConfig())
     , client(make_ref<Aws::S3::S3Client>(*config))

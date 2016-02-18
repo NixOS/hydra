@@ -18,7 +18,7 @@ private:
 
 public:
 
-    S3BinaryCacheStore(ref<Store> localStore,
+    S3BinaryCacheStore(const StoreFactory & storeFactory,
         const Path & secretKeyFile, const Path & publicKeyFile,
         const std::string & bucketName);
 

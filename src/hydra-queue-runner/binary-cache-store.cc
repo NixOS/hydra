@@ -11,9 +11,9 @@
 
 namespace nix {
 
-BinaryCacheStore::BinaryCacheStore(ref<Store> localStore,
+BinaryCacheStore::BinaryCacheStore(const StoreFactory & storeFactory,
     const Path & secretKeyFile, const Path & publicKeyFile)
-    : localStore(localStore)
+    : storeFactory(storeFactory)
 {
     if (secretKeyFile != "")
         secretKey = std::unique_ptr<SecretKey>(new SecretKey(readFile(secretKeyFile)));
@@ -192,6 +192,8 @@ void BinaryCacheStore::querySubstitutablePathInfos(const PathSet & paths,
 {
     PathSet left;
 
+    auto localStore = storeFactory();
+
     for (auto & storePath : paths) {
         if (!localStore->isValidPath(storePath)) {
             left.insert(storePath);
@@ -210,6 +212,8 @@ void BinaryCacheStore::querySubstitutablePathInfos(const PathSet & paths,
 
 void BinaryCacheStore::buildPaths(const PathSet & paths, BuildMode buildMode)
 {
+    auto localStore = storeFactory();
+
     for (auto & storePath : paths) {
         assert(!isDerivation(storePath));
 

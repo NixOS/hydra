@@ -23,6 +23,21 @@ State::State()
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
 
     logDir = canonPath(hydraData + "/build-logs");
+
+#if 0
+    auto store = make_ref<LocalBinaryCacheStore>(getLocalStore(),
+        "/home/eelco/Misc/Keys/test.nixos.org/secret",
+        "/home/eelco/Misc/Keys/test.nixos.org/public",
+        "/tmp/binary-cache");
+#endif
+
+    auto store = std::make_shared<S3BinaryCacheStore>(
+        []() { return openStore(); },
+        "/home/eelco/Misc/Keys/test.nixos.org/secret",
+        "/home/eelco/Misc/Keys/test.nixos.org/public",
+        "nix-test-cache-3");;
+    store->init();
+    _destStore = store;
 }
 
 
@@ -34,18 +49,7 @@ ref<Store> State::getLocalStore()
 
 ref<Store> State::getDestStore()
 {
-#if 0
-    auto store = make_ref<LocalBinaryCacheStore>(getLocalStore(),
-        "/home/eelco/Misc/Keys/test.nixos.org/secret",
-        "/home/eelco/Misc/Keys/test.nixos.org/public",
-        "/tmp/binary-cache");
-#endif
-    auto store = make_ref<S3BinaryCacheStore>(getLocalStore(),
-        "/home/eelco/Misc/Keys/test.nixos.org/secret",
-        "/home/eelco/Misc/Keys/test.nixos.org/public",
-        "nix-test-cache-3");
-    store->init();
-    return store;
+    return ref<Store>(_destStore);
 }
 
 
