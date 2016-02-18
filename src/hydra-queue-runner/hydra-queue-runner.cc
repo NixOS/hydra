@@ -8,6 +8,7 @@
 #include "state.hh"
 #include "build-result.hh"
 #include "local-binary-cache-store.hh"
+#include "s3-binary-cache-store.hh"
 
 #include "shared.hh"
 #include "globals.hh"
@@ -33,10 +34,16 @@ ref<Store> State::getLocalStore()
 
 ref<Store> State::getDestStore()
 {
+#if 0
     auto store = make_ref<LocalBinaryCacheStore>(getLocalStore(),
-        "/tmp/binary-cache",
         "/home/eelco/Misc/Keys/test.nixos.org/secret",
-        "/home/eelco/Misc/Keys/test.nixos.org/public");
+        "/home/eelco/Misc/Keys/test.nixos.org/public",
+        "/tmp/binary-cache");
+#endif
+    auto store = make_ref<S3BinaryCacheStore>(getLocalStore(),
+        "/home/eelco/Misc/Keys/test.nixos.org/secret",
+        "/home/eelco/Misc/Keys/test.nixos.org/public",
+        "nix-test-cache-3");
     store->init();
     return store;
 }

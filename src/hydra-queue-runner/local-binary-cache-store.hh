@@ -12,8 +12,9 @@ private:
 
 public:
 
-    LocalBinaryCacheStore(ref<Store> localStore, const Path & binaryCacheDir,
-        const Path & secretKeyFile, const Path & publicKeyFile);
+    LocalBinaryCacheStore(ref<Store> localStore,
+        const Path & secretKeyFile, const Path & publicKeyFile,
+        const Path & binaryCacheDir);
 
     void init() override;
 

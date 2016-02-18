@@ -3,7 +3,8 @@
 namespace nix {
 
 LocalBinaryCacheStore::LocalBinaryCacheStore(ref<Store> localStore,
-    const Path & binaryCacheDir,  const Path & secretKeyFile, const Path & publicKeyFile)
+    const Path & secretKeyFile, const Path & publicKeyFile,
+    const Path & binaryCacheDir)
     : BinaryCacheStore(localStore, secretKeyFile, publicKeyFile)
     , binaryCacheDir(binaryCacheDir)
 {

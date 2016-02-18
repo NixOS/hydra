@@ -7,6 +7,8 @@
 #include "nar-info.hh"
 #include "worker-protocol.hh"
 
+#include <chrono>
+
 namespace nix {
 
 BinaryCacheStore::BinaryCacheStore(ref<Store> localStore,
@@ -50,14 +52,18 @@ void BinaryCacheStore::addToCache(const ValidPathInfo & info,
     if (info.narHash.type != htUnknown && info.narHash != narInfo.narHash)
         throw Error(format("refusing to copy corrupted path ‘%1%’ to binary cache") % info.path);
 
-    printMsg(lvlTalkative, format("copying path ‘%1%’ (%2% bytes) to binary cache")
-        % info.path % info.narSize);
-
     /* Compress the NAR. */
     narInfo.compression = "xz";
+    auto now1 = std::chrono::steady_clock::now();
     string narXz = compressXZ(nar);
+    auto now2 = std::chrono::steady_clock::now();
     narInfo.fileHash = hashString(htSHA256, narXz);
     narInfo.fileSize = narXz.size();
+
+    printMsg(lvlTalkative, format("copying path ‘%1%’ (%2% bytes, compressed %3$.1f%% in %4% ms) to binary cache")
+        % info.path % info.narSize
+        % ((1.0 - (double) narXz.size() / nar.size()) * 100.0)
+        % std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count());
 
     /* Atomically write the NAR file. */
     narInfo.url = "nar/" + printHash32(narInfo.fileHash) + ".nar.xz";
