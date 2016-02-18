@@ -1,4 +1,4 @@
-#include "local-binary-cache.hh"
+#include "binary-cache-store.hh"
 
 #include "archive.hh"
 #include "compression.hh"

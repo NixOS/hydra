@@ -7,7 +7,7 @@
 
 #include "state.hh"
 #include "build-result.hh"
-#include "local-binary-cache.hh"
+#include "binary-cache-store.hh"
 
 #include "shared.hh"
 #include "globals.hh"
