@@ -238,7 +238,7 @@ void State::buildRemote(ref<Store> destStore,
 
         auto now1 = std::chrono::steady_clock::now();
 
-        copyClosureTo(destStore, from, to, inputs, bytesSent);
+        copyClosureTo(destStore, from, to, inputs, bytesSent, true);
 
         auto now2 = std::chrono::steady_clock::now();
 
