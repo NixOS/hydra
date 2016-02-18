@@ -7,7 +7,7 @@
 
 #include "state.hh"
 #include "build-result.hh"
-#include "binary-cache-store.hh"
+#include "local-binary-cache-store.hh"
 
 #include "shared.hh"
 #include "globals.hh"
@@ -33,10 +33,12 @@ ref<Store> State::getLocalStore()
 
 ref<Store> State::getDestStore()
 {
-    return make_ref<BinaryCacheStore>(getLocalStore(),
+    auto store = make_ref<LocalBinaryCacheStore>(getLocalStore(),
         "/tmp/binary-cache",
         "/home/eelco/Misc/Keys/test.nixos.org/secret",
         "/home/eelco/Misc/Keys/test.nixos.org/public");
+    store->init();
+    return store;
 }
 
 

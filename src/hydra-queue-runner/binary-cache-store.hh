@@ -7,23 +7,33 @@ namespace nix {
 
 struct NarInfo;
 
-class BinaryCacheStore : public nix::Store
+class BinaryCacheStore : public Store
 {
 private:
+
     ref<Store> localStore;
-    Path binaryCacheDir;
 
     std::unique_ptr<SecretKey> secretKey;
     std::unique_ptr<PublicKeys> publicKeys;
 
+protected:
+
+    BinaryCacheStore(ref<Store> localStore,
+        const Path & secretKeyFile, const Path & publicKeyFile);
+
+    virtual bool fileExists(const std::string & path) = 0;
+
+    virtual void upsertFile(const std::string & path, const std::string & data) = 0;
+
+    virtual std::string getFile(const std::string & path) = 0;
+
 public:
 
-    BinaryCacheStore(ref<Store> localStore, const Path & binaryCacheDir,
-        const Path & secretKeyFile, const Path & publicKeyFile);
+    virtual void init();
 
 private:
 
-    Path narInfoFileFor(const Path & storePath);
+    std::string narInfoFileFor(const Path & storePath);
 
     void addToCache(const ValidPathInfo & info, const string & nar);
 

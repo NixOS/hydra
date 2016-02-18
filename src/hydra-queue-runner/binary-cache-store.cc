@@ -9,17 +9,10 @@
 
 namespace nix {
 
-BinaryCacheStore::BinaryCacheStore(ref<Store> localStore, const Path & binaryCacheDir,
+BinaryCacheStore::BinaryCacheStore(ref<Store> localStore,
     const Path & secretKeyFile, const Path & publicKeyFile)
     : localStore(localStore)
-    , binaryCacheDir(binaryCacheDir)
 {
-    createDirs(binaryCacheDir + "/nar");
-
-    Path cacheInfoFile = binaryCacheDir + "/nix-cache-info";
-    if (!pathExists(cacheInfoFile))
-        writeFile(cacheInfoFile, "StoreDir: " + settings.nixStore + "\n");
-
     if (secretKeyFile != "")
         secretKey = std::unique_ptr<SecretKey>(new SecretKey(readFile(secretKeyFile)));
 
@@ -30,27 +23,24 @@ BinaryCacheStore::BinaryCacheStore(ref<Store> localStore, const Path & binaryCac
     }
 }
 
+void BinaryCacheStore::init()
+{
+    std::string cacheInfoFile = "nix-cache-info";
+    if (!fileExists(cacheInfoFile))
+        upsertFile(cacheInfoFile, "StoreDir: " + settings.nixStore + "\n");
+}
+
 Path BinaryCacheStore::narInfoFileFor(const Path & storePath)
 {
     assertStorePath(storePath);
-    return binaryCacheDir + "/" + storePathToHash(storePath) + ".narinfo";
-}
-
-void atomicWrite(const Path & path, const std::string & s)
-{
-    Path tmp = path + ".tmp." + std::to_string(getpid());
-    AutoDelete del(tmp, false);
-    writeFile(tmp, s);
-    if (rename(tmp.c_str(), path.c_str()))
-        throw SysError(format("renaming ‘%1%’ to ‘%2%’") % tmp % path);
-    del.cancel();
+    return storePathToHash(storePath) + ".narinfo";
 }
 
 void BinaryCacheStore::addToCache(const ValidPathInfo & info,
     const string & nar)
 {
-    Path narInfoFile = narInfoFileFor(info.path);
-    if (pathExists(narInfoFile)) return;
+    auto narInfoFile = narInfoFileFor(info.path);
+    if (fileExists(narInfoFile)) return;
 
     NarInfo narInfo(info);
 
@@ -71,19 +61,18 @@ void BinaryCacheStore::addToCache(const ValidPathInfo & info,
 
     /* Atomically write the NAR file. */
     narInfo.url = "nar/" + printHash32(narInfo.fileHash) + ".nar.xz";
-    Path narFile = binaryCacheDir + "/" + narInfo.url;
-    if (!pathExists(narFile)) atomicWrite(narFile, narXz);
+    if (!fileExists(narInfo.url)) upsertFile(narInfo.url, narXz);
 
     /* Atomically write the NAR info file.*/
     if (secretKey) narInfo.sign(*secretKey);
 
-    atomicWrite(narInfoFile, narInfo.to_string());
+    upsertFile(narInfoFile, narInfo.to_string());
 }
 
 NarInfo BinaryCacheStore::readNarInfo(const Path & storePath)
 {
-    Path narInfoFile = narInfoFileFor(storePath);
-    NarInfo narInfo = NarInfo(readFile(narInfoFile), narInfoFile);
+    auto narInfoFile = narInfoFileFor(storePath);
+    auto narInfo = NarInfo(getFile(narInfoFile), narInfoFile);
     assert(narInfo.path == storePath);
 
     if (publicKeys) {
@@ -96,7 +85,7 @@ NarInfo BinaryCacheStore::readNarInfo(const Path & storePath)
 
 bool BinaryCacheStore::isValidPath(const Path & storePath)
 {
-    return pathExists(narInfoFileFor(storePath));
+    return fileExists(narInfoFileFor(storePath));
 }
 
 void BinaryCacheStore::exportPath(const Path & storePath, bool sign, Sink & sink)
@@ -105,7 +94,7 @@ void BinaryCacheStore::exportPath(const Path & storePath, bool sign, Sink & sink
 
     auto res = readNarInfo(storePath);
 
-    auto nar = readFile(binaryCacheDir + "/" + res.url);
+    auto nar = getFile(res.url);
 
     /* Decompress the NAR. FIXME: would be nice to have the remote
        side do this. */
