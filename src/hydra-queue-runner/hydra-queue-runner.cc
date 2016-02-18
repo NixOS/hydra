@@ -705,10 +705,10 @@ void State::run(BuildID buildOne)
     while (true) {
         try {
             auto conn(dbPool.get());
-            receiver dumpStatus(*conn, "dump_status");
+            receiver dumpStatus_(*conn, "dump_status");
             while (true) {
                 bool timeout = conn->await_notification(300, 0) == 0;
-                State::dumpStatus(*conn, timeout);
+                dumpStatus(*conn, timeout);
             }
         } catch (std::exception & e) {
             printMsg(lvlError, format("main thread: %1%") % e.what());

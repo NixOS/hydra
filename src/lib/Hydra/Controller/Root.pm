@@ -118,6 +118,22 @@ sub status_GET {
 }
 
 
+sub queue_runner_status :Local :Path('queue-runner-status') :Args(0) :ActionClass('REST') { }
+
+sub queue_runner_status_GET {
+    my ($self, $c) = @_;
+
+    #my $status = from_json($c->model('DB::SystemStatus')->find('queue-runner')->status);
+    my $status = from_json(`hydra-queue-runner --status`);
+    if ($?) { $status->{status} = "unknown"; }
+    my $json = JSON->new->pretty()->canonical();
+
+    $c->stash->{template} = 'queue-runner-status.tt';
+    $c->stash->{status} = $json->encode($status);
+    $self->status_ok($c, entity => $status);
+}
+
+
 sub machines :Local Args(0) {
     my ($self, $c) = @_;
     my $machines = getMachines;
