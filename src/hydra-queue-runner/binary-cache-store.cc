@@ -9,7 +9,7 @@
 
 namespace nix {
 
-LocalBinaryCache::LocalBinaryCache(ref<Store> localStore, const Path & binaryCacheDir,
+BinaryCacheStore::BinaryCacheStore(ref<Store> localStore, const Path & binaryCacheDir,
     const Path & secretKeyFile, const Path & publicKeyFile)
     : localStore(localStore)
     , binaryCacheDir(binaryCacheDir)
@@ -30,7 +30,7 @@ LocalBinaryCache::LocalBinaryCache(ref<Store> localStore, const Path & binaryCac
     }
 }
 
-Path LocalBinaryCache::narInfoFileFor(const Path & storePath)
+Path BinaryCacheStore::narInfoFileFor(const Path & storePath)
 {
     assertStorePath(storePath);
     return binaryCacheDir + "/" + storePathToHash(storePath) + ".narinfo";
@@ -46,7 +46,7 @@ void atomicWrite(const Path & path, const std::string & s)
     del.cancel();
 }
 
-void LocalBinaryCache::addToCache(const ValidPathInfo & info,
+void BinaryCacheStore::addToCache(const ValidPathInfo & info,
     const string & nar)
 {
     Path narInfoFile = narInfoFileFor(info.path);
@@ -80,7 +80,7 @@ void LocalBinaryCache::addToCache(const ValidPathInfo & info,
     atomicWrite(narInfoFile, narInfo.to_string());
 }
 
-NarInfo LocalBinaryCache::readNarInfo(const Path & storePath)
+NarInfo BinaryCacheStore::readNarInfo(const Path & storePath)
 {
     Path narInfoFile = narInfoFileFor(storePath);
     NarInfo narInfo = NarInfo(readFile(narInfoFile), narInfoFile);
@@ -94,12 +94,12 @@ NarInfo LocalBinaryCache::readNarInfo(const Path & storePath)
     return narInfo;
 }
 
-bool LocalBinaryCache::isValidPath(const Path & storePath)
+bool BinaryCacheStore::isValidPath(const Path & storePath)
 {
     return pathExists(narInfoFileFor(storePath));
 }
 
-void LocalBinaryCache::exportPath(const Path & storePath, bool sign, Sink & sink)
+void BinaryCacheStore::exportPath(const Path & storePath, bool sign, Sink & sink)
 {
     assert(!sign);
 
@@ -127,7 +127,7 @@ void LocalBinaryCache::exportPath(const Path & storePath, bool sign, Sink & sink
     sink << exportMagic << storePath << res.references << res.deriver << 0;
 }
 
-Paths LocalBinaryCache::importPaths(bool requireSignature, Source & source)
+Paths BinaryCacheStore::importPaths(bool requireSignature, Source & source)
 {
     assert(!requireSignature);
     Paths res;
@@ -159,7 +159,7 @@ struct NopSink : ParseSink
 {
 };
 
-Path LocalBinaryCache::importPath(Source & source)
+Path BinaryCacheStore::importPath(Source & source)
 {
     /* FIXME: some cut&paste of LocalStore::importPath(). */
 
@@ -187,12 +187,12 @@ Path LocalBinaryCache::importPath(Source & source)
     return info.path;
 }
 
-ValidPathInfo LocalBinaryCache::queryPathInfo(const Path & storePath)
+ValidPathInfo BinaryCacheStore::queryPathInfo(const Path & storePath)
 {
     return ValidPathInfo(readNarInfo(storePath));
 }
 
-void LocalBinaryCache::querySubstitutablePathInfos(const PathSet & paths,
+void BinaryCacheStore::querySubstitutablePathInfos(const PathSet & paths,
     SubstitutablePathInfos & infos)
 {
     PathSet left;
@@ -213,7 +213,7 @@ void LocalBinaryCache::querySubstitutablePathInfos(const PathSet & paths,
     localStore->querySubstitutablePathInfos(left, infos);
 }
 
-void LocalBinaryCache::buildPaths(const PathSet & paths, BuildMode buildMode)
+void BinaryCacheStore::buildPaths(const PathSet & paths, BuildMode buildMode)
 {
     for (auto & storePath : paths) {
         assert(!isDerivation(storePath));
@@ -238,7 +238,7 @@ void LocalBinaryCache::buildPaths(const PathSet & paths, BuildMode buildMode)
     }
 }
 
-void LocalBinaryCache::ensurePath(const Path & path)
+void BinaryCacheStore::ensurePath(const Path & path)
 {
     buildPaths({path});
 }

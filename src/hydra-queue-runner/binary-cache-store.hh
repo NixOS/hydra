@@ -7,7 +7,7 @@ namespace nix {
 
 struct NarInfo;
 
-class LocalBinaryCache : public nix::Store
+class BinaryCacheStore : public nix::Store
 {
 private:
     ref<Store> localStore;
@@ -18,7 +18,7 @@ private:
 
 public:
 
-    LocalBinaryCache(ref<Store> localStore, const Path & binaryCacheDir,
+    BinaryCacheStore(ref<Store> localStore, const Path & binaryCacheDir,
         const Path & secretKeyFile, const Path & publicKeyFile);
 
 private:

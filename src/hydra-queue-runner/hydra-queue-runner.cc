@@ -33,7 +33,7 @@ ref<Store> State::getLocalStore()
 
 ref<Store> State::getDestStore()
 {
-    return make_ref<LocalBinaryCache>(getLocalStore(),
+    return make_ref<BinaryCacheStore>(getLocalStore(),
         "/tmp/binary-cache",
         "/home/eelco/Misc/Keys/test.nixos.org/secret",
         "/home/eelco/Misc/Keys/test.nixos.org/public");
