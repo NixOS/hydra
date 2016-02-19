@@ -234,11 +234,11 @@ void BinaryCacheStore::querySubstitutablePathInfos(const PathSet & paths,
     auto localStore = storeFactory();
 
     for (auto & storePath : paths) {
-        if (!localStore->isValidPath(storePath)) {
+        if (!(*localStore)->isValidPath(storePath)) {
             left.insert(storePath);
             continue;
         }
-        ValidPathInfo info = localStore->queryPathInfo(storePath);
+        ValidPathInfo info = (*localStore)->queryPathInfo(storePath);
         SubstitutablePathInfo sub;
         sub.references = info.references;
         sub.downloadSize = 0;
@@ -246,7 +246,7 @@ void BinaryCacheStore::querySubstitutablePathInfos(const PathSet & paths,
         infos.emplace(storePath, sub);
     }
 
-    localStore->querySubstitutablePathInfos(left, infos);
+    //(*localStore)->querySubstitutablePathInfos(left, infos);
 }
 
 void BinaryCacheStore::buildPaths(const PathSet & paths, BuildMode buildMode)
@@ -258,12 +258,12 @@ void BinaryCacheStore::buildPaths(const PathSet & paths, BuildMode buildMode)
 
         if (isValidPath(storePath)) continue;
 
-        localStore->addTempRoot(storePath);
+        (*localStore)->addTempRoot(storePath);
 
-        if (!localStore->isValidPath(storePath))
-            localStore->ensurePath(storePath);
+        if (!(*localStore)->isValidPath(storePath))
+            (*localStore)->ensurePath(storePath);
 
-        ValidPathInfo info = localStore->queryPathInfo(storePath);
+        ValidPathInfo info = (*localStore)->queryPathInfo(storePath);
 
         for (auto & ref : info.references)
             if (ref != storePath)

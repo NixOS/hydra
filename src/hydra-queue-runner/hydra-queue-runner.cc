@@ -18,6 +18,7 @@ using namespace nix;
 
 
 State::State()
+    : localStorePool([]() { return std::make_shared<ref<Store>>(openStore()); })
 {
     hydraData = getEnv("HYDRA_DATA");
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
@@ -26,9 +27,10 @@ State::State()
 }
 
 
-ref<Store> State::getLocalStore()
+StorePool::Handle State::getLocalStore()
 {
-    return openStore(); // FIXME: pool
+    auto conn(localStorePool.get());
+    return conn;
 }
 
 
@@ -733,10 +735,10 @@ void State::run(BuildID buildOne)
 #endif
 
     auto store = std::make_shared<S3BinaryCacheStore>(
-        []() { return openStore(); },
-        "/home/eelco/Misc/Keys/test.nixos.org/secret",
-        "/home/eelco/Misc/Keys/test.nixos.org/public",
-        "nix-test-cache-3");;
+        [this]() { return this->getLocalStore(); },
+        "/home/eelco/hydra/secret",
+        "/home/eelco/hydra/public",
+        "nix-test-cache");
     store->init();
     _destStore = store;
 

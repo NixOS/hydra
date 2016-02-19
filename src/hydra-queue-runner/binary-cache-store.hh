@@ -5,6 +5,7 @@
 
 #include "lru-cache.hh"
 #include "sync.hh"
+#include "pool.hh"
 
 #include <atomic>
 
@@ -15,7 +16,8 @@ struct NarInfo;
 /* While BinaryCacheStore is thread-safe, LocalStore and RemoteStore
    aren't. Until they are, use a factory to produce a thread-local
    local store. */
-typedef std::function<ref<Store>()> StoreFactory;
+typedef Pool<nix::ref<nix::Store>> StorePool;
+typedef std::function<StorePool::Handle()> StoreFactory;
 
 class BinaryCacheStore : public Store
 {

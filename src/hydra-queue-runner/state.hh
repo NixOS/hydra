@@ -16,6 +16,8 @@
 #include "store-api.hh"
 #include "derivations.hh"
 
+#include "binary-cache-store.hh" // FIXME
+
 
 typedef unsigned int BuildID;
 
@@ -346,6 +348,9 @@ private:
 
     std::atomic<time_t> lastDispatcherCheck{0};
 
+    /* Pool of local stores. */
+    nix::StorePool localStorePool;
+
     /* Destination store. */
     std::shared_ptr<nix::Store> _destStore;
 
@@ -356,7 +361,7 @@ private:
 
     /* Return a store object that can access derivations produced by
        hydra-evaluator. */
-    nix::ref<nix::Store> getLocalStore();
+    nix::StorePool::Handle getLocalStore();
 
     /* Return a store object to store build results. */
     nix::ref<nix::Store> getDestStore();

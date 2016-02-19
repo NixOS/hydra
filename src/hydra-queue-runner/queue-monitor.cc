@@ -36,7 +36,7 @@ void State::queueMonitorLoop()
     unsigned int lastBuildId = 0;
 
     while (true) {
-        bool done = getQueuedBuilds(*conn, localStore, destStore, lastBuildId);
+        bool done = getQueuedBuilds(*conn, *localStore, destStore, lastBuildId);
 
         /* Sleep until we get notification from the database about an
            event. */

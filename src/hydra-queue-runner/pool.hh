@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <list>
+#include <functional>
 
 #include "sync.hh"
 
@@ -25,7 +26,14 @@
 template <class R>
 class Pool
 {
+public:
+
+    typedef std::function<std::shared_ptr<R>()> Factory;
+
 private:
+
+    Factory factory;
+
     struct State
     {
         unsigned int count = 0;
@@ -35,6 +43,10 @@ private:
     Sync<State> state;
 
 public:
+
+    Pool(const Factory & factory = []() { return std::make_shared<R>(); })
+        : factory(factory)
+    { }
 
     class Handle
     {
@@ -74,7 +86,7 @@ public:
         }
         /* Note: we don't hold the lock while creating a new instance,
            because creation might take a long time. */
-        return Handle(*this, std::make_shared<R>());
+        return Handle(*this, factory());
     }
 
     unsigned int count()
