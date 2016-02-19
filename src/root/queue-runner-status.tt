@@ -1,0 +1,8 @@
+[% WRAPPER layout.tt title="Queue runner status" %]
+[% PROCESS common.tt %]
+
+<pre>
+[% HTML.escape(status) %]
+</pre>
+
+[% END %]
