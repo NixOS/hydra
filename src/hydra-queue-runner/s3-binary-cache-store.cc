@@ -62,8 +62,15 @@ void S3BinaryCacheStore::init()
     BinaryCacheStore::init();
 }
 
+const S3BinaryCacheStore::Stats & S3BinaryCacheStore::getS3Stats()
+{
+    return stats;
+}
+
 bool S3BinaryCacheStore::fileExists(const std::string & path)
 {
+    stats.head++;
+
     auto res = client->HeadObject(
         Aws::S3::Model::HeadObjectRequest()
         .WithBucket(bucketName)
@@ -91,16 +98,21 @@ void S3BinaryCacheStore::upsertFile(const std::string & path, const std::string 
 
     request.SetBody(stream);
 
+    stats.put++;
+    stats.putBytes += data.size();
+
     auto now1 = std::chrono::steady_clock::now();
 
     auto result = checkAws(client->PutObject(request));
 
     auto now2 = std::chrono::steady_clock::now();
 
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
+
     printMsg(lvlError, format("uploaded ‘s3://%1%/%2%’ (%3% bytes) in %4% ms")
-        % bucketName % path
-        % data.size()
-        % std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count());
+        % bucketName % path % data.size() % duration);
+
+    stats.putTimeMs += duration;
 }
 
 std::string S3BinaryCacheStore::getFile(const std::string & path)
@@ -114,6 +126,8 @@ std::string S3BinaryCacheStore::getFile(const std::string & path)
         return Aws::New<std::stringstream>("STRINGSTREAM");
     });
 
+    stats.get++;
+
     auto now1 = std::chrono::steady_clock::now();
 
     auto result = checkAws(client->GetObject(request));
@@ -122,10 +136,13 @@ std::string S3BinaryCacheStore::getFile(const std::string & path)
 
     auto res = dynamic_cast<std::stringstream &>(result.GetBody()).str();
 
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
+
     printMsg(lvlError, format("downloaded ‘s3://%1%/%2%’ (%3% bytes) in %4% ms")
-        % bucketName % path
-        % res.size()
-        % std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count());
+        % bucketName % path % res.size() % duration);
+
+    stats.getBytes += res.size();
+    stats.getTimeMs += duration;
 
     return res;
 }

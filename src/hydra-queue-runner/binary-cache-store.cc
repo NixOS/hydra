@@ -32,6 +32,11 @@ void BinaryCacheStore::init()
         upsertFile(cacheInfoFile, "StoreDir: " + settings.nixStore + "\n");
 }
 
+const BinaryCacheStore::Stats & BinaryCacheStore::getStats()
+{
+    return stats;
+}
+
 Path BinaryCacheStore::narInfoFileFor(const Path & storePath)
 {
     assertStorePath(storePath);
@@ -60,23 +65,36 @@ void BinaryCacheStore::addToCache(const ValidPathInfo & info,
     narInfo.fileHash = hashString(htSHA256, narXz);
     narInfo.fileSize = narXz.size();
 
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
     printMsg(lvlTalkative, format("copying path ‘%1%’ (%2% bytes, compressed %3$.1f%% in %4% ms) to binary cache")
         % info.path % info.narSize
         % ((1.0 - (double) narXz.size() / nar.size()) * 100.0)
-        % std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count());
+        % duration);
 
     /* Atomically write the NAR file. */
     narInfo.url = "nar/" + printHash32(narInfo.fileHash) + ".nar.xz";
-    if (!fileExists(narInfo.url)) upsertFile(narInfo.url, narXz);
+    if (!fileExists(narInfo.url)) {
+        stats.narWrite++;
+        upsertFile(narInfo.url, narXz);
+    } else
+        stats.narWriteAverted++;
+
+    stats.narWriteBytes += nar.size();
+    stats.narWriteCompressedBytes += narXz.size();
+    stats.narWriteCompressionTimeMs += duration;
 
     /* Atomically write the NAR info file.*/
     if (secretKey) narInfo.sign(*secretKey);
 
     upsertFile(narInfoFile, narInfo.to_string());
+
+    stats.narInfoWrite++;
 }
 
 NarInfo BinaryCacheStore::readNarInfo(const Path & storePath)
 {
+    stats.narInfoRead++;
+
     auto narInfoFile = narInfoFileFor(storePath);
     auto narInfo = NarInfo(getFile(narInfoFile), narInfoFile);
     assert(narInfo.path == storePath);
@@ -102,6 +120,9 @@ void BinaryCacheStore::exportPath(const Path & storePath, bool sign, Sink & sink
 
     auto nar = getFile(res.url);
 
+    stats.narRead++;
+    stats.narReadCompressedBytes += nar.size();
+
     /* Decompress the NAR. FIXME: would be nice to have the remote
        side do this. */
     if (res.compression == "none")
@@ -110,6 +131,8 @@ void BinaryCacheStore::exportPath(const Path & storePath, bool sign, Sink & sink
         nar = decompressXZ(nar);
     else
         throw Error(format("unknown NAR compression type ‘%1%’") % nar);
+
+    stats.narReadBytes += nar.size();
 
     printMsg(lvlTalkative, format("exporting path ‘%1%’ (%2% bytes)") % storePath % nar.size());
 

@@ -3,6 +3,8 @@
 #include "crypto.hh"
 #include "store-api.hh"
 
+#include <atomic>
+
 namespace nix {
 
 struct NarInfo;
@@ -36,7 +38,25 @@ public:
 
     virtual void init();
 
+    struct Stats
+    {
+        std::atomic<uint64_t> narInfoRead{0};
+        std::atomic<uint64_t> narInfoWrite{0};
+        std::atomic<uint64_t> narRead{0};
+        std::atomic<uint64_t> narReadBytes{0};
+        std::atomic<uint64_t> narReadCompressedBytes{0};
+        std::atomic<uint64_t> narWrite{0};
+        std::atomic<uint64_t> narWriteAverted{0};
+        std::atomic<uint64_t> narWriteBytes{0};
+        std::atomic<uint64_t> narWriteCompressedBytes{0};
+        std::atomic<uint64_t> narWriteCompressionTimeMs{0};
+    };
+
+    const Stats & getStats();
+
 private:
+
+    Stats stats;
 
     std::string narInfoFileFor(const Path & storePath);
 

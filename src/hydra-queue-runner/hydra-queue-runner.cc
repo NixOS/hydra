@@ -23,21 +23,6 @@ State::State()
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
 
     logDir = canonPath(hydraData + "/build-logs");
-
-#if 0
-    auto store = make_ref<LocalBinaryCacheStore>(getLocalStore(),
-        "/home/eelco/Misc/Keys/test.nixos.org/secret",
-        "/home/eelco/Misc/Keys/test.nixos.org/public",
-        "/tmp/binary-cache");
-#endif
-
-    auto store = std::make_shared<S3BinaryCacheStore>(
-        []() { return openStore(); },
-        "/home/eelco/Misc/Keys/test.nixos.org/secret",
-        "/home/eelco/Misc/Keys/test.nixos.org/public",
-        "nix-test-cache-3");;
-    store->init();
-    _destStore = store;
 }
 
 
@@ -532,8 +517,8 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("nrStepsCopyingTo", nrStepsCopyingTo);
         root.attr("nrStepsCopyingFrom", nrStepsCopyingFrom);
         root.attr("nrStepsWaiting", nrStepsWaiting);
-        root.attr("bytesSent"); out << bytesSent;
-        root.attr("bytesReceived"); out << bytesReceived;
+        root.attr("bytesSent", bytesSent);
+        root.attr("bytesReceived", bytesReceived);
         root.attr("nrBuildsRead", nrBuildsRead);
         root.attr("nrBuildsDone", nrBuildsDone);
         root.attr("nrStepsDone", nrStepsDone);
@@ -542,8 +527,8 @@ void State::dumpStatus(Connection & conn, bool log)
         if (nrStepsDone) {
             root.attr("totalStepTime", totalStepTime);
             root.attr("totalStepBuildTime", totalStepBuildTime);
-            root.attr("avgStepTime"); out << (float) totalStepTime / nrStepsDone;
-            root.attr("avgStepBuildTime"); out << (float) totalStepBuildTime / nrStepsDone;
+            root.attr("avgStepTime", (float) totalStepTime / nrStepsDone);
+            root.attr("avgStepBuildTime", (float) totalStepBuildTime / nrStepsDone);
         }
         root.attr("nrQueueWakeups", nrQueueWakeups);
         root.attr("nrDispatcherWakeups", nrDispatcherWakeups);
@@ -565,8 +550,8 @@ void State::dumpStatus(Connection & conn, bool log)
                 if (m->state->nrStepsDone) {
                     nested2.attr("totalStepTime", s->totalStepTime);
                     nested2.attr("totalStepBuildTime", s->totalStepBuildTime);
-                    nested2.attr("avgStepTime"); out << (float) s->totalStepTime / s->nrStepsDone;
-                    nested2.attr("avgStepBuildTime"); out << (float) s->totalStepBuildTime / s->nrStepsDone;
+                    nested2.attr("avgStepTime", (float) s->totalStepTime / s->nrStepsDone);
+                    nested2.attr("avgStepBuildTime", (float) s->totalStepBuildTime / s->nrStepsDone);
                 }
             }
         }
@@ -577,7 +562,7 @@ void State::dumpStatus(Connection & conn, bool log)
             for (auto & jobset : *jobsets_) {
                 nested.attr(jobset.first.first + ":" + jobset.first.second);
                 JSONObject nested2(out);
-                nested2.attr("shareUsed"); out << jobset.second->shareUsed();
+                nested2.attr("shareUsed", jobset.second->shareUsed());
                 nested2.attr("seconds", jobset.second->getSeconds());
             }
         }
@@ -595,6 +580,59 @@ void State::dumpStatus(Connection & conn, bool log)
                         i.second.runnable * (time(0) - lastDispatcherCheck));
                 if (i.second.running == 0)
                     nested2.attr("lastActive", std::chrono::system_clock::to_time_t(i.second.lastActive));
+            }
+        }
+
+        auto store = dynamic_cast<S3BinaryCacheStore *>(&*getDestStore());
+
+        if (store) {
+            root.attr("store");
+            JSONObject nested(out);
+
+            auto & stats = store->getStats();
+            nested.attr("narInfoRead", stats.narInfoRead);
+            nested.attr("narInfoWrite", stats.narInfoWrite);
+            nested.attr("narRead", stats.narRead);
+            nested.attr("narReadBytes", stats.narReadBytes);
+            nested.attr("narReadCompressedBytes", stats.narReadCompressedBytes);
+            nested.attr("narWrite", stats.narWrite);
+            nested.attr("narWriteAverted", stats.narWriteAverted);
+            nested.attr("narWriteBytes", stats.narWriteBytes);
+            nested.attr("narWriteCompressedBytes", stats.narWriteCompressedBytes);
+            nested.attr("narWriteCompressionTimeMs", stats.narWriteCompressionTimeMs);
+            nested.attr("narCompressionSavings",
+                stats.narWriteBytes
+                ? 1.0 - (double) stats.narWriteCompressedBytes / stats.narWriteBytes
+                : 0.0);
+            nested.attr("narCompressionSpeed", // MiB/s
+                stats.narWriteCompressionTimeMs
+                ? (double) stats.narWriteBytes / stats.narWriteCompressionTimeMs * 1000.0 / (1024.0 * 1024.0)
+                : 0.0);
+
+            auto s3Store = dynamic_cast<S3BinaryCacheStore *>(&*store);
+            if (s3Store) {
+                nested.attr("s3");
+                JSONObject nested2(out);
+                auto & s3Stats = s3Store->getS3Stats();
+                nested2.attr("put", s3Stats.put);
+                nested2.attr("putBytes", s3Stats.putBytes);
+                nested2.attr("putTimeMs", s3Stats.putTimeMs);
+                nested2.attr("putSpeed",
+                    s3Stats.putTimeMs
+                    ? (double) s3Stats.putBytes / s3Stats.putTimeMs * 1000.0 / (1024.0 * 1024.0)
+                    : 0.0);
+                nested2.attr("get", s3Stats.get);
+                nested2.attr("getBytes", s3Stats.getBytes);
+                nested2.attr("getTimeMs", s3Stats.getTimeMs);
+                nested2.attr("getSpeed",
+                    s3Stats.getTimeMs
+                    ? (double) s3Stats.getBytes / s3Stats.getTimeMs * 1000.0 / (1024.0 * 1024.0)
+                    : 0.0);
+                nested2.attr("head", s3Stats.head);
+                nested2.attr("costDollarApprox",
+                    (s3Stats.get + s3Stats.head) / 10000.0 * 0.004
+                    + s3Stats.put / 1000.0 * 0.005 +
+                    + s3Stats.getBytes / (1024.0 * 1024.0 * 1024.0) * 0.09);
             }
         }
     }
@@ -684,6 +722,21 @@ void State::run(BuildID buildOne)
     auto lock = acquireGlobalLock();
     if (!lock)
         throw Error("hydra-queue-runner is already running");
+
+#if 0
+    auto store = make_ref<LocalBinaryCacheStore>(getLocalStore(),
+        "/home/eelco/Misc/Keys/test.nixos.org/secret",
+        "/home/eelco/Misc/Keys/test.nixos.org/public",
+        "/tmp/binary-cache");
+#endif
+
+    auto store = std::make_shared<S3BinaryCacheStore>(
+        []() { return openStore(); },
+        "/home/eelco/Misc/Keys/test.nixos.org/secret",
+        "/home/eelco/Misc/Keys/test.nixos.org/public",
+        "nix-test-cache-3");;
+    store->init();
+    _destStore = store;
 
     {
         auto conn(dbPool.get());
