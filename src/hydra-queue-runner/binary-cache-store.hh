@@ -74,6 +74,8 @@ private:
 
     void addToCache(const ValidPathInfo & info, const string & nar);
 
+protected:
+
     NarInfo readNarInfo(const Path & storePath);
 
 public:

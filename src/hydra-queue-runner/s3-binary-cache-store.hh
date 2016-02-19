@@ -39,6 +39,8 @@ public:
 
     const Stats & getS3Stats();
 
+    bool isValidPath(const Path & storePath) override;
+
 private:
 
     Stats stats;

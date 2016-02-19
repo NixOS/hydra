@@ -1,5 +1,7 @@
 #include "s3-binary-cache-store.hh"
 
+#include "nar-info.hh"
+
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/model/CreateBucketRequest.h>
@@ -10,13 +12,22 @@
 
 namespace nix {
 
+struct S3Error : public Error
+{
+    Aws::S3::S3Errors err;
+    S3Error(Aws::S3::S3Errors err, const FormatOrString & fs)
+        : Error(fs), err(err) { };
+};
+
 /* Helper: given an Outcome<R, E>, return R in case of success, or
    throw an exception in case of an error. */
 template<typename R, typename E>
 R && checkAws(Aws::Utils::Outcome<R, E> && outcome)
 {
     if (!outcome.IsSuccess())
-        throw Error(format("AWS error: %1%") % outcome.GetError().GetMessage());
+        throw S3Error(
+            outcome.GetError().GetErrorType(),
+            format("AWS error: %1%") % outcome.GetError().GetMessage());
     return outcome.GetResultWithOwnership();
 }
 
@@ -65,6 +76,21 @@ void S3BinaryCacheStore::init()
 const S3BinaryCacheStore::Stats & S3BinaryCacheStore::getS3Stats()
 {
     return stats;
+}
+
+/* This is a specialisation of isValidPath() that optimistically
+   fetches the .narinfo file, rather than first checking for its
+   existence via a HEAD request. Since .narinfos are small, doing a
+   GET is unlikely to be slower than HEAD. */
+bool S3BinaryCacheStore::isValidPath(const Path & storePath)
+{
+    try {
+        readNarInfo(storePath);
+        return true;
+    } catch (S3Error & e) {
+        if (e.err == Aws::S3::S3Errors::NO_SUCH_KEY) return false;
+        throw;
+    }
 }
 
 bool S3BinaryCacheStore::fileExists(const std::string & path)

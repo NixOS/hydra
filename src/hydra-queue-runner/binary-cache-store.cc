@@ -103,11 +103,11 @@ NarInfo BinaryCacheStore::readNarInfo(const Path & storePath)
         }
     }
 
-    stats.narInfoRead++;
-
     auto narInfoFile = narInfoFileFor(storePath);
     auto narInfo = make_ref<NarInfo>(getFile(narInfoFile), narInfoFile);
     assert(narInfo->path == storePath);
+
+    stats.narInfoRead++;
 
     if (publicKeys) {
         if (!narInfo->checkSignature(*publicKeys))
