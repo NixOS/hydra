@@ -1,4 +1,5 @@
 #include "binary-cache-store.hh"
+#include "sync.hh"
 
 #include "archive.hh"
 #include "compression.hh"
@@ -93,18 +94,33 @@ void BinaryCacheStore::addToCache(const ValidPathInfo & info,
 
 NarInfo BinaryCacheStore::readNarInfo(const Path & storePath)
 {
+    {
+        auto state_(state.lock());
+        auto res = state_->narInfoCache.get(storePath);
+        if (res) {
+            stats.narInfoReadAverted++;
+            return **res;
+        }
+    }
+
     stats.narInfoRead++;
 
     auto narInfoFile = narInfoFileFor(storePath);
-    auto narInfo = NarInfo(getFile(narInfoFile), narInfoFile);
-    assert(narInfo.path == storePath);
+    auto narInfo = make_ref<NarInfo>(getFile(narInfoFile), narInfoFile);
+    assert(narInfo->path == storePath);
 
     if (publicKeys) {
-        if (!narInfo.checkSignature(*publicKeys))
+        if (!narInfo->checkSignature(*publicKeys))
             throw Error(format("invalid signature on NAR info file ‘%1%’") % narInfoFile);
     }
 
-    return narInfo;
+    {
+        auto state_(state.lock());
+        state_->narInfoCache.upsert(storePath, narInfo);
+        stats.narInfoCacheSize = state_->narInfoCache.size();
+    }
+
+    return *narInfo;
 }
 
 bool BinaryCacheStore::isValidPath(const Path & storePath)

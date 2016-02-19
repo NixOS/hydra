@@ -3,6 +3,9 @@
 #include "crypto.hh"
 #include "store-api.hh"
 
+#include "lru-cache.hh"
+#include "sync.hh"
+
 #include <atomic>
 
 namespace nix {
@@ -23,6 +26,13 @@ private:
 
     StoreFactory storeFactory;
 
+    struct State
+    {
+        LRUCache<Path, ref<NarInfo>> narInfoCache{32 * 1024};
+    };
+
+    Sync<State> state;
+
 protected:
 
     BinaryCacheStore(const StoreFactory & storeFactory,
@@ -41,7 +51,9 @@ public:
     struct Stats
     {
         std::atomic<uint64_t> narInfoRead{0};
+        std::atomic<uint64_t> narInfoReadAverted{0};
         std::atomic<uint64_t> narInfoWrite{0};
+        std::atomic<uint64_t> narInfoCacheSize{0};
         std::atomic<uint64_t> narRead{0};
         std::atomic<uint64_t> narReadBytes{0};
         std::atomic<uint64_t> narReadCompressedBytes{0};

@@ -20,7 +20,7 @@
    scope.
 */
 
-template <class T>
+template<class T>
 class Sync
 {
 private:
