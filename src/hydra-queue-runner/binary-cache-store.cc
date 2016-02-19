@@ -68,7 +68,7 @@ void BinaryCacheStore::addToCache(const ValidPathInfo & info,
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
     printMsg(lvlTalkative, format("copying path ‘%1%’ (%2% bytes, compressed %3$.1f%% in %4% ms) to binary cache")
-        % info.path % info.narSize
+        % narInfo.path % narInfo.narSize
         % ((1.0 - (double) narXz.size() / nar.size()) * 100.0)
         % duration);
 
