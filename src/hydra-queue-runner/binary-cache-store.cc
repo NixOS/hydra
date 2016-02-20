@@ -50,33 +50,33 @@ void BinaryCacheStore::addToCache(const ValidPathInfo & info,
     auto narInfoFile = narInfoFileFor(info.path);
     if (fileExists(narInfoFile)) return;
 
-    NarInfo narInfo(info);
+    auto narInfo = make_ref<NarInfo>(info);
 
-    narInfo.narSize = nar.size();
-    narInfo.narHash = hashString(htSHA256, nar);
+    narInfo->narSize = nar.size();
+    narInfo->narHash = hashString(htSHA256, nar);
 
-    if (info.narHash.type != htUnknown && info.narHash != narInfo.narHash)
+    if (info.narHash.type != htUnknown && info.narHash != narInfo->narHash)
         throw Error(format("refusing to copy corrupted path ‘%1%’ to binary cache") % info.path);
 
     /* Compress the NAR. */
-    narInfo.compression = "xz";
+    narInfo->compression = "xz";
     auto now1 = std::chrono::steady_clock::now();
     string narXz = compressXZ(nar);
     auto now2 = std::chrono::steady_clock::now();
-    narInfo.fileHash = hashString(htSHA256, narXz);
-    narInfo.fileSize = narXz.size();
+    narInfo->fileHash = hashString(htSHA256, narXz);
+    narInfo->fileSize = narXz.size();
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
     printMsg(lvlTalkative, format("copying path ‘%1%’ (%2% bytes, compressed %3$.1f%% in %4% ms) to binary cache")
-        % narInfo.path % narInfo.narSize
+        % narInfo->path % narInfo->narSize
         % ((1.0 - (double) narXz.size() / nar.size()) * 100.0)
         % duration);
 
     /* Atomically write the NAR file. */
-    narInfo.url = "nar/" + printHash32(narInfo.fileHash) + ".nar.xz";
-    if (!fileExists(narInfo.url)) {
+    narInfo->url = "nar/" + printHash32(narInfo->fileHash) + ".nar.xz";
+    if (!fileExists(narInfo->url)) {
         stats.narWrite++;
-        upsertFile(narInfo.url, narXz);
+        upsertFile(narInfo->url, narXz);
     } else
         stats.narWriteAverted++;
 
@@ -85,9 +85,15 @@ void BinaryCacheStore::addToCache(const ValidPathInfo & info,
     stats.narWriteCompressionTimeMs += duration;
 
     /* Atomically write the NAR info file.*/
-    if (secretKey) narInfo.sign(*secretKey);
+    if (secretKey) narInfo->sign(*secretKey);
 
-    upsertFile(narInfoFile, narInfo.to_string());
+    upsertFile(narInfoFile, narInfo->to_string());
+
+    {
+        auto state_(state.lock());
+        state_->narInfoCache.upsert(narInfo->path, narInfo);
+        stats.narInfoCacheSize = state_->narInfoCache.size();
+    }
 
     stats.narInfoWrite++;
 }
