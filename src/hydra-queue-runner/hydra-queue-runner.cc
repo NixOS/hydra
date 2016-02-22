@@ -23,6 +23,25 @@ State::State()
     hydraData = getEnv("HYDRA_DATA");
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
 
+    /* Read hydra.conf. */
+    auto hydraConfigFile = getEnv("HYDRA_CONFIG");
+    if (pathExists(hydraConfigFile)) {
+
+        for (auto line : tokenizeString<Strings>(readFile(hydraConfigFile), "\n")) {
+            line = trim(string(line, 0, line.find('#')));
+
+            auto eq = line.find('=');
+            if (eq == std::string::npos) continue;
+
+            auto key = trim(std::string(line, 0, eq));
+            auto value = trim(std::string(line, eq + 1));
+
+            if (key == "") continue;
+
+            hydraConfig[key] = value;
+        }
+    }
+
     logDir = canonPath(hydraData + "/build-logs");
 }
 
@@ -727,20 +746,37 @@ void State::run(BuildID buildOne)
     if (!lock)
         throw Error("hydra-queue-runner is already running");
 
-#if 0
-    auto store = make_ref<LocalBinaryCacheStore>(getLocalStore(),
-        "/home/eelco/Misc/Keys/test.nixos.org/secret",
-        "/home/eelco/Misc/Keys/test.nixos.org/public",
-        "/tmp/binary-cache");
-#endif
+    auto storeMode = hydraConfig["store_mode"];
 
-    auto store = std::make_shared<S3BinaryCacheStore>(
-        [this]() { return this->getLocalStore(); },
-        "/home/eelco/hydra/secret",
-        "/home/eelco/hydra/public",
-        "nix-test-cache");
-    store->init();
-    _destStore = store;
+    if (storeMode == "direct" || storeMode == "") {
+        _destStore = openStore();
+    }
+
+    else if (storeMode == "local-binary-cache") {
+        auto dir = hydraConfig["binary_cache_dir"];
+        if (dir == "")
+            throw Error("you must set ‘binary_cache_dir’ in hydra.conf");
+        auto store = make_ref<LocalBinaryCacheStore>(
+            [this]() { return this->getLocalStore(); },
+            "/home/eelco/Misc/Keys/test.nixos.org/secret",
+            "/home/eelco/Misc/Keys/test.nixos.org/public",
+            dir);
+        store->init();
+        _destStore = std::shared_ptr<LocalBinaryCacheStore>(store);
+    }
+
+    else if (storeMode == "s3-binary-cache") {
+        auto bucketName = hydraConfig["binary_cache_s3_bucket"];
+        if (bucketName == "")
+            throw Error("you must set ‘binary_cache_s3_bucket’ in hydra.conf");
+        auto store = make_ref<S3BinaryCacheStore>(
+            [this]() { return this->getLocalStore(); },
+            hydraConfig["binary_cache_secret_key_file"],
+            hydraConfig["binary_cache_public_key_file"],
+            bucketName);
+        store->init();
+        _destStore = std::shared_ptr<S3BinaryCacheStore>(store);
+    }
 
     {
         auto conn(dbPool.get());

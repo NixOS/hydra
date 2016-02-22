@@ -262,6 +262,8 @@ private:
 
     nix::Path hydraData, logDir;
 
+    std::map<std::string, std::string> hydraConfig;
+
     /* The queued builds. */
     typedef std::map<BuildID, Build::ptr> Builds;
     Sync<Builds> builds;
