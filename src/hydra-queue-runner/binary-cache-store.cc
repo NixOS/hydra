@@ -252,7 +252,8 @@ void BinaryCacheStore::querySubstitutablePathInfos(const PathSet & paths,
         infos.emplace(storePath, sub);
     }
 
-    //(*localStore)->querySubstitutablePathInfos(left, infos);
+    if (settings.useSubstitutes)
+        (*localStore)->querySubstitutablePathInfos(left, infos);
 }
 
 void BinaryCacheStore::buildPaths(const PathSet & paths, BuildMode buildMode)
