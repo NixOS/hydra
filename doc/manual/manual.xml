@@ -64,6 +64,7 @@
   <xi:include href="installation.xml" />
   <xi:include href="projects.xml" />
   <xi:include href="hacking.xml" />
+  <xi:include href="release.xml" />
 
 
 </book>
