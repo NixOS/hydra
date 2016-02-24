@@ -12,7 +12,7 @@ private:
 
 public:
 
-    LocalBinaryCacheStore(const StoreFactory & storeFactory,
+    LocalBinaryCacheStore(std::shared_ptr<Store> localStore,
         const Path & secretKeyFile, const Path & publicKeyFile,
         const Path & binaryCacheDir);
 

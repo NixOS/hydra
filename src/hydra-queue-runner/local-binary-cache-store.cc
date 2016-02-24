@@ -2,10 +2,10 @@
 
 namespace nix {
 
-LocalBinaryCacheStore::LocalBinaryCacheStore(const StoreFactory & storeFactory,
+LocalBinaryCacheStore::LocalBinaryCacheStore(std::shared_ptr<Store> localStore,
     const Path & secretKeyFile, const Path & publicKeyFile,
     const Path & binaryCacheDir)
-    : BinaryCacheStore(storeFactory, secretKeyFile, publicKeyFile)
+    : BinaryCacheStore(localStore, secretKeyFile, publicKeyFile)
     , binaryCacheDir(binaryCacheDir)
 {
 }

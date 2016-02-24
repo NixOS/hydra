@@ -14,7 +14,7 @@ class TokenServer
     unsigned int maxTokens;
 
     Sync<unsigned int> curTokens{0};
-    std::condition_variable_any wakeup;
+    std::condition_variable wakeup;
 
 public:
     TokenServer(unsigned int maxTokens) : maxTokens(maxTokens) { }

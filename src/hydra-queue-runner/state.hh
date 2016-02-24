@@ -80,7 +80,7 @@ private:
     std::atomic<unsigned int> shares{1};
 
     /* The start time and duration of the most recent build steps. */
-    Sync<std::map<time_t, time_t>> steps;
+    nix::Sync<std::map<time_t, time_t>> steps;
 
 public:
 
@@ -187,7 +187,7 @@ struct Step
 
     std::atomic_bool finished{false}; // debugging
 
-    Sync<State> state;
+    nix::Sync<State> state;
 
     ~Step()
     {
@@ -227,7 +227,7 @@ struct Machine
             system_time lastFailure, disabledUntil;
             unsigned int consecutiveFailures;
         };
-        Sync<ConnectInfo> connectInfo;
+        nix::Sync<ConnectInfo> connectInfo;
 
         /* Mutex to prevent multiple threads from sending data to the
            same machine (which would be inefficient). */
@@ -266,33 +266,33 @@ private:
 
     /* The queued builds. */
     typedef std::map<BuildID, Build::ptr> Builds;
-    Sync<Builds> builds;
+    nix::Sync<Builds> builds;
 
     /* The jobsets. */
     typedef std::map<std::pair<std::string, std::string>, Jobset::ptr> Jobsets;
-    Sync<Jobsets> jobsets;
+    nix::Sync<Jobsets> jobsets;
 
     /* All active or pending build steps (i.e. dependencies of the
        queued builds). Note that these are weak pointers. Steps are
        kept alive by being reachable from Builds or by being in
        progress. */
     typedef std::map<nix::Path, Step::wptr> Steps;
-    Sync<Steps> steps;
+    nix::Sync<Steps> steps;
 
     /* Build steps that have no unbuilt dependencies. */
     typedef std::list<Step::wptr> Runnable;
-    Sync<Runnable> runnable;
+    nix::Sync<Runnable> runnable;
 
     /* CV for waking up the dispatcher. */
-    Sync<bool> dispatcherWakeup;
-    std::condition_variable_any dispatcherWakeupCV;
+    nix::Sync<bool> dispatcherWakeup;
+    std::condition_variable dispatcherWakeupCV;
 
     /* PostgreSQL connection pool. */
-    Pool<Connection> dbPool;
+    nix::Pool<Connection> dbPool;
 
     /* The build machines. */
     typedef std::map<std::string, Machine::ptr> Machines;
-    Sync<Machines> machines; // FIXME: use atomic_shared_ptr
+    nix::Sync<Machines> machines; // FIXME: use atomic_shared_ptr
 
     /* Various stats. */
     time_t startedAt;
@@ -314,16 +314,16 @@ private:
     counter bytesReceived{0};
 
     /* Log compressor work queue. */
-    Sync<std::queue<nix::Path>> logCompressorQueue;
-    std::condition_variable_any logCompressorWakeup;
+    nix::Sync<std::queue<nix::Path>> logCompressorQueue;
+    std::condition_variable logCompressorWakeup;
 
     /* Notification sender work queue. FIXME: if hydra-queue-runner is
        killed before it has finished sending notifications about a
        build, then the notifications may be lost. It would be better
        to mark builds with pending notification in the database. */
     typedef std::pair<BuildID, std::vector<BuildID>> NotificationItem;
-    Sync<std::queue<NotificationItem>> notificationSenderQueue;
-    std::condition_variable_any notificationSenderWakeup;
+    nix::Sync<std::queue<NotificationItem>> notificationSenderQueue;
+    std::condition_variable notificationSenderWakeup;
 
     /* Specific build to do for --build-one (testing only). */
     BuildID buildOne;
@@ -336,7 +336,7 @@ private:
         std::chrono::seconds waitTime; // time runnable steps have been waiting
     };
 
-    Sync<std::map<std::string, MachineType>> machineTypes;
+    nix::Sync<std::map<std::string, MachineType>> machineTypes;
 
     struct MachineReservation
     {
@@ -350,10 +350,7 @@ private:
 
     std::atomic<time_t> lastDispatcherCheck{0};
 
-    /* Pool of local stores. */
-    nix::StorePool localStorePool;
-
-    /* Destination store. */
+    std::shared_ptr<nix::Store> _localStore;
     std::shared_ptr<nix::Store> _destStore;
 
 public:
@@ -363,7 +360,7 @@ private:
 
     /* Return a store object that can access derivations produced by
        hydra-evaluator. */
-    nix::StorePool::Handle getLocalStore();
+    nix::ref<nix::Store> getLocalStore();
 
     /* Return a store object to store build results. */
     nix::ref<nix::Store> getDestStore();

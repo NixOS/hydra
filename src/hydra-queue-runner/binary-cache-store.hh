@@ -13,12 +13,6 @@ namespace nix {
 
 struct NarInfo;
 
-/* While BinaryCacheStore is thread-safe, LocalStore and RemoteStore
-   aren't. Until they are, use a factory to produce a thread-local
-   local store. */
-typedef Pool<nix::ref<nix::Store>> StorePool;
-typedef std::function<StorePool::Handle()> StoreFactory;
-
 class BinaryCacheStore : public Store
 {
 private:
@@ -26,7 +20,7 @@ private:
     std::unique_ptr<SecretKey> secretKey;
     std::unique_ptr<PublicKeys> publicKeys;
 
-    StoreFactory storeFactory;
+    std::shared_ptr<Store> localStore;
 
     struct State
     {
@@ -37,7 +31,7 @@ private:
 
 protected:
 
-    BinaryCacheStore(const StoreFactory & storeFactory,
+    BinaryCacheStore(std::shared_ptr<Store> localStore,
         const Path & secretKeyFile, const Path & publicKeyFile);
 
     virtual bool fileExists(const std::string & path) = 0;

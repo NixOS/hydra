@@ -12,9 +12,9 @@
 
 namespace nix {
 
-BinaryCacheStore::BinaryCacheStore(const StoreFactory & storeFactory,
+BinaryCacheStore::BinaryCacheStore(std::shared_ptr<Store> localStore,
     const Path & secretKeyFile, const Path & publicKeyFile)
-    : storeFactory(storeFactory)
+    : localStore(localStore)
 {
     if (secretKeyFile != "")
         secretKey = std::unique_ptr<SecretKey>(new SecretKey(readFile(secretKeyFile)));
@@ -237,14 +237,14 @@ void BinaryCacheStore::querySubstitutablePathInfos(const PathSet & paths,
 {
     PathSet left;
 
-    auto localStore = storeFactory();
+    if (!localStore) return;
 
     for (auto & storePath : paths) {
-        if (!(*localStore)->isValidPath(storePath)) {
+        if (!localStore->isValidPath(storePath)) {
             left.insert(storePath);
             continue;
         }
-        ValidPathInfo info = (*localStore)->queryPathInfo(storePath);
+        ValidPathInfo info = localStore->queryPathInfo(storePath);
         SubstitutablePathInfo sub;
         sub.references = info.references;
         sub.downloadSize = 0;
@@ -253,24 +253,25 @@ void BinaryCacheStore::querySubstitutablePathInfos(const PathSet & paths,
     }
 
     if (settings.useSubstitutes)
-        (*localStore)->querySubstitutablePathInfos(left, infos);
+        localStore->querySubstitutablePathInfos(left, infos);
 }
 
 void BinaryCacheStore::buildPaths(const PathSet & paths, BuildMode buildMode)
 {
-    auto localStore = storeFactory();
-
     for (auto & storePath : paths) {
         assert(!isDerivation(storePath));
 
         if (isValidPath(storePath)) continue;
 
-        (*localStore)->addTempRoot(storePath);
+        if (!localStore)
+            throw Error(format("don't know how to realise path ‘%1%’ in a binary cache") % storePath);
 
-        if (!(*localStore)->isValidPath(storePath))
-            (*localStore)->ensurePath(storePath);
+        localStore->addTempRoot(storePath);
 
-        ValidPathInfo info = (*localStore)->queryPathInfo(storePath);
+        if (!localStore->isValidPath(storePath))
+            localStore->ensurePath(storePath);
+
+        ValidPathInfo info = localStore->queryPathInfo(storePath);
 
         for (auto & ref : info.references)
             if (ref != storePath)
