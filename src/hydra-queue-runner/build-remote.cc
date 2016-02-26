@@ -8,6 +8,7 @@
 #include "state.hh"
 #include "util.hh"
 #include "worker-protocol.hh"
+#include "finally.hh"
 
 using namespace nix;
 
@@ -75,7 +76,6 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 
 static void copyClosureTo(ref<Store> destStore,
     FdSource & from, FdSink & to, const PathSet & paths,
-    counter & bytesSent,
     bool useSubstitutes = false)
 {
     PathSet closure;
@@ -103,28 +103,12 @@ static void copyClosureTo(ref<Store> destStore,
 
     printMsg(lvlDebug, format("sending %1% missing paths") % missing.size());
 
-    for (auto & p : missing)
-        bytesSent += destStore->queryPathInfo(p).narSize;
-
     to << cmdImportPaths;
     destStore->exportPaths(missing, false, to);
     to.flush();
 
     if (readInt(from) != 1)
         throw Error("remote machine failed to import closure");
-}
-
-
-static void copyClosureFrom(ref<Store> destStore,
-    FdSource & from, FdSink & to, const PathSet & paths, counter & bytesReceived,
-    std::shared_ptr<FSAccessor> accessor)
-{
-    to << cmdExportPaths << 0 << paths;
-    to.flush();
-    destStore->importPaths(false, from, accessor);
-
-    for (auto & p : paths)
-        bytesReceived += destStore->queryPathInfo(p).narSize;
 }
 
 
@@ -152,6 +136,11 @@ void State::buildRemote(ref<Store> destStore,
 
     FdSource from(child.from);
     FdSink to(child.to);
+
+    Finally updateStats([&]() {
+        bytesReceived += from.read;
+        bytesSent += to.written;
+    });
 
     /* Handshake. */
     bool sendDerivation = true;
@@ -239,7 +228,7 @@ void State::buildRemote(ref<Store> destStore,
 
         auto now1 = std::chrono::steady_clock::now();
 
-        copyClosureTo(destStore, from, to, inputs, bytesSent, true);
+        copyClosureTo(destStore, from, to, inputs, true);
 
         auto now2 = std::chrono::steady_clock::now();
 
@@ -302,7 +291,9 @@ void State::buildRemote(ref<Store> destStore,
 
         auto now1 = std::chrono::steady_clock::now();
 
-        copyClosureFrom(destStore, from, to, outputs, bytesReceived, result.accessor);
+        to << cmdExportPaths << 0 << outputs;
+        to.flush();
+        destStore->importPaths(false, from, result.accessor);
 
         auto now2 = std::chrono::steady_clock::now();
 
