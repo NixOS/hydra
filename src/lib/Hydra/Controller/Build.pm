@@ -239,10 +239,12 @@ sub download : Chained('buildChain') PathPart {
             $storeMode eq "local-binary-cache" ? "file://" . $c->config->{binary_cache_dir} :
             $storeMode eq "s3-binary-cache" ? "https://" . $c->config->{binary_cache_s3_bucket} . ".s3.amazonaws.com/" :
             die;
-        my $args =
-            defined $c->config->{binary_cache_public_key_file}
-            ? "--option binary-cache-public-keys " . read_file($c->config->{binary_cache_public_key_file}) . "\n"
-            : "";
+        my $args = "";
+        if (defined $c->config->{binary_cache_public_key_file}
+            && -r $c->config->{binary_cache_public_key_file})
+        {
+            $args = "--option binary-cache-public-keys " . read_file($c->config->{binary_cache_public_key_file});
+        }
         system("nix-store --realise '$storePath' --option extra-binary-caches '$url' $args>/dev/null");
     }
 
