@@ -22,12 +22,12 @@ struct S3Error : public Error
 /* Helper: given an Outcome<R, E>, return R in case of success, or
    throw an exception in case of an error. */
 template<typename R, typename E>
-R && checkAws(Aws::Utils::Outcome<R, E> && outcome)
+R && checkAws(const FormatOrString & fs, Aws::Utils::Outcome<R, E> && outcome)
 {
     if (!outcome.IsSuccess())
         throw S3Error(
             outcome.GetError().GetErrorType(),
-            format("AWS error: %1%") % outcome.GetError().GetMessage());
+            fs.s + ": " + outcome.GetError().GetMessage());
     return outcome.GetResultWithOwnership();
 }
 
@@ -59,15 +59,16 @@ void S3BinaryCacheStore::init()
 
     if (!res.IsSuccess()) {
         if (res.GetError().GetErrorType() != Aws::S3::S3Errors::NO_SUCH_BUCKET)
-            throw Error(format("AWS error: %1%") % res.GetError().GetMessage());
+            throw Error(format("AWS error checking bucket ‘%s’: %s") % bucketName % res.GetError().GetMessage());
 
-        checkAws(client->CreateBucket(
-            Aws::S3::Model::CreateBucketRequest()
-            .WithBucket(bucketName)
-            .WithCreateBucketConfiguration(
-                Aws::S3::Model::CreateBucketConfiguration()
-                /* .WithLocationConstraint(
-                    Aws::S3::Model::BucketLocationConstraint::US) */ )));
+        checkAws(format("AWS error creating bucket ‘%s’") % bucketName,
+            client->CreateBucket(
+                Aws::S3::Model::CreateBucketRequest()
+                .WithBucket(bucketName)
+                .WithCreateBucketConfiguration(
+                    Aws::S3::Model::CreateBucketConfiguration()
+                    /* .WithLocationConstraint(
+                       Aws::S3::Model::BucketLocationConstraint::US) */ )));
     }
 
     BinaryCacheStore::init();
@@ -107,7 +108,7 @@ bool S3BinaryCacheStore::fileExists(const std::string & path)
         if (error.GetErrorType() == Aws::S3::S3Errors::UNKNOWN // FIXME
             && error.GetMessage().find("404") != std::string::npos)
             return false;
-        throw Error(format("AWS error: %1%") % error.GetMessage());
+        throw Error(format("AWS error fetching ‘%s’") % path % error.GetMessage());
     }
 
     return true;
@@ -129,7 +130,8 @@ void S3BinaryCacheStore::upsertFile(const std::string & path, const std::string 
 
     auto now1 = std::chrono::steady_clock::now();
 
-    auto result = checkAws(client->PutObject(request));
+    auto result = checkAws(format("AWS error uploading ‘%s’") % path,
+        client->PutObject(request));
 
     auto now2 = std::chrono::steady_clock::now();
 
@@ -156,7 +158,8 @@ std::string S3BinaryCacheStore::getFile(const std::string & path)
 
     auto now1 = std::chrono::steady_clock::now();
 
-    auto result = checkAws(client->GetObject(request));
+    auto result = checkAws(format("AWS error fetching ‘%s’") % path,
+        client->GetObject(request));
 
     auto now2 = std::chrono::steady_clock::now();
 
@@ -164,7 +167,7 @@ std::string S3BinaryCacheStore::getFile(const std::string & path)
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
 
-    printMsg(lvlInfo, format("downloaded ‘s3://%1%/%2%’ (%3% bytes) in %4% ms")
+    printMsg(lvlTalkative, format("downloaded ‘s3://%1%/%2%’ (%3% bytes) in %4% ms")
         % bucketName % path % res.size() % duration);
 
     stats.getBytes += res.size();
