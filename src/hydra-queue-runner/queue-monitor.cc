@@ -159,7 +159,7 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
            all valid. So we mark this as a finished, cached build. */
         if (!step) {
             Derivation drv = readDerivation(build->drvPath);
-            BuildOutput res = getBuildOutput(destStore, drv);
+            BuildOutput res = getBuildOutput(destStore, destStore->getFSAccessor(), drv);
 
             pqxx::work txn(conn);
             time_t now = time(0);
