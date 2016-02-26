@@ -126,7 +126,8 @@ bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
             result.errorMsg = e.msg();
         }
 
-        if (result.success()) res = getBuildOutput(destStore, destStore->getFSAccessor(), step->drv);
+        if (result.success())
+            res = getBuildOutput(destStore, ref<FSAccessor>(result.accessor), step->drv);
     }
 
     time_t stepStopTime = time(0);

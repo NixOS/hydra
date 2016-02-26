@@ -116,11 +116,12 @@ static void copyClosureTo(ref<Store> destStore,
 
 
 static void copyClosureFrom(ref<Store> destStore,
-    FdSource & from, FdSink & to, const PathSet & paths, counter & bytesReceived)
+    FdSource & from, FdSink & to, const PathSet & paths, counter & bytesReceived,
+    std::shared_ptr<FSAccessor> accessor)
 {
     to << cmdExportPaths << 0 << paths;
     to.flush();
-    destStore->importPaths(false, from);
+    destStore->importPaths(false, from, accessor);
 
     for (auto & p : paths)
         bytesReceived += destStore->queryPathInfo(p).narSize;
@@ -297,9 +298,11 @@ void State::buildRemote(ref<Store> destStore,
             outputs.insert(output.second.path);
         MaintainCount mc(nrStepsCopyingFrom);
 
+        result.accessor = destStore->getFSAccessor();
+
         auto now1 = std::chrono::steady_clock::now();
 
-        copyClosureFrom(destStore, from, to, outputs, bytesReceived);
+        copyClosureFrom(destStore, from, to, outputs, bytesReceived, result.accessor);
 
         auto now2 = std::chrono::steady_clock::now();
 
