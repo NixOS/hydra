@@ -44,7 +44,7 @@ S3BinaryCacheStore::S3BinaryCacheStore(std::shared_ptr<Store> localStore,
 ref<Aws::Client::ClientConfiguration> S3BinaryCacheStore::makeConfig()
 {
     auto res = make_ref<Aws::Client::ClientConfiguration>();
-    res->region = Aws::Region::EU_WEST_1;
+    res->region = Aws::Region::US_EAST_1;
     res->requestTimeoutMs = 600 * 1000;
     return res;
 }
@@ -66,8 +66,8 @@ void S3BinaryCacheStore::init()
             .WithBucket(bucketName)
             .WithCreateBucketConfiguration(
                 Aws::S3::Model::CreateBucketConfiguration()
-                .WithLocationConstraint(
-                    Aws::S3::Model::BucketLocationConstraint::eu_west_1))));
+                /* .WithLocationConstraint(
+                    Aws::S3::Model::BucketLocationConstraint::US) */ )));
     }
 
     BinaryCacheStore::init();
