@@ -291,8 +291,7 @@ in
           IN_SYSTEMD = "1"; # to get log severity levels
         };
         serviceConfig =
-          { ExecStartPre = "${cfg.package}/bin/hydra-queue-runner --unlock";
-            ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner -v";
+          { ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner -v --option build-use-substitutes false";
             ExecStopPost = "${cfg.package}/bin/hydra-queue-runner --unlock";
             User = "hydra-queue-runner";
             Restart = "always";
