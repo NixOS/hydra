@@ -86,6 +86,7 @@ static void copyClosureTo(ref<Store> destStore,
        enabled. This prevents a race where the remote host
        garbage-collect paths that are already there. Optionally, ask
        the remote host to substitute missing paths. */
+    // FIXME: substitute output pollutes our build log
     to << cmdQueryValidPaths << 1 << useSubstitutes << closure;
     to.flush();
 
