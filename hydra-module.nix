@@ -295,6 +295,10 @@ in
             ExecStopPost = "${cfg.package}/bin/hydra-queue-runner --unlock";
             User = "hydra-queue-runner";
             Restart = "always";
+
+            # Ensure we can get core dumps.
+            LimitCORE = "infinity";
+            WorkingDirectory = "${baseDir}/queue-runner";
           };
       };
 
