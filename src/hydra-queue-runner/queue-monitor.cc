@@ -124,6 +124,7 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
             /* Derivation has been GC'ed prematurely. */
             printMsg(lvlError, format("aborting GC'ed build %1%") % build->id);
             if (!build->finishedInDB) {
+                auto mc = startDbUpdate();
                 pqxx::work txn(conn);
                 txn.parameterized
                     ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1 and finished = 0")
@@ -161,10 +162,13 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
             Derivation drv = readDerivation(build->drvPath);
             BuildOutput res = getBuildOutput(destStore, destStore->getFSAccessor(), drv);
 
+            {
+            auto mc = startDbUpdate();
             pqxx::work txn(conn);
             time_t now = time(0);
             markSucceededBuild(txn, build, res, true, now, now);
             txn.commit();
+            }
 
             build->finishedInDB = true;
 
@@ -178,6 +182,7 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
             if (checkCachedFailure(r, conn)) {
                 printMsg(lvlError, format("marking build %1% as cached failure") % build->id);
                 if (!build->finishedInDB) {
+                    auto mc = startDbUpdate();
                     pqxx::work txn(conn);
 
                     /* Find the previous build step record, first by
@@ -421,6 +426,7 @@ Step::ptr State::createStep(ref<Store> destStore,
                     time_t stopTime = time(0);
 
                     {
+                        auto mc = startDbUpdate();
                         pqxx::work txn(conn);
                         createSubstitutionStep(txn, startTime, stopTime, build, drvPath, "out", i.second.path);
                         txn.commit();

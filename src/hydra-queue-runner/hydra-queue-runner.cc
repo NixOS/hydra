@@ -45,6 +45,16 @@ State::State()
 }
 
 
+MaintainCount State::startDbUpdate()
+{
+    return MaintainCount(nrActiveDbUpdates, [](unsigned long c) {
+        if (c > 6) {
+            printMsg(lvlError, format("warning: %d concurrent database updates; PostgreSQL may be stalled") % c);
+        }
+    });
+}
+
+
 ref<Store> State::getLocalStore()
 {
     return ref<Store>(_localStore);
@@ -552,6 +562,7 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("nrQueueWakeups", nrQueueWakeups);
         root.attr("nrDispatcherWakeups", nrDispatcherWakeups);
         root.attr("nrDbConnections", dbPool.count());
+        root.attr("nrActiveDbUpdates", nrActiveDbUpdates);
         {
             root.attr("machines");
             JSONObject nested(out);
@@ -661,6 +672,7 @@ void State::dumpStatus(Connection & conn, bool log)
     if (log) printMsg(lvlInfo, format("status: %1%") % out.str());
 
     {
+        auto mc = startDbUpdate();
         pqxx::work txn(conn);
         // FIXME: use PostgreSQL 9.5 upsert.
         txn.exec("delete from SystemStatus where what = 'queue-runner'");

@@ -112,6 +112,7 @@ bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         /* Create a build step record indicating that we started
            building. */
         {
+            auto mc = startDbUpdate();
             pqxx::work txn(*conn);
             stepNr = createBuildStep(txn, result.startTime, build, step, machine->sshName, bssBusy);
             txn.commit();
@@ -165,6 +166,7 @@ bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
             retry = step_->tries + 1 < maxTries;
         }
         if (retry) {
+            auto mc = startDbUpdate();
             pqxx::work txn(*conn);
             finishBuildStep(txn, result.startTime, result.stopTime, result.overhead, build->id,
                 stepNr, machine->sshName, bssAborted, result.errorMsg);
@@ -213,6 +215,8 @@ bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
             /* Update the database. */
             {
+                auto mc = startDbUpdate();
+
                 pqxx::work txn(*conn);
 
                 finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
@@ -299,6 +303,8 @@ bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
             /* Update the database. */
             {
+                auto mc = startDbUpdate();
+
                 pqxx::work txn(*conn);
 
                 BuildStatus buildStatus =

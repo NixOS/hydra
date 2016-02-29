@@ -313,6 +313,7 @@ private:
     counter nrDispatcherWakeups{0};
     counter bytesSent{0};
     counter bytesReceived{0};
+    counter nrActiveDbUpdates{0};
 
     /* Log compressor work queue. */
     nix::Sync<std::queue<nix::Path>> logCompressorQueue;
@@ -358,6 +359,8 @@ public:
     State();
 
 private:
+
+    MaintainCount startDbUpdate();
 
     /* Return a store object that can access derivations produced by
        hydra-evaluator. */
