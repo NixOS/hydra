@@ -8,6 +8,7 @@
 #include "state.hh"
 #include "util.hh"
 #include "worker-protocol.hh"
+#include "finally.hh"
 
 using namespace nix;
 
@@ -73,19 +74,19 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 }
 
 
-static void copyClosureTo(ref<Store> store,
+static void copyClosureTo(ref<Store> destStore,
     FdSource & from, FdSink & to, const PathSet & paths,
-    counter & bytesSent,
     bool useSubstitutes = false)
 {
     PathSet closure;
     for (auto & path : paths)
-        store->computeFSClosure(path, closure);
+        destStore->computeFSClosure(path, closure);
 
     /* Send the "query valid paths" command with the "lock" option
        enabled. This prevents a race where the remote host
        garbage-collect paths that are already there. Optionally, ask
        the remote host to substitute missing paths. */
+    // FIXME: substitute output pollutes our build log
     to << cmdQueryValidPaths << 1 << useSubstitutes << closure;
     to.flush();
 
@@ -95,7 +96,7 @@ static void copyClosureTo(ref<Store> store,
 
     if (present.size() == closure.size()) return;
 
-    Paths sorted = store->topoSortPaths(closure);
+    Paths sorted = destStore->topoSortPaths(closure);
 
     Paths missing;
     for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
@@ -103,11 +104,8 @@ static void copyClosureTo(ref<Store> store,
 
     printMsg(lvlDebug, format("sending %1% missing paths") % missing.size());
 
-    for (auto & p : missing)
-        bytesSent += store->queryPathInfo(p).narSize;
-
     to << cmdImportPaths;
-    store->exportPaths(missing, false, to);
+    destStore->exportPaths(missing, false, to);
     to.flush();
 
     if (readInt(from) != 1)
@@ -115,19 +113,7 @@ static void copyClosureTo(ref<Store> store,
 }
 
 
-static void copyClosureFrom(ref<Store> store,
-    FdSource & from, FdSink & to, const PathSet & paths, counter & bytesReceived)
-{
-    to << cmdExportPaths << 0 << paths;
-    to.flush();
-    store->importPaths(false, from);
-
-    for (auto & p : paths)
-        bytesReceived += store->queryPathInfo(p).narSize;
-}
-
-
-void State::buildRemote(ref<Store> store,
+void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
     unsigned int maxSilentTime, unsigned int buildTimeout,
     RemoteResult & result)
@@ -151,6 +137,11 @@ void State::buildRemote(ref<Store> store,
 
     FdSource from(child.from);
     FdSink to(child.to);
+
+    Finally updateStats([&]() {
+        bytesReceived += from.read;
+        bytesSent += to.written;
+    });
 
     /* Handshake. */
     bool sendDerivation = true;
@@ -222,8 +213,14 @@ void State::buildRemote(ref<Store> store,
         }
     }
 
+    /* Ensure that the inputs exist in the destination store. This is
+       a no-op for regular stores, but for the binary cache store,
+       this will copy the inputs to the binary cache from the local
+       store. */
+    destStore->buildPaths(basicDrv.inputSrcs);
+
     /* Copy the input closure. */
-    if (machine->sshName != "localhost") {
+    if (/* machine->sshName != "localhost" */ true) {
         auto mc1 = std::make_shared<MaintainCount>(nrStepsWaiting);
         std::lock_guard<std::mutex> sendLock(machine->state->sendLock);
         mc1.reset();
@@ -232,7 +229,7 @@ void State::buildRemote(ref<Store> store,
 
         auto now1 = std::chrono::steady_clock::now();
 
-        copyClosureTo(store, from, to, inputs, bytesSent);
+        copyClosureTo(destStore, from, to, inputs, true);
 
         auto now2 = std::chrono::steady_clock::now();
 
@@ -279,21 +276,26 @@ void State::buildRemote(ref<Store> store,
     /* If the path was substituted or already valid, then we didn't
        get a build log. */
     if (result.status == BuildResult::Substituted || result.status == BuildResult::AlreadyValid) {
+        printMsg(lvlInfo, format("outputs of ‘%1%’ substituted or already valid on ‘%2%’") % step->drvPath % machine->sshName);
         unlink(result.logFile.c_str());
         result.logFile = "";
     }
 
     /* Copy the output paths. */
-    if (machine->sshName != "localhost") {
+    if (/* machine->sshName != "localhost" */ true) {
         printMsg(lvlDebug, format("copying outputs of ‘%1%’ from ‘%2%’") % step->drvPath % machine->sshName);
         PathSet outputs;
         for (auto & output : step->drv.outputs)
             outputs.insert(output.second.path);
         MaintainCount mc(nrStepsCopyingFrom);
 
+        result.accessor = destStore->getFSAccessor();
+
         auto now1 = std::chrono::steady_clock::now();
 
-        copyClosureFrom(store, from, to, outputs, bytesReceived);
+        to << cmdExportPaths << 0 << outputs;
+        to.flush();
+        destStore->importPaths(false, from, result.accessor);
 
         auto now2 = std::chrono::steady_clock::now();
 

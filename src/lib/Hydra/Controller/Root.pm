@@ -118,6 +118,22 @@ sub status_GET {
 }
 
 
+sub queue_runner_status :Local :Path('queue-runner-status') :Args(0) :ActionClass('REST') { }
+
+sub queue_runner_status_GET {
+    my ($self, $c) = @_;
+
+    #my $status = from_json($c->model('DB::SystemStatus')->find('queue-runner')->status);
+    my $status = from_json(`hydra-queue-runner --status`);
+    if ($?) { $status->{status} = "unknown"; }
+    my $json = JSON->new->pretty()->canonical();
+
+    $c->stash->{template} = 'queue-runner-status.tt';
+    $c->stash->{status} = $json->encode($status);
+    $self->status_ok($c, entity => $status);
+}
+
+
 sub machines :Local Args(0) {
     my ($self, $c) = @_;
     my $machines = getMachines;
@@ -241,48 +257,90 @@ sub serialize : ActionClass('Serialize') { }
 sub nar :Local :Args(1) {
     my ($self, $c, $path) = @_;
 
-    $path = ($ENV{NIX_STORE_DIR} || "/nix/store")."/$path";
+    die if $path =~ /\//;
 
-    gone($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
+    my $storeMode = $c->config->{store_mode} // "direct";
 
-    $c->stash->{current_view} = 'NixNAR';
-    $c->stash->{storePath} = $path;
+    if ($storeMode eq "s3-binary-cache") {
+        notFound($c, "There is no binary cache here.");
+    }
+
+    elsif ($storeMode eq "local-binary-cache") {
+        my $dir = $c->config->{binary_cache_dir};
+        $c->serve_static_file($dir . "/nar/" . $path);
+    }
+
+    else {
+        $path = $Nix::Config::storeDir . "/$path";
+
+        gone($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
+
+        $c->stash->{current_view} = 'NixNAR';
+        $c->stash->{storePath} = $path;
+    }
 }
 
 
 sub nix_cache_info :Path('nix-cache-info') :Args(0) {
     my ($self, $c) = @_;
-    $c->response->content_type('text/plain');
-    $c->stash->{plain}->{data} =
-        #"StoreDir: $Nix::Config::storeDir\n" . # FIXME
-        "StoreDir: " . ($ENV{NIX_STORE_DIR} || "/nix/store") . "\n" .
-        "WantMassQuery: 0\n" .
-        # Give Hydra binary caches a very low priority (lower than the
-        # static binary cache http://nixos.org/binary-cache).
-        "Priority: 100\n";
-    setCacheHeaders($c, 24 * 60 * 60);
-    $c->forward('Hydra::View::Plain');
+
+    my $storeMode = $c->config->{store_mode} // "direct";
+
+    if ($storeMode eq "s3-binary-cache") {
+        notFound($c, "There is no binary cache here.");
+    }
+
+    elsif ($storeMode eq "local-binary-cache") {
+        my $dir = $c->config->{binary_cache_dir};
+        $c->serve_static_file($dir . "/nix-cache-info");
+    }
+
+    else {
+        $c->response->content_type('text/plain');
+        $c->stash->{plain}->{data} =
+            "StoreDir: $Nix::Config::storeDir\n" .
+            "WantMassQuery: 0\n" .
+            # Give Hydra binary caches a very low priority (lower than the
+            # static binary cache http://nixos.org/binary-cache).
+            "Priority: 100\n";
+        setCacheHeaders($c, 24 * 60 * 60);
+        $c->forward('Hydra::View::Plain');
+    }
 }
 
 
 sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
     my ($self, $c) = @_;
-    my $hash = $c->req->captures->[0];
 
-    die if length($hash) != 32;
-    my $path = queryPathFromHashPart($hash);
+    my $storeMode = $c->config->{store_mode} // "direct";
 
-    if (!$path) {
-        $c->response->status(404);
-        $c->response->content_type('text/plain');
-        $c->stash->{plain}->{data} = "does not exist\n";
-        $c->forward('Hydra::View::Plain');
-        setCacheHeaders($c, 60 * 60);
-        return;
+    if ($storeMode eq "s3-binary-cache") {
+        notFound($c, "There is no binary cache here.");
     }
 
-    $c->stash->{storePath} = $path;
-    $c->forward('Hydra::View::NARInfo');
+    elsif ($storeMode eq "local-binary-cache") {
+        my $dir = $c->config->{binary_cache_dir};
+        $c->serve_static_file($dir . "/" . $c->req->captures->[0] . ".narinfo");
+    }
+
+    else {
+        my $hash = $c->req->captures->[0];
+
+        die if length($hash) != 32;
+        my $path = queryPathFromHashPart($hash);
+
+        if (!$path) {
+            $c->response->status(404);
+            $c->response->content_type('text/plain');
+            $c->stash->{plain}->{data} = "does not exist\n";
+            $c->forward('Hydra::View::Plain');
+            setCacheHeaders($c, 60 * 60);
+            return;
+        }
+
+        $c->stash->{storePath} = $path;
+        $c->forward('Hydra::View::NARInfo');
+    }
 }
 
 

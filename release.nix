@@ -159,6 +159,10 @@ rec {
           guile # optional, for Guile + Guix support
           perlDeps perl
           postgresql92 # for running the tests
+          (aws-sdk-cpp.override {
+            apis = ["s3"];
+            customMemoryManagement = false;
+          })
         ];
 
       hydraPath = lib.makeSearchPath "bin" (

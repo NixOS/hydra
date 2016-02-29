@@ -64,7 +64,10 @@ sub build_GET {
     my $build = $c->stash->{build};
 
     $c->stash->{template} = 'build.tt';
-    $c->stash->{available} = all { isValidPath($_->path) } $build->buildoutputs->all;
+    $c->stash->{available} =
+        ($c->config->{store_mode} // "direct") eq "direct"
+        ? all { isValidPath($_->path) } $build->buildoutputs->all
+        : 1; # FIXME
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
 
     if ($build->finished && $build->iscachedbuild) {
@@ -219,7 +222,33 @@ sub download : Chained('buildChain') PathPart {
     }
     notFound($c, "Build doesn't have a product $productRef.") if !defined $product;
 
-    notFound($c, "Build product " . $product->path . " has disappeared.") unless -e $product->path;
+    if ($product->path !~ /^($Nix::Config::storeDir\/[^\/]+)/) {
+        die "Invalid store path " . $product->path . ".\n";
+    }
+    my $storePath = $1;
+
+    # Hack to get downloads to work on binary cache stores: if the
+    # store path is not available locally, then import it into the
+    # local store. FIXME: find a better way; this can require an
+    # unbounded amount of space.
+    if (!isValidPath($storePath)) {
+        my $storeMode = $c->config->{store_mode} // "direct";
+        notFound($c, "File " . $product->path . " has disappeared.")
+            if $storeMode eq "direct";
+        my $url =
+            $storeMode eq "local-binary-cache" ? "file://" . $c->config->{binary_cache_dir} :
+            $storeMode eq "s3-binary-cache" ? "https://" . $c->config->{binary_cache_s3_bucket} . ".s3.amazonaws.com/" :
+            die;
+        my $args = "";
+        if (defined $c->config->{binary_cache_public_key_file}
+            && -r $c->config->{binary_cache_public_key_file})
+        {
+            $args = "--option binary-cache-public-keys " . read_file($c->config->{binary_cache_public_key_file});
+        }
+        system("nix-store --realise '$storePath' --option extra-binary-caches '$url' $args>/dev/null");
+    }
+
+    notFound($c, "File " . $product->path . " does not exist.") unless -e $product->path;
 
     return $c->res->redirect(defaultUriForProduct($self, $c, $product, @path))
         if scalar @path == 0 && ($product->name || $product->defaultpath);

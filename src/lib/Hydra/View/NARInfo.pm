@@ -36,13 +36,10 @@ sub process {
     # Optionally, sign the NAR info file we just created.
     my $secretKeyFile = $c->config->{binary_cache_secret_key_file};
     if (defined $secretKeyFile) {
-        my $s = readFile $secretKeyFile;
-        chomp $s;
-        my ($keyName, $secretKey) = split ":", $s;
-        die "invalid secret key file\n" unless defined $keyName && defined $secretKey;
+        my $secretKey = readFile $secretKeyFile;
         my $fingerprint = fingerprintPath($storePath, $narHash, $narSize, $refs);
-        my $sig = encode_base64(signString(decode_base64($secretKey), $fingerprint), "");
-        $info .= "Sig: $keyName:$sig\n";
+        my $sig = signString($secretKey, $fingerprint);
+        $info .= "Sig: $sig\n";
     }
 
     setCacheHeaders($c, 24 * 60 * 60);

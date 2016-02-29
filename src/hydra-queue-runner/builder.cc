@@ -15,8 +15,8 @@ void State::builder(MachineReservation::ptr reservation)
     auto step = reservation->step;
 
     try {
-        auto store = openStore(); // FIXME: pool
-        retry = doBuildStep(store, step, reservation->machine);
+        auto destStore = getDestStore();
+        retry = doBuildStep(destStore, step, reservation->machine);
     } catch (std::exception & e) {
         printMsg(lvlError, format("uncaught exception building ‘%1%’ on ‘%2%’: %3%")
             % step->drvPath % reservation->machine->sshName % e.what());
@@ -45,7 +45,7 @@ void State::builder(MachineReservation::ptr reservation)
 }
 
 
-bool State::doBuildStep(nix::ref<Store> store, Step::ptr step,
+bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
     Machine::ptr machine)
 {
     {
@@ -112,6 +112,7 @@ bool State::doBuildStep(nix::ref<Store> store, Step::ptr step,
         /* Create a build step record indicating that we started
            building. */
         {
+            auto mc = startDbUpdate();
             pqxx::work txn(*conn);
             stepNr = createBuildStep(txn, result.startTime, build, step, machine->sshName, bssBusy);
             txn.commit();
@@ -120,13 +121,14 @@ bool State::doBuildStep(nix::ref<Store> store, Step::ptr step,
         /* Do the build. */
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(store, machine, step, build->maxSilentTime, build->buildTimeout, result);
+            buildRemote(destStore, machine, step, build->maxSilentTime, build->buildTimeout, result);
         } catch (Error & e) {
             result.status = BuildResult::MiscFailure;
             result.errorMsg = e.msg();
         }
 
-        if (result.success()) res = getBuildOutput(store, step->drv);
+        if (result.success())
+            res = getBuildOutput(destStore, ref<FSAccessor>(result.accessor), step->drv);
     }
 
     time_t stepStopTime = time(0);
@@ -164,6 +166,7 @@ bool State::doBuildStep(nix::ref<Store> store, Step::ptr step,
             retry = step_->tries + 1 < maxTries;
         }
         if (retry) {
+            auto mc = startDbUpdate();
             pqxx::work txn(*conn);
             finishBuildStep(txn, result.startTime, result.stopTime, result.overhead, build->id,
                 stepNr, machine->sshName, bssAborted, result.errorMsg);
@@ -212,6 +215,8 @@ bool State::doBuildStep(nix::ref<Store> store, Step::ptr step,
 
             /* Update the database. */
             {
+                auto mc = startDbUpdate();
+
                 pqxx::work txn(*conn);
 
                 finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
@@ -298,6 +303,8 @@ bool State::doBuildStep(nix::ref<Store> store, Step::ptr step,
 
             /* Update the database. */
             {
+                auto mc = startDbUpdate();
+
                 pqxx::work txn(*conn);
 
                 BuildStatus buildStatus =

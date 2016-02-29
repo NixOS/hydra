@@ -2,26 +2,13 @@
 #include "store-api.hh"
 #include "util.hh"
 #include "regex.hh"
+#include "fs-accessor.hh"
 
 using namespace nix;
 
 
-static std::tuple<bool, string> secureRead(Path fileName)
-{
-    auto fail = std::make_tuple(false, "");
-
-    if (!pathExists(fileName)) return fail;
-
-    try {
-        /* For security, resolve symlinks. */
-        fileName = canonPath(fileName, true);
-        if (!isInStore(fileName)) return fail;
-        return std::make_tuple(true, readFile(fileName));
-    } catch (Error & e) { return fail; }
-}
-
-
-BuildOutput getBuildOutput(nix::ref<Store> store, const Derivation & drv)
+BuildOutput getBuildOutput(nix::ref<Store> store,
+    nix::ref<nix::FSAccessor> accessor, const Derivation & drv)
 {
     BuildOutput res;
 
@@ -52,14 +39,16 @@ BuildOutput getBuildOutput(nix::ref<Store> store, const Derivation & drv)
 
     for (auto & output : outputs) {
         Path failedFile = output + "/nix-support/failed";
-        if (pathExists(failedFile)) res.failed = true;
+        if (accessor->stat(failedFile).type == FSAccessor::Type::tRegular)
+            res.failed = true;
 
-        auto file = secureRead(output + "/nix-support/hydra-build-products");
-        if (!std::get<0>(file)) continue;
+        Path productsFile = output + "/nix-support/hydra-build-products";
+        if (accessor->stat(productsFile).type != FSAccessor::Type::tRegular)
+            continue;
 
         explicitProducts = true;
 
-        for (auto & line : tokenizeString<Strings>(std::get<1>(file), "\n")) {
+        for (auto & line : tokenizeString<Strings>(accessor->readFile(productsFile), "\n")) {
             BuildProduct product;
 
             Regex::Subs subs;
@@ -72,26 +61,23 @@ BuildOutput getBuildOutput(nix::ref<Store> store, const Derivation & drv)
 
             /* Ensure that the path exists and points into the Nix
                store. */
+            // FIXME: should we disallow products referring to other
+            // store paths, or that are outside the input closure?
             if (product.path == "" || product.path[0] != '/') continue;
-            try {
-                product.path = canonPath(product.path, true);
-            } catch (Error & e) { continue; }
-            if (!isInStore(product.path) || !pathExists(product.path)) continue;
+            product.path = canonPath(product.path);
+            if (!isInStore(product.path)) continue;
 
-            /*  FIXME: check that the path is in the input closure
-                of the build? */
+            auto st = accessor->stat(product.path);
+            if (st.type == FSAccessor::Type::tMissing) continue;
 
             product.name = product.path == output ? "" : baseNameOf(product.path);
 
-            struct stat st;
-            if (stat(product.path.c_str(), &st))
-                throw SysError(format("getting status of ‘%1%’") % product.path);
-
-            if (S_ISREG(st.st_mode)) {
+            if (st.type == FSAccessor::Type::tRegular) {
                 product.isRegular = true;
-                product.fileSize = st.st_size;
-                product.sha1hash = hashFile(htSHA1, product.path);
-                product.sha256hash = hashFile(htSHA256, product.path);
+                product.fileSize = st.fileSize;
+                auto contents = accessor->readFile(product.path);
+                product.sha1hash = hashString(htSHA1, contents);
+                product.sha256hash = hashString(htSHA256, contents);
             }
 
             res.products.push_back(product);
@@ -108,10 +94,10 @@ BuildOutput getBuildOutput(nix::ref<Store> store, const Derivation & drv)
             product.subtype = output.first == "out" ? "" : output.first;
             product.name = storePathToName(product.path);
 
-            struct stat st;
-            if (stat(product.path.c_str(), &st))
-                throw SysError(format("getting status of ‘%1%’") % product.path);
-            if (S_ISDIR(st.st_mode))
+            auto st = accessor->stat(product.path);
+            if (st.type == FSAccessor::Type::tMissing)
+                throw Error(format("getting status of ‘%1%’") % product.path);
+            if (st.type == FSAccessor::Type::tDirectory)
                 res.products.push_back(product);
         }
     }
@@ -119,17 +105,18 @@ BuildOutput getBuildOutput(nix::ref<Store> store, const Derivation & drv)
     /* Get the release name from $output/nix-support/hydra-release-name. */
     for (auto & output : outputs) {
         Path p = output + "/nix-support/hydra-release-name";
-        if (!pathExists(p)) continue;
+        if (accessor->stat(p).type != FSAccessor::Type::tRegular) continue;
         try {
-            res.releaseName = trim(readFile(p));
+            res.releaseName = trim(accessor->readFile(p));
         } catch (Error & e) { continue; }
         // FIXME: validate release name
     }
 
     /* Get metrics. */
     for (auto & output : outputs) {
-        auto file = secureRead(output + "/nix-support/hydra-metrics");
-        for (auto & line : tokenizeString<Strings>(std::get<1>(file), "\n")) {
+        Path metricsFile = output + "/nix-support/hydra-metrics";
+        if (accessor->stat(metricsFile).type != FSAccessor::Type::tRegular) continue;
+        for (auto & line : tokenizeString<Strings>(accessor->readFile(metricsFile), "\n")) {
             auto fields = tokenizeString<std::vector<std::string>>(line);
             if (fields.size() < 2) continue;
             BuildMetric metric;
