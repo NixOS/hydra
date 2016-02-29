@@ -276,6 +276,7 @@ void State::buildRemote(ref<Store> destStore,
     /* If the path was substituted or already valid, then we didn't
        get a build log. */
     if (result.status == BuildResult::Substituted || result.status == BuildResult::AlreadyValid) {
+        printMsg(lvlInfo, format("outputs of ‘%1%’ substituted or already valid on ‘%2%’") % step->drvPath % machine->sshName);
         unlink(result.logFile.c_str());
         result.logFile = "";
     }
