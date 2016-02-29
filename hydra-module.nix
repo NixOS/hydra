@@ -20,6 +20,7 @@ let
     { NIX_REMOTE = "daemon";
       SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt";
       OPENSSL_X509_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt"; # FIXME: remove on NixOS >= 15.07
+      PERL_LWP_SSL_CA_FILE = "/etc/ssl/certs/ca-certificates.crt";
       PGPASSFILE = "${baseDir}/pgpass";
     } // hydraEnv // cfg.extraEnv;
 
