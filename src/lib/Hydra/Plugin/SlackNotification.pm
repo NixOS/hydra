@@ -48,10 +48,10 @@ sub buildFinished {
 
         my $imgBase = "http://hydra.nixos.org";
         my $img =
-            $build->buildstatus == 0 ? "$imgBase/static/images/checkmark_16.png" :
-            $build->buildstatus == 2 ? "$imgBase/static/images/dependency_16.png" :
-            $build->buildstatus == 4 ? "$imgBase/static/images/cancelled_16.png" :
-            "$imgBase/static/images/error_16.png";
+            $build->buildstatus == 0 ? "$imgBase/static/images/checkmark_256.png" :
+            $build->buildstatus == 2 ? "$imgBase/static/images/dependency_256.png" :
+            $build->buildstatus == 4 ? "$imgBase/static/images/cancelled_128.png" :
+            "$imgBase/static/images/error_256.png";
 
         my $color =
             $build->buildstatus == 0 ? "good" :
