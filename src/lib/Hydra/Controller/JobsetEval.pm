@@ -245,4 +245,22 @@ sub job : Chained('evalChain') PathPart('job') {
 }
 
 
+# Return the store paths of all succeeded builds of type 'nix-build'
+# (i.e. regular packages). Used by the NixOS channel scripts.
+sub store_paths : Chained('evalChain') PathPart('store-paths') Args(0) {
+    my ($self, $c) = @_;
+
+    my @builds = $c->stash->{eval}->builds
+        ->search_literal("exists (select 1 from buildproducts where build = build.id and type = 'nix-build')")
+        ->search({ finished => 1, buildstatus => 0 },
+                 { columns => [], join => ["buildoutputs"]
+                 , '+select' => ['buildoutputs.path'], '+as' => ['outpath'] });
+
+    $self->status_ok(
+        $c,
+        entity => [sort map {$_->get_column('outpath')} @builds]
+    );
+}
+
+
 1;
