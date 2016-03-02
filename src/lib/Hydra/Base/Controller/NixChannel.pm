@@ -87,8 +87,6 @@ sub pkg : Chained('nix') PathPart Args(1) {
     gone($c, "Build " . $c->stash->{build}->id . " is no longer available.")
         unless all { isValidPath($_->path) } $c->stash->{build}->buildoutputs->all;
 
-    $c->stash->{manifestUri} = $c->uri_for($self->action_for("manifest"), $c->req->captures);
-
     $c->stash->{current_view} = 'NixPkg';
 
     $c->response->content_type('application/nix-package');

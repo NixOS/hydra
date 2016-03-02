@@ -11,7 +11,7 @@ sub process {
     my $build = $c->stash->{build};
 
     # FIXME: add multiple output support
-    my $s = "NIXPKG1 " . $c->stash->{manifestUri}
+    my $s = "NIXPKG1 http://invalid.org/"
         . " " . $build->nixname . " " . $build->system
         . " " . $build->drvpath . " " . $build->buildoutputs->find({name => "out"})->path
         . " " . $c->uri_for('/');
