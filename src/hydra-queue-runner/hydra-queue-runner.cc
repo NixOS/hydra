@@ -7,7 +7,6 @@
 
 #include "state.hh"
 #include "build-result.hh"
-#include "local-binary-cache-store.hh"
 #include "s3-binary-cache-store.hh"
 
 #include "shared.hh"
@@ -771,13 +770,11 @@ void State::run(BuildID buildOne)
         auto dir = hydraConfig["binary_cache_dir"];
         if (dir == "")
             throw Error("you must set ‘binary_cache_dir’ in hydra.conf");
-        auto store = make_ref<LocalBinaryCacheStore>(
+        _destStore = openLocalBinaryCacheStore(
             _localStore,
             hydraConfig["binary_cache_secret_key_file"],
             hydraConfig["binary_cache_public_key_file"],
             dir);
-        store->init();
-        _destStore = std::shared_ptr<LocalBinaryCacheStore>(store);
     }
 
     else if (storeMode == "s3-binary-cache") {
