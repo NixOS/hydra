@@ -550,6 +550,7 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("bytesReceived", bytesReceived);
         root.attr("nrBuildsRead", nrBuildsRead);
         root.attr("nrBuildsDone", nrBuildsDone);
+        root.attr("nrStepsStarted", nrStepsStarted);
         root.attr("nrStepsDone", nrStepsDone);
         root.attr("nrRetries", nrRetries);
         root.attr("maxNrRetries", maxNrRetries);
@@ -561,6 +562,8 @@ void State::dumpStatus(Connection & conn, bool log)
         }
         root.attr("nrQueueWakeups", nrQueueWakeups);
         root.attr("nrDispatcherWakeups", nrDispatcherWakeups);
+        root.attr("dispatchTimeMs", dispatchTimeMs);
+        root.attr("dispatchTimeAvgMs", nrDispatcherWakeups == 0 ? 0.0 : (float) dispatchTimeMs / nrDispatcherWakeups);
         root.attr("nrDbConnections", dbPool.count());
         root.attr("nrActiveDbUpdates", nrActiveDbUpdates);
         {

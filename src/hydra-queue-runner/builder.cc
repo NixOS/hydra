@@ -10,6 +10,8 @@ void State::builder(MachineReservation::ptr reservation)
 {
     bool retry = true;
 
+    nrStepsStarted++;
+
     MaintainCount mc(nrActiveSteps);
 
     auto step = reservation->step;

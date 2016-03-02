@@ -295,6 +295,7 @@ private:
     time_t startedAt;
     counter nrBuildsRead{0};
     counter nrBuildsDone{0};
+    counter nrStepsStarted{0};
     counter nrStepsDone{0};
     counter nrActiveSteps{0};
     counter nrStepsBuilding{0};
@@ -307,6 +308,7 @@ private:
     counter totalStepBuildTime{0}; // total build time for steps
     counter nrQueueWakeups{0};
     counter nrDispatcherWakeups{0};
+    counter dispatchTimeMs{0};
     counter bytesSent{0};
     counter bytesReceived{0};
     counter nrActiveDbUpdates{0};
