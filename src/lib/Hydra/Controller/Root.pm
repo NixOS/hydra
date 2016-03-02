@@ -166,6 +166,7 @@ sub machines :Local Args(0) {
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
+    requireLocalStore($c);
     $c->stash->{allBuilds} = $c->model('DB::Builds');
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceeded');
     $c->stash->{channelBaseName} = "everything";

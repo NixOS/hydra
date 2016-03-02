@@ -148,6 +148,7 @@ sub channels_tab : Chained('jobsetChain') PathPart('channels-tab') Args(0) {
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('jobsetChain') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
+    requireLocalStore($c);
     $c->stash->{allBuilds} = $c->stash->{jobset}->builds;
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJobset')
         ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]});

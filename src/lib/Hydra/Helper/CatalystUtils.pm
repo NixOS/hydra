@@ -25,6 +25,7 @@ our @EXPORT = qw(
     getResponsibleAuthors
     setCacheHeaders
     approxTableSize
+    requireLocalStore
 );
 
 
@@ -340,6 +341,13 @@ sub approxTableSize {
     my ($c, $name) = @_;
     return $c->model('DB')->schema->storage->dbh->selectrow_hashref(
         "select reltuples::int from pg_class where relname = lower(?)", { }, $name)->{"reltuples"};
+}
+
+
+sub requireLocalStore {
+    my ($c) = @_;
+    notFound($c, "Nix channels are not supported by this Hydra server.")
+        if ($c->config->{store_mode} // "direct") ne "direct";
 }
 
 

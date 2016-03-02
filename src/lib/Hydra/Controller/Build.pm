@@ -439,6 +439,8 @@ sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
     my $build = $c->stash->{build};
     my @outPaths = map { $_->path } $build->buildoutputs->all;
 
+    requireLocalStore($c);
+
     error($c, "Build outputs no longer available.") unless all { isValidPath($_) } @outPaths;
 
     my $done = {};
