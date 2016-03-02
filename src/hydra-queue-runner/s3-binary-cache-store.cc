@@ -108,7 +108,7 @@ bool S3BinaryCacheStore::fileExists(const std::string & path)
         if (error.GetErrorType() == Aws::S3::S3Errors::UNKNOWN // FIXME
             && error.GetMessage().find("404") != std::string::npos)
             return false;
-        throw Error(format("AWS error fetching ‘%s’") % path % error.GetMessage());
+        throw Error(format("AWS error fetching ‘%s’: %s") % path % error.GetMessage());
     }
 
     return true;
