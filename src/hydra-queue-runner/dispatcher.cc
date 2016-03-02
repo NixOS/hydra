@@ -144,13 +144,40 @@ system_time State::doDispatch()
 
            FIXME: O(n lg n); obviously, it would be better to keep a
            runnable queue sorted by priority. */
-        std::vector<Step::ptr> runnableSorted;
+        struct StepInfo
+        {
+            Step::ptr step;
+
+            /* The lowest share used of any jobset depending on this
+               step. */
+            double lowestShareUsed = 1e9;
+
+            /* Info copied from step->state to ensure that the
+               comparator is a partial ordering (see MachineInfo). */
+            int highestGlobalPriority;
+            int highestLocalPriority;
+            BuildID lowestBuildID;
+
+            StepInfo(Step::ptr step, Step::State & step_) : step(step)
+            {
+                for (auto & jobset : step_.jobsets)
+                    lowestShareUsed = std::min(lowestShareUsed, jobset->shareUsed());
+                highestGlobalPriority = step_.highestGlobalPriority;
+                highestLocalPriority = step_.highestLocalPriority;
+                lowestBuildID = step_.lowestBuildID;
+            }
+        };
+
+        std::vector<StepInfo> runnableSorted;
+
         struct RunnablePerType
         {
             unsigned int count{0};
             std::chrono::seconds waitTime{0};
         };
+
         std::unordered_map<std::string, RunnablePerType> runnablePerType;
+
         {
             auto runnable_(runnable.lock());
             runnableSorted.reserve(runnable_->size());
@@ -170,37 +197,26 @@ system_time State::doDispatch()
 
                 /* Skip previously failed steps that aren't ready
                    to be retried. */
-                {
-                    auto step_(step->state.lock());
-                    r.waitTime += std::chrono::duration_cast<std::chrono::seconds>(now - step_->runnableSince);
-                    if (step_->tries > 0 && step_->after > now) {
-                        if (step_->after < sleepUntil)
-                            sleepUntil = step_->after;
-                        continue;
-                    }
+                auto step_(step->state.lock());
+                r.waitTime += std::chrono::duration_cast<std::chrono::seconds>(now - step_->runnableSince);
+                if (step_->tries > 0 && step_->after > now) {
+                    if (step_->after < sleepUntil)
+                        sleepUntil = step_->after;
+                    continue;
                 }
 
-                runnableSorted.push_back(step);
+                runnableSorted.emplace_back(step, *step_);
             }
         }
 
-        for (auto & step : runnableSorted) {
-            auto step_(step->state.lock());
-            step_->lowestShareUsed = 1e9;
-            for (auto & jobset : step_->jobsets)
-                step_->lowestShareUsed = std::min(step_->lowestShareUsed, jobset->shareUsed());
-        }
-
         sort(runnableSorted.begin(), runnableSorted.end(),
-            [](const Step::ptr & a, const Step::ptr & b)
+            [](const StepInfo & a, const StepInfo & b)
             {
-                auto a_(a->state.lock());
-                auto b_(b->state.lock()); // FIXME: deadlock?
                 return
-                    a_->highestGlobalPriority != b_->highestGlobalPriority ? a_->highestGlobalPriority > b_->highestGlobalPriority :
-                    a_->lowestShareUsed != b_->lowestShareUsed ? a_->lowestShareUsed < b_->lowestShareUsed :
-                    a_->highestLocalPriority != b_->highestLocalPriority ? a_->highestLocalPriority > b_->highestLocalPriority :
-                    a_->lowestBuildID < b_->lowestBuildID;
+                    a.highestGlobalPriority != b.highestGlobalPriority ? a.highestGlobalPriority > b.highestGlobalPriority :
+                    a.lowestShareUsed != b.lowestShareUsed ? a.lowestShareUsed < b.lowestShareUsed :
+                    a.highestLocalPriority != b.highestLocalPriority ? a.highestLocalPriority > b.highestLocalPriority :
+                    a.lowestBuildID < b.lowestBuildID;
             });
 
         /* Find a machine with a free slot and find a step to run
@@ -211,7 +227,8 @@ system_time State::doDispatch()
         for (auto & mi : machinesSorted) {
             if (mi.machine->state->currentJobs >= mi.machine->maxJobs) continue;
 
-            for (auto & step : runnableSorted) {
+            for (auto & stepInfo : runnableSorted) {
+                auto & step(stepInfo.step);
 
                 /* Can this machine do this step? */
                 if (!mi.machine->supportsStep(step)) continue;

@@ -171,10 +171,6 @@ struct Step
            step. */
         int highestGlobalPriority{0};
 
-        /* The lowest share used of any jobset depending on this
-           step. */
-        double lowestShareUsed;
-
         /* The highest local priority of any build depending on this
            step. */
         int highestLocalPriority{0};
