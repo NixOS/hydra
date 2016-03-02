@@ -12,6 +12,8 @@ use Hydra::Helper::CatalystUtils;
 sub getChannelData {
     my ($c, $checkValidity) = @_;
 
+    requireLocalStore($c);
+
     my @storePaths = ();
     $c->stash->{nixPkgs} = [];
 

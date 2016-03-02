@@ -222,7 +222,6 @@ sub bump : Chained('evalChain') PathPart('bump') Args(0) {
 # Hydra::Base::Controller::NixChannel needs this.
 sub nix : Chained('evalChain') PathPart('channel') CaptureArgs(0) {
     my ($self, $c) = @_;
-    requireLocalStore($c);
     $c->stash->{channelName} = $c->stash->{project}->name . "-" . $c->stash->{jobset}->name . "-latest";
     $c->stash->{channelBuilds} = $c->stash->{eval}->builds
         ->search_literal("exists (select 1 from buildproducts where build = build.id and type = 'nix-build')")

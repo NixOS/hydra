@@ -161,7 +161,6 @@ sub updateProject {
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('projectChain') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
-    requireLocalStore($c);
     $c->stash->{allBuilds} = $c->stash->{project}->builds;
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForProject')
         ->search({}, {bind => [$c->stash->{project}->name]});
