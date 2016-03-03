@@ -5,6 +5,7 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use List::MoreUtils qw(uniq);
 
 
 sub evalChain : Chained('/') PathPart('eval') CaptureArgs(1) {
@@ -257,7 +258,7 @@ sub store_paths : Chained('evalChain') PathPart('store-paths') Args(0) {
 
     $self->status_ok(
         $c,
-        entity => [sort map {$_->get_column('outpath')} @builds]
+        entity => [uniq(sort map {$_->get_column('outpath')} @builds)]
     );
 }
 
