@@ -21,8 +21,7 @@ private:
 public:
 
     S3BinaryCacheStore(std::shared_ptr<Store> localStore,
-        const Path & secretKeyFile, const Path & publicKeyFile,
-        const std::string & bucketName);
+        const Path & secretKeyFile, const std::string & bucketName);
 
     void init() override;
 

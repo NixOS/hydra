@@ -773,7 +773,6 @@ void State::run(BuildID buildOne)
         _destStore = openLocalBinaryCacheStore(
             _localStore,
             hydraConfig["binary_cache_secret_key_file"],
-            hydraConfig["binary_cache_public_key_file"],
             dir);
     }
 
@@ -784,7 +783,6 @@ void State::run(BuildID buildOne)
         auto store = make_ref<S3BinaryCacheStore>(
             _localStore,
             hydraConfig["binary_cache_secret_key_file"],
-            hydraConfig["binary_cache_public_key_file"],
             bucketName);
         store->init();
         _destStore = std::shared_ptr<S3BinaryCacheStore>(store);

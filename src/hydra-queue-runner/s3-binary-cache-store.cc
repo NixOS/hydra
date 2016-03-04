@@ -32,9 +32,8 @@ R && checkAws(const FormatOrString & fs, Aws::Utils::Outcome<R, E> && outcome)
 }
 
 S3BinaryCacheStore::S3BinaryCacheStore(std::shared_ptr<Store> localStore,
-    const Path & secretKeyFile, const Path & publicKeyFile,
-    const std::string & bucketName)
-    : BinaryCacheStore(localStore, secretKeyFile, publicKeyFile)
+    const Path & secretKeyFile, const std::string & bucketName)
+    : BinaryCacheStore(localStore, secretKeyFile)
     , bucketName(bucketName)
     , config(makeConfig())
     , client(make_ref<Aws::S3::S3Client>(*config))
@@ -177,4 +176,3 @@ std::string S3BinaryCacheStore::getFile(const std::string & path)
 }
 
 }
-
