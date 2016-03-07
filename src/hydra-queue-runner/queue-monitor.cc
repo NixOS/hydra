@@ -127,11 +127,10 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
                 auto mc = startDbUpdate();
                 pqxx::work txn(conn);
                 txn.parameterized
-                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, errorMsg = $4 where id = $1 and finished = 0")
+                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0")
                     (build->id)
                     ((int) bsAborted)
-                    (time(0))
-                    ("derivation was garbage-collected prior to build").exec();
+                    (time(0)).exec();
                 txn.commit();
                 build->finishedInDB = true;
                 nrBuildsDone++;
