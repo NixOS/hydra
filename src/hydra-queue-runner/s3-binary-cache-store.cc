@@ -144,6 +144,8 @@ void S3BinaryCacheStore::upsertFile(const std::string & path, const std::string 
 
 std::string S3BinaryCacheStore::getFile(const std::string & path)
 {
+    printMsg(lvlDebug, format("fetching ‘s3://%1%/%2%’...") % bucketName % path);
+
     auto request =
         Aws::S3::Model::GetObjectRequest()
         .WithBucket(bucketName)
