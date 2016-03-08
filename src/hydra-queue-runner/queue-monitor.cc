@@ -247,6 +247,8 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
         if (i == newBuildsByID.end()) continue;
         auto build = i->second;
 
+        auto now1 = std::chrono::steady_clock::now();
+
         newRunnable.clear();
         nrAdded = 0;
         try {
@@ -255,6 +257,10 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
             e.addPrefix(format("while loading build %1%: ") % build->id);
             throw;
         }
+
+        auto now2 = std::chrono::steady_clock::now();
+
+        buildReadTimeMs += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
 
         /* Add the new runnable build steps to ‘runnable’ and wake up
            the builder threads. */

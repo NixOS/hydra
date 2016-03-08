@@ -548,6 +548,8 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("bytesSent", bytesSent);
         root.attr("bytesReceived", bytesReceived);
         root.attr("nrBuildsRead", nrBuildsRead);
+        root.attr("buildReadTimeMs", buildReadTimeMs);
+        root.attr("buildReadTimeAvgMs", nrBuildsRead == 0 ? 0.0 :  (float) buildReadTimeMs / nrBuildsRead);
         root.attr("nrBuildsDone", nrBuildsDone);
         root.attr("nrStepsStarted", nrStepsStarted);
         root.attr("nrStepsDone", nrStepsDone);

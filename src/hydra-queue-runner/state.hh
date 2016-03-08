@@ -294,6 +294,7 @@ private:
     /* Various stats. */
     time_t startedAt;
     counter nrBuildsRead{0};
+    counter buildReadTimeMs{0};
     counter nrBuildsDone{0};
     counter nrStepsStarted{0};
     counter nrStepsDone{0};
