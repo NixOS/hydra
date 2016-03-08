@@ -114,6 +114,7 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
     std::set<Step::ptr> newRunnable;
     unsigned int nrAdded;
     std::function<void(Build::ptr)> createBuild;
+    std::set<Path> finishedDrvs;
 
     createBuild = [&](Build::ptr build) {
         printMsg(lvlTalkative, format("loading build %1% (%2%)") % build->id % build->fullJobName());
@@ -139,7 +140,6 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
         }
 
         std::set<Step::ptr> newSteps;
-        std::set<Path> finishedDrvs; // FIXME: re-use?
         Step::ptr step = createStep(destStore, conn, build, build->drvPath,
             build, 0, finishedDrvs, newSteps, newRunnable);
 
