@@ -17,7 +17,7 @@
 
   [% WRAPPER makeSubMenu title="Status" %]
     [% INCLUDE menuItem
-       uri = c.uri_for(c.controller('Root').action_for('queue'))
+       uri = c.uri_for(c.controller('Root').action_for('queue_summary'))
        title = "Queue ("_ nrRunningBuilds _"/"_ nrQueuedBuilds _")" %]
     [% INCLUDE menuItem
        uri = c.uri_for(c.controller('Root').action_for('status'))

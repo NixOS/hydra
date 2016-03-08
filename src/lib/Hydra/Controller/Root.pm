@@ -102,6 +102,17 @@ sub queue_GET {
 }
 
 
+sub queue_summary :Local :Path('queue-summary') :Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'queue-summary.tt';
+
+    $c->stash->{queued} = $c->model('DB')->schema->storage->dbh->selectall_arrayref(
+        "select project, jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from Builds " .
+        "where finished = 0 group by project, jobset order by queued desc",
+        { Slice => {} });
+}
+
+
 sub status :Local :Args(0) :ActionClass('REST') { }
 
 sub status_GET {

@@ -1,0 +1,33 @@
+[% WRAPPER layout.tt title="Queue summary" %]
+[% PROCESS common.tt %]
+
+[% IF queued.size == 0 %]
+
+  <div class="alert alert-info">There are no pending builds.</div>
+
+[% ELSE %]
+
+  <table class="table table-striped table-condensed clickable-rows">
+    <thead>
+      <tr>
+        <th>Jobset</th>
+        <th># Queued</th>
+        <th>Oldest queued</th>
+        <th>Newest queued</th>
+      </tr>
+    </thead>
+    <tdata>
+      [% FOREACH j IN queued %]
+        <tr>
+          <td>[% INCLUDE renderFullJobsetName project=j.project jobset=j.jobset %]</td>
+          <td>[% HTML.escape(j.queued) %]</td>
+          <td>[% INCLUDE renderRelativeDate timestamp=j.oldest %]</td>
+          <td>[% INCLUDE renderRelativeDate timestamp=j.newest %]</td>
+        </tr>
+      [% END %]
+    </tdata>
+  </table>
+
+[% END %]
+
+[% END %]
