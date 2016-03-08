@@ -8,7 +8,7 @@ using namespace nix;
 
 void State::builder(MachineReservation::ptr reservation)
 {
-    bool retry = true;
+    StepResult res = sRetry;
 
     nrStepsStarted++;
 
@@ -18,7 +18,7 @@ void State::builder(MachineReservation::ptr reservation)
 
     try {
         auto destStore = getDestStore();
-        retry = doBuildStep(destStore, step, reservation->machine);
+        res = doBuildStep(destStore, step, reservation->machine);
     } catch (std::exception & e) {
         printMsg(lvlError, format("uncaught exception building ‘%1%’ on ‘%2%’: %3%")
             % step->drvPath % reservation->machine->sshName % e.what());
@@ -31,8 +31,8 @@ void State::builder(MachineReservation::ptr reservation)
 
     /* If there was a temporary failure, retry the step after an
        exponentially increasing interval. */
-    if (retry) {
-        {
+    if (res != sDone) {
+        if (res == sRetry) {
             auto step_(step->state.lock());
             step_->tries++;
             nrRetries++;
@@ -47,7 +47,7 @@ void State::builder(MachineReservation::ptr reservation)
 }
 
 
-bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
+State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
     Machine::ptr machine)
 {
     {
@@ -81,7 +81,7 @@ bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                the runnable queue). If there are really no strong
                pointers to the step, it will be deleted. */
             printMsg(lvlInfo, format("maybe cancelling build step ‘%1%’") % step->drvPath);
-            return true;
+            return sMaybeCancelled;
         }
 
         for (auto build2 : dependents)
@@ -174,7 +174,7 @@ bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                 stepNr, machine->sshName, bssAborted, result.errorMsg);
             txn.commit();
             if (quit) exit(1);
-            return true;
+            return sRetry;
         }
     }
 
@@ -400,5 +400,5 @@ bool State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
     if (quit) exit(0); // testing hack
 
-    return false;
+    return sDone;
 }

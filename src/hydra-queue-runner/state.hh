@@ -425,8 +425,9 @@ private:
 
     /* Perform the given build step. Return true if the step is to be
        retried. */
-    bool doBuildStep(nix::ref<nix::Store> destStore, Step::ptr step,
-        Machine::ptr machine);
+    enum StepResult { sDone, sRetry, sMaybeCancelled };
+    StepResult doBuildStep(nix::ref<nix::Store> destStore,
+        Step::ptr step, Machine::ptr machine);
 
     void buildRemote(nix::ref<nix::Store> destStore,
         Machine::ptr machine, Step::ptr step,
