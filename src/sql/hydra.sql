@@ -192,6 +192,7 @@ create table Builds (
     --   8 = cached failure [steps only; builds use isCachedBuild]
     --   9 = unsupported system type
     --  10 = log limit exceeded
+    --  11 = NAR size limit exceeded
     buildStatus   integer,
 
     size          bigint,

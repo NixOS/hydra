@@ -105,10 +105,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
     /* If any of the outputs have previously failed, then don't bother
        building again. */
-    bool cachedFailure = checkCachedFailure(step, *conn);
-
-    if (cachedFailure)
-        result.status = BuildResult::CachedFailure;
+    if (checkCachedFailure(step, *conn))
+        result.stepStatus = bsCachedFailure;
     else {
 
         /* Create a build step record indicating that we started
@@ -124,12 +122,14 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
             buildRemote(destStore, machine, step, build->maxSilentTime, build->buildTimeout, result);
+        } catch (NoTokens & e) {
+            result.stepStatus = bsNarSizeLimitExceeded;
         } catch (Error & e) {
-            result.status = BuildResult::MiscFailure;
+            result.stepStatus = bsAborted;
             result.errorMsg = e.msg();
         }
 
-        if (result.success())
+        if (result.stepStatus == bsSuccess)
             res = getBuildOutput(destStore, ref<FSAccessor>(result.accessor), step->drv);
     }
 
@@ -159,7 +159,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
     /* The step had a hopefully temporary failure (e.g. network
        issue). Retry a number of times. */
-    if (result.canRetry()) {
+    if (result.canRetry) {
         printMsg(lvlError, format("possibly transient failure building ‘%1%’ on ‘%2%’: %3%")
             % step->drvPath % machine->sshName % result.errorMsg);
         bool retry;
@@ -178,7 +178,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         }
     }
 
-    if (result.success()) {
+    if (result.stepStatus == bsSuccess) {
 
         /* Register success in the database for all Build objects that
            have this step as the top-level step. Since the queue
@@ -225,7 +225,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                     build->id, stepNr, machine->sshName, bsSuccess);
 
                 for (auto & b : direct)
-                    markSucceededBuild(txn, b, res, build != b || result.status != BuildResult::Built,
+                    markSucceededBuild(txn, b, res, build != b || result.isCached,
                         result.startTime, result.stopTime);
 
                 txn.commit();
@@ -309,38 +309,27 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
                 pqxx::work txn(*conn);
 
-                BuildStatus buildStatus =
-                    result.status == BuildResult::TimedOut ? bsTimedOut :
-                    result.status == BuildResult::LogLimitExceeded ? bsLogLimitExceeded :
-                    result.canRetry() ? bsAborted :
-                    bsFailed;
-
                 /* For standard failures, we don't care about the error
                    message. */
-                if (result.status == BuildResult::PermanentFailure ||
-                    result.status == BuildResult::TransientFailure ||
-                    result.status == BuildResult::CachedFailure ||
-                    result.status == BuildResult::TimedOut ||
-                    result.status == BuildResult::LogLimitExceeded)
+                if (result.stepStatus != bsAborted)
                     result.errorMsg = "";
 
-                /* Create failed build steps for every build that depends
-                   on this. For cached failures, only create a step for
-                   builds that don't have this step as top-level
-                   (otherwise the user won't be able to see what caused
-                   the build to fail). */
+                /* Create failed build steps for every build that
+                   depends on this, except when this step is cached
+                   and is the top-level of that build (since then it's
+                   redundant with the build's isCachedBuild field). */
                 for (auto & build2 : indirect) {
-                    if ((cachedFailure && build2->drvPath == step->drvPath) ||
-                        (!cachedFailure && build == build2) ||
+                    if ((result.stepStatus == bsCachedFailure && build2->drvPath == step->drvPath) ||
+                        (result.stepStatus != bsCachedFailure && build == build2) ||
                         build2->finishedInDB)
                         continue;
                     createBuildStep(txn, 0, build2, step, machine->sshName,
-                        buildStatus, result.errorMsg, build == build2 ? 0 : build->id);
+                        result.stepStatus, result.errorMsg, build == build2 ? 0 : build->id);
                 }
 
-                if (!cachedFailure)
+                if (result.stepStatus != bsCachedFailure)
                     finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
-                        build->id, stepNr, machine->sshName, buildStatus, result.errorMsg);
+                        build->id, stepNr, machine->sshName, result.stepStatus, result.errorMsg);
 
                 /* Mark all builds that depend on this derivation as failed. */
                 for (auto & build2 : indirect) {
@@ -349,16 +338,16 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                     txn.parameterized
                         ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1 and finished = 0")
                         (build2->id)
-                        ((int) (build2->drvPath != step->drvPath && buildStatus == bsFailed ? bsDepFailed : buildStatus))
+                        ((int) (build2->drvPath != step->drvPath && result.buildStatus() == bsFailed ? bsDepFailed : result.buildStatus()))
                         (result.startTime)
                         (result.stopTime)
-                        (cachedFailure ? 1 : 0).exec();
+                        (result.stepStatus == bsCachedFailure ? 1 : 0).exec();
                     nrBuildsDone++;
                 }
 
                 /* Remember failed paths in the database so that they
                    won't be built again. */
-                if (!cachedFailure && result.status == BuildResult::PermanentFailure)
+                if (result.stepStatus != bsCachedFailure && result.canCache)
                     for (auto & path : step->drv.outputPaths())
                         txn.parameterized("insert into FailedPaths values ($1)")(path).exec();
 

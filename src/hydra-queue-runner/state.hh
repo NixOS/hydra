@@ -33,20 +33,27 @@ typedef enum {
     bsCachedFailure = 8, // steps only
     bsUnsupported = 9,
     bsLogLimitExceeded = 10,
+    bsNarSizeLimitExceeded = 11,
     bsBusy = 100, // not stored
 } BuildStatus;
 
 
-struct RemoteResult : nix::BuildResult
+struct RemoteResult
 {
+    BuildStatus stepStatus = bsAborted;
+    bool canRetry = false; // for bsAborted
+    bool isCached = false; // for bsSucceed
+    bool canCache = false; // for bsFailed
+    std::string errorMsg; // for bsAborted
+
     time_t startTime = 0, stopTime = 0;
     unsigned int overhead = 0;
     nix::Path logFile;
     std::shared_ptr<nix::FSAccessor> accessor;
 
-    bool canRetry()
+    BuildStatus buildStatus()
     {
-        return status == TransientFailure || status == MiscFailure;
+        return stepStatus == bsCachedFailure ? bsFailed : stepStatus;
     }
 };
 
@@ -349,6 +356,8 @@ private:
        acquire N memory tokens, causing it to block until that many
        tokens are available. */
     nix::TokenServer memoryTokens;
+
+    size_t maxOutputSize = 2ULL << 30;
 
 public:
     State();

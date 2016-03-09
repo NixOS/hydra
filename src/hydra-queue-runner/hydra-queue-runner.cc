@@ -41,6 +41,11 @@ State::State()
         }
     }
 
+    {
+        std::string s = hydraConfig["max-output-size"];
+        if (s != "") string2Int(s, maxOutputSize);
+    }
+
     logDir = canonPath(hydraData + "/build-logs");
 }
 

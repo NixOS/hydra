@@ -207,6 +207,8 @@ BLOCK renderBuildStatusIcon;
       <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Timed out" class="build-status" />
     [% ELSIF buildstatus == 10 %]
       <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Log limit exceeded" class="build-status" />
+    [% ELSIF buildstatus == 11 %]
+      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Output size limit exceeded" class="build-status" />
     [% ELSE %]
       <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
     [% END;
@@ -236,6 +238,8 @@ BLOCK renderStatus;
       <span class="error">Unsupported system type</span>
     [% ELSIF buildstatus == 10 %]
       <span class="error">Log limit exceeded</span>
+    [% ELSIF buildstatus == 11 %]
+      <span class="error">Output limit exceeded</span>
     [% ELSE %]
       <span class="error">Aborted</span>
       (Hydra failure; see <a href="#nix-error">below</a>)

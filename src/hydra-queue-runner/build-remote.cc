@@ -261,21 +261,74 @@ void State::buildRemote(ref<Store> destStore,
     if (sendDerivation) {
         if (res) {
             result.errorMsg = (format("%1% on ‘%2%’") % readString(from) % machine->sshName).str();
-            if (res == 100) result.status = BuildResult::PermanentFailure;
-            else if (res == 101) result.status = BuildResult::TimedOut;
-            else result.status = BuildResult::MiscFailure;
+            if (res == 100) {
+                result.stepStatus = bsFailed;
+                result.canCache = true;
+            }
+            else if (res == 101) {
+                result.stepStatus = bsTimedOut;
+            }
+            else {
+                result.stepStatus = bsAborted;
+                result.canRetry = true;
+            }
             return;
         }
-        result.status = BuildResult::Built;
+        result.stepStatus = bsSuccess;
     } else {
-        result.status = (BuildResult::Status) res;
         result.errorMsg = readString(from);
-        if (!result.success()) return;
+        switch ((BuildResult::Status) res) {
+            case BuildResult::Built:
+                result.stepStatus = bsSuccess;
+                break;
+            case BuildResult::Substituted:
+            case BuildResult::AlreadyValid:
+                result.stepStatus = bsSuccess;
+                result.isCached = true;
+                break;
+            case BuildResult::PermanentFailure:
+                result.stepStatus = bsFailed;
+                result.canCache = true;
+                result.errorMsg = "";
+                break;
+            case BuildResult::InputRejected:
+            case BuildResult::OutputRejected:
+                result.stepStatus = bsFailed;
+                result.canCache = true;
+                break;
+            case BuildResult::TransientFailure:
+                result.stepStatus = bsFailed;
+                result.canRetry = true;
+                result.errorMsg = "";
+                break;
+            case BuildResult::CachedFailure: // cached on the build machine
+                result.stepStatus = bsCachedFailure;
+                result.canCache = true;
+                result.errorMsg = "";
+                break;
+            case BuildResult::TimedOut:
+                result.stepStatus = bsTimedOut;
+                result.errorMsg = "";
+                break;
+            case BuildResult::MiscFailure:
+                result.stepStatus = bsAborted;
+                result.canRetry = true;
+                break;
+            case BuildResult::LogLimitExceeded:
+                result.stepStatus = bsLogLimitExceeded;
+                break;
+            default:
+                result.stepStatus = bsAborted;
+                break;
+        }
+        if (result.stepStatus != bsSuccess) return;
     }
+
+    result.errorMsg = "";
 
     /* If the path was substituted or already valid, then we didn't
        get a build log. */
-    if (result.status == BuildResult::Substituted || result.status == BuildResult::AlreadyValid) {
+    if (result.isCached) {
         printMsg(lvlInfo, format("outputs of ‘%1%’ substituted or already valid on ‘%2%’") % step->drvPath % machine->sshName);
         unlink(result.logFile.c_str());
         result.logFile = "";
@@ -301,6 +354,11 @@ void State::buildRemote(ref<Store> destStore,
             readStrings<PathSet>(from); // references
             readLongLong(from); // download size
             totalNarSize += readLongLong(from);
+        }
+
+        if (totalNarSize > maxOutputSize) {
+            result.stepStatus = bsNarSizeLimitExceeded;
+            return;
         }
 
         printMsg(lvlDebug, format("copying outputs of ‘%s’ from ‘%s’ (%d bytes)")
