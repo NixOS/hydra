@@ -283,15 +283,42 @@ void State::buildRemote(ref<Store> destStore,
 
     /* Copy the output paths. */
     if (/* machine->sshName != "localhost" */ true) {
-        printMsg(lvlDebug, format("copying outputs of ‘%1%’ from ‘%2%’") % step->drvPath % machine->sshName);
+        MaintainCount mc(nrStepsCopyingFrom);
+
+        auto now1 = std::chrono::steady_clock::now();
+
         PathSet outputs;
         for (auto & output : step->drv.outputs)
             outputs.insert(output.second.path);
-        MaintainCount mc(nrStepsCopyingFrom);
+
+        /* Query the size of the output paths. */
+        size_t totalNarSize = 0;
+        to << cmdQueryPathInfos << outputs;
+        to.flush();
+        while (true) {
+            if (readString(from) == "") break;
+            readString(from); // deriver
+            readStrings<PathSet>(from); // references
+            readLongLong(from); // download size
+            totalNarSize += readLongLong(from);
+        }
+
+        printMsg(lvlDebug, format("copying outputs of ‘%s’ from ‘%s’ (%d bytes)")
+            % step->drvPath % machine->sshName % totalNarSize);
+
+        /* Block until we have the required amount of memory
+           available. FIXME: only need this for binary cache
+           destination stores. */
+        auto resStart = std::chrono::steady_clock::now();
+        auto memoryReservation(memoryTokens.get(totalNarSize));
+        auto resStop = std::chrono::steady_clock::now();
+
+        auto resMs = std::chrono::duration_cast<std::chrono::milliseconds>(resStop - resStart).count();
+        if (resMs >= 1000)
+            printMsg(lvlError, format("warning: had to wait %d ms for %d memory tokens for %s")
+                % resMs % totalNarSize % step->drvPath);
 
         result.accessor = destStore->getFSAccessor();
-
-        auto now1 = std::chrono::steady_clock::now();
 
         to << cmdExportPaths << 0 << outputs;
         to.flush();

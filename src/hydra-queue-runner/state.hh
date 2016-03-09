@@ -9,14 +9,13 @@
 
 #include "db.hh"
 #include "counter.hh"
+#include "token-server.hh"
+
+#include "derivations.hh"
 #include "pathlocks.hh"
 #include "pool.hh"
-#include "sync.hh"
-
 #include "store-api.hh"
-#include "derivations.hh"
-
-#include "binary-cache-store.hh" // FIXME
+#include "sync.hh"
 
 
 typedef unsigned int BuildID;
@@ -353,6 +352,13 @@ private:
 
     std::shared_ptr<nix::Store> _localStore;
     std::shared_ptr<nix::Store> _destStore;
+
+    /* Token server to prevent threads from allocating too many big
+       strings concurrently while importing NARs from the build
+       machines. When a thread imports a NAR of size N, it will first
+       acquire N memory tokens, causing it to block until that many
+       tokens are available. */
+    nix::TokenServer memoryTokens;
 
 public:
     State();

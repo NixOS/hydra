@@ -17,6 +17,7 @@ using namespace nix;
 
 
 State::State()
+    : memoryTokens(4ULL << 30) // FIXME: make this configurable
 {
     hydraData = getEnv("HYDRA_DATA");
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
@@ -567,6 +568,8 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("dispatchTimeAvgMs", nrDispatcherWakeups == 0 ? 0.0 : (float) dispatchTimeMs / nrDispatcherWakeups);
         root.attr("nrDbConnections", dbPool.count());
         root.attr("nrActiveDbUpdates", nrActiveDbUpdates);
+        root.attr("memoryTokensInUse", memoryTokens.currentUse());
+
         {
             root.attr("machines");
             JSONObject nested(out);
@@ -589,6 +592,7 @@ void State::dumpStatus(Connection & conn, bool log)
                 }
             }
         }
+
         {
             root.attr("jobsets");
             JSONObject nested(out);
@@ -600,6 +604,7 @@ void State::dumpStatus(Connection & conn, bool log)
                 nested2.attr("seconds", jobset.second->getSeconds());
             }
         }
+
         {
             root.attr("machineTypes");
             JSONObject nested(out);
