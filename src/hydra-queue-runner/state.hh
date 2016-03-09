@@ -359,6 +359,9 @@ private:
 
     size_t maxOutputSize = 2ULL << 30;
 
+    time_t lastStatusLogged = 0;
+    const int statusLogInterval = 20;
+
 public:
     State();
 

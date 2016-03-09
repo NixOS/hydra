@@ -683,7 +683,10 @@ void State::dumpStatus(Connection & conn, bool log)
         }
     }
 
-    if (log) printMsg(lvlInfo, format("status: %1%") % out.str());
+    if (log && time(0) >= lastStatusLogged + statusLogInterval) {
+        printMsg(lvlInfo, format("status: %1%") % out.str());
+        lastStatusLogged = time(0);
+    }
 
     {
         auto mc = startDbUpdate();
@@ -826,8 +829,8 @@ void State::run(BuildID buildOne)
             auto conn(dbPool.get());
             receiver dumpStatus_(*conn, "dump_status");
             while (true) {
-                bool timeout = conn->await_notification(300, 0) == 0;
-                dumpStatus(*conn, timeout);
+                conn->await_notification(statusLogInterval / 2 + 1, 0);
+                dumpStatus(*conn, true);
             }
         } catch (std::exception & e) {
             printMsg(lvlError, format("main thread: %1%") % e.what());
