@@ -26,25 +26,15 @@ typedef std::chrono::time_point<std::chrono::system_clock> system_time;
 typedef enum {
     bsSuccess = 0,
     bsFailed = 1,
-    bsDepFailed = 2,
+    bsDepFailed = 2, // builds only
     bsAborted = 3,
-    bsFailedWithOutput = 6,
+    bsFailedWithOutput = 6, // builds only
     bsTimedOut = 7,
+    bsCachedFailure = 8, // steps only
     bsUnsupported = 9,
     bsLogLimitExceeded = 10,
+    bsBusy = 100, // not stored
 } BuildStatus;
-
-
-typedef enum {
-    bssSuccess = 0,
-    bssFailed = 1,
-    bssAborted = 4,
-    bssTimedOut = 7,
-    bssCachedFailure = 8,
-    bssUnsupported = 9,
-    bssLogLimitExceeded = 10,
-    bssBusy = 100, // not stored
-} BuildStepStatus;
 
 
 struct RemoteResult : nix::BuildResult
@@ -384,12 +374,12 @@ private:
     int allocBuildStep(pqxx::work & txn, Build::ptr build);
 
     int createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
-        const std::string & machine, BuildStepStatus status, const std::string & errorMsg = "",
+        const std::string & machine, BuildStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
 
     void finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime,
         unsigned int overhead, BuildID buildId, int stepNr,
-        const std::string & machine, BuildStepStatus status, const std::string & errorMsg = "",
+        const std::string & machine, BuildStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
 
     int createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,

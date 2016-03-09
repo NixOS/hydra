@@ -202,7 +202,7 @@ void State::clearBusy(Connection & conn, time_t stopTime)
     pqxx::work txn(conn);
     txn.parameterized
         ("update BuildSteps set busy = 0, status = $1, stopTime = $2 where busy = 1")
-        ((int) bssAborted)
+        ((int) bsAborted)
         (stopTime, stopTime != 0).exec();
     txn.commit();
 }
@@ -220,7 +220,7 @@ int State::allocBuildStep(pqxx::work & txn, Build::ptr build)
 
 
 int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
-    const std::string & machine, BuildStepStatus status, const std::string & errorMsg, BuildID propagatedFrom)
+    const std::string & machine, BuildStatus status, const std::string & errorMsg, BuildID propagatedFrom)
 {
     int stepNr = allocBuildStep(txn, build);
 
@@ -230,13 +230,13 @@ int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build,
         (stepNr)
         (0) // == build
         (step->drvPath)
-        (status == bssBusy ? 1 : 0)
+        (status == bsBusy ? 1 : 0)
         (startTime, startTime != 0)
         (step->drv.platform)
-        ((int) status, status != bssBusy)
+        ((int) status, status != bsBusy)
         (propagatedFrom, propagatedFrom != 0)
         (errorMsg, errorMsg != "")
-        (startTime, startTime != 0 && status != bssBusy)
+        (startTime, startTime != 0 && status != bsBusy)
         (machine).exec();
 
     for (auto & output : step->drv.outputs)
@@ -249,7 +249,7 @@ int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build,
 
 
 void State::finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime, unsigned int overhead,
-    BuildID buildId, int stepNr, const std::string & machine, BuildStepStatus status,
+    BuildID buildId, int stepNr, const std::string & machine, BuildStatus status,
     const std::string & errorMsg, BuildID propagatedFrom)
 {
     assert(startTime);

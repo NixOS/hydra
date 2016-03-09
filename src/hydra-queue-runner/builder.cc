@@ -116,7 +116,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         {
             auto mc = startDbUpdate();
             pqxx::work txn(*conn);
-            stepNr = createBuildStep(txn, result.startTime, build, step, machine->sshName, bssBusy);
+            stepNr = createBuildStep(txn, result.startTime, build, step, machine->sshName, bsBusy);
             txn.commit();
         }
 
@@ -171,7 +171,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
             auto mc = startDbUpdate();
             pqxx::work txn(*conn);
             finishBuildStep(txn, result.startTime, result.stopTime, result.overhead, build->id,
-                stepNr, machine->sshName, bssAborted, result.errorMsg);
+                stepNr, machine->sshName, bsAborted, result.errorMsg);
             txn.commit();
             if (quit) exit(1);
             return sRetry;
@@ -222,7 +222,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                 pqxx::work txn(*conn);
 
                 finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
-                    build->id, stepNr, machine->sshName, bssSuccess);
+                    build->id, stepNr, machine->sshName, bsSuccess);
 
                 for (auto & b : direct)
                     markSucceededBuild(txn, b, res, build != b || result.status != BuildResult::Built,
@@ -314,11 +314,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                     result.status == BuildResult::LogLimitExceeded ? bsLogLimitExceeded :
                     result.canRetry() ? bsAborted :
                     bsFailed;
-                BuildStepStatus buildStepStatus =
-                    result.status == BuildResult::TimedOut ? bssTimedOut :
-                    result.status == BuildResult::LogLimitExceeded ? bssLogLimitExceeded :
-                    result.canRetry() ? bssAborted :
-                    bssFailed;
 
                 /* For standard failures, we don't care about the error
                    message. */
@@ -340,12 +335,12 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                         build2->finishedInDB)
                         continue;
                     createBuildStep(txn, 0, build2, step, machine->sshName,
-                        buildStepStatus, result.errorMsg, build == build2 ? 0 : build->id);
+                        buildStatus, result.errorMsg, build == build2 ? 0 : build->id);
                 }
 
                 if (!cachedFailure)
                     finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
-                        build->id, stepNr, machine->sshName, buildStepStatus, result.errorMsg);
+                        build->id, stepNr, machine->sshName, buildStatus, result.errorMsg);
 
                 /* Mark all builds that depend on this derivation as failed. */
                 for (auto & build2 : indirect) {

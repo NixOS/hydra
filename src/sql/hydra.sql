@@ -180,15 +180,16 @@ create table Builds (
     -- Information about finished builds.
     isCachedBuild integer, -- boolean
 
-    -- Status codes:
+    -- Status codes used for builds and steps:
     --   0 = succeeded
-    --   1 = build of this derivation failed
-    --   2 = build of some dependency failed
-    --   3 = other failure
-    --   4 = build cancelled (removed from queue; never built)
-    --   5 = build not done because a dependency failed previously (obsolete)
-    --   6 = failure with output
-    --   7 = timed out
+    --   1 = regular Nix failure (derivation returned non-zero exit code)
+    --   2 = build of a dependency failed [builds only]
+    --   3 = build or step aborted due to misc failure
+    --   4 = build cancelled (removed from queue; never built) [builds only]
+    --   5 = [obsolete]
+    --   6 = failure with output (i.e. $out/nix-support/failed exists) [builds only]
+    --   7 = build timed out
+    --   8 = cached failure [steps only; builds use isCachedBuild]
     --   9 = unsupported system type
     --  10 = log limit exceeded
     buildStatus   integer,
@@ -253,15 +254,7 @@ create table BuildSteps (
 
     busy          integer not null,
 
-    -- Status codes:
-    --   0 = succeeded
-    --   1 = failed normally
-    --   4 = aborted
-    --   7 = timed out
-    --   8 = cached failure
-    --   9 = unsupported system type
-    --  10 = log limit exceeded
-    status        integer,
+    status        integer, -- see Builds.buildStatus
 
     errorMsg      text,
 

@@ -195,7 +195,7 @@ BLOCK renderBuildStatusIcon;
       <img src="[% c.uri_for("/static/images/checkmark_${size}.png") %]" alt="Succeeded" class="build-status" />
     [% ELSIF buildstatus == 1 %]
       <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
-    [% ELSIF buildstatus == 2 || buildstatus == 5 %]
+    [% ELSIF buildstatus == 2 %]
       <img src="[% c.uri_for("/static/images/dependency_${size}.png") %]" alt="Dependency failed" class="build-status" />
     [% ELSIF buildstatus == 3 || buildstatus == 9 %]
       <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Aborted" class="build-status" />
@@ -224,7 +224,7 @@ BLOCK renderStatus;
       <strong>Success</strong>
     [% ELSIF buildstatus == 1 %]
       <span class="error">Build returned a non-zero exit code</span>
-    [% ELSIF buildstatus == 2 || buildstatus == 5 %]
+    [% ELSIF buildstatus == 2 %]
       <span class="error">A dependency of the build failed</span>
     [% ELSIF buildstatus == 4 %]
       <span class="error">Cancelled by user</span>

@@ -205,7 +205,7 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
                         }
                     }
 
-                    createBuildStep(txn, 0, build, r, "", bssCachedFailure, "", propagatedFrom);
+                    createBuildStep(txn, 0, build, r, "", bsCachedFailure, "", propagatedFrom);
                     txn.parameterized
                         ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = 1 where id = $1 and finished = 0")
                         (build->id)

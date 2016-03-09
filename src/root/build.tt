@@ -55,7 +55,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
                 <strong>Building</strong>
               [% ELSIF step.status == 0 %]
                 Succeeded
-              [% ELSIF step.status == 4 %]
+              [% ELSIF step.status == 3 %]
                 <span class="error"><strong>Aborted</strong>[% IF step.errormsg %]: [% HTML.escape(step.errormsg); END %]</span>
               [% ELSIF step.status == 7 %]
                 <span class="error">Timed out</span>
