@@ -17,7 +17,7 @@ using namespace nix;
 
 
 State::State()
-    : memoryTokens(4ULL << 30) // FIXME: make this configurable
+    : memoryTokens(6ULL << 30) // FIXME: make this configurable
 {
     hydraData = getEnv("HYDRA_DATA");
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
