@@ -19,7 +19,7 @@
     <tdata>
       [% FOREACH j IN queued %]
         <tr>
-          <td>[% INCLUDE renderFullJobsetName project=j.project jobset=j.jobset %]</td>
+          <td>[% INCLUDE renderFullJobsetName project=j.project jobset=j.jobset inRow=1 %]</td>
           <td>[% HTML.escape(j.queued) %]</td>
           <td>[% INCLUDE renderRelativeDate timestamp=j.oldest %]</td>
           <td>[% INCLUDE renderRelativeDate timestamp=j.newest %]</td>
