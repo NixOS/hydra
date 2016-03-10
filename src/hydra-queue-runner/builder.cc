@@ -127,6 +127,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         } catch (Error & e) {
             result.stepStatus = bsAborted;
             result.errorMsg = e.msg();
+            result.canRetry = true;
         }
 
         if (result.stepStatus == bsSuccess)
