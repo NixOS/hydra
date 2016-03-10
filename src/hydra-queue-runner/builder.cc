@@ -172,7 +172,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
             auto mc = startDbUpdate();
             pqxx::work txn(*conn);
             finishBuildStep(txn, result.startTime, result.stopTime, result.overhead, build->id,
-                stepNr, machine->sshName, bsAborted, result.errorMsg);
+                stepNr, machine->sshName, result.stepStatus, result.errorMsg);
             txn.commit();
             if (quit) exit(1);
             return sRetry;
