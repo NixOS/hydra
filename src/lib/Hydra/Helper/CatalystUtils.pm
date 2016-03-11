@@ -264,7 +264,7 @@ Readonly our $inputNameRE   => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 
 sub parseJobsetName {
     my ($s) = @_;
-    $s =~ /^($projectNameRE):($jobsetNameRE)$/ or die "invalid jobset specifier ‘$s’\n";
+    $s =~ /^($projectNameRE):(\.?$jobsetNameRE)$/ or die "invalid jobset specifier ‘$s’\n";
     return ($1, $2);
 }
 

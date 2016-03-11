@@ -53,6 +53,25 @@
       </div>
     </div>
 
+    <div class="control-group">
+      <label class="control-label">Declarative spec file</label>
+      <div class="controls">
+        <div class="input-append">
+          <input type="text" class="span3" name="declfile" [% HTML.attributes(value => project.declfile) %]/>
+        </div>
+        <span class="help-inline">(Leave blank for non-declarative project configuration)</span>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label class="control-label">Declarative input type</label>
+      <div class="controls">
+        [% INCLUDE renderSelection param="decltype" options=inputTypes edit=1 curValue=project.decltype %]
+        value
+        <input style="width: 70%" type="text" [% HTML.attributes(value => project.declvalue, name => "declvalue") %]/>
+      </div>
+    </div>
+
     <div class="form-actions">
       <button id="submit-project" type="submit" class="btn btn-primary">
         <i class="icon-ok icon-white"></i>

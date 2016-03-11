@@ -30,6 +30,9 @@ create table Projects (
     hidden        integer not null default 0,
     owner         text not null,
     homepage      text, -- URL for the project
+    declfile      text, -- File containing declarative jobset specification
+    decltype      text, -- Type of the input containing declarative jobset specification
+    declvalue     text, -- Value of the input containing declarative jobset specification
     foreign key   (owner) references Users(userName) on update cascade
 );
 

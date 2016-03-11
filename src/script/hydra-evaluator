@@ -14,6 +14,8 @@ use Data::Dump qw(dump);
 use Try::Tiny;
 use Net::Statsd;
 use Time::HiRes qw(clock_gettime CLOCK_REALTIME);
+use JSON;
+use File::Slurp;
 
 STDOUT->autoflush();
 STDERR->autoflush(1);
@@ -100,6 +102,23 @@ sub permute {
 sub checkJobsetWrapped {
     my ($jobset) = @_;
     my $project = $jobset->project;
+    my $jobsetsJobset = length($project->declfile) && $jobset->name eq ".jobsets";
+    if ($jobsetsJobset) {
+        my @declInputs = fetchInput($plugins, $db, $project, $jobset, "decl", $project->decltype, $project->declvalue, 0);
+        my $declInput = @declInputs[0] or die "cannot find the input containing the declarative project specification\n";
+        die "multiple alternatives for the input containing the declarative project specificaiton are not supported\n"
+            if scalar @declInputs != 1;
+        my $declFile = $declInput->{storePath} . "/" . $project->declfile;
+        my $declText = read_file($declFile)
+            or die "Couldn't read declarative specification file $declFile: $!\n";
+        my $declSpec;
+        eval {
+            $declSpec = decode_json($declText);
+        };
+        die "Declarative specification file $declFile not valid JSON: $@\n" if $@;
+        updateDeclarativeJobset($db, $project, ".jobsets", $declSpec);
+        $jobset->discard_changes;
+    }
     my $inputInfo = {};
     my $exprType = $jobset->nixexprpath =~ /.scm$/ ? "guile" : "nix";
 
@@ -143,6 +162,11 @@ sub checkJobsetWrapped {
     my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
     my $evalStop = clock_gettime(CLOCK_REALTIME);
 
+    if ($jobsetsJobset) {
+        my @keys = keys %$jobs;
+        die "The .jobsets jobset must only have a single job named 'jobsets'"
+            unless (scalar @keys) == 1 && $keys[0] eq "jobsets";
+    }
     Net::Statsd::timing("hydra.evaluator.eval_time", int(($evalStop - $evalStart) * 1000));
 
     if ($dryRun) {
