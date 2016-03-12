@@ -318,7 +318,16 @@ private:
        killed before it has finished sending notifications about a
        build, then the notifications may be lost. It would be better
        to mark builds with pending notification in the database. */
-    typedef std::pair<BuildID, std::vector<BuildID>> NotificationItem;
+    struct NotificationItem
+    {
+        enum class Type : char {
+           Started,
+           Finished
+        };
+        Type type;
+        BuildID id;
+        std::vector<BuildID> dependentIds;
+    };
     nix::Sync<std::queue<NotificationItem>> notificationSenderQueue;
     std::condition_variable notificationSenderWakeup;
 

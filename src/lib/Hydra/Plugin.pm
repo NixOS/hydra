@@ -20,6 +20,11 @@ sub instantiate {
     return @$plugins;
 }
 
+# Called when build $build has started.
+sub buildStarted {
+    my ($self, $build) = @_;
+}
+
 # Called when build $build has finished.  If the build failed, then
 # $dependents is an array ref to a list of builds that have also
 # failed as a result (i.e. because they depend on $build or a failed

@@ -15,12 +15,12 @@ my $db = Hydra::Model::DB->new();
 
 my @plugins = Hydra::Plugin->instantiate(db => $db, config => $config);
 
-my $cmd = shift @ARGV or die "Syntax: hydra-notify build BUILD-ID [BUILD-IDs...]\n";
+my $cmd = shift @ARGV or die "Syntax: hydra-notify CMD BUILD-ID [BUILD-IDs...]\n";
 
-if ($cmd eq "build") {
-    my $buildId = shift @ARGV or die;
-    my $build = $db->resultset('Builds')->find($buildId)
-        or die "build $buildId does not exist\n";
+my $buildId = shift @ARGV or die;
+my $build = $db->resultset('Builds')->find($buildId)
+    or die "build $buildId does not exist\n";
+if ($cmd eq "build-finished") {
     my @dependents;
     foreach my $id (@ARGV) {
         my $dep = $db->resultset('Builds')->find($id)
@@ -28,6 +28,8 @@ if ($cmd eq "build") {
         push @dependents, $dep;
     }
     notifyBuildFinished(\@plugins, $build, [@dependents]);
+} elsif ($cmd eq "build-started") {
+    notifyBuildStarted(\@plugins, $build);
 }
 
 else {

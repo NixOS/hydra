@@ -84,9 +84,16 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
             return sMaybeCancelled;
         }
 
-        for (auto build2 : dependents)
-            if (build2->drvPath == step->drvPath) { build = build2; break; }
-
+        for (auto build2 : dependents) {
+            if (build2->drvPath == step->drvPath) {
+              build = build2;
+              {
+                  auto notificationSenderQueue_(notificationSenderQueue.lock());
+                  notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::Started, build->id});
+              }
+              notificationSenderWakeup.notify_one();
+            }
+        }
         if (!build) build = *dependents.begin();
 
         printMsg(lvlInfo, format("performing step ‘%1%’ on ‘%2%’ (needed by build %3% and %4% others)")
@@ -249,7 +256,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         for (auto id : buildIDs) {
             {
                 auto notificationSenderQueue_(notificationSenderQueue.lock());
-                notificationSenderQueue_->push(NotificationItem(id, std::vector<BuildID>()));
+                notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::Finished, id});
             }
             notificationSenderWakeup.notify_one();
         }
@@ -369,7 +376,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         /* Send notification about this build and its dependents. */
         {
             auto notificationSenderQueue_(notificationSenderQueue.lock());
-            notificationSenderQueue_->push(NotificationItem(build->id, dependentIDs));
+            notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::Finished, build->id, dependentIDs});
         }
         notificationSenderWakeup.notify_one();
 
