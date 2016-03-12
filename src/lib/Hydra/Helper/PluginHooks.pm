@@ -15,7 +15,7 @@ sub notifyBuildStarted {
             $plugin->buildStarted($build);
         };
         if ($@) {
-            print STDERR "$plugin->buildStarted: $@\n":
+            print STDERR "$plugin->buildStarted: $@\n";
         }
     }
 }
