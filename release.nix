@@ -155,7 +155,7 @@ rec {
 
       buildInputs =
         [ makeWrapper libtool unzip nukeReferences pkgconfig sqlite libpqxx
-          gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2
+          gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 pbzip2
           guile # optional, for Guile + Guix support
           perlDeps perl
           postgresql92 # for running the tests
@@ -167,7 +167,7 @@ rec {
 
       hydraPath = lib.makeSearchPath "bin" (
         [ libxslt sqlite subversion openssh nix coreutils findutils
-          gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
+          gzip bzip2 pbzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
         ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
       preCheck = ''
