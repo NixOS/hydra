@@ -44,7 +44,7 @@ rec {
       version = builtins.readFile ./version;
 
       buildInputs =
-        [ perl libxslt dblatex tetex nukeReferences pkgconfig nixUnstable git openssl ];
+        [ perl libxslt nukeReferences pkgconfig nixUnstable git openssl ];
 
       versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
 
@@ -154,7 +154,7 @@ rec {
       src = tarball;
 
       buildInputs =
-        [ makeWrapper libtool unzip nukeReferences pkgconfig sqlite
+        [ makeWrapper libtool unzip nukeReferences pkgconfig sqlite libpqxx
           gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 pbzip2
           guile # optional, for Guile + Guix support
           perlDeps perl
@@ -167,7 +167,7 @@ rec {
 
       hydraPath = lib.makeSearchPath "bin" (
         [ libxslt sqlite subversion openssh nix coreutils findutils
-          gzip bzip2 pbzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused graphviz bazaar
+          gzip bzip2 pbzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
         ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
       preCheck = ''
