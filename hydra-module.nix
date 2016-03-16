@@ -191,6 +191,7 @@ in
         base_uri ${cfg.hydraURL}
         notification_sender ${cfg.notificationSender}
         max_servers 25
+        compress_num_threads 1
         ${optionalString (cfg.logo != null) ''
           hydra_logo ${cfg.logo}
         ''}
@@ -200,6 +201,13 @@ in
     environment.systemPackages = [ cfg.package ];
 
     environment.variables = hydraEnv;
+
+    users.extraUsers.hydra =
+      { description = "Hydra";
+        home = baseDir;
+        createHome = true;
+        useDefaultShell = true;
+      };
 
     nix.extraOptions = ''
       gc-keep-outputs = true
