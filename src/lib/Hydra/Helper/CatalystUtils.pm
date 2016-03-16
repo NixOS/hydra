@@ -26,6 +26,7 @@ our @EXPORT = qw(
     setCacheHeaders
     approxTableSize
     requireLocalStore
+    dbh
 );
 
 
@@ -348,6 +349,12 @@ sub requireLocalStore {
     my ($c) = @_;
     notFound($c, "Nix channels are not supported by this Hydra server.")
         if ($c->config->{store_mode} // "direct") ne "direct";
+}
+
+
+sub dbh {
+    my ($c) = @_;
+    return $c->model('DB')->schema->storage->dbh;
 }
 
 
