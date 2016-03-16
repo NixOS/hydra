@@ -18,7 +18,7 @@
     <thead>
       <tr>
         <th colspan="6">
-          <tt [% IF m.value.disabled %]style="text-decoration: line-through;"[% END %]>[% name %]</tt>
+          <tt [% IF m.value.disabled %]style="text-decoration: line-through;"[% END %]>[% INCLUDE renderMachineName machine=m.key %]</tt>
           [% IF m.value.systemTypes %]
             <span class="muted" style="font-weight: normal;">
               ([% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system %]</tt>[% END %])
