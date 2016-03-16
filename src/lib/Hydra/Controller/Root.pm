@@ -45,9 +45,8 @@ sub begin :Private {
     }
 
     if (scalar(@args) == 0 || $args[0] ne "static") {
-        $c->stash->{nrRunningBuilds} = $c->model('DB::Builds')->search(
-            { finished => 0, 'buildsteps.busy' => 1 },
-            { join => 'buildsteps', select => ["id"], distinct => 1 })->count();
+        $c->stash->{nrRunningBuilds} = $c->model('DB')->schema->storage->dbh->selectrow_array(
+            "select count(distinct build) from buildsteps where busy = 1");
         $c->stash->{nrQueuedBuilds} = $c->model('DB::Builds')->search({ finished => 0 })->count();
     }
 
