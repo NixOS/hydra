@@ -110,7 +110,7 @@ rec {
     in
 
     releaseTools.nixBuild {
-      name = "hydra";
+      name = "hydra-${version}";
 
       src = if shell then null else hydraSrc;
 
