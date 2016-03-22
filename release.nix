@@ -158,6 +158,8 @@ rec {
         mkdir -p $out/nix-support
 
         for i in $out/bin/*; do
+            read -n 4 chars < $i
+            if [[ $chars =~ ELF ]]; then continue; fi
             wrapProgram $i \
                 --prefix PERL5LIB ':' $out/libexec/hydra/lib:$PERL5LIB \
                 --prefix PATH ':' $out/bin:$hydraPath \
@@ -167,7 +169,7 @@ rec {
         done
       ''; # */
 
-      separateDebugInfo = true;
+      dontStrip = true;
 
       meta.description = "Build of Hydra on ${system}";
       passthru.perlDeps = perlDeps;
