@@ -109,6 +109,10 @@ sub queue_summary :Local :Path('queue-summary') :Args(0) {
         "select project, jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from Builds " .
         "where finished = 0 group by project, jobset order by queued desc",
         { Slice => {} });
+
+    $c->stash->{systems} = dbh($c)->selectall_arrayref(
+        "select system, count(*) as c from Builds where finished = 0 group by system order by c desc",
+        { Slice => {} });
 }
 
 
