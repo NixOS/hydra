@@ -595,6 +595,11 @@ void State::dumpStatus(Connection & conn, bool log)
                     nested2.attr("avgStepTime", (float) s->totalStepTime / s->nrStepsDone);
                     nested2.attr("avgStepBuildTime", (float) s->totalStepBuildTime / s->nrStepsDone);
                 }
+
+                auto info(m->state->connectInfo.lock());
+                nested2.attr("disabledUntil", std::chrono::system_clock::to_time_t(info->disabledUntil));
+                nested2.attr("lastFailure", std::chrono::system_clock::to_time_t(info->lastFailure));
+                nested2.attr("consecutiveFailures", info->consecutiveFailures);
             }
         }
 
