@@ -1,5 +1,6 @@
 { hydraSrc ? { outPath = ./.; revCount = 1234; rev = "abcdef"; }
 , officialRelease ? false
+, shell ? false
 }:
 
 with import <nixpkgs/lib>;
@@ -111,7 +112,7 @@ rec {
     releaseTools.nixBuild {
       name = "hydra";
 
-      src = if lib.inNixShell then null else hydraSrc;
+      src = if shell then null else hydraSrc;
 
       buildInputs =
         [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig sqlite libpqxx
@@ -130,11 +131,9 @@ rec {
           gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
         ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
-      postUnpack = ''
+      postUnpack = optionalString (!shell) ''
         # Clean up when building from a working tree.
-        if [ -z "$IN_NIX_SHELL" ]; then
-          (cd $sourceRoot && (git ls-files -o --directory | xargs -r rm -rfv)) || true
-        fi
+        (cd $sourceRoot && (git ls-files -o --directory | xargs -r rm -rfv)) || true
       '';
 
       configureFlags = [ "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook" ];
