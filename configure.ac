@@ -12,9 +12,6 @@ AC_PROG_CXX
 
 CXXFLAGS+=" -std=c++11"
 
-dnl Optional dependencies to build the manual, normally not needed
-dnl since the tarball comes with the PDF and HTML manuals.
-AC_PATH_PROG([DBLATEX], [dblatex])
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 
 AC_ARG_WITH([docbook-xsl],

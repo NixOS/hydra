@@ -9,44 +9,21 @@ xsltproc_opts =					\
  --param section.label.includes.component.label 1
 
 
-dblatex_opts = \
- -V \
- -P doc.collab.show=0 \
- -P latex.output.revhistory=0
-
 # Include the manual in the tarball.
 dist_html_DATA = manual.html style.css
-#dist_pdf_DATA = manual.pdf
 
 # Embed Docbook's callout images in the distribution.
 EXTRA_DIST += images
 
 manual.html: $(DOCBOOK_FILES)
-	if test "$(XSLTPROC)" != ""; then				\
-		$(XSLTPROC) $(xsltproc_opts) --nonet --xinclude		\
-	           --output manual.html					\
-	 	   $(docbookxsl)/html/docbook.xsl manual.xml;		\
-	else								\
-		echo "Please install xsltproc and rerun configure.";	\
-		exit 1;							\
-	fi
-
-manual.pdf: $(DOCBOOK_FILES)
-	if test "$(DBLATEX)" != ""; then \
-	        $(DBLATEX) $(dblatex_opts) manual.xml; \
-	else \
-	        echo "Please install dblatex and rerun configure."; \
-	        exit 1; \
-	fi
+	$(XSLTPROC) $(xsltproc_opts) --nonet --xinclude		\
+	  --output manual.html					\
+	  $(docbookxsl)/xhtml/docbook.xsl manual.xml
 
 images:
 	$(MKDIR_P) images/callouts
-	if cp $(docbookxsl)/images/callouts/*.gif images/callouts; then	\
-		chmod +wx images images/callouts;			\
-	else								\
-		echo "Please install Docbook XSL and try again.";	\
-		exit 1;							\
-	fi
+	cp $(docbookxsl)/images/callouts/*.gif images/callouts
+	chmod +wx images images/callouts
 
 install-data-hook: images
 	$(INSTALL) -d $(DESTDIR)$(htmldir)/images/callouts

@@ -1,4 +1,4 @@
-{ hydraSrc ? { outPath = ./.; revCount = 1234; gitTag = "abcdef"; }
+{ hydraSrc ? { outPath = ./.; revCount = 1234; rev = "abcdef"; }
 , officialRelease ? false
 }:
 
@@ -28,54 +28,13 @@ let
       environment.systemPackages = [ pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
     };
 
+  version = builtins.readFile ./version + "." + toString hydraSrc.revCount + "." + hydraSrc.rev;
+
 in
 
 assert versionAtLeast (getVersion pkgs.nixUnstable) "1.11pre4244_133a421";
 
 rec {
-
-  tarball =
-    with pkgs;
-
-    releaseTools.makeSourceTarball {
-      name = "hydra-tarball";
-      src = if lib.inNixShell then null else hydraSrc;
-      inherit officialRelease;
-      version = builtins.readFile ./version;
-
-      buildInputs =
-        [ perl libxslt nukeReferences pkgconfig nixUnstable git openssl ];
-
-      versionSuffix = if officialRelease then "" else "pre${toString hydraSrc.revCount}-${hydraSrc.gitTag}";
-
-      preHook = ''
-        # TeX needs a writable font cache.
-        export VARTEXFONTS=$TMPDIR/texfonts
-
-        addToSearchPath PATH $(pwd)/src/script
-        addToSearchPath PATH $(pwd)/src/hydra-eval-jobs
-        addToSearchPath PATH $(pwd)/src/hydra-queue-runner
-        addToSearchPath PERL5LIB $(pwd)/src/lib
-      '';
-
-      postUnpack = ''
-        # Clean up when building from a working tree.
-        if [ -z "$IN_NIX_SHELL" ]; then
-          (cd $sourceRoot && (git ls-files -o --directory | xargs -r rm -rfv)) || true
-        fi
-      '';
-
-      configureFlags =
-        [ "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook" ];
-
-      postDist = ''
-        make -C doc/manual install prefix="$out"
-
-        echo "doc manual $out/share/doc/hydra manual.html" >> \
-          "$out/nix-support/hydra-build-products"
-      '';
-    };
-
 
   build = genAttrs' (system:
 
@@ -143,7 +102,7 @@ rec {
             TextDiff
             TextTable
             XMLSimple
-            nix git
+            nix git boehmgc
           ];
       };
 
@@ -151,11 +110,12 @@ rec {
 
     releaseTools.nixBuild {
       name = "hydra";
-      src = tarball;
+
+      src = if lib.inNixShell then null else hydraSrc;
 
       buildInputs =
-        [ makeWrapper libtool unzip nukeReferences pkgconfig sqlite libpqxx
-          gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2
+        [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig sqlite libpqxx
+          gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
           guile # optional, for Guile + Guix support
           perlDeps perl
           postgresql92 # for running the tests
@@ -170,6 +130,19 @@ rec {
           gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
         ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
+      postUnpack = ''
+        # Clean up when building from a working tree.
+        if [ -z "$IN_NIX_SHELL" ]; then
+          (cd $sourceRoot && (git ls-files -o --directory | xargs -r rm -rfv)) || true
+        fi
+      '';
+
+      configureFlags = [ "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook" ];
+
+      preConfigure = "autoreconf -vfi";
+
+      enableParallelBuilding = true;
+
       preCheck = ''
         patchShebangs .
         export LOGNAME=${LOGNAME:-foo}
@@ -182,7 +155,7 @@ rec {
             wrapProgram $i \
                 --prefix PERL5LIB ':' $out/libexec/hydra/lib:$PERL5LIB \
                 --prefix PATH ':' $out/bin:$hydraPath \
-                --set HYDRA_RELEASE ${tarball.version} \
+                --set HYDRA_RELEASE ${version} \
                 --set HYDRA_HOME $out/libexec/hydra \
                 --set NIX_RELEASE ${nix.name or "unknown"}
         done

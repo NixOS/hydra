@@ -22,7 +22,7 @@ $ nix-build release.nix -A build.x86_64-linux
 environment variables (such as <envar>PERL5LIB</envar>) are set up so
 that those dependencies can be found:
 <screen>
-$ ./dev-shell
+$ nix-shell
 </screen>
 To build Hydra, you should then do:
 <screen>
