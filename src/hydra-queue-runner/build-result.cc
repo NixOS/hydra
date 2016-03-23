@@ -38,6 +38,10 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
         , true);
 
     for (auto & output : outputs) {
+        if (accessor->stat(output).type != FSAccessor::Type::tDirectory) continue;
+        Path nixSupportDir = output + "/nix-support";
+        if (accessor->stat(nixSupportDir).type == FSAccessor::Type::tMissing) continue;
+
         Path failedFile = output + "/nix-support/failed";
         if (accessor->stat(failedFile).type == FSAccessor::Type::tRegular)
             res.failed = true;
@@ -104,6 +108,9 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
 
     /* Get the release name from $output/nix-support/hydra-release-name. */
     for (auto & output : outputs) {
+        if (accessor->stat(output).type != FSAccessor::Type::tDirectory) continue;
+        Path nixSupportDir = output + "/nix-support";
+        if (accessor->stat(nixSupportDir).type == FSAccessor::Type::tMissing) continue;
         Path p = output + "/nix-support/hydra-release-name";
         if (accessor->stat(p).type != FSAccessor::Type::tRegular) continue;
         try {
@@ -114,6 +121,9 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
 
     /* Get metrics. */
     for (auto & output : outputs) {
+        if (accessor->stat(output).type != FSAccessor::Type::tDirectory) continue;
+        Path nixSupportDir = output + "/nix-support";
+        if (accessor->stat(nixSupportDir).type == FSAccessor::Type::tMissing) continue;
         Path metricsFile = output + "/nix-support/hydra-metrics";
         if (accessor->stat(metricsFile).type != FSAccessor::Type::tRegular) continue;
         for (auto & line : tokenizeString<Strings>(accessor->readFile(metricsFile), "\n")) {
