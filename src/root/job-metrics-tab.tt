@@ -16,7 +16,7 @@
 
   [% FOREACH metric IN metrics %]
 
-    <h3>Metric: <tt>[%HTML.escape(metric.name)%]</tt></h3>
+    <h3>Metric: <a [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job.name 'metric' metric.name)) %]><tt>[%HTML.escape(metric.name)%]</tt></a></h3>
 
     [% id = "metric-" _ metric.name;
        id = id.replace('\.', '_');
