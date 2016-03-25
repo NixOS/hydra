@@ -20,6 +20,7 @@ let
     { NIX_REMOTE = "daemon";
       SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt"; # Remove in 16.03
       PGPASSFILE = "${baseDir}/pgpass";
+      NIX_REMOTE_SYSTEMS = concatStringsSep ":" cfg.buildMachinesFiles;
     } // hydraEnv // cfg.extraEnv;
 
   serverEnv = env //
@@ -148,6 +149,13 @@ in
         type = types.path;
         default = "/nix/var/nix/gcroots/hydra";
         description = "Directory that holds Hydra garbage collector roots.";
+      };
+
+      buildMachinesFiles = mkOption {
+        type = types.list types.path;
+        default = [];
+        example = [ "/etc/nix/machines" "/var/lib/hydra/provisioner/machines" ];
+        description = "List of files containing build machines.";
       };
     };
 
@@ -311,6 +319,7 @@ in
           { ExecStart = "@${cfg.package}/bin/hydra-evaluator hydra-evaluator";
             User = "hydra";
             Restart = "always";
+            WorkingDirectory = baseDir;
           };
       };
 
