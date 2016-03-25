@@ -129,3 +129,13 @@ pre.taillog {
     max-height: 60em;
     overflow: hidden;
 }
+
+div.flot-tooltip {
+    display: none;
+    position: absolute;
+    border: 1px solid #fdd;
+    padding: 2px;
+    background-color: #fee;
+    opacity: 0.80;
+    z-index: 100;
+}

@@ -561,6 +561,7 @@ BLOCK includeFlot %]
   <script src="[% c.uri_for("/static/js/flot/jquery.flot.min.js") %]" type="text/javascript"></script>
   <script src="[% c.uri_for("/static/js/flot/jquery.flot.time.min.js") %]" type="text/javascript"></script>
   <script src="[% c.uri_for("/static/js/flot/jquery.flot.selection.min.js") %]" type="text/javascript"></script>
+  <div id="flot-tooltip" class="flot-tooltip"></div>
 [% END;
 
 

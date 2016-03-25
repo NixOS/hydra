@@ -229,6 +229,23 @@ function showChart(id, dataUrl, yaxis) {
           }
         });
 
+        $("#" + id + "-chart").bind("plothover", function (event, pos, item) {
+            if (item) {
+                var i = data[item.dataIndex];
+                var date = new Date(i.timestamp * 1000);
+                var s =
+                    "Build <em>" + i.id + "</em><br/>"
+                    + "on " + date.getFullYear() + "-" + (date.getMonth() + 1) + "-" + date.getDate() + ""
+                    + ":<br/><strong>" + i.value
+                    + (i.unit != null ? " " + i.unit : "") + "</strong>";
+                $("#flot-tooltip")
+                    .html(s)
+                    .css({top: item.pageY + 10, left: item.pageX + 10})
+                    .show();
+            } else
+                $("#flot-tooltip").hide();
+        });
+
         // Zoom in to the last two months by default.
         plot.setSelection({ xaxis: { from: Math.max(minTime, maxTime - 60 * 24 * 60 * 60 * 1000), to: maxTime } });
       }
