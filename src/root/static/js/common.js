@@ -152,3 +152,85 @@ function backToReferrer() {
     // page.
     window.location = document.referrer;
 }
+
+function showChart(id, dataUrl, yaxis) {
+    requestJSON({
+      url: dataUrl,
+      success: function(data) {
+        var d = [];
+        var maxTime = 0;
+        var minTime = Number.MAX_SAFE_INTEGER;
+        data.forEach(function(x) {
+          var t = x.timestamp * 1000;
+          d.push(
+              [t,
+               yaxis == "mib" ? x.value / (1024.0 * 1024.0) : x.value
+              ]);
+          maxTime = Math.max(t, maxTime);
+          minTime = Math.min(t, minTime);
+        });
+
+        var options = {
+          xaxis: { mode: "time" },
+          yaxis: { min: 0 },
+          selection: { mode: "x" },
+          points: { show: true },
+          lines: { show: true },
+          grid: {
+            clickable: true,
+            hoverable: true,
+            hoverFill: '#444',
+            hoverRadius: 4,
+          },
+        };
+
+        var plot = $.plot($("#" + id + "-chart"), [d], options);
+
+        var overview = $.plot($("#" + id + "-overview"), [d], {
+          series: {
+            lines: { show: true, lineWidth: 1 },
+            shadowSize: 0
+          },
+          xaxis: { ticks: [], mode: "time" },
+          yaxis: { ticks: [], min: 0, autoscaleMargin: 0.1 },
+          selection: { mode: "x" }
+        });
+
+        // now connect the two
+
+        $("#" + id + "-chart").bind("plotselected", function (event, ranges) {
+          var ymax = 0;
+          d.forEach(function(x) {
+            if (x[0] < ranges.xaxis.from) return;
+            if (x[0] > ranges.xaxis.to) return;
+            ymax = Math.max(x[1], ymax);
+          });
+
+          // do the zooming
+          plot = $.plot($("#" + id + "-chart"), [d],
+            $.extend(true, {}, options, {
+              xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to },
+              yaxis: { min: 0, max: ymax * 1.1 }
+            }));
+
+          // don't fire event on the overview to prevent eternal loop
+          overview.setSelection(ranges, true);
+        });
+
+        $("#" + id + "-overview").bind("plotselected", function (event, ranges) {
+          plot.setSelection(ranges);
+        });
+
+        $("#" + id + "-chart").bind("plotclick", function (e, pos, item) {
+          if (item) {
+            plot.highlight(item.series, item.datapoint);
+            buildid = data[item.dataIndex].id;
+            window.location = "/build/"+buildid;
+          }
+        });
+
+        // Zoom in to the last two months by default.
+        plot.setSelection({ xaxis: { from: Math.max(minTime, maxTime - 60 * 24 * 60 * 60 * 1000), to: maxTime } });
+      }
+    });
+}
