@@ -84,31 +84,7 @@ removed or had an evaluation error.</div>
 
   [% END %]
 
-  <div id="tabs-charts" class="tab-pane">
-
-    <h3>Build time (in seconds)</h3>
-
-    [% INCLUDE createChart id="build-times" yaxis="sec" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'build-times') %]
-
-    <h3>Closure size (in MiB)</h3>
-
-    [% INCLUDE createChart id="closure-size" yaxis="mib" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'closure-sizes') %]
-
-    <h3>Output size (in MiB)</h3>
-
-    [% INCLUDE createChart id="output-size" yaxis="mib" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'output-sizes') %]
-
-    [% FOREACH metric IN metrics %]
-
-      <h3>Metric: <tt>[%HTML.escape(metric.name)%]</tt></h3>
-
-      [% id = "metric-" _ metric.name;
-         id = id.replace('\.', '_');
-         INCLUDE createChart dataUrl=c.uri_for('/job' project.name jobset.name job.name 'metric' metric.name); %]
-
-    [% END %]
-
-  </div>
+  [% INCLUDE makeLazyTab tabName="tabs-charts" uri=c.uri_for('/job' project.name jobset.name job.name 'metrics-tab') %]
 
   <div id="tabs-links" class="tab-pane">
     <ul>

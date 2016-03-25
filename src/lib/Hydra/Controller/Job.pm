@@ -77,7 +77,13 @@ sub overview : Chained('job') PathPart('') Args(0) {
         , jobset => $c->stash->{jobset}->name
         , job => $c->stash->{job}->name
         })->count == 1 if $c->user_exists;
+}
 
+
+sub metrics_tab : Chained('job') PathPart('metrics-tab') Args(0) {
+    my ($self, $c) = @_;
+    my $job = $c->stash->{job};
+    $c->stash->{template} = 'job-metrics-tab.tt';
     $c->stash->{metrics} = [ $job->buildmetrics->search(
         { }, { select => ["name"], distinct => 1, order_by => "name",  }) ];
 }
