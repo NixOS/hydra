@@ -79,7 +79,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
         })->count == 1 if $c->user_exists;
 
     $c->stash->{metrics} = [ $job->buildmetrics->search(
-        { }, { select => ["name"], distinct => 1, order_by => "timestamp desc",  }) ];
+        { }, { select => ["name"], distinct => 1, order_by => "name",  }) ];
 }
 
 
