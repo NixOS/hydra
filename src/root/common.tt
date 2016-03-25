@@ -574,6 +574,8 @@ BLOCK createChart %]
       requestJSON({
         url: "[%dataUrl%]",
         success: function(data) {
+          var id = "[%id%]";
+
           var ids = [];
           var d = [];
           var maxTime = 0;
@@ -600,9 +602,9 @@ BLOCK createChart %]
             },
           };
 
-          var plot = $.plot($("#[%id%]-chart"), [d], options);
+          var plot = $.plot($("#" + id + "-chart"), [d], options);
 
-          var overview = $.plot($("#[%id%]-overview"), [d], {
+          var overview = $.plot($("#" + id + "-overview"), [d], {
             series: {
               lines: { show: true, lineWidth: 1 },
               shadowSize: 0
@@ -614,7 +616,7 @@ BLOCK createChart %]
 
           // now connect the two
 
-          $("#[%id%]-chart").bind("plotselected", function (event, ranges) {
+          $("#" + id + "-chart").bind("plotselected", function (event, ranges) {
             var ymax = 0;
             d.forEach(function(x) {
               if (x[0] < ranges.xaxis.from) return;
@@ -623,7 +625,7 @@ BLOCK createChart %]
             });
 
             // do the zooming
-            plot = $.plot($("#[%id%]-chart"), [d],
+            plot = $.plot($("#" + id + "-chart"), [d],
               $.extend(true, {}, options, {
                 xaxis: { min: ranges.xaxis.from, max: ranges.xaxis.to },
                 yaxis: { min: 0, max: ymax * 1.1 }
@@ -633,11 +635,11 @@ BLOCK createChart %]
             overview.setSelection(ranges, true);
           });
 
-          $("#[%id%]-overview").bind("plotselected", function (event, ranges) {
+          $("#" + id + "-overview").bind("plotselected", function (event, ranges) {
             plot.setSelection(ranges);
           });
 
-          $("#[%id%]-chart").bind("plotclick", function (e, pos, item) {
+          $("#" + id + "-chart").bind("plotclick", function (e, pos, item) {
             if (item) {
               plot.highlight(item.series, item.datapoint);
               buildid = data[item.dataIndex].id;

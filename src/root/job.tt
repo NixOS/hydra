@@ -102,7 +102,9 @@ removed or had an evaluation error.</div>
 
       <h3>Metric: <tt>[%HTML.escape(metric.name)%]</tt></h3>
 
-      [% INCLUDE createChart id="metric-${metric.name}" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'metric' metric.name) %]
+      [% id = "metric-" _ metric.name;
+         id = id.replace('\.', '_');
+         INCLUDE createChart dataUrl=c.uri_for('/job' project.name jobset.name job.name 'metric' metric.name); %]
 
     [% END %]
 
