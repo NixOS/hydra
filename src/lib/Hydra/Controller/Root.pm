@@ -67,6 +67,10 @@ sub begin :Private {
     unless (defined $c->stash->{params} and %{$c->stash->{params}}) {
         $c->stash->{params} = $c->request->params;
     }
+
+    # Set the Vary header to "Accept" to ensure that browsers don't
+    # mix up HTML and JSON responses.
+    $c->response->headers->header('Vary', 'Accept');
 }
 
 
