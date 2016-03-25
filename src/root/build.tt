@@ -395,13 +395,14 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
 
       <table class="table table-small table-striped table-hover clickable-rows">
         <thead>
-          <tr><th>Name</th><th>Value</th></tr>
+          <tr><th>Name</th><th>Value</th><th></th></tr>
         </thead>
         <tbody>
           [% FOREACH metric IN build.buildmetrics %]
             <tr>
               <td><tt><a class="row-link" href="[% c.uri_for('/job' project.name jobset.name job.name 'metric' metric.name) %]">[%HTML.escape(metric.name)%]</a></tt></td>
-              <td>[%metric.value%][%metric.unit%]</td>
+              <td style="text-align: right">[%metric.value%]</td>
+              <td>[%metric.unit%]</td>
             </tr>
           [% END %]
         </tbody>
