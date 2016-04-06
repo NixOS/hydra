@@ -292,7 +292,7 @@ in
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" "network.target" ];
-        path = [ cfg.package pkgs.nettools pkgs.ssmtp pkgs.openssh pkgs.bzip2 ];
+        path = [ cfg.package pkgs.nettools pkgs.ssmtp pkgs.openssh pkgs.bzip2 config.nix.package ];
         environment = env // {
           PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
           IN_SYSTEMD = "1"; # to get log severity levels
