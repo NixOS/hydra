@@ -199,7 +199,7 @@ hydra-server</screen>
       <itemizedlist>
         <listitem>
           The <emphasis>evaluator</emphasis> is responsible for
-          peridically evaluating job sets, checking out their
+          periodically evaluating job sets, checking out their
           dependencies off their version control systems (VCS), and
           queueing new builds if the result of the evaluation changed.
           It is launched by the <command>hydra-evaluator</command>
