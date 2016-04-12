@@ -103,6 +103,7 @@ sub checkJobsetWrapped {
     my ($jobset) = @_;
     my $project = $jobset->project;
     my $jobsetsJobset = length($project->declfile) && $jobset->name eq ".jobsets";
+    my $inputInfo = {};
     if ($jobsetsJobset) {
         my @declInputs = fetchInput($plugins, $db, $project, $jobset, "decl", $project->decltype, $project->declvalue, 0);
         my $declInput = @declInputs[0] or die "cannot find the input containing the declarative project specification\n";
@@ -118,8 +119,8 @@ sub checkJobsetWrapped {
         die "Declarative specification file $declFile not valid JSON: $@\n" if $@;
         updateDeclarativeJobset($db, $project, ".jobsets", $declSpec);
         $jobset->discard_changes;
+        $inputInfo->{"declInput"} = [ $declInput ];
     }
-    my $inputInfo = {};
     my $exprType = $jobset->nixexprpath =~ /.scm$/ ? "guile" : "nix";
 
     # Fetch all values for all inputs.
