@@ -29,16 +29,18 @@ sub common {
         my $jobName = showJobName $b;
         my $evals = $build->jobsetevals;
         my $ua = LWP::UserAgent->new();
-        my $body = encode_json(
-            {
-                state => $finished ? toGithubState($b->buildstatus) : "pending",
-                target_url => "$baseurl/build/" . $b->id,
-                description => "Hydra build #" . $b->id . " of $jobName",
-                context => "continuous-integration/hydra"
-            });
+
         foreach my $conf (@config) {
             next unless $jobName =~ /^$conf->{jobs}$/;
 
+            my $contextTrailer = $conf->{excludeBuildFromContext} ? "" : (":" . $b->id);
+            my $body = encode_json(
+                {
+                    state => $finished ? toGithubState($b->buildstatus) : "pending",
+                    target_url => "$baseurl/build/" . $b->id,
+                    description => "Hydra build #" . $b->id . " of $jobName",
+                    context => "continuous-integration/hydra:" . $jobName . $contextTrailer
+                });
             my $inputs_cfg = $conf->{inputs};
             my @inputs = defined $inputs_cfg ? ref $inputs_cfg eq "ARRAY" ? @$inputs_cfg : ($inputs_cfg) : ();
             my %seen = map { $_ => {} } @inputs;
