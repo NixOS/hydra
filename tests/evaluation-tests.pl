@@ -7,7 +7,7 @@ use Setup;
 
 my $db = Hydra::Model::DB->new;
 
-use Test::Simple tests => 72;
+use Test::Simple tests => 76;
 
 hydra_setup($db);
 
@@ -74,6 +74,13 @@ my @scminputs = (
         type => "git",
         uri => "$jobsBaseUri/git-repo",
         update => getcwd . "/jobs/git-update.sh"
+    },
+    {
+        name => "git-rev",
+        nixexpr => "git-rev-input.nix",
+        type => "git",
+        uri => "$jobsBaseUri/git-repo 7f60df502b96fd54bbfa64dd94b56d936a407701",
+        update => getcwd . "/jobs/git-rev-update.sh"
     },
     {
         name => "deepgit",
