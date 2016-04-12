@@ -23,7 +23,6 @@ case $state in
     touch foo
     git add foo
     GIT_AUTHOR_DATE="1970-01-01T00:00:00 +0000" GIT_COMMITTER_DATE="1970-01-01T00:00:00 +0000" git commit -m "Add foo"
-    git tag -a -m "First Tag." tag0
     ;;
     (*) echo "::End. -- stop -- nothing::"
     rm -rf $repo
