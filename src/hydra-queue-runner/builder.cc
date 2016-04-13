@@ -225,9 +225,11 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                 finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
                     build->id, stepNr, machine->sshName, bsSuccess);
 
-                for (auto & b : direct)
+                for (auto & b : direct) {
+                    printMsg(lvlInfo, format("marking build %1% as succeeded") % b->id);
                     markSucceededBuild(txn, b, res, build != b || result.isCached,
                         result.startTime, result.stopTime);
+                }
 
                 txn.commit();
             }

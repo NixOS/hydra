@@ -165,6 +165,7 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
             auto mc = startDbUpdate();
             pqxx::work txn(conn);
             time_t now = time(0);
+            printMsg(lvlInfo, format("marking build %1% as succeeded (cached)") % build->id);
             markSucceededBuild(txn, build, res, true, now, now);
             txn.commit();
             }

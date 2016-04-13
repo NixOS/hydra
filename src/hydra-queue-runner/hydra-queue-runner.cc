@@ -353,8 +353,6 @@ void visitDependencies(std::function<void(Step::ptr)> visitor, Step::ptr start)
 void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
     const BuildOutput & res, bool isCachedBuild, time_t startTime, time_t stopTime)
 {
-    printMsg(lvlInfo, format("marking build %1% as succeeded") % build->id);
-
     if (build->finishedInDB) return;
 
     if (txn.parameterized("select 1 from Builds where id = $1 and finished = 0")(build->id).exec().empty()) return;
