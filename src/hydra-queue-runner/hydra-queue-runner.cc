@@ -825,6 +825,39 @@ void State::run(BuildID buildOne)
     /* Idem for notification sending. */
     std::thread(&State::notificationSender, this).detach();
 
+    /* Periodically clean up orphaned busy steps in the database. */
+    std::thread([&]() {
+        while (true) {
+            sleep(180);
+
+            std::set<std::pair<BuildID, int>> steps;
+            {
+                auto orphanedSteps_(orphanedSteps.lock());
+                if (orphanedSteps_->empty()) continue;
+                steps = *orphanedSteps_;
+                orphanedSteps_->clear();
+            }
+
+            try {
+                auto conn(dbPool.get());
+                pqxx::work txn(*conn);
+                for (auto & step : steps) {
+                    printMsg(lvlError, format("cleaning orphaned step %d of build %d") % step.second % step.first);
+                    txn.parameterized
+                        ("update BuildSteps set busy = 0, status = $1 where build = $2 and stepnr = $3 and busy = 1")
+                        ((int) bsAborted)
+                        (step.first)
+                        (step.second).exec();
+                }
+                txn.commit();
+            } catch (std::exception & e) {
+                printMsg(lvlError, format("cleanup thread: %1%") % e.what());
+                auto orphanedSteps_(orphanedSteps.lock());
+                orphanedSteps_->insert(steps.begin(), steps.end());
+            }
+        }
+    }).detach();
+
     /* Monitor the database for status dump requests (e.g. from
        ‘hydra-queue-runner --status’). */
     while (true) {

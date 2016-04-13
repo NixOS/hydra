@@ -362,6 +362,11 @@ private:
     time_t lastStatusLogged = 0;
     const int statusLogInterval = 300;
 
+    /* Steps that were busy while we encounted a PostgreSQL
+       error. These need to be cleared at a later time to prevent them
+       from showing up as busy until the queue runner is restarted. */
+    nix::Sync<std::set<std::pair<BuildID, int>>> orphanedSteps;
+
 public:
     State();
 

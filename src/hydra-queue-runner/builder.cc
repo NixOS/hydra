@@ -2,6 +2,7 @@
 
 #include "state.hh"
 #include "build-result.hh"
+#include "finally.hh"
 
 using namespace nix;
 
@@ -100,6 +101,14 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
     RemoteResult result;
     BuildOutput res;
     int stepNr = 0;
+    bool stepFinished = false;
+
+    Finally clearStep([&]() {
+        if (stepNr && !stepFinished) {
+            auto orphanedSteps_(orphanedSteps.lock());
+            orphanedSteps_->emplace(build->id, stepNr);
+        }
+    });
 
     time_t stepStartTime = result.startTime = time(0);
 
@@ -170,10 +179,13 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         }
         if (retry) {
             auto mc = startDbUpdate();
+            {
             pqxx::work txn(*conn);
             finishBuildStep(txn, result.startTime, result.stopTime, result.overhead, build->id,
                 stepNr, machine->sshName, result.stepStatus, result.errorMsg);
             txn.commit();
+            }
+            stepFinished = true;
             if (quit) exit(1);
             return sRetry;
         }
@@ -233,6 +245,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
                 txn.commit();
             }
+
+            stepFinished = true;
 
             if (direct.empty()) break;
 
@@ -356,6 +370,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
                 txn.commit();
             }
+
+            stepFinished = true;
 
             /* Remove the indirect dependencies from ‘builds’. This
                will cause them to be destroyed. */
