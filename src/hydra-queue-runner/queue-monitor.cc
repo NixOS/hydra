@@ -546,7 +546,7 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
         if (r.empty()) continue;
         BuildID id = r[0][0].as<BuildID>();
 
-        printMsg(lvlInfo, format("re-using products of build %d") % id);
+        printMsg(lvlInfo, format("reusing build %d") % id);
 
         BuildOutput res;
         res.failed = r[0][1].as<int>() == bsFailedWithOutput;
