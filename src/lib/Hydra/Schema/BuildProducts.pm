@@ -81,11 +81,6 @@ __PACKAGE__->table("BuildProducts");
   data_type: 'text'
   is_nullable: 0
 
-=head2 description
-
-  data_type: 'text'
-  is_nullable: 1
-
 =head2 defaultpath
 
   data_type: 'text'
@@ -112,8 +107,6 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "name",
   { data_type => "text", is_nullable => 0 },
-  "description",
-  { data_type => "text", is_nullable => 1 },
   "defaultpath",
   { data_type => "text", is_nullable => 1 },
 );
@@ -150,8 +143,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+0LkZiaRL5tGJvbLxnwD/g
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-04-13 14:49:33
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:kONECZn56f7sqfrLviiUOQ
 
 my %hint = (
     columns => [

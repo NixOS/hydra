@@ -326,7 +326,6 @@ create table BuildProducts (
     sha256hash    text,
     path          text,
     name          text not null, -- generally just the filename part of `path'
-    description   text, -- optionally, some description of this file/directory
     defaultPath   text, -- if `path' is a directory, the default file relative to `path' to be served
     primary key   (build, productnr),
     foreign key   (build) references Builds(id) on delete cascade
