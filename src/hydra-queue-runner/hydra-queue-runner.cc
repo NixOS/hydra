@@ -42,7 +42,7 @@ State::State()
     }
 
     {
-        std::string s = hydraConfig["max-output-size"];
+        std::string s = hydraConfig["max_output_size"];
         if (s != "") string2Int(s, maxOutputSize);
     }
 
