@@ -88,7 +88,7 @@ system_time State::doDispatch()
         struct MachineInfo
         {
             Machine::ptr machine;
-            unsigned int currentJobs;
+            unsigned long currentJobs;
         };
         std::vector<MachineInfo> machinesSorted;
         {
