@@ -2,7 +2,6 @@
 #include "build-result.hh"
 #include "globals.hh"
 
-
 using namespace nix;
 
 
@@ -159,7 +158,7 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
            all valid. So we mark this as a finished, cached build. */
         if (!step) {
             Derivation drv = readDerivation(build->drvPath);
-            BuildOutput res = getBuildOutput(destStore, destStore->getFSAccessor(), drv);
+            BuildOutput res = getBuildOutputCached(conn, destStore, drv);
 
             {
             auto mc = startDbUpdate();
@@ -530,4 +529,73 @@ void State::processJobsetSharesChange(Connection & conn)
         if (i == jobsets_->end()) continue;
         i->second->setShares(row["schedulingShares"].as<unsigned int>());
     }
+}
+
+
+BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> destStore, const nix::Derivation & drv)
+{
+    {
+    pqxx::work txn(conn);
+
+    for (auto & output : drv.outputs) {
+        auto r = txn.parameterized
+            ("select id, buildStatus, releaseName, closureSize, size from Builds b "
+             "join BuildOutputs o on b.id = o.build "
+             "where finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1")
+            (output.second.path).exec();
+        if (r.empty()) continue;
+        BuildID id = r[0][0].as<BuildID>();
+
+        printMsg(lvlInfo, format("re-using products of build %d") % id);
+
+        BuildOutput res;
+        res.failed = r[0][1].as<int>() == bsFailedWithOutput;
+        res.releaseName = r[0][2].is_null() ? "" : r[0][2].as<std::string>();
+        res.closureSize = r[0][3].is_null() ? 0 : r[0][3].as<unsigned long long>();
+        res.size = r[0][4].is_null() ? 0 : r[0][4].as<unsigned long long>();
+
+        auto products = txn.parameterized
+            ("select type, subtype, fileSize, sha1hash, sha256hash, path, name, defaultPath from BuildProducts where build = $1 order by productnr")
+            (id).exec();
+
+        for (auto row : products) {
+            BuildProduct product;
+            product.type = row[0].as<std::string>();
+            product.subtype = row[1].as<std::string>();
+            if (row[2].is_null())
+                product.isRegular = false;
+            else {
+                product.isRegular = true;
+                product.fileSize = row[2].as<off_t>();
+            }
+            if (!row[3].is_null())
+                product.sha1hash = parseHash(htSHA1, row[3].as<std::string>());
+            if (!row[4].is_null())
+                product.sha256hash = parseHash(htSHA256, row[4].as<std::string>());
+            if (!row[5].is_null())
+                product.path = row[5].as<std::string>();
+            product.name = row[6].as<std::string>();
+            if (!row[7].is_null())
+                product.defaultPath = row[7].as<std::string>();
+            res.products.emplace_back(product);
+        }
+
+        auto metrics = txn.parameterized
+            ("select name, unit, value from BuildMetrics where build = $1")
+            (id).exec();
+
+        for (auto row : metrics) {
+            BuildMetric metric;
+            metric.name = row[0].as<std::string>();
+            metric.unit = row[1].is_null() ? "" : row[1].as<std::string>();
+            metric.value = row[2].as<double>();
+            res.metrics.emplace(metric.name, metric);
+        }
+
+        return res;
+    }
+
+    }
+
+    return getBuildOutput(destStore, destStore->getFSAccessor(), drv);
 }

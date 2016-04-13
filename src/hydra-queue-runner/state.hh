@@ -410,6 +410,9 @@ private:
     /* Handle cancellation, deletion and priority bumps. */
     void processQueueChange(Connection & conn);
 
+    BuildOutput getBuildOutputCached(Connection & conn, nix::ref<nix::Store> destStore,
+        const nix::Derivation & drv);
+
     Step::ptr createStep(nix::ref<nix::Store> store,
         Connection & conn, Build::ptr build, const nix::Path & drvPath,
         Build::ptr referringBuild, Step::ptr referringStep, std::set<nix::Path> & finishedDrvs,
