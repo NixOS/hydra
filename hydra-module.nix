@@ -21,6 +21,9 @@ let
       SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt"; # Remove in 16.03
       PGPASSFILE = "${baseDir}/pgpass";
       NIX_REMOTE_SYSTEMS = concatStringsSep ":" cfg.buildMachinesFiles;
+    } // optionalAttrs (cfg.smtpHost != null) {
+      EMAIL_SENDER_TRANSPORT = "SMTP";
+      EMAIL_SENDER_TRANSPORT_host = cfg.smtpHost;
     } // hydraEnv // cfg.extraEnv;
 
   serverEnv = env //
@@ -109,6 +112,15 @@ in
         type = types.str;
         description = ''
           Sender email address used for email notifications.
+        '';
+      };
+
+      smtpHost = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        example = ["localhost"];
+        description = ''
+          Hostname of the SMTP server to use to send email.
         '';
       };
 
