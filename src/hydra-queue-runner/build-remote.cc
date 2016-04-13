@@ -285,11 +285,6 @@ void State::buildRemote(ref<Store> destStore,
                     result.canRetry = true;
                     result.errorMsg = "";
                     break;
-                case BuildResult::CachedFailure: // cached on the build machine
-                    result.stepStatus = bsCachedFailure;
-                    result.canCache = true;
-                    result.errorMsg = "";
-                    break;
                 case BuildResult::TimedOut:
                     result.stepStatus = bsTimedOut;
                     result.errorMsg = "";
