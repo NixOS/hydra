@@ -480,11 +480,11 @@ void State::notificationSender()
                 notificationSenderQueue_->pop();
             }
 
-            printMsg(lvlChatty, format("sending notification about build %1%") % item.first);
+            printMsg(lvlChatty, format("sending notification about build %1%") % item.id);
 
             Pid pid = startProcess([&]() {
-                Strings argv({"hydra-notify", "build", std::to_string(item.first)});
-                for (auto id : item.second)
+                Strings argv({"hydra-notify", item.type == NotificationItem::Type::Started ? "build-started" : "build-finished", std::to_string(item.id)});
+                for (auto id : item.dependentIds)
                     argv.push_back(std::to_string(id));
                 execvp("hydra-notify", (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
                 throw SysError("cannot start hydra-notify");
@@ -494,7 +494,7 @@ void State::notificationSender()
 
             if (res != 0)
                 throw Error(format("hydra-build returned exit code %1% notifying about build %2%")
-                    % res % item.first);
+                    % res % item.id);
 
         } catch (std::exception & e) {
             printMsg(lvlError, format("notification sender: %1%") % e.what());
