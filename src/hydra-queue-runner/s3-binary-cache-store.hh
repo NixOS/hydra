@@ -52,7 +52,7 @@ protected:
 
     void upsertFile(const std::string & path, const std::string & data) override;
 
-    std::string getFile(const std::string & path) override;
+    std::shared_ptr<std::string> getFile(const std::string & path) override;
 
 };
 
