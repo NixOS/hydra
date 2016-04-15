@@ -63,6 +63,12 @@ void State::queueMonitorLoop()
 }
 
 
+struct PreviousFailure : public std::exception {
+    Step::ptr step;
+    PreviousFailure(Step::ptr step) : step(step) { }
+};
+
+
 bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
     ref<Store> destStore, unsigned int & lastBuildId)
 {
@@ -139,8 +145,55 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
         }
 
         std::set<Step::ptr> newSteps;
-        Step::ptr step = createStep(destStore, conn, build, build->drvPath,
-            build, 0, finishedDrvs, newSteps, newRunnable);
+        Step::ptr step;
+
+        /* Create steps for this derivation and its dependencies. */
+        try {
+            step = createStep(destStore, conn, build, build->drvPath,
+                build, 0, finishedDrvs, newSteps, newRunnable);
+        } catch (PreviousFailure & ex) {
+
+            /* Some step previously failed, so mark the build as
+               failed right away. */
+            printMsg(lvlError, format("marking build %d as cached failure due to ‘%s’") % build->id % ex.step->drvPath);
+            if (!build->finishedInDB) {
+                auto mc = startDbUpdate();
+                pqxx::work txn(conn);
+
+                /* Find the previous build step record, first by
+                   derivation path, then by output path. */
+                BuildID propagatedFrom = 0;
+
+                auto res = txn.parameterized
+                    ("select max(build) from BuildSteps where drvPath = $1 and startTime != 0 and stopTime != 0 and status = 1")
+                    (ex.step->drvPath).exec();
+                if (!res[0][0].is_null()) propagatedFrom = res[0][0].as<BuildID>();
+
+                if (!propagatedFrom) {
+                    for (auto & output : ex.step->drv.outputs) {
+                        auto res = txn.parameterized
+                            ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1")
+                            (output.second.path).exec();
+                        if (!res[0][0].is_null()) {
+                            propagatedFrom = res[0][0].as<BuildID>();
+                            break;
+                        }
+                    }
+                }
+
+                createBuildStep(txn, 0, build, ex.step, "", bsCachedFailure, "", propagatedFrom);
+                txn.parameterized
+                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = 1 where id = $1 and finished = 0")
+                    (build->id)
+                    ((int) (ex.step->drvPath == build->drvPath ? bsFailed : bsDepFailed))
+                    (time(0)).exec();
+                txn.commit();
+                build->finishedInDB = true;
+                nrBuildsDone++;
+            }
+
+            return;
+        }
 
         /* Some of the new steps may be the top level of builds that
            we haven't processed yet. So do them now. This ensures that
@@ -173,53 +226,6 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
 
             return;
         }
-
-        /* If any step has a previously failed output path, then fail
-           the build right away. */
-        bool badStep = false;
-        for (auto & r : newSteps)
-            if (checkCachedFailure(r, conn)) {
-                printMsg(lvlError, format("marking build %1% as cached failure") % build->id);
-                if (!build->finishedInDB) {
-                    auto mc = startDbUpdate();
-                    pqxx::work txn(conn);
-
-                    /* Find the previous build step record, first by
-                       derivation path, then by output path. */
-                    BuildID propagatedFrom = 0;
-
-                    auto res = txn.parameterized
-                        ("select max(build) from BuildSteps where drvPath = $1 and startTime != 0 and stopTime != 0 and status = 1")
-                        (r->drvPath).exec();
-                    if (!res[0][0].is_null()) propagatedFrom = res[0][0].as<BuildID>();
-
-                    if (!propagatedFrom) {
-                        for (auto & output : r->drv.outputs) {
-                            auto res = txn.parameterized
-                                ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1")
-                                (output.second.path).exec();
-                            if (!res[0][0].is_null()) {
-                                propagatedFrom = res[0][0].as<BuildID>();
-                                break;
-                            }
-                        }
-                    }
-
-                    createBuildStep(txn, 0, build, r, "", bsCachedFailure, "", propagatedFrom);
-                    txn.parameterized
-                        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = 1 where id = $1 and finished = 0")
-                        (build->id)
-                        ((int) (step == r ? bsFailed : bsDepFailed))
-                        (time(0)).exec();
-                    txn.commit();
-                    build->finishedInDB = true;
-                    nrBuildsDone++;
-                }
-                badStep = true;
-                break;
-            }
-
-        if (badStep) return;
 
         /* Note: if we exit this scope prior to this, the build and
            all newly created steps are destroyed. */
@@ -401,6 +407,10 @@ Step::ptr State::createStep(ref<Store> destStore,
         }
     }
 
+    /* If this derivation failed previously, give up. */
+    if (checkCachedFailure(step, conn))
+        throw PreviousFailure{step};
+
     /* Are all outputs valid? */
     bool valid = true;
     PathSet outputs = step->drv.outputPaths();
@@ -453,7 +463,6 @@ Step::ptr State::createStep(ref<Store> destStore,
 
     /* No, we need to build. */
     printMsg(lvlDebug, format("creating build step ‘%1%’") % drvPath);
-    newSteps.insert(step);
 
     /* Create steps for the dependencies. */
     for (auto & i : step->drv.inputDrvs) {
@@ -473,6 +482,8 @@ Step::ptr State::createStep(ref<Store> destStore,
         if (step_->deps.empty())
             newRunnable.insert(step);
     }
+
+    newSteps.insert(step);
 
     return step;
 }
