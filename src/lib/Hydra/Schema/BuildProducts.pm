@@ -154,7 +154,6 @@ my %hint = (
         'filesize',
         'sha1hash',
         'sha256hash',
-        'description',
         'path',
         'defaultpath'
     ],
