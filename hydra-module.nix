@@ -169,6 +169,20 @@ in
         example = [ "/etc/nix/machines" "/var/lib/hydra/provisioner/machines" ];
         description = "List of files containing build machines.";
       };
+
+      useSubstitutes = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Whether to use binary caches for downloading store paths. Note that
+          binary substitutions trigger (a potentially large number of) additional
+          HTTP requests that slow down the queue monitor thread significantly.
+          Also, this Hydra instance will serve those downloaded store paths to
+          its users with its own signature attached as if it had built them
+          itself, so don't enable this feature unless your active binary caches
+          are absolute trustworthy.
+        '';
+      };
     };
 
   };
@@ -310,7 +324,7 @@ in
           IN_SYSTEMD = "1"; # to get log severity levels
         };
         serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner -v --option build-use-substitutes false";
+          { ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner -v --option build-use-substitutes ${if optionalString cfg.useSubstitutes then "true" else "false"}";
             ExecStopPost = "${cfg.package}/bin/hydra-queue-runner --unlock";
             User = "hydra-queue-runner";
             Restart = "always";
