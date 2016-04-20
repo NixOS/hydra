@@ -630,60 +630,58 @@ void State::dumpStatus(Connection & conn, bool log)
             }
         }
 
-        auto store = dynamic_cast<S3BinaryCacheStore *>(&*getDestStore());
+        auto store = getDestStore();
 
-        if (store) {
-            root.attr("store");
-            JSONObject nested(out);
+        root.attr("store");
+        JSONObject nested(out);
 
-            auto & stats = store->getStats();
-            nested.attr("narInfoRead", stats.narInfoRead);
-            nested.attr("narInfoReadAverted", stats.narInfoReadAverted);
-            nested.attr("narInfoMissing", stats.narInfoMissing);
-            nested.attr("narInfoWrite", stats.narInfoWrite);
-            nested.attr("narInfoCacheSize", stats.narInfoCacheSize);
-            nested.attr("narRead", stats.narRead);
-            nested.attr("narReadBytes", stats.narReadBytes);
-            nested.attr("narReadCompressedBytes", stats.narReadCompressedBytes);
-            nested.attr("narWrite", stats.narWrite);
-            nested.attr("narWriteAverted", stats.narWriteAverted);
-            nested.attr("narWriteBytes", stats.narWriteBytes);
-            nested.attr("narWriteCompressedBytes", stats.narWriteCompressedBytes);
-            nested.attr("narWriteCompressionTimeMs", stats.narWriteCompressionTimeMs);
-            nested.attr("narCompressionSavings",
-                stats.narWriteBytes
-                ? 1.0 - (double) stats.narWriteCompressedBytes / stats.narWriteBytes
+        auto & stats = store->getStats();
+        nested.attr("narInfoRead", stats.narInfoRead);
+        nested.attr("narInfoReadAverted", stats.narInfoReadAverted);
+        nested.attr("narInfoMissing", stats.narInfoMissing);
+        nested.attr("narInfoWrite", stats.narInfoWrite);
+        nested.attr("narInfoCacheSize", stats.pathInfoCacheSize);
+        nested.attr("narRead", stats.narRead);
+        nested.attr("narReadBytes", stats.narReadBytes);
+        nested.attr("narReadCompressedBytes", stats.narReadCompressedBytes);
+        nested.attr("narWrite", stats.narWrite);
+        nested.attr("narWriteAverted", stats.narWriteAverted);
+        nested.attr("narWriteBytes", stats.narWriteBytes);
+        nested.attr("narWriteCompressedBytes", stats.narWriteCompressedBytes);
+        nested.attr("narWriteCompressionTimeMs", stats.narWriteCompressionTimeMs);
+        nested.attr("narCompressionSavings",
+            stats.narWriteBytes
+            ? 1.0 - (double) stats.narWriteCompressedBytes / stats.narWriteBytes
+            : 0.0);
+        nested.attr("narCompressionSpeed", // MiB/s
+            stats.narWriteCompressionTimeMs
+            ? (double) stats.narWriteBytes / stats.narWriteCompressionTimeMs * 1000.0 / (1024.0 * 1024.0)
+            : 0.0);
+
+        auto s3Store = dynamic_cast<S3BinaryCacheStore *>(&*store);
+        if (s3Store) {
+            nested.attr("s3");
+            JSONObject nested2(out);
+            auto & s3Stats = s3Store->getS3Stats();
+            nested2.attr("put", s3Stats.put);
+            nested2.attr("putBytes", s3Stats.putBytes);
+            nested2.attr("putTimeMs", s3Stats.putTimeMs);
+            nested2.attr("putSpeed",
+                s3Stats.putTimeMs
+                ? (double) s3Stats.putBytes / s3Stats.putTimeMs * 1000.0 / (1024.0 * 1024.0)
                 : 0.0);
-            nested.attr("narCompressionSpeed", // MiB/s
-                stats.narWriteCompressionTimeMs
-                ? (double) stats.narWriteBytes / stats.narWriteCompressionTimeMs * 1000.0 / (1024.0 * 1024.0)
+            nested2.attr("get", s3Stats.get);
+            nested2.attr("getBytes", s3Stats.getBytes);
+            nested2.attr("getTimeMs", s3Stats.getTimeMs);
+            nested2.attr("getSpeed",
+                s3Stats.getTimeMs
+                ? (double) s3Stats.getBytes / s3Stats.getTimeMs * 1000.0 / (1024.0 * 1024.0)
                 : 0.0);
-
-            auto s3Store = dynamic_cast<S3BinaryCacheStore *>(&*store);
-            if (s3Store) {
-                nested.attr("s3");
-                JSONObject nested2(out);
-                auto & s3Stats = s3Store->getS3Stats();
-                nested2.attr("put", s3Stats.put);
-                nested2.attr("putBytes", s3Stats.putBytes);
-                nested2.attr("putTimeMs", s3Stats.putTimeMs);
-                nested2.attr("putSpeed",
-                    s3Stats.putTimeMs
-                    ? (double) s3Stats.putBytes / s3Stats.putTimeMs * 1000.0 / (1024.0 * 1024.0)
-                    : 0.0);
-                nested2.attr("get", s3Stats.get);
-                nested2.attr("getBytes", s3Stats.getBytes);
-                nested2.attr("getTimeMs", s3Stats.getTimeMs);
-                nested2.attr("getSpeed",
-                    s3Stats.getTimeMs
-                    ? (double) s3Stats.getBytes / s3Stats.getTimeMs * 1000.0 / (1024.0 * 1024.0)
-                    : 0.0);
-                nested2.attr("head", s3Stats.head);
-                nested2.attr("costDollarApprox",
-                    (s3Stats.get + s3Stats.head) / 10000.0 * 0.004
-                    + s3Stats.put / 1000.0 * 0.005 +
-                    + s3Stats.getBytes / (1024.0 * 1024.0 * 1024.0) * 0.09);
-            }
+            nested2.attr("head", s3Stats.head);
+            nested2.attr("costDollarApprox",
+                (s3Stats.get + s3Stats.head) / 10000.0 * 0.004
+                + s3Stats.put / 1000.0 * 0.005 +
+                + s3Stats.getBytes / (1024.0 * 1024.0 * 1024.0) * 0.09);
         }
     }
 

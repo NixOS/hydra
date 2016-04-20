@@ -21,8 +21,8 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
         store->computeFSClosure(output, closure);
     for (auto & path : closure) {
         auto info = store->queryPathInfo(path);
-        res.closureSize += info.narSize;
-        if (outputs.find(path) != outputs.end()) res.size += info.narSize;
+        res.closureSize += info->narSize;
+        if (outputs.find(path) != outputs.end()) res.size += info->narSize;
     }
 
     /* Get build products. */

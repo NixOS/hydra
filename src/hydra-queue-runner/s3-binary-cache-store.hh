@@ -25,6 +25,8 @@ public:
 
     void init() override;
 
+    std::string getUri();
+
     struct Stats
     {
         std::atomic<uint64_t> put{0};
@@ -38,7 +40,7 @@ public:
 
     const Stats & getS3Stats();
 
-    bool isValidPath(const Path & storePath) override;
+    bool isValidPathUncached(const Path & storePath) override;
 
 private:
 

@@ -1,6 +1,7 @@
 #include "s3-binary-cache-store.hh"
 
 #include "nar-info.hh"
+#include "nar-info-disk-cache.hh"
 
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/s3/S3Client.h>
@@ -38,6 +39,12 @@ S3BinaryCacheStore::S3BinaryCacheStore(std::shared_ptr<Store> localStore,
     , config(makeConfig())
     , client(make_ref<Aws::S3::S3Client>(*config))
 {
+    diskCache = getNarInfoDiskCache();
+}
+
+std::string S3BinaryCacheStore::getUri()
+{
+    return "s3://" + bucketName;
 }
 
 ref<Aws::Client::ClientConfiguration> S3BinaryCacheStore::makeConfig()
@@ -50,24 +57,29 @@ ref<Aws::Client::ClientConfiguration> S3BinaryCacheStore::makeConfig()
 
 void S3BinaryCacheStore::init()
 {
-    /* Create the bucket if it doesn't already exists. */
-    // FIXME: HeadBucket would be more appropriate, but doesn't return
-    // an easily parsed 404 message.
-    auto res = client->GetBucketLocation(
-        Aws::S3::Model::GetBucketLocationRequest().WithBucket(bucketName));
+    if (!diskCache->cacheExists(getUri())) {
 
-    if (!res.IsSuccess()) {
-        if (res.GetError().GetErrorType() != Aws::S3::S3Errors::NO_SUCH_BUCKET)
-            throw Error(format("AWS error checking bucket ‘%s’: %s") % bucketName % res.GetError().GetMessage());
+        /* Create the bucket if it doesn't already exists. */
+        // FIXME: HeadBucket would be more appropriate, but doesn't return
+        // an easily parsed 404 message.
+        auto res = client->GetBucketLocation(
+            Aws::S3::Model::GetBucketLocationRequest().WithBucket(bucketName));
 
-        checkAws(format("AWS error creating bucket ‘%s’") % bucketName,
-            client->CreateBucket(
-                Aws::S3::Model::CreateBucketRequest()
-                .WithBucket(bucketName)
-                .WithCreateBucketConfiguration(
-                    Aws::S3::Model::CreateBucketConfiguration()
-                    /* .WithLocationConstraint(
-                       Aws::S3::Model::BucketLocationConstraint::US) */ )));
+        if (!res.IsSuccess()) {
+            if (res.GetError().GetErrorType() != Aws::S3::S3Errors::NO_SUCH_BUCKET)
+                throw Error(format("AWS error checking bucket ‘%s’: %s") % bucketName % res.GetError().GetMessage());
+
+            checkAws(format("AWS error creating bucket ‘%s’") % bucketName,
+                client->CreateBucket(
+                    Aws::S3::Model::CreateBucketRequest()
+                    .WithBucket(bucketName)
+                    .WithCreateBucketConfiguration(
+                        Aws::S3::Model::CreateBucketConfiguration()
+                        /* .WithLocationConstraint(
+                           Aws::S3::Model::BucketLocationConstraint::US) */ )));
+        }
+
+        diskCache->createCache(getUri());
     }
 
     BinaryCacheStore::init();
@@ -82,10 +94,10 @@ const S3BinaryCacheStore::Stats & S3BinaryCacheStore::getS3Stats()
    fetches the .narinfo file, rather than first checking for its
    existence via a HEAD request. Since .narinfos are small, doing a
    GET is unlikely to be slower than HEAD. */
-bool S3BinaryCacheStore::isValidPath(const Path & storePath)
+bool S3BinaryCacheStore::isValidPathUncached(const Path & storePath)
 {
     try {
-        readNarInfo(storePath);
+        queryPathInfo(storePath);
         return true;
     } catch (InvalidPath & e) {
         return false;
