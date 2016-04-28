@@ -11,8 +11,13 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
 
-    <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
-    <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.1/jquery-ui.min.js"></script>
+    <script src="https://code.jquery.com/jquery-1.12.3.js"
+            integrity="sha256-1XMpEtA4eKXNNpXcJ1pmMPs8JV+nwLdEqwiJeCQEkyc="
+            crossorigin="anonymous"></script>
+
+    <script src="https://code.jquery.com/ui/1.10.4/jquery-ui.js"
+            integrity="sha256-tp8VZ4Y9dg702r7D6ynzSavKSwB9zjariSZ4Snurvmw="
+            crossorigin="anonymous"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
