@@ -1,5 +1,5 @@
 [% BLOCK makeSubMenu %]
-  <li class="dropdown">
+  <li class="dropdown" [% IF id; HTML.attributes(id => id); END %] >
     <a class="dropdown-toggle" href="#" data-toggle="dropdown">[% title %]<b class="caret"></b></a>
     <ul class="dropdown-menu">
       [% content %]
@@ -130,19 +130,14 @@
       <a href="#" onclick="signOut();">Sign out</a>
     </li>
   [% ELSE %]
-    [% WRAPPER makeSubMenu title="Sign in" %]
+    [% WRAPPER makeSubMenu title="Sign in" id="sign-in-menu" %]
       [% IF c.config.enable_google_login %]
-        <li>
-          <a><div class="g-signin2" data-onsuccess="onGoogleSignIn" data-theme="dark"></div></a>
-        </li>
+        <div style="display: none" class="g-signin2" data-onsuccess="onGoogleSignIn" data-theme="dark"></div></a>
+        <li><a href="#" id="google-signin">Sign in with Google</a></li>
         <li class="divider"></li>
       [% END %]
       [% IF c.config.enable_persona %]
-        <li>
-          <a href="#" id="persona-signin">
-            <img src="[% c.uri_for("/static/images/persona_sign_in_blue.png") %]" alt="Sign in with Persona" />
-          </a>
-        </li>
+        <li><a href="#" id="persona-signin">Sign in with Persona</a></li>
         <li class="divider"></li>
       [% END %]
       <li>

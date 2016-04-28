@@ -43,7 +43,6 @@
 
     [% IF c.config.enable_google_login %]
       <meta name="google-signin-client_id" content="[% c.config.google_client_id %]">
-      <script src="https://apis.google.com/js/platform.js" async="1" defer="1"></script>
     [% END %]
 
     [% tracker %]
