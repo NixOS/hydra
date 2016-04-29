@@ -30,7 +30,7 @@ let
     { HYDRA_TRACKER = cfg.tracker;
       COLUMNS = "80";
       PGPASSFILE = "${baseDir}/pgpass-www"; # grrr
-    } // (optionalAttrs cfg.debugServer { DBIC_TRACE = 1; });
+    } // (optionalAttrs cfg.debugServer { DBIC_TRACE = "1"; });
 
   localDB = "dbi:Pg:dbname=hydra;user=hydra;";
 
