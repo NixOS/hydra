@@ -18,7 +18,7 @@
         <listitem><para>PostgreSQL</para></listitem>
         <listitem><para>many Perl packages, notably Catalyst, EmailSender,
         and NixPerl (see the <link
-        xlink:href="https://svn.nixos.org/repos/nix/nixpkgs/trunk/pkgs/development/tools/misc/hydra/default.nix">Hydra
+        xlink:href="https://github.com/NixOS/hydra/blob/master/release.nix">Hydra
         expression in Nixpkgs</link> for the complete
         list)</para></listitem>
       </itemizedlist>
