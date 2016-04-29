@@ -133,7 +133,7 @@ rec {
           }))
         ];
 
-      hydraPath = lib.makeSearchPath "bin" (
+      hydraPath = lib.makeBinPath (
         [ libxslt sqlite subversion openssh nix coreutils findutils
           gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
         ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
