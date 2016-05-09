@@ -5,6 +5,7 @@ use utf8;
 use Hydra::Plugin;
 use Hydra::Helper::Nix;
 use Hydra::Helper::PluginHooks;
+use Hydra::Helper::AddBuilds;
 
 STDERR->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
@@ -21,6 +22,11 @@ my $buildId = shift @ARGV or die;
 my $build = $db->resultset('Builds')->find($buildId)
     or die "build $buildId does not exist\n";
 if ($cmd eq "build-finished") {
+    my $project = $build->project;
+    my $jobset = $build->jobset;
+    if (length($project->declfile) && $jobset->name eq ".jobsets" && $build->iscurrent) {
+        handleDeclarativeJobsetBuild($db, $project, $build);
+    }
     my @dependents;
     foreach my $id (@ARGV) {
         my $dep = $db->resultset('Builds')->find($id)

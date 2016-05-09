@@ -154,7 +154,19 @@ sub updateProject {
         , enabled => defined $c->stash->{params}->{enabled} ? 1 : 0
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , owner => $owner
+        , declfile => trim($c->stash->{params}->{declfile})
+        , decltype => trim($c->stash->{params}->{decltype})
+        , declvalue => trim($c->stash->{params}->{declvalue})
         });
+    if (length($project->declfile)) {
+        $project->jobsets->update_or_create(
+            { name=> ".jobsets"
+            , nixexprinput => ""
+            , nixexprpath => ""
+            , emailoverride => ""
+            , triggertime => time
+            });
+    }
 }
 
 

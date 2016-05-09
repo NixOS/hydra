@@ -55,6 +55,10 @@ sub jobset_PUT {
 
     requireProjectOwner($c, $c->stash->{project});
 
+    if (length($c->stash->{project}->declfile)) {
+        error($c, "can't modify jobset of declarative project", 403);
+    }
+
     if (defined $c->stash->{jobset}) {
         txn_do($c->model('DB')->schema, sub {
             updateJobset($c, $c->stash->{jobset});
@@ -87,6 +91,10 @@ sub jobset_DELETE {
     my ($self, $c) = @_;
 
     requireProjectOwner($c, $c->stash->{project});
+
+    if (length($c->stash->{project}->declfile)) {
+        error($c, "can't modify jobset of declarative project", 403);
+    }
 
     txn_do($c->model('DB')->schema, sub {
         $c->stash->{jobset}->jobsetevals->delete;

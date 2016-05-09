@@ -49,9 +49,11 @@
         <b class="caret"></b>
       </a>
       <ul class="dropdown-menu">
+        [% UNLESS project.declfile %]
         [% INCLUDE menuItem title="Edit configuration" icon="icon-edit" uri=c.uri_for(c.controller('Jobset').action_for('edit'), c.req.captures) %]
         [% INCLUDE menuItem title="Delete this jobset" icon="icon-trash" uri="javascript:deleteJobset()" %]
         [% INCLUDE menuItem title="Clone this jobset" uri=c.uri_for(c.controller('Jobset').action_for('edit'), c.req.captures, { cloneJobset => 1 }) %]
+        [% END %]
         [% INCLUDE menuItem title="Evaluate this jobset" uri="javascript:confirmEvaluateJobset()" %]
       </ul>
     </li>

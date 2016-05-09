@@ -73,6 +73,21 @@ __PACKAGE__->table("Projects");
   data_type: 'text'
   is_nullable: 1
 
+=head2 declfile
+
+  data_type: 'text'
+  is_nullable: 1
+
+=head2 decltype
+
+  data_type: 'text'
+  is_nullable: 1
+
+=head2 declvalue
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -89,6 +104,12 @@ __PACKAGE__->add_columns(
   "owner",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "homepage",
+  { data_type => "text", is_nullable => 1 },
+  "declfile",
+  { data_type => "text", is_nullable => 1 },
+  "decltype",
+  { data_type => "text", is_nullable => 1 },
+  "declvalue",
   { data_type => "text", is_nullable => 1 },
 );
 
@@ -282,8 +303,8 @@ Composing rels: L</projectmembers> -> username
 __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:52:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:67kWIE0IGmEJTvOIATAKaw
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-03-11 10:39:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:1ats3brIVhRTWLToIYSoaQ
 
 my %hint = (
     columns => [

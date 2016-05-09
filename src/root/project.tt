@@ -11,7 +11,9 @@
       <ul class="dropdown-menu">
         [% INCLUDE menuItem title="Edit configuration" icon="icon-edit" uri=c.uri_for(c.controller('Project').action_for('edit'), c.req.captures) %]
         [% INCLUDE menuItem title="Delete this project" icon="icon-trash" uri="javascript:deleteProject()" %]
+        [% UNLESS project.declfile %]
         [% INCLUDE menuItem title="Create jobset" icon="icon-plus" uri=c.uri_for(c.controller('Project').action_for('create_jobset'), c.req.captures) %]
+        [% END %]
         [% INCLUDE menuItem title="Create release" icon="icon-plus" uri=c.uri_for(c.controller('Project').action_for('create_release'), c.req.captures) %]
       </ul>
     </li>
