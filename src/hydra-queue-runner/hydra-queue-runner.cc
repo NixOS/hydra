@@ -920,7 +920,7 @@ int main(int argc, char * * argv)
             return true;
         });
 
-        settings.buildVerbosity = lvlVomit;
+        settings.verboseBuild = true;
         settings.lockCPU = false;
 
         State state;
