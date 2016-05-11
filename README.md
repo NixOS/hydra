@@ -1,5 +1,6 @@
 To start hacking on Hydra, run:
 
+    $ bootstrap
     $ nix-shell
     $ ./configure $configureFlags --prefix=/opt/hydra
     $ make
