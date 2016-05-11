@@ -106,7 +106,7 @@ static void copyClosureTo(ref<Store> destStore,
     printMsg(lvlDebug, format("sending %1% missing paths") % missing.size());
 
     to << cmdImportPaths;
-    destStore->exportPaths(missing, false, to);
+    destStore->exportPaths(missing, to);
     to.flush();
 
     if (readInt(from) != 1)
@@ -360,7 +360,7 @@ void State::buildRemote(ref<Store> destStore,
 
             to << cmdExportPaths << 0 << outputs;
             to.flush();
-            destStore->importPaths(false, from, result.accessor);
+            destStore->importPaths(from, result.accessor);
 
             auto now2 = std::chrono::steady_clock::now();
 
