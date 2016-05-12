@@ -668,6 +668,8 @@ void State::dumpStatus(Connection & conn, bool log)
             ? (double) stats.narWriteBytes / stats.narWriteCompressionTimeMs * 1000.0 / (1024.0 * 1024.0)
             : 0.0);
 
+        /*
+        // TODO: rewrite using visitor pattern
         auto s3Store = dynamic_cast<S3BinaryCacheStore *>(&*store);
         if (s3Store) {
             nested.attr("s3");
@@ -693,6 +695,7 @@ void State::dumpStatus(Connection & conn, bool log)
                 + s3Stats.put / 1000.0 * 0.005 +
                 + s3Stats.getBytes / (1024.0 * 1024.0 * 1024.0) * 0.09);
         }
+        */
     }
 
     if (log && time(0) >= lastStatusLogged + statusLogInterval) {
