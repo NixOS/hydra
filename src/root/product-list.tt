@@ -19,7 +19,13 @@
 
 [% BLOCK renderProductList %]
 
-  <table class="productList">
+  <table class="table table-striped">
+    <tr>
+       <th>Icon</th>
+       <th>Type</th>
+       <th>Link</th>
+       <th>Actions</th>
+    </tr>
 
     [% FOREACH product IN build.buildproducts %]
 
@@ -37,82 +43,100 @@
           [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
           <tr class="product">
             <td>
-            <a href="[% contents %]">
               <img src="[% c.uri_for("/static/images/error_32.png") %]" alt="Source" />
-              Failed build produced output. Click here to inspect the output.
-            </a>
-            [% WRAPPER makePopover title="Help" classes="btn-mini" %]
-              <p>If you have Nix installed on your machine, this failed build output and
-              all its dependencies can be unpacked into your local Nix store by doing:</p>
+            </td>
+            <td>
+              Error
+            </td>
+            <td>
+              <a href="[% contents %]">
+                Failed build produced output. Click here to inspect the output.
+              </a>
+            </td>
+            <td>
+             [% WRAPPER makePopover title="Help" classes="btn-mini" %]
+               <p>If you have Nix installed on your machine, this failed build output and
+               all its dependencies can be unpacked into your local Nix store by doing:</p>
 
-              <pre><span class="shell-prompt">$ </span>curl [% uri %] | gunzip | nix-store --import</pre>
+               <pre><span class="shell-prompt">$ </span>curl [% uri %] | gunzip | nix-store --import</pre>
 
-              <p>The build output can then be found in the path <tt>[% product.path %]</tt>.</p>
-            [% END %]
+               <p>The build output can then be found in the path <tt>[% product.path %]</tt>.</p>
+             [% END %]
             </td>
           </tr>
 
         [% ELSE %]
           <tr class="product">
             <td>
-            [% uri = c.uri_for('/build' build.id 'nix' 'pkg' "${build.nixname}-${build.system}.nixpkg") %]
-            <a href="[% uri %]">
               <img src="[% c.uri_for("/static/images/nix-build.png") %]" alt="Source" />
-              One-click install of Nix package <tt>[% build.nixname %]</tt>
-            </a>
-            [% WRAPPER makePopover title="Help" classes="btn-mini" %]
-              <p>If you have Nix installed on your machine, you can
-              install this package and all its dependencies automatically
-              by clicking on the link above.  This requires that you have
-              the <tt>application/nix-package</tt> MIME type associated
-              with the <tt>nix-install-package</tt> program in your web
-              browser.  Alternatively, you can install it from the
-              command-line:</p>
+            </td>
+            <td>
+              One-Click install
+            </td>
+            <td>
+              [% uri = c.uri_for('/build' build.id 'nix' 'pkg' "${build.nixname}-${build.system}.nixpkg") %]
+              <a href="[% uri %]">
+                <tt>[% build.nixname %]</tt>
+              </a>
+            </td>
+            <td>
+              [% WRAPPER makePopover title="Help" classes="btn-mini" %]
+                <p>If you have Nix installed on your machine, you can
+                install this package and all its dependencies automatically
+                by clicking on the link above.  This requires that you have
+                the <tt>application/nix-package</tt> MIME type associated
+                with the <tt>nix-install-package</tt> program in your web
+                browser.  Alternatively, you can install it from the
+                command-line:</p>
 
-              <pre><span class="shell-prompt">$ </span>nix-install-package --non-interactive --url [% uri %]</pre>
+                <pre><span class="shell-prompt">$ </span>nix-install-package --non-interactive --url [% uri %]</pre>
 
-              <p>If you get an error message “Permission denied”, you
-              should make sure that you have sufficient access rights to
-              the Nix store, e.g., run the command as <tt>root</tt>.</p>
-            [% END %]
-            <a class="btn btn-mini" href="[% contents %]">Contents</a>
+                <p>If you get an error message “Permission denied”, you
+                should make sure that you have sufficient access rights to
+                the Nix store, e.g., run the command as <tt>root</tt>.</p>
+              [% END %]
+              <a class="btn btn-mini" href="[% contents %]">Contents</a>
             </td>
           </tr>
           <tr class="product">
             <td>
-
-            [% filename = build.nixname _ (product.subtype ? "-" _ product.subtype : "") _ ".closure.gz" %]
-            [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
-
-            <a href="[% uri %]">
               <img src="[% c.uri_for("/static/images/nix-build.png") %]" alt="Source" />
-              Nix closure of path <tt>[% product.path %]</tt>
-            </a>
+            </td>
+            <td>
+              Nix closure
+            </td>
+            <td>
+              [% filename = build.nixname _ (product.subtype ? "-" _ product.subtype : "") _ ".closure.gz" %]
+              [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
 
-            [% WRAPPER makePopover title="Help" classes="btn-mini" %]
-              <p>If you have Nix installed on your machine, this build and
-              all its dependencies can be unpacked into your local Nix
-              store by doing:</p>
+              <a href="[% uri %]">
+                <tt>[% product.path %]</tt>
+              </a>
+            </td>
+            <td>
+              [% WRAPPER makePopover title="Help" classes="btn-mini" %]
+                <p>If you have Nix installed on your machine, this build and
+                all its dependencies can be unpacked into your local Nix
+                store by doing:</p>
 
-              <pre><span class="shell-prompt">$ </span>gunzip &lt; [% filename %] | nix-store --import</pre>
+                <pre><span class="shell-prompt">$ </span>gunzip &lt; [% filename %] | nix-store --import</pre>
 
-              <p>or to download and unpack in one command:</p>
+                <p>or to download and unpack in one command:</p>
 
-              <pre><span class="shell-prompt">$ </span>curl [% uri %] | gunzip | nix-store --import</pre>
+                <pre><span class="shell-prompt">$ </span>curl [% uri %] | gunzip | nix-store --import</pre>
 
-              <p>The package can then be found in the path <tt>[%
-              product.path %]</tt>.  You’ll probably also want to do</p>
+                <p>The package can then be found in the path <tt>[%
+                product.path %]</tt>.  You’ll probably also want to do</p>
 
-              <pre><span class="shell-prompt">$ </span>nix-env -i [% product.path %]</pre>
+                <pre><span class="shell-prompt">$ </span>nix-env -i [% product.path %]</pre>
 
-              <p>to actually install the package in your Nix user environment.</p>
+                <p>to actually install the package in your Nix user environment.</p>
 
-              <p>If you get the error message “imported
-              archive lacks a signature”, you should make sure that you have
-              sufficient access rights to the Nix store, e.g., run the
-              command as <tt>root</tt>.</p>
-            [% END %]
-
+                <p>If you get the error message “imported
+                archive lacks a signature”, you should make sure that you have
+                sufficient access rights to the Nix store, e.g., run the
+                command as <tt>root</tt>.</p>
+              [% END %]
             </td>
           </tr>
         [% END %]
@@ -120,41 +144,67 @@
       [% CASE ["file", "channel"] %]
 
       <tr class="product">
-        <td>
-        <a href="[% uri %]">
-          [% SWITCH product.subtype %]
-          [% CASE "source-dist" %]
-            <img src="[% c.uri_for("/static/images/source-dist.png") %]" alt="Source" /> Source distribution <tt>[% product.name %]</tt>
-          [% CASE "rpm" %]
-            <img src="[% c.uri_for("/static/images/rpm.png") %]" alt="RPM" /> RPM package <tt>[% product.name %]</tt>
-          [% CASE "srpm" %]
-            <img src="[% c.uri_for("/static/images/rpm.png") %]" alt="Source RPM" /> Source RPM package <tt>[% product.name %]</tt>
-          [% CASE "deb" %]
-            <img src="[% c.uri_for("/static/images/debian.png") %]" alt="RPM" /> Debian package <tt>[% product.name %]</tt>
-          [% CASE "iso" %]
-            <img src="[% c.uri_for("/static/images/iso.png") %]" alt="ISO" /> ISO-9660 CD/DVD image <tt>[% product.name %]</tt>
-          [% CASE "binary-dist" %]
-            <img src="[% c.uri_for("/static/images/binary-dist.png") %]" alt="Binary distribution" /> Binary distribution <tt>[% product.name %]</tt>
-          [% CASE DEFAULT %]
-            [% IF product.type == "channel" %]
+        [% SWITCH product.subtype %]
+        [% CASE "source-dist" %]
+          <td>
+            <img src="[% c.uri_for("/static/images/source-dist.png") %]" alt="Source" />
+          </td>
+          <td>Source distribution</td>
+        [% CASE "rpm" %]
+          <td>
+            <img src="[% c.uri_for("/static/images/rpm.png") %]" alt="RPM" />
+          </td>
+          <td>RPM package</td>
+        [% CASE "srpm" %]
+          <td>
+            <img src="[% c.uri_for("/static/images/rpm.png") %]" alt="Source RPM" />
+          </td>
+          <td>Source RPM package</td>
+        [% CASE "deb" %]
+          <td>
+            <img src="[% c.uri_for("/static/images/debian.png") %]" alt="DEB" />
+          </td>
+          <td>Debian package</td>
+        [% CASE "iso" %]
+          <td>
+            <img src="[% c.uri_for("/static/images/iso.png") %]" alt="ISO" />
+          </td>
+          <td>ISO-9660 CD/DVD image</td>
+        [% CASE "binary-dist" %]
+          <td>
+            <img src="[% c.uri_for("/static/images/binary-dist.png") %]" alt="Binary distribution" />
+          </td>
+          <td>Binary distribution</td>
+        [% CASE DEFAULT %]
+          [% IF product.type == "channel" %]
+            <td>
               <img src="[% c.uri_for("/static/images/channel.png") %]" alt="Channel" />
-              Channel expression tarball <tt>[% product.name %]</tt>
+            </td>
+            <td>
+              Channel expression tarball
               [% IF product.subtype != "-" %]for <tt>[% product.subtype %]</tt>[% END %]
-            [% ELSE %]
-              File <tt>[% product.name %]</tt> of type <tt>[% product.subtype %]</tt>
-            [% END %]
+            </td>
+          [% ELSE %]
+            <td>File</td>
+            <td>[% product.subtype %]</td>
           [% END %]
-        </a>
-        [% WRAPPER makePopover title="Details" classes="btn-mini" %]
-          <table class="info-table">
-            [% INCLUDE renderProductLinks %]
-            <tr><th>File size:</th><td>[% product.filesize %] bytes ([% mibs(product.filesize / (1024 * 1024)) %] MiB)</td></tr>
-            <tr><th>SHA-1 hash:</th><td><tt>[% product.sha1hash %]</tt></td></tr>
-            <tr><th>SHA-256 hash:</th><td><tt>[% product.sha256hash %]</tt></td></tr>
-            <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
-          </table>
         [% END %]
-        <a class="btn btn-mini" href="[% contents %]">Contents</a>
+        <td>
+          <a href="[% uri %]">
+            <tt>[% product.name %]</tt>
+          </a>
+        </td>
+        <td>
+          [% WRAPPER makePopover title="Details" classes="btn-mini" %]
+            <table class="info-table">
+              [% INCLUDE renderProductLinks %]
+              <tr><th>File size:</th><td>[% product.filesize %] bytes ([% mibs(product.filesize / (1024 * 1024)) %] MiB)</td></tr>
+              <tr><th>SHA-1 hash:</th><td><tt>[% product.sha1hash %]</tt></td></tr>
+              <tr><th>SHA-256 hash:</th><td><tt>[% product.sha256hash %]</tt></td></tr>
+              <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
+            </table>
+          [% END %]
+          <a class="btn btn-mini" href="[% contents %]">Contents</a>
         </td>
       </tr>
 
@@ -162,28 +212,42 @@
 
       <tr class="product">
         <td>
-        <a href="[% uri %]">
           <img src="[% c.uri_for("/static/images/report.png") %]" alt="Report" />
-          [% SWITCH product.subtype %]
-          [% CASE "coverage" %]
-            Code coverage analysis report
-          [% CASE DEFAULT %]
-            Report of type <tt>[% product.subtype %]</tt>
-          [% END %]
-        </a>
         </td>
+        [% SWITCH product.subtype %]
+        [% CASE "coverage" %]
+          <td>Code coverage</td>
+          <td>
+            <a href="[% uri %]">
+              Analysis report
+            </a>
+          </td>
+        [% CASE DEFAULT %]
+          <td>Report</td>
+          <td>
+            <a href="[% uri %]">
+              <tt>[% product.subtype %]</tt>
+            </a>
+          </td>
+        [% END %]
+        <td></td>
       </tr>
 
       [% CASE ["doc", "doc-pdf"] %]
 
       <tr class="product">
         <td>
-        <a href="[% uri %]">
           [% IF product.type == "doc-pdf" %]
             <img src="[% c.uri_for("/static/images/pdf.png") %]" alt="PDF document" />
           [% ELSE %]
             <img src="[% c.uri_for("/static/images/document.png") %]" alt="Document" />
           [% END %]
+        </td>
+        <td>
+          Documentation
+        </td>
+        <td>
+        <a href="[% uri %]">
           [% SWITCH product.subtype %]
           [% CASE "readme" %]
             Read Me!
@@ -192,14 +256,16 @@
           [% CASE "release-notes" %]
             Release notes
           [% CASE DEFAULT %]
-            Documentation of type <tt>[% product.subtype %]</tt>
+            [% product.subtype %]
           [% END %]
         </a>
-        [% WRAPPER makePopover title="Details" classes="btn-mini" %]
-          <table class="info-table">
-            [% INCLUDE renderProductLinks %]
-          </table>
-        [% END %]
+        </td>
+        <td>
+          [% WRAPPER makePopover title="Details" classes="btn-mini" %]
+            <table class="info-table">
+              [% INCLUDE renderProductLinks %]
+            </table>
+          [% END %]
         </td>
       </tr>
 
@@ -207,7 +273,14 @@
 
       <tr class="product">
         <td>
-        Something of type <tt>[% product.type %]</tt> [% product %]
+          <tt>[% product.type %]</tt>
+        </td>
+        <td>
+        </td>
+        <td>
+         [% product %]
+        </td>
+        <td>
         </td>
       </tr>
 
