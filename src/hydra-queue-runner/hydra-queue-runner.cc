@@ -7,7 +7,7 @@
 
 #include "state.hh"
 #include "build-result.hh"
-#include "s3-binary-cache-store.hh"
+#include "store-api.hh"
 
 #include "shared.hh"
 #include "globals.hh"
@@ -775,34 +775,12 @@ void State::run(BuildID buildOne)
     if (!lock)
         throw Error("hydra-queue-runner is already running");
 
-    auto storeMode = hydraConfig["store_mode"];
-
     _localStore = openStore();
 
-    if (storeMode == "direct" || storeMode == "") {
+    if (hydraConfig["store_uri"] == "") {
         _destStore = _localStore;
-    }
-
-    else if (storeMode == "local-binary-cache") {
-        auto dir = hydraConfig["binary_cache_dir"];
-        if (dir == "")
-            throw Error("you must set ‘binary_cache_dir’ in hydra.conf");
-        _destStore = openLocalBinaryCacheStore(
-            _localStore,
-            hydraConfig["binary_cache_secret_key_file"],
-            dir);
-    }
-
-    else if (storeMode == "s3-binary-cache") {
-        auto bucketName = hydraConfig["binary_cache_s3_bucket"];
-        if (bucketName == "")
-            throw Error("you must set ‘binary_cache_s3_bucket’ in hydra.conf");
-        auto store = make_ref<S3BinaryCacheStore>(
-            _localStore,
-            hydraConfig["binary_cache_secret_key_file"],
-            bucketName);
-        store->init();
-        _destStore = std::shared_ptr<S3BinaryCacheStore>(store);
+    } else {
+        _destStore = openStoreAt(hydraConfig["store_uri"]);
     }
 
     {
