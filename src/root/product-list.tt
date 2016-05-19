@@ -21,7 +21,7 @@
 
   <table class="table table-striped">
     <tr>
-       <th>Icon</th>
+       <th></th>
        <th>Type</th>
        <th>Link</th>
        <th>Actions</th>
