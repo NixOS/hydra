@@ -4,7 +4,6 @@ use strict;
 use utf8;
 use Hydra::Plugin;
 use Hydra::Helper::Nix;
-use Hydra::Helper::PluginHooks;
 use Hydra::Helper::AddBuilds;
 
 STDERR->autoflush(1);
@@ -16,11 +15,12 @@ my $db = Hydra::Model::DB->new();
 
 my @plugins = Hydra::Plugin->instantiate(db => $db, config => $config);
 
-my $cmd = shift @ARGV or die "Syntax: hydra-notify CMD BUILD-ID [BUILD-IDs...]\n";
+my $cmd = shift @ARGV or die "Syntax: hydra-notify build-started BUILD | build-finished BUILD-ID [BUILD-IDs...] | step-finished BUILD-ID STEP-NR LOG-PATH\n";
 
 my $buildId = shift @ARGV or die;
 my $build = $db->resultset('Builds')->find($buildId)
     or die "build $buildId does not exist\n";
+
 if ($cmd eq "build-finished") {
     my $project = $build->project;
     my $jobset = $build->jobset;
@@ -33,9 +33,36 @@ if ($cmd eq "build-finished") {
             or die "build $id does not exist\n";
         push @dependents, $dep;
     }
-    notifyBuildFinished(\@plugins, $build, [@dependents]);
-} elsif ($cmd eq "build-started") {
-    notifyBuildStarted(\@plugins, $build);
+
+    foreach my $plugin (@plugins) {
+        eval { $plugin->buildFinished($build, [@dependents]); };
+        if ($@) {
+            print STDERR "$plugin->buildFinished: $@\n";
+        }
+    }
+}
+
+elsif ($cmd eq "build-started") {
+    foreach my $plugin (@plugins) {
+        eval { $plugin->buildStarted($build); };
+        if ($@) {
+            print STDERR "$plugin->buildStarted: $@\n";
+        }
+    }
+}
+
+elsif ($cmd eq "step-finished") {
+    my $stepNr = shift @ARGV or die;
+    my $step = $build->buildsteps->find({stepnr => $stepNr})
+        or die "step $stepNr does not exist\n";
+    my $logPath = shift @ARGV or die;
+
+    foreach my $plugin (@plugins) {
+        eval { $plugin->stepFinished($step, $logPath); };
+        if ($@) {
+            print STDERR "$plugin->stepFinished: $@\n";
+        }
+    }
 }
 
 else {

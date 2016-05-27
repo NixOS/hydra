@@ -311,7 +311,13 @@ private:
     counter nrActiveDbUpdates{0};
 
     /* Log compressor work queue. */
-    nix::Sync<std::queue<nix::Path>> logCompressorQueue;
+    struct CompressionItem
+    {
+        BuildID id;
+        unsigned int stepNr;
+        nix::Path logPath;
+    };
+    nix::Sync<std::queue<CompressionItem>> logCompressorQueue;
     std::condition_variable logCompressorWakeup;
 
     /* Notification sender work queue. FIXME: if hydra-queue-runner is
@@ -321,15 +327,27 @@ private:
     struct NotificationItem
     {
         enum class Type : char {
-           Started,
-           Finished
+           BuildStarted,
+           BuildFinished,
+           StepFinished,
         };
         Type type;
         BuildID id;
         std::vector<BuildID> dependentIds;
+        unsigned int stepNr;
+        nix::Path logPath;
     };
     nix::Sync<std::queue<NotificationItem>> notificationSenderQueue;
     std::condition_variable notificationSenderWakeup;
+
+    void enqueueNotificationItem(const NotificationItem && item)
+    {
+        {
+            auto notificationSenderQueue_(notificationSenderQueue.lock());
+            notificationSenderQueue_->emplace(item);
+        }
+        notificationSenderWakeup.notify_one();
+    }
 
     /* Specific build to do for --build-one (testing only). */
     BuildID buildOne;
@@ -397,14 +415,14 @@ private:
     /* Thread to reload /etc/nix/machines periodically. */
     void monitorMachinesFile();
 
-    int allocBuildStep(pqxx::work & txn, Build::ptr build);
+    unsigned int allocBuildStep(pqxx::work & txn, Build::ptr build);
 
-    int createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
+    unsigned int createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
         const std::string & machine, BuildStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
 
     void finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime,
-        unsigned int overhead, BuildID buildId, int stepNr,
+        unsigned int overhead, BuildID buildId, unsigned int stepNr,
         const std::string & machine, BuildStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
 

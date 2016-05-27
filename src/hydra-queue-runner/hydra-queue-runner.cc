@@ -213,7 +213,7 @@ void State::clearBusy(Connection & conn, time_t stopTime)
 }
 
 
-int State::allocBuildStep(pqxx::work & txn, Build::ptr build)
+unsigned int State::allocBuildStep(pqxx::work & txn, Build::ptr build)
 {
     /* Acquire an exclusive lock on BuildSteps to ensure that we don't
        race with other threads creating a step of the same build. */
@@ -224,10 +224,10 @@ int State::allocBuildStep(pqxx::work & txn, Build::ptr build)
 }
 
 
-int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
+unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
     const std::string & machine, BuildStatus status, const std::string & errorMsg, BuildID propagatedFrom)
 {
-    int stepNr = allocBuildStep(txn, build);
+    unsigned int stepNr = allocBuildStep(txn, build);
 
     txn.parameterized
         ("insert into BuildSteps (build, stepnr, type, drvPath, busy, startTime, system, status, propagatedFrom, errorMsg, stopTime, machine) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)")
@@ -254,7 +254,7 @@ int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build,
 
 
 void State::finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime, unsigned int overhead,
-    BuildID buildId, int stepNr, const std::string & machine, BuildStatus status,
+    BuildID buildId, unsigned int stepNr, const std::string & machine, BuildStatus status,
     const std::string & errorMsg, BuildID propagatedFrom)
 {
     assert(startTime);
@@ -420,20 +420,21 @@ void State::logCompressor()
     while (true) {
         try {
 
-            Path logPath;
+            CompressionItem item;
             {
                 auto logCompressorQueue_(logCompressorQueue.lock());
                 while (logCompressorQueue_->empty())
                     logCompressorQueue_.wait(logCompressorWakeup);
-                logPath = logCompressorQueue_->front();
+                item = logCompressorQueue_->front();
                 logCompressorQueue_->pop();
             }
 
-            if (!pathExists(logPath)) continue;
+            if (!pathExists(item.logPath)) continue;
 
-            printMsg(lvlChatty, format("compressing log file ‘%1%’") % logPath);
+            printMsg(lvlChatty, format("compressing log file ‘%1%’") % item.logPath);
 
-            Path tmpPath = logPath + ".bz2.tmp";
+            Path dstPath = item.logPath + ".bz2";
+            Path tmpPath = dstPath + ".tmp";
 
             AutoCloseFD fd = open(tmpPath.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
 
@@ -442,7 +443,7 @@ void State::logCompressor()
             Pid pid = startProcess([&]() {
                 if (dup2(fd, STDOUT_FILENO) == -1)
                     throw SysError("cannot dup output pipe to stdout");
-                execlp("bzip2", "bzip2", "-c", logPath.c_str(), nullptr);
+                execlp("bzip2", "bzip2", "-c", item.logPath.c_str(), nullptr);
                 throw SysError("cannot start bzip2");
             });
 
@@ -450,13 +451,18 @@ void State::logCompressor()
 
             if (res != 0)
                 throw Error(format("bzip2 returned exit code %1% while compressing ‘%2%’")
-                    % res % logPath);
+                    % res % item.logPath);
 
-            if (rename(tmpPath.c_str(), (logPath + ".bz2").c_str()) != 0)
+            if (rename(tmpPath.c_str(), dstPath.c_str()) != 0)
                 throw SysError(format("renaming ‘%1%’") % tmpPath);
 
-            if (unlink(logPath.c_str()) != 0)
-                throw SysError(format("unlinking ‘%1%’") % logPath);
+            if (unlink(item.logPath.c_str()) != 0)
+                throw SysError(format("unlinking ‘%1%’") % item.logPath);
+
+            /* Run plugins. We do this after log compression to ensure
+               that the log file doesn't change while the plugins may
+               be accessing it. */
+            enqueueNotificationItem({NotificationItem::Type::StepFinished, item.id, {}, item.stepNr, dstPath});
 
         } catch (std::exception & e) {
             printMsg(lvlError, format("log compressor: %1%") % e.what());
@@ -483,9 +489,22 @@ void State::notificationSender()
             printMsg(lvlChatty, format("sending notification about build %1%") % item.id);
 
             Pid pid = startProcess([&]() {
-                Strings argv({"hydra-notify", item.type == NotificationItem::Type::Started ? "build-started" : "build-finished", std::to_string(item.id)});
-                for (auto id : item.dependentIds)
-                    argv.push_back(std::to_string(id));
+                Strings argv;
+                switch (item.type) {
+                    case NotificationItem::Type::BuildStarted:
+                        argv = {"hydra-notify", "build-started", std::to_string(item.id)};
+                        for (auto id : item.dependentIds)
+                            argv.push_back(std::to_string(id));
+                        break;
+                    case NotificationItem::Type::BuildFinished:
+                        argv = {"hydra-notify", "build-finished", std::to_string(item.id)};
+                        for (auto id : item.dependentIds)
+                            argv.push_back(std::to_string(id));
+                        break;
+                    case NotificationItem::Type::StepFinished:
+                        argv = {"hydra-notify", "step-finished", std::to_string(item.id), std::to_string(item.stepNr), item.logPath};
+                        break;
+                };
                 execvp("hydra-notify", (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
                 throw SysError("cannot start hydra-notify");
             });

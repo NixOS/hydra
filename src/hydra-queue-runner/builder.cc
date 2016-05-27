@@ -88,11 +88,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         for (auto build2 : dependents) {
             if (build2->drvPath == step->drvPath) {
               build = build2;
-              {
-                  auto notificationSenderQueue_(notificationSenderQueue.lock());
-                  notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::Started, build->id});
-              }
-              notificationSenderWakeup.notify_one();
+              enqueueNotificationItem({NotificationItem::Type::BuildStarted, build->id});
             }
         }
         if (!build) build = *dependents.begin();
@@ -107,7 +103,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
     RemoteResult result;
     BuildOutput res;
-    int stepNr = 0;
+    unsigned int stepNr = 0;
     bool stepFinished = false;
 
     Finally clearStep([&]() {
@@ -169,7 +165,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
     if (result.logFile != "") {
         {
             auto logCompressorQueue_(logCompressorQueue.lock());
-            logCompressorQueue_->push(result.logFile);
+            assert(stepNr);
+            logCompressorQueue_->push({build->id, stepNr, result.logFile});
         }
         logCompressorWakeup.notify_one();
     }
@@ -269,13 +266,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
         /* Send notification about the builds that have this step as
            the top-level. */
-        for (auto id : buildIDs) {
-            {
-                auto notificationSenderQueue_(notificationSenderQueue.lock());
-                notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::Finished, id});
-            }
-            notificationSenderWakeup.notify_one();
-        }
+        for (auto id : buildIDs)
+            enqueueNotificationItem({NotificationItem::Type::BuildFinished, id});
 
         /* Wake up any dependent steps that have no other
            dependencies. */
@@ -394,7 +386,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         /* Send notification about this build and its dependents. */
         {
             auto notificationSenderQueue_(notificationSenderQueue.lock());
-            notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::Finished, build->id, dependentIDs});
+            notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::BuildFinished, build->id, dependentIDs});
         }
         notificationSenderWakeup.notify_one();
 

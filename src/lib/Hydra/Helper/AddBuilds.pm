@@ -16,7 +16,6 @@ use File::Path;
 use File::Temp;
 use File::Spec;
 use File::Slurp;
-use Hydra::Helper::PluginHooks;
 use Hydra::Helper::CatalystUtils;
 
 our @ISA = qw(Exporter);

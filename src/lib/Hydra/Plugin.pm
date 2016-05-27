@@ -33,6 +33,12 @@ sub buildFinished {
     my ($self, $build, $dependents) = @_;
 }
 
+# Called when step $step has finished. The build log is stored in the
+# file $logPath (bzip2-compressed).
+sub stepFinished {
+    my ($self, $step, $logPath) = @_;
+}
+
 # Called to determine the set of supported input types.  The plugin
 # should add these to the $inputTypes hashref, e.g. $inputTypes{'svn'}
 # = 'Subversion checkout'.
