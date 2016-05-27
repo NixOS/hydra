@@ -67,6 +67,12 @@ __PACKAGE__->table("Users");
   default_value: 'hydra'
   is_nullable: 0
 
+=head2 publicdashboard
+
+  data_type: 'boolean'
+  default_value: false
+  is_nullable: 0
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -82,6 +88,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "type",
   { data_type => "text", default_value => "hydra", is_nullable => 0 },
+  "publicdashboard",
+  { data_type => "boolean", default_value => \"false", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -184,8 +192,8 @@ Composing rels: L</projectmembers> -> project
 __PACKAGE__->many_to_many("projects", "projectmembers", "project");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-11-05 10:22:03
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Gd8KwFcnVShZ/WihvwfgQw
+# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-05-27 11:32:14
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Az1+V+ztJoWUt50NLQR3xg
 
 my %hint = (
     columns => [

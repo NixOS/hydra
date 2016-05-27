@@ -229,6 +229,7 @@ sub updatePreferences {
     $user->update(
         { fullname => $fullName
         , emailonerror => $c->stash->{params}->{"emailonerror"} ? 1 : 0
+        , publicdashboard => $c->stash->{params}->{"publicdashboard"} ? 1 : 0
         });
 
     if (isAdmin($c)) {
@@ -336,7 +337,25 @@ sub reset_password :Chained('user') :PathPart('reset-password') :Args(0) {
 }
 
 
-sub dashboard :Chained('user') :Args(0) {
+sub dashboard_old :Chained('user') :PathPart('dashboard') :Args(0) {
+    my ($self, $c) = @_;
+    $c->res->redirect($c->uri_for($self->action_for("dashboard"), $c->req->captures));
+}
+
+
+sub dashboard_base :Chained('/') PathPart('dashboard') CaptureArgs(1) {
+    my ($self, $c, $userName) = @_;
+
+    $c->stash->{user} = $c->model('DB::Users')->find($userName)
+        or notFound($c, "User $userName doesn't exist.");
+
+    accessDenied($c, "You do not have permission to view this dashboard.")
+        unless $c->stash->{user}->publicdashboard ||
+          (defined $c->user && ($userName eq $c->user->username || !isAdmin($c)));
+}
+
+
+sub dashboard :Chained('dashboard_base') :PathPart('') :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'dashboard.tt';
 
@@ -351,7 +370,7 @@ sub dashboard :Chained('user') :Args(0) {
 }
 
 
-sub my_jobs_tab :Chained('user') :PathPart('my-jobs-tab') :Args(0) {
+sub my_jobs_tab :Chained('dashboard_base') :PathPart('my-jobs-tab') :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'dashboard-my-jobs-tab.tt';
 
@@ -370,7 +389,7 @@ sub my_jobs_tab :Chained('user') :PathPart('my-jobs-tab') :Args(0) {
 }
 
 
-sub my_jobsets_tab :Chained('user') :PathPart('my-jobsets-tab') :Args(0) {
+sub my_jobsets_tab :Chained('dashboard_base') :PathPart('my-jobsets-tab') :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'dashboard-my-jobsets-tab.tt';
 
