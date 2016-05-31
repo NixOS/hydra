@@ -118,7 +118,7 @@ rec {
         [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig sqlite libpqxx
           gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
           guile # optional, for Guile + Guix support
-          perlDeps perl
+          perlDeps perl nix
           postgresql92 # for running the tests
           (lib.overrideDerivation (aws-sdk-cpp.override {
             apis = ["s3"];

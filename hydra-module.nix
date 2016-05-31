@@ -164,7 +164,7 @@ in
       };
 
       buildMachinesFiles = mkOption {
-        type = types.list types.path;
+        type = types.listOf types.path;
         default = [];
         example = [ "/etc/nix/machines" "/var/lib/hydra/provisioner/machines" ];
         description = "List of files containing build machines.";
