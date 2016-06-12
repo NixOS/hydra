@@ -85,7 +85,10 @@ sub _maybeAddGithubAuthentication {
   my $authorizationString = $config->{githubstatus}->{authorization};
 
   # Don't do anything if we don't have a valid token
-  return $uriUnauthString unless my ($authToken) = $authorizationString =~ m/^token ([0-9a-f]{40})$/;
+  my ($authToken) = $authorizationString =~ m/^token ([0-9a-f]{40})$/ or do {
+    print STDERR "Warning: github token not in correct form for authentication: $authorizationString\n";
+    return $uriUnauthString;
+  };
 
   #Don't do anything if we already have a userinfo
   return $uriUnauthString if defined $uriUnauth->userinfo;
@@ -94,7 +97,7 @@ sub _maybeAddGithubAuthentication {
   my $isGithub     = $uriUnauth->host eq "github.com";
   my $isHttps      = $uriUnauth->scheme eq "https";
   if($isGithub && !$isHttps){
-    print STDERR ("Warning: github token will not be applied to non https uri: " . $uriUnauthString);
+    print STDERR "Warning: github token will not be applied to non https uri: $uriUnauthString\n";
     return $uriUnauthString;
   }
 
