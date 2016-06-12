@@ -8,6 +8,7 @@ use Hydra::Helper::Nix;
 use Nix::Store;
 use Encode;
 use URI;
+{ package URI::git; use base "URI::_login"; }
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -90,16 +91,19 @@ sub _maybeAddGithubAuthentication {
     return $uriUnauthString;
   };
 
-  #Don't do anything if we already have a userinfo
-  return $uriUnauthString if defined $uriUnauth->userinfo;
-
   # Indicators for being eligible for authentication.
   my $isGithub     = $uriUnauth->host eq "github.com";
   my $isHttps      = $uriUnauth->scheme eq "https";
-  if($isGithub && !$isHttps){
-    print STDERR "Warning: github token will not be applied to non https uri: $uriUnauthString\n";
+
+  if(!$isHttps){
+    if($isGithub){
+      print STDERR "Warning: github token will not be applied to non https uri: $uriUnauthString\n";
+    }
     return $uriUnauthString;
   }
+
+  #Don't do anything if we already have a userinfo
+  return $uriUnauthString if defined $uriUnauth->userinfo;
 
   my $uriAuth = $uriUnauth->clone;
   $uriAuth->userinfo($authToken);
