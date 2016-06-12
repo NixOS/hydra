@@ -7,6 +7,7 @@ use File::Path;
 use Hydra::Helper::Nix;
 use Nix::Store;
 use Encode;
+use URI;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -71,12 +72,46 @@ sub _parseValue {
     return ($uri, $branch, $deepClone);
 }
 
+# Given a uri insert the github authentication token if the uri points to a
+# resource at https://github.com/ and doesn't already specify a token.
+sub _maybeAddGithubAuthentication {
+  my ($config, $uriUnauthString) = @_;
+
+  my $uriUnauth = URI->new($uriUnauthString);
+
+  # Use the GithubStatus plugin's authorization.
+  # TODO: move this into a more cleanly shared field.
+  return $uriUnauthString unless defined $config->{githubstatus}->{authorization};
+  my $authorizationString = $config->{githubstatus}->{authorization};
+
+  # Don't do anything if we don't have a valid token
+  return $uriUnauthString unless my ($authToken) = $authorizationString =~ m/^token ([0-9a-f]{40})$/;
+
+  #Don't do anything if we already have a userinfo
+  return $uriUnauthString if defined $uriUnauth->userinfo;
+
+  # Indicators for being eligible for authentication.
+  my $isGithub     = $uriUnauth->host eq "github.com";
+  my $isHttps      = $uriUnauth->scheme eq "https";
+  if($isGithub && !$isHttps){
+    print STDERR ("Warning: github token will not be applied to non https uri: " . $uriUnauthString);
+    return $uriUnauthString;
+  }
+
+  my $uriAuth = $uriUnauth->clone;
+  $uriAuth->userinfo($authToken);
+
+  return $uriAuth->as_string;
+}
+
 sub fetchInput {
     my ($self, $type, $name, $value) = @_;
 
     return undef if $type ne "git";
 
-    my ($uri, $branch, $deepClone) = _parseValue($value);
+    my ($uriUnauth, $branch, $deepClone) = _parseValue($value);
+
+    my $uri = _maybeAddGithubAuthentication($self->{config}, $uriUnauth);
 
     my $clonePath = $self->_cloneRepo($uri, $branch, $deepClone);
 
