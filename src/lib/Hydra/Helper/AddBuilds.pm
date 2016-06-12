@@ -294,7 +294,7 @@ sub inputsToArgs {
             if scalar @{$inputInfo->{$input}} == 1
                && defined $inputInfo->{$input}->[0]->{storePath};
         foreach my $alt (@{$inputInfo->{$input}}) {
-            if ($alt->{type} eq "string") {
+            if ($alt->{type} eq "string" || $alt->{type} eq "githubAPI") {
                 push @res, "--argstr", $input, $alt->{value};
             }
             elsif ($alt->{type} eq "boolean") {
