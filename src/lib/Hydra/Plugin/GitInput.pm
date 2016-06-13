@@ -80,16 +80,11 @@ sub _maybeAddGithubAuthentication {
 
   my $uriUnauth = URI->new($uriUnauthString);
 
-  # Use the GithubStatus plugin's authorization.
-  # TODO: move this into a more cleanly shared field.
-  return $uriUnauthString unless defined $config->{githubstatus}->{authorization};
-  my $authorizationString = $config->{githubstatus}->{authorization};
-
   # Don't do anything if we don't have a valid token
-  my ($authToken) = $authorizationString =~ m/^token ([0-9a-f]{40})$/ or do {
-    print STDERR "Warning: github token not in correct form for authentication: $authorizationString\n";
+  my $authToken = _getAuthToken($config);
+  if(not defined $authToken){
     return $uriUnauthString;
-  };
+  }
 
   # Indicators for being eligible for authentication.
   my $isGithub     = $uriUnauth->host eq "github.com";
@@ -109,6 +104,24 @@ sub _maybeAddGithubAuthentication {
   $uriAuth->userinfo($authToken);
 
   return $uriAuth->as_string;
+}
+
+sub _getAuthToken {
+  my ($config) = @_;
+
+  # TODO: move this into a more cleanly shared field.
+  if(not defined $config->{githubstatus}->{authorization}){
+    return undef;
+  }
+
+  my $authorizationString = $config->{githubstatus}->{authorization};
+
+  my ($authToken) = $authorizationString =~ m/^token ([0-9a-f]{40})$/ or do {
+    print STDERR "Warning: github token not in correct form for authentication: $authorizationString\n";
+    return undef;
+  };
+
+  return $authToken;
 }
 
 sub fetchInput {
@@ -165,8 +178,14 @@ sub fetchInput {
             $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "1";
         }
 
+        my @extraPrefetchArgs = ();
+        my $authToken = _getAuthToken($self->{config});
+        if(defined $authToken){
+          @extraPrefetchArgs = ("--token", "$authToken");
+        }
+
         # FIXME: Don't use nix-prefetch-git.
-        ($sha256, $storePath) = split ' ', grab(cmd => ["nix-prefetch-git", $clonePath, $revision], chomp => 1);
+        ($sha256, $storePath) = split ' ', grab(cmd => ["nix-prefetch-git", $clonePath, $revision, @extraPrefetchArgs], chomp => 1);
 
         # FIXME: time window between nix-prefetch-git and addTempRoot.
         addTempRoot($storePath);
