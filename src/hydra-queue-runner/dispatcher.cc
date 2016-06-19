@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <thread>
 #include <unordered_map>
 
@@ -119,8 +120,8 @@ system_time State::doDispatch()
         sort(machinesSorted.begin(), machinesSorted.end(),
             [](const MachineInfo & a, const MachineInfo & b) -> bool
             {
-                float ta = roundf(a.currentJobs / a.machine->speedFactor);
-                float tb = roundf(b.currentJobs / b.machine->speedFactor);
+                float ta = std::round(a.currentJobs / a.machine->speedFactor);
+                float tb = std::round(b.currentJobs / b.machine->speedFactor);
                 return
                     ta != tb ? ta < tb :
                     a.machine->speedFactor != b.machine->speedFactor ? a.machine->speedFactor > b.machine->speedFactor :
