@@ -86,6 +86,11 @@ sub _maybeAddGithubAuthentication {
     return $uriUnauthString;
   }
 
+  if(not $uriUnauth->has_recognized_scheme){
+    print STDERR "Warning: unrecognized URI scheme for uri: $uriUnauthString\n";
+    return $uriUnauthString;
+  }
+
   # Indicators for being eligible for authentication.
   my $isGithub     = $uriUnauth->host eq "github.com";
   my $isHttps      = $uriUnauth->scheme eq "https";
