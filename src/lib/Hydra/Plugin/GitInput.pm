@@ -87,7 +87,6 @@ sub _maybeAddGithubAuthentication {
   }
 
   if(not $uriUnauth->has_recognized_scheme){
-    print STDERR "Warning: unrecognized URI scheme for uri: $uriUnauthString\n";
     return $uriUnauthString;
   }
 
