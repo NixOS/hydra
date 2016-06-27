@@ -13,9 +13,7 @@ let
 
   hydraServer = hydraPkg:
     { config, pkgs, ... }:
-    { imports = [ ./hydra-module.nix ];
-
-      virtualisation.memorySize = 1024;
+    { virtualisation.memorySize = 1024;
       virtualisation.writableStore = true;
 
       services.hydra.enable = true;
