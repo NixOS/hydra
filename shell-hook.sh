@@ -38,3 +38,18 @@ function setup-database() {
         && mkdir -p "$HYDRA_DATA" \
         && hydra-init
 }
+
+function setup-dev-env() {
+    if [ ! -e "$sourceRoot/configure" ]; then
+        "$sourceRoot/bootstrap"
+    fi
+    if [ ! -e Makefile ]; then
+        "$sourceRoot/configure" $configureFlags
+    fi
+    if [ ! -e "$HYDRA_HOME/sql/hydra-postgresql.sql" ]; then
+        make
+    fi
+    if [ ! -e "$hydraDevDir/database" ]; then
+        setup-database
+    fi
+}
