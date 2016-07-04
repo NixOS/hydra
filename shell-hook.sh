@@ -1,27 +1,28 @@
-hydra_devdir="$PWD/inst"
-export HYDRA_HOME="$PWD/src"
+sourceRoot="$PWD"
+hydraDevDir="$sourceRoot/inst"
+export HYDRA_HOME="$sourceRoot/src"
 
-function setup-dev-env() {
-    HYDRA_DATA="$hydra_devdir/data"
-    HYDRA_DBI="dbi:Pg:dbname=hydra;port=5432;host=$hydra_devdir/sockets"
+function setupEnvVars() {
+    HYDRA_DATA="$hydraDevDir/data"
+    HYDRA_DBI="dbi:Pg:dbname=hydra;port=5432;host=$hydraDevDir/sockets"
     export HYDRA_DATA HYDRA_DBI
 }
 
 function stop-database() {
-    if [ -e "$hydra_devdir/database/postmaster.pid" ]; then
-        pg_ctl -D "$hydra_devdir/database" stop
+    if [ -e "$hydraDevDir/database/postmaster.pid" ]; then
+        pg_ctl -D "$hydraDevDir/database" stop
     fi
 }
 
 function start-database() {
-    mkdir -p "$hydra_devdir/sockets"
-    pg_ctl -D "$hydra_devdir/database" \
-        -o "-F -k '$hydra_devdir/sockets' -p 5432 -h ''" -w start
+    mkdir -p "$hydraDevDir/sockets"
+    pg_ctl -D "$hydraDevDir/database" \
+        -o "-F -k '$hydraDevDir/sockets' -p 5432 -h ''" -w start
     trap stop-database EXIT
 }
 
-if [ -e "$hydra_devdir/database" ]; then
-    setup-dev-env
+if [ -e "$hydraDevDir/database" ]; then
+    setupEnvVars
     start-database
 fi
 
@@ -30,10 +31,10 @@ function setup-database() {
         echo "hydra-postgresql.sql doesn't exist, please run make!" >&2
         return 1
     fi
-    initdb -D "$hydra_devdir/database" \
+    initdb -D "$hydraDevDir/database" \
         && start-database \
         && setup-dev-env \
-        && createdb -p 5432 -h "$hydra_devdir/sockets" hydra \
+        && createdb -p 5432 -h "$hydraDevDir/sockets" hydra \
         && mkdir -p "$HYDRA_DATA" \
         && hydra-init
 }
