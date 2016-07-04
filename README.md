@@ -9,6 +9,7 @@ This will run the following commands:
     $ ./configure $configureFlags --prefix=/opt/hydra
     $ make
     $ setup-database
+    $ hydra-create-user admin --password admin --role admin
 
 The `setup-database` command is used for setting up a temporary database living
 in the `inst/database` subdirectory of the project root. It also sets up the

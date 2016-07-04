@@ -56,5 +56,6 @@ function setup-dev-env() {
     fi
     if [ ! -e "$hydraDevDir/database" ]; then
         setup-database || return 1
+        hydra-create-user admin --password admin --role admin || return 1
     fi
 }
