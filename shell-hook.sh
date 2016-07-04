@@ -3,9 +3,12 @@ hydraDevDir="$sourceRoot/inst"
 export HYDRA_HOME="$sourceRoot/src"
 
 function setupEnvVars() {
+    PGDATABASE=hydra
+    PGHOST="$hydraDevDir/sockets"
+    PGPORT=5432
     HYDRA_DATA="$hydraDevDir/data"
-    HYDRA_DBI="dbi:Pg:dbname=hydra;port=5432;host=$hydraDevDir/sockets"
-    export HYDRA_DATA HYDRA_DBI
+    HYDRA_DBI="dbi:Pg:dbname=$PGDATABASE;port=$PGPORT;host=$PGHOST"
+    export PGDATABASE PGHOST PGPORT HYDRA_DATA HYDRA_DBI
 }
 
 function stop-database() {
