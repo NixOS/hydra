@@ -36,20 +36,22 @@ function setup-database() {
         && setup-dev-env \
         && createdb -p 5432 -h "$hydraDevDir/sockets" hydra \
         && mkdir -p "$HYDRA_DATA" \
-        && hydra-init
+        && hydra-init \
+        && return 0
+    return 1
 }
 
 function setup-dev-env() {
     if [ ! -e "$sourceRoot/configure" ]; then
-        "$sourceRoot/bootstrap"
+        "$sourceRoot/bootstrap" || return 1
     fi
     if [ ! -e Makefile ]; then
-        "$sourceRoot/configure" $configureFlags
+        "$sourceRoot/configure" $configureFlags || return 1
     fi
     if [ ! -e "$HYDRA_HOME/sql/hydra-postgresql.sql" ]; then
-        make
+        make || return 1
     fi
     if [ ! -e "$hydraDevDir/database" ]; then
-        setup-database
+        setup-database || return 1
     fi
 }
