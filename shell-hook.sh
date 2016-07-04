@@ -34,9 +34,9 @@ function setup-database() {
         echo "hydra-postgresql.sql doesn't exist, please run make!" >&2
         return 1
     fi
+    setupEnvVars
     initdb -D "$hydraDevDir/database" \
         && start-database \
-        && setup-dev-env \
         && createdb -p 5432 -h "$hydraDevDir/sockets" hydra \
         && mkdir -p "$HYDRA_DATA" \
         && hydra-init \
