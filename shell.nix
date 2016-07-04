@@ -1,1 +1,5 @@
-(import ./release.nix { shell = true; }).build.${builtins.currentSystem}
+{ nix ? null } @ args:
+
+(import ./release.nix (args // {
+  shell = true;
+})).build.${builtins.currentSystem}
