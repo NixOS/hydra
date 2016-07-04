@@ -1,6 +1,7 @@
 { hydraSrc ? { outPath = ./.; revCount = 1234; rev = "abcdef"; }
 , officialRelease ? false
 , shell ? false
+, nix ? null
 }:
 
 with import <nixpkgs/lib>;
@@ -31,9 +32,14 @@ let
 
   version = builtins.readFile ./version + "." + toString hydraSrc.revCount + "." + hydraSrc.rev;
 
+  getNixPackageFor = system:
+    if nix == null
+    then (import <nixpkgs> { inherit system; }).nixUnstable
+    else nix;
+  nixVersion = getVersion (getNixPackageFor builtins.currentSystem);
 in
 
-assert versionAtLeast (getVersion pkgs.nixUnstable) "1.11pre4244_133a421";
+assert versionAtLeast nixVersion "1.11pre4244_133a421";
 
 rec {
 
@@ -42,8 +48,7 @@ rec {
     with import <nixpkgs> { inherit system; };
 
     let
-
-      nix = nixUnstable;
+      nix = getNixPackageFor system;
 
       NetStatsd = buildPerlPackage {
         name = "Net-Statsd-0.11";
