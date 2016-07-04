@@ -19,7 +19,8 @@ function stop-database() {
 
 function start-database() {
     mkdir -p "$hydraDevDir/sockets"
-    pg_ctl -D "$hydraDevDir/database" \
+    local setsid="$(type -P setsid 2> /dev/null || :)"
+    $setsid pg_ctl -D "$hydraDevDir/database" \
         -o "-F -k '$hydraDevDir/sockets' -p 5432 -h ''" -w start
     trap stop-database EXIT
 }

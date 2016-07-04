@@ -136,7 +136,7 @@ rec {
               sha256 = "1vhgsxkhpai9a7dk38q4r239l6dsz2jvl8hii24c194lsga3g84h";
             };
           }))
-        ];
+        ] ++ lib.optional (shell && stdenv.isLinux) utillinux;
 
       hydraPath = lib.makeBinPath (
         [ libxslt sqlite subversion openssh nix coreutils findutils
