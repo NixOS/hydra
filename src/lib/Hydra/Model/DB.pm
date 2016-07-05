@@ -9,18 +9,10 @@ sub getHydraPath {
     return $dir;
 }
 
-sub getHydraDBPath {
-    my $db = $ENV{"HYDRA_DBI"};
-    return $db if defined $db;
-    my $path = getHydraPath . '/hydra.sqlite';
-    #warn "The Hydra database ($path) does not exist!\n" unless -f $path;
-    return "dbi:SQLite:$path";
-}
-
 __PACKAGE__->config(
     schema_class => 'Hydra::Schema',
     connect_info => {
-        dsn => getHydraDBPath
+        dsn => $ENV{"HYDRA_DBI"}
     },
 );
 

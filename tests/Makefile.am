@@ -28,9 +28,6 @@ TESTS = \
 
 check_SCRIPTS = repos
 
-db.sqlite: $(top_srcdir)/src/sql/hydra-sqlite.sql
-	$(TESTS_ENVIRONMENT) $(top_srcdir)/src/script/hydra-init
-
 repos: dirs
 
 dirs:

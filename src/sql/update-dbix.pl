@@ -4,5 +4,4 @@ make_schema_at("Hydra::Schema", {
     moniker_map => sub { return "$_"; },
     components => [ "+Hydra::Component::ToJSON" ],
     rel_name_map => { buildsteps_builds => "buildsteps" }
-}, ["dbi:SQLite:tmp.sqlite"]);
-
+}, [$ENV{"HYDRA_DBI"}]);

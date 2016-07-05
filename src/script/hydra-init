@@ -25,8 +25,7 @@ my @tables = $dbh->tables;
 if (! grep { /SchemaVersion/i } @tables) {
     print STDERR "initialising the Hydra database schema...\n";
     my $schema = read_file(
-        $dbh->{Driver}->{Name} eq 'SQLite' ? "$home/sql/hydra-sqlite.sql" :
-        $dbh->{Driver}->{Name} eq 'Pg' ? "$home/sql/hydra-postgresql.sql" :
+        $dbh->{Driver}->{Name} eq 'Pg' ? "$home/sql/hydra.sql" :
         die "unsupported database type\n");
     my @statements = $sql_splitter->split($schema);
     eval {

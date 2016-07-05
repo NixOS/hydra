@@ -56,6 +56,7 @@ sub getBaseUrl {
 # Awful hack to handle timeouts in SQLite: just retry the transaction.
 # DBD::SQLite *has* a 30 second retry window, but apparently it
 # doesn't work.
+# TODO: Remove this, because we no longer support SQLite!
 sub txn_do {
     my ($db, $coderef) = @_;
     my $res;

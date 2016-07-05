@@ -71,19 +71,12 @@ create table Jobsets (
     check (schedulingShares > 0),
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade
-#ifdef SQLITE
-    ,
-    foreign key   (project, name, nixExprInput) references JobsetInputs(project, jobset, name)
-#endif
 );
 
-#ifdef POSTGRESQL
 
 create function notifyJobsetSharesChanged() returns trigger as 'begin notify jobset_shares_changed; return null; end;' language plpgsql;
 create trigger JobsetSharesChanged after update on Jobsets for each row
   when (old.schedulingShares != new.schedulingShares) execute procedure notifyJobsetSharesChanged();
-
-#endif
 
 
 create table JobsetRenames (
@@ -134,11 +127,7 @@ create table Jobs (
 
 
 create table Builds (
-#ifdef POSTGRESQL
     id            serial primary key not null,
-#else
-    id            integer primary key autoincrement not null,
-#endif
 
     finished      integer not null, -- 0 = scheduled, 1 = finished
 
@@ -215,8 +204,6 @@ create table Builds (
 );
 
 
-#ifdef POSTGRESQL
-
 create function notifyBuildsAdded() returns trigger as 'begin notify builds_added; return null; end;' language plpgsql;
 create trigger BuildsAdded after insert on Builds execute procedure notifyBuildsAdded();
 
@@ -234,8 +221,6 @@ create trigger BuildCancelled after update on Builds for each row
 create function notifyBuildBumped() returns trigger as 'begin notify builds_bumped; return null; end;' language plpgsql;
 create trigger BuildBumped after update on Builds for each row
   when (old.globalPriority != new.globalPriority) execute procedure notifyBuildBumped();
-
-#endif
 
 
 create table BuildOutputs (
@@ -293,11 +278,7 @@ create table BuildStepOutputs (
 
 -- Inputs of builds.
 create table BuildInputs (
-#ifdef POSTGRESQL
     id            serial primary key not null,
-#else
-    id            integer primary key autoincrement not null,
-#endif
 
     -- Which build this input belongs to.
     build         integer,
@@ -463,11 +444,7 @@ create table ReleaseMembers (
 
 
 create table JobsetEvals (
-#ifdef POSTGRESQL
     id            serial primary key not null,
-#else
-    id            integer primary key autoincrement not null,
-#endif
 
     project       text not null,
     jobset        text not null,
@@ -536,11 +513,7 @@ create table UriRevMapper (
 
 
 create table NewsItems (
-#ifdef POSTGRESQL
     id            serial primary key not null,
-#else
-    id            integer primary key autoincrement not null,
-#endif
     contents      text not null,
     createTime    integer not null,
     author        text not null,
@@ -573,15 +546,12 @@ create table FailedPaths (
     path text primary key not null
 );
 
-#ifdef POSTGRESQL
 
 -- Needed because Postgres doesn't have "ignore duplicate" or upsert
 -- yet.
 create rule IdempotentInsert as on insert to FailedPaths
   where exists (select 1 from FailedPaths where path = new.path)
   do instead nothing;
-
-#endif
 
 
 create table SystemStatus (
@@ -598,7 +568,6 @@ create table NrBuilds (
 
 insert into NrBuilds(what, count) values('finished', 0);
 
-#ifdef POSTGRESQL
 
 create function modifyNrBuildsFinished() returns trigger as $$
   begin
@@ -616,8 +585,6 @@ $$ language plpgsql;
 create trigger NrBuildsFinished after insert or update or delete on Builds
   for each row
   execute procedure modifyNrBuildsFinished();
-
-#endif
 
 
 -- Some indices.

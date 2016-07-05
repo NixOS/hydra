@@ -16,9 +16,6 @@ Makefile.in
 /missing
 /install-sh
 /src/script/hydra-eval-guile-jobs
-/src/sql/hydra-postgresql.sql
-/src/sql/hydra-sqlite.sql
-/src/sql/tmp.sqlite
 /src/hydra-eval-jobs/hydra-eval-jobs
 /src/root/static/bootstrap
 /src/root/static/js/flot
