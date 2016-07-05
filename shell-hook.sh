@@ -19,7 +19,7 @@ function stop-database() {
 
 function start-database() {
     [ -e "$hydraDevDir/database/postmaster.pid" ] \
-        && kill -0 "$(< "$hydraDevDir/database/postmaster.pid")" \
+        && pg_ctl -D "$hydraDevDir/database" status &> /dev/null \
         && return 0
     mkdir -p "$hydraDevDir/sockets"
     local setsid="$(type -P setsid 2> /dev/null || :)"
