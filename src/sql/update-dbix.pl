@@ -6,5 +6,5 @@ make_schema_at("Hydra::Schema", {
         return $_ =~ s/(?:_|^)([a-z])/\u$1/gr;
     },
     components => [ "+Hydra::Component::ToJSON" ],
-    rel_name_map => { buildsteps_builds => "buildsteps" }
+    rel_name_map => { build_steps_builds => "build_steps" }
 }, [$ENV{"HYDRA_DBI"}]);
