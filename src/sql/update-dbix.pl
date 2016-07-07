@@ -3,6 +3,7 @@ make_schema_at("Hydra::Schema", {
     relationships => 1,
     moniker_map => sub {
         return "CachedCVSInputs" if $_ eq "cached_cvs_inputs";
+        return "SchemaVersion"   if $_ eq "schemaversion";
         return $_ =~ s/(?:_|^)([a-z])/\u$1/gr;
     },
     components => [ "+Hydra::Component::ToJSON" ],
