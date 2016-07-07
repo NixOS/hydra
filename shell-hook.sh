@@ -22,8 +22,12 @@ function start-database() {
         && pg_ctl -D "$hydraDevDir/database" status &> /dev/null \
         && return 0
     mkdir -p "$hydraDevDir/sockets"
-    local setsid="$(type -P setsid 2> /dev/null || :)"
-    $setsid pg_ctl -D "$hydraDevDir/database" \
+    if type -P setsid &> /dev/null; then
+        local ctl="setsid -w pg_ctl"
+    else
+        local ctl=pg_ctl
+    fi
+    $ctl -D "$hydraDevDir/database" \
         -o "-F -k '$hydraDevDir/sockets' -p 5432 -h ''" -w start
     trap stop-database EXIT
 }
