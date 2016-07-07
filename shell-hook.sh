@@ -11,24 +11,42 @@ function setupEnvVars() {
     export PGDATABASE PGHOST PGPORT HYDRA_DATA HYDRA_DBI
 }
 
+function acquireSemaphore() {
+    mkdir -p "$hydraDevDir/sema"
+    touch "$hydraDevDir/sema/$$"
+    isActiveSemaphore
+}
+
+function releaseSemaphore() {
+    rm -f "$hydraDevDir/sema/$$"
+}
+
+function isActiveSemaphore() {
+    [ -e "$hydraDevDir/sema" -a -z "$(find "$hydraDevDir/sema" -prune -empty)" ]
+}
+
 function stop-database() {
+    releaseSemaphore
+    ! isActiveSemaphore || return
     if [ -e "$hydraDevDir/database/postmaster.pid" ]; then
         pg_ctl -D "$hydraDevDir/database" stop
     fi
 }
 
 function start-database() {
-    [ -e "$hydraDevDir/database/postmaster.pid" ] \
-        && pg_ctl -D "$hydraDevDir/database" status &> /dev/null \
-        && return 0
-    mkdir -p "$hydraDevDir/sockets"
-    if type -P setsid &> /dev/null; then
-        local ctl="setsid -w pg_ctl"
+    if ! isActiveSemaphore; then
+        acquireSemaphore
+        mkdir -p "$hydraDevDir/sockets"
+        if type -P setsid &> /dev/null; then
+            local ctl="setsid -w pg_ctl"
+        else
+            local ctl=pg_ctl
+        fi
+        $ctl -D "$hydraDevDir/database" \
+            -o "-F -k '$hydraDevDir/sockets' -p 5432 -h ''" -w start
     else
-        local ctl=pg_ctl
+        acquireSemaphore
     fi
-    $ctl -D "$hydraDevDir/database" \
-        -o "-F -k '$hydraDevDir/sockets' -p 5432 -h ''" -w start
     trap stop-database EXIT
 }
 
