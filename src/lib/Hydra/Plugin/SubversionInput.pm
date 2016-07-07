@@ -43,10 +43,10 @@ sub fetchInput {
     (my $cachedInput) = $self->{db}->resultset('CachedSubversionInputs')->search(
         {uri => $uri, revision => $revision});
 
-    addTempRoot($cachedInput->storepath) if defined $cachedInput;
+    addTempRoot($cachedInput->store_path) if defined $cachedInput;
 
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-        $storePath = $cachedInput->storepath;
+    if (defined $cachedInput && isValidPath($cachedInput->store_path)) {
+        $storePath = $cachedInput->store_path;
         $sha256 = $cachedInput->sha256hash;
     } else {
 
@@ -76,7 +76,7 @@ sub fetchInput {
                 { uri => $uri
                 , revision => $revision
                 , sha256hash => $sha256
-                , storepath => $storePath
+                , store_path => $storePath
                 });
             });
     }

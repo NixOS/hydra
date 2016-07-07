@@ -12,7 +12,7 @@ our @EXPORT = qw(hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBui
 
 sub hydra_setup {
     my ($db) = @_;
-    $db->resultset('Users')->create({ username => "root", emailaddress => 'root@invalid.org', password => '' });
+    $db->resultset('Users')->create({ username => "root", email_address => 'root@invalid.org', password => '' });
 }
 
 sub nrBuildsForJobset {
@@ -34,14 +34,14 @@ sub createBaseJobset {
     my ($jobsetName, $nixexprpath) = @_;
 
     my $db = Hydra::Model::DB->new;
-    my $project = $db->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
-    my $jobset = $project->jobsets->create({name => $jobsetName, nixexprinput => "jobs", nixexprpath => $nixexprpath, emailoverride => ""});
+    my $project = $db->resultset('Projects')->update_or_create({name => "tests", display_name => "", owner => "root"});
+    my $jobset = $project->jobsets->create({name => $jobsetName, nix_expr_input => "jobs", nix_expr_path => $nixexprpath, email_override => ""});
 
-    my $jobsetinput;
+    my $jobset_input;
     my $jobsetinputals;
 
-    $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
-    $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => getcwd."/jobs"});
+    $jobset_input = $jobset->jobset_inputs->create({name => "jobs", type => "path"});
+    $jobsetinputals = $jobset_input->jobset_input_alts->create({alt_nr => 0, value => getcwd."/jobs"});
 
     return $jobset;
 }
@@ -50,11 +50,11 @@ sub createJobsetWithOneInput {
     my ($jobsetName, $nixexprpath, $name, $type, $uri) = @_;
     my $jobset = createBaseJobset($jobsetName, $nixexprpath);
 
-    my $jobsetinput;
+    my $jobset_input;
     my $jobsetinputals;
 
-    $jobsetinput = $jobset->jobsetinputs->create({name => $name, type => $type});
-    $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => $uri});
+    $jobset_input = $jobset->jobset_inputs->create({name => $name, type => $type});
+    $jobsetinputals = $jobset_input->jobset_input_alts->create({alt_nr => 0, value => $uri});
 
     return $jobset;
 }
@@ -63,7 +63,7 @@ sub evalSucceeds {
     my ($jobset) = @_;
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-evaluator", $jobset->project->name, $jobset->name));
     chomp $stdout; chomp $stderr;
-    print STDERR "Evaluation errors for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
+    print STDERR "Evaluation errors for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->error_msg."\n" if $jobset->error_msg;
     print STDERR "STDOUT: $stdout\n" if $stdout ne "";
     print STDERR "STDERR: $stderr\n" if $stderr ne "";
     return !$res;

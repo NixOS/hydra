@@ -28,7 +28,7 @@
     <div class="control-group">
       <label class="control-label">Display name</label>
       <div class="controls">
-        <input type="text" class="span3" name="displayname" [% HTML.attributes(value => project.displayname) %]/>
+        <input type="text" class="span3" name="displayname" [% HTML.attributes(value => project.display_name) %]/>
       </div>
     </div>
 

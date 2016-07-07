@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<UriRevMapper>
+=head1 TABLE: C<uri_rev_mapper>
 
 =cut
 
-__PACKAGE__->table("UriRevMapper");
+__PACKAGE__->table("uri_rev_mapper");
 
 =head1 ACCESSORS
 
@@ -67,8 +67,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("baseuri");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:G2GAF/Rb7cRkRegH94LwIA
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:vKrx5WLx1uY/hlKzVxTOaw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

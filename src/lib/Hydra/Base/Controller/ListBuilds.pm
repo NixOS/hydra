@@ -25,7 +25,7 @@ sub all : Chained('get_builds') PathPart {
 
     $c->stash->{builds} = [ $c->stash->{allBuilds}->search(
         { finished => 1 },
-        { order_by => "stoptime DESC"
+        { order_by => "stop_time DESC"
         , columns => [@buildListColumns]
         , rows => $resultsPerPage
         , page => $page }) ];
@@ -37,11 +37,11 @@ sub nix : Chained('get_builds') PathPart('channel/latest') CaptureArgs(0) {
 
     $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
     $c->stash->{channelBuilds} = $c->stash->{latestSucceeded}
-        ->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')")
-        ->search({}, { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
-                     , join => ["buildoutputs"]
-                     , order_by => ["me.id", "buildoutputs.name"]
-                     , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
+        ->search_literal("exists (select 1 from build_products where build = me.id and type = 'nix-build')")
+        ->search({}, { columns => [@buildListColumns, 'drv_path', 'description', 'homepage']
+                     , join => ["build_outputs"]
+                     , order_by => ["me.id", "build_outputs.name"]
+                     , '+select' => ['build_outputs.path', 'build_outputs.name'], '+as' => ['outpath', 'outname'] });
 }
 
 
@@ -50,7 +50,7 @@ sub latest : Chained('get_builds') PathPart('latest') {
     my ($self, $c, @rest) = @_;
 
     my $latest = $c->stash->{allBuilds}->find(
-        { finished => 1, buildstatus => 0 }, { order_by => ["id DESC"], rows => 1 });
+        { finished => 1, build_status => 0 }, { order_by => ["id DESC"], rows => 1 });
 
     notFound($c, "There is no successful build to redirect to.") unless defined $latest;
 
@@ -65,7 +65,7 @@ sub latest_for : Chained('get_builds') PathPart('latest-for') {
     notFound($c, "You need to specify a platform type in the URL.") unless defined $system;
 
     my $latest = $c->stash->{allBuilds}->find(
-        { finished => 1, buildstatus => 0, system => $system }, { order_by => ["id DESC"], rows => 1 });
+        { finished => 1, build_status => 0, system => $system }, { order_by => ["id DESC"], rows => 1 });
 
     notFound($c, "There is no successful build for platform `$system' to redirect to.") unless defined $latest;
 
@@ -79,10 +79,10 @@ sub latest_finished : Chained('get_builds') PathPart('latest-finished') {
     my ($self, $c, @rest) = @_;
 
     my $latest = $c->stash->{allBuilds}->find(
-        { finished => 1, buildstatus => 0 },
-        { order_by => ["id DESC"], rows => 1, join => ["jobsetevalmembers"]
+        { finished => 1, build_status => 0 },
+        { order_by => ["id DESC"], rows => 1, join => ["jobset_eval_members"]
         , where => \
-            "not exists (select 1 from jobsetevalmembers m2 join builds b2 on jobsetevalmembers.eval = m2.eval and m2.build = b2.id and b2.finished = 0)"
+            "not exists (select 1 from jobset_eval_members m2 join builds b2 on jobset_eval_members.eval = m2.eval and m2.build = b2.id and b2.finished = 0)"
         });
 
     notFound($c, "There is no successful build to redirect to.") unless defined $latest;

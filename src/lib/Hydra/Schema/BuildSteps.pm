@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<BuildSteps>
+=head1 TABLE: C<build_steps>
 
 =cut
 
-__PACKAGE__->table("BuildSteps");
+__PACKAGE__->table("build_steps");
 
 =head1 ACCESSORS
 
@@ -51,7 +51,7 @@ __PACKAGE__->table("BuildSteps");
   data_type: 'integer'
   is_nullable: 0
 
-=head2 drvpath
+=head2 drv_path
 
   data_type: 'text'
   is_nullable: 1
@@ -66,17 +66,17 @@ __PACKAGE__->table("BuildSteps");
   data_type: 'integer'
   is_nullable: 1
 
-=head2 errormsg
+=head2 error_msg
 
   data_type: 'text'
   is_nullable: 1
 
-=head2 starttime
+=head2 start_time
 
   data_type: 'integer'
   is_nullable: 1
 
-=head2 stoptime
+=head2 stop_time
 
   data_type: 'integer'
   is_nullable: 1
@@ -92,7 +92,7 @@ __PACKAGE__->table("BuildSteps");
   data_type: 'text'
   is_nullable: 1
 
-=head2 propagatedfrom
+=head2 propagated_from
 
   data_type: 'integer'
   is_foreign_key: 1
@@ -112,23 +112,23 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 0 },
   "type",
   { data_type => "integer", is_nullable => 0 },
-  "drvpath",
+  "drv_path",
   { data_type => "text", is_nullable => 1 },
   "busy",
   { data_type => "integer", is_nullable => 0 },
   "status",
   { data_type => "integer", is_nullable => 1 },
-  "errormsg",
+  "error_msg",
   { data_type => "text", is_nullable => 1 },
-  "starttime",
+  "start_time",
   { data_type => "integer", is_nullable => 1 },
-  "stoptime",
+  "stop_time",
   { data_type => "integer", is_nullable => 1 },
   "machine",
   { data_type => "text", default_value => "", is_nullable => 0 },
   "system",
   { data_type => "text", is_nullable => 1 },
-  "propagatedfrom",
+  "propagated_from",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
   "overhead",
   { data_type => "integer", is_nullable => 1 },
@@ -165,7 +165,7 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
-=head2 buildstepoutputs
+=head2 build_step_outputs
 
 Type: has_many
 
@@ -174,13 +174,13 @@ Related object: L<Hydra::Schema::BuildStepOutputs>
 =cut
 
 __PACKAGE__->has_many(
-  "buildstepoutputs",
+  "build_step_outputs",
   "Hydra::Schema::BuildStepOutputs",
   { "foreign.build" => "self.build", "foreign.stepnr" => "self.stepnr" },
   undef,
 );
 
-=head2 propagatedfrom
+=head2 propagated_from
 
 Type: belongs_to
 
@@ -189,9 +189,9 @@ Related object: L<Hydra::Schema::Builds>
 =cut
 
 __PACKAGE__->belongs_to(
-  "propagatedfrom",
+  "propagated_from",
   "Hydra::Schema::Builds",
-  { id => "propagatedfrom" },
+  { id => "propagated_from" },
   {
     is_deferrable => 0,
     join_type     => "LEFT",
@@ -201,16 +201,16 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-02-16 18:04:52
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:TRALbEoaF/OIOyERYCyxkw
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:EJC001O4YTrwl6W+eVWNgg
 
 my %hint = (
     columns => [
         "machine",
         "system",
         "stepnr",
-        "drvpath",
-        "starttime",
+        "drv_path",
+        "start_time",
     ],
     eager_relations => {
         build => 'id'

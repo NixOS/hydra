@@ -21,14 +21,14 @@ sub channel : Chained('/') PathPart('channel/custom') CaptureArgs(3) {
         if !$c->stash->{jobset};
 
     my $lastSuccessful = $c->model('DB::Builds')->find(
-        { 'eval.hasnewbuilds' => 1
+        { 'eval.has_new_builds' => 1
         , project => $projectName
         , jobset => $jobsetName
         , job => $channelName
-        , buildstatus => 0
+        , build_status => 0
         },
         { rows => 1, order_by => "eval.id desc"
-        , join => { jobsetevalmembers => 'eval' }
+        , join => { jobset_eval_members => 'eval' }
         }
     );
 
@@ -57,7 +57,7 @@ sub overview : Chained('channel') PathPart('') Args(0) {
 sub nixexprs : Chained('channel') PathPart('') Args(1) {
     my ($self, $c, $productName) = @_;
 
-    my $product = $c->stash->{lastSuccessful}->buildproducts->find(
+    my $product = $c->stash->{lastSuccessful}->build_products->find(
         { type => "channel", name => $productName }
     );
 

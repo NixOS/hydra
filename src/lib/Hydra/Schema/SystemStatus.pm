@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<SystemStatus>
+=head1 TABLE: C<system_status>
 
 =cut
 
-__PACKAGE__->table("SystemStatus");
+__PACKAGE__->table("system_status");
 
 =head1 ACCESSORS
 
@@ -67,8 +67,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("what");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:01:22
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:JCYi4+HwM22iucdFkhBjMg
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4q/nI7C/vlApwwSLnAowfw
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

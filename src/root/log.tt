@@ -2,7 +2,7 @@
 [% PROCESS common.tt %]
 
 <p>
-  This is the build log of derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
+  This is the build log of derivation <tt>[% IF step; step.drv_path; ELSE; build.drv_path; END %]</tt>.
   [% IF step && step.machine %]
     It was built on <tt>[% step.machine %]</tt>.
   [% END %]

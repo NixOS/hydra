@@ -56,7 +56,7 @@ removed or had an evaluation error.</div>
             [% FOREACH agg IN aggs %]
               <th class="rotate-45">
                 [% agg_ = aggregates.$agg %]
-                <div><span class="[% agg_.build.finished == 0 ? "text-info" : (agg_.build.buildstatus == 0 ? "text-success" : "text-warning") %] override-link">
+                <div><span class="[% agg_.build.finished == 0 ? "text-info" : (agg_.build.build_status == 0 ? "text-success" : "text-warning") %] override-link">
                   <a href="[% c.uri_for('/build' agg) %]">[% agg %]</a>
                 </span></div></th>
             [% END %]

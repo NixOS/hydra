@@ -15,10 +15,10 @@
     [% FOREACH u IN users %]
       <tr>
         <td><a class="row-link" href="[% c.uri_for(c.controller('User').action_for('edit'), [u.username]) %]">[% HTML.escape(u.username) %]</a></td>
-        <td>[% HTML.escape(u.fullname) %]</td>
-        <td>[% HTML.escape(u.emailaddress) %]</td>
-        <td>[% FOREACH r IN u.userroles %]<i>[% r.role %]</i> [% END %]</td>
-        <td>[% IF u.emailonerror %]Yes[% ELSE %]No[% END %]</td>
+        <td>[% HTML.escape(u.full_name) %]</td>
+        <td>[% HTML.escape(u.email_address) %]</td>
+        <td>[% FOREACH r IN u.user_roles %]<i>[% r.role %]</i> [% END %]</td>
+        <td>[% IF u.email_on_error %]Yes[% ELSE %]No[% END %]</td>
       </tr>
     [% END %]
   </tbody>

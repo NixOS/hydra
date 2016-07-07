@@ -59,7 +59,7 @@ sub project_PUT {
             # valid.  Idem for the owner.
             my $owner = $c->user->username;
             $project = $c->model('DB::Projects')->create(
-                { name => ".tmp", displayname => "", owner => $owner });
+                { name => ".tmp", display_name => "", owner => $owner });
             updateProject($c, $project);
         });
 
@@ -76,7 +76,7 @@ sub project_DELETE {
     requireProjectOwner($c, $c->stash->{project});
 
     txn_do($c->model('DB')->schema, sub {
-        $c->stash->{project}->jobsetevals->delete;
+        $c->stash->{project}->jobset_evals->delete;
         $c->stash->{project}->builds->delete;
         $c->stash->{project}->delete;
     });
@@ -148,7 +148,7 @@ sub updateProject {
 
     $project->update(
         { name => $projectName
-        , displayname => $displayName
+        , display_name => $displayName
         , description => trim($c->stash->{params}->{description})
         , homepage => trim($c->stash->{params}->{homepage})
         , enabled => defined $c->stash->{params}->{enabled} ? 1 : 0
@@ -161,10 +161,10 @@ sub updateProject {
     if (length($project->declfile)) {
         $project->jobsets->update_or_create(
             { name=> ".jobsets"
-            , nixexprinput => ""
-            , nixexprpath => ""
-            , emailoverride => ""
-            , triggertime => time
+            , nix_expr_input => ""
+            , nix_expr_path => ""
+            , email_override => ""
+            , trigger_time => time
             });
     }
 }

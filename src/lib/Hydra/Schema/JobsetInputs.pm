@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<JobsetInputs>
+=head1 TABLE: C<jobset_inputs>
 
 =cut
 
-__PACKAGE__->table("JobsetInputs");
+__PACKAGE__->table("jobset_inputs");
 
 =head1 ACCESSORS
 
@@ -57,7 +57,7 @@ __PACKAGE__->table("JobsetInputs");
   data_type: 'text'
   is_nullable: 0
 
-=head2 emailresponsible
+=head2 email_responsible
 
   data_type: 'integer'
   default_value: 0
@@ -74,7 +74,7 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "type",
   { data_type => "text", is_nullable => 0 },
-  "emailresponsible",
+  "email_responsible",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
 );
 
@@ -111,7 +111,7 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
-=head2 jobsetinputalts
+=head2 jobset_input_alts
 
 Type: has_many
 
@@ -120,7 +120,7 @@ Related object: L<Hydra::Schema::JobsetInputAlts>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetinputalts",
+  "jobset_input_alts",
   "Hydra::Schema::JobsetInputAlts",
   {
     "foreign.input"   => "self.name",
@@ -130,32 +130,13 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobsets
 
-Type: has_many
-
-Related object: L<Hydra::Schema::Jobsets>
-
-=cut
-
-__PACKAGE__->has_many(
-  "jobsets",
-  "Hydra::Schema::Jobsets",
-  {
-    "foreign.name"         => "self.jobset",
-    "foreign.nixexprinput" => "self.name",
-    "foreign.project"      => "self.project",
-  },
-  undef,
-);
-
-
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-08 13:06:15
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+mZZqLjQNwblb/EWW1alLQ
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:sLMvhyXlxLIzfAGTsVMF0A
 
 my %hint = (
     relations => {
-        "jobsetinputalts" => "value"
+        "jobset_input_alts" => "value"
     }
 );
 

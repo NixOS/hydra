@@ -27,18 +27,17 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<Jobsets>
+=head1 TABLE: C<jobsets>
 
 =cut
 
-__PACKAGE__->table("Jobsets");
+__PACKAGE__->table("jobsets");
 
 =head1 ACCESSORS
 
 =head2 name
 
   data_type: 'text'
-  is_foreign_key: 1
   is_nullable: 0
 
 =head2 project
@@ -52,33 +51,32 @@ __PACKAGE__->table("Jobsets");
   data_type: 'text'
   is_nullable: 1
 
-=head2 nixexprinput
-
-  data_type: 'text'
-  is_foreign_key: 1
-  is_nullable: 0
-
-=head2 nixexprpath
+=head2 nix_expr_input
 
   data_type: 'text'
   is_nullable: 0
 
-=head2 errormsg
+=head2 nix_expr_path
+
+  data_type: 'text'
+  is_nullable: 0
+
+=head2 error_msg
 
   data_type: 'text'
   is_nullable: 1
 
-=head2 errortime
+=head2 error_time
 
   data_type: 'integer'
   is_nullable: 1
 
-=head2 lastcheckedtime
+=head2 last_checked_time
 
   data_type: 'integer'
   is_nullable: 1
 
-=head2 triggertime
+=head2 trigger_time
 
   data_type: 'integer'
   is_nullable: 1
@@ -89,7 +87,7 @@ __PACKAGE__->table("Jobsets");
   default_value: 1
   is_nullable: 0
 
-=head2 enableemail
+=head2 enable_email
 
   data_type: 'integer'
   default_value: 1
@@ -101,7 +99,7 @@ __PACKAGE__->table("Jobsets");
   default_value: 0
   is_nullable: 0
 
-=head2 emailoverride
+=head2 email_override
 
   data_type: 'text'
   is_nullable: 0
@@ -112,19 +110,19 @@ __PACKAGE__->table("Jobsets");
   default_value: 3
   is_nullable: 0
 
-=head2 checkinterval
+=head2 check_interval
 
   data_type: 'integer'
   default_value: 300
   is_nullable: 0
 
-=head2 schedulingshares
+=head2 scheduling_shares
 
   data_type: 'integer'
   default_value: 100
   is_nullable: 0
 
-=head2 fetcherrormsg
+=head2 fetch_error_msg
 
   data_type: 'text'
   is_nullable: 1
@@ -133,38 +131,38 @@ __PACKAGE__->table("Jobsets");
 
 __PACKAGE__->add_columns(
   "name",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
+  { data_type => "text", is_nullable => 0 },
   "project",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "description",
   { data_type => "text", is_nullable => 1 },
-  "nixexprinput",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
-  "nixexprpath",
+  "nix_expr_input",
   { data_type => "text", is_nullable => 0 },
-  "errormsg",
+  "nix_expr_path",
+  { data_type => "text", is_nullable => 0 },
+  "error_msg",
   { data_type => "text", is_nullable => 1 },
-  "errortime",
+  "error_time",
   { data_type => "integer", is_nullable => 1 },
-  "lastcheckedtime",
+  "last_checked_time",
   { data_type => "integer", is_nullable => 1 },
-  "triggertime",
+  "trigger_time",
   { data_type => "integer", is_nullable => 1 },
   "enabled",
   { data_type => "integer", default_value => 1, is_nullable => 0 },
-  "enableemail",
+  "enable_email",
   { data_type => "integer", default_value => 1, is_nullable => 0 },
   "hidden",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
-  "emailoverride",
+  "email_override",
   { data_type => "text", is_nullable => 0 },
   "keepnr",
   { data_type => "integer", default_value => 3, is_nullable => 0 },
-  "checkinterval",
+  "check_interval",
   { data_type => "integer", default_value => 300, is_nullable => 0 },
-  "schedulingshares",
+  "scheduling_shares",
   { data_type => "integer", default_value => 100, is_nullable => 0 },
-  "fetcherrormsg",
+  "fetch_error_msg",
   { data_type => "text", is_nullable => 1 },
 );
 
@@ -184,7 +182,7 @@ __PACKAGE__->set_primary_key("project", "name");
 
 =head1 RELATIONS
 
-=head2 buildmetrics
+=head2 build_metrics
 
 Type: has_many
 
@@ -193,7 +191,7 @@ Related object: L<Hydra::Schema::BuildMetrics>
 =cut
 
 __PACKAGE__->has_many(
-  "buildmetrics",
+  "build_metrics",
   "Hydra::Schema::BuildMetrics",
   {
     "foreign.jobset"  => "self.name",
@@ -238,7 +236,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobsetevals
+=head2 jobset_evals
 
 Type: has_many
 
@@ -247,7 +245,7 @@ Related object: L<Hydra::Schema::JobsetEvals>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetevals",
+  "jobset_evals",
   "Hydra::Schema::JobsetEvals",
   {
     "foreign.jobset"  => "self.name",
@@ -256,22 +254,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobsetinput
-
-Type: belongs_to
-
-Related object: L<Hydra::Schema::JobsetInputs>
-
-=cut
-
-__PACKAGE__->belongs_to(
-  "jobsetinput",
-  "Hydra::Schema::JobsetInputs",
-  { jobset => "name", name => "nixexprinput", project => "project" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "NO ACTION" },
-);
-
-=head2 jobsetinputs
+=head2 jobset_inputs
 
 Type: has_many
 
@@ -280,7 +263,7 @@ Related object: L<Hydra::Schema::JobsetInputs>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetinputs",
+  "jobset_inputs",
   "Hydra::Schema::JobsetInputs",
   {
     "foreign.jobset"  => "self.name",
@@ -289,7 +272,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobsetrenames
+=head2 jobset_renames
 
 Type: has_many
 
@@ -298,7 +281,7 @@ Related object: L<Hydra::Schema::JobsetRenames>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetrenames",
+  "jobset_renames",
   "Hydra::Schema::JobsetRenames",
   { "foreign.project" => "self.project", "foreign.to_" => "self.name" },
   undef,
@@ -319,7 +302,7 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
-=head2 starredjobs
+=head2 starred_jobs
 
 Type: has_many
 
@@ -328,7 +311,7 @@ Related object: L<Hydra::Schema::StarredJobs>
 =cut
 
 __PACKAGE__->has_many(
-  "starredjobs",
+  "starred_jobs",
   "Hydra::Schema::StarredJobs",
   {
     "foreign.jobset"  => "self.name",
@@ -338,20 +321,20 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:52:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Coci9FdBAvUO9T3st2NEqA
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:sijwV7YKe565quMZRLi2kw
 
 my %hint = (
     columns => [
         "enabled",
-        "errormsg",
-        "fetcherrormsg",
-        "emailoverride",
-        "nixexprpath",
-        "nixexprinput"
+        "error_msg",
+        "fetch_error_msg",
+        "email_override",
+        "nix_expr_path",
+        "nix_expr_input"
     ],
     eager_relations => {
-        jobsetinputs => "name"
+        jobset_inputs => "name"
     }
 );
 

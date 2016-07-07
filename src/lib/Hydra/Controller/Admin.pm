@@ -35,7 +35,7 @@ sub machines : Chained('admin') PathPart('machines') Args(0) {
 sub clear_queue_non_current : Chained('admin') PathPart('clear-queue-non-current') Args(0) {
     my ($self, $c) = @_;
     my $builds = $c->model('DB::Builds')->search(
-        { id => { -in => \ "select id from Builds where id in ((select id from Builds where finished = 0) except (select build from JobsetEvalMembers where eval in (select max(id) from JobsetEvals where hasNewBuilds = 1 group by project, jobset)))" }
+        { id => { -in => \ "select id from builds where id in ((select id from builds where finished = 0) except (select build from jobset_eval_members where eval in (select max(id) from jobset_evals where has_new_builds = 1 group by project, jobset)))" }
         });
     my $n = cancelBuilds($c->model('DB')->schema, $builds);
     $c->flash->{successMsg} = "$n builds have been cancelled.";
@@ -64,7 +64,7 @@ sub clearvcscache : Chained('admin') PathPart('clear-vcs-cache') Args(0) {
 sub managenews : Chained('admin') PathPart('news') Args(0) {
     my ($self, $c) = @_;
 
-    $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, {order_by => 'createtime DESC'})];
+    $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, {order_by => 'create_time DESC'})];
 
     $c->stash->{template} = 'news.tt';
 }
@@ -76,10 +76,10 @@ sub news_submit : Chained('admin') PathPart('news/submit') Args(0) {
     requirePost($c);
 
     my $contents = trim $c->request->params->{"contents"};
-    my $createtime = time;
+    my $create_time = time;
 
     $c->model('DB::NewsItems')->create({
-        createtime => $createtime,
+        create_time => $create_time,
         contents => $contents,
         author => $c->user->username
     });

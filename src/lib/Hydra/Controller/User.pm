@@ -82,9 +82,9 @@ sub doEmailLogin {
     } else {
         $c->model('DB::Users')->create(
             { username => $email
-            , fullname => $fullName,
+            , full_name => $fullName,
             , password => "!"
-            , emailaddress => $email,
+            , email_address => $email,
             , type => $type
             });
         $user = $c->find_user({ username => $email }) or die;
@@ -190,7 +190,7 @@ sub register :Local Args(0) {
         my $user = $c->model('DB::Users')->create(
             { username => $userName
             , password => "!"
-            , emailaddress => "",
+            , email_address => "",
             , type => "hydra"
             });
         updatePreferences($c, $user);
@@ -227,17 +227,17 @@ sub updatePreferences {
     # FIXME: validate email address?
 
     $user->update(
-        { fullname => $fullName
-        , emailonerror => $c->stash->{params}->{"emailonerror"} ? 1 : 0
-        , publicdashboard => $c->stash->{params}->{"publicdashboard"} ? 1 : 0
+        { full_name => $fullName
+        , email_on_error => $c->stash->{params}->{"emailonerror"} ? 1 : 0
+        , public_dashboard => $c->stash->{params}->{"publicdashboard"} ? 1 : 0
         });
 
     if (isAdmin($c)) {
-        $user->update({ emailaddress => $emailAddress })
+        $user->update({ email_address => $emailAddress })
             if $user->type eq "hydra";
 
-        $user->userroles->delete;
-        $user->userroles->create({ role => $_ })
+        $user->user_roles->delete;
+        $user->user_roles->create({ role => $_ })
             foreach paramToList($c, "roles");
     }
 }
@@ -317,13 +317,13 @@ sub reset_password :Chained('user') :PathPart('reset-password') :Args(0) {
 
     error($c, "This user's password cannot be reset.") if $user->type ne "hydra";
     error($c, "No email address is set for this user.")
-        unless $user->emailaddress;
+        unless $user->email_address;
 
     my $password = Crypt::RandPasswd->word(8,10);
     setPassword($user, $password);
     sendEmail(
         $c->config,
-        $user->emailaddress,
+        $user->email_address,
         "Hydra password reset",
         "Hi,\n\n".
         "Your password has been reset. Your new password is '$password'.\n\n".
@@ -332,7 +332,7 @@ sub reset_password :Chained('user') :PathPart('reset-password') :Args(0) {
         []
     );
 
-    $c->flash->{successMsg} = "A new password has been sent to ${\$user->emailaddress}.";
+    $c->flash->{successMsg} = "A new password has been sent to ${\$user->email_address}.";
     $self->status_no_content($c);
 }
 
@@ -350,7 +350,7 @@ sub dashboard_base :Chained('/') PathPart('dashboard') CaptureArgs(1) {
         or notFound($c, "User $userName doesn't exist.");
 
     accessDenied($c, "You do not have permission to view this dashboard.")
-        unless $c->stash->{user}->publicdashboard ||
+        unless $c->stash->{user}->public_dashboard ||
           (defined $c->user && ($userName eq $c->user->username || !isAdmin($c)));
 }
 
@@ -361,7 +361,7 @@ sub dashboard :Chained('dashboard_base') :PathPart('') :Args(0) {
 
     # Get the N most recent builds for each starred job.
     $c->stash->{starredJobs} = [];
-    foreach my $j ($c->stash->{user}->starredjobs->search({}, { order_by => ['project', 'jobset', 'job'] })) {
+    foreach my $j ($c->stash->{user}->starred_jobs->search({}, { order_by => ['project', 'jobset', 'job'] })) {
         my @builds = $j->job->builds->search(
             { },
             { rows => 20, order_by => "id desc" });
@@ -374,12 +374,12 @@ sub my_jobs_tab :Chained('dashboard_base') :PathPart('my-jobs-tab') :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'dashboard-my-jobs-tab.tt';
 
-    die unless $c->stash->{user}->emailaddress;
+    die unless $c->stash->{user}->email_address;
 
     # Get all current builds of which this user is a maintainer.
     $c->stash->{builds} = [$c->model('DB::Builds')->search(
-        { iscurrent => 1
-        , maintainers => { ilike => "%" . $c->stash->{user}->emailaddress . "%" }
+        { is_current => 1
+        , maintainers => { ilike => "%" . $c->stash->{user}->email_address . "%" }
         , "project.enabled" => 1
         , "jobset.enabled" => 1
         },

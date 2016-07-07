@@ -5,12 +5,12 @@
   <div class="alert alert-warning">You are not the maintainer of any
   job.  You can become a maintainer by setting the
   <tt>meta.maintainer</tt> field of a job to <tt>[%
-  HTML.escape(user.emailaddress) %]</tt>.</div>
+  HTML.escape(user.email_address) %]</tt>.</div>
 
 [% ELSE %]
 
   <p>Below are the most recent builds of the [% builds.size %] jobs of which you
-  (<tt>[% HTML.escape(user.emailaddress) %]</tt>) are a maintainer.</p>
+  (<tt>[% HTML.escape(user.email_address) %]</tt>) are a maintainer.</p>
 
   [% INCLUDE renderBuildList %]
 

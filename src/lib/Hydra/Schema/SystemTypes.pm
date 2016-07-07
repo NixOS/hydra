@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<SystemTypes>
+=head1 TABLE: C<system_types>
 
 =cut
 
-__PACKAGE__->table("SystemTypes");
+__PACKAGE__->table("system_types");
 
 =head1 ACCESSORS
 
@@ -40,7 +40,7 @@ __PACKAGE__->table("SystemTypes");
   data_type: 'text'
   is_nullable: 0
 
-=head2 maxconcurrent
+=head2 max_concurrent
 
   data_type: 'integer'
   default_value: 2
@@ -51,7 +51,7 @@ __PACKAGE__->table("SystemTypes");
 __PACKAGE__->add_columns(
   "system",
   { data_type => "text", is_nullable => 0 },
-  "maxconcurrent",
+  "max_concurrent",
   { data_type => "integer", default_value => 2, is_nullable => 0 },
 );
 
@@ -68,7 +68,7 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("system");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:8cC34cEw9T3+x+7uRs4KHQ
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:EXysEmGZoCpivTZb2XFC/g
 
 1;

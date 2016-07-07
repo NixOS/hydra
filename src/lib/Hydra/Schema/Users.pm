@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<Users>
+=head1 TABLE: C<users>
 
 =cut
 
-__PACKAGE__->table("Users");
+__PACKAGE__->table("users");
 
 =head1 ACCESSORS
 
@@ -40,12 +40,12 @@ __PACKAGE__->table("Users");
   data_type: 'text'
   is_nullable: 0
 
-=head2 fullname
+=head2 full_name
 
   data_type: 'text'
   is_nullable: 1
 
-=head2 emailaddress
+=head2 email_address
 
   data_type: 'text'
   is_nullable: 0
@@ -55,7 +55,7 @@ __PACKAGE__->table("Users");
   data_type: 'text'
   is_nullable: 0
 
-=head2 emailonerror
+=head2 email_on_error
 
   data_type: 'integer'
   default_value: 0
@@ -67,7 +67,7 @@ __PACKAGE__->table("Users");
   default_value: 'hydra'
   is_nullable: 0
 
-=head2 publicdashboard
+=head2 public_dashboard
 
   data_type: 'boolean'
   default_value: false
@@ -78,17 +78,17 @@ __PACKAGE__->table("Users");
 __PACKAGE__->add_columns(
   "username",
   { data_type => "text", is_nullable => 0 },
-  "fullname",
+  "full_name",
   { data_type => "text", is_nullable => 1 },
-  "emailaddress",
+  "email_address",
   { data_type => "text", is_nullable => 0 },
   "password",
   { data_type => "text", is_nullable => 0 },
-  "emailonerror",
+  "email_on_error",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "type",
   { data_type => "text", default_value => "hydra", is_nullable => 0 },
-  "publicdashboard",
+  "public_dashboard",
   { data_type => "boolean", default_value => \"false", is_nullable => 0 },
 );
 
@@ -106,7 +106,7 @@ __PACKAGE__->set_primary_key("username");
 
 =head1 RELATIONS
 
-=head2 newsitems
+=head2 news_items
 
 Type: has_many
 
@@ -115,13 +115,13 @@ Related object: L<Hydra::Schema::NewsItems>
 =cut
 
 __PACKAGE__->has_many(
-  "newsitems",
+  "news_items",
   "Hydra::Schema::NewsItems",
   { "foreign.author" => "self.username" },
   undef,
 );
 
-=head2 projectmembers
+=head2 project_members
 
 Type: has_many
 
@@ -130,7 +130,7 @@ Related object: L<Hydra::Schema::ProjectMembers>
 =cut
 
 __PACKAGE__->has_many(
-  "projectmembers",
+  "project_members",
   "Hydra::Schema::ProjectMembers",
   { "foreign.username" => "self.username" },
   undef,
@@ -151,7 +151,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 starredjobs
+=head2 starred_jobs
 
 Type: has_many
 
@@ -160,13 +160,13 @@ Related object: L<Hydra::Schema::StarredJobs>
 =cut
 
 __PACKAGE__->has_many(
-  "starredjobs",
+  "starred_jobs",
   "Hydra::Schema::StarredJobs",
   { "foreign.username" => "self.username" },
   undef,
 );
 
-=head2 userroles
+=head2 user_roles
 
 Type: has_many
 
@@ -175,7 +175,7 @@ Related object: L<Hydra::Schema::UserRoles>
 =cut
 
 __PACKAGE__->has_many(
-  "userroles",
+  "user_roles",
   "Hydra::Schema::UserRoles",
   { "foreign.username" => "self.username" },
   undef,
@@ -185,24 +185,24 @@ __PACKAGE__->has_many(
 
 Type: many_to_many
 
-Composing rels: L</projectmembers> -> project
+Composing rels: L</project_members> -> project
 
 =cut
 
-__PACKAGE__->many_to_many("projects", "projectmembers", "project");
+__PACKAGE__->many_to_many("projects", "project_members", "project");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-05-27 11:32:14
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Az1+V+ztJoWUt50NLQR3xg
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4pzO1HKu+BvldbDU5mauBg
 
 my %hint = (
     columns => [
-        "fullname",
-        "emailaddress",
+        "full_name",
+        "email_address",
         "username"
     ],
     relations => {
-        userroles => "role"
+        user_roles => "role"
     }
 );
 

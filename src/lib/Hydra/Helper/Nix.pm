@@ -116,7 +116,7 @@ sub attrsToSQL {
         # name/value are filtered above).  Should use SQL::Abstract,
         # but it can't deal with subqueries.  At least we should use
         # placeholders.
-        $query .= " and exists (select 1 from buildinputs where build = $id and name = '$name' and value = '$value')";
+        $query .= " and exists (select 1 from build_inputs where build = $id and name = '$name' and value = '$value')";
     }
 
     return $query;
@@ -128,12 +128,12 @@ sub jobsetOverview_ {
     return $jobsets->search({},
         { order_by => "name"
         , "+select" =>
-          [ "(select count(*) from Builds as a where a.finished = 0 and me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus <> 0 and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus = 0 and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
+          [ "(select count(*) from builds as a where a.finished = 0 and me.project = a.project and me.name = a.jobset and a.is_current = 1)"
+          , "(select count(*) from builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and build_status <> 0 and a.is_current = 1)"
+          , "(select count(*) from builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and build_status = 0 and a.is_current = 1)"
+          , "(select count(*) from builds as a where me.project = a.project and me.name = a.jobset and a.is_current = 1)"
           ]
-        , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]
+        , "+as" => ["nrscheduled", "nrfailed", "nr_succeeded", "nrtotal"]
         });
 }
 
@@ -174,14 +174,14 @@ sub findLog {
 
     my @steps = $c->model('DB::BuildSteps')->search(
         { path => { -in => [@outPaths] } },
-        { select => ["drvpath"]
+        { select => ["drv_path"]
         , distinct => 1
-        , join => "buildstepoutputs"
+        , join => "build_step_outputs"
         });
 
     foreach my $step (@steps) {
-        next unless defined $step->drvpath;
-        my $logPath = getDrvLogPath($step->drvpath);
+        next unless defined $step->drv_path;
+        my $logPath = getDrvLogPath($step->drv_path);
         return $logPath if defined $logPath;
     }
 
@@ -213,15 +213,15 @@ sub removeAsciiEscapes {
 sub getMainOutput {
     my ($build) = @_;
     return
-        $build->buildoutputs->find({name => "out"}) //
-        $build->buildoutputs->find({}, {limit => 1, order_by => ["name"]});
+        $build->build_outputs->find({name => "out"}) //
+        $build->build_outputs->find({}, {limit => 1, order_by => ["name"]});
 }
 
 
 sub getEvalInputs {
     my ($c, $eval) = @_;
-    my @inputs = $eval->jobsetevalinputs->search(
-        { -or => [ -and => [ uri => { '!=' => undef }, revision => { '!=' => undef }], dependency => { '!=' => undef }], altNr => 0 },
+    my @inputs = $eval->jobset_eval_inputs->search(
+        { -or => [ -and => [ uri => { '!=' => undef }, revision => { '!=' => undef }], dependency => { '!=' => undef }], alt_nr => 0 },
         { order_by => "name" });
 }
 
@@ -232,20 +232,20 @@ sub getEvalInfo {
 
     # Get stats for this eval.
     my $nrScheduled;
-    my $nrSucceeded = $eval->nrsucceeded;
+    my $nrSucceeded = $eval->nr_succeeded;
     if (defined $nrSucceeded) {
         $nrScheduled = 0;
     } else {
         $nrScheduled = $eval->builds->search({finished => 0})->count;
-        $nrSucceeded = $eval->builds->search({finished => 1, buildStatus => 0})->count;
+        $nrSucceeded = $eval->builds->search({finished => 1, build_status => 0})->count;
         if ($nrScheduled == 0) {
-            $eval->update({nrsucceeded => $nrSucceeded});
+            $eval->update({nr_succeeded => $nrSucceeded});
         }
     }
 
     # Get the inputs.
-    my @inputsList = $eval->jobsetevalinputs->search(
-        { -or => [ -and => [ uri => { '!=' => undef }, revision => { '!=' => undef }], dependency => { '!=' => undef }], altNr => 0 },
+    my @inputsList = $eval->jobset_eval_inputs->search(
+        { -or => [ -and => [ uri => { '!=' => undef }, revision => { '!=' => undef }], dependency => { '!=' => undef }], alt_nr => 0 },
         { order_by => "name" });
     my $inputs;
     $inputs->{$_->name} = $_ foreach @inputsList;
@@ -262,7 +262,7 @@ sub getEvals {
     my ($self, $c, $evals, $offset, $rows) = @_;
 
     my @evals = $evals->search(
-        { hasnewbuilds => 1 },
+        { has_new_builds => 1 },
         { order_by => "id DESC", rows => $rows, offset => $offset });
 
     my @res = ();
@@ -272,7 +272,7 @@ sub getEvals {
 
         my ($prevEval) = $c->model('DB::JobsetEvals')->search(
             { project => $curEval->get_column('project'), jobset => $curEval->get_column('jobset')
-            , hasnewbuilds => 1, id => { '<', $curEval->id } },
+            , has_new_builds => 1, id => { '<', $curEval->id } },
             { order_by => "id DESC", rows => 1 });
 
         my $curInfo = getEvalInfo($cache, $curEval);
@@ -294,7 +294,7 @@ sub getEvals {
             { eval => $curEval
             , nrScheduled => $curInfo->{nrScheduled}
             , nrSucceeded => $curInfo->{nrSucceeded}
-            , nrFailed => $curEval->nrbuilds - $curInfo->{nrSucceeded} - $curInfo->{nrScheduled}
+            , nrFailed => $curEval->nr_builds - $curInfo->{nrSucceeded} - $curInfo->{nrScheduled}
             , diff => defined $prevEval ? $curInfo->{nrSucceeded} - $prevInfo->{nrSucceeded} : 0
             , changedInputs => [ @changedInputs ]
             };
@@ -438,7 +438,7 @@ sub getTotalShares {
     my ($db) = @_;
     return $db->resultset('Jobsets')->search(
         { 'project.enabled' => 1, 'me.enabled' => { '!=' => 0 } },
-        { join => 'project', select => { sum => 'schedulingshares' }, as => 'sum' })->single->get_column('sum');
+        { join => 'project', select => { sum => 'scheduling_shares' }, as => 'sum' })->single->get_column('sum');
 }
 
 
@@ -450,9 +450,9 @@ sub cancelBuilds($$) {
         my $time = time();
         $builds->update(
             { finished => 1,
-            , iscachedbuild => 0, buildstatus => 4 # = cancelled
-            , starttime => $time
-            , stoptime => $time
+            , is_cached_build => 0, build_status => 4 # = cancelled
+            , start_time => $time
+            , stop_time => $time
             });
         return $n;
     });
@@ -464,9 +464,9 @@ sub restartBuilds($$) {
 
     $builds = $builds->search({ finished => 1 });
 
-    foreach my $build ($builds->search({}, { columns => ["drvpath"] })) {
-        next if !isValidPath($build->drvpath);
-        registerRoot $build->drvpath;
+    foreach my $build ($builds->search({}, { columns => ["drv_path"] })) {
+        next if !isValidPath($build->drv_path);
+        registerRoot $build->drv_path;
     }
 
     my $nrRestarted = 0;
@@ -475,22 +475,22 @@ sub restartBuilds($$) {
         # Reset the stats for the evals to which the builds belongs.
         # !!! Should do this in a trigger.
         $db->resultset('JobsetEvals')->search(
-            { id => { -in => $builds->search({}, { join => { 'jobsetevalmembers' => 'eval' }, select => "jobsetevalmembers.eval", as => "eval", distinct => 1 })->as_query }
-            })->update({ nrsucceeded => undef });
+            { id => { -in => $builds->search({}, { join => { 'jobset_eval_members' => 'eval' }, select => "jobset_eval_members.eval", as => "eval", distinct => 1 })->as_query }
+            })->update({ nr_succeeded => undef });
 
         # Clear the failed paths cache.
         # FIXME: Add this to the API.
         my $cleared = $db->resultset('FailedPaths')->search(
-            { path => { -in => $builds->search({}, { join => "buildoutputs", select => "buildoutputs.path", as => "path", distinct => 1 })->as_query }
+            { path => { -in => $builds->search({}, { join => "build_outputs", select => "build_outputs.path", as => "path", distinct => 1 })->as_query }
             })->delete;
         $cleared += $db->resultset('FailedPaths')->search(
-            { path => { -in => $builds->search({}, { join => "buildstepoutputs", select => "buildstepoutputs.path", as => "path", distinct => 1 })->as_query }
+            { path => { -in => $builds->search({}, { join => "build_step_outputs", select => "build_step_outputs.path", as => "path", distinct => 1 })->as_query }
             })->delete;
         print STDERR "cleared $cleared failed paths\n";
 
         $nrRestarted = $builds->update(
             { finished => 0
-            , iscachedbuild => 0
+            , is_cached_build => 0
             });
     });
 

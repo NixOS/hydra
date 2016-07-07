@@ -24,39 +24,39 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
     <tbody>
       [% FOREACH step IN steps %]
         [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
-          [% has_log = seen.${step.drvpath} ? 0 : buildStepLogExists(step);
-             seen.${step.drvpath} = 1;
+          [% has_log = seen.${step.drv_path} ? 0 : buildStepLogExists(step);
+             seen.${step.drv_path} = 1;
              log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
           <tr>
             <td>[% step.stepnr %]</td>
             <td>
               [% IF step.type == 0 %]
-                Build of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
+                Build of <tt>[% INCLUDE renderOutputs outputs=step.build_step_outputs %]</tt>
               [% ELSE %]
-                Substitution of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
+                Substitution of <tt>[% INCLUDE renderOutputs outputs=step.build_step_outputs %]</tt>
               [% END %]
             </td>
             <td>
               [% IF step.busy == 0;
-                   IF step.stoptime;
-                     INCLUDE renderDuration duration = step.stoptime - step.starttime;
+                   IF step.stop_time;
+                     INCLUDE renderDuration duration = step.stop_time - step.start_time;
                    ELSE;
                      %]<em>n/a</em>[%
                    END;
                  ELSIF build.finished;
-                   INCLUDE renderDuration duration = build.stoptime - step.starttime;
+                   INCLUDE renderDuration duration = build.stop_time - step.start_time;
                  ELSE;
-                   INCLUDE renderDuration duration = curTime - step.starttime;
+                   INCLUDE renderDuration duration = curTime - step.start_time;
                  END %]
             </td>
-            <td>[% IF step.busy == 1 || ((step.machine || step.starttime) && (step.status == 0 || step.status == 1 || step.status == 3 || step.status == 7)); INCLUDE renderMachineName machine=step.machine; ELSE; "<em>n/a</em>"; END %]</td>
+            <td>[% IF step.busy == 1 || ((step.machine || step.start_time) && (step.status == 0 || step.status == 1 || step.status == 3 || step.status == 7)); INCLUDE renderMachineName machine=step.machine; ELSE; "<em>n/a</em>"; END %]</td>
             <td>
               [% IF step.busy == 1 %]
                 <strong>Building</strong>
               [% ELSIF step.status == 0 %]
                 Succeeded
               [% ELSIF step.status == 3 %]
-                <span class="error"><strong>Aborted</strong>[% IF step.errormsg %]: [% HTML.escape(step.errormsg); END %]</span>
+                <span class="error"><strong>Aborted</strong>[% IF step.error_msg %]: [% HTML.escape(step.error_msg); END %]</span>
               [% ELSIF step.status == 7 %]
                 <span class="error">Timed out</span>
               [% ELSIF step.status == 8 %]
@@ -67,13 +67,13 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
                 <span class="error">Log limit exceeded</span>
               [% ELSIF step.status == 11 %]
                 <span class="error">Output limit exceeded</span>
-              [% ELSIF step.errormsg %]
-                <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
+              [% ELSIF step.error_msg %]
+                <span class="error">Failed: [% HTML.escape(step.error_msg) %]</span>
               [% ELSE %]
                 <span class="error">Failed</span>
               [% END %]
               [%%] [%+ IF has_log; INCLUDE renderLogLinks url=log inRow=1; END %]
-              [%+ IF step.propagatedfrom; %](propagated from [% INCLUDE renderBuildIdLink id=step.propagatedfrom.get_column('id') %])[% END %]
+              [%+ IF step.propagated_from; %](propagated from [% INCLUDE renderBuildIdLink id=step.propagated_from.get_column('id') %])[% END %]
             </td>
           </tr>
         [% END %]
@@ -89,7 +89,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
       <b class="caret"></b>
     </a>
     <ul class="dropdown-menu">
-      [% IF build.nixexprinput %]
+      [% IF build.nix_expr_input %]
         <li><a href="#reproduce" data-toggle="modal">Reproduce locally</a></li>
       [% END %]
       [% IF c.user_exists %]
@@ -152,7 +152,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
                      FOREACH b IN constituents;
                        nrConstituents = nrConstituents + 1;
                        IF b.finished; nrFinished = nrFinished + 1; END;
-                       IF b.finished && b.buildstatus != 0; nrFailedConstituents = nrFailedConstituents + 1; END;
+                       IF b.finished && b.build_status != 0; nrFailedConstituents = nrFailedConstituents + 1; END;
                      END;
                 %];
                   [%+ IF nrFinished == nrMembers && nrFailedConstituents == 0 %]
@@ -170,15 +170,15 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
               <th>System:</th>
               <td><tt>[% build.system %]</tt></td>
             </tr>
-            [% IF build.releasename %]
+            [% IF build.release_name %]
               <tr>
                 <th>Release name:</th>
-                <td><tt>[% HTML.escape(build.releasename) %]</tt></td>
+                <td><tt>[% HTML.escape(build.release_name) %]</tt></td>
               </tr>
             [% ELSE %]
               <tr>
                 <th>Nix name:</th>
-                <td><tt>[% build.nixname %]</tt></td>
+                <td><tt>[% build.nix_name %]</tt></td>
               </tr>
             [% END %]
             [% IF eval %]
@@ -190,25 +190,25 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
                 </td>
               </tr>
             [% END %]
-            [% IF build.iscachedbuild %]
+            [% IF build.is_cached_build %]
               <tr>
                 <th>Cached from:</th>
                 <td>[% IF cachedBuild; INCLUDE renderFullBuildLink build=cachedBuild; ELSE %]<em>unknown</em>[% END %]</td>
               </tr>
             [% END %]
-            [% IF (!isAggregate || !build.ischannel) && build.finished; actualBuild = build.iscachedbuild ? cachedBuild : build %]
+            [% IF (!isAggregate || !build.is_channel) && build.finished; actualBuild = build.is_cached_build ? cachedBuild : build %]
               [% IF actualBuild %]
                 <tr>
                   <th>Duration:</th>
-                  <td>[% INCLUDE renderDuration duration = actualBuild.stoptime - actualBuild.starttime %]</td>
+                  <td>[% INCLUDE renderDuration duration = actualBuild.stop_time - actualBuild.start_time %]</td>
                 </tr>
               [% END %]
               <tr>
                 <th>Finished at:</th>
-                <td>[% INCLUDE renderDateTime timestamp = build.stoptime; %]</td>
+                <td>[% INCLUDE renderDateTime timestamp = build.stop_time; %]</td>
               </tr>
             [% END %]
-            [% IF (!isAggregate || !build.ischannel) && buildLogExists(build) %]
+            [% IF (!isAggregate || !build.is_channel) && buildLogExists(build) %]
               <tr>
                 <th>Logfile:</th>
                 <td>
@@ -223,7 +223,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
       </tr>
     </table>
 
-    [% IF build.ischannel || (build.buildproducts && !isAggregate) %]
+    [% IF build.is_channel || (build.build_products && !isAggregate) %]
 
       <h3>Build products</h3>
 
@@ -242,14 +242,14 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
 
     [% IF build.finished %]
 
-      [% IF steps && build.buildstatus != 0 && build.buildstatus != 6 %]
+      [% IF steps && build.build_status != 0 && build.build_status != 6 %]
         <h3>Failed build steps</h3>
         [% INCLUDE renderBuildSteps type="Failed" %]
       [% END %]
 
       [% IF otherEval %]
         <h3>Changes</h3>
-        [% INCLUDE renderInputDiff inputs2=eval.jobsetevalinputs inputs1=otherEval.jobsetevalinputs %]
+        [% INCLUDE renderInputDiff inputs2=eval.jobset_eval_inputs inputs1=otherEval.jobset_eval_inputs %]
       [% END %]
 
       [% IF prevSuccessfulBuild %]
@@ -305,14 +305,14 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
         <th>Queued at:</th>
         <td>[% INCLUDE renderDateTime timestamp = build.timestamp %]</td>
       </tr>
-      [% IF build.finished && !build.iscachedbuild %]
+      [% IF build.finished && !build.is_cached_build %]
         <tr>
           <th>Build started:</th>
-          <td>[% INCLUDE renderDateTime timestamp = build.starttime %]</td>
+          <td>[% INCLUDE renderDateTime timestamp = build.start_time %]</td>
         </tr>
         <tr>
           <th>Build finished:</th>
-          <td>[% INCLUDE renderDateTime timestamp = build.stoptime %]</td>
+          <td>[% INCLUDE renderDateTime timestamp = build.stop_time %]</td>
         </tr>
       [% END %]
       [% IF !build.finished %]
@@ -321,15 +321,15 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
           <td>[% build.priority %]</td>
         </tr>
       [% END %]
-      [% IF build.nixexprinput %]
+      [% IF build.nix_expr_input %]
         <tr>
           <th>Nix expression:</th>
-          <td>file <tt>[% HTML.escape(build.nixexprpath) %]</tt> in input <tt>[% HTML.escape(build.nixexprinput) %]</tt></td>
+          <td>file <tt>[% HTML.escape(build.nix_expr_path) %]</tt> in input <tt>[% HTML.escape(build.nix_expr_input) %]</tt></td>
         </tr>
       [% END %]
       <tr>
         <th>Nix name:</th>
-        <td><tt>[% build.nixname %]</tt></td>
+        <td><tt>[% build.nix_name %]</tt></td>
       </tr>
       <tr>
         <th>Short description:</th>
@@ -353,28 +353,28 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
       </tr>
       <tr>
         <th>Derivation store path:</th>
-        <td><tt>[% build.drvpath %]</tt></td>
+        <td><tt>[% build.drv_path %]</tt></td>
       </tr>
       <tr>
         <th>Output store paths:</th>
-        <td><tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt></td>
+        <td><tt>[% INCLUDE renderOutputs outputs=build.build_outputs %]</tt></td>
       </tr>
       [% chartsURL = c.uri_for('/job' build.project.name build.jobset.name build.job.name) _ "#tabs-charts" %]
-      [% IF build.finished && build.closuresize %]
+      [% IF build.finished && build.closure_size %]
         <tr>
           <th>Closure size:</th>
-          <td>[% mibs(build.closuresize / (1024 * 1024)) %] MiB
+          <td>[% mibs(build.closure_size / (1024 * 1024)) %] MiB
             (<a href="[%chartsURL%]">history</a>)</td>
         </tr>
       [% END %]
-      [% IF build.finished && build.closuresize %]
+      [% IF build.finished && build.closure_size %]
         <tr>
           <th>Output size:</th>
           <td>[% mibs(build.size / (1024 * 1024)) %] MiB
             (<a href="[%chartsURL%]">history</a>)</td>
         </tr>
       [% END %]
-      [% IF build.finished && build.buildproducts %]
+      [% IF build.finished && build.build_products %]
         <tr>
           <th>Availability:</th>
           <td>
@@ -390,7 +390,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
       [% END %]
     </table>
 
-    [% IF build.finished && build.buildmetrics %]
+    [% IF build.finished && build.build_metrics %]
       <h3>Metrics</h3>
 
       <table class="table table-small table-striped table-hover clickable-rows">
@@ -398,7 +398,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
           <tr><th>Name</th><th>Value</th><th></th></tr>
         </thead>
         <tbody>
-          [% FOREACH metric IN build.buildmetrics %]
+          [% FOREACH metric IN build.build_metrics %]
             <tr>
               <td><tt><a class="row-link" [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job.name 'metric' metric.name)) %]">[%HTML.escape(metric.name)%]</a></tt></td>
               <td style="text-align: right">[%metric.value%]</td>
@@ -419,7 +419,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
 
     [% ELSIF eval %]
 
-      [% INCLUDE renderInputs inputs=eval.jobsetevalinputs %]
+      [% INCLUDE renderInputs inputs=eval.jobset_eval_inputs %]
 
     [% END %]
 

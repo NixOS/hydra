@@ -96,10 +96,10 @@ sub fetchInput {
         {uri => $uri, branch => $branch, revision => $revision},
         {rows => 1});
 
-    addTempRoot($cachedInput->storepath) if defined $cachedInput;
+    addTempRoot($cachedInput->store_path) if defined $cachedInput;
 
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-        $storePath = $cachedInput->storepath;
+    if (defined $cachedInput && isValidPath($cachedInput->store_path)) {
+        $storePath = $cachedInput->store_path;
         $sha256 = $cachedInput->sha256hash;
         $revision = $cachedInput->revision;
     } else {
@@ -135,7 +135,7 @@ sub fetchInput {
                 , branch => $branch
                 , revision => $revision
                 , sha256hash => $sha256
-                , storepath => $storePath
+                , store_path => $storePath
                 });
             });
     }

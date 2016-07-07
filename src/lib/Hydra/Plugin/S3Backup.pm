@@ -25,7 +25,7 @@ my $lockfile = Hydra::Model::DB::getHydraPath . "/.hydra-s3backup.lock";
 sub buildFinished {
     my ($self, $build, $dependents) = @_;
 
-    return unless $build->buildstatus == 0 or $build->buildstatus == 6;
+    return unless $build->build_status == 0 or $build->build_status == 6;
 
     my $jobName = showJobName $build;
     my $job = $build->job;
@@ -49,7 +49,7 @@ sub buildFinished {
     flock($lockhandle, Fcntl::LOCK_SH) or die "Read-locking $lockfile: $!";
 
     my @needed_paths = ();
-    foreach my $output ($build->buildoutputs) {
+    foreach my $output ($build->build_outputs) {
         push @needed_paths, $output->path;
     }
 

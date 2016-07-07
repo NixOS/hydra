@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<CachedBazaarInputs>
+=head1 TABLE: C<cached_bazaar_inputs>
 
 =cut
 
-__PACKAGE__->table("CachedBazaarInputs");
+__PACKAGE__->table("cached_bazaar_inputs");
 
 =head1 ACCESSORS
 
@@ -50,7 +50,7 @@ __PACKAGE__->table("CachedBazaarInputs");
   data_type: 'text'
   is_nullable: 0
 
-=head2 storepath
+=head2 store_path
 
   data_type: 'text'
   is_nullable: 0
@@ -64,7 +64,7 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 0 },
   "sha256hash",
   { data_type => "text", is_nullable => 0 },
-  "storepath",
+  "store_path",
   { data_type => "text", is_nullable => 0 },
 );
 
@@ -83,8 +83,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zvun8uhxwrr7B8EsqBoCjA
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:R1hTcdMP8ILa+FYZrbQeUA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

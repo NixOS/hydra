@@ -30,13 +30,13 @@ sub buildToHash {
         jobset => $build->get_column("jobset"),
         job => $build->get_column("job"),
         system => $build->system,
-        nixname => $build->nixname,
+        nix_name => $build->nix_name,
         finished => $build->finished,
         timestamp => $build->timestamp
     };
 
     if($build->finished) {
-        $result->{'buildstatus'} = $build->get_column("buildstatus");
+        $result->{'build_status'} = $build->get_column("build_status");
     } else {
         $result->{'priority'} = $build->get_column("priority");
     }
@@ -79,7 +79,7 @@ sub jobsetToHash {
         project => $jobset->project->name,
         name => $jobset->name,
         nrscheduled => $jobset->get_column("nrscheduled"),
-        nrsucceeded => $jobset->get_column("nrsucceeded"),
+        nr_succeeded => $jobset->get_column("nr_succeeded"),
         nrfailed => $jobset->get_column("nrfailed"),
         nrtotal => $jobset->get_column("nrtotal")
     };
@@ -205,7 +205,7 @@ sub triggerJobset {
     my ($self, $c, $jobset) = @_;
     print STDERR "triggering jobset ", $jobset->project->name . ":" . $jobset->name, "\n";
     txn_do($c->model('DB')->schema, sub {
-        $jobset->update({ triggertime => time });
+        $jobset->update({ trigger_time => time });
     });
     push @{$c->{stash}->{json}->{jobsetsTriggered}}, $jobset->project->name . ":" . $jobset->name;
 }

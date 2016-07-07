@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<UserRoles>
+=head1 TABLE: C<user_roles>
 
 =cut
 
-__PACKAGE__->table("UserRoles");
+__PACKAGE__->table("user_roles");
 
 =head1 ACCESSORS
 
@@ -87,7 +87,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:aS+ivlFpndqIv8U578zz9A
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Iny+6FXOmEhMM6SQnzRLsQ
 
 1;

@@ -352,7 +352,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                     if (build2->finishedInDB) continue;
                     printMsg(lvlError, format("marking build %1% as failed") % build2->id);
                     txn.parameterized
-                        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5 where id = $1 and finished = 0")
+                        ("update builds set finished = 1, build_status = $2, start_time = $3, stop_time = $4, is_cached_build = $5 where id = $1 and finished = 0")
                         (build2->id)
                         ((int) (build2->drvPath != step->drvPath && result.buildStatus() == bsFailed ? bsDepFailed : result.buildStatus()))
                         (result.startTime)
@@ -365,7 +365,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                    won't be built again. */
                 if (result.stepStatus != bsCachedFailure && result.canCache)
                     for (auto & path : step->drv.outputPaths())
-                        txn.parameterized("insert into FailedPaths values ($1)")(path).exec();
+                        txn.parameterized("insert into failed_paths values ($1)")(path).exec();
 
                 txn.commit();
             }

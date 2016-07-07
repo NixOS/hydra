@@ -44,8 +44,8 @@ sub view_GET {
                 or notFound($c, "Evaluation $compare doesn't exist.");
         } elsif ($compare =~ /^-(\d+)$/) {
             my $t = int($1);
-            $eval2 = $c->stash->{jobset}->jobsetevals->find(
-                { hasnewbuilds => 1, timestamp => {'<=', $eval->timestamp - $t} },
+            $eval2 = $c->stash->{jobset}->jobset_evals->find(
+                { has_new_builds => 1, timestamp => {'<=', $eval->timestamp - $t} },
                 { order_by => "timestamp desc", rows => 1});
         } elsif (defined $compare && $compare =~ /^($jobsetNameRE)$/) {
             my $j = $c->stash->{project}->jobsets->find({name => $compare})
@@ -55,8 +55,8 @@ sub view_GET {
             notFound($c, "Unknown comparison source ‘$compare’.");
         }
     } else {
-        ($eval2) = $eval->jobset->jobsetevals->search(
-            { hasnewbuilds => 1, id => { '<', $eval->id } },
+        ($eval2) = $eval->jobset->jobset_evals->search(
+            { has_new_builds => 1, id => { '<', $eval->id } },
             { order_by => "id DESC", rows => 1 });
     }
 
@@ -85,7 +85,7 @@ sub view_GET {
 
     my $n = 0;
     foreach my $build (@builds) {
-        my $aborted = $build->finished != 0 && ($build->buildstatus == 3 || $build->buildstatus == 4);
+        my $aborted = $build->finished != 0 && ($build->build_status == 3 || $build->build_status == 4);
         my $d;
         my $found = 0;
         while ($n < scalar(@builds2)) {
@@ -99,13 +99,13 @@ sub view_GET {
                     # do nothing
                 } elsif ($build->finished == 0 || $build2->finished == 0) {
                     push @{$c->stash->{unfinished}}, $build;
-                } elsif ($build->buildstatus == 0 && $build2->buildstatus == 0) {
+                } elsif ($build->build_status == 0 && $build2->build_status == 0) {
                     push @{$c->stash->{stillSucceed}}, $build;
-                } elsif ($build->buildstatus != 0 && $build2->buildstatus != 0) {
+                } elsif ($build->build_status != 0 && $build2->build_status != 0) {
                     push @{$c->stash->{stillFail}}, $build;
-                } elsif ($build->buildstatus == 0 && $build2->buildstatus != 0) {
+                } elsif ($build->build_status == 0 && $build2->build_status != 0) {
                     push @{$c->stash->{nowSucceed}}, $build;
-                } elsif ($build->buildstatus != 0 && $build2->buildstatus == 0) {
+                } elsif ($build->build_status != 0 && $build2->build_status == 0) {
                     push @{$c->stash->{nowFail}}, $build;
                 } else { die; }
                 last;
@@ -138,7 +138,7 @@ sub release : Chained('evalChain') PathPart('release') Args(0) {
     my @builds = $eval->builds;
 
     my $releaseName;
-    $releaseName ||= $_->releasename foreach @builds;
+    $releaseName ||= $_->release_name foreach @builds;
 
     # If no release name has been defined by any of the builds, compose one of the project name and evaluation id
     $releaseName = $eval->project->name."-".$eval->id unless defined $releaseName;
@@ -153,10 +153,10 @@ sub release : Chained('evalChain') PathPart('release') Args(0) {
             });
 
         foreach my $build (@builds) {
-            $release->releasemembers->create(
+            $release->release_members->create(
                 { build => $build->id
                 , description => $build->description
-                }) if $build->buildstatus == 0;
+                }) if $build->build_status == 0;
         }
     });
 
@@ -188,7 +188,7 @@ sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
 sub restart {
     my ($self, $c, $condition) = @_;
     requireProjectOwner($c, $c->stash->{eval}->project);
-    my $builds = $c->stash->{eval}->builds->search({ finished => 1, buildstatus => $condition });
+    my $builds = $c->stash->{eval}->builds->search({ finished => 1, build_status => $condition });
     my $n = restartBuilds($c->model('DB')->schema, $builds);
     $c->flash->{successMsg} = "$n builds have been restarted.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
@@ -213,7 +213,7 @@ sub bump : Chained('evalChain') PathPart('bump') Args(0) {
     my $builds = $c->stash->{eval}->builds->search({ finished => 0 });
     my $n = $builds->count();
     $c->model('DB')->schema->txn_do(sub {
-        $builds->update({globalpriority => time()});
+        $builds->update({global_priority => time()});
     });
     $c->flash->{successMsg} = "$n builds have been bumped to the front of the queue.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
@@ -225,12 +225,12 @@ sub nix : Chained('evalChain') PathPart('channel') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{channelName} = $c->stash->{project}->name . "-" . $c->stash->{jobset}->name . "-latest";
     $c->stash->{channelBuilds} = $c->stash->{eval}->builds
-        ->search_literal("exists (select 1 from buildproducts where build = build.id and type = 'nix-build')")
-        ->search({ finished => 1, buildstatus => 0 },
-                 { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
-                 , join => ["buildoutputs"]
-                 , order_by => ["build.id", "buildoutputs.name"]
-                 , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
+        ->search_literal("exists (select 1 from build_products where build = build.id and type = 'nix-build')")
+        ->search({ finished => 1, build_status => 0 },
+                 { columns => [@buildListColumns, 'drv_path', 'description', 'homepage']
+                 , join => ["build_outputs"]
+                 , order_by => ["build.id", "build_outputs.name"]
+                 , '+select' => ['build_outputs.path', 'build_outputs.name'], '+as' => ['outpath', 'outname'] });
 }
 
 
@@ -251,10 +251,10 @@ sub store_paths : Chained('evalChain') PathPart('store-paths') Args(0) {
     my ($self, $c) = @_;
 
     my @builds = $c->stash->{eval}->builds
-        ->search_literal("exists (select 1 from buildproducts where build = build.id and type = 'nix-build')")
-        ->search({ finished => 1, buildstatus => 0 },
-                 { columns => [], join => ["buildoutputs"]
-                 , '+select' => ['buildoutputs.path'], '+as' => ['outpath'] });
+        ->search_literal("exists (select 1 from build_products where build = build.id and type = 'nix-build')")
+        ->search({ finished => 1, build_status => 0 },
+                 { columns => [], join => ["build_outputs"]
+                 , '+select' => ['build_outputs.path'], '+as' => ['outpath'] });
 
     $self->status_ok(
         $c,

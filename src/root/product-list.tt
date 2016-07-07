@@ -21,19 +21,19 @@
 
   <table class="productList">
 
-    [% FOREACH product IN build.buildproducts %]
+    [% FOREACH product IN build.build_products %]
 
       [% uri = "${c.uri_for('/build' build.id 'download' product.productnr)}"
           _ (product.name ? "/" _ product.name : "")
-          _ (product.defaultpath ? "/" _ product.defaultpath : "") %]
+          _ (product.default_path ? "/" _ product.default_path : "") %]
 
       [% contents = c.uri_for('/build' build.id 'contents' product.productnr) %]
 
       [% SWITCH product.type %]
 
       [% CASE "nix-build" %]
-        [% IF build.buildstatus == 6 %]
-          [% filename = build.nixname _ (product.subtype ? "-" _ product.subtype : "") _ ".closure.gz" %]
+        [% IF build.build_status == 6 %]
+          [% filename = build.nix_name _ (product.subtype ? "-" _ product.subtype : "") _ ".closure.gz" %]
           [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
           <tr class="product">
             <td>
@@ -55,10 +55,10 @@
         [% ELSE %]
           <tr class="product">
             <td>
-            [% uri = c.uri_for('/build' build.id 'nix' 'pkg' "${build.nixname}-${build.system}.nixpkg") %]
+            [% uri = c.uri_for('/build' build.id 'nix' 'pkg' "${build.nix_name}-${build.system}.nixpkg") %]
             <a href="[% uri %]">
               <img src="[% c.uri_for("/static/images/nix-build.png") %]" alt="Source" />
-              One-click install of Nix package <tt>[% build.nixname %]</tt>
+              One-click install of Nix package <tt>[% build.nix_name %]</tt>
             </a>
             [% WRAPPER makePopover title="Help" classes="btn-mini" %]
               <p>If you have Nix installed on your machine, you can
@@ -81,7 +81,7 @@
           <tr class="product">
             <td>
 
-            [% filename = build.nixname _ (product.subtype ? "-" _ product.subtype : "") _ ".closure.gz" %]
+            [% filename = build.nix_name _ (product.subtype ? "-" _ product.subtype : "") _ ".closure.gz" %]
             [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
 
             <a href="[% uri %]">
@@ -148,7 +148,7 @@
         [% WRAPPER makePopover title="Details" classes="btn-mini" %]
           <table class="info-table">
             [% INCLUDE renderProductLinks %]
-            <tr><th>File size:</th><td>[% product.filesize %] bytes ([% mibs(product.filesize / (1024 * 1024)) %] MiB)</td></tr>
+            <tr><th>File size:</th><td>[% product.file_size %] bytes ([% mibs(product.file_size / (1024 * 1024)) %] MiB)</td></tr>
             <tr><th>SHA-1 hash:</th><td><tt>[% product.sha1hash %]</tt></td></tr>
             <tr><th>SHA-256 hash:</th><td><tt>[% product.sha256hash %]</tt></td></tr>
             <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>

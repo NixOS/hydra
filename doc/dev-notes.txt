@@ -80,12 +80,12 @@
 
 * Restart all aborted builds in a given evaluation (e.g. 820909):
 
-  > update builds set finished = 0 where id in (select id from builds where finished = 1 and buildstatus = 3 and exists (select 1 from jobsetevalmembers where eval = 820909 and build = id));
+  > update builds set finished = 0 where id in (select id from builds where finished = 1 and build_status = 3 and exists (select 1 from jobset_eval_members where eval = 820909 and build = id));
 
 
 * Restart all builds in a given evaluation that had a build step time out:
 
-  > update builds set finished = 0 where id in (select id from builds where finished = 1 and buildstatus != 0 and exists (select 1 from jobsetevalmembers where eval = 926992 and build = id) and exists (select 1 from buildsteps where build = id and status = 7));
+  > update builds set finished = 0 where id in (select id from builds where finished = 1 and build_status != 0 and exists (select 1 from jobset_eval_members where eval = 926992 and build = id) and exists (select 1 from build_steps where build = id and status = 7));
 
 
 * select * from (select project, jobset, job, system, max(timestamp) timestamp from builds where finished = 1 group by project, jobset, job, system) x join builds y on x.timestamp = y.timestamp and x.project = y.project and x.jobset = y.jobset and x.job = y.job and x.system = y.system;
@@ -98,7 +98,7 @@
   delete from builds where finished = 0 and not exists (select 1 from buildschedulinginfo s where s.id = builds.id and busy = 1);
 
 
-* select x.project, x.jobset, x.job, x.system, x.id, x.timestamp, r.buildstatus, b.id, b.timestamp
+* select x.project, x.jobset, x.job, x.system, x.id, x.timestamp, r.build_status, b.id, b.timestamp
   from (select project, jobset, job, system, max(id) as id from Builds where finished = 1 group by project, jobset, job, system) as a_
   natural join Builds x
   natural join BuildResultInfo r
@@ -106,7 +106,7 @@
     (select max(id) from builds c
      natural join buildresultinfo r2
      where x.project = c.project and x.jobset = c.jobset and x.job = c.job and x.system = c.system
-           and x.id > c.id and r.buildstatus != r2.buildstatus);
+           and x.id > c.id and r.build_status != r2.build_status);
 
 * Using PostgreSQL (version 9.2 or newer is required): 
 
@@ -115,7 +115,7 @@
 
 * Find the builds with the highest number of build steps:
 
-  select id, (select count(*) from buildsteps where build = x.id) as n from builds x order by n desc;
+  select id, (select count(*) from build_steps where build = x.id) as n from builds x order by n desc;
 
 
 * Evaluating the NixOS Hydra jobs:
@@ -126,14 +126,14 @@
 * Show all the failing jobs/systems in the nixpkgs:stdenv jobset that
   succeed in the nixpkgs:trunk jobset:
 
-  select job, system from builds b natural join buildresultinfo where project = 'nixpkgs' and jobset = 'stdenv' and iscurrent = 1 and finished = 1 and buildstatus != 0 and exists (select 1 from builds natural join buildresultinfo where project = 'nixpkgs' and jobset = 'trunk' and job = b.job and system = b.system and iscurrent = 1 and finished = 1 and buildstatus = 0) order by job, system;
+  select job, system from builds b natural join buildresultinfo where project = 'nixpkgs' and jobset = 'stdenv' and is_current = 1 and finished = 1 and build_status != 0 and exists (select 1 from builds natural join buildresultinfo where project = 'nixpkgs' and jobset = 'trunk' and job = b.job and system = b.system and is_current = 1 and finished = 1 and build_status = 0) order by job, system;
 
 
 * Get all Nixpkgs jobs that have never built succesfully:
 
   select project, jobset, job from builds b1
-    where project = 'nixpkgs' and jobset = 'trunk' and iscurrent = 1
+    where project = 'nixpkgs' and jobset = 'trunk' and is_current = 1
     group by project, jobset, job
     having not exists
-      (select 1 from builds b2 where b1.project = b2.project and b1.jobset = b2.jobset and b1.job = b2.job and finished = 1 and buildstatus = 0)
+      (select 1 from builds b2 where b1.project = b2.project and b1.jobset = b2.jobset and b1.job = b2.job and finished = 1 and build_status = 0)
     order by project, jobset, job;

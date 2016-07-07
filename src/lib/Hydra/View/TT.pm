@@ -13,14 +13,14 @@ __PACKAGE__->config(
 
 sub buildLogExists {
     my ($self, $c, $build) = @_;
-    my @outPaths = map { $_->path } $build->buildoutputs->all;
-    return defined findLog($c, $build->drvpath, @outPaths);
+    my @outPaths = map { $_->path } $build->build_outputs->all;
+    return defined findLog($c, $build->drv_path, @outPaths);
 }
 
 sub buildStepLogExists {
     my ($self, $c, $step) = @_;
-    my @outPaths = map { $_->path } $step->buildstepoutputs->all;
-    return defined findLog($c, $step->drvpath, @outPaths);
+    my @outPaths = map { $_->path } $step->build_step_outputs->all;
+    return defined findLog($c, $step->drv_path, @outPaths);
 }
 
 
@@ -37,8 +37,8 @@ sub stripSSHUser {
 # evaluation.
 sub jobExists {
     my ($self, $c, $job) = @_;
-    my $latestEval = $job->jobset->jobsetevals->search(
-        { hasnewbuilds => 1},
+    my $latestEval = $job->jobset->jobset_evals->search(
+        { has_new_builds => 1},
         { rows => 1, order_by => ["id desc"] })->single;
     return 0 if !defined $latestEval; # can't happen
     return scalar($latestEval->builds->search({ job => $job->name })) != 0;

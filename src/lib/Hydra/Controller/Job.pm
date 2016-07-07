@@ -48,9 +48,9 @@ sub overview : Chained('job') PathPart('') Args(0) {
     # If this is an aggregate job, then get its constituents.
     my @constituents = $c->model('DB::Builds')->search(
         { aggregate => { -in => $job->builds->search({}, { columns => ["id"], order_by => "id desc", rows => 15 })->as_query } },
-        { join => 'aggregateconstituents_constituents', 
-          columns => ['id', 'job', 'finished', 'buildstatus'],
-          +select => ['aggregateconstituents_constituents.aggregate'],
+        { join => 'aggregate_constituents_constituents', 
+          columns => ['id', 'job', 'finished', 'build_status'],
+          +select => ['aggregate_constituents_constituents.aggregate'],
           +as => ['aggregate']
         });
 
@@ -59,7 +59,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
     foreach my $b (@constituents) {
         my $jobName = $b->get_column('job');
         $aggregates->{$b->get_column('aggregate')}->{constituents}->{$jobName} =
-            { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
+            { id => $b->id, finished => $b->finished, build_status => $b->build_status };
         $constituentJobs{$jobName} = 1;
     }
 
@@ -72,7 +72,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
     $c->stash->{aggregates} = $aggregates;
     $c->stash->{constituentJobs} = [sort (keys %constituentJobs)];
 
-    $c->stash->{starred} = $c->user->starredjobs(
+    $c->stash->{starred} = $c->user->starred_jobs(
         { project => $c->stash->{project}->name
         , jobset => $c->stash->{jobset}->name
         , job => $c->stash->{job}->name
@@ -84,7 +84,7 @@ sub metrics_tab : Chained('job') PathPart('metrics-tab') Args(0) {
     my ($self, $c) = @_;
     my $job = $c->stash->{job};
     $c->stash->{template} = 'job-metrics-tab.tt';
-    $c->stash->{metrics} = [ $job->buildmetrics->search(
+    $c->stash->{metrics} = [ $job->build_metrics->search(
         { }, { select => ["name"], distinct => 1, order_by => "name",  }) ];
 }
 
@@ -92,9 +92,9 @@ sub metrics_tab : Chained('job') PathPart('metrics-tab') Args(0) {
 sub build_times : Chained('job') PathPart('build-times') Args(0) {
     my ($self, $c) = @_;
     my @res = $c->stash->{job}->builds->search(
-        { finished => 1, buildstatus => 0, closuresize => { '!=', 0 } },
+        { finished => 1, build_status => 0, closure_size => { '!=', 0 } },
         { join => "actualBuildStep"
-        , "+select" => ["actualBuildStep.stoptime - actualBuildStep.starttime"]
+        , "+select" => ["actualBuildStep.stop_time - actualBuildStep.start_time"]
         , "+as" => ["actualBuildTime"],
         , order_by => "id" });
     $self->status_ok($c, entity => [ map { { id => $_->id, timestamp => $_ ->timestamp, value => $_->get_column('actualBuildTime') } } @res ]);
@@ -104,16 +104,16 @@ sub build_times : Chained('job') PathPart('build-times') Args(0) {
 sub closure_sizes : Chained('job') PathPart('closure-sizes') Args(0) {
     my ($self, $c) = @_;
     my @res = $c->stash->{job}->builds->search(
-        { finished => 1, buildstatus => 0, closuresize => { '!=', 0 } },
-        { order_by => "id", columns => [ "id", "timestamp", "closuresize" ] });
-    $self->status_ok($c, entity => [ map { { id => $_->id, timestamp => $_ ->timestamp, value => $_->closuresize } } @res ]);
+        { finished => 1, build_status => 0, closure_size => { '!=', 0 } },
+        { order_by => "id", columns => [ "id", "timestamp", "closure_size" ] });
+    $self->status_ok($c, entity => [ map { { id => $_->id, timestamp => $_ ->timestamp, value => $_->closure_size } } @res ]);
 }
 
 
 sub output_sizes : Chained('job') PathPart('output-sizes') Args(0) {
     my ($self, $c) = @_;
     my @res = $c->stash->{job}->builds->search(
-        { finished => 1, buildstatus => 0, size => { '!=', 0 } },
+        { finished => 1, build_status => 0, size => { '!=', 0 } },
         { order_by => "id", columns => [ "id", "timestamp", "size" ] });
     $self->status_ok($c, entity => [ map { { id => $_->id, timestamp => $_ ->timestamp, value => $_->size } } @res ]);
 }
@@ -125,7 +125,7 @@ sub metric : Chained('job') PathPart('metric') Args(1) {
     $c->stash->{template} = 'metric.tt';
     $c->stash->{metricName} = $metricName;
 
-    my @res = $c->stash->{job}->buildmetrics->search(
+    my @res = $c->stash->{job}->build_metrics->search(
         { name => $metricName },
         { order_by => "timestamp", columns => [ "build", "name", "timestamp", "value", "unit" ] });
 
@@ -154,9 +154,9 @@ sub star : Chained('job') PathPart('star') Args(0) {
         , job => $c->stash->{job}->name
         };
     if ($c->request->params->{star} eq "1") {
-        $c->user->starredjobs->update_or_create($args);
+        $c->user->starred_jobs->update_or_create($args);
     } else {
-        $c->user->starredjobs->find($args)->delete;
+        $c->user->starred_jobs->find($args)->delete;
     }
     $c->stash->{resource}->{success} = 1;
 }

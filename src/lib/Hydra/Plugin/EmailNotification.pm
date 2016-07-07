@@ -13,7 +13,7 @@ use Hydra::Helper::Email;
 my $template = <<EOF;
 Hi,
 
-The status of Hydra job ‘[% showJobName(build) %]’ [% IF showSystem %](on [% build.system %]) [% END %][% IF prevBuild && build.buildstatus != prevBuild.buildstatus %]has changed from "[% showStatus(prevBuild) %]" to "[% showStatus(build) %]"[% ELSE %]is "[% showStatus(build) %]"[% END %].  For details, see
+The status of Hydra job ‘[% showJobName(build) %]’ [% IF showSystem %](on [% build.system %]) [% END %][% IF prevBuild && build.build_status != prevBuild.build_status %]has changed from "[% showStatus(prevBuild) %]" to "[% showStatus(build) %]"[% ELSE %]is "[% showStatus(build) %]"[% END %].  For details, see
 
   [% baseurl %]/build/[% build.id %]
 
@@ -29,7 +29,7 @@ The following dependent jobs also failed:
 This may be due to [% IF nrCommits > 1 -%][% nrCommits %] commits[%- ELSE -%]a commit[%- END -%] by [% authorList %].
 
 [% END -%]
-[% IF build.buildstatus == 0 -%]
+[% IF build.build_status == 0 -%]
 Yay!
 [% ELSE -%]
 Go forth and fix [% IF dependents.size == 0 -%]it[% ELSE %]them[% END %].
@@ -54,17 +54,17 @@ sub buildFinished {
         my $prevBuild = getPreviousBuild($b);
         # Do we want to send mail for this build?
         unless ($ENV{'HYDRA_FORCE_SEND_MAIL'}) {
-            next unless $b->jobset->enableemail;
+            next unless $b->jobset->enable_email;
 
             # If build is cancelled or aborted, do not send email.
-            next if $b->buildstatus == 4 || $b->buildstatus == 3;
+            next if $b->build_status == 4 || $b->build_status == 3;
 
             # If there is a previous (that is not cancelled or aborted) build
             # with same buildstatus, do not send email.
-            next if defined $prevBuild && ($b->buildstatus == $prevBuild->buildstatus);
+            next if defined $prevBuild && ($b->build_status == $prevBuild->build_status);
         }
 
-        my $to = $b->jobset->emailoverride ne "" ? $b->jobset->emailoverride : $b->maintainers;
+        my $to = $b->jobset->email_override ne "" ? $b->jobset->email_override : $b->maintainers;
 
         foreach my $address (split ",", ($to // "")) {
             $address = trim $address;
@@ -78,7 +78,7 @@ sub buildFinished {
     my $authorList;
     my $prevBuild = getPreviousBuild($build);
     if (scalar keys %{$authors} > 0 &&
-        ((!defined $prevBuild) || ($build->buildstatus != $prevBuild->buildstatus))) {
+        ((!defined $prevBuild) || ($build->build_status != $prevBuild->build_status))) {
         my @x = map { "$_ <$authors->{$_}>" } (sort keys %{$authors});
         $authorList = join(" or ", scalar @x > 1 ? join(", ", @x[0..scalar @x - 2]): (), $x[-1]);
         $addresses{$_} = { builds => [ $build ] } foreach (@{$emailable_authors});

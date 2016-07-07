@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<CachedGitInputs>
+=head1 TABLE: C<cached_git_inputs>
 
 =cut
 
-__PACKAGE__->table("CachedGitInputs");
+__PACKAGE__->table("cached_git_inputs");
 
 =head1 ACCESSORS
 
@@ -55,7 +55,7 @@ __PACKAGE__->table("CachedGitInputs");
   data_type: 'text'
   is_nullable: 0
 
-=head2 storepath
+=head2 store_path
 
   data_type: 'text'
   is_nullable: 0
@@ -71,7 +71,7 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "sha256hash",
   { data_type => "text", is_nullable => 0 },
-  "storepath",
+  "store_path",
   { data_type => "text", is_nullable => 0 },
 );
 
@@ -92,7 +92,7 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "branch", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:I4hI02FKRMkw76WV/KBocA
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:hp0qprc3Mi8daclJ+UKp/g
 
 1;

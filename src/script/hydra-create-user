@@ -62,7 +62,7 @@ txn_do($db, sub {
     } else {
         print STDERR "creating new user `$userName'\n";
         $user = $db->resultset('Users')->create(
-            { username => $userName, type => "hydra", emailaddress => "", password => "!" });
+            { username => $userName, type => "hydra", email_address => "", password => "!" });
     }
 
     die "$0: Persona user names must be email addresses\n"
@@ -70,19 +70,19 @@ txn_do($db, sub {
 
     $user->update({ type => $type }) if defined $type;
 
-    $user->update({ fullname => $fullName eq "" ? undef : $fullName }) if defined $fullName;
+    $user->update({ full_name => $fullName eq "" ? undef : $fullName }) if defined $fullName;
 
     if ($user->type eq "persona") {
         die "$0: Persona accounts do not have an explicitly set email address.\n"
             if defined $emailAddress;
         die "$0: Persona accounts do not have a password.\n"
             if defined $password;
-        $user->update({ emailaddress => $userName, password => "!" });
+        $user->update({ email_address => $userName, password => "!" });
     } else {
-        $user->update({ emailaddress => $emailAddress }) if defined $emailAddress;
+        $user->update({ email_address => $emailAddress }) if defined $emailAddress;
         $user->update({ password => sha1_hex($password) }) if defined $password;
     }
 
-    $user->userroles->delete if $wipeRoles;
-    $user->userroles->update_or_create({ role => $_ }) foreach @roles;
+    $user->user_roles->delete if $wipeRoles;
+    $user->user_roles->update_or_create({ role => $_ }) foreach @roles;
 });

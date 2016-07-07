@@ -56,11 +56,11 @@ sub fetchInput {
         {uri => $uri, revision => $revision},
         {rows => 1});
 
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-        $storePath = $cachedInput->storepath;
+    if (defined $cachedInput && isValidPath($cachedInput->store_path)) {
+        $storePath = $cachedInput->store_path;
         $sha256 = $cachedInput->sha256hash;
         $revision = $cachedInput->revision;
-        $revCount = $cachedInput->revcount;
+        $revCount = $cachedInput->rev_count;
     } else {
         # Then download this revision into the store.
         print STDERR "checking out darcs repo $uri\n";
@@ -81,9 +81,9 @@ sub fetchInput {
             $self->{db}->resultset('CachedDarcsInputs')->update_or_create(
                 { uri => $uri
                 , revision => $revision
-                , revcount => $revCount
+                , rev_count => $revCount
                 , sha256hash => $sha256
-                , storepath => $storePath
+                , store_path => $storePath
                 });
             });
     }

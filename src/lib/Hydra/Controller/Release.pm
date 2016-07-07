@@ -21,7 +21,7 @@ sub release : Chained('/') PathPart('release') CaptureArgs(2) {
 sub view : Chained('release') PathPart('') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'release.tt';
-    $c->stash->{members} = [$c->stash->{release}->releasemembers->search({},
+    $c->stash->{members} = [$c->stash->{release}->release_members->search({},
         {order_by => ["description"]})];
 }
 
@@ -38,12 +38,12 @@ sub updateRelease {
         , description => trim $c->request->params->{description}
         });
 
-    $release->releasemembers->delete;
+    $release->release_members->delete;
     foreach my $param (keys %{$c->request->params}) {
         next unless $param =~ /^member-(\d+)-description$/;
         my $buildId = $1;
         my $description = trim $c->request->params->{"member-$buildId-description"};
-        $release->releasemembers->create({ build => $buildId, description => $description });
+        $release->release_members->create({ build => $buildId, description => $description });
     }
 }
 
@@ -52,7 +52,7 @@ sub edit : Chained('release') PathPart('edit') Args(0) {
     my ($self, $c) = @_;
     requireProjectOwner($c, $c->stash->{project});
     $c->stash->{template} = 'edit-release.tt';
-    $c->stash->{members} = [$c->stash->{release}->releasemembers->search({},
+    $c->stash->{members} = [$c->stash->{release}->release_members->search({},
         {order_by => ["description"]})];
 }
 

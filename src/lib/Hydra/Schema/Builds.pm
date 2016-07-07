@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<Builds>
+=head1 TABLE: C<builds>
 
 =cut
 
-__PACKAGE__->table("Builds");
+__PACKAGE__->table("builds");
 
 =head1 ACCESSORS
 
@@ -40,6 +40,7 @@ __PACKAGE__->table("Builds");
   data_type: 'integer'
   is_auto_increment: 1
   is_nullable: 0
+  sequence: 'builds_id_seq'
 
 =head2 finished
 
@@ -69,7 +70,7 @@ __PACKAGE__->table("Builds");
   is_foreign_key: 1
   is_nullable: 0
 
-=head2 nixname
+=head2 nix_name
 
   data_type: 'text'
   is_nullable: 1
@@ -79,7 +80,7 @@ __PACKAGE__->table("Builds");
   data_type: 'text'
   is_nullable: 1
 
-=head2 drvpath
+=head2 drv_path
 
   data_type: 'text'
   is_nullable: 0
@@ -116,24 +117,24 @@ __PACKAGE__->table("Builds");
   default_value: 36000
   is_nullable: 1
 
-=head2 ischannel
+=head2 is_channel
 
   data_type: 'integer'
   default_value: 0
   is_nullable: 0
 
-=head2 iscurrent
+=head2 is_current
 
   data_type: 'integer'
   default_value: 0
   is_nullable: 1
 
-=head2 nixexprinput
+=head2 nix_expr_input
 
   data_type: 'text'
   is_nullable: 1
 
-=head2 nixexprpath
+=head2 nix_expr_path
 
   data_type: 'text'
   is_nullable: 1
@@ -144,28 +145,28 @@ __PACKAGE__->table("Builds");
   default_value: 0
   is_nullable: 0
 
-=head2 globalpriority
+=head2 global_priority
 
   data_type: 'integer'
   default_value: 0
   is_nullable: 0
 
-=head2 starttime
+=head2 start_time
 
   data_type: 'integer'
   is_nullable: 1
 
-=head2 stoptime
+=head2 stop_time
 
   data_type: 'integer'
   is_nullable: 1
 
-=head2 iscachedbuild
+=head2 is_cached_build
 
   data_type: 'integer'
   is_nullable: 1
 
-=head2 buildstatus
+=head2 build_status
 
   data_type: 'integer'
   is_nullable: 1
@@ -175,12 +176,12 @@ __PACKAGE__->table("Builds");
   data_type: 'bigint'
   is_nullable: 1
 
-=head2 closuresize
+=head2 closure_size
 
   data_type: 'bigint'
   is_nullable: 1
 
-=head2 releasename
+=head2 release_name
 
   data_type: 'text'
   is_nullable: 1
@@ -195,7 +196,12 @@ __PACKAGE__->table("Builds");
 
 __PACKAGE__->add_columns(
   "id",
-  { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
+  {
+    data_type         => "integer",
+    is_auto_increment => 1,
+    is_nullable       => 0,
+    sequence          => "builds_id_seq",
+  },
   "finished",
   { data_type => "integer", is_nullable => 0 },
   "timestamp",
@@ -206,11 +212,11 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "job",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
-  "nixname",
+  "nix_name",
   { data_type => "text", is_nullable => 1 },
   "description",
   { data_type => "text", is_nullable => 1 },
-  "drvpath",
+  "drv_path",
   { data_type => "text", is_nullable => 0 },
   "system",
   { data_type => "text", is_nullable => 0 },
@@ -224,31 +230,31 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 3600, is_nullable => 1 },
   "timeout",
   { data_type => "integer", default_value => 36000, is_nullable => 1 },
-  "ischannel",
+  "is_channel",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
-  "iscurrent",
+  "is_current",
   { data_type => "integer", default_value => 0, is_nullable => 1 },
-  "nixexprinput",
+  "nix_expr_input",
   { data_type => "text", is_nullable => 1 },
-  "nixexprpath",
+  "nix_expr_path",
   { data_type => "text", is_nullable => 1 },
   "priority",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
-  "globalpriority",
+  "global_priority",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
-  "starttime",
+  "start_time",
   { data_type => "integer", is_nullable => 1 },
-  "stoptime",
+  "stop_time",
   { data_type => "integer", is_nullable => 1 },
-  "iscachedbuild",
+  "is_cached_build",
   { data_type => "integer", is_nullable => 1 },
-  "buildstatus",
+  "build_status",
   { data_type => "integer", is_nullable => 1 },
   "size",
   { data_type => "bigint", is_nullable => 1 },
-  "closuresize",
+  "closure_size",
   { data_type => "bigint", is_nullable => 1 },
-  "releasename",
+  "release_name",
   { data_type => "text", is_nullable => 1 },
   "keep",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
@@ -268,7 +274,7 @@ __PACKAGE__->set_primary_key("id");
 
 =head1 RELATIONS
 
-=head2 aggregateconstituents_aggregates
+=head2 aggregate_constituents_aggregates
 
 Type: has_many
 
@@ -277,13 +283,13 @@ Related object: L<Hydra::Schema::AggregateConstituents>
 =cut
 
 __PACKAGE__->has_many(
-  "aggregateconstituents_aggregates",
+  "aggregate_constituents_aggregates",
   "Hydra::Schema::AggregateConstituents",
   { "foreign.aggregate" => "self.id" },
   undef,
 );
 
-=head2 aggregateconstituents_constituents
+=head2 aggregate_constituents_constituents
 
 Type: has_many
 
@@ -292,13 +298,13 @@ Related object: L<Hydra::Schema::AggregateConstituents>
 =cut
 
 __PACKAGE__->has_many(
-  "aggregateconstituents_constituents",
+  "aggregate_constituents_constituents",
   "Hydra::Schema::AggregateConstituents",
   { "foreign.constituent" => "self.id" },
   undef,
 );
 
-=head2 buildinputs_builds
+=head2 build_inputs_builds
 
 Type: has_many
 
@@ -307,13 +313,13 @@ Related object: L<Hydra::Schema::BuildInputs>
 =cut
 
 __PACKAGE__->has_many(
-  "buildinputs_builds",
+  "build_inputs_builds",
   "Hydra::Schema::BuildInputs",
   { "foreign.build" => "self.id" },
   undef,
 );
 
-=head2 buildinputs_dependencies
+=head2 build_inputs_dependencies
 
 Type: has_many
 
@@ -322,13 +328,13 @@ Related object: L<Hydra::Schema::BuildInputs>
 =cut
 
 __PACKAGE__->has_many(
-  "buildinputs_dependencies",
+  "build_inputs_dependencies",
   "Hydra::Schema::BuildInputs",
   { "foreign.dependency" => "self.id" },
   undef,
 );
 
-=head2 buildmetrics
+=head2 build_metrics
 
 Type: has_many
 
@@ -337,13 +343,13 @@ Related object: L<Hydra::Schema::BuildMetrics>
 =cut
 
 __PACKAGE__->has_many(
-  "buildmetrics",
+  "build_metrics",
   "Hydra::Schema::BuildMetrics",
   { "foreign.build" => "self.id" },
   undef,
 );
 
-=head2 buildoutputs
+=head2 build_outputs
 
 Type: has_many
 
@@ -352,13 +358,13 @@ Related object: L<Hydra::Schema::BuildOutputs>
 =cut
 
 __PACKAGE__->has_many(
-  "buildoutputs",
+  "build_outputs",
   "Hydra::Schema::BuildOutputs",
   { "foreign.build" => "self.id" },
   undef,
 );
 
-=head2 buildproducts
+=head2 build_products
 
 Type: has_many
 
@@ -367,13 +373,13 @@ Related object: L<Hydra::Schema::BuildProducts>
 =cut
 
 __PACKAGE__->has_many(
-  "buildproducts",
+  "build_products",
   "Hydra::Schema::BuildProducts",
   { "foreign.build" => "self.id" },
   undef,
 );
 
-=head2 buildstepoutputs
+=head2 build_step_outputs
 
 Type: has_many
 
@@ -382,13 +388,13 @@ Related object: L<Hydra::Schema::BuildStepOutputs>
 =cut
 
 __PACKAGE__->has_many(
-  "buildstepoutputs",
+  "build_step_outputs",
   "Hydra::Schema::BuildStepOutputs",
   { "foreign.build" => "self.id" },
   undef,
 );
 
-=head2 buildsteps
+=head2 build_steps
 
 Type: has_many
 
@@ -397,13 +403,13 @@ Related object: L<Hydra::Schema::BuildSteps>
 =cut
 
 __PACKAGE__->has_many(
-  "buildsteps",
+  "build_steps",
   "Hydra::Schema::BuildSteps",
   { "foreign.build" => "self.id" },
   undef,
 );
 
-=head2 buildsteps_propagatedfroms
+=head2 build_steps_propagated_froms
 
 Type: has_many
 
@@ -412,9 +418,9 @@ Related object: L<Hydra::Schema::BuildSteps>
 =cut
 
 __PACKAGE__->has_many(
-  "buildsteps_propagatedfroms",
+  "build_steps_propagated_froms",
   "Hydra::Schema::BuildSteps",
-  { "foreign.propagatedfrom" => "self.id" },
+  { "foreign.propagated_from" => "self.id" },
   undef,
 );
 
@@ -448,7 +454,7 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
 );
 
-=head2 jobsetevalinputs
+=head2 jobset_eval_inputs
 
 Type: has_many
 
@@ -457,13 +463,13 @@ Related object: L<Hydra::Schema::JobsetEvalInputs>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetevalinputs",
+  "jobset_eval_inputs",
   "Hydra::Schema::JobsetEvalInputs",
   { "foreign.dependency" => "self.id" },
   undef,
 );
 
-=head2 jobsetevalmembers
+=head2 jobset_eval_members
 
 Type: has_many
 
@@ -472,7 +478,7 @@ Related object: L<Hydra::Schema::JobsetEvalMembers>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetevalmembers",
+  "jobset_eval_members",
   "Hydra::Schema::JobsetEvalMembers",
   { "foreign.build" => "self.id" },
   undef,
@@ -493,7 +499,7 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
 );
 
-=head2 releasemembers
+=head2 release_members
 
 Type: has_many
 
@@ -502,7 +508,7 @@ Related object: L<Hydra::Schema::ReleaseMembers>
 =cut
 
 __PACKAGE__->has_many(
-  "releasemembers",
+  "release_members",
   "Hydra::Schema::ReleaseMembers",
   { "foreign.build" => "self.id" },
   undef,
@@ -512,13 +518,13 @@ __PACKAGE__->has_many(
 
 Type: many_to_many
 
-Composing rels: L</aggregateconstituents_constituents> -> aggregate
+Composing rels: L</aggregate_constituents_constituents> -> aggregate
 
 =cut
 
 __PACKAGE__->many_to_many(
   "aggregates",
-  "aggregateconstituents_constituents",
+  "aggregate_constituents_constituents",
   "aggregate",
 );
 
@@ -526,19 +532,19 @@ __PACKAGE__->many_to_many(
 
 Type: many_to_many
 
-Composing rels: L</aggregateconstituents_aggregates> -> constituent
+Composing rels: L</aggregate_constituents_aggregates> -> constituent
 
 =cut
 
 __PACKAGE__->many_to_many(
   "constituents",
-  "aggregateconstituents_aggregates",
+  "aggregate_constituents_aggregates",
   "constituent",
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-02-12 17:20:42
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:/8aVtXu/+o0jmKHnSzwt+g
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:QDUGB7t90kx7Q4U7HE6bSw
 
 __PACKAGE__->has_many(
   "dependents",
@@ -557,14 +563,14 @@ __PACKAGE__->has_many(
 __PACKAGE__->has_one(
   "actualBuildStep",
   "Hydra::Schema::BuildSteps",
-  { 'foreign.drvpath' => 'self.drvpath'
+  { 'foreign.drv_path' => 'self.drv_path'
   , 'foreign.build' => 'self.id'
   },
 );
 
-__PACKAGE__->many_to_many("jobsetevals", "jobsetevalmembers", "eval");
+__PACKAGE__->many_to_many("jobset_evals", "jobset_eval_members", "eval");
 
-__PACKAGE__->many_to_many("constituents_", "aggregateconstituents_aggregates", "constituent");
+__PACKAGE__->many_to_many("constituents_", "aggregate_constituents_aggregates", "constituent");
 
 sub makeSource {
     my ($name, $query) = @_;
@@ -578,7 +584,7 @@ sub makeSource {
 sub makeQueries {
     my ($name, $constraint) = @_;
 
-    my $activeJobs = "(select distinct project, jobset, job, system from Builds where isCurrent = 1 $constraint)";
+    my $activeJobs = "(select distinct project, jobset, job, system from Builds where is_current = 1 $constraint)";
 
     makeSource(
         "LatestSucceeded$name",
@@ -590,7 +596,7 @@ sub makeQueries {
                 where
                   project = activeJobs.project and jobset = activeJobs.jobset
                   and job = activeJobs.job and system = activeJobs.system
-                  and finished = 1 and buildstatus = 0
+                  and finished = 1 and build_status = 0
                ) as id
              from $activeJobs as activeJobs
             ) as latest
@@ -610,24 +616,24 @@ my %hint = (
         'id',
         'finished',
         'timestamp',
-        'starttime',
-        'stoptime',
+        'start_time',
+        'stop_time',
         'project',
         'jobset',
         'job',
-        'nixname',
+        'nix_name',
         'system',
         'priority',
-        'buildstatus',
-        'releasename'
+        'build_status',
+        'release_name'
     ],
     relations => {
-        jobsetevals => 'id'
+        jobset_evals => 'id'
     },
     eager_relations => {
-        buildoutputs => 'name',
-        buildproducts => 'productnr',
-        buildmetrics => 'name',
+        build_outputs => 'name',
+        build_products => 'productnr',
+        build_metrics => 'name',
     }
 );
 

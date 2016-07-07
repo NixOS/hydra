@@ -98,7 +98,7 @@ BLOCK renderBuildListBody;
     <tr>
       [% IF !hideResultInfo %]
         <td>
-          [% INCLUDE renderBuildStatusIcon size=16 buildstatus=build.buildstatus %]
+          [% INCLUDE renderBuildStatusIcon size=16 build_status=build.build_status %]
         </td>
       [% END %]
       [% IF showSchedulingInfo %]
@@ -108,8 +108,8 @@ BLOCK renderBuildListBody;
       [% IF !hideJobName %]
         <td><a href="[%link%]">[% IF !hideJobsetName %][%build.get_column("project")%]:[%build.get_column("jobset")%]:[% END %][%build.get_column("job")%]</td>
       [% END %]
-      <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; INCLUDE renderRelativeDate timestamp=(showSchedulingInfo ? build.timestamp : build.stoptime); ELSE; "-"; END %]</td>
-      <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
+      <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stop_time; IF t; INCLUDE renderRelativeDate timestamp=(showSchedulingInfo ? build.timestamp : build.stop_time); ELSE; "-"; END %]</td>
+      <td>[% !showSchedulingInfo and build.get_column('release_name') ? build.get_column('release_name') : build.nix_name %]</td>
       <td class="nowrap"><tt>[% build.system %]</tt></td>
       [% IF showDescription %]
         <td>[% build.description %]</td>
@@ -189,25 +189,25 @@ BLOCK renderBuildLink; INCLUDE renderBuildIdLink id=build.id; END;
 
 BLOCK renderBuildStatusIcon;
   finished = build != undef ? build.finished : 1;
-  buildstatus = buildstatus != undef ? buildstatus : build.buildstatus;
+  build_status = build_status != undef ? build_status : build.build_status;
   IF finished;
-    IF buildstatus == 0 %]
+    IF build_status == 0 %]
       <img src="[% c.uri_for("/static/images/checkmark_${size}.png") %]" alt="Succeeded" class="build-status" />
-    [% ELSIF buildstatus == 1 %]
+    [% ELSIF build_status == 1 %]
       <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
-    [% ELSIF buildstatus == 2 %]
+    [% ELSIF build_status == 2 %]
       <img src="[% c.uri_for("/static/images/dependency_${size}.png") %]" alt="Dependency failed" class="build-status" />
-    [% ELSIF buildstatus == 3 || buildstatus == 9 %]
+    [% ELSIF build_status == 3 || build_status == 9 %]
       <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Aborted" class="build-status" />
-    [% ELSIF buildstatus == 4 %]
+    [% ELSIF build_status == 4 %]
       <img src="[% c.uri_for("/static/images/forbidden_${size}.png") %]" alt="Cancelled" class="build-status" />
-    [% ELSIF buildstatus == 6 %]
+    [% ELSIF build_status == 6 %]
       <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed with output" class="build-status" />
-    [% ELSIF buildstatus == 7 %]
+    [% ELSIF build_status == 7 %]
       <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Timed out" class="build-status" />
-    [% ELSIF buildstatus == 10 %]
+    [% ELSIF build_status == 10 %]
       <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Log limit exceeded" class="build-status" />
-    [% ELSIF buildstatus == 11 %]
+    [% ELSIF build_status == 11 %]
       <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Output size limit exceeded" class="build-status" />
     [% ELSE %]
       <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
@@ -220,25 +220,25 @@ END;
 
 BLOCK renderStatus;
   IF build.finished;
-    buildstatus = build.buildstatus;
+    build_status = build.build_status;
     IF icon; INCLUDE renderBuildStatusIcon size=16; END;
-    IF buildstatus == 0 %]
+    IF build_status == 0 %]
       <strong>Success</strong>
-    [% ELSIF buildstatus == 1 %]
+    [% ELSIF build_status == 1 %]
       <span class="error">Build returned a non-zero exit code</span>
-    [% ELSIF buildstatus == 2 %]
+    [% ELSIF build_status == 2 %]
       <span class="error">A dependency of the build failed</span>
-    [% ELSIF buildstatus == 4 %]
+    [% ELSIF build_status == 4 %]
       <span class="error">Cancelled by user</span>
-    [% ELSIF buildstatus == 6 %]
+    [% ELSIF build_status == 6 %]
       <span class="error">Build failed with output</span>
-    [% ELSIF buildstatus == 7 %]
+    [% ELSIF build_status == 7 %]
       <span class="error">Timed out</span>
-    [% ELSIF buildstatus == 9 %]
+    [% ELSIF build_status == 9 %]
       <span class="error">Unsupported system type</span>
-    [% ELSIF buildstatus == 10 %]
+    [% ELSIF build_status == 10 %]
       <span class="error">Log limit exceeded</span>
-    [% ELSIF buildstatus == 11 %]
+    [% ELSIF build_status == 11 %]
       <span class="error">Output limit exceeded</span>
     [% ELSE %]
       <span class="error">Aborted</span>
@@ -517,7 +517,7 @@ BLOCK renderJobsetOverview %]
             <img src="[% c.uri_for("/static/images/help_16.png") %]" alt="Scheduled" />
           [% ELSIF j.get_column('nrfailed') == 0  %]
             <img src="[% c.uri_for("/static/images/checkmark_16.png") %]" alt="Succeeded" />
-          [% ELSIF j.get_column('nrfailed') > 0 && j.get_column('nrsucceeded') > 0 %]
+          [% ELSIF j.get_column('nrfailed') > 0 && j.get_column('nr_succeeded') > 0 %]
             <img src="[% c.uri_for("/static/images/error_some_16.png") %]" alt="Some Failed" />
           [% ELSE %]
             <img src="[% c.uri_for("/static/images/error_16.png") %]" alt="All Failed" />
@@ -525,9 +525,9 @@ BLOCK renderJobsetOverview %]
         </td>
         <td><span class="[% IF !j.enabled %]disabled-jobset[% END %] [%+ IF j.hidden %]hidden-jobset[% END %]">[% IF showProject; INCLUDE renderFullJobsetName project=j.get_column('project') jobset=j.name inRow=1; ELSE; INCLUDE renderJobsetName project=j.get_column('project') jobset=j.name inRow=1; END %]</span></td>
         <td>[% HTML.escape(j.description) %]</td>
-        <td>[% IF j.lastcheckedtime; INCLUDE renderDateTime timestamp = j.lastcheckedtime; ELSE; "-"; END %]</td>
+        <td>[% IF j.last_checked_time; INCLUDE renderDateTime timestamp = j.last_checked_time; ELSE; "-"; END %]</td>
         [% IF j.get_column('nrtotal') > 0 %]
-          [% successrate = ( j.get_column('nrsucceeded') / j.get_column('nrtotal') )*100 %]
+          [% successrate = ( j.get_column('nr_succeeded') / j.get_column('nrtotal') )*100 %]
           [% IF j.get_column('nrscheduled') > 0 %]
             [% class = 'label' %]
           [% ELSIF successrate < 25 %]
@@ -540,8 +540,8 @@ BLOCK renderJobsetOverview %]
         [% END %]
         <td><span class="[% class %]">[% successrate FILTER format('%d') %]%</span></td>
         <td>
-          [% IF j.get_column('nrsucceeded') > 0 %]
-            <span class="label label-success">[% j.get_column('nrsucceeded') %]</span>
+          [% IF j.get_column('nr_succeeded') > 0 %]
+            <span class="label label-success">[% j.get_column('nr_succeeded') %]</span>
           [% END %]
           [% IF j.get_column('nrfailed') > 0 %]
             <span class="label label-important">[% j.get_column('nrfailed') %]</span>

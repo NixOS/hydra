@@ -26,11 +26,11 @@ sub buildFinished {
             next unless $jobName =~ /^$channel->{jobs}$/;
 
             # If build is cancelled or aborted, do not send email.
-            next if ! $force && ($b->buildstatus == 4 || $b->buildstatus == 3);
+            next if ! $force && ($b->build_status == 4 || $b->build_status == 3);
 
             # If there is a previous (that is not cancelled or aborted) build
             # with same buildstatus, do not send email.
-            next if ! $force && defined $prevBuild && ($b->buildstatus == $prevBuild->buildstatus);
+            next if ! $force && defined $prevBuild && ($b->build_status == $prevBuild->build_status);
 
             $channels{$channel->{url}} //= { channel => $channel, builds => [] };
             push @{$channels{$channel->{url}}->{builds}}, $b;
@@ -48,14 +48,14 @@ sub buildFinished {
 
         my $imgBase = "http://hydra.nixos.org";
         my $img =
-            $build->buildstatus == 0 ? "$imgBase/static/images/checkmark_256.png" :
-            $build->buildstatus == 2 ? "$imgBase/static/images/dependency_256.png" :
-            $build->buildstatus == 4 ? "$imgBase/static/images/cancelled_128.png" :
+            $build->build_status == 0 ? "$imgBase/static/images/checkmark_256.png" :
+            $build->build_status == 2 ? "$imgBase/static/images/dependency_256.png" :
+            $build->build_status == 4 ? "$imgBase/static/images/cancelled_128.png" :
             "$imgBase/static/images/error_256.png";
 
         my $color =
-            $build->buildstatus == 0 ? "good" :
-            $build->buildstatus == 4 ? "warning" :
+            $build->build_status == 0 ? "good" :
+            $build->build_status == 4 ? "warning" :
             "danger";
 
         my $text = "";

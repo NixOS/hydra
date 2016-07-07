@@ -45,8 +45,8 @@ sub begin :Private {
     }
 
     if (scalar(@args) == 0 || $args[0] ne "static") {
-        $c->stash->{nrRunningBuilds} = dbh($c)->selectrow_array(
-            "select count(distinct build) from buildsteps where busy = 1");
+        $c->stash->{nrRunningbuilds} = dbh($c)->selectrow_array(
+            "select count(distinct build) from build_steps where busy = 1");
         $c->stash->{nrQueuedBuilds} = $c->model('DB::Builds')->search({ finished => 0 })->count();
     }
 
@@ -81,7 +81,7 @@ sub index :Path :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'overview.tt';
     $c->stash->{projects} = [$c->model('DB::Projects')->search(isAdmin($c) ? {} : {hidden => 0}, {order_by => 'name'})];
-    $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, { order_by => ['createtime DESC'], rows => 5 })];
+    $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, { order_by => ['create_time DESC'], rows => 5 })];
     $self->status_ok($c,
         entity => $c->stash->{projects}
     );
@@ -98,7 +98,7 @@ sub queue_GET {
         $c,
         entity => [$c->model('DB::Builds')->search(
             { finished => 0 },
-            { order_by => ["globalpriority desc", "id"],
+            { order_by => ["global_priority desc", "id"],
             , columns => [@buildListColumns]
             })]
     );
@@ -110,12 +110,12 @@ sub queue_summary :Local :Path('queue-summary') :Args(0) {
     $c->stash->{template} = 'queue-summary.tt';
 
     $c->stash->{queued} = dbh($c)->selectall_arrayref(
-        "select project, jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from Builds " .
+        "select project, jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from builds " .
         "where finished = 0 group by project, jobset order by queued desc",
         { Slice => {} });
 
     $c->stash->{systems} = dbh($c)->selectall_arrayref(
-        "select system, count(*) as c from Builds where finished = 0 group by system order by c desc",
+        "select system, count(*) as c from builds where finished = 0 group by system order by c desc",
         { Slice => {} });
 }
 
@@ -127,9 +127,9 @@ sub status_GET {
     $self->status_ok(
         $c,
         entity => [$c->model('DB::Builds')->search(
-            { "buildsteps.busy" => 1 },
-            { order_by => ["globalpriority DESC", "id"],
-              join => "buildsteps",
+            { "build_steps.busy" => 1 },
+            { order_by => ["global_priority DESC", "id"],
+              join => "build_steps",
               columns => [@buildListColumns]
             })]
     );
@@ -173,8 +173,8 @@ sub machines :Local Args(0) {
 
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = dbh($c)->selectall_arrayref(
-        "select build, stepnr, s.system as system, s.drvpath as drvpath, machine, s.starttime as starttime, project, jobset, job " .
-        "from BuildSteps s join Builds b on s.build = b.id " .
+        "select build, stepnr, s.system as system, s.drv_path as drv_path, machine, s.start_time as start_time, project, jobset, job " .
+        "from build_steps s join builds b on s.build = b.id " .
         "where busy = 1 order by machine, stepnr",
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
@@ -382,7 +382,7 @@ sub evals :Local Args(0) {
 
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
-    $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
+    $c->stash->{total} = $evals->search({has_new_builds => 1})->count;
     $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
 }
 
@@ -399,15 +399,15 @@ sub steps :Local Args(0) {
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
-        { starttime => { '!=', undef },
-          stoptime => { '!=', undef }
+        { start_time => { '!=', undef },
+          stop_time => { '!=', undef }
         },
-        { order_by => [ "stoptime desc" ],
+        { order_by => [ "stop_time desc" ],
           rows => $resultsPerPage,
           offset => ($page - 1) * $resultsPerPage
         }) ];
 
-    $c->stash->{total} = approxTableSize($c, "IndexBuildStepsOnStopTime");
+    $c->stash->{total} = approxTableSize($c, "index_build_steps_on_stop_time");
 }
 
 
@@ -425,7 +425,7 @@ sub search :Local Args(0) {
 
     $c->stash->{projects} = [ $c->model('DB::Projects')->search(
         { -and =>
-            [ { -or => [ name => { ilike => "%$query%" }, displayName => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] }
+            [ { -or => [ name => { ilike => "%$query%" }, display_name => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] }
             , { hidden => 0 }
             ]
         },
@@ -445,18 +445,18 @@ sub search :Local Args(0) {
         , "jobset.hidden" => 0
         },
         { order_by => ["enabled_ desc", "project", "jobset", "name"], join => ["project", "jobset"]
-        , "+select" => [\ "(project.enabled = 1 and jobset.enabled = 1 and exists (select 1 from Builds where project = project.name and jobset = jobset.name and job = me.name and iscurrent = 1)) as enabled_"]
+        , "+select" => [\ "(project.enabled = 1 and jobset.enabled = 1 and exists (select 1 from builds where project = project.name and jobset = jobset.name and job = me.name and is_current = 1)) as enabled_"]
         , "+as" => ["enabled"]
         , rows => $c->stash->{limit} + 1
         } ) ];
 
     # Perform build search in separate queries to prevent seq scan on buildoutputs table.
     $c->stash->{builds} = [ $c->model('DB::Builds')->search(
-        { "buildoutputs.path" => trim($query) },
-        { order_by => ["id desc"], join => ["buildoutputs"] } ) ];
+        { "build_outputs.path" => trim($query) },
+        { order_by => ["id desc"], join => ["build_outputs"] } ) ];
 
     $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
-        { "drvpath" => trim($query) },
+        { "drv_path" => trim($query) },
         { order_by => ["id desc"] } ) ];
 }
 

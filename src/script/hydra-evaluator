@@ -31,10 +31,10 @@ my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
 
 sub fetchInputs {
     my ($project, $jobset, $inputInfo) = @_;
-    foreach my $input ($jobset->jobsetinputs->all) {
-        foreach my $alt ($input->jobsetinputalts->all) {
+    foreach my $input ($jobset->jobset_inputs->all) {
+        foreach my $alt ($input->jobset_input_alts->all) {
             push @{$$inputInfo{$input->name}}, $_
-                foreach fetchInput($plugins, $db, $project, $jobset, $input->name, $input->type, $alt->value, $input->emailresponsible);
+                foreach fetchInput($plugins, $db, $project, $jobset, $input->name, $input->type, $alt->value, $input->email_responsible);
         }
     }
 }
@@ -42,11 +42,11 @@ sub fetchInputs {
 
 sub setJobsetError {
     my ($jobset, $errorMsg) = @_;
-    my $prevError = $jobset->errormsg;
+    my $prevError = $jobset->error_msg;
 
     eval {
         txn_do($db, sub {
-            $jobset->update({ errormsg => $errorMsg, errortime => time, fetcherrormsg => undef });
+            $jobset->update({ error_msg => $errorMsg, error_time => time, fetch_error_msg => undef });
         });
     };
     if (defined $errorMsg && $errorMsg ne ($prevError // "") || $ENV{'HYDRA_MAIL_TEST'}) {
@@ -60,7 +60,7 @@ sub sendJobsetErrorNotification() {
 
     chomp $errorMsg;
 
-    return if $jobset->project->owner->emailonerror == 0;
+    return if $jobset->project->owner->email_on_error == 0;
     return if $errorMsg eq "";
 
     my $projectName = $jobset->project->name;
@@ -77,7 +77,7 @@ sub sendJobsetErrorNotification() {
     try {
         sendEmail(
             $config,
-            $jobset->project->owner->emailaddress,
+            $jobset->project->owner->email_address,
             "Hydra $projectName:$jobsetName evaluation error",
             $body,
             [ 'X-Hydra-Project' => $projectName
@@ -121,7 +121,7 @@ sub checkJobsetWrapped {
         $jobset->discard_changes;
         $inputInfo->{"declInput"} = [ $declInput ];
     }
-    my $exprType = $jobset->nixexprpath =~ /.scm$/ ? "guile" : "nix";
+    my $exprType = $jobset->nix_expr_path =~ /.scm$/ ? "guile" : "nix";
 
     # Fetch all values for all inputs.
     my $checkoutStart = clock_gettime(CLOCK_REALTIME);
@@ -138,7 +138,7 @@ sub checkJobsetWrapped {
         Net::Statsd::increment("hydra.evaluator.failed_checkouts");
         print STDERR $fetchError;
         txn_do($db, sub {
-            $jobset->update({ lastcheckedtime => time, fetcherrormsg => $fetchError }) if !$dryRun;
+            $jobset->update({ last_checked_time => time, fetch_error_msg => $fetchError }) if !$dryRun;
         });
         return;
     }
@@ -146,21 +146,21 @@ sub checkJobsetWrapped {
     # Hash the arguments to hydra-eval-jobs and check the
     # JobsetInputHashes to see if the previous evaluation had the same
     # inputs.  If so, bail out.
-    my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo, $exprType));
+    my @args = ($jobset->nix_expr_input, $jobset->nix_expr_path, inputsToArgs($inputInfo, $exprType));
     my $argsHash = sha256_hex("@args");
     my $prevEval = getPrevJobsetEval($db, $jobset, 0);
     if (defined $prevEval && $prevEval->hash eq $argsHash && !$dryRun) {
         print STDERR "  jobset is unchanged, skipping\n";
         Net::Statsd::increment("hydra.evaluator.unchanged_checkouts");
         txn_do($db, sub {
-            $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
+            $jobset->update({ last_checked_time => time, fetch_error_msg => undef });
         });
         return;
     }
 
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_REALTIME);
-    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
+    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nix_expr_input, $jobset->nix_expr_path);
     my $evalStop = clock_gettime(CLOCK_REALTIME);
 
     if ($jobsetsJobset) {
@@ -195,7 +195,7 @@ sub checkJobsetWrapped {
         # Clear the "current" flag on all builds.  Since we're in a
         # transaction this will only become visible after the new
         # current builds have been added.
-        $jobset->builds->search({iscurrent => 1})->update({iscurrent => 0});
+        $jobset->builds->search({is_current => 1})->update({is_current => 0});
 
         # Schedule each successfully evaluated job.
         my %buildMap;
@@ -208,21 +208,21 @@ sub checkJobsetWrapped {
         # Have any builds been added or removed since last time?
         $jobsetChanged =
             (scalar(grep { $_->{new} } values(%buildMap)) > 0)
-            || (defined $prevEval && $prevEval->jobsetevalmembers->count != scalar(keys %buildMap));
+            || (defined $prevEval && $prevEval->jobset_eval_members->count != scalar(keys %buildMap));
 
-        my $ev = $jobset->jobsetevals->create(
+        my $ev = $jobset->jobset_evals->create(
             { hash => $argsHash
             , timestamp => time
-            , checkouttime => abs(int($checkoutStop - $checkoutStart))
-            , evaltime => abs(int($evalStop - $evalStart))
-            , hasnewbuilds => $jobsetChanged ? 1 : 0
-            , nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
+            , checkout_time => abs(int($checkoutStop - $checkoutStart))
+            , eval_time => abs(int($evalStop - $evalStart))
+            , has_new_builds => $jobsetChanged ? 1 : 0
+            , nr_builds => $jobsetChanged ? scalar(keys %buildMap) : undef
             });
 
         if ($jobsetChanged) {
             # Create JobsetEvalMembers mappings.
             while (my ($id, $x) = each %buildMap) {
-                $ev->jobsetevalmembers->create({ build => $id, isnew => $x->{new} });
+                $ev->jobset_eval_members->create({ build => $id, is_new => $x->{new} });
             }
 
             # Create AggregateConstituents mappings.  Since there can
@@ -255,9 +255,9 @@ sub checkJobsetWrapped {
             foreach my $name (keys %{$inputInfo}) {
                 for (my $n = 0; $n < scalar(@{$inputInfo->{$name}}); $n++) {
                     my $input = $inputInfo->{$name}->[$n];
-                    $ev->jobsetevalinputs->create(
+                    $ev->jobset_eval_inputs->create(
                         { name => $name
-                        , altnr => $n
+                        , alt_nr => $n
                         , type => $input->{type}
                         , uri => $input->{uri}
                         , revision => $input->{revision}
@@ -270,16 +270,16 @@ sub checkJobsetWrapped {
             }
 
             print STDERR "  created new eval ", $ev->id, "\n";
-            $ev->builds->update({iscurrent => 1});
+            $ev->builds->update({is_current => 1});
         } else {
             print STDERR "  created cached eval ", $ev->id, "\n";
-            $prevEval->builds->update({iscurrent => 1}) if defined $prevEval;
+            $prevEval->builds->update({is_current => 1}) if defined $prevEval;
         }
 
         # If this is a one-shot jobset, disable it now.
         $jobset->update({ enabled => 0 }) if $jobset->enabled == 2;
 
-        $jobset->update({ lastcheckedtime => time });
+        $jobset->update({ last_checked_time => time });
     });
 
     my $dbStop = clock_gettime(CLOCK_REALTIME);
@@ -304,11 +304,11 @@ sub checkJobset {
     my ($jobset) = @_;
 
     print STDERR "considering jobset ", $jobset->project->name, ":", $jobset->name,
-      $jobset->lastcheckedtime
-          ? " (last checked " . (time() - $jobset->lastcheckedtime) . "s ago)\n"
+      $jobset->last_checked_time
+          ? " (last checked " . (time() - $jobset->last_checked_time) . "s ago)\n"
           : " (never checked)\n";
 
-    my $triggerTime = $jobset->triggertime;
+    my $triggerTime = $jobset->trigger_time;
 
     my $startTime = clock_gettime(CLOCK_REALTIME);
 
@@ -324,7 +324,7 @@ sub checkJobset {
     if ($checkError) {
         print STDERR $checkError;
         txn_do($db, sub {
-            $jobset->update({lastcheckedtime => time});
+            $jobset->update({last_checked_time => time});
             setJobsetError($jobset, $checkError);
         }) if !$dryRun;
         $failed = 1;
@@ -336,8 +336,8 @@ sub checkJobset {
             # triggered in the meantime.  In that case, we need to
             # evaluate again.
             my $new = $jobset->get_from_storage();
-            $jobset->update({ triggertime => undef })
-                if $new->triggertime == $triggerTime;
+            $jobset->update({ trigger_time => undef })
+                if $new->trigger_time == $triggerTime;
         }) if !$dryRun;
     }
 
@@ -348,17 +348,17 @@ sub checkJobset {
 sub checkSomeJobset {
     # If any jobset has been triggered by a push, check it.
     my ($jobset) = $db->resultset('Jobsets')->search(
-        { 'triggertime' => { '!=', undef } },
-        { join => 'project', order_by => [ 'triggertime' ], rows => 1 });
+        { 'trigger_time' => { '!=', undef } },
+        { join => 'project', order_by => [ 'trigger_time' ], rows => 1 });
 
     # Otherwise, check the jobset that hasn't been checked for the
     # longest time (but don't check more often than the jobset's
     # minimal check interval).
     ($jobset) = $db->resultset('Jobsets')->search(
         { 'project.enabled' => 1, 'me.enabled' => { '!=' => 0 },
-        , 'checkinterval' => { '!=', 0 }
-        , -or => [ 'lastcheckedtime' => undef, 'lastcheckedtime' => { '<', \ (time() . " - me.checkinterval") } ] },
-        { join => 'project', order_by => [ 'lastcheckedtime nulls first' ], rows => 1 })
+        , 'check_interval' => { '!=', 0 }
+        , -or => [ 'last_checked_time' => undef, 'last_checked_time' => { '<', \ (time() . " - me.check_interval") } ] },
+        { join => 'project', order_by => [ 'last_checked_time nulls first' ], rows => 1 })
         unless defined $jobset;
 
     return 0 unless defined $jobset;

@@ -206,7 +206,7 @@ void State::clearBusy(Connection & conn, time_t stopTime)
 {
     pqxx::work txn(conn);
     txn.parameterized
-        ("update BuildSteps set busy = 0, status = $1, stopTime = $2 where busy = 1")
+        ("update build_steps set busy = 0, status = $1, stop_time = $2 where busy = 1")
         ((int) bsAborted)
         (stopTime, stopTime != 0).exec();
     txn.commit();
@@ -217,9 +217,9 @@ unsigned int State::allocBuildStep(pqxx::work & txn, Build::ptr build)
 {
     /* Acquire an exclusive lock on BuildSteps to ensure that we don't
        race with other threads creating a step of the same build. */
-    txn.exec("lock table BuildSteps in exclusive mode");
+    txn.exec("lock table build_steps in exclusive mode");
 
-    auto res = txn.parameterized("select max(stepnr) from BuildSteps where build = $1")(build->id).exec();
+    auto res = txn.parameterized("select max(stepnr) from build_steps where build = $1")(build->id).exec();
     return res[0][0].is_null() ? 1 : res[0][0].as<int>() + 1;
 }
 
@@ -230,7 +230,7 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::p
     unsigned int stepNr = allocBuildStep(txn, build);
 
     txn.parameterized
-        ("insert into BuildSteps (build, stepnr, type, drvPath, busy, startTime, system, status, propagatedFrom, errorMsg, stopTime, machine) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)")
+        ("insert into build_steps (build, stepnr, type, drv_path, busy, start_time, system, status, propagated_from, error_msg, stop_time, machine) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)")
         (build->id)
         (stepNr)
         (0) // == build
@@ -246,7 +246,7 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, Build::p
 
     for (auto & output : step->drv.outputs)
         txn.parameterized
-            ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)")
+            ("insert into build_step_outputs (build, stepnr, name, path) values ($1, $2, $3, $4)")
             (build->id)(stepNr)(output.first)(output.second.path).exec();
 
     return stepNr;
@@ -260,7 +260,7 @@ void State::finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime,
     assert(startTime);
     assert(stopTime);
     txn.parameterized
-        ("update BuildSteps set busy = 0, status = $1, propagatedFrom = $4, errorMsg = $5, startTime = $6, stopTime = $7, machine = $8, overhead = $9 where build = $2 and stepnr = $3")
+        ("update build_steps set busy = 0, status = $1, propagated_from = $4, error_msg = $5, start_time = $6, stop_time = $7, machine = $8, overhead = $9 where build = $2 and stepnr = $3")
         ((int) status)(buildId)(stepNr)
         (propagatedFrom, propagatedFrom != 0)
         (errorMsg, errorMsg != "")
@@ -276,7 +276,7 @@ int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t sto
     int stepNr = allocBuildStep(txn, build);
 
     txn.parameterized
-        ("insert into BuildSteps (build, stepnr, type, drvPath, busy, status, startTime, stopTime) values ($1, $2, $3, $4, $5, $6, $7, $8)")
+        ("insert into build_steps (build, stepnr, type, drv_path, busy, status, start_time, stop_time) values ($1, $2, $3, $4, $5, $6, $7, $8)")
         (build->id)
         (stepNr)
         (1) // == substitution
@@ -287,7 +287,7 @@ int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t sto
         (stopTime).exec();
 
     txn.parameterized
-        ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)")
+        ("insert into build_step_outputs (build, stepnr, name, path) values ($1, $2, $3, $4)")
         (build->id)(stepNr)(outputName)(storePath).exec();
 
     return stepNr;
@@ -355,10 +355,10 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 {
     if (build->finishedInDB) return;
 
-    if (txn.parameterized("select 1 from Builds where id = $1 and finished = 0")(build->id).exec().empty()) return;
+    if (txn.parameterized("select 1 from builds where id = $1 and finished = 0")(build->id).exec().empty()) return;
 
     txn.parameterized
-        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8 where id = $1")
+        ("update builds set finished = 1, build_status = $2, start_time = $3, stop_time = $4, size = $5, closure_size = $6, release_name = $7, is_cached_build = $8 where id = $1")
         (build->id)
         ((int) (res.failed ? bsFailedWithOutput : bsSuccess))
         (startTime)
@@ -368,12 +368,12 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
         (res.releaseName, res.releaseName != "")
         (isCachedBuild ? 1 : 0).exec();
 
-    txn.parameterized("delete from BuildProducts where build = $1")(build->id).exec();
+    txn.parameterized("delete from build_products where build = $1")(build->id).exec();
 
     unsigned int productNr = 1;
     for (auto & product : res.products) {
         txn.parameterized
-            ("insert into BuildProducts (build, productnr, type, subtype, fileSize, sha1hash, sha256hash, path, name, defaultPath) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)")
+            ("insert into build_products (build, productnr, type, subtype, file_size, sha1hash, sha256hash, path, name, default_path) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)")
             (build->id)
             (productNr++)
             (product.type)
@@ -386,11 +386,11 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
             (product.defaultPath).exec();
     }
 
-    txn.parameterized("delete from BuildMetrics where build = $1")(build->id).exec();
+    txn.parameterized("delete from build_metrics where build = $1")(build->id).exec();
 
     for (auto & metric : res.metrics) {
         txn.parameterized
-            ("insert into BuildMetrics (build, name, unit, value, project, jobset, job, timestamp) values ($1, $2, $3, $4, $5, $6, $7, $8)")
+            ("insert into build_metrics (build, name, unit, value, project, jobset, job, timestamp) values ($1, $2, $3, $4, $5, $6, $7, $8)")
             (build->id)
             (metric.second.name)
             (metric.second.unit, metric.second.unit != "")
@@ -409,7 +409,7 @@ bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 {
     pqxx::work txn(conn);
     for (auto & path : step->drv.outputPaths())
-        if (!txn.parameterized("select 1 from FailedPaths where path = $1")(path).exec().empty())
+        if (!txn.parameterized("select 1 from failed_paths where path = $1")(path).exec().empty())
             return true;
     return false;
 }
@@ -713,8 +713,8 @@ void State::dumpStatus(Connection & conn, bool log)
         auto mc = startDbUpdate();
         pqxx::work txn(conn);
         // FIXME: use PostgreSQL 9.5 upsert.
-        txn.exec("delete from SystemStatus where what = 'queue-runner'");
-        txn.parameterized("insert into SystemStatus values ('queue-runner', $1)")(out.str()).exec();
+        txn.exec("delete from system_status where what = 'queue-runner'");
+        txn.parameterized("insert into system_status values ('queue-runner', $1)")(out.str()).exec();
         txn.exec("notify status_dumped");
         txn.commit();
     }
@@ -732,7 +732,7 @@ void State::showStatus()
     /* Get the last JSON status dump from the database. */
     {
         pqxx::work txn(*conn);
-        auto res = txn.exec("select status from SystemStatus where what = 'queue-runner'");
+        auto res = txn.exec("select status from system_status where what = 'queue-runner'");
         if (res.size()) status = res[0][0].as<string>();
     }
 
@@ -752,7 +752,7 @@ void State::showStatus()
         /* Get the new status. */
         {
             pqxx::work txn(*conn);
-            auto res = txn.exec("select status from SystemStatus where what = 'queue-runner'");
+            auto res = txn.exec("select status from system_status where what = 'queue-runner'");
             if (res.size()) status = res[0][0].as<string>();
         }
 
@@ -779,7 +779,7 @@ void State::unlock()
 
     {
         pqxx::work txn(*conn);
-        txn.exec("delete from SystemStatus where what = 'queue-runner'");
+        txn.exec("delete from system_status where what = 'queue-runner'");
         txn.commit();
     }
 }
@@ -862,7 +862,7 @@ void State::run(BuildID buildOne)
                 for (auto & step : steps) {
                     printMsg(lvlError, format("cleaning orphaned step %d of build %d") % step.second % step.first);
                     txn.parameterized
-                        ("update BuildSteps set busy = 0, status = $1 where build = $2 and stepnr = $3 and busy = 1")
+                        ("update build_steps set busy = 0, status = $1 where build = $2 and stepnr = $3 and busy = 1")
                         ((int) bsAborted)
                         (step.first)
                         (step.second).exec();

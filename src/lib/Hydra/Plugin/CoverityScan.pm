@@ -19,7 +19,7 @@ sub buildFinished {
         next unless $jobName =~ /^$p->{jobs}$/;
 
         # If build is cancelled or aborted, do not upload build
-        next if $b->buildstatus == 4 || $b->buildstatus == 3;
+        next if $b->build_status == 4 || $b->build_status == 3;
 
         # Otherwise, select this Coverity project
         $proj = $p; last;
@@ -42,7 +42,7 @@ sub buildFinished {
         unless defined $token;
 
     # Get tarball locations
-    my $storePath = ($b->buildoutputs)[0]->path;
+    my $storePath = ($b->build_outputs)[0]->path;
     my $tarballs  = "$storePath/tarballs";
     my $covTarball;
 

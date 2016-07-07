@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<JobsetEvalInputs>
+=head1 TABLE: C<jobset_eval_inputs>
 
 =cut
 
-__PACKAGE__->table("JobsetEvalInputs");
+__PACKAGE__->table("jobset_eval_inputs");
 
 =head1 ACCESSORS
 
@@ -46,7 +46,7 @@ __PACKAGE__->table("JobsetEvalInputs");
   data_type: 'text'
   is_nullable: 0
 
-=head2 altnr
+=head2 alt_nr
 
   data_type: 'integer'
   is_nullable: 0
@@ -94,7 +94,7 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "name",
   { data_type => "text", is_nullable => 0 },
-  "altnr",
+  "alt_nr",
   { data_type => "integer", is_nullable => 0 },
   "type",
   { data_type => "text", is_nullable => 0 },
@@ -120,13 +120,13 @@ __PACKAGE__->add_columns(
 
 =item * L</name>
 
-=item * L</altnr>
+=item * L</alt_nr>
 
 =back
 
 =cut
 
-__PACKAGE__->set_primary_key("eval", "name", "altnr");
+__PACKAGE__->set_primary_key("eval", "name", "alt_nr");
 
 =head1 RELATIONS
 
@@ -166,8 +166,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:1Dp8B58leBLh4GK0GPw2zg
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:2txablAv7qiqv+kgREBAOg
 
 my %hint = (
     columns => [

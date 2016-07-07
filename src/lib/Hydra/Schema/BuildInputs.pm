@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<BuildInputs>
+=head1 TABLE: C<build_inputs>
 
 =cut
 
-__PACKAGE__->table("BuildInputs");
+__PACKAGE__->table("build_inputs");
 
 =head1 ACCESSORS
 
@@ -40,6 +40,7 @@ __PACKAGE__->table("BuildInputs");
   data_type: 'integer'
   is_auto_increment: 1
   is_nullable: 0
+  sequence: 'build_inputs_id_seq'
 
 =head2 build
 
@@ -72,7 +73,7 @@ __PACKAGE__->table("BuildInputs");
   data_type: 'text'
   is_nullable: 1
 
-=head2 emailresponsible
+=head2 email_responsible
 
   data_type: 'integer'
   default_value: 0
@@ -98,7 +99,12 @@ __PACKAGE__->table("BuildInputs");
 
 __PACKAGE__->add_columns(
   "id",
-  { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
+  {
+    data_type         => "integer",
+    is_auto_increment => 1,
+    is_nullable       => 0,
+    sequence          => "build_inputs_id_seq",
+  },
   "build",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
   "name",
@@ -111,7 +117,7 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "value",
   { data_type => "text", is_nullable => 1 },
-  "emailresponsible",
+  "email_responsible",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "dependency",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
@@ -176,8 +182,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-08 13:08:15
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OaJPzRM+8XGsu3eIkqeYEw
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ya1TknKErG6Xd89ajDt3kQ
 
 my %hint = (
     columns => [

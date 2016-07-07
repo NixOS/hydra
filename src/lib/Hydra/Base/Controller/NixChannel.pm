@@ -43,7 +43,7 @@ sub getChannelData {
 
         next if !%$outputs;
 
-        my $pkgName = $build->nixname . "-" . $build->system . "-" . $build->id;
+        my $pkgName = $build->nix_name . "-" . $build->system . "-" . $build->id;
         push @{$c->stash->{nixPkgs}}, { build => $build, name => $pkgName, outputs => $outputs };
     }
 
@@ -87,7 +87,7 @@ sub pkg : Chained('nix') PathPart Args(1) {
     }
 
     gone($c, "Build " . $c->stash->{build}->id . " is no longer available.")
-        unless all { isValidPath($_->path) } $c->stash->{build}->buildoutputs->all;
+        unless all { isValidPath($_->path) } $c->stash->{build}->build_outputs->all;
 
     $c->stash->{current_view} = 'NixPkg';
 
@@ -112,7 +112,7 @@ sub binary_cache_url : Chained('nix') PathPart('binary-cache-url') Args(0) {
 
 sub name {
     my ($build) = @_;
-    return $build->releasename || $build->nixname;
+    return $build->release_name || $build->nix_name;
 }
 
 

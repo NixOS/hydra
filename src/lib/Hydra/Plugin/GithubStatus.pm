@@ -27,7 +27,7 @@ sub common {
     # Find matching configs
     foreach my $b ($build, @{$dependents}) {
         my $jobName = showJobName $b;
-        my $evals = $build->jobsetevals;
+        my $evals = $build->jobset_evals;
         my $ua = LWP::UserAgent->new();
 
         foreach my $conf (@config) {
@@ -36,7 +36,7 @@ sub common {
             my $contextTrailer = $conf->{excludeBuildFromContext} ? "" : (":" . $b->id);
             my $body = encode_json(
                 {
-                    state => $finished ? toGithubState($b->buildstatus) : "pending",
+                    state => $finished ? toGithubState($b->build_status) : "pending",
                     target_url => "$baseurl/build/" . $b->id,
                     description => "Hydra build #" . $b->id . " of $jobName",
                     context => "continuous-integration/hydra:" . $jobName . $contextTrailer
@@ -46,7 +46,7 @@ sub common {
             my %seen = map { $_ => {} } @inputs;
             while (my $eval = $evals->next) {
                 foreach my $input (@inputs) {
-                    my $i = $eval->jobsetevalinputs->find({ name => $input, altnr => 0 });
+                    my $i = $eval->jobset_eval_inputs->find({ name => $input, alt_nr => 0 });
                     next unless defined $i;
                     my $uri = $i->uri;
                     my $rev = $i->revision;

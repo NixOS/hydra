@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<Jobs>
+=head1 TABLE: C<jobs>
 
 =cut
 
-__PACKAGE__->table("Jobs");
+__PACKAGE__->table("jobs");
 
 =head1 ACCESSORS
 
@@ -81,7 +81,7 @@ __PACKAGE__->set_primary_key("project", "jobset", "name");
 
 =head1 RELATIONS
 
-=head2 buildmetrics
+=head2 build_metrics
 
 Type: has_many
 
@@ -90,7 +90,7 @@ Related object: L<Hydra::Schema::BuildMetrics>
 =cut
 
 __PACKAGE__->has_many(
-  "buildmetrics",
+  "build_metrics",
   "Hydra::Schema::BuildMetrics",
   {
     "foreign.job"     => "self.name",
@@ -149,7 +149,7 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
-=head2 starredjobs
+=head2 starred_jobs
 
 Type: has_many
 
@@ -158,7 +158,7 @@ Related object: L<Hydra::Schema::StarredJobs>
 =cut
 
 __PACKAGE__->has_many(
-  "starredjobs",
+  "starred_jobs",
   "Hydra::Schema::StarredJobs",
   {
     "foreign.job"     => "self.name",
@@ -169,7 +169,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:52:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:vDAo9bzLca+QWfhOb9OLMg
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:n66Zyq9uWTMcNEDFPq7H3Q
 
 1;

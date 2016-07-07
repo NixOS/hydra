@@ -40,7 +40,7 @@
     <table class="info-table">
       <tr>
         <th>Display name:</th>
-        <td>[% HTML.escape(project.displayname) %]</td>
+        <td>[% HTML.escape(project.display_name) %]</td>
       </tr>
       <tr>
         <th>Description:</th>

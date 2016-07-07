@@ -27,15 +27,15 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<CachedPathInputs>
+=head1 TABLE: C<cached_path_inputs>
 
 =cut
 
-__PACKAGE__->table("CachedPathInputs");
+__PACKAGE__->table("cached_path_inputs");
 
 =head1 ACCESSORS
 
-=head2 srcpath
+=head2 src_path
 
   data_type: 'text'
   is_nullable: 0
@@ -45,7 +45,7 @@ __PACKAGE__->table("CachedPathInputs");
   data_type: 'integer'
   is_nullable: 0
 
-=head2 lastseen
+=head2 last_seen
 
   data_type: 'integer'
   is_nullable: 0
@@ -55,7 +55,7 @@ __PACKAGE__->table("CachedPathInputs");
   data_type: 'text'
   is_nullable: 0
 
-=head2 storepath
+=head2 store_path
 
   data_type: 'text'
   is_nullable: 0
@@ -63,15 +63,15 @@ __PACKAGE__->table("CachedPathInputs");
 =cut
 
 __PACKAGE__->add_columns(
-  "srcpath",
+  "src_path",
   { data_type => "text", is_nullable => 0 },
   "timestamp",
   { data_type => "integer", is_nullable => 0 },
-  "lastseen",
+  "last_seen",
   { data_type => "integer", is_nullable => 0 },
   "sha256hash",
   { data_type => "text", is_nullable => 0 },
-  "storepath",
+  "store_path",
   { data_type => "text", is_nullable => 0 },
 );
 
@@ -79,7 +79,7 @@ __PACKAGE__->add_columns(
 
 =over 4
 
-=item * L</srcpath>
+=item * L</src_path>
 
 =item * L</sha256hash>
 
@@ -87,10 +87,10 @@ __PACKAGE__->add_columns(
 
 =cut
 
-__PACKAGE__->set_primary_key("srcpath", "sha256hash");
+__PACKAGE__->set_primary_key("src_path", "sha256hash");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:28rja0vR1glJJ15hzVfjsQ
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:N5Se4CHEhbcU52smodHHYA
 
 1;

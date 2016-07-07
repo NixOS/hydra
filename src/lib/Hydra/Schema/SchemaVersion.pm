@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<SchemaVersion>
+=head1 TABLE: C<schemaversion>
 
 =cut
 
-__PACKAGE__->table("SchemaVersion");
+__PACKAGE__->table("schemaversion");
 
 =head1 ACCESSORS
 
@@ -45,8 +45,8 @@ __PACKAGE__->table("SchemaVersion");
 __PACKAGE__->add_columns("version", { data_type => "integer", is_nullable => 0 });
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:08/7gbEQp1TqBiWFJXVY0w
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:v4O61SXQaXn3qyqVaMupew
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

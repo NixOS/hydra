@@ -6,7 +6,7 @@
     [% FOREACH i IN newsItems %]
       <div class="news-item">
         [% contents = String.new(i.contents) %]
-        <h4 class="alert-heading">[% INCLUDE renderDateTime timestamp=i.createtime %] by [% i.author.fullname %]</h4>
+        <h4 class="alert-heading">[% INCLUDE renderDateTime timestamp=i.create_time %] by [% i.author.full_name %]</h4>
         [% contents.replace('\n','<br />\n') %]
       </div>
     [% END %]
@@ -31,7 +31,7 @@
     [% FOREACH p IN projects %]
     <tr>
       <td><span class="[% IF !p.enabled %]disabled-project[% END %] [%+ IF p.hidden %]hidden-project[% END %]">[% INCLUDE renderProjectName project=p.name inRow=1 %]</span></td>
-      <td>[% HTML.escape(p.displayname) %]</td>
+      <td>[% HTML.escape(p.display_name) %]</td>
       <td>[% WRAPPER maybeLink uri=p.homepage %][% HTML.escape(p.description) %][% END %]</td>
     </tr>
     [% END %]

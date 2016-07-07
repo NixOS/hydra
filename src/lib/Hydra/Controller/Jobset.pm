@@ -20,7 +20,7 @@ sub jobsetChain :Chained('/') :PathPart('jobset') :CaptureArgs(2) {
     $c->stash->{jobset} = $project->jobsets->find({ name => $jobsetName });
 
     if (!$c->stash->{jobset} && !($c->action->name eq "jobset" and $c->request->method eq "PUT")) {
-        my $rename = $project->jobsetrenames->find({ from_ => $jobsetName });
+        my $rename = $project->jobset_renames->find({ from_ => $jobsetName });
         notFound($c, "Jobset ‘$jobsetName’ doesn't exist.") unless defined $rename;
 
         # Return a permanent redirect to the new jobset name.
@@ -41,9 +41,9 @@ sub jobset_GET {
 
     $c->stash->{template} = 'jobset.tt';
 
-    $c->stash->{evals} = getEvals($self, $c, scalar $c->stash->{jobset}->jobsetevals, 0, 10);
+    $c->stash->{evals} = getEvals($self, $c, scalar $c->stash->{jobset}->jobset_evals, 0, 10);
 
-    $c->stash->{latestEval} = $c->stash->{jobset}->jobsetevals->search({}, { rows => 1, order_by => ["id desc"] })->single;
+    $c->stash->{latestEval} = $c->stash->{jobset}->jobset_evals->search({}, { rows => 1, order_by => ["id desc"] })->single;
 
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 
@@ -76,7 +76,7 @@ sub jobset_PUT {
             # Note: $jobsetName is validated in updateProject, which will
             # abort the transaction if the name isn't valid.
             $jobset = $c->stash->{project}->jobsets->create(
-                {name => ".tmp", nixexprinput => "", nixexprpath => "", emailoverride => ""});
+                {name => ".tmp", nix_expr_input => "", nix_expr_path => "", email_override => ""});
             updateJobset($c, $jobset);
         });
 
@@ -97,7 +97,7 @@ sub jobset_DELETE {
     }
 
     txn_do($c->model('DB')->schema, sub {
-        $c->stash->{jobset}->jobsetevals->delete;
+        $c->stash->{jobset}->jobset_evals->delete;
         $c->stash->{jobset}->builds->delete;
         $c->stash->{jobset}->delete;
     });
@@ -118,7 +118,7 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
 
     my ($evals, $builds) = searchBuildsAndEvalsForJobset(
         $c->stash->{jobset},
-        { job => { ilike => $filter }, ischannel => 0 },
+        { job => { ilike => $filter }, is_channel => 0 },
         10000
     );
 
@@ -144,7 +144,7 @@ sub channels_tab : Chained('jobsetChain') PathPart('channels-tab') Args(0) {
 
     my ($evals, $builds) = searchBuildsAndEvalsForJobset(
         $c->stash->{jobset},
-        { ischannel => 1 }
+        { is_channel => 1 }
     );
 
     $c->stash->{evals} = $evals;
@@ -234,24 +234,24 @@ sub updateJobset {
     $jobset->update(
         { name => $jobsetName
         , description => trim($c->stash->{params}->{"description"})
-        , nixexprpath => $nixExprPath
-        , nixexprinput => $nixExprInput
+        , nix_expr_path => $nixExprPath
+        , nix_expr_input => $nixExprInput
         , enabled => $enabled
-        , enableemail => defined $c->stash->{params}->{enableemail} ? 1 : 0
-        , emailoverride => trim($c->stash->{params}->{emailoverride}) || ""
+        , enable_email => defined $c->stash->{params}->{enableemail} ? 1 : 0
+        , email_override => trim($c->stash->{params}->{emailoverride}) || ""
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , keepnr => int(trim($c->stash->{params}->{keepnr}))
-        , checkinterval => int(trim($c->stash->{params}->{checkinterval}))
-        , triggertime => $enabled ? $jobset->triggertime // time() : undef
-        , schedulingshares => $shares
+        , check_interval => int(trim($c->stash->{params}->{checkinterval}))
+        , trigger_time => $enabled ? $jobset->trigger_time // time() : undef
+        , scheduling_shares => $shares
         });
 
-    $jobset->project->jobsetrenames->search({ from_ => $jobsetName })->delete;
-    $jobset->project->jobsetrenames->create({ from_ => $oldName, to_ => $jobsetName })
+    $jobset->project->jobset_renames->search({ from_ => $jobsetName })->delete;
+    $jobset->project->jobset_renames->create({ from_ => $oldName, to_ => $jobsetName })
         if $oldName ne ".tmp" && $jobsetName ne $oldName;
 
     # Set the inputs of this jobset.
-    $jobset->jobsetinputs->delete;
+    $jobset->jobset_inputs->delete;
 
     foreach my $name (keys %{$c->stash->{params}->{inputs}}) {
         my $inputData = $c->stash->{params}->{inputs}->{$name};
@@ -262,14 +262,14 @@ sub updateJobset {
         error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
         error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
 
-        my $input = $jobset->jobsetinputs->create(
+        my $input = $jobset->jobset_inputs->create(
             { name => $name,
               type => $type,
-              emailresponsible => $emailresponsible
+              email_responsible => $emailresponsible
             });
 
         $value = checkInputValue($c, $name, $type, $value);
-        $input->jobsetinputalts->create({altnr => 0, value => $value});
+        $input->jobset_input_alts->create({alt_nr => 0, value => $value});
     }
 }
 
@@ -296,11 +296,11 @@ sub evals_GET {
 
     my $resultsPerPage = 20;
 
-    my $evals = $c->stash->{jobset}->jobsetevals;
+    my $evals = $c->stash->{jobset}->jobset_evals;
 
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
-    $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
+    $c->stash->{total} = $evals->search({has_new_builds => 1})->count;
     my $offset = ($page - 1) * $resultsPerPage;
     $c->stash->{evals} = getEvals($self, $c, $evals, $offset, $resultsPerPage);
     my %entity = (

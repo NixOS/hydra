@@ -44,14 +44,14 @@ sub findBuildStepByOutPath {
     my ($self, $c, $path) = @_;
     return $c->model('DB::BuildSteps')->search(
         { path => $path, busy => 0 },
-        { join => ["buildstepoutputs"], order_by => ["status", "stopTime"], rows => 1 })->single;
+        { join => ["build_step_outputs"], order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
 
 sub findBuildStepByDrvPath {
     my ($self, $c, $drvPath) = @_;
     return $c->model('DB::BuildSteps')->search(
-        { drvpath => $drvPath, busy => 0 },
+        { drv_path => $drvPath, busy => 0 },
         { order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
@@ -66,12 +66,12 @@ sub build_GET {
     $c->stash->{template} = 'build.tt';
     $c->stash->{available} =
         ($c->config->{store_mode} // "direct") eq "direct"
-        ? all { isValidPath($_->path) } $build->buildoutputs->all
+        ? all { isValidPath($_->path) } $build->build_outputs->all
         : 1; # FIXME
-    $c->stash->{drvAvailable} = isValidPath $build->drvpath;
+    $c->stash->{drvAvailable} = isValidPath $build->drv_path;
 
-    if ($build->finished && $build->iscachedbuild) {
-        my $path = ($build->buildoutputs)[0]->path or die;
+    if ($build->finished && $build->is_cached_build) {
+        my $path = ($build->build_outputs)[0]->path or die;
         my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path);
         $c->stash->{cachedBuild} = $cachedBuildStep->build if defined $cachedBuildStep;
     }
@@ -83,11 +83,11 @@ sub build_GET {
             , job => $c->stash->{job}->name
             , 'me.system' => $build->system
             , finished => 1
-            , buildstatus => 0
+            , build_status => 0
             , 'me.id' =>  { '<=' => $build->id }
             }
           , { join => "actualBuildStep"
-            , "+select" => ["actualBuildStep.stoptime - actualBuildStep.starttime"]
+            , "+select" => ["actualBuildStep.stop_time - actualBuildStep.start_time"]
             , "+as" => ["actualBuildTime"]
             , order_by => "me.id DESC"
             , rows => 50
@@ -97,7 +97,7 @@ sub build_GET {
     }
 
     # Get the first eval of which this build was a part.
-    ($c->stash->{nrEvals}) = $build->jobsetevals->search({ hasnewbuilds => 1 })->count;
+    ($c->stash->{nrEvals}) = $build->jobset_evals->search({ has_new_builds => 1 })->count;
     $c->stash->{eval} = getFirstEval($build);
     $self->status_ok(
         $c,
@@ -105,8 +105,8 @@ sub build_GET {
     );
 
     if (defined $c->stash->{eval}) {
-        my ($eval2) = $c->stash->{eval}->jobset->jobsetevals->search(
-            { hasnewbuilds => 1, id => { '<', $c->stash->{eval}->id } },
+        my ($eval2) = $c->stash->{eval}->jobset->jobset_evals->search(
+            { has_new_builds => 1, id => { '<', $c->stash->{eval}->id } },
             { order_by => "id DESC", rows => 1 });
         $c->stash->{otherEval} = $eval2 if defined $eval2;
     }
@@ -114,28 +114,28 @@ sub build_GET {
     # If this is an aggregate build, get its constituents.
     $c->stash->{constituents} = [$build->constituents_->search({}, {order_by => ["job"]})];
 
-    $c->stash->{steps} = [$build->buildsteps->search({}, {order_by => "stepnr desc"})];
+    $c->stash->{steps} = [$build->build_steps->search({}, {order_by => "stepnr desc"})];
 }
 
 
 sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
     my ($self, $c, $stepnr, $mode) = @_;
 
-    my $step = $c->stash->{build}->buildsteps->find({stepnr => $stepnr});
+    my $step = $c->stash->{build}->build_steps->find({stepnr => $stepnr});
     notFound($c, "Build doesn't have a build step $stepnr.") if !defined $step;
 
     $c->stash->{step} = $step;
 
-    showLog($c, $mode, $step->busy == 0, $step->drvpath,
-            map { $_->path } $step->buildstepoutputs->all);
+    showLog($c, $mode, $step->busy == 0, $step->drv_path,
+            map { $_->path } $step->build_step_outputs->all);
 }
 
 
 sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
     showLog($c, $mode, $c->stash->{build}->finished,
-            $c->stash->{build}->drvpath,
-            map { $_->path } $c->stash->{build}->buildoutputs->all);
+            $c->stash->{build}->drv_path,
+            map { $_->path } $c->stash->{build}->build_outputs->all);
 }
 
 
@@ -195,7 +195,7 @@ sub defaultUriForProduct {
     my ($self, $c, $product, @path) = @_;
     my $x = $product->productnr
         . ($product->name ? "/" . $product->name : "")
-        . ($product->defaultpath ? "/" . $product->defaultpath : "");
+        . ($product->default_path ? "/" . $product->default_path : "");
     return $c->uri_for($self->action_for("download"), $c->req->captures, (split /\//, $x), @path);
 }
 
@@ -215,9 +215,9 @@ sub download : Chained('buildChain') PathPart {
 
     my $product;
     if ($productRef =~ /^[0-9]+$/) {
-        $product = $c->stash->{build}->buildproducts->find({productnr => $productRef});
+        $product = $c->stash->{build}->build_products->find({productnr => $productRef});
     } else {
-        $product = $c->stash->{build}->buildproducts->find({name => $productRef});
+        $product = $c->stash->{build}->build_products->find({name => $productRef});
         @path = ($productRef, @path);
     }
     notFound($c, "Build doesn't have a product $productRef.") if !defined $product;
@@ -251,7 +251,7 @@ sub download : Chained('buildChain') PathPart {
     notFound($c, "File " . $product->path . " does not exist.") unless -e $product->path;
 
     return $c->res->redirect(defaultUriForProduct($self, $c, $product, @path))
-        if scalar @path == 0 && ($product->name || $product->defaultpath);
+        if scalar @path == 0 && ($product->name || $product->default_path);
 
     # If the product has a name, then the first path element can be
     # ignored (it's the name included in the URL for informational purposes).
@@ -280,7 +280,7 @@ sub download : Chained('buildChain') PathPart {
     notFound($c, "Path $path is a directory.") if -d $path;
 
     $c->serve_static_file($path);
-    $c->response->headers->last_modified($c->stash->{build}->stoptime);
+    $c->response->headers->last_modified($c->stash->{build}->stop_time);
 }
 
 
@@ -289,7 +289,7 @@ sub output : Chained('buildChain') PathPart Args(1) {
     my $build = $c->stash->{build};
 
     error($c, "This build is not finished yet.") unless $build->finished;
-    my $output = $build->buildoutputs->find({name => $outputName});
+    my $output = $build->build_outputs->find({name => $outputName});
     notFound($c, "This build has no output named ‘$outputName’") unless defined $output;
     gone($c, "Output is no longer available.") unless isValidPath $output->path;
 
@@ -308,7 +308,7 @@ sub download_by_type : Chained('buildChain') PathPart('download-by-type') {
     notFound($c, "You need to specify a type and a subtype in the URI.")
         unless defined $type && defined $subtype;
 
-    (my $product) = $c->stash->{build}->buildproducts->search(
+    (my $product) = $c->stash->{build}->build_products->search(
         {type => $type, subtype => $subtype}, {order_by => "productnr"});
     notFound($c, "Build doesn't have a build product with type $type/$subtype.")
         if !defined $product;
@@ -320,7 +320,7 @@ sub download_by_type : Chained('buildChain') PathPart('download-by-type') {
 sub contents : Chained('buildChain') PathPart Args(1) {
     my ($self, $c, $productnr) = @_;
 
-    my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
+    my $product = $c->stash->{build}->build_products->find({productnr => $productnr});
     notFound($c, "Build doesn't have a product $productnr.") if !defined $product;
 
     my $path = $product->path;
@@ -424,7 +424,7 @@ sub getDependencyGraph {
 sub build_deps : Chained('buildChain') PathPart('build-deps') {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
-    my $drvPath = $build->drvpath;
+    my $drvPath = $build->drv_path;
 
     error($c, "Derivation no longer available.") unless isValidPath $drvPath;
 
@@ -437,7 +437,7 @@ sub build_deps : Chained('buildChain') PathPart('build-deps') {
 sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
-    my @outPaths = map { $_->path } $build->buildoutputs->all;
+    my @outPaths = map { $_->path } $build->build_outputs->all;
 
     requireLocalStore($c);
 
@@ -456,17 +456,17 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
     my $build = $c->stash->{build};
 
     notFound($c, "Build cannot be downloaded as a closure or Nix package.")
-        if $build->buildproducts->search({type => "nix-build"})->count == 0;
+        if $build->build_products->search({type => "nix-build"})->count == 0;
 
-    foreach my $out ($build->buildoutputs) {
+    foreach my $out ($build->build_outputs) {
         notFound($c, "Path " . $out->path . " is no longer available.")
             unless isValidPath($out->path);
     }
 
     $c->stash->{channelBuilds} = $c->model('DB::Builds')->search(
         { id => $build->id },
-        { join => ["buildoutputs"]
-        , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
+        { join => ["build_outputs"]
+        , '+select' => ['build_outputs.path', 'build_outputs.name'], '+as' => ['outpath', 'outname'] });
 }
 
 
@@ -501,7 +501,7 @@ sub keep : Chained('buildChain') PathPart Args(1) {
     requireProjectOwner($c, $build->project);
 
     if ($keep) {
-        registerRoot $_->path foreach $build->buildoutputs;
+        registerRoot $_->path foreach $build->build_outputs;
     }
 
     txn_do($c->model('DB')->schema, sub {
@@ -523,7 +523,7 @@ sub bump : Chained('buildChain') PathPart('bump') {
     requireProjectOwner($c, $build->project); # FIXME: require admin?
 
     $c->model('DB')->schema->txn_do(sub {
-        $build->update({globalpriority => time()});
+        $build->update({global_priority => time()});
     });
 
     $c->flash->{successMsg} = "Build has been bumped to the front of the queue.";
@@ -546,14 +546,14 @@ sub add_to_release : Chained('buildChain') PathPart('add-to-release') Args(0) {
     error($c, "This project has no release named `$releaseName'.") unless $release;
 
     error($c, "This build is already a part of release `$releaseName'.")
-        if $release->releasemembers->find({build => $build->id});
+        if $release->release_members->find({build => $build->id});
 
-    foreach my $output ($build->buildoutputs) {
+    foreach my $output ($build->build_outputs) {
         error($c, "This build is no longer available.") unless isValidPath $output->path;
         registerRoot $output->path;
     }
 
-    $release->releasemembers->create({build => $build->id, description => $build->description});
+    $release->release_members->create({build => $build->id, description => $build->description});
 
     $c->flash->{successMsg} = "Build added to project <tt>$releaseName</tt>.";
 
@@ -565,7 +565,7 @@ sub get_info : Chained('buildChain') PathPart('api/get-info') Args(0) {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
     $c->stash->{json}->{buildId} = $build->id;
-    $c->stash->{json}->{drvPath} = $build->drvpath;
+    $c->stash->{json}->{drvPath} = $build->drv_path;
     my $out = getMainOutput($build);
     $c->stash->{json}->{outPath} = $out->path if defined $out;
     $c->forward('View::JSON');
@@ -581,11 +581,11 @@ sub evals : Chained('buildChain') PathPart('evals') Args(0) {
 
     my $resultsPerPage = 20;
 
-    my $evals = $c->stash->{build}->jobsetevals;
+    my $evals = $c->stash->{build}->jobset_evals;
 
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
-    $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
+    $c->stash->{total} = $evals->search({has_new_builds => 1})->count;
     $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
 }
 
@@ -594,10 +594,10 @@ sub evals : Chained('buildChain') PathPart('evals') Args(0) {
 sub eval : Chained('buildChain') PathPart('eval') {
     my ($self, $c, @rest) = @_;
 
-    my $eval = $c->stash->{build}->jobsetevals->find(
-        { hasnewbuilds => 1 },
+    my $eval = $c->stash->{build}->jobset_evals->find(
+        { has_new_builds => 1 },
         { order_by => "id DESC", rows => 1
-        , "not exists (select 1 from jobsetevalmembers m2 join builds b2 on me.eval = m2.eval and m2.build = b2.id and b2.finished = 0)"
+        , "not exists (select 1 from jobset_eval_members m2 join builds b2 on me.eval = m2.eval and m2.build = b2.id and b2.finished = 0)"
         });
 
     notFound($c, "There is no finished evaluation containing this build.") unless defined $eval;

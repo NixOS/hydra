@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<Projects>
+=head1 TABLE: C<projects>
 
 =cut
 
-__PACKAGE__->table("Projects");
+__PACKAGE__->table("projects");
 
 =head1 ACCESSORS
 
@@ -40,7 +40,7 @@ __PACKAGE__->table("Projects");
   data_type: 'text'
   is_nullable: 0
 
-=head2 displayname
+=head2 display_name
 
   data_type: 'text'
   is_nullable: 0
@@ -93,7 +93,7 @@ __PACKAGE__->table("Projects");
 __PACKAGE__->add_columns(
   "name",
   { data_type => "text", is_nullable => 0 },
-  "displayname",
+  "display_name",
   { data_type => "text", is_nullable => 0 },
   "description",
   { data_type => "text", is_nullable => 1 },
@@ -127,7 +127,7 @@ __PACKAGE__->set_primary_key("name");
 
 =head1 RELATIONS
 
-=head2 buildmetrics
+=head2 build_metrics
 
 Type: has_many
 
@@ -136,7 +136,7 @@ Related object: L<Hydra::Schema::BuildMetrics>
 =cut
 
 __PACKAGE__->has_many(
-  "buildmetrics",
+  "build_metrics",
   "Hydra::Schema::BuildMetrics",
   { "foreign.project" => "self.name" },
   undef,
@@ -172,7 +172,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobsetevals
+=head2 jobset_evals
 
 Type: has_many
 
@@ -181,13 +181,13 @@ Related object: L<Hydra::Schema::JobsetEvals>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetevals",
+  "jobset_evals",
   "Hydra::Schema::JobsetEvals",
   { "foreign.project" => "self.name" },
   undef,
 );
 
-=head2 jobsetrenames
+=head2 jobset_renames
 
 Type: has_many
 
@@ -196,7 +196,7 @@ Related object: L<Hydra::Schema::JobsetRenames>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetrenames",
+  "jobset_renames",
   "Hydra::Schema::JobsetRenames",
   { "foreign.project" => "self.name" },
   undef,
@@ -232,7 +232,7 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
 );
 
-=head2 projectmembers
+=head2 project_members
 
 Type: has_many
 
@@ -241,13 +241,13 @@ Related object: L<Hydra::Schema::ProjectMembers>
 =cut
 
 __PACKAGE__->has_many(
-  "projectmembers",
+  "project_members",
   "Hydra::Schema::ProjectMembers",
   { "foreign.project" => "self.name" },
   undef,
 );
 
-=head2 releasemembers
+=head2 release_members
 
 Type: has_many
 
@@ -256,7 +256,7 @@ Related object: L<Hydra::Schema::ReleaseMembers>
 =cut
 
 __PACKAGE__->has_many(
-  "releasemembers",
+  "release_members",
   "Hydra::Schema::ReleaseMembers",
   { "foreign.project" => "self.name" },
   undef,
@@ -277,7 +277,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 starredjobs
+=head2 starred_jobs
 
 Type: has_many
 
@@ -286,7 +286,7 @@ Related object: L<Hydra::Schema::StarredJobs>
 =cut
 
 __PACKAGE__->has_many(
-  "starredjobs",
+  "starred_jobs",
   "Hydra::Schema::StarredJobs",
   { "foreign.project" => "self.name" },
   undef,
@@ -296,20 +296,20 @@ __PACKAGE__->has_many(
 
 Type: many_to_many
 
-Composing rels: L</projectmembers> -> username
+Composing rels: L</project_members> -> username
 
 =cut
 
-__PACKAGE__->many_to_many("usernames", "projectmembers", "username");
+__PACKAGE__->many_to_many("usernames", "project_members", "username");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-03-11 10:39:17
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:1ats3brIVhRTWLToIYSoaQ
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Vc75nhsTomVKR5bvx7b9dw
 
 my %hint = (
     columns => [
         "name",
-        "displayname",
+        "display_name",
         "description",
         "enabled",
         "hidden",

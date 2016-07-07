@@ -9,22 +9,22 @@ my $db = Hydra::Model::DB->new;
 
 use Test::Simple tests => 6;
 
-$db->resultset('Users')->create({ username => "root", emailaddress => 'root@invalid.org', password => '' });
+$db->resultset('Users')->create({ username => "root", email_address => 'root@invalid.org', password => '' });
 
-$db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
-my $project = $db->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
-my $jobset = $project->jobsets->create({name => "basic", nixexprinput => "jobs", nixexprpath => "default.nix", emailoverride => ""});
+$db->resultset('Projects')->create({name => "tests", display_name => "", owner => "root"});
+my $project = $db->resultset('Projects')->update_or_create({name => "tests", display_name => "", owner => "root"});
+my $jobset = $project->jobsets->create({name => "basic", nix_expr_input => "jobs", nix_expr_path => "default.nix", email_override => ""});
 
 my $jobsetinput;
 
-$jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
-$jobsetinput->jobsetinputalts->create({altnr => 0, value => getcwd . "/jobs"});
+$jobsetinput = $jobset->jobset_inputs->create({name => "jobs", type => "path"});
+$jobsetinput->jobset_input_alts->create({alt_nr => 0, value => getcwd . "/jobs"});
 system("hydra-evaluator " . $jobset->project->name . " " . $jobset->name);
 
 my $successful_hash;
 foreach my $build ($jobset->builds->search({finished => 0})) {
     system("hydra-build " . $build->id);
-    my @outputs = $build->buildoutputs->all;
+    my @outputs = $build->build_outputs->all;
     my $hash = substr basename($outputs[0]->path), 0, 32;
     if ($build->job->name eq "job") {
         ok(-e "/tmp/s3/hydra/$hash.nar", "The nar of a successful matched build is uploaded");

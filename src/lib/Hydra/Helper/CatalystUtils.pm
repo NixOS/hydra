@@ -31,7 +31,7 @@ our @EXPORT = qw(
 
 
 # Columns from the Builds table needed to render build lists.
-Readonly our @buildListColumns => ('id', 'finished', 'timestamp', 'stoptime', 'project', 'jobset', 'job', 'nixname', 'system', 'buildstatus', 'releasename');
+Readonly our @buildListColumns => ('id', 'finished', 'timestamp', 'stop_time', 'project', 'jobset', 'job', 'nix_name', 'system', 'build_status', 'release_name');
 
 
 sub getBuild {
@@ -48,7 +48,7 @@ sub getPreviousBuild {
       { finished => 1
       , system => $build->system
       , 'me.id' =>  { '<' => $build->id }
-        , -not => { buildstatus => { -in => [4, 3]} }
+        , -not => { build_status => { -in => [4, 3]} }
       }, { rows => 1, order_by => "me.id DESC" })->single;
 }
 
@@ -80,7 +80,7 @@ sub getPreviousSuccessfulBuild {
       , project => $build->project->name
       , jobset => $build->jobset->name
       , job => $build->job->name
-      , buildstatus => 0
+      , build_status => 0
       , 'me.id' =>  { '<' => $build->id }
       }, {rows => 1, order_by => "me.id DESC"});
 
@@ -91,8 +91,8 @@ sub getPreviousSuccessfulBuild {
 sub searchBuildsAndEvalsForJobset {
     my ($jobset, $condition, $maxBuilds) = @_;
 
-    my @evals = $jobset->jobsetevals->search(
-        { hasnewbuilds => 1},
+    my @evals = $jobset->jobset_evals->search(
+        { has_new_builds => 1},
         { order_by => "id desc",
         rows => 20
     });
@@ -104,7 +104,7 @@ sub searchBuildsAndEvalsForJobset {
     foreach my $eval (@evals) {
         my @allBuilds = $eval->builds->search(
             $condition,
-            { columns => ['id', 'job', 'finished', 'buildstatus'] }
+            { columns => ['id', 'job', 'finished', 'build_status'] }
         );
 
         foreach my $b (@allBuilds) {
@@ -114,7 +114,7 @@ sub searchBuildsAndEvalsForJobset {
             $evals->{$eval->id}->{builds}->{$jobName} = {
                 id => $b->id,
                 finished => $b->finished,
-                buildstatus => $b->buildstatus
+                build_status => $b->build_status
             };
             $builds{$jobName} = 1;
             $nrBuilds++;
@@ -179,7 +179,7 @@ sub isProjectOwner {
         $c->user_exists &&
         (isAdmin($c) ||
          $c->user->username eq $project->owner->username ||
-         defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
+         defined $c->model('DB::ProjectMembers')->find({ project => $project, username => $c->user->username }));
 }
 
 
@@ -220,10 +220,10 @@ sub trim {
 
 sub getLatestFinishedEval {
     my ($jobset) = @_;
-    my ($eval) = $jobset->jobsetevals->search(
-        { hasnewbuilds => 1 },
+    my ($eval) = $jobset->jobset_evals->search(
+        { has_new_builds => 1 },
         { order_by => "id DESC", rows => 1
-        , where => \ "not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0)"
+        , where => \ "not exists (select 1 from jobset_eval_members m join builds b on m.build = b.id where m.eval = me.id and b.finished = 0)"
         });
     return $eval;
 }
@@ -231,8 +231,8 @@ sub getLatestFinishedEval {
 
 sub getFirstEval {
     my ($build) = @_;
-    return $build->jobsetevals->search(
-        { hasnewbuilds => 1},
+    return $build->jobset_evals->search(
+        { has_new_builds => 1},
         { rows => 1, order_by => ["id"] })->single;
 }
 
@@ -279,11 +279,11 @@ sub showStatus {
     my ($build) = @_;
 
     my $status = "Failed";
-    if ($build->buildstatus == 0) { $status = "Success"; }
-    elsif ($build->buildstatus == 1) { $status = "Failed"; }
-    elsif ($build->buildstatus == 2) { $status = "Dependency failed"; }
-    elsif ($build->buildstatus == 4) { $status = "Cancelled"; }
-    elsif ($build->buildstatus == 6) { $status = "Failed with output"; }
+    if ($build->build_status == 0) { $status = "Success"; }
+    elsif ($build->build_status == 1) { $status = "Failed"; }
+    elsif ($build->build_status == 2) { $status = "Dependency failed"; }
+    elsif ($build->build_status == 4) { $status = "Cancelled"; }
+    elsif ($build->build_status == 6) { $status = "Failed with output"; }
 
     return $status;
 }
@@ -303,9 +303,9 @@ sub getResponsibleAuthors {
     my $prevEval = getFirstEval($prevBuild);
     my $eval = getFirstEval($build);
 
-    foreach my $curInput ($eval->jobsetevalinputs) {
+    foreach my $curInput ($eval->jobset_eval_inputs) {
         next unless ($curInput->type eq "git" || $curInput->type eq "hg");
-        my $prevInput = $prevEval->jobsetevalinputs->find({ name => $curInput->name });
+        my $prevInput = $prevEval->jobset_eval_inputs->find({ name => $curInput->name });
         next unless defined $prevInput;
 
         next if $curInput->type ne $prevInput->type;
@@ -320,8 +320,8 @@ sub getResponsibleAuthors {
         foreach my $commit (@commits) {
             #print STDERR "$commit->{revision} by $commit->{author}\n";
             $authors{$commit->{author}} = $commit->{email};
-            my $inputSpec = $build->jobset->jobsetinputs->find({ name => $curInput->name });
-            push @emailable_authors, $commit->{email} if $inputSpec && $inputSpec->emailresponsible;
+            my $inputSpec = $build->jobset->jobset_inputs->find({ name => $curInput->name });
+            push @emailable_authors, $commit->{email} if $inputSpec && $inputSpec->email_responsible;
             $nrCommits++;
         }
     }

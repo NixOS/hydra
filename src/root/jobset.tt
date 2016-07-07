@@ -12,7 +12,7 @@
       [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
     </td>
     <td class="inputalts" id="[% baseName %]">
-      [% FOREACH alt IN input.search_related('jobsetinputalts', {}, { order_by => 'altnr' }) %]
+      [% FOREACH alt IN input.search_related('jobset_input_alts', {}, { order_by => 'alt_nr' }) %]
         <tt class="inputalt">
           [% IF input.type == "string" %]
             "<span class="keep-whitespace">[% HTML.escape(alt.value) %]</span>"
@@ -33,7 +33,7 @@
       <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
     </thead>
     <tbody class="inputs">
-      [% FOREACH input IN jobset.jobsetinputs %]
+      [% FOREACH input IN jobset.jobset_inputs %]
         [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
     </tbody>
@@ -60,7 +60,7 @@
   [% END %]
 
   <li class="active"><a href="#tabs-evaluations" data-toggle="tab">Evaluations</a></li>
-  [% IF jobset.errormsg || jobset.fetcherrormsg %]
+  [% IF jobset.error_msg || jobset.fetch_error_msg %]
     <li><a href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation errors</span></a></li>
   [% END %]
   <li><a href="#tabs-jobs" data-toggle="tab">Jobs</a></li>
@@ -77,8 +77,8 @@
       <tr>
         <th>Last checked:</th>
         <td>
-          [% IF jobset.lastcheckedtime %]
-            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %], [% IF jobset.errormsg || jobset.fetcherrormsg %]<em class="text-warning">with errors!</em>[% ELSE %]<em>no errors</em>[% END %]
+          [% IF jobset.last_checked_time %]
+            [% INCLUDE renderDateTime timestamp = jobset.last_checked_time %], [% IF jobset.error_msg || jobset.fetch_error_msg %]<em class="text-warning">with errors!</em>[% ELSE %]<em>no errors</em>[% END %]
           [% ELSE %]
             <em>never</em>
           [% END %]
@@ -94,10 +94,10 @@
           [% END %]
         </td>
       </tr>
-      [% IF jobset.triggertime %]
+      [% IF jobset.trigger_time %]
       <tr>
         <th>Evaluation pending since:</th>
-        <td>[% INCLUDE renderDateTime timestamp = jobset.triggertime %]</td>
+        <td>[% INCLUDE renderDateTime timestamp = jobset.trigger_time %]</td>
       </tr>
       [% END %]
     </table>
@@ -110,10 +110,10 @@
 
   </div>
 
-  [% IF jobset.errormsg || jobset.fetcherrormsg %]
+  [% IF jobset.error_msg || jobset.fetch_error_msg %]
     <div id="tabs-errors" class="tab-pane">
-      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=jobset.errortime %].</p>
-      <pre class="alert alert-error">[% HTML.escape(jobset.fetcherrormsg || jobset.errormsg) %]</pre>
+      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=jobset.error_time %].</p>
+      <pre class="alert alert-error">[% HTML.escape(jobset.fetch_error_msg || jobset.error_msg) %]</pre>
     </div>
   [% END %]
 
@@ -131,25 +131,25 @@
       <tr>
         <th>Nix expression:</th>
         <td>
-          <tt>[% HTML.escape(jobset.nixexprpath) %]</tt> in input
-          <tt>[% HTML.escape(jobset.nixexprinput) %]</tt>
+          <tt>[% HTML.escape(jobset.nix_expr_path) %]</tt> in input
+          <tt>[% HTML.escape(jobset.nix_expr_input) %]</tt>
         </td>
       </tr>
       <tr>
         <th>Check interval:</th>
-        <td>[% jobset.checkinterval || "<em>disabled</em>"  %]</td>
+        <td>[% jobset.check_interval || "<em>disabled</em>"  %]</td>
       </tr>
       <tr>
         <th>Scheduling shares:</th>
-        <td>[% jobset.schedulingshares %] [% IF totalShares %] ([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% totalShares %] shares)[% END %]</td>
+        <td>[% jobset.scheduling_shares %] [% IF totalShares %] ([% f = format("%.2f"); f(jobset.scheduling_shares / totalShares * 100) %]% out of [% totalShares %] shares)[% END %]</td>
       </tr>
       <tr>
         <th>Enable email notification:</th>
-        <td>[% jobset.enableemail ? "Yes" : "No" %]</td>
+        <td>[% jobset.enable_email ? "Yes" : "No" %]</td>
       </tr>
       <tr>
         <th>Email override:</th>
-        <td>[% HTML.escape(jobset.emailoverride) %]</td>
+        <td>[% HTML.escape(jobset.email_override) %]</td>
       </tr>
       <tr>
         <th>Number of evaluations to keep:</th>

@@ -4,7 +4,7 @@
 [% BLOCK roleoption %]
   <option value="[% role %]"
     [% checked = false %]
-    [% FOREACH r IN user.userroles %]
+    [% FOREACH r IN user.user_roles %]
       [% checked = r.role == role %]
       [% BREAK IF checked %]
     [% END %]
@@ -30,7 +30,7 @@
     <div class="control-group">
       <label class="control-label">Full name</label>
       <div class="controls">
-        <input type="text" class="span3" name="fullname" [% HTML.attributes(value => create ? '' : user.fullname) %]/>
+        <input type="text" class="span3" name="fullname" [% HTML.attributes(value => create ? '' : user.full_name) %]/>
       </div>
     </div>
 
@@ -53,14 +53,14 @@
     <div class="control-group">
       <label class="control-label">Email</label>
       <div class="controls">
-        <input type="text" class="span3" name="emailaddress" [% IF !create && user.username.search('@') %]disabled="disabled"[% END %] [%+ HTML.attributes(value => user.emailaddress) %]/>
+        <input type="text" class="span3" name="emailaddress" [% IF !create && user.username.search('@') %]disabled="disabled"[% END %] [%+ HTML.attributes(value => user.email_address) %]/>
       </div>
     </div>
 
     <div class="control-group">
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="emailonerror" [% IF !create && user.emailonerror; 'checked="checked"'; END %]/>Receive evaluation error notifications
+          <input type="checkbox" name="emailonerror" [% IF !create && user.email_on_error; 'checked="checked"'; END %]/>Receive evaluation error notifications
         </label>
       </div>
     </div>
@@ -68,7 +68,7 @@
     <div class="control-group">
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="publicdashboard" [% IF !create && user.publicdashboard; 'checked="checked"'; END %]/>Public dashboard
+          <input type="checkbox" name="publicdashboard" [% IF !create && user.public_dashboard; 'checked="checked"'; END %]/>Public dashboard
         </label>
       </div>
     </div>

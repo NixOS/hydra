@@ -80,7 +80,7 @@ sub fetchInputBuild {
         # Pick the most recent successful build of the specified job.
         $prevBuild = $db->resultset('Builds')->search(
             { finished => 1, project => $projectName, jobset => $jobsetName
-            , job => $jobName, buildStatus => 0 },
+            , job => $jobName, build_status => 0 },
             { order_by => "me.id DESC", rows => 1
             , where => \ attrsToSQL($attrs, "me.id") })->single;
     }
@@ -92,7 +92,7 @@ sub fetchInputBuild {
     my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
     my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
 
-    my $relName = ($prevBuild->releasename or $prevBuild->nixname);
+    my $relName = ($prevBuild->release_name or $prevBuild->nix_name);
     my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
 
     my $mainOutput = getMainOutput($prevBuild);
@@ -103,8 +103,8 @@ sub fetchInputBuild {
         , version => $version
         , outputName => $mainOutput->name
         };
-    if (isValidPath($prevBuild->drvpath)) {
-        $result->{drvPath} = $prevBuild->drvpath;
+    if (isValidPath($prevBuild->drv_path)) {
+        $result->{drvPath} = $prevBuild->drv_path;
     }
 
     return $result;
@@ -137,7 +137,7 @@ sub fetchInputSystemBuild {
         my $pkgNameRE = "(?:(?:[A-Za-z0-9]|(?:-[^0-9]))+)";
         my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
 
-        my $relName = ($prevBuild->releasename or $prevBuild->nixname);
+        my $relName = ($prevBuild->release_name or $prevBuild->nix_name);
         my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
 
         my $input =
@@ -168,13 +168,13 @@ sub fetchInputEval {
         die "jobset ‘$value’ does not have a finished evaluation\n" unless defined $eval;
     } elsif ($value =~ /^($projectNameRE):($jobsetNameRE):($jobNameRE)$/) {
         $eval = $db->resultset('JobsetEvals')->find(
-            { project => $1, jobset => $2, hasnewbuilds => 1 },
+            { project => $1, jobset => $2, has_new_builds => 1 },
             { order_by => "id DESC", rows => 1
             , where =>
                 \ [ # All builds in this jobset should be finished...
-                    "not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0) "
+                    "not exists (select 1 from jobset_eval_members m join builds b on m.build = b.id where m.eval = me.id and b.finished = 0) "
                     # ...and the specified build must have succeeded.
-                    . "and exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.job = ? and b.buildstatus = 0)"
+                    . "and exists (select 1 from jobset_eval_members m join builds b on m.build = b.id where m.eval = me.id and b.job = ? and b.build_status = 0)"
                   , [ 'name', $3 ] ]
             });
         die "there is no successful build of ‘$value’ in a finished evaluation\n" unless defined $eval;
@@ -184,9 +184,9 @@ sub fetchInputEval {
 
     my $jobs = {};
     foreach my $build ($eval->builds) {
-        next unless $build->finished == 1 && $build->buildstatus == 0;
+        next unless $build->finished == 1 && $build->build_status == 0;
         # FIXME: Handle multiple outputs.
-        my $out = $build->buildoutputs->find({ name => "out" });
+        my $out = $build->build_outputs->find({ name => "out" });
         next unless defined $out;
         # FIXME: Should we fail if the path is not valid?
         next unless isValidPath($out->path);
@@ -232,7 +232,7 @@ sub fetchInput {
 
     foreach my $input (@inputs) {
         $input->{type} = $type;
-        $input->{emailresponsible} = $emailresponsible;
+        $input->{email_responsible} = $emailresponsible;
     }
 
     return @inputs;
@@ -362,8 +362,8 @@ sub evalJobs {
 # exists.
 sub getPrevJobsetEval {
     my ($db, $jobset, $hasNewBuilds) = @_;
-    my ($prevEval) = $jobset->jobsetevals(
-        ($hasNewBuilds ? { hasnewbuilds => 1 } : { }),
+    my ($prevEval) = $jobset->jobset_evals(
+        ($hasNewBuilds ? { has_new_builds => 1 } : { }),
         { order_by => "id DESC", rows => 1 });
     return $prevEval;
 }
@@ -411,7 +411,7 @@ sub checkBuild {
                 # the Nixpkgs jobset with PostgreSQL.
                 { project => $jobset->project->name, jobset => $jobset->name, job => $jobName,
                   name => $firstOutputName, path => $firstOutputPath },
-                { rows => 1, columns => ['id'], join => ['buildoutputs'] });
+                { rows => 1, columns => ['id'], join => ['build_outputs'] });
             if (defined $prevBuild) {
                 #print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
                 $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath };
@@ -443,18 +443,18 @@ sub checkBuild {
             , maintainers => null($buildInfo->{maintainers})
             , maxsilent => $buildInfo->{maxSilent}
             , timeout => $buildInfo->{timeout}
-            , nixname => $buildInfo->{nixName}
-            , drvpath => $drvPath
+            , nix_name => $buildInfo->{nixName}
+            , drv_path => $drvPath
             , system => $buildInfo->{system}
-            , nixexprinput => $jobset->nixexprinput
-            , nixexprpath => $jobset->nixexprpath
+            , nix_expr_input => $jobset->nix_expr_input
+            , nix_expr_path => $jobset->nix_expr_path
             , priority => $buildInfo->{schedulingPriority}
             , finished => 0
-            , iscurrent => 1
-            , ischannel => $buildInfo->{isChannel}
+            , is_current => 1
+            , is_channel => $buildInfo->{isChannel}
             });
 
-        $build->buildoutputs->create({ name => $_, path => $buildInfo->{outputs}->{$_} })
+        $build->build_outputs->create({ name => $_, path => $buildInfo->{outputs}->{$_} })
             foreach @outputNames;
 
         $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath };
@@ -474,12 +474,12 @@ sub updateDeclarativeJobset {
         enabled
         hidden
         description
-        nixexprinput
-        nixexprpath
-        checkinterval
-        schedulingshares
-        enableemail
-        emailoverride
+        nix_expr_input
+        nix_expr_path
+        check_interval
+        scheduling_shares
+        enable_email
+        email_override
         keepnr
     );
     my %update = ( name => $jobsetName );
@@ -489,14 +489,14 @@ sub updateDeclarativeJobset {
     }
     txn_do($db, sub {
         my $jobset = $project->jobsets->update_or_create(\%update);
-        $jobset->jobsetinputs->delete;
+        $jobset->jobset_inputs->delete;
         while ((my $name, my $data) = each %{$declSpec->{"inputs"}}) {
-            my $input = $jobset->jobsetinputs->create(
+            my $input = $jobset->jobset_inputs->create(
                 { name => $name,
                   type => $data->{type},
-                  emailresponsible => $data->{emailresponsible}
+                  email_responsible => $data->{email_responsible}
                 });
-            $input->jobsetinputalts->create({altnr => 0, value => $data->{value}});
+            $input->jobset_input_alts->create({alt_nr => 0, value => $data->{value}});
         }
         delete $declSpec->{"inputs"};
         die "invalid keys in declarative specification file\n" if (%{$declSpec});
@@ -509,8 +509,8 @@ sub handleDeclarativeJobsetBuild {
 
     eval {
         my $id = $build->id;
-        die "Declarative jobset build $id failed" unless $build->buildstatus == 0;
-        my $declPath = ($build->buildoutputs)[0]->path;
+        die "Declarative jobset build $id failed" unless $build->build_status == 0;
+        my $declPath = ($build->build_outputs)[0]->path;
         my $declText = read_file($declPath)
             or die "Couldn't read declarative specification file $declPath: $!";
         my $declSpec = decode_json($declText);
@@ -523,7 +523,7 @@ sub handleDeclarativeJobsetBuild {
             }
         });
     };
-    $project->jobsets->find({ name => ".jobsets" })->update({ errormsg => $@, errortime => time, fetcherrormsg => undef })
+    $project->jobsets->find({ name => ".jobsets" })->update({ error_msg => $@, error_time => time, fetch_error_msg => undef })
         if defined $@;
 
 };

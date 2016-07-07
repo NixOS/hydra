@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<BuildProducts>
+=head1 TABLE: C<build_products>
 
 =cut
 
-__PACKAGE__->table("BuildProducts");
+__PACKAGE__->table("build_products");
 
 =head1 ACCESSORS
 
@@ -56,7 +56,7 @@ __PACKAGE__->table("BuildProducts");
   data_type: 'text'
   is_nullable: 0
 
-=head2 filesize
+=head2 file_size
 
   data_type: 'bigint'
   is_nullable: 1
@@ -81,7 +81,7 @@ __PACKAGE__->table("BuildProducts");
   data_type: 'text'
   is_nullable: 0
 
-=head2 defaultpath
+=head2 default_path
 
   data_type: 'text'
   is_nullable: 1
@@ -97,7 +97,7 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "subtype",
   { data_type => "text", is_nullable => 0 },
-  "filesize",
+  "file_size",
   { data_type => "bigint", is_nullable => 1 },
   "sha1hash",
   { data_type => "text", is_nullable => 1 },
@@ -107,7 +107,7 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "name",
   { data_type => "text", is_nullable => 0 },
-  "defaultpath",
+  "default_path",
   { data_type => "text", is_nullable => 1 },
 );
 
@@ -143,19 +143,19 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-04-13 14:49:33
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:kONECZn56f7sqfrLviiUOQ
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:48uQnWhb3ndr8anOjipKLw
 
 my %hint = (
     columns => [
         'type',
         'subtype',
         'name',
-        'filesize',
+        'file_size',
         'sha1hash',
         'sha256hash',
         'path',
-        'defaultpath'
+        'default_path'
     ],
 );
 

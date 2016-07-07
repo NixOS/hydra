@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<JobsetEvals>
+=head1 TABLE: C<jobset_evals>
 
 =cut
 
-__PACKAGE__->table("JobsetEvals");
+__PACKAGE__->table("jobset_evals");
 
 =head1 ACCESSORS
 
@@ -40,6 +40,7 @@ __PACKAGE__->table("JobsetEvals");
   data_type: 'integer'
   is_auto_increment: 1
   is_nullable: 0
+  sequence: 'jobset_evals_id_seq'
 
 =head2 project
 
@@ -58,17 +59,17 @@ __PACKAGE__->table("JobsetEvals");
   data_type: 'integer'
   is_nullable: 0
 
-=head2 checkouttime
+=head2 checkout_time
 
   data_type: 'integer'
   is_nullable: 0
 
-=head2 evaltime
+=head2 eval_time
 
   data_type: 'integer'
   is_nullable: 0
 
-=head2 hasnewbuilds
+=head2 has_new_builds
 
   data_type: 'integer'
   is_nullable: 0
@@ -78,12 +79,12 @@ __PACKAGE__->table("JobsetEvals");
   data_type: 'text'
   is_nullable: 0
 
-=head2 nrbuilds
+=head2 nr_builds
 
   data_type: 'integer'
   is_nullable: 1
 
-=head2 nrsucceeded
+=head2 nr_succeeded
 
   data_type: 'integer'
   is_nullable: 1
@@ -92,24 +93,29 @@ __PACKAGE__->table("JobsetEvals");
 
 __PACKAGE__->add_columns(
   "id",
-  { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
+  {
+    data_type         => "integer",
+    is_auto_increment => 1,
+    is_nullable       => 0,
+    sequence          => "jobset_evals_id_seq",
+  },
   "project",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "jobset",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "timestamp",
   { data_type => "integer", is_nullable => 0 },
-  "checkouttime",
+  "checkout_time",
   { data_type => "integer", is_nullable => 0 },
-  "evaltime",
+  "eval_time",
   { data_type => "integer", is_nullable => 0 },
-  "hasnewbuilds",
+  "has_new_builds",
   { data_type => "integer", is_nullable => 0 },
   "hash",
   { data_type => "text", is_nullable => 0 },
-  "nrbuilds",
+  "nr_builds",
   { data_type => "integer", is_nullable => 1 },
-  "nrsucceeded",
+  "nr_succeeded",
   { data_type => "integer", is_nullable => 1 },
 );
 
@@ -142,7 +148,7 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
-=head2 jobsetevalinputs
+=head2 jobset_eval_inputs
 
 Type: has_many
 
@@ -151,13 +157,13 @@ Related object: L<Hydra::Schema::JobsetEvalInputs>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetevalinputs",
+  "jobset_eval_inputs",
   "Hydra::Schema::JobsetEvalInputs",
   { "foreign.eval" => "self.id" },
   undef,
 );
 
-=head2 jobsetevalmembers
+=head2 jobset_eval_members
 
 Type: has_many
 
@@ -166,7 +172,7 @@ Related object: L<Hydra::Schema::JobsetEvalMembers>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetevalmembers",
+  "jobset_eval_members",
   "Hydra::Schema::JobsetEvalMembers",
   { "foreign.eval" => "self.id" },
   undef,
@@ -188,8 +194,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SlEiF8oN6FBK262uSiMKiw
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:A0hMYVW669C/L8mdmLNInw
 
 __PACKAGE__->has_many(
   "buildIds",
@@ -201,7 +207,7 @@ __PACKAGE__->many_to_many(builds => 'buildIds', 'build');
 
 my %hint = (
     columns => [
-        "hasnewbuilds",
+        "has_new_builds",
         "id"
     ],
     relations => {
@@ -209,7 +215,7 @@ my %hint = (
     },
     eager_relations => {
         # altnr? Does anyone care?
-        jobsetevalinputs => "name"
+        jobset_eval_inputs => "name"
     }
 );
 

@@ -86,8 +86,8 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
         pqxx::work txn(conn);
 
         auto res = txn.parameterized
-            ("select id, project, jobset, job, drvPath, maxsilent, timeout, timestamp, globalPriority, priority from Builds "
-             "where id > $1 and finished = 0 order by globalPriority desc, id")
+            ("select id, project, jobset, job, drv_path, maxsilent, timeout, timestamp, global_priority, priority from builds "
+             "where id > $1 and finished = 0 order by global_priority desc, id")
             (lastBuildId).exec();
 
         for (auto const & row : res) {
@@ -99,14 +99,14 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
 
             auto build = std::make_shared<Build>();
             build->id = id;
-            build->drvPath = row["drvPath"].as<string>();
+            build->drvPath = row["drv_path"].as<string>();
             build->projectName = row["project"].as<string>();
             build->jobsetName = row["jobset"].as<string>();
             build->jobName = row["job"].as<string>();
             build->maxSilentTime = row["maxsilent"].as<int>();
             build->buildTimeout = row["timeout"].as<int>();
             build->timestamp = row["timestamp"].as<time_t>();
-            build->globalPriority = row["globalPriority"].as<int>();
+            build->globalPriority = row["global_priority"].as<int>();
             build->localPriority = row["priority"].as<int>();
             build->jobset = createJobset(txn, build->projectName, build->jobsetName);
 
@@ -133,7 +133,7 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
                 auto mc = startDbUpdate();
                 pqxx::work txn(conn);
                 txn.parameterized
-                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0")
+                    ("update builds set finished = 1, build_status = $2, start_time = $3, stop_time = $3 where id = $1 and finished = 0")
                     (build->id)
                     ((int) bsAborted)
                     (time(0)).exec();
@@ -165,14 +165,14 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
                 BuildID propagatedFrom = 0;
 
                 auto res = txn.parameterized
-                    ("select max(build) from BuildSteps where drvPath = $1 and startTime != 0 and stopTime != 0 and status = 1")
+                    ("select max(build) from build_steps where drv_path = $1 and start_time != 0 and stop_time != 0 and status = 1")
                     (ex.step->drvPath).exec();
                 if (!res[0][0].is_null()) propagatedFrom = res[0][0].as<BuildID>();
 
                 if (!propagatedFrom) {
                     for (auto & output : ex.step->drv.outputs) {
                         auto res = txn.parameterized
-                            ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1")
+                            ("select max(s.build) from build_steps s join build_step_outputs o on s.build = o.build where path = $1 and start_time != 0 and stop_time != 0 and status = 1")
                             (output.second.path).exec();
                         if (!res[0][0].is_null()) {
                             propagatedFrom = res[0][0].as<BuildID>();
@@ -183,7 +183,7 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
 
                 createBuildStep(txn, 0, build, ex.step, "", bsCachedFailure, "", propagatedFrom);
                 txn.parameterized
-                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = 1 where id = $1 and finished = 0")
+                    ("update builds set finished = 1, build_status = $2, start_time = $3, stop_time = $3, is_cached_build = 1 where id = $1 and finished = 0")
                     (build->id)
                     ((int) (ex.step->drvPath == build->drvPath ? bsFailed : bsDepFailed))
                     (time(0)).exec();
@@ -308,9 +308,9 @@ void State::processQueueChange(Connection & conn)
     std::map<BuildID, int> currentIds;
     {
         pqxx::work txn(conn);
-        auto res = txn.exec("select id, globalPriority from Builds where finished = 0");
+        auto res = txn.exec("select id, global_priority from builds where finished = 0");
         for (auto const & row : res)
-            currentIds[row["id"].as<BuildID>()] = row["globalPriority"].as<BuildID>();
+            currentIds[row["id"].as<BuildID>()] = row["global_priority"].as<BuildID>();
     }
 
     auto builds_(builds.lock());
@@ -501,23 +501,23 @@ Jobset::ptr State::createJobset(pqxx::work & txn,
     }
 
     auto res = txn.parameterized
-        ("select schedulingShares from Jobsets where project = $1 and name = $2")
+        ("select scheduling_shares from jobsets where project = $1 and name = $2")
         (projectName)(jobsetName).exec();
     if (res.empty()) throw Error("missing jobset - can't happen");
 
-    auto shares = res[0]["schedulingShares"].as<unsigned int>();
+    auto shares = res[0]["scheduling_shares"].as<unsigned int>();
 
     auto jobset = std::make_shared<Jobset>();
     jobset->setShares(shares);
 
     /* Load the build steps from the last 24 hours. */
     res = txn.parameterized
-        ("select s.startTime, s.stopTime from BuildSteps s join Builds b on build = id "
-         "where s.startTime is not null and s.stopTime > $1 and project = $2 and jobset = $3")
+        ("select s.start_time, s.stop_time from build_steps s join builds b on build = id "
+         "where s.start_time is not null and s.stop_time > $1 and project = $2 and jobset = $3")
         (time(0) - Jobset::schedulingWindow * 10)(projectName)(jobsetName).exec();
     for (auto const & row : res) {
-        time_t startTime = row["startTime"].as<time_t>();
-        time_t stopTime = row["stopTime"].as<time_t>();
+        time_t startTime = row["start_time"].as<time_t>();
+        time_t stopTime = row["stop_time"].as<time_t>();
         jobset->addStep(startTime, stopTime - startTime);
     }
 
@@ -533,12 +533,12 @@ void State::processJobsetSharesChange(Connection & conn)
 {
     /* Get the current set of jobsets. */
     pqxx::work txn(conn);
-    auto res = txn.exec("select project, name, schedulingShares from Jobsets");
+    auto res = txn.exec("select project, name, scheduling_shares from jobsets");
     for (auto const & row : res) {
         auto jobsets_(jobsets.lock());
         auto i = jobsets_->find(std::make_pair(row["project"].as<string>(), row["name"].as<string>()));
         if (i == jobsets_->end()) continue;
-        i->second->setShares(row["schedulingShares"].as<unsigned int>());
+        i->second->setShares(row["scheduling_shares"].as<unsigned int>());
     }
 }
 
@@ -550,9 +550,9 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
 
     for (auto & output : drv.outputs) {
         auto r = txn.parameterized
-            ("select id, buildStatus, releaseName, closureSize, size from Builds b "
-             "join BuildOutputs o on b.id = o.build "
-             "where finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1")
+            ("select id, build_status, release_name, closure_size, size from builds b "
+             "join build_outputs o on b.id = o.build "
+             "where finished = 1 and (build_status = 0 or build_status = 6) and path = $1")
             (output.second.path).exec();
         if (r.empty()) continue;
         BuildID id = r[0][0].as<BuildID>();
@@ -566,7 +566,7 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
         res.size = r[0][4].is_null() ? 0 : r[0][4].as<unsigned long long>();
 
         auto products = txn.parameterized
-            ("select type, subtype, fileSize, sha1hash, sha256hash, path, name, defaultPath from BuildProducts where build = $1 order by productnr")
+            ("select type, subtype, file_size, sha1hash, sha256hash, path, name, default_path from build_products where build = $1 order by productnr")
             (id).exec();
 
         for (auto row : products) {
@@ -592,7 +592,7 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
         }
 
         auto metrics = txn.parameterized
-            ("select name, unit, value from BuildMetrics where build = $1")
+            ("select name, unit, value from build_metrics where build = $1")
             (id).exec();
 
         for (auto row : metrics) {

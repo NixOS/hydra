@@ -40,7 +40,7 @@ __PACKAGE__->config(
                 store => {
                     class => "DBIx::Class",
                     user_class => "DB::Users",
-                    role_relation => "userroles",
+                    role_relation => "user_roles",
                     role_field => "role",
                 },
             },

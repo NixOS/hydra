@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<JobsetInputAlts>
+=head1 TABLE: C<jobset_input_alts>
 
 =cut
 
-__PACKAGE__->table("JobsetInputAlts");
+__PACKAGE__->table("jobset_input_alts");
 
 =head1 ACCESSORS
 
@@ -53,7 +53,7 @@ __PACKAGE__->table("JobsetInputAlts");
   is_foreign_key: 1
   is_nullable: 0
 
-=head2 altnr
+=head2 alt_nr
 
   data_type: 'integer'
   is_nullable: 0
@@ -77,7 +77,7 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "input",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
-  "altnr",
+  "alt_nr",
   { data_type => "integer", is_nullable => 0 },
   "value",
   { data_type => "text", is_nullable => 1 },
@@ -95,17 +95,17 @@ __PACKAGE__->add_columns(
 
 =item * L</input>
 
-=item * L</altnr>
+=item * L</alt_nr>
 
 =back
 
 =cut
 
-__PACKAGE__->set_primary_key("project", "jobset", "input", "altnr");
+__PACKAGE__->set_primary_key("project", "jobset", "input", "alt_nr");
 
 =head1 RELATIONS
 
-=head2 jobsetinput
+=head2 jobset_input
 
 Type: belongs_to
 
@@ -114,14 +114,14 @@ Related object: L<Hydra::Schema::JobsetInputs>
 =cut
 
 __PACKAGE__->belongs_to(
-  "jobsetinput",
+  "jobset_input",
   "Hydra::Schema::JobsetInputs",
   { jobset => "jobset", name => "input", project => "project" },
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:UUO37lIuEYm0GiR92m/fyA
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:xzFzii7mqRaJkNEFm37Alg
 
 1;

@@ -24,7 +24,7 @@ my $build = $db->resultset('Builds')->find($buildId)
 if ($cmd eq "build-finished") {
     my $project = $build->project;
     my $jobset = $build->jobset;
-    if (length($project->declfile) && $jobset->name eq ".jobsets" && $build->iscurrent) {
+    if (length($project->declfile) && $jobset->name eq ".jobsets" && $build->is_current) {
         handleDeclarativeJobsetBuild($db, $project, $build);
     }
     my @dependents;
@@ -53,7 +53,7 @@ elsif ($cmd eq "build-started") {
 
 elsif ($cmd eq "step-finished") {
     my $stepNr = shift @ARGV or die;
-    my $step = $build->buildsteps->find({stepnr => $stepNr})
+    my $step = $build->build_steps->find({stepnr => $stepNr})
         or die "step $stepNr does not exist\n";
     my $logPath = shift @ARGV or die;
 

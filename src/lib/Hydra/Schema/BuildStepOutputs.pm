@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<BuildStepOutputs>
+=head1 TABLE: C<build_step_outputs>
 
 =cut
 
-__PACKAGE__->table("BuildStepOutputs");
+__PACKAGE__->table("build_step_outputs");
 
 =head1 ACCESSORS
 
@@ -103,7 +103,7 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
-=head2 buildstep
+=head2 build_step
 
 Type: belongs_to
 
@@ -112,15 +112,15 @@ Related object: L<Hydra::Schema::BuildSteps>
 =cut
 
 __PACKAGE__->belongs_to(
-  "buildstep",
+  "build_step",
   "Hydra::Schema::BuildSteps",
   { build => "build", stepnr => "stepnr" },
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:A/4v3ugXYbuYoKPlOvC6mg
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:P9wPfT1xfVnk8HiJoSbDpQ
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

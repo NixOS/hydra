@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<Releases>
+=head1 TABLE: C<releases>
 
 =cut
 
-__PACKAGE__->table("Releases");
+__PACKAGE__->table("releases");
 
 =head1 ACCESSORS
 
@@ -100,7 +100,7 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
-=head2 releasemembers
+=head2 release_members
 
 Type: has_many
 
@@ -109,7 +109,7 @@ Related object: L<Hydra::Schema::ReleaseMembers>
 =cut
 
 __PACKAGE__->has_many(
-  "releasemembers",
+  "release_members",
   "Hydra::Schema::ReleaseMembers",
   {
     "foreign.project"  => "self.project",
@@ -119,7 +119,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qISBiwvboB8dIdinaE45mg
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3jyD6R/Sq9QF+WiPU6MOUw
 
 1;

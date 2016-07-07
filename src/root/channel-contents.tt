@@ -53,7 +53,7 @@ install the package simply by clicking on the packages below.</p>
 
       <tr>
         <td><a href="[% c.uri_for('/build' b.id) %]">[% b.id %]</a></td>
-        <td><a class="row-link" href="[% uri %]"><tt>[% b.get_column('releasename') || b.nixname %]</tt></a></td>
+        <td><a class="row-link" href="[% uri %]"><tt>[% b.get_column('release_name') || b.nix_name %]</tt></a></td>
         <td><tt>[% b.system %]</tt></td>
         <td>
           [% IF b.homepage %]

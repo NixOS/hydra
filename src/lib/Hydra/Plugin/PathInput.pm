@@ -24,11 +24,11 @@ sub fetchInput {
 
     # Some simple caching: don't check a path more than once every N seconds.
     (my $cachedInput) = $self->{db}->resultset('CachedPathInputs')->search(
-        {srcpath => $uri, lastseen => {">", $timestamp - 30}},
-        {rows => 1, order_by => "lastseen DESC"});
+        {src_path => $uri, last_seen => {">", $timestamp - 30}},
+        {rows => 1, order_by => "last_seen DESC"});
 
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
-        $storePath = $cachedInput->storepath;
+    if (defined $cachedInput && isValidPath($cachedInput->store_path)) {
+        $storePath = $cachedInput->store_path;
         $sha256 = $cachedInput->sha256hash;
         $timestamp = $cachedInput->timestamp;
     } else {
@@ -46,7 +46,7 @@ sub fetchInput {
         $sha256 = (queryPathInfo($storePath, 0))[1] or die;
 
         ($cachedInput) = $self->{db}->resultset('CachedPathInputs')->search(
-            {srcpath => $uri, sha256hash => $sha256});
+            {src_path => $uri, sha256hash => $sha256});
 
         # Path inputs don't have a natural notion of a "revision", so
         # we simulate it by using the timestamp that we first saw this
@@ -56,17 +56,17 @@ sub fetchInput {
         if (!defined $cachedInput) {
             txn_do($self->{db}, sub {
                 $self->{db}->resultset('CachedPathInputs')->update_or_create(
-                    { srcpath => $uri
+                    { src_path => $uri
                     , timestamp => $timestamp
-                    , lastseen => $timestamp
+                    , last_seen => $timestamp
                     , sha256hash => $sha256
-                    , storepath => $storePath
+                    , store_path => $storePath
                     });
                 });
         } else {
             $timestamp = $cachedInput->timestamp;
             txn_do($self->{db}, sub {
-                $cachedInput->update({lastseen => time});
+                $cachedInput->update({last_seen => time});
             });
         }
     }

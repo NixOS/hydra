@@ -20,7 +20,7 @@
 
 <p>This evaluation was performed on [% INCLUDE renderDateTime
 timestamp=eval.timestamp %]. Fetching the dependencies took [%
-eval.checkouttime %]s and evaluation took [% eval.evaltime %]s.</p>
+eval.checkout_time %]s and evaluation took [% eval.eval_time %]s.</p>
 
 [% IF otherEval %]
 <p>Comparisons are relative to [% INCLUDE renderFullJobsetName
@@ -152,11 +152,11 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   </div>
 
   <div id="tabs-inputs" class="tab-pane">
-    [% INCLUDE renderInputs inputs=eval.jobsetevalinputs %]
+    [% INCLUDE renderInputs inputs=eval.jobset_eval_inputs %]
 
     [% IF otherEval %]
       <h3>Changes</h3>
-      [% INCLUDE renderInputDiff inputs2=eval.jobsetevalinputs inputs1=otherEval.jobsetevalinputs %]
+      [% INCLUDE renderInputDiff inputs2=eval.jobset_eval_inputs inputs1=otherEval.jobset_eval_inputs %]
     [% END %]
   </div>
 

@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<JobsetEvalMembers>
+=head1 TABLE: C<jobset_eval_members>
 
 =cut
 
-__PACKAGE__->table("JobsetEvalMembers");
+__PACKAGE__->table("jobset_eval_members");
 
 =head1 ACCESSORS
 
@@ -47,7 +47,7 @@ __PACKAGE__->table("JobsetEvalMembers");
   is_foreign_key: 1
   is_nullable: 0
 
-=head2 isnew
+=head2 is_new
 
   data_type: 'integer'
   is_nullable: 0
@@ -59,7 +59,7 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "build",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
-  "isnew",
+  "is_new",
   { data_type => "integer", is_nullable => 0 },
 );
 
@@ -110,8 +110,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ccPNQe/QnSjTAC3uGWe8Ng
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:JplA6XqYHxpOLMGcwWGMiw
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<CachedCVSInputs>
+=head1 TABLE: C<cached_cvs_inputs>
 
 =cut
 
-__PACKAGE__->table("CachedCVSInputs");
+__PACKAGE__->table("cached_cvs_inputs");
 
 =head1 ACCESSORS
 
@@ -50,7 +50,7 @@ __PACKAGE__->table("CachedCVSInputs");
   data_type: 'integer'
   is_nullable: 0
 
-=head2 lastseen
+=head2 last_seen
 
   data_type: 'integer'
   is_nullable: 0
@@ -60,7 +60,7 @@ __PACKAGE__->table("CachedCVSInputs");
   data_type: 'text'
   is_nullable: 0
 
-=head2 storepath
+=head2 store_path
 
   data_type: 'text'
   is_nullable: 0
@@ -74,11 +74,11 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "timestamp",
   { data_type => "integer", is_nullable => 0 },
-  "lastseen",
+  "last_seen",
   { data_type => "integer", is_nullable => 0 },
   "sha256hash",
   { data_type => "text", is_nullable => 0 },
-  "storepath",
+  "store_path",
   { data_type => "text", is_nullable => 0 },
 );
 
@@ -99,8 +99,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "module", "sha256hash");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Vi1qzjW52Lnsl0JSmGzy0w
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:z3VTWX37NFugC7gamk6e4w
 
 # You can replace this text with custom content, and it will be preserved on regeneration
 1;

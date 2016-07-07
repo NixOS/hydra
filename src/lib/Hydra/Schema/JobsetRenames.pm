@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<JobsetRenames>
+=head1 TABLE: C<jobset_renames>
 
 =cut
 
-__PACKAGE__->table("JobsetRenames");
+__PACKAGE__->table("jobset_renames");
 
 =head1 ACCESSORS
 
@@ -110,8 +110,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2014-04-23 23:13:51
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SBpKWF9swFc9T1Uc0VFlgA
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:kwStTcZDxpFvMnPLTq7pXg
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

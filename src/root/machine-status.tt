@@ -43,8 +43,8 @@
             <td><tt>[% step.system %]</tt></td>
             <td><a href="[% c.uri_for('/build' step.build) %]">[% step.build %]</a></td>
             <td><a class="row-link" href="[% c.uri_for('/build' step.build 'nixlog' step.stepnr 'tail-reload') %]">[% step.stepnr %]</a></td>
-            <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
-            <td style="width: 10em">[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
+            <td><tt>[% step.drv_path.match('-(.*)').0 %]</tt></td>
+            <td style="width: 10em">[% INCLUDE renderDuration duration = curTime - step.start_time %] </td>
           </tr>
         [% END %]
       [% END %]

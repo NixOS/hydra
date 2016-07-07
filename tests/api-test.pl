@@ -25,11 +25,11 @@ my $result = request_json({ uri => "/login", method => "POST", data => { usernam
 my $user = decode_json($result->content());
 
 ok($user->{username} eq "root", "The root user is named root");
-ok($user->{userroles}->[0] eq "admin", "The root user is an admin");
+ok($user->{user_roles}->[0] eq "admin", "The root user is an admin");
 
 $user = decode_json(request_json({ uri => "/current-user" })->content());
 ok($user->{username} eq "root", "The current user is named root");
-ok($user->{userroles}->[0] eq "admin", "The current user is an admin");
+ok($user->{user_roles}->[0] eq "admin", "The current user is an admin");
 
 ok(request_json({ uri => '/project/sample' })->code() == 404, "Non-existent projects don't exist");
 
@@ -45,22 +45,22 @@ ok($result->code() == 201, "PUTting a new jobset creates it");
 
 my $jobset = decode_json(request_json({ uri => '/jobset/sample/default' })->content());
 
-ok(exists $jobset->{jobsetinputs}->{"my-src"}, "The new jobset has a 'my-src' input");
+ok(exists $jobset->{jobset_inputs}->{"my-src"}, "The new jobset has a 'my-src' input");
 
-ok($jobset->{jobsetinputs}->{"my-src"}->{jobsetinputalts}->[0] eq "/run/jobset", "The 'my-src' input is in /run/jobset");
+ok($jobset->{jobset_inputs}->{"my-src"}->{jobset_input_alts}->[0] eq "/run/jobset", "The 'my-src' input is in /run/jobset");
 
 system("hydra-evaluator sample default");
 $result = request_json({ uri => '/jobset/sample/default/evals' });
 ok($result->code() == 200, "Can get evals of a jobset");
 my $evals = decode_json($result->content())->{evals};
 my $eval = $evals->[0];
-ok($eval->{hasnewbuilds} == 1, "The first eval of a jobset has new builds");
+ok($eval->{has_new_builds} == 1, "The first eval of a jobset has new builds");
 
 system("echo >> /run/jobset/default.nix; hydra-evaluator sample default");
 my $evals = decode_json(request_json({ uri => '/jobset/sample/default/evals' })->content())->{evals};
-ok($evals->[0]->{jobsetevalinputs}->{"my-src"}->{revision} != $evals->[1]->{jobsetevalinputs}->{"my-src"}->{revision}, "Changing a jobset source changes its revision");
+ok($evals->[0]->{jobset_eval_inputs}->{"my-src"}->{revision} != $evals->[1]->{jobset_eval_inputs}->{"my-src"}->{revision}, "Changing a jobset source changes its revision");
 
 my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{builds}->[0] })->content());
 ok($build->{job} eq "job", "The build's job name is job");
 ok($build->{finished} == 0, "The build isn't finished yet");
-ok($build->{buildoutputs}->{out}->{path} =~ /^\/nix\/store\/[a-zA-Z0-9]{32}-job$/, "The build's outpath is in the Nix store and named 'job'");
+ok($build->{build_outputs}->{out}->{path} =~ /^\/nix\/store\/[a-zA-Z0-9]{32}-job$/, "The build's outpath is in the Nix store and named 'job'");

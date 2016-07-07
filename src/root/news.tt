@@ -12,7 +12,7 @@
         [% FOREACH i IN newsItems %]
             [% contents = String.new(i.contents) %]
             <tr>
-                <td>[% INCLUDE renderDateTime timestamp=i.createtime %]</td>
+                <td>[% INCLUDE renderDateTime timestamp=i.create_time %]</td>
                 <td>[% contents.replace('\n','<br />\n') %]</td>
                 <td>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('news_delete') i.id) content = "Delete" confirmmsg = "Are you sure you want to delete this news item?" class = "btn btn-mini btn-danger" %]</td>
             </tr>
