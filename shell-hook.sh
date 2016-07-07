@@ -38,10 +38,6 @@ if [ -e "$hydraDevDir/database" ]; then
 fi
 
 function setup-database() {
-    if [ ! -e "$HYDRA_HOME/sql/hydra-postgresql.sql" ]; then
-        echo "hydra-postgresql.sql doesn't exist, please run make!" >&2
-        return 1
-    fi
     setupEnvVars
     initdb -D "$hydraDevDir/database" \
         && start-database \
