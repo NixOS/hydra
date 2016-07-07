@@ -18,9 +18,9 @@ nobase_hydra_DATA = $(EXTRA_DIST)
 
 all:
 	mkdir -p $(srcdir)/static/js
-	unzip -u -d $(srcdir)/static/js/jquery $(JQUERY)
-	unzip -u -d $(srcdir)/static $(BOOTSTRAP)
-	unzip -u -d $(srcdir)/static/js $(FLOT)
+	unzip -u -o -d $(srcdir)/static/js/jquery $(JQUERY)
+	unzip -u -o -d $(srcdir)/static $(BOOTSTRAP)
+	unzip -u -o -d $(srcdir)/static/js $(FLOT)
 
 install-data-local: $(ZIPS)
 	mkdir -p $(hydradir)/static/js
