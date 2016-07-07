@@ -6,8 +6,9 @@
 let
   # Build a version of nix that works with current hydra master
   # (Currently, revision 1a714952732c56b4735f65dea49d406aacc7c595 works)
-  nixSrc = pkgs.fetchgit {
-    url = "https://github.com/NixOS/nix";
+  nixSrc = pkgs.fetchFromGitHub {
+    owner = "NixOS";
+    repo = "nix";
     rev = "1a714952732c56b4735f65dea49d406aacc7c595";
     sha256 = "05nwfzg33v94hrrqr27vyd3lsg5ix0n9m0yxj1m7wa165ycf9qq6";
   };
