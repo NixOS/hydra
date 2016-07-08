@@ -690,3 +690,8 @@ ALTER TABLE jobsets ADD CONSTRAINT jobsets_check CHECK (scheduling_shares > 0);
 
 DROP INDEX IF EXISTS indexbuildoutputsonpath;
 CREATE INDEX index_build_outputs_on_path ON build_outputs(path);
+
+ALTER TABLE aggregate_constituents
+	RENAME CONSTRAINT aggregateconstituents_pkey TO aggregate_constituents_pkey;
+
+ALTER RULE idempotentinsert ON failed_paths RENAME TO idempotent_insert;
