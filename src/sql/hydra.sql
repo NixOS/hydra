@@ -68,7 +68,7 @@ create table jobsets (
     check_interval integer not null default 300, -- minimum time in seconds between polls (0 = disable polling)
     scheduling_shares integer not null default 100,
     fetch_error_msg text,
-    check (scheduling_shares > 0),
+    constraint    jobsets_check check (scheduling_shares > 0),
     primary key   (project, name),
     foreign key   (project) references projects(name) on delete cascade on update cascade
 );

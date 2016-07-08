@@ -683,3 +683,7 @@ CREATE TRIGGER jobset_shares_changed
 	FOR EACH ROW
 	WHEN ((old.scheduling_shares <> new.scheduling_shares))
 	EXECUTE PROCEDURE notify_jobset_shares_changed();
+
+ALTER TABLE jobsets DROP CONSTRAINT IF EXISTS jobsets_schedulingshares_check;
+ALTER TABLE jobsets DROP CONSTRAINT IF EXISTS jobsets_check;
+ALTER TABLE jobsets ADD CONSTRAINT jobsets_check CHECK (scheduling_shares > 0);
