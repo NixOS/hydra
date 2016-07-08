@@ -687,3 +687,6 @@ CREATE TRIGGER jobset_shares_changed
 ALTER TABLE jobsets DROP CONSTRAINT IF EXISTS jobsets_schedulingshares_check;
 ALTER TABLE jobsets DROP CONSTRAINT IF EXISTS jobsets_check;
 ALTER TABLE jobsets ADD CONSTRAINT jobsets_check CHECK (scheduling_shares > 0);
+
+DROP INDEX IF EXISTS indexbuildoutputsonpath;
+CREATE INDEX index_build_outputs_on_path ON build_outputs(path);

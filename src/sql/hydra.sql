@@ -592,6 +592,7 @@ create trigger nr_builds_finished after insert or update or delete on builds
 create index index_build_inputs_on_build on build_inputs(build);
 create index index_build_inputs_on_dependency on build_inputs(dependency);
 create index index_build_metrics_on_job_timestamp on build_metrics(project, jobset, job, timestamp desc);
+create index index_build_outputs_on_path on build_outputs(path);
 create index index_build_producst_on_build_and_type on build_products(build, type);
 create index index_build_products_on_build on build_products(build);
 create index index_build_steps_on_busy on build_steps(busy) where busy = 1;
