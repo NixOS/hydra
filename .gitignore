@@ -20,6 +20,8 @@ Makefile.in
 /src/root/static/bootstrap
 /src/root/static/js/flot
 /src/root/static/js/jquery
+/src/sql/incremential.sql
+/src/sql/singleton.sql
 /doc/manual/images
 /doc/manual/manual.html
 /doc/manual/manual.pdf
