@@ -40,5 +40,8 @@ update Builds b set
     keep = (select keep from BuildResultInfo r where r.id = b.id)
     where exists (select 1 from BuildResultInfo r where r.id = b.id);
 
+create index IndexBuildStepsOnBusy on BuildSteps(busy);
+create index IndexBuildsOnFinishedBusy on Builds(finished, busy);
+
 drop table BuildSchedulingInfo;
 drop table BuildResultInfo;
