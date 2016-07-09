@@ -694,4 +694,7 @@ CREATE INDEX index_build_outputs_on_path ON build_outputs(path);
 ALTER TABLE aggregate_constituents
 	RENAME CONSTRAINT aggregateconstituents_pkey TO aggregate_constituents_pkey;
 
-ALTER RULE idempotentinsert ON failed_paths RENAME TO idempotent_insert;
+DROP RULE idempotentinsert ON failed_paths;
+CREATE RULE idempotent_insert AS ON INSERT TO failed_paths
+    WHERE EXISTS (SELECT 1 FROM failed_paths where path = new.path)
+    DO INSTEAD NOTHING;
