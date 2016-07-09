@@ -94,24 +94,10 @@ create table jobset_inputs (
     jobset        text not null,
     name          text not null,
     type          text not null, -- "svn", "path", "uri", "string", "boolean", "nix"
+    properties    jsonb not null,
     email_responsible integer not null default 0, -- whether to email committers to this input who change a build
     primary key   (project, jobset, name),
     foreign key   (project, jobset) references jobsets(project, name) on delete cascade on update cascade
-);
-
-
-create table jobset_input_alts (
-    project       text not null,
-    jobset        text not null,
-    input         text not null,
-    alt_nr         integer not null,
-
-    -- urgh
-    value         text, -- for most types, a URI; for 'path', an absolute path; for 'string', an arbitrary value
-    revision      text, -- for repositories
-
-    primary key   (project, jobset, input, alt_nr),
-    foreign key   (project, jobset, input) references jobset_inputs(project, jobset, name) on delete cascade on update cascade
 );
 
 
@@ -616,8 +602,6 @@ create index index_cached_subversion_inputs_on_uri_revision on cached_subversion
 create index index_cached_bazaar_inputs_on_uri_revision on cached_bazaar_inputs(uri, revision);
 create index index_jobset_eval_members_on_build on jobset_eval_members(build);
 create index index_jobset_eval_members_on_eval on jobset_eval_members(eval);
-create index index_jobset_input_alts_on_input on jobset_input_alts(project, jobset, input);
-create index index_jobset_input_alts_on_jobset on jobset_input_alts(project, jobset);
 create index index_projects_on_enabled on projects(enabled);
 create index index_release_members_on_build on release_members(build);
 

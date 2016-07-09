@@ -57,6 +57,11 @@ __PACKAGE__->table("jobset_inputs");
   data_type: 'text'
   is_nullable: 0
 
+=head2 properties
+
+  data_type: 'jsonb'
+  is_nullable: 0
+
 =head2 email_responsible
 
   data_type: 'integer'
@@ -74,6 +79,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "type",
   { data_type => "text", is_nullable => 0 },
+  "properties",
+  { data_type => "jsonb", is_nullable => 0 },
   "email_responsible",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
 );
@@ -111,37 +118,13 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
-=head2 jobset_input_alts
 
-Type: has_many
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-08 02:55:18
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OZ3l6psoJLYr8ct9lDPJxw
 
-Related object: L<Hydra::Schema::JobsetInputAlts>
-
-=cut
-
-__PACKAGE__->has_many(
-  "jobset_input_alts",
-  "Hydra::Schema::JobsetInputAlts",
-  {
-    "foreign.input"   => "self.name",
-    "foreign.jobset"  => "self.jobset",
-    "foreign.project" => "self.project",
-  },
-  undef,
-);
-
-
-# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:sLMvhyXlxLIzfAGTsVMF0A
-
-my %hint = (
-    relations => {
-        "jobset_input_alts" => "value"
-    }
-);
-
-sub json_hint {
-    return \%hint;
-}
+__PACKAGE__->inflate_column(properties => {
+    inflate => sub { JSON::decode_json(shift) },
+    deflate => sub { JSON::encode_json(shift) },
+});
 
 1;
