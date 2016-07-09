@@ -24,7 +24,7 @@ let
       services.hydra.notificationSender = "admin@hydra.example.org";
 
       services.postgresql.enable = true;
-      services.postgresql.package = pkgs.postgresql92;
+      services.postgresql.package = pkgs.postgresql94;
 
       environment.systemPackages = [ pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
     };
@@ -119,7 +119,7 @@ rec {
           gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
           guile # optional, for Guile + Guix support
           perlDeps perl nix
-          postgresql92 # for running the tests
+          postgresql94 # for running the tests
           (lib.overrideDerivation (aws-sdk-cpp.override {
             apis = ["s3"];
             customMemoryManagement = false;
@@ -232,7 +232,7 @@ rec {
       machine =
         { config, pkgs, ... }:
         { services.postgresql.enable = true;
-          services.postgresql.package = pkgs.postgresql92;
+          services.postgresql.package = pkgs.postgresql94;
           environment.systemPackages = [ hydra pkgs.rubyLibs.fakes3 ];
           virtualisation.memorySize = 2047;
           boot.kernelPackages = pkgs.linuxPackages_3_10;
