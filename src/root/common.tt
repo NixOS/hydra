@@ -144,26 +144,13 @@ END;
 
 
 BLOCK renderSelection;
-  IF edit;
-    IF radiobuttons; %]
-      <div class="controls">
-        [% FOREACH name IN options.keys.sort %]
-          <label class="radio inline">
-            <input type="radio" [% HTML.attributes(id => param, name => param, value => name) %]
-              [% IF name == curValue; "checked='1'"; END %]>
-              [% options.$name %]
-            </input>
-          </label>
-        [% END %]
-      </div>
-    [% ELSE %]
-      <select style='width: 15em;' [% HTML.attributes(id => param, name => param) %]>
-        [% FOREACH name IN options.keys.sort %]
-          <option [% IF name == curValue; "selected='selected'"; END; " "; HTML.attributes(value => name) %]>[% options.$name %]</option>
-        [% END %]
-      </select>
-    [% END;
-  ELSE;
+  IF edit; %]
+    <select style='width: 15em;' [% HTML.attributes(id => param, name => param) %]>
+      [% FOREACH name IN options.keys.sort %]
+        <option [% IF name == curValue; "selected='selected'"; END; " "; HTML.attributes(value => name) %]>[% options.$name %]</option>
+      [% END %]
+    </select>
+  [% ELSE;
     options.$curValue;
   END;
 END;
