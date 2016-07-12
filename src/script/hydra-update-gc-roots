@@ -11,6 +11,7 @@ use Hydra::Model::DB;
 use POSIX qw(strftime);
 
 my $db = Hydra::Model::DB->new();
+my $config = getHydraConfig();
 
 
 my %roots;
@@ -37,7 +38,9 @@ sub keepBuild {
         $build->get_column('project'), ":", $build->get_column('jobset'), ":", $build->get_column('job'), "; ",
         $build->system, "; ",
         strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
-    if ($build->finished && ($build->buildstatus == 0 || $build->buildstatus == 6)) {
+    if (($config->{store_mode} // "direct") eq "direct" &&
+        $build->finished && ($build->buildstatus == 0 || $build->buildstatus == 6))
+    {
         foreach my $path (split / /, $build->get_column('outpaths')) {
             if (isValidPath($path)) {
                 addRoot $path;
