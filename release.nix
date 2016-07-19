@@ -107,7 +107,7 @@ rec {
             TextTable
             XMLSimple
             nix git boehmgc
-          ];
+          ] ++ lib.optional (shell && stdenv.isLinux) LinuxInotify2;
       };
 
     in
