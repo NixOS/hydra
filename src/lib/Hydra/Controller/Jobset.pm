@@ -112,6 +112,11 @@ sub jobset_DELETE {
     $c->flash->{successMsg} = "The jobset has been deleted.";
 }
 
+sub jobset_OPTIONS {
+    my ($self, $c) = @_;
+    $self->status_ok($c, entity => $c->stash->{inputTypes});
+}
+
 
 sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
     my ($self, $c) = @_;
