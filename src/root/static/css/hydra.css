@@ -139,3 +139,28 @@ div.flot-tooltip {
     opacity: 0.80;
     z-index: 100;
 }
+
+dl.properties > dd:after {
+    clear: both;
+}
+
+dl.properties > dt {
+    float: left;
+    clear: left;
+    font-weight: bold;
+}
+
+dl.properties > dt:after {
+    content: ":";
+    margin-right: 1ex;
+}
+
+dl.properties {
+    clear: both;
+    margin: 0;
+}
+
+var.jobset-input {
+    font-family: Monaco, Menlo, Consolas, "Courier New", monospace !important;
+    font-style: normal !important;
+}
