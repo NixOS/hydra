@@ -10,7 +10,19 @@ use Encode;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
-    $inputTypes->{'git'} = 'Git checkout';
+
+    $inputTypes->{'git'} = {
+        name => 'Git checkout',
+        properties => {
+            uri       => {label => "URI"},
+            branch    => {label => "Branch", optional => 1},
+            deepClone => {
+                label => "Deep clone",
+                help  => "Clone submodules as well?",
+                type  => "bool",
+            },
+        },
+    };
 }
 
 sub _isHash {

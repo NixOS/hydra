@@ -40,8 +40,20 @@ sub stepFinished {
 }
 
 # Called to determine the set of supported input types.  The plugin
-# should add these to the $inputTypes hashref, e.g. $inputTypes{'svn'}
-# = 'Subversion checkout'.
+# should add these to the $inputTypes hashref passed to the function.
+#
+# The value of it is another hashref, which defines some properties for
+# handling that input type, like how to render the types properties or
+# how to validate them.
+#
+# For example:
+#
+#   $inputTypes{'svn'} = {
+#     name => 'Subversion checkout',
+#     render => sub { ... },
+#     validate => sub { ... },
+#   };
+#
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
 }

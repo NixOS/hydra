@@ -9,7 +9,12 @@ use Nix::Store;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
-    $inputTypes->{'darcs'} = 'Darcs checkout';
+    $inputTypes->{'darcs'} = {
+        name => 'Darcs checkout',
+        properties => {
+            uri => {label => "URI"},
+        },
+    };
 }
 
 sub fetchInput {

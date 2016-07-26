@@ -9,8 +9,20 @@ use Nix::Store;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
-    $inputTypes->{'bzr'} = 'Bazaar export';
-    $inputTypes->{'bzr-checkout'} = 'Bazaar checkout';
+
+    my $properties = {
+        uri => {label => "URI"},
+    };
+
+    $inputTypes->{'bzr'} = {
+        name => 'Bazaar export',
+        properties => $properties,
+    };
+
+    $inputTypes->{'bzr-checkout'} = {
+        name => 'Bazaar checkout',
+        properties => $properties,
+    };
 }
 
 sub fetchInput {

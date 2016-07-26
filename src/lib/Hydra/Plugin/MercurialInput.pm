@@ -9,7 +9,13 @@ use Nix::Store;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
-    $inputTypes->{'hg'} = 'Mercurial checkout';
+    $inputTypes->{'hg'} = {
+        name => 'Mercurial checkout',
+        properties => {
+            uri => {label => "URI"},
+            id => {label => "ID", optional => 1},
+        },
+    };
 }
 
 sub _parseValue {

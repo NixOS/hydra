@@ -8,7 +8,10 @@ use Nix::Store;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
-    $inputTypes->{'path'} = 'Local path';
+    $inputTypes->{'path'} = {
+        name => 'Local path',
+        singleton => {},
+    };
 }
 
 sub fetchInput {

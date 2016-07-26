@@ -50,15 +50,45 @@ sub begin :Private {
         $c->stash->{nrQueuedBuilds} = $c->model('DB::Builds')->search({ finished => 0 })->count();
     }
 
+    my $buildProperties = {
+        job => {label => 'Job'},
+        jobset => {label => 'Jobset', optional => 1},
+        project => {label => 'Project', optional => 1},
+        attrs => {
+            label => "Attributes",
+            type => "attrset",
+            optional => 1,
+        },
+    };
+
     # Gather the supported input types.
     $c->stash->{inputTypes} = {
-        'string' => 'String value',
-        'boolean' => 'Boolean',
-        'nix' => 'Nix expression',
-        'build' => 'Previous Hydra build',
-        'sysbuild' => 'Previous Hydra build (same system)',
-        'eval' => 'Previous Hydra evaluation'
+        'string' => {
+            name => 'String value',
+            singleton => {},
+        },
+        'boolean' => {
+            name => 'Boolean',
+            singleton => {type => "bool"},
+        },
+        'nix' => {
+            name => 'Nix expression',
+            singleton => {},
+        },
+        'build' => {
+            name => 'Previous Hydra build',
+            properties => $buildProperties,
+        },
+        'sysbuild' => {
+            name => 'Previous Hydra build (same system)',
+            properties => $buildProperties,
+        },
+        'eval' => {
+            name => 'Previous Hydra evaluation',
+            singleton => {type => "int"},
+        },
     };
+
     $_->supportedInputTypes($c->stash->{inputTypes}) foreach @{$c->hydra_plugins};
 
     $c->forward('deserialize');

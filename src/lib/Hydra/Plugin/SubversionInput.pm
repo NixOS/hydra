@@ -9,8 +9,21 @@ use Nix::Store;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
-    $inputTypes->{'svn'} = 'Subversion export';
-    $inputTypes->{'svn-checkout'} = 'Subversion checkout';
+
+    my $properties = {
+        uri      => {label => "URI"},
+        revision => {label => "Revision", optional => 1},
+    };
+
+    $inputTypes->{'svn'} = {
+        name => 'Subversion export',
+        properties => $properties,
+    };
+
+    $inputTypes->{'svn-checkout'} = {
+        name => 'Subversion checkout',
+        properties => $properties,
+    };
 }
 
 sub fetchInput {
