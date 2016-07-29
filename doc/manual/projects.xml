@@ -138,15 +138,13 @@ system   String value "i686-linux"
     <title>Release Set</title>
 
     <!-- TODO -->
+    <para>
     there must be one primary job
 
     check the radio button of exactly one job
 
     https://svn.nixos.org/repos/nix/nixpkgs/trunk
-  </section>
-
-  <section>
-    <title>Building Jobs</title>
+    </para>
   </section>
 
   <section>
@@ -219,16 +217,16 @@ in
       and non-GNU free software projects:
 
       <itemizedlist>
-        <listitem>it uses the GNU Build System, namely GNU Autoconf,
+        <listitem><para>it uses the GNU Build System, namely GNU Autoconf,
         and GNU Automake; for users, it means it can be installed
         using the <link
         xlink:href="http://www.gnu.org/prep/standards/html_node/Managing-Releases.html">usual
         <literal>./configure &amp;&amp; make install</literal>
         procedure</link>;
-        </listitem>
-        <listitem>it uses Gettext for internationalization;</listitem>
-        <listitem>it has a Texinfo manual, which can be rendered as PDF
-        with TeX.</listitem>
+        </para></listitem>
+        <listitem><para>it uses Gettext for internationalization;</para></listitem>
+        <listitem><para>it has a Texinfo manual, which can be rendered as PDF
+        with TeX.</para></listitem>
       </itemizedlist>
 
       The file defines a jobset consisting of two jobs:

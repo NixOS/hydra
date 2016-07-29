@@ -188,7 +188,7 @@ hydra-init</screen>
 hydra-server</screen>
 
       When the server is started, you can browse to
-      <ulink>http://localhost:3000/</ulink> to start configuring
+      <link xlink:href="http://localhost:3000/">http://localhost:3000/</link> to start configuring
       your Hydra instance.
     </para>
 
@@ -197,20 +197,20 @@ hydra-server</screen>
       server.  There are two other processes that come into play:
 
       <itemizedlist>
-        <listitem>
+        <listitem><para>
           The <emphasis>evaluator</emphasis> is responsible for
           periodically evaluating job sets, checking out their
           dependencies off their version control systems (VCS), and
           queueing new builds if the result of the evaluation changed.
           It is launched by the <command>hydra-evaluator</command>
           command.
-        </listitem>
-        <listitem>
+        </para></listitem>
+        <listitem><para>
           The <emphasis>queue runner</emphasis> launches builds (using
           Nix) as they are queued by the evaluator, scheduling them
           onto the configured Nix hosts.  It is launched using the
           <command>hydra-queue-runner</command> command.
-        </listitem>
+        </para></listitem>
       </itemizedlist>
 
       All three processes must be running for Hydra to be fully
