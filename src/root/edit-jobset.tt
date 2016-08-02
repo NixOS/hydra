@@ -15,28 +15,20 @@
       <input type="text" id="[% baseName %]-name" name="[% baseName %]-name" [% HTML.attributes(value => input.name) %]/>
     </td>
     <td>
-      [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes edit=1 %]
-    </td>
-    <td id="[% baseName %]">
-      [% IF createFromEval %]
-        [% value = (input.uri or input.value); IF input.revision; value = value _ " " _ input.revision; END;
-           warn = input.alt_nr != 0;
-        %]
-      [% ELSE %]
-        [% alt = input.search_related('jobset_input_alts', {alt_nr => 0});
-           value = alt.value
-           warn = input.jobsetinputalts_rs.count > 1;
-        %]
-      [% END %]
-      [% IF warn %]
-        <div class="alert alert-warning">Warning: This input had more
-        than one value. This is no longer supported. The additional
-        values have been removed.</div>
-      [% END %]
-      <input style="width: 95%" type="text" [% HTML.attributes(value => value, id => "$baseName-value", name => "$baseName-value") %]/>
+      [% INCLUDE renderSelection curValue=input.type
+                                 param="$baseName-type"
+                                 options=inputTypeNames
+                                 edit=1 %]
     </td>
     <td>
       <input type="checkbox" id="[% baseName %]-emailresponsible" name="[% baseName %]-emailresponsible" [% IF input.email_responsible; 'checked="checked"'; END %]/>
+    </td>
+    <td>
+      <div [% HTML.attributes(id => "$baseName-properties") %]></div>
+      <input type="hidden" [% HTML.attributes(
+        value => input ? encode_json(input.properties) : "{}",
+        name => "$baseName-properties"
+      ) %] />
     </td>
   </tr>
 [% END %]
@@ -44,11 +36,19 @@
 [% BLOCK renderJobsetInputs %]
   <table class="table table-striped table-condensed">
     <thead>
-      <tr><th></th><th>Input name</th><th>Type</th><th style="width: 50%">Value</th><th>Notify committers</th></tr>
+      <tr>
+        <th></th>
+        <th>Input name</th>
+        <th>Type</th>
+        <th>Notify committers</th>
+        <th style="width: 50%">Properties</th>
+      </tr>
     </thead>
     <tbody class="inputs">
       [% inputs = createFromEval ? eval.jobset_eval_inputs : jobset.jobset_inputs; FOREACH input IN inputs %]
-        [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
+        [% INCLUDE renderJobsetInput input=input
+                                     baseName="input-$input.name"
+                                     extraClass="existing-input" %]
       [% END %]
       <tr>
         <td colspan="4" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="icon-plus icon-white"></i> Add a new input</button></td>
@@ -164,6 +164,136 @@
 </form>
 
 <script type="text/javascript">
+  /* Reduce a list of [key, value] arrays into a a closure that returns an
+   * object. */
+  function reduceDischargers(dischargers) {
+    return function() {
+      return dischargers.reduce(function(values, discharger) {
+        var discharged = discharger();
+        values[discharged[0]] = discharged[1];
+        return values;
+      }, {});
+    };
+  }
+
+  /* Push a key (optionally can be a function as well) and a function for the
+   * value into a list of dischargers. */
+  function pushDischarger(dischargers, key, fun) {
+    dischargers.push(function() {
+      if (typeof key === "function")
+        return [key(), fun()];
+      else
+        return [key, fun()];
+    });
+  }
+
+  /* Create a single form field for a specific property and return an object
+   * consisting of the DOM element and the discharger function.
+   */
+  function createProperty(spec, value) {
+    switch (spec.type) {
+      case "bool":
+        var boolInput = $('<input/>', {type: 'checkbox'});
+        boolInput.prop('checked', value);
+        return {
+          elem: boolInput,
+          discharge: function() {
+            return boolInput.is(':checked');
+          }
+        };
+      case "attrset":
+        var existing = $('<dl/>');
+        var dischargers = [];
+        for (key in value) {
+          var keyElem = $('<dt/>');
+          var keyInput = $('<input/>', {type: 'text', value: key});
+          keyElem.append(keyInput);
+
+          var dataElem = $('<dd/>');
+          var dataInput = $('<input/>', {type: 'text', value: value[key]});
+          dataElem.append(dataInput);
+
+          existing.append(keyElem).append(dataElem);
+
+          pushDischarger(dischargers, keyInput.val, dataInput.val);
+        }
+        return {
+          elem: existing,
+          discharge: reduceDischargers(dischargers)
+        };
+      default:
+        var defInput = $('<input/>', {type: 'text', value: value});
+        return {
+          elem: defInput,
+          discharge: function() { return defInput.val(); }
+        };
+    }
+  }
+
+  /* Create a series of properties for the given spec and optionally its
+   * pre-existing values and return an object of its DOM root element and the
+   * discharger function.
+   */
+  function updateProperties(spec, propField, propValues) {
+    if (spec.hasOwnProperty('singleton')) {
+      var prop = createProperty(spec.singleton, propValues.value);
+      return {
+        elem: prop.elem,
+        discharge: function() {
+          return {value: prop.discharge()};
+        }
+      };
+    } else {
+      var elem = $('<dl/>');
+      var dischargers = [];
+      var sortedKeys = Object.keys(spec.properties).sort();
+      for (var i in sortedKeys) {
+        var name = sortedKeys[i];
+
+        var label = $('<dt/>').text(spec.properties[name].label);
+        elem.append(label);
+
+        var prop = createProperty(spec.properties[name], propValues[name]);
+        elem.append($('<dd/>').append(prop.elem));
+
+        pushDischarger(dischargers, name, prop.discharge);
+      }
+      return {
+        elem: elem,
+        discharge: reduceDischargers(dischargers)
+      };
+    }
+  }
+
+  var dischargeMap = {};
+
+  function initProperties(node, pspec) {
+    if (typeof initProperties.pspec === 'undefined')
+      initProperties.pspec = pspec;
+
+    var dischargers = {};
+    node.find("[id^=input-][id$=-properties]").each(function() {
+      var propContainer = $(this);
+      var propField = propContainer.next();
+      var propValues = JSON.parse(propField.val());
+      var jobsetInput = $(this).closest(node);
+      var typeField = jobsetInput.find("select[name$=-type]");
+      var keyField = jobsetInput.find("input[name$=-name]")
+      var newProps = updateProperties(
+        initProperties.pspec[typeField.val()], propField, propValues
+      );
+      propContainer.html(newProps.elem);
+      dischargeMap[keyField.prop('name')] = newProps.discharge;
+      typeField.change(function() {
+        var newProps = updateProperties(
+          initProperties.pspec[$(this).val()], propField, propValues
+        );
+        propContainer.html(newProps.elem);
+        dischargeMap[keyField.prop('name')] = newProps.discharge;
+      });
+    });
+  }
+
   $(document).ready(function() {
     var id = 0;
 
@@ -172,10 +302,20 @@
       var x = $("#input-template").clone(true).attr("id", "").insertBefore($(this).parents("tr")).show();
       $("#input-template-name", x).attr("name", newid + "-name");
       $("#input-template-type", x).attr("name", newid + "-type");
-      $("#input-template-value", x).attr("name", newid + "-value");
+      $("#input-template-properties", x).attr("id", newid + "-properties");
+      $("input[name=input-template-properties]", x).attr("name", newid + "-properties");
       $("#input-template-emailresponsible", x).attr("name", newid + "-emailresponsible");
       $("#input-template", x).attr("id", newid);
+      initProperties(x);
       return false;
+    });
+
+    requestJSON({
+      url: "[% c.uri_for('/jobset' project.name jobset.name) %]",
+      type: 'OPTIONS',
+      success: function (pspec) {
+        initProperties($(".existing-input"), pspec);
+      },
     });
   });
 
@@ -195,12 +335,16 @@
         if (baseName === "template") continue;
 
         if (!(baseName in inputs))
-            inputs[baseName] = {};
+          inputs[baseName] = {};
 
-        if (param === "name")
-            data.inputs[elem.value] = inputs[baseName];
-        else
-            inputs[baseName][param] = elem.value;
+        if (param === "name") {
+          data.inputs[elem.value] = inputs[baseName];
+        } else if (param === "properties") {
+          var key = 'input-' + baseName + '-name';
+          inputs[baseName][param] = dischargeMap[key]();
+        } else {
+          inputs[baseName][param] = elem.value;
+        }
       }
     }
     redirectJSON({

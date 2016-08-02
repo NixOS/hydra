@@ -7,6 +7,7 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
+use JSON qw(encode_json);
 
 sub jobsetChain :Chained('/') :PathPart('jobset') :CaptureArgs(2) {
     my ($self, $c, $projectName, $jobsetName) = @_;
@@ -179,6 +180,7 @@ sub edit : Chained('jobsetChain') PathPart Args(0) {
     requireProjectOwner($c, $c->stash->{project});
 
     $c->stash->{template} = 'edit-jobset.tt';
+    $c->stash->{encode_json} = \&encode_json;
     $c->stash->{edit} = !defined $c->stash->{params}->{cloneJobset};
     $c->stash->{cloneJobset} = defined $c->stash->{params}->{cloneJobset};
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
@@ -265,20 +267,20 @@ sub updateJobset {
     foreach my $name (keys %{$c->stash->{params}->{inputs}}) {
         my $inputData = $c->stash->{params}->{inputs}->{$name};
         my $type = $inputData->{type};
-        my $value = $inputData->{value};
+        my $properties = $inputData->{properties};
         my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
 
         error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
         error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
 
+        # TODO: Validate properties!
+
         my $input = $jobset->jobset_inputs->create(
             { name => $name,
               type => $type,
-              email_responsible => $emailresponsible
+              email_responsible => $emailresponsible,
+              properties => $properties
             });
-
-        $value = checkInputValue($c, $name, $type, $value);
-        $input->jobset_input_alts->create({alt_nr => 0, value => $value});
     }
 }
 
