@@ -190,9 +190,15 @@
 
   /* Create a single key/value field for the "attrset" property type. */
   function createAttr(dischargers, root, key, val) {
+    var deleteButton = $('<button/>', {
+      type: 'button',
+      class: 'btn btn-warning btn-mini',
+    });
+    deleteButton.append('<i class="icon-trash icon-white"></i>');
+
     var keyElem = $('<dt/>');
     var keyInput = $('<input/>', {type: 'text', value: key});
-    keyElem.append(keyInput);
+    keyElem.append(deleteButton, keyInput);
 
     var dataElem = $('<dd/>');
     var dataInput = $('<input/>', {type: 'text', value: val});
@@ -200,10 +206,18 @@
 
     root.append(keyElem, dataElem);
 
+    deleteButton.click(function() {
+      keyInput.val("");
+      dataInput.val("");
+      keyElem.remove();
+      dataElem.remove();
+    });
+
     pushDischarger(dischargers, function() {
       return keyInput.val();
     }, function() {
-      return dataInput.val()
+      var dispatched = dataInput.val();
+      return dispatched === "" ? null : dispatched;
     });
   }
 
