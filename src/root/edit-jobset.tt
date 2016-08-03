@@ -187,6 +187,25 @@
     });
   }
 
+  /* Create a single key/value field for the "attrset" property type. */
+  function createAttr(dischargers, root, key, val) {
+    var keyElem = $('<dt/>');
+    var keyInput = $('<input/>', {type: 'text', value: key});
+    keyElem.append(keyInput);
+
+    var dataElem = $('<dd/>');
+    var dataInput = $('<input/>', {type: 'text', value: val});
+    dataElem.append(dataInput);
+
+    root.append(keyElem, dataElem);
+
+    pushDischarger(dischargers, function() {
+      return keyInput.val();
+    }, function() {
+      return dataInput.val()
+    });
+  }
+
   /* Create a single form field for a specific property and return an object
    * consisting of the DOM element and the discharger function.
    */
@@ -202,23 +221,25 @@
           }
         };
       case "attrset":
-        var existing = $('<dl/>');
+        var container = $('<div/>');
+        var existing = $('<dl/>', {class: 'properties'});
         var dischargers = [];
         for (key in value) {
-          var keyElem = $('<dt/>');
-          var keyInput = $('<input/>', {type: 'text', value: key});
-          keyElem.append(keyInput);
-
-          var dataElem = $('<dd/>');
-          var dataInput = $('<input/>', {type: 'text', value: value[key]});
-          dataElem.append(dataInput);
-
-          existing.append(keyElem).append(dataElem);
-
-          pushDischarger(dischargers, keyInput.val, dataInput.val);
+          createAttr(dischargers, existing, key, value[key]);
         }
+        var addButton = $('<button/>', {
+          type: 'button',
+          class: 'btn btn-success btn-mini',
+        });
+        addButton.text('Add a new attribute');
+        addButton.prepend('<i class="icon-plus icon-white"></i>');
+        addButton.click(function() {
+          createAttr(dischargers, existing);
+          return false;
+        });
+        container.append(existing, addButton);
         return {
-          elem: existing,
+          elem: container,
           discharge: reduceDischargers(dischargers)
         };
       default:
@@ -244,7 +265,7 @@
         }
       };
     } else {
-      var elem = $('<dl/>');
+      var elem = $('<dl/>', {class: 'properties'});
       var dischargers = [];
       var sortedKeys = Object.keys(spec.properties).sort();
       for (var i in sortedKeys) {
