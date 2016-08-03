@@ -170,6 +170,7 @@
     return function() {
       return dischargers.reduce(function(values, discharger) {
         var discharged = discharger();
+        if (discharged[1] === null) return values;
         values[discharged[0]] = discharged[1];
         return values;
       }, {});
@@ -210,15 +211,21 @@
    * consisting of the DOM element and the discharger function.
    */
   function createProperty(spec, value) {
+    var required = "required" in spec ? spec.required : false;
     switch (spec.type) {
       case "bool":
         var boolInput = $('<input/>', {type: 'checkbox'});
         boolInput.prop('checked', value);
+        var defVal = "defaultValue" in spec ? spec.defaultValue : false;
         return {
           elem: boolInput,
           discharge: function() {
-            return boolInput.is(':checked');
-          }
+            var discharged = boolInput.is(':checked');
+            if (!required && discharged === defVal)
+              return null;
+            else
+              return discharged;
+          },
         };
       case "attrset":
         var container = $('<div/>');
@@ -240,13 +247,25 @@
         container.append(existing, addButton);
         return {
           elem: container,
-          discharge: reduceDischargers(dischargers)
+          discharge: function() {
+            var discharged = reduceDischargers(dischargers)();
+            if (!required && jQuery.isEmptyObject(discharged))
+              return null;
+            else
+              return discharged;
+          }
         };
       default:
         var defInput = $('<input/>', {type: 'text', value: value});
         return {
           elem: defInput,
-          discharge: function() { return defInput.val(); }
+          discharge: function() {
+            var discharged = defInput.val();
+            if (!required && discharged === "")
+              return null;
+            else
+              return discharged;
+          }
         };
     }
   }
@@ -257,6 +276,7 @@
    */
   function updateProperties(spec, propField, propValues) {
     if (spec.hasOwnProperty('singleton')) {
+      spec.singleton['required'] = true;
       var prop = createProperty(spec.singleton, propValues.value);
       return {
         elem: prop.elem,
