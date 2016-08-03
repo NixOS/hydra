@@ -322,6 +322,8 @@
         elem.append(label);
 
         var prop = createProperty(spec.properties[name], propValues[name]);
+        if ("help" in spec.properties[name])
+          prop.elem.prop('title', spec.properties[name].help);
         var data = $('<dd/>').append(prop.elem);
         if (!spec.properties[name].required) {
           data.prop('class', 'prop-optional');
