@@ -11,7 +11,7 @@ sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
 
     my $properties = {
-        uri => {label => "URI"},
+        uri => {label => "URI", required => 1},
     };
 
     $inputTypes->{'bzr'} = {

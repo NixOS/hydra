@@ -12,8 +12,8 @@ sub supportedInputTypes {
     $inputTypes->{'hg'} = {
         name => 'Mercurial checkout',
         properties => {
-            uri => {label => "URI"},
-            id => {label => "ID", optional => 1},
+            uri => {label => "URI", required => 1},
+            id => {label => "ID"},
         },
     };
 }

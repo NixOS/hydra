@@ -14,8 +14,8 @@ sub supportedInputTypes {
     $inputTypes->{'git'} = {
         name => 'Git checkout',
         properties => {
-            uri       => {label => "URI"},
-            branch    => {label => "Branch", optional => 1},
+            uri       => {label => "URI", required => 1},
+            branch    => {label => "Branch"},
             deepClone => {
                 label => "Deep clone",
                 help  => "Clone submodules as well?",

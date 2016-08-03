@@ -11,8 +11,8 @@ sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
 
     my $properties = {
-        uri      => {label => "URI"},
-        revision => {label => "Revision", optional => 1},
+        uri      => {label => "URI", required => 1},
+        revision => {label => "Revision"},
     };
 
     $inputTypes->{'svn'} = {

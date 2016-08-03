@@ -12,7 +12,7 @@ sub supportedInputTypes {
     $inputTypes->{'darcs'} = {
         name => 'Darcs checkout',
         properties => {
-            uri => {label => "URI"},
+            uri => {label => "URI", required => 1},
         },
     };
 }

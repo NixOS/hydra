@@ -51,13 +51,12 @@ sub begin :Private {
     }
 
     my $buildProperties = {
-        job => {label => 'Job'},
-        jobset => {label => 'Jobset', optional => 1},
-        project => {label => 'Project', optional => 1},
+        job => {label => 'Job', required => 1},
+        jobset => {label => 'Jobset'},
+        project => {label => 'Project'},
         attrs => {
             label => "Attributes",
             type => "attrset",
-            optional => 1,
         },
     };
 
