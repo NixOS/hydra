@@ -164,3 +164,7 @@ var.jobset-input {
     font-family: Monaco, Menlo, Consolas, "Courier New", monospace !important;
     font-style: normal !important;
 }
+
+.prop-optional {
+    color: #888888;
+}

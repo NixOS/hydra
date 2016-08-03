@@ -299,22 +299,63 @@
         }
       };
     } else {
+      var container = $('<div/>');
       var elem = $('<dl/>', {class: 'properties'});
       var dischargers = [];
-      var sortedKeys = Object.keys(spec.properties).sort();
+      var sortedKeys = Object.keys(spec.properties).sort(function(a, b) {
+        var pa = spec.properties[a];
+        var pb = spec.properties[b];
+        if (pa.required && !pb.required) return -1;
+        if (pb.required && !pa.required) return 1;
+        return a.localeCompare(b);
+      });
+      var hasOptionals = false;
       for (var i in sortedKeys) {
         var name = sortedKeys[i];
 
         var label = $('<dt/>').text(spec.properties[name].label);
+        if (!spec.properties[name].required) {
+          label.prop('class', 'prop-optional');
+          label.hide();
+          hasOptionals = true;
+        }
         elem.append(label);
 
         var prop = createProperty(spec.properties[name], propValues[name]);
-        elem.append($('<dd/>').append(prop.elem));
+        var data = $('<dd/>').append(prop.elem);
+        if (!spec.properties[name].required) {
+          data.prop('class', 'prop-optional');
+          data.hide();
+        }
+        elem.append(data);
 
         pushDischarger(dischargers, name, prop.discharge);
       }
+      container.append(elem);
+      if (hasOptionals) {
+        var showOptionals = $('<button/>', {
+          type: 'button',
+          class: 'btn btn-info btn-mini',
+        });
+        showOptionals.text('optional properties');
+        showOptionals.prepend('<i class="icon-arrow-down icon-white"></i>');
+        showOptionals.click(function() {
+          var optionals = $(container).find('.prop-optional');
+          var buttonIcon = $(showOptionals).find('i');
+          if (optionals.is(':visible')) {
+            buttonIcon.prop('class', 'icon-arrow-down icon-white');
+            optionals.hide();
+          } else {
+            buttonIcon.prop('class', 'icon-arrow-up icon-white');
+            optionals.show();
+          }
+          return false;
+        });
+        container.append(showOptionals);
+      }
+
       return {
-        elem: elem,
+        elem: container,
         discharge: reduceDischargers(dischargers)
       };
     }
