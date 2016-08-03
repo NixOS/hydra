@@ -494,9 +494,9 @@ sub updateDeclarativeJobset {
             my $input = $jobset->jobset_inputs->create(
                 { name => $name,
                   type => $data->{type},
-                  email_responsible => $data->{email_responsible}
+                  email_responsible => $data->{email_responsible},
+                  properties => $data->{properties} # TODO: Validation!
                 });
-            $input->jobset_input_alts->create({alt_nr => 0, value => $data->{value}});
         }
         delete $declSpec->{"inputs"};
         die "invalid keys in declarative specification file\n" if (%{$declSpec});
