@@ -218,21 +218,66 @@ sub nixExprPathFromParams {
 }
 
 
-sub checkInputValue {
-    my ($c, $name, $type, $value) = @_;
-    $value = trim $value unless $type eq "string";
+sub validateProperty {
+    my ($c, $name, $typeDesc, $spec, $value) = @_;
 
-    error($c, "The value ‘$value’ of input ‘$name’ is not a Boolean (‘true’ or ‘false’).") if
-        $type eq "boolean" && !($value eq "true" || $value eq "false");
+    my $type = exists $spec->{type} ? $spec->{type} : "string";
 
-    error($c, "The value ‘$value’ of input ‘$name’ does not specify a Hydra evaluation.  "
-          . "It should be either the number of a specific evaluation, the name of "
-          . "a jobset (given as <project>:<jobset>), or the name of a job (<project>:<jobset>:<job>).")
-        if $type eq "eval" && $value !~ /^\d+$/
-            && $value !~ /^$projectNameRE:$jobsetNameRE$/
-            && $value !~ /^$projectNameRE:$jobsetNameRE:$jobNameRE$/;
+    if ($type eq "bool") {
+        error($c, "The value ‘$value’ of input ‘$name’ is not a Boolean "
+                . "(‘true’ or ‘false’).")
+            unless $value eq "1" || $value eq "0";
+    } elsif ($type eq "int") {
+        error($c, "The value ‘$value’ of input ‘$name’ is not an Integer.")
+            unless $value =~ /^\d+$/;
+    } elsif ($type eq "attrset") {
+        error($c, "The value ‘$value’ of input ‘$name’ is not an Attribute "
+                . "Set. (‘{key1: \"value1\", key2: \"value2\"}’)")
+            if grep { ref($value->{$_}) eq "" } keys %$value;
+    } else {
+        error($c, "The value ‘$value’ of input ‘$name’ is not a String.")
+            unless ref($value) eq "";
+    }
 
-    return $value;
+    if (exists $spec->{validate}) {
+        $spec->{validate}->($c, $name, $value);
+    }
+}
+
+
+sub validateProperties {
+    my ($c, $name, $type, $properties) = @_;
+
+    error($c, "Invalid input type ‘$type’ for input ‘$name’.")
+        unless exists $c->stash->{inputTypes}->{$type};
+
+    my $spec = $c->stash->{inputTypes}->{$type};
+    my $typeDesc = $spec->{name};
+
+    if ($spec->{singleton}) {
+        validateProperty($c, $name, $typeDesc, $spec->{singleton},
+                         $properties->{value});
+    } else {
+        my $definedKeys = { %$properties };
+        foreach my $key (keys %{$spec->{properties}}) {
+            if (exists $properties->{$key}) {
+                delete $definedKeys->{$key};
+            } else {
+                error($c, "Property ‘$key’ is mandatory for input ‘$name’"
+                        . " and type ‘$typeDesc’.")
+                    if $spec->{properties}->{$key}->{required};
+                next;
+            }
+
+            validateProperty($c, $name, $type, $spec->{properties}->{$key},
+                             $properties->{$key});
+        }
+
+        foreach my $key (keys %$definedKeys) {
+            error($c, "Property ‘$key’ doesn't exist for input ‘$name’"
+                    . " and type ‘$typeDesc’.");
+        }
+    }
 }
 
 
@@ -290,7 +335,7 @@ sub updateJobset {
         error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
         error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
 
-        # TODO: Validate properties!
+        validateProperties($c, $name, $type, $properties);
 
         my $input = $jobset->jobset_inputs->create(
             { name => $name,
