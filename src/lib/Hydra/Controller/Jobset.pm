@@ -115,7 +115,24 @@ sub jobset_DELETE {
 
 sub jobset_OPTIONS {
     my ($self, $c) = @_;
-    $self->status_ok($c, entity => $c->stash->{inputTypes});
+
+    my $spec = $c->stash->{inputTypes};
+
+    # Remove all validate attributes, because they're solely meant for the
+    # backend side and also cannot be serialized into JSON. This is done
+    # destructively on $c->stash->${inputTypes} because we won't re-use it
+    # within the OPTIONS request at some later point.
+    foreach my $type (keys %$spec) {
+        if (exists $spec->{$type}->{singleton}) {
+            delete $spec->{$type}->{singleton}->{validate};
+        } else {
+            foreach my $key (keys %{$spec->{$type}->{properties}}) {
+                delete $spec->{$type}->{properties}->{$key}->{validate};
+            }
+        }
+    }
+
+    $self->status_ok($c, entity => $spec);
 }
 
 

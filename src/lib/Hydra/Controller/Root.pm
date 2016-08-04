@@ -60,6 +60,17 @@ sub begin :Private {
         },
     };
 
+    my $validateEval = sub {
+        my ($c, $name, $val) = @_;
+        if ($val !~ /^(?:\d+|$projectNameRE:$jobsetNameRE(?::$jobNameRE)?)$/) {
+            error($c, "The value ‘$val’ of input ‘$name’ does not specify a "
+                    . "Hydra evaluation.  It should be either the number of a "
+                    . "specific evaluation, the name of a jobset (given as "
+                    . "<project>:<jobset>), or the name of a job "
+                    . "(<project>:<jobset>:<job>).");
+        }
+    };
+
     # Gather the supported input types.
     $c->stash->{inputTypes} = {
         'string' => {
@@ -84,7 +95,7 @@ sub begin :Private {
         },
         'eval' => {
             name => 'Previous Hydra evaluation',
-            singleton => {type => "int"},
+            singleton => {validate => $validateEval},
         },
     };
 
