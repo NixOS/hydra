@@ -27,12 +27,12 @@ sub supportedInputTypes {
 }
 
 sub fetchInput {
-    my ($self, $type, $name, $value) = @_;
+    my ($self, $type, $name, $props) = @_;
 
     return undef if $type ne "svn" && $type ne "svn-checkout";
 
-    # Allow users to specify a revision number next to the URI.
-    my ($uri, $revision) = split ' ', $value;
+    my $uri = $props->{uri};
+    my $revision = $props->{revision};
 
     my $sha256;
     my $storePath;

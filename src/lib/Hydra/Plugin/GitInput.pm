@@ -76,19 +76,14 @@ sub _cloneRepo {
     return $clonePath;
 }
 
-sub _parseValue {
-    my ($value) = @_;
-    (my $uri, my $branch, my $deepClone) = split ' ', $value;
-    $branch = defined $branch ? $branch : "master";
-    return ($uri, $branch, $deepClone);
-}
-
 sub fetchInput {
-    my ($self, $type, $name, $value) = @_;
+    my ($self, $type, $name, $props) = @_;
 
     return undef if $type ne "git";
 
-    my ($uri, $branch, $deepClone) = _parseValue($value);
+    my $uri = $props->{uri};
+    my $branch = $props->{branch} // "master";
+    my $deepClone = $props->{deepClone};
 
     my $clonePath = $self->_cloneRepo($uri, $branch, $deepClone);
 

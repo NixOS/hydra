@@ -15,11 +15,11 @@ sub supportedInputTypes {
 }
 
 sub fetchInput {
-    my ($self, $type, $name, $value) = @_;
+    my ($self, $type, $name, $props) = @_;
 
     return undef if $type ne "path";
 
-    my $uri = $value;
+    my $uri = $props->{value};
 
     my $timestamp = time;
     my $sha256;

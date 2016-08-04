@@ -18,7 +18,7 @@ sub supportedInputTypes {
 }
 
 sub fetchInput {
-    my ($self, $type, $name, $uri) = @_;
+    my ($self, $type, $name, $props) = @_;
 
     return undef if $type ne "darcs";
 
@@ -29,6 +29,8 @@ sub fetchInput {
 
     my $cacheDir = getSCMCacheDir . "/git";
     mkpath($cacheDir);
+
+    my $uri = $props->{uri};
     my $clonePath = $cacheDir . "/" . sha256_hex($uri);
     $uri =~ s|^file://||; # darcs wants paths, not file:// uris
 

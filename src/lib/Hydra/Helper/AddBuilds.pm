@@ -26,25 +26,6 @@ our @EXPORT = qw(
 );
 
 
-sub parseJobName {
-    # Parse a job specification of the form `<project>:<jobset>:<job>
-    # [attrs]'.  The project, jobset and attrs may be omitted.  The
-    # attrs have the form `name = "value"'.
-    my ($s) = @_;
-    our $key;
-    our %attrs = ();
-    # hm, maybe I should stop programming Perl before it's too late...
-    $s =~ / ^ (?: (?: ($projectNameRE) : )? ($jobsetNameRE) : )? ($jobNameRE) \s*
-            (\[ \s* (
-              ([\w]+) (?{ $key = $^N; }) \s* = \s* \"
-              ([\w\-]+) (?{ $attrs{$key} = $^N; }) \"
-            \s* )* \])? $
-          /x
-        or die "invalid job specifier `$s'";
-    return ($1, $2, $3, \%attrs);
-}
-
-
 sub attrsToSQL {
     my ($attrs, $id) = @_;
 
@@ -66,16 +47,17 @@ sub attrsToSQL {
 
 
 sub fetchInputBuild {
-    my ($db, $project, $jobset, $name, $value) = @_;
+    my ($db, $project, $jobset, $name, $props) = @_;
 
     my $prevBuild;
 
-    if ($value =~ /^\d+$/) {
-        $prevBuild = $db->resultset('Builds')->find({ id => int($value) });
+    if (0) { # XXX: $value =~ /^\d+$/) {
+        #$prevBuild = $db->resultset('Builds')->find({ id => int($value) });
     } else {
-        my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
-        $projectName ||= $project->name;
-        $jobsetName ||= $jobset->name;
+        my $projectName = $props->{project} // $project->name;
+        my $jobsetName = $props->{jobset} // $jobset->name;
+        my $jobName = $props->{job};
+        my $attrs = $props->{attrs} // {};
 
         # Pick the most recent successful build of the specified job.
         $prevBuild = $db->resultset('Builds')->search(
@@ -112,11 +94,11 @@ sub fetchInputBuild {
 
 
 sub fetchInputSystemBuild {
-    my ($db, $project, $jobset, $name, $value) = @_;
+    my ($db, $project, $jobset, $name, $props) = @_;
 
-    my ($projectName, $jobsetName, $jobName, $attrs) = parseJobName($value);
-    $projectName ||= $project->name;
-    $jobsetName ||= $jobset->name;
+    my $projectName = $props->{project} // $project->name;
+    my $jobsetName = $props->{jobset} // $jobset->name;
+    my $jobName = $props->{job};
 
     my @latestBuilds = $db->resultset('LatestSucceededForJob')
         ->search({}, {bind => [$projectName, $jobsetName, $jobName]});
@@ -198,30 +180,25 @@ sub fetchInputEval {
 
 
 sub fetchInput {
-    my ($plugins, $db, $project, $jobset, $name, $type, $value, $emailresponsible) = @_;
+    my ($plugins, $db, $project, $jobset, $name, $type, $props, $emailresponsible) = @_;
     my @inputs;
 
     if ($type eq "build") {
-        @inputs = fetchInputBuild($db, $project, $jobset, $name, $value);
+        @inputs = fetchInputBuild($db, $project, $jobset, $name, $props);
     }
     elsif ($type eq "sysbuild") {
-        @inputs = fetchInputSystemBuild($db, $project, $jobset, $name, $value);
+        @inputs = fetchInputSystemBuild($db, $project, $jobset, $name, $props);
     }
     elsif ($type eq "eval") {
-        @inputs = fetchInputEval($db, $project, $jobset, $name, $value);
+        @inputs = fetchInputEval($db, $project, $jobset, $name, $props->value);
     }
-    elsif ($type eq "string" || $type eq "nix") {
-        die unless defined $value;
-        @inputs = { value => $value };
-    }
-    elsif ($type eq "boolean") {
-        die unless defined $value && ($value eq "true" || $value eq "false");
-        @inputs = { value => $value };
+    elsif ($type eq "string" || $type eq "nix" || $type eq "boolean") {
+        @inputs = $props;
     }
     else {
         my $found = 0;
         foreach my $plugin (@{$plugins}) {
-            @inputs = $plugin->fetchInput($type, $name, $value, $project, $jobset);
+            @inputs = $plugin->fetchInput($type, $name, $props, $project, $jobset);
             if (defined $inputs[0]) {
                 $found = 1;
                 last;
@@ -241,18 +218,12 @@ sub fetchInput {
 
 sub booleanToString {
     my ($exprType, $value) = @_;
-    my $result;
+
     if ($exprType eq "guile") {
-        if ($value eq "true") {
-            $result = "#t";
-        } else {
-            $result = "#f";
-        }
-        $result = $value;
+        return $value ? "#t" : "#f";
     } else {
-        $result = $value;
+        return $value ? "true" : "false";
     }
-    return $result;
 }
 
 

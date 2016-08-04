@@ -18,13 +18,6 @@ sub supportedInputTypes {
     };
 }
 
-sub _parseValue {
-    my ($value) = @_;
-    (my $uri, my $id) = split ' ', $value;
-    $id = defined $id ? $id : "default";
-    return ($uri, $id);
-}
-
 sub _clonePath {
     my ($uri) = @_;
     my $cacheDir = getSCMCacheDir . "/hg";
@@ -33,12 +26,12 @@ sub _clonePath {
 }
 
 sub fetchInput {
-    my ($self, $type, $name, $value) = @_;
+    my ($self, $type, $name, $props) = @_;
 
     return undef if $type ne "hg";
 
-    (my $uri, my $id) = _parseValue($value);
-    $id = defined $id ? $id : "default";
+    my $uri = $props->{uri};
+    my $id = $props->{id} // "default";
 
     # init local hg clone
 

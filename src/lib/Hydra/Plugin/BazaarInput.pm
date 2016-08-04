@@ -26,11 +26,11 @@ sub supportedInputTypes {
 }
 
 sub fetchInput {
-    my ($self, $type, $name, $value) = @_;
+    my ($self, $type, $name, $props) = @_;
 
     return undef if $type ne "bzr" && $type ne "bzr-checkout";
 
-    my $uri = $value;
+    my $uri = $props->{uri};
 
     my $sha256;
     my $storePath;
