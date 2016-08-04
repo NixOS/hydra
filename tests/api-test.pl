@@ -40,14 +40,14 @@ my $project = decode_json(request_json({ uri => '/project/sample' })->content())
 
 ok((not @{$project->{jobsets}}), "A new project has no jobsets");
 
-$result = request_json({ uri => '/jobset/sample/default', method => 'PUT', data => { nixexprpath => "default.nix", nixexprinput => "my-src", inputs => { "my-src" => { type => "path", value => "/run/jobset" } }, enabled => "1", checkinterval => "3600"} });
+$result = request_json({ uri => '/jobset/sample/default', method => 'PUT', data => { nixexprpath => "default.nix", nixexprinput => "my-src", inputs => { "my-src" => { type => "path", properties => {value => "/run/jobset"} } }, enabled => "1", checkinterval => "3600"} });
 ok($result->code() == 201, "PUTting a new jobset creates it");
 
 my $jobset = decode_json(request_json({ uri => '/jobset/sample/default' })->content());
 
 ok(exists $jobset->{jobset_inputs}->{"my-src"}, "The new jobset has a 'my-src' input");
 
-ok($jobset->{jobset_inputs}->{"my-src"}->{jobset_input_alts}->[0] eq "/run/jobset", "The 'my-src' input is in /run/jobset");
+ok($jobset->{jobset_inputs}->{"my-src"}->{properties}->{value} eq "/run/jobset", "The 'my-src' input is in /run/jobset");
 
 system("hydra-evaluator sample default");
 $result = request_json({ uri => '/jobset/sample/default/evals' });

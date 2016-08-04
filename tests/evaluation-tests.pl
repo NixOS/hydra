@@ -33,7 +33,7 @@ for my $build (queuedBuildsForJobset($jobset)) {
 }
 
 # Test jobset with 2 jobs, one has parameter of succeeded build of the other
-$jobset = createJobsetWithOneInput("build-output-as-input", "build-output-as-input.nix", "build1", "build", "build1");
+$jobset = createJobsetWithOneInput("build-output-as-input", "build-output-as-input.nix", "build1", "build", {job => "build1"});
 
 ok(evalSucceeds($jobset),                  "Evaluating jobs/build-output-as-input.nix should exit with return code 0");
 ok(nrQueuedBuildsForJobset($jobset) == 1 , "Evaluating jobs/build-output-as-input.nix for first time should result in 1 build in queue");
@@ -58,63 +58,70 @@ my @scminputs = (
         name => "svn",
         nixexpr => "svn-input.nix",
         type => "svn",
-        uri => "$jobsBaseUri/svn-repo",
+        properties => {uri => "$jobsBaseUri/svn-repo"},
         update => getcwd . "/jobs/svn-update.sh"
     },
     {
         name => "svn-checkout",
         nixexpr => "svn-checkout-input.nix",
         type => "svn-checkout",
-        uri => "$jobsBaseUri/svn-checkout-repo",
+        properties => {uri => "$jobsBaseUri/svn-checkout-repo"},
         update => getcwd . "/jobs/svn-checkout-update.sh"
     },
     {
         name => "git",
         nixexpr => "git-input.nix",
         type => "git",
-        uri => "$jobsBaseUri/git-repo",
+        properties => {uri => "$jobsBaseUri/git-repo"},
         update => getcwd . "/jobs/git-update.sh"
     },
     {
         name => "git-rev",
         nixexpr => "git-rev-input.nix",
         type => "git",
-        uri => "$jobsBaseUri/git-repo 7f60df502b96fd54bbfa64dd94b56d936a407701",
+        properties => {
+            uri => "$jobsBaseUri/git-repo",
+            branch => "7f60df502b96fd54bbfa64dd94b56d936a407701"
+        },
         update => getcwd . "/jobs/git-rev-update.sh"
     },
     {
         name => "deepgit",
         nixexpr => "deepgit-input.nix",
         type => "git",
-        uri => "$jobsBaseUri/git-repo master 1",
+        properties => {
+            uri => "$jobsBaseUri/git-repo",
+            branch => "master",
+            deepClone => 1
+        },
         update => getcwd . "/jobs/git-update.sh"
     },
     {
         name => "bzr",
         nixexpr => "bzr-input.nix",
         type => "bzr",
-        uri => "$jobsBaseUri/bzr-repo",
+        properties => {uri => "$jobsBaseUri/bzr-repo"},
         update => getcwd . "/jobs/bzr-update.sh"
     },
     {
         name => "bzr-checkout",
         nixexpr => "bzr-checkout-input.nix",
         type => "bzr-checkout",
-        uri => "$jobsBaseUri/bzr-checkout-repo",
+        properties => {uri => "$jobsBaseUri/bzr-checkout-repo"},
         update => getcwd . "/jobs/bzr-checkout-update.sh"
     },
     {
         name => "hg",
         nixexpr => "hg-input.nix",
         type => "hg",
-        uri => "$jobsBaseUri/hg-repo",
+        properties => {uri => "$jobsBaseUri/hg-repo"},
         update => getcwd . "/jobs/hg-update.sh"
     },
     {
         name => "darcs",
         nixexpr => "darcs-input.nix",
         type => "darcs",
-        uri => "$jobsBaseUri/darcs-repo",
+        properties => {uri => "$jobsBaseUri/darcs-repo"},
         update => getcwd . "/jobs/darcs-update.sh"
     }
 );
@@ -123,9 +130,9 @@ foreach my $scm ( @scminputs ) {
     my $scmName = $scm->{"name"};
     my $nixexpr = $scm->{"nixexpr"};
     my $type = $scm->{"type"};
-    my $uri = $scm->{"uri"};
+    my $props = $scm->{"properties"};
     my $update = $scm->{"update"};
-    $jobset = createJobsetWithOneInput($scmName, $nixexpr, "src", $type, $uri);
+    $jobset = createJobsetWithOneInput($scmName, $nixexpr, "src", $type, $props);
 
     my $state = 0;
     my $q = 0;

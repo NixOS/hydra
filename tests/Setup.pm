@@ -40,21 +40,27 @@ sub createBaseJobset {
     my $jobset_input;
     my $jobsetinputals;
 
-    $jobset_input = $jobset->jobset_inputs->create({name => "jobs", type => "path"});
-    $jobsetinputals = $jobset_input->jobset_input_alts->create({alt_nr => 0, value => getcwd."/jobs"});
+    $jobset_input = $jobset->jobset_inputs->create({
+        name => "jobs",
+        type => "path",
+        properties => { value => getcwd."/jobs" }
+    });
 
     return $jobset;
 }
 
 sub createJobsetWithOneInput {
-    my ($jobsetName, $nixexprpath, $name, $type, $uri) = @_;
+    my ($jobsetName, $nixexprpath, $name, $type, $props) = @_;
     my $jobset = createBaseJobset($jobsetName, $nixexprpath);
 
     my $jobset_input;
     my $jobsetinputals;
 
-    $jobset_input = $jobset->jobset_inputs->create({name => $name, type => $type});
-    $jobsetinputals = $jobset_input->jobset_input_alts->create({alt_nr => 0, value => $uri});
+    $jobset_input = $jobset->jobset_inputs->create({
+        name => $name,
+        type => $type,
+        properties => $props
+    });
 
     return $jobset;
 }
