@@ -230,7 +230,7 @@ sub push : Chained('api') PathPart('push') Args(0) {
         triggerJobset($self, $c, $_) foreach $c->model('DB::Jobsets')->search(
             { 'project.enabled' => 1, 'me.enabled' => 1 },
             { join => 'project'
-            , where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ]
+            , where => \ [ 'exists (select 1 from jobset_input_alts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ]
             });
     }
 
@@ -254,7 +254,7 @@ sub push_github : Chained('api') PathPart('push-github') Args(0) {
     triggerJobset($self, $c, $_) foreach $c->model('DB::Jobsets')->search(
         { 'project.enabled' => 1, 'me.enabled' => 1 },
         { join => 'project'
-        , where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)', [ 'value', "%github.com%$owner/$repo.git%" ] ]
+        , where => \ [ 'exists (select 1 from jobset_input_alts where project = me.project and jobset = me.name and value like ?)', [ 'value', "%github.com%$owner/$repo.git%" ] ]
         });
 }
 
