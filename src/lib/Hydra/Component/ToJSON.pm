@@ -17,6 +17,10 @@ sub TO_JSON {
         $json{$column} = $self->get_column($column);
     }
 
+    foreach my $column (@{$hint->{inflated_columns}}) {
+        $json{$column} = $self->get_inflated_column($column);
+    }
+
     foreach my $relname (keys %{$hint->{relations}}) {
         my $key = $hint->{relations}->{$relname};
         $json{$relname} = [ map { $_->$key } $self->$relname ];

@@ -122,6 +122,13 @@ __PACKAGE__->belongs_to(
 # Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-08 02:55:18
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OZ3l6psoJLYr8ct9lDPJxw
 
+sub json_hint {
+    return {
+        columns => ["name", "type", "email_responsible"],
+        inflated_columns => ["properties"]
+    };
+}
+
 __PACKAGE__->inflate_column(properties => {
     inflate => sub { JSON::decode_json(shift) },
     deflate => sub { JSON::encode_json(shift) },
