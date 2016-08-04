@@ -240,7 +240,7 @@ END;
 
 
 BLOCK renderShortInputValue;
-  IF input.type == "build" || input.type == "sysbuild" %]
+  IF input.type == "build" || input.type == "buildnr" || input.type == "sysbuild" %]
     <a href="[% c.uri_for('/build' input.dependency.id) %]">[% input.dependency.id %]</a>
   [% ELSIF input.type == "string" %]
     <tt>"[% HTML.escape(input.value) %]"</tt>
@@ -293,7 +293,7 @@ BLOCK renderInputs; %]
           <td><tt>[% input.name %]</tt></td>
           <td>[% type = input.type; inputTypes.$type %]</td>
           <td>
-            [% IF input.type == "build" || input.type == "sysbuild" %]
+            [% IF input.type == "build" || input.type == "buildnr" || input.type == "sysbuild" %]
               [% INCLUDE renderFullBuildLink build=input.dependency %]
             [% ELSIF input.type == "string"  %]
               <tt>"[% HTML.escape(input.value) %]"</tt>
@@ -379,7 +379,7 @@ BLOCK renderShortEvalInput;
     <tt>[% input.revision.substr(0, 7) %]</tt>
   [% ELSIF input.type == "hg" %]
     <tt>[% input.revision.substr(0, 12) %]</tt>
-  [% ELSIF input.type == "build" || input.type == "sysbuild" %]
+  [% ELSIF input.type == "build" || input.type == "buildnr" || input.type == "sysbuild" %]
     <a href="[% c.uri_for('/build' input.get_column('dependency')) %]">[% input.get_column('dependency') %]</a>
   [% ELSE %]
     <tt>[% input.revision %]</tt>

@@ -89,6 +89,10 @@ sub begin :Private {
             name => 'Previous Hydra build',
             properties => $buildProperties,
         },
+        'buildnr' => {
+            name => 'Previous Hydra build number',
+            singleton => {type => "int"},
+        },
         'sysbuild' => {
             name => 'Previous Hydra build (same system)',
             properties => $buildProperties,

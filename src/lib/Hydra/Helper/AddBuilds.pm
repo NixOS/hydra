@@ -47,25 +47,7 @@ sub attrsToSQL {
 
 
 sub fetchInputBuild {
-    my ($db, $project, $jobset, $name, $props) = @_;
-
-    my $prevBuild;
-
-    if (0) { # XXX: $value =~ /^\d+$/) {
-        #$prevBuild = $db->resultset('Builds')->find({ id => int($value) });
-    } else {
-        my $projectName = $props->{project} // $project->name;
-        my $jobsetName = $props->{jobset} // $jobset->name;
-        my $jobName = $props->{job};
-        my $attrs = $props->{attrs} // {};
-
-        # Pick the most recent successful build of the specified job.
-        $prevBuild = $db->resultset('Builds')->search(
-            { finished => 1, project => $projectName, jobset => $jobsetName
-            , job => $jobName, build_status => 0 },
-            { order_by => "me.id DESC", rows => 1
-            , where => \ attrsToSQL($attrs, "me.id") })->single;
-    }
+    my ($db, $project, $jobset, $name, $prevBuild) = @_;
 
     return () if !defined $prevBuild || !isValidPath(getMainOutput($prevBuild)->path);
 
@@ -184,7 +166,22 @@ sub fetchInput {
     my @inputs;
 
     if ($type eq "build") {
-        @inputs = fetchInputBuild($db, $project, $jobset, $name, $props);
+        my $projectName = $props->{project} // $project->name;
+        my $jobsetName = $props->{jobset} // $jobset->name;
+        my $jobName = $props->{job};
+        my $attrs = $props->{attrs} // {};
+
+        # Pick the most recent successful build of the specified job.
+        my $prevBuild = $db->resultset('Builds')->search(
+            { finished => 1, project => $projectName, jobset => $jobsetName
+            , job => $jobName, build_status => 0 },
+            { order_by => "me.id DESC", rows => 1
+            , where => \ attrsToSQL($attrs, "me.id") })->single;
+        @inputs = fetchInputBuild($db, $project, $jobset, $name, $prevBuild);
+    }
+    elsif ($type eq "buildnr") {
+        my $prevBuild = $db->resultset('Builds')->find({id => $props->{value}});
+        @inputs = fetchInputBuild($db, $project, $jobset, $name, $prevBuild);
     }
     elsif ($type eq "sysbuild") {
         @inputs = fetchInputSystemBuild($db, $project, $jobset, $name, $props);
