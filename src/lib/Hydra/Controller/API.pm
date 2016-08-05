@@ -229,8 +229,8 @@ sub push : Chained('api') PathPart('push') Args(0) {
     foreach my $r (@repos) {
         triggerJobset($self, $c, $_) foreach $c->model('DB::Jobsets')->search(
             { 'project.enabled' => 1, 'me.enabled' => 1 },
-            { join => 'project'
-            , where => \ [ 'exists (select 1 from jobset_input_alts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ]
+            { join => ['project', 'jobset_inputs']
+            , where => \ [ 'jobset_inputs.properties->>\'uri\' = ?', [ 'value', $r ] ]
             });
     }
 
@@ -253,9 +253,14 @@ sub push_github : Chained('api') PathPart('push-github') Args(0) {
 
     triggerJobset($self, $c, $_) foreach $c->model('DB::Jobsets')->search(
         { 'project.enabled' => 1, 'me.enabled' => 1 },
-        { join => 'project'
-        , where => \ [ 'exists (select 1 from jobset_input_alts where project = me.project and jobset = me.name and value like ?)', [ 'value', "%github.com%$owner/$repo.git%" ] ]
+        { join => ['project', 'jobset_inputs']
+        , where => \ [ 'jobset_inputs.type = \'git\' and jobset_inputs.properties->>\'uri\' like ?', [ 'value', "%github.com%$owner/$repo.git%" ] ]
         });
+
+    $self->status_ok(
+        $c,
+        entity => { jobsetsTriggered => $c->stash->{json}->{jobsetsTriggered} }
+    );
 }
 
 
