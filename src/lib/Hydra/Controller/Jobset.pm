@@ -223,6 +223,11 @@ sub validateProperty {
 
     my $type = exists $spec->{type} ? $spec->{type} : "string";
 
+    if (exists $spec->{properties}) {
+        validateProperties($c, $name, $typeDesc, $value->{children}, $spec);
+        $value = $value->{value};
+    }
+
     if ($type eq "bool") {
         error($c, "The value ‘$value’ of input ‘$name’ is not a Boolean "
                 . "(‘true’ or ‘false’).")
@@ -246,13 +251,13 @@ sub validateProperty {
 
 
 sub validateProperties {
-    my ($c, $name, $type, $properties) = @_;
+    my ($c, $name, $type, $properties, $spec) = @_;
 
     error($c, "Invalid input type ‘$type’ for input ‘$name’.")
         unless exists $c->stash->{inputTypes}->{$type};
 
-    my $spec = $c->stash->{inputTypes}->{$type};
-    my $typeDesc = $spec->{name};
+    $spec ||= $c->stash->{inputTypes}->{$type};
+    my $typeDesc = $spec->{name} // $type;
 
     if ($spec->{singleton}) {
         validateProperty($c, $name, $typeDesc, $spec->{singleton},

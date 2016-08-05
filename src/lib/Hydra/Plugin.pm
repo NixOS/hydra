@@ -63,11 +63,12 @@ sub stepFinished {
 # particular input and it maps from the name to another hashref specifying the
 # information about that property:
 #
-#   label:    The label that is used for printing/editing
-#   type:     The type of this property (for available types see below)
-#   required: Whether the user is required to enter a value for this property
-#   help:     A help text that is displayed as a tool tip
-#   validate: A function that is used to validate the input (details below)
+#   label:      The label that is used for printing/editing
+#   type:       The type of this property (for available types see below)
+#   required:   Whether the user is required to enter a value for this property
+#   help:       A help text that is displayed as a tool tip
+#   validate:   A function that is used to validate the input (details below)
+#   properties: Specifies nested properties (more about this below)
 #
 # All of these attributes are supported by "singleton" as well, because instead
 # of a list of properties the "singleton" attribute designates only one possible
@@ -102,6 +103,17 @@ sub stepFinished {
 # In this case if "evil" is entered as the properties value, an error would be
 # returned and displayed to the user.
 #
+# If a property type declaration contains an attribute called "properties", the
+# property itself becomes the top-level and can contain another set of
+# properties as children.
+#
+# Instead of a plain value you get back a hashref which contains two keys:
+#
+#   value: The top-level value of the property type
+#   children: All the child properties
+#
+# The structure of the "children" hashref is exactly the same as the one
+# described above.
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
 }

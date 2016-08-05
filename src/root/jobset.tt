@@ -3,7 +3,7 @@
 [% USE format %]
 
 
-[% BLOCK renderPropertyValue %]
+[% BLOCK renderPropertyType %]
   [% SWITCH spec.type %]
   [% CASE "bool" %]
     [% IF value %]
@@ -22,6 +22,16 @@
     </dl>
   [% CASE DEFAULT %]
     [% HTML.escape(value) %]
+  [% END %]
+[% END %]
+
+
+[% BLOCK renderPropertyValue %]
+  [% IF spec.exists("properties") %]
+  [% INCLUDE renderPropertyType spec=spec value=value.value %]
+  [% INCLUDE renderProperties spec=spec values=value.children %]
+  [% ELSE %]
+  [% INCLUDE renderPropertyType spec=spec value=value %]
   [% END %]
 [% END %]
 

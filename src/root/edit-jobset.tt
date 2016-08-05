@@ -221,10 +221,8 @@
     });
   }
 
-  /* Create a single form field for a specific property and return an object
-   * consisting of the DOM element and the discharger function.
-   */
-  function createProperty(spec, value) {
+  /* Create all the fields necessary for a certain type of property. */
+  function createPropertyType(spec, value) {
     switch (spec.type) {
       case "bool":
         var boolInput = $('<input/>', {type: 'checkbox'});
@@ -283,11 +281,53 @@
     }
   }
 
+  /* Create a form inputs for a specific property and return an object
+   * consisting of the DOM element and the discharger function.
+   */
+  function createProperty(spec, value) {
+    var propType = createPropertyType(spec, value);
+    var container = propType.elem;
+    var discharger = propType.discharge;
+
+    if ("properties" in spec) {
+      container = $('<div/>');
+      container.append(propType.elem);
+      var subProperties = updateProperties(spec, false, {});
+
+      if (propType.discharge() === null)
+        subProperties.elem.hide();
+
+      propType.elem.change(function() {
+        if (propType.discharge() === null)
+          subProperties.elem.hide();
+        else
+          subProperties.elem.show();
+      });
+
+      container.append(subProperties.elem);
+
+      discharger = function() {
+        var discharged = propType.discharge();
+        if (discharged.value === null) {
+          return null;
+        } else return {
+          value: discharged,
+          children: subProperties.discharge()
+        };
+      }
+    }
+
+    return {
+      elem: container,
+      discharge: discharger
+    }
+  }
+
   /* Create a series of properties for the given spec and optionally its
    * pre-existing values and return an object of its DOM root element and the
    * discharger function.
    */
-  function updateProperties(spec, propField, propValues) {
+  function updateProperties(spec, topLevel, propValues) {
     if (spec.hasOwnProperty('singleton')) {
       spec.singleton['required'] = true;
       var prop = createProperty(spec.singleton, propValues.value);
@@ -315,8 +355,10 @@
         var label = $('<dt/>').text(spec.properties[name].label);
         if (!spec.properties[name].required) {
           label.prop('class', 'prop-optional');
-          label.hide();
+          if (topLevel) label.hide();
           hasOptionals = true;
+        } else {
+          label.prop('class', 'prop-required');
         }
         elem.append(label);
 
@@ -326,14 +368,16 @@
         var data = $('<dd/>').append(prop.elem);
         if (!spec.properties[name].required) {
           data.prop('class', 'prop-optional');
-          data.hide();
+          if (topLevel) data.hide();
+        } else {
+          label.prop('class', 'prop-required');
         }
         elem.append(data);
 
         pushDischarger(dischargers, name, prop.discharge);
       }
       container.append(elem);
-      if (hasOptionals) {
+      if (topLevel && hasOptionals) {
         var showOptionals = $('<button/>', {
           type: 'button',
           class: 'btn btn-info btn-mini',
@@ -377,13 +421,13 @@
       var typeField = jobsetInput.find("select[name$=-type]");
       var keyField = jobsetInput.find("input[name$=-name]")
       var newProps = updateProperties(
-        initProperties.pspec[typeField.val()], propField, propValues
+        initProperties.pspec[typeField.val()], true, propValues
       );
       propContainer.html(newProps.elem);
       dischargeMap[keyField.prop('name')] = newProps.discharge;
       typeField.change(function() {
         var newProps = updateProperties(
-          initProperties.pspec[$(this).val()], propField, propValues
+          initProperties.pspec[$(this).val()], true, propValues
         );
         propContainer.html(newProps.elem);
         dischargeMap[keyField.prop('name')] = newProps.discharge;
