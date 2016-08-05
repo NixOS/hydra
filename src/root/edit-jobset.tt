@@ -225,7 +225,6 @@
    * consisting of the DOM element and the discharger function.
    */
   function createProperty(spec, value) {
-    var required = "required" in spec ? spec.required : false;
     switch (spec.type) {
       case "bool":
         var boolInput = $('<input/>', {type: 'checkbox'});
@@ -235,7 +234,7 @@
           elem: boolInput,
           discharge: function() {
             var discharged = boolInput.is(':checked');
-            if (!required && discharged === defVal)
+            if (discharged === defVal)
               return null;
             else
               return discharged;
@@ -263,7 +262,7 @@
           elem: container,
           discharge: function() {
             var discharged = reduceDischargers(dischargers)();
-            if (!required && jQuery.isEmptyObject(discharged))
+            if (jQuery.isEmptyObject(discharged))
               return null;
             else
               return discharged;
@@ -275,7 +274,7 @@
           elem: defInput,
           discharge: function() {
             var discharged = defInput.val();
-            if (!required && discharged === "")
+            if (discharged === "")
               return null;
             else
               return discharged;
