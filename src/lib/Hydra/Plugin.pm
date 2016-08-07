@@ -79,6 +79,7 @@ sub stepFinished {
 #   bool:    Boolean
 #   int:     Integer
 #   attrset: A map between keys and values
+#   secret:  A String that isn't publicly exposed
 #   string:  String
 #
 # If no property type is specified, the default is "string".

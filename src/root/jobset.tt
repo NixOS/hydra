@@ -20,6 +20,8 @@
       <dd>[% HTML.escape(value.$key) %]</dd>
       [% END %]
     </dl>
+  [% CASE "secret" %]
+    **********
   [% CASE DEFAULT %]
     [% HTML.escape(value) %]
   [% END %]

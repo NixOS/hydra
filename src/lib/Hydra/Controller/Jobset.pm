@@ -52,7 +52,17 @@ sub jobset_GET {
 
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 
-    $self->status_ok($c, entity => $c->stash->{jobset});
+    my $result = $c->stash->{jobset}->TO_JSON;
+
+    foreach my $key (keys %{$result->{jobset_inputs}}) {
+        my $input = $result->{jobset_inputs}->{$key}->TO_JSON;
+        $input->{properties} = cleanProperties(
+            $c, $input->{properties}, $input->{type}
+        );
+        $result->{jobset_inputs}->{$key} = $input;
+    }
+
+    $self->status_ok($c, entity => $result);
 }
 
 sub jobset_PUT {
@@ -215,6 +225,40 @@ sub nixExprPathFromParams {
     error($c, "Invalid Nix expression input name ‘$nixExprInput’.") unless $nixExprInput =~ /^[[:alpha:]][\w-]*$/;
 
     return ($nixExprPath, $nixExprInput);
+}
+
+
+sub cleanProperty {
+    my ($c, $spec, $value) = @_;
+
+    return "**********" if exists $spec->{type} and $spec->{type} eq "secret";
+
+    if ($spec->{properties}) {
+        $value->{children} = cleanProperties(
+            $c, $value->{children}, undef, $spec
+        );
+    }
+    return $value;
+}
+
+
+sub cleanProperties {
+    my ($c, $props, $type, $spec) = @_;
+
+    $spec ||= $c->stash->{inputTypes}->{$type};
+
+    if ($spec->{singleton}) {
+        $props->{value} = cleanProperty(
+            $c, $spec->{singleton}, $props->{value}
+        );
+    } else {
+        foreach my $prop (keys %$props) {
+            $props->{$prop} = cleanProperty(
+                $c, $spec->{properties}->{$prop}, $props->{$prop}
+            );
+        }
+    }
+    return $props;
 }
 
 
