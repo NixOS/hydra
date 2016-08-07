@@ -253,6 +253,10 @@ sub cleanProperties {
         );
     } else {
         foreach my $prop (keys %$props) {
+            unless ($spec->{properties}->{$prop}) {
+                delete $props->{$prop};
+                next;
+            }
             $props->{$prop} = cleanProperty(
                 $c, $spec->{properties}->{$prop}, $props->{$prop}
             );
