@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
+use Hydra::Helper::Properties;
 use Hydra::Helper::CatalystUtils;
 
 use JSON qw(encode_json);
@@ -148,6 +149,11 @@ sub updateProject {
     my $displayName = trim $c->stash->{params}->{displayname};
     error($c, "You must specify a display name.") if $displayName eq "";
 
+    my $decltype = trim($c->stash->{params}->{decltype});
+    my $declprops = $c->stash->{params}->{declprops};
+
+    validateProperties($c, "declspec", $decltype, $declprops);
+
     $project->update(
         { name => $projectName
         , display_name => $displayName
@@ -157,8 +163,8 @@ sub updateProject {
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , owner => $owner
         , declfile => trim($c->stash->{params}->{declfile})
-        , decltype => trim($c->stash->{params}->{decltype})
-        , declprops => $c->stash->{params}->{declprops}
+        , decltype => $decltype
+        , declprops => $declprops
         });
     if (length($project->declfile)) {
         $project->jobsets->update_or_create(
