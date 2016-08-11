@@ -325,4 +325,9 @@ sub json_hint {
     return \%hint;
 }
 
+__PACKAGE__->inflate_column(declprops => {
+    inflate => sub { JSON::decode_json(shift) },
+    deflate => sub { JSON::encode_json(shift) },
+});
+
 1;
