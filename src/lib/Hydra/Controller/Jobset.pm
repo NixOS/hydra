@@ -18,10 +18,6 @@ sub jobsetChain :Chained('/') :PathPart('jobset') :CaptureArgs(2) {
 
     $c->stash->{project} = $project;
 
-    %{$c->stash->{inputTypeNames}} = map {
-        $_ => $c->stash->{inputTypes}->{$_}->{name}
-    } keys $c->stash->{inputTypes};
-
     $c->stash->{jobset} = $project->jobsets->find({ name => $jobsetName });
 
     if (!$c->stash->{jobset} && !($c->action->name eq "jobset" and $c->request->method eq "PUT")) {

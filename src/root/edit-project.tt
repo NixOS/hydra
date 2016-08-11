@@ -66,7 +66,10 @@
     <div class="control-group">
       <label class="control-label">Declarative input type</label>
       <div class="controls">
-        [% INCLUDE renderSelection param="decltype" options=inputTypes edit=1 curValue=project.decltype %]
+        [% INCLUDE renderSelection curValue=project.decltype
+                                   param="decltype"
+                                   options=inputTypes
+                                   edit=1 %]
         value
         <input style="width: 70%" type="text" [% HTML.attributes(value => project.declvalue, name => "declvalue") %]/>
       </div>

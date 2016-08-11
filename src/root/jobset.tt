@@ -60,7 +60,7 @@
       <var class="jobset-input">[% HTML.escape(input.name) %]</var>
     </td>
     <td>
-      [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypeNames %]
+      [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
     </td>
     <td class="inputalts" id="[% baseName %]">
       [% INCLUDE renderProperties spec=inputTypes.${input.type}

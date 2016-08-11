@@ -17,7 +17,7 @@
     <td>
       [% INCLUDE renderSelection curValue=input.type
                                  param="$baseName-type"
-                                 options=inputTypeNames
+                                 options=inputTypes
                                  edit=1 %]
     </td>
     <td>
