@@ -142,7 +142,7 @@ function createProperty(spec, value) {
 
     discharger = function() {
       var discharged = propType.discharge();
-      if (discharged.value === null) {
+      if (discharged === null) {
         return null;
       } else return {
         value: discharged,
