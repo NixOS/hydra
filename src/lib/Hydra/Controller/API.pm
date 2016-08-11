@@ -201,6 +201,29 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
 }
 
 
+sub properties : Chained('api') Args(0) {
+    my ($self, $c) = @_;
+
+    my $spec = $c->stash->{inputTypes};
+
+    # Remove all validate attributes, because they're solely meant for the
+    # backend side and also cannot be serialized into JSON. This is done
+    # destructively on $c->stash->${inputTypes} because we won't re-use it
+    # within the OPTIONS request at some later point.
+    foreach my $type (keys %$spec) {
+        if (exists $spec->{$type}->{singleton}) {
+            delete $spec->{$type}->{singleton}->{validate};
+        } else {
+            foreach my $key (keys %{$spec->{$type}->{properties}}) {
+                delete $spec->{$type}->{properties}->{$key}->{validate};
+            }
+        }
+    }
+
+    $self->status_ok($c, entity => $spec);
+}
+
+
 sub triggerJobset {
     my ($self, $c, $jobset) = @_;
     print STDERR "triggering jobset ", $jobset->project->name . ":" . $jobset->name, "\n";
