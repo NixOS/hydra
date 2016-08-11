@@ -33,7 +33,7 @@ create table projects (
     homepage      text, -- URL for the project
     declfile      text, -- File containing declarative jobset specification
     decltype      text, -- Type of the input containing declarative jobset specification
-    declvalue     text, -- Value of the input containing declarative jobset specification
+    declprops     jsonb, -- Properties of the input containing declarative jobset specification
     foreign key   (owner) references users(username) on update cascade
 );
 

@@ -163,6 +163,4 @@ drop table jobset_input_alts;
 
 alter table jobset_inputs alter column properties set not null;
 
-drop function migrate_jobset_alts(text, text);
-drop function unscm(text, text, text);
-drop function parse_jobname(text);
+-- Functions created above will be dropped in upgrade-53.sql

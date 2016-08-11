@@ -83,9 +83,9 @@ __PACKAGE__->table("projects");
   data_type: 'text'
   is_nullable: 1
 
-=head2 declvalue
+=head2 declprops
 
-  data_type: 'text'
+  data_type: 'jsonb'
   is_nullable: 1
 
 =cut
@@ -109,8 +109,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "decltype",
   { data_type => "text", is_nullable => 1 },
-  "declvalue",
-  { data_type => "text", is_nullable => 1 },
+  "declprops",
+  { data_type => "jsonb", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -303,8 +303,8 @@ Composing rels: L</project_members> -> username
 __PACKAGE__->many_to_many("usernames", "project_members", "username");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-07-07 08:50:21
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Vc75nhsTomVKR5bvx7b9dw
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-08-11 10:41:51
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:P4vuUa5AygQNEAYXe8neIA
 
 my %hint = (
     columns => [
