@@ -66,7 +66,7 @@ function createPropertyType(spec, value) {
         elem: boolInput,
         discharge: function() {
           var discharged = boolInput.is(':checked');
-          if (discharged === defVal)
+          if (discharged === defVal && !spec.required)
             return null;
           else
             return discharged;
