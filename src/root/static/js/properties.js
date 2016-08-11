@@ -126,7 +126,9 @@ function createProperty(spec, value) {
   if ("properties" in spec) {
     container = $('<div/>');
     container.append(propType.elem);
-    var subProperties = updateProperties(spec, false, {});
+
+    var subvals = (value && value.children) ? value.children : {};
+    var subProperties = updateProperties(spec, false, subvals);
 
     if (propType.discharge() === null)
       subProperties.elem.hide();
