@@ -1,7 +1,7 @@
 [% WRAPPER layout.tt title=(create ? "New project" : "Editing project $project.name") %]
 [% PROCESS common.tt %]
 
-<form class="form-horizontal">
+<form class="form-horizontal" id="project-edit-form">
 
   <fieldset>
 
@@ -66,12 +66,22 @@
     <div class="control-group">
       <label class="control-label">Declarative input type</label>
       <div class="controls">
+        <input type="hidden" name="input-decl-name" value="dummy" />
         [% INCLUDE renderSelection curValue=project.decltype
-                                   param="decltype"
+                                   param="input-decl-type"
                                    options=inputTypes
                                    edit=1 %]
-        value
-        <input style="width: 70%" type="text" [% HTML.attributes(value => project.declvalue, name => "declvalue") %]/>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label class="control-label">Declarative input properties</label>
+      <div class="controls">
+        <div id="input-decl-properties"></div>
+        <input type="hidden" [% HTML.attributes(
+          value => project.declprops ? encode_json(project.declprops) : "{}",
+          name => "input-decl-properties"
+        ) %] />
       </div>
     </div>
 
@@ -86,15 +96,35 @@
 
 </form>
 
+<script type="text/javascript" src="[% c.uri_for("/static/js/properties.js") %]"></script>
 <script type="text/javascript">
+  $(document).ready(function() {
+    requestJSON({
+      url: "[% c.uri_for('/api/properties') %]",
+      success: function (pspec) {
+        initProperties($("#project-edit-form"), pspec);
+      },
+    });
+  });
+
   $("#submit-project").click(function() {
+    var formdata = $("#project-edit-form").serializeArray();
+    var data = formdata.reduce(function(result, obj) {
+      if (obj.name == "input-decl-type")
+        result["decltype"] = obj.value;
+      else if (!obj.name.startsWith("input-"))
+        result[obj.name] = obj.value;
+      return result;
+    }, {});
+    data.declprops = dischargeMap["input-decl-name"]();
     redirectJSON({
       [% IF create %]
         url: "[% c.uri_for('/project' '.new') %]",
       [% ELSE %]
         url: "[% c.uri_for('/project' project.name) %]",
       [% END %]
-      data: $(this).parents("form").serialize(),
+      data: JSON.stringify(data),
+      contentType: 'application/json',
       type: 'PUT'
     });
     return false;

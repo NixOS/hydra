@@ -7,6 +7,7 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
+use JSON qw(encode_json);
 
 sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
     my ($self, $c, $projectName) = @_;
@@ -94,6 +95,7 @@ sub edit : Chained('projectChain') PathPart Args(0) {
     requireProjectOwner($c, $c->stash->{project});
 
     $c->stash->{template} = 'edit-project.tt';
+    $c->stash->{encode_json} = \&encode_json;
     $c->stash->{edit} = 1;
 }
 
@@ -156,7 +158,7 @@ sub updateProject {
         , owner => $owner
         , declfile => trim($c->stash->{params}->{declfile})
         , decltype => trim($c->stash->{params}->{decltype})
-        , declvalue => trim($c->stash->{params}->{declvalue})
+        , declprops => $c->stash->{params}->{declprops}
         });
     if (length($project->declfile)) {
         $project->jobsets->update_or_create(
