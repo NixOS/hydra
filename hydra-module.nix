@@ -345,6 +345,8 @@ in
           { ExecStart = "@${cfg.package}/bin/hydra-evaluator hydra-evaluator";
             User = "hydra";
             Restart = "always";
+            # Give evaluator highest CPU priority right after kernel
+            Nice = -19;
             WorkingDirectory = baseDir;
           };
       };
