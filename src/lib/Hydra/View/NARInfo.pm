@@ -21,7 +21,7 @@ sub process {
     my $info;
     $info .= "StorePath: $storePath\n";
     $info .= "URL: nar/" . basename $storePath. "\n";
-    $info .= "Compression: bzip2\n";
+    $info .= "Compression: xz\n";
     $info .= "NarHash: $narHash\n";
     $info .= "NarSize: $narSize\n";
     $info .= "References: " . join(" ", map { basename $_ } @{$refs}) . "\n";
