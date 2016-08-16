@@ -44,16 +44,18 @@ sub buildFinished {
 
     print STDERR "INFO: Creating symlink at $linkLocation with target $linkTarget\n";
     if (-e $linkLocation) { unlink ($linkLocation); }
-    my $linkCreated = symlink($linkTarget, $linkLocation);
-    if($linkCreated == 1){
-      if(defined $config->{touch}){
+    system("nix-env", "-p", $linkLocation, "--set", $linkTarget);
+    if($? != 0){
+      print STDERR "ERROR: Failed to create symlink from $linkTarget to $linkLocation\n";
+      return;
+    }
+    if(defined $config->{touch}){
         system("touch", $config->{touch});
         if($? != 0){
           print STDERR "ERROR: calling 'touch $config->{touch}' failed\n";
+          return;
         }
       }
-    }else{
-      print STDERR "ERROR: Failed to create symlink from $linkTarget to $linkLocation\n";
     }
   }
 }
