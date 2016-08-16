@@ -256,6 +256,7 @@ sub push_github : Chained('api') PathPart('push-github') Args(0) {
         { join => 'project'
         , where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)', [ 'value', "%github.com%$owner/$repo%" ] ]
         });
+    $c->response->body("");
 }
 
 
