@@ -192,6 +192,8 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
                 nrBuildsDone++;
             }
 
+            enqueueNotificationItem({NotificationItem::Type::BuildFinished, build->id});
+
             return;
         }
 
@@ -223,6 +225,8 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
             }
 
             build->finishedInDB = true;
+
+            enqueueNotificationItem({NotificationItem::Type::BuildFinished, build->id});
 
             return;
         }
