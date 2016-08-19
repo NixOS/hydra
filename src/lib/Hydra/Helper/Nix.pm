@@ -38,7 +38,10 @@ sub getHydraConfig {
     return $hydraConfig if defined $hydraConfig;
     my $conf = $ENV{"HYDRA_CONFIG"} || (Hydra::Model::DB::getHydraPath . "/hydra.conf");
     if (-f $conf) {
-        my %h = new Config::General($conf)->getall;
+        my %h = new Config::General( -ConfigFile => $conf
+                                   , -UseApacheInclude => 1
+                                   )->getall;
+
         $hydraConfig = \%h;
     } else {
         $hydraConfig = {};
