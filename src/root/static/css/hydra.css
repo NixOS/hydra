@@ -24,11 +24,6 @@ th {
     display: none;
 }
 
-table.productList {
-    border-collapse: separate;
-    border-spacing: 0em 1em;
-}
-
 table.table-small {
     width: auto !important;
 }
