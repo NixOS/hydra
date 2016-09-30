@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -381,7 +382,7 @@ void State::buildRemote(ref<Store> destStore,
         if (info->consecutiveFailures == 0 || info->lastFailure < now - std::chrono::seconds(30)) {
             info->consecutiveFailures = std::min(info->consecutiveFailures + 1, (unsigned int) 4);
             info->lastFailure = now;
-            int delta = retryInterval * powf(retryBackoff, info->consecutiveFailures - 1) + (rand() % 30);
+            int delta = retryInterval * std::pow(retryBackoff, info->consecutiveFailures - 1) + (rand() % 30);
             printMsg(lvlInfo, format("will disable machine ‘%1%’ for %2%s") % machine->sshName % delta);
             info->disabledUntil = now + std::chrono::seconds(delta);
         }
