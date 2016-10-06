@@ -45,18 +45,6 @@ rec {
 
       nix = nixUnstable;
 
-      NetStatsd = buildPerlPackage {
-        name = "Net-Statsd-0.11";
-        src = fetchurl {
-          url = mirror://cpan/authors/id/C/CO/COSIMO/Net-Statsd-0.11.tar.gz;
-          sha256 = "0f56c95846c7e65e6d32cec13ab9df65716429141f106d2dc587f1de1e09e163";
-        };
-        meta = {
-          description = "Sends statistics to the stats daemon over UDP";
-          license = "perl";
-        };
-      };
-
       perlDeps = buildEnv {
         name = "hydra-perl-deps";
         paths = with perlPackages;
