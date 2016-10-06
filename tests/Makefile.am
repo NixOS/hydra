@@ -5,6 +5,7 @@ TESTS_ENVIRONMENT = \
   HYDRA_HOME="$(top_srcdir)/src"			\
   HYDRA_CONFIG=						\
   NIX_REMOTE=						\
+  NIX_REMOTE_SYSTEMS=					\
   NIX_CONF_DIR="$(abs_builddir)/nix/etc/nix"		\
   NIX_STATE_DIR="$(abs_builddir)/nix/var/nix"		\
   NIX_MANIFESTS_DIR="$(abs_builddir)/nix/var/nix/manifests"	\
