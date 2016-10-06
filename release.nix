@@ -33,8 +33,6 @@ let
 
 in
 
-assert versionAtLeast (getVersion pkgs.nixUnstable) "1.11pre4244_133a421";
-
 rec {
 
   build = genAttrs' (system:
@@ -43,7 +41,31 @@ rec {
 
     let
 
-      nix = nixUnstable;
+      aws-sdk-cpp' =
+        lib.overrideDerivation (aws-sdk-cpp.override {
+          apis = ["s3"];
+          customMemoryManagement = false;
+        }) (attrs: {
+          src = fetchFromGitHub {
+            owner = "edolstra";
+            repo = "aws-sdk-cpp";
+            rev = "d1e2479f79c24e2a1df8a3f3ef3278a1c6383b1e";
+            sha256 = "1vhgsxkhpai9a7dk38q4r239l6dsz2jvl8hii24c194lsga3g84h";
+          };
+        });
+
+      nix = overrideDerivation nixUnstable (attrs: {
+        src = fetchFromGitHub {
+          owner = "NixOS";
+          repo = "nix";
+          rev = "b0f7f9c98f2b54e34e9344f817d30363533d108f";
+          sha256 = "1xwdlnbsdlsqplzv7s3gaiv1s8mb26qqy17gazl4hy1d3djp0hvl";
+        };
+        buildInputs = attrs.buildInputs ++ [ autoreconfHook bison flex ];
+        nativeBuildInputs = attrs.nativeBuildInputs ++ [ aws-sdk-cpp' autoconf-archive ];
+        configureFlags = attrs.configureFlags + " --disable-doc-gen";
+        preConfigure = "./bootstrap.sh; mkdir -p $doc $man";
+      });
 
       perlDeps = buildEnv {
         name = "hydra-perl-deps";
@@ -91,7 +113,7 @@ rec {
             TextDiff
             TextTable
             XMLSimple
-            nix git boehmgc
+            nix git boehmgc aws-sdk-cpp'
           ];
       };
 
@@ -108,17 +130,6 @@ rec {
           guile # optional, for Guile + Guix support
           perlDeps perl nix
           postgresql92 # for running the tests
-          (lib.overrideDerivation (aws-sdk-cpp.override {
-            apis = ["s3"];
-            customMemoryManagement = false;
-          }) (attrs: {
-            src = fetchFromGitHub {
-              owner = "edolstra";
-              repo = "aws-sdk-cpp";
-              rev = "local";
-              sha256 = "1vhgsxkhpai9a7dk38q4r239l6dsz2jvl8hii24c194lsga3g84h";
-            };
-          }))
         ];
 
       hydraPath = lib.makeBinPath (
