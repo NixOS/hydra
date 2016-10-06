@@ -11,7 +11,8 @@
 
 #include "shared.hh"
 #include "globals.hh"
-#include "value-to-json.hh"
+#include "json.hh"
+#include "s3-binary-cache-store.hh"
 
 using namespace nix;
 
@@ -451,7 +452,7 @@ void State::logCompressor()
             // FIXME: use libbz2
 
             Pid pid = startProcess([&]() {
-                if (dup2(fd, STDOUT_FILENO) == -1)
+                if (dup2(fd.get(), STDOUT_FILENO) == -1)
                     throw SysError("cannot dup output pipe to stdout");
                 execlp("bzip2", "bzip2", "-c", item.logPath.c_str(), nullptr);
                 throw SysError("cannot start bzip2");
@@ -582,7 +583,7 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("bytesReceived", bytesReceived);
         root.attr("nrBuildsRead", nrBuildsRead);
         root.attr("buildReadTimeMs", buildReadTimeMs);
-        root.attr("buildReadTimeAvgMs", nrBuildsRead == 0 ? 0.0 :  (float) buildReadTimeMs / nrBuildsRead);
+        root.attr("buildReadTimeAvgMs", nrBuildsRead == 0 ? 0.0 : (float) buildReadTimeMs / nrBuildsRead);
         root.attr("nrBuildsDone", nrBuildsDone);
         root.attr("nrStepsStarted", nrStepsStarted);
         root.attr("nrStepsDone", nrStepsDone);
@@ -603,14 +604,12 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("memoryTokensInUse", memoryTokens.currentUse());
 
         {
-            root.attr("machines");
-            JSONObject nested(out);
+            auto nested = root.object("machines");
             auto machines_(machines.lock());
             for (auto & i : *machines_) {
                 auto & m(i.second);
                 auto & s(m->state);
-                nested.attr(m->sshName);
-                JSONObject nested2(out);
+                auto nested2 = nested.object(m->sshName);
                 nested2.attr("enabled", m->enabled);
                 nested2.attr("currentJobs", s->currentJobs);
                 if (s->currentJobs == 0)
@@ -631,24 +630,20 @@ void State::dumpStatus(Connection & conn, bool log)
         }
 
         {
-            root.attr("jobsets");
-            JSONObject nested(out);
+            auto nested = root.object("jobsets");
             auto jobsets_(jobsets.lock());
             for (auto & jobset : *jobsets_) {
-                nested.attr(jobset.first.first + ":" + jobset.first.second);
-                JSONObject nested2(out);
+                auto nested2 = nested.object(jobset.first.first + ":" + jobset.first.second);
                 nested2.attr("shareUsed", jobset.second->shareUsed());
                 nested2.attr("seconds", jobset.second->getSeconds());
             }
         }
 
         {
-            root.attr("machineTypes");
-            JSONObject nested(out);
+            auto nested = root.object("machineTypes");
             auto machineTypes_(machineTypes.lock());
             for (auto & i : *machineTypes_) {
-                nested.attr(i.first);
-                JSONObject nested2(out);
+                auto nested2 = nested.object(i.first);
                 nested2.attr("runnable", i.second.runnable);
                 nested2.attr("running", i.second.running);
                 if (i.second.runnable > 0)
@@ -661,8 +656,7 @@ void State::dumpStatus(Connection & conn, bool log)
 
         auto store = getDestStore();
 
-        root.attr("store");
-        JSONObject nested(out);
+        auto nested = root.object("store");
 
         auto & stats = store->getStats();
         nested.attr("narInfoRead", stats.narInfoRead);
@@ -689,8 +683,7 @@ void State::dumpStatus(Connection & conn, bool log)
 
         auto s3Store = dynamic_cast<S3BinaryCacheStore *>(&*store);
         if (s3Store) {
-            nested.attr("s3");
-            JSONObject nested2(out);
+            auto nested2 = nested.object("s3");
             auto & s3Stats = s3Store->getS3Stats();
             nested2.attr("put", s3Stats.put);
             nested2.attr("putBytes", s3Stats.putBytes);

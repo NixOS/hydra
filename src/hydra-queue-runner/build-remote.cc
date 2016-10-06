@@ -35,10 +35,10 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 
     child.pid = startProcess([&]() {
 
-        if (dup2(to.readSide, STDIN_FILENO) == -1)
+        if (dup2(to.readSide.get(), STDIN_FILENO) == -1)
             throw SysError("cannot dup input pipe to stdin");
 
-        if (dup2(from.writeSide, STDOUT_FILENO) == -1)
+        if (dup2(from.writeSide.get(), STDOUT_FILENO) == -1)
             throw SysError("cannot dup output pipe to stdout");
 
         if (dup2(stderrFD, STDERR_FILENO) == -1)
@@ -67,11 +67,11 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
         throw SysError("cannot start ssh");
     });
 
-    to.readSide.close();
-    from.writeSide.close();
+    to.readSide = -1;
+    from.writeSide = -1;
 
-    child.to = to.writeSide.borrow();
-    child.from = from.readSide.borrow();
+    child.to = to.writeSide.release();
+    child.from = from.readSide.release();
 }
 
 
@@ -93,7 +93,7 @@ static void copyClosureTo(ref<Store> destStore,
 
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = readStorePaths<PathSet>(from);
+    auto present = readStorePaths<PathSet>(*destStore, from);
 
     if (present.size() == closure.size()) return;
 
@@ -125,8 +125,8 @@ void State::buildRemote(ref<Store> destStore,
 
     createDirs(dirOf(result.logFile));
 
-    AutoCloseFD logFD(open(result.logFile.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0666));
-    if (logFD == -1) throw SysError(format("creating log file ‘%1%’") % result.logFile);
+    AutoCloseFD logFD = open(result.logFile.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0666);
+    if (!logFD) throw SysError(format("creating log file ‘%1%’") % result.logFile);
 
     nix::Path tmpDir = createTempDir();
     AutoDelete tmpDirDel(tmpDir, true);
@@ -134,12 +134,12 @@ void State::buildRemote(ref<Store> destStore,
     try {
 
         Child child;
-        openConnection(machine, tmpDir, logFD, child);
+        openConnection(machine, tmpDir, logFD.get(), child);
 
-        logFD.close();
+        logFD = -1;
 
-        FdSource from(child.from);
-        FdSink to(child.to);
+        FdSource from(child.from.get());
+        FdSink to(child.to.get());
 
         Finally updateStats([&]() {
             bytesReceived += from.read;
@@ -368,7 +368,7 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         /* Shut down the connection. */
-        child.to.close();
+        child.to = -1;
         child.pid.wait(true);
 
     } catch (Error & e) {

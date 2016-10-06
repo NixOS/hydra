@@ -65,7 +65,7 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
             // store paths, or that are outside the input closure?
             if (product.path == "" || product.path[0] != '/') continue;
             product.path = canonPath(product.path);
-            if (!isInStore(product.path)) continue;
+            if (!store->isInStore(product.path)) continue;
 
             auto st = accessor->stat(product.path);
             if (st.type == FSAccessor::Type::tMissing) continue;
