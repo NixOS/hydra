@@ -393,7 +393,7 @@ sub captureStdoutStderr {
 
     if ($@) {
         die unless $@ eq "timeout\n"; # propagate unexpected errors
-        return (-1, "", "timeout\n");
+        return (-1, $stdout, ($stderr // "") . "timeout\n");
     } else {
         return ($?, $stdout, $stderr);
     }

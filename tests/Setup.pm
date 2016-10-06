@@ -72,6 +72,10 @@ sub evalSucceeds {
 sub runBuild {
     my ($build) = @_;
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-queue-runner", "-vvvv", "--build-one", $build->id));
+    if ($res) {
+        print STDERR "Queue runner stdout: $stdout\n" if $stdout ne "";
+        print STDERR "Queue runner stderr: $stderr\n" if $stderr ne "";
+    }
     return !$res;
 }
 
