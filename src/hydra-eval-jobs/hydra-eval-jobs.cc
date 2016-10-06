@@ -8,7 +8,7 @@
 #include "eval.hh"
 #include "eval-inline.hh"
 #include "util.hh"
-#include "value-to-json.hh"
+#include "json.hh"
 #include "get-drvs.hh"
 #include "common-opts.hh"
 #include "globals.hh"
@@ -117,8 +117,7 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
                 throw EvalError("derivation must have a ‘system’ attribute");
 
             {
-            top.attr(attrPath);
-            JSONObject res(top.str);
+            auto res = top.object(attrPath);
             res.attr("nixName", drv.name);
             res.attr("system", drv.system);
             res.attr("drvPath", drvPath = drv.queryDrvPath());
@@ -133,7 +132,7 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
 
             /* If this is an aggregate, then get its constituents. */
             Bindings::iterator a = v.attrs->find(state.symbols.create("_hydraAggregate"));
-            if (a != v.attrs->end() && state.forceBool(*a->value)) {
+            if (a != v.attrs->end() && state.forceBool(*a->value, *a->pos)) {
                 Bindings::iterator a = v.attrs->find(state.symbols.create("constituents"));
                 if (a == v.attrs->end())
                     throw EvalError("derivation must have a ‘constituents’ attribute");
@@ -151,18 +150,17 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
             /* Register the derivation as a GC root.  !!! This
                registers roots for jobs that we may have already
                done. */
-            if (gcRootsDir != "") {
+            auto localStore = state.store.dynamic_pointer_cast<LocalFSStore>();
+            if (gcRootsDir != "" && localStore) {
                 Path root = gcRootsDir + "/" + baseNameOf(drvPath);
-                if (!pathExists(root)) state.store->addPermRoot(drvPath, root, false);
+                if (!pathExists(root)) localStore->addPermRoot(drvPath, root, false);
             }
 
-            res.attr("outputs");
-            JSONObject res2(res.str);
+            auto res2 = res.object("outputs");
             for (auto & j : outputs)
                 res2.attr(j.first, j.second);
 
             }
-            top.str << std::endl;
         }
 
         else {
@@ -198,11 +196,9 @@ static void findJobs(EvalState & state, JSONObject & top,
         findJobsWrapped(state, top, argsLeft, v, attrPath);
     } catch (EvalError & e) {
         {
-        top.attr(attrPath);
-        JSONObject res(top.str);
+        auto res = top.object(attrPath);
         res.attr("error", e.msg());
         }
-        top.str << std::endl;
     }
 }
 
@@ -283,7 +279,7 @@ int main(int argc, char * * argv)
         Value v;
         state.evalFile(releaseExpr, v);
 
-        JSONObject json(std::cout);
+        JSONObject json(std::cout, true);
         findJobs(state, json, autoArgs, v, "");
 
         state.printStats();
