@@ -1,11 +1,7 @@
-To start hacking on Hydra, run:
+# Hydra
 
-    $ bootstrap
-    $ nix-shell
-    $ ./configure $configureFlags --prefix=/opt/hydra
-    $ make
-    $ make install
-
-Or, if you just want to build from source (on x86_64-linux):
-
-    $ nix-build -A build.x86_64-linux release.nix
+Hydra is a continuous integration system based on the Nix package
+manager. For more information, see the
+[manual](https://hydra.nixos.org/job/hydra/master/tarball/latest/download-by-type/doc/manual). For
+hacking instructions, see
+https://hydra.nixos.org/job/hydra/master/tarball/latest/download-by-type/doc/manual#chap-hacking.
