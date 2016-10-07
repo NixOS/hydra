@@ -71,12 +71,6 @@ MaintainCount State::startDbUpdate()
 }
 
 
-ref<Store> State::getLocalStore()
-{
-    return ref<Store>(_localStore);
-}
-
-
 ref<Store> State::getDestStore()
 {
     return ref<Store>(_destStore);
@@ -797,13 +791,19 @@ void State::run(BuildID buildOne)
     if (!lock)
         throw Error("hydra-queue-runner is already running");
 
-    _localStore = openStore();
+    localStore = openStore();
 
     if (hydraConfig["store_uri"] == "") {
-        _destStore = _localStore;
+        _destStore = localStore;
     } else {
         _destStore = openStoreAt(hydraConfig["store_uri"]);
     }
+
+    auto isTrue = [](const std::string & s) {
+        return s == "1" || s == "true";
+    };
+
+    useSubstitutes = isTrue(hydraConfig["use-substitutes"]);
 
     {
         auto conn(dbPool.get());

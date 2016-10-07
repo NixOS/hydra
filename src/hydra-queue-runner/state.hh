@@ -257,6 +257,8 @@ private:
 
     std::map<std::string, std::string> hydraConfig;
 
+    bool useSubstitutes = false;
+
     /* The queued builds. */
     typedef std::map<BuildID, Build::ptr> Builds;
     nix::Sync<Builds> builds;
@@ -374,7 +376,7 @@ private:
 
     std::atomic<time_t> lastDispatcherCheck{0};
 
-    std::shared_ptr<nix::Store> _localStore;
+    std::shared_ptr<nix::Store> localStore;
     std::shared_ptr<nix::Store> _destStore;
 
     /* Token server to prevent threads from allocating too many big
@@ -400,10 +402,6 @@ public:
 private:
 
     MaintainCount startDbUpdate();
-
-    /* Return a store object that can access derivations produced by
-       hydra-evaluator. */
-    nix::ref<nix::Store> getLocalStore();
 
     /* Return a store object to store build results. */
     nix::ref<nix::Store> getDestStore();
@@ -436,7 +434,7 @@ private:
     void queueMonitorLoop();
 
     /* Check the queue for new builds. */
-    bool getQueuedBuilds(Connection & conn, nix::ref<nix::Store> localStore,
+    bool getQueuedBuilds(Connection & conn,
         nix::ref<nix::Store> destStore, unsigned int & lastBuildId);
 
     /* Handle cancellation, deletion and priority bumps. */

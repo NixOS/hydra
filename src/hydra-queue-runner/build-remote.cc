@@ -202,7 +202,7 @@ void State::buildRemote(ref<Store> destStore,
            a no-op for regular stores, but for the binary cache store,
            this will copy the inputs to the binary cache from the local
            store. */
-        destStore->buildPaths(basicDrv.inputSrcs);
+        copyClosure(ref<Store>(localStore), destStore, basicDrv.inputSrcs);
 
         /* Copy the input closure. */
         if (/* machine->sshName != "localhost" */ true) {

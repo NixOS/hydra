@@ -29,13 +29,12 @@ void State::queueMonitorLoop()
     receiver buildsBumped(*conn, "builds_bumped");
     receiver jobsetSharesChanged(*conn, "jobset_shares_changed");
 
-    auto localStore = getLocalStore();
     auto destStore = getDestStore();
 
     unsigned int lastBuildId = 0;
 
     while (true) {
-        bool done = getQueuedBuilds(*conn, localStore, destStore, lastBuildId);
+        bool done = getQueuedBuilds(*conn, destStore, lastBuildId);
 
         /* Sleep until we get notification from the database about an
            event. */
@@ -69,7 +68,7 @@ struct PreviousFailure : public std::exception {
 };
 
 
-bool State::getQueuedBuilds(Connection & conn, ref<Store> localStore,
+bool State::getQueuedBuilds(Connection & conn,
     ref<Store> destStore, unsigned int & lastBuildId)
 {
     printMsg(lvlInfo, format("checking the queue for builds > %1%...") % lastBuildId);
@@ -415,29 +414,44 @@ Step::ptr State::createStep(ref<Store> destStore,
     bool valid = true;
     PathSet outputs = step->drv.outputPaths();
     DerivationOutputs missing;
-    PathSet missingPaths;
     for (auto & i : step->drv.outputs)
         if (!destStore->isValidPath(i.second.path)) {
             valid = false;
             missing[i.first] = i.second;
-            missingPaths.insert(i.second.path);
         }
 
-    /* Try to substitute the missing paths. Note: can't use the more
-       efficient querySubstitutablePaths() here because upstream Hydra
-       servers don't allow it (they have "WantMassQuery: 0"). */
-    assert(missing.size() == missingPaths.size());
-    if (!missing.empty() && settings.useSubstitutes) {
-        SubstitutablePathInfos infos;
-        destStore->querySubstitutablePathInfos(missingPaths, infos); // FIXME
-        if (infos.size() == missingPaths.size()) {
+    /* Try to copy the missing paths from the local store or from
+       substitutes. */
+    if (!missing.empty()) {
+
+        size_t avail = 0;
+        for (auto & i : missing) {
+            if (/* localStore != destStore && */ localStore->isValidPath(i.second.path))
+                avail++;
+            else if (useSubstitutes) {
+                SubstitutablePathInfos infos;
+                localStore->querySubstitutablePathInfos({i.second.path}, infos);
+                if (infos.size() == 1)
+                    avail++;
+            }
+        }
+
+        if (missing.size() == avail) {
             valid = true;
             for (auto & i : missing) {
                 try {
-                    printMsg(lvlInfo, format("substituting output ‘%1%’ of ‘%2%’") % i.second.path % drvPath);
-
                     time_t startTime = time(0);
-                    destStore->ensurePath(i.second.path);
+
+                    if (localStore->isValidPath(i.second.path))
+                        printInfo("copying output ‘%1%’ of ‘%2%’ from local store", i.second.path, drvPath);
+                    else {
+                        printInfo("substituting output ‘%1%’ of ‘%2%’", i.second.path, drvPath);
+                        localStore->ensurePath(i.second.path);
+                        // FIXME: should copy directly from substituter to destStore.
+                    }
+
+                    copyClosure(ref<Store>(localStore), destStore, {i.second.path});
+
                     time_t stopTime = time(0);
 
                     {
@@ -448,6 +462,7 @@ Step::ptr State::createStep(ref<Store> destStore,
                     }
 
                 } catch (Error & e) {
+                    printError("while copying/substituting output ‘%s’ of ‘%s’: %s", i.second.path, drvPath, e.what());
                     valid = false;
                     break;
                 }
