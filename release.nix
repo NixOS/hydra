@@ -18,10 +18,10 @@ let
       virtualisation.memorySize = 1024;
       virtualisation.writableStore = true;
 
-      services.hydra.enable = true;
-      services.hydra.package = hydraPkg;
-      services.hydra.hydraURL = "http://hydra.example.org";
-      services.hydra.notificationSender = "admin@hydra.example.org";
+      services.hydra-dev.enable = true;
+      services.hydra-dev.package = hydraPkg;
+      services.hydra-dev.hydraURL = "http://hydra.example.org";
+      services.hydra-dev.notificationSender = "admin@hydra.example.org";
 
       services.postgresql.enable = true;
       services.postgresql.package = pkgs.postgresql92;

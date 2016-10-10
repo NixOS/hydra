@@ -4,7 +4,7 @@ with lib;
 
 let
 
-  cfg = config.services.hydra;
+  cfg = config.services.hydra-dev;
 
   baseDir = "/var/lib/hydra";
 
@@ -42,7 +42,7 @@ in
   ###### interface
   options = {
 
-    services.hydra = rec {
+    services.hydra-dev = rec {
 
       enable = mkOption {
         type = types.bool;
@@ -217,9 +217,9 @@ in
 
     nix.trustedUsers = [ "hydra-queue-runner" ];
 
-    services.hydra.package = mkDefault ((import ./release.nix {}).build.x86_64-linux);
+    services.hydra-dev.package = mkDefault ((import ./release.nix {}).build.x86_64-linux);
 
-    services.hydra.extraConfig =
+    services.hydra-dev.extraConfig =
       ''
         using_frontend_proxy 1
         base_uri ${cfg.hydraURL}
