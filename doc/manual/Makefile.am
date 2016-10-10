@@ -28,6 +28,7 @@ images:
 install-data-hook: images
 	$(INSTALL) -d $(DESTDIR)$(htmldir)/images/callouts
 	$(INSTALL_DATA) images/callouts/* $(DESTDIR)$(htmldir)/images/callouts
+	ln -sfn manual.html $(DESTDIR)$(htmldir)/index.html
 
 distclean-hook:
 	-rm -rf images
