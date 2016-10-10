@@ -179,6 +179,16 @@ rec {
       passthru.perlDeps = perlDeps;
     });
 
+  manual = pkgs.runCommand "hydra-manual-${version}"
+    { build = builtins.storePath /nix/store/pi4dqvk3r5jlnbdb4lic5jff3wzn01qh-hydra-0.1.1234.abcdef;
+    }
+    ''
+      mkdir -p $out/share
+      cp -prvd $build/share/doc $out/share/
+
+      mkdir $out/nix-support
+      echo "doc manual $out/share/doc/hydra" >> $out/nix-support/hydra-build-products
+    '';
 
   tests.install = genAttrs' (system:
     with import <nixpkgs/nixos/lib/testing.nix> { inherit system; };
