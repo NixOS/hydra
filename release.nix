@@ -180,7 +180,7 @@ rec {
     });
 
   manual = pkgs.runCommand "hydra-manual-${version}"
-    { build = builtins.storePath /nix/store/pi4dqvk3r5jlnbdb4lic5jff3wzn01qh-hydra-0.1.1234.abcdef;
+    { build = build.x86_64-linux;
     }
     ''
       mkdir -p $out/share
