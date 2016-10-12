@@ -123,26 +123,15 @@ Nix expression: release.nix in input patchelfSrc
 
 <screen>
 patchelfSrc
-  'Subversion checkout' https://svn.nixos.org/repos/nix/patchelf/trunk
+'Git checkout' https://github.com/NixOS/patchelf
 
-nixpkgs 'Subversion checkout' https://svn.nixos.org/repos/nix/nixpkgs/trunk
+nixpkgs 'Git checkout' https://github.com/NixOS/nixpkgs
 
 officialRelease   Boolean false
 
 system   String value "i686-linux"
 </screen>
     </para>
-  </section>
-
-  <section>
-    <title>Release Set</title>
-
-    <!-- TODO -->
-    there must be one primary job
-
-    check the radio button of exactly one job
-
-    https://svn.nixos.org/repos/nix/nixpkgs/trunk
   </section>
 
   <section>
@@ -172,7 +161,7 @@ system   String value "i686-linux"
       expression</literal> heading.  See, for example, the <link
       xlink:href="http://hydra.nixos.org/jobset/patchelf/trunk">jobset
       overview page</link> of the PatchELF project, and <link
-      xlink:href="https://svn.nixos.org/repos/nix/patchelf/trunk/release.nix">
+      xlink:href="https://github.com/NixOS/patchelf/blob/master/release.nix">
       the corresponding Nix file</link>.
     </para>
 
@@ -291,7 +280,7 @@ in
             <varname>texLive</varname>–are the names of the
             <emphasis>attributes</emphasis> corresponding to these
             packages in Nixpkgs, specifically in the <link
-            xlink:href="https://svn.nixos.org/repos/nix/nixpkgs/trunk/pkgs/top-level/all-packages.nix"><filename>all-packages.nix</filename></link>
+             xlink:href="https://github.com/NixOS/nixpkgs/blob/master/pkgs/top-level/all-packages.nix"><filename>all-packages.nix</filename></link>
             file.  See the section entitled “Package Naming” in the
             Nixpkgs manual for more information.</para></footnote>.
           </para>
@@ -434,7 +423,7 @@ coverage =
       run build in virtual machines, which can themselves run another
       GNU/Linux distribution, which allows for the creation of packages
       for these distributions.  Please see <link
-      xlink:href="https://svn.nixos.org/repos/nix/nixpkgs/trunk/pkgs/build-support/release/">the
+       xlink:href="https://github.com/NixOS/nixpkgs/tree/master/pkgs/build-support/release">the
       <filename>pkgs/build-support/release</filename> directory</link>
       of Nixpkgs for more.  The NixOS manual also contains information
       about whole-system testing in virtual machine.
