@@ -1,7 +1,8 @@
 # Hydra
 
-Hydra is a continuous integration system based on the Nix package
-manager. For more information, see the
-[manual](https://hydra.nixos.org/job/hydra/master/tarball/latest/download-by-type/doc/manual). For
-hacking instructions, see
-https://hydra.nixos.org/job/hydra/master/tarball/latest/download-by-type/doc/manual#chap-hacking.
+[Hydra](https://nixos.org/hydra/) is a continuous integration system based
+on the Nix package manager. For more information, see the
+[manual](http://nixos.org/hydra/manual/).
+
+For development see [hacking instructions]
+(http://nixos.org/hydra/manual/#chap-hacking).
