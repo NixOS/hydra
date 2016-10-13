@@ -58,8 +58,8 @@ rec {
         src = fetchFromGitHub {
           owner = "NixOS";
           repo = "nix";
-          rev = "edf9eb8181e01f6b2123e5690019cfeeb44fc1c2";
-          sha256 = "1a00q9pypfziyi9hxl4rsammhwj7991wm4b1z9zcgl7zqksr3582";
+          rev = "5e61b422c58baac26b232233d39f5814cc35d52a";
+          sha256 = "0awic5zwibgpj5shpgjf2364imp2f84c8xi5r0x4p351q4kpg9z4";
         };
         buildInputs = attrs.buildInputs ++ [ autoreconfHook bison flex ];
         nativeBuildInputs = attrs.nativeBuildInputs ++ [ aws-sdk-cpp' autoconf-archive ];
@@ -123,6 +123,8 @@ rec {
       name = "hydra-${version}";
 
       src = if shell then null else hydraSrc;
+
+      stdenv = overrideCC stdenv gcc6;
 
       buildInputs =
         [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig sqlite libpqxx

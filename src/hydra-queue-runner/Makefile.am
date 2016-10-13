@@ -4,5 +4,4 @@ hydra_queue_runner_SOURCES = hydra-queue-runner.cc queue-monitor.cc dispatcher.c
  builder.cc build-result.cc build-remote.cc  \
  build-result.hh counter.hh token-server.hh state.hh db.hh
 hydra_queue_runner_LDADD = $(NIX_LIBS) -lpqxx
-
-AM_CXXFLAGS = $(NIX_CFLAGS) -Wall
+hydra_queue_runner_CXXFLAGS = $(NIX_CFLAGS) -Wall -I ../libhydra

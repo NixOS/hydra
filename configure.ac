@@ -11,7 +11,7 @@ AC_PROG_LN_S
 AC_PROG_LIBTOOL
 AC_PROG_CXX
 
-CXXFLAGS+=" -std=c++11"
+CXXFLAGS+=" -std=c++17"
 
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 
@@ -70,6 +70,7 @@ AC_CONFIG_FILES([
   doc/Makefile
   doc/manual/Makefile
   src/Makefile
+  src/hydra-evaluator/Makefile
   src/hydra-eval-jobs/Makefile
   src/hydra-queue-runner/Makefile
   src/sql/Makefile

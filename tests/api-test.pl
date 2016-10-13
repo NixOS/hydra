@@ -49,14 +49,14 @@ ok(exists $jobset->{jobsetinputs}->{"my-src"}, "The new jobset has a 'my-src' in
 
 ok($jobset->{jobsetinputs}->{"my-src"}->{jobsetinputalts}->[0] eq "/run/jobset", "The 'my-src' input is in /run/jobset");
 
-system("hydra-evaluator sample default");
+system("hydra-eval-jobset sample default");
 $result = request_json({ uri => '/jobset/sample/default/evals' });
 ok($result->code() == 200, "Can get evals of a jobset");
 my $evals = decode_json($result->content())->{evals};
 my $eval = $evals->[0];
 ok($eval->{hasnewbuilds} == 1, "The first eval of a jobset has new builds");
 
-system("echo >> /run/jobset/default.nix; hydra-evaluator sample default");
+system("echo >> /run/jobset/default.nix; hydra-eval-jobset sample default");
 my $evals = decode_json(request_json({ uri => '/jobset/sample/default/evals' })->content())->{evals};
 ok($evals->[0]->{jobsetevalinputs}->{"my-src"}->{revision} != $evals->[1]->{jobsetevalinputs}->{"my-src"}->{revision}, "Changing a jobset source changes its revision");
 

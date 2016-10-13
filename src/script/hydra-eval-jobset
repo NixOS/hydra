@@ -345,47 +345,10 @@ sub checkJobset {
 }
 
 
-sub checkSomeJobset {
-    # If any jobset has been triggered by a push, check it.
-    my ($jobset) = $db->resultset('Jobsets')->search(
-        { 'triggertime' => { '!=', undef } },
-        { join => 'project', order_by => [ 'triggertime' ], rows => 1 });
+die "syntax: $0 <PROJECT> <JOBSET>\n" unless @ARGV == 2;
 
-    # Otherwise, check the jobset that hasn't been checked for the
-    # longest time (but don't check more often than the jobset's
-    # minimal check interval).
-    ($jobset) = $db->resultset('Jobsets')->search(
-        { 'project.enabled' => 1, 'me.enabled' => { '!=' => 0 },
-        , 'checkinterval' => { '!=', 0 }
-        , -or => [ 'lastcheckedtime' => undef, 'lastcheckedtime' => { '<', \ (time() . " - me.checkinterval") } ] },
-        { join => 'project', order_by => [ 'lastcheckedtime nulls first' ], rows => 1 })
-        unless defined $jobset;
-
-    return 0 unless defined $jobset;
-
-    return system($0, $jobset->project->name, $jobset->name) == 0;
-}
-
-
-if (scalar @ARGV == 2) {
-    my $projectName = $ARGV[0];
-    my $jobsetName = $ARGV[1];
-    my $jobset = $db->resultset('Jobsets')->find($projectName, $jobsetName) or 
-      die "$0: specified jobset \"$projectName:$jobsetName\" does not exist\n";
-    exit checkJobset($jobset);
-}
-
-
-while (1) {
-    eval {
-        if (checkSomeJobset) {
-            # Just so we don't go completely crazy if lastcheckedtime
-            # isn't updated properly.
-            sleep 1;
-        } else {
-            # print STDERR "sleeping...\n";
-            sleep 30;
-        }
-    };
-    if ($@) { print STDERR "$@"; }
-}
+my $projectName = $ARGV[0];
+my $jobsetName = $ARGV[1];
+my $jobset = $db->resultset('Jobsets')->find($projectName, $jobsetName) or
+    die "$0: specified jobset \"$projectName:$jobsetName\" does not exist\n";
+exit checkJobset($jobset);
