@@ -54,10 +54,10 @@ sub doEmailLogin {
     # in URLs.
     die "Illegal email address.\n" unless $email =~ /^[a-zA-Z0-9\.\-\_]+@[a-zA-Z0-9\.\-\_]+$/;
 
-    # If persona_allowed_domains is set, check if the email address
+    # If allowed_domains is set, check if the email address
     # returned is on these domains.  When not configured, allow all
     # domains.
-    my $allowed_domains = $c->config->{persona_allowed_domains} || "";
+    my $allowed_domains = $c->config->{allowed_domains} // ($c->config->{persona_allowed_domains} // "");
     if ($allowed_domains ne "") {
         my $email_ok = 0;
         my @domains = split ',', $allowed_domains;
@@ -73,7 +73,7 @@ sub doEmailLogin {
     my $user = $c->find_user({ username => $email });
 
     if ($user) {
-        # Automatically upgrade Persona accounts to Google accounts.
+        # Automatically upgrade legacy Persona accounts to Google accounts.
         if ($user->type eq "persona" && $type eq "google") {
             $user->update({type => "google"});
         }
@@ -94,29 +94,6 @@ sub doEmailLogin {
 
     $self->status_no_content($c);
     $c->flash->{successMsg} = "You are now signed in as <tt>" . encode_entities($email) . "</tt>.";
-}
-
-
-sub persona_login :Path('/persona-login') Args(0) {
-    my ($self, $c) = @_;
-    requirePost($c);
-
-    error($c, "Logging in via Persona is not enabled.") unless $c->config->{enable_persona};
-
-    my $assertion = $c->stash->{params}->{assertion} or die;
-
-    my $ua = new LWP::UserAgent;
-    my $response = $ua->post(
-        'https://verifier.login.persona.org/verify',
-        { assertion => $assertion,
-          audience => $c->uri_for('/')
-        });
-    error($c, "Did not get a response from Persona.") unless $response->is_success;
-
-    my $d = decode_json($response->decoded_content) or die;
-    error($c, "Persona says: $d->{reason}") if $d->{status} ne "okay";
-
-    doEmailLogin($self, $c, "persona", $d->{email}, undef);
 }
 
 

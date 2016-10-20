@@ -18,8 +18,7 @@ __PACKAGE__->config->{namespace} = '';
 sub noLoginNeeded {
   my ($c) = @_;
 
-  return $c->request->path eq "persona-login" ||
-         $c->request->path eq "google-login" ||
+  return $c->request->path eq "google-login" ||
          $c->request->path eq "login" ||
          $c->request->path eq "logo" ||
          $c->request->path =~ /^static\//;

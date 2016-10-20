@@ -4,10 +4,6 @@
     <script src="https://apis.google.com/js/platform.js" async="1" defer="1"></script>
   [% END %]
 
-  [% IF c.user.type == 'persona' %]
-    <script src="https://login.persona.org/include.js"></script>
-  [% END %]
-
   <script>
     function finishSignOut() {
       $.post("[% c.uri_for('/logout') %]")
@@ -77,9 +73,6 @@
       [% IF c.config.enable_google_login %]
         $.getScript("https://apis.google.com/js/platform.js");
       [% END %]
-      [% IF c.config.enable_persona %]
-        $.getScript("https://login.persona.org/include.js");
-      [% END %]
     });
 
   </script>
@@ -100,27 +93,6 @@
 
       $("#google-signin").click(function() {
         $(".g-signin2:first-child > div").click();
-      });
-    </script>
-  [% END %]
-
-  [% IF c.config.enable_persona %]
-    <script>
-      $("#persona-signin").click(function() {
-
-        navigator.id.watch({
-          onlogin: function(assertion) {
-            requestJSON({
-              url: "[% c.uri_for('/persona-login') %]",
-              data: "assertion=" + assertion,
-              type: 'POST',
-              success: function(data) { window.location.reload(); },
-              postError: function() { navigator.id.logout(); }
-            });
-          }
-        });
-
-        navigator.id.request({ siteName: 'Hydra' });
       });
     </script>
   [% END %]
