@@ -60,6 +60,15 @@ sub begin :Private {
     };
     $_->supportedInputTypes($c->stash->{inputTypes}) foreach @{$c->hydra_plugins};
 
+    # XSRF protection: require POST requests to have the same origin.
+    if ($c->req->method eq "POST") {
+        my $referer = $c->req->header('Origin');
+        $referer //= $c->req->header('Referer');
+        my $base = $c->req->base;
+        error($c, "POST requests should come from ‘$base’")
+            unless defined $referer && $referer eq $base;
+    }
+
     $c->forward('deserialize');
 
     $c->stash->{params} = $c->request->data or $c->request->params;
