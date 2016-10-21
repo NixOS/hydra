@@ -66,7 +66,7 @@ sub begin :Private {
         $referer //= $c->req->header('Referer');
         my $base = $c->req->base;
         error($c, "POST requests should come from ‘$base’")
-            unless defined $referer && $referer eq $base;
+            unless defined $referer && substr($referer, 0, length $base) eq $base;
     }
 
     $c->forward('deserialize');
