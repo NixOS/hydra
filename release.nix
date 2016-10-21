@@ -58,8 +58,8 @@ rec {
         src = fetchFromGitHub {
           owner = "NixOS";
           repo = "nix";
-          rev = "5e61b422c58baac26b232233d39f5814cc35d52a";
-          sha256 = "0awic5zwibgpj5shpgjf2364imp2f84c8xi5r0x4p351q4kpg9z4";
+          rev = "fdbbcc44924cb4d9028fa68b2f7d423fb5d8670f";
+          sha256 = "0g420z3n0yspks0zy5ky529gbwriyrp702glslwq27ndl38aiiza";
         };
         buildInputs = attrs.buildInputs ++ [ autoreconfHook bison flex ];
         nativeBuildInputs = attrs.nativeBuildInputs ++ [ aws-sdk-cpp' autoconf-archive ];
@@ -147,7 +147,7 @@ rec {
       configureFlags = [ "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook" ];
 
       preHook = ''
-        PATH=$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
+        PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
         PERL5LIB=$(pwd)/src/lib:$PERL5LIB;
       '';
 
