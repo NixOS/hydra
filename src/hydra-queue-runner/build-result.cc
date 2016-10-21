@@ -1,8 +1,9 @@
 #include "build-result.hh"
 #include "store-api.hh"
 #include "util.hh"
-#include "regex.hh"
 #include "fs-accessor.hh"
+
+#include <regex>
 
 using namespace nix;
 
@@ -28,14 +29,14 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
     /* Get build products. */
     bool explicitProducts = false;
 
-    Regex regex(
-        "(([a-zA-Z0-9_-]+)" // type (e.g. "doc")
+    std::regex regex(
+        "([a-zA-Z0-9_-]+)" // type (e.g. "doc")
         "[[:space:]]+"
         "([a-zA-Z0-9_-]+)" // subtype (e.g. "readme")
         "[[:space:]]+"
-        "(\"[^\"]+\"|[^[:space:]\"]+))" // path (may be quoted)
+        "(\"[^\"]+\"|[^[:space:]\"]+)" // path (may be quoted)
         "([[:space:]]+([^[:space:]]+))?" // entry point
-        , true);
+        , std::regex::extended);
 
     for (auto & output : outputs) {
         Path failedFile = output + "/nix-support/failed";
@@ -51,13 +52,14 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
         for (auto & line : tokenizeString<Strings>(accessor->readFile(productsFile), "\n")) {
             BuildProduct product;
 
-            Regex::Subs subs;
-            if (!regex.matches(line, subs)) continue;
+            std::smatch match;
+            if (!std::regex_match(line, match, regex)) continue;
 
-            product.type = subs[1];
-            product.subtype = subs[2];
-            product.path = subs[3][0] == '"' ? string(subs[3], 1, subs[3].size() - 2) : subs[3];
-            product.defaultPath = subs[5];
+            product.type = match[1];
+            product.subtype = match[2];
+            std::string s(match[3]);
+            product.path = s[0] == '"' ? string(s, 1, s.size() - 2) : s;
+            product.defaultPath = match[5];
 
             /* Ensure that the path exists and points into the Nix
                store. */
