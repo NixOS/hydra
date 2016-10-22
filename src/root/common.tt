@@ -192,28 +192,28 @@ BLOCK renderBuildStatusIcon;
   buildstatus = buildstatus != undef ? buildstatus : build.buildstatus;
   IF finished;
     IF buildstatus == 0 %]
-      <img src="[% c.uri_for("/static/images/checkmark_${size}.png") %]" alt="Succeeded" class="build-status" />
+      <img src="[% c.uri_for("/static/images/checkmark_${size}.png") %]" title="Succeeded" alt="Succeeded" class="build-status" />
     [% ELSIF buildstatus == 1 %]
-      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" title="Failed" alt="Failed" class="build-status" />
     [% ELSIF buildstatus == 2 %]
-      <img src="[% c.uri_for("/static/images/dependency_${size}.png") %]" alt="Dependency failed" class="build-status" />
+      <img src="[% c.uri_for("/static/images/dependency_${size}.png") %]" title="Dependency failed" alt="Dependency failed" class="build-status" />
     [% ELSIF buildstatus == 3 || buildstatus == 9 %]
-      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Aborted" class="build-status" />
+      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" title="Aborted" alt="Aborted" class="build-status" />
     [% ELSIF buildstatus == 4 %]
-      <img src="[% c.uri_for("/static/images/forbidden_${size}.png") %]" alt="Cancelled" class="build-status" />
+      <img src="[% c.uri_for("/static/images/forbidden_${size}.png") %]" title="Cancelled" alt="Cancelled" class="build-status" />
     [% ELSIF buildstatus == 6 %]
-      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed with output" class="build-status" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" title="Failed with output" alt="Failed with output" class="build-status" />
     [% ELSIF buildstatus == 7 %]
-      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Timed out" class="build-status" />
+      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" title="Timed out" alt="Timed out" class="build-status" />
     [% ELSIF buildstatus == 10 %]
-      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Log limit exceeded" class="build-status" />
+      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" title="Log limit exceeded" alt="Log limit exceeded" class="build-status" />
     [% ELSIF buildstatus == 11 %]
-      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" alt="Output size limit exceeded" class="build-status" />
+      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" title="Output size limit exceeded" alt="Output size limit exceeded" class="build-status" />
     [% ELSE %]
-      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" alt="Failed" class="build-status" />
+      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" title="Failed" alt="Failed" class="build-status" />
     [% END;
   ELSE %]
-    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" alt="Queued" class="build-status" />
+    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" title="Queued" alt="Queued" class="build-status" />
   [% END;
 END;
 
