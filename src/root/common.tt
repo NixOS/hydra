@@ -192,28 +192,28 @@ BLOCK renderBuildStatusIcon;
   buildstatus = buildstatus != undef ? buildstatus : build.buildstatus;
   IF finished;
     IF buildstatus == 0 %]
-      <img src="[% c.uri_for("/static/images/checkmark_${size}.png") %]" title="Succeeded" alt="Succeeded" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-check-2714.svg") %]" height="[% size %]" width="[% size %]" title="Succeeded" alt="Succeeded" class="build-status" />
     [% ELSIF buildstatus == 1 %]
-      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" title="Failed" alt="Failed" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Failed" alt="Failed" class="build-status" />
     [% ELSIF buildstatus == 2 %]
-      <img src="[% c.uri_for("/static/images/dependency_${size}.png") %]" title="Dependency failed" alt="Dependency failed" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-gray-x-2716.svg") %]" height="[% size %]" width="[% size %]" title="Dependency failed" alt="Dependency failed" class="build-status" />
     [% ELSIF buildstatus == 3 || buildstatus == 9 %]
-      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" title="Aborted" alt="Aborted" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-stopsign-1f6d1.svg") %]" height="[% size %]" width="[% size %]" title="Aborted" alt="Aborted" class="build-status" />
     [% ELSIF buildstatus == 4 %]
-      <img src="[% c.uri_for("/static/images/forbidden_${size}.png") %]" title="Cancelled" alt="Cancelled" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-stopsign-1f6d1.svg") %]" height="[% size %]" width="[% size %]" title="Cancelled" alt="Cancelled" class="build-status" />
     [% ELSIF buildstatus == 6 %]
-      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" title="Failed with output" alt="Failed with output" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Failed with output" alt="Failed with output" class="build-status" />
     [% ELSIF buildstatus == 7 %]
-      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" title="Timed out" alt="Timed out" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Timed out" alt="Timed out" class="build-status" />
     [% ELSIF buildstatus == 10 %]
-      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" title="Log limit exceeded" alt="Log limit exceeded" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Log limit exceeded" alt="Log limit exceeded" class="build-status" />
     [% ELSIF buildstatus == 11 %]
-      <img src="[% c.uri_for("/static/images/warning_${size}.png") %]" title="Output size limit exceeded" alt="Output size limit exceeded" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Output size limit exceeded" alt="Output size limit exceeded" class="build-status" />
     [% ELSE %]
-      <img src="[% c.uri_for("/static/images/error_${size}.png") %]" title="Failed" alt="Failed" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Failed" alt="Failed" class="build-status" />
     [% END;
   ELSE %]
-    <img src="[% c.uri_for("/static/images/help_${size}.png") %]" title="Queued" alt="Queued" class="build-status" />
+    <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="[% size %]" width="[% size %]" title="Queued" alt="Queued" class="build-status" />
   [% END;
 END;
 
@@ -514,13 +514,13 @@ BLOCK renderJobsetOverview %]
       <tr>
         <td>
           [% IF j.get_column('nrscheduled') > 0 %]
-            <img src="[% c.uri_for("/static/images/help_16.png") %]" alt="Scheduled" />
+            <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="16" width="16" title="Scheduled" alt="Scheduled" />
           [% ELSIF j.get_column('nrfailed') == 0  %]
-            <img src="[% c.uri_for("/static/images/checkmark_16.png") %]" alt="Succeeded" />
+            <img src="[% c.uri_for("/static/images/emojione-check-2714.svg") %]" height="16" width="16" title="Succeeded" alt="Succeeded" />
           [% ELSIF j.get_column('nrfailed') > 0 && j.get_column('nrsucceeded') > 0 %]
-            <img src="[% c.uri_for("/static/images/error_some_16.png") %]" alt="Some Failed" />
+            <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="16" width="16" title="Some Failed" alt="Some Failed" />
           [% ELSE %]
-            <img src="[% c.uri_for("/static/images/error_16.png") %]" alt="All Failed" />
+            <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="16" width="16" title="All Failed" alt="All Failed" />
           [% END %]
         </td>
         <td><span class="[% IF !j.enabled %]disabled-jobset[% END %] [%+ IF j.hidden %]hidden-jobset[% END %]">[% IF showProject; INCLUDE renderFullJobsetName project=j.get_column('project') jobset=j.name inRow=1; ELSE; INCLUDE renderJobsetName project=j.get_column('project') jobset=j.name inRow=1; END %]</span></td>
