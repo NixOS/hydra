@@ -9,7 +9,7 @@ sub process {
 
     my $logPath = $c->stash->{logPath};
 
-    $c->response->content_type('text/plain');
+    $c->response->content_type('text/plain; charset=utf-8');
 
     my $fh = new IO::Handle;
 
