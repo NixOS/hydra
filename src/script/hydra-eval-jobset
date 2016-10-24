@@ -149,7 +149,7 @@ sub checkJobsetWrapped {
     my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo, $exprType));
     my $argsHash = sha256_hex("@args");
     my $prevEval = getPrevJobsetEval($db, $jobset, 0);
-    if (defined $prevEval && $prevEval->hash eq $argsHash && !$dryRun) {
+    if (defined $prevEval && $prevEval->hash eq $argsHash && !$dryRun && !$jobset->forceeval) {
         print STDERR "  jobset is unchanged, skipping\n";
         Net::Statsd::increment("hydra.evaluator.unchanged_checkouts");
         txn_do($db, sub {
@@ -279,7 +279,7 @@ sub checkJobsetWrapped {
         # If this is a one-shot jobset, disable it now.
         $jobset->update({ enabled => 0 }) if $jobset->enabled == 2;
 
-        $jobset->update({ lastcheckedtime => time });
+        $jobset->update({ lastcheckedtime => time, forceeval => undef });
     });
 
     my $dbStop = clock_gettime(CLOCK_REALTIME);

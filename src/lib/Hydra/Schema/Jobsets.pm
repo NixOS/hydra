@@ -129,6 +129,11 @@ __PACKAGE__->table("Jobsets");
   data_type: 'text'
   is_nullable: 1
 
+=head2 forceeval
+
+  data_type: 'boolean'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -166,6 +171,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 100, is_nullable => 0 },
   "fetcherrormsg",
   { data_type => "text", is_nullable => 1 },
+  "forceeval",
+  { data_type => "boolean", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -338,8 +345,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:52:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Coci9FdBAvUO9T3st2NEqA
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-10-24 20:12:51
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:PSR66NnVRNTMFhDEm10erA
 
 my %hint = (
     columns => [

@@ -202,10 +202,11 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
 
 
 sub triggerJobset {
-    my ($self, $c, $jobset) = @_;
+    my ($self, $c, $jobset, $force) = @_;
     print STDERR "triggering jobset ", $jobset->project->name . ":" . $jobset->name, "\n";
     txn_do($c->model('DB')->schema, sub {
         $jobset->update({ triggertime => time });
+        $jobset->update({ forceeval => 1 }) if $force;
     });
     push @{$c->{stash}->{json}->{jobsetsTriggered}}, $jobset->project->name . ":" . $jobset->name;
 }
@@ -222,12 +223,12 @@ sub push : Chained('api') PathPart('push') Args(0) {
         my ($p, $j) = parseJobsetName($s);
         my $jobset = $c->model('DB::Jobsets')->find($p, $j);
         next unless defined $jobset && ($force || ($jobset->project->enabled && $jobset->enabled));
-        triggerJobset($self, $c, $jobset);
+        triggerJobset($self, $c, $jobset, $force);
     }
 
     my @repos = split /,/, ($c->request->query_params->{repos} // "");
     foreach my $r (@repos) {
-        triggerJobset($self, $c, $_) foreach $c->model('DB::Jobsets')->search(
+        triggerJobset($self, $c, $_, $force) foreach $c->model('DB::Jobsets')->search(
             { 'project.enabled' => 1, 'me.enabled' => 1 },
             { join => 'project'
             , where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ]
@@ -251,7 +252,7 @@ sub push_github : Chained('api') PathPart('push-github') Args(0) {
     my $repo = $in->{repository}->{name} or die;
     print STDERR "got push from GitHub repository $owner/$repo\n";
 
-    triggerJobset($self, $c, $_) foreach $c->model('DB::Jobsets')->search(
+    triggerJobset($self, $c, $_, 0) foreach $c->model('DB::Jobsets')->search(
         { 'project.enabled' => 1, 'me.enabled' => 1 },
         { join => 'project'
         , where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)', [ 'value', "%github.com%$owner/$repo%" ] ]
