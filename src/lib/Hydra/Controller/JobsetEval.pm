@@ -1,5 +1,6 @@
 package Hydra::Controller::JobsetEval;
 
+use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::NixChannel';

@@ -1,5 +1,6 @@
 package Hydra::Controller::Root;
 
+use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
@@ -65,7 +66,7 @@ sub begin :Private {
         my $referer = $c->req->header('Origin');
         $referer //= $c->req->header('Referer');
         my $base = $c->req->base;
-        error($c, "POST requests should come from ‘$base’")
+        error($c, "POST requests should come from ‘$base’.")
             unless defined $referer && substr($referer, 0, length $base) eq $base;
     }
 
