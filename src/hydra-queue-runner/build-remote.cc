@@ -136,8 +136,6 @@ void State::buildRemote(ref<Store> destStore,
         Child child;
         openConnection(machine, tmpDir, logFD.get(), child);
 
-        logFD = -1;
-
         FdSource from(child.from.get());
         FdSink to(child.to.get());
 
@@ -222,6 +220,16 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         autoDelete.cancel();
+
+        /* Truncate the log to get rid of messages about substitutions
+           etc. on the remote system. */
+        if (lseek(logFD.get(), SEEK_SET, 0) != 0)
+            throw SysError("seeking to the start of log file ‘%s’", result.logFile);
+
+        if (ftruncate(logFD.get(), 0) == -1)
+            throw SysError("truncating log file ‘%s’", result.logFile);
+
+        logFD = -1;
 
         /* Do the build. */
         printMsg(lvlDebug, format("building ‘%1%’ on ‘%2%’") % step->drvPath % machine->sshName);
