@@ -119,6 +119,8 @@ void State::buildRemote(ref<Store> destStore,
     unsigned int maxSilentTime, unsigned int buildTimeout,
     RemoteResult & result)
 {
+    assert(BuildResult::TimedOut == 8);
+
     string base = baseNameOf(step->drvPath);
     result.logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
     AutoDelete autoDelete(result.logFile, false);
