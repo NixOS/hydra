@@ -108,6 +108,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
     Finally clearStep([&]() {
         if (stepNr && !stepFinished) {
+            printError("marking step %d of build %d as orphaned", stepNr, build->id);
             auto orphanedSteps_(orphanedSteps.lock());
             orphanedSteps_->emplace(build->id, stepNr);
         }
@@ -176,6 +177,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
     if (result.canRetry) {
         printMsg(lvlError, format("possibly transient failure building ‘%1%’ on ‘%2%’: %3%")
             % step->drvPath % machine->sshName % result.errorMsg);
+        assert(stepNr);
         bool retry;
         {
             auto step_(step->state.lock());
@@ -196,6 +198,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
     }
 
     if (result.stepStatus == bsSuccess) {
+
+        assert(stepNr);
 
         /* Register success in the database for all Build objects that
            have this step as the top-level step. Since the queue
@@ -293,13 +297,17 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
     } else {
 
+        /* For standard failures, we don't care about the error
+           message. */
+        if (result.stepStatus != bsAborted)
+            result.errorMsg = "";
+
         /* Register failure in the database for all Build objects that
            directly or indirectly depend on this step. */
 
         std::vector<BuildID> dependentIDs;
 
         while (true) {
-
             /* Get the builds and steps that depend on this step. */
             std::set<Build::ptr> indirect;
             {
@@ -315,20 +323,16 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                         printMsg(lvlDebug, format("finishing build step ‘%1%’") % s->drvPath);
                         steps_->erase(s->drvPath);
                     }
-                    break;
                 }
             }
+
+            if (indirect.empty() && stepFinished) break;
 
             /* Update the database. */
             {
                 auto mc = startDbUpdate();
 
                 pqxx::work txn(*conn);
-
-                /* For standard failures, we don't care about the error
-                   message. */
-                if (result.stepStatus != bsAborted)
-                    result.errorMsg = "";
 
                 /* Create failed build steps for every build that
                    depends on this, except when this step is cached
@@ -343,9 +347,11 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                         result.stepStatus, result.errorMsg, build == build2 ? 0 : build->id);
                 }
 
-                if (result.stepStatus != bsCachedFailure)
+                if (result.stepStatus != bsCachedFailure && !stepFinished) {
+                    assert(stepNr);
                     finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
                         build->id, stepNr, machine->sshName, result.stepStatus, result.errorMsg);
+                }
 
                 /* Mark all builds that depend on this derivation as failed. */
                 for (auto & build2 : indirect) {
