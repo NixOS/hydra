@@ -511,7 +511,7 @@ BLOCK renderJobsetOverview %]
   <tbody>
     [% FOREACH j IN jobsets %]
       [% successrate = 0 %]
-      <tr>
+      <tr class="[% IF j.hidden && !showHidden %] hidden-jobset [% END %] [% IF !j.enabled %] disabled-jobset [% END %]" >
         <td>
           [% IF j.get_column('nrscheduled') > 0 %]
             <img src="[% c.uri_for("/static/images/help_16.png") %]" alt="Scheduled" />

@@ -7,6 +7,6 @@
 
 [% ELSE %]
 
-  [% INCLUDE renderJobsetOverview showProject=1 %]
+  [% INCLUDE renderJobsetOverview showProject=1 showHidden=1 %]
 
 [% END %]

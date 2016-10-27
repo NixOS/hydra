@@ -47,6 +47,10 @@ span.hidden-project a, span.hidden-jobset a {
     color: gray;
 }
 
+tr.hidden-jobset {
+    display: none;
+}
+
 table.info-table th {
     padding-right: 1.0em;
     padding-bottom: 0.2em;

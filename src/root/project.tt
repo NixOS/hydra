@@ -26,14 +26,38 @@
 
 <div class="tab-content">
 
+  <script type="text/javascript">
+    $(document).ready(function() {
+      $('#show-hidden').on('click', function (e) {
+        var show = !$(this).hasClass('active');
+        if (show)
+          $('tr.hidden-jobset').show();
+        else
+          $('tr.hidden-jobset').hide();
+      });
+
+      $('#show-disabled').on('click', function (e) {
+        var show = !$(this).hasClass('active');
+        if (show)
+          $('tr.disabled-jobset').show();
+        else
+          $('tr.disabled-jobset').hide();
+      });
+    });
+  </script>
+
   <div id="tabs-project" class="tab-pane active">
     [% IF project.jobsets %]
-      <p>This project has the following jobsets:</p>
+      <p>This project has the following jobsets:
+      <button id="show-disabled" type="button" class="btn btn-small pull-right active" data-toggle="button">Show disabled jobsets</button>
+      [% IF isProjectOwner %]
+        <button id="show-hidden" type="button" class="btn btn-small pull-right" data-toggle="button">Show hidden jobsets</button>
+      [% END %]
+      </p>
       [% INCLUDE renderJobsetOverview %]
     [% ELSE %]
       <p>No jobsets have been defined yet.</p>
     [% END %]
-
   </div>
 
   <div id="tabs-configuration" class="tab-pane">

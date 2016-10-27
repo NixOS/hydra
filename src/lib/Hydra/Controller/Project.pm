@@ -14,6 +14,8 @@ sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
 
     $c->stash->{project} = $c->model('DB::Projects')->find($projectName);
 
+    $c->stash->{isProjectOwner} = isProjectOwner($c, $c->stash->{project});
+
     notFound($c, "Project ‘$projectName’ doesn't exist.")
         if !$c->stash->{project} && !($c->action->name eq "project" and $c->request->method eq "PUT");
 }
