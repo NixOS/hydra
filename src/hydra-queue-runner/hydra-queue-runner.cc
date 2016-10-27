@@ -133,6 +133,12 @@ void State::parseMachines(const std::string & contents)
             newMachines[m.first] = machine;
         }
 
+    static bool warned = false;
+    if (newMachines.empty() && !warned) {
+        printError("warning: no build machines are defined");
+        warned = true;
+    }
+
     auto machines_(machines.lock());
     *machines_ = newMachines;
 
