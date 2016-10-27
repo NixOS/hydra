@@ -119,10 +119,8 @@ span.keep-whitespace {
     max-width: none; /* don't apply responsive design to status images */
 }
 
-pre.taillog {
+pre.log, pre.taillog {
     line-height: 1.2em;
-    max-height: 60em;
-    overflow: hidden;
 }
 
 div.flot-tooltip {

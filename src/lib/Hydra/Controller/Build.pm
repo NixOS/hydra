@@ -155,19 +155,14 @@ sub showLog {
         || $size < 64 * 1024 * 1024;
 
     if ($mode eq "pretty") {
-        # !!! quick hack
-        my $pipeline = ($logPath =~ /.bz2$/ ? "bzip2 -d < $logPath" : "cat $logPath")
-            . " | nix-log2xml | xsltproc " . $c->path_to("xsl/mark-errors.xsl") . " -"
-            . " | xsltproc " . $c->path_to("xsl/log2html.xsl") . " -";
         $c->stash->{template} = 'log.tt';
-        $c->stash->{logtext} = decode("utf-8", `ulimit -t 5 ; $pipeline`);
+        $c->stash->{logtext} = logContents($logPath);
     }
 
     elsif ($mode eq "raw") {
         $c->stash->{logPath} = $logPath;
         $c->stash->{finished} = $finished;
         $c->forward('Hydra::View::NixLog');
-        return;
     }
 
     elsif ($mode eq "tail-reload") {

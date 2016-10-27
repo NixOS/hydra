@@ -8,10 +8,8 @@
   [% END %]
 </p>
 
-<hr />
-
-<div class="buildlog">
-[% logtext %]
-</div>
+<pre class="taillog" id="contents">
+[% HTML.escape(logtext) %]
+</pre>
 
 [% END %]

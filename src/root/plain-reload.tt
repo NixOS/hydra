@@ -1,11 +1,11 @@
-[% WRAPPER layout.tt title=title %]
+[% WRAPPER layout.tt title="Log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job $build.project.name:$build.jobset.name:$build.job.name" %]
 [% PROCESS common.tt %]
 
 [% project = build.project %]
 [% jobset = build.jobset %]
 [% job = build.job %]
 
-<h2>Last 50 log lines of [% INCLUDE renderFullJobNameOfBuild %] build <a href="[% c.uri_for('/build' build.id) %]">[% build.id %]</a>[%IF step %] step [% step.stepnr %][% END %]</h2>
+<p>Below are the last 50 log lines. The <a href="[% c.uri_for('/build' build.id 'log') %]">full log</a> is also available.</p>
 
 [% IF reload %]
 <script>
