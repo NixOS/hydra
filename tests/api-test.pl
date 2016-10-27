@@ -11,6 +11,7 @@ sub request_json {
     $req->method($opts->{method} or "GET");
     $req->uri("http://localhost:3000$opts->{uri}");
     $req->header(Accept => "application/json");
+    $req->header(Referer => "http://localhost:3000/") if $opts->{method} eq "POST";
     $req->content(encode_json($opts->{data})) if defined $opts->{data};
     my $res = $ua->request($req);
     print $res->as_string();
