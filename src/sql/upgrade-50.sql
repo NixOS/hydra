@@ -7,6 +7,6 @@ create trigger JobsetsDeleted after delete on Jobsets execute procedure notifyJo
 create function notifyJobsetSchedulingChanged() returns trigger as 'begin notify jobset_scheduling_changed; return null; end;' language plpgsql;
 create trigger JobsetSchedulingChanged after update on Jobsets for each row
   when (((old.triggerTime is distinct from new.triggerTime) and (new.triggerTime is not null))
-        or old.checkInterval != new.checkInterval
-        or old.enabled != new.enabled)
+        or (old.checkInterval != new.checkInterval)
+        or (old.enabled != new.enabled))
   execute procedure notifyJobsetSchedulingChanged();
