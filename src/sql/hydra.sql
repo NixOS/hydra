@@ -203,7 +203,7 @@ create table Builds (
     --   1 = regular Nix failure (derivation returned non-zero exit code)
     --   2 = build of a dependency failed [builds only]
     --   3 = build or step aborted due to misc failure
-    --   4 = build cancelled (removed from queue; never built) [builds only]
+    --   4 = build or step cancelled
     --   5 = [obsolete]
     --   6 = failure with output (i.e. $out/nix-support/failed exists) [builds only]
     --   7 = build timed out

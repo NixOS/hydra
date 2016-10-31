@@ -28,6 +28,7 @@ typedef enum {
     bsFailed = 1,
     bsDepFailed = 2, // builds only
     bsAborted = 3,
+    bsCancelled = 4,
     bsFailedWithOutput = 6, // builds only
     bsTimedOut = 7,
     bsCachedFailure = 8, // steps only
@@ -296,7 +297,6 @@ private:
     counter nrBuildsDone{0};
     counter nrStepsStarted{0};
     counter nrStepsDone{0};
-    counter nrActiveSteps{0};
     counter nrStepsBuilding{0};
     counter nrStepsCopyingTo{0};
     counter nrStepsCopyingFrom{0};
@@ -370,9 +370,13 @@ private:
         State & state;
         Step::ptr step;
         Machine::ptr machine;
+        pthread_t threadId = 0;
+        bool cancelled = false;
         MachineReservation(State & state, Step::ptr step, Machine::ptr machine);
         ~MachineReservation();
     };
+
+    nix::Sync<std::set<std::shared_ptr<MachineReservation>>> activeSteps_;
 
     std::atomic<time_t> lastDispatcherCheck{0};
 
@@ -413,9 +417,9 @@ private:
     /* Thread to reload /etc/nix/machines periodically. */
     void monitorMachinesFile();
 
-    unsigned int allocBuildStep(pqxx::work & txn, Build::ptr build);
+    unsigned int allocBuildStep(pqxx::work & txn, BuildID buildId);
 
-    unsigned int createBuildStep(pqxx::work & txn, time_t startTime, Build::ptr build, Step::ptr step,
+    unsigned int createBuildStep(pqxx::work & txn, time_t startTime, BuildID buildId, Step::ptr step,
         const std::string & machine, BuildStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
 

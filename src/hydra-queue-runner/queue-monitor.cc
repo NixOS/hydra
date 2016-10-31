@@ -2,6 +2,8 @@
 #include "build-result.hh"
 #include "globals.hh"
 
+#include <cstring>
+
 using namespace nix;
 
 
@@ -180,7 +182,7 @@ bool State::getQueuedBuilds(Connection & conn,
                     }
                 }
 
-                createBuildStep(txn, 0, build, ex.step, "", bsCachedFailure, "", propagatedFrom);
+                createBuildStep(txn, 0, build->id, ex.step, "", bsCachedFailure, "", propagatedFrom);
                 txn.parameterized
                     ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = 1 where id = $1 and finished = 0")
                     (build->id)
@@ -312,22 +314,44 @@ void State::processQueueChange(Connection & conn)
             currentIds[row["id"].as<BuildID>()] = row["globalPriority"].as<BuildID>();
     }
 
-    auto builds_(builds.lock());
+    {
+        auto builds_(builds.lock());
 
-    for (auto i = builds_->begin(); i != builds_->end(); ) {
-        auto b = currentIds.find(i->first);
-        if (b == currentIds.end()) {
-            printMsg(lvlInfo, format("discarding cancelled build %1%") % i->first);
-            i = builds_->erase(i);
-            // FIXME: ideally we would interrupt active build steps here.
-            continue;
+        for (auto i = builds_->begin(); i != builds_->end(); ) {
+            auto b = currentIds.find(i->first);
+            if (b == currentIds.end()) {
+                printMsg(lvlInfo, format("discarding cancelled build %1%") % i->first);
+                i = builds_->erase(i);
+                // FIXME: ideally we would interrupt active build steps here.
+                continue;
+            }
+            if (i->second->globalPriority < b->second) {
+                printMsg(lvlInfo, format("priority of build %1% increased") % i->first);
+                i->second->globalPriority = b->second;
+                i->second->propagatePriorities();
+            }
+            ++i;
         }
-        if (i->second->globalPriority < b->second) {
-            printMsg(lvlInfo, format("priority of build %1% increased") % i->first);
-            i->second->globalPriority = b->second;
-            i->second->propagatePriorities();
+    }
+
+    {
+        auto activeSteps(activeSteps_.lock());
+        for (auto & activeStep : *activeSteps) {
+            auto threadId = activeStep->threadId; // FIXME: use Sync or atomic?
+            if (threadId == 0) continue;
+
+            std::set<Build::ptr> dependents;
+            std::set<Step::ptr> steps;
+            getDependents(activeStep->step, dependents, steps);
+            if (!dependents.empty()) continue;
+
+            printInfo("cancelling thread for build step ‘%s’", activeStep->step->drvPath);
+
+            int err = pthread_cancel(threadId);
+            if (err)
+                printError("error cancelling thread for build step ‘%s’: %s",
+                    activeStep->step->drvPath, strerror(err));
         }
-        ++i;
     }
 }
 

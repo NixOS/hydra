@@ -23,7 +23,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
     </thead>
     <tbody>
       [% FOREACH step IN steps %]
-        [% IF ( type == "All" ) || ( type == "Failed" && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
+        [% IF ( type == "All" ) || ( type == "Failed" && step.busy == 0 && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
           [% has_log = seen.${step.drvpath} ? 0 : buildStepLogExists(step);
              seen.${step.drvpath} = 1;
              log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
@@ -49,7 +49,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
                    INCLUDE renderDuration duration = curTime - step.starttime;
                  END %]
             </td>
-            <td>[% IF step.busy == 1 || ((step.machine || step.starttime) && (step.status == 0 || step.status == 1 || step.status == 3 || step.status == 7)); INCLUDE renderMachineName machine=step.machine; ELSE; "<em>n/a</em>"; END %]</td>
+            <td>[% IF step.busy == 1 || ((step.machine || step.starttime) && (step.status == 0 || step.status == 1 || step.status == 3 || step.status == 4 || step.status == 7)); INCLUDE renderMachineName machine=step.machine; ELSE; "<em>n/a</em>"; END %]</td>
             <td>
               [% IF step.busy == 1 %]
                 <strong>Building</strong>
@@ -57,6 +57,8 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
                 Succeeded
               [% ELSIF step.status == 3 %]
                 <span class="error"><strong>Aborted</strong>[% IF step.errormsg %]: [% HTML.escape(step.errormsg); END %]</span>
+              [% ELSIF step.status == 4 %]
+                <span class="error">Cancelled</span>
               [% ELSIF step.status == 7 %]
                 <span class="error">Timed out</span>
               [% ELSIF step.status == 8 %]
@@ -242,7 +244,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
 
     [% IF build.finished %]
 
-      [% IF steps && build.buildstatus != 0 && build.buildstatus != 6 %]
+      [% IF steps && build.buildstatus != 0 && build.buildstatus != 4 && build.buildstatus != 6 %]
         <h3>Failed build steps</h3>
         [% INCLUDE renderBuildSteps type="Failed" %]
       [% END %]

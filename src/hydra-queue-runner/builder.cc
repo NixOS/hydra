@@ -13,7 +13,14 @@ void State::builder(MachineReservation::ptr reservation)
 
     nrStepsStarted++;
 
-    MaintainCount mc(nrActiveSteps);
+    reservation->threadId = pthread_self();
+
+    activeSteps_.lock()->insert(reservation);
+
+    Finally removeActiveStep([&]() {
+        reservation->threadId = -1;
+        activeSteps_.lock()->erase(reservation);
+    });
 
     auto step = reservation->step;
 
@@ -63,8 +70,15 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
        purpose of creating build steps. We could create a build step
        record for every build, but that could be very expensive
        (e.g. a stdenv derivation can be a dependency of tens of
-       thousands of builds), so we don't. */
-    Build::ptr build;
+       thousands of builds), so we don't.
+
+       We don't keep a Build::ptr here to allow
+       State::processQueueChange() to detect whether a step can be
+       cancelled (namely if there are no more Builds referring to
+       it). */
+    BuildID buildId;
+    Path buildDrvPath;
+    unsigned int maxSilentTime, buildTimeout;
 
     {
         std::set<Build::ptr> dependents;
@@ -85,6 +99,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
             return sMaybeCancelled;
         }
 
+        Build::ptr build;
+
         for (auto build2 : dependents) {
             if (build2->drvPath == step->drvPath) {
               build = build2;
@@ -93,11 +109,16 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         }
         if (!build) build = *dependents.begin();
 
+        buildId = build->id;
+        buildDrvPath = build->drvPath;
+        maxSilentTime = build->maxSilentTime;
+        buildTimeout = build->buildTimeout;
+
         printMsg(lvlInfo, format("performing step ‘%1%’ on ‘%2%’ (needed by build %3% and %4% others)")
-            % step->drvPath % machine->sshName % build->id % (dependents.size() - 1));
+            % step->drvPath % machine->sshName % buildId % (dependents.size() - 1));
     }
 
-    bool quit = build->id == buildOne && step->drvPath == build->drvPath;
+    bool quit = buildId == buildOne && step->drvPath == buildDrvPath;
 
     auto conn(dbPool.get());
 
@@ -108,9 +129,9 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
 
     Finally clearStep([&]() {
         if (stepNr && !stepFinished) {
-            printError("marking step %d of build %d as orphaned", stepNr, build->id);
+            printError("marking step %d of build %d as orphaned", stepNr, buildId);
             auto orphanedSteps_(orphanedSteps.lock());
-            orphanedSteps_->emplace(build->id, stepNr);
+            orphanedSteps_->emplace(buildId, stepNr);
         }
     });
 
@@ -127,20 +148,33 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         {
             auto mc = startDbUpdate();
             pqxx::work txn(*conn);
-            stepNr = createBuildStep(txn, result.startTime, build, step, machine->sshName, bsBusy);
+            stepNr = createBuildStep(txn, result.startTime, buildId, step, machine->sshName, bsBusy);
             txn.commit();
         }
 
         /* Do the build. */
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(destStore, machine, step, build->maxSilentTime, build->buildTimeout, result);
+            buildRemote(destStore, machine, step, maxSilentTime, buildTimeout, result);
         } catch (NoTokens & e) {
             result.stepStatus = bsNarSizeLimitExceeded;
         } catch (Error & e) {
             result.stepStatus = bsAborted;
             result.errorMsg = e.msg();
             result.canRetry = true;
+        } catch (__cxxabiv1::__forced_unwind & e) {
+            /* The queue monitor thread cancelled this step. */
+            try {
+                printInfo("marking step %d of build %d as succeeded", stepNr, buildId);
+                pqxx::work txn(*conn);
+                finishBuildStep(txn, result.startTime, time(0), result.overhead, buildId,
+                    stepNr, machine->sshName, bsCancelled, "");
+                txn.commit();
+                stepFinished = true;
+            } catch (...) {
+                ignoreException();
+            }
+            throw;
         }
 
         if (result.stepStatus == bsSuccess)
@@ -167,7 +201,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         {
             auto logCompressorQueue_(logCompressorQueue.lock());
             assert(stepNr);
-            logCompressorQueue_->push({build->id, stepNr, result.logFile});
+            logCompressorQueue_->push({buildId, stepNr, result.logFile});
         }
         logCompressorWakeup.notify_one();
     }
@@ -187,7 +221,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
             auto mc = startDbUpdate();
             {
             pqxx::work txn(*conn);
-            finishBuildStep(txn, result.startTime, result.stopTime, result.overhead, build->id,
+            finishBuildStep(txn, result.startTime, result.stopTime, result.overhead, buildId,
                 stepNr, machine->sshName, result.stepStatus, result.errorMsg);
             txn.commit();
             }
@@ -243,11 +277,11 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                 pqxx::work txn(*conn);
 
                 finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
-                    build->id, stepNr, machine->sshName, bsSuccess);
+                    buildId, stepNr, machine->sshName, bsSuccess);
 
                 for (auto & b : direct) {
                     printMsg(lvlInfo, format("marking build %1% as succeeded") % b->id);
-                    markSucceededBuild(txn, b, res, build != b || result.isCached,
+                    markSucceededBuild(txn, b, res, buildId != b->id || result.isCached,
                         result.startTime, result.stopTime);
                 }
 
@@ -340,17 +374,17 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
                    redundant with the build's isCachedBuild field). */
                 for (auto & build2 : indirect) {
                     if ((result.stepStatus == bsCachedFailure && build2->drvPath == step->drvPath) ||
-                        (result.stepStatus != bsCachedFailure && build == build2) ||
+                        (result.stepStatus != bsCachedFailure && buildId == build2->id) ||
                         build2->finishedInDB)
                         continue;
-                    createBuildStep(txn, 0, build2, step, machine->sshName,
-                        result.stepStatus, result.errorMsg, build == build2 ? 0 : build->id);
+                    createBuildStep(txn, 0, build2->id, step, machine->sshName,
+                        result.stepStatus, result.errorMsg, buildId == build2->id ? 0 : buildId);
                 }
 
                 if (result.stepStatus != bsCachedFailure && !stepFinished) {
                     assert(stepNr);
                     finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
-                        build->id, stepNr, machine->sshName, result.stepStatus, result.errorMsg);
+                        buildId, stepNr, machine->sshName, result.stepStatus, result.errorMsg);
                 }
 
                 /* Mark all builds that depend on this derivation as failed. */
@@ -392,7 +426,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         /* Send notification about this build and its dependents. */
         {
             auto notificationSenderQueue_(notificationSenderQueue.lock());
-            notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::BuildFinished, build->id, dependentIDs});
+            notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::BuildFinished, buildId, dependentIDs});
         }
         notificationSenderWakeup.notify_one();
 
