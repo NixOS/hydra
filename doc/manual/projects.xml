@@ -1,5 +1,6 @@
 <chapter xmlns="http://docbook.org/ns/docbook"
          xmlns:xlink="http://www.w3.org/1999/xlink"
+         xmlns:xi="http://www.w3.org/2001/XInclude"
          xml:id="chap-projects">
 
   <title>Creating and Managing Projects</title>
@@ -468,6 +469,7 @@ build_exotic =
 
   </section>
 
+  <xi:include href="declarative-projects.xml" />
 
 </chapter>
 

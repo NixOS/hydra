@@ -1,0 +1,96 @@
+<section xmlns="http://docbook.org/ns/docbook"
+         xmlns:xlink="http://www.w3.org/1999/xlink"
+         xml:id="sec-declarative-projects">
+
+  <title>Declarative projects</title>
+  <para>
+    Hydra also supports declarative projects, where jobsets are generated
+    and configured automatically from specification files instead of being
+    managed through the UI. A jobset specification is a JSON object
+    containing the configuration of the jobset, for example:
+  </para>
+  <programlisting language="json">
+    {
+        "enabled": 1,
+        "hidden": false,
+        "description": "js",
+        "nixexprinput": "src",
+        "nixexprpath": "release.nix",
+        "checkinterval": 300,
+        "schedulingshares": 100,
+        "enableemail": false,
+        "emailoverride": "",
+        "keepnr": 3,
+        "inputs": {
+            "src": { "type": "git", "value": "git://github.com/shlevy/declarative-hydra-example.git", "emailresponsible": false },
+            "nixpkgs": { "type": "git", "value": "git://github.com/NixOS/nixpkgs.git release-16.03", "emailresponsible": false }
+        }
+    }
+  </programlisting>
+  <para>
+    To configure a declarative project, take the following steps:
+  </para>
+  <orderedlist numeration="arabic" spacing="compact">
+    <listitem>
+      <para>
+        Create a jobset repository in the normal way (e.g. a git repo with
+        a <literal>release.nix</literal> file, any other needed helper
+        files, and taking any kind of hydra input), but without adding it
+        to the UI. The nix expression of this repository should contain a
+        single job, named <literal>jobsets</literal>. The output of the
+        <literal>jobsets</literal> job should be a JSON file containing an
+        object of jobset specifications. Each member of the object will
+        become a jobset of the project, configured by the corresponding
+        jobset specification.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        In some hydra-fetchable source (potentially, but not necessarily,
+        the same repo you created in step 1), create a JSON file
+        containing a jobset specification that points to the jobset
+        repository you created in the first step, specifying any needed
+        inputs (e.g. nixpkgs) as necessary.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        In the project creation/edit page, set declarative input type,
+        declarative input value, and declarative spec file to point to the
+        source and JSON file you created in step 2.
+      </para>
+    </listitem>
+  </orderedlist>
+  <para>
+    Hydra will create a special jobset named <literal>.jobsets</literal>,
+    which whenever evaluated will go through the steps above in reverse
+    order:
+  </para>
+  <orderedlist numeration="arabic" spacing="compact">
+    <listitem>
+      <para>
+        Hydra will fetch the input specified by the declarative input type
+        and value.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        Hydra will use the configuration given in the declarative spec
+        file as the jobset configuration for this evaluation. In addition
+        to any inputs specified in the spec file, hydra will also pass the
+        <literal>declInput</literal> argument corresponding to the input
+        fetched in step 1.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        As normal, hydra will build the jobs specified in the jobset
+        repository, which in this case is the single
+        <literal>jobsets</literal> job. When that job completes, hydra
+        will read the created jobset specifications and create
+        corresponding jobsets in the project, disabling any jobsets that
+        used to exist but are not present in the current spec.
+      </para>
+    </listitem>
+  </orderedlist>
+</section>
