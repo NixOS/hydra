@@ -27,22 +27,26 @@
 <div class="tab-content">
 
   <script type="text/javascript">
+    function showJobsets() {
+      var showHidden = $('#show-hidden').hasClass('active');
+      var showDisabled = $('#show-disabled').hasClass('active');
+      $('tr.jobset').map(function() {
+        var hide =
+          ($(this).hasClass('hidden-jobset') && !showHidden) ||
+          ($(this).hasClass('disabled-jobset') && !showDisabled);
+        if (hide) $(this).hide(); else $(this).show();
+      });
+      return false;
+    };
+
     $(document).ready(function() {
-      $('#show-hidden').on('click', function (e) {
-        var show = !$(this).hasClass('active');
-        if (show)
-          $('tr.hidden-jobset').show();
-        else
-          $('tr.hidden-jobset').hide();
+      $('#show-hidden, #show-disabled').on('click', function(e) {
+        $(this).toggleClass('active');
+        showJobsets();
+        return false;
       });
 
-      $('#show-disabled').on('click', function (e) {
-        var show = !$(this).hasClass('active');
-        if (show)
-          $('tr.disabled-jobset').show();
-        else
-          $('tr.disabled-jobset').hide();
-      });
+      showJobsets();
     });
   </script>
 
