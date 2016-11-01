@@ -53,9 +53,9 @@
   <div id="tabs-project" class="tab-pane active">
     [% IF project.jobsets %]
       <p>This project has the following jobsets:
-      <button id="show-disabled" type="button" class="btn btn-small pull-right active" data-toggle="button">Show disabled jobsets</button>
+      <label id="show-disabled" class="btn btn-small pull-right active" data-toggle="button">Show disabled jobsets</label>
       [% IF isProjectOwner %]
-        <button id="show-hidden" type="button" class="btn btn-small pull-right" data-toggle="button">Show hidden jobsets</button>
+        <label id="show-hidden" class="btn btn-small pull-right" data-toggle="button">Show hidden jobsets</label>
       [% END %]
       </p>
       [% INCLUDE renderJobsetOverview %]

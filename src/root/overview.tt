@@ -17,7 +17,31 @@
 
 [% IF projects.size != 0 %]
 
-<p>The following projects are hosted on this server:</p>
+<script type="text/javascript">
+  function showProjects() {
+    var showDisabled = $('#show-disabled').hasClass('active');
+    $('tr.project').map(function() {
+      var hide =
+        ($(this).hasClass('disabled-project') && !showDisabled);
+      if (hide) $(this).hide(); else $(this).show();
+    });
+    return false;
+  };
+
+  $(document).ready(function() {
+    $('#show-disabled').on('click', function(e) {
+      $(this).toggleClass('active');
+      showProjects();
+      return false;
+    });
+
+    showProjects();
+  });
+</script>
+
+<p>The following projects are hosted on this server:
+<label id="show-disabled" class="btn btn-small pull-right" data-toggle="button">Show disabled projects</label>
+</p>
 
 <table class="table table-condensed table-striped clickable-rows">
   <thead>
@@ -29,7 +53,7 @@
   </thead>
   <tbody>
     [% FOREACH p IN projects %]
-    <tr>
+    <tr class="project [% IF !p.enabled %]disabled-project[% END %]">
       <td><span class="[% IF !p.enabled %]disabled-project[% END %] [%+ IF p.hidden %]hidden-project[% END %]">[% INCLUDE renderProjectName project=p.name inRow=1 %]</span></td>
       <td>[% HTML.escape(p.displayname) %]</td>
       <td>[% WRAPPER maybeLink uri=p.homepage %][% HTML.escape(p.description) %][% END %]</td>

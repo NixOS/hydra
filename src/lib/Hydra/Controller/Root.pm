@@ -91,7 +91,7 @@ sub deserialize :ActionClass('Deserialize') { }
 sub index :Path :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'overview.tt';
-    $c->stash->{projects} = [$c->model('DB::Projects')->search(isAdmin($c) ? {} : {hidden => 0}, {order_by => 'name'})];
+    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'name'})];
     $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, { order_by => ['createtime DESC'], rows => 5 })];
     $self->status_ok($c,
         entity => $c->stash->{projects}
