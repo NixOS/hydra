@@ -370,13 +370,17 @@ private:
         State & state;
         Step::ptr step;
         Machine::ptr machine;
-        pthread_t threadId = 0;
-        bool cancelled = false;
         MachineReservation(State & state, Step::ptr step, Machine::ptr machine);
         ~MachineReservation();
     };
 
-    nix::Sync<std::set<std::shared_ptr<MachineReservation>>> activeSteps_;
+    struct ActiveStep
+    {
+        Step::ptr step;
+        pthread_t threadId;
+    };
+
+    nix::Sync<std::set<std::shared_ptr<ActiveStep>>> activeSteps_;
 
     std::atomic<time_t> lastDispatcherCheck{0};
 

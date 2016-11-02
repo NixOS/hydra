@@ -13,13 +13,14 @@ void State::builder(MachineReservation::ptr reservation)
 
     nrStepsStarted++;
 
-    reservation->threadId = pthread_self();
-
-    activeSteps_.lock()->insert(reservation);
+    auto activeStep = std::make_shared<ActiveStep>();
+    activeStep->step = reservation->step;
+    activeStep->threadId = pthread_self();
+    activeSteps_.lock()->insert(activeStep);
 
     Finally removeActiveStep([&]() {
-        reservation->threadId = -1;
-        activeSteps_.lock()->erase(reservation);
+        activeStep->threadId = -1;
+        activeSteps_.lock()->erase(activeStep);
     });
 
     auto step = reservation->step;
