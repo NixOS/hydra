@@ -166,7 +166,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         } catch (__cxxabiv1::__forced_unwind & e) {
             /* The queue monitor thread cancelled this step. */
             try {
-                printInfo("marking step %d of build %d as succeeded", stepNr, buildId);
+                printInfo("marking step %d of build %d as cancelled", stepNr, buildId);
                 pqxx::work txn(*conn);
                 finishBuildStep(txn, result.startTime, time(0), result.overhead, buildId,
                     stepNr, machine->sshName, bsCancelled, "");
