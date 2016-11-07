@@ -15,11 +15,9 @@ void State::builder(MachineReservation::ptr reservation)
 
     auto activeStep = std::make_shared<ActiveStep>();
     activeStep->step = reservation->step;
-    activeStep->threadId = pthread_self();
     activeSteps_.lock()->insert(activeStep);
 
     Finally removeActiveStep([&]() {
-        activeStep->threadId = -1;
         activeSteps_.lock()->erase(activeStep);
     });
 
@@ -27,7 +25,7 @@ void State::builder(MachineReservation::ptr reservation)
 
     try {
         auto destStore = getDestStore();
-        res = doBuildStep(destStore, step, reservation->machine);
+        res = doBuildStep(destStore, reservation, activeStep);
     } catch (std::exception & e) {
         printMsg(lvlError, format("uncaught exception building ‘%1%’ on ‘%2%’: %3%")
             % step->drvPath % reservation->machine->sshName % e.what());
@@ -56,9 +54,13 @@ void State::builder(MachineReservation::ptr reservation)
 }
 
 
-State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
-    Machine::ptr machine)
+State::StepResult State::doBuildStep(nix::ref<Store> destStore,
+    MachineReservation::ptr reservation,
+    std::shared_ptr<ActiveStep> activeStep)
 {
+    auto & step(reservation->step);
+    auto & machine(reservation->machine);
+
     {
         auto step_(step->state.lock());
         assert(step_->created);
@@ -156,26 +158,19 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore, Step::ptr step,
         /* Do the build. */
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(destStore, machine, step, maxSilentTime, buildTimeout, result);
+            buildRemote(destStore, machine, step, maxSilentTime, buildTimeout, result, activeStep);
         } catch (NoTokens & e) {
             result.stepStatus = bsNarSizeLimitExceeded;
         } catch (Error & e) {
-            result.stepStatus = bsAborted;
-            result.errorMsg = e.msg();
-            result.canRetry = true;
-        } catch (__cxxabiv1::__forced_unwind & e) {
-            /* The queue monitor thread cancelled this step. */
-            try {
+            if (activeStep->state_.lock()->cancelled) {
                 printInfo("marking step %d of build %d as cancelled", stepNr, buildId);
-                pqxx::work txn(*conn);
-                finishBuildStep(txn, result.startTime, time(0), result.overhead, buildId,
-                    stepNr, machine->sshName, bsCancelled, "");
-                txn.commit();
-                stepFinished = true;
-            } catch (...) {
-                ignoreException();
+                result.stepStatus = bsCancelled;
+                result.canRetry = false;
+            } else {
+                result.stepStatus = bsAborted;
+                result.errorMsg = e.msg();
+                result.canRetry = true;
             }
-            throw;
         }
 
         if (result.stepStatus == bsSuccess)

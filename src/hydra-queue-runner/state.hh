@@ -377,7 +377,14 @@ private:
     struct ActiveStep
     {
         Step::ptr step;
-        pthread_t threadId;
+
+        struct State
+        {
+            pid_t pid = -1;
+            bool cancelled = false;
+        };
+
+        nix::Sync<State> state_;
     };
 
     nix::Sync<std::set<std::shared_ptr<ActiveStep>>> activeSteps_;
@@ -476,12 +483,13 @@ private:
        retried. */
     enum StepResult { sDone, sRetry, sMaybeCancelled };
     StepResult doBuildStep(nix::ref<nix::Store> destStore,
-        Step::ptr step, Machine::ptr machine);
+        MachineReservation::ptr reservation,
+        std::shared_ptr<ActiveStep> activeStep);
 
     void buildRemote(nix::ref<nix::Store> destStore,
         Machine::ptr machine, Step::ptr step,
         unsigned int maxSilentTime, unsigned int buildTimeout,
-        RemoteResult & result);
+        RemoteResult & result, std::shared_ptr<ActiveStep> activeStep);
 
     void markSucceededBuild(pqxx::work & txn, Build::ptr build,
         const BuildOutput & res, bool isCachedBuild, time_t startTime, time_t stopTime);

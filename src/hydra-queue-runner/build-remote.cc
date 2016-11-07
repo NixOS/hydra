@@ -117,7 +117,7 @@ static void copyClosureTo(ref<Store> destStore,
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
     unsigned int maxSilentTime, unsigned int buildTimeout,
-    RemoteResult & result)
+    RemoteResult & result, std::shared_ptr<ActiveStep> activeStep)
 {
     assert(BuildResult::TimedOut == 8);
 
@@ -137,6 +137,24 @@ void State::buildRemote(ref<Store> destStore,
 
         Child child;
         openConnection(machine, tmpDir, logFD.get(), child);
+
+        {
+            auto activeStepState(activeStep->state_.lock());
+            if (activeStepState->cancelled) throw Error("step cancelled");
+            activeStepState->pid = child.pid;
+        }
+
+        Finally clearPid([&]() {
+            auto activeStepState(activeStep->state_.lock());
+            activeStepState->pid = -1;
+
+            /* FIXME: there is a slight race here with step
+               cancellation in State::processQueueChange(), which
+               could call kill() on this pid after we've done waitpid()
+               on it. With pid wrap-around, there is a tiny
+               possibility that we end up killing another
+               process. Meh. */
+        });
 
         FdSource from(child.from.get());
         FdSink to(child.to.get());

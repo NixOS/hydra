@@ -337,20 +337,23 @@ void State::processQueueChange(Connection & conn)
     {
         auto activeSteps(activeSteps_.lock());
         for (auto & activeStep : *activeSteps) {
-            auto threadId = activeStep->threadId; // FIXME: use Sync or atomic?
-            if (threadId == 0) continue;
-
             std::set<Build::ptr> dependents;
             std::set<Step::ptr> steps;
             getDependents(activeStep->step, dependents, steps);
             if (!dependents.empty()) continue;
 
-            printInfo("cancelling thread for build step ‘%s’", activeStep->step->drvPath);
-
-            int err = pthread_cancel(threadId);
-            if (err)
-                printError("error cancelling thread for build step ‘%s’: %s",
-                    activeStep->step->drvPath, strerror(err));
+            {
+                auto activeStepState(activeStep->state_.lock());
+                if (activeStepState->cancelled) continue;
+                activeStepState->cancelled = true;
+                if (activeStepState->pid != -1) {
+                    printInfo("killing builder process %d of build step ‘%s’",
+                        activeStepState->pid, activeStep->step->drvPath);
+                    if (kill(activeStepState->pid, SIGINT) == -1)
+                        printError("error killing build step ‘%s’: %s",
+                            activeStep->step->drvPath, strerror(errno));
+                }
+            }
         }
     }
 }
