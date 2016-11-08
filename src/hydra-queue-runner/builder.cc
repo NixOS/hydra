@@ -13,22 +13,24 @@ void State::builder(MachineReservation::ptr reservation)
 
     nrStepsStarted++;
 
-    auto activeStep = std::make_shared<ActiveStep>();
-    activeStep->step = reservation->step;
-    activeSteps_.lock()->insert(activeStep);
+    Step::wptr wstep = reservation->step;
 
-    Finally removeActiveStep([&]() {
-        activeSteps_.lock()->erase(activeStep);
-    });
+    {
+        auto activeStep = std::make_shared<ActiveStep>();
+        activeStep->step = reservation->step;
+        activeSteps_.lock()->insert(activeStep);
 
-    auto step = reservation->step;
+        Finally removeActiveStep([&]() {
+            activeSteps_.lock()->erase(activeStep);
+        });
 
-    try {
-        auto destStore = getDestStore();
-        res = doBuildStep(destStore, reservation, activeStep);
-    } catch (std::exception & e) {
-        printMsg(lvlError, format("uncaught exception building ‘%1%’ on ‘%2%’: %3%")
-            % step->drvPath % reservation->machine->sshName % e.what());
+        try {
+            auto destStore = getDestStore();
+            res = doBuildStep(destStore, reservation, activeStep);
+        } catch (std::exception & e) {
+            printMsg(lvlError, format("uncaught exception building ‘%1%’ on ‘%2%’: %3%")
+                % reservation->step->drvPath % reservation->machine->sshName % e.what());
+        }
     }
 
     /* Release the machine and wake up the dispatcher. */
@@ -38,7 +40,9 @@ void State::builder(MachineReservation::ptr reservation)
 
     /* If there was a temporary failure, retry the step after an
        exponentially increasing interval. */
-    if (res != sDone) {
+    Step::ptr step = wstep.lock();
+    if (res != sDone && step) {
+
         if (res == sRetry) {
             auto step_(step->state.lock());
             step_->tries++;
