@@ -32,28 +32,36 @@ void State::makeRunnable(Step::ptr step)
 void State::dispatcher()
 {
     while (true) {
-        printMsg(lvlDebug, "dispatcher woken up");
-        nrDispatcherWakeups++;
 
-        auto now1 = std::chrono::steady_clock::now();
+        try {
+            printMsg(lvlDebug, "dispatcher woken up");
+            nrDispatcherWakeups++;
 
-        auto sleepUntil = doDispatch();
+            auto now1 = std::chrono::steady_clock::now();
 
-        auto now2 = std::chrono::steady_clock::now();
+            auto sleepUntil = doDispatch();
 
-        dispatchTimeMs += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
+            auto now2 = std::chrono::steady_clock::now();
 
-        /* Sleep until we're woken up (either because a runnable build
-           is added, or because a build finishes). */
-        {
-            auto dispatcherWakeup_(dispatcherWakeup.lock());
-            if (!*dispatcherWakeup_) {
-                printMsg(lvlDebug, format("dispatcher sleeping for %1%s") %
-                    std::chrono::duration_cast<std::chrono::seconds>(sleepUntil - std::chrono::system_clock::now()).count());
-                dispatcherWakeup_.wait_until(dispatcherWakeupCV, sleepUntil);
+            dispatchTimeMs += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
+
+            /* Sleep until we're woken up (either because a runnable build
+               is added, or because a build finishes). */
+            {
+                auto dispatcherWakeup_(dispatcherWakeup.lock());
+                if (!*dispatcherWakeup_) {
+                    printMsg(lvlDebug, format("dispatcher sleeping for %1%s") %
+                        std::chrono::duration_cast<std::chrono::seconds>(sleepUntil - std::chrono::system_clock::now()).count());
+                    dispatcherWakeup_.wait_until(dispatcherWakeupCV, sleepUntil);
+                }
+                *dispatcherWakeup_ = false;
             }
-            *dispatcherWakeup_ = false;
+
+        } catch (std::exception & e) {
+            printMsg(lvlError, format("dispatcher: %1%") % e.what());
+            sleep(1);
         }
+
     }
 
     printMsg(lvlError, "dispatcher exits");
