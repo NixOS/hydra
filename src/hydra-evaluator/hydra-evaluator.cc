@@ -232,6 +232,24 @@ struct Evaluator
                     if (jobset.second.pid == pid) {
                         printInfo("evaluation of jobset ‘%s:%s’ %s",
                             jobset.first.first, jobset.first.second, statusToString(status));
+
+                        try {
+
+                            if (!WIFEXITED(status) || WEXITSTATUS(status) > 1) {
+                                auto conn(dbPool.get());
+                                pqxx::work txn(*conn);
+                                txn.parameterized
+                                    ("update Jobsets set errorMsg = $1, errorTime = $2")
+                                    (fmt("evaluation %s", statusToString(status)))
+                                    (time(0))
+                                    .exec();
+                                txn.commit();
+                            }
+
+                        } catch (std::exception & e) {
+                            printError("exception setting jobset error: %s", e.what());
+                        }
+
                         jobset.second.pid.release();
                         maybeDoWork.notify_one();
                         break;
