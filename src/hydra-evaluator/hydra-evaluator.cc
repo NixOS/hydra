@@ -230,8 +230,8 @@ struct Evaluator
                 state->runningEvals--;
                 for (auto & jobset : state->jobsets)
                     if (jobset.second.pid == pid) {
-                        printInfo("evaluation of jobset ‘%s:%s’ finished with status %d",
-                            jobset.first.first, jobset.first.second, status);
+                        printInfo("evaluation of jobset ‘%s:%s’ %s",
+                            jobset.first.first, jobset.first.second, statusToString(status));
                         jobset.second.pid.release();
                         maybeDoWork.notify_one();
                         break;
