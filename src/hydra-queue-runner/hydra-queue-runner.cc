@@ -799,11 +799,9 @@ void State::run(BuildID buildOne)
 
     localStore = openStore();
 
-    if (hydraConfig["store_uri"] == "") {
-        _destStore = localStore;
-    } else {
-        _destStore = openStoreAt(hydraConfig["store_uri"]);
-    }
+    _destStore = hydraConfig["store_uri"] == ""
+        ? localStore
+        : openStore(hydraConfig["store_uri"]);
 
     auto isTrue = [](const std::string & s) {
         return s == "1" || s == "true";
