@@ -179,6 +179,9 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         if (result.stepStatus == bsSuccess)
             res = getBuildOutput(destStore, ref<FSAccessor>(result.accessor), step->drv);
+
+        result.accessor = 0;
+        result.tokens = 0;
     }
 
     time_t stepStopTime = time(0);

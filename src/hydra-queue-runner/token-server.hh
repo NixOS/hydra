@@ -40,6 +40,7 @@ public:
         {
             if (tokens >= ts->maxTokens)
                 throw NoTokens(format("requesting more tokens (%d) than exist (%d)") % tokens % ts->maxTokens);
+            debug("acquiring %d tokens", tokens);
             auto inUse(ts->inUse.lock());
             while (*inUse + tokens > ts->maxTokens)
                 if (timeout) {
@@ -54,21 +55,38 @@ public:
 
     public:
 
-        Token(Token && t) : ts(t.ts) { t.ts = 0; }
+        Token(Token && t) : ts(t.ts), tokens(t.tokens), acquired(t.acquired)
+        {
+            t.ts = 0;
+            t.acquired = false;
+        }
         Token(const Token & l) = delete;
 
         ~Token()
         {
             if (!ts || !acquired) return;
-            {
-                auto inUse(ts->inUse.lock());
-                assert(*inUse >= tokens);
-                *inUse -= tokens;
-            }
-            ts->wakeup.notify_one();
+            give_back(tokens);
         }
 
         bool operator ()() { return acquired; }
+
+        void give_back(size_t t)
+        {
+            debug("returning %d tokens", t);
+            if (!t) return;
+            assert(acquired);
+            assert(t <= tokens);
+            {
+                auto inUse(ts->inUse.lock());
+                assert(*inUse >= t);
+                *inUse -= t;
+                tokens -= t;
+            }
+            // FIXME: inefficient. Should wake up waiters that can
+            // proceed now.
+            ts->wakeup.notify_all();
+        }
+
     };
 
     Token get(size_t tokens = 1, unsigned int timeout = 0)

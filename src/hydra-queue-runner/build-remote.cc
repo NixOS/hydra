@@ -373,10 +373,13 @@ void State::buildRemote(ref<Store> destStore,
                 % step->drvPath % machine->sshName % totalNarSize);
 
             /* Block until we have the required amount of memory
-               available. FIXME: only need this for binary cache
-               destination stores. */
+               available, which is twice the NAR size (namely the
+               uncompressed and worst-case compressed NAR), plus 150
+               MB for xz compression overhead. (The xz manpage claims
+               ~94 MiB, but that's not was I'm seeing.) */
             auto resStart = std::chrono::steady_clock::now();
-            auto memoryReservation(memoryTokens.get(totalNarSize));
+            size_t compressionCost = totalNarSize + 150 * 1024 * 1024;
+            result.tokens = std::make_unique<nix::TokenServer::Token>(memoryTokens.get(totalNarSize + compressionCost));
             auto resStop = std::chrono::steady_clock::now();
 
             auto resMs = std::chrono::duration_cast<std::chrono::milliseconds>(resStop - resStart).count();
@@ -389,6 +392,11 @@ void State::buildRemote(ref<Store> destStore,
             to << cmdExportPaths << 0 << outputs;
             to.flush();
             destStore->importPaths(from, result.accessor, true);
+
+            /* Release the tokens pertaining to NAR
+               compression. After this we only have the uncompressed
+               NAR in memory. */
+            result.tokens->give_back(compressionCost);
 
             auto now2 = std::chrono::steady_clock::now();
 

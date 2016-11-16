@@ -50,6 +50,7 @@ struct RemoteResult
     time_t startTime = 0, stopTime = 0;
     unsigned int overhead = 0;
     nix::Path logFile;
+    std::unique_ptr<nix::TokenServer::Token> tokens;
     std::shared_ptr<nix::FSAccessor> accessor;
 
     BuildStatus buildStatus()
