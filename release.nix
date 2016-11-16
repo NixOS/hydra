@@ -58,8 +58,8 @@ rec {
         src = fetchFromGitHub {
           owner = "NixOS";
           repo = "nix";
-          rev = "2af5d35fdc1171a9bdab7e2fc005673d76417c06";
-          sha256 = "1q2s4r895qn6sws048j7xwfdpyxm0dwkh52c55535w7x46am33wa";
+          rev = "4be4f6de56f4de77f6a376f1a40ed75eb641bb89";
+          sha256 = "0icvbwpca1jh8qkdlayxspdxl5fb0qjjd1kn74x6gs6iy66kndq6";
         };
         buildInputs = attrs.buildInputs ++ [ autoreconfHook bison flex ];
         nativeBuildInputs = attrs.nativeBuildInputs ++ [ aws-sdk-cpp' autoconf-archive ];
