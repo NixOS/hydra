@@ -204,44 +204,7 @@ sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {
 
 sub robots_txt : Path('robots.txt') {
     my ($self, $c) = @_;
-
-    sub uri_for {
-        my ($c, $controller, $action, @args) = @_;
-        return $c->uri_for($c->controller($controller)->action_for($action), @args)->path;
-    }
-
-    sub channelUris {
-        my ($c, $controller, $bindings) = @_;
-        return
-            ( uri_for($c, $controller, 'closure', $bindings, "*")
-            , uri_for($c, $controller, 'manifest', $bindings)
-            , uri_for($c, $controller, 'pkg', $bindings, "*")
-            , uri_for($c, $controller, 'nixexprs', $bindings)
-            , uri_for($c, $controller, 'channel_contents', $bindings)
-            );
-    }
-
-    # Put actions that are expensive or not useful for indexing in
-    # robots.txt.  Note: wildcards are not universally supported in
-    # robots.txt, but apparently Google supports them.
-    my @rules =
-        ( uri_for($c, 'Build', 'build', ["*"])
-        , uri_for($c, 'Root', 'nar', [], "*")
-        , uri_for($c, 'Root', 'status', [])
-        , uri_for($c, 'Root', 'all', [])
-        , uri_for($c, 'Root', 'queue', [])
-        , uri_for($c, 'API', 'scmdiff', [])
-        , uri_for($c, 'API', 'logdiff', [],"*", "*")
-        , uri_for($c, 'Project', 'all', ["*"])
-        , uri_for($c, 'Jobset', 'all', ["*", "*"])
-        , uri_for($c, 'Job', 'all', ["*", "*", "*"])
-        , channelUris($c, 'Root', ["*"])
-        , channelUris($c, 'Project', ["*", "*"])
-        , channelUris($c, 'Jobset', ["*", "*", "*"])
-        , channelUris($c, 'Job', ["*", "*", "*", "*"])
-        );
-
-    $c->stash->{'plain'} = { data => "User-agent: *\n" . join('', map { "Disallow: $_\n" } @rules) };
+    $c->stash->{'plain'} = { data => "User-agent: *\nDisallow: /*\n" };
     $c->forward('Hydra::View::Plain');
 }
 
