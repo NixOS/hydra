@@ -3,9 +3,9 @@ package Hydra::Controller::Root;
 use utf8;
 use strict;
 use warnings;
-use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use base 'Hydra::Base::Controller::REST';
 use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
 use Nix::Config;
@@ -189,16 +189,6 @@ sub machines :Local Args(0) {
         "where busy = 1 order by machine, stepnr",
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
-}
-
-
-# Hydra::Base::Controller::ListBuilds needs this.
-sub get_builds : Chained('/') PathPart('') CaptureArgs(0) {
-    my ($self, $c) = @_;
-    $c->stash->{allBuilds} = $c->model('DB::Builds');
-    $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceeded');
-    $c->stash->{channelBaseName} = "everything";
-    $c->stash->{total} = $c->model('DB::NrBuilds')->find('finished')->count;
 }
 
 
