@@ -143,7 +143,7 @@ dbserver.example.org:*:hydra:hydra:password</screen>
 
       Make sure that the <emphasis>HYDRA_DATA</emphasis> directory
       exists and is writable for the user which will run the Hydra
-      services. 
+      services.
     </para>
 
     <para>
@@ -220,6 +220,58 @@ hydra-server</screen>
 
   </section>
 
+  <section>
+    <title> Serving behind reverse proxy </title>
+
+    <para>
+      To serve hydra web server behind reverse proxy like
+      <emphasis>nginx</emphasis> or <emphasis>httpd</emphasis> some
+      additional configuration must be made.
+    </para>
+
+    <para>
+      Edit your <literal>hydra.conf</literal> file in a similar way to
+      this example:
+
+      <screen>
+using_frontend_proxy 1
+base_uri example.com</screen>
+
+      <literal>base_uri</literal> should be your hydra servers proxied URL.
+
+      If you are using Hydra nixos module then setting <literal>hydraURL</literal>
+      option should be enough.
+
+    </para>
+
+    <para>
+
+      If you want to serve Hydra with a prefix path, for example
+      <ulink>http://example.com/hydra</ulink> then you need to configure your
+      reverse proxy to pass <literal>X-Request-Base</literal> to hydra, with
+      prefix path as value.
+
+      For example if you are using nginx, then use configuration similar to following:
+      <screen>
+server {
+    listen 433 ssl;
+    server_name example.com;
+    .. other configuration ..
+    location /hydra/ {
+
+        proxy_pass     http://127.0.0.1:3000;
+        proxy_redirect http://127.0.0.1:3000 https://example.com/hydra;
+
+        proxy_set_header  Host              $host;
+        proxy_set_header  X-Real-IP         $remote_addr;
+        proxy_set_header  X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header  X-Forwarded-Proto $scheme;
+        proxy_set_header  X-Request-Base    /hydra;
+    }
+}</screen>
+
+    </para>
+  </section>
 </chapter>
 
 <!--
