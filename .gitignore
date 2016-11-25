@@ -22,7 +22,6 @@ Makefile.in
 /src/hydra-eval-jobs/hydra-eval-jobs
 /src/root/static/bootstrap
 /src/root/static/js/flot
-/src/root/static/js/jquery
 /doc/manual/images
 /doc/manual/manual.html
 /doc/manual/manual.pdf
