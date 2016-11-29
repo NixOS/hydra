@@ -471,6 +471,26 @@ build_exotic =
 
   <xi:include href="declarative-projects.xml" />
 
+  <section>
+    <title>Email Notifications</title>
+    <para>
+      Hydra can send email notifications when the status of a build changes. This provides
+      immediate feedback to maintainers or committers when a change causes build failures.
+    </para>
+
+    <para>
+      The simplest approach to enable Email Notifications is to use the ssmtp package, which
+      simply hands off the emails to another SMTP server. For details on how to configure ssmtp,
+      see the documentation for the <varname>networking.defaultMailServer</varname> option.
+      To use ssmtp for the Hydra email notifications, add it to the path option of the Hydra services
+      in your <filename>/etc/nixos/configuration.nix</filename> file:
+<programlisting>
+systemd.services.hydra-queue-runner.path = [ pkgs.ssmtp ];
+systemd.services.hydra-server.path = [ pkgs.ssmtp ];
+</programlisting>
+    </para>
+  </section>
+
 </chapter>
 
 <!--
