@@ -211,6 +211,7 @@ create table Builds (
     --   9 = unsupported system type
     --  10 = log limit exceeded
     --  11 = NAR size limit exceeded
+    --  12 = build or step was not deterministic
     buildStatus   integer,
 
     size          bigint,

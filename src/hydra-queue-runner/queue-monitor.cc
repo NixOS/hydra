@@ -418,6 +418,7 @@ Step::ptr State::createStep(ref<Store> destStore,
     step->drv = readDerivation(drvPath);
 
     step->preferLocalBuild = step->drv.willBuildLocally();
+    step->isDeterministic = get(step->drv.env, "isDetermistic", "0") == "1";
 
     step->systemType = step->drv.platform;
     {

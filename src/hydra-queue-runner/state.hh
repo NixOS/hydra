@@ -35,6 +35,7 @@ typedef enum {
     bsUnsupported = 9,
     bsLogLimitExceeded = 10,
     bsNarSizeLimitExceeded = 11,
+    bsNotDeterministic = 12,
     bsBusy = 100, // not stored
 } BuildStatus;
 
@@ -139,6 +140,7 @@ struct Step
     nix::Derivation drv;
     std::set<std::string> requiredSystemFeatures;
     bool preferLocalBuild;
+    bool isDeterministic;
     std::string systemType; // concatenation of drv.platform and requiredSystemFeatures
 
     struct State

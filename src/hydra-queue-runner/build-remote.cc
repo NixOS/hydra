@@ -169,7 +169,7 @@ void State::buildRemote(ref<Store> destStore,
         unsigned int remoteVersion;
 
         try {
-            to << SERVE_MAGIC_1 << 0x202;
+            to << SERVE_MAGIC_1 << 0x203;
             to.flush();
 
             unsigned int magic = readInt(from);
@@ -180,6 +180,8 @@ void State::buildRemote(ref<Store> destStore,
                 throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % machine->sshName);
             if (GET_PROTOCOL_MINOR(remoteVersion) >= 1)
                 sendDerivation = false;
+            if (GET_PROTOCOL_MINOR(remoteVersion) < 3 && step->isDeterministic)
+                throw Error("machine ‘%1%’ does not support deterministic builds; please upgrade it to Nix 1.12", machine->sshName);
 
         } catch (EndOfFile & e) {
             child.pid.wait(true);
@@ -261,6 +263,9 @@ void State::buildRemote(ref<Store> destStore,
         to << maxSilentTime << buildTimeout;
         if (GET_PROTOCOL_MINOR(remoteVersion) >= 2)
             to << 64 * 1024 * 1024; // == maxLogSize
+        if (GET_PROTOCOL_MINOR(remoteVersion) >= 3)
+            // FIXME: make the number of repeats configurable.
+            to << (step->isDeterministic ? 1 : 0);
         to.flush();
 
         result.startTime = time(0);
@@ -324,6 +329,11 @@ void State::buildRemote(ref<Store> destStore,
                     break;
                 case BuildResult::LogLimitExceeded:
                     result.stepStatus = bsLogLimitExceeded;
+                    break;
+                case BuildResult::NotDeterministic:
+                    result.stepStatus = bsNotDeterministic;
+                    result.canRetry = false;
+                    result.canCache = true;
                     break;
                 default:
                     result.stepStatus = bsAborted;

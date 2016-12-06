@@ -69,6 +69,8 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
                 <span class="error">Log limit exceeded</span>
               [% ELSIF step.status == 11 %]
                 <span class="error">Output limit exceeded</span>
+              [% ELSIF step.status == 12 %]
+                <span class="error">Non-deterministic build</span>
               [% ELSIF step.errormsg %]
                 <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
               [% ELSE %]
