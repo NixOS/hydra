@@ -264,20 +264,21 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
 }
 
 
-void State::finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime, unsigned int overhead,
-    BuildID buildId, unsigned int stepNr, const std::string & machine, BuildStatus status,
-    const std::string & errorMsg, BuildID propagatedFrom)
+void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
+    BuildID buildId, unsigned int stepNr, const std::string & machine)
 {
-    assert(startTime);
-    assert(stopTime);
+    assert(result.startTime);
+    assert(result.stopTime);
     txn.parameterized
-        ("update BuildSteps set busy = 0, status = $1, propagatedFrom = $4, errorMsg = $5, startTime = $6, stopTime = $7, machine = $8, overhead = $9 where build = $2 and stepnr = $3")
-        ((int) status)(buildId)(stepNr)
-        (propagatedFrom, propagatedFrom != 0)
-        (errorMsg, errorMsg != "")
-        (startTime)(stopTime)
+        ("update BuildSteps set busy = 0, status = $1, errorMsg = $4, startTime = $5, stopTime = $6, machine = $7, overhead = $8, timesBuilt = $9, isNonDeterministic = $10 where build = $2 and stepnr = $3")
+        ((int) result.stepStatus)(buildId)(stepNr)
+        (result.errorMsg, result.errorMsg != "")
+        (result.startTime)(result.stopTime)
         (machine, machine != "")
-        (overhead, overhead != 0).exec();
+        (result.overhead, result.overhead != 0)
+        (result.timesBuilt, result.timesBuilt > 0)
+        (result.isNonDeterministic, result.timesBuilt > 1)
+        .exec();
 }
 
 
@@ -808,6 +809,13 @@ void State::run(BuildID buildOne)
     };
 
     useSubstitutes = isTrue(hydraConfig["use-substitutes"]);
+
+    // FIXME: hacky mechanism for configuring determinism checks.
+    for (auto & s : tokenizeString<Strings>(hydraConfig["xxx-jobset-repeats"])) {
+        auto s2 = tokenizeString<std::vector<std::string>>(s, ":");
+        if (s2.size() != 3) throw Error("bad value in xxx-jobset-repeats");
+        jobsetRepeats.emplace(std::make_pair(s2[0], s2[1]), std::stoi(s2[2]));
+    }
 
     {
         auto conn(dbPool.get());

@@ -103,6 +103,16 @@ __PACKAGE__->table("BuildSteps");
   data_type: 'integer'
   is_nullable: 1
 
+=head2 timesbuilt
+
+  data_type: 'integer'
+  is_nullable: 1
+
+=head2 isnondeterministic
+
+  data_type: 'boolean'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -132,6 +142,10 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
   "overhead",
   { data_type => "integer", is_nullable => 1 },
+  "timesbuilt",
+  { data_type => "integer", is_nullable => 1 },
+  "isnondeterministic",
+  { data_type => "boolean", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -201,8 +215,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-02-16 18:04:52
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:TRALbEoaF/OIOyERYCyxkw
+# Created by DBIx::Class::Schema::Loader v0.07045 @ 2016-12-07 13:48:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3FYkqSUfgWmiqZzmX8J4TA
 
 my %hint = (
     columns => [

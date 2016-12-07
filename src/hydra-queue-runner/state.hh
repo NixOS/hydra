@@ -48,6 +48,9 @@ struct RemoteResult
     bool canCache = false; // for bsFailed
     std::string errorMsg; // for bsAborted
 
+    unsigned int timesBuilt = 0;
+    bool isNonDeterministic = false;
+
     time_t startTime = 0, stopTime = 0;
     unsigned int overhead = 0;
     nix::Path logFile;
@@ -414,6 +417,10 @@ private:
        from showing up as busy until the queue runner is restarted. */
     nix::Sync<std::set<std::pair<BuildID, int>>> orphanedSteps;
 
+    /* How often the build steps of a jobset should be repeated in
+       order to detect non-determinism. */
+    std::map<std::pair<std::string, std::string>, unsigned int> jobsetRepeats;
+
 public:
     State();
 
@@ -437,10 +444,8 @@ private:
         const std::string & machine, BuildStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
 
-    void finishBuildStep(pqxx::work & txn, time_t startTime, time_t stopTime,
-        unsigned int overhead, BuildID buildId, unsigned int stepNr,
-        const std::string & machine, BuildStatus status, const std::string & errorMsg = "",
-        BuildID propagatedFrom = 0);
+    void finishBuildStep(pqxx::work & txn, const RemoteResult & result, BuildID buildId, unsigned int stepNr,
+        const std::string & machine);
 
     int createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
         Build::ptr build, const nix::Path & drvPath, const std::string & outputName, const nix::Path & storePath);
@@ -492,6 +497,7 @@ private:
     void buildRemote(nix::ref<nix::Store> destStore,
         Machine::ptr machine, Step::ptr step,
         unsigned int maxSilentTime, unsigned int buildTimeout,
+        unsigned int repeats,
         RemoteResult & result, std::shared_ptr<ActiveStep> activeStep);
 
     void markSucceededBuild(pqxx::work & txn, Build::ptr build,

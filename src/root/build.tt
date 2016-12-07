@@ -50,13 +50,20 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
                  END %]
             </td>
             <td>[% IF step.busy == 1 || ((step.machine || step.starttime) && (step.status == 0 || step.status == 1 || step.status == 3 || step.status == 4 || step.status == 7)); INCLUDE renderMachineName machine=step.machine; ELSE; "<em>n/a</em>"; END %]</td>
-            <td>
+            <td class="step-status">
               [% IF step.busy == 1 %]
                 <strong>Building</strong>
               [% ELSIF step.status == 0 %]
-                Succeeded
+                [% IF step.isnondeterministic %]
+                  <span class="warn">Succeeded with non-determistic result</span>
+                [% ELSE %]
+                  Succeeded
+                [% END %]
+                [% IF step.timesbuilt > 1 %]
+                  ([% step.timesbuilt %] times)
+                [% END %]
               [% ELSIF step.status == 3 %]
-                <span class="error"><strong>Aborted</strong>[% IF step.errormsg %]: [% HTML.escape(step.errormsg); END %]</span>
+                <span class="error">Aborted</span>[% IF step.errormsg %]: <em>[% HTML.escape(step.errormsg) %]</em>[% END %]
               [% ELSIF step.status == 4 %]
                 <span class="error">Cancelled</span>
               [% ELSIF step.status == 7 %]
@@ -70,9 +77,9 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
               [% ELSIF step.status == 11 %]
                 <span class="error">Output limit exceeded</span>
               [% ELSIF step.status == 12 %]
-                <span class="error">Non-deterministic build</span>
+                <span class="error">Non-determinism detected</span> [% IF step.timesbuilt %] after [% step.timesbuilt %] times[% END %]
               [% ELSIF step.errormsg %]
-                <span class="error">Failed: [% HTML.escape(step.errormsg) %]</span>
+                <span class="error">Failed</span>: <em>[% HTML.escape(step.errormsg) %]</em>
               [% ELSE %]
                 <span class="error">Failed</span>
               [% END %]
@@ -137,7 +144,7 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
     <table>
       <tr>
         <td>
-          [% INCLUDE renderBuildStatusIcon size=128, build=build %]
+          [% INCLUDE renderBuildStatusIcon size=128 build=build %]
         </td>
         <td>
           <table class="info-table">

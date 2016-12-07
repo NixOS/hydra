@@ -116,7 +116,7 @@ static void copyClosureTo(ref<Store> destStore,
 
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
-    unsigned int maxSilentTime, unsigned int buildTimeout,
+    unsigned int maxSilentTime, unsigned int buildTimeout, unsigned int repeats,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep)
 {
     assert(BuildResult::TimedOut == 8);
@@ -263,9 +263,10 @@ void State::buildRemote(ref<Store> destStore,
         to << maxSilentTime << buildTimeout;
         if (GET_PROTOCOL_MINOR(remoteVersion) >= 2)
             to << 64 * 1024 * 1024; // == maxLogSize
-        if (GET_PROTOCOL_MINOR(remoteVersion) >= 3)
-            // FIXME: make the number of repeats configurable.
-            to << (step->isDeterministic ? 1 : 0);
+        if (GET_PROTOCOL_MINOR(remoteVersion) >= 3) {
+            to << repeats // == build-repeat
+               << step->isDeterministic; // == enforce-determinism
+        }
         to.flush();
 
         result.startTime = time(0);
@@ -295,6 +296,10 @@ void State::buildRemote(ref<Store> destStore,
             result.stepStatus = bsSuccess;
         } else {
             result.errorMsg = readString(from);
+            if (GET_PROTOCOL_MINOR(remoteVersion) >= 3) {
+                result.timesBuilt = readInt(from);
+                result.isNonDeterministic = readInt(from);
+            }
             switch ((BuildResult::Status) res) {
                 case BuildResult::Built:
                     result.stepStatus = bsSuccess;

@@ -132,3 +132,13 @@ div.flot-tooltip {
     opacity: 0.80;
     z-index: 100;
 }
+
+td.step-status span.error {
+    color: red;
+    font-weight: bold;
+}
+
+td.step-status span.warn {
+    color: #aaaa00;
+    font-weight: bold;
+}

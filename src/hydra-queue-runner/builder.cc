@@ -86,6 +86,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     BuildID buildId;
     Path buildDrvPath;
     unsigned int maxSilentTime, buildTimeout;
+    unsigned int repeats = step->isDeterministic ? 1 : 0;
 
     {
         std::set<Build::ptr> dependents;
@@ -113,6 +114,11 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
               build = build2;
               enqueueNotificationItem({NotificationItem::Type::BuildStarted, build->id});
             }
+            {
+                auto i = jobsetRepeats.find(std::make_pair(build2->projectName, build2->jobsetName));
+                if (i != jobsetRepeats.end())
+                    repeats = std::max(repeats, i->second);
+            }
         }
         if (!build) build = *dependents.begin();
 
@@ -121,8 +127,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         maxSilentTime = build->maxSilentTime;
         buildTimeout = build->buildTimeout;
 
-        printMsg(lvlInfo, format("performing step ‘%1%’ on ‘%2%’ (needed by build %3% and %4% others)")
-            % step->drvPath % machine->sshName % buildId % (dependents.size() - 1));
+        printInfo("performing step ‘%s’ %d times on ‘%s’ (needed by build %d and %d others)",
+            step->drvPath, repeats + 1, machine->sshName, buildId, (dependents.size() - 1));
     }
 
     bool quit = buildId == buildOne && step->drvPath == buildDrvPath;
@@ -162,7 +168,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         /* Do the build. */
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(destStore, machine, step, maxSilentTime, buildTimeout, result, activeStep);
+            buildRemote(destStore, machine, step, maxSilentTime, buildTimeout, repeats, result, activeStep);
         } catch (NoTokens & e) {
             result.stepStatus = bsNarSizeLimitExceeded;
         } catch (Error & e) {
@@ -224,8 +230,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             auto mc = startDbUpdate();
             {
             pqxx::work txn(*conn);
-            finishBuildStep(txn, result.startTime, result.stopTime, result.overhead, buildId,
-                stepNr, machine->sshName, result.stepStatus, result.errorMsg);
+            finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
             txn.commit();
             }
             stepFinished = true;
@@ -279,8 +284,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
                 pqxx::work txn(*conn);
 
-                finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
-                    buildId, stepNr, machine->sshName, bsSuccess);
+                finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
 
                 for (auto & b : direct) {
                     printMsg(lvlInfo, format("marking build %1% as succeeded") % b->id);
@@ -386,8 +390,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
                 if (result.stepStatus != bsCachedFailure && !stepFinished) {
                     assert(stepNr);
-                    finishBuildStep(txn, result.startTime, result.stopTime, result.overhead,
-                        buildId, stepNr, machine->sshName, result.stepStatus, result.errorMsg);
+                    finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
                 }
 
                 /* Mark all builds that depend on this derivation as failed. */

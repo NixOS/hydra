@@ -289,6 +289,12 @@ create table BuildSteps (
     -- Time in milliseconds spend copying stuff from/to build machines.
     overhead      integer,
 
+    -- How many times this build step was done (for checking determinism).
+    timesBuilt    integer,
+
+    -- Whether this build step produced different results when repeated.
+    isNonDeterministic boolean,
+
     primary key   (build, stepnr),
     foreign key   (build) references Builds(id) on delete cascade,
     foreign key   (propagatedFrom) references Builds(id) on delete cascade
