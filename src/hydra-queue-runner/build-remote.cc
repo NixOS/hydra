@@ -299,6 +299,14 @@ void State::buildRemote(ref<Store> destStore,
             if (GET_PROTOCOL_MINOR(remoteVersion) >= 3) {
                 result.timesBuilt = readInt(from);
                 result.isNonDeterministic = readInt(from);
+                auto start = readInt(from);
+                auto stop = readInt(from);
+                if (start && start) {
+                    /* Note: this represents the duration of a single
+                       round, rather than all rounds. */
+                    result.startTime = start;
+                    result.stopTime = stop;
+                }
             }
             switch ((BuildResult::Status) res) {
                 case BuildResult::Built:
