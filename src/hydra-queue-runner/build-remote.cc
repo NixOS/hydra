@@ -180,8 +180,8 @@ void State::buildRemote(ref<Store> destStore,
                 throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % machine->sshName);
             if (GET_PROTOCOL_MINOR(remoteVersion) >= 1)
                 sendDerivation = false;
-            if (GET_PROTOCOL_MINOR(remoteVersion) < 3 && step->isDeterministic)
-                throw Error("machine ‘%1%’ does not support deterministic builds; please upgrade it to Nix 1.12", machine->sshName);
+            if (GET_PROTOCOL_MINOR(remoteVersion) < 3 && repeats > 0)
+                throw Error("machine ‘%1%’ does not support repeating a build; please upgrade it to Nix 1.12", machine->sshName);
 
         } catch (EndOfFile & e) {
             child.pid.wait(true);
