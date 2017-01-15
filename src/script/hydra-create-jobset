@@ -1,0 +1,84 @@
+#! /usr/bin/env perl
+
+use strict;
+use Hydra::Plugin;
+use Hydra::Schema;
+use Hydra::Helper::Nix;
+use Hydra::Helper::AddBuilds;
+use Hydra::Model::DB;
+use Getopt::Long qw(:config gnu_getopt);
+
+sub showHelp {
+    print <<EOF;
+Usage: $0 PROJECT [NAME]
+  [--trigger] [--force]
+  [--description DESCRIPTION]
+  [--url URL]
+  [--ref REF]
+  [--pull-request PULLREQUEST]
+EOF
+    exit 0;
+}
+
+my ($triggerEval, $forceEval, $description, $nixpkgsUrl, $nixpkgsRef, $pullRequest);
+
+GetOptions("trigger" => \$triggerEval,
+           "force" => \$forceEval,
+           "description=s" => \$description,
+           "url=s" => \$nixpkgsUrl,
+           "ref=s" => \$nixpkgsRef,
+           "pull-request=s" => \$pullRequest,
+           "help" => sub { showHelp() }
+    ) or exit 1;
+
+die "$0: project name required\n" if @ARGV == 0;
+my $projectName = $ARGV[0];
+my $jobsetName = $ARGV[1] if @ARGV == 2;
+
+$jobsetName = "pr-$pullRequest" if $pullRequest;
+$nixpkgsRef = "refs/pull/$pullRequest/merge" if $pullRequest;
+
+$description = "" unless $description;
+$nixpkgsUrl = "https://github.com/NixOS/nixpkgs.git" unless $nixpkgsUrl;
+$nixpkgsRef = "master" unless $nixpkgsRef;
+
+# TODO
+my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
+
+my $db = Hydra::Model::DB->new();
+
+txn_do($db, sub {
+    my $project = $db->resultset('Projects')->find({ name => $projectName });
+    my $jobset = $project->jobsets->update_or_create(
+      { name => $jobsetName, description => $description,
+        nixexprinput => "nixpkgs",
+        nixexprpath => "nixos/release-combined.nix",
+        enabled => 2, checkinterval => 0, emailoverride => "",
+        enableemail => 0
+      });
+
+    if ($jobset->jobsetinputs->count == 0) {
+      my $jobsetinput;
+      my $jobsetinputals;
+      my $jobsetinput_supported;
+      my $jobsetinputals_supported;
+      $jobsetinput = $jobset->jobsetinputs->create({name => "nixpkgs", type => "git"});
+      $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => "$nixpkgsUrl $nixpkgsRef"});
+      $jobsetinput_supported = $jobset->jobsetinputs->create({name => "supportedSystems", type => "nix"});
+      $jobsetinputals_supported = $jobsetinput_supported->jobsetinputalts->create({altnr => 0, value => "[\"i686-linux\" \"x86_64-linux\"]"});
+    }
+
+    if ($jobset->jobsetinputs->count == 1) {
+      my $jobsetinput_supported;
+      my $jobsetinputals_supported;
+      $jobsetinput_supported = $jobset->jobsetinputs->create({name => "supportedSystems", type => "nix"});
+      $jobsetinputals_supported = $jobsetinput_supported->jobsetinputalts->create({altnr => 0, value => "[\"i686-linux\" \"x86_64-linux\"]"});
+    }
+
+    if ($triggerEval) {
+      $jobset->update({ triggertime => time });
+      $jobset->update({ forceeval => 1 }) if $forceEval;
+    }
+  });
+
+print STDERR "created jobset $jobsetName in $projectName\n";
