@@ -47,7 +47,7 @@
       <tr><th></th><th>Input name</th><th>Type</th><th style="width: 50%">Value</th><th>Notify committers</th></tr>
     </thead>
     <tbody class="inputs">
-      [% inputs = createFromEval ? eval.jobsetevalinputs : jobset.jobsetinputs; FOREACH input IN inputs.sort('name') %]
+      [% inputs = createFromEval ? eval.jobsetevalinputs : jobset.jobsetinputs; FOREACH input IN inputs %]
         [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
       <tr>

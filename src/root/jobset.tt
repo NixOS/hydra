@@ -33,7 +33,7 @@
       <tr><th>Input name</th><th>Type</th><th>Values</th></tr>
     </thead>
     <tbody class="inputs">
-      [% FOREACH input IN jobset.jobsetinputs.sort('name') %]
+      [% FOREACH input IN jobset.jobsetinputs %]
         [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
     </tbody>
