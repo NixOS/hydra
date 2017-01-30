@@ -217,6 +217,8 @@ in
 
     nix.trustedUsers = [ "hydra-queue-runner" ];
 
+    nix.package = (import ./nix.nix pkgs).nix;
+
     services.hydra-dev.package = mkDefault ((import ./release.nix {}).build.x86_64-linux);
 
     services.hydra-dev.extraConfig =
