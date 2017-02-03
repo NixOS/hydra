@@ -1,8 +1,8 @@
-#! /bin/sh -e
+#!/bin/bash -e
 
-url=$1
-rev=$2
-expHash=$3
+url=
+rev=
+expHash=
 hashType=$NIX_HASH_ALGO
 deepClone=$NIX_PREFETCH_GIT_DEEP_CLONE
 leaveDotGit=$NIX_PREFETCH_GIT_LEAVE_DOT_GIT
@@ -30,6 +30,7 @@ for arg; do
       --url) argfun=set_url;;
       --rev) argfun=set_rev;;
       --hash) argfun=set_hashType;;
+      --token) argfun=set_token;;
       --deepClone) deepClone=true;;
       --no-deepClone) deepClone=false;;
       --leave-dotGit) leaveDotGit=true;;
@@ -63,6 +64,7 @@ Options:
       --url url       Any url understand by 'git clone'.
       --rev ref       Any sha1 or references (such as refs/heads/master)
       --hash h        Expected hash.
+      --token token   The token to use then cloning submodules from https://github.com
       --deepClone     Clone submodules recursively.
       --no-deepClone  Do not clone submodules.
       --leave-dotGit  Keep the .git directories.
@@ -133,6 +135,119 @@ checkout_ref(){
     fi;
 }
 
+#
+# URI parsing function
+#
+# The function creates global variables with the parsed results.
+# It returns 0 if parsing was successful or non-zero otherwise.
+#
+# [schema://][user[:password]@]host[:port][/path][?[arg1=val1]...][#fragment]
+#
+# from http://wp.vpalos.com/537/uri-parsing-using-bash-built-in-features/
+#
+# Modified regex to support 'file:///' patterns
+#
+# TODO: Support ssh://example.com:some/path
+function uri_parser() {
+    # uri capture
+    uri="$@"
+
+    # safe escaping
+    uri="${uri//\`/%60}"
+    uri="${uri//\"/%22}"
+
+    # top level parsing
+    pattern='^(([a-z]{3,5})://)?((([^:\/]*)(:([^@\/]*))?@)?([^:\/?]+)(:([0-9]+))?)(\/[^?]*)?(\?[^#]*)?(#.*)?$'
+    [[ "$uri" =~ $pattern ]] || return 1;
+
+    # component extraction
+    uri=${BASH_REMATCH[0]}
+    uri_schema=${BASH_REMATCH[2]}
+    uri_address=${BASH_REMATCH[3]}
+    uri_user=${BASH_REMATCH[5]}
+    uri_password=${BASH_REMATCH[7]}
+    uri_host=${BASH_REMATCH[8]}
+    uri_port=${BASH_REMATCH[10]}
+    uri_path=${BASH_REMATCH[11]}
+    uri_query=${BASH_REMATCH[12]}
+    uri_fragment=${BASH_REMATCH[13]}
+
+    # path parsing
+    count=0
+    path="$uri_path"
+    pattern='^/+([^/]+)'
+    while [[ $path =~ $pattern ]]; do
+        eval "uri_parts[$count]=\"${BASH_REMATCH[1]}\""
+        path="${path:${#BASH_REMATCH[0]}}"
+        let count++
+    done
+
+    # query parsing
+    count=0
+    query="$uri_query"
+    pattern='^[?&]+([^= ]+)(=([^&]*))?'
+    while [[ $query =~ $pattern ]]; do
+        eval "uri_args[$count]=\"${BASH_REMATCH[1]}\""
+        eval "uri_arg_${BASH_REMATCH[1]}=\"${BASH_REMATCH[3]}\""
+        query="${query:${#BASH_REMATCH[0]}}"
+        let count++
+    done
+
+    # return success
+    return 0
+}
+
+# Try to insert an authentication token before github.com
+#
+# The first argument must be an authentication token to insert before the
+# hostname.
+#
+# The second argument must be the URI.
+#
+# sets the variable `authUri` to the given uri with the authentication token
+# inserted iff the input is of the form https://github.com/something and the
+# token is non empty.
+#
+# The authentication token is inserted between `https://` and `github.com`
+#
+# If the token is empty `authUri` is set to the input uri.
+#
+# On any other input `authUri` is set to the input uri.
+maybeAddGithubAuthentication(){
+  local token="$1";
+  local uri="$2";
+  echoerr() { printf "%s\n" "$*" >&2; }
+
+  if [ -z ${var+x} ]; then
+    authUri="$uri";
+    return 0;
+  fi;
+
+  uri_parser "$uri" || { echoerr "Error: Malformed URI!"; authUri="$uri"; return 1; }
+
+  [[ "$uri_schema" = "https" ]];
+  local isHttps=$?;
+  [[ "$uri_host" = "github.com" ]];
+  local isGithub=$?;
+  [[ -z "$uri_user" ]];
+  local noUserSpecified=$?;
+
+  if ((noUserSpecified == 1)); then
+    authUri="$uri";
+    return 0;
+  fi;
+
+  if ((isHttps == 1)); then
+    if ((isGithub == 0)); then
+      echoerr "Warning: github token will not be applied to non-https uri: $uri";
+    fi;
+    authUri="$uri";
+    return 0;
+  fi;
+
+  authUri="$uri_schema://$token@$uri_host:$uri_port$uri_path$uri_query$uri_fragment";
+}
+
 # Update submodules
 init_submodules(){
     # Add urls into .git/config file
@@ -146,7 +261,10 @@ init_submodules(){
         local dir=$(echo $l | sed 's,^-\([0-9a-f]*\) \(.*\)$,\2,');
         local url=$(sed -n "\,$dir, { :loop; n; s,^.*url = ,,; T loop; p; q }" .git/config);
 
-        clone "$dir" "$url" "$hash" "";
+        maybeAddGithubAuthentication $token $url
+        local authenticatedUrl="$authUri"
+
+        clone "$dir" "$authenticatedUrl" "$hash" "";
     done;
 }
 

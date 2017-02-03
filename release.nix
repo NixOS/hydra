@@ -108,6 +108,7 @@ rec {
             TestMore
             TextDiff
             TextTable
+            URI
             XMLSimple
             nix git boehmgc aws-sdk-cpp'
           ];
