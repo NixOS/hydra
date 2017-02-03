@@ -42,18 +42,12 @@ rec {
     let
 
       aws-sdk-cpp' =
-        lib.overrideDerivation (aws-sdk-cpp.override {
+        aws-sdk-cpp.override {
           apis = ["s3"];
           customMemoryManagement = false;
-        }) (attrs: {
-          src = fetchFromGitHub {
-            owner = "edolstra";
-            repo = "aws-sdk-cpp";
-            rev = "d1e2479f79c24e2a1df8a3f3ef3278a1c6383b1e";
-            sha256 = "1vhgsxkhpai9a7dk38q4r239l6dsz2jvl8hii24c194lsga3g84h";
-          };
-        });
+        };
 
+        /*
       nix = overrideDerivation nixUnstable (attrs: {
         src = fetchFromGitHub {
           owner = "NixOS";
@@ -66,6 +60,8 @@ rec {
         configureFlags = attrs.configureFlags + " --disable-doc-gen";
         preConfigure = "./bootstrap.sh; mkdir -p $doc $man";
       });
+      */
+      nix = nixUnstable;
 
       perlDeps = buildEnv {
         name = "hydra-perl-deps";

@@ -459,7 +459,7 @@ void State::logCompressor()
                 throw SysError("cannot start bzip2");
             });
 
-            int res = pid.wait(true);
+            int res = pid.wait();
 
             if (res != 0)
                 throw Error(format("bzip2 returned exit code %1% while compressing ‘%2%’")
@@ -521,7 +521,7 @@ void State::notificationSender()
                 throw SysError("cannot start hydra-notify");
             });
 
-            int res = pid.wait(true);
+            int res = pid.wait();
 
             if (res != 0)
                 throw Error(format("hydra-build returned exit code %1% notifying about build %2%")

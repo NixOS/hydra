@@ -184,7 +184,7 @@ void State::buildRemote(ref<Store> destStore,
                 throw Error("machine ‘%1%’ does not support repeating a build; please upgrade it to Nix 1.12", machine->sshName);
 
         } catch (EndOfFile & e) {
-            child.pid.wait(true);
+            child.pid.wait();
             string s = chomp(readFile(result.logFile));
             throw Error(format("cannot connect to ‘%1%’: %2%") % machine->sshName % s);
         }
@@ -428,7 +428,7 @@ void State::buildRemote(ref<Store> destStore,
 
         /* Shut down the connection. */
         child.to = -1;
-        child.pid.wait(true);
+        child.pid.wait();
 
     } catch (Error & e) {
         /* Disable this machine until a certain period of time has
