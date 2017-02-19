@@ -294,8 +294,26 @@ sub inputsToArgs {
             if scalar @{$inputInfo->{$input}} == 1
                && defined $inputInfo->{$input}->[0]->{storePath};
         foreach my $alt (@{$inputInfo->{$input}}) {
-            if ($alt->{type} eq "string" || $alt->{type} eq "githubAPI") {
+            if ($alt->{type} eq "string") {
                 push @res, "--argstr", $input, $alt->{value};
+            }
+            elsif ($alt->{type} eq "githubAPI") {
+                my $template = "githubAPIXXXXX";
+                my ($fh, $filename) = File::Temp::tempfile( $template, TMPDIR => 1, SUFFIX => '.json');
+                print $fh $alt->{value};
+                close $fh;
+
+                # Add file to store
+                my $adder = "nix-store";
+                my @cmd = ($adder, "--add", $filename);
+                (my $res, my $storePath, my $stderr) = captureStdoutStderr(21600, @cmd);
+                die "$adder returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
+                    . " while adding github input to store:\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
+                    if $res;
+                unlink $filename or print STDERR "WARNING: unable to remove temporary file $filename\n";
+
+                $storePath =~ s/^\s+|\s+$//g;
+                push @res, "--arg", $input, "builtins.readFile $storePath";
             }
             elsif ($alt->{type} eq "boolean") {
                 push @res, "--arg", $input, booleanToString($exprType, $alt->{value});
@@ -334,7 +352,8 @@ sub evalJobs {
 
     my $evaluator = ($exprType eq "guile") ? "hydra-eval-guile-jobs" : "hydra-eval-jobs";
 
-    my @cmd = ($evaluator, $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo, $exprType));
+    my @args = inputsToArgs($inputInfo, $exprType);
+    my @cmd = ($evaluator, $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, @args);
 
     if (defined $ENV{'HYDRA_DEBUG'}) {
         sub escape {
