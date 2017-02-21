@@ -13,7 +13,7 @@ use Config::General;
 use Data::Dump qw(dump);
 use Try::Tiny;
 use Net::Statsd;
-use Time::HiRes qw(clock_gettime CLOCK_REALTIME);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use JSON;
 use File::Slurp;
 
@@ -124,14 +124,14 @@ sub checkJobsetWrapped {
     my $exprType = $jobset->nixexprpath =~ /.scm$/ ? "guile" : "nix";
 
     # Fetch all values for all inputs.
-    my $checkoutStart = clock_gettime(CLOCK_REALTIME);
+    my $checkoutStart = clock_gettime(CLOCK_MONOTONIC);
     eval {
         fetchInputs($project, $jobset, $inputInfo);
     };
     my $fetchError = $@;
 
     Net::Statsd::increment("hydra.evaluator.checkouts");
-    my $checkoutStop = clock_gettime(CLOCK_REALTIME);
+    my $checkoutStop = clock_gettime(CLOCK_MONOTONIC);
     Net::Statsd::timing("hydra.evaluator.checkout_time", int(($checkoutStop - $checkoutStart) * 1000));
 
     if ($fetchError) {
@@ -159,9 +159,9 @@ sub checkJobsetWrapped {
     }
 
     # Evaluate the job expression.
-    my $evalStart = clock_gettime(CLOCK_REALTIME);
+    my $evalStart = clock_gettime(CLOCK_MONOTONIC);
     my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
-    my $evalStop = clock_gettime(CLOCK_REALTIME);
+    my $evalStop = clock_gettime(CLOCK_MONOTONIC);
 
     if ($jobsetsJobset) {
         my @keys = keys %$jobs;
@@ -186,7 +186,7 @@ sub checkJobsetWrapped {
 
     my $jobOutPathMap = {};
     my $jobsetChanged = 0;
-    my $dbStart = clock_gettime(CLOCK_REALTIME);
+    my $dbStart = clock_gettime(CLOCK_MONOTONIC);
 
     txn_do($db, sub {
 
@@ -282,7 +282,7 @@ sub checkJobsetWrapped {
         $jobset->update({ lastcheckedtime => time, forceeval => undef });
     });
 
-    my $dbStop = clock_gettime(CLOCK_REALTIME);
+    my $dbStop = clock_gettime(CLOCK_MONOTONIC);
 
     Net::Statsd::timing("hydra.evaluator.db_time", int(($dbStop - $dbStart) * 1000));
     Net::Statsd::increment("hydra.evaluator.evals");
@@ -310,14 +310,14 @@ sub checkJobset {
 
     my $triggerTime = $jobset->triggertime;
 
-    my $startTime = clock_gettime(CLOCK_REALTIME);
+    my $startTime = clock_gettime(CLOCK_MONOTONIC);
 
     eval {
         checkJobsetWrapped($jobset);
     };
     my $checkError = $@;
 
-    my $stopTime = clock_gettime(CLOCK_REALTIME);
+    my $stopTime = clock_gettime(CLOCK_MONOTONIC);
     Net::Statsd::timing("hydra.evaluator.total_time", int(($stopTime - $startTime) * 1000));
 
     my $failed = 0;
