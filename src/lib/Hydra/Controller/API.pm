@@ -5,7 +5,6 @@ use strict;
 use warnings;
 use base 'Hydra::Base::Controller::REST';
 use Hydra::Helper::Nix;
-use Hydra::Helper::AddBuilds;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Controller::Project;
 use JSON;

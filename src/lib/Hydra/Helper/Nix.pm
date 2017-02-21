@@ -10,6 +10,7 @@ use Hydra::Model::DB;
 use Nix::Store;
 use Encode;
 use Sys::Hostname::Long;
+use IPC::Run;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(

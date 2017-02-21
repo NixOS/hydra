@@ -4,7 +4,6 @@ use strict;
 use Exporter;
 use Hydra::Helper::Nix;
 use Hydra::Model::DB;
-use Hydra::Helper::AddBuilds;
 use Cwd;
 
 our @ISA = qw(Exporter);

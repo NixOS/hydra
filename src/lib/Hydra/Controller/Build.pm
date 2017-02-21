@@ -6,7 +6,6 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
-use Hydra::Helper::AddBuilds;
 use File::stat;
 use File::Slurp;
 use Data::Dump qw(dump);

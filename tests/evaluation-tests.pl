@@ -1,7 +1,6 @@
 use strict;
 use Hydra::Schema;
 use Hydra::Model::DB;
-use Hydra::Helper::AddBuilds;
 use Cwd;
 use Setup;
 
