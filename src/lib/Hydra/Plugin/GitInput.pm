@@ -7,6 +7,7 @@ use File::Path;
 use Hydra::Helper::Nix;
 use Nix::Store;
 use Encode;
+use Fcntl qw(:flock);
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -18,13 +19,27 @@ sub _isHash {
     return length($rev) == 40 && $rev =~ /^[0-9a-f]+$/;
 }
 
-# Clone or update a branch of a repository into our SCM cache.
-sub _cloneRepo {
-    my ($self, $uri, $branch, $deepClone) = @_;
+sub _parseValue {
+    my ($value) = @_;
+    (my $uri, my $branch, my $deepClone) = split ' ', $value;
+    $branch = defined $branch ? $branch : "master";
+    return ($uri, $branch, $deepClone);
+}
 
+sub fetchInput {
+    my ($self, $type, $name, $value) = @_;
+
+    return undef if $type ne "git";
+
+    my ($uri, $branch, $deepClone) = _parseValue($value);
+
+    # Clone or update a branch of the repository into our SCM cache.
     my $cacheDir = getSCMCacheDir . "/git";
     mkpath($cacheDir);
     my $clonePath = $cacheDir . "/" . sha256_hex($uri);
+
+    open(my $lock, ">", "$clonePath.lock") or die;
+    flock($lock, LOCK_EX) or die;
 
     my $res;
     if (! -d $clonePath) {
@@ -60,25 +75,6 @@ sub _cloneRepo {
             print STDERR "warning: `tg remote --populate origin' failed:\n$res->{stderr}" if $res->{status};
         }
     }
-
-    return $clonePath;
-}
-
-sub _parseValue {
-    my ($value) = @_;
-    (my $uri, my $branch, my $deepClone) = split ' ', $value;
-    $branch = defined $branch ? $branch : "master";
-    return ($uri, $branch, $deepClone);
-}
-
-sub fetchInput {
-    my ($self, $type, $name, $value) = @_;
-
-    return undef if $type ne "git";
-
-    my ($uri, $branch, $deepClone) = _parseValue($value);
-
-    my $clonePath = $self->_cloneRepo($uri, $branch, $deepClone);
 
     my $timestamp = time;
     my $sha256;

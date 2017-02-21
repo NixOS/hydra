@@ -6,6 +6,7 @@ use Digest::SHA qw(sha256_hex);
 use File::Path;
 use Hydra::Helper::Nix;
 use Nix::Store;
+use Fcntl qw(:flock);
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -39,6 +40,9 @@ sub fetchInput {
     my $stdout = ""; my $stderr = "";
 
     my $clonePath = _clonePath($uri);
+
+    open(my $lock, ">", "$clonePath.lock") or die;
+    flock($lock, LOCK_EX) or die;
 
     if (! -d $clonePath) {
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
