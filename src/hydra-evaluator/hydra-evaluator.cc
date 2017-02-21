@@ -260,6 +260,9 @@ struct Evaluator
 
     void run()
     {
+        /* Can't be bothered to shut down cleanly. Goodbye! */
+        auto callback = createInterruptCallback([&]() { std::_Exit(0); });
+
         std::thread reaperThread([&]() { reaper(); });
 
         std::thread monitorThread([&]() { databaseMonitor(); });
