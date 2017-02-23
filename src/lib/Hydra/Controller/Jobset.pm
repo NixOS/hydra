@@ -231,6 +231,8 @@ sub updateJobset {
     my $shares = int($c->stash->{params}->{schedulingshares} // 1);
     error($c, "The number of scheduling shares must be positive.") if $shares <= 0;
 
+    my $checkinterval = int(trim($c->stash->{params}->{checkinterval}));
+
     $jobset->update(
         { name => $jobsetName
         , description => trim($c->stash->{params}->{"description"})
@@ -241,8 +243,8 @@ sub updateJobset {
         , emailoverride => trim($c->stash->{params}->{emailoverride}) || ""
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , keepnr => int(trim($c->stash->{params}->{keepnr}))
-        , checkinterval => int(trim($c->stash->{params}->{checkinterval}))
-        , triggertime => $enabled ? $jobset->triggertime // time() : undef
+        , checkinterval => $checkinterval
+        , triggertime => ($enabled && $checkinterval > 0) ? $jobset->triggertime // time() : undef
         , schedulingshares => $shares
         });
 
