@@ -313,7 +313,7 @@ sub inputsToArgs {
                 unlink $filename or print STDERR "WARNING: unable to remove temporary file $filename\n";
 
                 $storePath =~ s/^\s+|\s+$//g;
-                push @res, "--arg", $input, "builtins.readFile $storePath";
+                push @res, "--arg", $input, "builtins.fromJSON (builtins.readFile $storePath)";
             }
             elsif ($alt->{type} eq "boolean") {
                 push @res, "--arg", $input, booleanToString($exprType, $alt->{value});
