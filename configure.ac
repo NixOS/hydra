@@ -65,6 +65,8 @@ AC_SUBST([GUILE])
 testPath="$(dirname $(type -p expr))"
 AC_SUBST(testPath)
 
+CXXFLAGS+=" -include nix/config.h"
+
 AC_CONFIG_FILES([
   Makefile
   doc/Makefile
