@@ -824,6 +824,9 @@ void State::unlock()
 
 void State::run(BuildID buildOne)
 {
+    /* Can't be bothered to shut down cleanly. Goodbye! */
+    auto callback = createInterruptCallback([&]() { std::_Exit(0); });
+
     startedAt = time(0);
     this->buildOne = buildOne;
 
