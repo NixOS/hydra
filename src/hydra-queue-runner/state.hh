@@ -250,9 +250,14 @@ struct Machine
 };
 
 
+class Config;
+
+
 class State
 {
 private:
+
+    std::unique_ptr<Config> config;
 
     // FIXME: Make configurable.
     const unsigned int maxTries = 5;
@@ -261,8 +266,6 @@ private:
     const unsigned int maxParallelCopyClosure = 4;
 
     nix::Path hydraData, logDir;
-
-    std::map<std::string, std::string> hydraConfig;
 
     bool useSubstitutes = false;
 
@@ -407,7 +410,7 @@ private:
        tokens are available. */
     nix::TokenServer memoryTokens;
 
-    size_t maxOutputSize = 2ULL << 30;
+    size_t maxOutputSize;
 
     time_t lastStatusLogged = 0;
     const int statusLogInterval = 300;

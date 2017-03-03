@@ -99,6 +99,11 @@ public:
         auto inUse_(inUse.lock());
         return *inUse_;
     }
+
+    size_t capacity()
+    {
+        return maxTokens;
+    }
 };
 
 }

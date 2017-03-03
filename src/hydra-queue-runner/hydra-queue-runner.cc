@@ -17,46 +17,79 @@
 using namespace nix;
 
 
-State::State()
-    : memoryTokens(12ULL << 30) // FIXME: make this configurable
+struct Config
 {
-    hydraData = getEnv("HYDRA_DATA");
-    if (hydraData == "") throw Error("$HYDRA_DATA must be set");
+    std::map<std::string, std::string> options;
 
-    /* Read hydra.conf. */
-    auto hydraConfigFile = getEnv("HYDRA_CONFIG");
-    if (pathExists(hydraConfigFile)) {
+    Config()
+    {
+        /* Read hydra.conf. */
+        auto hydraConfigFile = getEnv("HYDRA_CONFIG");
+        if (pathExists(hydraConfigFile)) {
 
-        for (auto line : tokenizeString<Strings>(readFile(hydraConfigFile), "\n")) {
-            line = trim(string(line, 0, line.find('#')));
+            for (auto line : tokenizeString<Strings>(readFile(hydraConfigFile), "\n")) {
+                line = trim(string(line, 0, line.find('#')));
 
-            auto eq = line.find('=');
-            if (eq == std::string::npos) continue;
+                auto eq = line.find('=');
+                if (eq == std::string::npos) continue;
 
-            auto key = trim(std::string(line, 0, eq));
-            auto value = trim(std::string(line, eq + 1));
+                auto key = trim(std::string(line, 0, eq));
+                auto value = trim(std::string(line, eq + 1));
 
-            if (key == "") continue;
+                if (key == "") continue;
 
-            hydraConfig[key] = value;
+                options[key] = value;
+            }
         }
     }
 
+    std::string getStrOption(const std::string & key, const std::string & def = "")
     {
-        std::string s = hydraConfig["max_output_size"];
-        if (s != "") string2Int(s, maxOutputSize);
+        auto i = options.find(key);
+        return i == options.end() ? def : i->second;
     }
+
+    uint64_t getIntOption(const std::string & key, uint64_t def = 0)
+    {
+        auto i = options.find(key);
+        return i == options.end() ? def : std::stoi(i->second);
+    }
+
+    bool getBoolOption(const std::string & key, bool def = false)
+    {
+        auto i = options.find(key);
+        return i == options.end() ? def : i->second == "true";
+    }
+};
+
+
+static uint64_t getMemSize()
+{
+    auto pages = sysconf(_SC_PHYS_PAGES);
+    return pages >= 0 ? pages * sysconf(_SC_PAGESIZE) : 4ULL << 30;
+}
+
+
+State::State()
+    : config(std::make_unique<Config>())
+    , memoryTokens(config->getIntOption("nar_buffer_size", getMemSize() / 2))
+    , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
+{
+    printInfo("using %d bytes for the NAR buffer", memoryTokens.capacity());
+
+    hydraData = getEnv("HYDRA_DATA");
+    if (hydraData == "") throw Error("$HYDRA_DATA must be set");
 
     logDir = canonPath(hydraData + "/build-logs");
 
     /* handle deprecated store specification */
-    if (hydraConfig["store_mode"] != "")
+    if (config->getStrOption("store_mode") != "")
         throw Error("store_mode in hydra.conf is deprecated, please use store_uri");
-    if (hydraConfig["binary_cache_dir"] != "")
+    if (config->getStrOption("binary_cache_dir") != "")
         printMsg(lvlError, "hydra.conf: binary_cache_dir is deprecated and ignored. use store_uri=file:// instead");
-    if (hydraConfig["binary_cache_s3_bucket"] != "")
+    if (config->getStrOption("binary_cache_s3_bucket") != "")
         printMsg(lvlError, "hydra.conf: binary_cache_s3_bucket is deprecated and ignored. use store_uri=s3:// instead");
-    if (hydraConfig["binary_cache_secret_key_file"] != "")
+    if (config->getStrOption("binary_cache_secret_key_file") != "")
         printMsg(lvlError, "hydra.conf: binary_cache_secret_key_file is deprecated and ignored. use store_uri=...?secret-key= instead");
 }
 
@@ -800,18 +833,13 @@ void State::run(BuildID buildOne)
 
     localStore = openStore();
 
-    _destStore = hydraConfig["store_uri"] == ""
-        ? localStore
-        : openStore(hydraConfig["store_uri"]);
+    auto storeUri = config->getStrOption("store_uri");
+    _destStore = storeUri == "" ? localStore : openStore(storeUri);
 
-    auto isTrue = [](const std::string & s) {
-        return s == "1" || s == "true";
-    };
-
-    useSubstitutes = isTrue(hydraConfig["use-substitutes"]);
+    useSubstitutes = config->getBoolOption("use-substitutes", false);
 
     // FIXME: hacky mechanism for configuring determinism checks.
-    for (auto & s : tokenizeString<Strings>(hydraConfig["xxx-jobset-repeats"])) {
+    for (auto & s : tokenizeString<Strings>(config->getStrOption("xxx-jobset-repeats"))) {
         auto s2 = tokenizeString<std::vector<std::string>>(s, ":");
         if (s2.size() != 3) throw Error("bad value in xxx-jobset-repeats");
         jobsetRepeats.emplace(std::make_pair(s2[0], s2[1]), std::stoi(s2[2]));
