@@ -52,7 +52,7 @@ struct Config
     uint64_t getIntOption(const std::string & key, uint64_t def = 0)
     {
         auto i = options.find(key);
-        return i == options.end() ? def : std::stoi(i->second);
+        return i == options.end() ? def : std::stoll(i->second);
     }
 
     bool getBoolOption(const std::string & key, bool def = false)
