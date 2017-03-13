@@ -31,6 +31,8 @@ my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
 
 my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
 
+alarm 3600; # FIXME: make configurable
+
 
 sub parseJobName {
     # Parse a job specification of the form `<project>:<jobset>:<job>

@@ -27,8 +27,6 @@ struct Evaluator
 
     typedef std::map<JobsetName, Jobset> Jobsets;
 
-    int evalTimeout = 3600;
-
     size_t maxEvals = 4;
 
     struct State
@@ -87,7 +85,7 @@ struct Evaluator
         assert(jobset.pid == -1);
 
         jobset.pid = startProcess([&]() {
-            Strings args = { "timeout", "-s", "KILL", std::to_string(evalTimeout), "hydra-eval-jobset", jobset.name.first, jobset.name.second };
+            Strings args = { "hydra-eval-jobset", jobset.name.first, jobset.name.second };
             execvp(args.front().c_str(), stringsToCharPtrs(args).data());
             throw SysError(format("executing ‘%1%’") % args.front());
         });
