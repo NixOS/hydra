@@ -345,6 +345,7 @@ in
         environment = env;
         serviceConfig =
           { ExecStart = "@${cfg.package}/bin/hydra-evaluator hydra-evaluator";
+            ExecStopPost = "${cfg.package}/bin/hydra-evaluator --unlock";
             User = "hydra";
             Restart = "always";
             WorkingDirectory = baseDir;

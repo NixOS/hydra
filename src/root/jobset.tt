@@ -94,10 +94,15 @@
           [% END %]
         </td>
       </tr>
-      [% IF jobset.triggertime %]
+      [% IF jobset.starttime %]
+      <tr>
+        <th>Evaluation running since:</th>
+        <td>[% INCLUDE renderRelativeDate timestamp = jobset.starttime %]</td>
+      </tr>
+      [% ELSIF jobset.triggertime %]
       <tr>
         <th>Evaluation pending since:</th>
-        <td>[% INCLUDE renderDateTime timestamp = jobset.triggertime %]</td>
+        <td>[% INCLUDE renderRelativeDate timestamp = jobset.triggertime %]</td>
       </tr>
       [% END %]
     </table>

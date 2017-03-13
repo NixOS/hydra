@@ -749,13 +749,6 @@ sub checkJobsetWrapped {
 sub checkJobset {
     my ($jobset) = @_;
 
-    print STDERR "considering jobset ", $jobset->project->name, ":", $jobset->name,
-      $jobset->lastcheckedtime
-          ? " (last checked " . (time() - $jobset->lastcheckedtime) . "s ago)\n"
-          : " (never checked)\n";
-
-    my $triggerTime = $jobset->triggertime;
-
     my $startTime = clock_gettime(CLOCK_MONOTONIC);
 
     eval {
@@ -774,17 +767,6 @@ sub checkJobset {
             setJobsetError($jobset, $checkError);
         }) if !$dryRun;
         $failed = 1;
-    }
-
-    if (defined $triggerTime) {
-        txn_do($db, sub {
-            # Only clear the trigger time if the jobset hasn't been
-            # triggered in the meantime.  In that case, we need to
-            # evaluate again.
-            my $new = $jobset->get_from_storage();
-            $jobset->update({ triggertime => undef })
-                if $new->triggertime == $triggerTime;
-        }) if !$dryRun;
     }
 
     return $failed;

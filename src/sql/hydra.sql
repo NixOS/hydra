@@ -69,6 +69,7 @@ create table Jobsets (
     schedulingShares integer not null default 100,
     fetchErrorMsg text,
     forceEval     boolean,
+    startTime     integer, -- if jobset is currently running
     check (schedulingShares > 0),
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade

@@ -5,17 +5,18 @@
 #include <algorithm>
 #include <thread>
 #include <cstring>
+#include <experimental/optional>
 
 #include <sys/types.h>
 #include <sys/wait.h>
 
 using namespace nix;
 
+typedef std::pair<std::string, std::string> JobsetName;
+
 struct Evaluator
 {
     nix::Pool<Connection> dbPool;
-
-    typedef std::pair<std::string, std::string> JobsetName;
 
     struct Jobset
     {
@@ -26,6 +27,8 @@ struct Evaluator
     };
 
     typedef std::map<JobsetName, Jobset> Jobsets;
+
+    std::experimental::optional<JobsetName> evalOne;
 
     size_t maxEvals = 4;
 
@@ -59,6 +62,8 @@ struct Evaluator
         for (auto const & row : res) {
             auto name = JobsetName{row["project"].as<std::string>(), row["name"].as<std::string>()};
 
+            if (evalOne && name != *evalOne) continue;
+
             auto res = state->jobsets.try_emplace(name, Jobset{name});
 
             auto & jobset = res.first->second;
@@ -67,6 +72,11 @@ struct Evaluator
             jobset.checkInterval = row["checkInterval"].as<time_t>();
 
             seen.insert(name);
+        }
+
+        if (evalOne && seen.empty()) {
+            printError("the specified jobset does not exist");
+            std::_Exit(1);
         }
 
         for (auto i = state->jobsets.begin(); i != state->jobsets.end(); )
@@ -80,7 +90,23 @@ struct Evaluator
 
     void startEval(State & state, Jobset & jobset)
     {
-        printInfo("starting evaluation of jobset ‘%s:%s’", jobset.name.first, jobset.name.second);
+        time_t now = time(0);
+
+        printInfo("starting evaluation of jobset ‘%s:%s’ (last checked %d s ago)",
+            jobset.name.first, jobset.name.second,
+            now - jobset.lastCheckedTime);
+
+        {
+            auto conn(dbPool.get());
+            pqxx::work txn(*conn);
+            txn.parameterized
+                ("update Jobsets set startTime = $1 where project = $2 and name = $3")
+                (now)
+                (jobset.name.first)
+                (jobset.name.second)
+                .exec();
+            txn.commit();
+        }
 
         assert(jobset.pid == -1);
 
@@ -93,23 +119,6 @@ struct Evaluator
         state.runningEvals++;
 
         childStarted.notify_one();
-
-        time_t now = time(0);
-
-        {
-            auto conn(dbPool.get());
-            pqxx::work txn(*conn);
-            txn.parameterized
-                ("update Jobsets set lastCheckedTime = $1, triggerTime = null where project = $2 and name = $3")
-                (now)
-                (jobset.name.first)
-                (jobset.name.second)
-                .exec();
-            txn.commit();
-
-            jobset.lastCheckedTime = now;
-            jobset.triggerTime = notTriggered;
-        }
     }
 
     void startEvals(State & state)
@@ -121,9 +130,10 @@ struct Evaluator
         /* Filter out jobsets that have been evaluated recently and have
            not been triggered. */
         for (auto i = state.jobsets.begin(); i != state.jobsets.end(); ++i)
-            if (i->second.pid == -1 &&
-                (i->second.triggerTime != std::numeric_limits<time_t>::max() ||
-                    (i->second.checkInterval > 0 && i->second.lastCheckedTime + i->second.checkInterval <= now)))
+            if (evalOne ||
+                (i->second.pid == -1 &&
+                 (i->second.triggerTime != std::numeric_limits<time_t>::max() ||
+                     (i->second.checkInterval > 0 && i->second.lastCheckedTime + i->second.checkInterval <= now))))
                 sorted.push_back(i);
 
         /* Put jobsets in order of ascending trigger time, last checked
@@ -226,40 +236,83 @@ struct Evaluator
                 auto state(state_.lock());
                 assert(state->runningEvals);
                 state->runningEvals--;
-                for (auto & jobset : state->jobsets)
-                    if (jobset.second.pid == pid) {
+
+                // FIXME: should use a map.
+                for (auto & i : state->jobsets) {
+                    auto & jobset(i.second);
+
+                    if (jobset.pid == pid) {
                         printInfo("evaluation of jobset ‘%s:%s’ %s",
-                            jobset.first.first, jobset.first.second, statusToString(status));
+                            jobset.name.first, jobset.name.second, statusToString(status));
+
+                        auto now = time(0);
+
+                        jobset.triggerTime = notTriggered;
+                        jobset.lastCheckedTime = now;
 
                         try {
 
+                            auto conn(dbPool.get());
+                            pqxx::work txn(*conn);
+
+                            /* Clear the trigger time to prevent this
+                               jobset from getting stuck in an endless
+                               failing eval loop. */
+                            txn.parameterized
+                                ("update Jobsets set triggerTime = null where project = $1 and name = $2 and startTime is not null and triggerTime < startTime")
+                                (jobset.name.first)
+                                (jobset.name.second)
+                                .exec();
+
+                            /* Clear the start time. */
+                            txn.parameterized
+                                ("update Jobsets set startTime = null where project = $1 and name = $2")
+                                (jobset.name.first)
+                                (jobset.name.second)
+                                .exec();
+
                             if (!WIFEXITED(status) || WEXITSTATUS(status) > 1) {
-                                auto conn(dbPool.get());
-                                pqxx::work txn(*conn);
                                 txn.parameterized
-                                    ("update Jobsets set errorMsg = $1, errorTime = $2")
+                                    ("update Jobsets set errorMsg = $1, lastCheckedTime = $2, errorTime = $2, fetchErrorMsg = null where project = $3 and name = $4")
                                     (fmt("evaluation %s", statusToString(status)))
-                                    (time(0))
+                                    (now)
+                                    (jobset.name.first)
+                                    (jobset.name.second)
                                     .exec();
-                                txn.commit();
                             }
+
+                            txn.commit();
 
                         } catch (std::exception & e) {
                             printError("exception setting jobset error: %s", e.what());
                         }
 
-                        jobset.second.pid.release();
+                        jobset.pid.release();
                         maybeDoWork.notify_one();
+
+                        if (evalOne) std::_Exit(0);
+
                         break;
                     }
+                }
             }
         }
     }
 
+    void unlock()
+    {
+        auto conn(dbPool.get());
+        pqxx::work txn(*conn);
+        txn.parameterized("update Jobsets set startTime = null").exec();
+        txn.commit();
+    }
+
     void run()
     {
+        unlock();
+
         /* Can't be bothered to shut down cleanly. Goodbye! */
-        auto callback = createInterruptCallback([&]() { std::_Exit(0); });
+        auto callback = createInterruptCallback([&]() { std::_Exit(1); });
 
         std::thread reaperThread([&]() { reaper(); });
 
@@ -285,10 +338,29 @@ int main(int argc, char * * argv)
         signal(SIGTERM, SIG_DFL);
         signal(SIGHUP, SIG_DFL);
 
+        bool unlock = false;
+
+        Evaluator evaluator;
+
+        std::vector<std::string> args;
+
         parseCmdLine(argc, argv, [&](Strings::iterator & arg, const Strings::iterator & end) {
-            return false;
+            if (*arg == "--unlock")
+                unlock = true;
+            else if (hasPrefix(*arg, "-"))
+                return false;
+            args.push_back(*arg);
+            return true;
         });
 
-        Evaluator().run();
+        if (!args.empty()) {
+            if (args.size() != 2) throw UsageError("Syntax: hydra-evaluator [<project> <jobset>]");
+            evaluator.evalOne = JobsetName(args[0], args[1]);
+        }
+
+        if (unlock)
+            evaluator.unlock();
+        else
+            evaluator.run();
     });
 }
