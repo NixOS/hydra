@@ -321,16 +321,6 @@ private:
     counter bytesReceived{0};
     counter nrActiveDbUpdates{0};
 
-    /* Log compressor work queue. */
-    struct CompressionItem
-    {
-        BuildID id;
-        unsigned int stepNr;
-        nix::Path logPath;
-    };
-    nix::Sync<std::queue<CompressionItem>> logCompressorQueue;
-    std::condition_variable logCompressorWakeup;
-
     /* Notification sender work queue. FIXME: if hydra-queue-runner is
        killed before it has finished sending notifications about a
        build, then the notifications may be lost. It would be better
@@ -507,9 +497,6 @@ private:
         const BuildOutput & res, bool isCachedBuild, time_t startTime, time_t stopTime);
 
     bool checkCachedFailure(Step::ptr step, Connection & conn);
-
-    /* Thread that asynchronously bzips logs of finished steps. */
-    void logCompressor();
 
     /* Thread that asynchronously invokes hydra-notify to send build
        notifications. */

@@ -460,63 +460,6 @@ bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 }
 
 
-void State::logCompressor()
-{
-    while (true) {
-        try {
-
-            CompressionItem item;
-            {
-                auto logCompressorQueue_(logCompressorQueue.lock());
-                while (logCompressorQueue_->empty())
-                    logCompressorQueue_.wait(logCompressorWakeup);
-                item = logCompressorQueue_->front();
-                logCompressorQueue_->pop();
-            }
-
-            if (!pathExists(item.logPath)) continue;
-
-            printMsg(lvlChatty, format("compressing log file ‘%1%’") % item.logPath);
-
-            Path dstPath = item.logPath + ".bz2";
-            Path tmpPath = dstPath + ".tmp";
-
-            AutoCloseFD fd = open(tmpPath.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0644);
-
-            // FIXME: use libbz2
-
-            Pid pid = startProcess([&]() {
-                if (dup2(fd.get(), STDOUT_FILENO) == -1)
-                    throw SysError("cannot dup output pipe to stdout");
-                execlp("bzip2", "bzip2", "-c", item.logPath.c_str(), nullptr);
-                throw SysError("cannot start bzip2");
-            });
-
-            int res = pid.wait();
-
-            if (res != 0)
-                throw Error(format("bzip2 returned exit code %1% while compressing ‘%2%’")
-                    % res % item.logPath);
-
-            if (rename(tmpPath.c_str(), dstPath.c_str()) != 0)
-                throw SysError(format("renaming ‘%1%’") % tmpPath);
-
-            if (unlink(item.logPath.c_str()) != 0)
-                throw SysError(format("unlinking ‘%1%’") % item.logPath);
-
-            /* Run plugins. We do this after log compression to ensure
-               that the log file doesn't change while the plugins may
-               be accessing it. */
-            enqueueNotificationItem({NotificationItem::Type::StepFinished, item.id, {}, item.stepNr, dstPath});
-
-        } catch (std::exception & e) {
-            printMsg(lvlError, format("log compressor: %1%") % e.what());
-            sleep(5);
-        }
-    }
-}
-
-
 void State::notificationSender()
 {
     while (true) {
@@ -859,10 +802,6 @@ void State::run(BuildID buildOne)
     std::thread(&State::queueMonitor, this).detach();
 
     std::thread(&State::dispatcher, this).detach();
-
-    /* Run a log compressor thread. If needed, we could start more
-       than one. */
-    std::thread(&State::logCompressor, this).detach();
 
     /* Idem for notification sending. */
     std::thread(&State::notificationSender, this).detach();

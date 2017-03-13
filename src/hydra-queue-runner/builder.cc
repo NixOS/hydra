@@ -146,6 +146,13 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             auto orphanedSteps_(orphanedSteps.lock());
             orphanedSteps_->emplace(buildId, stepNr);
         }
+
+        if (stepNr) {
+            /* Asynchronously run plugins. FIXME: if we're killed,
+               plugin actions might not be run. Need to ensure
+               at-least-once semantics. */
+            enqueueNotificationItem({NotificationItem::Type::StepFinished, buildId, {}, stepNr, result.logFile});
+        }
     });
 
     time_t stepStartTime = result.startTime = time(0);
@@ -203,16 +210,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             for (auto & jobset : step_->jobsets)
                 jobset->addStep(result.startTime, charge);
         }
-    }
-
-    /* Asynchronously compress the log. */
-    if (result.logFile != "") {
-        {
-            auto logCompressorQueue_(logCompressorQueue.lock());
-            assert(stepNr);
-            logCompressorQueue_->push({buildId, stepNr, result.logFile});
-        }
-        logCompressorWakeup.notify_one();
     }
 
     /* The step had a hopefully temporary failure (e.g. network
@@ -446,7 +443,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     machine->state->totalStepTime += stepStopTime - stepStartTime;
     machine->state->totalStepBuildTime += result.stopTime - result.startTime;
 
-    if (quit) exit(0); // testing hack
+    if (quit) exit(0); // testing hack; FIXME: this won't run plugins
 
     return sDone;
 }
