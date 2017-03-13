@@ -75,7 +75,7 @@ State::State()
     , memoryTokens(config->getIntOption("nar_buffer_size", getMemSize() / 2))
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
 {
-    printInfo("using %d bytes for the NAR buffer", memoryTokens.capacity());
+    debug("using %d bytes for the NAR buffer", memoryTokens.capacity());
 
     hydraData = getEnv("HYDRA_DATA");
     if (hydraData == "") throw Error("$HYDRA_DATA must be set");
