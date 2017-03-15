@@ -58,7 +58,7 @@ struct Config
     bool getBoolOption(const std::string & key, bool def = false)
     {
         auto i = options.find(key);
-        return i == options.end() ? def : i->second == "true";
+        return i == options.end() ? def : (i->second == "true" || i->second == "1");
     }
 };
 
@@ -74,6 +74,7 @@ State::State()
     : config(std::make_unique<Config>())
     , memoryTokens(config->getIntOption("nar_buffer_size", getMemSize() / 2))
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
+    , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
 {
     debug("using %d bytes for the NAR buffer", memoryTokens.capacity());
 

@@ -414,6 +414,8 @@ private:
        order to detect non-determinism. */
     std::map<std::pair<std::string, std::string>, unsigned int> jobsetRepeats;
 
+    bool uploadLogsToBinaryCache;
+
 public:
     State();
 

@@ -3,6 +3,7 @@
 #include "state.hh"
 #include "build-result.hh"
 #include "finally.hh"
+#include "binary-cache-store.hh"
 
 using namespace nix;
 
@@ -148,6 +149,18 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         }
 
         if (stepNr) {
+            /* Upload the log file to the binary cache. FIXME: should
+               be done on a worker thread. */
+            try {
+                auto store = destStore.dynamic_pointer_cast<BinaryCacheStore>();
+                if (uploadLogsToBinaryCache && store && pathExists(result.logFile)) {
+                    store->upsertFile("log/" + baseNameOf(buildDrvPath), readFile(result.logFile), "text/plain");
+                    unlink(result.logFile.c_str());
+                }
+            } catch (...) {
+                ignoreException();
+            }
+
             /* Asynchronously run plugins. FIXME: if we're killed,
                plugin actions might not be run. Need to ensure
                at-least-once semantics. */
