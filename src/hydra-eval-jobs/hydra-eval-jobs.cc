@@ -241,6 +241,9 @@ int main(int argc, char * * argv)
             return true;
         });
 
+        /* FIXME: The build hook in conjunction with import-from-derivation is causing "unexpected EOF" during eval */
+        settings.useBuildHook = false;
+
         /* Prevent access to paths outside of the Nix search path and
            to the environment. */
         settings.set("restrict-eval", "true");
