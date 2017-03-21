@@ -72,6 +72,7 @@ static uint64_t getMemSize()
 
 State::State()
     : config(std::make_unique<Config>())
+    , dbPool(config->getIntOption("max_db_connections", 128))
     , memoryTokens(config->getIntOption("nar_buffer_size", getMemSize() / 2))
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
