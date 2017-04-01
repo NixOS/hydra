@@ -5,6 +5,7 @@ use base qw/Catalyst::View/;
 use Hydra::Helper::Nix;
 use Archive::Tar;
 use IO::Compress::Bzip2 qw(bzip2);
+use Encode;
 
 
 sub escape {
@@ -93,7 +94,7 @@ EOF
 
     my $tar = Archive::Tar->new;
     $tar->add_data("channel/channel-name", ($c->stash->{channelName} or "unnamed-channel"), {mtime => 1});
-    $tar->add_data("channel/default.nix", $res, {mtime => 1});
+    $tar->add_data("channel/default.nix", encode('utf8',$res), {mtime => 1});
 
     my $tardata = $tar->write;
     my $bzip2data;
