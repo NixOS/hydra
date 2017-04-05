@@ -13,16 +13,17 @@ __PACKAGE__->config(
 
 sub buildLogExists {
     my ($self, $c, $build) = @_;
+    return 1 if defined $c->config->{log_prefix};
     my @outPaths = map { $_->path } $build->buildoutputs->all;
     return defined findLog($c, $build->drvpath, @outPaths);
 }
 
 sub buildStepLogExists {
     my ($self, $c, $step) = @_;
+    return 1 if defined $c->config->{log_prefix};
     my @outPaths = map { $_->path } $step->buildstepoutputs->all;
     return defined findLog($c, $step->drvpath, @outPaths);
 }
-
 
 sub stripSSHUser {
     my ($self, $c, $name) = @_;

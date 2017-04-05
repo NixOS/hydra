@@ -119,7 +119,7 @@ span.keep-whitespace {
     max-width: none; /* don't apply responsive design to status images */
 }
 
-pre.log, pre.taillog {
+pre.log {
     line-height: 1.2em;
 }
 

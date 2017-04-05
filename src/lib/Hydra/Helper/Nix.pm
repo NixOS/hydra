@@ -18,7 +18,7 @@ our @EXPORT = qw(
     getSCMCacheDir
     registerRoot getGCRootsDir gcRootFor
     jobsetOverview jobsetOverview_
-    removeAsciiEscapes getDrvLogPath findLog logContents
+    getDrvLogPath findLog
     getMainOutput
     getEvals getMachines
     pathIsInsidePrefix
@@ -154,9 +154,8 @@ sub getDrvLogPath {
     my ($drvPath) = @_;
     my $base = basename $drvPath;
     my $bucketed = substr($base, 0, 2) . "/" . substr($base, 2);
-    my $fn = ($ENV{NIX_LOG_DIR} || "/nix/var/log/nix") . "/drvs/";
-    my $fn2 = Hydra::Model::DB::getHydraPath . "/build-logs/";
-    for ($fn2 . $bucketed, $fn2 . $bucketed . ".bz2", $fn . $bucketed . ".bz2", $fn . $bucketed, $fn . $base . ".bz2", $fn . $base) {
+    my $fn = Hydra::Model::DB::getHydraPath . "/build-logs/";
+    for ($fn . $bucketed, $fn . $bucketed . ".bz2") {
         return $_ if -f $_;
     }
     return undef;
@@ -189,27 +188,6 @@ sub findLog {
     }
 
     return undef;
-}
-
-
-sub logContents {
-    my ($logPath, $tail) = @_;
-    my $cmd;
-    if ($logPath =~ /.bz2$/) {
-        $cmd = "bzip2 -d < $logPath";
-        $cmd = $cmd . " | tail -n $tail" if defined $tail;
-    }
-    else {
-        $cmd = defined $tail ? "tail -$tail $logPath" : "cat $logPath";
-    }
-    return decode("utf-8", `$cmd`);
-}
-
-
-sub removeAsciiEscapes {
-    my ($logtext) = @_;
-    $logtext =~ s/\e\[[0-9]*[A-Za-z]//g;
-    return $logtext;
 }
 
 

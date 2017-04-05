@@ -13,10 +13,17 @@ sub process {
 
     my $fh = new IO::Handle;
 
+    my $tail = int($c->stash->{tail} // "0");
+
     if ($logPath =~ /\.bz2$/) {
-        open $fh, "bzip2 -dc < '$logPath' |" or die;
+        my $doTail = $tail ? " tail -n '$tail' |" : "";
+        open $fh, "bzip2 -dc < '$logPath' | $doTail" or die;
     } else {
-        open $fh, "<$logPath" or die;
+        if ($tail) {
+            open $fh, "tail -n '$tail' '$logPath' |" or die;
+        } else {
+            open $fh, "<$logPath" or die;
+        }
     }
     binmode($fh);
 

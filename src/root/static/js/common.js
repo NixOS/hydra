@@ -120,24 +120,48 @@ function escapeHTML(s) {
     return $('<div/>').text(s).html();
 };
 
+function requestFile(args) {
+    if (!"error" in args) {
+        args.error = function(data) {
+            json = {};
+            try {
+                if (data.responseText)
+                    json = $.parseJSON(data.responseText);
+            } catch (err) {
+            }
+            if (json.error)
+                bootbox.alert(escapeHTML(json.error));
+            else if (data.responseText)
+                bootbox.alert("Server error: " + escapeHTML(data.responseText));
+            else
+                bootbox.alert("Unknown server error!");
+            if (args.postError) args.postError(data);
+        };
+    }
+    return $.ajax(args);
+};
+
 function requestJSON(args) {
     args.dataType = 'json';
-    args.error = function(data) {
-        json = {};
-        try {
-            if (data.responseText)
-                json = $.parseJSON(data.responseText);
-        } catch (err) {
+    requestFile(args);
+};
+
+function requestPlainFile(args) {
+    args.dataType = 'text';
+    /* Remove the X-Requested-With header, which would turn trigger
+       CORS checks for this request.
+       http://stackoverflow.com/a/24719409/6747243
+    */
+    args.xhr = function() {
+        var xhr = jQuery.ajaxSettings.xhr();
+        var setRequestHeader = xhr.setRequestHeader;
+        xhr.setRequestHeader = function(name, value) {
+            if (name == 'X-Requested-With') return;
+            setRequestHeader.call(this, name, value);
         }
-        if (json.error)
-            bootbox.alert(escapeHTML(json.error));
-        else if (data.responseText)
-            bootbox.alert("Server error: " + escapeHTML(data.responseText));
-        else
-            bootbox.alert("Unknown server error!");
-        if (args.postError) args.postError(data);
+        return xhr;
     };
-    return $.ajax(args);
+    requestFile(args);
 };
 
 function redirectJSON(args) {

@@ -7,7 +7,13 @@
 [%
 isAggregate = constituents.size > 0;
 busy = 0;
-FOR step IN steps; IF step.busy; busy = 1; END; END;
+building = 0;
+FOR step IN steps;
+  IF step.busy;
+    busy = 1;
+    IF step.drvpath == build.drvpath; building = 1; END;
+  END;
+END;
 %]
 
 [% BLOCK renderOutputs %]
@@ -207,7 +213,8 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
                 <td>[% IF cachedBuild; INCLUDE renderFullBuildLink build=cachedBuild; ELSE %]<em>unknown</em>[% END %]</td>
               </tr>
             [% END %]
-            [% IF (!isAggregate || !build.ischannel) && build.finished; actualBuild = build.iscachedbuild ? cachedBuild : build %]
+            [% actualBuild = build.iscachedbuild ? cachedBuild : build %]
+            [% IF (!isAggregate || !build.ischannel) && build.finished;  %]
               [% IF actualBuild %]
                 <tr>
                   <th>Duration:</th>
@@ -219,13 +226,13 @@ FOR step IN steps; IF step.busy; busy = 1; END; END;
                 <td>[% INCLUDE renderDateTime timestamp = build.stoptime; %]</td>
               </tr>
             [% END %]
-            [% IF (!isAggregate || !build.ischannel) && buildLogExists(build) %]
+            [% IF (!build.finished && building) || (build.finished && (!isAggregate || !build.ischannel) && buildLogExists(build)) %]
               <tr>
                 <th>Logfile:</th>
                 <td>
-                  <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log') %]">pretty</a>
-                  <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'raw') %]">raw</a>
-                  <a class="btn btn-mini" href="[% c.uri_for('/build' build.id 'log' 'tail-reload') %]">tail</a>
+                  <a class="btn btn-mini" href="[% c.uri_for('/build' actualBuild.id 'log') %]">pretty</a>
+                  <a class="btn btn-mini" href="[% c.uri_for('/build' actualBuild.id 'log' 'raw') %]">raw</a>
+                  <a class="btn btn-mini" href="[% c.uri_for('/build' actualBuild.id 'log' 'tail') %]">tail</a>
                 </td>
               </tr>
             [% END %]

@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use File::Basename;
 use File::stat;
 use File::Slurp;
 use Data::Dump qw(dump);
@@ -125,62 +126,41 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
 
     $c->stash->{step} = $step;
 
-    showLog($c, $mode, $step->busy == 0, $step->drvpath,
-            map { $_->path } $step->buildstepoutputs->all);
+    showLog($c, $mode, $step->busy == 0, $step->drvpath);
 }
 
 
 sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
     showLog($c, $mode, $c->stash->{build}->finished,
-            $c->stash->{build}->drvpath,
-            map { $_->path } $c->stash->{build}->buildoutputs->all);
+            $c->stash->{build}->drvpath);
 }
 
 
 sub showLog {
-    my ($c, $mode, $finished, $drvPath, @outPaths) = @_;
+    my ($c, $mode, $finished, $drvPath) = @_;
     $mode //= "pretty";
 
-    my $logPath = findLog($c, $drvPath, @outPaths);
-
-    notFound($c, "The build log of derivation ‘$drvPath’ is not available.") unless defined $logPath;
-
-    # Don't send logs that we can't stream.
-    my $size = stat($logPath)->size; # FIXME: not so meaningful for compressed logs
-    error($c, "This build log is too big to display ($size bytes).") unless
-        $mode eq "raw"
-        || (($mode eq "tail" || $mode eq "tail-reload") && $logPath !~ /\.bz2$/)
-        || $size < 64 * 1024 * 1024;
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
 
     if ($mode eq "pretty") {
+        $c->stash->{log_uri} = $log_uri;
         $c->stash->{template} = 'log.tt';
-        $c->stash->{logtext} = logContents($logPath);
     }
 
     elsif ($mode eq "raw") {
-        $c->stash->{logPath} = $logPath;
-        $c->stash->{finished} = $finished;
-        $c->forward('Hydra::View::NixLog');
-    }
-
-    elsif ($mode eq "tail-reload") {
-        my $url = $c->uri_for($c->request->uri->path);
-        $url =~ s/tail-reload/tail/g;
-        $c->stash->{url} = $url;
-        $c->stash->{reload} = !$c->stash->{build}->finished;
-        $c->stash->{title} = "";
-        $c->stash->{contents} = (scalar logContents($logPath, 50)) || " ";
-        $c->stash->{template} = 'plain-reload.tt';
+        $c->res->redirect($log_uri);
     }
 
     elsif ($mode eq "tail") {
-        $c->stash->{'plain'} = { data => (scalar logContents($logPath, 50)) || " " };
-        $c->forward('Hydra::View::Plain');
+        my $lines = 50;
+        $c->stash->{log_uri} = $log_uri . "?tail=$lines";
+        $c->stash->{tail} = $lines;
+        $c->stash->{template} = 'log.tt';
     }
 
     else {
-        error($c, "Unknown log display mode `$mode'.");
+        error($c, "Unknown log display mode '$mode'.");
     }
 }
 

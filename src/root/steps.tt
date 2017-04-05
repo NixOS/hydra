@@ -25,7 +25,7 @@ order of descending finish time.</p>
         <td><tt>[% step.drvpath.match('-(.*).drv').0 %]</tt></td>
         <td><tt>[% INCLUDE renderFullJobNameOfBuild build=step.build %]</tt></td>
         <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
-        <td><a class="row-link" href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail-reload') %]">[% step.stepnr %]</a></td>
+        <td><a class="row-link" href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail') %]">[% step.stepnr %]</a></td>
         <td>[% INCLUDE renderRelativeDate timestamp=step.stoptime %]</td>
         <td style="width: 10em">[% INCLUDE renderDuration duration = step.stoptime - step.starttime %] </td>
         <td><tt>[% INCLUDE renderMachineName machine=step.machine %]</tt></td>

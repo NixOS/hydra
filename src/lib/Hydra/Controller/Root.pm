@@ -10,6 +10,7 @@ use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
 use Nix::Config;
 use Encode;
+use File::Basename;
 use JSON;
 
 # Put this controller at top-level.
@@ -434,19 +435,36 @@ sub search :Local Args(0) {
         { order_by => ["id desc"] } ) ];
 }
 
-
-sub log :Local :Args(1) {
-    my ($self, $c, $path) = @_;
-
-    $path = ($ENV{NIX_STORE_DIR} || "/nix/store")."/$path";
-
-    my @outpaths = ($path);
-    my $logPath = findLog($c, $path, @outpaths);
-    notFound($c, "The build log of $path is not available.") unless defined $logPath;
-
+sub serveLogFile {
+    my ($c, $logPath, $tail) = @_;
     $c->stash->{logPath} = $logPath;
+    $c->stash->{tail} = $tail;
     $c->forward('Hydra::View::NixLog');
 }
 
+sub log :Local :Args(1) {
+    my ($self, $c, $drvPath) = @_;
+
+    $drvPath = "/nix/store/$drvPath";
+
+    my $tail = $c->request->params->{"tail"};
+
+    die if defined $tail && $tail !~ /^[0-9]+$/;
+
+    my $logFile = findLog($c, $drvPath);
+
+    if (defined $logFile) {
+        serveLogFile($c, $logFile, $tail);
+        return;
+    }
+
+    my $logPrefix = $c->config->{log_prefix};
+
+    if (defined $logPrefix) {
+        $c->res->redirect($logPrefix . "log/" . basename($drvPath));
+    } else {
+        notFound($c, "The build log of $drvPath is not available.");
+    }
+}
 
 1;

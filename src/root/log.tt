@@ -2,14 +2,48 @@
 [% PROCESS common.tt %]
 
 <p>
-  This is the build log of derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
+  Below
+  [% IF tail %]
+  are the last lines of
+  [% ELSE %]
+  is
+  [% END %]
+  the build log of derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
   [% IF step && step.machine %]
     It was built on <tt>[% step.machine %]</tt>.
   [% END %]
+  [% IF tail %]
+  The <a href="[% step ? c.uri_for('/build' build.id 'nixlog' step.stepnr)
+  : c.uri_for('/build' build.id 'log') %]">full log</a> is also available.
+  [% END %]
 </p>
 
-<pre class="taillog" id="contents">
-[% HTML.escape(logtext) %]
+<pre class="log" id="contents">
+<em>Loading...</em>
 </pre>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+    requestPlainFile({
+      url: "[% HTML.escape(log_uri) %]",
+      dataType: "text",
+      type: 'GET',
+      success: function (log_data) {
+
+        [% IF tail %]
+        /* The server may give us a full log (e.g. if the log is in
+           S3). So extract the last lines. */
+        log_data = log_data.split("\n").slice(-[%tail%]).join("\n");
+        [% END %]
+
+        $("#contents").text(log_data);
+      },
+      error: function () {
+        bootbox.alert("The log file is not available.");
+        $("#contents").text("(Unavailable)");
+      }
+    });
+  });
+</script>
 
 [% END %]
