@@ -779,7 +779,9 @@ void State::run(BuildID buildOne)
     if (!lock)
         throw Error("hydra-queue-runner is already running");
 
-    localStore = openStore();
+    Store::Params localParams;
+    localParams["max-connections"] = "16";
+    localStore = openStore(getEnv("NIX_REMOTE"), localParams);
 
     auto storeUri = config->getStrOption("store_uri");
     _destStore = storeUri == "" ? localStore : openStore(storeUri);
