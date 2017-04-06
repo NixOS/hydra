@@ -36,6 +36,8 @@ void State::queueMonitorLoop()
     unsigned int lastBuildId = 0;
 
     while (true) {
+        localStore->clearPathInfoCache();
+
         bool done = getQueuedBuilds(*conn, destStore, lastBuildId);
 
         /* Sleep until we get notification from the database about an
