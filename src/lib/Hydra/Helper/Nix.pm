@@ -23,7 +23,7 @@ our @EXPORT = qw(
     getEvals getMachines
     pathIsInsidePrefix
     captureStdoutStderr run grab
-    getTotalShares
+    getTotalShares readNixFile
     cancelBuilds restartBuilds);
 
 
@@ -390,7 +390,18 @@ sub run {
         my @x = ($args{cmd}, \$stdin, \$res->{stdout});
         push @x, \$res->{stderr} if $args{grabStderr} // 1;
         IPC::Run::run(@x,
-            init => sub { chdir $args{dir} or die "changing to $args{dir}" if defined $args{dir}; });
+            init => sub {
+                chdir $args{dir} or die "changing to $args{dir}" if defined $args{dir};
+                if (defined $args{env}) {
+                    foreach my $key (keys %{$args{env}}) {
+                        if (defined $args{env}->{$key}) {
+                            $ENV{$key} = $args{env}->{$key};
+                        } else {
+                            delete $ENV{$key};
+                        }
+                    }
+                }
+            });
         alarm 0;
     };
 
@@ -476,6 +487,15 @@ sub restartBuilds($$) {
     });
 
     return $nrRestarted;
+}
+
+
+# Read a file from the (possibly remote) nix store
+sub readNixFile {
+    my ($path) = @_;
+    my $config = getHydraConfig();
+    my $storeUri = $config->{'store_uri'} // "";
+    return grab(cmd => ["nix", "cat-store", "$path"], env => { NIX_REMOTE => "$storeUri" });
 }
 
 
