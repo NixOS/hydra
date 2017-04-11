@@ -137,7 +137,7 @@ END;
   [% IF isAggregate %]<li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>[% END %]
   <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
   <li><a href="#tabs-buildinputs" data-toggle="tab">Inputs</a></li>
-  [% IF steps %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
+  [% IF steps.size() > 0 %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
   [% IF build.dependents %]<li><a href="#tabs-usedby" data-toggle="tab">Used by</a></li>[% END%]
   [% IF drvAvailable %]<li><a href="#tabs-build-deps" data-toggle="tab">Build dependencies</a></li>[% END %]
   [% IF available %]<li><a href="#tabs-runtime-deps" data-toggle="tab">Runtime dependencies</a></li>[% END %]
@@ -230,9 +230,10 @@ END;
               <tr>
                 <th>Logfile:</th>
                 <td>
-                  <a class="btn btn-mini" href="[% c.uri_for('/build' actualBuild.id 'log') %]">pretty</a>
-                  <a class="btn btn-mini" href="[% c.uri_for('/build' actualBuild.id 'log' 'raw') %]">raw</a>
-                  <a class="btn btn-mini" href="[% c.uri_for('/build' actualBuild.id 'log' 'tail') %]">tail</a>
+                  [% actualLog = cachedBuildStep ? c.uri_for('/build' cachedBuild.id 'nixlog' cachedBuildStep.stepnr) : c.uri_for('/build' build.id 'log') %]
+                  <a class="btn btn-mini" href="[%actualLog%]">pretty</a>
+                  <a class="btn btn-mini" href="[%actualLog%]/raw">raw</a>
+                  <a class="btn btn-mini" href="[%actualLog%]/tail">tail</a>
                 </td>
               </tr>
             [% END %]

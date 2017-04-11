@@ -73,7 +73,10 @@ sub build_GET {
     if ($build->finished && $build->iscachedbuild) {
         my $path = ($build->buildoutputs)[0]->path or die;
         my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path);
-        $c->stash->{cachedBuild} = $cachedBuildStep->build if defined $cachedBuildStep;
+        if (defined $cachedBuildStep) {
+            $c->stash->{cachedBuild} = $cachedBuildStep->build;
+            $c->stash->{cachedBuildStep} = $cachedBuildStep;
+        }
     }
 
     if ($build->finished) {
