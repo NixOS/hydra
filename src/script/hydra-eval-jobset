@@ -628,6 +628,9 @@ sub checkJobsetWrapped {
         return;
     }
 
+    die "Jobset contains a job with an empty name. Make sure the jobset evaluates to an attrset of jobs.\n"
+        if defined $jobs->{""};
+
     $jobs->{$_}->{jobName} = $_ for keys %{$jobs};
 
     my $jobOutPathMap = {};
