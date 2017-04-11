@@ -109,7 +109,11 @@ rec {
             TextDiff
             TextTable
             XMLSimple
-            nix git boehmgc aws-sdk-cpp'
+            nix
+            nix.perl-bindings
+            git
+            boehmgc
+            aws-sdk-cpp'
           ];
       };
 
