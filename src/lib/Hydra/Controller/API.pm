@@ -13,6 +13,7 @@ use DateTime;
 use Digest::SHA qw(sha256_hex);
 use Text::Diff;
 use File::Slurp;
+use IPC::Run qw(run);
 
 
 sub api : Chained('/') PathPart('api') CaptureArgs(0) {
@@ -175,7 +176,6 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
     my $type = $c->request->params->{type};
     my $rev1 = $c->request->params->{rev1};
     my $rev2 = $c->request->params->{rev2};
-    my $branch;
 
     die("invalid revisions: [$rev1] [$rev2]") if $rev1 !~ m/^[a-zA-Z0-9_.]+$/ || $rev2 !~ m/^[a-zA-Z0-9_.]+$/;
 
@@ -184,10 +184,14 @@ sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
     my $diff = "";
     if ($type eq "hg") {
         my $clonePath = getSCMCacheDir . "/hg/" . sha256_hex($uri);
-        die if ! -d $clonePath;
-        $branch = `(cd $clonePath; hg log --template '{branch}' -r $rev2)`;
-        $diff .= `(cd $clonePath; hg log -r $rev1 -r $rev2 -b $branch)`;
-        $diff .= `(cd $clonePath; hg diff -r $rev1:$rev2)`;
+        die "repository '$uri' is not in the SCM cache\n" if ! -d $clonePath;
+        my $out;
+        run(["hg", "log", "-R", $clonePath, "-r", "reverse($rev1::$rev2) and not($rev1)"], \undef, \$out)
+            or die "hg log failed";
+        $diff .= $out;
+        run(["hg", "diff", "-R", $clonePath, "-r", "$rev1::$rev2"], \undef, \$out)
+            or die "hg diff failed";
+        $diff .= $out;
     } elsif ($type eq "git") {
         my $clonePath = getSCMCacheDir . "/git/" . sha256_hex($uri);
         die if ! -d $clonePath;
