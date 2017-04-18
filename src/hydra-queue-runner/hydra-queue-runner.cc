@@ -71,7 +71,7 @@ static uint64_t getMemSize()
 
 
 State::State()
-    : config(std::make_unique<Config>())
+    : config(std::make_unique<::Config>())
     , dbPool(config->getIntOption("max_db_connections", 128))
     , memoryTokens(config->getIntOption("nar_buffer_size", getMemSize() / 2))
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
@@ -189,7 +189,7 @@ void State::monitorMachinesFile()
 
     if (machinesFiles.empty()) {
         parseMachines("localhost " +
-            (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem)
+            (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem.get())
             + " - " + std::to_string(settings.maxBuildJobs) + " 1");
         return;
     }
