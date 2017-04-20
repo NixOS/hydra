@@ -41,6 +41,7 @@ sub getHydraConfig {
     if (-f $conf) {
         my %h = new Config::General( -ConfigFile => $conf
                                    , -UseApacheInclude => 1
+                                   , -IncludeAgain => 1
                                    )->getall;
 
         $hydraConfig = \%h;
