@@ -311,7 +311,7 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
         (result.startTime)(result.stopTime)
         (machine, machine != "")
         (result.overhead, result.overhead != 0)
-        (result.timesBuilt, result.timesBuilt > 0)
+        (result.timesBuilt)
         (result.isNonDeterministic, result.timesBuilt > 1)
         .exec();
 }
@@ -425,7 +425,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
             (productNr++)
             (product.type)
             (product.subtype)
-            (product.fileSize, product.isRegular)
+            (product.fileSize)
             (printHash(product.sha1hash), product.isRegular)
             (printHash(product.sha256hash), product.isRegular)
             (product.path)
