@@ -148,7 +148,7 @@ rec {
 
       preHook = ''
         PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
-        PERL5LIB=$(pwd)/src/lib:$PERL5LIB;
+        ${lib.optionalString shell "PERL5LIB=$(pwd)/src/lib:$PERL5LIB"}
       '';
 
       preConfigure = "autoreconf -vfi";
