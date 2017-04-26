@@ -17,6 +17,15 @@
 using namespace nix;
 
 
+namespace nix {
+
+template<> void toJSON<std::atomic<long>>(std::ostream & str, const std::atomic<long> & n) { str << n; }
+template<> void toJSON<std::atomic<unsigned long>>(std::ostream & str, const std::atomic<unsigned long> & n) { str << n; }
+template<> void toJSON<double>(std::ostream & str, const double & n) { str << n; }
+
+}
+
+
 struct Config
 {
     std::map<std::string, std::string> options;
