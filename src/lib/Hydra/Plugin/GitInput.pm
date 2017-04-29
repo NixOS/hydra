@@ -49,7 +49,7 @@ sub _printIfDebug {
     print STDERR "GitInput: $msg" if $ENV{'HYDRA_DEBUG'};
 }
 
-=item _pluginConfig($main_config, $input_name)
+=item _pluginConfig($main_config, $project_name, $jobset_name, $input_name)
 
 Read the configuration from the main hydra config file.
 
@@ -62,58 +62,60 @@ the ones on the configuration file, to define the variables
 as an input value use: <name>=<value> without spaces and
 specify at least he repo url and branch.
 
-<git-input>
-  # general timeout
-  timeout = 400
-  <input-name>
-    # specific timeout for a particular input name
-    timeout = 400
-  </input-name>
+Expected configuration format in the hydra config file:
+    <git-input>
+      # general timeout
+      timeout = 400
 
-  # use quotes when the input name has spaces
-  <"foot with spaces">
-    # specific timeout for a particular input name
-    timeout = 400
-  </"foo with spaces">
-</git-input>
+      <project:jobset:input-name>
+        # specific timeout for a particular input
+        timeout = 400
+      </project:jobset:input-name>
+
+    </git-input>
 =cut
 sub _pluginConfig {
-    my ($main_config, $input_name) = @_;
+    my ($main_config, $project_name, $jobset_name, $input_name) = @_;
     my $cfg = $main_config->{$CONFIG_SECTION};
     # default values
     my $values = {
         timeout => 600,
     };
+    my $input_block = "$project_name:$jobset_name:$input_name";
+
     unless (defined $cfg) {
         _printIfDebug "Unable to load $CONFIG_SECTION section\n";
         _printIfDebug "Using default values\n";
         return $values;
     } else {
-        _printIfDebug "Parsing plugin configuration: ";
+        _printIfDebug "Parsing plugin configuration:\n";
         _printIfDebug Dumper($cfg);
     }
-    if (defined $cfg->{$input_name} and %{$cfg->{$input_name}}) {
-         _printIfDebug "Merging sections for $input_name\n";
-        $cfg = {%{$cfg}, %{$cfg->{$input_name}}}; # merge with precedense to the input name
+    if (defined $cfg->{$input_block} and %{$cfg->{$input_block}}) {
+         _printIfDebug "Merging sections from $input_block\n";
+         # merge with precedense to the input block
+        $cfg = {%{$cfg}, %{$cfg->{$input_block}}};
     }
     if (exists $cfg->{timeout}) {
         $values->{timeout} = int($cfg->{timeout});
-        _printIfDebug "Using custom timeout for $input_name:";
+        _printIfDebug "Using custom timeout for $input_block:\n";
     } else {
-        _printIfDebug "Using default timeout for $input_name:";
+        _printIfDebug "Using default timeout for $input_block:\n";
     }
     _printIfDebug "$values->{timeout}\n";
     return $values;
 }
 
 sub fetchInput {
-    my ($self, $type, $name, $value) = @_;
+    my ($self, $type, $name, $value, $project, $jobset) = @_;
 
     return undef if $type ne "git";
 
     my ($uri, $branch, $deepClone, $options) = _parseValue($value);
-    my $cfg = _pluginConfig($self->{config}, $name);
-
+    my $cfg = _pluginConfig($self->{config},
+                            $project->get_column('name'),
+                            $jobset->get_column('name'),
+                            $name);
     # give preference to the options from the input value
     while (my ($opt_name, $opt_value) = each %{$options}) {
         if ($opt_value =~ /\d+/) {
