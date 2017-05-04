@@ -146,7 +146,7 @@ rec {
 
       configureFlags = [ "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook" ];
 
-      preHook = ''
+      shellHook = ''
         PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
         PERL5LIB=$(pwd)/src/lib:$PERL5LIB;
       '';
