@@ -169,7 +169,7 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
 }
 
 
-sub scmdiff : Chained('api') PathPart('scmdiff') Args(0) {
+sub scmdiff : Path('/api/scmdiff') Args(0) {
     my ($self, $c) = @_;
 
     my $uri = $c->request->params->{uri};
