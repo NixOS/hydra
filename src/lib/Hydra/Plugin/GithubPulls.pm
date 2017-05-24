@@ -7,6 +7,7 @@ use LWP::UserAgent;
 use JSON;
 use Hydra::Helper::CatalystUtils;
 use File::Temp;
+use POSIX qw(strftime);
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -56,7 +57,8 @@ sub fetchInput {
     close $fh;
     my $storePath = `nix-store --add "$filename"`
         or die "cannot copy path $filename to the Nix store.\n";
-    return { storePath => $storePath };
+    my $timestamp = time;
+    return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };
 }
 
 1;
