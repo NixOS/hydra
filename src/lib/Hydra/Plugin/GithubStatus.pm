@@ -54,10 +54,12 @@ sub common {
                     next if exists $seen{$input}->{$key};
                     $seen{$input}->{$key} = 1;
                     $uri =~ m![:/]([^/]+)/([^/]+?)(?:.git)?$!;
-                    my $req = HTTP::Request->new('POST', "https://api.github.com/repos/$1/$2/statuses/$rev");
+                    my $owner = $1;
+                    my $repo = $2;
+                    my $req = HTTP::Request->new('POST', "https://api.github.com/repos/$owner/$repo/statuses/$rev");
                     $req->header('Content-Type' => 'application/json');
                     $req->header('Accept' => 'application/vnd.github.v3+json');
-                    $req->header('Authorization' => $conf->{authorization});
+                    $req->header('Authorization' => ($self->{config}->{github_authorization}->{$owner} // $conf->{authorization}));
                     $req->content($body);
                     my $res = $ua->request($req);
                     print STDERR $res->status_line, ": ", $res->decoded_content, "\n" unless $res->is_success;
