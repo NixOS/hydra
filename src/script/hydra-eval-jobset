@@ -471,8 +471,6 @@ sub checkBuild {
         print STDERR "added build ${\$build->id} (${\$jobset->project->name}:${\$jobset->name}:$jobName)\n";
     });
 
-    system("hydra-notify build-queued " . $build->id)
-        if defined $build && defined $buildMap->{$build->id} && $buildMap->{$build->id}->{new};
     return $build;
 };
 
@@ -639,6 +637,7 @@ sub checkJobsetWrapped {
     my $jobsetChanged = 0;
     my $dbStart = clock_gettime(CLOCK_MONOTONIC);
 
+    my %buildMap;
     txn_do($db, sub {
 
         my $prevEval = getPrevJobsetEval($db, $jobset, 1);
@@ -649,7 +648,6 @@ sub checkJobsetWrapped {
         $jobset->builds->search({iscurrent => 1})->update({iscurrent => 0});
 
         # Schedule each successfully evaluated job.
-        my %buildMap;
         foreach my $job (permute(values %{$jobs})) {
             next if defined $job->{error};
             #print STDERR "considering job " . $project->name, ":", $jobset->name, ":", $job->{jobName} . "\n";
@@ -738,6 +736,10 @@ sub checkJobsetWrapped {
     Net::Statsd::timing("hydra.evaluator.db_time", int(($dbStop - $dbStart) * 1000));
     Net::Statsd::increment("hydra.evaluator.evals");
     Net::Statsd::increment("hydra.evaluator.cached_evals") unless $jobsetChanged;
+
+    while (my ($id, $x) = each %buildMap) {
+        system("hydra-notify build-queued $id") if $x->{new};
+    }
 
     # Store the error messages for jobs that failed to evaluate.
     my $msg = "";
