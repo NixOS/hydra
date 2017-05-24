@@ -471,6 +471,7 @@ sub checkBuild {
         print STDERR "added build ${\$build->id} (${\$jobset->project->name}:${\$jobset->name}:$jobName)\n";
     });
 
+    system("hydra-notify build-queued " . $build->id) if defined $buildMap->{$build->id} && $buildMap->{$build->id}->{new};
     return $build;
 };
 

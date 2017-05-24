@@ -42,6 +42,15 @@ if ($cmd eq "build-finished") {
     }
 }
 
+elsif ($cmd eq "build-queued") {
+    foreach my $plugin (@plugins) {
+        eval { $plugin->buildQueued($build); };
+        if ($@) {
+            print STDERR "$plugin->buildQueued: $@\n";
+        }
+    }
+}
+
 elsif ($cmd eq "build-started") {
     foreach my $plugin (@plugins) {
         eval { $plugin->buildStarted($build); };

@@ -20,6 +20,11 @@ sub instantiate {
     return @$plugins;
 }
 
+# Called when build $build has been queued.
+sub buildQueued {
+    my ($self, $build) = @_;
+}
+
 # Called when build $build has started.
 sub buildStarted {
     my ($self, $build) = @_;
