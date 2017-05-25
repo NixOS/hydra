@@ -348,6 +348,8 @@ in
             ExecStopPost = "${cfg.package}/bin/hydra-evaluator --unlock";
             User = "hydra";
             Restart = "always";
+            # Give evaluator highest CPU priority right after kernel
+            Nice = -19;
             WorkingDirectory = baseDir;
           };
       };
