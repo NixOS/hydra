@@ -259,7 +259,7 @@ struct Evaluator
                                jobset from getting stuck in an endless
                                failing eval loop. */
                             txn.parameterized
-                                ("update Jobsets set triggerTime = null where project = $1 and name = $2 and startTime is not null and triggerTime < startTime")
+                                ("update Jobsets set triggerTime = null where project = $1 and name = $2 and startTime is not null and triggerTime <= startTime")
                                 (jobset.name.first)
                                 (jobset.name.second)
                                 .exec();
