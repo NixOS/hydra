@@ -32,6 +32,8 @@ sub common {
 
         foreach my $conf (@config) {
             next unless $jobName =~ /^$conf->{jobs}$/;
+            # Don't send out "pending" status updates if the build is already finished
+            next if !$finished && $b->finished == 1;
 
             my $contextTrailer = $conf->{excludeBuildFromContext} ? "" : (":" . $b->id);
             my $body = encode_json(
