@@ -55,7 +55,8 @@ sub fetchInput {
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
     print $fh encode_json \%pulls;
     close $fh;
-    my $storePath = `nix-store --add "$filename"`
+    system("jq -S . < $filename > $tempdir/github-pulls-sorted.json");
+    my $storePath = `nix-store --add "$tempdir/github-pulls-sorted.json"`
         or die "cannot copy path $filename to the Nix store.\n";
     my $timestamp = time;
     return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };
