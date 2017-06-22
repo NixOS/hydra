@@ -737,9 +737,9 @@ sub checkJobsetWrapped {
     Net::Statsd::increment("hydra.evaluator.evals");
     Net::Statsd::increment("hydra.evaluator.cached_evals") unless $jobsetChanged;
 
-    while (my ($id, $x) = each %buildMap) {
-        system("hydra-notify build-queued $id") if $x->{new};
-    }
+    #while (my ($id, $x) = each %buildMap) {
+    #    system("hydra-notify build-queued $id") if $x->{new};
+    #}
 
     # Store the error messages for jobs that failed to evaluate.
     my $msg = "";
