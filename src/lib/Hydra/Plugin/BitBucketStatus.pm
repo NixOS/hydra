@@ -36,6 +36,11 @@ sub common {
         while (my $eval = $evals->next) {
             foreach my $i ($eval->jobsetevalinputs){
                 next unless defined $i;
+
+                # Skip if the emailResponsible field is disabled
+                my $input = $eval->jobset->jobsetinputs->find({name => $i->name });
+                next unless $input->emailresponsible;
+
                 my $uri = $i->uri;
                 my $rev = $i->revision;
                 # Skip if the uri is not a bitbucket repo
