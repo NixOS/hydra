@@ -8,6 +8,11 @@ use Hydra::Helper::Nix;
 use Nix::Store;
 use Encode;
 use Fcntl qw(:flock);
+use Env;
+use Data::Dumper;
+
+my $CONFIG_SECTION = "git-input";
+
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -21,17 +26,104 @@ sub _isHash {
 
 sub _parseValue {
     my ($value) = @_;
-    (my $uri, my $branch, my $deepClone) = split ' ', $value;
+    my @parts = split ' ', $value;
+    (my $uri, my $branch, my $deepClone) = @parts;
     $branch = defined $branch ? $branch : "master";
-    return ($uri, $branch, $deepClone);
+    my $options = {};
+    my $start_options = 3;
+    # if deepClone has "=" then is considered an option
+    # and not the enabling of deepClone
+    if (index($deepClone, "=") != -1) {
+        undef $deepClone;
+        $start_options = 2;
+    }
+    foreach my $option (@parts[$start_options .. $#parts]) {
+        (my $key, my $value) = split('=', $option);
+        $options->{$key} = $value;
+    }
+    return ($uri, $branch, $deepClone, $options);
+}
+
+sub _printIfDebug {
+    my ($msg) = @_;
+    print STDERR "GitInput: $msg" if $ENV{'HYDRA_DEBUG'};
+}
+
+=item _pluginConfig($main_config, $project_name, $jobset_name, $input_name)
+
+Read the configuration from the main hydra config file.
+
+The configuration is loaded from the "git-input" block.
+
+Currently only the "timeout" variable is been looked up in the file.
+
+The variables defined directly in the input value will override
+the ones on the configuration file, to define the variables
+as an input value use: <name>=<value> without spaces and
+specify at least he repo url and branch.
+
+Expected configuration format in the hydra config file:
+    <git-input>
+      # general timeout
+      timeout = 400
+
+      <project:jobset:input-name>
+        # specific timeout for a particular input
+        timeout = 400
+      </project:jobset:input-name>
+
+    </git-input>
+=cut
+sub _pluginConfig {
+    my ($main_config, $project_name, $jobset_name, $input_name) = @_;
+    my $cfg = $main_config->{$CONFIG_SECTION};
+    # default values
+    my $values = {
+        timeout => 600,
+    };
+    my $input_block = "$project_name:$jobset_name:$input_name";
+
+    unless (defined $cfg) {
+        _printIfDebug "Unable to load $CONFIG_SECTION section\n";
+        _printIfDebug "Using default values\n";
+        return $values;
+    } else {
+        _printIfDebug "Parsing plugin configuration:\n";
+        _printIfDebug Dumper($cfg);
+    }
+    if (defined $cfg->{$input_block} and %{$cfg->{$input_block}}) {
+         _printIfDebug "Merging sections from $input_block\n";
+         # merge with precedense to the input block
+        $cfg = {%{$cfg}, %{$cfg->{$input_block}}};
+    }
+    if (exists $cfg->{timeout}) {
+        $values->{timeout} = int($cfg->{timeout});
+        _printIfDebug "Using custom timeout for $input_block:\n";
+    } else {
+        _printIfDebug "Using default timeout for $input_block:\n";
+    }
+    _printIfDebug "$values->{timeout}\n";
+    return $values;
 }
 
 sub fetchInput {
-    my ($self, $type, $name, $value) = @_;
+    my ($self, $type, $name, $value, $project, $jobset) = @_;
 
     return undef if $type ne "git";
 
-    my ($uri, $branch, $deepClone) = _parseValue($value);
+    my ($uri, $branch, $deepClone, $options) = _parseValue($value);
+    my $cfg = _pluginConfig($self->{config},
+                            $project->get_column('name'),
+                            $jobset->get_column('name'),
+                            $name);
+    # give preference to the options from the input value
+    while (my ($opt_name, $opt_value) = each %{$options}) {
+        if ($opt_value =~ /\d+/) {
+            $opt_value = int($opt_value);
+        }
+        $cfg->{$opt_name} = $opt_value;
+        _printIfDebug "'$name': override '$opt_name' with input value: $opt_value\n";
+    }
 
     # Clone or update a branch of the repository into our SCM cache.
     my $cacheDir = getSCMCacheDir . "/git";
@@ -53,8 +145,9 @@ sub fetchInput {
     # the remote branch for whatever the repository state is.  This command mirrors
     # only one branch of the remote repository.
     my $localBranch = _isHash($branch) ? "_hydra_tmp" : $branch;
-    $res = run(cmd => ["git", "fetch", "-fu", "origin", "+$branch:$localBranch"], dir => $clonePath, timeout => 600);
-    $res = run(cmd => ["git", "fetch", "-fu", "origin"], dir => $clonePath, timeout => 600) if $res->{status};
+    $res = run(cmd => ["git", "fetch", "-fu", "origin", "+$branch:$localBranch"], dir => $clonePath,
+               timeout => $cfg->{timeout});
+    $res = run(cmd => ["git", "fetch", "-fu", "origin"], dir => $clonePath, timeout => $cfg->{timeout}) if $res->{status};
     die "error fetching latest change from git repo at `$uri':\n$res->{stderr}" if $res->{status};
 
     # If deepClone is defined, then we look at the content of the repository
@@ -71,7 +164,7 @@ sub fetchInput {
 
             # This is a TopGit branch.  Fetch all the topic branches so
             # that builders can run "tg patch" and similar.
-            $res = run(cmd => ["tg", "remote", "--populate", "origin"], dir => $clonePath, timeout => 600);
+            $res = run(cmd => ["tg", "remote", "--populate", "origin"], dir => $clonePath, timeout => $cfg->{timeout});
             print STDERR "warning: `tg remote --populate origin' failed:\n$res->{stderr}" if $res->{status};
         }
     }
