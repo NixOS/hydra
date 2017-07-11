@@ -30,7 +30,7 @@ sub common {
                 state => $finished ? toBitBucketState($b->buildstatus) : "INPROGRESS",
                 url => "$baseurl/build/" . $b->id,
                 name => $jobName,
-                key => $jobName,
+                key => $b->id,
                 description => "Hydra build #" . $b->id . " of $jobName",
             });
         while (my $eval = $evals->next) {
