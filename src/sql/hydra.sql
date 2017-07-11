@@ -291,7 +291,7 @@ create table BuildSteps (
     overhead      integer,
 
     -- How many times this build step was done (for checking determinism).
-    timesBuilt    integer,
+    timesBuilt    integer not null default 0,
 
     -- Whether this build step produced different results when repeated.
     isNonDeterministic boolean,
@@ -347,7 +347,7 @@ create table BuildProducts (
     productnr     integer not null,
     type          text not null, -- "nix-build", "file", "doc", "report", ...
     subtype       text not null, -- "source-dist", "rpm", ...
-    fileSize      bigint,
+    fileSize      bigint not null default 0,
     sha1hash      text,
     sha256hash    text,
     path          text,
