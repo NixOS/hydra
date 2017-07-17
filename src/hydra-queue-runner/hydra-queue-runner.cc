@@ -435,8 +435,8 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
             (product.type)
             (product.subtype)
             (product.fileSize, product.isRegular)
-            (printHash(product.sha1hash), product.isRegular)
-            (printHash(product.sha256hash), product.isRegular)
+            (product.sha1hash.to_string(Base16, false), product.isRegular)
+            (product.sha256hash.to_string(Base16, false), product.isRegular)
             (product.path)
             (product.name)
             (product.defaultPath).exec();

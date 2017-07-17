@@ -224,7 +224,7 @@ void State::buildRemote(ref<Store> destStore,
            a no-op for regular stores, but for the binary cache store,
            this will copy the inputs to the binary cache from the local
            store. */
-        copyClosure(ref<Store>(localStore), destStore, step->drv.inputSrcs, false, true);
+        copyClosure(ref<Store>(localStore), destStore, step->drv.inputSrcs, NoRepair, NoCheckSigs);
 
         /* Copy the input closure. */
         if (/* machine->sshName != "localhost" */ true) {
@@ -416,7 +416,7 @@ void State::buildRemote(ref<Store> destStore,
 
             to << cmdExportPaths << 0 << outputs;
             to.flush();
-            destStore->importPaths(from, result.accessor, true);
+            destStore->importPaths(from, result.accessor, NoCheckSigs);
 
             /* Release the tokens pertaining to NAR
                compression. After this we only have the uncompressed

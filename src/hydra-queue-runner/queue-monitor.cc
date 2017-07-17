@@ -629,9 +629,9 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
                 product.fileSize = row[2].as<off_t>();
             }
             if (!row[3].is_null())
-                product.sha1hash = parseHash(htSHA1, row[3].as<std::string>());
+                product.sha1hash = Hash(row[3].as<std::string>(), htSHA1);
             if (!row[4].is_null())
-                product.sha256hash = parseHash(htSHA256, row[4].as<std::string>());
+                product.sha256hash = Hash(row[4].as<std::string>(), htSHA256);
             if (!row[5].is_null())
                 product.path = row[5].as<std::string>();
             product.name = row[6].as<std::string>();
