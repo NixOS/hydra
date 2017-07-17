@@ -510,9 +510,8 @@ void State::notificationSender()
 
             int res = pid.wait();
 
-            if (res != 0)
-                throw Error(format("hydra-build returned exit code %1% notifying about build %2%")
-                    % res % item.id);
+            if (!statusOk(res))
+                throw Error("notification about build %d failed: %s", item.id, statusToString(res));
 
         } catch (std::exception & e) {
             printMsg(lvlError, format("notification sender: %1%") % e.what());
