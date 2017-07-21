@@ -238,13 +238,27 @@ struct Machine
 
     bool supportsStep(Step::ptr step)
     {
-        if (systemTypes.find(step->drv.platform) == systemTypes.end()) return false;
+        /* Check that this machine is of the type required by the
+           step. */
+        if (!systemTypes.count(step->drv.platform)) return false;
+
+        /* Check that the step requires all mandatory features of this
+           machine. (Thus, a machine with the mandatory "benchmark"
+           feature will *only* execute steps that require
+           "benchmark".) The "preferLocalBuild" bit of a step is
+           mapped to the "local" feature; thus machines that have
+           "local" as a mandatory feature will only do
+           preferLocalBuild steps. */
         for (auto & f : mandatoryFeatures)
-            if (step->requiredSystemFeatures.find(f) == step->requiredSystemFeatures.end()
-                && !(step->preferLocalBuild && f == "local"))
+            if (!step->requiredSystemFeatures.count(f)
+                && !(f == "local" && step->preferLocalBuild))
                 return false;
+
+        /* Check that the machine supports all features required by
+           the step. */
         for (auto & f : step->requiredSystemFeatures)
-            if (supportedFeatures.find(f) == supportedFeatures.end()) return false;
+            if (!supportedFeatures.count(f)) return false;
+
         return true;
     }
 };
