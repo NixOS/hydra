@@ -106,29 +106,29 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
 
     if (v.type == tAttrs) {
 
-        DrvInfo drv(state);
+        auto drv = getDerivation(state, v, false);
 
-        if (getDerivation(state, v, drv, false)) {
+        if (drv) {
             Path drvPath;
 
-            DrvInfo::Outputs outputs = drv.queryOutputs();
+            DrvInfo::Outputs outputs = drv->queryOutputs();
 
-            if (drv.system == "unknown")
+            if (drv->querySystem() == "unknown")
                 throw EvalError("derivation must have a ‘system’ attribute");
 
             {
             auto res = top.object(attrPath);
-            res.attr("nixName", drv.name);
-            res.attr("system", drv.system);
-            res.attr("drvPath", drvPath = drv.queryDrvPath());
-            res.attr("description", drv.queryMetaString("description"));
-            res.attr("license", queryMetaStrings(state, drv, "license"));
-            res.attr("homepage", drv.queryMetaString("homepage"));
-            res.attr("maintainers", queryMetaStrings(state, drv, "maintainers"));
-            res.attr("schedulingPriority", drv.queryMetaInt("schedulingPriority", 100));
-            res.attr("timeout", drv.queryMetaInt("timeout", 36000));
-            res.attr("maxSilent", drv.queryMetaInt("maxSilent", 7200));
-            res.attr("isChannel", drv.queryMetaBool("isHydraChannel", false));
+            res.attr("nixName", drv->queryName());
+            res.attr("system", drv->querySystem());
+            res.attr("drvPath", drvPath = drv->queryDrvPath());
+            res.attr("description", drv->queryMetaString("description"));
+            res.attr("license", queryMetaStrings(state, *drv, "license"));
+            res.attr("homepage", drv->queryMetaString("homepage"));
+            res.attr("maintainers", queryMetaStrings(state, *drv, "maintainers"));
+            res.attr("schedulingPriority", drv->queryMetaInt("schedulingPriority", 100));
+            res.attr("timeout", drv->queryMetaInt("timeout", 36000));
+            res.attr("maxSilent", drv->queryMetaInt("maxSilent", 7200));
+            res.attr("isChannel", drv->queryMetaBool("isHydraChannel", false));
 
             /* If this is an aggregate, then get its constituents. */
             Bindings::iterator a = v.attrs->find(state.symbols.create("_hydraAggregate"));
