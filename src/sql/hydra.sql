@@ -233,9 +233,6 @@ create table Builds (
 
 #ifdef POSTGRESQL
 
-create function notifyBuildsAdded() returns trigger as 'begin notify builds_added; return null; end;' language plpgsql;
-create trigger BuildsAdded after insert on Builds execute procedure notifyBuildsAdded();
-
 create function notifyBuildsDeleted() returns trigger as 'begin notify builds_deleted; return null; end;' language plpgsql;
 create trigger BuildsDeleted after delete on Builds execute procedure notifyBuildsDeleted();
 

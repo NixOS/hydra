@@ -48,8 +48,10 @@ void State::queueMonitorLoop()
         } else
             conn->get_notifs();
 
-        if (buildsAdded.get())
+        if (auto lowestId = buildsAdded.get()) {
+            lastBuildId = std::stoi(*lowestId) - 1;
             printMsg(lvlTalkative, "got notification: new builds added to the queue");
+        }
         if (buildsRestarted.get()) {
             printMsg(lvlTalkative, "got notification: builds restarted");
             lastBuildId = 0; // check all builds
@@ -75,7 +77,7 @@ struct PreviousFailure : public std::exception {
 bool State::getQueuedBuilds(Connection & conn,
     ref<Store> destStore, unsigned int & lastBuildId)
 {
-    printMsg(lvlInfo, format("checking the queue for builds > %1%...") % lastBuildId);
+    printInfo("checking the queue for builds > %d...", lastBuildId);
 
     /* Grab the queued builds from the database, but don't process
        them yet (since we don't want a long-running transaction). */

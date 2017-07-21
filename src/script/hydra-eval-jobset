@@ -25,6 +25,8 @@ STDERR->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
 
 my $db = Hydra::Model::DB->new();
+my $notifyAdded = $db->storage->dbh->prepare("notify builds_added, ?");
+
 my $config = getHydraConfig();
 
 my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
@@ -720,6 +722,14 @@ sub checkJobsetWrapped {
 
             print STDERR "  created new eval ", $ev->id, "\n";
             $ev->builds->update({iscurrent => 1});
+
+            # Wake up hydra-queue-runner.
+            my $lowestId;
+            while (my ($id, $x) = each %buildMap) {
+                $lowestId = $id if $x->{new} && (!defined $lowestId || $id < $lowestId);
+            }
+            $notifyAdded->execute($lowestId) if defined $lowestId;
+
         } else {
             print STDERR "  created cached eval ", $ev->id, "\n";
             $prevEval->builds->update({iscurrent => 1}) if defined $prevEval;

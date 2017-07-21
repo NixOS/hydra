@@ -21,18 +21,23 @@ struct Connection : pqxx::connection
 };
 
 
-struct receiver : public pqxx::notification_receiver
+class receiver : public pqxx::notification_receiver
 {
-    bool status = false;
+    std::experimental::optional<std::string> status;
+
+public:
+
     receiver(pqxx::connection_base & c, const std::string & channel)
         : pqxx::notification_receiver(c, channel) { }
+
     void operator() (const std::string & payload, int pid) override
     {
-        status = true;
+        status = payload;
     };
-    bool get() {
-        bool b = status;
-        status = false;
-        return b;
+
+    std::experimental::optional<std::string> get() {
+        auto s = status;
+        status = std::experimental::nullopt;
+        return s;
     }
 };
