@@ -833,7 +833,9 @@ void State::run(BuildID buildOne)
     std::thread(&State::dispatcher, this).detach();
 
     /* Idem for notification sending. */
-    std::thread(&State::notificationSender, this).detach();
+    auto maxConcurrentNotifications = config->getIntOption("max-concurrent-notifications", 2);
+    for (uint64_t i = 0; i < maxConcurrentNotifications; ++i)
+        std::thread(&State::notificationSender, this).detach();
 
     /* Periodically clean up orphaned busy steps in the database. */
     std::thread([&]() {
