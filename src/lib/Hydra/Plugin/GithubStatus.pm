@@ -40,8 +40,8 @@ sub common {
                 {
                     state => $finished ? toGithubState($b->buildstatus) : "pending",
                     target_url => "$baseurl/build/" . $b->id,
-                    description => "Hydra build #" . $b->id . " of $jobName",
-                    context => "continuous-integration/hydra:" . $jobName . $contextTrailer
+                    description => $conf->{description} // "Hydra build #" . $b->id . " of $jobName",
+                    context => $conf->{context} // "continuous-integration/hydra:" . $jobName . $contextTrailer
                 });
             my $inputs_cfg = $conf->{inputs};
             my @inputs = defined $inputs_cfg ? ref $inputs_cfg eq "ARRAY" ? @$inputs_cfg : ($inputs_cfg) : ();
