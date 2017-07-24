@@ -334,6 +334,10 @@ private:
     counter bytesSent{0};
     counter bytesReceived{0};
     counter nrActiveDbUpdates{0};
+    counter nrNotificationsDone{0};
+    counter nrNotificationsFailed{0};
+    counter nrNotificationsInProgress{0};
+    counter nrNotificationTimeMs{0};
 
     /* Notification sender work queue. FIXME: if hydra-queue-runner is
        killed before it has finished sending notifications about a

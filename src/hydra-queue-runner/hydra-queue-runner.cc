@@ -485,7 +485,11 @@ void State::notificationSender()
                 notificationSenderQueue_->pop();
             }
 
+            MaintainCount mc(nrNotificationsInProgress);
+
             printMsg(lvlChatty, format("sending notification about build %1%") % item.id);
+
+            auto now1 = std::chrono::steady_clock::now();
 
             Pid pid = startProcess([&]() {
                 Strings argv;
@@ -513,7 +517,13 @@ void State::notificationSender()
             if (!statusOk(res))
                 throw Error("notification about build %d failed: %s", item.id, statusToString(res));
 
+            auto now2 = std::chrono::steady_clock::now();
+
+            nrNotificationTimeMs += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
+            nrNotificationsDone++;
+
         } catch (std::exception & e) {
+            nrNotificationsFailed++;
             printMsg(lvlError, format("notification sender: %1%") % e.what());
             sleep(5);
         }
@@ -589,6 +599,13 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("nrDbConnections", dbPool.count());
         root.attr("nrActiveDbUpdates", nrActiveDbUpdates);
         root.attr("memoryTokensInUse", memoryTokens.currentUse());
+        root.attr("nrNotificationsDone", nrNotificationsDone);
+        root.attr("nrNotificationsFailed", nrNotificationsFailed);
+        root.attr("nrNotificationsInProgress", nrNotificationsInProgress);
+        root.attr("nrNotificationsPending", notificationSenderQueue.lock()->size());
+        root.attr("nrNotificationTimeMs", nrNotificationTimeMs);
+        uint64_t nrNotificationsTotal = nrNotificationsDone + nrNotificationsFailed;
+        root.attr("nrNotificationTimeAvgMs", nrNotificationsTotal == 0 ? 0.0 : (float) nrNotificationTimeMs / nrNotificationsTotal);
 
         {
             auto nested = root.object("machines");
