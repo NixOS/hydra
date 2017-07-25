@@ -8,8 +8,18 @@
 using namespace nix;
 
 
+void setThreadName(const std::string & name)
+{
+#ifdef __linux__
+   pthread_setname_np(pthread_self(), std::string(name, 0, 15).c_str());
+#endif
+}
+
+
 void State::builder(MachineReservation::ptr reservation)
 {
+    setThreadName("bld~" + baseNameOf(reservation->step->drvPath));
+
     StepResult res = sRetry;
 
     nrStepsStarted++;
