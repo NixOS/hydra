@@ -5,7 +5,7 @@
 , ...
 }:
 {
-  resources.datadogTimeboards.dash = {
+  resources.datadogTimeboards.hydra-status = {
     inherit appKey apiKey;
     description = "Hydra build farm status (hydra.nixos.org)";
     graphs = [
