@@ -222,12 +222,14 @@ create table Builds (
 
     keep          integer not null default 0, -- true means never garbage-collect the build output
 
+    notificationPendingSince integer,
+
     check (finished = 0 or (stoptime is not null and stoptime != 0)),
     check (finished = 0 or (starttime is not null and starttime != 0)),
 
-    foreign key   (project) references Projects(name) on update cascade,
-    foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
-    foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade
+    foreign key (project) references Projects(name) on update cascade,
+    foreign key (project, jobset) references Jobsets(project, name) on update cascade,
+    foreign key (project, jobset, job) references Jobs(project, jobset, name) on update cascade
 );
 
 
@@ -677,3 +679,5 @@ create index IndexBuildsOnKeep on Builds(keep) where keep = 1;
 
 -- To get the most recent eval for a jobset.
 create index IndexJobsetEvalsOnJobsetId on JobsetEvals(project, jobset, id desc) where hasNewBuilds = 1;
+
+create index IndexBuildsOnNotificationPendingSince on Builds(notificationPendingSince) where notificationPendingSince is not null;

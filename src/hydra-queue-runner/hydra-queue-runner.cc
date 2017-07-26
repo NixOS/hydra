@@ -414,7 +414,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
     if (txn.parameterized("select 1 from Builds where id = $1 and finished = 0")(build->id).exec().empty()) return;
 
     txn.parameterized
-        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8 where id = $1")
+        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8, notificationPendingSince = $4 where id = $1")
         (build->id)
         ((int) (res.failed ? bsFailedWithOutput : bsSuccess))
         (startTime)
@@ -518,6 +518,16 @@ void State::notificationSender()
                 throw Error("notification about build %d failed: %s", item.id, statusToString(res));
 
             auto now2 = std::chrono::steady_clock::now();
+
+            if (item.type == NotificationItem::Type::BuildFinished) {
+                auto conn(dbPool.get());
+                pqxx::work txn(*conn);
+                txn.parameterized
+                    ("update Builds set notificationPendingSince = null where id = $1")
+                    (item.id)
+                    .exec();
+                txn.commit();
+            }
 
             nrNotificationTimeMs += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
             nrNotificationsDone++;
@@ -836,6 +846,19 @@ void State::run(BuildID buildOne)
     auto maxConcurrentNotifications = config->getIntOption("max-concurrent-notifications", 2);
     for (uint64_t i = 0; i < maxConcurrentNotifications; ++i)
         std::thread(&State::notificationSender, this).detach();
+
+    /* Enqueue notification items for builds that were finished
+       previously, but for which we didn't manage to send
+       notifications. */
+    {
+        auto conn(dbPool.get());
+        pqxx::work txn(*conn);
+        auto res = txn.parameterized("select id from Builds where notificationPendingSince > 0").exec();
+        for (auto const & row : res) {
+            auto id = row["id"].as<BuildID>();
+            enqueueNotificationItem({NotificationItem::Type::BuildFinished, id});
+        }
+    }
 
     /* Periodically clean up orphaned busy steps in the database. */
     std::thread([&]() {
