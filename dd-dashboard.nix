@@ -7,7 +7,7 @@
 {
   resources.datadogTimeboards.hydra-status = {
     inherit appKey apiKey;
-    description = "Hydra build farm status (hydra.nixos.org)";
+    description = "Hydra build farm status";
     graphs = [
       {
         definition = builtins.toJSON {
