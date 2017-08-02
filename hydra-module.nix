@@ -2,8 +2,7 @@
 
 with lib;
 
-let
-
+with rec {
   cfg = config.services.hydra-dev;
 
   baseDir = "/var/lib/hydra";
@@ -36,10 +35,12 @@ let
 
   haveLocalDB = cfg.dbi == localDB;
 
-in
+  hydraExe = name: "${cfg.package}/bin/${name}";
+};
 
 {
   ###### interface
+
   options = {
 
     services.hydra-dev = rec {
@@ -70,7 +71,8 @@ in
       hydraURL = mkOption {
         type = types.str;
         description = ''
-          The base URL for the Hydra webserver instance. Used for links in emails.
+          The base URL for the Hydra webserver instance.
+          Used for links in emails.
         '';
       };
 
@@ -79,8 +81,8 @@ in
         default = "*";
         example = "localhost";
         description = ''
-          The hostname or address to listen on or <literal>*</literal> to listen
-          on all interfaces.
+          The hostname or address to listen on.
+          If <literal>*</literal> is given, listen on all interfaces.
         '';
       };
 
@@ -96,7 +98,8 @@ in
         type = types.int;
         default = 0;
         description = ''
-          Threshold of minimum disk space (GiB) to determine if the queue runner should run or not.
+          Threshold of minimum disk space (GiB) to determine if the queue
+          runner should run or not.
         '';
       };
 
@@ -104,7 +107,8 @@ in
         type = types.int;
         default = 0;
         description = ''
-          Threshold of minimum disk space (GiB) to determine if the evaluator should run or not.
+          Threshold of minimum disk space (GiB) to determine if the evaluator
+          should run or not.
         '';
       };
 
@@ -175,7 +179,7 @@ in
         default = false;
         description = ''
           Whether to use binary caches for downloading store paths. Note that
-          binary substitutions trigger (a potentially large number of) additional
+          binary substitutions trigger a potentially large number of additional
           HTTP requests that slow down the queue monitor thread significantly.
           Also, this Hydra instance will serve those downloaded store paths to
           its users with its own signature attached as if it had built them
@@ -186,7 +190,6 @@ in
     };
 
   };
-
 
   ###### implementation
 
