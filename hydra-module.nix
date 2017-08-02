@@ -17,6 +17,7 @@ with rec {
 
   env = {
     NIX_REMOTE = "daemon";
+    # FIXME: why isn't this removed yet? we've been on 17.03 for a while now
     SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt"; # Remove in 16.03
     PGPASSFILE = "${baseDir}/pgpass";
     NIX_REMOTE_SYSTEMS = concatStringsSep ":" cfg.buildMachinesFiles;
@@ -229,9 +230,7 @@ with rec {
       notification_sender ${cfg.notificationSender}
       max_servers 25
       compress_num_threads 0
-        ${optionalString (cfg.logo != null) ''
-          hydra_logo ${cfg.logo}
-        ''}
+      ${optionalString (cfg.logo != null) "hydra_logo ${cfg.logo}"}
       gc_roots_dir ${cfg.gcRootsDir}
       use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
     '';
@@ -266,7 +265,8 @@ with rec {
 
         mkdir -m 0700 -p ${baseDir}/queue-runner
         mkdir -m 0750 -p ${baseDir}/build-logs
-          chown hydra-queue-runner.hydra ${baseDir}/queue-runner ${baseDir}/build-logs
+        chown hydra-queue-runner.hydra ${baseDir}/queue-runner
+        chown hydra-queue-runner.hydra ${baseDir}/build-logs
 
         ${optionalString haveLocalDB ''
           if ! [ -e ${baseDir}/.db-created ]; then
@@ -277,10 +277,10 @@ with rec {
         ''}
 
         if [ ! -e ${cfg.gcRootsDir} ]; then
-
             # Move legacy roots directory.
             if [ -e /nix/var/nix/gcroots/per-user/hydra/hydra-roots ]; then
-              mv /nix/var/nix/gcroots/per-user/hydra/hydra-roots ${cfg.gcRootsDir}
+                mv /nix/var/nix/gcroots/per-user/hydra/hydra-roots \
+                   ${cfg.gcRootsDir}
             fi
 
             mkdir -p ${cfg.gcRootsDir}
@@ -296,11 +296,14 @@ with rec {
         chown hydra.hydra ${cfg.gcRootsDir}
         chmod 2775 ${cfg.gcRootsDir}
       '';
-        serviceConfig.ExecStart = "${cfg.package}/bin/hydra-init";
-        serviceConfig.PermissionsStartOnly = true;
-        serviceConfig.User = "hydra";
-        serviceConfig.Type = "oneshot";
-        serviceConfig.RemainAfterExit = true;
+
+      serviceConfig = {
+        ExecStart            = hydraExe "hydra-init";
+        PermissionsStartOnly = true;
+        User                 = "hydra";
+        Type                 = "oneshot";
+        RemainAfterExit      = true;
+      };
     };
 
     systemd.services.hydra-server = {
@@ -309,11 +312,17 @@ with rec {
       after = ["hydra-init.service"];
       environment = serverEnv;
       restartTriggers = [hydraConf];
-        serviceConfig =
-          { ExecStart =
-              "@${cfg.package}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' "
-              + "-p ${toString cfg.port} --max_spare_servers 5 --max_servers 25 "
-              + "--max_requests 100 ${optionalString cfg.debugServer "-d"}";
+      serviceConfig = {
+        ExecStart = ("@${hydraExe "hydra-server"} hydra-server " + (
+          lib.concatStrings (lib.intersperse " " (filter builtins.isString [
+            "-f"
+            "-h '${cfg.listenHost}'"
+            "-p ${toString cfg.port}"
+            "--max_spare_servers 5"
+            "--max_servers 25"
+            "--max_requests 100"
+            (if cfg.debugServer then "-d" else null)
+          ]))));
         User                 = "hydra-www";
         PermissionsStartOnly = true;
         Restart              = "always";
@@ -324,15 +333,21 @@ with rec {
       wantedBy = ["multi-user.target"];
       requires = ["hydra-init.service"];
       after = ["hydra-init.service" "network.target"];
-        path = [ cfg.package pkgs.nettools pkgs.openssh pkgs.bzip2 config.nix.package ];
+      path = [
+        cfg.package
+        pkgs.nettools
+        pkgs.openssh
+        pkgs.bzip2
+        config.nix.package
+      ];
       restartTriggers = [hydraConf];
       environment = env // {
         PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
         IN_SYSTEMD = "1"; # to get log severity levels
       };
-        serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner -v";
-            ExecStopPost = "${cfg.package}/bin/hydra-queue-runner --unlock";
+      serviceConfig = {
+        ExecStart        = "@${hydraExe "hydra-queue-runner"} hydra-queue-runner -v";
+        ExecStopPost     = "${hydraExe "hydra-queue-runner"} --unlock";
         User             = "hydra-queue-runner";
         Restart          = "always";
         LimitCORE        = "infinity"; # <-- ensure we can get core dumps.
@@ -347,9 +362,9 @@ with rec {
       after = ["hydra-init.service" "network.target"];
       path = with pkgs; [nettools cfg.package jq];
       environment = env;
-        serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-evaluator hydra-evaluator";
-            ExecStopPost = "${cfg.package}/bin/hydra-evaluator --unlock";
+      serviceConfig = {
+        ExecStart        = "@${hydraExe "hydra-evaluator"} hydra-evaluator";
+        ExecStopPost     = "${hydraExe "hydra-evaluator"} --unlock";
         User             = "hydra";
         Restart          = "always";
         WorkingDirectory = baseDir;
@@ -360,8 +375,8 @@ with rec {
       requires = ["hydra-init.service"];
       after = ["hydra-init.service"];
       environment = env;
-        serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-update-gc-roots hydra-update-gc-roots";
+      serviceConfig = {
+        ExecStart = "@${hydraExe "hydra-update-gc-roots"} hydra-update-gc-roots";
         User      = "hydra";
       };
       startAt = "2,14:15";
@@ -371,22 +386,29 @@ with rec {
       wantedBy = ["multi-user.target"];
       after = ["hydra-init.service"];
       environment = env;
-        serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-send-stats hydra-send-stats";
+      serviceConfig = {
+        ExecStart = "@${hydraExe "hydra-send-stats"} hydra-send-stats";
         User      = "hydra";
       };
     };
 
     # If there is less than a certain amount of free disk space, stop
     # the queue/evaluator to prevent builds from failing or aborting.
-    systemd.services.hydra-check-space =
-      { script =
-          ''
-            if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFree} * 1024**3)) ]; then
+    systemd.services.hydra-check-space = {
+      script = ''
+        FREE_BLOCKS="$(stat -f -c '%a' /nix/store)"
+        BLOCK_SIZE="$(stat -f -c '%S' /nix/store)"
+        FREE_BYTES="$((FREE_BLOCKS * BLOCK_SIZE))"
+        QUEUE_MIN_FREE_GB="${toString cfg.minimumDiskFree}"
+        QUEUE_MIN_FREE_BYTES="$((QUEUE_MIN_FREE_GB * 1024**3))"
+        EVAL_MIN_FREE_GB="${toString cfg.minimumDiskFreeEvaluator}"
+        EVAL_MIN_FREE_BYTES="$((EVAL_MIN_FREE_GB * 1024**3))"
+
+        if (( FREE_BYTES < QUEUE_MIN_FREE_BYTES )); then
             echo "stopping Hydra queue runner due to lack of free space..."
             systemctl stop hydra-queue-runner
         fi
-            if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFreeEvaluator} * 1024**3)) ]; then
+        if (( FREE_BYTES < EVAL_MIN_FREE_BYTES )); then
             echo "stopping Hydra evaluator due to lack of free space..."
             systemctl stop hydra-evaluator
         fi
@@ -397,11 +419,13 @@ with rec {
     # Periodically compress build logs. The queue runner compresses
     # logs automatically after a step finishes, but this doesn't work
     # if the queue runner is stopped prematurely.
-    systemd.services.hydra-compress-logs =
-      { path = [ pkgs.bzip2 ];
-        script =
-          ''
-            find /var/lib/hydra/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v -f
+    systemd.services.hydra-compress-logs = {
+      path = [pkgs.bzip2];
+      # FIXME: use `find … -print0` and `xargs -0` here
+      # FIXME: perhaps use GNU parallel instead of xargs
+      script = ''
+        find /var/lib/hydra/build-logs -type f -name "*.drv" -mtime +3 -size +0c \
+            | xargs -r bzip2 -v -f
       '';
       startAt = "Sun 01:45";
     };
