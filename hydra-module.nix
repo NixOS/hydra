@@ -9,14 +9,14 @@ with rec {
 
   hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
-  hydraEnv =
-    { HYDRA_DBI = cfg.dbi;
+  hydraEnv = {
+    HYDRA_DBI = cfg.dbi;
     HYDRA_CONFIG = "${baseDir}/hydra.conf";
     HYDRA_DATA = "${baseDir}";
   };
 
-  env =
-    { NIX_REMOTE = "daemon";
+  env = {
+    NIX_REMOTE = "daemon";
     SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt"; # Remove in 16.03
     PGPASSFILE = "${baseDir}/pgpass";
     NIX_REMOTE_SYSTEMS = concatStringsSep ":" cfg.buildMachinesFiles;
@@ -25,8 +25,8 @@ with rec {
     EMAIL_SENDER_TRANSPORT_host = cfg.smtpHost;
   } // hydraEnv // cfg.extraEnv;
 
-  serverEnv = env //
-    { HYDRA_TRACKER = cfg.tracker;
+  serverEnv = env // {
+    HYDRA_TRACKER = cfg.tracker;
     COLUMNS = "80";
     PGPASSFILE = "${baseDir}/pgpass-www"; # grrr
   } // (optionalAttrs cfg.debugServer { DBIC_TRACE = "1"; });
@@ -197,33 +197,33 @@ with rec {
 
     users.extraGroups.hydra = {};
 
-    users.extraUsers.hydra =
-      { description = "Hydra";
+    users.extraUsers.hydra = {
+      description     = "Hydra";
       group           = "hydra";
       createHome      = true;
       home            = baseDir;
       useDefaultShell = true;
     };
 
-    users.extraUsers.hydra-queue-runner =
-      { description = "Hydra queue runner";
+    users.extraUsers.hydra-queue-runner = {
+      description     = "Hydra queue runner";
       group           = "hydra";
       useDefaultShell = true;
-        home = "${baseDir}/queue-runner"; # really only to keep SSH happy
+      home            = "${baseDir}/queue-runner"; # <-- keeps SSH happy
     };
 
-    users.extraUsers.hydra-www =
-      { description = "Hydra web server";
+    users.extraUsers.hydra-www = {
+      description     = "Hydra web server";
       group           = "hydra";
       useDefaultShell = true;
     };
 
     nix.trustedUsers = ["hydra-queue-runner"];
 
-    services.hydra-dev.package = mkDefault ((import ./release.nix {}).build.x86_64-linux);
+    services.hydra-dev.package = (
+      mkDefault ((import ./release.nix {}).build.x86_64-linux));
 
-    services.hydra-dev.extraConfig =
-      ''
+    services.hydra-dev.extraConfig = ''
       using_frontend_proxy 1
       base_uri ${cfg.hydraURL}
       notification_sender ${cfg.notificationSender}
@@ -249,8 +249,8 @@ with rec {
       gc-check-reachability = false
     '';
 
-    systemd.services.hydra-init =
-      { wantedBy = [ "multi-user.target" ];
+    systemd.services.hydra-init = {
+      wantedBy = ["multi-user.target"];
       requires = optional haveLocalDB "postgresql.service";
       after = optional haveLocalDB "postgresql.service";
       environment = env;
@@ -303,8 +303,8 @@ with rec {
         serviceConfig.RemainAfterExit = true;
     };
 
-    systemd.services.hydra-server =
-      { wantedBy = [ "multi-user.target" ];
+    systemd.services.hydra-server = {
+      wantedBy = ["multi-user.target"];
       requires = ["hydra-init.service"];
       after = ["hydra-init.service"];
       environment = serverEnv;
@@ -320,8 +320,8 @@ with rec {
       };
     };
 
-    systemd.services.hydra-queue-runner =
-      { wantedBy = [ "multi-user.target" ];
+    systemd.services.hydra-queue-runner = {
+      wantedBy = ["multi-user.target"];
       requires = ["hydra-init.service"];
       after = ["hydra-init.service" "network.target"];
         path = [ cfg.package pkgs.nettools pkgs.openssh pkgs.bzip2 config.nix.package ];
@@ -335,15 +335,13 @@ with rec {
             ExecStopPost = "${cfg.package}/bin/hydra-queue-runner --unlock";
         User             = "hydra-queue-runner";
         Restart          = "always";
-
-            # Ensure we can get core dumps.
-            LimitCORE = "infinity";
+        LimitCORE        = "infinity"; # <-- ensure we can get core dumps.
         WorkingDirectory = "${baseDir}/queue-runner";
       };
     };
 
-    systemd.services.hydra-evaluator =
-      { wantedBy = [ "multi-user.target" ];
+    systemd.services.hydra-evaluator = {
+      wantedBy = ["multi-user.target"];
       requires = ["hydra-init.service"];
       restartTriggers = [hydraConf];
       after = ["hydra-init.service" "network.target"];
@@ -358,8 +356,8 @@ with rec {
       };
     };
 
-    systemd.services.hydra-update-gc-roots =
-      { requires = [ "hydra-init.service" ];
+    systemd.services.hydra-update-gc-roots = {
+      requires = ["hydra-init.service"];
       after = ["hydra-init.service"];
       environment = env;
         serviceConfig =
@@ -369,8 +367,8 @@ with rec {
       startAt = "2,14:15";
     };
 
-    systemd.services.hydra-send-stats =
-      { wantedBy = [ "multi-user.target" ];
+    systemd.services.hydra-send-stats = {
+      wantedBy = ["multi-user.target"];
       after = ["hydra-init.service"];
       environment = env;
         serviceConfig =
@@ -410,16 +408,14 @@ with rec {
 
     services.postgresql.enable = mkIf haveLocalDB true;
 
-    services.postgresql.identMap = optionalString haveLocalDB
-      ''
+    services.postgresql.identMap = optionalString haveLocalDB ''
       hydra-users hydra hydra
       hydra-users hydra-queue-runner hydra
       hydra-users hydra-www hydra
       hydra-users root hydra
     '';
 
-    services.postgresql.authentication = optionalString haveLocalDB
-      ''
+    services.postgresql.authentication = optionalString haveLocalDB ''
       local hydra all ident map=hydra-users
     '';
   };
