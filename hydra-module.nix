@@ -37,6 +37,9 @@ with rec {
   haveLocalDB = cfg.dbi == localDB;
 
   hydraExe = name: "${cfg.package}/bin/${name}";
+
+  googleOAuthDocs =
+    "https://developers.google.com/identity/sign-in/web/devconsole-project";
 };
 
 {
@@ -64,7 +67,7 @@ with rec {
       };
 
       package = mkOption {
-        type = types.path;
+        type = types.package;
         # default = pkgs.hydra;
         description = "The Hydra package.";
       };
@@ -188,6 +191,40 @@ with rec {
           are absolute trustworthy.
         '';
       };
+
+      googleClientID = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        example = "35009a79-1a05-49d7-b876-2b884d0f825b";
+        description = ''
+          The Google API client ID to use in the Hydra Google OAuth login.
+
+          More information is available
+          <ulink url="${googleOAuthDocs}">here</ulink>.
+        '';
+      };
+
+      private = mkOption {
+        type = types.bool;
+        default = false;
+        example = true;
+        description = ''
+          FIXME: doc
+        '';
+      };
+
+      storeMode = mkOption {
+        type = types.enum [
+          "direct"
+          "local-binary-cache"
+          "s3-binary-cache"
+        ];
+        default = "direct";
+        example = "local-binary-cache";
+        description = ''
+          FIXME: doc
+        '';
+      };
     };
 
   };
@@ -233,6 +270,12 @@ with rec {
       ${optionalString (cfg.logo != null) "hydra_logo ${cfg.logo}"}
       gc_roots_dir ${cfg.gcRootsDir}
       use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
+      ${optionalString (cfg.googleClientID != null) ''
+        enable_google_login = 1
+        google_client_id = ${cfg.googleClientID}
+      ''}
+      private = ${if cfg.private then "1" else "0"}
+      store_mode = ${cfg.storeMode}
     '';
 
     environment.systemPackages = [cfg.package];
