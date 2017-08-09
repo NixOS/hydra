@@ -1,5 +1,71 @@
 { config, pkgs, lib ? pkgs.lib, ... }:
 
+# ------------------------------------------------------------------------------
+# FIXME: send this stuff upstream to nixpkgs
+# vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+
+with {
+  lib = lib // rec {
+    forceWHNF = x: builtins.seq x x;
+    forceDeep = x: builtins.deepSeq x x;
+
+    strings = lib.strings // {
+      intercalate = str: list: lib.concatStrings (lib.intersperse str list);
+    };
+
+    lists = lib.lists // (
+      with {
+        foldToFold1 = fold: (f: list: (
+          assert builtins.length list > 0;
+          with {
+            mlist = builtins.map (x: { v = x; }) list;
+            merge = a: b: (
+              if a != null
+              then (if b != null then { v = f a.v b.v; } else a)
+              else (if b != null then b                  else null));
+          };
+          (fold merge null mlist).value));
+      };
+
+      {
+        foldr   = lib.lists.fold;
+        foldr1  = foldToFold1 lists.foldr;
+        foldl   = lib.lists.foldl;
+        foldl1  = foldToFold1 lists.foldl;
+        foldl'  = lib.lists.foldl';
+        foldl1' = foldToFold1 lists.foldl';
+      });
+
+    regex = {
+      # renderRegex
+      #   :: (∀ r . { lit : String → r, alt : [r] → r, star : r → r } → r)
+      #   -> Regex
+      renderRegex = expr: expr {
+        lit  = str: str;
+        alt  = rxs: "(" + strings.intercalate "|" rxs + ")";
+        star = rx: "(" + rx + ")*";
+      };
+    };
+
+    types = lib.types // {
+      oneof = list: (
+        assert lib.isList list;
+        assert lib.all lib.isOptionType list;
+
+        if lib.length list > 0
+        then lists.foldr1 lib.types.either list
+        else throw "lib.types.oneof: empty list");
+
+      matching = rx: type: (
+        lib.types.addCheck type
+        (str: assert isString str; builtins.match rx str != null));
+    };
+  };
+};
+
+# ∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧
+# ------------------------------------------------------------------------------
+
 with lib;
 
 with rec {
@@ -17,8 +83,6 @@ with rec {
 
   env = {
     NIX_REMOTE = "daemon";
-    # FIXME: why isn't this removed yet? we've been on 17.03 for a while now
-    SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt"; # Remove in 16.03
     PGPASSFILE = "${baseDir}/pgpass";
     NIX_REMOTE_SYSTEMS = concatStringsSep ":" cfg.buildMachinesFiles;
   } // optionalAttrs (cfg.smtpHost != null) {
@@ -68,7 +132,7 @@ with rec {
 
       package = mkOption {
         type = types.package;
-        # default = pkgs.hydra;
+        default = pkgs.hydra;
         description = "The Hydra package.";
       };
 
@@ -213,18 +277,31 @@ with rec {
         '';
       };
 
-      storeMode = mkOption {
-        type = types.enum [
-          "direct"
-          "local-binary-cache"
-          "s3-binary-cache"
-        ];
-        default = "direct";
-        example = "local-binary-cache";
+      maxServers = mkOption {
+        type = types.int;
+        default = 25;
         description = ''
           FIXME: doc
         '';
       };
+
+      compressThreads = mkOption {
+        type = types.int;
+        default = 0;
+        description = ''
+          FIXME: doc
+        '';
+      };
+
+      storeURI = mkOption {
+        type = (
+          types.matching "^(file|s3)://(.*)(|?secret-key=(.*))$" types.str);
+        default = 0;
+        description = ''
+          FIXME: doc
+        '';
+      };
+
     };
 
   };
@@ -262,21 +339,32 @@ with rec {
       mkDefault ((import ./release.nix {}).build.x86_64-linux));
 
     services.hydra-dev.extraConfig = ''
-      using_frontend_proxy 1
-      base_uri ${cfg.hydraURL}
-      notification_sender ${cfg.notificationSender}
-      max_servers 25
-      compress_num_threads 0
-      ${optionalString (cfg.logo != null) "hydra_logo ${cfg.logo}"}
-      gc_roots_dir ${cfg.gcRootsDir}
+      using_frontend_proxy = 1
+      base_uri = ${cfg.hydraURL}
+      notification_sender = ${cfg.notificationSender}
+      max_servers = ${toString cfg.maxServers}
+      compress_num_threads = ${toString cfg.compressThreads}
+      ${optionalString (cfg.logo != null) "hydra_logo = ${cfg.logo}"}
+      gc_roots_dir = ${cfg.gcRootsDir}
       use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
       ${optionalString (cfg.googleClientID != null) ''
         enable_google_login = 1
         google_client_id = ${cfg.googleClientID}
       ''}
       private = ${if cfg.private then "1" else "0"}
-      store_mode = ${cfg.storeMode}
+      ${optionalString (cfg.logPrefix != null) "log_prefix = ${cfg.logPrefix}"}
     '';
+
+    # FIXME: add/investigate all of these:
+    # - compress_build_logs = …
+    # - compression_type = …
+    # - allowed_domains = …
+    # - max_db_connections = int
+    # - nar_buffer_size = int
+    # - max_output_size = int
+    # - upload_logs_to_binary_cache = bool
+    # - xxx-jobset-repeats = string
+    # - max-concurrent-notifications = int
 
     environment.systemPackages = [cfg.package];
 
