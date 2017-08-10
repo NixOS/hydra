@@ -36,17 +36,6 @@ with {
         foldl1' = foldToFold1 lists.foldl';
       });
 
-    regex = {
-      # renderRegex
-      #   :: (∀ r . { lit : String → r, alt : [r] → r, star : r → r } → r)
-      #   -> Regex
-      renderRegex = expr: expr {
-        lit  = str: str;
-        alt  = rxs: "(" + strings.intercalate "|" rxs + ")";
-        star = rx: "(" + rx + ")*";
-      };
-    };
-
     types = lib.types // {
       oneof = list: (
         assert lib.isList list;
@@ -280,6 +269,7 @@ with rec {
       maxServers = mkOption {
         type = types.int;
         default = 25;
+        # example = ...;
         description = ''
           FIXME: doc
         '';
@@ -288,6 +278,7 @@ with rec {
       compressThreads = mkOption {
         type = types.int;
         default = 0;
+        # example = ...;
         description = ''
           FIXME: doc
         '';
@@ -297,6 +288,422 @@ with rec {
         type = (
           types.matching "^(file|s3)://(.*)(|?secret-key=(.*))$" types.str);
         default = 0;
+        # example = ...;
+        description = ''
+          FIXME: doc
+        '';
+      };
+
+      plugins.coverity = mkOption {
+        type = types.listOf (types.submodule {
+          enable = mkOption {
+            type = types.bool;
+            default = false;
+            example = true;
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          jobs = mkOption {
+            type = types.str; # regex
+            example = "foo:bar:.*";
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          project = mkOption {
+            type = types.str;
+            default = [];
+            # example = ...;
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          email = mkOption {
+            type = types.str;
+            example = "hydra@nixos.org";
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          token = mkOption {
+            type = types.str;
+            # example = ...;
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          scanURL = mkOption {
+            type = types.str;
+            default = "http://scan5.coverity.com/cgi-bin/upload.py";
+            description = ''
+              FIXME: doc
+            '';
+          };
+        });
+        default = [];
+        # example = ...;
+        description = ''
+          FIXME: doc
+        '';
+      };
+
+      plugins.github = {
+        auth = mkOption {
+          type = types.attrsOf types.str;
+          default = {};
+          example = { foobar = "fd3t43ijdx"; };
+          description = ''
+            FIXME: doc
+          '';
+        };
+
+        status = mkOption {
+          type = types.listOf (types.submodule {
+            jobs = mkOption {
+              type = types.str; # regex
+              example = "foo:bar:.*";
+              description = ''
+                FIXME: doc
+              '';
+            };
+
+            inputs = mkOption {
+              type = types.listOf types.str;
+              example = ["src"];
+              description = ''
+                FIXME: doc
+              '';
+            };
+
+            exclude = mkOption {
+              type = types.bool;
+              default = true;
+              example = false;
+              description = ''
+                FIXME: doc
+              '';
+            };
+
+            description = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+              # example = ...;
+              description = ''
+                FIXME: doc
+              '';
+            };
+
+            context = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+              # example = ...;
+              description = ''
+                FIXME: doc
+              '';
+            };
+
+            auth = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+              # example = ...;
+              description = ''
+                FIXME: doc
+              '';
+            };
+          });
+          default = [];
+          # example = ...;
+          description = ''
+            FIXME: doc
+          '';
+        };
+      };
+
+      plugins.slack = mkOption {
+        channels = mkOption {
+          type = types.listOf (types.submodule {
+            jobs = mkOption {
+              type = types.str; # regex
+              example = "foo:bar:.*";
+              description = ''
+                FIXME: doc
+              '';
+            };
+
+            url = mkOption {
+              type = types.str;
+              example = ""; # FIXME: example slack webhook
+              description = ''
+                FIXME: doc
+              '';
+            };
+
+            force = mkOption {
+              type = types.bool;
+              default = false;
+              example = true;
+              description = ''
+                FIXME: doc
+              '';
+            };
+          });
+          default = {};
+          # example = ...;
+          description = ''
+            FIXME: doc
+          '';
+        };
+      };
+
+      plugins.s3backup = {
+        buckets = mkOption {
+          type = types.attrsOf (types.submodule {
+            jobs = mkOption {
+              type = types.str; # regex
+              example = "foo:bar:.*";
+              description = ''
+                FIXME: doc
+              '';
+            };
+
+            prefix = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+              # example = ...;
+              description = ''
+                FIXME: doc
+              '';
+            };
+
+            compressor = mkOption {
+              type = types.enum [null "xz" "bzip2"];
+              default = "bzip2";
+              example = "xz";
+              description = ''
+                FIXME: doc
+              '';
+            };
+          });
+          default = {};
+          # example = ...;
+          description = ''
+            FIXME: doc
+          '';
+        };
+      };
+
+      projects = mkOption {
+        type = types.attrsOf (types.submodule {
+          enable = mkOption {
+            type = types.bool;
+            default = true;
+            # example = ...;
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          visible = mkOption {
+            type = types.bool;
+            default = true;
+            # example = ...;
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          displayName = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            # example = ...;
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          description = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            # example = ...;
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          homepage = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            example = "https://github.com/NixOS/nixpkgs";
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          owner = mkOption {
+            # FIXME: should check that this is a valid user
+            type = types.nullOr types.str;
+            example = "admin";
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          jobsets = mkOption {
+            type = types.attrsOf (types.submodule {
+              enable = mkOption {
+                type = types.bool;
+                default = true;
+                # example = ...;
+                description = ''
+                  FIXME: doc
+                '';
+              };
+
+              visible = mkOption {
+                type = types.bool;
+                default = true;
+                # example = ...;
+                description = ''
+                  FIXME: doc
+                '';
+              };
+
+              description = mkOption {
+                type = types.nullOr types.str;
+                default = null;
+                # example = ...;
+                description = ''
+                  FIXME: doc
+                '';
+              };
+
+              expression.file = mkOption {
+                type = types.str;
+                example = "release.nix";
+                description = ''
+                  FIXME: doc
+                '';
+              };
+
+              expression.input = mkOption {
+                # FIXME: should check that this is one of the inputs
+                type = types.str;
+                example = "src";
+                description = ''
+                  FIXME: doc
+                '';
+              };
+
+              evaluation.keep = mkOption {
+                type = types.int;
+                example = 3;
+                description = ''
+                  FIXME: doc
+                '';
+              };
+
+              evaluation.interval = mkOption {
+                type = types.int;
+                example = 10;
+                description = ''
+                  FIXME: doc
+                '';
+              };
+
+              evaluation.shares = mkOption {
+                type = types.int;
+                example = 1;
+                description = ''
+                  FIXME: doc
+                '';
+              };
+
+              email.enable = mkOption {
+                type = types.bool;
+                default = true;
+                # example = ...;
+                description = ''
+                  FIXME: doc
+                '';
+              };
+
+              email.override = mkOption {
+                type = types.str;
+                example = "foobar@example.com";
+                description = ''
+                  FIXME: doc
+                '';
+              };
+
+              inputs = mkOption {
+                type = types.attrsOf (types.submodule {
+                  type = mkOption {
+                    type = types.enum [
+                      "boolean"
+                      "string"
+                      "path"
+                      "nix"
+                      "bzr"
+                      "bzr-checkout"
+                      "darcs"
+                      "git"
+                      "hg"
+                      "svn"
+                      "githubpulls"
+                    ];
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+
+                  value = mkOption {
+                    type = types.str;
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+
+                  notify = mkOption {
+                    type = types.bool;
+                    default = false;
+                    example = true;
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+                });
+              };
+            });
+            default = {};
+            # example = ...;
+            description = ''
+              FIXME: doc
+            '';
+          };
+
+          # Project data:
+          # - enabled?
+          # - visible?
+          # - display name
+          # - description
+          # - homepage
+          # - owner
+          # - declarative spec file
+          # - declarative input type
+          #   - type:  hydra input
+          #            | previous hydra build
+          #            | previous hydra build (same system)
+          #            | previous hydra eval
+          #   - value: string
+        });
+        default = {};
+        # example = ...;
         description = ''
           FIXME: doc
         '';
