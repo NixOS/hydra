@@ -1,61 +1,59 @@
-{ config, pkgs, lib ? pkgs.lib, ... }:
+{ config, pkgs, lib, ... }:
 
 # ------------------------------------------------------------------------------
 # FIXME: send this stuff upstream to nixpkgs
 # vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
-with {
-  lib = lib // rec {
-    forceWHNF = x: builtins.seq x x;
-    forceDeep = x: builtins.deepSeq x x;
+with rec {
+  inherit (lib) mkIf mkOption;
 
-    strings = lib.strings // {
-      intercalate = str: list: lib.concatStrings (lib.intersperse str list);
+  forceWHNF = x: builtins.seq x x;
+  forceDeep = x: builtins.deepSeq x x;
+
+  strings = lib.strings // {
+    intercalate = str: list: lib.concatStrings (lib.intersperse str list);
+  };
+
+  lists = lib.lists // (
+    with {
+      foldToFold1 = fold: (f: list: (
+        assert builtins.length list > 0;
+        with {
+          mlist = builtins.map (x: { v = x; }) list;
+          merge = a: b: (
+            if a != null
+            then (if b != null then { v = f a.v b.v; } else a)
+            else (if b != null then b                  else null));
+        };
+        (fold merge null mlist).value));
     };
 
-    lists = lib.lists // (
-      with {
-        foldToFold1 = fold: (f: list: (
-          assert builtins.length list > 0;
-          with {
-            mlist = builtins.map (x: { v = x; }) list;
-            merge = a: b: (
-              if a != null
-              then (if b != null then { v = f a.v b.v; } else a)
-              else (if b != null then b                  else null));
-          };
-          (fold merge null mlist).value));
-      };
+    {
+      foldr   = lib.lists.fold;
+      foldr1  = foldToFold1 lists.foldr;
+      foldl   = lib.lists.foldl;
+      foldl1  = foldToFold1 lists.foldl;
+      foldl'  = lib.lists.foldl';
+      foldl1' = foldToFold1 lists.foldl';
+    });
 
-      {
-        foldr   = lib.lists.fold;
-        foldr1  = foldToFold1 lists.foldr;
-        foldl   = lib.lists.foldl;
-        foldl1  = foldToFold1 lists.foldl;
-        foldl'  = lib.lists.foldl';
-        foldl1' = foldToFold1 lists.foldl';
-      });
+  types = lib.types // {
+    oneof = list: (
+      assert lib.isList list;
+      # assert lib.all lib.isOptionType list;
 
-    types = lib.types // {
-      oneof = list: (
-        assert lib.isList list;
-        assert lib.all lib.isOptionType list;
-
-        if lib.length list > 0
+      if lib.length list > 0
         then lists.foldr1 lib.types.either list
         else throw "lib.types.oneof: empty list");
 
-      matching = rx: type: (
-        lib.types.addCheck type
-        (str: assert isString str; builtins.match rx str != null));
-    };
+    matching = rx: type: (lib.types.addCheck type (str:
+      assert builtins.isString str;
+      (builtins.match "^${rx}$" str) != null));
   };
 };
 
 # ∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧
 # ------------------------------------------------------------------------------
-
-with lib;
 
 with rec {
   cfg = config.services.hydra-dev;
@@ -253,7 +251,7 @@ with rec {
           The Google API client ID to use in the Hydra Google OAuth login.
 
           More information is available
-          <ulink url="${googleOAuthDocs}">here</ulink>.
+          <link xlink:href="${googleOAuthDocs}">here</link>.
         '';
       };
 
@@ -262,79 +260,160 @@ with rec {
         default = false;
         example = true;
         description = ''
-          FIXME: doc
+          If set to <literal>true</literal>, this option will make this Hydra
+          "private". This means that a login will be required to see the
+          projects associated with this Hydra instance.
+
+          Note that the Hydra declarative user and project options may not work
+          in combination with this option, since the Hydra API is disabled in
+          private mode. This issue is tracked
+          <link xlink:href="https://github.com/NixOS/hydra/issues/503">here</link>.
         '';
       };
 
       maxServers = mkOption {
         type = types.int;
         default = 25;
-        # example = ...;
+        example = 50;
         description = ''
-          FIXME: doc
+          The maximum number of child servers to start, as described in the
+          <link xlink:href="http://search.cpan.org/~agrundma/Catalyst-Engine-HTTP-Prefork/lib/Catalyst/Engine/HTTP/Prefork.pm#max_servers">
+          Catalyst::Engine::HTTP::Prefork documentation
+          </link>.
         '';
       };
 
-      compressThreads = mkOption {
+      compressCores = mkOption {
         type = types.int;
         default = 0;
-        # example = ...;
+        example = 4;
         description = ''
-          FIXME: doc
+          The number of cores to use when compressing NAR files using
+          <link xlink:href="https://github.com/vasi/pixz">pixz</link>.
+
+          If the given number is <literal>0</literal>, then the number of cores
+          on the system will be used.
+
+          This option corresponds to the
+          <option>-p</option> <replaceable>CPUS</replaceable>
+          command line option of <command>pixz</command>.
         '';
       };
 
       storeURI = mkOption {
         type = (
-          types.matching "^(file|s3)://(.*)(|?secret-key=(.*))$" types.str);
-        default = 0;
-        # example = ...;
+          with rec {
+            rx = {
+              scheme   = "(file|https|s3|ssh)";
+              user     = "([^@]*)[@]";
+              param    = "(([^=]*)[=]([^&]*))";
+              query    = "[?]((${rx.param}[&])*${rx.param})";
+              uri      = "${rx.scheme}://(|${rx.user})([^?]*)(|${rx.query})";
+              storeURI = "(local|daemon|auto|${rx.uri})";
+            };
+          };
+          types.nullOr (types.matching rx.storeURI types.str));
+        default = null;
+        # example = …;
         description = ''
-          FIXME: doc
+          This specifies the Nix store that Hydra should use, as a store URI.
+
+          This can take one of the following forms:
+
+          <itemizedlist>
+             <listitem>
+               <literal>local</literal>:
+               the Nix store in <literal>/nix/store</literal> and the database
+               in <literal>/nix/var/nix/db</literal>, accessed directly.
+             </listitem>
+             <listitem>
+               <literal>daemon</literal>:
+               the Nix store accessed via a Unix domain socket connection to
+               the <literal>nix-daemon</literal>.
+             </listitem>
+             <listitem>
+               <literal>auto</literal>:
+               depending on whether the user has write access to the local
+               Nix store, this will be equivalent to either
+               <literal>local</literal> or <literal>daemon</literal>.
+             </listitem>
+             <listitem>
+               <literal>file://<replaceable>path</replaceable></literal>:
+               a binary cache stored in <replaceable>path</replaceable>.
+             </listitem>
+             <listitem>
+               <literal>https://<replaceable>path</replaceable></literal>:
+               a binary cache accessed via HTTP over TLS.
+             </listitem>
+             <listitem>
+               <literal>s3://<replaceable>path</replaceable></literal>`:
+               a writable binary cache stored on Amazon S3.
+             </listitem>
+             <listitem>
+               <literal>ssh://[<replaceable>user</replaceable>@]<replaceable>host</replaceable></literal>:
+               a remote Nix store accessed by running
+               <command>nix-store</command> <option>--serve</option> via SSH.
+             </listitem>
+           </itemizedlist>
+
+           Any of these store URIs can be suffixed by a parameter string, e.g.:
+           <literal><![CDATA[https://example.com?foo=bar&baz=quux]]></literal>.
+
+           In particular, the <literal>secret-key</literal> parameter is useful
+           for specifying a binary cache signing key file.
+
+           The parameters that can be passed as part of a Nix store URI are not
+           currently documented, but if you want to find them it is useful to
+           look at all the classes in the Nix <literal>libstore</literal> API
+           that are subclasses of the <literal>Store</literal> class. These
+           classes represent handlers for different kinds of Nix store URIs,
+           and whenever they have a field of type <literal>Setting</literal>
+           or <literal>PathSetting</literal>, it corresponds to a store URI
+           parameter key.
         '';
+        # FIXME: ensure that the above is actually true
+        # https://github.com/NixOS/nix/blob/2fd8f8bb99a2832b3684878c020ba47322e79332/src/libstore/store-api.hh#L693-L718
       };
 
       plugins.coverity = mkOption {
         type = types.listOf (types.submodule {
-          enable = mkOption {
-            type = types.bool;
-            default = false;
-            example = true;
-            description = ''
-              FIXME: doc
-            '';
-          };
-
           jobs = mkOption {
             type = types.str; # regex
             example = "foo:bar:.*";
             description = ''
-              FIXME: doc
+              This option defines a regular expression selecting the jobs for
+              which the scan results should be uploaded. Note that one upload
+              will occur per job matched by this regular expression, so be
+              careful with how many builds you upload.
+
+              The format is, as usual, <literal>project:jobset:job</literal>.
             '';
           };
 
           project = mkOption {
             type = types.str;
             default = [];
-            # example = ...;
+            # example = …;
             description = ''
-              FIXME: doc
+              The name of a Coverity Scan project to which scan results will be
+              uploaded.
             '';
           };
 
           email = mkOption {
             type = types.str;
-            example = "hydra@nixos.org";
+            example = "foobar@example.com";
             description = ''
-              FIXME: doc
+              This is an email address to which notification of build analysis
+              results will be sent.
             '';
           };
 
           token = mkOption {
             type = types.str;
-            # example = ...;
+            # example = …;
             description = ''
-              FIXME: doc
+              The Coverity Scan project token to use when uploading.
             '';
           };
 
@@ -342,14 +421,27 @@ with rec {
             type = types.str;
             default = "http://scan5.coverity.com/cgi-bin/upload.py";
             description = ''
-              FIXME: doc
+              The URL to use when uploading scan results to Coverity.
+              The default should suffice in most normal use cases, though you
+              may need this if you run a private Coverity instance.
             '';
           };
         });
         default = [];
-        # example = ...;
+        # example = …;
         description = ''
-          FIXME: doc
+          Options related to the Hydra Coverity Scan plugin.
+
+          Each job matched by the <literal>jobs</literal> specification must
+          have a file in its output path of the form
+          <literal>$out/tarballs/…-cov-int.(xz|lzma|zip|bz2|tgz)</literal>.
+
+          The file must have the <literal>cov-int</literal> produced by
+          <command>cov-build</command> in the root.
+
+          Note that that list of extensions is exact: the file should be named
+          <literal>…-cov-int.xz</literal>, not the more obvious
+          <literal>…-cov-int.tar.xz</literal>.
         '';
       };
 
@@ -359,7 +451,9 @@ with rec {
           default = {};
           example = { foobar = "fd3t43ijdx"; };
           description = ''
-            FIXME: doc
+            A map from usernames to GitHub authorization tokens, as strings.
+            The values specified here are mainly used as a fallback option
+            when other GitHub-related options don't specify a token.
           '';
         };
 
@@ -369,7 +463,14 @@ with rec {
               type = types.str; # regex
               example = "foo:bar:.*";
               description = ''
-                FIXME: doc
+                A regular expression that is matched against a string of the
+                form <literal><replaceable>project</replaceable>:<replaceable>jobset</replaceable>:<replaceable>job</replaceable></literal>.
+
+                If a job matches this regular expression, GitHub Status API
+                calls will be made against all of the GitHub repositories
+                computed from the Hydra jobset inputs corresponding to the
+                <literal>services.hydra.plugins.github.inputs</literal>
+                variable.
               '';
             };
 
@@ -377,8 +478,12 @@ with rec {
               type = types.listOf types.str;
               example = ["src"];
               description = ''
-                FIXME: doc
+                A list of input names, which must correspond to Git repository
+                Hydra inputs on jobs matching the <literal>jobs</literal> regex.
+                These Git repository URLs are used to compute the GitHub Status
+                API calls.
               '';
+              # FIXME: wait, should it actually be a githubpulls input?
             };
 
             exclude = mkOption {
@@ -386,61 +491,76 @@ with rec {
               default = true;
               example = false;
               description = ''
-                FIXME: doc
+                This option determines whether the build ID should be omitted
+                from the status sent to GitHub.
               '';
             };
 
             description = mkOption {
               type = types.nullOr types.str;
               default = null;
-              # example = ...;
+              # example = …;
               description = ''
-                FIXME: doc
+                A short description of the status.
+                Must be shorter than 1024 bytes.
+                If <literal>null</literal>, defaults to an empty string.
               '';
             };
 
             context = mkOption {
               type = types.nullOr types.str;
               default = null;
-              # example = ...;
+              # example = …;
               description = ''
-                FIXME: doc
+                The string to use in the <literal>context</literal> field of a
+                GitHub Status API call, as described in
+                <link xlink:href="https://developer.github.com/v3/repos/statuses">
+                this documentation
+                </link>.
+                If <literal>null</literal>, defaults to an empty string.
               '';
             };
 
             auth = mkOption {
               type = types.nullOr types.str;
               default = null;
-              # example = ...;
+              # example = …;
               description = ''
-                FIXME: doc
+                A GitHub authorization token
               '';
             };
           });
           default = [];
-          # example = ...;
+          # example = …;
           description = ''
-            FIXME: doc
+            Options related to the Hydra GitHub status plugin.
           '';
         };
       };
 
-      plugins.slack = mkOption {
-        channels = mkOption {
+      plugins.slack = {
+        notifications = mkOption {
           type = types.listOf (types.submodule {
             jobs = mkOption {
               type = types.str; # regex
               example = "foo:bar:.*";
               description = ''
-                FIXME: doc
+                A regular expression that is matched against a string of the
+                form <literal><replaceable>project</replaceable>:<replaceable>jobset</replaceable>:<replaceable>job</replaceable></literal>.
+
+                Whenever a job matching the provided regular expression is
+                created, a Slack notification will be triggered.
               '';
             };
 
             url = mkOption {
               type = types.str;
-              example = ""; # FIXME: example slack webhook
+              example = "https://hooks.slack.com/services/XXXXXXXXX/YYYYYYYYY/ZZZZZZZZZZZZZZZZZZZZZZZZ";
               description = ''
-                FIXME: doc
+                The URL of a Slack Incoming Webhook; you can create a Slack
+                webhook with <link xlink:href="https://my.slack.com/services/new/incoming-webhook">this</link>
+                (replace <literal>my.slack.com</literal> with your team name
+                if that link doesn't work properly).
               '';
             };
 
@@ -454,7 +574,7 @@ with rec {
             };
           });
           default = {};
-          # example = ...;
+          # example = …;
           description = ''
             FIXME: doc
           '';
@@ -475,7 +595,7 @@ with rec {
             prefix = mkOption {
               type = types.nullOr types.str;
               default = null;
-              # example = ...;
+              # example = …;
               description = ''
                 FIXME: doc
               '';
@@ -491,7 +611,7 @@ with rec {
             };
           });
           default = {};
-          # example = ...;
+          # example = …;
           description = ''
             FIXME: doc
           '';
@@ -503,7 +623,7 @@ with rec {
           enable = mkOption {
             type = types.bool;
             default = true;
-            # example = ...;
+            # example = …;
             description = ''
               FIXME: doc
             '';
@@ -512,7 +632,7 @@ with rec {
           visible = mkOption {
             type = types.bool;
             default = true;
-            # example = ...;
+            # example = …;
             description = ''
               FIXME: doc
             '';
@@ -521,7 +641,7 @@ with rec {
           displayName = mkOption {
             type = types.nullOr types.str;
             default = null;
-            # example = ...;
+            # example = …;
             description = ''
               FIXME: doc
             '';
@@ -530,7 +650,7 @@ with rec {
           description = mkOption {
             type = types.nullOr types.str;
             default = null;
-            # example = ...;
+            # example = …;
             description = ''
               FIXME: doc
             '';
@@ -559,7 +679,7 @@ with rec {
               enable = mkOption {
                 type = types.bool;
                 default = true;
-                # example = ...;
+                # example = …;
                 description = ''
                   FIXME: doc
                 '';
@@ -568,7 +688,7 @@ with rec {
               visible = mkOption {
                 type = types.bool;
                 default = true;
-                # example = ...;
+                # example = …;
                 description = ''
                   FIXME: doc
                 '';
@@ -577,7 +697,7 @@ with rec {
               description = mkOption {
                 type = types.nullOr types.str;
                 default = null;
-                # example = ...;
+                # example = …;
                 description = ''
                   FIXME: doc
                 '';
@@ -627,7 +747,7 @@ with rec {
               email.enable = mkOption {
                 type = types.bool;
                 default = true;
-                # example = ...;
+                # example = …;
                 description = ''
                   FIXME: doc
                 '';
@@ -681,7 +801,7 @@ with rec {
               };
             });
             default = {};
-            # example = ...;
+            # example = …;
             description = ''
               FIXME: doc
             '';
@@ -703,7 +823,7 @@ with rec {
           #   - value: string
         });
         default = {};
-        # example = ...;
+        # example = …;
         description = ''
           FIXME: doc
         '';
@@ -750,7 +870,7 @@ with rec {
       base_uri = ${cfg.hydraURL}
       notification_sender = ${cfg.notificationSender}
       max_servers = ${toString cfg.maxServers}
-      compress_num_threads = ${toString cfg.compressThreads}
+      compress_num_threads = ${toString cfg.compressCores}
       ${optionalString (cfg.logo != null) "hydra_logo = ${cfg.logo}"}
       gc_roots_dir = ${cfg.gcRootsDir}
       use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
