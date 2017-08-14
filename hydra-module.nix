@@ -300,16 +300,21 @@ with rec {
         '';
       };
 
+      # ([0-9]{1,4}|[1-5][0-9]{4}|6([0-4][0-9]{3}|5([0-4][0-9]{2}|5([0-2][0-9]|3[0-6]))))
+
       storeURI = mkOption {
         type = (
           with rec {
             rx = {
               scheme   = "(file|https|s3|ssh)";
-              user     = "([^@]*)[@]";
+              user     = "(([^@]*)[@])";
+              host     = "([^/]*)"; # not very specific
+              port     = "([:]([0-9]{1,4}|[1-5][0-9]{4}|6([0-4][0-9]{3}|5([0-4][0-9]{2}|5([0-2][0-9]|3[0-6])))))";
+              path     = "([/][^?]*)";
               param    = "(([^=]*)[=]([^&]*))";
-              query    = "[?]((${rx.param}[&])*${rx.param})";
-              uri      = "${rx.scheme}://(|${rx.user})([^?]*)(|${rx.query})";
-              storeURI = "(local|daemon|auto|${rx.uri})";
+              query    = "([?]((${rx.param}[&])*${rx.param}))";
+              anyURI   = with rx; "${scheme}://${user}?${host}?${port}?${path}?${query}?";
+              storeURI = "(local|daemon|auto|${rx.anyURI})";
             };
           };
           types.nullOr (types.matching rx.storeURI types.str));
@@ -346,7 +351,7 @@ with rec {
                a binary cache accessed via HTTP over TLS.
              </listitem>
              <listitem>
-               <literal>s3://<replaceable>path</replaceable></literal>`:
+               <literal>s3://<replaceable>path</replaceable></literal>:
                a writable binary cache stored on Amazon S3.
              </listitem>
              <listitem>
@@ -377,54 +382,56 @@ with rec {
 
       plugins.coverity = mkOption {
         type = types.listOf (types.submodule {
-          jobs = mkOption {
-            type = types.str; # regex
-            example = "foo:bar:.*";
-            description = ''
-              This option defines a regular expression selecting the jobs for
-              which the scan results should be uploaded. Note that one upload
-              will occur per job matched by this regular expression, so be
-              careful with how many builds you upload.
+          options = {
+            jobs = mkOption {
+              type = types.str; # regex
+              example = "foo:bar:.*";
+              description = ''
+                This option defines a regular expression selecting the jobs for
+                which the scan results should be uploaded. Note that one upload
+                will occur per job matched by this regular expression, so be
+                careful with how many builds you upload.
 
-              The format is, as usual, <literal>project:jobset:job</literal>.
-            '';
-          };
+                The format is, as usual, <literal>project:jobset:job</literal>.
+              '';
+            };
 
-          project = mkOption {
-            type = types.str;
-            default = [];
-            # example = …;
-            description = ''
-              The name of a Coverity Scan project to which scan results will be
-              uploaded.
-            '';
-          };
+            project = mkOption {
+              type = types.str;
+              default = [];
+              # example = …;
+              description = ''
+                The name of a Coverity Scan project to which scan results will
+                be uploaded.
+              '';
+            };
 
-          email = mkOption {
-            type = types.str;
-            example = "foobar@example.com";
-            description = ''
-              This is an email address to which notification of build analysis
-              results will be sent.
-            '';
-          };
+            email = mkOption {
+              type = types.str;
+              example = "foobar@example.com";
+              description = ''
+                This is an email address to which notification of build analysis
+                results will be sent.
+              '';
+            };
 
-          token = mkOption {
-            type = types.str;
-            # example = …;
-            description = ''
-              The Coverity Scan project token to use when uploading.
-            '';
-          };
+            token = mkOption {
+              type = types.str;
+              # example = …;
+              description = ''
+                The Coverity Scan project token to use when uploading.
+              '';
+            };
 
-          scanURL = mkOption {
-            type = types.str;
-            default = "http://scan5.coverity.com/cgi-bin/upload.py";
-            description = ''
-              The URL to use when uploading scan results to Coverity.
-              The default should suffice in most normal use cases, though you
-              may need this if you run a private Coverity instance.
-            '';
+            scanURL = mkOption {
+              type = types.str;
+              default = "http://scan5.coverity.com/cgi-bin/upload.py";
+              description = ''
+                The URL to use when uploading scan results to Coverity.
+                The default should suffice in most normal use cases, though you
+                may need this if you run a private Coverity instance.
+              '';
+            };
           };
         });
         default = [];
@@ -459,75 +466,77 @@ with rec {
 
         status = mkOption {
           type = types.listOf (types.submodule {
-            jobs = mkOption {
-              type = types.str; # regex
-              example = "foo:bar:.*";
-              description = ''
-                A regular expression that is matched against a string of the
-                form <literal><replaceable>project</replaceable>:<replaceable>jobset</replaceable>:<replaceable>job</replaceable></literal>.
+            options = {
+              jobs = mkOption {
+                type = types.str; # regex
+                example = "foo:bar:.*";
+                description = ''
+                  A regular expression that is matched against a string of the
+                  form <literal><replaceable>project</replaceable>:<replaceable>jobset</replaceable>:<replaceable>job</replaceable></literal>.
 
-                If a job matches this regular expression, GitHub Status API
-                calls will be made against all of the GitHub repositories
-                computed from the Hydra jobset inputs corresponding to the
-                <literal>services.hydra.plugins.github.inputs</literal>
-                variable.
-              '';
-            };
+                  If a job matches this regular expression, GitHub Status API
+                  calls will be made against all of the GitHub repositories
+                  computed from the Hydra jobset inputs corresponding to the
+                  <literal>services.hydra.plugins.github.inputs</literal>
+                  variable.
+                '';
+              };
 
-            inputs = mkOption {
-              type = types.listOf types.str;
-              example = ["src"];
-              description = ''
-                A list of input names, which must correspond to Git repository
-                Hydra inputs on jobs matching the <literal>jobs</literal> regex.
-                These Git repository URLs are used to compute the GitHub Status
-                API calls.
-              '';
-              # FIXME: wait, should it actually be a githubpulls input?
-            };
+              inputs = mkOption {
+                type = types.listOf types.str;
+                example = ["src"];
+                description = ''
+                  A list of input names, which must correspond to Git repository
+                  Hydra inputs on jobs matching the <literal>jobs</literal> regex.
+                  These Git repository URLs are used to compute the GitHub Status
+                  API calls.
+                '';
+                # FIXME: wait, should it actually be a githubpulls input?
+              };
 
-            exclude = mkOption {
-              type = types.bool;
-              default = true;
-              example = false;
-              description = ''
-                This option determines whether the build ID should be omitted
-                from the status sent to GitHub.
-              '';
-            };
+              exclude = mkOption {
+                type = types.bool;
+                default = true;
+                example = false;
+                description = ''
+                  This option determines whether the build ID should be omitted
+                  from the status sent to GitHub.
+                '';
+              };
 
-            description = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-              # example = …;
-              description = ''
-                A short description of the status.
-                Must be shorter than 1024 bytes.
-                If <literal>null</literal>, defaults to an empty string.
-              '';
-            };
+              description = mkOption {
+                type = types.nullOr types.str;
+                default = null;
+                # example = …;
+                description = ''
+                  A short description of the status.
+                  Must be shorter than 1024 bytes.
+                  If <literal>null</literal>, defaults to an empty string.
+                '';
+              };
 
-            context = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-              # example = …;
-              description = ''
-                The string to use in the <literal>context</literal> field of a
-                GitHub Status API call, as described in
-                <link xlink:href="https://developer.github.com/v3/repos/statuses">
-                this documentation
-                </link>.
-                If <literal>null</literal>, defaults to an empty string.
-              '';
-            };
+              context = mkOption {
+                type = types.nullOr types.str;
+                default = null;
+                # example = …;
+                description = ''
+                  The string to use in the <literal>context</literal> field of a
+                  GitHub Status API call, as described in
+                  <link xlink:href="https://developer.github.com/v3/repos/statuses">
+                  this documentation
+                  </link>.
+                  If <literal>null</literal>, defaults to an empty string.
+                '';
+              };
 
-            auth = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-              # example = …;
-              description = ''
-                A GitHub authorization token
-              '';
+              auth = mkOption {
+                type = types.nullOr types.str;
+                default = null;
+                # example = …;
+                description = ''
+                  A GitHub authorization token
+                '';
+              };
             };
           });
           default = [];
@@ -541,39 +550,41 @@ with rec {
       plugins.slack = {
         notifications = mkOption {
           type = types.listOf (types.submodule {
-            jobs = mkOption {
-              type = types.str; # regex
-              example = "foo:bar:.*";
-              description = ''
-                A regular expression that is matched against a string of the
-                form <literal><replaceable>project</replaceable>:<replaceable>jobset</replaceable>:<replaceable>job</replaceable></literal>.
+            options = {
+              jobs = mkOption {
+                type = types.str; # regex
+                example = "foo:bar:.*";
+                description = ''
+                  A regular expression that is matched against a string of the
+                  form <literal><replaceable>project</replaceable>:<replaceable>jobset</replaceable>:<replaceable>job</replaceable></literal>.
 
-                Whenever a job matching the provided regular expression is
-                created, a Slack notification will be triggered.
-              '';
-            };
+                  Whenever a job matching the provided regular expression is
+                  created, a Slack notification will be triggered.
+                '';
+              };
 
-            url = mkOption {
-              type = types.str;
-              example = "https://hooks.slack.com/services/XXXXXXXXX/YYYYYYYYY/ZZZZZZZZZZZZZZZZZZZZZZZZ";
-              description = ''
-                The URL of a Slack Incoming Webhook; you can create a Slack
-                webhook with <link xlink:href="https://my.slack.com/services/new/incoming-webhook">this</link>
-                (replace <literal>my.slack.com</literal> with your team name
-                if that link doesn't work properly).
-              '';
-            };
+              url = mkOption {
+                type = types.str;
+                example = "https://hooks.slack.com/services/XXXXXXXXX/YYYYYYYYY/ZZZZZZZZZZZZZZZZZZZZZZZZ";
+                description = ''
+                  The URL of a Slack Incoming Webhook; you can create a Slack
+                  webhook with <link xlink:href="https://my.slack.com/services/new/incoming-webhook">this</link>
+                  (replace <literal>my.slack.com</literal> with your team name
+                  if that link doesn't work properly).
+                '';
+              };
 
-            force = mkOption {
-              type = types.bool;
-              default = false;
-              example = true;
-              description = ''
-                FIXME: doc
-              '';
+              force = mkOption {
+                type = types.bool;
+                default = false;
+                example = true;
+                description = ''
+                  FIXME: doc
+                '';
+              };
             };
           });
-          default = {};
+          default = [];
           # example = …;
           description = ''
             FIXME: doc
@@ -584,30 +595,32 @@ with rec {
       plugins.s3backup = {
         buckets = mkOption {
           type = types.attrsOf (types.submodule {
-            jobs = mkOption {
-              type = types.str; # regex
-              example = "foo:bar:.*";
-              description = ''
-                FIXME: doc
-              '';
-            };
+            options = {
+              jobs = mkOption {
+                type = types.str; # regex
+                example = "foo:bar:.*";
+                description = ''
+                  FIXME: doc
+                '';
+              };
 
-            prefix = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-              # example = …;
-              description = ''
-                FIXME: doc
-              '';
-            };
+              prefix = mkOption {
+                type = types.nullOr types.str;
+                default = null;
+                # example = …;
+                description = ''
+                  FIXME: doc
+                '';
+              };
 
-            compressor = mkOption {
-              type = types.enum [null "xz" "bzip2"];
-              default = "bzip2";
-              example = "xz";
-              description = ''
-                FIXME: doc
-              '';
+              compressor = mkOption {
+                type = types.enum [null "xz" "bzip2"];
+                default = "bzip2";
+                example = "xz";
+                description = ''
+                  FIXME: doc
+                '';
+              };
             };
           });
           default = {};
@@ -620,207 +633,229 @@ with rec {
 
       projects = mkOption {
         type = types.attrsOf (types.submodule {
-          enable = mkOption {
-            type = types.bool;
-            default = true;
-            # example = …;
-            description = ''
-              FIXME: doc
-            '';
-          };
+          options = {
+            enable = mkOption {
+              type = types.bool;
+              default = true;
+              # example = …;
+              description = ''
+                FIXME: doc
+              '';
+            };
 
-          visible = mkOption {
-            type = types.bool;
-            default = true;
-            # example = …;
-            description = ''
-              FIXME: doc
-            '';
-          };
+            visible = mkOption {
+              type = types.bool;
+              default = true;
+              # example = …;
+              description = ''
+                FIXME: doc
+              '';
+            };
 
-          displayName = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            # example = …;
-            description = ''
-              FIXME: doc
-            '';
-          };
+            displayName = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+              # example = …;
+              description = ''
+                FIXME: doc
+              '';
+            };
 
-          description = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            # example = …;
-            description = ''
-              FIXME: doc
-            '';
-          };
+            description = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+              # example = …;
+              description = ''
+                FIXME: doc
+              '';
+            };
 
-          homepage = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            example = "https://github.com/NixOS/nixpkgs";
-            description = ''
-              FIXME: doc
-            '';
-          };
+            homepage = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+              example = "https://github.com/NixOS/nixpkgs";
+              description = ''
+                FIXME: doc
+              '';
+            };
 
-          owner = mkOption {
-            # FIXME: should check that this is a valid user
-            type = types.nullOr types.str;
-            example = "admin";
-            description = ''
-              FIXME: doc
-            '';
-          };
+            owner = mkOption {
+              # FIXME: should check that this is a valid user
+              type = types.nullOr types.str;
+              example = "admin";
+              description = ''
+                FIXME: doc
+              '';
+            };
 
-          jobsets = mkOption {
-            type = types.attrsOf (types.submodule {
-              enable = mkOption {
-                type = types.bool;
-                default = true;
-                # example = …;
-                description = ''
-                  FIXME: doc
-                '';
-              };
-
-              visible = mkOption {
-                type = types.bool;
-                default = true;
-                # example = …;
-                description = ''
-                  FIXME: doc
-                '';
-              };
-
-              description = mkOption {
-                type = types.nullOr types.str;
-                default = null;
-                # example = …;
-                description = ''
-                  FIXME: doc
-                '';
-              };
-
-              expression.file = mkOption {
-                type = types.str;
-                example = "release.nix";
-                description = ''
-                  FIXME: doc
-                '';
-              };
-
-              expression.input = mkOption {
-                # FIXME: should check that this is one of the inputs
-                type = types.str;
-                example = "src";
-                description = ''
-                  FIXME: doc
-                '';
-              };
-
-              evaluation.keep = mkOption {
-                type = types.int;
-                example = 3;
-                description = ''
-                  FIXME: doc
-                '';
-              };
-
-              evaluation.interval = mkOption {
-                type = types.int;
-                example = 10;
-                description = ''
-                  FIXME: doc
-                '';
-              };
-
-              evaluation.shares = mkOption {
-                type = types.int;
-                example = 1;
-                description = ''
-                  FIXME: doc
-                '';
-              };
-
-              email.enable = mkOption {
-                type = types.bool;
-                default = true;
-                # example = …;
-                description = ''
-                  FIXME: doc
-                '';
-              };
-
-              email.override = mkOption {
-                type = types.str;
-                example = "foobar@example.com";
-                description = ''
-                  FIXME: doc
-                '';
-              };
-
-              inputs = mkOption {
-                type = types.attrsOf (types.submodule {
-                  type = mkOption {
-                    type = types.enum [
-                      "boolean"
-                      "string"
-                      "path"
-                      "nix"
-                      "bzr"
-                      "bzr-checkout"
-                      "darcs"
-                      "git"
-                      "hg"
-                      "svn"
-                      "githubpulls"
-                    ];
-                    description = ''
-                      FIXME: doc
-                    '';
-                  };
-
-                  value = mkOption {
-                    type = types.str;
-                    description = ''
-                      FIXME: doc
-                    '';
-                  };
-
-                  notify = mkOption {
+            jobsets = mkOption {
+              type = types.attrsOf (types.submodule {
+                options = {
+                  enable = mkOption {
                     type = types.bool;
-                    default = false;
-                    example = true;
+                    default = true;
+                    # example = …;
                     description = ''
                       FIXME: doc
                     '';
                   };
-                });
-              };
-            });
-            default = {};
-            # example = …;
-            description = ''
-              FIXME: doc
-            '';
-          };
 
-          # Project data:
-          # - enabled?
-          # - visible?
-          # - display name
-          # - description
-          # - homepage
-          # - owner
-          # - declarative spec file
-          # - declarative input type
-          #   - type:  hydra input
-          #            | previous hydra build
-          #            | previous hydra build (same system)
-          #            | previous hydra eval
-          #   - value: string
+                  visible = mkOption {
+                    type = types.bool;
+                    default = true;
+                    # example = …;
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+
+                  description = mkOption {
+                    type = types.nullOr types.str;
+                    default = null;
+                    # example = …;
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+
+                  expression.file = mkOption {
+                    type = types.str;
+                    example = "release.nix";
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+
+                  expression.input = mkOption {
+                    # FIXME: should check that this is one of the inputs
+                    type = types.str;
+                    example = "src";
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+
+                  evaluation.keep = mkOption {
+                    type = types.int;
+                    example = 3;
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+
+                  evaluation.interval = mkOption {
+                    type = types.int;
+                    example = 10;
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+
+                  evaluation.shares = mkOption {
+                    type = types.int;
+                    example = 1;
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+
+                  email.enable = mkOption {
+                    type = types.bool;
+                    default = true;
+                    # example = …;
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+
+                  email.override = mkOption {
+                    type = types.str;
+                    example = "foobar@example.com";
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+
+                  inputs = mkOption {
+                    type = types.attrsOf (types.submodule {
+                      options = {
+                        type = mkOption {
+                          type = types.enum [
+                            "boolean"
+                            "string"
+                            "path"
+                            "nix"
+                            "bzr"
+                            "bzr-checkout"
+                            "darcs"
+                            "git"
+                            "hg"
+                            "svn"
+                            "githubpulls"
+                          ];
+                          description = ''
+                            FIXME: doc
+                          '';
+                        };
+
+                        value = mkOption {
+                          type = types.str;
+                          description = ''
+                            FIXME: doc
+                          '';
+                        };
+
+                        notify = mkOption {
+                          type = types.bool;
+                          default = false;
+                          example = true;
+                          description = ''
+                            FIXME: doc
+                          '';
+                        };
+                      };
+                    });
+                    default = {};
+                    example = {
+                      src = {
+                        type = "git";
+                        value = "https://github.com/NixOS/nixpkgs.git";
+                        notify = false;
+                      };
+
+                      pullsJSON = {
+                        type = "githubpulls";
+                        value = "NixOS nixpkgs";
+                      };
+                    };
+                    description = ''
+                      FIXME: doc
+                    '';
+                  };
+                };
+              });
+              default = {};
+              # example = …;
+              description = ''
+                FIXME: doc
+              '';
+            };
+
+            # Project data:
+            # - enabled?
+            # - visible?
+            # - display name
+            # - description
+            # - homepage
+            # - owner
+            # - declarative spec file
+            # - declarative input type
+            #   - type:  hydra input
+            #            | previous hydra build
+            #            | previous hydra build (same system)
+            #            | previous hydra eval
+            #   - value: string
+          };
         });
         default = {};
         # example = …;
