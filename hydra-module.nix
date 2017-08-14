@@ -89,8 +89,20 @@ with rec {
 
   hydraExe = name: "${cfg.package}/bin/${name}";
 
-  googleOAuthDocs =
-    "https://developers.google.com/identity/sign-in/web/devconsole-project";
+  mkLink = url: contents: "<link xlink:href=\"${url}\">${contents}</link>";
+
+  links = {
+    googleOAuthDocs =
+      "https://developers.google.com/identity/sign-in/web/devconsole-project";
+    catalystPreforkDocs =
+      "http://search.cpan.org/~agrundma/Catalyst-Engine-HTTP-Prefork/lib/Catalyst/Engine/HTTP/Prefork.pm";
+    pixz =
+      "https://github.com/vasi/pixz";
+    githubStatusDocs =
+      "https://developer.github.com/v3/repos/statuses";
+    slackWebhook =
+      "https://my.slack.com/services/new/incoming-webhook";
+  };
 };
 
 {
@@ -250,8 +262,7 @@ with rec {
         description = ''
           The Google API client ID to use in the Hydra Google OAuth login.
 
-          More information is available
-          <link xlink:href="${googleOAuthDocs}">here</link>.
+          More information is available ${mkLink links.googleOAuthDocs "here"}.
         '';
       };
 
@@ -267,7 +278,7 @@ with rec {
           Note that the Hydra declarative user and project options may not work
           in combination with this option, since the Hydra API is disabled in
           private mode. This issue is tracked
-          <link xlink:href="https://github.com/NixOS/hydra/issues/503">here</link>.
+          ${mkLink "https://github.com/NixOS/hydra/issues/503" "here"}.
         '';
       };
 
@@ -277,9 +288,8 @@ with rec {
         example = 50;
         description = ''
           The maximum number of child servers to start, as described in the
-          <link xlink:href="http://search.cpan.org/~agrundma/Catalyst-Engine-HTTP-Prefork/lib/Catalyst/Engine/HTTP/Prefork.pm#max_servers">
-          Catalyst::Engine::HTTP::Prefork documentation
-          </link>.
+          ${mkLink (links.catalystPreforkDocs + "#max_servers")
+                   "Catalyst::Engine::HTTP::Prefork documentation"}.
         '';
       };
 
@@ -289,7 +299,7 @@ with rec {
         example = 4;
         description = ''
           The number of cores to use when compressing NAR files using
-          <link xlink:href="https://github.com/vasi/pixz">pixz</link>.
+          ${mkLink links.pixz "pixz"}.
 
           If the given number is <literal>0</literal>, then the number of cores
           on the system will be used.
@@ -299,8 +309,6 @@ with rec {
           command line option of <command>pixz</command>.
         '';
       };
-
-      # ([0-9]{1,4}|[1-5][0-9]{4}|6([0-4][0-9]{3}|5([0-4][0-9]{2}|5([0-2][0-9]|3[0-6]))))
 
       storeURI = mkOption {
         type = (
@@ -522,9 +530,8 @@ with rec {
                 description = ''
                   The string to use in the <literal>context</literal> field of a
                   GitHub Status API call, as described in
-                  <link xlink:href="https://developer.github.com/v3/repos/statuses">
-                  this documentation
-                  </link>.
+                  ${mkLink links.githubStatusDocs "this documentation"}.
+
                   If <literal>null</literal>, defaults to an empty string.
                 '';
               };
@@ -568,7 +575,7 @@ with rec {
                 example = "https://hooks.slack.com/services/XXXXXXXXX/YYYYYYYYY/ZZZZZZZZZZZZZZZZZZZZZZZZ";
                 description = ''
                   The URL of a Slack Incoming Webhook; you can create a Slack
-                  webhook with <link xlink:href="https://my.slack.com/services/new/incoming-webhook">this</link>
+                  webhook with ${mkLink links.slackWebhook "this link"}
                   (replace <literal>my.slack.com</literal> with your team name
                   if that link doesn't work properly).
                 '';
