@@ -293,6 +293,40 @@ with rec {
         '';
       };
 
+      maxSpareServers = mkOption {
+        type = types.int;
+        default = 5;
+        example = 10;
+        description = ''
+          The maximum number of servers to have waiting for requests, as
+          described in the
+          ${mkLink (links.catalystPreforkDocs + "#max_spare_servers")
+                   "Catalyst::Engine::HTTP::Prefork documentation"}.
+        '';
+      };
+
+      maxRequests = mkOption {
+        type = types.int;
+        default = 100;
+        example = 1000;
+        description = ''
+          FIXME: lol
+          The number of requests after which a child will be restarted, as
+          described in the
+          ${mkLink (links.catalystPreforkDocs + "#max_requests")
+                   "Catalyst::Engine::HTTP::Prefork documentation"}.
+        '';
+      };
+
+      maxOutputSize = mkOption {
+        type = types.nullOr types.int;
+        default = null;
+        example = 4294967296;
+        description = ''
+          The maximum size of a Hydra build output.
+        '';
+      };
+
       compressCores = mkOption {
         type = types.int;
         default = 0;
@@ -921,7 +955,10 @@ with rec {
         google_client_id = ${cfg.googleClientID}
       ''}
       private = ${if cfg.private then "1" else "0"}
-      ${optionalString (cfg.logPrefix != null) "log_prefix = ${cfg.logPrefix}"}
+      ${optionalString (cfg.logPrefix != null)
+        "log_prefix = ${cfg.logPrefix}"}
+      ${optionalString (cfg.maxOutputSize != null)
+        "max_output_size = ${cfg.maxOutputSize}"}
     '';
 
     # FIXME: add/investigate all of these:
@@ -1018,9 +1055,9 @@ with rec {
             "-f"
             "-h '${cfg.listenHost}'"
             "-p ${toString cfg.port}"
-            "--max_spare_servers 5"
-            "--max_servers 25"
-            "--max_requests 100"
+            "--max_spare_servers ${toString cfg.maxSpareServers}"
+            "--max_servers ${toString cfg.maxServers}"
+            "--max_requests ${toString cfg.maxRequests}"
             (if cfg.debugServer then "-d" else null)
           ]))));
         User                 = "hydra-www";
