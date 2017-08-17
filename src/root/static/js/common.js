@@ -121,7 +121,7 @@ function escapeHTML(s) {
 };
 
 function requestFile(args) {
-    if (!"error" in args) {
+    if (!("error" in args)) {
         args.error = function(data) {
             json = {};
             try {
