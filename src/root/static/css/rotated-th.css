@@ -33,6 +33,7 @@ td.centered {
     transform:skew(-45deg,0deg);
     overflow: hidden;
     border-left: 1px solid #dddddd;
+    z-index: 1;
 }
 
 .table-header-rotated th.rotate-45 span {
