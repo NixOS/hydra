@@ -86,8 +86,8 @@ with rec {
       };
 
       package = mkOption {
-        type = types.package;
-        default = pkgs.hydra;
+        type = types.path;
+        # default = pkgs.hydra;
         description = "The Hydra package.";
       };
 
