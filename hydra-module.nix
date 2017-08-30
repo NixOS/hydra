@@ -1,59 +1,15 @@
 { config, pkgs, lib, ... }:
 
-# ------------------------------------------------------------------------------
-# FIXME: send this stuff upstream to nixpkgs
-# vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-
 with rec {
   inherit (lib) mkIf mkOption;
 
-  forceWHNF = x: builtins.seq x x;
-  forceDeep = x: builtins.deepSeq x x;
-
-  strings = lib.strings // {
-    intercalate = str: list: lib.concatStrings (lib.intersperse str list);
-  };
-
-  lists = lib.lists // (
-    with {
-      foldToFold1 = fold: (f: list: (
-        assert builtins.length list > 0;
-        with {
-          mlist = builtins.map (x: { v = x; }) list;
-          merge = a: b: (
-            if a != null
-            then (if b != null then { v = f a.v b.v; } else a)
-            else (if b != null then b                  else null));
-        };
-        (fold merge null mlist).value));
-    };
-
-    {
-      foldr   = lib.lists.fold;
-      foldr1  = foldToFold1 lists.foldr;
-      foldl   = lib.lists.foldl;
-      foldl1  = foldToFold1 lists.foldl;
-      foldl'  = lib.lists.foldl';
-      foldl1' = foldToFold1 lists.foldl';
-    });
-
   types = lib.types // {
-    oneof = list: (
-      assert lib.isList list;
-      # assert lib.all lib.isOptionType list;
-
-      if lib.length list > 0
-        then lists.foldr1 lib.types.either list
-        else throw "lib.types.oneof: empty list");
-
+    # Relevant: https://github.com/NixOS/nixpkgs/issues/28574
     matching = rx: type: (lib.types.addCheck type (str:
       assert builtins.isString str;
       (builtins.match "^${rx}$" str) != null));
   };
 };
-
-# ∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧∧
-# ------------------------------------------------------------------------------
 
 with rec {
   cfg = config.services.hydra-dev;
@@ -310,7 +266,6 @@ with rec {
         default = 100;
         example = 1000;
         description = ''
-          FIXME: lol
           The number of requests after which a child will be restarted, as
           described in the
           ${mkLink (links.catalystPreforkDocs + "#max_requests")
