@@ -77,7 +77,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 }
 
 
-static void copyClosureTo(ref<Store> destStore,
+static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
     FdSource & from, FdSink & to, const PathSet & paths,
     bool useSubstitutes = false)
 {
@@ -106,6 +106,9 @@ static void copyClosureTo(ref<Store> destStore,
         if (present.find(*i) == present.end()) missing.push_back(*i);
 
     printMsg(lvlDebug, format("sending %1% missing paths") % missing.size());
+
+    std::unique_lock<std::timed_mutex> sendLock(sendMutex,
+        std::chrono::seconds(600));
 
     to << cmdImportPaths;
     destStore->exportPaths(missing, to);
@@ -229,15 +232,13 @@ void State::buildRemote(ref<Store> destStore,
         /* Copy the input closure. */
         if (/* machine->sshName != "localhost" */ true) {
             auto mc1 = std::make_shared<MaintainCount>(nrStepsWaiting);
-            std::unique_lock<std::timed_mutex> sendLock(
-                machine->state->sendLock, std::chrono::seconds(600));
             mc1.reset();
             MaintainCount mc2(nrStepsCopyingTo);
             printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % step->drvPath % machine->sshName);
 
             auto now1 = std::chrono::steady_clock::now();
 
-            copyClosureTo(destStore, from, to, inputs, true);
+            copyClosureTo(machine->state->sendLock, destStore, from, to, inputs, true);
 
             auto now2 = std::chrono::steady_clock::now();
 
