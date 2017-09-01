@@ -229,7 +229,8 @@ void State::buildRemote(ref<Store> destStore,
         /* Copy the input closure. */
         if (/* machine->sshName != "localhost" */ true) {
             auto mc1 = std::make_shared<MaintainCount>(nrStepsWaiting);
-            std::lock_guard<std::mutex> sendLock(machine->state->sendLock);
+            std::unique_lock<std::timed_mutex> sendLock(
+                machine->state->sendLock, std::chrono::seconds(600));
             mc1.reset();
             MaintainCount mc2(nrStepsCopyingTo);
             printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % step->drvPath % machine->sshName);

@@ -231,7 +231,7 @@ struct Machine
 
         /* Mutex to prevent multiple threads from sending data to the
            same machine (which would be inefficient). */
-        std::mutex sendLock;
+        std::timed_mutex sendLock;
     };
 
     State::ptr state;
