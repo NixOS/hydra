@@ -9,6 +9,31 @@ with rec {
       assert builtins.isString str;
       (builtins.match "^${rx}$" str) != null));
   };
+
+  # utilities for generating hydra config
+  hydraConfGen = {
+    replicate = num: val: (
+      assert builtins.isInt num;
+      map (_: val) (lib.range 1 val));
+    replicateStr = num: str: (
+      assert builtins.isInt num;
+      assert builtins.isString str;
+      lib.concatStrings (hc.replicate depth str));
+    indent = depth: str: (
+      assert builtins.isInt depth;
+      assert builtins.isString str;
+      with { ws = lib.concatStrings (map (_: " ") (lib.range 1 depth)); };
+      lib.concatStrings (map (x: ws + x + "\n") (lib.splitString "\n" str)));
+    containsEOF = string: ((builtins.match ".*EOF.*" string) != null);
+
+    def = name: value: name + " = " + value;
+    defLong = key: string: (
+      assert !(containsEOF string);
+      "${key} <<EOF\n${string}\nEOF\n");
+    defList = name: list: lib.concatStrings (map (x: "${name} = ${x}\n") list);
+    stanza = name: body: "<${name}>\n${hc.indent 2 body}\n</${name}>\n";
+    seq = list: lib.concatStrings (map (x: x + "\n") list);
+  };
 };
 
 with rec {
