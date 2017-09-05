@@ -225,6 +225,7 @@ with rec {
       useSubstitutes = mkOption {
         type = types.bool;
         default = false;
+        example = true;
         description = ''
           Whether to use binary caches for downloading store paths. Note that
           binary substitutions trigger a potentially large number of additional
@@ -555,7 +556,7 @@ with rec {
                 default = null;
                 # example = …;
                 description = ''
-                  A GitHub authorization token
+                  A GitHub authorization token.
                 '';
               };
             };
@@ -563,7 +564,10 @@ with rec {
           default = [];
           # example = …;
           description = ''
-            Options related to the Hydra GitHub status plugin.
+            A list of GitHub status plugin configuration "stanzas".
+
+            For basic purposes you can probably get away with only having one
+            stanza (i.e.: this is often a singleton list).
           '';
         };
       };
@@ -600,7 +604,8 @@ with rec {
                 default = false;
                 example = true;
                 description = ''
-                  FIXME: doc
+                  If <literal>force = true</literal>, always send messages.
+                  Otherwise, only send a message when the build status changes.
                 '';
               };
             };
