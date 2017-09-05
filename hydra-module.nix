@@ -415,7 +415,9 @@ with rec {
                 will occur per job matched by this regular expression, so be
                 careful with how many builds you upload.
 
-                The format is, as usual, <literal>project:jobset:job</literal>.
+                The format of the strings against which the regular expression
+                provided here will be matched is, as usual,
+                <literal><replaceable>project</replaceable>:<replaceable>jobset</replaceable>:<replaceable>job</replaceable></literal>.
               '';
             };
 
@@ -626,16 +628,24 @@ with rec {
                 type = types.str; # regex
                 example = "foo:bar:.*";
                 description = ''
-                  FIXME: doc
+                  This option defines a regular expression selecting the jobs
+                  for which the outputs should be backed up to this S3 bucket.
+
+                  The format of the strings against which the regular expression
+                  provided here will be matched is, as usual,
+                  <literal><replaceable>project</replaceable>:<replaceable>jobset</replaceable>:<replaceable>job</replaceable></literal>.
                 '';
               };
 
               prefix = mkOption {
-                type = types.nullOr types.str;
-                default = null;
-                # example = …;
+                type = types.str;
+                default = "";
+                example = "cache/";
                 description = ''
-                  FIXME: doc
+                  A string that should be prepended to all S3 keys created by
+                  the Hydra S3 backup plugin; note that if this is meant to
+                  represent a directory, you should include the trailing slash,
+                  e.g.: <literal>"cache/"</literal>.
                 '';
               };
 
@@ -644,7 +654,8 @@ with rec {
                 default = "bzip2";
                 example = "xz";
                 description = ''
-                  FIXME: doc
+                  The compression algorithm that should be used when backing up
+                  job outputs to Amazon S3.
                 '';
               };
             };
@@ -653,6 +664,14 @@ with rec {
           # example = …;
           description = ''
             FIXME: doc
+
+            FIXME: account for the stuff below with more options?
+
+            This plugin requires that s3 credentials be available. It uses
+            Net::Amazon::S3, which as of this commit the nixpkgs version can
+            retrieve s3 credentials from the AWS_ACCESS_KEY_ID and
+            AWS_SECRET_ACCESS_KEY environment variables, or from ec2 instance
+            metadata when using an IAM role.
           '';
         };
       };
@@ -665,7 +684,7 @@ with rec {
               default = true;
               # example = …;
               description = ''
-                FIXME: doc
+                Should building be enabled for this project?
               '';
             };
 
@@ -674,34 +693,35 @@ with rec {
               default = true;
               # example = …;
               description = ''
-                FIXME: doc
+                Should this project be visible in the web UI?
               '';
             };
 
             displayName = mkOption {
               type = types.nullOr types.str;
               default = null;
-              # example = …;
+              example = "The Nix Package Manager";
               description = ''
-                FIXME: doc
+                The name under which this project should be displayed in the
+                Hydra web UI.
               '';
             };
 
             description = mkOption {
               type = types.nullOr types.str;
               default = null;
-              # example = …;
+              example = "A purely functional package manager.";
               description = ''
-                FIXME: doc
+                A short description for this project.
               '';
             };
 
             homepage = mkOption {
               type = types.nullOr types.str;
               default = null;
-              example = "https://github.com/NixOS/nixpkgs";
+              example = "https://github.com/NixOS/nix";
               description = ''
-                FIXME: doc
+                The homepage to show for this project.
               '';
             };
 
@@ -710,7 +730,7 @@ with rec {
               type = types.nullOr types.str;
               example = "admin";
               description = ''
-                FIXME: doc
+                The owner of this project; this must be a valid user.
               '';
             };
 
@@ -722,7 +742,7 @@ with rec {
                     default = true;
                     # example = …;
                     description = ''
-                      FIXME: doc
+                      Should building be enabled for this jobset?
                     '';
                   };
 
@@ -731,7 +751,7 @@ with rec {
                     default = true;
                     # example = …;
                     description = ''
-                      FIXME: doc
+                      Should this jobset be visible in the Hydra web UI?
                     '';
                   };
 
@@ -740,15 +760,17 @@ with rec {
                     default = null;
                     # example = …;
                     description = ''
-                      FIXME: doc
+                      A short description for this jobset.
                     '';
                   };
 
                   expression.file = mkOption {
                     type = types.str;
-                    example = "release.nix";
+                    default = "release.nix";
                     description = ''
-                      FIXME: doc
+                      The file path of a Nix file relative to the root of the
+                      input defined in <literal>expression.input</literal> that
+                      should be used when evaluating this jobset.
                     '';
                   };
 
@@ -757,7 +779,8 @@ with rec {
                     type = types.str;
                     example = "src";
                     description = ''
-                      FIXME: doc
+                      The jobset input that should be used for finding the
+                      expression that is used when evaluating this jobset.
                     '';
                   };
 
@@ -765,7 +788,7 @@ with rec {
                     type = types.int;
                     example = 3;
                     description = ''
-                      FIXME: doc
+                      The number of evaluations to keep.
                     '';
                   };
 
@@ -773,7 +796,8 @@ with rec {
                     type = types.int;
                     example = 10;
                     description = ''
-                      FIXME: doc
+                      The interval, in seconds, at which Hydra should poll this
+                      jobset for new evaluations.
                     '';
                   };
 
@@ -781,24 +805,27 @@ with rec {
                     type = types.int;
                     example = 1;
                     description = ''
-                      FIXME: doc
+                      The number of computing shares that should be allocated
+                      to this jobset.
                     '';
                   };
 
                   email.enable = mkOption {
                     type = types.bool;
                     default = true;
-                    # example = …;
+                    example = false;
                     description = ''
-                      FIXME: doc
+                      Should emails be sent when this jobset fails?
                     '';
                   };
 
                   email.override = mkOption {
-                    type = types.str;
+                    type = types.nullOr types.str;
+                    default = null;
                     example = "foobar@example.com";
                     description = ''
-                      FIXME: doc
+                      An override for the email to which evaluation failures
+                      will be sent on this jobset.
                     '';
                   };
 
@@ -820,14 +847,77 @@ with rec {
                             "githubpulls"
                           ];
                           description = ''
-                            FIXME: doc
+                            The "type" of this jobset input.
                           '';
                         };
 
                         value = mkOption {
                           type = types.str;
                           description = ''
-                            FIXME: doc
+                            Depending on the input type, this value will take
+                            one of the following forms:
+
+                            <itemizedlist>
+                              <listitem>
+                                <literal>boolean</literal>:
+                                either <literal>"true"</literal> or
+                                <literal>"false"</literal>.
+                              </listitem>
+                              <listitem>
+                                <literal>string</literal>:
+                                a string, e.g.: <literal>"\"foo\""</literal>.
+                                ${""/*FIXME: determine if that double quoting is correct*/}
+                              </listitem>
+                              <listitem>
+                                <literal>path</literal>:
+                                an absolute path on the filesystem,
+                                e.g.: <literal>"/foo/bar/baz"</literal>.
+                              </listitem>
+                              <listitem>
+                                <literal>nix</literal>:
+                                a Nix expression
+                                e.g.: <literal>"{ foo = 1 + 5; }"</literal>.
+                              </listitem>
+                              <listitem>
+                                <literal>bzr</literal>:
+                                a GNU Bazaar repository URL,
+                                e.g.: <literal>"FIXME"</literal>.
+                              </listitem>
+                              <listitem>
+                                <literal>bzr-checkout</literal>:
+                                a GNU Bazaar repository URL,
+                                e.g.: <literal>"FIXME"</literal>.
+                                ${""/*FIXME: figure out difference between bzr and bzr-checkout*/}
+                              </listitem>
+                              <listitem>
+                                <literal>darcs</literal>:
+                                a Darcs repository URL,
+                                e.g.: <literal>"FIXME"</literal>.
+                              </listitem>
+                              <listitem>
+                                <literal>git</literal>:
+                                a Git repository URL and branch,
+                                e.g.: <literal>"https://github.com/NixOS/nixpkgs.git master"</literal>.
+                              </listitem>
+                              <listitem>
+                                <literal>hg</literal>:
+                                a Mercurial repository URL,
+                                e.g.: <literal>"FIXME"</literal>.
+                              </listitem>
+                              <listitem>
+                                <literal>svn</literal>:
+                                an SVN repository URL,
+                                e.g.: <literal>"FIXME"</literal>.
+                              </listitem>
+                            </itemizedlist>
+                              <listitem>
+                                <literal>githubpulls</literal>:
+                                a GitHub user/organization and repository from
+                                which a JSON file representing the open GitHub
+                                pull requests will be requested,
+                                e.g.: <literal>"NixOS nixpkgs"</literal>.
+                              </listitem>
+                            </itemizedlist>
                           '';
                         };
 
@@ -836,7 +926,9 @@ with rec {
                           default = false;
                           example = true;
                           description = ''
-                            FIXME: doc
+                            Should committers on this input (if relevant) be
+                            notified via email when jobset evaluation fails or
+                            when jobs in this jobset fail?
                           '';
                         };
                       };
@@ -855,7 +947,10 @@ with rec {
                       };
                     };
                     description = ''
-                      FIXME: doc
+                      An attribute set, the keys of which are jobset input names
+                      and the values of which are attribute sets specifying
+                      various properties of the jobset input; most importantly
+                      the jobset input type and value.
                     '';
                   };
                 };
@@ -863,7 +958,8 @@ with rec {
               default = {};
               # example = …;
               description = ''
-                FIXME: doc
+                An attribute set, the keys of which are jobset names and the
+                values of which are attribute sets specifying a jobset.
               '';
             };
 
