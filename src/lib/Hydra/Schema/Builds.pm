@@ -619,7 +619,8 @@ my %hint = (
         'system',
         'priority',
         'buildstatus',
-        'releasename'
+        'releasename',
+        'drvpath',
     ],
     relations => {
         jobsetevals => 'id'
