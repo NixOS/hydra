@@ -231,9 +231,9 @@ void State::buildRemote(ref<Store> destStore,
 
         /* Copy the input closure. */
         if (/* machine->sshName != "localhost" */ true) {
-            auto mc1 = std::make_shared<MaintainCount>(nrStepsWaiting);
+            auto mc1 = std::make_shared<MaintainCount<counter>>(nrStepsWaiting);
             mc1.reset();
-            MaintainCount mc2(nrStepsCopyingTo);
+            MaintainCount<counter> mc2(nrStepsCopyingTo);
             printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % step->drvPath % machine->sshName);
 
             auto now1 = std::chrono::steady_clock::now();
@@ -276,7 +276,7 @@ void State::buildRemote(ref<Store> destStore,
         result.startTime = time(0);
         int res;
         {
-            MaintainCount mc(nrStepsBuilding);
+            MaintainCount<counter> mc(nrStepsBuilding);
             res = readInt(from);
         }
         result.stopTime = time(0);
@@ -371,7 +371,7 @@ void State::buildRemote(ref<Store> destStore,
 
         /* Copy the output paths. */
         if (/* machine->sshName != "localhost" */ true) {
-            MaintainCount mc(nrStepsCopyingFrom);
+            MaintainCount<counter> mc(nrStepsCopyingFrom);
 
             auto now1 = std::chrono::steady_clock::now();
 

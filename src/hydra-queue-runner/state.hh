@@ -8,7 +8,6 @@
 #include <queue>
 
 #include "db.hh"
-#include "counter.hh"
 #include "token-server.hh"
 
 #include "derivations.hh"
@@ -21,6 +20,8 @@
 typedef unsigned int BuildID;
 
 typedef std::chrono::time_point<std::chrono::system_clock> system_time;
+
+typedef std::atomic<unsigned long> counter;
 
 
 typedef enum {
@@ -439,7 +440,7 @@ public:
 
 private:
 
-    MaintainCount startDbUpdate();
+    nix::MaintainCount<counter> startDbUpdate();
 
     /* Return a store object to store build results. */
     nix::ref<nix::Store> getDestStore();

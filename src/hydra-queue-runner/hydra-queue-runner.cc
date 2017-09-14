@@ -105,13 +105,11 @@ State::State()
 }
 
 
-MaintainCount State::startDbUpdate()
+nix::MaintainCount<counter> State::startDbUpdate()
 {
-    return MaintainCount(nrActiveDbUpdates, [](unsigned long c) {
-        if (c > 6) {
-            printMsg(lvlError, format("warning: %d concurrent database updates; PostgreSQL may be stalled") % c);
-        }
-    });
+    if (nrActiveDbUpdates > 6)
+        printError("warning: %d concurrent database updates; PostgreSQL may be stalled", nrActiveDbUpdates.load());
+    return MaintainCount<counter>(nrActiveDbUpdates);
 }
 
 
@@ -485,7 +483,7 @@ void State::notificationSender()
                 notificationSenderQueue_->pop();
             }
 
-            MaintainCount mc(nrNotificationsInProgress);
+            MaintainCount<counter> mc(nrNotificationsInProgress);
 
             printMsg(lvlChatty, format("sending notification about build %1%") % item.id);
 
