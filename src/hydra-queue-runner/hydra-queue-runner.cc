@@ -8,6 +8,7 @@
 #include "state.hh"
 #include "build-result.hh"
 #include "store-api.hh"
+#include "remote-store.hh"
 
 #include "shared.hh"
 #include "globals.hh"
@@ -814,6 +815,7 @@ void State::run(BuildID buildOne)
 
     Store::Params localParams;
     localParams["max-connections"] = "16";
+    localParams["max-connection-age"] = "600";
     localStore = openStore(getEnv("NIX_REMOTE"), localParams);
 
     auto storeUri = config->getStrOption("store_uri");
@@ -887,6 +889,20 @@ void State::run(BuildID buildOne)
                 printMsg(lvlError, format("cleanup thread: %1%") % e.what());
                 auto orphanedSteps_(orphanedSteps.lock());
                 orphanedSteps_->insert(steps.begin(), steps.end());
+            }
+        }
+    }).detach();
+
+    /* Make sure that old daemon connections are closed even when
+       we're not doing much. */
+    std::thread([&]() {
+        while (true) {
+            sleep(10);
+            try {
+                if (auto remoteStore = getDestStore().dynamic_pointer_cast<RemoteStore>())
+                    remoteStore->flushBadConnections();
+            } catch (std::exception & e) {
+                printMsg(lvlError, format("connection flush thread: %1%") % e.what());
             }
         }
     }).detach();
