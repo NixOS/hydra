@@ -420,6 +420,7 @@ private:
     nix::TokenServer memoryTokens;
 
     size_t maxOutputSize;
+    size_t maxLogSize;
 
     time_t lastStatusLogged = 0;
     const int statusLogInterval = 300;

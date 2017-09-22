@@ -85,6 +85,7 @@ State::State()
     , dbPool(config->getIntOption("max_db_connections", 128))
     , memoryTokens(config->getIntOption("nar_buffer_size", getMemSize() / 2))
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
+    , maxLogSize(config->getIntOption("max_log_size", 64ULL << 20))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
 {
     debug("using %d bytes for the NAR buffer", memoryTokens.capacity());

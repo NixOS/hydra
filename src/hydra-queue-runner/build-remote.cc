@@ -266,7 +266,7 @@ void State::buildRemote(ref<Store> destStore,
             to << cmdBuildDerivation << step->drvPath << basicDrv;
         to << maxSilentTime << buildTimeout;
         if (GET_PROTOCOL_MINOR(remoteVersion) >= 2)
-            to << 64 * 1024 * 1024; // == maxLogSize
+            to << maxLogSize;
         if (GET_PROTOCOL_MINOR(remoteVersion) >= 3) {
             to << repeats // == build-repeat
                << step->isDeterministic; // == enforce-determinism
