@@ -12,6 +12,7 @@ use Nix::Config;
 use Encode;
 use File::Basename;
 use JSON;
+use List::MoreUtils qw{any};
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -20,7 +21,12 @@ __PACKAGE__->config->{namespace} = '';
 sub noLoginNeeded {
   my ($c) = @_;
 
-  return $c->request->path eq "google-login" ||
+  my $hostname = $c->request->headers->header('X-Forwarded-For') || $c->request->hostname;
+  my $readonly_ips = $c->config->{readonly_ips} // "";
+  my $whitelisted = any { $_ == $hostname } split(/,/, $readonly_ips);
+
+  return $whitelisted ||
+         $c->request->path eq "google-login" ||
          $c->request->path eq "login" ||
          $c->request->path eq "logo" ||
          $c->request->path =~ /^static\//;
