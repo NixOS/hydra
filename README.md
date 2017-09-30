@@ -4,8 +4,8 @@
 on the Nix package manager. For more information, see the
 [manual](http://nixos.org/hydra/manual/).
 
-For development see [hacking instructions]
-(http://nixos.org/hydra/manual/#chap-hacking).
+For development see
+[hacking instructions](http://nixos.org/hydra/manual/#chap-hacking).
 
 ---
 
