@@ -436,6 +436,11 @@ private:
 
     bool uploadLogsToBinaryCache;
 
+    /* Where to store GC roots. Defaults to
+       /nix/var/nix/gcroots/per-user/$USER/hydra-roots, overridable
+       via gc_roots_dir. */
+    nix::Path rootsDir;
+
 public:
     State();
 

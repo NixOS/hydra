@@ -221,6 +221,9 @@ bool State::getQueuedBuilds(Connection & conn,
             Derivation drv = readDerivation(build->drvPath);
             BuildOutput res = getBuildOutputCached(conn, destStore, drv);
 
+            for (auto & path : drv.outputPaths())
+                writeFile(rootsDir + "/" + baseNameOf(path), "");
+
             {
             auto mc = startDbUpdate();
             pqxx::work txn(conn);

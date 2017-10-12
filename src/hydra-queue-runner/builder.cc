@@ -263,6 +263,9 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         assert(stepNr);
 
+        for (auto & path : step->drv.outputPaths())
+            writeFile(rootsDir + "/" + baseNameOf(path), "");
+
         /* Register success in the database for all Build objects that
            have this step as the top-level step. Since the queue
            monitor thread may be creating new referring Builds
