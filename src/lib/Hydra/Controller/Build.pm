@@ -65,9 +65,9 @@ sub build_GET {
 
     $c->stash->{template} = 'build.tt';
     $c->stash->{available} =
-        ($c->config->{store_mode} // "direct") eq "direct"
+        isLocalStore
         ? all { isValidPath($_->path) } $build->buildoutputs->all
-        : 1; # FIXME
+        : 1;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
 
     if ($build->finished && $build->iscachedbuild) {
@@ -203,27 +203,6 @@ sub download : Chained('buildChain') PathPart {
         die "Invalid store path " . $product->path . ".\n";
     }
     my $storePath = $1;
-
-    # Hack to get downloads to work on binary cache stores: if the
-    # store path is not available locally, then import it into the
-    # local store. FIXME: find a better way; this can require an
-    # unbounded amount of space.
-    if (!isValidPath($storePath)) {
-        my $storeMode = $c->config->{store_mode} // "direct";
-        notFound($c, "File " . $product->path . " has disappeared.")
-            if $storeMode eq "direct";
-        my $url =
-            $storeMode eq "local-binary-cache" ? "file://" . $c->config->{binary_cache_dir} :
-            $storeMode eq "s3-binary-cache" ? "https://" . $c->config->{binary_cache_s3_bucket} . ".s3.amazonaws.com/" :
-            die;
-        my $args = "";
-        if (defined $c->config->{binary_cache_public_key_file}
-            && -r $c->config->{binary_cache_public_key_file})
-        {
-            $args = "--option binary-cache-public-keys " . read_file($c->config->{binary_cache_public_key_file});
-        }
-        system("nix-store --realise '$storePath' --option extra-binary-caches '$url' $args>/dev/null");
-    }
 
     notFound($c, "File " . $product->path . " does not exist.") unless -e $product->path;
 

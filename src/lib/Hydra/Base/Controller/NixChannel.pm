@@ -53,6 +53,9 @@ sub getChannelData {
 
 sub closure : Chained('nix') PathPart {
     my ($self, $c) = @_;
+
+    requireLocalStore($c);
+
     $c->stash->{current_view} = 'NixClosure';
 
     getChannelData($c, 1);
@@ -68,6 +71,7 @@ sub closure : Chained('nix') PathPart {
 
 sub manifest : Chained('nix') PathPart("MANIFEST") Args(0) {
     my ($self, $c) = @_;
+    requireLocalStore($c);
     $c->stash->{current_view} = 'NixManifest';
     $c->stash->{narBase} = $c->uri_for($c->controller('Root')->action_for("nar"));
     getChannelData($c, 1);
@@ -86,6 +90,8 @@ sub pkg : Chained('nix') PathPart Args(1) {
             || notFound($c, "No such package in this channel.");
     }
 
+    requireLocalStore($c);
+
     gone($c, "Build " . $c->stash->{build}->id . " is no longer available.")
         unless all { isValidPath($_->path) } $c->stash->{build}->buildoutputs->all;
 
@@ -97,6 +103,7 @@ sub pkg : Chained('nix') PathPart Args(1) {
 
 sub nixexprs : Chained('nix') PathPart('nixexprs.tar.bz2') Args(0) {
     my ($self, $c) = @_;
+    requireLocalStore($c);
     $c->stash->{current_view} = 'NixExprs';
     getChannelData($c, 1);
 }
@@ -126,6 +133,7 @@ sub sortPkgs {
 
 sub channel_contents : Chained('nix') PathPart('') Args(0) {
     my ($self, $c) = @_;
+    requireLocalStore($c);
     # Optimistically assume that none of the packages have been
     # garbage-collected.  That should be true for the "latest"
     # channel.

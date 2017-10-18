@@ -2,6 +2,7 @@ package Hydra::View::NixPkg;
 
 use strict;
 use base qw/Catalyst::View/;
+use Hydra::Helper::CatalystUtils;
 
 sub process {
     my ($self, $c) = @_;
@@ -10,12 +11,9 @@ sub process {
 
     my $build = $c->stash->{build};
 
-    my $storeMode = $c->config->{store_mode} // "direct";
-    my $channelUri =
-        $storeMode eq "direct" ? $c->uri_for('/')
-        : $storeMode eq "s3-binary-cache" ?
-          ($c->config->{binary_cache_public_uri} // ("https://" . $c->config->{binary_cache_s3_bucket} . ".s3.amazonaws.com/"))
-        : die "Not supported.\n";
+    requireLocalStore($c);
+
+    my $channelUri = $c->uri_for('/');
 
     # FIXME: add multiple output support
     my $s = "NIXPKG1 http://invalid.org/"

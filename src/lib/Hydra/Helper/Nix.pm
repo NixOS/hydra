@@ -23,7 +23,10 @@ our @EXPORT = qw(
     getEvals getMachines
     pathIsInsidePrefix
     captureStdoutStderr run grab
-    getTotalShares readNixFile
+    getTotalShares
+    getStoreUri
+    readNixFile
+    isLocalStore
     cancelBuilds restartBuilds);
 
 
@@ -491,12 +494,22 @@ sub restartBuilds($$) {
 }
 
 
+sub getStoreUri {
+    my $config = getHydraConfig();
+    return $config->{'store_uri'} // "auto";
+}
+
+
 # Read a file from the (possibly remote) nix store
 sub readNixFile {
     my ($path) = @_;
-    my $config = getHydraConfig();
-    my $storeUri = $config->{'store_uri'} // "";
-    return grab(cmd => ["nix", "cat-store", "$path"], env => { NIX_REMOTE => "$storeUri" });
+    return grab(cmd => ["nix", "cat-store", "--store", getStoreUri(), "$path"]);
+}
+
+
+sub isLocalStore {
+    my $uri = getStoreUri();
+    return $uri =~ "^(local|daemon|auto)";
 }
 
 

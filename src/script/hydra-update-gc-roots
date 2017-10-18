@@ -38,7 +38,7 @@ sub keepBuild {
         $build->get_column('project'), ":", $build->get_column('jobset'), ":", $build->get_column('job'), "; ",
         $build->system, "; ",
         strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
-    if (($config->{store_mode} // "direct") eq "direct" &&
+    if (isLocalStore &&
         $build->finished && ($build->buildstatus == 0 || $build->buildstatus == 6))
     {
         foreach my $path (split / /, $build->get_column('outpaths')) {

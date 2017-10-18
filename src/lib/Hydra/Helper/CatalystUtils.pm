@@ -347,8 +347,7 @@ sub approxTableSize {
 
 sub requireLocalStore {
     my ($c) = @_;
-    notFound($c, "Nix channels are not supported by this Hydra server.")
-        if ($c->config->{store_mode} // "direct") ne "direct";
+    notFound($c, "Nix channels are not supported by this Hydra server.") if !Hydra::Helper::Nix::isLocalStore();
 }
 
 

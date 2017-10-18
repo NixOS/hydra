@@ -258,15 +258,8 @@ sub nar :Local :Args(1) {
 
     die if $path =~ /\//;
 
-    my $storeMode = $c->config->{store_mode} // "direct";
-
-    if ($storeMode eq "s3-binary-cache") {
+    if (!isLocalStore) {
         notFound($c, "There is no binary cache here.");
-    }
-
-    elsif ($storeMode eq "local-binary-cache") {
-        my $dir = $c->config->{binary_cache_dir};
-        $c->serve_static_file($dir . "/nar/" . $path);
     }
 
     else {
@@ -283,15 +276,8 @@ sub nar :Local :Args(1) {
 sub nix_cache_info :Path('nix-cache-info') :Args(0) {
     my ($self, $c) = @_;
 
-    my $storeMode = $c->config->{store_mode} // "direct";
-
-    if ($storeMode eq "s3-binary-cache") {
+    if (!isLocalStore) {
         notFound($c, "There is no binary cache here.");
-    }
-
-    elsif ($storeMode eq "local-binary-cache") {
-        my $dir = $c->config->{binary_cache_dir};
-        $c->serve_static_file($dir . "/nix-cache-info");
     }
 
     else {
@@ -311,15 +297,8 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
 sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
     my ($self, $c) = @_;
 
-    my $storeMode = $c->config->{store_mode} // "direct";
-
-    if ($storeMode eq "s3-binary-cache") {
+    if (!isLocalStore) {
         notFound($c, "There is no binary cache here.");
-    }
-
-    elsif ($storeMode eq "local-binary-cache") {
-        my $dir = $c->config->{binary_cache_dir};
-        $c->serve_static_file($dir . "/" . $c->req->captures->[0] . ".narinfo");
     }
 
     else {
