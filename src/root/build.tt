@@ -65,7 +65,7 @@ END;
                 [% ELSE %]
                   Succeeded
                 [% END %]
-                [% IF step.timesbuilt > 1 %]
+                [% IF step.timesbuilt && step.timesbuilt > 1 %]
                   ([% step.timesbuilt %] times)
                 [% END %]
               [% ELSIF step.status == 3 %]
