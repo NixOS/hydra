@@ -95,7 +95,9 @@
                 should make sure that you have sufficient access rights to
                 the Nix store, e.g., run the command as <tt>root</tt>.</p>
               [% END %]
-              <a class="btn btn-mini" href="[% contents %]">Contents</a>
+              [% IF localStore %]
+                <a class="btn btn-mini" href="[% contents %]">Contents</a>
+              [% END %]
             </td>
           </tr>
           [% IF localStore %]
@@ -206,7 +208,9 @@
               <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
             </table>
           [% END %]
-          <a class="btn btn-mini" href="[% contents %]">Contents</a>
+          [% IF localStore %]
+            <a class="btn btn-mini" href="[% contents %]">Contents</a>
+          [% END %]
         </td>
       </tr>
 
