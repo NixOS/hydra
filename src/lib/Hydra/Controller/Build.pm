@@ -14,6 +14,7 @@ use Nix::Store;
 use Nix::Config;
 use List::MoreUtils qw(all);
 use Encode;
+use MIME::Types;
 
 
 sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
@@ -242,7 +243,15 @@ sub download : Chained('buildChain') PathPart {
 
     } else {
         $c->stash->{'plain'} = { data => readNixFile($path) };
-        $c->response->content_type('application/octet-stream');
+        # Detect MIME type. Borrowed from Catalyst::Plugin::Static::Simple.
+        my $type = "text/plain";
+        if ($path =~ /.*\.(\S{1,})$/xms) {
+            my $ext = $1;
+            my $mimeTypes = MIME::Types->new(only_complete => 1);
+            my $t = $mimeTypes->mimeTypeOf($ext);
+            $type = ref $t ? $t->type : $t if $t;
+        }
+        $c->response->content_type($type);
         $c->forward('Hydra::View::Plain');
     }
 }
