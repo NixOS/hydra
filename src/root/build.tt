@@ -140,7 +140,7 @@ END;
   [% IF steps.size() > 0 %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
   [% IF build.dependents %]<li><a href="#tabs-usedby" data-toggle="tab">Used by</a></li>[% END%]
   [% IF drvAvailable %]<li><a href="#tabs-build-deps" data-toggle="tab">Build dependencies</a></li>[% END %]
-  [% IF available %]<li><a href="#tabs-runtime-deps" data-toggle="tab">Runtime dependencies</a></li>[% END %]
+  [% IF localStore && available %]<li><a href="#tabs-runtime-deps" data-toggle="tab">Runtime dependencies</a></li>[% END %]
 </ul>
 
 <div id="generic-tabs" class="tab-content">

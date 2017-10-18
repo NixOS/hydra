@@ -98,6 +98,7 @@
               <a class="btn btn-mini" href="[% contents %]">Contents</a>
             </td>
           </tr>
+          [% IF localStore %]
           <tr class="product">
             <td>
               <img src="[% c.uri_for("/static/images/nix-build.png") %]" alt="Source" />
@@ -139,6 +140,7 @@
               [% END %]
             </td>
           </tr>
+          [% END %]
         [% END %]
 
       [% CASE ["file", "channel"] %]

@@ -65,8 +65,9 @@ sub build_GET {
     my $build = $c->stash->{build};
 
     $c->stash->{template} = 'build.tt';
+    $c->stash->{isLocalStore} = isLocalStore();
     $c->stash->{available} =
-        isLocalStore
+        $c->stash->{isLocalStore}
         ? all { isValidPath($_->path) } $build->buildoutputs->all
         : 1;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
