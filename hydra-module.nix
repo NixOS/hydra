@@ -30,6 +30,7 @@ let
     { HYDRA_TRACKER = cfg.tracker;
       COLUMNS = "80";
       PGPASSFILE = "${baseDir}/pgpass-www"; # grrr
+      XDG_CACHE_HOME = "${baseDir}/www/.cache";
     } // (optionalAttrs cfg.debugServer { DBIC_TRACE = "1"; });
 
   localDB = "dbi:Pg:dbname=hydra;user=hydra;";
