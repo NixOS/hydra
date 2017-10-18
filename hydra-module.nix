@@ -221,15 +221,15 @@ in
 
     services.hydra-dev.extraConfig =
       ''
-        using_frontend_proxy 1
-        base_uri ${cfg.hydraURL}
-        notification_sender ${cfg.notificationSender}
-        max_servers 25
-        compress_num_threads 0
+        using_frontend_proxy = 1
+        base_uri = ${cfg.hydraURL}
+        notification_sender = ${cfg.notificationSender}
+        max_servers = 25
+        compress_num_threads = 0
         ${optionalString (cfg.logo != null) ''
-          hydra_logo ${cfg.logo}
+          hydra_logo = ${cfg.logo}
         ''}
-        gc_roots_dir ${cfg.gcRootsDir}
+        gc_roots_dir = ${cfg.gcRootsDir}
         use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
       '';
 
