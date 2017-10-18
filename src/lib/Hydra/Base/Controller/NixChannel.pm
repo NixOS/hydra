@@ -3,7 +3,7 @@ package Hydra::Base::Controller::NixChannel;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::REST';
-use List::MoreUtils qw(all);
+use List::MoreUtils qw(any);
 use Nix::Store;
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
@@ -90,10 +90,8 @@ sub pkg : Chained('nix') PathPart Args(1) {
             || notFound($c, "No such package in this channel.");
     }
 
-    requireLocalStore($c);
-
     gone($c, "Build " . $c->stash->{build}->id . " is no longer available.")
-        unless all { isValidPath($_->path) } $c->stash->{build}->buildoutputs->all;
+        if isLocalStore() && any { !isValidPath($_->path) } $c->stash->{build}->buildoutputs->all;
 
     $c->stash->{current_view} = 'NixPkg';
 

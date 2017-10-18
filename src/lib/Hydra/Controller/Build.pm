@@ -432,9 +432,11 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
     notFound($c, "Build cannot be downloaded as a closure or Nix package.")
         if $build->buildproducts->search({type => "nix-build"})->count == 0;
 
-    foreach my $out ($build->buildoutputs) {
-        notFound($c, "Path " . $out->path . " is no longer available.")
-            unless isValidPath($out->path);
+    if (isLocalStore) {
+        foreach my $out ($build->buildoutputs) {
+            notFound($c, "Path " . $out->path . " is no longer available.")
+                unless isValidPath($out->path);
+        }
     }
 
     $c->stash->{channelBuilds} = $c->model('DB::Builds')->search(

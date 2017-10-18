@@ -11,9 +11,7 @@ sub process {
 
     my $build = $c->stash->{build};
 
-    requireLocalStore($c);
-
-    my $channelUri = $c->uri_for('/');
+    my $channelUri = $c->config->{binary_cache_public_uri} // $c->uri_for('/');
 
     # FIXME: add multiple output support
     my $s = "NIXPKG1 http://invalid.org/"
