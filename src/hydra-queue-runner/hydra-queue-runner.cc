@@ -80,6 +80,14 @@ static uint64_t getMemSize()
 }
 
 
+std::string getEnvOrDie(const std::string & key)
+{
+    char * value = getenv(key.c_str());
+    if (!value) throw Error("environment variable '%s' is not set", key);
+    return value;
+}
+
+
 State::State()
     : config(std::make_unique<::Config>())
     , dbPool(config->getIntOption("max_db_connections", 128))
@@ -87,12 +95,11 @@ State::State()
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
     , maxLogSize(config->getIntOption("max_log_size", 64ULL << 20))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
-    , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnv("USER"))))
+    , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
 {
     debug("using %d bytes for the NAR buffer", memoryTokens.capacity());
 
-    hydraData = getEnv("HYDRA_DATA");
-    if (hydraData == "") throw Error("$HYDRA_DATA must be set");
+    hydraData = getEnvOrDie("HYDRA_DATA");
 
     logDir = canonPath(hydraData + "/build-logs");
 
