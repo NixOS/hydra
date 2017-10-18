@@ -496,7 +496,7 @@ sub restartBuilds($$) {
 
 sub getStoreUri {
     my $config = getHydraConfig();
-    return $config->{'store_uri'} // "auto";
+    return $config->{'server_store_uri'} // $config->{'store_uri'} // "auto";
 }
 
 
