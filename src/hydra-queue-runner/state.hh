@@ -535,6 +535,8 @@ private:
 
     void dumpStatus(Connection & conn, bool log);
 
+    void addRoot(const nix::Path & storePath);
+
 public:
 
     void showStatus();

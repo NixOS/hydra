@@ -222,7 +222,7 @@ bool State::getQueuedBuilds(Connection & conn,
             BuildOutput res = getBuildOutputCached(conn, destStore, drv);
 
             for (auto & path : drv.outputPaths())
-                writeFile(rootsDir + "/" + baseNameOf(path), "");
+                addRoot(path);
 
             {
             auto mc = startDbUpdate();

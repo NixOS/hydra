@@ -841,6 +841,8 @@ void State::run(BuildID buildOne)
         jobsetRepeats.emplace(std::make_pair(s2[0], s2[1]), std::stoi(s2[2]));
     }
 
+    addRoot("/nix/store/rk9lahzm21qm0zjclv6mz0m4hy77wk14-vm-test-run-unnamed.drv");
+
     {
         auto conn(dbPool.get());
         clearBusy(*conn, 0);

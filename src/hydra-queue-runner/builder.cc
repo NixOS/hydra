@@ -264,7 +264,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         assert(stepNr);
 
         for (auto & path : step->drv.outputPaths())
-            writeFile(rootsDir + "/" + baseNameOf(path), "");
+            addRoot(path);
 
         /* Register success in the database for all Build objects that
            have this step as the top-level step. Since the queue
@@ -472,4 +472,11 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     if (quit) exit(0); // testing hack; FIXME: this won't run plugins
 
     return sDone;
+}
+
+
+void State::addRoot(const Path & storePath)
+{
+    auto root = rootsDir + "/" + baseNameOf(storePath);
+    if (!pathExists(root)) writeFile(root, "");
 }
