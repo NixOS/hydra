@@ -16,11 +16,12 @@ Usage: $0 PROJECT [NAME]
   [--url URL]
   [--ref REF]
   [--pull-request PULLREQUEST]
+  [--nixexpr-path PATH]
 EOF
     exit 0;
 }
 
-my ($triggerEval, $forceEval, $description, $nixpkgsUrl, $nixpkgsRef, $pullRequest);
+my ($triggerEval, $forceEval, $description, $nixpkgsUrl, $nixpkgsRef, $nixexprPath, $pullRequest);
 
 GetOptions("trigger" => \$triggerEval,
            "force" => \$forceEval,
@@ -28,6 +29,7 @@ GetOptions("trigger" => \$triggerEval,
            "url=s" => \$nixpkgsUrl,
            "ref=s" => \$nixpkgsRef,
            "pull-request=s" => \$pullRequest,
+           "nixexpr-path=s" => \$nixexprPath,
            "help" => sub { showHelp() }
     ) or exit 1;
 
@@ -41,6 +43,7 @@ $nixpkgsRef = "refs/pull/$pullRequest/merge" if $pullRequest;
 $description = "" unless $description;
 $nixpkgsUrl = "https://github.com/NixOS/nixpkgs.git" unless $nixpkgsUrl;
 $nixpkgsRef = "master" unless $nixpkgsRef;
+$nixexprPath = "nixos/release-combined.nix" unless $nixexprPath;
 
 # TODO
 my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
@@ -52,8 +55,8 @@ txn_do($db, sub {
     my $jobset = $project->jobsets->update_or_create(
       { name => $jobsetName, description => $description,
         nixexprinput => "nixpkgs",
-        nixexprpath => "nixos/release-combined.nix",
-        enabled => 2, checkinterval => 0, emailoverride => "",
+        nixexprpath => $nixexprPath,
+        enabled => 1, checkinterval => 3600, emailoverride => "",
         enableemail => 0
       });
 
