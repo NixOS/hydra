@@ -1,6 +1,8 @@
 #! /usr/bin/env perl
 
 use strict;
+use warnings;
+use utf8;
 use Hydra::Plugin;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
@@ -10,35 +12,33 @@ use Getopt::Long qw(:config gnu_getopt);
 
 sub showHelp {
     print <<EOF;
-Usage: $0 PROJECT [NAME]
+Usage: $0 PROJECT JOBSET
   [--trigger] [--force]
+  [--hidden] [--disabled]
   [--description DESCRIPTION]
   [--url URL]
   [--ref REF]
-  [--pull-request PULLREQUEST]
   [--nixexpr-path PATH]
 EOF
     exit 0;
 }
 
-my ($triggerEval, $forceEval, $description, $nixpkgsUrl, $nixpkgsRef, $nixexprPath, $pullRequest);
+my ($triggerEval, $forceEval, $description, $nixpkgsUrl, $nixpkgsRef, $nixexprPath, $hidden, $disabled);
 
 GetOptions("trigger" => \$triggerEval,
            "force" => \$forceEval,
            "description=s" => \$description,
            "url=s" => \$nixpkgsUrl,
            "ref=s" => \$nixpkgsRef,
-           "pull-request=s" => \$pullRequest,
            "nixexpr-path=s" => \$nixexprPath,
+           "hidden" => \$hidden,
+           "disabled" => \$disabled,
            "help" => sub { showHelp() }
     ) or exit 1;
 
-die "$0: project name required\n" if @ARGV == 0;
+die "$0: project and jobset name required\n" if @ARGV < 2;
 my $projectName = $ARGV[0];
-my $jobsetName = $ARGV[1] if @ARGV == 2;
-
-$jobsetName = "pr-$pullRequest" if $pullRequest;
-$nixpkgsRef = "refs/pull/$pullRequest/merge" if $pullRequest;
+my $jobsetName = $ARGV[1];
 
 $description = "" unless $description;
 $nixpkgsUrl = "https://github.com/NixOS/nixpkgs.git" unless $nixpkgsUrl;
@@ -49,6 +49,7 @@ $nixexprPath = "nixos/release-combined.nix" unless $nixexprPath;
 my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
 
 my $db = Hydra::Model::DB->new();
+my $config = getHydraConfig();
 
 txn_do($db, sub {
     my $project = $db->resultset('Projects')->find({ name => $projectName });
@@ -56,8 +57,8 @@ txn_do($db, sub {
       { name => $jobsetName, description => $description,
         nixexprinput => "nixpkgs",
         nixexprpath => $nixexprPath,
-        enabled => 1, checkinterval => 3600, emailoverride => "",
-        enableemail => 0
+        enabled => $disabled ? 0 : 1, checkinterval => 0, emailoverride => "",
+        enableemail => 0, hidden => $hidden ? 1 : 0
       });
 
     if ($jobset->jobsetinputs->count == 0) {
@@ -84,4 +85,4 @@ txn_do($db, sub {
     }
   });
 
-print STDERR "created jobset $jobsetName in $projectName\n";
+print getBaseUrl($config) . "/jobset/$projectName/$jobsetName";
