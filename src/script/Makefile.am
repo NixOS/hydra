@@ -4,7 +4,7 @@ EXTRA_DIST =					\
 
 distributable_scripts =				\
   hydra-init					\
-  hydra-create-jobset				\
+  hydra-update-jobset				\
   hydra-eval-jobset				\
   hydra-server					\
   hydra-update-gc-roots				\
