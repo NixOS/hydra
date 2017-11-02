@@ -68,15 +68,6 @@ txn_do($db, sub {
       my $jobsetinputals_supported;
       $jobsetinput = $jobset->jobsetinputs->create({name => "nixpkgs", type => "git"});
       $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => "$nixpkgsUrl $nixpkgsRef"});
-      $jobsetinput_supported = $jobset->jobsetinputs->create({name => "supportedSystems", type => "nix"});
-      $jobsetinputals_supported = $jobsetinput_supported->jobsetinputalts->create({altnr => 0, value => "[\"i686-linux\" \"x86_64-linux\"]"});
-    }
-
-    if ($jobset->jobsetinputs->count == 1) {
-      my $jobsetinput_supported;
-      my $jobsetinputals_supported;
-      $jobsetinput_supported = $jobset->jobsetinputs->create({name => "supportedSystems", type => "nix"});
-      $jobsetinputals_supported = $jobsetinput_supported->jobsetinputalts->create({altnr => 0, value => "[\"i686-linux\" \"x86_64-linux\"]"});
     }
 
     if ($triggerEval) {
