@@ -157,7 +157,7 @@ rec {
 
       preCheck = ''
         patchShebangs .
-        export LOGNAME=${LOGNAME:-foo}
+        export LOGNAME=''${LOGNAME:-foo}
       '';
 
       postInstall = ''
