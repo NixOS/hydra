@@ -233,7 +233,7 @@ sub fetchInput {
     # number of commits in the history of this revision (‘revCount’)
     # the output of git-describe (‘gitTag’), and the abbreviated
     # revision (‘shortRev’).
-    my $revCount = scalar(split '\n', grab(cmd => ["git", "rev-list", "$revision"], dir => $clonePath));
+    my $revCount = grab(cmd => ["git", "rev-list", "--count", "$revision"], dir => $clonePath, chomp => 1);
     my $gitTag = grab(cmd => ["git", "describe", "--always", "$revision"], dir => $clonePath, chomp => 1);
     my $shortRev = grab(cmd => ["git", "rev-parse", "--short", "$revision"], dir => $clonePath, chomp => 1);
 
