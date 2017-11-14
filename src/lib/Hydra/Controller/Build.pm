@@ -15,6 +15,7 @@ use Nix::Config;
 use List::MoreUtils qw(all);
 use Encode;
 use MIME::Types;
+use JSON::PP;
 
 
 sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
@@ -187,6 +188,53 @@ sub checkPath {
 }
 
 
+sub serveFile {
+    my ($c, $path) = @_;
+
+    my $res = run(cmd => ["nix", "ls-store", "--store", getStoreUri(), "--json", "$path"]);
+
+    if ($res->{status}) {
+        notFound($c, "File '$path' does not exist.") if $res->{stderr} =~ /does not exist/;
+        die "$res->{stderr}\n";
+    }
+
+    my $ls = decode_json($res->{stdout});
+
+    if ($ls->{type} eq "directory" && substr($c->request->uri, -1) ne "/") {
+        return $c->res->redirect($c->request->uri . "/");
+    }
+
+    elsif ($ls->{type} eq "directory" && defined $ls->{entries}->{"index.html"}) {
+        return serveFile($c, "$path/index.html");
+    }
+
+    elsif ($ls->{type} eq "symlink") {
+        my $target = $ls->{target};
+        return serveFile($c, substr($target, 0, 1) eq "/" ? $target : dirname($path) . "/" . $target);
+    }
+
+    elsif ($ls->{type} eq "regular") {
+
+        $c->stash->{'plain'} = { data => grab(cmd => ["nix", "cat-store", "--store", getStoreUri(), "$path"]) };
+
+        # Detect MIME type. Borrowed from Catalyst::Plugin::Static::Simple.
+        my $type = "text/plain";
+        if ($path =~ /.*\.(\S{1,})$/xms) {
+            my $ext = $1;
+            my $mimeTypes = MIME::Types->new(only_complete => 1);
+            my $t = $mimeTypes->mimeTypeOf($ext);
+            $type = ref $t ? $t->type : $t if $t;
+        }
+        $c->response->content_type($type);
+        $c->forward('Hydra::View::Plain');
+    }
+
+    else {
+        error($c, "Do not know how to serve path '$path'.");
+    }
+}
+
+
 sub download : Chained('buildChain') PathPart {
     my ($self, $c, $productRef, @path) = @_;
 
@@ -202,7 +250,7 @@ sub download : Chained('buildChain') PathPart {
     notFound($c, "Build doesn't have a product $productRef.") if !defined $product;
 
     if ($product->path !~ /^($Nix::Config::storeDir\/[^\/]+)/) {
-        die "Invalid store path " . $product->path . ".\n";
+        die "Invalid store path '" . $product->path . "'.\n";
     }
     my $storePath = $1;
 
@@ -215,7 +263,7 @@ sub download : Chained('buildChain') PathPart {
 
     # Security paranoia.
     foreach my $elem (@path) {
-        error($c, "Invalid filename $elem.") if $elem !~ /^$pathCompRE$/;
+        error($c, "Invalid filename '$elem'.") if $elem !~ /^$pathCompRE$/;
     }
 
     my $path = $product->path;
@@ -223,7 +271,7 @@ sub download : Chained('buildChain') PathPart {
 
     if (isLocalStore) {
 
-        notFound($c, "File " . $product->path . " does not exist.") unless -e $product->path;
+        notFound($c, "File '" . $product->path . "' does not exist.") unless -e $product->path;
 
         # Make sure the file is in the Nix store.
         $path = checkPath($self, $c, $path);
@@ -235,26 +283,17 @@ sub download : Chained('buildChain') PathPart {
 
         $path = "$path/index.html" if -d $path && -e "$path/index.html";
 
-        notFound($c, "File $path does not exist.") if !-e $path;
+        notFound($c, "File '$path' does not exist.") if !-e $path;
 
-        notFound($c, "Path $path is a directory.") if -d $path;
+        notFound($c, "Path '$path' is a directory.") if -d $path;
 
         $c->serve_static_file($path);
-        $c->response->headers->last_modified($c->stash->{build}->stoptime);
 
     } else {
-        $c->stash->{'plain'} = { data => readNixFile($path) };
-        # Detect MIME type. Borrowed from Catalyst::Plugin::Static::Simple.
-        my $type = "text/plain";
-        if ($path =~ /.*\.(\S{1,})$/xms) {
-            my $ext = $1;
-            my $mimeTypes = MIME::Types->new(only_complete => 1);
-            my $t = $mimeTypes->mimeTypeOf($ext);
-            $type = ref $t ? $t->type : $t if $t;
-        }
-        $c->response->content_type($type);
-        $c->forward('Hydra::View::Plain');
+        serveFile($c, $path);
     }
+
+    $c->response->headers->last_modified($c->stash->{build}->stoptime);
 }
 
 
@@ -308,9 +347,12 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 
     # FIXME: don't use shell invocations below.
 
+    # FIXME: use nix cat-store
+
     my $res;
 
     if ($product->type eq "nix-build" && -d $path) {
+        # FIXME: use nix ls-store -R --json
         $res = `cd '$path' && find . -print0 | xargs -0 ls -ld --`;
         error($c, "`ls -lR' error: $?") if $? != 0;
 

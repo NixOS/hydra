@@ -6,7 +6,8 @@ use base 'Catalyst::View::Download::Plain';
 
 sub process {
     my ($self, $c) = @_;
-    $c->response->content_type('text/plain; charset=utf-8') unless $c->response->content_type() ne "";
+    $c->clear_encoding;
+    $c->response->content_type('text/plain; charset=utf-8') if $c->response->content_type() eq "text/plain";
     $c->response->body($c->stash->{plain}->{data});
 }
 
