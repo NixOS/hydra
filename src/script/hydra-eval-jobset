@@ -75,6 +75,20 @@ sub attrsToSQL {
 }
 
 
+# Fetch a store path from 'eval_substituter' if not already present.
+sub getPath {
+    my ($path) = @_;
+    return 1 if isValidPath($path);
+
+    my $substituter = $config->{eval_substituter};
+
+    system("nix", "copy", "--from", $substituter, "--", $path)
+        if defined $substituter;
+
+    return isValidPath($path);
+}
+
+
 sub fetchInputBuild {
     my ($db, $project, $jobset, $name, $value) = @_;
 
@@ -95,7 +109,7 @@ sub fetchInputBuild {
             , where => \ attrsToSQL($attrs, "me.id") })->single;
     }
 
-    return () if !defined $prevBuild || !isValidPath(getMainOutput($prevBuild)->path);
+    return () if !defined $prevBuild || !getPath(getMainOutput($prevBuild)->path);
 
     #print STDERR "input `", $name, "': using build ", $prevBuild->id, "\n";
 
@@ -133,7 +147,7 @@ sub fetchInputSystemBuild {
 
     my @validBuilds = ();
     foreach my $build (@latestBuilds) {
-        push(@validBuilds, $build) if isValidPath(getMainOutput($build)->path);
+        push(@validBuilds, $build) if getPath(getMainOutput($build)->path);
     }
 
     if (scalar(@validBuilds) == 0) {
