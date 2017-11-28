@@ -356,8 +356,6 @@ sub evalJobs {
 
     my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
         or die "cannot find the input containing the job expression\n";
-    die "multiple alternatives for the input containing the Nix expression are not supported.\n"
-        if scalar @{$inputInfo->{$nixExprInputName}} != 1;
 
     my $evaluator = ($exprType eq "guile") ? "hydra-eval-guile-jobs" : "hydra-eval-jobs";
 
