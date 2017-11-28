@@ -358,11 +358,14 @@ sub evalJobs {
         or die "cannot find the input containing the job expression\n";
     die "multiple alternatives for the input containing the Nix expression are not supported.\n"
         if scalar @{$inputInfo->{$nixExprInputName}} != 1;
-    my $nixExprFullPath = $nixExprInput->{storePath} . "/" . $nixExprPath;
 
     my $evaluator = ($exprType eq "guile") ? "hydra-eval-guile-jobs" : "hydra-eval-jobs";
 
-    my @cmd = ($evaluator, $nixExprFullPath, "--gc-roots-dir", getGCRootsDir, "-j", 1, inputsToArgs($inputInfo, $exprType));
+    my @cmd = ($evaluator,
+               "<" . $nixExprInputName . "/" . $nixExprPath . ">",
+               "--gc-roots-dir", getGCRootsDir,
+               "-j", 1,
+               inputsToArgs($inputInfo, $exprType));
 
     if (defined $ENV{'HYDRA_DEBUG'}) {
         sub escape {

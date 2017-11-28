@@ -175,7 +175,7 @@ int main(int argc, char * * argv)
             else if (*arg != "" && arg->at(0) == '-')
                 return false;
             else
-                releaseExpr = absPath(*arg);
+                releaseExpr = *arg;
             return true;
         });
 
@@ -197,7 +197,7 @@ int main(int argc, char * * argv)
         Bindings & autoArgs = *myArgs.getAutoArgs(state);
 
         Value v;
-        state.evalFile(releaseExpr, v);
+        state.evalFile(lookupFileArg(state, releaseExpr), v);
 
         JSONObject json(std::cout, true);
         findJobs(state, json, autoArgs, v, "");
