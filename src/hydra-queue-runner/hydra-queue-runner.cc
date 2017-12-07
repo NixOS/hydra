@@ -280,10 +280,6 @@ void State::clearBusy(Connection & conn, time_t stopTime)
 
 unsigned int State::allocBuildStep(pqxx::work & txn, BuildID buildId)
 {
-    /* Acquire an exclusive lock on BuildSteps to ensure that we don't
-       race with other threads creating a step of the same build. */
-    txn.exec("lock table BuildSteps in exclusive mode");
-
     auto res = txn.parameterized("select max(stepnr) from BuildSteps where build = $1")(buildId).exec();
     return res[0][0].is_null() ? 1 : res[0][0].as<int>() + 1;
 }
@@ -292,10 +288,11 @@ unsigned int State::allocBuildStep(pqxx::work & txn, BuildID buildId)
 unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID buildId, Step::ptr step,
     const std::string & machine, BuildStatus status, const std::string & errorMsg, BuildID propagatedFrom)
 {
+ restart:
     auto stepNr = allocBuildStep(txn, buildId);
 
-    txn.parameterized
-        ("insert into BuildSteps (build, stepnr, type, drvPath, busy, startTime, system, status, propagatedFrom, errorMsg, stopTime, machine) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)")
+    auto r = txn.parameterized
+        ("insert into BuildSteps (build, stepnr, type, drvPath, busy, startTime, system, status, propagatedFrom, errorMsg, stopTime, machine) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) on conflict do nothing")
         (buildId)
         (stepNr)
         (0) // == build
@@ -308,6 +305,8 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
         (errorMsg, errorMsg != "")
         (startTime, startTime != 0 && status != bsBusy)
         (machine).exec();
+
+    if (r.affected_rows() == 0) goto restart;
 
     for (auto & output : step->drv.outputs)
         txn.parameterized
@@ -339,10 +338,11 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
 int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
     Build::ptr build, const Path & drvPath, const string & outputName, const Path & storePath)
 {
+ restart:
     auto stepNr = allocBuildStep(txn, build->id);
 
-    txn.parameterized
-        ("insert into BuildSteps (build, stepnr, type, drvPath, busy, status, startTime, stopTime) values ($1, $2, $3, $4, $5, $6, $7, $8)")
+    auto r = txn.parameterized
+        ("insert into BuildSteps (build, stepnr, type, drvPath, busy, status, startTime, stopTime) values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict do nothing")
         (build->id)
         (stepNr)
         (1) // == substitution
@@ -351,6 +351,8 @@ int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t sto
         (0)
         (startTime)
         (stopTime).exec();
+
+    if (r.affected_rows() == 0) goto restart;
 
     txn.parameterized
         ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)")
