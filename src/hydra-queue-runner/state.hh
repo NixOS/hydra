@@ -41,6 +41,16 @@ typedef enum {
 } BuildStatus;
 
 
+typedef enum {
+    ssPreparing = 1,
+    ssConnecting = 10,
+    ssSendingInputs = 20,
+    ssBuilding = 30,
+    ssReceivingOutputs = 40,
+    ssPostProcessing = 50,
+} StepState;
+
+
 struct RemoteResult
 {
     BuildStatus stepStatus = bsAborted;
@@ -464,6 +474,8 @@ private:
         const std::string & machine, BuildStatus status, const std::string & errorMsg = "",
         BuildID propagatedFrom = 0);
 
+    void updateBuildStep(pqxx::work & txn, BuildID buildId, unsigned int stepNr, StepState stepState);
+
     void finishBuildStep(pqxx::work & txn, const RemoteResult & result, BuildID buildId, unsigned int stepNr,
         const std::string & machine);
 
@@ -518,7 +530,8 @@ private:
         Machine::ptr machine, Step::ptr step,
         unsigned int maxSilentTime, unsigned int buildTimeout,
         unsigned int repeats,
-        RemoteResult & result, std::shared_ptr<ActiveStep> activeStep);
+        RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
+        std::function<void(StepState)> updateStep);
 
     void markSucceededBuild(pqxx::work & txn, Build::ptr build,
         const BuildOutput & res, bool isCachedBuild, time_t startTime, time_t stopTime);

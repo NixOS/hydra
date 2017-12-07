@@ -271,7 +271,7 @@ void State::clearBusy(Connection & conn, time_t stopTime)
 {
     pqxx::work txn(conn);
     txn.parameterized
-        ("update BuildSteps set busy = 0, status = $1, stopTime = $2 where busy = 1")
+        ("update BuildSteps set busy = 0, status = $1, stopTime = $2 where busy != 0")
         ((int) bsAborted)
         (stopTime, stopTime != 0).exec();
     txn.commit();
@@ -314,6 +314,18 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
             (buildId)(stepNr)(output.first)(output.second.path).exec();
 
     return stepNr;
+}
+
+
+void State::updateBuildStep(pqxx::work & txn, BuildID buildId, unsigned int stepNr, StepState stepState)
+{
+    if (txn.parameterized
+        ("update BuildSteps set busy = $1 where build = $2 and stepnr = $3 and busy != 0 and status is null")
+        ((int) stepState)
+        (buildId)
+        (stepNr)
+        .exec().affected_rows() != 1)
+        throw Error("step %d of build %d is in an unexpected state", stepNr, buildId);
 }
 
 
@@ -892,7 +904,7 @@ void State::run(BuildID buildOne)
                 for (auto & step : steps) {
                     printMsg(lvlError, format("cleaning orphaned step %d of build %d") % step.second % step.first);
                     txn.parameterized
-                        ("update BuildSteps set busy = 0, status = $1 where build = $2 and stepnr = $3 and busy = 1")
+                        ("update BuildSteps set busy = 0, status = $1 where build = $2 and stepnr = $3 and busy != 0")
                         ((int) bsAborted)
                         (step.first)
                         (step.second).exec();

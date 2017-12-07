@@ -29,7 +29,7 @@ END;
     </thead>
     <tbody>
       [% FOREACH step IN steps %]
-        [% IF ( type == "All" ) || ( type == "Failed" && step.busy == 0 && step.status != 0 ) || ( type == "Running" && step.busy == 1 ) %]
+        [% IF ( type == "All" ) || ( type == "Failed" && step.busy == 0 && step.status != 0 ) || ( type == "Running" && step.busy != 0 ) %]
           [% has_log = seen.${step.drvpath} ? 0 : buildStepLogExists(step);
              seen.${step.drvpath} = 1;
              log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
@@ -55,10 +55,24 @@ END;
                    INCLUDE renderDuration duration = curTime - step.starttime;
                  END %]
             </td>
-            <td>[% IF step.busy == 1 || ((step.machine || step.starttime) && (step.status == 0 || step.status == 1 || step.status == 3 || step.status == 4 || step.status == 7)); INCLUDE renderMachineName machine=step.machine; ELSE; "<em>n/a</em>"; END %]</td>
+            <td>[% IF step.busy != 0 || ((step.machine || step.starttime) && (step.status == 0 || step.status == 1 || step.status == 3 || step.status == 4 || step.status == 7)); INCLUDE renderMachineName machine=step.machine; ELSE; "<em>n/a</em>"; END %]</td>
             <td class="step-status">
-              [% IF step.busy == 1 %]
-                <strong>Building</strong>
+              [% IF step.busy != 0 %]
+                [% IF step.busy == 1 %]
+                  <strong>Preparing</strong>
+                [% ELSIF step.busy == 10 %]
+                  <strong>Connecting</strong>
+                [% ELSIF step.busy == 20 %]
+                  <strong>Sending inputs</strong>
+                [% ELSIF step.busy == 30 %]
+                  <strong>Building</strong>
+                [% ELSIF step.busy == 40 %]
+                  <strong>Receiving outputs</strong>
+                [% ELSIF step.busy == 50 %]
+                  <strong>Post-processing</strong>
+                [% ELSE %]
+                  <strong>Unknown state</strong>
+                [% END %]
               [% ELSIF step.status == 0 %]
                 [% IF step.isnondeterministic %]
                   <span class="warn">Succeeded with non-determistic result</span>

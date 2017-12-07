@@ -195,10 +195,16 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             txn.commit();
         }
 
+        auto updateStep = [&](StepState stepState) {
+            pqxx::work txn(*conn);
+            updateBuildStep(txn, buildId, stepNr, stepState);
+            txn.commit();
+        };
+
         /* Do the build. */
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(destStore, machine, step, maxSilentTime, buildTimeout, repeats, result, activeStep);
+            buildRemote(destStore, machine, step, maxSilentTime, buildTimeout, repeats, result, activeStep, updateStep);
         } catch (NoTokens & e) {
             result.stepStatus = bsNarSizeLimitExceeded;
         } catch (Error & e) {
@@ -213,8 +219,10 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             }
         }
 
-        if (result.stepStatus == bsSuccess)
+        if (result.stepStatus == bsSuccess) {
+            updateStep(ssPostProcessing);
             res = getBuildOutput(destStore, ref<FSAccessor>(result.accessor), step->drv);
+        }
 
         result.accessor = 0;
         result.tokens = 0;

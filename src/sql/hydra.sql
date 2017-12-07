@@ -272,6 +272,13 @@ create table BuildSteps (
 
     drvPath       text,
 
+    -- 0 = not busy
+    -- 1 = building
+    -- 2 = preparing to build
+    -- 3 = connecting
+    -- 4 = sending inputs
+    -- 5 = receiving outputs
+    -- 6 = analysing build result
     busy          integer not null,
 
     status        integer, -- see Builds.buildStatus
@@ -648,7 +655,7 @@ create index IndexBuildInputsOnDependency on BuildInputs(dependency);
 create index IndexBuildMetricsOnJobTimestamp on BuildMetrics(project, jobset, job, timestamp desc);
 create index IndexBuildProducstOnBuildAndType on BuildProducts(build, type);
 create index IndexBuildProductsOnBuild on BuildProducts(build);
-create index IndexBuildStepsOnBusy on BuildSteps(busy) where busy = 1;
+create index IndexBuildStepsOnBusy on BuildSteps(busy) where busy != 0;
 create index IndexBuildStepsOnDrvPath on BuildSteps(drvpath);
 create index IndexBuildStepsOnPropagatedFrom on BuildSteps(propagatedFrom) where propagatedFrom is not null;
 create index IndexBuildStepsOnStopTime on BuildSteps(stopTime desc) where startTime is not null and stopTime is not null;

@@ -122,7 +122,8 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
     unsigned int maxSilentTime, unsigned int buildTimeout, unsigned int repeats,
-    RemoteResult & result, std::shared_ptr<ActiveStep> activeStep)
+    RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
+    std::function<void(StepState)> updateStep)
 {
     assert(BuildResult::TimedOut == 8);
 
@@ -139,6 +140,8 @@ void State::buildRemote(ref<Store> destStore,
     AutoDelete tmpDirDel(tmpDir, true);
 
     try {
+
+        updateStep(ssConnecting);
 
         Child child;
         openConnection(machine, tmpDir, logFD.get(), child);
@@ -204,6 +207,8 @@ void State::buildRemote(ref<Store> destStore,
            outputs of the input derivations. On Nix > 1.9, we only need to
            copy the immediate sources of the derivation and the required
            outputs of the input derivations. */
+        updateStep(ssSendingInputs);
+
         PathSet inputs;
         BasicDerivation basicDrv(step->drv);
 
@@ -259,6 +264,8 @@ void State::buildRemote(ref<Store> destStore,
 
         /* Do the build. */
         printMsg(lvlDebug, format("building ‘%1%’ on ‘%2%’") % step->drvPath % machine->sshName);
+
+        updateStep(ssBuilding);
 
         if (sendDerivation)
             to << cmdBuildPaths << PathSet({step->drvPath});
@@ -371,6 +378,8 @@ void State::buildRemote(ref<Store> destStore,
 
         /* Copy the output paths. */
         if (/* machine->sshName != "localhost" */ true) {
+            updateStep(ssReceivingOutputs);
+
             MaintainCount<counter> mc(nrStepsCopyingFrom);
 
             auto now1 = std::chrono::steady_clock::now();
