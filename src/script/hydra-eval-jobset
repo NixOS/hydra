@@ -630,11 +630,6 @@ sub checkJobsetWrapped {
     my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
     my $evalStop = clock_gettime(CLOCK_MONOTONIC);
 
-    if ($jobsetsJobset) {
-        my @keys = keys %$jobs;
-        die "The .jobsets jobset must only have a single job named 'jobsets'"
-            unless (scalar @keys) == 1 && $keys[0] eq "jobsets";
-    }
     Net::Statsd::timing("hydra.evaluator.eval_time", int(($evalStop - $evalStart) * 1000));
 
     if ($dryRun) {
@@ -649,8 +644,19 @@ sub checkJobsetWrapped {
         return;
     }
 
-    die "Jobset contains a job with an empty name. Make sure the jobset evaluates to an attrset of jobs.\n"
-        if defined $jobs->{""};
+    if (defined $jobs->{""}) {
+        my $err = $jobs->{""}->{error};
+        if (defined $err) {
+            die "Jobset evaluation failed with top-level error: \n" . $err;
+        }
+        die "Jobset contains a job with an empty name. Make sure the jobset evaluates to an attrset of jobs.\n";
+    }
+
+    if ($jobsetsJobset) {
+        my @keys = keys %$jobs;
+        die "The .jobsets jobset must only have a single job named 'jobsets'"
+            unless (scalar @keys) == 1 && $keys[0] eq "jobsets";
+    }
 
     $jobs->{$_}->{jobName} = $_ for keys %{$jobs};
 
