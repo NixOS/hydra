@@ -43,6 +43,10 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
         if (accessor->stat(failedFile).type == FSAccessor::Type::tRegular)
             res.failed = true;
 
+        Path abortedFile = output + "/nix-support/aborted";
+        if (accessor->stat(abortedFile).type == FSAccessor::Type::tRegular)
+            res.aborted = true;
+
         Path productsFile = output + "/nix-support/hydra-build-products";
         if (accessor->stat(productsFile).type != FSAccessor::Type::tRegular)
             continue;

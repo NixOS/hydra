@@ -224,6 +224,12 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             res = getBuildOutput(destStore, ref<FSAccessor>(result.accessor), step->drv);
         }
 
+        if (res.aborted) {
+            result.stepStatus = bsAborted;
+            result.errorMsg = "Build aborted itself";
+            result.canRetry = true;
+        }
+
         result.accessor = 0;
         result.tokens = 0;
     }

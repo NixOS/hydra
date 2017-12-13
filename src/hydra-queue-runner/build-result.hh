@@ -29,6 +29,11 @@ struct BuildOutput
        $out/nix-support/failed. */
     bool failed = false;
 
+    /* Whether this build has marked itself as aborted, i.e., the build
+       finished with exit code 0 but produced a file
+       $out/nix-support/aborted. */
+    bool aborted = false;
+
     std::string releaseName;
 
     unsigned long long closureSize = 0, size = 0;
