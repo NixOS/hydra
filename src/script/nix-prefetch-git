@@ -226,7 +226,7 @@ else
   # If the hash was given, a file with that hash may already be in the
   # store.
   if test -n "$expHash"; then
-      finalPath=$(nix-store --print-fixed-path --recursive "$hashType" "$expHash" git-export)
+      finalPath=$(nix-store --print-fixed-path --recursive "$hashType" "$expHash" source)
       if ! nix-store --check-validity "$finalPath" 2> /dev/null; then
           finalPath=
       fi
