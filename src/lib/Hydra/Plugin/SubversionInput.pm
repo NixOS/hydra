@@ -65,8 +65,8 @@ sub fetchInput {
             # Hm, if the Nix Perl bindings supported filters in
             # addToStore(), then we wouldn't need to make a copy here.
             my $tmpDir = File::Temp->newdir("hydra-svn-export.XXXXXX", CLEANUP => 1, TMPDIR => 1) or die;
-            (system "svn", "export", $wcPath, "$tmpDir/svn-export", "--quiet") == 0 or die "svn export failed";
-            $storePath = addToStore("$tmpDir/svn-export", 1, "sha256");
+            (system "svn", "export", $wcPath, "$tmpDir/source", "--quiet") == 0 or die "svn export failed";
+            $storePath = addToStore("$tmpDir/source", 1, "sha256");
         }
 
         $sha256 = queryPathHash($storePath); $sha256 =~ s/sha256://;

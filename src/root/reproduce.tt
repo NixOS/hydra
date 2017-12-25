@@ -99,7 +99,7 @@ inputDir=
 
 [%+ IF input.type == "git" %]
 
-inputDir="$tmpDir/[% input.name %]/git-export"
+inputDir="$tmpDir/[% input.name %]/source"
 
 if ! [ -d "$inputDir" ]; then
     info "fetching Git input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..."
@@ -121,7 +121,7 @@ args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revisio
 
 [%+ ELSIF input.type == "hg" %]
 
-inputDir="$tmpDir/[% input.name %]/hg-archive"
+inputDir="$tmpDir/[% input.name %]/source"
 
 if ! [ -d "$inputDir" ]; then
     info "fetching Mercurial input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..."
@@ -143,7 +143,7 @@ args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revisio
 
 [%+ ELSIF input.type == "svn" %]
 
-inputDir="$tmpDir/[% input.name %]/svn-export"
+inputDir="$tmpDir/[% input.name %]/source"
 
 if ! [ -d "$inputDir" ]; then
     info "fetching Subversion input ‘[% input.name %]’ from ‘[% input.uri %]’ (commit [% input.revision %])..."

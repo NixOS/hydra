@@ -240,7 +240,7 @@ else
       tmpPath="$(mktemp -d "${TMPDIR:-/tmp}/git-checkout-tmp-XXXXXXXX")"
       trap "rm -rf \"$tmpPath\"" EXIT
 
-      tmpFile="$tmpPath/git-export"
+      tmpFile="$tmpPath/source"
       mkdir "$tmpFile"
 
       # Perform the checkout.

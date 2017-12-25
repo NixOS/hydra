@@ -38,7 +38,7 @@ if test -z "$finalPath"; then
     tmpPath="$(mktemp -d "${TMPDIR:-/tmp}/hg-checkout-tmp-XXXXXXXX")"
     trap "rm -rf \"$tmpPath\"" EXIT
 
-    tmpArchive="$tmpPath/hg-archive"
+    tmpArchive="$tmpPath/source"
 
     # Perform the checkout.
     if [[ $url != /* ]]; then
