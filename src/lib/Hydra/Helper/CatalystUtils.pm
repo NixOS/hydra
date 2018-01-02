@@ -12,7 +12,7 @@ our @EXPORT = qw(
     getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild
     searchBuildsAndEvalsForJobset
     error notFound gone accessDenied
-    forceLogin requireUser requireProjectOwner requireAdmin requirePost isAdmin isProjectOwner
+    forceLogin requireUser requireProjectOwner requireRestartPrivileges requireAdmin requirePost isAdmin isProjectOwner
     trim
     getLatestFinishedEval getFirstEval
     paramToList
@@ -172,7 +172,6 @@ sub requireUser {
     forceLogin($c) if !$c->user_exists;
 }
 
-
 sub isProjectOwner {
     my ($c, $project) = @_;
     return
@@ -182,6 +181,26 @@ sub isProjectOwner {
          defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
 }
 
+sub hasRestartJobsRole {
+    my ($c) = @_;
+    return $c->user_exists && $c->check_user_roles('restart-jobs');
+}
+
+sub mayRestartJobs {
+    my ($c, $project) = @_;
+    return
+        $c->user_exists &&
+        (isAdmin($c) ||
+         hasRestartJobsRole($c) ||
+         isProjectOwner($c, $project));
+}
+
+sub requireRestartPrivileges {
+    my ($c, $project) = @_;
+    requireUser($c);
+    accessDenied($c, "Only the project members, administrators, and accounts with restart-jobs privileges can perform this operation.")
+        unless mayRestartJobs($c, $project);
+}
 
 sub requireProjectOwner {
     my ($c, $project) = @_;
@@ -195,7 +214,6 @@ sub isAdmin {
     my ($c) = @_;
     return $c->user_exists && $c->check_user_roles('admin');
 }
-
 
 sub requireAdmin {
     my ($c) = @_;
