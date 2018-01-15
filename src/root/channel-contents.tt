@@ -24,11 +24,6 @@ $ nix-env -u '*'</pre>
 
 [% IF genericChannel %]
 
-<p>Alternatively, if you have associated the
-<tt>application/nix-package</tt> MIME type with the
-<tt>nix-install-package</tt> program in your web browser, you can
-install the package simply by clicking on the packages below.</p>
-
 <h2>Packages</h2>
 
 <p>This channel contains the following packages.</p>
@@ -49,11 +44,10 @@ install the package simply by clicking on the packages below.</p>
     [% FOREACH pkg IN nixPkgs %]
 
       [% b = pkg.build %]
-      [% uri = "${curUri}/pkg/${pkg.name}.nixpkg" %]
 
       <tr>
         <td><a href="[% c.uri_for('/build' b.id) %]">[% b.id %]</a></td>
-        <td><a class="row-link" href="[% uri %]"><tt>[% b.get_column('releasename') || b.nixname %]</tt></a></td>
+        <td><tt>[% b.get_column('releasename') || b.nixname %]</tt></td>
         <td><tt>[% b.system %]</tt></td>
         <td>
           [% IF b.homepage %]

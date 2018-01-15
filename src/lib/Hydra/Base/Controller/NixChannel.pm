@@ -78,27 +78,6 @@ sub manifest : Chained('nix') PathPart("MANIFEST") Args(0) {
 }
 
 
-sub pkg : Chained('nix') PathPart Args(1) {
-    my ($self, $c, $pkgName) = @_;
-
-    if (!$c->stash->{build}) {
-        $pkgName =~ /-(\d+)\.nixpkg$/ or notFound($c, "Bad package name.");
-        # FIXME: need to handle multiple outputs: channelBuilds is
-        # joined with the build outputs, so find() can return multiple
-        # results.
-        $c->stash->{build} = $c->stash->{channelBuilds}->find({ id => $1 })
-            || notFound($c, "No such package in this channel.");
-    }
-
-    gone($c, "Build " . $c->stash->{build}->id . " is no longer available.")
-        if isLocalStore() && any { !isValidPath($_->path) } $c->stash->{build}->buildoutputs->all;
-
-    $c->stash->{current_view} = 'NixPkg';
-
-    $c->response->content_type('application/nix-package');
-}
-
-
 sub nixexprs : Chained('nix') PathPart('nixexprs.tar.bz2') Args(0) {
     my ($self, $c) = @_;
     requireLocalStore($c);

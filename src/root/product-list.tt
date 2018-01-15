@@ -71,29 +71,17 @@
               <img src="[% c.uri_for("/static/images/nix-build.png") %]" alt="Source" />
             </td>
             <td>
-              One-Click install
+              Nix package
             </td>
             <td>
-              [% uri = c.uri_for('/build' build.id 'nix' 'pkg' "${build.nixname}-${build.system}.nixpkg") %]
-              <a href="[% uri %]">
-                <tt>[% build.nixname %]</tt>
-              </a>
+              <tt>[% HTML.escape(build.nixname) %]</tt>
             </td>
             <td>
-              [% WRAPPER makePopover title="Help" classes="btn-mini" %]
-                <p>If you have Nix installed on your machine, you can
-                install this package and all its dependencies automatically
-                by clicking on the link above.  This requires that you have
-                the <tt>application/nix-package</tt> MIME type associated
-                with the <tt>nix-install-package</tt> program in your web
-                browser.  Alternatively, you can install it from the
-                command-line:</p>
+              [% WRAPPER makePopover title="Help" classes="btn-mini"
+              %] <p>Yu can install this package using the Nix package
+              manager from the command-line:</p>
 
-                <pre><span class="shell-prompt">$ </span>nix-install-package --non-interactive --url [% uri %]</pre>
-
-                <p>If you get an error message “Permission denied”, you
-                should make sure that you have sufficient access rights to
-                the Nix store, e.g., run the command as <tt>root</tt>.</p>
+                <pre><span class="shell-prompt">$ </span>nix-env -i [%HTML.escape(product.path)%][% IF binaryCachePublicUri %] --option binary-caches [% HTML.escape(binaryCachePublicUri) %][% END %]</pre>
               [% END %]
               [% IF localStore %]
                 <a class="btn btn-mini" href="[% contents %]">Contents</a>

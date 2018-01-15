@@ -121,6 +121,8 @@ sub build_GET {
     $c->stash->{constituents} = [$build->constituents_->search({}, {order_by => ["job"]})];
 
     $c->stash->{steps} = [$build->buildsteps->search({}, {order_by => "stepnr desc"})];
+
+    $c->stash->{binaryCachePublicUri} = $c->config->{binary_cache_public_uri};
 }
 
 
