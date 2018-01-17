@@ -259,15 +259,6 @@ in
             produce a usable source code tarball.
           </para>
         </callout>
-        <callout arearefs='ex-hello-co-tarball-args'>
-          <para>
-            The <varname>tarball</varname> jobs expects a
-            <varname>hello</varname> build input to be available in the
-            Nix search path.  Again, this input is passed by Hydra and
-            is meant to be a checkout of GNU Hello's source code
-            repository.
-          </para>
-        </callout>
         <callout arearefs='ex-hello-co-source-tarball'>
           <para>
             The <varname>tarball</varname> job calls the
@@ -284,6 +275,15 @@ in
              xlink:href="https://github.com/NixOS/nixpkgs/blob/master/pkgs/top-level/all-packages.nix"><filename>all-packages.nix</filename></link>
             file.  See the section entitled “Package Naming” in the
             Nixpkgs manual for more information.</para></footnote>.
+          </para>
+        </callout>
+        <callout arearefs='ex-hello-co-tarball-args'>
+          <para>
+            The <varname>tarball</varname> jobs expects a
+            <varname>hello</varname> build input to be available in the
+            Nix search path.  Again, this input is passed by Hydra and
+            is meant to be a checkout of GNU Hello's source code
+            repository.
           </para>
         </callout>
 
