@@ -78,7 +78,7 @@
             </td>
             <td>
               [% WRAPPER makePopover title="Help" classes="btn-mini"
-              %] <p>Yu can install this package using the Nix package
+              %] <p>You can install this package using the Nix package
               manager from the command-line:</p>
 
                 <pre><span class="shell-prompt">$ </span>nix-env -i [%HTML.escape(product.path)%][% IF binaryCachePublicUri %] --option binary-caches [% HTML.escape(binaryCachePublicUri) %][% END %]</pre>
