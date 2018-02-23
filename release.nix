@@ -41,26 +41,6 @@ rec {
 
     let
 
-      aws-sdk-cpp' =
-        aws-sdk-cpp.override {
-          apis = ["s3"];
-          customMemoryManagement = false;
-        };
-
-        /*
-      nix = overrideDerivation nixUnstable (attrs: {
-        src = fetchFromGitHub {
-          owner = "NixOS";
-          repo = "nix";
-          rev = "4be4f6de56f4de77f6a376f1a40ed75eb641bb89";
-          sha256 = "0icvbwpca1jh8qkdlayxspdxl5fb0qjjd1kn74x6gs6iy66kndq6";
-        };
-        buildInputs = attrs.buildInputs ++ [ autoreconfHook bison flex ];
-        nativeBuildInputs = attrs.nativeBuildInputs ++ [ aws-sdk-cpp' autoconf-archive ];
-        configureFlags = attrs.configureFlags + " --disable-doc-gen";
-        preConfigure = "./bootstrap.sh; mkdir -p $doc $man";
-      });
-      */
       nix = nixUnstable;
 
       perlDeps = buildEnv {
@@ -113,7 +93,6 @@ rec {
             nix.perl-bindings
             git
             boehmgc
-            aws-sdk-cpp'
           ];
       };
 
