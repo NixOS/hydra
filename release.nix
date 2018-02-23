@@ -103,8 +103,6 @@ rec {
 
       src = if shell then null else hydraSrc;
 
-      stdenv = overrideCC stdenv gcc6;
-
       buildInputs =
         [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig sqlite libpqxx
           gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
