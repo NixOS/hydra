@@ -251,7 +251,8 @@ struct Machine
     {
         /* Check that this machine is of the type required by the
            step. */
-        if (!systemTypes.count(step->drv.platform)) return false;
+        if (!systemTypes.count(step->drv.platform == "builtin" ? nix::settings.thisSystem : step->drv.platform))
+            return false;
 
         /* Check that the step requires all mandatory features of this
            machine. (Thus, a machine with the mandatory "benchmark"
