@@ -246,7 +246,11 @@ system_time State::doDispatch()
                 auto & step(stepInfo.step);
 
                 /* Can this machine do this step? */
-                if (!mi.machine->supportsStep(step)) continue;
+                if (!mi.machine->supportsStep(step)) {
+                    debug("machine '%s' does not support step '%s' (system type '%s')",
+                        mi.machine->sshName, step->drvPath, step->drv.platform);
+                    continue;
+                }
 
                 /* Let's do this step. Remove it from the runnable
                    list. FIXME: O(n). */
