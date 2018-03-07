@@ -41,7 +41,7 @@ rec {
 
     let
 
-      nix = nixUnstable;
+      #nix = nixUnstable;
 
       perlDeps = buildEnv {
         name = "hydra-perl-deps";
@@ -102,8 +102,6 @@ rec {
       name = "hydra-${version}";
 
       src = if shell then null else hydraSrc;
-
-      stdenv = overrideCC stdenv gcc6;
 
       buildInputs =
         [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig sqlite libpqxx
