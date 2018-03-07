@@ -649,6 +649,25 @@ void State::dumpStatus(Connection & conn, bool log)
                 auto & s(m->state);
                 auto nested2 = nested.object(m->sshName);
                 nested2.attr("enabled", m->enabled);
+
+                {
+                    auto list = nested2.list("systemTypes");
+                    for (auto & s : m->systemTypes)
+                        list.elem(s);
+                }
+
+                {
+                    auto list = nested2.list("supportedFeatures");
+                    for (auto & s : m->supportedFeatures)
+                        list.elem(s);
+                }
+
+                {
+                    auto list = nested2.list("mandatoryFeatures");
+                    for (auto & s : m->mandatoryFeatures)
+                        list.elem(s);
+                }
+
                 nested2.attr("currentJobs", s->currentJobs);
                 if (s->currentJobs == 0)
                     nested2.attr("idleSince", s->idleSince);
@@ -664,6 +683,7 @@ void State::dumpStatus(Connection & conn, bool log)
                 nested2.attr("disabledUntil", std::chrono::system_clock::to_time_t(info->disabledUntil));
                 nested2.attr("lastFailure", std::chrono::system_clock::to_time_t(info->lastFailure));
                 nested2.attr("consecutiveFailures", info->consecutiveFailures);
+
             }
         }
 
