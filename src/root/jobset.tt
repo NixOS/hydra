@@ -148,6 +148,7 @@
         <th>Scheduling shares:</th>
         <td>[% jobset.schedulingshares %] [% IF totalShares %] ([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% totalShares %] shares)[% END %]</td>
       </tr>
+      [% IF emailNotification %]
       <tr>
         <th>Enable email notification:</th>
         <td>[% jobset.enableemail ? "Yes" : "No" %]</td>
@@ -156,6 +157,7 @@
         <th>Email override:</th>
         <td>[% HTML.escape(jobset.emailoverride) %]</td>
       </tr>
+      [% END %]
       <tr>
         <th>Number of evaluations to keep:</th>
         <td>[% jobset.keepnr %]</td>

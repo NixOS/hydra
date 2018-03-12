@@ -130,7 +130,7 @@
     <div class="control-group">
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="enableemail" [% IF jobset.enableemail; 'checked="checked"'; END %]/>Email notification
+          <input type="checkbox" name="enableemail" [% IF jobset.enableemail; 'checked="checked"'; END %] [%IF !emailNotification%]disabled=1[%END%] />Email notification
         </label>
       </div>
     </div>
@@ -138,7 +138,7 @@
     <div class="control-group">
       <label class="control-label">Email override</label>
       <div class="controls">
-        <input type="text" class="span3" name="emailoverride" [% HTML.attributes(value => jobset.emailoverride) %]/>
+        <input type="text" class="span3" name="emailoverride" [% HTML.attributes(value => jobset.emailoverride) %] [%IF !emailNotification%]disabled=1[%END%] />
       </div>
     </div>
 

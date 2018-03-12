@@ -44,6 +44,8 @@ EOF
 sub buildFinished {
     my ($self, $build, $dependents) = @_;
 
+    return unless $self->{config}->{email_notification} // 0;
+
     die unless $build->finished;
 
     # Figure out to whom to send notification for each build.  For
