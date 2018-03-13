@@ -92,7 +92,9 @@ sub jobset_PUT {
 sub jobset_DELETE {
     my ($self, $c) = @_;
 
-    requireProjectOwner($c, $c->stash->{project});
+    #requireProjectOwner($c, $c->stash->{project});
+
+    requireAdmin($c);
 
     if (length($c->stash->{project}->declfile)) {
         error($c, "can't modify jobset of declarative project", 403);
