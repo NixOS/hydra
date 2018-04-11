@@ -142,8 +142,8 @@ init_submodules(){
     git submodule status |
     while read l; do
         # checkout each submodule
-        local hash=$(echo $l | sed 's,^.\([0-9a-f]*\) \(.*\) (.*)$,\1,');
-        local dir=$(echo $l | sed 's,^.\([0-9a-f]*\) \(.*\) (.*)$,\2,');
+        local hash=$(echo $l | sed 's,^[-+ ]*\([0-9a-f]*\) \(.*\) (.*)$,\1,');
+        local dir=$(echo $l | sed 's,^[-+ ]*\([0-9a-f]*\) \(.*\) (.*)$,\2,');
         local url=$(sed -n "\,$dir, { :loop; n; s,^.*url = ,,; T loop; p; q }" .git/config);
 
         clone "$dir" "$url" "$hash" "";
