@@ -216,4 +216,4 @@ exec nix-build "${args[@]}" "${extraArgs[@]}"
 
 }
 
-main
+main "$@"
