@@ -41,7 +41,7 @@ rec {
 
     let
 
-      #nix = nixUnstable;
+      nix = pkgs.nixStable2 or pkgs.nix;
 
       perlDeps = buildEnv {
         name = "hydra-perl-deps";
