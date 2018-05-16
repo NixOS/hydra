@@ -541,7 +541,7 @@ END;
     following command:</p>
 
 <pre>
-<span class="shell-prompt">$ </span>bash <(curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a>)
+<span class="shell-prompt">$ </span>curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a> | bash
 </pre>
 
   </div>
