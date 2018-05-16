@@ -13,6 +13,8 @@
 #include "globals.hh"
 #include "common-eval-args.hh"
 
+#include "hydra-config.hh"
+
 using namespace nix;
 
 
@@ -157,6 +159,13 @@ int main(int argc, char * * argv)
     unsetenv("NIX_PATH");
 
     return handleExceptions(argv[0], [&]() {
+
+        auto config = std::make_unique<::Config>();
+
+        auto initialHeapSize = config->getStrOption("evaluator_initial_heap_size", "");
+        if (initialHeapSize != "")
+            setenv("GC_INITIAL_HEAP_SIZE", initialHeapSize.c_str(), 1);
+
         initNix();
         initGC();
 
