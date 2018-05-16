@@ -1,6 +1,7 @@
-#include "shared.hh"
 #include "db.hh"
+#include "hydra-config.hh"
 #include "pool.hh"
+#include "shared.hh"
 
 #include <algorithm>
 #include <thread>
@@ -16,6 +17,8 @@ typedef std::pair<std::string, std::string> JobsetName;
 
 struct Evaluator
 {
+    std::unique_ptr<Config> config;
+
     nix::Pool<Connection> dbPool;
 
     struct Jobset
@@ -30,7 +33,7 @@ struct Evaluator
 
     std::experimental::optional<JobsetName> evalOne;
 
-    size_t maxEvals = 4;
+    const size_t maxEvals;
 
     struct State
     {
@@ -44,6 +47,11 @@ struct Evaluator
     std::condition_variable maybeDoWork;
 
     const time_t notTriggered = std::numeric_limits<time_t>::max();
+
+    Evaluator()
+        : config(std::make_unique<::Config>())
+        , maxEvals(std::max((size_t) 1, (size_t) config->getIntOption("max_concurrent_evals", 4)))
+    { }
 
     void readJobsets()
     {
