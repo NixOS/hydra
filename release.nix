@@ -110,6 +110,7 @@ rec {
           guile # optional, for Guile + Guix support
           perlDeps perl nix
           postgresql95 # for running the tests
+          boost
         ];
 
       hydraPath = lib.makeBinPath (
