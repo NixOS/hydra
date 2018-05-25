@@ -32,6 +32,10 @@ sub process {
 
 let
 
+  maybeStorePath = if builtins ? langVersion && builtins.lessThan 1 builtins.langVersion
+    then builtins.storePath
+    else x: x;
+
   mkFakeDerivation = attrs: outputs:
     let
       outputNames = builtins.attrNames outputs;
@@ -44,7 +48,7 @@ let
         { name = outputName;
           value = common // {
             inherit outputName;
-            outPath = builtins.getAttr outputName outputs;
+            outPath = maybeStorePath (builtins.getAttr outputName outputs);
           };
         };
       outputsList = map outputToAttrListElement outputNames;
