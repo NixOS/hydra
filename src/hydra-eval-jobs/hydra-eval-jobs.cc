@@ -15,6 +15,9 @@
 
 #include "hydra-config.hh"
 
+#include <sys/types.h>
+#include <sys/wait.h>
+
 using namespace nix;
 
 
@@ -51,9 +54,41 @@ static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & 
 }
 
 
+static std::string lastAttrPath;
+static bool comma = false;
+static size_t maxHeapSize;
+
+
+struct BailOut { };
+
+
+bool lte(const std::string & s1, const std::string & s2)
+{
+    size_t p1 = 0, p2 = 0;
+
+    while (true) {
+        if (p1 == s1.size()) return p2 == s2.size();
+        if (p2 == s2.size()) return true;
+
+        auto d1 = s1.find('.', p1);
+        auto d2 = s2.find('.', p2);
+
+        auto c = s1.compare(p1, d1 - p1, s2, p2, d2 - p2);
+
+        if (c < 0) return true;
+        if (c > 0) return false;
+
+        p1 = d1 == std::string::npos ? s1.size() : d1 + 1;
+        p2 = d2 == std::string::npos ? s2.size() : d2 + 1;
+    }
+}
+
+
 static void findJobsWrapped(EvalState & state, JSONObject & top,
     Bindings & autoArgs, Value & vIn, const string & attrPath)
 {
+    if (lastAttrPath != "" && lte(attrPath, lastAttrPath)) return;
+
     debug(format("at path `%1%'") % attrPath);
 
     checkInterrupt();
@@ -72,6 +107,8 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
 
             if (drv->querySystem() == "unknown")
                 throw EvalError("derivation must have a ‘system’ attribute");
+
+            if (comma) { std::cout << ","; comma = false; }
 
             {
             auto res = top.object(attrPath);
@@ -118,13 +155,31 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
                 res2.attr(j.first, j.second);
 
             }
+
+            GC_prof_stats_s gc;
+            GC_get_prof_stats(&gc, sizeof(gc));
+
+            if (gc.heapsize_full > maxHeapSize) {
+                printInfo("restarting hydra-eval-jobs after job '%s' because heap size is at %d bytes", attrPath, gc.heapsize_full);
+                lastAttrPath = attrPath;
+                throw BailOut();
+            }
         }
 
         else {
             if (!state.isDerivation(v)) {
-                for (auto & i : *v.attrs)
-                    findJobs(state, top, autoArgs, *i.value,
-                        (attrPath.empty() ? "" : attrPath + ".") + (string) i.name);
+                for (auto & i : v.attrs->lexicographicOrder()) {
+                    std::string name(i->name);
+
+                    /* Skip jobs with dots in the name. */
+                    if (name.find('.') != std::string::npos) {
+                        printError("skipping job with illegal name '%s'", name);
+                        continue;
+                    }
+
+                    findJobs(state, top, autoArgs, *i->value,
+                        (attrPath.empty() ? "" : attrPath + ".") + name);
+                }
             }
         }
     }
@@ -144,16 +199,23 @@ static void findJobs(EvalState & state, JSONObject & top,
     try {
         findJobsWrapped(state, top, autoArgs, v, attrPath);
     } catch (EvalError & e) {
-        {
+        if (comma) { std::cout << ","; comma = false; }
         auto res = top.object(attrPath);
         res.attr("error", e.msg());
-        }
     }
 }
 
 
 int main(int argc, char * * argv)
 {
+    assert(lte("abc", "def"));
+    assert(lte("abc", "def.foo"));
+    assert(!lte("def", "abc"));
+    assert(lte("nixpkgs.hello", "nixpkgs"));
+    assert(lte("nixpkgs.hello", "nixpkgs.hellooo"));
+    assert(lte("gitAndTools.git-annex.x86_64-darwin", "gitAndTools.git-annex.x86_64-linux"));
+    assert(lte("gitAndTools.git-annex.x86_64-linux", "gitAndTools.git-annex-remote-b2.aarch64-linux"));
+
     /* Prevent undeclared dependencies in the evaluation via
        $NIX_PATH. */
     unsetenv("NIX_PATH");
@@ -165,6 +227,8 @@ int main(int argc, char * * argv)
         auto initialHeapSize = config->getStrOption("evaluator_initial_heap_size", "");
         if (initialHeapSize != "")
             setenv("GC_INITIAL_HEAP_SIZE", initialHeapSize.c_str(), 1);
+
+        maxHeapSize = config->getIntOption("evaluator_max_heap_size", 1UL << 30);
 
         initNix();
         initGC();
@@ -190,27 +254,65 @@ int main(int argc, char * * argv)
 
         myArgs.parseCmdline(argvToStrings(argc, argv));
 
-        /* FIXME: The build hook in conjunction with import-from-derivation is causing "unexpected EOF" during eval */
-        settings.builders = "";
-
-        /* Prevent access to paths outside of the Nix search path and
-           to the environment. */
-        evalSettings.restrictEval = true;
-
-        if (releaseExpr == "") throw UsageError("no expression specified");
-
-        if (gcRootsDir == "") printMsg(lvlError, "warning: `--gc-roots-dir' not specified");
-
-        EvalState state(myArgs.searchPath, openStore());
-
-        Bindings & autoArgs = *myArgs.getAutoArgs(state);
-
-        Value v;
-        state.evalFile(lookupFileArg(state, releaseExpr), v);
-
         JSONObject json(std::cout, true);
-        findJobs(state, json, autoArgs, v, "");
+        std::cout.flush();
 
-        state.printStats();
+        do {
+
+            Pipe pipe;
+            pipe.create();
+
+            ProcessOptions options;
+            options.allowVfork = false;
+
+            auto pid = startProcess([&]() {
+                pipe.readSide = -1;
+
+                if (lastAttrPath != "") debug("resuming from '%s'", lastAttrPath);
+
+                /* FIXME: The build hook in conjunction with import-from-derivation is causing "unexpected EOF" during eval */
+                settings.builders = "";
+
+                /* Prevent access to paths outside of the Nix search path and
+                   to the environment. */
+                evalSettings.restrictEval = true;
+
+                if (releaseExpr == "") throw UsageError("no expression specified");
+
+                if (gcRootsDir == "") printMsg(lvlError, "warning: `--gc-roots-dir' not specified");
+
+                EvalState state(myArgs.searchPath, openStore());
+
+                Bindings & autoArgs = *myArgs.getAutoArgs(state);
+
+                Value v;
+                state.evalFile(lookupFileArg(state, releaseExpr), v);
+
+                comma = lastAttrPath != "";
+
+                try {
+                    findJobs(state, json, autoArgs, v, "");
+                    lastAttrPath = "";
+                } catch (BailOut &) { }
+
+                writeFull(pipe.writeSide.get(), lastAttrPath);
+
+                exit(0);
+            }, options);
+
+            pipe.writeSide = -1;
+
+            int status;
+            while (true) {
+                checkInterrupt();
+                if (waitpid(pid, &status, 0) == pid) break;
+                if (errno != EINTR) continue;
+            }
+
+            if (status != 0)
+                throw Exit(WIFEXITED(status) ? WEXITSTATUS(status) : 99);
+
+            lastAttrPath = drainFD(pipe.readSide.get());
+        } while (lastAttrPath != "");
     });
 }
