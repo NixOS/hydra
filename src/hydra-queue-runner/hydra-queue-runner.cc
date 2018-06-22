@@ -849,16 +849,21 @@ void State::run(BuildID buildOne)
 
     /* Enqueue notification items for builds that were finished
        previously, but for which we didn't manage to send
-       notifications. */
-    {
-        auto conn(dbPool.get());
-        pqxx::work txn(*conn);
-        auto res = txn.parameterized("select id from Builds where notificationPendingSince > 0").exec();
-        for (auto const & row : res) {
-            auto id = row["id"].as<BuildID>();
-            enqueueNotificationItem({NotificationItem::Type::BuildFinished, id});
+       notifications. Also try failed ones every 3 minutes. */
+    std::thread([&]() {
+        while (true) {
+            sleep(180);
+            {
+                auto conn(dbPool.get());
+                pqxx::work txn(*conn);
+                auto res = txn.parameterized("select id from Builds where notificationPendingSince > 0").exec();
+                for (auto const & row : res) {
+                    auto id = row["id"].as<BuildID>();
+                    enqueueNotificationItem({NotificationItem::Type::BuildFinished, id});
+                }
+            }
         }
-    }
+    }).detach();
 
     /* Periodically clean up orphaned busy steps in the database. */
     std::thread([&]() {
