@@ -4,6 +4,17 @@
      "Latest evaluations") %]
 [% PROCESS common.tt %]
 
+[% IF evalfailJobsets && evalfailJobsets.size > 0 %]
+<p class='warning'>Jobsets currently failing evaluation ([% evalfailJobsets.size %]):</p>
+<ul>
+  [% FOREACH job IN evalfailJobsets %]
+    <li>Jobset [% INCLUDE renderFullJobsetName project=job.get_column('project') jobset=job.name inRow=1 %]
+  [% END %]
+</ul>
+
+<hr>
+[% END %]
+
 <p>Showing evaluations [% (page - 1) * resultsPerPage + 1 %] - [%
 (page - 1) * resultsPerPage + evals.size %] out of [% total %].</p>
 

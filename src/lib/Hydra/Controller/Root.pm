@@ -341,10 +341,20 @@ sub evals :Local Args(0) {
 
     my $evals = $c->model('DB::JobsetEvals');
 
+    my @failEvals = [$c->model('DB::Jobsets')
+                       ->search({ "me.enabled" => 1, "me.hidden" => 0,
+				  "project.enabled" => 1, "project.hidden" => 0 })
+		       ->search({ -or => [ errormsg => { '!=' => '' },
+					   fetcherrormsg => { '!=' => '' }
+				      ]},
+				{ order_by => ["project", "name"], join=>["project"] }
+		     )];
+
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
-    $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
+    $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage);
+    $c->stash->{evalfailJobsets} = $_ foreach @failEvals;
 }
 
 
