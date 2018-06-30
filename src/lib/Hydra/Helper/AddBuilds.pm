@@ -56,7 +56,7 @@ sub updateDeclarativeJobset {
             $input->jobsetinputalts->create({altnr => 0, value => $data->{value}});
         }
         delete $declSpec->{"inputs"};
-        die "invalid keys in declarative specification file\n" if (%{$declSpec});
+        die "invalid keys ($declSpec) in declarative specification file\n" if (%{$declSpec});
     });
 };
 
