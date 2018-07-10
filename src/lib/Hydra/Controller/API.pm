@@ -8,7 +8,6 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Controller::Project;
 use JSON;
-use JSON::Any;
 use DateTime;
 use Digest::SHA qw(sha256_hex);
 use Text::Diff;
@@ -67,7 +66,7 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     push @list, buildToHash($_) foreach @latest;
 
     $c->stash->{'plain'} = {
-        data => scalar (JSON::Any->objToJson(\@list))
+        data => scalar (JSON->encode(\@list))
     };
     $c->forward('Hydra::View::Plain');
 }
@@ -101,7 +100,7 @@ sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
     push @list, jobsetToHash($_) foreach @jobsets;
 
     $c->stash->{'plain'} = {
-        data => scalar (JSON::Any->objToJson(\@list))
+        data => scalar (JSON->encode(\@list))
     };
     $c->forward('Hydra::View::Plain');
 }
@@ -119,7 +118,7 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
     push @list, buildToHash($_) foreach @builds;
 
     $c->stash->{'plain'} = {
-        data => scalar (JSON::Any->objToJson(\@list))
+        data => scalar (JSON->encode(\@list))
     };
     $c->forward('Hydra::View::Plain');
 }
@@ -163,7 +162,7 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     @arr = reverse(@arr);
 
     $c->stash->{'plain'} = {
-        data => scalar (JSON::Any->objToJson(\@arr))
+        data => scalar (JSON->encode(\@arr))
     };
     $c->forward('Hydra::View::Plain');
 }
