@@ -64,6 +64,7 @@ rec {
             CatalystViewJSON
             CatalystViewTT
             CatalystXScriptServerStarman
+            CatalystXRoleApplicator
             CryptRandPasswd
             DBDPg
             DBDSQLite
