@@ -33,3 +33,8 @@ hydra-config.h
 hydra-config.h.in
 result
 tests/jobs/config.nix
+.hydra-data
+src/hydra-queue-runner/hydra-queue-runner
+config/
+src/hydra-evaluator/hydra-evaluator
+stamp-h1

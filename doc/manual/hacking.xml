@@ -32,7 +32,18 @@ To build Hydra, you should then do:
 </screen>
 You can run the Hydra web server in your source tree as follows:
 <screen>
+$ ./src/script/hydra-init
+$ ./src/script/hydra-create-user dev --role admin --password notthatsafe
 $ ./src/script/hydra-server
+</screen>
+</para>
+
+<para>To evaluate a jobset locally and to build the queued jobs,
+the corresponding tools can be called directly from <literal>nix-shell</literal>
+if everything was built before:
+<screen>
+[nix-shell]$ ./src/hydra-evaluator/hydra-evaluator # Ctrl-C as soon as your evaluation finished
+[nix-shell]$ ./src/hydra-queue-runner/hydra-queue-runner
 </screen>
 </para>
 

@@ -123,6 +123,19 @@
           shellHook = ''
             PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
             PERL5LIB=$(pwd)/src/lib:$PERL5LIB
+
+            export HYDRA_HOME="src/"
+            if [ ! -d .hydra-data ]; then
+              mkdir .hydra-data
+            fi
+            export HYDRA_DATA="$(pwd)/.hydra-data"
+            export HYDRA_DBI='dbi:Pg:dbname=hydra;host=10.242.1.2;user=hydra;'
+            if ! nc -z 10.242.1.2 5432 -w1 2>/dev/null; then
+              echo "If a PostgreSQL instance for testing purposes is needed,"
+              echo "you can set HYDRA_DBI to '$HYDRA_DBI'. The corresponding test container"
+              echo "can be started by running the following command:"
+              echo 'nixos-container create hydradb --nixos-path "<nixpkgs/nixos>" --local-address 10.242.1.2 --host-address 10.242.1.1 --config-file test-database.nix'
+            fi
           '';
 
           preConfigure = "autoreconf -vfi";
