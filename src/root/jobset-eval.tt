@@ -96,7 +96,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% INCLUDE renderBuildListBody builds=builds.slice(0, (size > max ? max : size) - 1)
        hideProjectName=1 hideJobsetName=1 busy=0 %]
   [% IF size > max; params = c.req.params; params.full = 1 %]
-  <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]"><em>([% size - max %] more builds omitted)</em></a></td></tr>
+  <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %][% tabname %]"><em>([% size - max %] more builds omitted)</em></a></td></tr>
   [% END %]
   [% INCLUDE renderBuildListFooter %]
 [% END %]
@@ -104,19 +104,19 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 <div class="tab-content">
 
   <div id="tabs-aborted" class="tab-pane">
-    [% INCLUDE renderSome builds=aborted %]
+    [% INCLUDE renderSome builds=aborted tabname="#tabs-aborted" %]
   </div>
 
   <div id="tabs-now-fail" class="tab-pane">
-    [% INCLUDE renderSome builds=nowFail %]
+    [% INCLUDE renderSome builds=nowFail tabname="#tabs-now-fail" %]
   </div>
 
   <div id="tabs-now-succeed" class="tab-pane">
-    [% INCLUDE renderSome builds=nowSucceed %]
+    [% INCLUDE renderSome builds=nowSucceed tabname="#tabs-now-succeed" %]
   </div>
 
   <div id="tabs-new" class="tab-pane">
-    [% INCLUDE renderSome builds=new %]
+    [% INCLUDE renderSome builds=new tabname="#tabs-new" %]
   </div>
 
   <div id="tabs-removed" class="tab-pane">
@@ -133,22 +133,22 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
           </tr>
         [% END %]
         [% IF size > max; params = c.req.params; params.full = 1 %]
-          <tr><td class="centered" colspan="2"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]"><em>([% size - max %] more jobs omitted)</em></a></td></tr>
+          <tr><td class="centered" colspan="2"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]#tabs-removed"><em>([% size - max %] more jobs omitted)</em></a></td></tr>
         [% END %]
       </tbody>
     </table>
   </div>
 
   <div id="tabs-still-fail" class="tab-pane">
-    [% INCLUDE renderSome builds=stillFail %]
+    [% INCLUDE renderSome builds=stillFail tabname="#tabs-still-fail" %]
   </div>
 
   <div id="tabs-still-succeed" class="tab-pane">
-    [% INCLUDE renderSome builds=stillSucceed %]
+    [% INCLUDE renderSome builds=stillSucceed tabname="#tabs-still-succeed" %]
   </div>
 
   <div id="tabs-unfinished" class="tab-pane">
-    [% INCLUDE renderSome builds=unfinished %]
+    [% INCLUDE renderSome builds=unfinished tabname="#tabs-unfinished" %]
   </div>
 
   <div id="tabs-inputs" class="tab-pane">
