@@ -276,7 +276,7 @@ sub updateJobset {
             });
 
         $value = checkInputValue($c, $name, $type, $value);
-        $input->jobsetinputalts->create({altnr => 0, value => $value});
+        $input->jobsetinputalts->update_or_create({altnr => 0, value => $value});
     }
 }
 
