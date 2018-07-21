@@ -69,8 +69,26 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
             product.path = canonPath(product.path);
             if (!store->isInStore(product.path)) continue;
 
-            auto st = accessor->stat(product.path);
+            auto originalPathSt = accessor->stat(product.path);
+            auto st = originalPathSt;
             if (st.type == FSAccessor::Type::tMissing) continue;
+
+            // Resolve symlinks fully when possible
+            // FIXME: Factor deep symlink resolution out for use in other places?
+            std::set<Path> visited;
+            Path path = product.path;
+            while (st.type == FSAccessor::Type::tSymlink) {
+                visited.insert(path);
+                Path next = accessor->readLink(path);
+                // If we find a loop, give up
+                if (visited.find(next) != visited.end()) {
+                    path = product.path;
+                    st = originalPathSt;
+                    break;
+                }
+                path = next;
+                st = accessor->stat(path);
+            }
 
             product.name = product.path == output ? "" : baseNameOf(product.path);
 
