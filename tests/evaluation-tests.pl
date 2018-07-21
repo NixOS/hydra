@@ -6,7 +6,7 @@ use Setup;
 
 my $db = Hydra::Model::DB->new;
 
-use Test::Simple tests => 76;
+use Test::Simple tests => 79;
 
 hydra_setup($db);
 
@@ -155,19 +155,21 @@ foreach my $scm ( @scminputs ) {
 $jobset = createBaseJobset("build-products", "build-products.nix");
 
 ok(evalSucceeds($jobset),                  "Evaluating jobs/build-products.nix should exit with return code 0");
-ok(nrQueuedBuildsForJobset($jobset) == 2 , "Evaluating jobs/build-products.nix should result in 2 builds");
+ok(nrQueuedBuildsForJobset($jobset) == 3 , "Evaluating jobs/build-products.nix should result in 3 builds");
 
 for my $build (queuedBuildsForJobset($jobset)) {
     ok(runBuild($build), "Build '".$build->job->name."' from jobs/build-products.nix should exit with code 0");
     my $newbuild = $db->resultset('Builds')->find($build->id);
     ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job->name."' from jobs/build-products.nix should have buildstatus 0");
-    
+
     my $buildproducts = $db->resultset('BuildProducts')->search({ build => $build->id });
     my $buildproduct = $buildproducts->next;
-    
+
     if($build->job->name eq "simple") {
         ok($buildproduct->name eq "text.txt", "We should have text.txt, but found: ".$buildproduct->name."\n");
     } elsif ($build->job->name eq "with_spaces") {
         ok($buildproduct->name eq "some text.txt", "We should have: \"some text.txt\", but found: ".$buildproduct->name."\n");
+    } elsif ($build->job->name eq "symlink") {
+        ok(defined $buildproduct->filesize, "filesize info should be available for symlink");
     }
 }
