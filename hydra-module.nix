@@ -252,6 +252,7 @@ in
         requires = optional haveLocalDB "postgresql.service";
         after = optional haveLocalDB "postgresql.service";
         environment = env;
+        path = [ pkgs.utillinux ];
         preStart = ''
           mkdir -p ${baseDir}
           chown hydra.hydra ${baseDir}
@@ -268,8 +269,8 @@ in
 
           ${optionalString haveLocalDB ''
             if ! [ -e ${baseDir}/.db-created ]; then
-              ${config.services.postgresql.package}/bin/createuser hydra
-              ${config.services.postgresql.package}/bin/createdb -O hydra hydra
+              runuser -u ${config.services.postgresql.superUser} -- ${config.services.postgresql.package}/bin/createuser hydra
+              runuser -u ${config.services.postgresql.superUser} -- ${config.services.postgresql.package}/bin/createdb -O hydra hydra
               touch ${baseDir}/.db-created
             fi
           ''}
