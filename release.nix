@@ -1,4 +1,4 @@
-{ hydraSrc ? { outPath = ./.; revCount = 1234; rev = "abcdef"; }
+{ hydraSrc ? builtins.fetchGit ./.
 , nixpkgs ? builtins.fetchGit { url = https://github.com/NixOS/nixpkgs-channels.git; ref = "nixos-18.03"; }
 , officialRelease ? false
 , shell ? false
@@ -42,7 +42,7 @@ rec {
 
     let
 
-      nix = pkgs.nixStable2 or pkgs.nix;
+      nix = pkgs.nixUnstable or pkgs.nix;
 
       perlDeps = buildEnv {
         name = "hydra-perl-deps";
