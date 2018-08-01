@@ -201,7 +201,7 @@ static void findJobs(EvalState & state, JSONObject & top,
     } catch (EvalError & e) {
         if (comma) { std::cout << ","; comma = false; }
         auto res = top.object(attrPath);
-        res.attr("error", e.msg());
+        res.attr("error", filterANSIEscapes(e.msg(), true));
     }
 }
 
