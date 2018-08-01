@@ -61,10 +61,12 @@ elsif ($cmd eq "build-started") {
 }
 
 elsif ($cmd eq "step-finished") {
-    my $stepNr = shift @ARGV or die;
+    die if scalar @ARGV < 2;
+    my $stepNr = shift @ARGV;
     my $step = $build->buildsteps->find({stepnr => $stepNr})
         or die "step $stepNr does not exist\n";
-    my $logPath = shift @ARGV or die;
+    my $logPath = shift @ARGV;
+    $logPath = undef if $logPath eq "";
 
     foreach my $plugin (@plugins) {
         eval { $plugin->stepFinished($step, $logPath); };
