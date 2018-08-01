@@ -527,6 +527,7 @@ sub sendJobsetErrorNotification() {
 
     chomp $errorMsg;
 
+    return unless $config->{email_notification} // 0;
     return if $jobset->project->owner->emailonerror == 0;
     return if $errorMsg eq "";
 
