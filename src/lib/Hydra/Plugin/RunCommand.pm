@@ -97,7 +97,7 @@ sub buildFinished {
                 my $j = {
                     name => $metric->name,
                     unit => $metric->unit,
-                    value => $metric->value,
+                    value => 0 + $metric->value,
                 };
                 push @{$json->{metrics}}, $j;
             }
