@@ -312,7 +312,7 @@ int main(int argc, char * * argv)
             if (status != 0)
                 throw Exit(WIFEXITED(status) ? WEXITSTATUS(status) : 99);
 
-            maxHeapSize = maxHeapSize * 1.1;
+            maxHeapSize += 64 * 1024 * 1024;
 
             lastAttrPath = drainFD(pipe.readSide.get());
         } while (lastAttrPath != "");
