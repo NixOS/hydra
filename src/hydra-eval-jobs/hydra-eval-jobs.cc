@@ -1,6 +1,7 @@
 #include <map>
 #include <iostream>
 
+#define GC_LINUX_THREADS 1
 #include <gc/gc_allocator.h>
 
 #include "shared.hh"
@@ -265,8 +266,13 @@ int main(int argc, char * * argv)
             ProcessOptions options;
             options.allowVfork = false;
 
+            GC_atfork_prepare();
+
             auto pid = startProcess([&]() {
                 pipe.readSide = -1;
+
+                GC_atfork_child();
+                GC_start_mark_threads();
 
                 if (lastAttrPath != "") debug("resuming from '%s'", lastAttrPath);
 
@@ -299,6 +305,8 @@ int main(int argc, char * * argv)
 
                 exit(0);
             }, options);
+
+            GC_atfork_parent();
 
             pipe.writeSide = -1;
 
