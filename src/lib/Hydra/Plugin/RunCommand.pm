@@ -25,8 +25,8 @@ sub configSectionMatches {
 }
 
 sub eventMatches {
-    my ($cfg, $event) = @_;
-    for my $x (split " ", ($cfg->{events} // "buildFinished")) {
+    my ($conf, $event) = @_;
+    for my $x (split " ", ($conf->{events} // "buildFinished")) {
         return 1 if $x eq $event;
     }
     return 0;
@@ -36,19 +36,20 @@ sub buildFinished {
     my ($self, $build, $dependents) = @_;
     my $event = "buildFinished";
 
-    my $config = $self->{config}->{runcommand} // [];
+    my $cfg = $self->{config}->{runcommand};
+    my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
     my $tmp;
 
-    foreach my $cfg (@$config) {
-        next unless eventMatches($cfg, $event);
+    foreach my $conf (@config) {
+        next unless eventMatches($conf, $event);
         next unless configSectionMatches(
-            $cfg->{job} // "*:*:*",
+            $conf->{job} // "*:*:*",
             $build->get_column('project'),
             $build->get_column('jobset'),
             $build->get_column('job'));
 
-        my $command = $cfg->{command} // die "<runcommand> section lacks a 'command' option";
+        my $command = $conf->{command} // die "<runcommand> section lacks a 'command' option";
 
         unless (defined $tmp) {
             $tmp = File::Temp->new(SUFFIX => '.json');
