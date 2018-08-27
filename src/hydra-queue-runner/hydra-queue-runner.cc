@@ -453,9 +453,9 @@ bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 void State::notificationSender()
 {
     while (true) {
+      NotificationItem item;
         try {
 
-            NotificationItem item;
             {
                 auto notificationSenderQueue_(notificationSenderQueue.lock());
                 while (notificationSenderQueue_->empty())
@@ -512,9 +512,29 @@ void State::notificationSender()
             nrNotificationsDone++;
 
         } catch (std::exception & e) {
-            nrNotificationsFailed++;
-            printMsg(lvlError, format("notification sender: %1%") % e.what());
-            sleep(5);
+
+          item.tries++;
+            if ( item.tries < 3){
+              printMsg(lvlError, format("notification sender: %1%") % e.what());
+              {
+                auto notificationSenderQueue_(notificationSenderQueue.lock());
+                notificationSenderQueue_->push(item);
+              }
+            } else {
+              printMsg(lvlError, format("notification sender: %1%") % e.what());
+              printMsg(lvlError, format("notification sender: notification about build %d was retired for 3 times, ignoring!") % item.id );
+
+              nrNotificationsFailed++;
+
+              auto conn(dbPool.get());
+              pqxx::work txn(*conn);
+              txn.parameterized
+                ("update Builds set notificationPendingSince = null where id = $1")
+                (item.id)
+                .exec();
+              txn.commit();
+
+            }
         }
     }
 }

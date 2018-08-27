@@ -367,6 +367,8 @@ private:
         std::vector<BuildID> dependentIds;
         unsigned int stepNr;
         nix::Path logPath;
+        /* Number of times we tried sending a notification. */
+        unsigned int tries;
     };
     nix::Sync<std::queue<NotificationItem>> notificationSenderQueue;
     std::condition_variable notificationSenderWakeup;

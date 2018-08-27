@@ -174,7 +174,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             /* Asynchronously run plugins. FIXME: if we're killed,
                plugin actions might not be run. Need to ensure
                at-least-once semantics. */
-            enqueueNotificationItem({NotificationItem::Type::StepFinished, buildId, {}, stepNr, result.logFile});
+            enqueueNotificationItem({NotificationItem::Type::StepFinished, buildId, {}, stepNr, result.logFile, 0});
         }
     });
 
@@ -463,7 +463,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         /* Send notification about this build and its dependents. */
         {
             auto notificationSenderQueue_(notificationSenderQueue.lock());
-            notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::BuildFinished, buildId, dependentIDs});
+            notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::BuildFinished, buildId, dependentIDs, 0});
         }
         notificationSenderWakeup.notify_one();
 
