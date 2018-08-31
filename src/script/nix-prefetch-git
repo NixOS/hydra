@@ -133,17 +133,12 @@ checkout_ref(){
     fi;
 }
 
-get_submodule_url(){
-    local name="$1"
-    sed -n "\,$name, { :loop; n; s,^.*url = ,,; T loop; p; q }" .git/config
-}
-
 # Update submodules
 init_submodules(){
     # Add urls into .git/config file
     git submodule init
 
-    git submodule foreach 'clone "$path" "$(get_submodule_url $name)" "$sha1" ""'
+    git submodule update --recursive
 }
 
 clone(){
