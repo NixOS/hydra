@@ -493,6 +493,9 @@ private:
     /* Check the queue for new builds. */
     bool getQueuedBuilds(Connection & conn,
         nix::ref<nix::Store> destStore, unsigned int & lastBuildId);
+    bool getQueuedBuildsInEval(Connection & conn,
+        nix::ref<nix::Store> destStore, unsigned int evalId);
+    bool finishQueuedBuilds(Connection & conn, nix::ref<nix::Store> destStore, unsigned int & lastBuildId, unsigned int newLastBuildId, std::vector<BuildID> newIDs, std::map<BuildID, Build::ptr> newBuildsByID, std::multimap<nix::Path, BuildID> newBuildsByPath);
 
     /* Handle cancellation, deletion and priority bumps. */
     void processQueueChange(Connection & conn);

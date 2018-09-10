@@ -24,7 +24,7 @@ void State::queueMonitorLoop()
 {
     auto conn(dbPool.get());
 
-    receiver buildsAdded(*conn, "builds_added");
+    receiver evalAdded(*conn, "eval_added");
     receiver buildsRestarted(*conn, "builds_restarted");
     receiver buildsCancelled(*conn, "builds_cancelled");
     receiver buildsDeleted(*conn, "builds_deleted");
@@ -48,8 +48,9 @@ void State::queueMonitorLoop()
         } else
             conn->get_notifs();
 
-        if (auto lowestId = buildsAdded.get()) {
-            lastBuildId = std::min(lastBuildId, static_cast<unsigned>(std::stoul(*lowestId) - 1));
+        if (auto evalIdStr = evalAdded.get()) {
+            unsigned int evalId = std::stoul(*evalIdStr);
+            getQueuedBuildsInEval(*conn, destStore, evalId);
             printMsg(lvlTalkative, "got notification: new builds added to the queue");
         }
         if (buildsRestarted.get()) {
@@ -74,6 +75,53 @@ struct PreviousFailure : public std::exception {
 };
 
 
+bool State::getQueuedBuildsInEval(Connection & conn,
+    ref<Store> destStore, unsigned int evalId)
+{
+    printInfo("checking the queue for builds in eval %d...", evalId);
+
+    /* Grab the queued builds from the database, but don't process
+       them yet (since we don't want a long-running transaction). */
+    std::vector<BuildID> newIDs;
+    std::map<BuildID, Build::ptr> newBuildsByID;
+    std::multimap<Path, BuildID> newBuildsByPath;
+
+    {
+        pqxx::work txn(conn);
+
+        pqxx::result res = txn.parameterized
+          ("select id, project, jobset, job, drvPath, maxsilent, timeout, timestamp, globalPriority, priority from Builds "
+          "where id IN (select build from jobsetevalmembers where eval = $1) order by globalPriority desc, id")
+          (evalId).exec();
+
+        for (auto const & row : res) {
+            auto builds_(builds.lock());
+            BuildID id = row["id"].as<BuildID>();
+            if (buildOne && id != buildOne) continue;
+            if (builds_->count(id)) continue;
+
+            auto build = std::make_shared<Build>();
+            build->id = id;
+            build->drvPath = row["drvPath"].as<string>();
+            build->projectName = row["project"].as<string>();
+            build->jobsetName = row["jobset"].as<string>();
+            build->jobName = row["job"].as<string>();
+            build->maxSilentTime = row["maxsilent"].as<int>();
+            build->buildTimeout = row["timeout"].as<int>();
+            build->timestamp = row["timestamp"].as<time_t>();
+            build->globalPriority = row["globalPriority"].as<int>();
+            build->localPriority = row["priority"].as<int>();
+            build->jobset = createJobset(txn, build->projectName, build->jobsetName);
+
+            newIDs.push_back(id);
+            newBuildsByID[id] = build;
+            newBuildsByPath.emplace(std::make_pair(build->drvPath, id));
+        }
+    }
+    unsigned int lastBuildId = 0;
+    return finishQueuedBuilds(conn, destStore, lastBuildId, 0, newIDs, newBuildsByID, newBuildsByPath);
+}
+
 bool State::getQueuedBuilds(Connection & conn,
     ref<Store> destStore, unsigned int & lastBuildId)
 {
@@ -90,7 +138,7 @@ bool State::getQueuedBuilds(Connection & conn,
     {
         pqxx::work txn(conn);
 
-        auto res = txn.parameterized
+        pqxx::result res = txn.parameterized
             ("select id, project, jobset, job, drvPath, maxsilent, timeout, timestamp, globalPriority, priority from Builds "
              "where id > $1 and finished = 0 order by globalPriority desc, id")
             (lastBuildId).exec();
@@ -120,6 +168,10 @@ bool State::getQueuedBuilds(Connection & conn,
             newBuildsByPath.emplace(std::make_pair(build->drvPath, id));
         }
     }
+    return finishQueuedBuilds(conn, destStore, lastBuildId, newLastBuildId, newIDs, newBuildsByID, newBuildsByPath);
+}
+
+bool State::finishQueuedBuilds(Connection & conn, ref<Store> destStore, unsigned int & lastBuildId, unsigned int newLastBuildId, std::vector<BuildID> newIDs, std::map<BuildID, Build::ptr> newBuildsByID, std::multimap<Path, BuildID> newBuildsByPath) {
 
     std::set<Step::ptr> newRunnable;
     unsigned int nrAdded;
