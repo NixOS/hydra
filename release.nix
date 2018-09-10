@@ -75,6 +75,7 @@ rec {
             FileSlurp
             IOCompress
             IPCRun
+            JSON
             JSONXS
             LWP
             LWPProtocolHttps
