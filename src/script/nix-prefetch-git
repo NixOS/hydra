@@ -411,7 +411,7 @@ else
         fi
     fi
 
-    print_results "$hash"
+    echo "$hash"
 
     if test -n "$PRINT_PATH"; then
         echo "$finalPath"
