@@ -429,11 +429,14 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                     if (build2->finishedInDB) continue;
                     printMsg(lvlError, format("marking build %1% as failed") % build2->id);
                     txn.parameterized
-                        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0")
+                        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $6, notificationPendingSince = $5 where id = $1 and finished = 0")
                         (build2->id)
                         ((int) (build2->drvPath != step->drvPath && result.buildStatus() == bsFailed ? bsDepFailed : result.buildStatus()))
                         (result.startTime)
                         (result.stopTime)
+                        /* notificationPendingSince is 0 because
+                         * notifications will be sent below. */
+                        0
                         (result.stepStatus == bsCachedFailure ? 1 : 0).exec();
                     nrBuildsDone++;
                 }
