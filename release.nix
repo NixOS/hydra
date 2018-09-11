@@ -64,6 +64,7 @@ rec {
             CatalystViewJSON
             CatalystViewTT
             CatalystXScriptServerStarman
+            CatalystXRoleApplicator
             CryptRandPasswd
             DBDPg
             DBDSQLite
@@ -75,6 +76,8 @@ rec {
             FileSlurp
             IOCompress
             IPCRun
+            JSON
+            JSONAny
             JSONXS
             LWP
             LWPProtocolHttps
