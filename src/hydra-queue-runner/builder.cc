@@ -436,7 +436,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                         (result.stopTime)
                         /* notificationPendingSince is 0 because
                          * notifications will be sent below. */
-                        0
+                        (0)
                         (result.stepStatus == bsCachedFailure ? 1 : 0).exec();
                     nrBuildsDone++;
                 }
