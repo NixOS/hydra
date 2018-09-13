@@ -281,7 +281,7 @@ int main(int argc, char * * argv)
 
                 /* Prevent access to paths outside of the Nix search path and
                    to the environment. */
-                evalSettings.restrictEval = true;
+                settings.restrictEval = true;
 
                 if (releaseExpr == "") throw UsageError("no expression specified");
 
