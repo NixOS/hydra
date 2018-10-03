@@ -1,5 +1,6 @@
 #include <iostream>
 #include <thread>
+#include <climits>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -109,12 +110,30 @@ void State::parseMachines(const std::string & contents)
         else
             machine->maxJobs = 1;
         machine->speedFactor = atof(tokens[4].c_str());
+
         if (tokens[5] == "-") tokens[5] = "";
-        machine->supportedFeatures = tokenizeString<StringSet>(tokens[5], ",");
+        for (auto & rf : tokenizeString<StringSet>(tokens[5], ",")) {
+            auto ft = tokenizeString<std::list<std::string>>(rf, ":");
+            unsigned int amount = UINT_MAX;
+            if (ft.size() == 2) // consumable info provided
+                amount = std::stoul(ft.back());
+            if (amount == 0)
+                amount = UINT_MAX;
+            machine->supportedFeatures[ft.front()] = amount;
+        }
+
         if (tokens[6] == "-") tokens[6] = "";
-        machine->mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
-        for (auto & f : machine->mandatoryFeatures)
-            machine->supportedFeatures.insert(f);
+        for (auto & rf : tokenizeString<StringSet>(tokens[6], ",")) {
+            auto ft = tokenizeString<std::list<std::string>>(rf, ":");
+            unsigned int amount = UINT_MAX;
+            if (ft.size() == 2) // consumable info provided
+                amount = std::stoul(ft.back());
+            if (amount == 0)
+                amount = UINT_MAX;
+            machine->mandatoryFeatures[ft.front()] = amount;
+            machine->supportedFeatures[ft.front()] = amount;
+        }
+
         if (tokens[7] != "" && tokens[7] != "-")
             machine->sshPublicHostKey = base64Decode(tokens[7]);
 

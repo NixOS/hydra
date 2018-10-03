@@ -435,14 +435,24 @@ Step::ptr State::createStep(ref<Store> destStore,
     step->systemType = step->drv.platform;
     {
         auto i = step->drv.env.find("requiredSystemFeatures");
-        StringSet features;
-        if (i != step->drv.env.end())
-            features = step->requiredSystemFeatures = tokenizeString<std::set<std::string>>(i->second);
+        StringSet rawFeatures;
+        std::map<std::string, unsigned int> features;
+        if (i != step->drv.env.end()) {
+            rawFeatures = tokenizeString<std::set<std::string>>(i->second);
+            for (auto & rf : rawFeatures) {
+                auto ft = tokenizeString<std::list<std::string>>(rf, ":");
+                unsigned int amount = 1;
+                if (ft.size() == 2) // consumable info provided
+                    amount = std::stoul(ft.back());
+                features[ft.front()] = amount;
+            }
+            step->requiredSystemFeatures = features;
+        }
         if (step->preferLocalBuild)
-            features.insert("local");
+            features["local"] = 1;
         if (!features.empty()) {
             step->systemType += ":";
-            step->systemType += concatStringsSep(",", features);
+            step->systemType += concatStringsSep(",", rawFeatures);
         }
     }
 

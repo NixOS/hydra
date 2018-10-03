@@ -152,7 +152,7 @@ struct Step
 
     nix::Path drvPath;
     nix::Derivation drv;
-    std::set<std::string> requiredSystemFeatures;
+    std::map<std::string, unsigned int> requiredSystemFeatures;
     bool preferLocalBuild;
     bool isDeterministic;
     std::string systemType; // concatenation of drv.platform and requiredSystemFeatures
@@ -220,7 +220,8 @@ struct Machine
     bool enabled{true};
 
     std::string sshName, sshKey;
-    std::set<std::string> systemTypes, supportedFeatures, mandatoryFeatures;
+    std::set<std::string> systemTypes;
+    std::map<std::string, unsigned int> supportedFeatures, mandatoryFeatures;
     unsigned int maxJobs = 1;
     float speedFactor = 1.0;
     std::string sshPublicHostKey;
@@ -228,6 +229,7 @@ struct Machine
     struct State {
         typedef std::shared_ptr<State> ptr;
         counter currentJobs{0};
+        std::map<std::string, counter> featuresConsumption;
         counter nrStepsDone{0};
         counter totalStepTime{0}; // total time for steps, including closure copying
         counter totalStepBuildTime{0}; // total build time for steps
@@ -254,7 +256,7 @@ struct Machine
         if (!systemTypes.count(step->drv.platform == "builtin" ? nix::settings.thisSystem : step->drv.platform))
             return false;
 
-        /* Check that the step requires all mandatory features of this
+        /* Check that the step requires/consumes all mandatory features of this
            machine. (Thus, a machine with the mandatory "benchmark"
            feature will *only* execute steps that require
            "benchmark".) The "preferLocalBuild" bit of a step is
@@ -262,14 +264,19 @@ struct Machine
            "local" as a mandatory feature will only do
            preferLocalBuild steps. */
         for (auto & f : mandatoryFeatures)
-            if (!step->requiredSystemFeatures.count(f)
-                && !(f == "local" && step->preferLocalBuild))
+            if (step->requiredSystemFeatures.find(f.first) == step->requiredSystemFeatures.end()
+                && !(f.first == "local" && step->preferLocalBuild))
                 return false;
 
         /* Check that the machine supports all features required by
-           the step. */
-        for (auto & f : step->requiredSystemFeatures)
-            if (!supportedFeatures.count(f)) return false;
+           the step, and has enough of each available. */
+        for (auto & f : step->requiredSystemFeatures) {
+            if (supportedFeatures.find(f.first) == supportedFeatures.end())
+                return false;
+            unsigned long current = state->featuresConsumption[f.first];
+            if (current + f.second > supportedFeatures[f.first])
+                return false;
+        }
 
         return true;
     }

@@ -340,6 +340,9 @@ State::MachineReservation::MachineReservation(State & state, Step::ptr step, Mac
 {
     machine->state->currentJobs++;
 
+    for (auto & f : step->requiredSystemFeatures)
+        machine->state->featuresConsumption[f.first] += f.second;
+
     {
         auto machineTypes_(state.machineTypes.lock());
         (*machineTypes_)[step->systemType].running++;
@@ -353,6 +356,9 @@ State::MachineReservation::~MachineReservation()
     assert(prev);
     if (prev == 1)
         machine->state->idleSince = time(0);
+
+    for (auto & f : step->requiredSystemFeatures)
+        machine->state->featuresConsumption[f.first] -= f.second;
 
     {
         auto machineTypes_(state.machineTypes.lock());
