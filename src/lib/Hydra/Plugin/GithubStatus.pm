@@ -37,7 +37,8 @@ sub common {
             next if !$finished && $b->finished == 1;
 
             my $contextTrailer = $conf->{excludeBuildFromContext} ? "" : (":" . $b->id);
-            my $github_job_name = $jobName =~ s/-pr-\d+//r;
+            # normalize job names so that PR and bors build statuses can be checked
+            my $github_job_name = $jobName =~ s/-(pr-\d+|bors-(staging|trying))//r;
             my $extendedContext = $conf->{context} // "continuous-integration/hydra:" . $jobName . $contextTrailer;
             my $shortContext = $conf->{context} // "ci/hydra:" . $github_job_name . $contextTrailer;
             my $context = $conf->{useShortContext} ? $shortContext : $extendedContext;
