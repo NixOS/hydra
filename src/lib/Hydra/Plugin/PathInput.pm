@@ -11,12 +11,22 @@ sub supportedInputTypes {
     $inputTypes->{'path'} = 'Local path';
 }
 
+sub _parseValue {
+    my ($value) = @_;
+    my @parts = split ' ', $value;
+    (my $uri, my $freq) = @parts;
+    # by default don't check a path more often than every 30 seconds,
+    # but the second path argument can change that value.
+    $freq = defined $freq ? $freq : 30;
+    return ($uri, $freq);
+}
+
 sub fetchInput {
     my ($self, $type, $name, $value) = @_;
 
     return undef if $type ne "path";
 
-    my $uri = $value;
+    my ($uri, $timeout) = _parseValue($value);
 
     my $timestamp = time;
     my $sha256;
