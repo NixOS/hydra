@@ -58,6 +58,20 @@ sub latest : Chained('get_builds') PathPart('latest') {
 }
 
 
+# Redirect to the latest successful build's first output path (useful
+# if the output is HTML (e.g. haddock documentation).
+sub latest_outpath : Chained('get_builds') PathPart('latest-outpath') {
+    my ($self, $c, @rest) = @_;
+
+    my $latest = $c->stash->{allBuilds}->find(
+        { finished => 1, buildstatus => 0 }, { order_by => ["id DESC"], rows => 1 });
+
+    notFound($c, "There is no successful build to redirect to.") unless defined $latest;
+
+    $c->res->redirect(($latest->buildoutputs)[0]->path);
+}
+
+
 # Redirect to the latest successful build for a specific platform.
 sub latest_for : Chained('get_builds') PathPart('latest-for') {
     my ($self, $c, $system, @rest) = @_;
