@@ -68,7 +68,7 @@ sub latest_outpath : Chained('get_builds') PathPart('latest-outpath') {
 
     notFound($c, "There is no successful build to redirect to.") unless defined $latest;
 
-    $c->res->redirect(($latest->buildoutputs)[0]->path);
+    $c->res->redirect($c->uri_for(($latest->buildoutputs)[0]->path, @rest));
 }
 
 
