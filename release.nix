@@ -1,5 +1,5 @@
 { hydraSrc ? builtins.fetchGit ./.
-, nixpkgs ? builtins.fetchGit { url = https://github.com/NixOS/nixpkgs-channels.git; ref = "nixos-18.03-small"; }
+, nixpkgs ? builtins.fetchGit { url = https://github.com/NixOS/nixpkgs-channels.git; ref = "nixos-18.09-small"; }
 , officialRelease ? false
 , shell ? false
 }:
@@ -114,6 +114,7 @@ rec {
           perlDeps perl nix
           postgresql95 # for running the tests
           boost
+          nlohmann_json
         ];
 
       hydraPath = lib.makeBinPath (
