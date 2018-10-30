@@ -428,8 +428,9 @@ Step::ptr State::createStep(ref<Store> destStore,
        it's not runnable yet, and other threads won't make it
        runnable while step->created == false. */
     step->drv = readDerivation(drvPath);
+    step->parsedDrv = std::make_unique<ParsedDerivation>(drvPath, step->drv);
 
-    step->preferLocalBuild = step->drv.willBuildLocally();
+    step->preferLocalBuild = step->parsedDrv->willBuildLocally();
     step->isDeterministic = get(step->drv.env, "isDetermistic", "0") == "1";
 
     step->systemType = step->drv.platform;

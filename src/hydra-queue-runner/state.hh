@@ -10,7 +10,7 @@
 #include "db.hh"
 #include "token-server.hh"
 
-#include "derivations.hh"
+#include "parsed-derivations.hh"
 #include "pathlocks.hh"
 #include "pool.hh"
 #include "store-api.hh"
@@ -152,6 +152,7 @@ struct Step
 
     nix::Path drvPath;
     nix::Derivation drv;
+    std::unique_ptr<nix::ParsedDerivation> parsedDrv;
     std::set<std::string> requiredSystemFeatures;
     bool preferLocalBuild;
     bool isDeterministic;
