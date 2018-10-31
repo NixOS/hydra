@@ -419,6 +419,11 @@ sub search :Local Args(0) {
     $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
         { "drvpath" => trim($query) },
         { order_by => ["id desc"] } ) ];
+
+    $c->stash->{resource} = { projects => $c->stash->{projects},
+                              jobsets  => $c->stash->{jobsets},
+                              builds  => $c->stash->{builds},
+                              buildsdrv  => $c->stash->{buildsdrv} };
 }
 
 sub serveLogFile {
