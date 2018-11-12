@@ -6,6 +6,7 @@ use HTTP::Request;
 use JSON;
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
+use List::Util qw(max);
 
 sub toGithubState {
     my ($buildStatus) = @_;
@@ -65,6 +66,21 @@ sub common {
                     $req->content($body);
                     my $res = $ua->request($req);
                     print STDERR $res->status_line, ": ", $res->decoded_content, "\n" unless $res->is_success;
+                    my $limit = $res->header("X-RateLimit-Limit");
+                    my $limitRemaining = $res->header("X-RateLimit-Remaining");
+                    my $limitReset = $res->header("X-RateLimit-Reset");
+                    my $now = time();
+                    my $diff = $limitReset - $now;
+                    my $delay = (($limit - $limitRemaining) / $diff) * 5;
+                    if ($limitRemaining < 1000) {
+                      $delay = max(1, $delay);
+                    }
+                    if ($limitRemaining < 2000) {
+                      print STDERR "GithubStatus ratelimit $limitRemaining/$limit, resets in $diff, sleeping $delay\n";
+                      sleep $delay;
+                    } else {
+                      print STDERR "GithubStatus ratelimit $limitRemaining/$limit, resets in $diff\n";
+                    }
                 }
             }
         }
