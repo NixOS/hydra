@@ -8,8 +8,9 @@
 #   }
 # where 42 is the project id of a repository.
 #
-# The values source_repo_url and source_branch can then be used to
-# build the git input value.
+# The values `target_repo_url` and `iid` can then be used to
+# build the git input value, e.g.:
+# "${target_repo_url} merge-requests/${iid}/head".
 
 package Hydra::Plugin::GitlabPulls;
 
@@ -37,21 +38,12 @@ sub _query {
     return (decode_json $content, $res);
 }
 
-# We need to query the Gitlab API for each merge request to get the
-# source repository URL.
-sub _enhanceGitlabPull {
-    my ($pull, $baseUrl, $ua) = @_;
-    my $projectId = $pull->{source_project_id};
-    (my $repo, my $res) = _query("$baseUrl/api/v4/projects/$projectId", $ua);
-    $pull->{source_repo_url} = $repo->{http_url_to_repo};
-}
-
 sub _iterate {
-    my ($url, $baseUrl, $pulls, $ua) = @_;
+    my ($url, $baseUrl, $pulls, $ua, $target_repo_url) = @_;
     my ($pulls_list, $res) = _query($url, $ua);
 
     foreach my $pull (@$pulls_list) {
-        _enhanceGitlabPull($pull, $baseUrl, $ua);
+        $pull->{target_repo_url} = $target_repo_url;
         $pulls->{$pull->{iid}} = $pull;
     }
     # TODO Make Link header parsing more robust!!!
@@ -64,7 +56,7 @@ sub _iterate {
             last;
         }
     }
-    _iterate($next, $baseUrl, $pulls, $ua) unless $next eq "";
+    _iterate($next, $baseUrl, $pulls, $ua, $target_repo_url) unless $next eq "";
 }
 
 sub fetchInput {
@@ -74,10 +66,19 @@ sub fetchInput {
     (my $baseUrl, my $projectId) = split ' ', $value;
     my $url = "$baseUrl/api/v4/projects/$projectId/merge_requests?per_page=100&state=opened";
 
+    my $accessToken = $self->{config}->{gitlab_authorization}->{$projectId};
+
     my %pulls;
     my $ua = LWP::UserAgent->new();
-    _iterate($url, $baseUrl, \%pulls, $ua);
-    
+    $ua->default_header('Private-Token' => $accessToken) if defined $accessToken;
+
+    # Get the target project URL, as it is the one we need to build the pull
+    # urls from later
+    (my $repo, my $res) = _query("$baseUrl/api/v4/projects/$projectId", $ua);
+    my $target_repo_url = $repo->{http_url_to_repo};
+
+    _iterate($url, $baseUrl, \%pulls, $ua, $target_repo_url);
+
     my $tempdir = File::Temp->newdir("gitlab-pulls" . "XXXXX", TMPDIR => 1);
     my $filename = "$tempdir/gitlab-pulls.json";
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
