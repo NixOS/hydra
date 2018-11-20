@@ -7,6 +7,23 @@ use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
 use JSON;
 
+sub renderDuration {
+    my ($build) = @_;
+    my $duration = $build->stoptime - $build->starttime;
+    my $res = "";
+    if ($duration >= 24*60*60) {
+       $res .= ($duration / (24*60*60)) . "d";
+    }
+    if ($duration >= 60*60) {
+        $res .= (($duration / (60*60)) % 24) . "h";
+    }
+    if ($duration >= 60) {
+        $res .= (($duration / 60) % 60) . "m";
+    }
+    $res .= ($duration % 60) . "s";
+    return $res;
+}
+
 sub buildFinished {
     my ($self, $build, $dependents) = @_;
     my $cfg = $self->{config}->{slack};
@@ -61,7 +78,7 @@ sub buildFinished {
         my $text = "";
         $text .= "Job <$baseurl/job/${\$build->project->name}/${\$build->jobset->name}/${\$build->job->name}|${\showJobName($build)}>";
         $text .= " (and ${\scalar @deps} others)" if scalar @deps > 0;
-        $text .= ": <$baseurl/build/${\$build->id}|" . showStatus($build) . ">";
+        $text .= ": <$baseurl/build/${\$build->id}|" . showStatus($build) . ">". " in " . renderDuration($build);
 
         if (scalar keys %{$authors} > 0) {
             # FIXME: escaping
