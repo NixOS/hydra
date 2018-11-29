@@ -50,8 +50,11 @@ sub fetchInput {
     (my $owner, my $repo) = split ' ', $value;
     my $auth;
     my $url = "https://api.bitbucket.org/2.0/repositories/$owner/$repo/pullrequests?state=OPEN";
-    my $bitbucket = $self->{config}->{bitbucket_authorization};
-    if ($bitbucket->{key} ne undef and $bitbucket->{secret} ne undef) {
+    my $bitbucket = $self->{config}->{bitbucket};
+    if (! defined $bitbucket) {
+        $bitbucket = $self->{config}->{bitbucket_authorization};
+    }
+    if (defined $bitbucket->{key} and defined $bitbucket->{secret}) {
         # Bitbucket OAuth2 authentication
         my $token = getToken($bitbucket);
         $url = join "", $url, "&access_token=", $token;
