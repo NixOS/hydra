@@ -1,0 +1,5 @@
+[% PROCESS common.tt %]
+
+[% FOREACH error IN errors %]
+   <div class="alert alert-error">[% HTML.escape(error).replace('\n', '<br/>') %]</div>
+[% END %]

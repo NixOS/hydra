@@ -237,7 +237,13 @@ sub end : ActionClass('RenderView') {
 
     elsif (scalar @{$c->error}) {
         $c->stash->{resource} = { error => join "\n", @{$c->error} };
-        $c->stash->{template} = 'error.tt';
+        if ($c->stash->{lazy}) {
+            $c->response->headers->header('X-Hydra-Lazy', 'Yes');
+            $c->stash->{template} = 'lazy_error.tt';
+        }
+        else {
+            $c->stash->{template} = 'error.tt';
+        }
         $c->stash->{errors} = $c->error;
         $c->response->status(500) if $c->response->status == 200;
         if ($c->response->status >= 300) {
