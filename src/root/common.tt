@@ -414,18 +414,19 @@ BLOCK renderEvals %]
         [% END %]
         <th style="width: 10em">Date</th>
         <th>Input changes</th>
-        <th style="width: 2em">
+        <th style="width: 2.5em">
         Jobs<br>
             <img src="[% c.uri_for("/static/images/emojione-check-2714.svg") %]" height="12" width="12" title="Succeeded" alt="Succeeded" class="build-status" />
         </th>
-        <th style="width: 2em">
+        <th style="width: 2.5em">
             <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="12" width="12" title="Failed" alt="Failed" class="build-status" />
         </th>
-        <th style="width: 2em">
+        <th style="width: 2.5em">
             <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="12" width="12" title="Queued" alt="Queued" class="build-status" />
-
         </th>
-        <th>&Delta;</th>
+        <th>
+            <img src="[% c.uri_for("/static/images/delta.svg") %]" height="12" width="12" title="Delta" alt="Delta" class="build-status" />
+        </th>
       </tr>
     </thead>
     <tbody>
@@ -452,12 +453,12 @@ BLOCK renderEvals %]
           <td align='right' class="nowrap">
             <span class="label label-success">[% e.nrSucceeded %]</span>
           </td>
-          <td align='right' class="nowrap">
+          <td align="right" class="nowrap">
             [% IF e.nrFailed > 0 %]
             <span class="label label-important">[% e.nrFailed %]</span>
             [% END %]
           </td>
-          <td align='right' class="nowrap">
+          <td align="right" class="nowrap">
             [% IF e.nrScheduled > 0 %]
             <span class="label">[% e.nrScheduled %]</span>
             [% END %]
@@ -535,7 +536,6 @@ BLOCK renderJobsetOverview %]
       </th>
       <th style="width: 2em">
             <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="12" width="12" title="Queued" alt="Queued" class="build-status" />
-
       </th>
     </tr>
   </thead>
