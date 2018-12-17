@@ -408,24 +408,26 @@ BLOCK renderEvals %]
   <table class="table table-condensed table-striped clickable-rows">
     <thead>
       <tr>
-        <th>#</th>
+        <th rowspan="2">#</th>
         [% IF !jobset && !build %]
-          <th>Jobset</th>
+          <th rowspan="2">Jobset</th>
         [% END %]
-        <th style="width: 10em">Date</th>
-        <th>Input changes</th>
-        <th style="width: 2.5em">
-        Jobs<br>
+        <th rowspan="2" style="width: 10em">Date</th>
+        <th rowspan="2">Input changes</th>
+        <th colspan="3">Jobs</th>
+        <th rowspan="2">
+            <img src="[% c.uri_for("/static/images/delta.svg") %]" height="12" width="12" title="Delta" alt="Delta" class="build-status" />
+        </th>
+      </tr>
+      <tr>
+        <th style="width: 2em">
             <img src="[% c.uri_for("/static/images/emojione-check-2714.svg") %]" height="12" width="12" title="Succeeded" alt="Succeeded" class="build-status" />
         </th>
-        <th style="width: 2.5em">
+        <th style="width: 2em">
             <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="12" width="12" title="Failed" alt="Failed" class="build-status" />
         </th>
-        <th style="width: 2.5em">
+        <th style="width: 2em">
             <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="12" width="12" title="Queued" alt="Queued" class="build-status" />
-        </th>
-        <th>
-            <img src="[% c.uri_for("/static/images/delta.svg") %]" height="12" width="12" title="Delta" alt="Delta" class="build-status" />
         </th>
       </tr>
     </thead>
