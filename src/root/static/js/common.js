@@ -108,8 +108,12 @@ function makeLazyTab(tabName, uri) {
         if (id == '#' + tabName && !tabsLoaded[id]) {
           tabsLoaded[id] = 1;
           $('#' + tabName).load(uri, function(response, status, xhr) {
-            if (status == "error") {
+            var lazy = xhr.getResponseHeader("X-Hydra-Lazy") === "Yes";
+            if (status == "error" && !lazy) {
               $('#' + tabName).html("<div class='alert alert-error'>Error loading tab: " + xhr.status + " " + xhr.statusText + "</div>");
+            }
+            else {
+              $('#' + tabName).html(response);
             }
           });
         }
