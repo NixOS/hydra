@@ -142,3 +142,8 @@ td.step-status span.warn {
     color: #aaaa00;
     font-weight: bold;
 }
+
+.date {
+	cursor: help;
+	border-bottom: 1px dotted #999;
+}

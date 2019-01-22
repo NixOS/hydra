@@ -97,6 +97,35 @@ $(document).ready(function() {
             }
         });
     });
+
+    /* Makes dates more user friendly. */
+    // Friendly date format
+    var DATE_FORMAT = "YYYY-MM-DD HH:mm:ss";
+    // Local timezone offset to display.
+    var tz = moment().format("Z");
+    $("time.date").each(function(i, el) {
+        var el = $(el);
+        var localTime = moment(el.data("timestamp"), "%X");
+        var hydraTime = el.attr("title");
+        if (el.hasClass("is-absolute")) {
+            el.attr( "title", [
+                "Adjusted to local time (" + tz + ")",
+                "Other timezones:",
+                "  UTC: " + localTime.clone().utc().format(DATE_FORMAT),
+                "  As Hydra reported: " + hydraTime,
+            ].join("\n"));
+            el.text(localTime.format(DATE_FORMAT));
+            el.addClass("is-local");
+        }
+        else if (el.hasClass("is-relative")) {
+            el.attr( "title", [
+                "Local (" + tz + "): " + localTime.format(DATE_FORMAT),
+                "UTC: " + localTime.clone().utc().format(DATE_FORMAT),
+                "As Hydra reported: " + hydraTime,
+            ].join("\n"));
+            el.addClass("is-local");
+        }
+    });
 });
 
 var tabsLoaded = {};
