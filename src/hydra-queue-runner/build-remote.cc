@@ -29,6 +29,7 @@ static void append(Strings & dst, const Strings & src)
 
 static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Child & child)
 {
+    string pgmName;
     Pipe to, from;
     to.create();
     from.create();
@@ -47,9 +48,12 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
             throw SysError("cannot dup stderr");
 
         Strings argv;
-        if (machine->sshName == "localhost")
+        if (machine->sshName == "localhost") {
+            pgmName = "nix-store";
             argv = {"nix-store", "--serve", "--write"};
+        }
         else {
+            pgmName = "ssh";
             argv = {"ssh", machine->sshName};
             if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
             if (machine->sshPublicHostKey != "") {
@@ -66,7 +70,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 
         execvp(argv.front().c_str(), (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
 
-        throw SysError("cannot start ssh");
+        throw SysError("cannot start %s", pgmName);
     });
 
     to.readSide = -1;
