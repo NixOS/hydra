@@ -37,8 +37,9 @@ in
 rec {
 
   build = genAttrs' (system:
+    let pkgs = import nixpkgs { inherit system; }; in
 
-    with import nixpkgs { inherit system; };
+    with pkgs;
 
     let
 
