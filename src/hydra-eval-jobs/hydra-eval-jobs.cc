@@ -234,6 +234,18 @@ int main(int argc, char * * argv)
         initNix();
         initGC();
 
+        /* Read the current heap size, which is the initial heap size. */
+        GC_prof_stats_s gc;
+        GC_get_prof_stats(&gc, sizeof(gc));
+        auto initialHeapSizeInt = gc.heapsize_full;
+
+        /* Then make sure the maximum heap size will be bigger than the initial heap size. */
+        if (initialHeapSizeInt > maxHeapSize) {
+            printInfo("warning: evaluator_initial_heap_size (%d) bigger than evaluator_max_heap_size (%d).", initialHeapSizeInt, maxHeapSize);
+            maxHeapSize = initialHeapSizeInt * 1.1;
+            printInfo("         evaluator_max_heap_size now set to %d.", maxHeapSize);
+        }
+
         Path releaseExpr;
 
         struct MyArgs : LegacyArgs, MixEvalArgs
