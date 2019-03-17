@@ -40,5 +40,6 @@ dirs:
 	mkdir -p nix
 	mkdir -p nix/etc/nix
 	touch nix/etc/nix/nix.conf
+	echo "sandbox = false" >> nix/etc/nix/nix.conf
 	mkdir -p nix/store
 	mkdir -p nix/var

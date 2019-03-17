@@ -147,3 +147,8 @@ td.step-status span.warn {
 .table thead th {
     border-top: 0;
 }
+
+.date {
+	cursor: help;
+	border-bottom: 1px dotted #999;
+}

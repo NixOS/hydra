@@ -29,7 +29,7 @@ static void findJobs(EvalState & state, JSONObject & top,
     Bindings & autoArgs, Value & v, const string & attrPath);
 
 
-static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name)
+static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name, const string & subAttribute)
 {
     Strings res;
     std::function<void(Value & v)> rec;
@@ -42,7 +42,7 @@ static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & 
             for (unsigned int n = 0; n < v.listSize(); ++n)
                 rec(*v.listElems()[n]);
         else if (v.type == tAttrs) {
-            auto a = v.attrs->find(state.symbols.create("shortName"));
+            auto a = v.attrs->find(state.symbols.create(subAttribute));
             if (a != v.attrs->end())
                 res.push_back(state.forceString(*a->value));
         }
@@ -117,9 +117,9 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
             res.attr("system", drv->querySystem());
             res.attr("drvPath", drvPath = drv->queryDrvPath());
             res.attr("description", drv->queryMetaString("description"));
-            res.attr("license", queryMetaStrings(state, *drv, "license"));
+            res.attr("license", queryMetaStrings(state, *drv, "license", "shortName"));
             res.attr("homepage", drv->queryMetaString("homepage"));
-            res.attr("maintainers", queryMetaStrings(state, *drv, "maintainers"));
+            res.attr("maintainers", queryMetaStrings(state, *drv, "maintainers", "email"));
             res.attr("schedulingPriority", drv->queryMetaInt("schedulingPriority", 100));
             res.attr("timeout", drv->queryMetaInt("timeout", 36000));
             res.attr("maxSilent", drv->queryMetaInt("maxSilent", 7200));

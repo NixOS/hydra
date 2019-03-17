@@ -7,13 +7,27 @@ USE Math;
 
 USE mibs=format("%.2f");
 
-
-BLOCK renderDateTime;
+# Formatted date time, in hydra-local timezone.
+# Use only where an HTML element cannot be used.
+BLOCK dateTimeText;
 date.format(timestamp, '%Y-%m-%d %H:%M:%S');
 END;
 
+# HTML-rendered date. Formatted in hydra-local timezone.
+# It is enhanced with JavaScript to show user-local and UTC time zones.
+BLOCK renderDateTime %]
+<time [% HTML.attributes(
+    "data-timestamp" => timestamp,
+    title => date.format(timestamp, '%Y-%m-%d %H:%M:%S (%Z)'),
+    datetime => date.format(timestamp, "%Y-%m-%dT%H:%M:%SZ", gmt => 1),
+) %] class="date is-absolute">
+[% INCLUDE dateTimeText %]
+</time>
+[% END;
 
-BLOCK renderRelativeDate;
+# Relative date, as text.
+# Use only where an HTML element cannot be used.
+BLOCK relativeDateText;
   ago = date.now - timestamp;
   IF ago >= 0 && ago < 60; THEN;
     ago _ 's ago';
@@ -28,6 +42,17 @@ BLOCK renderRelativeDate;
   END;
 END;
 
+# HTML-rendered relative date.
+# It is enhanced with JavaScript to show user-local and UTC time zones.
+BLOCK renderRelativeDate %]
+<time [% HTML.attributes(
+    "data-timestamp" => timestamp,
+    title => date.format(timestamp, '%Y-%m-%d %H:%M:%S (%Z)'),
+    datetime => date.format(timestamp, "%Y-%m-%dT%H:%M:%SZ", gmt => 1),
+) %] class="date is-relative">
+[% INCLUDE relativeDateText %]
+</time>
+[% END;
 
 BLOCK renderProjectName %]
 <a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/project' project) %]"><tt>[% project %]</tt></a>
