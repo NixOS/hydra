@@ -58,7 +58,7 @@
             [% IF logo == "" %]
               Hydra
             [% ELSE %]
-              <img src="[% logo %]" alt="Hydra Logo" class="logo" />
+              <img src="[% c.uri_for(logo) %]" alt="Hydra Logo" class="logo" />
             [% END %]
           </a>
           <div class="nav-collapse collapse">
