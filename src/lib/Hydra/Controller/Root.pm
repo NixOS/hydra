@@ -197,6 +197,7 @@ sub machines :Local Args(0) {
         "where busy != 0 order by machine, stepnr",
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
+    $self->status_ok($c, entity => $c->stash->{machines});
 }
 
 
@@ -350,7 +351,9 @@ sub evals :Local Args(0) {
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
-    $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
+    $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage);
+
+    $self->status_ok($c, entity => $c->stash->{evals});
 }
 
 
