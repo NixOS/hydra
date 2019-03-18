@@ -425,7 +425,13 @@ sub run {
 sub grab {
     my (%args) = @_;
     my $res = run(%args, grabStderr => 0);
-    die "command `@{$args{cmd}}' failed with exit status $res->{status} in $args{dir}" if $res->{status};
+    if ($res->{status}) {
+        my $msgloc = "(in an indeterminate location)";
+        if (defined $args{dir}) {
+            $msgloc = "in $args{dir}";
+        }
+        die "command `@{$args{cmd}}' failed with exit status $res->{status} $msgloc";
+    }
     return $res->{stdout};
 }
 
