@@ -32,17 +32,22 @@ sub common {
         my $ua = LWP::UserAgent->new();
 
         foreach my $conf (@config) {
+            print STDERR "GithubStatus_Debug job name $jobName\n";
             next unless $jobName =~ /^$conf->{jobs}$/;
             # Don't send out "pending" status updates if the build is already finished
             next if !$finished && $b->finished == 1;
 
             my $contextTrailer = $conf->{excludeBuildFromContext} ? "" : (":" . $b->id);
+            my $github_job_name = $jobName =~ s/-pr-\d+//r;
+            my $extendedContext = $conf->{context} // "continuous-integration/hydra:" . $jobName . $contextTrailer;
+            my $shortContext = $conf->{context} // "ci/hydra:" . $github_job_name . $contextTrailer;
+            my $context = $conf->{useShortContext} ? $shortContext : $extendedContext;
             my $body = encode_json(
                 {
                     state => $finished ? toGithubState($b->buildstatus) : "pending",
                     target_url => "$baseurl/build/" . $b->id,
                     description => $conf->{description} // "Hydra build #" . $b->id . " of $jobName",
-                    context => $conf->{context} // "continuous-integration/hydra:" . $jobName . $contextTrailer
+                    context => $context
                 });
             my $inputs_cfg = $conf->{inputs};
             my @inputs = defined $inputs_cfg ? ref $inputs_cfg eq "ARRAY" ? @$inputs_cfg : ($inputs_cfg) : ();
@@ -59,7 +64,9 @@ sub common {
                     $uri =~ m![:/]([^/]+)/([^/]+?)(?:.git)?$!;
                     my $owner = $1;
                     my $repo = $2;
-                    my $req = HTTP::Request->new('POST', "https://api.github.com/repos/$owner/$repo/statuses/$rev");
+                    my $url = "https://api.github.com/repos/$owner/$repo/statuses/$rev";
+                    print STDERR "GithubStatus_Debug POSTing to '", $url, "'\n";
+                    my $req = HTTP::Request->new('POST', $url);
                     $req->header('Content-Type' => 'application/json');
                     $req->header('Accept' => 'application/vnd.github.v3+json');
                     $req->header('Authorization' => ($self->{config}->{github_authorization}->{$owner} // $conf->{authorization}));

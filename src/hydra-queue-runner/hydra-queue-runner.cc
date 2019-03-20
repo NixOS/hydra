@@ -487,6 +487,7 @@ void State::notificationSender()
                         argv = {"hydra-notify", "step-finished", std::to_string(item.id), std::to_string(item.stepNr), item.logPath};
                         break;
                 };
+                printMsg(lvlChatty, "Executing hydra-notify " + concatStringsSep(" ", argv));
                 execvp("hydra-notify", (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
                 throw SysError("cannot start hydra-notify");
             });
