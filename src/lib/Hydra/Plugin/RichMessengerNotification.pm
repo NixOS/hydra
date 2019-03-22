@@ -1,24 +1,33 @@
-package Hydra::Plugin::RichMessengerNotificationBase;
+package Hydra::Plugin::RichMessengerNotification;
 
 use strict;
 use parent 'Hydra::Plugin';
-use Exporter;
 use HTTP::Request;
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
-use JSON;
 
 use constant {
     APP_SLACK   => 'slack',
     APP_MSTEAMS => 'msteams',
 };
 
-our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(
-    APP_SLACK
-    APP_MSTEAMS
-    buildFinished
-);
+# Class should never be instantiated directly.
+# Only meant as a superclass for SlackNotification and MicrosoftTeamsNotification
+
+# to be overridden
+sub getCfgForAppType {
+    my ($self) = @_;
+}
+
+# to be overridden
+sub createTextLink {
+    my ($linkUrl, $visibleText) = @_;
+}
+
+# to be overridden
+sub createMessageJSON {
+    my ($baseurl, $build, $text, $img, $color) = @_;
+}
 
 sub renderDuration {
     my ($build) = @_;
@@ -37,57 +46,9 @@ sub renderDuration {
     return $res;
 }
 
-sub createTextLink {
-    my ($appType, $linkUrl, $visibleText) = @_;
-    if ($appType == APP_SLACK) {
-        return "<$linkUrl|$visibleText>"
-    }
-    if ($appType == APP_MSTEAMS) {
-        # Markdown format
-        return "[$visibleText]($linkUrl)"
-    }
-}
-
-sub createMessageJSON {
-    my ($appType, $baseurl, $build, $text, $img, $color) = @_;
-    my $title = "Job " . showJobName($build) . " build number " . $build->id
-    my $buildLink = "$baseurl/build/${\$build->id}";
-    my $fallbackMessage = $title . ": " . showStatus($build)
-
-    if ($appType == APP_SLACK) {
-        return { 
-          attachments => [
-            {
-              fallback => $fallbackMessage,
-              text => $text,
-              thumb_url => $img,
-              color => $color,
-              title => $title,
-              title_link => $buildLink
-            }
-          ]
-        };
-    }
-    if ($appType == APP_MSTEAMS) {
-        return {
-          '@type' => "MessageCard",
-          '@context' => "http://schema.org/extensions",
-          summary => $fallbackMessage,
-          sections => [
-            { 
-              activityTitle => $title,
-              activitySubtitle => createTextLink($appType, $buildLink, $buildLink),
-              activityText => $text,
-              activityImage => $img
-            }
-          ]
-        };
-    }
-}
-
 sub buildFinished {
-    my ($self, $build, $dependents, $appType) = @_;
-    my $cfg = $self->{config}->{$appType};
+    my ($self, $build, $dependents) = @_;
+    my $cfg = getCfgForAppType($self);
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
@@ -137,19 +98,19 @@ sub buildFinished {
             "danger";
 
         my $text = "";
-        $text .= "Job " . createTextLink($appType, "$baseurl/job/${\$build->project->name}/${\$build->jobset->name}/${\$build->job->name}", showJobName($build));
+        $text .= "Job " . createTextLink("$baseurl/job/${\$build->project->name}/${\$build->jobset->name}/${\$build->job->name}", showJobName($build));
         $text .= " (and ${\scalar @deps} others)" if scalar @deps > 0;
-        $text .= ": " . createTextLink($appType, "$baseurl/build/${\$build->id}", showStatus($build)) . " in " . renderDuration($build);
+        $text .= ": " . createTextLink("$baseurl/build/${\$build->id}", showStatus($build)) . " in " . renderDuration($build);
 
         if (scalar keys %{$authors} > 0) {
             # FIXME: escaping
-            my @x = map { createTextLink($appType, "mailto:$authors->{$_}", $_ } (sort keys %{$authors});
+            my @x = map { createTextLink("mailto:$authors->{$_}", $_ } (sort keys %{$authors});
             $text .= ", likely due to ";
             $text .= "$nrCommits commits by " if $nrCommits > 1;
             $text .= join(" or ", scalar @x > 1 ? join(", ", @x[0..scalar @x - 2]) : (), $x[-1]);
         }
 
-        my $msg = createMessageJSON($appType, $baseurl, $build, $text, $img, $color);
+        my $msg = createMessageJSON($baseurl, $build, $text, $img, $color);
 
         my $req = HTTP::Request->new('POST', $url);
         $req->header('Content-Type' => 'application/json');
