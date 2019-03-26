@@ -104,7 +104,7 @@ sub buildFinished {
 
         if (scalar keys %{$authors} > 0) {
             # FIXME: escaping
-            my @x = map { createTextLink("mailto:$authors->{$_}", $_ } (sort keys %{$authors});
+            my @x = map { createTextLink("mailto:$authors->{$_}", $_) } (sort keys %{$authors});
             $text .= ", likely due to ";
             $text .= "$nrCommits commits by " if $nrCommits > 1;
             $text .= join(" or ", scalar @x > 1 ? join(", ", @x[0..scalar @x - 2]) : (), $x[-1]);
