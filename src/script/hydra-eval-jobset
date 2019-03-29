@@ -651,7 +651,14 @@ sub checkJobsetWrapped {
         return;
     }
 
-    die "Jobset contains a job with an empty name. Make sure the jobset evaluates to an attrset of jobs.\n"
+    # n.b. an empty job name can be an improper nixexprinput
+    # specification, or it can be an error from the job evaluator
+    # (e.g. hydra-eval-guile-jobs or hydra-eval-jobs).  In the latter
+    # case, the response looks like: `{ "": { "error": "..." }}` which
+    # is the signal from the job evaluator that there is a problem;
+    # propagate that error message to allow the user to fix the jobset
+    # evaluation.
+    die "Jobset must be an attrset of jobs, but evaluation got an empty job name:\n" . $jobs->{""} . "\n"
         if defined $jobs->{""};
 
     $jobs->{$_}->{jobName} = $_ for keys %{$jobs};
