@@ -658,7 +658,7 @@ sub checkJobsetWrapped {
     # is the signal from the job evaluator that there is a problem;
     # propagate that error message to allow the user to fix the jobset
     # evaluation.
-    die "Jobset must be an attrset of jobs, but evaluation got an empty job name:\n" . $jobs->{""} . "\n"
+    die "Jobset must be an attrset of jobs, but evaluation got an empty job name:\n" . dump($jobs->{""}) . "\n"
         if defined $jobs->{""};
 
     $jobs->{$_}->{jobName} = $_ for keys %{$jobs};
