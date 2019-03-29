@@ -12,6 +12,7 @@ TESTS_ENVIRONMENT = \
   NIX_STORE_DIR="$(abs_builddir)/nix/store"			\
   NIX_LOG_DIR="$(abs_builddir)/nix/var/log/nix"		\
   NIX_BUILD_HOOK=					\
+  PGHOST=/tmp	\
   PERL5LIB="$(srcdir):$(abs_top_srcdir)/src/lib:$$PERL5LIB"	\
   PATH=$(abs_top_srcdir)/src/hydra-evaluator:$(abs_top_srcdir)/src/script:$(abs_top_srcdir)/src/hydra-eval-jobs:$(abs_top_srcdir)/src/hydra-queue-runner:$$PATH \
   perl -w
