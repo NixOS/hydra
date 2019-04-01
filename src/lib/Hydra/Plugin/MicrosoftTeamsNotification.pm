@@ -1,4 +1,4 @@
-package Hydra::Plugin::SlackNotification;
+package Hydra::Plugin::MicrosoftTeamsNotification;
 
 use strict;
 use parent 'Hydra::Plugin';
@@ -7,7 +7,7 @@ use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
 use JSON;
 
-# TODO: refactor to reduce duplicate code with MicrosoftTeamsNotification.pm
+# TODO: refactor to reduce duplicate code with SlackNotification.pm
 
 sub renderDuration {
     my ($build) = @_;
@@ -28,7 +28,8 @@ sub renderDuration {
 
 sub createTextLink {
     my ($linkUrl, $visibleText) = @_;
-    return "<$linkUrl|$visibleText>"
+    # Markdown format
+    return "[$visibleText]($linkUrl)"
 }
 
 sub createMessageJSON {
@@ -37,15 +38,16 @@ sub createMessageJSON {
     my $buildLink = "$baseurl/build/${\$build->id}";
     my $fallbackMessage = $title . ": " . showStatus($build)
 
-    return { 
-      attachments => [
-        {
-          fallback => $fallbackMessage,
-          text => $text,
-          thumb_url => $img,
-          color => $color,
-          title => $title,
-          title_link => $buildLink
+    return {
+      '@type' => "MessageCard",
+      '@context' => "http://schema.org/extensions",
+      summary => $fallbackMessage,
+      sections => [
+        { 
+          activityTitle => $title,
+          activitySubtitle => createTextLink($appType, $buildLink, $buildLink),
+          activityText => $text,
+          activityImage => $img
         }
       ]
     };
