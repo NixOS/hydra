@@ -15,6 +15,7 @@ our @EXPORT = qw(
     selectColor
     sendMessage);
 
+
 sub renderDuration {
     my ($build) = @_;
     my $duration = $build->stoptime - $build->starttime;
@@ -38,7 +39,7 @@ sub getChannelsToNotify {
 
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
-    # Figure out to which channelss to send notification.  For each channel
+    # Figure out to which channels to send notification.  For each channel
     # we send one aggregate message.
     my %channels;
     foreach my $b ($build, @{$dependents}) {

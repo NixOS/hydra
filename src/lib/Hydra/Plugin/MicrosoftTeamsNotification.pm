@@ -6,7 +6,8 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Notification;
 use JSON;
 
-# TODO: refactor to reduce duplicate code with SlackNotification.pm
+# TODO: refactor to further reduce duplicate code with SlackNotification.pm
+
 
 sub createTextLink {
     my ($linkUrl, $visibleText) = @_;
@@ -41,7 +42,7 @@ sub buildFinished {
 
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
 
-    # Figure out to which channelss to send notification.  For each channel
+    # Figure out to which channels to send notification.  For each channel
     # we send one aggregate message.
     my %channels = getChannelsToNotify($build, $dependents, $cfg);
     return if scalar keys %channels == 0;
