@@ -11,14 +11,14 @@ use JSON;
 sub createTextLink {
     my ($linkUrl, $visibleText) = @_;
     # Markdown format
-    return "[$visibleText]($linkUrl)"
+    return "[$visibleText]($linkUrl)";
 }
 
 sub createMessageJSON {
     my ($baseurl, $build, $text, $img, $color) = @_;
-    my $title = "Job " . showJobName($build) . " build number " . $build->id
+    my $title = "Job " . showJobName($build) . " build number " . $build->id;
     my $buildLink = "$baseurl/build/${\$build->id}";
-    my $fallbackMessage = $title . ": " . showStatus($build)
+    my $fallbackMessage = $title . ": " . showStatus($build);
 
     return {
       '@type' => "MessageCard",

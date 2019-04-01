@@ -10,14 +10,14 @@ use JSON;
 
 sub createTextLink {
     my ($linkUrl, $visibleText) = @_;
-    return "<$linkUrl|$visibleText>"
+    return "<$linkUrl|$visibleText>";
 }
 
 sub createMessageJSON {
     my ($baseurl, $build, $text, $img, $color) = @_;
-    my $title = "Job " . showJobName($build) . " build number " . $build->id
+    my $title = "Job " . showJobName($build) . " build number " . $build->id;
     my $buildLink = "$baseurl/build/${\$build->id}";
-    my $fallbackMessage = $title . ": " . showStatus($build)
+    my $fallbackMessage = $title . ": " . showStatus($build);
 
     return { 
       attachments => [
