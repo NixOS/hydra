@@ -37,7 +37,7 @@ sub createMessageJSON {
 
 sub buildFinished {
     my ($self, $build, $dependents) = @_;
-    my $cfg = $self->{config}->{slack};
+    my $cfg = $self->{config}->{msteams};
 
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
 
