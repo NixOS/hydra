@@ -28,7 +28,7 @@ sub createMessageJSON {
       sections => [
         { 
           activityTitle => $title,
-          activitySubtitle => createTextLink($appType, $buildLink, $buildLink),
+          activitySubtitle => createTextLink($buildLink, $buildLink),
           activityText => $text,
           activityImage => $img
         }
