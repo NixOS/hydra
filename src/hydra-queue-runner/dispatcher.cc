@@ -296,7 +296,7 @@ system_time State::doDispatch()
                     break;
                 }
             if (couldRunStep) continue;
-            printMsg(lvlError, format("NO MACHINE AVAILABLE to run step '%1%' (needs system type '%2%')") %
+            printMsg(lvlError, format("No machine available to run step '%1%' (needs system type '%2%')") %
                      step->drvPath % step->systemType);
         }
 
