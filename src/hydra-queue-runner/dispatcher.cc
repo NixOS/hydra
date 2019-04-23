@@ -239,8 +239,13 @@ system_time State::doDispatch()
            loop because the machine sorting will have changed. */
         keepGoing = false;
 
+        std::vector<Machine::ptr> busyMachines;
+
         for (auto & mi : machinesSorted) {
-            if (mi.machine->state->currentJobs >= mi.machine->maxJobs) continue;
+            if (mi.machine->state->currentJobs >= mi.machine->maxJobs) {
+                busyMachines.push_back(mi.machine);
+                continue;
+            }
 
             for (auto & stepInfo : runnableSorted) {
                 auto & step(stepInfo.step);
@@ -280,6 +285,19 @@ system_time State::doDispatch()
             }
 
             if (keepGoing) break;
+        }
+
+        for (auto & stepInfo : runnableSorted) {
+            auto & step(stepInfo.step);
+            bool couldRunStep = false;
+            for (auto & mp : busyMachines)
+                if (mp->supportsStep(step)) {
+                    couldRunStep = true;
+                    break;
+                }
+            if (couldRunStep) continue;
+            printMsg(lvlError, format("NO MACHINE AVAILABLE to run step '%1%' (needs system type '%2%')") %
+                     step->drvPath % step->systemType);
         }
 
         /* Update the stats for the auto-scaler. */
