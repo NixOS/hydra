@@ -138,9 +138,7 @@ rec {
 
       preConfigure = "autoreconf -vfi";
 
-      NIX_LDFLAGS = [
-          "-lpthread"
-	];
+      NIX_LDFLAGS = [ "-lpthread" ];
 
       enableParallelBuilding = true;
 

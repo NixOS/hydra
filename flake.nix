@@ -17,5 +17,12 @@
     packages.hydra = hydraJobs.build.x86_64-linux;
 
     defaultPackage = packages.hydra;
+
+    devShell = (import ./release.nix {
+      hydraSrc = deps.self;
+      nixpkgs = deps.nixpkgs;
+      shell = true;
+    }).build.x86_64-linux;
+
   };
 }
