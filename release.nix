@@ -30,7 +30,8 @@ let
       environment.systemPackages = [ pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
     };
 
-  version = builtins.readFile ./version + "." + toString hydraSrc.revCount + "." + hydraSrc.rev;
+  # FIXME: use commit date.
+  version = builtins.readFile ./version + "." + toString hydraSrc.revCount or 0 + "." + hydraSrc.shortRev or "0000000";
 
 in
 
