@@ -56,12 +56,12 @@ __PACKAGE__->table("Jobsets");
 
   data_type: 'text'
   is_foreign_key: 1
-  is_nullable: 0
+  is_nullable: 1
 
 =head2 nixexprpath
 
   data_type: 'text'
-  is_nullable: 0
+  is_nullable: 1
 
 =head2 errormsg
 
@@ -139,6 +139,17 @@ __PACKAGE__->table("Jobsets");
   data_type: 'integer'
   is_nullable: 1
 
+=head2 type
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 0
+
+=head2 flake
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -149,9 +160,9 @@ __PACKAGE__->add_columns(
   "description",
   { data_type => "text", is_nullable => 1 },
   "nixexprinput",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 1 },
   "nixexprpath",
-  { data_type => "text", is_nullable => 0 },
+  { data_type => "text", is_nullable => 1 },
   "errormsg",
   { data_type => "text", is_nullable => 1 },
   "errortime",
@@ -180,6 +191,10 @@ __PACKAGE__->add_columns(
   { data_type => "boolean", is_nullable => 1 },
   "starttime",
   { data_type => "integer", is_nullable => 1 },
+  "type",
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
+  "flake",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -282,7 +297,12 @@ __PACKAGE__->belongs_to(
   "jobsetinput",
   "Hydra::Schema::JobsetInputs",
   { jobset => "name", name => "nixexprinput", project => "project" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "NO ACTION" },
+  {
+    is_deferrable => 0,
+    join_type     => "LEFT",
+    on_delete     => "NO ACTION",
+    on_update     => "NO ACTION",
+  },
 );
 
 =head2 jobsetinputs
@@ -352,8 +372,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07045 @ 2017-03-09 13:03:05
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ivYvsUyhEeaeI4EmRQ0/QQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2019-05-11 00:03:52
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:UVG1D59bXaQ1TUEF237tXQ
 
 my %hint = (
     columns => [

@@ -135,6 +135,15 @@
         <th>Description:</th>
         <td>[% HTML.escape(jobset.description) %]</td>
       </tr>
+      [% IF jobset.type == 1 %]
+      <tr>
+        <th>Flake URI:</th>
+        <td>
+          <tt>[% HTML.escape(jobset.flake) %]</tt>
+        </td>
+      </tr>
+      [% END %]
+      [% IF jobset.type == 0 %]
       <tr>
         <th>Nix expression:</th>
         <td>
@@ -142,6 +151,7 @@
           <tt>[% HTML.escape(jobset.nixexprinput) %]</tt>
         </td>
       </tr>
+      [% END %]
       <tr>
         <th>Check interval:</th>
         <td>[% jobset.checkinterval || "<em>disabled</em>"  %]</td>
@@ -166,7 +176,9 @@
       </tr>
     </table>
 
+    [% IF jobset.type == 0 %]
     [% INCLUDE renderJobsetInputs %]
+    [% END %]
   </div>
 
   [% INCLUDE makeLazyTab tabName="tabs-jobs" uri=c.uri_for('/jobset' project.name jobset.name "jobs-tab") %]
