@@ -8,7 +8,7 @@ with import (nixpkgs + "/lib");
 
 let
 
-  pkgs = import nixpkgs {};
+  pkgs = import nixpkgs { system = "x86_64-linux"; };
 
   genAttrs' = genAttrs [ "x86_64-linux" /* "i686-linux" */ ];
 
