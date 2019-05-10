@@ -83,7 +83,7 @@ struct Evaluator
         }
 
         if (evalOne && seen.empty()) {
-            printError("the specified jobset does not exist");
+            printError("the specified jobset does not exist or is disabled");
             std::_Exit(1);
         }
 
