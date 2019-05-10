@@ -185,7 +185,8 @@ create table Builds (
 
     -- Copy of the nixExprInput/nixExprPath fields of the jobset that
     -- instantiated this build.  Needed if we want to reproduce this
-    -- build.
+    -- build.  FIXME: this should be stored in JobsetEvals, storing it
+    -- here is denormal.
     nixExprInput  text,
     nixExprPath   text,
 
