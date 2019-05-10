@@ -527,6 +527,8 @@ create table JobsetEvals (
     nrBuilds      integer,
     nrSucceeded   integer, -- set lazily when all builds are finished
 
+    flake         text, -- immutable flake reference
+
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );

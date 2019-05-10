@@ -88,6 +88,11 @@ __PACKAGE__->table("JobsetEvals");
   data_type: 'integer'
   is_nullable: 1
 
+=head2 flake
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -111,6 +116,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 1 },
   "nrsucceeded",
   { data_type => "integer", is_nullable => 1 },
+  "flake",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -188,8 +195,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SlEiF8oN6FBK262uSiMKiw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2019-05-11 00:16:10
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:XwlJFCJiS0LHsLg2fFqfUg
 
 __PACKAGE__->has_many(
   "buildIds",

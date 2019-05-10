@@ -607,6 +607,16 @@ sub checkJobsetWrapped {
     };
     my $fetchError = $@;
 
+    my $flakeRef = $jobset->flake;
+    if (defined $flakeRef) {
+        (my $res, my $json, my $stderr) = captureStdoutStderr(
+            600, "nix", "flake", "info", "--tarball-ttl", 0, "--json", "--", $flakeRef);
+        die "'nix flake info' returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
+            . ":\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
+            if $res;
+        $flakeRef = decode_json($json)->{'uri'};
+    }
+
     Net::Statsd::increment("hydra.evaluator.checkouts");
     my $checkoutStop = clock_gettime(CLOCK_MONOTONIC);
     Net::Statsd::timing("hydra.evaluator.checkout_time", int(($checkoutStop - $checkoutStart) * 1000));
@@ -626,7 +636,7 @@ sub checkJobsetWrapped {
     my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo, $exprType));
     my $argsHash = sha256_hex("@args");
     my $prevEval = getPrevJobsetEval($db, $jobset, 0);
-    if (defined $prevEval && $prevEval->hash eq $argsHash && !$dryRun && !$jobset->forceeval) {
+    if (defined $prevEval && $prevEval->hash eq $argsHash && !$dryRun && !$jobset->forceeval && $prevEval->flake eq $flakeRef) {
         print STDERR "  jobset is unchanged, skipping\n";
         Net::Statsd::increment("hydra.evaluator.unchanged_checkouts");
         txn_do($db, sub {
@@ -637,7 +647,7 @@ sub checkJobsetWrapped {
 
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
-    my $jobs = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath, $jobset->flake);
+    my $jobs = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath, $flakeRef);
     my $evalStop = clock_gettime(CLOCK_MONOTONIC);
 
     if ($jobsetsJobset) {
@@ -697,6 +707,7 @@ sub checkJobsetWrapped {
             , evaltime => abs(int($evalStop - $evalStart))
             , hasnewbuilds => $jobsetChanged ? 1 : 0
             , nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
+            , flake => $flakeRef
             });
 
         if ($jobsetChanged) {
