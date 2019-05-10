@@ -180,25 +180,36 @@ int main(int argc, char * * argv)
         initNix();
         initGC();
 
-        Path releaseExpr;
-
-        struct MyArgs : LegacyArgs, MixEvalArgs
+        struct MyArgs : MixEvalArgs, MixCommonArgs
         {
-            using LegacyArgs::LegacyArgs;
+            Path releaseExpr;
+
+            MyArgs() : MixCommonArgs("hydra-eval-jobs")
+            {
+                mkFlag()
+                    .longName("help")
+                    .description("show usage information")
+                    .handler([&]() {
+                        printHelp(programName, std::cout);
+                        throw Exit();
+                    });
+
+                mkFlag()
+                    .longName("gc-roots-dir")
+                    .description("garbage collector roots directory")
+                    .labels({"path"})
+                    .dest(&gcRootsDir);
+
+                mkFlag()
+                    .longName("dry-run")
+                    .description("don't create store derivations")
+                    .set(&settings.readOnlyMode, true);
+
+                expectArg("expr", &releaseExpr);
+            }
         };
 
-        MyArgs myArgs(baseNameOf(argv[0]), [&](Strings::iterator & arg, const Strings::iterator & end) {
-            if (*arg == "--gc-roots-dir")
-                gcRootsDir = getArg(*arg, arg, end);
-            else if (*arg == "--dry-run")
-                settings.readOnlyMode = true;
-            else if (*arg != "" && arg->at(0) == '-')
-                return false;
-            else
-                releaseExpr = *arg;
-            return true;
-        });
-
+        MyArgs myArgs;
         myArgs.parseCmdline(argvToStrings(argc, argv));
 
         JSONObject json(std::cout, true);
@@ -211,7 +222,7 @@ int main(int argc, char * * argv)
            to the environment. */
         evalSettings.restrictEval = true;
 
-        if (releaseExpr == "") throw UsageError("no expression specified");
+        if (myArgs.releaseExpr == "") throw UsageError("no expression specified");
 
         if (gcRootsDir == "") printMsg(lvlError, "warning: `--gc-roots-dir' not specified");
 
@@ -220,7 +231,7 @@ int main(int argc, char * * argv)
         Bindings & autoArgs = *myArgs.getAutoArgs(state);
 
         Value v;
-        state.evalFile(lookupFileArg(state, releaseExpr), v);
+        state.evalFile(lookupFileArg(state, myArgs.releaseExpr), v);
 
         findJobs(state, json, autoArgs, v, "");
 
