@@ -13,6 +13,8 @@
 #include "get-drvs.hh"
 #include "globals.hh"
 #include "common-eval-args.hh"
+#include "flakeref.hh"
+#include "flake.hh"
 
 #include "hydra-config.hh"
 
@@ -183,6 +185,7 @@ int main(int argc, char * * argv)
         struct MyArgs : MixEvalArgs, MixCommonArgs
         {
             Path releaseExpr;
+            bool flake = false;
 
             MyArgs() : MixCommonArgs("hydra-eval-jobs")
             {
@@ -205,6 +208,11 @@ int main(int argc, char * * argv)
                     .description("don't create store derivations")
                     .set(&settings.readOnlyMode, true);
 
+                mkFlag()
+                    .longName("flake")
+                    .description("build a flake")
+                    .set(&flake, true);
+
                 expectArg("expr", &releaseExpr);
             }
         };
@@ -222,6 +230,10 @@ int main(int argc, char * * argv)
            to the environment. */
         evalSettings.restrictEval = true;
 
+        /* When building a flake, use pure evaluation (no access to
+           'getEnv', 'currentSystem' etc. */
+        evalSettings.pureEval = myArgs.flake;
+
         if (myArgs.releaseExpr == "") throw UsageError("no expression specified");
 
         if (gcRootsDir == "") printMsg(lvlError, "warning: `--gc-roots-dir' not specified");
@@ -231,9 +243,25 @@ int main(int argc, char * * argv)
         Bindings & autoArgs = *myArgs.getAutoArgs(state);
 
         Value v;
-        state.evalFile(lookupFileArg(state, myArgs.releaseExpr), v);
+
+        if (myArgs.flake) {
+            FlakeRef flakeRef(myArgs.releaseExpr);
+            auto vFlake = state.allocValue();
+            makeFlakeValue(state, flakeRef, AllowRegistryAtTop, *vFlake);
+
+            auto vProvides = (*vFlake->attrs->get(state.symbols.create("provides")))->value;
+            state.forceValue(*vProvides);
+
+            auto aHydraJobs = vProvides->attrs->get(state.symbols.create("hydraJobs"));
+            if (!aHydraJobs)
+                throw Error("flake '%s' does not provide any Hydra jobs", flakeRef);
+
+            v = *(*aHydraJobs)->value;
+
+        } else {
+            state.evalFile(lookupFileArg(state, myArgs.releaseExpr), v);
+        }
 
         findJobs(state, json, autoArgs, v, "");
-
     });
 }
