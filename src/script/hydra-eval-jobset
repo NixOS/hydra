@@ -352,18 +352,27 @@ sub inputsToArgs {
 
 
 sub evalJobs {
-    my ($inputInfo, $exprType, $nixExprInputName, $nixExprPath) = @_;
+    my ($inputInfo, $exprType, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
 
-    my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
-        or die "cannot find the input containing the job expression\n";
+    my @cmd;
 
-    my $evaluator = ($exprType eq "guile") ? "hydra-eval-guile-jobs" : "hydra-eval-jobs";
+    if (defined $flakeRef) {
+        @cmd = ("hydra-eval-jobs",
+                "--flake", $flakeRef,
+                "--gc-roots-dir", getGCRootsDir,
+                "--max-jobs", 1);
+    } else {
+        my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
+            or die "cannot find the input containing the job expression\n";
 
-    my @cmd = ($evaluator,
-               "<" . $nixExprInputName . "/" . $nixExprPath . ">",
-               "--gc-roots-dir", getGCRootsDir,
-               "-j", 1,
-               inputsToArgs($inputInfo, $exprType));
+        my $evaluator = ($exprType eq "guile") ? "hydra-eval-guile-jobs" : "hydra-eval-jobs";
+
+        @cmd = ($evaluator,
+                "<" . $nixExprInputName . "/" . $nixExprPath . ">",
+                "--gc-roots-dir", getGCRootsDir,
+                "--max-jobs", 1,
+                inputsToArgs($inputInfo, $exprType));
+    }
 
     if (defined $ENV{'HYDRA_DEBUG'}) {
         sub escape {
@@ -376,13 +385,13 @@ sub evalJobs {
     }
 
     (my $res, my $jobsJSON, my $stderr) = captureStdoutStderr(21600, @cmd);
-    die "$evaluator returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
+    die "hydra-eval-jobs returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
         . ":\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
         if $res;
 
     print STDERR "$stderr";
 
-    return (decode_json($jobsJSON), $nixExprInput);
+    return decode_json($jobsJSON);
 }
 
 
@@ -400,7 +409,7 @@ sub getPrevJobsetEval {
 
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
-    my ($db, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
+    my ($db, $jobset, $inputInfo, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
 
     my @outputNames = sort keys %{$buildInfo->{outputs}};
     die unless scalar @outputNames;
@@ -628,7 +637,7 @@ sub checkJobsetWrapped {
 
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
-    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
+    my $jobs = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath, $jobset->flake);
     my $evalStop = clock_gettime(CLOCK_MONOTONIC);
 
     if ($jobsetsJobset) {
@@ -673,7 +682,7 @@ sub checkJobsetWrapped {
         foreach my $job (permute(values %{$jobs})) {
             next if defined $job->{error};
             #print STDERR "considering job " . $project->name, ":", $jobset->name, ":", $job->{jobName} . "\n";
-            checkBuild($db, $jobset, $inputInfo, $nixExprInput, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins);
+            checkBuild($db, $jobset, $inputInfo, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins);
         }
 
         # Have any builds been added or removed since last time?
