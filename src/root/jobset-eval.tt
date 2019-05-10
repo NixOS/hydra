@@ -18,7 +18,8 @@
   </ul>
 </div>
 
-<p>This evaluation was performed on [% INCLUDE renderDateTime
+<p>This evaluation was performed [% IF eval.flake %]from the flake
+<tt>[%HTML.escape(eval.flake)%]</tt>[%END%] on [% INCLUDE renderDateTime
 timestamp=eval.timestamp %]. Fetching the dependencies took [%
 eval.checkouttime %]s and evaluation took [% eval.evaltime %]s.</p>
 
