@@ -59,7 +59,7 @@ sub common {
             });
         while (my $eval = $evals->next) {
             my $gitlabstatusInput = $eval->jobsetevalinputs->find({ name => "gitlab_status_repo" });
-            next unless defined $gitlabstatusInput->value;
+            next unless defined $gitlabstatusInput && defined $gitlabstatusInput->value;
             my $i = $eval->jobsetevalinputs->find({ name => $gitlabstatusInput->value, altnr => 0 });
             next unless defined $i;
             my $projectId = $eval->jobsetevalinputs->find({ name => "gitlab_project_id" })->value;
