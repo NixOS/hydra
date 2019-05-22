@@ -1,6 +1,16 @@
 {
     "nonFlakeRequires": {},
     "requires": {
+        "nix": {
+            "contentHash": "sha256-rUM0KiuCRHv8WKBOfv4XKOu7WP8nsYdPdnTPZFBzjyc=",
+            "requires": {
+                "nixpkgs": {
+                    "contentHash": "sha256-vy2UmXQM66aS/Kn2tCtjt9RwxfBvV+nQVb5tJQFwi8E=",
+                    "uri": "github:edolstra/nixpkgs/a4d896e89932e873c4117908d558db6210fa3b56"
+                }
+            },
+            "uri": "github:NixOS/nix/3cecf3f39c5c580ed6d0c5f0bcbb09dcc53dfae4"
+        },
         "nixpkgs": {
             "contentHash": "sha256-vy2UmXQM66aS/Kn2tCtjt9RwxfBvV+nQVb5tJQFwi8E=",
             "uri": "github:edolstra/nixpkgs/a4d896e89932e873c4117908d558db6210fa3b56"

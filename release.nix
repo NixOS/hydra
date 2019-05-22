@@ -2,13 +2,13 @@
 , nixpkgs ? builtins.fetchGit { url = https://github.com/NixOS/nixpkgs-channels.git; ref = "nixos-19.03-small"; }
 , officialRelease ? false
 , shell ? false
+, pkgs ? import nixpkgs { system = "x86_64-linux"; }
+, nix ? pkgs.nixUnstable or pkgs.nix
 }:
 
-with import (nixpkgs + "/lib");
+with pkgs.lib;
 
 let
-
-  pkgs = import nixpkgs { system = "x86_64-linux"; };
 
   genAttrs' = genAttrs [ "x86_64-linux" /* "i686-linux" */ ];
 
@@ -43,8 +43,6 @@ rec {
     with pkgs;
 
     let
-
-      nix = pkgs.nixUnstable or pkgs.nix;
 
       perlDeps = buildEnv {
         name = "hydra-perl-deps";

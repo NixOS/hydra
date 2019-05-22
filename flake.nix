@@ -5,13 +5,16 @@
 
   epoch = 2019;
 
-  requires = [ "nixpkgs" ];
+  requires = [ "nixpkgs" "nix" ];
 
   provides = deps: rec {
 
     hydraJobs = import ./release.nix {
       hydraSrc = deps.self;
       nixpkgs = deps.nixpkgs;
+      nix = deps.nix.provides.hydraJobs.build.x86_64-linux // {
+        perl-bindings = deps.nix.provides.hydraJobs.perlBindings.x86_64-linux;
+      };
     };
 
     packages.hydra = hydraJobs.build.x86_64-linux;
