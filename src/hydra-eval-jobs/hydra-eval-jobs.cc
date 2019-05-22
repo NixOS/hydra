@@ -247,7 +247,7 @@ int main(int argc, char * * argv)
         if (myArgs.flake) {
             FlakeRef flakeRef(myArgs.releaseExpr);
             auto vFlake = state.allocValue();
-            makeFlakeValue(state, flakeRef, AllowRegistryAtTop, *vFlake);
+            makeFlakeValue(state, flakeRef, AllPure, *vFlake);
 
             auto vProvides = (*vFlake->attrs->get(state.symbols.create("provides")))->value;
             state.forceValue(*vProvides);
