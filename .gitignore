@@ -32,3 +32,4 @@ Makefile.in
 /inst
 hydra-config.h
 hydra-config.h.in
+result
