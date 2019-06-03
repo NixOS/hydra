@@ -255,7 +255,9 @@ int main(int argc, char * * argv)
 
             auto aHydraJobs = vOutputs->attrs->get(state.symbols.create("hydraJobs"));
             if (!aHydraJobs)
-                throw Error("flake '%s' does not provide any Hydra jobs", flakeRef);
+                aHydraJobs = vOutputs->attrs->get(state.symbols.create("checks"));
+            if (!aHydraJobs)
+                throw Error("flake '%s' does not provide any Hydra jobs or checks", flakeRef);
 
             v = *(*aHydraJobs)->value;
 
