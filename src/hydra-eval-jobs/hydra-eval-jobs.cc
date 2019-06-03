@@ -250,10 +250,10 @@ int main(int argc, char * * argv)
             auto vFlake = state.allocValue();
             callFlake(state, resolveFlake(state, flakeRef, AllPure), *vFlake);
 
-            auto vProvides = (*vFlake->attrs->get(state.symbols.create("provides")))->value;
-            state.forceValue(*vProvides);
+            auto vOutputs = (*vFlake->attrs->get(state.symbols.create("outputs")))->value;
+            state.forceValue(*vOutputs);
 
-            auto aHydraJobs = vProvides->attrs->get(state.symbols.create("hydraJobs"));
+            auto aHydraJobs = vOutputs->attrs->get(state.symbols.create("hydraJobs"));
             if (!aHydraJobs)
                 throw Error("flake '%s' does not provide any Hydra jobs", flakeRef);
 
