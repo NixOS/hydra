@@ -245,9 +245,10 @@ int main(int argc, char * * argv)
         Value v;
 
         if (myArgs.flake) {
+            using namespace flake;
             FlakeRef flakeRef(myArgs.releaseExpr);
             auto vFlake = state.allocValue();
-            makeFlakeValue(state, flakeRef, AllPure, *vFlake);
+            callFlake(state, resolveFlake(state, flakeRef, AllPure), *vFlake);
 
             auto vProvides = (*vFlake->attrs->get(state.symbols.create("provides")))->value;
             state.forceValue(*vProvides);
