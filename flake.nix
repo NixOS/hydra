@@ -17,6 +17,9 @@
       };
     };
 
+    checks.build = hydraJobs.build.x86_64-linux;
+    checks.install = hydraJobs.tests.install.x86_64-linux;
+
     packages.hydra = hydraJobs.build.x86_64-linux;
 
     defaultPackage = packages.hydra;
