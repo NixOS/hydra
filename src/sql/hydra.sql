@@ -688,3 +688,9 @@ create index IndexBuildsOnKeep on Builds(keep) where keep = 1;
 create index IndexJobsetEvalsOnJobsetId on JobsetEvals(project, jobset, id desc) where hasNewBuilds = 1;
 
 create index IndexBuildsOnNotificationPendingSince on Builds(notificationPendingSince) where notificationPendingSince is not null;
+
+#ifdef POSTGRESQL
+-- Provide an index used by LIKE operator on builds.drvpath (search query)
+CREATE EXTENSION pg_trgm;
+CREATE INDEX IndexTrgmBuildsOnDrvpath ON builds USING gin (drvpath gin_trgm_ops);
+#endif
