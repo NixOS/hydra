@@ -3,7 +3,7 @@
 
   description = "A Nix-based continuous build system";
 
-  epoch = 2019;
+  epoch = 201906;
 
   inputs = [ "nixpkgs" "nix" ];
 
