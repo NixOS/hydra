@@ -391,7 +391,12 @@ sub search :Local Args(0) {
     error($c, "Invalid character in query.")
         unless $query =~ /^[a-zA-Z0-9_\-\/.]+$/;
 
-    $c->stash->{limit} = 500;
+    my $limit = trim $c->request->params->{"limit"};
+    if ($limit eq "") {
+        $c->stash->{limit} = 500;
+    } else {
+        $c->stash->{limit} = $limit;
+    }
 
     $c->stash->{projects} = [ $c->model('DB::Projects')->search(
         { -and =>
