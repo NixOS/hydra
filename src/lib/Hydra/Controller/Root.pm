@@ -423,11 +423,15 @@ sub search :Local Args(0) {
     # Perform build search in separate queries to prevent seq scan on buildoutputs table.
     $c->stash->{builds} = [ $c->model('DB::Builds')->search(
         { "buildoutputs.path" => { ilike => "%$query%" } },
-        { order_by => ["id desc"], join => ["buildoutputs"] } ) ];
+        { order_by => ["id desc"], join => ["buildoutputs"]
+        , rows => $c->stash->{limit}
+        } ) ];
 
     $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
         { "drvpath" => { ilike => "%$query%" } },
-        { order_by => ["id desc"] } ) ];
+        { order_by => ["id desc"]
+        , rows => $c->stash->{limit}
+        } ) ];
 
     $c->stash->{resource} = { projects => $c->stash->{projects},
                               jobsets  => $c->stash->{jobsets},
