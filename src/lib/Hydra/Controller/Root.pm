@@ -391,7 +391,12 @@ sub search :Local Args(0) {
     error($c, "Invalid character in query.")
         unless $query =~ /^[a-zA-Z0-9_\-\/.]+$/;
 
-    $c->stash->{limit} = 500;
+    my $limit = trim $c->request->params->{"limit"};
+    if ($limit eq "") {
+        $c->stash->{limit} = 500;
+    } else {
+        $c->stash->{limit} = $limit;
+    }
 
     $c->stash->{projects} = [ $c->model('DB::Projects')->search(
         { -and =>
@@ -423,11 +428,15 @@ sub search :Local Args(0) {
     # Perform build search in separate queries to prevent seq scan on buildoutputs table.
     $c->stash->{builds} = [ $c->model('DB::Builds')->search(
         { "buildoutputs.path" => { ilike => "%$query%" } },
-        { order_by => ["id desc"], join => ["buildoutputs"] } ) ];
+        { order_by => ["id desc"], join => ["buildoutputs"]
+        , rows => $c->stash->{limit}
+        } ) ];
 
     $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
         { "drvpath" => { ilike => "%$query%" } },
-        { order_by => ["id desc"] } ) ];
+        { order_by => ["id desc"]
+        , rows => $c->stash->{limit}
+        } ) ];
 
     $c->stash->{resource} = { projects => $c->stash->{projects},
                               jobsets  => $c->stash->{jobsets},
