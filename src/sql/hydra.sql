@@ -691,6 +691,6 @@ create index IndexBuildsOnNotificationPendingSince on Builds(notificationPending
 
 #ifdef POSTGRESQL
 -- Provide an index used by LIKE operator on builds.drvpath (search query)
-CREATE EXTENSION pg_trgm;
-CREATE INDEX IndexTrgmBuildsOnDrvpath ON builds USING gin (drvpath gin_trgm_ops);
+create extension pg_trgm;
+create index IndexTrgmBuildsOnDrvpath on builds using gin (drvpath gin_trgm_ops);
 #endif

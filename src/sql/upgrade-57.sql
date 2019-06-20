@@ -1,2 +1,2 @@
-CREATE EXTENSION pg_trgm;
-CREATE INDEX IndexTrgmBuildsOnDrvpath ON builds USING gin (drvpath gin_trgm_ops);
+create extension pg_trgm;
+create index IndexTrgmBuildsOnDrvpath on builds using gin (drvpath gin_trgm_ops);
