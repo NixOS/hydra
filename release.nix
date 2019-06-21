@@ -219,7 +219,7 @@ rec {
           $machine->waitForOpenPort("3000");
 
           # Run the API tests.
-          $machine->mustSucceed("su - hydra -c 'perl ${./tests/api-test.pl}' >&2");
+          $machine->mustSucceed("su - hydra -c 'perl -I ${build.${system}.perlDeps}/lib/perl5/site_perl ${./tests/api-test.pl}' >&2");
         '';
   });
 
