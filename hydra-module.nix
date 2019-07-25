@@ -273,6 +273,7 @@ in
               runuser -u ${config.services.postgresql.superUser} -- ${config.services.postgresql.package}/bin/createdb -O hydra hydra
               touch ${baseDir}/.db-created
             fi
+            echo "create extension if not exists pg_trgm" | runuser -u ${config.services.postgresql.superUser} -- ${config.services.postgresql.package}/bin/psql hydra
           ''}
 
           if [ ! -e ${cfg.gcRootsDir} ]; then
@@ -415,6 +416,8 @@ in
         hydra-users hydra-queue-runner hydra
         hydra-users hydra-www hydra
         hydra-users root hydra
+        # The postgres user is used to create the pg_trgm extension for the hydra database
+        hydra-users postgres postgres
       '';
 
     services.postgresql.authentication = optionalString haveLocalDB
