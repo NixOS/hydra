@@ -4,7 +4,7 @@ STATIC = \
   $(wildcard static/css/*) \
   static/js/bootbox.min.js \
   static/js/common.js \
-  static/js/jquery/jquery-1.12.3.min.js \
+  static/js/jquery/jquery-3.4.1.min.js \
   static/js/jquery/jquery-ui-1.10.4.min.js
 
 FLOT = flot-0.8.3.zip
