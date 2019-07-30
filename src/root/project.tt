@@ -3,23 +3,20 @@
 
 <ul class="nav nav-tabs">
   [% IF c.user_exists %]
-    <li class="dropdown">
-      <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-        Actions
-        <b class="caret"></b>
-      </a>
-      <ul class="dropdown-menu">
+    <li class="nav-item dropdown">
+      <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#">Actions</a>
+      <div class="dropdown-menu">
         [% INCLUDE menuItem title="Edit configuration" icon="icon-edit" uri=c.uri_for(c.controller('Project').action_for('edit'), c.req.captures) %]
         [% INCLUDE menuItem title="Delete this project" icon="icon-trash" uri="javascript:deleteProject()" %]
         [% UNLESS project.declfile %]
-        [% INCLUDE menuItem title="Create jobset" icon="icon-plus" uri=c.uri_for(c.controller('Project').action_for('create_jobset'), c.req.captures) %]
+          [% INCLUDE menuItem title="Create jobset" icon="icon-plus" uri=c.uri_for(c.controller('Project').action_for('create_jobset'), c.req.captures) %]
         [% END %]
-      </ul>
+      </div>
     </li>
   [% END %]
 
-  <li class="active"><a href="#tabs-project" data-toggle="tab">Jobsets</a></li>
-  <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
+  <li class="nav-item active"><a class="nav-link" href="#tabs-project" data-toggle="tab">Jobsets</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
 </ul>
 
 <div class="tab-content">
@@ -50,12 +47,17 @@
 
   <div id="tabs-project" class="tab-pane active">
     [% IF project.jobsets %]
-      <p>This project has the following jobsets:
-      <label id="show-disabled" class="btn btn-small pull-right" data-toggle="button">Show disabled jobsets</label>
-      [% IF isProjectOwner %]
-        <label id="show-hidden" class="btn btn-small pull-right" data-toggle="button">Show hidden jobsets</label>
-      [% END %]
-      </p>
+      <div class="row">
+        <div class="col">
+          This project has the following jobsets:
+        </div>
+        <div class="col-auto">
+          <label id="show-disabled" class="btn btn-secondary" data-toggle="button">Show disabled jobsets</label>
+          [% IF isProjectOwner %]
+            <label id="show-hidden" class="btn btn-secondary" data-toggle="button">Show hidden jobsets</label>
+          [% END %]
+        </div>
+      </div>
       [% INCLUDE renderJobsetOverview %]
     [% ELSE %]
       <p>No jobsets have been defined yet.</p>

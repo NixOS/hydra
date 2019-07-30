@@ -1,12 +1,15 @@
 [% PROCESS common.tt; USE Math %]
 
-<form class="form-search" id="filter-jobs">
-  <div class="input-append">
-    <input name="filter" type="text" class="input-large search-query" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]/>
-    <button type="button" class="btn btn-info [% IF showInactive %]active[% END %]" id="active-toggle">Show inactive jobs</button>
+<form id="filter-jobs">
+  <div class="input-group">
+    <input name="filter" type="search" class="form-control" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]/>
+    <div class="input-group-prepend">
+      <button type="button" class="btn btn-info [% IF showInactive %]active[% END %]" id="active-toggle">
+        <span class="spinner-border spinner-border-sm" id="filter-loading" style="display:none"/>
+        Show inactive jobs
+      </button>
+    </div>
   </div>
-  &nbsp;
-  <img src="[% c.uri_for("/static/images/ajax-loader.gif") %]" alt="Loading..." style="display: none;" id="filter-loading" />
 </form>
 
 <script>

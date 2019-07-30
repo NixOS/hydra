@@ -1,85 +1,79 @@
 [% WRAPPER layout.tt title=(create ? "New project" : "Editing project $project.name") %]
 [% PROCESS common.tt %]
 
-<form class="form-horizontal">
+<form>
 
-  <fieldset>
-
-    <div class="control-group">
-      <div class="controls">
-        <label class="checkbox">
-          <input type="checkbox" name="enabled" [% IF create || project.enabled; 'checked="checked"'; END %]/>Enabled
-        </label>
-      </div>
-      <div class="controls">
-        <label class="checkbox">
-          <input type="checkbox" name="visible" [% IF !project.hidden; 'checked="checked"'; END %]/>Visible in the list of projects
-        </label>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editprojectenabled">Enabled</label>
+    <div class="col-sm-9">
+      <input type="checkbox" id="editprojectenabled" name="enabled" [% IF project.enabled %] checked="checked" [% END %]/>
     </div>
+  </div>
 
-    <div class="control-group">
-      <label class="control-label">Identifier</label>
-      <div class="controls">
-        <input type="text" class="span3" name="name" [% HTML.attributes(value => project.name) %]/>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editprojectvisible">Visible in projects list</label>
+    <div class="col-sm-9">
+      <input type="checkbox" id="editprojectvisible" name="visible" [% IF !project.hidden %] checked="checked" [% END %]/>
     </div>
+  </div>
 
-    <div class="control-group">
-      <label class="control-label">Display name</label>
-      <div class="controls">
-        <input type="text" class="span3" name="displayname" [% HTML.attributes(value => project.displayname) %]/>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editprojectidentifier">Identifier</label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="editprojectidentifier" name="name" [% HTML.attributes(value => project.name) %]/>
     </div>
+  </div>
 
-    <div class="control-group">
-      <label class="control-label">Description</label>
-      <div class="controls">
-        <input type="text" class="span3" name="description" [% HTML.attributes(value => project.description) %]/>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editprojectdisplayname">Display name</label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="editprojectdisplayname" name="displayname" [% HTML.attributes(value => project.displayname) %]/>
     </div>
+  </div>
 
-    <div class="control-group">
-      <label class="control-label">Homepage</label>
-      <div class="controls">
-        <input type="text" class="span3" name="homepage" [% HTML.attributes(value => project.homepage) %]/>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editprojectdescription">Description</label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="editprojectdescription" name="description" [% HTML.attributes(value => project.description) %]/>
     </div>
+  </div>
 
-    <div class="control-group">
-      <label class="control-label">Owner</label>
-      <div class="controls">
-        <input type="text" class="span3" name="owner" [% HTML.attributes(value => project.owner.username || c.user.username) %]/>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editprojecthomepage">Homepage</label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="editprojecthomepage" name="homepage" [% HTML.attributes(value => project.homepage) %]/>
     </div>
+  </div>
 
-    <div class="control-group">
-      <label class="control-label">Declarative spec file</label>
-      <div class="controls">
-        <div class="input-append">
-          <input type="text" class="span3" name="declfile" [% HTML.attributes(value => project.declfile) %]/>
-        </div>
-        <span class="help-inline">(Leave blank for non-declarative project configuration)</span>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editprojectowner">Owner</label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="editprojectowner" name="owner" [% HTML.attributes(value => project.owner.username || c.user.username) %]/>
     </div>
+  </div>
 
-    <div class="control-group">
-      <label class="control-label">Declarative input type</label>
-      <div class="controls">
-        [% INCLUDE renderSelection param="decltype" options=inputTypes edit=1 curValue=project.decltype %]
-        value
-        <input style="width: 70%" type="text" [% HTML.attributes(value => project.declvalue, name => "declvalue") %]/>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editprojectdeclfile">
+      Declarative spec file
+      <small class="form-text text-muted">(Leave blank for non-declarative project configuration)</small>
+      </label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="editprojectdeclfile" name="declfile" [% HTML.attributes(value => project.declfile) %]/>
     </div>
+  </div>
 
-    <div class="form-actions">
-      <button id="submit-project" type="submit" class="btn btn-primary">
-        <i class="icon-ok icon-white"></i>
-        [%IF create %]Create project[% ELSE %]Apply changes[% END %]
-      </button>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editprojectdeclvalue">Declarative input type</label>
+    <div class="col-sm-9">
+      [% INCLUDE renderSelection param="decltype" options=inputTypes edit=1 curValue=project.decltype %]
+      <input type="text" class="form-control" id="editprojectdeclvalue" name="declvalue" [% HTML.attributes(value => project.declvalue) %]/>
     </div>
+  </div>
 
-  </fieldset>
+  <button id="submit-project" type="submit" class="btn btn-primary">
+    <i class="icon-ok icon-white"></i>
+    [%IF create %]Create project[% ELSE %]Apply changes[% END %]
+  </button>
 
 </form>
 

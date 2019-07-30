@@ -57,124 +57,132 @@
   </table>
 [% END %]
 
-<form class="form-horizontal">
+<form>
 
-  <fieldset>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editjobsetenabled">State</label>
+    <div class="btn-group btn-group-toggle col-sm-9" data-toggle="buttons">
+      <label class="btn btn-secondary[% IF jobset.enabled == 1 %] active[% END %]">
+        <input type="radio" id="editjobsetenabled" name="enabled" value="1" [% IF jobset.enabled == 1 %]checked[% END %]>Enabled</button>
+      </label>
+      <label class="btn btn-secondary[% IF jobset.enabled == 2 %] active[% END %]">
+        <input type="radio" name="enabled" value="2" [% IF jobset.enabled == 2 %]checked[% END %]>One-shot</button>
+      </label>
+      <label class="btn btn-secondary[% IF jobset.enabled == 3 %] active[% END %]">
+        <input type="radio" name="enabled" value="3" [% IF jobset.enabled == 3 %]checked[% END %]>One-at-a-time</button>
+      </label>
+      <label class="btn btn-secondary[% IF jobset.enabled == 0 %] active[% END %]">
+        <input type="radio" name="enabled" value="0" [% IF jobset.enabled == 0 %]checked[% END %]>Disabled</button>
+      </label>
+    </div>
+  </div>
 
-    <div class="control-group">
-      <label class="control-label">State</label>
-      <div class="controls">
-        <div class="btn-group" data-toggle="buttons-radio">
-          <input type="hidden" name="enabled" value="[% jobset.enabled %]" />
-          <button type="button" class="btn" value="1">Enabled</button>
-          <button type="button" class="btn" value="2">One-shot</button>
-          <button type="button" class="btn" value="3">One-at-a-time</button>
-          <button type="button" class="btn" value="0">Disabled</button>
+  <div class="form-group row">
+    <label class="col-form-label col-sm-3" for="editjobsetvisible">Visible</label>
+    <div class="col-sm-9">
+      <input type="checkbox" id="editjobsetvisible" name="visible" [% IF !jobset.hidden; 'checked="checked"'; END %]/>
+    </div>
+  </div>
+
+  <div class="form-group row">
+    <label class="col-form-label col-sm-3" for="editjobsetname">Identifier</label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="editjobsetname" name="name" [% HTML.attributes(value => edit ? jobset.name : "") %]/>
+    </div>
+  </div>
+
+  <div class="form-group row">
+    <label class="col-sm-3" for="editjobsettype">Type</label>
+    <div class="btn-group btn-group-toggle col-sm-9" data-toggle="buttons">
+      <label class="btn btn-secondary[% IF jobset.type == 1 %] active[% END %]">
+        <input type="radio" id="type-flake" name="enabled" value="1" [% IF jobset.type == 1 %]checked[% END %]>Flake</button>
+      </label>
+      <label class="btn btn-secondary[% IF jobset.type == 0 %] active[% END %]">
+        <input type="radio" id="type-legacy" name="enabled" value="0" [% IF jobset.type == 0 %]checked[% END %]>Legacy</button>
+      </label>
+    </div>
+  </div>
+
+  <div class="form-group row">
+    <label class="col-form-label col-sm-3" for="editjobsetdescription">Description</label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="editjobsetdescription" name="description" [% HTML.attributes(value => jobset.description) %]/>
+    </div>
+  </div>
+
+  <div class="form-group row show-on-flake">
+    <label class="col-form-label col-sm-3" for="editjobsetflakeref">Flake URI</label>
+    <div class="col-sm-9">
+      <div class="input-group">
+        <input type="text" class="form-control" id="editjobsetflakeref" name="flakeref" [% HTML.attributes(value => jobset.flake) %]/>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-group row show-on-legacy">
+    <label class="col-form-label col-sm-3" for="editjobsetnixexpr">Nix expression</label>
+    <div class="col-sm-9">
+      <div class="input-group">
+        <input type="text" class="form-control" id="editjobsetnixexpr" name="nixexprpath" [% HTML.attributes(value => jobset.nixexprpath) %]/>
+        <div class="input-group-append input-group-prepend">
+          <span class="input-group-text">in</span>
+        </div>
+        <input type="text" class="form-control" name="nixexprinput" [% HTML.attributes(value => jobset.nixexprinput) %]/>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-group row">
+    <label class="col-sm-3" for="editjobsetcheckinterval">
+      Check interval
+      <small class="form-text text-muted">(0 to disable polling)</small>
+    </label>
+    <div class="col-sm-9">
+      <div class="input-group">
+        <input type="number" class="form-control" id="editjobsetcheckinterval" name="checkinterval" [% HTML.attributes(value => jobset.checkinterval) %]/>
+        <div class="input-group-append">
+          <span class="input-group-text">sec</span>
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="control-group">
-      <div class="controls">
-        <label class="checkbox">
-          <input type="checkbox" name="visible" [% IF !jobset.hidden; 'checked="checked"'; END %]/>Visible
-        </label>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editjobsetschedulingshares">
+      Scheduling shares
+      [% IF totalShares %]
+        <small class="form-text text-muted">([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% totalShares %] shares)</small>
+      [% END %]
+    </label>
+    <div class="col-sm-9">
+      <input type="number" class="form-control" id="editjobschedulingshares" name="schedulingshares" [% HTML.attributes(value => jobset.schedulingshares) %]/>
     </div>
+  </div>
 
-    <div class="control-group">
-      <label class="control-label">Identifier</label>
-      <div class="controls">
-        <input type="text" class="span3" name="name" [% HTML.attributes(value => edit ? jobset.name : "") %]/>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editjobsetenableemail">Email notification</label>
+    <div class="col-sm-9">
+      <input type="checkbox" id="editjobsetenableemail" name="enableemail" [% IF jobset.enableemail %]checked[% END %] [% IF !emailNotification %]disabled[% END %]/>
     </div>
+  </div>
 
-    <div class="control-group">
-      <label class="control-label">Description</label>
-      <div class="controls">
-        <input type="text" class="span3" name="description" [% HTML.attributes(value => jobset.description) %]/>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editjobsetemailoverride">Email override</label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="editjobsetemailoverride" name="emailoverride" [% HTML.attributes(value => jobset.emailoverride) %] [% IF !emailNotification %]disabled[% END %]/>
     </div>
+  </div>
 
-    <div class="control-group">
-      <label class="control-label">Type</label>
-      <div class="controls">
-        <div class="btn-group" data-toggle="buttons-radio">
-          <input type="hidden" id="type" name="type" value="[% jobset.type %]" />
-          <button type="button" class="btn" value="1" id="type-flake">Flake</button>
-          <button type="button" class="btn" value="0" id="type-legacy">Legacy</button>
-        </div>
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-3" for="editjobsetkeepnumber">Number of evaluations to keep</label>
+    <div class="col-sm-9">
+      <input type="number" class="form-control" id="editjobsetkeepnumber" name="keepnr" [% HTML.attributes(value => jobset.keepnr) %]/>
     </div>
+  </div>
 
-    <div class="control-group show-on-flake">
-      <label class="control-label">Flake URI</label>
-      <div class="controls">
-        <input type="text" class="span3" name="flakeref" [% HTML.attributes(value => jobset.flake) %]/>
-      </div>
-    </div>
+  [% INCLUDE renderJobsetInputs %]
 
-    <div class="control-group show-on-legacy">
-      <label class="control-label">Nix expression</label>
-      <div class="controls">
-        <input type="text" class="span3" name="nixexprpath" [% HTML.attributes(value => jobset.nixexprpath) %]/>
-        in
-        <input type="text" class="span3" name="nixexprinput" [% HTML.attributes(value => jobset.nixexprinput) %]/>
-      </div>
-    </div>
-
-    <div class="control-group">
-      <label class="control-label">Check interval</label>
-      <div class="controls">
-        <div class="input-append">
-          <input type="number" class="span3" name="checkinterval" [% HTML.attributes(value => jobset.checkinterval) %]/>
-          <span class="add-on">sec</span>
-        </div>
-        <span class="help-inline">(0 to disable polling)</span>
-      </div>
-    </div>
-
-    <div class="control-group">
-      <label class="control-label">Scheduling shares</label>
-      <div class="controls">
-        <div class="input-append">
-          <input type="number" class="span3" name="schedulingshares" [% HTML.attributes(value => jobset.schedulingshares) %]/>
-        </div>
-        [% IF totalShares %]
-          <span class="help-inline">([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% totalShares %] shares)</span>
-        [% END %]
-      </div>
-    </div>
-
-    <div class="control-group">
-      <div class="controls">
-        <label class="checkbox">
-          <input type="checkbox" name="enableemail" [% IF jobset.enableemail; 'checked="checked"'; END %] [%IF !emailNotification%]disabled=1[%END%] />Email notification
-        </label>
-      </div>
-    </div>
-
-    <div class="control-group">
-      <label class="control-label">Email override</label>
-      <div class="controls">
-        <input type="text" class="span3" name="emailoverride" [% HTML.attributes(value => jobset.emailoverride) %] [%IF !emailNotification%]disabled=1[%END%] />
-      </div>
-    </div>
-
-    <div class="control-group">
-      <label class="control-label">Number of evaluations to keep</label>
-      <div class="controls">
-        <input type="number" class="span3" name="keepnr" [% HTML.attributes(value => jobset.keepnr) %]/>
-      </div>
-    </div>
-
-    [% INCLUDE renderJobsetInputs %]
-
-    <div class="form-actions">
-      <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF !edit %]Create jobset[% ELSE %]Apply changes[% END %]</button>
-    </div>
-
-  </fieldset>
+  <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF !edit %]Create jobset[% ELSE %]Apply changes[% END %]</button>
 
   <table style="display: none">
     [% INCLUDE renderJobsetInput input="" extraClass="template" id="input-template" baseName="input-template" %]

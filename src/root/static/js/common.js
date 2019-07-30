@@ -46,7 +46,7 @@ $(document).ready(function() {
           window.location = link.attr("href");
     });
 
-    bootbox.animate(false);
+    bootbox.setDefaults({ animate: false });
 
     $(".hydra-popover").popover({});
 
@@ -131,7 +131,7 @@ $(document).ready(function() {
 var tabsLoaded = {};
 
 function makeLazyTab(tabName, uri) {
-    $('.nav-tabs').bind('show', function(e) {
+    $('.nav-tabs').bind('show.bs.tab', function(e) {
         var pattern = /#.+/gi;
         var id = e.target.toString().match(pattern)[0];
         if (id == '#' + tabName && !tabsLoaded[id]) {

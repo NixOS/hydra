@@ -20,11 +20,9 @@
     <script type="text/javascript" src="[% c.uri_for("/static/bootstrap/js/bootstrap.min.js") %]"></script>
     <link href="[% c.uri_for("/static/bootstrap/css/bootstrap.min.css") %]" rel="stylesheet" />
 
-    <!-- hydra.css must be included before bootstrap-responsive to
-         make the @media rule work. -->
+    <!-- hydra.css may need to be moved to before boostrap to make the @media rule work. -->
     <link rel="stylesheet" href="[% c.uri_for("/static/css/hydra.css") %]" type="text/css" />
     <link rel="stylesheet" href="[% c.uri_for("/static/css/rotated-th.css") %]" type="text/css" />
-    <link href="[% c.uri_for("/static/bootstrap/css/bootstrap-responsive.min.css") %]" rel="stylesheet" />
 
     <style>
       .popover { max-width: 40%; }
@@ -46,27 +44,21 @@
 
   <body>
 
-    <div class="navbar navbar-fixed-top">
-      <div class="navbar-inner">
-        <div class="container">
-          <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-          </button>
-          <a class="brand" href="[% c.uri_for(c.controller('Root').action_for('index')) %]">
-            [% IF logo == "" %]
-              Hydra
-            [% ELSE %]
-              <img src="[% c.uri_for(logo) %]" alt="Hydra Logo" class="logo" />
-            [% END %]
-          </a>
-          <div class="nav-collapse collapse">
-            [% PROCESS topbar.tt %]
-          </div>
-        </div>
+    <nav class="navbar navbar-expand-md navbar-light bg-light">
+      <a class="navbar-brand" href="[% c.uri_for(c.controller('Root').action_for('index')) %]">
+        [% IF logo == "" %]
+          Hydra
+        [% ELSE %]
+          <img src="[% c.uri_for(logo) %]" alt="Hydra Logo" class="logo" />
+        [% END %]
+      </a>
+      <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbarSupportedContent">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        [% PROCESS topbar.tt %]
       </div>
-    </div>
+    </nav>
 
     <div class="container">
       <div class="skip-topbar"></div>

@@ -14,115 +14,107 @@
     >[% role %]</option>
 [% END %]
 
-<form class="form-horizontal">
+<form>
 
-  <fieldset>
+  [% IF create %]
+  <div class="form-group row">
+    <label class="col-sm-3" for="userusername">User name</label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="userusername" name="username" [% HTML.attributes(value => username) %]/>
+    </div>
+  </div>
+  [% END %]
 
-    [% IF create %]
-    <div class="control-group">
-      <label class="control-label">User name</label>
-      <div class="controls">
-        <input type="text" class="span3" name="username" [% HTML.attributes(value => username) %]/>
+  <div class="form-group row">
+    <label class="col-sm-3" for="userfullname">Full name</label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="userfullname" name="fullname" [% HTML.attributes(value => create ? '' : user.fullname) %]/>
+    </div>
+  </div>
+
+  [% IF create || user.type == 'hydra' %]
+  <div class="form-group row">
+    <label class="col-sm-3" for="userpassword">Password</label>
+    <div class="col-sm-9">
+      <input type="password" class="form-control" id="userpassword" name="password" value=""/>
+    </div>
+  </div>
+
+  <div class="form-group row">
+    <label class="col-sm-3" for="userpassword2">Confirm password</label>
+    <div class="col-sm-9">
+      <input type="password" class="form-control" id="userpassword2" name="password2" value=""/>
+    </div>
+  </div>
+  [% END %]
+
+  <div class="form-group row">
+    <label class="col-sm-3" for="useremailaddress">Email</label>
+    <div class="col-sm-9">
+      <input type="text" class="form-control" id="useremailaddress" name="emailaddress" [% IF !create && user.username.search('@') %]disabled="disabled"[% END %] [%+ HTML.attributes(value => user.emailaddress) %]/>
+    </div>
+  </div>
+
+  <div class="form-group row">
+    <label class="col-sm-3" for="useremailonerror">Receive evaluation error notifications</label>
+    <div class="col-sm-9">
+      <input type="checkbox" name="emailonerror" [% IF !create && user.emailonerror; 'checked="checked"'; END %]/>
+    </div>
+  </div>
+
+  <div class="form-group row">
+    <label class="col-sm-3" for="userpublicdashboard">Public dashboard</label>
+    <div class="col-sm-9">
+      <input type="checkbox" name="publicdashboard" [% IF !create && user.publicdashboard; 'checked="checked"'; END %]/>
+    </div>
+  </div>
+
+  [% IF !create || c.check_user_roles('admin') %]
+    <div class="form-group row">
+      <label class="col-sm-3">Roles</label>
+      <div class="col-sm-9">
+        <select multiple="multiple" name="roles" class="form-control" [% IF !c.check_user_roles('admin') %]disabled="disabled"[% END %]>
+          [% INCLUDE roleoption role="admin" %]
+          [% INCLUDE roleoption role="create-projects" %]
+          [% INCLUDE roleoption role="restart-jobs" %]
+          [% INCLUDE roleoption role="bump-to-front" %]
+          [% INCLUDE roleoption role="cancel-build" %]
+        </select>
       </div>
     </div>
-    [% END %]
+  [% END %]
 
-    <div class="control-group">
-      <label class="control-label">Full name</label>
-      <div class="controls">
-        <input type="text" class="span3" name="fullname" [% HTML.attributes(value => create ? '' : user.fullname) %]/>
+  [% IF create && !c.check_user_roles('admin') %]
+    <div class="form-group row">
+      <label class="col-sm-3"></label>
+      <div class="col-sm-9">
+        <img src="[% c.uri_for('/captcha') %]" alt="CAPTCHA">
       </div>
     </div>
-
-    [% IF create || user.type == 'hydra' %]
-    <div class="control-group">
-      <label class="control-label">Password</label>
-      <div class="controls">
-        <input type="password" class="span3" name="password" value=""/>
+    <div class="form-group row">
+      <label class="col-sm-3" for="usercaptcha">Type the digits shown in the image above</label>
+      <div class="col-sm-9">
+        <input type="text" class="form-control" id="usercaptcha" name="captcha" value="">
       </div>
     </div>
+  [% END %]
 
-    <div class="control-group">
-      <label class="control-label">Confirm password</label>
-      <div class="controls">
-        <input type="password" class="span3" name="password2" value=""/>
-      </div>
-    </div>
-    [% END %]
-
-    <div class="control-group">
-      <label class="control-label">Email</label>
-      <div class="controls">
-        <input type="text" class="span3" name="emailaddress" [% IF !create && user.username.search('@') %]disabled="disabled"[% END %] [%+ HTML.attributes(value => user.emailaddress) %]/>
-      </div>
-    </div>
-
-    <div class="control-group">
-      <div class="controls">
-        <label class="checkbox">
-          <input type="checkbox" name="emailonerror" [% IF !create && user.emailonerror; 'checked="checked"'; END %]/>Receive evaluation error notifications
-        </label>
-      </div>
-    </div>
-
-    <div class="control-group">
-      <div class="controls">
-        <label class="checkbox">
-          <input type="checkbox" name="publicdashboard" [% IF !create && user.publicdashboard; 'checked="checked"'; END %]/>Public dashboard
-        </label>
-      </div>
-    </div>
-
-    [% IF !create || c.check_user_roles('admin') %]
-      <div class="control-group">
-        <label class="control-label">Roles</label>
-        <div class="controls">
-          <select multiple="multiple" name="roles" class="span3" [% IF !c.check_user_roles('admin') %]disabled="disabled"[% END %]>
-            [% INCLUDE roleoption role="admin" %]
-            [% INCLUDE roleoption role="create-projects" %]
-            [% INCLUDE roleoption role="restart-jobs" %]
-            [% INCLUDE roleoption role="bump-to-front" %]
-            [% INCLUDE roleoption role="cancel-build" %]
-          </select>
-        </div>
-      </div>
-    [% END %]
-
-    [% IF create && !c.check_user_roles('admin') %]
-      <div class="control-group">
-        <div class="controls">
-          <img src="[% c.uri_for('/captcha') %]" alt="CAPTCHA"/>
-        </div>
-      </div>
-
-      <div class="control-group">
-        <label class="control-label">Type the digits shown in the image above</label>
-        <div class="controls">
-          <input type="text" class="span3" name="captcha" value=""/>
-        </div>
-      </div>
-    [% END %]
-
-    <div class="form-actions">
-      <button id="submit-user" class="btn btn-primary">
-        <i class="icon-ok icon-white"></i>
-        [%IF create %]Create[% ELSE %]Apply changes[% END %]
-      </button>
-      [% IF !create && c.check_user_roles('admin') && user.type == 'hydra' %]
-        <button id="reset-password" class="btn btn-warning">
-          <i class="icon-trash icon-white"></i>
-          Reset password
-        </button>
-      [% END %]
-      [% IF !create %]
-        <button id="delete-user" class="btn btn-danger">
-          <i class="icon-trash icon-white"></i>
-          Delete this user
-        </button>
-      [% END %]
-    </div>
-
-  </fieldset>
+  <button id="submit-user" class="btn btn-primary">
+    <i class="icon-ok icon-white"></i>
+    [%IF create %]Create[% ELSE %]Apply changes[% END %]
+  </button>
+  [% IF !create && c.check_user_roles('admin') && user.type == 'hydra' %]
+    <button id="reset-password" class="btn btn-warning">
+      <i class="icon-trash icon-white"></i>
+      Reset password
+    </button>
+  [% END %]
+  [% IF !create %]
+    <button id="delete-user" class="btn btn-danger">
+      <i class="icon-trash icon-white"></i>
+      Delete this user
+    </button>
+  [% END %]
 
 </form>
 

@@ -182,7 +182,7 @@ BLOCK renderSelection;
         [% END %]
       </div>
     [% ELSE %]
-      <select style='width: 15em;' [% HTML.attributes(id => param, name => param) %]>
+      <select class="custom-select" [% HTML.attributes(id => param, name => param) %]>
         [% FOREACH name IN options.keys.sort %]
           <option [% IF name == curValue; "selected='selected'"; END; " "; HTML.attributes(value => name) %]>[% options.$name %]</option>
         [% END %]
@@ -405,11 +405,11 @@ BLOCK renderInputDiff; %]
 
 
 BLOCK renderPager %]
-  <ul class="pager">
-    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page=1" %]">« First</a></li>
-    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page - 1) %]">‹ Previous</a></li>
-    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page + 1) %]">Next ›</a></li>
-    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last »</a></li>
+  <ul class="pagination">
+    <li class="page-item[% IF page == 1 %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page=1" %]">&laquo; First</a></li>
+    <li class="page-item[% IF page == 1 %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page="; (page - 1) %]">&lsaquo; Previous</a></li>
+    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page="; (page + 1) %]">Next &rsaquo;</a></li>
+    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last &raquo;</a></li>
   </ul>
 [% END;
 
@@ -517,7 +517,7 @@ BLOCK renderLogLinks %]
 
 BLOCK makeLazyTab %]
   <div id="[% tabName %]" class="tab-pane">
-    <center><img src="[% c.uri_for("/static/images/ajax-loader.gif") %]" alt="Loading..." /></center>
+    <center><span class="spinner-border spinner-border-sm"/></center>
   </div>
   <script>
     $(function() { makeLazyTab("[% tabName %]", "[% uri %]"); });
@@ -533,9 +533,19 @@ BLOCK makePopover %]
 
 
 BLOCK menuItem %]
-  <li class="[% IF "${root}${curUri}" == uri %]active[% END %]" [% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>
-    <a [% HTML.attributes(href => uri) %] [%+ IF modal %]data-toggle="modal"[% END %]>
-      [% IF icon %]<i class="[% icon %] icon-black"></i> [%+ END %]
+  <a class="dropdown-item[% IF "${root}${curUri}" == uri %] active[% END %]"
+    [% HTML.attributes(href => uri) %] [%+ IF modal %]data-toggle="modal"[% END %]
+    [% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>
+    [% IF icon %]<i class="[% icon %] icon-black"></i> [%+ END %]
+    [% title %]
+  </a>
+[% END;
+
+
+BLOCK navItem %]
+  <li class="nav-item">
+    <a class="nav-link[% IF "${root}${curUri}" == uri %] active[% END %]"
+      [% HTML.attributes(href => uri) %]>
       [% title %]
     </a>
   </li>

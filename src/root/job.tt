@@ -15,12 +15,12 @@ removed or had an evaluation error.</div>
 [% END %]
 
 <ul class="nav nav-tabs">
-  <li class="active"><a href="#tabs-status" data-toggle="tab">Status</a></li>
+  <li class="nav-item active"><a class="nav-link" href="#tabs-status" data-toggle="tab">Status</a></li>
   [% IF constituentJobs.size > 0 %]
-    <li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-constituents" data-toggle="tab">Constituents</a></li>
   [% END %]
-  <li><a href="#tabs-charts" data-toggle="tab">Charts</a></li>
-  <li><a href="#tabs-links" data-toggle="tab">Links</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-charts" data-toggle="tab">Charts</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-links" data-toggle="tab">Links</a></li>
 </ul>
 
 <div id="generic-tabs" class="tab-content">

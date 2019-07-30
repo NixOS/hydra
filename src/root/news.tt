@@ -21,22 +21,18 @@
     </table>
 [% END %]
 
-<form class="form-horizontal" action="[% c.uri_for('/admin/news/submit') %]" method="post">
-  <fieldset>
-    <legend>Add news item</legend>
-    <div class="control-group">
-      <label class="control-label">News text (HTML)</label>
-      <div class="controls">
-        <textarea class="span9" name="contents"></textarea>
-      </div>
-    </div>
-  </fieldset>
-  <div class="form-actions">
-    <button type="submit" class="btn btn-primary">
-      <i class="icon-ok icon-white"></i>
-      Post
-    </button>
+<form action="[% c.uri_for('/admin/news/submit') %]" method="post">
+  <div class="page-header">Add news item</div>
+
+  <div class="form-group">
+    <label for="newscontents">News text (HTML)</label>
+    <textarea class="form-control" id="newscontents" name="contents"></textarea>
   </div>
+
+  <button type="submit" class="btn btn-primary">
+    <i class="icon-ok icon-white"></i>
+    Post
+  </button>
 </form>
 
 [% END %]

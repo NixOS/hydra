@@ -43,12 +43,9 @@
 
 <ul class="nav nav-tabs">
   [% IF c.user_exists %]
-    <li class="dropdown">
-      <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-        Actions
-        <b class="caret"></b>
-      </a>
-      <ul class="dropdown-menu">
+    <li class="nav-item dropdown">
+      <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#">Actions</a>
+      <div class="dropdown-menu">
         [% UNLESS project.declfile %]
         [% INCLUDE menuItem title="Edit configuration" icon="icon-edit" uri=c.uri_for(c.controller('Jobset').action_for('edit'), c.req.captures) %]
         <!--
@@ -57,18 +54,18 @@
         [% INCLUDE menuItem title="Clone this jobset" uri=c.uri_for(c.controller('Jobset').action_for('edit'), c.req.captures, { cloneJobset => 1 }) %]
         [% END %]
         [% INCLUDE menuItem title="Evaluate this jobset" uri="javascript:confirmEvaluateJobset()" %]
-      </ul>
+      </div>
     </li>
   [% END %]
 
-  <li class="active"><a href="#tabs-evaluations" data-toggle="tab">Evaluations</a></li>
+  <li class="nav-item active"><a class="nav-link" href="#tabs-evaluations" data-toggle="tab">Evaluations</a></li>
   [% IF jobset.errormsg || jobset.fetcherrormsg %]
-    <li><a href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation errors</span></a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation errors</span></a></li>
   [% END %]
-  <li><a href="#tabs-jobs" data-toggle="tab">Jobs</a></li>
-  <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
-  <li><a href="#tabs-links" data-toggle="tab">Links</a></li>
-  <li><a href="#tabs-channels" data-toggle="tab">Channels</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-jobs" data-toggle="tab">Jobs</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-links" data-toggle="tab">Links</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-channels" data-toggle="tab">Channels</a></li>
 </ul>
 
 <div id="generic-tabs" class="tab-content">

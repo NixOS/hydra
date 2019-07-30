@@ -52,11 +52,6 @@ table.info-table th {
     padding-bottom: 0.2em;
 }
 
-/* Missing in bootstrap 2.0.2 */
-.text-warning {
-    color: #c09853;
-}
-
 table.clickable-rows > tbody > tr {
     cursor: pointer;
 }

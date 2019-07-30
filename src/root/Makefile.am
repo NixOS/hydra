@@ -8,7 +8,7 @@ STATIC = \
   static/js/jquery/jquery-ui-1.10.4.min.js
 
 FLOT = flot-0.8.3.zip
-BOOTSTRAP = bootstrap-2.3.1.zip
+BOOTSTRAP = bootstrap-4.3.1-dist.zip
 
 ZIPS = $(FLOT) $(BOOTSTRAP)
 
@@ -26,4 +26,4 @@ install-data-local: $(ZIPS)
 	mkdir -p $(hydradir)/static/js
 	cp -prvd $(srcdir)/static/js/* $(hydradir)/static/js
 	mkdir -p $(hydradir)/static/bootstrap
-	cp -prvd $(srcdir)/static/bootstrap/* $(hydradir)/static/bootstrap
+	cp -prvd $(srcdir)/static/$(basename $(BOOTSTRAP))/* $(hydradir)/static/bootstrap
