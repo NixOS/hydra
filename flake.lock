@@ -1,6 +1,6 @@
 {
     "inputs": {
-        "nix": {
+        "nix/ab16b3d076e9cd3ecfdcde128f43dd486b072557": {
             "id": "nix",
             "inputs": {
                 "nixpkgs": {
@@ -11,9 +11,9 @@
                     "uri": "github:edolstra/nixpkgs/62ac6f7f504c8d3998558d9b269d22d26f13f1f0"
                 }
             },
-            "narHash": "sha256-MjLaMAh/KtAksnMwOH2GJn+YRJ4szwx24ybFXHTmShU=",
+            "narHash": "sha256-I9YtUO9Ia5CwiTFo4QzSYdZHO2G+BQ7sM4MSq29NDqc=",
             "nonFlakeInputs": {},
-            "uri": "github:NixOS/nix/5d8ec94d7fe4eded9f836bc49449d6eaff8fbc8f"
+            "uri": "github:NixOS/nix/ab16b3d076e9cd3ecfdcde128f43dd486b072557"
         },
         "nixpkgs": {
             "id": "nixpkgs",
