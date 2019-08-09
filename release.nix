@@ -28,6 +28,22 @@ let
       services.postgresql.package = pkgs.postgresql95;
 
       environment.systemPackages = [ pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
+
+      # The following is to work around the following error from hydra-server:
+      #   [error] Caught exception in engine "Cannot determine local time zone"
+      time.timeZone = "UTC";
+
+      nix = {
+        # The following is to work around: https://github.com/NixOS/hydra/pull/432
+        buildMachines = [
+          { hostName = "localhost";
+            system = "x86_64-linux";
+          }
+        ];
+        # Without this nix tries to fetch packages from the default
+        # cache.nixos.org which is not reachable from this sandboxed NixOS test.
+        binaryCaches = [];
+      };
     };
 
   # FIXME: use commit date.
@@ -216,8 +232,60 @@ rec {
           $machine->waitForOpenPort("3000");
 
           # Run the API tests.
-          $machine->mustSucceed("su - hydra -c 'perl ${./tests/api-test.pl}' >&2");
+          $machine->mustSucceed("su - hydra -c 'perl -I ${build.${system}.perlDeps}/lib/perl5/site_perl ${./tests/api-test.pl}' >&2");
         '';
+  });
+
+  tests.notifications = genAttrs' (system:
+    with import (nixpkgs + "/nixos/lib/testing.nix") { inherit system; };
+    simpleTest {
+      machine = { pkgs, ... }: {
+        imports = [ (hydraServer build.${system}) ];
+        services.hydra-dev.extraConfig = ''
+          <influxdb>
+            url = http://127.0.0.1:8086
+            db = hydra
+          </influxdb>
+        '';
+        services.influxdb.enable = true;
+      };
+      testScript = ''
+        $machine->waitForJob("hydra-init");
+
+        # Create an admin account and some other state.
+        $machine->succeed
+            ( "su - hydra -c \"hydra-create-user root --email-address 'alice\@example.org' --password foobar --role admin\""
+            , "mkdir /run/jobset"
+            , "chmod 755 /run/jobset"
+            , "cp ${./tests/api-test.nix} /run/jobset/default.nix"
+            , "chmod 644 /run/jobset/default.nix"
+            , "chown -R hydra /run/jobset"
+            );
+
+        # Wait until InfluxDB can receive web requests
+        $machine->waitForJob("influxdb");
+        $machine->waitForOpenPort("8086");
+
+        # Create an InfluxDB database where hydra will write to
+        $machine->succeed(
+          "curl -XPOST 'http://127.0.0.1:8086/query' \\
+          --data-urlencode 'q=CREATE DATABASE hydra'");
+
+        # Wait until hydra-server can receive HTTP requests
+        $machine->waitForJob("hydra-server");
+        $machine->waitForOpenPort("3000");
+
+        # Setup the project and jobset
+        $machine->mustSucceed(
+          "su - hydra -c 'perl -I ${build.${system}.perlDeps}/lib/perl5/site_perl ${./tests/setup-notifications-jobset.pl}' >&2");
+
+        # Wait until hydra has build the job and
+        # the InfluxDBNotification plugin uploaded its notification to InfluxDB
+        $machine->waitUntilSucceeds(
+          "curl -s -H 'Accept: application/csv' \\
+          -G 'http://127.0.0.1:8086/query?db=hydra' \\
+          --data-urlencode 'q=SELECT * FROM hydra_build_status' | grep success");
+      '';
   });
 
   /*
