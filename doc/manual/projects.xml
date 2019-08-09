@@ -205,7 +205,7 @@ in
       <xref linkend='ex-hello' /> shows what a
       <filename>release.nix</filename> file for <link
       xlink:href="http://www.gnu.org/software/hello/">GNU Hello</link>
-      would you like.  GNU Hello is representative of many GNU
+      would look like.  GNU Hello is representative of many GNU
       and non-GNU free software projects:
 
       <itemizedlist>
