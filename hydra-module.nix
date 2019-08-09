@@ -379,6 +379,21 @@ in
           };
       };
 
+    systemd.services.hydra-notify =
+      { wantedBy = [ "multi-user.target" ];
+        requires = [ "hydra-init.service" ];
+        after = [ "hydra-init.service" ];
+        restartTriggers = [ hydraConf ];
+        environment = env // {
+          PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
+        };
+        serviceConfig =
+          { ExecStart = "@${cfg.package}/bin/hydra-notify hydra-notify";
+            # FIXME: run this under a less privileged user?
+            User = "hydra-queue-runner";
+          };
+      };
+
     # If there is less than a certain amount of free disk space, stop
     # the queue/evaluator to prevent builds from failing or aborting.
     systemd.services.hydra-check-space =
