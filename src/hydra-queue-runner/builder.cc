@@ -99,6 +99,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     unsigned int maxSilentTime, buildTimeout;
     unsigned int repeats = step->isDeterministic ? 1 : 0;
 
+    auto conn(dbPool.get());
+
     {
         std::set<Build::ptr> dependents;
         std::set<Step::ptr> steps;
@@ -122,8 +124,10 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         for (auto build2 : dependents) {
             if (build2->drvPath == step->drvPath) {
-              build = build2;
-              enqueueNotificationItem({NotificationItem::Type::BuildStarted, build->id});
+                build = build2;
+                pqxx::work txn(*conn);
+                notifyBuildStarted(txn, build->id);
+                txn.commit();
             }
             {
                 auto i = jobsetRepeats.find(std::make_pair(build2->projectName, build2->jobsetName));
@@ -143,8 +147,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     }
 
     bool quit = buildId == buildOne && step->drvPath == buildDrvPath;
-
-    auto conn(dbPool.get());
 
     RemoteResult result;
     BuildOutput res;
@@ -170,11 +172,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             } catch (...) {
                 ignoreException();
             }
-
-            /* Asynchronously run plugins. FIXME: if we're killed,
-               plugin actions might not be run. Need to ensure
-               at-least-once semantics. */
-            enqueueNotificationItem({NotificationItem::Type::StepFinished, buildId, {}, stepNr, result.logFile});
         }
     });
 
@@ -342,8 +339,12 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         /* Send notification about the builds that have this step as
            the top-level. */
-        for (auto id : buildIDs)
-            enqueueNotificationItem({NotificationItem::Type::BuildFinished, id});
+        {
+            pqxx::work txn(*conn);
+            for (auto id : buildIDs)
+                notifyBuildFinished(txn, id, {});
+            txn.commit();
+        }
 
         /* Wake up any dependent steps that have no other
            dependencies. */
@@ -462,11 +463,10 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         /* Send notification about this build and its dependents. */
         {
-            auto notificationSenderQueue_(notificationSenderQueue.lock());
-            notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::BuildFinished, buildId, dependentIDs});
+            pqxx::work txn(*conn);
+            notifyBuildFinished(txn, buildId, dependentIDs);
+            txn.commit();
         }
-        notificationSenderWakeup.notify_one();
-
     }
 
     // FIXME: keep stats about aborted steps?
