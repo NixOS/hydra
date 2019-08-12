@@ -568,7 +568,7 @@ sub permute {
 
 
 sub checkJobsetWrapped {
-    my ($jobset) = @_;
+    my ($jobset, $tmpId) = @_;
     my $project = $jobset->project;
     my $jobsetsJobset = length($project->declfile) && $jobset->name eq ".jobsets";
     my $inputInfo = {};
@@ -607,6 +607,7 @@ sub checkJobsetWrapped {
         print STDERR $fetchError;
         txn_do($db, sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => $fetchError }) if !$dryRun;
+            $db->storage->dbh->do("notify eval_failed, ?", undef, join('\t', $tmpId));
         });
         return;
     }
@@ -622,6 +623,7 @@ sub checkJobsetWrapped {
         Net::Statsd::increment("hydra.evaluator.unchanged_checkouts");
         txn_do($db, sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
+            $db->storage->dbh->do("notify eval_cached, ?", undef, join('\t', $tmpId));
         });
         return;
     }
@@ -689,6 +691,9 @@ sub checkJobsetWrapped {
             , hasnewbuilds => $jobsetChanged ? 1 : 0
             , nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
             });
+
+        $db->storage->dbh->do("notify eval_added, ?", undef,
+                              join('\t', $tmpId, $ev->id));
 
         if ($jobsetChanged) {
             # Create JobsetEvalMembers mappings.
@@ -767,10 +772,6 @@ sub checkJobsetWrapped {
     Net::Statsd::increment("hydra.evaluator.evals");
     Net::Statsd::increment("hydra.evaluator.cached_evals") unless $jobsetChanged;
 
-    #while (my ($id, $x) = each %buildMap) {
-    #    system("hydra-notify build-queued $id") if $x->{new};
-    #}
-
     # Store the error messages for jobs that failed to evaluate.
     my $msg = "";
     foreach my $job (values %{$jobs}) {
@@ -788,8 +789,15 @@ sub checkJobset {
 
     my $startTime = clock_gettime(CLOCK_MONOTONIC);
 
+    # Add an ID to eval_* notifications so receivers can correlate
+    # them.
+    my $tmpId = "${startTime}.$$";
+
+    $db->storage->dbh->do("notify eval_started, ?", undef,
+                          join('\t', $tmpId, $jobset->get_column('project'), $jobset->name));
+
     eval {
-        checkJobsetWrapped($jobset);
+        checkJobsetWrapped($jobset, $tmpId);
     };
     my $checkError = $@;
 
@@ -802,6 +810,7 @@ sub checkJobset {
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
             setJobsetError($jobset, $checkError);
+            $db->storage->dbh->do("notify eval_failed, ?", undef, join('\t', $tmpId));
         }) if !$dryRun;
         $failed = 1;
     }
