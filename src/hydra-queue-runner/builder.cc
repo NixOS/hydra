@@ -228,6 +228,11 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     time_t stepStopTime = time(0);
     if (!result.stopTime) result.stopTime = stepStopTime;
 
+    /* For standard failures, we don't care about the error
+       message. */
+    if (result.stepStatus != bsAborted)
+        result.errorMsg = "";
+
     /* Account the time we spent building this step by dividing it
        among the jobsets that depend on it. */
     {
@@ -238,6 +243,13 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             for (auto & jobset : step_->jobsets)
                 jobset->addStep(result.startTime, charge);
         }
+    }
+
+    /* Finish the step in the database. */
+    if (stepNr) {
+        pqxx::work txn(*conn);
+        finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
+        txn.commit();
     }
 
     /* The step had a hopefully temporary failure (e.g. network
@@ -253,11 +265,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         }
         if (retry) {
             auto mc = startDbUpdate();
-            {
-            pqxx::work txn(*conn);
-            finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
-            txn.commit();
-            }
             stepFinished = true;
             if (quit) exit(1);
             return sRetry;
@@ -311,8 +318,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                 auto mc = startDbUpdate();
 
                 pqxx::work txn(*conn);
-
-                finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
 
                 for (auto & b : direct) {
                     printMsg(lvlInfo, format("marking build %1% as succeeded") % b->id);
@@ -370,11 +375,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
     } else {
 
-        /* For standard failures, we don't care about the error
-           message. */
-        if (result.stepStatus != bsAborted)
-            result.errorMsg = "";
-
         /* Register failure in the database for all Build objects that
            directly or indirectly depend on this step. */
 
@@ -418,11 +418,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                         continue;
                     createBuildStep(txn, 0, build2->id, step, machine->sshName,
                         result.stepStatus, result.errorMsg, buildId == build2->id ? 0 : buildId);
-                }
-
-                if (result.stepStatus != bsCachedFailure && !stepFinished) {
-                    assert(stepNr);
-                    finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
                 }
 
                 /* Mark all builds that depend on this derivation as failed. */
