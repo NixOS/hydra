@@ -299,9 +299,9 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
         (result.timesBuilt, result.timesBuilt > 0)
         (result.isNonDeterministic, result.timesBuilt > 1)
         .exec();
-    assert(result.logFile.find('\'') == std::string::npos);
-    txn.exec(fmt("notify step_finished, '%d %d %s'", buildId, stepNr,
-            result.logFile.empty() ? "-" : result.logFile));
+    assert(result.logFile.find('\t') == std::string::npos);
+    txn.exec(fmt("notify step_finished, '%d\t%d\t%s'",
+            buildId, stepNr, result.logFile));
 }
 
 

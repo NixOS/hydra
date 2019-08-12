@@ -102,7 +102,7 @@ while (1) {
     my ($channelName, $pid, $payload) = @$notify;
     #print STDERR "got '$channelName' from $pid: $payload\n";
 
-    my @payload = split / /, $payload;
+    my @payload = split /\t/, $payload;
 
     eval {
         if ($channelName eq "build_started") {
