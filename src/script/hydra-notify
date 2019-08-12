@@ -96,27 +96,28 @@ my $sel = IO::Select->new($fd);
 
 while (1) {
     $sel->can_read;
-    my $notify = $dbh->func("pg_notifies");
-    next if !$notify;
 
-    my ($channelName, $pid, $payload) = @$notify;
-    #print STDERR "got '$channelName' from $pid: $payload\n";
+    while (my $notify = $dbh->func("pg_notifies")) {
 
-    my @payload = split /\t/, $payload;
+        my ($channelName, $pid, $payload) = @$notify;
+        #print STDERR "got '$channelName' from $pid: $payload\n";
 
-    eval {
-        if ($channelName eq "build_started") {
-            buildStarted(int($payload[0]));
-        } elsif ($channelName eq "build_finished") {
-            my $buildId = int($payload[0]);
-            my $build = $db->resultset('Builds')->find($buildId)
-                or die "build $buildId does not exist\n";
-            buildFinished($build, @payload[1..$#payload]);
-        } elsif ($channelName eq "step_finished") {
-            stepFinished(int($payload[0]), int($payload[1]));
+        my @payload = split /\t/, $payload;
+
+        eval {
+            if ($channelName eq "build_started") {
+                buildStarted(int($payload[0]));
+            } elsif ($channelName eq "build_finished") {
+                my $buildId = int($payload[0]);
+                my $build = $db->resultset('Builds')->find($buildId)
+                    or die "build $buildId does not exist\n";
+                buildFinished($build, @payload[1..$#payload]);
+            } elsif ($channelName eq "step_finished") {
+                stepFinished(int($payload[0]), int($payload[1]));
+            }
+        };
+        if ($@) {
+            print STDERR "error processing message '$payload' on channel '$channelName': $@\n";
         }
-    };
-    if ($@) {
-        print STDERR "error processing message '$payload' on channel '$channelName': $@\n";
     }
 }
