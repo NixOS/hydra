@@ -268,6 +268,9 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
             ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)")
             (buildId)(stepNr)(output.first)(output.second.path).exec();
 
+    if (status == bsBusy)
+        txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));
+
     return stepNr;
 }
 
