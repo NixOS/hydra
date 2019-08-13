@@ -7,6 +7,11 @@ use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
 use JSON;
 
+sub isEnabled {
+    my ($self) = @_;
+    return defined $self->{config}->{slack};
+}
+
 sub renderDuration {
     my ($build) = @_;
     my $duration = $build->stoptime - $build->starttime;

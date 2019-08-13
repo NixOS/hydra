@@ -16,6 +16,11 @@ use List::Util qw(max);
 #   - gitlab_project_id => ID of the project in Gitlab, i.e. in the above
 #     case the ID in gitlab of "nixexprs"
 
+sub isEnabled {
+    my ($self) = @_;
+    return defined $self->{config}->{gitlab_authorization};
+}
+
 sub toGitlabState {
     my ($status, $buildStatus) = @_;
     if ($status == 0) {

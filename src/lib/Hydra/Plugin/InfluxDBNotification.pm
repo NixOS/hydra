@@ -7,6 +7,11 @@ use HTTP::Request;
 use LWP::UserAgent;
 # use Hydra::Helper::CatalystUtils;
 
+sub isEnabled {
+    my ($self) = @_;
+    return defined $self->{config}->{influxdb};
+}
+
 sub toBuildStatusDetailed {
     my ($buildStatus) = @_;
     if ($buildStatus == 0) {

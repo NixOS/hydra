@@ -5,6 +5,11 @@ use parent 'Hydra::Plugin';
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
 
+sub isEnabled {
+    my ($self) = @_;
+    return defined $self->{config}->{hipchat};
+}
+
 sub buildFinished {
     my ($self, $build, $dependents) = @_;
 

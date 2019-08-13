@@ -9,6 +9,10 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
 
+sub isEnabled {
+    my ($self) = @_;
+    return $self->{config}->{email_notification} == 1;
+}
 
 my $template = <<EOF;
 Hi,
@@ -43,8 +47,6 @@ EOF
 
 sub buildFinished {
     my ($self, $build, $dependents) = @_;
-
-    return unless $self->{config}->{email_notification} // 0;
 
     die unless $build->finished;
 
