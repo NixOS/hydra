@@ -391,6 +391,8 @@ in
           { ExecStart = "@${cfg.package}/bin/hydra-notify hydra-notify";
             # FIXME: run this under a less privileged user?
             User = "hydra-queue-runner";
+            Restart = "always";
+            RestartSec = 5;
           };
       };
 
