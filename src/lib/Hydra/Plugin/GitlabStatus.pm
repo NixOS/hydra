@@ -55,7 +55,7 @@ sub common {
                 state => $state,
                 target_url => "$baseurl/build/" . $b->id,
                 description => "Hydra build #" . $b->id . " of $jobName",
-                name => "Hydra " . $b->job->name,
+                name => "Hydra " . $b->get_column('job'),
             });
         while (my $eval = $evals->next) {
             my $gitlabstatusInput = $eval->jobsetevalinputs->find({ name => "gitlab_status_repo" });

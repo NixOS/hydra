@@ -81,7 +81,7 @@ sub buildFinished {
             "danger";
 
         my $text = "";
-        $text .= "Job <$baseurl/job/${\$build->project->name}/${\$build->jobset->name}/${\$build->job->name}|${\showJobName($build)}>";
+        $text .= "Job <$baseurl/job/${\$build->get_column('project')}/${\$build->get_column('jobset')}/${\$build->get_column('job')}|${\showJobName($build)}>";
         $text .= " (and ${\scalar @deps} others)" if scalar @deps > 0;
         $text .= ": <$baseurl/build/${\$build->id}|" . showStatus($build) . ">". " in " . renderDuration($build);
 

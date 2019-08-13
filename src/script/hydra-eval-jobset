@@ -438,7 +438,7 @@ sub checkBuild {
                 # semantically unnecessary (because they're implied by
                 # the eval), but they give a factor 1000 speedup on
                 # the Nixpkgs jobset with PostgreSQL.
-                { project => $jobset->project->name, jobset => $jobset->name, job => $jobName,
+                { project => $jobset->get_column('project'), jobset => $jobset->name, job => $jobName,
                   name => $firstOutputName, path => $firstOutputPath },
                 { rows => 1, columns => ['id'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
@@ -489,7 +489,7 @@ sub checkBuild {
         $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath };
         $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
 
-        print STDERR "added build ${\$build->id} (${\$jobset->project->name}:${\$jobset->name}:$jobName)\n";
+        print STDERR "added build ${\$build->id} (${\$jobset->get_column('project')}:${\$jobset->name}:$jobName)\n";
     });
 
     return $build;
@@ -531,7 +531,7 @@ sub sendJobsetErrorNotification() {
     return if $jobset->project->owner->emailonerror == 0;
     return if $errorMsg eq "";
 
-    my $projectName = $jobset->project->name;
+    my $projectName = $jobset->get_column('project');
     my $jobsetName = $jobset->name;
     my $body = "Hi,\n"
         . "\n"
