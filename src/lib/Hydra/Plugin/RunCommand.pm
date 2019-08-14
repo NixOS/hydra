@@ -5,6 +5,11 @@ use parent 'Hydra::Plugin';
 use experimental 'smartmatch';
 use JSON;
 
+sub isEnabled {
+    my ($self) = @_;
+    return defined $self->{config}->{runcommand};
+}
+
 sub configSectionMatches {
     my ($name, $project, $jobset, $job) = @_;
 

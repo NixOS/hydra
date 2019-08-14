@@ -268,6 +268,9 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
             ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)")
             (buildId)(stepNr)(output.first)(output.second.path).exec();
 
+    if (status == bsBusy)
+        txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));
+
     return stepNr;
 }
 
@@ -299,6 +302,9 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
         (result.timesBuilt, result.timesBuilt > 0)
         (result.isNonDeterministic, result.timesBuilt > 1)
         .exec();
+    assert(result.logFile.find('\t') == std::string::npos);
+    txn.exec(fmt("notify step_finished, '%d\t%d\t%s'",
+            buildId, stepNr, result.logFile));
 }
 
 
@@ -450,74 +456,20 @@ bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 }
 
 
-void State::notificationSender()
+void State::notifyBuildStarted(pqxx::work & txn, BuildID buildId)
 {
-    while (true) {
-        try {
+    txn.exec(fmt("notify build_started, '%s'", buildId));
+}
 
-            NotificationItem item;
-            {
-                auto notificationSenderQueue_(notificationSenderQueue.lock());
-                while (notificationSenderQueue_->empty())
-                    notificationSenderQueue_.wait(notificationSenderWakeup);
-                item = notificationSenderQueue_->front();
-                notificationSenderQueue_->pop();
-            }
 
-            MaintainCount<counter> mc(nrNotificationsInProgress);
-
-            printMsg(lvlChatty, format("sending notification about build %1%") % item.id);
-
-            auto now1 = std::chrono::steady_clock::now();
-
-            Pid pid = startProcess([&]() {
-                Strings argv;
-                switch (item.type) {
-                    case NotificationItem::Type::BuildStarted:
-                        argv = {"hydra-notify", "build-started", std::to_string(item.id)};
-                        for (auto id : item.dependentIds)
-                            argv.push_back(std::to_string(id));
-                        break;
-                    case NotificationItem::Type::BuildFinished:
-                        argv = {"hydra-notify", "build-finished", std::to_string(item.id)};
-                        for (auto id : item.dependentIds)
-                            argv.push_back(std::to_string(id));
-                        break;
-                    case NotificationItem::Type::StepFinished:
-                        argv = {"hydra-notify", "step-finished", std::to_string(item.id), std::to_string(item.stepNr), item.logPath};
-                        break;
-                };
-                printMsg(lvlChatty, "Executing hydra-notify " + concatStringsSep(" ", argv));
-                execvp("hydra-notify", (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
-                throw SysError("cannot start hydra-notify");
-            });
-
-            int res = pid.wait();
-
-            if (!statusOk(res))
-                throw Error("notification about build %d failed: %s", item.id, statusToString(res));
-
-            auto now2 = std::chrono::steady_clock::now();
-
-            if (item.type == NotificationItem::Type::BuildFinished) {
-                auto conn(dbPool.get());
-                pqxx::work txn(*conn);
-                txn.parameterized
-                    ("update Builds set notificationPendingSince = null where id = $1")
-                    (item.id)
-                    .exec();
-                txn.commit();
-            }
-
-            nrNotificationTimeMs += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
-            nrNotificationsDone++;
-
-        } catch (std::exception & e) {
-            nrNotificationsFailed++;
-            printMsg(lvlError, format("notification sender: %1%") % e.what());
-            sleep(5);
-        }
-    }
+void State::notifyBuildFinished(pqxx::work & txn, BuildID buildId,
+    const std::vector<BuildID> & dependentIds)
+{
+    auto payload = fmt("%d ", buildId);
+    for (auto & d : dependentIds)
+        payload += fmt("%d ", d);
+    // FIXME: apparently parameterized() doesn't support NOTIFY.
+    txn.exec(fmt("notify build_finished, '%s'", payload));
 }
 
 
@@ -589,13 +541,6 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("nrDbConnections", dbPool.count());
         root.attr("nrActiveDbUpdates", nrActiveDbUpdates);
         root.attr("memoryTokensInUse", memoryTokens.currentUse());
-        root.attr("nrNotificationsDone", nrNotificationsDone);
-        root.attr("nrNotificationsFailed", nrNotificationsFailed);
-        root.attr("nrNotificationsInProgress", nrNotificationsInProgress);
-        root.attr("nrNotificationsPending", notificationSenderQueue.lock()->size());
-        root.attr("nrNotificationTimeMs", nrNotificationTimeMs);
-        uint64_t nrNotificationsTotal = nrNotificationsDone + nrNotificationsFailed;
-        root.attr("nrNotificationTimeAvgMs", nrNotificationsTotal == 0 ? 0.0 : (float) nrNotificationTimeMs / nrNotificationsTotal);
 
         {
             auto nested = root.object("machines");
@@ -842,24 +787,6 @@ void State::run(BuildID buildOne)
     std::thread(&State::queueMonitor, this).detach();
 
     std::thread(&State::dispatcher, this).detach();
-
-    /* Idem for notification sending. */
-    auto maxConcurrentNotifications = config->getIntOption("max-concurrent-notifications", 2);
-    for (uint64_t i = 0; i < maxConcurrentNotifications; ++i)
-        std::thread(&State::notificationSender, this).detach();
-
-    /* Enqueue notification items for builds that were finished
-       previously, but for which we didn't manage to send
-       notifications. */
-    {
-        auto conn(dbPool.get());
-        pqxx::work txn(*conn);
-        auto res = txn.parameterized("select id from Builds where notificationPendingSince > 0").exec();
-        for (auto const & row : res) {
-            auto id = row["id"].as<BuildID>();
-            enqueueNotificationItem({NotificationItem::Type::BuildFinished, id});
-        }
-    }
 
     /* Periodically clean up orphaned busy steps in the database. */
     std::thread([&]() {

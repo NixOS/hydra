@@ -7,6 +7,11 @@ use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
 use JSON;
 
+sub isEnabled {
+    my ($self) = @_;
+    return defined $self->{config}->{circleci};
+}
+
 sub buildFinished {
     my ($self, $build, $dependents) = @_;
     my $cfg = $self->{config}->{circleci};

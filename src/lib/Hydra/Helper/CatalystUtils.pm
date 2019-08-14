@@ -60,9 +60,9 @@ sub getNextBuild {
     (my $nextBuild) = $c->model('DB::Builds')->search(
       { finished => 1
       , system => $build->system
-      , project => $build->project->name
-      , jobset => $build->jobset->name
-      , job => $build->job->name
+      , project => $build->get_column('project')
+      , jobset => $build->get_column('jobset')
+      , job => $build->get_column('job')
       , 'me.id' =>  { '>' => $build->id }
       }, {rows => 1, order_by => "me.id ASC"});
 
@@ -77,9 +77,9 @@ sub getPreviousSuccessfulBuild {
     (my $prevBuild) = $c->model('DB::Builds')->search(
       { finished => 1
       , system => $build->system
-      , project => $build->project->name
-      , jobset => $build->jobset->name
-      , job => $build->job->name
+      , project => $build->get_column('project')
+      , jobset => $build->get_column('jobset')
+      , job => $build->get_column('job')
       , buildstatus => 0
       , 'me.id' =>  { '<' => $build->id }
       }, {rows => 1, order_by => "me.id DESC"});
@@ -289,7 +289,7 @@ sub parseJobsetName {
 
 sub showJobName {
     my ($build) = @_;
-    return $build->project->name . ":" . $build->jobset->name . ":" . $build->job->name;
+    return $build->get_column('project') . ":" . $build->get_column('jobset') . ":" . $build->get_column('job');
 }
 
 

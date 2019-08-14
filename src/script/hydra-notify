@@ -5,6 +5,7 @@ use utf8;
 use Hydra::Plugin;
 use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
+use IO::Select;
 
 STDERR->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
@@ -15,20 +16,37 @@ my $db = Hydra::Model::DB->new();
 
 my @plugins = Hydra::Plugin->instantiate(db => $db, config => $config);
 
-my $cmd = shift @ARGV or die "Syntax: hydra-notify build-started BUILD | build-finished BUILD-ID [BUILD-IDs...] | step-finished BUILD-ID STEP-NR LOG-PATH\n";
+my $dbh = $db->storage->dbh;
 
-my $buildId = shift @ARGV or die;
-my $build = $db->resultset('Builds')->find($buildId)
-    or die "build $buildId does not exist\n";
+$dbh->do("listen build_started");
+$dbh->do("listen build_finished");
+$dbh->do("listen step_finished");
 
-if ($cmd eq "build-finished") {
+sub buildStarted {
+    my ($buildId) = @_;
+
+    my $build = $db->resultset('Builds')->find($buildId)
+        or die "build $buildId does not exist\n";
+
+    foreach my $plugin (@plugins) {
+        eval { $plugin->buildStarted($build); };
+        if ($@) {
+            print STDERR "$plugin->buildStarted: $@\n";
+        }
+    }
+}
+
+sub buildFinished {
+    my ($build, @deps) = @_;
+
     my $project = $build->project;
-    my $jobset = $build->jobset;
-    if (length($project->declfile) && $jobset->name eq ".jobsets" && $build->iscurrent) {
+    my $jobsetName = $build->get_column('jobset');
+    if (length($project->declfile) && $jobsetName eq ".jobsets" && $build->iscurrent) {
         handleDeclarativeJobsetBuild($db, $project, $build);
     }
+
     my @dependents;
-    foreach my $id (@ARGV) {
+    foreach my $id (@deps) {
         my $dep = $db->resultset('Builds')->find($id)
             or die "build $id does not exist\n";
         push @dependents, $dep;
@@ -40,33 +58,20 @@ if ($cmd eq "build-finished") {
             print STDERR "$plugin->buildFinished: $@\n";
         }
     }
+
+    $build->update({ notificationpendingsince => undef });
 }
 
-elsif ($cmd eq "build-queued") {
-    foreach my $plugin (@plugins) {
-        eval { $plugin->buildQueued($build); };
-        if ($@) {
-            print STDERR "$plugin->buildQueued: $@\n";
-        }
-    }
-}
+sub stepFinished {
+    my ($buildId, $stepNr, $logPath) = @_;
 
-elsif ($cmd eq "build-started") {
-    foreach my $plugin (@plugins) {
-        eval { $plugin->buildStarted($build); };
-        if ($@) {
-            print STDERR "$plugin->buildStarted: $@\n";
-        }
-    }
-}
+    my $build = $db->resultset('Builds')->find($buildId)
+        or die "build $buildId does not exist\n";
 
-elsif ($cmd eq "step-finished") {
-    die if scalar @ARGV < 2;
-    my $stepNr = shift @ARGV;
     my $step = $build->buildsteps->find({stepnr => $stepNr})
         or die "step $stepNr does not exist\n";
-    my $logPath = shift @ARGV;
-    $logPath = undef if $logPath eq "";
+
+    $logPath = undef if $logPath eq "-";
 
     foreach my $plugin (@plugins) {
         eval { $plugin->stepFinished($step, $logPath); };
@@ -76,6 +81,43 @@ elsif ($cmd eq "step-finished") {
     }
 }
 
-else {
-    die "unknown action ‘$cmd’";
+# Process builds that finished while hydra-notify wasn't running.
+for my $build ($db->resultset('Builds')->search(
+                   { notificationpendingsince => { '!=', undef } }))
+{
+    my $buildId = $build->id;
+    print STDERR "sending notifications for build ${\$buildId}...\n";
+    buildFinished($build);
+}
+
+# Process incoming notifications.
+my $fd = $dbh->func("getfd");
+my $sel = IO::Select->new($fd);
+
+while (1) {
+    $sel->can_read;
+
+    while (my $notify = $dbh->func("pg_notifies")) {
+
+        my ($channelName, $pid, $payload) = @$notify;
+        #print STDERR "got '$channelName' from $pid: $payload\n";
+
+        my @payload = split /\t/, $payload;
+
+        eval {
+            if ($channelName eq "build_started") {
+                buildStarted(int($payload[0]));
+            } elsif ($channelName eq "build_finished") {
+                my $buildId = int($payload[0]);
+                my $build = $db->resultset('Builds')->find($buildId)
+                    or die "build $buildId does not exist\n";
+                buildFinished($build, @payload[1..$#payload]);
+            } elsif ($channelName eq "step_finished") {
+                stepFinished(int($payload[0]), int($payload[1]));
+            }
+        };
+        if ($@) {
+            print STDERR "error processing message '$payload' on channel '$channelName': $@\n";
+        }
+    }
 }

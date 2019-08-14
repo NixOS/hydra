@@ -14,6 +14,11 @@ use Nix::Store;
 use Hydra::Model::DB;
 use Hydra::Helper::CatalystUtils;
 
+sub isEnabled {
+    my ($self) = @_;
+    return defined $self->{config}->{s3backup};
+}
+
 my $client;
 my %compressors = (
     xz => "| $Nix::Config::xz",

@@ -8,6 +8,11 @@ use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
 use List::Util qw(max);
 
+sub isEnabled {
+    my ($self) = @_;
+    return defined $self->{config}->{githubstatus};
+}
+
 sub toGithubState {
     my ($buildStatus) = @_;
     if ($buildStatus == 0) {
