@@ -5,6 +5,11 @@ use parent 'Hydra::Plugin';
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
 
+sub isEnabled {
+    my ($self) = @_;
+    return defined $self->{config}->{hipchat};
+}
+
 sub buildFinished {
     my ($self, $build, $dependents) = @_;
 
@@ -54,7 +59,7 @@ sub buildFinished {
 
         my $msg = "";
         $msg .= "<img src='$img'/> ";
-        $msg .= "Job <a href='$baseurl/job/${\$build->project->name}/${\$build->jobset->name}/${\$build->job->name}'>${\showJobName($build)}</a>";
+        $msg .= "Job <a href='$baseurl/job/${\$build->get_column('project')}/${\$build->get_column('jobset')}/${\$build->get_column('job')}'>${\showJobName($build)}</a>";
         $msg .= " (and ${\scalar @deps} others)" if scalar @deps > 0;
         $msg .= ": <a href='$baseurl/build/${\$build->id}'>" . showStatus($build) . "</a>";
 

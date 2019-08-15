@@ -142,7 +142,7 @@ sub release : Chained('evalChain') PathPart('release') Args(0) {
     $releaseName ||= $_->releasename foreach @builds;
 
     # If no release name has been defined by any of the builds, compose one of the project name and evaluation id
-    $releaseName = $eval->project->name."-".$eval->id unless defined $releaseName;
+    $releaseName = $eval->get_column('project') . "-" . $eval->id unless defined $releaseName;
 
     my $release;
 

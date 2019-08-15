@@ -6,6 +6,11 @@ use File::Basename;
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
 
+sub isEnabled {
+    my ($self) = @_;
+    return defined $self->{config}->{coverityscan};
+}
+
 sub buildFinished {
     my ($self, $b, $dependents) = @_;
 

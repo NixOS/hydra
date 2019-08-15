@@ -193,12 +193,11 @@ bool State::getQueuedBuilds(Connection & conn,
                     (build->id)
                     ((int) (ex.step->drvPath == build->drvPath ? bsFailed : bsDepFailed))
                     (time(0)).exec();
+                notifyBuildFinished(txn, build->id, {});
                 txn.commit();
                 build->finishedInDB = true;
                 nrBuildsDone++;
             }
-
-            enqueueNotificationItem({NotificationItem::Type::BuildFinished, build->id});
 
             return;
         }
@@ -230,12 +229,11 @@ bool State::getQueuedBuilds(Connection & conn,
             time_t now = time(0);
             printMsg(lvlInfo, format("marking build %1% as succeeded (cached)") % build->id);
             markSucceededBuild(txn, build, res, true, now, now);
+            notifyBuildFinished(txn, build->id, {});
             txn.commit();
             }
 
             build->finishedInDB = true;
-
-            enqueueNotificationItem({NotificationItem::Type::BuildFinished, build->id});
 
             return;
         }

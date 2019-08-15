@@ -76,7 +76,7 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
 sub jobsetToHash {
     my ($jobset) = @_;
     return {
-        project => $jobset->project->name,
+        project => $jobset->get_column('project'),
         name => $jobset->name,
         nrscheduled => $jobset->get_column("nrscheduled"),
         nrsucceeded => $jobset->get_column("nrsucceeded"),
@@ -206,12 +206,12 @@ sub scmdiff : Path('/api/scmdiff') Args(0) {
 
 sub triggerJobset {
     my ($self, $c, $jobset, $force) = @_;
-    print STDERR "triggering jobset ", $jobset->project->name . ":" . $jobset->name, "\n";
+    print STDERR "triggering jobset ", $jobset->get_column('project') . ":" . $jobset->name, "\n";
     txn_do($c->model('DB')->schema, sub {
         $jobset->update({ triggertime => time });
         $jobset->update({ forceeval => 1 }) if $force;
     });
-    push @{$c->{stash}->{json}->{jobsetsTriggered}}, $jobset->project->name . ":" . $jobset->name;
+    push @{$c->{stash}->{json}->{jobsetsTriggered}}, $jobset->get_column('project') . ":" . $jobset->name;
 }
 
 

@@ -7,6 +7,11 @@ use JSON;
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
 
+sub isEnabled {
+    my ($self) = @_;
+    return $self->{config}->{enable_bitbucket_status} == 1;
+}
+
 sub toBitBucketState {
     my ($buildStatus) = @_;
     if ($buildStatus == 0) {
