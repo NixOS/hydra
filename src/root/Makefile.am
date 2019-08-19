@@ -3,6 +3,7 @@ STATIC = \
   $(wildcard static/images/*) \
   $(wildcard static/css/*) \
   static/js/bootbox.min.js \
+  static/js/popper.min.js \
   static/js/common.js \
   static/js/jquery/jquery-3.4.1.min.js \
   static/js/jquery/jquery-ui-1.10.4.min.js

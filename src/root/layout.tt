@@ -17,6 +17,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <script type="text/javascript" src="[% c.uri_for("/static/js/popper.min.js") %]"></script>
     <script type="text/javascript" src="[% c.uri_for("/static/bootstrap/js/bootstrap.min.js") %]"></script>
     <link href="[% c.uri_for("/static/bootstrap/css/bootstrap.min.css") %]" rel="stylesheet" />
 
