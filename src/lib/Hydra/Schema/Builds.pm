@@ -191,6 +191,11 @@ __PACKAGE__->table("Builds");
   default_value: 0
   is_nullable: 0
 
+=head2 notificationpendingsince
+
+  data_type: 'integer'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -252,6 +257,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "keep",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
+  "notificationpendingsince",
+  { data_type => "integer", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -537,8 +544,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-02-12 17:20:42
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:/8aVtXu/+o0jmKHnSzwt+g
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2019-08-19 16:12:37
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:VjYbAQwv4THW2VfWQ5ajYQ
 
 __PACKAGE__->has_many(
   "dependents",
