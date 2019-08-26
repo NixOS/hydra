@@ -185,7 +185,7 @@ init_submodules(){
 
         # checkout each submodule
         hash=$(echo "$l" | awk '{print $1}' | tr -d '-')
-        dir=$(echo "$l" | sed -n 's/^.[0-9a-f]\+ \(.*[^)]*\)\( (.*)\)\?$/\1/p' | cut -d' ' -f1)
+        dir=$(echo "$l" | sed -n 's/^ \{0,1\}[^ ]* \(.*\) ([^ ]*)$/\1/p')
         name=$(
             git config -f .gitmodules --get-regexp submodule\..*\.path |
             sed -n "s,^\(.*\)\.path $dir\$,\\1,p")
@@ -202,7 +202,7 @@ clone(){
     local hash="$3"
     local ref="$4"
 
-    cd "$dir"
+    cd "$dir";
 
     # Initialize the repository.
     init_remote "$url"
@@ -217,6 +217,16 @@ clone(){
     # Checkout linked sources.
     if test -n "$fetchSubmodules"; then
         init_submodules
+    fi
+
+    if [ -z "$builder" ] && [ -f .topdeps ]; then
+        if tg help &>/dev/null; then
+            echo "populating TopGit branches..."
+            tg remote --populate origin
+        else
+            echo "WARNING: would populate TopGit branches but TopGit is not available" >&2
+            echo "WARNING: install TopGit to fix the problem" >&2
+        fi
     fi
 
     if [ -z "$builder" ] && [ -f .topdeps ]; then
@@ -268,7 +278,6 @@ make_deterministic_repo(){
     git gc --prune=all
     )
 }
-
 
 _clone_user_rev() {
     local dir="$1"
@@ -356,7 +365,7 @@ print_results() {
   "rev": "$(json_escape "$fullRev")",
   "date": "$(json_escape "$commitDateStrict8601")",
   "$(json_escape "$hashType")": "$(json_escape "$hash")",
-  "fetchSubmodules": $([[ -n "$fetchSubmodules" ]] && echo true || echo false)
+  "fetchSubmodules": $([[ -n "fetchSubmodules" ]] && echo true || echo false)
 }
 EOF
     fi
@@ -411,7 +420,7 @@ else
         fi
     fi
 
-    echo "$hash"
+    echo $hash
 
     if test -n "$PRINT_PATH"; then
         echo "$finalPath"

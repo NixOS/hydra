@@ -22,7 +22,7 @@ sub fetchInput {
     my $storePath;
     my $revCount;
 
-    my $cacheDir = getSCMCacheDir . "/git";
+    my $cacheDir = getSCMCacheDir . "/darcs";
     mkpath($cacheDir);
     my $clonePath = $cacheDir . "/" . sha256_hex($uri);
     $uri =~ s|^file://||; # darcs wants paths, not file:// uris
