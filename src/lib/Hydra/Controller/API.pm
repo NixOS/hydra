@@ -87,7 +87,8 @@ sub jobsetToHash {
         checkinterval => $jobset->checkinterval,
         triggertime => $jobset->triggertime,
         fetcherrormsg => $jobset->fetcherrormsg,
-        errortime => $jobset->errortime
+        errortime => $jobset->errortime,
+        haserrormsg => $jobset->errormsg eq "" ? JSON::false : JSON::true
     };
 }
 
