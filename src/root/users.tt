@@ -25,7 +25,7 @@
 </table>
 
 <a class="btn btn-primary" href="[% c.uri_for(c.controller('Root').action_for('register')) %]">
-  <i class="icon-plus"></i> Add a new user
+  <i class="fas fa-plus"></i> Add a new user
 </a>
 
 [% END %]

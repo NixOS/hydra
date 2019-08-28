@@ -2,7 +2,7 @@
 [% PROCESS common.tt %]
 
 <div class="btn-group pull-right">
-  <a class="btn btn-primary dropdown-toggle" data-toggle="dropdown" href="#"><i class="icon-white icon-eye-open"></i> Compare to...</a>
+  <a class="btn btn-primary dropdown-toggle" data-toggle="dropdown" href="#"><i class="fas fa-eye"></i> Compare to...</a>
   <ul class="dropdown-menu">
     <li><a href="?">Preceding evaluation in this jobset</a></li>
     <li class="divider"></li>

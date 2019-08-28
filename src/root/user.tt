@@ -100,18 +100,18 @@
   [% END %]
 
   <button id="submit-user" class="btn btn-primary">
-    <i class="icon-ok icon-white"></i>
+    <i class="fas fa-check"></i>
     [%IF create %]Create[% ELSE %]Apply changes[% END %]
   </button>
   [% IF !create && c.check_user_roles('admin') && user.type == 'hydra' %]
     <button id="reset-password" class="btn btn-warning">
-      <i class="icon-trash icon-white"></i>
+      <i class="fas fa-lock"></i>
       Reset password
     </button>
   [% END %]
   [% IF !create %]
     <button id="delete-user" class="btn btn-danger">
-      <i class="icon-trash icon-white"></i>
+      <i class="fas fa-trash"></i>
       Delete this user
     </button>
   [% END %]

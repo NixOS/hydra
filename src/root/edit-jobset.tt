@@ -9,7 +9,7 @@
 [% BLOCK renderJobsetInput %]
   <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
     <td>
-      <button type="button" class="btn btn-warning" onclick='$(this).parents(".input").remove()'><i class="icon-trash icon-white"></i></button>
+      <button type="button" class="btn btn-warning" onclick='$(this).parents(".input").remove()'><i class="fas fa-trash"></i></button>
     </td>
     <td>
       <input type="text" id="[% baseName %]-name" name="[% baseName %]-name" [% HTML.attributes(value => input.name) %]/>
@@ -51,7 +51,7 @@
         [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
       <tr>
-        <td colspan="4" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="icon-plus icon-white"></i> Add a new input</button></td>
+        <td colspan="4" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="fas fa-plus"></i> Add a new input</button></td>
       </tr>
     </tbody>
   </table>
@@ -182,7 +182,7 @@
 
   [% INCLUDE renderJobsetInputs %]
 
-  <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="icon-ok icon-white"></i> [%IF !edit %]Create jobset[% ELSE %]Apply changes[% END %]</button>
+  <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="fas fa-check"></i> [%IF !edit %]Create jobset[% ELSE %]Apply changes[% END %]</button>
 
   <table style="display: none">
     [% INCLUDE renderJobsetInput input="" extraClass="template" id="input-template" baseName="input-template" %]

@@ -10,8 +10,9 @@ STATIC = \
 
 FLOT = flot-0.8.3.zip
 BOOTSTRAP = bootstrap-4.3.1-dist.zip
+FONTAWESOME = fontawesome-free-5.10.2-web.zip
 
-ZIPS = $(FLOT) $(BOOTSTRAP)
+ZIPS = $(FLOT) $(BOOTSTRAP) $(FONTAWESOME)
 
 EXTRA_DIST = $(TEMPLATES) $(STATIC) $(ZIPS)
 
@@ -22,9 +23,14 @@ all:
 	mkdir -p $(srcdir)/static/js
 	unzip -u -d $(srcdir)/static $(BOOTSTRAP)
 	unzip -u -d $(srcdir)/static/js $(FLOT)
+	unzip -u -d $(srcdir)/static $(FONTAWESOME)
 
 install-data-local: $(ZIPS)
 	mkdir -p $(hydradir)/static/js
 	cp -prvd $(srcdir)/static/js/* $(hydradir)/static/js
 	mkdir -p $(hydradir)/static/bootstrap
 	cp -prvd $(srcdir)/static/$(basename $(BOOTSTRAP))/* $(hydradir)/static/bootstrap
+	mkdir -p $(hydradir)/static/fontawesome/css
+	cp -prvd $(srcdir)/static/$(basename $(FONTAWESOME))/css/all.css $(hydradir)/static/fontawesome/css
+	mkdir -p $(hydradir)/static/fontawesome/webfonts
+	cp -prvd $(srcdir)/static/$(basename $(FONTAWESOME))/webfonts/* $(hydradir)/static/fontawesome/webfonts

@@ -71,7 +71,7 @@
   </div>
 
   <button id="submit-project" type="submit" class="btn btn-primary">
-    <i class="icon-ok icon-white"></i>
+    <i class="fas fa-check"></i>
     [%IF create %]Create project[% ELSE %]Apply changes[% END %]
   </button>
 
