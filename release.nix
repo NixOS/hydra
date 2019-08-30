@@ -106,6 +106,7 @@ rec {
             SetScalar
             Starman
             SysHostnameLong
+            TermSizeAny
             TestMore
             TextDiff
             TextTable
