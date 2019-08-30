@@ -1,25 +1,20 @@
 {
-  name = "hydra";
-
   description = "A Nix-based continuous build system";
 
-  epoch = 201906;
+  epoch = 201909;
 
-  inputs =
-    [ "nixpkgs"
-      "nix/ab16b3d076e9cd3ecfdcde128f43dd486b072557"
-    ];
+  inputs.nix.uri = "nix/80c36d4562af71a90c67b3adb886a1003834890e";
 
-  outputs = inputs:
+  outputs = { self, nixpkgs, nix }@inputs:
     let
-      nix = inputs.nix.outputs.hydraJobs.build.x86_64-linux // {
-        perl-bindings = inputs.nix.outputs.hydraJobs.perlBindings.x86_64-linux;
+      nix = inputs.nix.hydraJobs.build.x86_64-linux // {
+        perl-bindings = inputs.nix.hydraJobs.perlBindings.x86_64-linux;
       };
     in rec {
 
       hydraJobs = import ./release.nix {
-        hydraSrc = inputs.self;
-        nixpkgs = inputs.nixpkgs;
+        hydraSrc = self;
+        nixpkgs = nixpkgs;
         inherit nix;
       };
 
@@ -31,8 +26,8 @@
       defaultPackage = packages.hydra;
 
       devShell = (import ./release.nix {
-        hydraSrc = inputs.self;
-        nixpkgs = inputs.nixpkgs;
+        hydraSrc = self;
+        nixpkgs = nixpkgs;
         shell = true;
         inherit nix;
       }).build.x86_64-linux;
