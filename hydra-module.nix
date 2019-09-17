@@ -64,7 +64,7 @@ in
 
       package = mkOption {
         type = types.path;
-        #default = pkgs.hydra;
+        default = pkgs.hydra;
         description = "The Hydra package.";
       };
 
@@ -217,8 +217,6 @@ in
       };
 
     nix.trustedUsers = [ "hydra-queue-runner" ];
-
-    services.hydra-dev.package = mkDefault ((import ./release.nix {}).build.x86_64-linux);
 
     services.hydra-dev.extraConfig =
       ''
