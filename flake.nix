@@ -3,8 +3,6 @@
 
   epoch = 201909;
 
-  inputs.nix.uri = "nix/80c36d4562af71a90c67b3adb886a1003834890e";
-
   outputs = { self, nixpkgs, nix }:
     let
 
