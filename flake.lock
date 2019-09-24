@@ -15,9 +15,9 @@
         },
         "nixpkgs": {
             "inputs": {},
-            "narHash": "sha256-HGlE2VNbdEjCP76hWAS72kHBlMWhpvqWo58Obg1Vy6s=",
-            "originalUri": "nixpkgs",
-            "uri": "github:edolstra/nixpkgs/13e1bce51f4aebdf3db58ce8c4a93e904a272bff"
+            "narHash": "sha256-qWEM8iYRYUdaVCHwTq13w69/11hAFWZplp5mqeU2qBM=",
+            "originalUri": "nixpkgs/release-19.09",
+            "uri": "github:edolstra/nixpkgs/7d9219a0adea88942b8d609f89cf4a1f86df1a9c"
         }
     },
     "version": 3

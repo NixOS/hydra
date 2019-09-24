@@ -3,6 +3,8 @@
 
   epoch = 201909;
 
+  inputs.nixpkgs.uri = "nixpkgs/release-19.09";
+
   outputs = { self, nixpkgs, nix }:
     let
 
@@ -21,31 +23,14 @@
       # NixOS configuration used for VM tests.
       hydraServer =
         { config, pkgs, ... }:
-        { imports = [ self.nixosModules.hydra ];
+        { imports = [ self.nixosModules.hydraTest ];
 
           virtualisation.memorySize = 1024;
           virtualisation.writableStore = true;
 
-          services.hydra-dev.enable = true;
-          services.hydra-dev.hydraURL = "http://hydra.example.org";
-          services.hydra-dev.notificationSender = "admin@hydra.example.org";
-
-          services.postgresql.enable = true;
-          services.postgresql.package = pkgs.postgresql95;
-
           environment.systemPackages = [ pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
 
-          # The following is to work around the following error from hydra-server:
-          #   [error] Caught exception in engine "Cannot determine local time zone"
-          time.timeZone = "UTC";
-
           nix = {
-            # The following is to work around: https://github.com/NixOS/hydra/pull/432
-            buildMachines = [
-              { hostName = "localhost";
-                system = "x86_64-linux";
-              }
-            ];
             # Without this nix tries to fetch packages from the default
             # cache.nixos.org which is not reachable from this sandboxed NixOS test.
             binaryCaches = [];
@@ -297,6 +282,62 @@
       nixosModules.hydra = {
         imports = [ ./hydra-module.nix ];
         nixpkgs.overlays = [ self.overlay ];
+        nix.package = nix';
+      };
+
+      nixosModules.hydraTest = {
+        imports = [ self.nixosModules.hydra ];
+
+        services.hydra-dev.enable = true;
+        services.hydra-dev.hydraURL = "http://hydra.example.org";
+        services.hydra-dev.notificationSender = "admin@hydra.example.org";
+
+        systemd.services.hydra-send-stats.enable = false;
+
+        services.postgresql.enable = true;
+        services.postgresql.package = pkgs.postgresql95;
+
+        # The following is to work around the following error from hydra-server:
+        #   [error] Caught exception in engine "Cannot determine local time zone"
+        time.timeZone = "UTC";
+      };
+
+      nixosConfigurations.container = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules =
+          [ { imports = [ self.nixosModules.hydraTest ];
+              system.configurationRevision = self.rev;
+
+              boot.isContainer = true;
+              networking.useDHCP = false;
+              networking.firewall.allowedTCPPorts = [ 80 ];
+              networking.hostName = "hydra";
+
+              nix.extraOptions = ''
+                allowed-uris = https://github.com/
+              '';
+
+              services.hydra-dev.useSubstitutes = true;
+
+              services.httpd = {
+                enable = true;
+                adminAddr = "hydra-admin@example.org";
+                extraConfig = ''
+                  <Proxy *>
+                    Order deny,allow
+                    Allow from all
+                  </Proxy>
+
+                  ProxyRequests     Off
+                  ProxyPreserveHost On
+                  ProxyPass         /apache-errors !
+                  ErrorDocument 503 /apache-errors/503.html
+                  ProxyPass         /       http://127.0.0.1:3000/ retry=5 disablereuse=on
+                  ProxyPassReverse  /       http://127.0.0.1:3000/
+                '';
+              };
+            }
+          ];
       };
 
     };
