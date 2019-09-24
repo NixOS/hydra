@@ -271,6 +271,7 @@
             '';
         };
 
+        container = nixosConfigurations.container.config.system.build.toplevel;
       };
 
       checks.build = hydraJobs.build.x86_64-linux;
