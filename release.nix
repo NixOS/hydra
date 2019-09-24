@@ -99,6 +99,7 @@ rec {
             LWP
             LWPProtocolHttps
             NetAmazonS3
+            NetPrometheus
             NetStatsd
             PadWalker
             Readonly
