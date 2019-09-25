@@ -862,6 +862,9 @@ int main(int argc, char * * argv)
         signal(SIGTERM, SIG_DFL);
         signal(SIGHUP, SIG_DFL);
 
+        // FIXME: do this in the child environment in openConnection().
+        unsetenv("IN_SYSTEMD");
+
         bool unlock = false;
         bool status = false;
         BuildID buildOne = 0;
