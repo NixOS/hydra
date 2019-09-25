@@ -274,6 +274,11 @@ struct Machine
 
         return true;
     }
+
+    bool isLocalhost()
+    {
+        return sshName == "localhost";
+    }
 };
 
 

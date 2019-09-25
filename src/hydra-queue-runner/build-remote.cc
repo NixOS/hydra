@@ -48,7 +48,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
             throw SysError("cannot dup stderr");
 
         Strings argv;
-        if (machine->sshName == "localhost") {
+        if (machine->isLocalhost()) {
             pgmName = "nix-store";
             argv = {"nix-store", "--serve", "--write"};
         }
@@ -190,7 +190,11 @@ void State::buildRemote(ref<Store> destStore,
             remoteVersion = readInt(from);
             if (GET_PROTOCOL_MAJOR(remoteVersion) != 0x200)
                 throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % machine->sshName);
-            if (GET_PROTOCOL_MINOR(remoteVersion) >= 1)
+            // Always send the derivation to localhost, since it's a
+            // no-op anyway but we might not be privileged to use
+            // cmdBuildDerivation (e.g. if we're running in a NixOS
+            // container).
+            if (GET_PROTOCOL_MINOR(remoteVersion) >= 1 && !machine->isLocalhost())
                 sendDerivation = false;
             if (GET_PROTOCOL_MINOR(remoteVersion) < 3 && repeats > 0)
                 throw Error("machine ‘%1%’ does not support repeating a build; please upgrade it to Nix 1.12", machine->sshName);
@@ -236,10 +240,11 @@ void State::buildRemote(ref<Store> destStore,
            a no-op for regular stores, but for the binary cache store,
            this will copy the inputs to the binary cache from the local
            store. */
-        copyClosure(ref<Store>(localStore), destStore, step->drv.inputSrcs, NoRepair, NoCheckSigs);
+        if (localStore != std::shared_ptr<Store>(destStore))
+            copyClosure(ref<Store>(localStore), destStore, step->drv.inputSrcs, NoRepair, NoCheckSigs);
 
         /* Copy the input closure. */
-        if (/* machine->sshName != "localhost" */ true) {
+        if (!machine->isLocalhost()) {
             auto mc1 = std::make_shared<MaintainCount<counter>>(nrStepsWaiting);
             mc1.reset();
             MaintainCount<counter> mc2(nrStepsCopyingTo);
@@ -381,7 +386,9 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         /* Copy the output paths. */
-        if (/* machine->sshName != "localhost" */ true) {
+        result.accessor = destStore->getFSAccessor();
+
+        if (!machine->isLocalhost() || localStore != std::shared_ptr<Store>(destStore)) {
             updateStep(ssReceivingOutputs);
 
             MaintainCount<counter> mc(nrStepsCopyingFrom);
@@ -426,8 +433,6 @@ void State::buildRemote(ref<Store> destStore,
             if (resMs >= 1000)
                 printMsg(lvlError, format("warning: had to wait %d ms for %d memory tokens for %s")
                     % resMs % totalNarSize % step->drvPath);
-
-            result.accessor = destStore->getFSAccessor();
 
             to << cmdExportPaths << 0 << outputs;
             to.flush();
