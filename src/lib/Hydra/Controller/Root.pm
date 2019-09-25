@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::View::TT;
 use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
 use Nix::Config;
@@ -13,6 +14,7 @@ use Encode;
 use File::Basename;
 use JSON;
 use List::MoreUtils qw{any};
+use Net::Prometheus;
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -198,6 +200,49 @@ sub machines :Local Args(0) {
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
     $self->status_ok($c, entity => $c->stash->{machines});
+}
+
+sub prometheus :Local Args(0) {
+    my ($self, $c) = @_;
+    my $machines = getMachines;
+
+    my $client = Net::Prometheus->new;
+    my $duration = $client->new_histogram(
+        name => "hydra_machine_build_duration",
+        help => "How long builds are taking per server. Note: counts are gauges, NOT counters.",
+        labels => [ "machine" ],
+        buckets => [
+            60,
+            600,
+            1800,
+            3600,
+            7200,
+            21600,
+            43200,
+            86400,
+            172800,
+            259200,
+            345600,
+            518400,
+            604800,
+            691200
+        ]
+    );
+
+    my $steps = dbh($c)->selectall_arrayref(
+        "select machine, s.starttime as starttime " .
+        "from BuildSteps s join Builds b on s.build = b.id " .
+        "where busy != 0 order by machine, stepnr",
+        { Slice => {} });
+
+    foreach my $step (@$steps) {
+        my $name = $step->{machine} ? Hydra::View::TT->stripSSHUser(undef, $step->{machine}) : "";
+        $name = "localhost" unless $name;
+        $duration->labels($name)->observe(time - $step->{starttime});
+    }
+
+    $c->stash->{'plain'} = { data => $client->render };
+    $c->forward('Hydra::View::Plain');
 }
 
 
