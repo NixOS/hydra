@@ -1,7 +1,7 @@
 {
   description = "A Nix-based continuous build system";
 
-  epoch = 201909;
+  edition = 201909;
 
   inputs.nixpkgs.uri = "nixpkgs/release-19.09";
 
