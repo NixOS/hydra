@@ -10,14 +10,9 @@
 
       version = "${builtins.readFile ./version}.${builtins.substring 0 8 self.lastModified}.${self.shortRev}";
 
-      # FIXME: use nix overlay?
-      nix' = nix.hydraJobs.build.x86_64-linux // {
-        perl-bindings = nix.hydraJobs.perlBindings.x86_64-linux;
-      };
-
       pkgs = import nixpkgs {
         system = "x86_64-linux";
-        overlays = [ self.overlay ];
+        overlays = [ self.overlay nix.overlay ];
       };
 
       # NixOS configuration used for VM tests.
@@ -94,8 +89,8 @@
                 TextDiff
                 TextTable
                 XMLSimple
-                nix'
-                nix'.perl-bindings
+                final.nix
+                final.nix.perl-bindings
                 git
                 boehmgc
               ];
@@ -111,14 +106,14 @@
             [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig sqlite libpqxx
               gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
               guile # optional, for Guile + Guix support
-              perlDeps perl nix'
+              perlDeps perl final.nix
               postgresql95 # for running the tests
               boost
               nlohmann_json
             ];
 
           hydraPath = lib.makeBinPath (
-            [ sqlite subversion openssh nix' coreutils findutils pixz
+            [ sqlite subversion openssh final.nix coreutils findutils pixz
               gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
             ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
@@ -151,7 +146,7 @@
                     --prefix PATH ':' $out/bin:$hydraPath \
                     --set HYDRA_RELEASE ${version} \
                     --set HYDRA_HOME $out/libexec/hydra \
-                    --set NIX_RELEASE ${nix'.name or "unknown"}
+                    --set NIX_RELEASE ${final.nix.name or "unknown"}
             done
           '';
 
@@ -282,8 +277,7 @@
 
       nixosModules.hydra = {
         imports = [ ./hydra-module.nix ];
-        nixpkgs.overlays = [ self.overlay ];
-        nix.package = nix';
+        nixpkgs.overlays = [ self.overlay nix.overlay ];
       };
 
       nixosModules.hydraTest = {
