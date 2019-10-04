@@ -3,7 +3,7 @@
 
   edition = 201909;
 
-  inputs.nixpkgs.uri = "nixpkgs/release-19.09";
+  inputs.nixpkgs.uri = "nixpkgs/release-19.03";
 
   outputs = { self, nixpkgs, nix }:
     let
@@ -295,12 +295,36 @@
         # The following is to work around the following error from hydra-server:
         #   [error] Caught exception in engine "Cannot determine local time zone"
         time.timeZone = "UTC";
+
+        nix.extraOptions = ''
+          allowed-uris = https://github.com/
+        '';
+      };
+
+      nixosModules.hydraProxy = {
+        services.httpd = {
+          enable = true;
+          adminAddr = "hydra-admin@example.org";
+          extraConfig = ''
+            <Proxy *>
+              Order deny,allow
+              Allow from all
+            </Proxy>
+
+            ProxyRequests     Off
+            ProxyPreserveHost On
+            ProxyPass         /apache-errors !
+            ErrorDocument 503 /apache-errors/503.html
+            ProxyPass         /       http://127.0.0.1:3000/ retry=5 disablereuse=on
+            ProxyPassReverse  /       http://127.0.0.1:3000/
+          '';
+        };
       };
 
       nixosConfigurations.container = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules =
-          [ { imports = [ self.nixosModules.hydraTest ];
+          [ { imports = [ self.nixosModules.hydraTest self.nixosModules.hydraProxy ];
               system.configurationRevision = self.rev;
 
               boot.isContainer = true;
@@ -308,29 +332,7 @@
               networking.firewall.allowedTCPPorts = [ 80 ];
               networking.hostName = "hydra";
 
-              nix.extraOptions = ''
-                allowed-uris = https://github.com/
-              '';
-
               services.hydra-dev.useSubstitutes = true;
-
-              services.httpd = {
-                enable = true;
-                adminAddr = "hydra-admin@example.org";
-                extraConfig = ''
-                  <Proxy *>
-                    Order deny,allow
-                    Allow from all
-                  </Proxy>
-
-                  ProxyRequests     Off
-                  ProxyPreserveHost On
-                  ProxyPass         /apache-errors !
-                  ErrorDocument 503 /apache-errors/503.html
-                  ProxyPass         /       http://127.0.0.1:3000/ retry=5 disablereuse=on
-                  ProxyPassReverse  /       http://127.0.0.1:3000/
-                '';
-              };
             }
           ];
       };
