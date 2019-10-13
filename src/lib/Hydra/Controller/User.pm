@@ -12,6 +12,7 @@ use Hydra::Helper::Email;
 use LWP::UserAgent;
 use JSON;
 use HTML::Entities;
+use Encode qw(decode);
 
 
 __PACKAGE__->config->{namespace} = '';
@@ -28,8 +29,12 @@ sub login_POST {
     error($c, "You must specify a user name.") if $username eq "";
     error($c, "You must specify a password.") if $password eq "";
 
-    accessDenied($c, "Bad username or password.")
-        if !$c->authenticate({username => $username, password => $password});
+    if ($c->authenticate({username => $username, password => $password}, 'ldap')) {
+        doLDAPLogin($self, $c, $username);
+    } elsif ($c->authenticate({username => $username, password => $password})) {}
+    else {
+        accessDenied($c, "Bad username or password.")
+    }
 
     currentUser_GET($self, $c);
 }
@@ -44,6 +49,36 @@ sub logout_POST {
     $self->status_no_content($c);
 }
 
+sub doLDAPLogin {
+    my ($self, $c, $username) = @_;
+
+    my $user = $c->find_user({ username => $username });
+    my $LDAPUser = $c->find_user({ username => $username }, 'ldap');
+    my @LDAPRoles = grep { (substr $_, 0, 5) eq "hydra" } $LDAPUser->roles;
+
+    if (!$user) {
+        $c->model('DB::Users')->create(
+            { username => $username
+            , fullname => decode('UTF-8', $LDAPUser->cn)
+            , password => "!"
+            , emailaddress => $LDAPUser->mail
+            , type => "LDAP"
+        });
+        $user = $c->find_user({ username => $username }) or die;
+    } else {
+        $user->update(
+            { fullname => decode('UTF-8', $LDAPUser->cn)
+            , password => "!"
+            , emailaddress => $LDAPUser->mail
+            , type => "LDAP"
+        });
+    }
+    $user->userroles->delete;
+    if (@LDAPRoles) {
+        $user->userroles->create({ role => (substr $_, 6) }) for @LDAPRoles;
+    }
+    $c->set_authenticated($user);
+}
 
 sub doEmailLogin {
     my ($self, $c, $type, $email, $fullName) = @_;
