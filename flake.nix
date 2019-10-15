@@ -159,7 +159,7 @@
 
       hydraJobs = {
 
-        build.x86_64-linux = packages.hydra;
+        build.x86_64-linux = packages.x86_64-linux.hydra;
 
         manual =
           pkgs.runCommand "hydra-manual-${version}" {}
@@ -269,11 +269,11 @@
         container = nixosConfigurations.container.config.system.build.toplevel;
       };
 
-      checks.build = hydraJobs.build.x86_64-linux;
-      checks.install = hydraJobs.tests.install.x86_64-linux;
+      checks.x86_64-linux.build = hydraJobs.build.x86_64-linux;
+      checks.x86_64-linux.install = hydraJobs.tests.install.x86_64-linux;
 
-      packages.hydra = pkgs.hydra;
-      defaultPackage = pkgs.hydra;
+      packages.x86_64-linux.hydra = pkgs.hydra;
+      defaultPackage.x86_64-linux = pkgs.hydra;
 
       nixosModules.hydra = {
         imports = [ ./hydra-module.nix ];
