@@ -3,7 +3,7 @@
 
   edition = 201909;
 
-  inputs.nixpkgs.uri = "nixpkgs/release-19.03";
+  inputs.nixpkgs.uri = "nixpkgs/release-19.09";
 
   outputs = { self, nixpkgs, nix }:
     let
