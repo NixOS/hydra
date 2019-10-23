@@ -539,7 +539,7 @@ END;
     running the following command:</p>
 
 <pre>
-<span class="shell-prompt"># </span>nix build [% HTML.escape(eval.flake) %]:hydraJobs.[% HTML.escape(job.name) %]
+<span class="shell-prompt"># </span>nix build [% HTML.escape(eval.flake) %]#hydraJobs.[% HTML.escape(job.name) %]
 </pre>
 
     [% ELSE %]
