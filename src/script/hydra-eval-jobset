@@ -614,7 +614,7 @@ sub checkJobsetWrapped {
         die "'nix flake info' returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
             . ":\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
             if $res;
-        $flakeRef = decode_json($json)->{'uri'};
+        $flakeRef = decode_json($json)->{'url'};
     }
 
     Net::Statsd::increment("hydra.evaluator.checkouts");
