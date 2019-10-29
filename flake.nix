@@ -88,6 +88,7 @@
                 TextDiff
                 TextTable
                 XMLSimple
+                YAML
                 final.nix
                 final.nix.perl-bindings
                 git
