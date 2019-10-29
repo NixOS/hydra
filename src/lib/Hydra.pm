@@ -45,9 +45,9 @@ __PACKAGE__->config(
                     role_field => "role",
                 },
             },
-            ldap => LoadFile(
-		file($ENV{'HYDRA_LDAP_CONFIG'})
-	    )
+            ldap => $ENV{'HYDRA_LDAP_CONFIG'} ? LoadFile(
+                file($ENV{'HYDRA_LDAP_CONFIG'})
+            ) : undef
         },
     },
     'Plugin::Static::Simple' => {
