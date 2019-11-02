@@ -57,7 +57,14 @@ struct MyArgs : MixEvalArgs, MixCommonArgs
 
 static MyArgs myArgs;
 
-static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name, const string & subAttribute)
+static void getAttribute(EvalState &state, const string & attr, Value &v, string &rs) {
+    auto a = v.attrs->find(state.symbols.create(attr));
+
+    if (a != v.attrs->end())
+        rs = state.forceString(*a->value);
+}
+
+static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name, const string & subAttribute, const string &fallback = "")
 {
     Strings res;
     std::function<void(Value & v)> rec;
@@ -70,9 +77,16 @@ static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const stri
             for (unsigned int n = 0; n < v.listSize(); ++n)
                 rec(*v.listElems()[n]);
         else if (v.type == tAttrs) {
-            auto a = v.attrs->find(state.symbols.create(subAttribute));
-            if (a != v.attrs->end())
-                res.push_back(state.forceString(*a->value));
+            string result;
+            getAttribute(state, subAttribute, v, result);
+            if (!result.empty()) {
+                res.push_back(result);
+            } else if (!fallback.empty()) {
+                getAttribute(state, fallback, v, result);
+                if (!result.empty()) {
+                    res.push_back(result);
+                }
+            }
         }
     };
 

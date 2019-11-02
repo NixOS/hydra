@@ -37,6 +37,11 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   <input name="full" type="hidden" [% HTML.attributes(value => full) %]/>
 </form>
 
+<form class="form-search">
+  <input name="maintainers" type="text" class="input-large search-query" placeholder="Search jobs by maintainers..." />
+  <input type="hidden" name="full" [% HTML.attributes(value => full) %] />
+</form>
+
 <ul class="nav nav-tabs">
   [% IF c.user_exists %]
     <li class="dropdown">

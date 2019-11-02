@@ -33,6 +33,9 @@ sub view_GET {
     $c->stash->{filter} = $c->request->params->{filter} // "";
     my $filter = $c->stash->{filter} eq "" ? {} : { job => { ilike => "%" . $c->stash->{filter} . "%" } };
 
+    $c->stash->{maintainers} = $c->request->params->{maintainers} // "";
+    $filter->{maintainers_github} = { ilike => "%" . $c->stash->{maintainers} . "%" };
+
     my $compare = $c->req->params->{compare};
     my $eval2;
 

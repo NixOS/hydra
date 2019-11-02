@@ -239,6 +239,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "maintainers",
   { data_type => "text", is_nullable => 1 },
+  "maintainers_github",
+  { data_type => "text", is_nullable => 1 },
   "maxsilent",
   { data_type => "integer", default_value => 3600, is_nullable => 1 },
   "timeout",

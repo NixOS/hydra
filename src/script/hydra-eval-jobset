@@ -461,6 +461,7 @@ sub checkBuild {
             , finished => 0
             , iscurrent => 1
             , ischannel => $buildInfo->{isChannel}
+            , maintainers_github => null($buildInfo->{maintainers_github})
             });
 
         $build->buildoutputs->create({ name => $_, path => $buildInfo->{outputs}->{$_} })

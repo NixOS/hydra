@@ -109,6 +109,7 @@ BLOCK renderBuildListHeader %]
         <th>[% IF showSchedulingInfo %]Queued at[% ELSE %]Finished at[% END %]</th>
         <th>Package/release name</th>
         <th>System</th>
+        <th>Maintainers</th>
         [% IF showDescription %]
           <th>Description</th>
         [% END %]
@@ -131,11 +132,12 @@ BLOCK renderBuildListBody;
       [% END %]
       <td><a class="row-link" href="[% link %]">[% build.id %]</a></td>
       [% IF !hideJobName %]
-        <td><a href="[%link%]">[% IF !hideJobsetName %][%build.get_column("project")%]:[%build.get_column("jobset")%]:[% END %][%build.get_column("job")%]</td>
+        <td><a href="[%link%]">[% IF !hideJobsetName %][%build.get_column("project")%]:[%build.get_column("jobset")%]:[% END %][%build.get_column("job")%]</a></td>
       [% END %]
       <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; INCLUDE renderRelativeDate timestamp=(showSchedulingInfo ? build.timestamp : build.stoptime); ELSE; "-"; END %]</td>
       <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
       <td class="nowrap"><tt>[% build.system %]</tt></td>
+      <td class="nowrap"><tt>[% build.maintainers_github %]</tt></td>
       [% IF showDescription %]
         <td>[% build.description %]</td>
       [% END %]
