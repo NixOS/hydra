@@ -13,6 +13,7 @@ our @EXPORT = qw(
     searchBuildsAndEvalsForJobset
     error notFound gone accessDenied
     forceLogin requireUser requireProjectOwner requireRestartPrivileges requireAdmin requirePost isAdmin isProjectOwner
+    requireBumpPrivileges
     trim
     getLatestFinishedEval getFirstEval
     paramToList
@@ -179,6 +180,27 @@ sub isProjectOwner {
         (isAdmin($c) ||
          $c->user->username eq $project->owner->username ||
          defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
+}
+
+sub hasBumpJobsRole {
+    my ($c) = @_;
+    return $c->user_exists && $c->check_user_roles('bump-to-front');
+}
+
+sub mayBumpJobs {
+    my ($c, $project) = @_;
+    return
+        $c->user_exists &&
+        (isAdmin($c) ||
+         hasBumpJobsRole($c) ||
+         isProjectOwner($c, $project));
+}
+
+sub requireBumpPrivileges {
+    my ($c, $project) = @_;
+    requireUser($c);
+    accessDenied($c, "Only the project members, administrators, and accounts with bump-to-front privileges can perform this operation.")
+        unless mayBumpJobs($c, $project);
 }
 
 sub hasRestartJobsRole {

@@ -81,6 +81,7 @@
             [% INCLUDE roleoption role="admin" %]
             [% INCLUDE roleoption role="create-projects" %]
             [% INCLUDE roleoption role="restart-jobs" %]
+            [% INCLUDE roleoption role="bump-to-front" %]
           </select>
         </div>
       </div>

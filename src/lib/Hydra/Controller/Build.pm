@@ -540,7 +540,7 @@ sub bump : Chained('buildChain') PathPart('bump') {
 
     my $build = $c->stash->{build};
 
-    requireProjectOwner($c, $build->project); # FIXME: require admin?
+    requireBumpPrivileges($c, $build->project);
 
     $c->model('DB')->schema->txn_do(sub {
         $build->update({globalpriority => time()});

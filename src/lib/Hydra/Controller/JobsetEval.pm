@@ -210,7 +210,7 @@ sub restart_failed : Chained('evalChain') PathPart('restart-failed') Args(0) {
 
 sub bump : Chained('evalChain') PathPart('bump') Args(0) {
     my ($self, $c) = @_;
-    requireProjectOwner($c, $c->stash->{eval}->project); # FIXME: require admin?
+    requireBumpPrivileges($c, $c->stash->{eval}->project); # FIXME: require admin?
     my $builds = $c->stash->{eval}->builds->search({ finished => 0 });
     my $n = $builds->count();
     $c->model('DB')->schema->txn_do(sub {
