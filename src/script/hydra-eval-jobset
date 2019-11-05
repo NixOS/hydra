@@ -431,8 +431,6 @@ sub checkBuild {
         # new build to be scheduled if the meta.maintainers field is
         # changed?
         if (defined $prevEval) {
-            # Only check one output: if it's the same, the other will be as well.
-            my $firstOutput = $outputNames[0];
             my ($prevBuild) = $prevEval->builds->search(
                 # The "project" and "jobset" constraints are
                 # semantically unnecessary (because they're implied by
