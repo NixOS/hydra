@@ -82,6 +82,7 @@
             [% INCLUDE roleoption role="create-projects" %]
             [% INCLUDE roleoption role="restart-jobs" %]
             [% INCLUDE roleoption role="bump-to-front" %]
+            [% INCLUDE roleoption role="cancel-build" %]
           </select>
         </div>
       </div>
