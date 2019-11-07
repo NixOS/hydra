@@ -504,7 +504,7 @@ sub restart : Chained('buildChain') PathPart Args(0) {
 sub cancel : Chained('buildChain') PathPart Args(0) {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
-    requireProjectOwner($c, $build->project);
+    requireCancelBuildPrivileges($c, $build->project);
     my $n = cancelBuilds($c->model('DB')->schema, $c->model('DB::Builds')->search({ id => $build->id }));
     error($c, "This build cannot be cancelled.") if $n != 1;
     $c->flash->{successMsg} = "Build has been cancelled.";
@@ -540,7 +540,7 @@ sub bump : Chained('buildChain') PathPart('bump') {
 
     my $build = $c->stash->{build};
 
-    requireProjectOwner($c, $build->project); # FIXME: require admin?
+    requireBumpPrivileges($c, $build->project);
 
     $c->model('DB')->schema->txn_do(sub {
         $build->update({globalpriority => time()});
