@@ -325,8 +325,9 @@
       nixosConfigurations.container = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules =
-          [ { imports = [ self.nixosModules.hydraTest self.nixosModules.hydraProxy ];
-              system.configurationRevision = self.rev;
+          [ self.nixosModules.hydraTest
+            self.nixosModules.hydraProxy
+            { system.configurationRevision = self.rev;
 
               boot.isContainer = true;
               networking.useDHCP = false;
