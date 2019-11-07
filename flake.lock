@@ -4,20 +4,20 @@
             "inputs": {
                 "nixpkgs": {
                     "inputs": {},
-                    "narHash": "sha256-ALTr2z3J1mE/2OAuEIALIq5pxgADfKvq7rF7gqxT4c0=",
+                    "narHash": "sha256-ZzR2l1dovxeZ555KXxz7SAXrC72BfaR4BeqvJzRdmwQ=",
                     "originalUrl": "nixpkgs/release-19.09",
-                    "url": "github:edolstra/nixpkgs/bcceb882ccdfa818c1e18f4c1e88f2db68964305"
+                    "url": "github:edolstra/nixpkgs/d37927a77e70a2b3408ceaa2e763b6df1f4d941a"
                 }
             },
-            "narHash": "sha256-Y1cdnCNoJmjqyC/a+Nt2N+5L3Ttg7K7zOD7gmtg1QzA=",
+            "narHash": "sha256-jdPbZC16ky1nhh1P0E6RGnEjtDofgfbWXFn1v6GyYXA=",
             "originalUrl": "nix",
-            "url": "github:NixOS/nix/9cac895406724e0304dff140379783c4d786e855"
+            "url": "github:NixOS/nix/0ba8a4e942fbbc6ed71fa3aa76c6f923de3923ee"
         },
         "nixpkgs": {
             "inputs": {},
-            "narHash": "sha256-ALTr2z3J1mE/2OAuEIALIq5pxgADfKvq7rF7gqxT4c0=",
+            "narHash": "sha256-ZzR2l1dovxeZ555KXxz7SAXrC72BfaR4BeqvJzRdmwQ=",
             "originalUrl": "nixpkgs/release-19.09",
-            "url": "github:edolstra/nixpkgs/bcceb882ccdfa818c1e18f4c1e88f2db68964305"
+            "url": "github:edolstra/nixpkgs/d37927a77e70a2b3408ceaa2e763b6df1f4d941a"
         }
     },
     "version": 3

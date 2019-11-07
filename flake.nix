@@ -110,7 +110,7 @@
               perlDeps perl final.nix
               postgresql95 # for running the tests
               boost
-              nlohmann_json
+              (nlohmann_json.override { multipleHeaders = true; })
             ];
 
           hydraPath = lib.makeBinPath (
