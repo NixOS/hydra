@@ -16,6 +16,7 @@ use List::Util qw[min max];
 use List::SomeUtils qw{any};
 use Net::Prometheus;
 use Types::Standard qw/StrMatch/;
+use File::Slurp;
 
 use constant NARINFO_REGEX => qr{^([a-z0-9]{32})\.narinfo$};
 
@@ -47,6 +48,7 @@ sub begin :Private {
     $c->stash->{curUri} = $c->request->uri;
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
+    $c->stash->{load} = join(" ", (split / /, read_file("/proc/loadavg"), 4)[0, 1, 2]);
     $c->stash->{curTime} = time;
     $c->stash->{logo} = defined $c->config->{hydra_logo} ? "/logo" : "";
     $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"};

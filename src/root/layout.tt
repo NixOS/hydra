@@ -95,6 +95,7 @@
         <small>
           <em><a href="http://nixos.org/hydra" target="_blank">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
           [% IF c.user_exists %]
+          <em>System load: [% HTML.escape(load) %].</em>
           You are signed in as <tt>[% HTML.escape(c.user.username) %]</tt>
             [%- IF c.user.type == 'google' %] via Google[% END %].
           [% END %]
