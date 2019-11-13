@@ -56,12 +56,6 @@ sub sendQueueRunnerStats {
 
     gauge("hydra.queue.machines.total", scalar(grep { $_->{enabled} } (values %{$json->{machines}})));
     gauge("hydra.queue.machines.in_use", scalar(grep { $_->{currentJobs} > 0 } (values %{$json->{machines}})));
-    gauge("hydra.queue.notification.time_avg_ms", $json->{nrNotificationTimeAvgMs});
-    gauge("hydra.queue.notification.time_ms", $json->{nrNotificationTimeMs});
-    gauge("hydra.queue.notification.done", $json->{nrNotificationsDone});
-    gauge("hydra.queue.notification.failed", $json->{nrNotificationsFailed});
-    gauge("hydra.queue.notification.in_progress", $json->{nrNotificationsInProgress});
-    gauge("hydra.queue.notification.pending", $json->{nrNotificationsPending});
 }
 
 while (1) {
