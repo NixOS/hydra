@@ -340,28 +340,29 @@ void State::buildRemote(ref<Store> destStore,
                 case BuildResult::PermanentFailure:
                     result.stepStatus = bsFailed;
                     result.canCache = true;
-                    result.errorMsg = "";
                     break;
                 case BuildResult::InputRejected:
                 case BuildResult::OutputRejected:
                     result.stepStatus = bsFailed;
                     result.canCache = true;
+                    result.errorMsg += " {inp/out rejected}";
                     break;
                 case BuildResult::TransientFailure:
                     result.stepStatus = bsFailed;
                     result.canRetry = true;
-                    result.errorMsg = "";
                     break;
                 case BuildResult::TimedOut:
                     result.stepStatus = bsTimedOut;
-                    result.errorMsg = "";
+                    result.errorMsg += " {timed out}";
                     break;
                 case BuildResult::MiscFailure:
                     result.stepStatus = bsAborted;
                     result.canRetry = true;
+                    result.errorMsg += " {misc. failure}";
                     break;
                 case BuildResult::LogLimitExceeded:
                     result.stepStatus = bsLogLimitExceeded;
+                    result.errorMsg += " {log limit exceeded}";
                     break;
                 case BuildResult::NotDeterministic:
                     result.stepStatus = bsNotDeterministic;
@@ -370,12 +371,15 @@ void State::buildRemote(ref<Store> destStore,
                     break;
                 default:
                     result.stepStatus = bsAborted;
+                    result.errorMsg += " {default/abort}";
                     break;
             }
-            if (result.stepStatus != bsSuccess) return;
-        }
 
-        result.errorMsg = "";
+            if (result.stepStatus != bsSuccess) {
+                result.errorMsg += " Log: " + chomp(readFile(result.logFile));
+                return;
+            }
+        }
 
         /* If the path was substituted or already valid, then we didn't
            get a build log. */
