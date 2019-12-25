@@ -58,6 +58,7 @@ struct RemoteResult
     bool isCached = false; // for bsSucceed
     bool canCache = false; // for bsFailed
     std::string errorMsg; // for bsAborted
+    std::string errorLog;
 
     unsigned int timesBuilt = 0;
     bool isNonDeterministic = false;

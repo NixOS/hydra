@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #include "serve-protocol.hh"
 #include "state.hh"
@@ -120,6 +121,23 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
 
     if (readInt(from) != 1)
         throw Error("remote machine failed to import closure");
+}
+
+
+string readFileTail(const Path & path, const int & nbytes)
+{
+    AutoCloseFD fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (!fd)
+        throw SysError(format("tail opening file '%1%'") % path);
+
+    struct stat st;
+    if (fstat(fd.get(), &st) == -1)
+        throw SysError("stat'ing file for tail");
+
+    std::vector<unsigned char> buf(nbytes);
+    lseek(fd.get(), st.st_size - nbytes, SEEK_SET);
+    readFull(fd.get(), buf.data(), nbytes);
+    return string((char *) buf.data(), nbytes);
 }
 
 
@@ -376,7 +394,7 @@ void State::buildRemote(ref<Store> destStore,
             }
 
             if (result.stepStatus != bsSuccess) {
-                result.errorMsg += " Log: " + chomp(readFile(result.logFile));
+                result.errorLog = chomp(readFileTail(result.logFile, 2048));
                 return;
             }
         }
