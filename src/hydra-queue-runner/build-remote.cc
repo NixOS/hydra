@@ -371,16 +371,13 @@ void State::buildRemote(ref<Store> destStore,
                     break;
                 case BuildResult::TimedOut:
                     result.stepStatus = bsTimedOut;
-                    result.errorMsg += " {timed out}";
                     break;
                 case BuildResult::MiscFailure:
                     result.stepStatus = bsAborted;
                     result.canRetry = true;
-                    result.errorMsg += " {misc. failure}";
                     break;
                 case BuildResult::LogLimitExceeded:
                     result.stepStatus = bsLogLimitExceeded;
-                    result.errorMsg += " {log limit exceeded}";
                     break;
                 case BuildResult::NotDeterministic:
                     result.stepStatus = bsNotDeterministic;
@@ -389,7 +386,6 @@ void State::buildRemote(ref<Store> destStore,
                     break;
                 default:
                     result.stepStatus = bsAborted;
-                    result.errorMsg += " {default/abort}";
                     break;
             }
 
