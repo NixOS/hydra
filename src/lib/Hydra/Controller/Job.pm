@@ -59,7 +59,7 @@ sub prometheus : Chained('job') PathPart('prometheus') Args(0) {
         $c->stash->{jobset}->name,
         $c->stash->{job}->name,
         $lastBuild->nixname,
-    )->inc($lastBuild->stoptime >= 0);
+    )->inc($lastBuild->buildstatus > 0);
 
     $c->stash->{'plain'} = { data => $prometheus->render };
     $c->forward('Hydra::View::Plain');
