@@ -42,23 +42,21 @@ sub prometheus : Chained('job') PathPart('prometheus') Args(0) {
     $prometheus->new_counter(
         name => "hydra_job_completion_time",
         help => "The most recent job's completion time",
-        labels => [ "project", "jobset", "job", "nixname" ]
+        labels => [ "project", "jobset", "job" ]
     )->labels(
         $c->stash->{project}->name,
         $c->stash->{jobset}->name,
         $c->stash->{job}->name,
-        $lastBuild->nixname,
     )->inc($lastBuild->stoptime);
 
     $prometheus->new_gauge(
         name => "hydra_job_failed",
         help => "Record if the most recent version of this job failed (1 means failed)",
-        labels => [ "project", "jobset", "job", "nixname" ]
+        labels => [ "project", "jobset", "job" ]
     )->labels(
         $c->stash->{project}->name,
         $c->stash->{jobset}->name,
         $c->stash->{job}->name,
-        $lastBuild->nixname,
     )->inc($lastBuild->buildstatus > 0);
 
     $c->stash->{'plain'} = { data => $prometheus->render };
