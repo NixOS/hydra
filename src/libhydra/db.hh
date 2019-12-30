@@ -12,7 +12,7 @@ struct Connection : pqxx::connection
     std::string getFlags()
     {
         using namespace nix;
-        auto s = getEnv("HYDRA_DBI", "dbi:Pg:dbname=hydra;");
+        auto s = getEnv("HYDRA_DBI").value_or("dbi:Pg:dbname=hydra;");
         std::string prefix = "dbi:Pg:";
         if (std::string(s, 0, prefix.size()) != prefix)
             throw Error("$HYDRA_DBI does not denote a PostgreSQL database");
