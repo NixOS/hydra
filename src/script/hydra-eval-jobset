@@ -288,6 +288,7 @@ sub buildInputToString {
             (defined $input->{revision} ? "(revision . \"" . $input->{revision} . "\")" : "") .
             (defined $input->{revCount} ? "(revision-count . " . $input->{revCount} . ")" : "") .
             (defined $input->{gitTag} ? "(git-tag . \"" . $input->{gitTag} . "\")" : "") .
+            (defined $input->{sha256hash} ? "(sha256hash . \"" . $input->{sha256hash} . "\")" : "") .
             (defined $input->{shortRev} ? "(short-revision . \"" . $input->{shortRev} . "\")" : "") .
             (defined $input->{version} ? "(version . \"" . $input->{version} . "\")" : "") .
             ")";
@@ -301,6 +302,7 @@ sub buildInputToString {
             (defined $input->{gitTag} ? "; gitTag = \"" . $input->{gitTag} . "\"" : "") .
             (defined $input->{shortRev} ? "; shortRev = \"" . $input->{shortRev} . "\"" : "") .
             (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
+            (defined $input->{sha256hash} ? "; sha256hash = \"" . $input->{sha256hash} . "\"" : "") .
             (defined $input->{outputName} ? "; outputName = \"" . $input->{outputName} . "\"" : "") .
             (defined $input->{drvPath} ? "; drvPath = builtins.storePath " . $input->{drvPath} . "" : "") .
             ";}";
