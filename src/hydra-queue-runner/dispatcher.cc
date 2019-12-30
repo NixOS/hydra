@@ -10,7 +10,7 @@ using namespace nix;
 
 void State::makeRunnable(Step::ptr step)
 {
-    printMsg(lvlChatty, format("step ‘%1%’ is now runnable") % step->drvPath);
+    printMsg(lvlChatty, "step ‘%s’ is now runnable", localStore->printStorePath(step->drvPath));
 
     {
         auto step_(step->state.lock());
@@ -248,7 +248,7 @@ system_time State::doDispatch()
                 /* Can this machine do this step? */
                 if (!mi.machine->supportsStep(step)) {
                     debug("machine '%s' does not support step '%s' (system type '%s')",
-                        mi.machine->sshName, step->drvPath, step->drv.platform);
+                        mi.machine->sshName, localStore->printStorePath(step->drvPath), step->drv->platform);
                     continue;
                 }
 

@@ -14,9 +14,9 @@ struct Config
 
         /* Read hydra.conf. */
         auto hydraConfigFile = getEnv("HYDRA_CONFIG");
-        if (pathExists(hydraConfigFile)) {
+        if (hydraConfigFile && pathExists(*hydraConfigFile)) {
 
-            for (auto line : tokenizeString<Strings>(readFile(hydraConfigFile), "\n")) {
+            for (auto line : tokenizeString<Strings>(readFile(*hydraConfigFile), "\n")) {
                 line = trim(string(line, 0, line.find('#')));
 
                 auto eq = line.find('=');

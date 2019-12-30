@@ -38,9 +38,9 @@ static uint64_t getMemSize()
 
 std::string getEnvOrDie(const std::string & key)
 {
-    char * value = getenv(key.c_str());
+    auto value = getEnv(key);
     if (!value) throw Error("environment variable '%s' is not set", key);
-    return value;
+    return *value;
 }
 
 
@@ -160,7 +160,7 @@ void State::monitorMachinesFile()
 {
     string defaultMachinesFile = "/etc/nix/machines";
     auto machinesFiles = tokenizeString<std::vector<Path>>(
-        getEnv("NIX_REMOTE_SYSTEMS", pathExists(defaultMachinesFile) ? defaultMachinesFile : ""), ":");
+        getEnv("NIX_REMOTE_SYSTEMS").value_or(pathExists(defaultMachinesFile) ? defaultMachinesFile : ""), ":");
 
     if (machinesFiles.empty()) {
         parseMachines("localhost " +
@@ -252,10 +252,10 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
         (buildId)
         (stepNr)
         (0) // == build
-        (step->drvPath)
+        (localStore->printStorePath(step->drvPath))
         (status == bsBusy ? 1 : 0)
         (startTime, startTime != 0)
-        (step->drv.platform)
+        (step->drv->platform)
         ((int) status, status != bsBusy)
         (propagatedFrom, propagatedFrom != 0)
         (errorMsg, errorMsg != "")
@@ -264,10 +264,10 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
 
     if (r.affected_rows() == 0) goto restart;
 
-    for (auto & output : step->drv.outputs)
+    for (auto & output : step->drv->outputs)
         txn.parameterized
             ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)")
-            (buildId)(stepNr)(output.first)(output.second.path).exec();
+            (buildId)(stepNr)(output.first)(localStore->printStorePath(output.second.path)).exec();
 
     if (status == bsBusy)
         txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));
@@ -310,7 +310,7 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
 
 
 int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
-    Build::ptr build, const Path & drvPath, const string & outputName, const Path & storePath)
+    Build::ptr build, const StorePath & drvPath, const string & outputName, const StorePath & storePath)
 {
  restart:
     auto stepNr = allocBuildStep(txn, build->id);
@@ -320,7 +320,7 @@ int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t sto
         (build->id)
         (stepNr)
         (1) // == substitution
-        (drvPath)
+        (localStore->printStorePath(drvPath))
         (0)
         (0)
         (startTime)
@@ -330,7 +330,10 @@ int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t sto
 
     txn.parameterized
         ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)")
-        (build->id)(stepNr)(outputName)(storePath).exec();
+        (build->id)
+        (stepNr)
+        (outputName)
+        (localStore->printStorePath(storePath)).exec();
 
     return stepNr;
 }
@@ -450,8 +453,8 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 {
     pqxx::work txn(conn);
-    for (auto & path : step->drv.outputPaths())
-        if (!txn.parameterized("select 1 from FailedPaths where path = $1")(path).exec().empty())
+    for (auto & path : step->drv->outputPaths())
+        if (!txn.parameterized("select 1 from FailedPaths where path = $1")(localStore->printStorePath(path)).exec().empty())
             return true;
     return false;
 }
@@ -763,7 +766,7 @@ void State::run(BuildID buildOne)
     Store::Params localParams;
     localParams["max-connections"] = "16";
     localParams["max-connection-age"] = "600";
-    localStore = openStore(getEnv("NIX_REMOTE"), localParams);
+    localStore = openStore(getEnv("NIX_REMOTE").value_or(""), localParams);
 
     auto storeUri = config->getStrOption("store_uri");
     _destStore = storeUri == "" ? localStore : openStore(storeUri);

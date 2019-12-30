@@ -147,8 +147,9 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
                done. */
             auto localStore = state.store.dynamic_pointer_cast<LocalFSStore>();
             if (gcRootsDir != "" && localStore) {
-                Path root = gcRootsDir + "/" + baseNameOf(drvPath);
-                if (!pathExists(root)) localStore->addPermRoot(drvPath, root, false);
+                Path root = gcRootsDir + "/" + std::string(baseNameOf(drvPath));
+                if (!pathExists(root))
+                    localStore->addPermRoot(localStore->parseStorePath(drvPath), root, false);
             }
 
             auto res2 = res.object("outputs");

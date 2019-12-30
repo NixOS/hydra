@@ -82,10 +82,10 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 
 
 static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
-    FdSource & from, FdSink & to, const PathSet & paths,
+    FdSource & from, FdSink & to, const StorePathSet & paths,
     bool useSubstitutes = false)
 {
-    PathSet closure;
+    StorePathSet closure;
     for (auto & path : paths)
         destStore->computeFSClosure(path, closure);
 
@@ -94,20 +94,21 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
        garbage-collect paths that are already there. Optionally, ask
        the remote host to substitute missing paths. */
     // FIXME: substitute output pollutes our build log
-    to << cmdQueryValidPaths << 1 << useSubstitutes << closure;
+    to << cmdQueryValidPaths << 1 << useSubstitutes;
+    writeStorePaths(*destStore, to, closure);
     to.flush();
 
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = readStorePaths<PathSet>(*destStore, from);
+    auto present = readStorePaths<StorePathSet>(*destStore, from);
 
     if (present.size() == closure.size()) return;
 
-    Paths sorted = destStore->topoSortPaths(closure);
+    auto sorted = destStore->topoSortPaths(closure);
 
-    Paths missing;
+    StorePathSet missing;
     for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
-        if (present.find(*i) == present.end()) missing.push_back(*i);
+        if (!present.count(*i)) missing.insert(i->clone());
 
     printMsg(lvlDebug, format("sending %1% missing paths") % missing.size());
 
@@ -131,7 +132,7 @@ void State::buildRemote(ref<Store> destStore,
 {
     assert(BuildResult::TimedOut == 8);
 
-    string base = baseNameOf(step->drvPath);
+    string base(step->drvPath.to_string());
     result.logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
     AutoDelete autoDelete(result.logFile, false);
 
@@ -217,22 +218,22 @@ void State::buildRemote(ref<Store> destStore,
            outputs of the input derivations. */
         updateStep(ssSendingInputs);
 
-        PathSet inputs;
-        BasicDerivation basicDrv(step->drv);
+        StorePathSet inputs;
+        BasicDerivation basicDrv(*step->drv);
 
         if (sendDerivation)
-            inputs.insert(step->drvPath);
+            inputs.insert(step->drvPath.clone());
         else
-            for (auto & p : step->drv.inputSrcs)
-                inputs.insert(p);
+            for (auto & p : step->drv->inputSrcs)
+                inputs.insert(p.clone());
 
-        for (auto & input : step->drv.inputDrvs) {
-            Derivation drv2 = readDerivation(input.first);
+        for (auto & input : step->drv->inputDrvs) {
+            Derivation drv2 = readDerivation(*localStore, localStore->printStorePath(input.first));
             for (auto & name : input.second) {
                 auto i = drv2.outputs.find(name);
                 if (i == drv2.outputs.end()) continue;
-                inputs.insert(i->second.path);
-                basicDrv.inputSrcs.insert(i->second.path);
+                inputs.insert(i->second.path.clone());
+                basicDrv.inputSrcs.insert(i->second.path.clone());
             }
         }
 
@@ -241,14 +242,15 @@ void State::buildRemote(ref<Store> destStore,
            this will copy the inputs to the binary cache from the local
            store. */
         if (localStore != std::shared_ptr<Store>(destStore))
-            copyClosure(ref<Store>(localStore), destStore, step->drv.inputSrcs, NoRepair, NoCheckSigs);
+            copyClosure(ref<Store>(localStore), destStore, step->drv->inputSrcs, NoRepair, NoCheckSigs);
 
         /* Copy the input closure. */
         if (!machine->isLocalhost()) {
             auto mc1 = std::make_shared<MaintainCount<counter>>(nrStepsWaiting);
             mc1.reset();
             MaintainCount<counter> mc2(nrStepsCopyingTo);
-            printMsg(lvlDebug, format("sending closure of ‘%1%’ to ‘%2%’") % step->drvPath % machine->sshName);
+            printMsg(lvlDebug, "sending closure of ‘%s’ to ‘%s’",
+                localStore->printStorePath(step->drvPath), machine->sshName);
 
             auto now1 = std::chrono::steady_clock::now();
 
@@ -272,14 +274,19 @@ void State::buildRemote(ref<Store> destStore,
         logFD = -1;
 
         /* Do the build. */
-        printMsg(lvlDebug, format("building ‘%1%’ on ‘%2%’") % step->drvPath % machine->sshName);
+        printMsg(lvlDebug, "building ‘%s’ on ‘%s’",
+            localStore->printStorePath(step->drvPath),
+            machine->sshName);
 
         updateStep(ssBuilding);
 
-        if (sendDerivation)
-            to << cmdBuildPaths << PathSet({step->drvPath});
-        else
-            to << cmdBuildDerivation << step->drvPath << basicDrv;
+        if (sendDerivation) {
+            to << cmdBuildPaths;
+            writeStorePaths(*localStore, to, singleton(step->drvPath));
+        } else {
+            to << cmdBuildDerivation << localStore->printStorePath(step->drvPath);
+            writeDerivation(to, *localStore, basicDrv);
+        }
         to << maxSilentTime << buildTimeout;
         if (GET_PROTOCOL_MINOR(remoteVersion) >= 2)
             to << maxLogSize;
@@ -380,7 +387,8 @@ void State::buildRemote(ref<Store> destStore,
         /* If the path was substituted or already valid, then we didn't
            get a build log. */
         if (result.isCached) {
-            printMsg(lvlInfo, format("outputs of ‘%1%’ substituted or already valid on ‘%2%’") % step->drvPath % machine->sshName);
+            printMsg(lvlInfo, "outputs of ‘%s’ substituted or already valid on ‘%s’",
+                localStore->printStorePath(step->drvPath), machine->sshName);
             unlink(result.logFile.c_str());
             result.logFile = "";
         }
@@ -395,13 +403,12 @@ void State::buildRemote(ref<Store> destStore,
 
             auto now1 = std::chrono::steady_clock::now();
 
-            PathSet outputs;
-            for (auto & output : step->drv.outputs)
-                outputs.insert(output.second.path);
+            auto outputs = step->drv->outputPaths();
 
             /* Query the size of the output paths. */
             size_t totalNarSize = 0;
-            to << cmdQueryPathInfos << outputs;
+            to << cmdQueryPathInfos;
+            writeStorePaths(*localStore, to, outputs);
             to.flush();
             while (true) {
                 if (readString(from) == "") break;
@@ -416,8 +423,8 @@ void State::buildRemote(ref<Store> destStore,
                 return;
             }
 
-            printMsg(lvlDebug, format("copying outputs of ‘%s’ from ‘%s’ (%d bytes)")
-                % step->drvPath % machine->sshName % totalNarSize);
+            printMsg(lvlDebug, "copying outputs of ‘%s’ from ‘%s’ (%d bytes)",
+                localStore->printStorePath(step->drvPath), machine->sshName, totalNarSize);
 
             /* Block until we have the required amount of memory
                available, which is twice the NAR size (namely the
@@ -431,10 +438,11 @@ void State::buildRemote(ref<Store> destStore,
 
             auto resMs = std::chrono::duration_cast<std::chrono::milliseconds>(resStop - resStart).count();
             if (resMs >= 1000)
-                printMsg(lvlError, format("warning: had to wait %d ms for %d memory tokens for %s")
-                    % resMs % totalNarSize % step->drvPath);
+                printMsg(lvlError, "warning: had to wait %d ms for %d memory tokens for %s",
+                    resMs, totalNarSize, localStore->printStorePath(step->drvPath));
 
-            to << cmdExportPaths << 0 << outputs;
+            to << cmdExportPaths << 0;
+            writeStorePaths(*localStore, to, outputs);
             to.flush();
             destStore->importPaths(from, result.accessor, NoCheckSigs);
 
