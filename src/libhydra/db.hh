@@ -23,7 +23,7 @@ struct Connection : pqxx::connection
 
 class receiver : public pqxx::notification_receiver
 {
-    std::experimental::optional<std::string> status;
+    std::optional<std::string> status;
 
 public:
 
@@ -35,9 +35,9 @@ public:
         status = payload;
     };
 
-    std::experimental::optional<std::string> get() {
+    std::optional<std::string> get() {
         auto s = status;
-        status = std::experimental::nullopt;
+        status = std::nullopt;
         return s;
     }
 };
