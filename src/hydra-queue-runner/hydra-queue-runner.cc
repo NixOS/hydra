@@ -440,11 +440,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 {
     pqxx::work txn(conn);
-    for (auto & i : step->drv->outputsAndOptPaths(*localStore))
-        if (i.second.second)
-            if (!txn.exec_params("select 1 from FailedPaths where path = $1", localStore->printStorePath(*i.second.second)).empty())
-                return true;
-    return false;
+    return !txn.exec_params("select 1 from FailedPaths where path = $1", localStore->printStorePath(step->drvPath)).empty();
 }
 
 

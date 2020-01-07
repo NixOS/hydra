@@ -463,11 +463,9 @@ void State::failStep(
             }
 
             /* Remember failed paths in the database so that they
-               won't be built again. */
+               won't be built again  (has to be drv path so fixed outputs work). */
             if (result.stepStatus != bsCachedFailure && result.canCache)
-                for (auto & i : step->drv->outputsAndOptPaths(*localStore))
-                    if (i.second.second)
-                       txn.exec_params0("insert into FailedPaths values ($1)", localStore->printStorePath(*i.second.second));
+                txn.exec_params0("insert into FailedPaths values ($1)", localStore->printStorePath(step->drvPath));
 
             txn.commit();
         }

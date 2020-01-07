@@ -416,7 +416,7 @@ sub checkBuild {
         # will be performed (though the last one will probably use the
         # cached result from the first).  This ensures that the builds
         # with the highest ID will always be the ones that we want in
-        # the channels.  FIXME: Checking the output paths doesn't take
+        # the channels.  FIXME: Checking the drv path doesn't take
         # meta-attributes into account.  For instance, do we want a
         # new build to be scheduled if the meta.maintainers field is
         # changed?
@@ -426,8 +426,10 @@ sub checkBuild {
                 # semantically unnecessary (because they're implied by
                 # the eval), but they give a factor 1000 speedup on
                 # the Nixpkgs jobset with PostgreSQL.
+                # Probably not the case now that we are using the keyed
+                # drvpath (see #697) and not non-keyed name and path.
                 { project => $jobset->get_column('project'), jobset => $jobset->name, job => $jobName,
-                  name => $firstOutputName, path => $firstOutputPath },
+                  drvpath => $drvPath },
                 { rows => 1, columns => ['id'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
                 #print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
