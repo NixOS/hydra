@@ -40,6 +40,24 @@ typedef enum {
     bsBusy = 100, // not stored
 } BuildStatus;
 
+inline const std::string buildStatusStr(const BuildStatus & s) {
+    switch (s) {
+    case bsSuccess: return "success";
+    case bsFailed: return "failed";
+    case bsDepFailed: return "dependency failed";
+    case bsAborted: return "aborted";
+    case bsCancelled: return "cancelled";
+    case bsFailedWithOutput: return "failed (w/output)";
+    case bsTimedOut: return "timeout";
+    case bsCachedFailure: return "cached failure";
+    case bsUnsupported: return "unsupported";
+    case bsLogLimitExceeded: return "log limit exceeded";
+    case bsNarSizeLimitExceeded: return "nar size limit exceeded";
+    case bsNotDeterministic: return "not deterministic";
+    case bsBusy: return "busy";
+    }
+}
+
 
 typedef enum {
     ssPreparing = 1,
@@ -58,6 +76,7 @@ struct RemoteResult
     bool isCached = false; // for bsSucceed
     bool canCache = false; // for bsFailed
     std::string errorMsg; // for bsAborted
+    std::string errorLog;
 
     unsigned int timesBuilt = 0;
     bool isNonDeterministic = false;

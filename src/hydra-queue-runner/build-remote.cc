@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #include "serve-protocol.hh"
 #include "state.hh"
@@ -120,6 +121,23 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
 
     if (readInt(from) != 1)
         throw Error("remote machine failed to import closure");
+}
+
+
+string readFileTail(const Path & path, const int & nbytes)
+{
+    AutoCloseFD fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (!fd)
+        throw SysError(format("tail opening file '%1%'") % path);
+
+    struct stat st;
+    if (fstat(fd.get(), &st) == -1)
+        throw SysError("stat'ing file for tail");
+
+    std::vector<unsigned char> buf(nbytes);
+    lseek(fd.get(), st.st_size - nbytes, SEEK_SET);
+    readFull(fd.get(), buf.data(), nbytes);
+    return string((char *) buf.data(), nbytes);
 }
 
 
@@ -340,21 +358,19 @@ void State::buildRemote(ref<Store> destStore,
                 case BuildResult::PermanentFailure:
                     result.stepStatus = bsFailed;
                     result.canCache = true;
-                    result.errorMsg = "";
                     break;
                 case BuildResult::InputRejected:
                 case BuildResult::OutputRejected:
                     result.stepStatus = bsFailed;
                     result.canCache = true;
+                    result.errorMsg += " {inp/out rejected}";
                     break;
                 case BuildResult::TransientFailure:
                     result.stepStatus = bsFailed;
                     result.canRetry = true;
-                    result.errorMsg = "";
                     break;
                 case BuildResult::TimedOut:
                     result.stepStatus = bsTimedOut;
-                    result.errorMsg = "";
                     break;
                 case BuildResult::MiscFailure:
                     result.stepStatus = bsAborted;
@@ -372,10 +388,12 @@ void State::buildRemote(ref<Store> destStore,
                     result.stepStatus = bsAborted;
                     break;
             }
-            if (result.stepStatus != bsSuccess) return;
-        }
 
-        result.errorMsg = "";
+            if (result.stepStatus != bsSuccess) {
+                result.errorLog = chomp(readFileTail(result.logFile, 2048));
+                return;
+            }
+        }
 
         /* If the path was substituted or already valid, then we didn't
            get a build log. */
