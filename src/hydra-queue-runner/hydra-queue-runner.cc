@@ -23,6 +23,7 @@ namespace nix {
 
 template<> void toJSON<std::atomic<long>>(std::ostream & str, const std::atomic<long> & n) { str << n; }
 template<> void toJSON<std::atomic<unsigned long>>(std::ostream & str, const std::atomic<unsigned long> & n) { str << n; }
+template<> void toJSON<std::atomic<unsigned long long>>(std::ostream & str, const std::atomic<unsigned long long> & n) { str << n; }
 template<> void toJSON<double>(std::ostream & str, const double & n) { str << n; }
 
 }
