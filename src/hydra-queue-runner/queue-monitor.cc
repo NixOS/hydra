@@ -606,21 +606,21 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
     pqxx::work txn(conn);
 
     for (auto & output : drv.outputs) {
-        auto r = txn.exec_params1
+        auto r = txn.exec_params
             ("select id, buildStatus, releaseName, closureSize, size from Builds b "
              "join BuildOutputs o on b.id = o.build "
              "where finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1",
              output.second.path);
         if (r.empty()) continue;
-        BuildID id = r[0].as<BuildID>();
+        BuildID id = r[0][0].as<BuildID>();
 
         printMsg(lvlInfo, format("reusing build %d") % id);
 
         BuildOutput res;
-        res.failed = r[1].as<int>() == bsFailedWithOutput;
-        res.releaseName = r[2].is_null() ? "" : r[2].as<std::string>();
-        res.closureSize = r[3].is_null() ? 0 : r[3].as<unsigned long long>();
-        res.size = r[4].is_null() ? 0 : r[4].as<unsigned long long>();
+        res.failed = r[0][1].as<int>() == bsFailedWithOutput;
+        res.releaseName = r[0][2].is_null() ? "" : r[0][2].as<std::string>();
+        res.closureSize = r[0][3].is_null() ? 0 : r[0][3].as<unsigned long long>();
+        res.size = r[0][4].is_null() ? 0 : r[0][4].as<unsigned long long>();
 
         auto products = txn.exec_params
             ("select type, subtype, fileSize, sha1hash, sha256hash, path, name, defaultPath from BuildProducts where build = $1 order by productnr",
