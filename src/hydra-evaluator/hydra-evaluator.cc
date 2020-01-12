@@ -59,9 +59,9 @@ struct Evaluator
 
         pqxx::work txn(*conn);
 
-        auto res = txn.parameterized
+        auto res = txn.exec
             ("select project, j.name, lastCheckedTime, triggerTime, checkInterval from Jobsets j join Projects p on j.project = p.name "
-             "where j.enabled != 0 and p.enabled != 0").exec();
+             "where j.enabled != 0 and p.enabled != 0");
 
         auto state(state_.lock());
 
@@ -107,12 +107,11 @@ struct Evaluator
         {
             auto conn(dbPool.get());
             pqxx::work txn(*conn);
-            txn.parameterized
-                ("update Jobsets set startTime = $1 where project = $2 and name = $3")
-                (now)
-                (jobset.name.first)
-                (jobset.name.second)
-                .exec();
+            txn.exec_params0
+                ("update Jobsets set startTime = $1 where project = $2 and name = $3",
+                 now,
+                 jobset.name.first,
+                 jobset.name.second);
             txn.commit();
         }
 
@@ -266,27 +265,24 @@ struct Evaluator
                             /* Clear the trigger time to prevent this
                                jobset from getting stuck in an endless
                                failing eval loop. */
-                            txn.parameterized
-                                ("update Jobsets set triggerTime = null where project = $1 and name = $2 and startTime is not null and triggerTime <= startTime")
-                                (jobset.name.first)
-                                (jobset.name.second)
-                                .exec();
+                            txn.exec_params0
+                                ("update Jobsets set triggerTime = null where project = $1 and name = $2 and startTime is not null and triggerTime <= startTime",
+                                 jobset.name.first,
+                                 jobset.name.second);
 
                             /* Clear the start time. */
-                            txn.parameterized
-                                ("update Jobsets set startTime = null where project = $1 and name = $2")
-                                (jobset.name.first)
-                                (jobset.name.second)
-                                .exec();
+                            txn.exec_params0
+                                ("update Jobsets set startTime = null where project = $1 and name = $2",
+                                 jobset.name.first,
+                                 jobset.name.second);
 
                             if (!WIFEXITED(status) || WEXITSTATUS(status) > 1) {
-                                txn.parameterized
-                                    ("update Jobsets set errorMsg = $1, lastCheckedTime = $2, errorTime = $2, fetchErrorMsg = null where project = $3 and name = $4")
-                                    (fmt("evaluation %s", statusToString(status)))
-                                    (now)
-                                    (jobset.name.first)
-                                    (jobset.name.second)
-                                    .exec();
+                                txn.exec_params0
+                                    ("update Jobsets set errorMsg = $1, lastCheckedTime = $2, errorTime = $2, fetchErrorMsg = null where project = $3 and name = $4",
+                                     fmt("evaluation %s", statusToString(status)),
+                                     now,
+                                     jobset.name.first,
+                                     jobset.name.second);
                             }
 
                             txn.commit();
@@ -311,7 +307,7 @@ struct Evaluator
     {
         auto conn(dbPool.get());
         pqxx::work txn(*conn);
-        txn.parameterized("update Jobsets set startTime = null").exec();
+        txn.exec("update Jobsets set startTime = null");
         txn.commit();
     }
 
