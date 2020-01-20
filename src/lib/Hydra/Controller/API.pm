@@ -88,7 +88,7 @@ sub jobsetToHash {
         triggertime => $jobset->triggertime,
         fetcherrormsg => $jobset->fetcherrormsg,
         errortime => $jobset->errortime,
-        haserrormsg => defined($jobset->errormsg) ? ($jobset->errormsg eq "" ? JSON::false : JSON::true) : JSON::false
+        haserrormsg => defined($jobset->errormsg) && $jobset->errormsg ne "" ? JSON::true : JSON::false
     };
 }
 
