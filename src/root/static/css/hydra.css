@@ -142,3 +142,13 @@ td.step-status span.warn {
     color: #aaaa00;
     font-weight: bold;
 }
+
+/* Assumes borders are never desired in multi-row table heads */
+.table thead th {
+    border-top: 0;
+}
+
+.date {
+	cursor: help;
+	border-bottom: 1px dotted #999;
+}

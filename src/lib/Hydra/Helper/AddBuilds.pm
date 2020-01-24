@@ -56,7 +56,7 @@ sub updateDeclarativeJobset {
             $input->jobsetinputalts->create({altnr => 0, value => $data->{value}});
         }
         delete $declSpec->{"inputs"};
-        die "invalid keys in declarative specification file\n" if (%{$declSpec});
+        die "invalid keys ($declSpec) in declarative specification file\n" if (%{$declSpec});
     });
 };
 
@@ -76,7 +76,12 @@ sub handleDeclarativeJobsetBuild {
             push @kept, ".jobsets";
             $project->jobsets->search({ name => { "not in" => \@kept } })->update({ enabled => 0, hidden => 1 });
             while ((my $jobsetName, my $spec) = each %$declSpec) {
-                updateDeclarativeJobset($db, $project, $jobsetName, $spec);
+                eval {
+                    updateDeclarativeJobset($db, $project, $jobsetName, $spec);
+                };
+                if ($@) {
+                    print STDERR "ERROR: failed to process declarative jobset ", $project->name, ":${jobsetName}, ", $@, "\n";
+                }
             }
         });
     };

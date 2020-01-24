@@ -349,9 +349,10 @@ sub dashboard :Chained('dashboard_base') :PathPart('') :Args(0) {
 
 sub my_jobs_tab :Chained('dashboard_base') :PathPart('my-jobs-tab') :Args(0) {
     my ($self, $c) = @_;
+    $c->stash->{lazy} = 1;
     $c->stash->{template} = 'dashboard-my-jobs-tab.tt';
 
-    die unless $c->stash->{user}->emailaddress;
+    error($c, "No email address is set for this user.") unless $c->stash->{user}->emailaddress;
 
     # Get all current builds of which this user is a maintainer.
     $c->stash->{builds} = [$c->model('DB::Builds')->search(

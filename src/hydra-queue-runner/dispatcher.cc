@@ -152,7 +152,7 @@ system_time State::doDispatch()
              establish priority between builds in the same jobset, but
              here it's used between steps in different jobsets if they
              happen to have the same lowest used scheduling share. But
-             that's not every likely.
+             that's not very likely.
 
            - The lowest ID of the builds depending on the step;
              i.e. older builds take priority over new ones.

@@ -193,12 +193,11 @@ bool State::getQueuedBuilds(Connection & conn,
                     (build->id)
                     ((int) (ex.step->drvPath == build->drvPath ? bsFailed : bsDepFailed))
                     (time(0)).exec();
+                notifyBuildFinished(txn, build->id, {});
                 txn.commit();
                 build->finishedInDB = true;
                 nrBuildsDone++;
             }
-
-            enqueueNotificationItem({NotificationItem::Type::BuildFinished, build->id});
 
             return;
         }
@@ -230,12 +229,11 @@ bool State::getQueuedBuilds(Connection & conn,
             time_t now = time(0);
             printMsg(lvlInfo, format("marking build %1% as succeeded (cached)") % build->id);
             markSucceededBuild(txn, build, res, true, now, now);
+            notifyBuildFinished(txn, build->id, {});
             txn.commit();
             }
 
             build->finishedInDB = true;
-
-            enqueueNotificationItem({NotificationItem::Type::BuildFinished, build->id});
 
             return;
         }
@@ -428,8 +426,9 @@ Step::ptr State::createStep(ref<Store> destStore,
        it's not runnable yet, and other threads won't make it
        runnable while step->created == false. */
     step->drv = readDerivation(drvPath);
+    step->parsedDrv = std::make_unique<ParsedDerivation>(drvPath, step->drv);
 
-    step->preferLocalBuild = step->drv.willBuildLocally();
+    step->preferLocalBuild = step->parsedDrv->willBuildLocally();
     step->isDeterministic = get(step->drv.env, "isDetermistic", "0") == "1";
 
     step->systemType = step->drv.platform;

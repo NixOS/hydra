@@ -10,7 +10,7 @@
 #include "db.hh"
 #include "token-server.hh"
 
-#include "derivations.hh"
+#include "parsed-derivations.hh"
 #include "pathlocks.hh"
 #include "pool.hh"
 #include "store-api.hh"
@@ -152,6 +152,7 @@ struct Step
 
     nix::Path drvPath;
     nix::Derivation drv;
+    std::unique_ptr<nix::ParsedDerivation> parsedDrv;
     std::set<std::string> requiredSystemFeatures;
     bool preferLocalBuild;
     bool isDeterministic;
@@ -273,6 +274,11 @@ struct Machine
 
         return true;
     }
+
+    bool isLocalhost()
+    {
+        return sshName == "localhost";
+    }
 };
 
 
@@ -346,39 +352,6 @@ private:
     counter bytesSent{0};
     counter bytesReceived{0};
     counter nrActiveDbUpdates{0};
-    counter nrNotificationsDone{0};
-    counter nrNotificationsFailed{0};
-    counter nrNotificationsInProgress{0};
-    counter nrNotificationTimeMs{0};
-
-    /* Notification sender work queue. FIXME: if hydra-queue-runner is
-       killed before it has finished sending notifications about a
-       build, then the notifications may be lost. It would be better
-       to mark builds with pending notification in the database. */
-    struct NotificationItem
-    {
-        enum class Type : char {
-           BuildStarted,
-           BuildFinished,
-           StepFinished,
-        };
-        Type type;
-        BuildID id;
-        std::vector<BuildID> dependentIds;
-        unsigned int stepNr;
-        nix::Path logPath;
-    };
-    nix::Sync<std::queue<NotificationItem>> notificationSenderQueue;
-    std::condition_variable notificationSenderWakeup;
-
-    void enqueueNotificationItem(const NotificationItem && item)
-    {
-        {
-            auto notificationSenderQueue_(notificationSenderQueue.lock());
-            notificationSenderQueue_->emplace(item);
-        }
-        notificationSenderWakeup.notify_one();
-    }
 
     /* Specific build to do for --build-one (testing only). */
     BuildID buildOne;
@@ -539,9 +512,10 @@ private:
 
     bool checkCachedFailure(Step::ptr step, Connection & conn);
 
-    /* Thread that asynchronously invokes hydra-notify to send build
-       notifications. */
-    void notificationSender();
+    void notifyBuildStarted(pqxx::work & txn, BuildID buildId);
+
+    void notifyBuildFinished(pqxx::work & txn, BuildID buildId,
+        const std::vector<BuildID> & dependentIds);
 
     /* Acquire the global queue runner lock, or null if somebody else
        has it. */

@@ -137,7 +137,6 @@ checkout_ref(){
 init_submodules(){
     # Add urls into .git/config file
     git submodule init
-
     git submodule update --recursive
 }
 

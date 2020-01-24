@@ -12,11 +12,15 @@ sub new {
     return $self;
 }
 
+sub isEnabled {
+    return 1;
+}
+
 sub instantiate {
     my ($class, %args) = @_;
     my $plugins = [];
     $args{plugins} = $plugins;
-    push @$plugins, $class->plugins(%args);
+    push @$plugins, grep { $_->isEnabled } $class->plugins(%args);
     return @$plugins;
 }
 

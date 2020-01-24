@@ -1,6 +1,6 @@
 use LWP::UserAgent;
 use JSON;
-use Test::Simple tests => 17;
+use Test::Simple tests => 19;
 
 my $ua = LWP::UserAgent->new;
 $ua->cookie_jar({});
@@ -34,14 +34,14 @@ ok($user->{userroles}->[0] eq "admin", "The current user is an admin");
 
 ok(request_json({ uri => '/project/sample' })->code() == 404, "Non-existent projects don't exist");
 
-$result = request_json({ uri => '/project/sample', method => 'PUT', data => { displayname => "Sample", enabled => "1", } });
+$result = request_json({ uri => '/project/sample', method => 'PUT', data => { displayname => "Sample", enabled => "1", visible => "1", } });
 ok($result->code() == 201, "PUTting a new project creates it");
 
 my $project = decode_json(request_json({ uri => '/project/sample' })->content());
 
 ok((not @{$project->{jobsets}}), "A new project has no jobsets");
 
-$result = request_json({ uri => '/jobset/sample/default', method => 'PUT', data => { nixexprpath => "default.nix", nixexprinput => "my-src", inputs => { "my-src" => { type => "path", value => "/run/jobset" } }, enabled => "1", checkinterval => "3600"} });
+$result = request_json({ uri => '/jobset/sample/default', method => 'PUT', data => { nixexprpath => "default.nix", nixexprinput => "my-src", inputs => { "my-src" => { type => "path", value => "/run/jobset" } }, enabled => "1", visible => "1", checkinterval => "3600"} });
 ok($result->code() == 201, "PUTting a new jobset creates it");
 
 my $jobset = decode_json(request_json({ uri => '/jobset/sample/default' })->content());
@@ -65,3 +65,10 @@ my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{builds}-
 ok($build->{job} eq "job", "The build's job name is job");
 ok($build->{finished} == 0, "The build isn't finished yet");
 ok($build->{buildoutputs}->{out}->{path} =~ /^\/nix\/store\/[a-zA-Z0-9]{32}-job$/, "The build's outpath is in the Nix store and named 'job'");
+
+
+my $search_project = decode_json(request_json({ uri => "/search/?query=sample" })->content());
+ok($search_project->{projects}[0]->{name} == "sample", "Search for project 'sample' works");
+
+my $search_build = decode_json(request_json({ uri => "/search/?query=" . $build->{buildoutputs}->{out}->{path} })->content());
+ok($search_build->{builds}[0]->{buildoutputs}->{out}->{path} == $build->{buildoutputs}->{out}->{path}, "Search for builds work");

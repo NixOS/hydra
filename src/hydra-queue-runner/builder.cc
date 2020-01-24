@@ -99,6 +99,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     unsigned int maxSilentTime, buildTimeout;
     unsigned int repeats = step->isDeterministic ? 1 : 0;
 
+    auto conn(dbPool.get());
+
     {
         std::set<Build::ptr> dependents;
         std::set<Step::ptr> steps;
@@ -122,8 +124,10 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         for (auto build2 : dependents) {
             if (build2->drvPath == step->drvPath) {
-              build = build2;
-              enqueueNotificationItem({NotificationItem::Type::BuildStarted, build->id});
+                build = build2;
+                pqxx::work txn(*conn);
+                notifyBuildStarted(txn, build->id);
+                txn.commit();
             }
             {
                 auto i = jobsetRepeats.find(std::make_pair(build2->projectName, build2->jobsetName));
@@ -143,8 +147,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     }
 
     bool quit = buildId == buildOne && step->drvPath == buildDrvPath;
-
-    auto conn(dbPool.get());
 
     RemoteResult result;
     BuildOutput res;
@@ -170,11 +172,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             } catch (...) {
                 ignoreException();
             }
-
-            /* Asynchronously run plugins. FIXME: if we're killed,
-               plugin actions might not be run. Need to ensure
-               at-least-once semantics. */
-            enqueueNotificationItem({NotificationItem::Type::StepFinished, buildId, {}, stepNr, result.logFile});
         }
     });
 
@@ -231,6 +228,11 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     time_t stepStopTime = time(0);
     if (!result.stopTime) result.stopTime = stepStopTime;
 
+    /* For standard failures, we don't care about the error
+       message. */
+    if (result.stepStatus != bsAborted)
+        result.errorMsg = "";
+
     /* Account the time we spent building this step by dividing it
        among the jobsets that depend on it. */
     {
@@ -241,6 +243,13 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             for (auto & jobset : step_->jobsets)
                 jobset->addStep(result.startTime, charge);
         }
+    }
+
+    /* Finish the step in the database. */
+    if (stepNr) {
+        pqxx::work txn(*conn);
+        finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
+        txn.commit();
     }
 
     /* The step had a hopefully temporary failure (e.g. network
@@ -256,11 +265,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         }
         if (retry) {
             auto mc = startDbUpdate();
-            {
-            pqxx::work txn(*conn);
-            finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
-            txn.commit();
-            }
             stepFinished = true;
             if (quit) exit(1);
             return sRetry;
@@ -315,8 +319,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
                 pqxx::work txn(*conn);
 
-                finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
-
                 for (auto & b : direct) {
                     printMsg(lvlInfo, format("marking build %1% as succeeded") % b->id);
                     markSucceededBuild(txn, b, res, buildId != b->id || result.isCached,
@@ -342,8 +344,12 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         /* Send notification about the builds that have this step as
            the top-level. */
-        for (auto id : buildIDs)
-            enqueueNotificationItem({NotificationItem::Type::BuildFinished, id});
+        {
+            pqxx::work txn(*conn);
+            for (auto id : buildIDs)
+                notifyBuildFinished(txn, id, {});
+            txn.commit();
+        }
 
         /* Wake up any dependent steps that have no other
            dependencies. */
@@ -368,11 +374,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         }
 
     } else {
-
-        /* For standard failures, we don't care about the error
-           message. */
-        if (result.stepStatus != bsAborted)
-            result.errorMsg = "";
 
         /* Register failure in the database for all Build objects that
            directly or indirectly depend on this step. */
@@ -419,11 +420,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                         result.stepStatus, result.errorMsg, buildId == build2->id ? 0 : buildId);
                 }
 
-                if (result.stepStatus != bsCachedFailure && !stepFinished) {
-                    assert(stepNr);
-                    finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
-                }
-
                 /* Mark all builds that depend on this derivation as failed. */
                 for (auto & build2 : indirect) {
                     if (build2->finishedInDB) continue;
@@ -462,11 +458,10 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         /* Send notification about this build and its dependents. */
         {
-            auto notificationSenderQueue_(notificationSenderQueue.lock());
-            notificationSenderQueue_->push(NotificationItem{NotificationItem::Type::BuildFinished, buildId, dependentIDs});
+            pqxx::work txn(*conn);
+            notifyBuildFinished(txn, buildId, dependentIDs);
+            txn.commit();
         }
-        notificationSenderWakeup.notify_one();
-
     }
 
     // FIXME: keep stats about aborted steps?

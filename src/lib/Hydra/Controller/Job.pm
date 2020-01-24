@@ -6,7 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
-
+use Net::Prometheus;
 
 sub job : Chained('/') PathPart('job') CaptureArgs(3) {
     my ($self, $c, $projectName, $jobsetName, $jobName) = @_;
@@ -29,6 +29,39 @@ sub job : Chained('/') PathPart('job') CaptureArgs(3) {
     $c->stash->{project} = $c->stash->{job}->project;
 }
 
+sub prometheus : Chained('job') PathPart('prometheus') Args(0) {
+    my ($self, $c) = @_;
+    my $job = $c->stash->{job};
+    my $prometheus = Net::Prometheus->new;
+
+    my $lastBuild = $job->builds->find(
+        { finished => 1 },
+        { order_by => 'id DESC', rows => 1, columns => [@buildListColumns] }
+    );
+
+    $prometheus->new_counter(
+        name => "hydra_job_completion_time",
+        help => "The most recent job's completion time",
+        labels => [ "project", "jobset", "job" ]
+    )->labels(
+        $c->stash->{project}->name,
+        $c->stash->{jobset}->name,
+        $c->stash->{job}->name,
+    )->inc($lastBuild->stoptime);
+
+    $prometheus->new_gauge(
+        name => "hydra_job_failed",
+        help => "Record if the most recent version of this job failed (1 means failed)",
+        labels => [ "project", "jobset", "job" ]
+    )->labels(
+        $c->stash->{project}->name,
+        $c->stash->{jobset}->name,
+        $c->stash->{job}->name,
+    )->inc($lastBuild->buildstatus > 0);
+
+    $c->stash->{'plain'} = { data => $prometheus->render };
+    $c->forward('Hydra::View::Plain');
+}
 
 sub overview : Chained('job') PathPart('') Args(0) {
     my ($self, $c) = @_;

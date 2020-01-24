@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::View::TT;
 use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
 use Nix::Config;
@@ -13,6 +14,7 @@ use Encode;
 use File::Basename;
 use JSON;
 use List::MoreUtils qw{any};
+use Net::Prometheus;
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -197,6 +199,50 @@ sub machines :Local Args(0) {
         "where busy != 0 order by machine, stepnr",
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
+    $self->status_ok($c, entity => $c->stash->{machines});
+}
+
+sub prometheus :Local Args(0) {
+    my ($self, $c) = @_;
+    my $machines = getMachines;
+
+    my $client = Net::Prometheus->new;
+    my $duration = $client->new_histogram(
+        name => "hydra_machine_build_duration",
+        help => "How long builds are taking per server. Note: counts are gauges, NOT counters.",
+        labels => [ "machine" ],
+        buckets => [
+            60,
+            600,
+            1800,
+            3600,
+            7200,
+            21600,
+            43200,
+            86400,
+            172800,
+            259200,
+            345600,
+            518400,
+            604800,
+            691200
+        ]
+    );
+
+    my $steps = dbh($c)->selectall_arrayref(
+        "select machine, s.starttime as starttime " .
+        "from BuildSteps s join Builds b on s.build = b.id " .
+        "where busy != 0 order by machine, stepnr",
+        { Slice => {} });
+
+    foreach my $step (@$steps) {
+        my $name = $step->{machine} ? Hydra::View::TT->stripSSHUser(undef, $step->{machine}) : "";
+        $name = "localhost" unless $name;
+        $duration->labels($name)->observe(time - $step->{starttime});
+    }
+
+    $c->stash->{'plain'} = { data => $client->render };
+    $c->forward('Hydra::View::Plain');
 }
 
 
@@ -237,7 +283,13 @@ sub end : ActionClass('RenderView') {
 
     elsif (scalar @{$c->error}) {
         $c->stash->{resource} = { error => join "\n", @{$c->error} };
-        $c->stash->{template} = 'error.tt';
+        if ($c->stash->{lazy}) {
+            $c->response->headers->header('X-Hydra-Lazy', 'Yes');
+            $c->stash->{template} = 'lazy_error.tt';
+        }
+        else {
+            $c->stash->{template} = 'error.tt';
+        }
         $c->stash->{errors} = $c->error;
         $c->response->status(500) if $c->response->status == 200;
         if ($c->response->status >= 300) {
@@ -344,7 +396,9 @@ sub evals :Local Args(0) {
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
-    $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
+    $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage);
+
+    $self->status_ok($c, entity => $c->stash->{evals});
 }
 
 
@@ -382,7 +436,12 @@ sub search :Local Args(0) {
     error($c, "Invalid character in query.")
         unless $query =~ /^[a-zA-Z0-9_\-\/.]+$/;
 
-    $c->stash->{limit} = 500;
+    my $limit = trim $c->request->params->{"limit"};
+    if ($limit eq "") {
+        $c->stash->{limit} = 500;
+    } else {
+        $c->stash->{limit} = $limit;
+    }
 
     $c->stash->{projects} = [ $c->model('DB::Projects')->search(
         { -and =>
@@ -413,12 +472,21 @@ sub search :Local Args(0) {
 
     # Perform build search in separate queries to prevent seq scan on buildoutputs table.
     $c->stash->{builds} = [ $c->model('DB::Builds')->search(
-        { "buildoutputs.path" => trim($query) },
-        { order_by => ["id desc"], join => ["buildoutputs"] } ) ];
+        { "buildoutputs.path" => { ilike => "%$query%" } },
+        { order_by => ["id desc"], join => ["buildoutputs"]
+        , rows => $c->stash->{limit}
+        } ) ];
 
     $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
-        { "drvpath" => trim($query) },
-        { order_by => ["id desc"] } ) ];
+        { "drvpath" => { ilike => "%$query%" } },
+        { order_by => ["id desc"]
+        , rows => $c->stash->{limit}
+        } ) ];
+
+    $c->stash->{resource} = { projects => $c->stash->{projects},
+                              jobsets  => $c->stash->{jobsets},
+                              builds  => $c->stash->{builds},
+                              buildsdrv  => $c->stash->{buildsdrv} };
 }
 
 sub serveLogFile {

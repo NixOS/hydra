@@ -7,13 +7,27 @@ USE Math;
 
 USE mibs=format("%.2f");
 
-
-BLOCK renderDateTime;
+# Formatted date time, in hydra-local timezone.
+# Use only where an HTML element cannot be used.
+BLOCK dateTimeText;
 date.format(timestamp, '%Y-%m-%d %H:%M:%S');
 END;
 
+# HTML-rendered date. Formatted in hydra-local timezone.
+# It is enhanced with JavaScript to show user-local and UTC time zones.
+BLOCK renderDateTime %]
+<time [% HTML.attributes(
+    "data-timestamp" => timestamp,
+    title => date.format(timestamp, '%Y-%m-%d %H:%M:%S (%Z)'),
+    datetime => date.format(timestamp, "%Y-%m-%dT%H:%M:%SZ", gmt => 1),
+) %] class="date is-absolute">
+[% INCLUDE dateTimeText %]
+</time>
+[% END;
 
-BLOCK renderRelativeDate;
+# Relative date, as text.
+# Use only where an HTML element cannot be used.
+BLOCK relativeDateText;
   ago = date.now - timestamp;
   IF ago >= 0 && ago < 60; THEN;
     ago _ 's ago';
@@ -28,6 +42,17 @@ BLOCK renderRelativeDate;
   END;
 END;
 
+# HTML-rendered relative date.
+# It is enhanced with JavaScript to show user-local and UTC time zones.
+BLOCK renderRelativeDate %]
+<time [% HTML.attributes(
+    "data-timestamp" => timestamp,
+    title => date.format(timestamp, '%Y-%m-%d %H:%M:%S (%Z)'),
+    datetime => date.format(timestamp, "%Y-%m-%dT%H:%M:%SZ", gmt => 1),
+) %] class="date is-relative">
+[% INCLUDE relativeDateText %]
+</time>
+[% END;
 
 BLOCK renderProjectName %]
 <a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/project' project) %]"><tt>[% project %]</tt></a>
@@ -408,13 +433,27 @@ BLOCK renderEvals %]
   <table class="table table-condensed table-striped clickable-rows">
     <thead>
       <tr>
-        <th>#</th>
+        <th rowspan="2">#</th>
         [% IF !jobset && !build %]
-          <th>Jobset</th>
+          <th rowspan="2">Jobset</th>
         [% END %]
-        <th style="width: 10em">Date</th>
-        <th>Input changes</th>
-        <th colspan='2' style="width: 25em">Success</th>
+        <th rowspan="2" style="width: 10em">Date</th>
+        <th rowspan="2">Input changes</th>
+        <th colspan="3">Jobs</th>
+        <th rowspan="2">
+            <img src="[% c.uri_for("/static/images/delta.svg") %]" height="12" width="12" title="Delta" alt="Delta" class="build-status" />
+        </th>
+      </tr>
+      <tr>
+        <th style="width: 2em">
+            <img src="[% c.uri_for("/static/images/emojione-check-2714.svg") %]" height="12" width="12" title="Succeeded" alt="Succeeded" class="build-status" />
+        </th>
+        <th style="width: 2em">
+            <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="12" width="12" title="Failed" alt="Failed" class="build-status" />
+        </th>
+        <th style="width: 2em">
+            <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="12" width="12" title="Queued" alt="Queued" class="build-status" />
+        </th>
       </tr>
     </thead>
     <tbody>
@@ -440,9 +479,13 @@ BLOCK renderEvals %]
           </td>
           <td align='right' class="nowrap">
             <span class="label label-success">[% e.nrSucceeded %]</span>
+          </td>
+          <td align="right" class="nowrap">
             [% IF e.nrFailed > 0 %]
             <span class="label label-important">[% e.nrFailed %]</span>
             [% END %]
+          </td>
+          <td align="right" class="nowrap">
             [% IF e.nrScheduled > 0 %]
             <span class="label">[% e.nrScheduled %]</span>
             [% END %]
@@ -509,7 +552,18 @@ BLOCK renderJobsetOverview %]
       <th>Name</th>
       <th>Description</th>
       <th>Last evaluated</th>
-      <th colspan="2">Success</th>
+      <th style="width: 2em">
+            Jobs
+      </th>
+      <th style="width: 2em">
+            <img src="[% c.uri_for("/static/images/emojione-check-2714.svg") %]" height="12" width="12" title="Succeeded" alt="Succeeded" class="build-status" />
+      </th>
+      <th style="width: 2em">
+            <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="12" width="12" title="Failed" alt="Failed" class="build-status" />
+      </th>
+      <th style="width: 2em">
+            <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="12" width="12" title="Queued" alt="Queued" class="build-status" />
+      </th>
     </tr>
   </thead>
   <tbody>
@@ -529,7 +583,11 @@ BLOCK renderJobsetOverview %]
         </td>
         <td><span class="[% IF !j.enabled %]disabled-jobset[% END %] [%+ IF j.hidden %]hidden-jobset[% END %]">[% IF showProject; INCLUDE renderFullJobsetName project=j.get_column('project') jobset=j.name inRow=1; ELSE; INCLUDE renderJobsetName project=j.get_column('project') jobset=j.name inRow=1; END %]</span></td>
         <td>[% HTML.escape(j.description) %]</td>
-        <td>[% IF j.lastcheckedtime; INCLUDE renderDateTime timestamp = j.lastcheckedtime; ELSE; "-"; END %]</td>
+        <td>[% IF j.lastcheckedtime;
+	         INCLUDE renderDateTime timestamp = j.lastcheckedtime;
+		 IF j.errormsg || j.fetcherrormsg; %]&nbsp;<span class = 'label label-warning'>Error</span>[% END;
+		 ELSE; "-";
+	       END %]</td>
         [% IF j.get_column('nrtotal') > 0 %]
           [% successrate = ( j.get_column('nrsucceeded') / j.get_column('nrtotal') )*100 %]
           [% IF j.get_column('nrscheduled') > 0 %]
@@ -547,9 +605,13 @@ BLOCK renderJobsetOverview %]
           [% IF j.get_column('nrsucceeded') > 0 %]
             <span class="label label-success">[% j.get_column('nrsucceeded') %]</span>
           [% END %]
+        </td>
+        <td>
           [% IF j.get_column('nrfailed') > 0 %]
             <span class="label label-important">[% j.get_column('nrfailed') %]</span>
           [% END %]
+        </td>
+        <td>
           [% IF j.get_column('nrscheduled') > 0 %]
             <span class="label label">[% j.get_column('nrscheduled') %]</span>
           [% END %]

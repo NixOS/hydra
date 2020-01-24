@@ -1,6 +1,7 @@
 #include <map>
 #include <iostream>
 
+#define GC_LINUX_THREADS 1
 #include <gc/gc_allocator.h>
 
 #include "shared.hh"
@@ -28,7 +29,7 @@ static void findJobs(EvalState & state, JSONObject & top,
     Bindings & autoArgs, Value & v, const string & attrPath);
 
 
-static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name)
+static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name, const string & subAttribute)
 {
     Strings res;
     std::function<void(Value & v)> rec;
@@ -41,7 +42,7 @@ static string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & 
             for (unsigned int n = 0; n < v.listSize(); ++n)
                 rec(*v.listElems()[n]);
         else if (v.type == tAttrs) {
-            auto a = v.attrs->find(state.symbols.create("shortName"));
+            auto a = v.attrs->find(state.symbols.create(subAttribute));
             if (a != v.attrs->end())
                 res.push_back(state.forceString(*a->value));
         }
@@ -116,9 +117,9 @@ static void findJobsWrapped(EvalState & state, JSONObject & top,
             res.attr("system", drv->querySystem());
             res.attr("drvPath", drvPath = drv->queryDrvPath());
             res.attr("description", drv->queryMetaString("description"));
-            res.attr("license", queryMetaStrings(state, *drv, "license"));
+            res.attr("license", queryMetaStrings(state, *drv, "license", "shortName"));
             res.attr("homepage", drv->queryMetaString("homepage"));
-            res.attr("maintainers", queryMetaStrings(state, *drv, "maintainers"));
+            res.attr("maintainers", queryMetaStrings(state, *drv, "maintainers", "email"));
             res.attr("schedulingPriority", drv->queryMetaInt("schedulingPriority", 100));
             res.attr("timeout", drv->queryMetaInt("timeout", 36000));
             res.attr("maxSilent", drv->queryMetaInt("maxSilent", 7200));
@@ -201,7 +202,7 @@ static void findJobs(EvalState & state, JSONObject & top,
     } catch (EvalError & e) {
         if (comma) { std::cout << ","; comma = false; }
         auto res = top.object(attrPath);
-        res.attr("error", e.msg());
+        res.attr("error", filterANSIEscapes(e.msg(), true));
     }
 }
 
@@ -232,6 +233,18 @@ int main(int argc, char * * argv)
 
         initNix();
         initGC();
+
+        /* Read the current heap size, which is the initial heap size. */
+        GC_prof_stats_s gc;
+        GC_get_prof_stats(&gc, sizeof(gc));
+        auto initialHeapSizeInt = gc.heapsize_full;
+
+        /* Then make sure the maximum heap size will be bigger than the initial heap size. */
+        if (initialHeapSizeInt > maxHeapSize) {
+            printInfo("warning: evaluator_initial_heap_size (%d) bigger than evaluator_max_heap_size (%d).", initialHeapSizeInt, maxHeapSize);
+            maxHeapSize = initialHeapSizeInt * 1.1;
+            printInfo("         evaluator_max_heap_size now set to %d.", maxHeapSize);
+        }
 
         Path releaseExpr;
 
@@ -265,8 +278,13 @@ int main(int argc, char * * argv)
             ProcessOptions options;
             options.allowVfork = false;
 
+            GC_atfork_prepare();
+
             auto pid = startProcess([&]() {
                 pipe.readSide = -1;
+
+                GC_atfork_child();
+                GC_start_mark_threads();
 
                 if (lastAttrPath != "") debug("resuming from '%s'", lastAttrPath);
 
@@ -300,6 +318,8 @@ int main(int argc, char * * argv)
                 exit(0);
             }, options);
 
+            GC_atfork_parent();
+
             pipe.writeSide = -1;
 
             int status;
@@ -311,6 +331,8 @@ int main(int argc, char * * argv)
 
             if (status != 0)
                 throw Exit(WIFEXITED(status) ? WEXITSTATUS(status) : 99);
+
+            maxHeapSize += 64 * 1024 * 1024;
 
             lastAttrPath = drainFD(pipe.readSide.get());
         } while (lastAttrPath != "");

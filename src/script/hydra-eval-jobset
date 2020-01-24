@@ -431,14 +431,12 @@ sub checkBuild {
         # new build to be scheduled if the meta.maintainers field is
         # changed?
         if (defined $prevEval) {
-            # Only check one output: if it's the same, the other will be as well.
-            my $firstOutput = $outputNames[0];
             my ($prevBuild) = $prevEval->builds->search(
                 # The "project" and "jobset" constraints are
                 # semantically unnecessary (because they're implied by
                 # the eval), but they give a factor 1000 speedup on
                 # the Nixpkgs jobset with PostgreSQL.
-                { project => $jobset->project->name, jobset => $jobset->name, job => $jobName,
+                { project => $jobset->get_column('project'), jobset => $jobset->name, job => $jobName,
                   name => $firstOutputName, path => $firstOutputPath },
                 { rows => 1, columns => ['id'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
@@ -489,7 +487,7 @@ sub checkBuild {
         $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath };
         $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
 
-        print STDERR "added build ${\$build->id} (${\$jobset->project->name}:${\$jobset->name}:$jobName)\n";
+        print STDERR "added build ${\$build->id} (${\$jobset->get_column('project')}:${\$jobset->name}:$jobName)\n";
     });
 
     return $build;
@@ -527,10 +525,11 @@ sub sendJobsetErrorNotification() {
 
     chomp $errorMsg;
 
+    return unless $config->{email_notification} // 0;
     return if $jobset->project->owner->emailonerror == 0;
     return if $errorMsg eq "";
 
-    my $projectName = $jobset->project->name;
+    my $projectName = $jobset->get_column('project');
     my $jobsetName = $jobset->name;
     my $body = "Hi,\n"
         . "\n"
@@ -567,7 +566,7 @@ sub permute {
 
 
 sub checkJobsetWrapped {
-    my ($jobset) = @_;
+    my ($jobset, $tmpId) = @_;
     my $project = $jobset->project;
     my $jobsetsJobset = length($project->declfile) && $jobset->name eq ".jobsets";
     my $inputInfo = {};
@@ -606,6 +605,7 @@ sub checkJobsetWrapped {
         print STDERR $fetchError;
         txn_do($db, sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => $fetchError }) if !$dryRun;
+            $db->storage->dbh->do("notify eval_failed, ?", undef, join('\t', $tmpId));
         });
         return;
     }
@@ -621,6 +621,7 @@ sub checkJobsetWrapped {
         Net::Statsd::increment("hydra.evaluator.unchanged_checkouts");
         txn_do($db, sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
+            $db->storage->dbh->do("notify eval_cached, ?", undef, join('\t', $tmpId));
         });
         return;
     }
@@ -688,6 +689,9 @@ sub checkJobsetWrapped {
             , hasnewbuilds => $jobsetChanged ? 1 : 0
             , nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
             });
+
+        $db->storage->dbh->do("notify eval_added, ?", undef,
+                              join('\t', $tmpId, $ev->id));
 
         if ($jobsetChanged) {
             # Create JobsetEvalMembers mappings.
@@ -766,10 +770,6 @@ sub checkJobsetWrapped {
     Net::Statsd::increment("hydra.evaluator.evals");
     Net::Statsd::increment("hydra.evaluator.cached_evals") unless $jobsetChanged;
 
-    #while (my ($id, $x) = each %buildMap) {
-    #    system("hydra-notify build-queued $id") if $x->{new};
-    #}
-
     # Store the error messages for jobs that failed to evaluate.
     my $msg = "";
     foreach my $job (values %{$jobs}) {
@@ -787,8 +787,15 @@ sub checkJobset {
 
     my $startTime = clock_gettime(CLOCK_MONOTONIC);
 
+    # Add an ID to eval_* notifications so receivers can correlate
+    # them.
+    my $tmpId = "${startTime}.$$";
+
+    $db->storage->dbh->do("notify eval_started, ?", undef,
+                          join('\t', $tmpId, $jobset->get_column('project'), $jobset->name));
+
     eval {
-        checkJobsetWrapped($jobset);
+        checkJobsetWrapped($jobset, $tmpId);
     };
     my $checkError = $@;
 
@@ -801,6 +808,7 @@ sub checkJobset {
         txn_do($db, sub {
             $jobset->update({lastcheckedtime => time});
             setJobsetError($jobset, $checkError);
+            $db->storage->dbh->do("notify eval_failed, ?", undef, join('\t', $tmpId));
         }) if !$dryRun;
         $failed = 1;
     }

@@ -166,7 +166,7 @@ in
 
       buildMachinesFiles = mkOption {
         type = types.listOf types.path;
-        default = [ "/etc/nix/machines" ];
+        default = optional (config.nix.buildMachines != []) "/etc/nix/machines";
         example = [ "/etc/nix/machines" "/var/lib/hydra/provisioner/machines" ];
         description = "List of files containing build machines.";
       };
@@ -252,6 +252,7 @@ in
         requires = optional haveLocalDB "postgresql.service";
         after = optional haveLocalDB "postgresql.service";
         environment = env;
+        path = [ pkgs.utillinux ];
         preStart = ''
           mkdir -p ${baseDir}
           chown hydra.hydra ${baseDir}
@@ -268,10 +269,11 @@ in
 
           ${optionalString haveLocalDB ''
             if ! [ -e ${baseDir}/.db-created ]; then
-              ${config.services.postgresql.package}/bin/createuser hydra
-              ${config.services.postgresql.package}/bin/createdb -O hydra hydra
+              runuser -u ${config.services.postgresql.superUser} -- ${config.services.postgresql.package}/bin/createuser hydra
+              runuser -u ${config.services.postgresql.superUser} -- ${config.services.postgresql.package}/bin/createdb -O hydra hydra
               touch ${baseDir}/.db-created
             fi
+            echo "create extension if not exists pg_trgm" | runuser -u ${config.services.postgresql.superUser} -- ${config.services.postgresql.package}/bin/psql hydra
           ''}
 
           if [ ! -e ${cfg.gcRootsDir} ]; then
@@ -377,6 +379,23 @@ in
           };
       };
 
+    systemd.services.hydra-notify =
+      { wantedBy = [ "multi-user.target" ];
+        requires = [ "hydra-init.service" ];
+        after = [ "hydra-init.service" ];
+        restartTriggers = [ hydraConf ];
+        environment = env // {
+          PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
+        };
+        serviceConfig =
+          { ExecStart = "@${cfg.package}/bin/hydra-notify hydra-notify";
+            # FIXME: run this under a less privileged user?
+            User = "hydra-queue-runner";
+            Restart = "always";
+            RestartSec = 5;
+          };
+      };
+
     # If there is less than a certain amount of free disk space, stop
     # the queue/evaluator to prevent builds from failing or aborting.
     systemd.services.hydra-check-space =
@@ -414,6 +433,8 @@ in
         hydra-users hydra-queue-runner hydra
         hydra-users hydra-www hydra
         hydra-users root hydra
+        # The postgres user is used to create the pg_trgm extension for the hydra database
+        hydra-users postgres postgres
       '';
 
     services.postgresql.authentication = optionalString haveLocalDB
