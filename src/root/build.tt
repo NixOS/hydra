@@ -186,7 +186,7 @@ END;
                        IF b.finished && b.buildstatus != 0; nrFailedConstituents = nrFailedConstituents + 1; END;
                      END;
                 %];
-                  [%+ IF nrFinished == nrMembers && nrFailedConstituents == 0 %]
+                  [%+ IF nrFinished == nrConstituents && nrFailedConstituents == 0 %]
                     all [% nrConstituents %] constituent builds succeeded
                   [% ELSE %]
                     [% nrFailedConstituents %] out of [% nrConstituents %] constituent builds failed
