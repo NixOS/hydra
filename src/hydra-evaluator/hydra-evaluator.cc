@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <thread>
 #include <cstring>
-#include <experimental/optional>
+#include <optional>
 
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -31,7 +31,7 @@ struct Evaluator
 
     typedef std::map<JobsetName, Jobset> Jobsets;
 
-    std::experimental::optional<JobsetName> evalOne;
+    std::optional<JobsetName> evalOne;
 
     const size_t maxEvals;
 
