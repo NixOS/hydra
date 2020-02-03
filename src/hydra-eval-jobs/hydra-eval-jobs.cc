@@ -13,8 +13,8 @@
 #include "get-drvs.hh"
 #include "globals.hh"
 #include "common-eval-args.hh"
-#include "flakeref.hh"
-#include "flake.hh"
+#include "flake/flakeref.hh"
+#include "flake/flake.hh"
 
 #include "hydra-config.hh"
 
@@ -247,9 +247,19 @@ int main(int argc, char * * argv)
 
         if (myArgs.flake) {
             using namespace flake;
-            FlakeRef flakeRef(myArgs.releaseExpr);
+
+            auto flakeRef = parseFlakeRef(myArgs.releaseExpr);
+
             auto vFlake = state.allocValue();
-            callFlake(state, resolveFlake(state, flakeRef, AllPure), *vFlake);
+
+            auto lockedFlake = lockFlake(state, flakeRef,
+                LockFlags {
+                    .updateLockFile = false,
+                    .useRegistries = false,
+                    .allowMutable = false,
+                });
+
+            callFlake(state, lockedFlake, *vFlake);
 
             auto vOutputs = (*vFlake->attrs->get(state.symbols.create("outputs")))->value;
             state.forceValue(*vOutputs);
