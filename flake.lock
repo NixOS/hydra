@@ -3,8 +3,7 @@
     "nix": {
       "info": {
         "lastModified": 1580749449,
-        "narHash": "sha256-wEPYfs8ULx0dK6R4hrsXC/r8omxJLc86OhQg39eCo0c=",
-        "revCount": 7729
+        "narHash": "sha256-wEPYfs8ULx0dK6R4hrsXC/r8omxJLc86OhQg39eCo0c="
       },
       "inputs": {
         "nixpkgs": {
@@ -26,14 +25,14 @@
         }
       },
       "locked": {
-        "ref": "HEAD",
+        "owner": "NixOS",
+        "repo": "nix",
         "rev": "0a4e911cf478d0d38082a8840a5acc8f57d00086",
-        "type": "git",
-        "url": "file:///home/eelco/Dev/nix-flake"
+        "type": "github"
       },
       "original": {
-        "type": "git",
-        "url": "file:///home/eelco/Dev/nix-flake"
+        "id": "nix",
+        "type": "indirect"
       }
     },
     "nixpkgs": {
