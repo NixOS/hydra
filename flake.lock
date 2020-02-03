@@ -1,24 +1,59 @@
 {
-    "inputs": {
-        "nix": {
-            "inputs": {
-                "nixpkgs": {
-                    "inputs": {},
-                    "narHash": "sha256-HKuPcp/pBpKNBOnDlrSzObee5eB0LdzhI0RpRjTVxik=",
-                    "originalUrl": "nixpkgs/release-19.09",
-                    "url": "github:edolstra/nixpkgs/03f3def66a104a221aac8b751eeb7075374848fd"
-                }
-            },
-            "narHash": "sha256-wiOmdFFMhuBGEcAURvj7c1LAcVbO82QjcFr+5WjuNzM=",
-            "originalUrl": "nix",
-            "url": "github:NixOS/nix/c7866733d7ce2836fbb43de90dd64d17b0d20753"
-        },
+  "inputs": {
+    "nix": {
+      "info": {
+        "lastModified": 1580749449,
+        "narHash": "sha256-wEPYfs8ULx0dK6R4hrsXC/r8omxJLc86OhQg39eCo0c=",
+        "revCount": 7729
+      },
+      "inputs": {
         "nixpkgs": {
-            "inputs": {},
-            "narHash": "sha256-HKuPcp/pBpKNBOnDlrSzObee5eB0LdzhI0RpRjTVxik=",
-            "originalUrl": "nixpkgs/release-19.09",
-            "url": "github:edolstra/nixpkgs/03f3def66a104a221aac8b751eeb7075374848fd"
+          "info": {
+            "narHash": "sha256-V4jz8Hbt+mZkXhH+3KmUQcRGETOFd8mVPhgQlS4Lu5E="
+          },
+          "inputs": {},
+          "locked": {
+            "owner": "edolstra",
+            "repo": "nixpkgs",
+            "rev": "dd45a16733f4469a0dded6ad0bf9a662ea39bdea",
+            "type": "github"
+          },
+          "original": {
+            "id": "nixpkgs",
+            "ref": "release-19.09",
+            "type": "indirect"
+          }
         }
+      },
+      "locked": {
+        "ref": "HEAD",
+        "rev": "0a4e911cf478d0d38082a8840a5acc8f57d00086",
+        "type": "git",
+        "url": "file:///home/eelco/Dev/nix-flake"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/eelco/Dev/nix-flake"
+      }
     },
-    "version": 3
+    "nixpkgs": {
+      "info": {
+        "lastModified": 1580555706,
+        "narHash": "sha256-ly5Gxl9yZgW2w1F3aDU5bvg34Ct+juUaOg8vue+Mkbo="
+      },
+      "inputs": {},
+      "locked": {
+        "owner": "edolstra",
+        "repo": "nixpkgs",
+        "rev": "43e283790fbe330b723ac44b584824cf6d85c1ee",
+        "type": "github"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "ref": "release-19.09",
+        "type": "indirect"
+      }
+    }
+  },
+  "version": 4
 }
