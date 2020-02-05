@@ -166,7 +166,7 @@ create table Builds (
     -- Info about the inputs.
     project       text not null,
     jobset        text not null,
-    jobset_id     integer null,
+    jobset_id     integer not null,
     job           text not null,
 
     -- Info about the build result.
