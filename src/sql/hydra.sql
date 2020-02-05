@@ -52,6 +52,7 @@ create table ProjectMembers (
 -- describing build jobs.
 create table Jobsets (
     name          text not null,
+    id            serial not null,
     project       text not null,
     description   text,
     nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
@@ -76,7 +77,8 @@ create table Jobsets (
     check ((type = 0) = (nixExprInput is not null and nixExprPath is not null)),
     check ((type = 1) = (flake is not null)),
     primary key   (project, name),
-    foreign key   (project) references Projects(name) on delete cascade on update cascade
+    foreign key   (project) references Projects(name) on delete cascade on update cascade,
+    constraint    Jobsets_id_unique UNIQUE(id)
 #ifdef SQLITE
     ,
     foreign key   (project, name, nixExprInput) references JobsetInputs(project, jobset, name)
