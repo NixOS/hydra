@@ -47,6 +47,12 @@ __PACKAGE__->table("jobs");
   is_foreign_key: 1
   is_nullable: 0
 
+=head2 jobset_id
+
+  data_type: 'integer'
+  is_foreign_key: 1
+  is_nullable: 1
+
 =head2 name
 
   data_type: 'text'
@@ -59,6 +65,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "jobset",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
+  "jobset_id",
+  { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
   "name",
   { data_type => "text", is_nullable => 0 },
 );
@@ -130,6 +138,26 @@ Related object: L<Hydra::Schema::Jobsets>
 __PACKAGE__->belongs_to(
   "jobset",
   "Hydra::Schema::Jobsets",
+  { id => "jobset_id" },
+  {
+    is_deferrable => 0,
+    join_type     => "LEFT",
+    on_delete     => "CASCADE",
+    on_update     => "NO ACTION",
+  },
+);
+
+=head2 jobset_project_jobset
+
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Jobsets>
+
+=cut
+
+__PACKAGE__->belongs_to(
+  "jobset_project_jobset",
+  "Hydra::Schema::Jobsets",
   { name => "jobset", project => "project" },
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
@@ -169,7 +197,7 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:sYa6dZNK+stMAnTH0Tmn8A
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:30:58
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:dFusVjxb423gIEoadAw9sw
 
 1;

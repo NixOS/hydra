@@ -146,9 +146,11 @@ create table JobsetInputAlts (
 create table Jobs (
     project       text not null,
     jobset        text not null,
+    jobset_id     integer null,
     name          text not null,
 
     primary key   (project, jobset, name),
+    foreign key   (jobset_id) references Jobsets(id) on delete cascade,
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );
