@@ -637,8 +637,8 @@ QUERY
 
 makeQueries('', "");
 makeQueries('ForProject', "and project = ?");
-makeQueries('ForJobset', "and project = ? and jobset = ?");
-makeQueries('ForJob', "and project = ? and jobset = ? and job = ?");
+makeQueries('ForJobset', "and jobset_id = (select id from jobsets j where j.name = ?)");
+makeQueries('ForJob', "and jobset_id = (select id from jobsets j where j.name = ?) and job = ?");
 
 
 my %hint = (

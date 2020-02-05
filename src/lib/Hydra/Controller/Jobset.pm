@@ -162,7 +162,7 @@ sub get_builds : Chained('jobsetChain') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->stash->{jobset}->builds;
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJobset')
-        ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]});
+        ->search({}, {bind => [$c->stash->{jobset}->name]});
     $c->stash->{channelBaseName} =
         $c->stash->{project}->name . "-" . $c->stash->{jobset}->name;
 }
