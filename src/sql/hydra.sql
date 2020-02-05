@@ -52,6 +52,7 @@ create table ProjectMembers (
 -- describing build jobs.
 create table Jobsets (
     name          text not null,
+    id            serial not null,
     project       text not null,
     description   text,
     nixExprInput  text not null, -- name of the jobsetInput containing the Nix or Guix expression
@@ -72,7 +73,8 @@ create table Jobsets (
     startTime     integer, -- if jobset is currently running
     check (schedulingShares > 0),
     primary key   (project, name),
-    foreign key   (project) references Projects(name) on delete cascade on update cascade
+    foreign key   (project) references Projects(name) on delete cascade on update cascade,
+    constraint    Jobsets_id_unique UNIQUE(id)
 #ifdef SQLITE
     ,
     foreign key   (project, name, nixExprInput) references JobsetInputs(project, jobset, name)

@@ -40,6 +40,13 @@ __PACKAGE__->table("jobsets");
   data_type: 'text'
   is_nullable: 0
 
+=head2 id
+
+  data_type: 'integer'
+  is_auto_increment: 1
+  is_nullable: 0
+  sequence: 'jobsets_id_seq'
+
 =head2 project
 
   data_type: 'text'
@@ -142,6 +149,13 @@ __PACKAGE__->table("jobsets");
 __PACKAGE__->add_columns(
   "name",
   { data_type => "text", is_nullable => 0 },
+  "id",
+  {
+    data_type         => "integer",
+    is_auto_increment => 1,
+    is_nullable       => 0,
+    sequence          => "jobsets_id_seq",
+  },
   "project",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "description",
@@ -193,6 +207,20 @@ __PACKAGE__->add_columns(
 =cut
 
 __PACKAGE__->set_primary_key("project", "name");
+
+=head1 UNIQUE CONSTRAINTS
+
+=head2 C<jobsets_id_unique>
+
+=over 4
+
+=item * L</id>
+
+=back
+
+=cut
+
+__PACKAGE__->add_unique_constraint("jobsets_id_unique", ["id"]);
 
 =head1 RELATIONS
 
@@ -335,8 +363,12 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fYKx6VRlNG5XiDZ73Qr6Rw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:29:09
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:nXFM1xm0h0is2Ln4q9K6oA
+
+__PACKAGE__->add_column(
+    "+id" => { retrieve_on_insert => 1 }
+);
 
 my %hint = (
     columns => [
