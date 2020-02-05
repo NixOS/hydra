@@ -423,10 +423,7 @@ Related object: L<Hydra::Schema::Builds>
 __PACKAGE__->has_many(
   "builds",
   "Hydra::Schema::Builds",
-  {
-    "foreign.jobset"  => "self.name",
-    "foreign.project" => "self.project",
-  },
+  { "foreign.jobset_id" => "self.id" },
   undef,
 );
 
