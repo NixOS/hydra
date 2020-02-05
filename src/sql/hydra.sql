@@ -170,6 +170,7 @@ create table Builds (
     -- Info about the inputs.
     project       text not null,
     jobset        text not null,
+    jobset_id     integer null,
     job           text not null,
 
     -- Info about the build result.
@@ -236,6 +237,7 @@ create table Builds (
     check (finished = 0 or (stoptime is not null and stoptime != 0)),
     check (finished = 0 or (starttime is not null and starttime != 0)),
 
+    foreign key (jobset_id) references Jobsets(id) on delete cascade,
     foreign key (project) references Projects(name) on update cascade,
     foreign key (project, jobset) references Jobsets(project, name) on update cascade,
     foreign key (project, jobset, job) references Jobs(project, jobset, name) on update cascade
