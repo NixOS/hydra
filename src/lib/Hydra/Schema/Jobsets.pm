@@ -260,7 +260,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobs
+=head2 jobs_jobset_ids
 
 Type: has_many
 
@@ -269,7 +269,22 @@ Related object: L<Hydra::Schema::Jobs>
 =cut
 
 __PACKAGE__->has_many(
-  "jobs",
+  "jobs_jobset_ids",
+  "Hydra::Schema::Jobs",
+  { "foreign.jobset_id" => "self.id" },
+  undef,
+);
+
+=head2 jobs_project_jobsets
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Jobs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "jobs_project_jobsets",
   "Hydra::Schema::Jobs",
   {
     "foreign.jobset"  => "self.name",
@@ -363,8 +378,26 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:29:09
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:nXFM1xm0h0is2Ln4q9K6oA
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:30:58
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:eT0fcJqDR/mtxfLId0vnAQ
+
+=head2 jobs
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Jobs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "jobs",
+  "Hydra::Schema::Jobs",
+  {
+    "foreign.jobset"  => "self.name",
+    "foreign.project" => "self.project",
+  },
+  undef,
+);
 
 __PACKAGE__->add_column(
     "+id" => { retrieve_on_insert => 1 }
