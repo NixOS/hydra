@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<CachedDarcsInputs>
+=head1 TABLE: C<cacheddarcsinputs>
 
 =cut
 
-__PACKAGE__->table("CachedDarcsInputs");
+__PACKAGE__->table("cacheddarcsinputs");
 
 =head1 ACCESSORS
 
@@ -90,8 +90,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-09-20 11:08:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Yl1slt3SAizijgu0KUTn0A
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Buwq42sBXQVfYUy01WMyYw
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

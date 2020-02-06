@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<BuildInputs>
+=head1 TABLE: C<buildinputs>
 
 =cut
 
-__PACKAGE__->table("BuildInputs");
+__PACKAGE__->table("buildinputs");
 
 =head1 ACCESSORS
 
@@ -40,6 +40,7 @@ __PACKAGE__->table("BuildInputs");
   data_type: 'integer'
   is_auto_increment: 1
   is_nullable: 0
+  sequence: 'buildinputs_id_seq'
 
 =head2 build
 
@@ -98,7 +99,12 @@ __PACKAGE__->table("BuildInputs");
 
 __PACKAGE__->add_columns(
   "id",
-  { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
+  {
+    data_type         => "integer",
+    is_auto_increment => 1,
+    is_nullable       => 0,
+    sequence          => "buildinputs_id_seq",
+  },
   "build",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
   "name",
@@ -176,8 +182,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-08 13:08:15
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OaJPzRM+8XGsu3eIkqeYEw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:/Fwb8emBsvwrZlEab2X+gQ
 
 my %hint = (
     columns => [

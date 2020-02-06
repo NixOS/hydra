@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<Projects>
+=head1 TABLE: C<projects>
 
 =cut
 
-__PACKAGE__->table("Projects");
+__PACKAGE__->table("projects");
 
 =head1 ACCESSORS
 
@@ -303,8 +303,8 @@ Composing rels: L</projectmembers> -> username
 __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2016-03-11 10:39:17
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:1ats3brIVhRTWLToIYSoaQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:pcF/8351zyo9VL6N5eimdQ
 
 my %hint = (
     columns => [
