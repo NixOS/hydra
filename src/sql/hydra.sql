@@ -146,7 +146,7 @@ create table JobsetInputAlts (
 create table Jobs (
     project       text not null,
     jobset        text not null,
-    jobset_id     integer null,
+    jobset_id     integer not null,
     name          text not null,
 
     primary key   (project, jobset, name),
