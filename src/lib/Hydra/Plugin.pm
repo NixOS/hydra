@@ -42,6 +42,24 @@ sub buildFinished {
     my ($self, $build, $dependents) = @_;
 }
 
+# Called when an eval has finished successfully and queued some builds.
+# $eval is the DBIx row object representing the eval.
+sub evalFinished {
+  my ($self, $eval) = @_;
+}
+
+# Called when a jobset fails to evaluate.
+# inputs is a list of objects with the same schema as `jobsetevalinputs`.
+# passed manually here, since inputs are not saved to the DB if a jobset doesn't evaluate.
+sub evalFailed {
+  my ($self, $project, $jobset, $inputs) = @_;
+}
+
+# Called when a single job in a jobset fails to evaluate.
+sub jobEvalFailed {
+  my ($self, $eval, $project, $jobset, $job) = @_;
+}
+
 # Called when step $step has finished. The build log is stored in the
 # file $logPath (bzip2-compressed).
 sub stepFinished {
