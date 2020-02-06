@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<Builds>
+=head1 TABLE: C<builds>
 
 =cut
 
-__PACKAGE__->table("Builds");
+__PACKAGE__->table("builds");
 
 =head1 ACCESSORS
 
@@ -40,6 +40,7 @@ __PACKAGE__->table("Builds");
   data_type: 'integer'
   is_auto_increment: 1
   is_nullable: 0
+  sequence: 'builds_id_seq'
 
 =head2 finished
 
@@ -200,7 +201,12 @@ __PACKAGE__->table("Builds");
 
 __PACKAGE__->add_columns(
   "id",
-  { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
+  {
+    data_type         => "integer",
+    is_auto_increment => 1,
+    is_nullable       => 0,
+    sequence          => "builds_id_seq",
+  },
   "finished",
   { data_type => "integer", is_nullable => 0 },
   "timestamp",
@@ -544,8 +550,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2019-08-19 16:12:37
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:VjYbAQwv4THW2VfWQ5ajYQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:H3hs+zEywsUmwTWKfSE8wQ
 
 __PACKAGE__->has_many(
   "dependents",

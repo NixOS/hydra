@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<CachedPathInputs>
+=head1 TABLE: C<cachedpathinputs>
 
 =cut
 
-__PACKAGE__->table("CachedPathInputs");
+__PACKAGE__->table("cachedpathinputs");
 
 =head1 ACCESSORS
 
@@ -90,7 +90,7 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("srcpath", "sha256hash");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:28rja0vR1glJJ15hzVfjsQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:oV7tbWLNEMC8byKf9UnAlw
 
 1;

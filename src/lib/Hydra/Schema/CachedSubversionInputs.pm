@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<CachedSubversionInputs>
+=head1 TABLE: C<cachedsubversioninputs>
 
 =cut
 
-__PACKAGE__->table("CachedSubversionInputs");
+__PACKAGE__->table("cachedsubversioninputs");
 
 =head1 ACCESSORS
 
@@ -83,7 +83,7 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3qXfnvkOVj25W94bfhQ65w
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:VGt/0HG84eNZr9OIA8jzow
 
 1;

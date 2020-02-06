@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<JobsetEvals>
+=head1 TABLE: C<jobsetevals>
 
 =cut
 
-__PACKAGE__->table("JobsetEvals");
+__PACKAGE__->table("jobsetevals");
 
 =head1 ACCESSORS
 
@@ -40,6 +40,7 @@ __PACKAGE__->table("JobsetEvals");
   data_type: 'integer'
   is_auto_increment: 1
   is_nullable: 0
+  sequence: 'jobsetevals_id_seq'
 
 =head2 project
 
@@ -92,7 +93,12 @@ __PACKAGE__->table("JobsetEvals");
 
 __PACKAGE__->add_columns(
   "id",
-  { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
+  {
+    data_type         => "integer",
+    is_auto_increment => 1,
+    is_nullable       => 0,
+    sequence          => "jobsetevals_id_seq",
+  },
   "project",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "jobset",
@@ -188,8 +194,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SlEiF8oN6FBK262uSiMKiw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4ZaT8Z1tmCCt6k4ein0MNg
 
 __PACKAGE__->has_many(
   "buildIds",
