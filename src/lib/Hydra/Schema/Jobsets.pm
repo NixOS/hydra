@@ -54,12 +54,12 @@ __PACKAGE__->table("jobsets");
 =head2 nixexprinput
 
   data_type: 'text'
-  is_nullable: 0
+  is_nullable: 1
 
 =head2 nixexprpath
 
   data_type: 'text'
-  is_nullable: 0
+  is_nullable: 1
 
 =head2 errormsg
 
@@ -137,6 +137,17 @@ __PACKAGE__->table("jobsets");
   data_type: 'integer'
   is_nullable: 1
 
+=head2 type
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 0
+
+=head2 flake
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -147,9 +158,9 @@ __PACKAGE__->add_columns(
   "description",
   { data_type => "text", is_nullable => 1 },
   "nixexprinput",
-  { data_type => "text", is_nullable => 0 },
+  { data_type => "text", is_nullable => 1 },
   "nixexprpath",
-  { data_type => "text", is_nullable => 0 },
+  { data_type => "text", is_nullable => 1 },
   "errormsg",
   { data_type => "text", is_nullable => 1 },
   "errortime",
@@ -178,6 +189,10 @@ __PACKAGE__->add_columns(
   { data_type => "boolean", is_nullable => 1 },
   "starttime",
   { data_type => "integer", is_nullable => 1 },
+  "type",
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
+  "flake",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -335,8 +350,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fYKx6VRlNG5XiDZ73Qr6Rw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-09 15:21:11
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:FVP1/AWjdKTlY6djrG592A
 
 my %hint = (
     columns => [
