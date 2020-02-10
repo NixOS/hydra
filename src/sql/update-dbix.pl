@@ -1,8 +1,49 @@
+use Cwd;
+
+die "$0: dbi connection string required \n" if scalar @ARGV != 1;
+
 make_schema_at("Hydra::Schema", {
     naming => { ALL => "v5" },
     relationships => 1,
-    moniker_map => sub { return "$_"; },
+    moniker_map => {
+        "aggregateconstituents" => "AggregateConstituents",
+            "buildinputs" => "BuildInputs",
+            "buildmetrics" => "BuildMetrics",
+            "buildoutputs" => "BuildOutputs",
+            "buildproducts" => "BuildProducts",
+            "builds" => "Builds",
+            "buildstepoutputs" => "BuildStepOutputs",
+            "buildsteps" => "BuildSteps",
+            "cachedbazaarinputs" => "CachedBazaarInputs",
+            "cachedcvsinputs" => "CachedCVSInputs",
+            "cacheddarcsinputs" => "CachedDarcsInputs",
+            "cachedgitinputs" => "CachedGitInputs",
+            "cachedhginputs" => "CachedHgInputs",
+            "cachedpathinputs" => "CachedPathInputs",
+            "cachedsubversioninputs" => "CachedSubversionInputs",
+            "failedpaths" => "FailedPaths",
+            "jobs" => "Jobs",
+            "jobsetevalinputs" => "JobsetEvalInputs",
+            "jobsetevalmembers" => "JobsetEvalMembers",
+            "jobsetevals" => "JobsetEvals",
+            "jobsetinputalts" => "JobsetInputAlts",
+            "jobsetinputs" => "JobsetInputs",
+            "jobsetrenames" => "JobsetRenames",
+            "jobsets" => "Jobsets",
+            "newsitems" => "NewsItems",
+            "nrbuilds" => "NrBuilds",
+            "projectmembers" => "ProjectMembers",
+            "projects" => "Projects",
+            "releasemembers" => "ReleaseMembers",
+            "releases" => "Releases",
+            "schemaversion" => "SchemaVersion",
+            "starredjobs" => "StarredJobs",
+            "systemstatus" => "SystemStatus",
+            "systemtypes" => "SystemTypes",
+            "urirevmapper" => "UriRevMapper",
+            "userroles" => "UserRoles",
+            "users" => "Users",
+    } , #sub { return "$_"; },
     components => [ "+Hydra::Component::ToJSON" ],
     rel_name_map => { buildsteps_builds => "buildsteps" }
-}, ["dbi:SQLite:tmp.sqlite"]);
-
+}, [$ARGV[0]]);

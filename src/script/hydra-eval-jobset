@@ -426,7 +426,12 @@ sub checkBuild {
     my $build;
 
     txn_do($db, sub {
-        my $job = $jobset->jobs->update_or_create({ name => $jobName });
+        my $job = $jobset->jobs->update_or_create({
+            name => $jobName,
+            jobset_id => $jobset->id,
+            project => $jobset->project,
+            jobset => $jobset->name,
+        });
 
         # Don't add a build that has already been scheduled for this
         # job, or has been built but is still a "current" build for
@@ -473,6 +478,9 @@ sub checkBuild {
         # Add the build to the database.
         $build = $job->builds->create(
             { timestamp => $time
+            , project => $jobset->project
+            , jobset => $jobset->name
+            , jobset_id => $jobset->id
             , description => null($buildInfo->{description})
             , license => null($buildInfo->{license})
             , homepage => null($buildInfo->{homepage})

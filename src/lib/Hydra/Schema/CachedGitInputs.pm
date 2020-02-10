@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<CachedGitInputs>
+=head1 TABLE: C<cachedgitinputs>
 
 =cut
 
-__PACKAGE__->table("CachedGitInputs");
+__PACKAGE__->table("cachedgitinputs");
 
 =head1 ACCESSORS
 
@@ -92,7 +92,7 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "branch", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:I4hI02FKRMkw76WV/KBocA
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:0sdK9uQZpx869oqS5thRLw
 
 1;

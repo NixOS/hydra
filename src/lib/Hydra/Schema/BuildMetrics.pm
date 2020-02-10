@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<BuildMetrics>
+=head1 TABLE: C<buildmetrics>
 
 =cut
 
-__PACKAGE__->table("BuildMetrics");
+__PACKAGE__->table("buildmetrics");
 
 =head1 ACCESSORS
 
@@ -177,8 +177,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07043 @ 2015-07-30 16:52:20
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qoPm5/le+sVHigW4Dmum2Q
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Roy7h/K9u7DQOzet4B1sbA
 
 sub json_hint {
     return { columns => ['value', 'unit'] };
