@@ -3,6 +3,7 @@ EXTRA_DIST =					\
   hydra-eval-guile-jobs.in
 
 distributable_scripts =				\
+  hydra-backfill-ids				\
   hydra-init					\
   hydra-eval-jobset				\
   hydra-server					\

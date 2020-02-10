@@ -52,6 +52,7 @@ create table ProjectMembers (
 -- describing build jobs.
 create table Jobsets (
     name          text not null,
+    id            serial not null,
     project       text not null,
     description   text,
     nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
@@ -76,7 +77,8 @@ create table Jobsets (
     check ((type = 0) = (nixExprInput is not null and nixExprPath is not null)),
     check ((type = 1) = (flake is not null)),
     primary key   (project, name),
-    foreign key   (project) references Projects(name) on delete cascade on update cascade
+    foreign key   (project) references Projects(name) on delete cascade on update cascade,
+    constraint    Jobsets_id_unique UNIQUE(id)
 #ifdef SQLITE
     ,
     foreign key   (project, name, nixExprInput) references JobsetInputs(project, jobset, name)
@@ -144,9 +146,11 @@ create table JobsetInputAlts (
 create table Jobs (
     project       text not null,
     jobset        text not null,
+    jobset_id     integer null,
     name          text not null,
 
     primary key   (project, jobset, name),
+    foreign key   (jobset_id) references Jobsets(id) on delete cascade,
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );
@@ -166,6 +170,7 @@ create table Builds (
     -- Info about the inputs.
     project       text not null,
     jobset        text not null,
+    jobset_id     integer null,
     job           text not null,
 
     -- Info about the build result.
@@ -232,6 +237,7 @@ create table Builds (
     check (finished = 0 or (stoptime is not null and stoptime != 0)),
     check (finished = 0 or (starttime is not null and starttime != 0)),
 
+    foreign key (jobset_id) references Jobsets(id) on delete cascade,
     foreign key (project) references Projects(name) on update cascade,
     foreign key (project, jobset) references Jobsets(project, name) on update cascade,
     foreign key (project, jobset, job) references Jobs(project, jobset, name) on update cascade

@@ -40,6 +40,13 @@ __PACKAGE__->table("jobsets");
   data_type: 'text'
   is_nullable: 0
 
+=head2 id
+
+  data_type: 'integer'
+  is_auto_increment: 1
+  is_nullable: 0
+  sequence: 'jobsets_id_seq'
+
 =head2 project
 
   data_type: 'text'
@@ -153,6 +160,13 @@ __PACKAGE__->table("jobsets");
 __PACKAGE__->add_columns(
   "name",
   { data_type => "text", is_nullable => 0 },
+  "id",
+  {
+    data_type         => "integer",
+    is_auto_increment => 1,
+    is_nullable       => 0,
+    sequence          => "jobsets_id_seq",
+  },
   "project",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "description",
@@ -209,6 +223,20 @@ __PACKAGE__->add_columns(
 
 __PACKAGE__->set_primary_key("project", "name");
 
+=head1 UNIQUE CONSTRAINTS
+
+=head2 C<jobsets_id_unique>
+
+=over 4
+
+=item * L</id>
+
+=back
+
+=cut
+
+__PACKAGE__->add_unique_constraint("jobsets_id_unique", ["id"]);
+
 =head1 RELATIONS
 
 =head2 buildmetrics
@@ -229,7 +257,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 builds
+=head2 builds_jobset_ids
 
 Type: has_many
 
@@ -238,7 +266,22 @@ Related object: L<Hydra::Schema::Builds>
 =cut
 
 __PACKAGE__->has_many(
-  "builds",
+  "builds_jobset_ids",
+  "Hydra::Schema::Builds",
+  { "foreign.jobset_id" => "self.id" },
+  undef,
+);
+
+=head2 builds_project_jobsets
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Builds>
+
+=cut
+
+__PACKAGE__->has_many(
+  "builds_project_jobsets",
   "Hydra::Schema::Builds",
   {
     "foreign.jobset"  => "self.name",
@@ -247,7 +290,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobs
+=head2 jobs_jobset_ids
 
 Type: has_many
 
@@ -256,7 +299,22 @@ Related object: L<Hydra::Schema::Jobs>
 =cut
 
 __PACKAGE__->has_many(
-  "jobs",
+  "jobs_jobset_ids",
+  "Hydra::Schema::Jobs",
+  { "foreign.jobset_id" => "self.id" },
+  undef,
+);
+
+=head2 jobs_project_jobsets
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Jobs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "jobs_project_jobsets",
   "Hydra::Schema::Jobs",
   {
     "foreign.jobset"  => "self.name",
@@ -350,8 +408,49 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-09 15:21:11
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:FVP1/AWjdKTlY6djrG592A
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-09 15:32:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:P8+t7rgpOqkGwRdM2b+3Bw
+
+
+=head2 builds
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Builds>
+
+=cut
+
+__PACKAGE__->has_many(
+  "builds",
+  "Hydra::Schema::Builds",
+  {
+    "foreign.jobset"  => "self.name",
+    "foreign.project" => "self.project",
+  },
+  undef,
+);
+
+=head2 jobs
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Jobs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "jobs",
+  "Hydra::Schema::Jobs",
+  {
+    "foreign.jobset"  => "self.name",
+    "foreign.project" => "self.project",
+  },
+  undef,
+);
+
+__PACKAGE__->add_column(
+    "+id" => { retrieve_on_insert => 1 }
+);
 
 my %hint = (
     columns => [
