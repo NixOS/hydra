@@ -54,8 +54,8 @@ create table Jobsets (
     name          text not null,
     project       text not null,
     description   text,
-    nixExprInput  text not null, -- name of the jobsetInput containing the Nix or Guix expression
-    nixExprPath   text not null, -- relative path of the Nix or Guix expression
+    nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
+    nixExprPath   text, -- relative path of the Nix or Guix expression
     errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
     errorTime     integer, -- timestamp associated with errorMsg
     lastCheckedTime integer, -- last time the evaluator looked at this jobset
@@ -70,7 +70,11 @@ create table Jobsets (
     fetchErrorMsg text,
     forceEval     boolean,
     startTime     integer, -- if jobset is currently running
+    type          integer not null default 0, -- 0 == legacy, 1 == flake
+    flake         text,
     check (schedulingShares > 0),
+    check ((type = 0) = (nixExprInput is not null and nixExprPath is not null)),
+    check ((type = 1) = (flake is not null)),
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade
 #ifdef SQLITE
@@ -181,7 +185,8 @@ create table Builds (
 
     -- Copy of the nixExprInput/nixExprPath fields of the jobset that
     -- instantiated this build.  Needed if we want to reproduce this
-    -- build.
+    -- build.  FIXME: this should be stored in JobsetEvals, storing it
+    -- here is denormal.
     nixExprInput  text,
     nixExprPath   text,
 
@@ -521,6 +526,8 @@ create table JobsetEvals (
     -- Cached stats about the builds.
     nrBuilds      integer,
     nrSucceeded   integer, -- set lazily when all builds are finished
+
+    flake         text, -- immutable flake reference
 
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
