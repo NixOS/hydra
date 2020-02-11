@@ -682,6 +682,7 @@ create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);
 create index IndexBuildsOnFinishedStopTime on Builds(finished, stoptime DESC);
 create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
+create index IndexBuildsOnJobsetIdFinishedId on Builds(id DESC, finished, job, jobset_id);
 create index IndexFinishedSuccessfulBuilds on Builds(id DESC, buildstatus, finished, job, jobset_id) where buildstatus = 0 and finished = 1;
 create index IndexBuildsOnDrvPath on Builds(drvPath);
 create index IndexCachedHgInputsOnHash on CachedHgInputs(uri, branch, sha256hash);
