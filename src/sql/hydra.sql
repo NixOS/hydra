@@ -146,7 +146,7 @@ create table JobsetInputAlts (
 create table Jobs (
     project       text not null,
     jobset        text not null,
-    jobset_id     integer null,
+    jobset_id     integer not null,
     name          text not null,
 
     primary key   (project, jobset, name),
@@ -170,7 +170,7 @@ create table Builds (
     -- Info about the inputs.
     project       text not null,
     jobset        text not null,
-    jobset_id     integer null,
+    jobset_id     integer not null,
     job           text not null,
 
     -- Info about the build result.
@@ -682,6 +682,7 @@ create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);
 create index IndexBuildsOnFinishedStopTime on Builds(finished, stoptime DESC);
 create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
+create index IndexFinishedSuccessfulBuilds on Builds(id DESC, buildstatus, finished, job, jobset_id) where buildstatus = 0 and finished = 1;
 create index IndexBuildsOnDrvPath on Builds(drvPath);
 create index IndexCachedHgInputsOnHash on CachedHgInputs(uri, branch, sha256hash);
 create index IndexCachedGitInputsOnHash on CachedGitInputs(uri, branch, sha256hash);
