@@ -330,22 +330,27 @@ sub inputsToArgs {
 sub evalJobs {
     my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
 
-    my @cmd;
+    my @cmd = (
+        "nix", "eval-hydra-jobs",
+        "--json",
+        "--gc-roots-dir", getGCRootsDir,
+        "--max-jobs", 1,
+        "--workers", $config->{evaluator_workers} // 1,
+        "--max-memory-size", $config->{evaluator_max_memory_size} // 4096,
+        "--builders", "",
+        );
 
     if (defined $flakeRef) {
-        @cmd = ("hydra-eval-jobs",
-                "--flake", $flakeRef,
-                "--gc-roots-dir", getGCRootsDir,
-                "--max-jobs", 1);
+        push @cmd,
+            ($flakeRef,
+             "--no-update-lock-file",
+             "--no-registries");
     } else {
         my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
             or die "cannot find the input containing the job expression\n";
-
-        @cmd = ("hydra-eval-jobs",
-                "<" . $nixExprInputName . "/" . $nixExprPath . ">",
-                "--gc-roots-dir", getGCRootsDir,
-                "--max-jobs", 1,
-                inputsToArgs($inputInfo));
+        push @cmd,
+            ("--file", "<" . $nixExprInputName . "/" . $nixExprPath . ">",
+             inputsToArgs($inputInfo));
     }
 
     if (defined $ENV{'HYDRA_DEBUG'}) {

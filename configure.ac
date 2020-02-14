@@ -64,7 +64,6 @@ AC_CONFIG_FILES([
   doc/manual/Makefile
   src/Makefile
   src/hydra-evaluator/Makefile
-  src/hydra-eval-jobs/Makefile
   src/hydra-queue-runner/Makefile
   src/sql/Makefile
   src/ttf/Makefile
