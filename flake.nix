@@ -93,7 +93,6 @@
                 final.nix
                 final.nix.perl-bindings
                 git
-                boehmgc
               ];
           };
 
@@ -107,7 +106,6 @@
             [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig sqlite libpqxx
               gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
               perlDeps perl final.nix
-              boehmgc
               postgresql95 # for running the tests
               boost
               (nlohmann_json.override { multipleHeaders = true; })
