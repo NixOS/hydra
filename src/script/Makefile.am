@@ -1,6 +1,5 @@
 EXTRA_DIST =					\
-  $(distributable_scripts)			\
-  hydra-eval-guile-jobs.in
+  $(distributable_scripts)
 
 distributable_scripts =				\
   hydra-backfill-ids				\
@@ -17,5 +16,4 @@ distributable_scripts =				\
   nix-prefetch-hg
 
 bin_SCRIPTS =					\
-  $(distributable_scripts)			\
-  hydra-eval-guile-jobs
+  $(distributable_scripts)
