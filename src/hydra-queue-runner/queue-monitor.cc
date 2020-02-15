@@ -102,9 +102,9 @@ bool State::getQueuedBuilds(Connection & conn,
             if (id > newLastBuildId) newLastBuildId = id;
             if (builds_->count(id)) continue;
 
-            auto build = std::make_shared<Build>();
+            auto build = std::make_shared<Build>(
+                localStore->parseStorePath(row["drvPath"].as<string>()));
             build->id = id;
-            build->drvPath = localStore->parseStorePath(row["drvPath"].as<string>());
             build->projectName = row["project"].as<string>();
             build->jobsetName = row["jobset"].as<string>();
             build->jobName = row["job"].as<string>();
@@ -402,8 +402,7 @@ Step::ptr State::createStep(ref<Store> destStore,
 
         /* If it doesn't exist, create it. */
         if (!step) {
-            step = std::make_shared<Step>();
-            step->drvPath = drvPath.clone();
+            step = std::make_shared<Step>(drvPath.clone());
             isNew = true;
         }
 
