@@ -223,11 +223,6 @@ sub updateJobset {
     error($c, "Cannot rename jobset to ‘$jobsetName’ since that identifier is already taken.")
         if $jobsetName ne $oldName && defined $c->stash->{project}->jobsets->find({ name => $jobsetName });
 
-    # When the expression is in a .scm file, assume it's a Guile + Guix
-    # build expression.
-    my $exprType =
-        $c->stash->{params}->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
-
     my ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
 
     my $enabled = int($c->stash->{params}->{enabled});
