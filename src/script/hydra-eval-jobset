@@ -50,7 +50,7 @@ sub parseJobName {
               ([\w\-]+) (?{ $attrs{$key} = $^N; }) \"
             \s* )* \])? $
           /x
-        or die "invalid job specifier `$s'";
+        or die "invalid job specifier `$s'\n";
     return ($1, $2, $3, \%attrs);
 }
 
@@ -62,8 +62,8 @@ sub attrsToSQL {
 
     foreach my $name (keys %{$attrs}) {
         my $value = $attrs->{$name};
-        $name =~ /^[\w\-]+$/ or die;
-        $value =~ /^[\w\-]+$/ or die;
+        $name =~ /^[\w\-]+$/ or die "invalid name: $name\n";
+        $value =~ /^[\w\-]+$/ or die "invalid value: $value\n";
         # !!! Yes, this is horribly injection-prone... (though
         # name/value are filtered above).  Should use SQL::Abstract,
         # but it can't deal with subqueries.  At least we should use
@@ -203,7 +203,7 @@ sub fetchInputEval {
             });
         die "there is no successful build of ‘$value’ in a finished evaluation\n" unless defined $eval;
     } else {
-        die;
+        die "evaluation $name value does not match a job id, \"project:jobset\", or \"project:jobset:job\" format\n";
     }
 
     my $jobs = {};
@@ -235,11 +235,12 @@ sub fetchInput {
         @inputs = fetchInputEval($db, $project, $jobset, $name, $value);
     }
     elsif ($type eq "string" || $type eq "nix") {
-        die unless defined $value;
+        die "no value specified for input $name\n" unless defined $value;
         @inputs = { value => $value };
     }
     elsif ($type eq "boolean") {
-        die unless defined $value && ($value eq "true" || $value eq "false");
+        die "boolean input $name must have a value string of \"true\" or \"false\"; got `${value}'\n"
+            unless defined $value && ($value eq "true" || $value eq "false");
         @inputs = { value => $value };
     }
     else {
@@ -251,7 +252,7 @@ sub fetchInput {
                 last;
             }
         }
-        die "input `$name' has unknown type `$type'." unless $found;
+        die "input `$name' has unknown type `$type'.\n" unless $found;
     }
 
     foreach my $input (@inputs) {
@@ -318,7 +319,7 @@ sub inputsToArgs {
             if scalar @{$inputInfo->{$input}} == 1
                && defined $inputInfo->{$input}->[0]->{storePath};
 
-        die "multiple jobset input alternatives are no longer supported"
+        die "multiple jobset input alternatives are no longer supported\n"
             if scalar @{$inputInfo->{$input}} != 1;
 
         my $alt = $inputInfo->{$input}->[0];
@@ -581,7 +582,7 @@ sub checkJobsetWrapped {
     if ($jobsetsJobset) {
         my @declInputs = fetchInput($plugins, $db, $project, $jobset, "decl", $project->decltype, $project->declvalue, 0);
         my $declInput = @declInputs[0] or die "cannot find the input containing the declarative project specification\n";
-        die "multiple alternatives for the input containing the declarative project specificaiton are not supported\n"
+        die "multiple alternatives for the input containing the declarative project specification are not supported\n"
             if scalar @declInputs != 1;
         my $declFile = $declInput->{storePath} . "/" . $project->declfile;
         my $declText = read_file($declFile)
@@ -590,7 +591,7 @@ sub checkJobsetWrapped {
         eval {
             $declSpec = decode_json($declText);
         };
-        die "Declarative specification file $declFile not valid JSON: $@\n" if $@;
+        die "Declarative specification file $declFile is not valid JSON: $@\n" if $@;
         updateDeclarativeJobset($db, $project, ".jobsets", $declSpec);
         $jobset->discard_changes;
         $inputInfo->{"declInput"} = [ $declInput ];
@@ -641,7 +642,7 @@ sub checkJobsetWrapped {
 
     if ($jobsetsJobset) {
         my @keys = keys %$jobs;
-        die "The .jobsets jobset must only have a single job named 'jobsets'"
+        die "The .jobsets jobset must only have a single job named 'jobsets'\n"
             unless (scalar @keys) == 1 && $keys[0] eq "jobsets";
     }
     Net::Statsd::timing("hydra.evaluator.eval_time", int(($evalStop - $evalStart) * 1000));
@@ -658,7 +659,14 @@ sub checkJobsetWrapped {
         return;
     }
 
-    die "Jobset contains a job with an empty name. Make sure the jobset evaluates to an attrset of jobs.\n"
+    # n.b. an empty job name can be an improper nixexprinput
+    # specification, or it can be an error from the job evaluator
+    # (e.g. hydra-eval-guile-jobs or hydra-eval-jobs).  In the latter
+    # case, the response looks like: `{ "": { "error": "..." }}` which
+    # is the signal from the job evaluator that there is a problem;
+    # propagate that error message to allow the user to fix the jobset
+    # evaluation.
+    die "Jobset must be an attrset of jobs, but evaluation got an empty job name:\n" . dump($jobs->{""}) . "\n"
         if defined $jobs->{""};
 
     $jobs->{$_}->{jobName} = $_ for keys %{$jobs};
@@ -723,7 +731,7 @@ sub checkJobsetWrapped {
 
             foreach my $job (values %{$jobs}) {
                 next unless $job->{constituents};
-                my $x = $drvPathToId{$job->{drvPath}} or die;
+                my $x = $drvPathToId{$job->{drvPath}} or die "no id for drvPath $job->{drvPath}\n";
                 foreach my $drvPath (split / /, $job->{constituents}) {
                     my $constituent = $drvPathToId{$drvPath};
                     if (defined $constituent) {
