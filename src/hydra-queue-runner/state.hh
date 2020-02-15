@@ -136,6 +136,9 @@ struct Build
 
     std::atomic_bool finishedInDB{false};
 
+    Build(nix::StorePath && drvPath) : drvPath(std::move(drvPath))
+    { }
+
     std::string fullJobName()
     {
         return projectName + ":" + jobsetName + ":" + jobName;
@@ -200,6 +203,9 @@ struct Step
     std::atomic_bool finished{false}; // debugging
 
     nix::Sync<State> state;
+
+    Step(nix::StorePath && drvPath) : drvPath(std::move(drvPath))
+    { }
 
     ~Step()
     {
