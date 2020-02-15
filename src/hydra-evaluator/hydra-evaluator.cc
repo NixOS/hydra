@@ -361,14 +361,15 @@ int main(int argc, char * * argv)
             return true;
         });
 
-        if (!args.empty()) {
-            if (args.size() != 2) throw UsageError("Syntax: hydra-evaluator [<project> <jobset>]");
-            evaluator.evalOne = JobsetName(args[0], args[1]);
-        }
 
         if (unlock)
             evaluator.unlock();
-        else
+        else {
+            if (!args.empty()) {
+                if (args.size() != 2) throw UsageError("Syntax: hydra-evaluator [<project> <jobset>]");
+                evaluator.evalOne = JobsetName(args[0], args[1]);
+            }
             evaluator.run();
+        }
     });
 }
