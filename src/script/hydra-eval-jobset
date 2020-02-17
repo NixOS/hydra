@@ -697,7 +697,7 @@ sub checkJobsetWrapped {
             foreach my $job (values %{$jobs}) {
                 next unless $job->{constituents};
                 my $x = $drvPathToId{$job->{drvPath}} or die;
-                foreach my $drvPath (split / /, $job->{constituents}) {
+                foreach my $drvPath (@{$job->{constituents}}) {
                     my $constituent = $drvPathToId{$drvPath};
                     if (defined $constituent) {
                         $db->resultset('AggregateConstituents')->update_or_create({aggregate => $x->{id}, constituent => $constituent->{id}});
