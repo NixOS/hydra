@@ -565,7 +565,7 @@ sub checkJobsetWrapped {
     if ($jobsetsJobset) {
         my @declInputs = fetchInput($plugins, $db, $project, $jobset, "decl", $project->decltype, $project->declvalue, 0);
         my $declInput = @declInputs[0] or die "cannot find the input containing the declarative project specification\n";
-        die "multiple alternatives for the input containing the declarative project specificaiton are not supported\n"
+        die "multiple alternatives for the input containing the declarative project specification are not supported\n"
             if scalar @declInputs != 1;
         my $declFile = $declInput->{storePath} . "/" . $project->declfile;
         my $declText = read_file($declFile)
@@ -599,6 +599,8 @@ sub checkJobsetWrapped {
                 updateDeclarativeJobset($db, $project, ".jobsets", $declSpec);
                 $jobset->discard_changes;
                 $inputInfo->{"declInput"} = [ $declInput ];
+                $inputInfo ->{"projectName"} = [ { "value" => $project->name, } ];
+
             }
         } else {
             die "Declarative specification file $declFile is not a dictionary"
