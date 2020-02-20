@@ -1,5 +1,5 @@
 { hydraSrc ? builtins.fetchGit ./.
-, nixpkgs ? builtins.fetchGit { url = https://github.com/NixOS/nixpkgs-channels.git; ref = "nixos-19.09-small"; }
+, nixpkgs ? builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/release-19.09.tar.gz
 , officialRelease ? false
 , shell ? false
 }:
@@ -154,9 +154,7 @@ rec {
 
       preConfigure = "autoreconf -vfi";
 
-      NIX_LDFLAGS = [
-          "-lpthread"
-	];
+      NIX_LDFLAGS = [ "-lpthread" ];
 
       enableParallelBuilding = true;
 
