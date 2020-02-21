@@ -283,6 +283,7 @@ sub buildInputToString {
         (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
         (defined $input->{outputName} ? "; outputName = \"" . $input->{outputName} . "\"" : "") .
         (defined $input->{drvPath} ? "; drvPath = builtins.storePath " . $input->{drvPath} . "" : "") .
+        (defined $input->{mergeBase} ? "; mergeBase = " . buildInputToString($input->{mergeBase}) . "" : "") .
         ";}";
 }
 
@@ -319,6 +320,11 @@ sub inputsToArgs {
             push @res, "--arg", $input, $s;
         }
         else {
+            # If defined, add the mergeBase input to the NIX_PATH
+            # otherwise it can't be imported in restricted eval mode.
+            push @res, "-I", "$input.mergeBase=$alt->{mergeBase}->{storePath}"
+                if (defined $alt->{mergeBase});
+
             push @res, "--arg", $input, buildInputToString($alt);
         }
     }

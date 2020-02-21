@@ -55,8 +55,6 @@ Read the configuration from the main hydra config file.
 
 The configuration is loaded from the "git-input" block.
 
-Currently only the "timeout" variable is been looked up in the file.
-
 The variables defined directly in the input value will override
 the ones on the configuration file, to define the variables
 as an input value use: <name>=<value> without spaces and
@@ -73,6 +71,47 @@ Expected configuration format in the hydra config file:
       </project:jobset:input-name>
 
     </git-input>
+
+Supported options:
+
+* "timeout": the maximum allowed time for `git` operations. Defaults
+  to 10 minutes. After the timeout the GitInput plugin will raise an
+  error and the evaluation will fail.
+
+* "base=<base branch of PR>": this optional option is typically
+  defined directly in the input value for jobsets associated with Pull
+  Requests. So it works best in combination with the GitHubPulls
+  plugin.
+
+  When defined the GitInput plugin will also fetch the revision
+  corresponding to the merge-base of the specified branch and base
+  branch. For example say an input named `src` is defined with the
+  following value:
+
+     git@github.com:me/my-repo.git my-pr-branch base=master
+
+  The plugin will calculate the merge-base revision between
+  `my-pr-branch` and `master`, `nix-prefetch-git` that revision and
+  make it available in the output under the `src.mergeBase`:
+
+    {
+      outPath = builtins.storePath /nix/store/...-source;
+      inputType = "git";
+      uri = "git@github.com:me/my-repo.git";
+      rev = "<revision of the PR branch>";
+      revCount = ...;
+      gitTag = "...";
+      shortRev = "...";
+      mergeBase = {
+        outPath = builtins.storePath /nix/store/...-source;
+        inputType = "git";
+        uri = "git@github.com:me/my-repo.git";
+        rev = "<revision of the merge-base of the PR branch and master>";
+        revCount = ...;
+        gitTag = "...";
+        shortRev = "...";
+      };
+    }
 =cut
 sub _pluginConfig {
     my ($main_config, $project_name, $jobset_name, $input_name) = @_;
@@ -141,21 +180,53 @@ sub fetchInput {
         die "error creating git repo in `$clonePath':\n$res->{stderr}" if $res->{status};
     }
 
+    fetchBranch($cfg, $uri, $branch, $clonePath);
+
+    my $revision = _isHash($branch) ? $branch
+        : grab(cmd => ["git", "rev-parse", "$branch"], dir => $clonePath, chomp => 1);
+    die "did not get a well-formated revision number of Git branch '$branch' at `$uri'"
+        unless $revision =~ /^[0-9a-fA-F]+$/;
+
+    my $branchInfo = storeBranch($self, $cfg, $uri, $branch, $revision, $deepClone, $clonePath);
+
+    if (exists $cfg->{base}) {
+        my $base = $cfg->{base};
+        die "`base` should not be the empty string"
+            unless (defined $base) && ($base ne "");
+
+        fetchBranch($cfg, $uri, $base, $clonePath);
+
+        my $mergeBaseRevision = grab(cmd => ["git", "merge-base", $base, $revision], dir => $clonePath, chomp => 1);
+        die "expected a well-formated revision number of the merge-base of $base and $revision at `$uri' but got: `$mergeBaseRevision`"
+            unless $mergeBaseRevision =~ /^[0-9a-fA-F]+$/;
+
+        $branchInfo->{mergeBase} = storeBranch($self, $cfg, $uri, $base, $mergeBaseRevision, $deepClone, $clonePath);
+    }
+    return $branchInfo;
+}
+
+sub fetchBranch {
+    my ($cfg, $uri, $branch, $clonePath) = @_;
+
     # This command forces the update of the local branch to be in the same as
     # the remote branch for whatever the repository state is.  This command mirrors
     # only one branch of the remote repository.
     my $localBranch = _isHash($branch) ? "_hydra_tmp" : $branch;
-    $res = run(cmd => ["git", "fetch", "-fu", "origin", "+$branch:$localBranch"], dir => $clonePath,
-               timeout => $cfg->{timeout});
+    my $res = run(cmd => ["git", "fetch", "-fu", "origin", "+$branch:$localBranch"], dir => $clonePath,
+                  timeout => $cfg->{timeout});
     $res = run(cmd => ["git", "fetch", "-fu", "origin"], dir => $clonePath, timeout => $cfg->{timeout}) if $res->{status};
     die "error fetching latest change from git repo at `$uri':\n$res->{stderr}" if $res->{status};
+}
+
+sub storeBranch {
+    my ($self, $cfg, $uri, $branch, $revision, $deepClone, $clonePath) = @_;
 
     # If deepClone is defined, then we look at the content of the repository
     # to determine if this is a top-git branch.
     if (defined $deepClone) {
 
         # Is the target branch a topgit branch?
-        $res = run(cmd => ["git", "ls-tree", "-r", "$branch", ".topgit"], dir => $clonePath);
+        my $res = run(cmd => ["git", "ls-tree", "-r", "$branch", ".topgit"], dir => $clonePath);
 
         if ($res->{stdout} ne "") {
             # Checkout the branch to look at its content.
@@ -172,11 +243,6 @@ sub fetchInput {
     my $timestamp = time;
     my $sha256;
     my $storePath;
-
-    my $revision = _isHash($branch) ? $branch
-        : grab(cmd => ["git", "rev-parse", "$branch"], dir => $clonePath, chomp => 1);
-    die "did not get a well-formated revision number of Git branch '$branch' at `$uri'"
-        unless $revision =~ /^[0-9a-fA-F]+$/;
 
     # Some simple caching: don't check a uri/branch/revision more than once.
     # TODO: Fix case where the branch is reset to a previous commit.
