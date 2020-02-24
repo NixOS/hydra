@@ -7,7 +7,7 @@
 
 [% IF builds.size > 0 %]
 
-  <p>The following builds match your query:[% IF builds.size > limit %] <span class="text-warning">(first [% limit %] results only)</span>[% END %]</p>
+  <p>The [% type %] paths of the following builds match your query:[% IF builds.size > limit %] <span class="text-warning">(first [% limit %] results only)</span>[% END %]</p>
 
   [% INCLUDE renderBuildList %]
 
@@ -75,8 +75,8 @@
 
 [% END %]
 
-[% INCLUDE renderBuildSearch %]
-[% INCLUDE renderBuildSearch builds=buildsdrv %]
+[% INCLUDE renderBuildSearch type='output' %]
+[% INCLUDE renderBuildSearch type='derivation' builds=buildsdrv %]
 
 [% IF builds.size > 0 || buildsdrv.size > 0 ; matched = 1 ; END %]
 
