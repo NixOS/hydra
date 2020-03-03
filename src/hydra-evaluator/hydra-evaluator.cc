@@ -129,19 +129,42 @@ struct Evaluator
         childStarted.notify_one();
     }
 
+    bool shouldEvaluate(Jobset & jobset)
+    {
+        if (jobset.pid != -1) {
+            // Already running.
+            return false;
+        }
+
+        if (jobset.triggerTime == std::numeric_limits<time_t>::max()) {
+            // An evaluation of this Jobset is requested
+            return true;
+        }
+
+        if (jobset.checkInterval <= 0) {
+            // Automatic scheduling is disabled. We allow requested
+            // evaluations, but never schedule start one.
+            return false;
+        }
+
+
+        if (jobset.lastCheckedTime + jobset.checkInterval <= time(0)) {
+            // Time to schedule a fresh evaluation
+            return true;
+        }
+
+        return false;
+    }
+
     void startEvals(State & state)
     {
         std::vector<Jobsets::iterator> sorted;
-
-        time_t now = time(0);
 
         /* Filter out jobsets that have been evaluated recently and have
            not been triggered. */
         for (auto i = state.jobsets.begin(); i != state.jobsets.end(); ++i)
             if (evalOne ||
-                (i->second.pid == -1 &&
-                 (i->second.triggerTime != std::numeric_limits<time_t>::max() ||
-                     (i->second.checkInterval > 0 && i->second.lastCheckedTime + i->second.checkInterval <= now))))
+                (i->second.evaluation_style && shouldEvaluate(i->second)))
                 sorted.push_back(i);
 
         /* Put jobsets in order of ascending trigger time, last checked
