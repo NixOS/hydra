@@ -129,6 +129,8 @@
 
           enableParallelBuilding = true;
 
+          doCheck = true;
+
           preCheck = ''
             patchShebangs .
             export LOGNAME=''${LOGNAME:-foo}
