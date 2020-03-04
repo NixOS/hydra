@@ -109,9 +109,10 @@ static void worker(
         nlohmann::json reply;
 
         try {
-            auto v = findAlongAttrPath(state, attrPath, autoArgs, *vRoot);
+            auto vTmp = findAlongAttrPath(state, attrPath, autoArgs, *vRoot);
 
-            state.forceValue(*v);
+            auto v = state.allocValue();
+            state.autoCallFunction(autoArgs, *vTmp, *v);
 
             if (auto drv = getDerivation(state, *v, false)) {
 
