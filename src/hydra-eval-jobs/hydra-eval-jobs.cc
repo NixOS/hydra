@@ -194,6 +194,11 @@ static void worker(
                 reply["attrs"] = std::move(attrs);
             }
 
+            else if (v->type == tNull)
+                ;
+
+            else throw TypeError("attribute '%s' is %s, which is not supported", attrPath, showType(*v));
+
         } catch (EvalError & e) {
             reply["error"] = filterANSIEscapes(e.msg(), true);
         }
