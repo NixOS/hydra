@@ -509,7 +509,8 @@ sub getStoreUri {
 # Read a file from the (possibly remote) nix store
 sub readNixFile {
     my ($path) = @_;
-    return grab(cmd => ["nix", "cat-store", "--store", getStoreUri(), "$path"]);
+    return grab(cmd => ["nix", "--experimental-features", "nix-command",
+                        "cat-store", "--store", getStoreUri(), "$path"]);
 }
 
 
