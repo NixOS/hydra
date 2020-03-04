@@ -61,7 +61,7 @@ create table Jobsets (
     errorTime     integer, -- timestamp associated with errorMsg
     lastCheckedTime integer, -- last time the evaluator looked at this jobset
     triggerTime   integer, -- set if we were triggered by a push event
-    enabled       integer not null default 1, -- 0 = disabled, 1 = enabled, 2 = one-shot
+    enabled       integer not null default 1, -- 0 = disabled, 1 = enabled, 2 = one-shot, 3 = one-at-a-time
     enableEmail   integer not null default 1,
     hidden        integer not null default 0,
     emailOverride text not null,
