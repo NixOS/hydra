@@ -238,7 +238,7 @@ sub updateJobset {
     }
 
     my $enabled = int($c->stash->{params}->{enabled});
-    die if $enabled < 0 || $enabled > 2;
+    die if $enabled < 0 || $enabled > 3;
 
     my $shares = int($c->stash->{params}->{schedulingshares} // 1);
     error($c, "The number of scheduling shares must be positive.") if $shares <= 0;

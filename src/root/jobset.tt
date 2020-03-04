@@ -129,7 +129,7 @@
     <table class="info-table">
       <tr>
         <th>State:</th>
-        <td>[% IF jobset.enabled == 0; "Disabled"; ELSIF jobset.enabled == 1; "Enabled"; ELSIF jobset.enabled == 2; "One-shot"; END %]</td>
+        <td>[% IF jobset.enabled == 0; "Disabled"; ELSIF jobset.enabled == 1; "Enabled"; ELSIF jobset.enabled == 2; "One-shot"; ELSIF jobset.enabled == 3; "One-at-a-time"; END %]</td>
       </tr>
       <tr>
         <th>Description:</th>

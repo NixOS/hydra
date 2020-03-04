@@ -82,7 +82,7 @@ sub getPath {
 
     my $substituter = $config->{eval_substituter};
 
-    system("nix", "copy", "--from", $substituter, "--", $path)
+    system("nix", "--experimental-features", "nix-command", "copy", "--from", $substituter, "--", $path)
         if defined $substituter;
 
     return isValidPath($path);

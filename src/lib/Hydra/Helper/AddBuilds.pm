@@ -70,8 +70,14 @@ sub handleDeclarativeJobsetBuild {
         my $id = $build->id;
         die "Declarative jobset build $id failed" unless $build->buildstatus == 0;
         my $declPath = ($build->buildoutputs)[0]->path;
-        my $declText = readNixFile($declPath)
-            or die "Couldn't read declarative specification file $declPath: $!";
+        my $declText = eval {
+            readNixFile($declPath)
+        };
+        if ($@) {
+            print STDERR "ERROR: failed to readNixFile $declPath: ", $@, "\n";
+            die;
+        }
+
         my $declSpec = decode_json($declText);
         txn_do($db, sub {
             my @kept = keys %$declSpec;

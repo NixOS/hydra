@@ -147,9 +147,10 @@ static void worker(
         nlohmann::json reply;
 
         try {
-            auto v = findAlongAttrPath(state, attrPath, autoArgs, *vRoot).first;
+            auto vTmp = findAlongAttrPath(state, attrPath, autoArgs, *vRoot).first;
 
-            state.forceValue(*v);
+            auto v = state.allocValue();
+            state.autoCallFunction(autoArgs, *vTmp, *v);
 
             if (auto drv = getDerivation(state, *v, false)) {
 
@@ -230,6 +231,11 @@ static void worker(
                 }
                 reply["attrs"] = std::move(attrs);
             }
+
+            else if (v->type == tNull)
+                ;
+
+            else throw TypeError("attribute '%s' is %s, which is not supported", attrPath, showType(*v));
 
         } catch (EvalError & e) {
             reply["error"] = filterANSIEscapes(e.msg(), true);

@@ -68,6 +68,7 @@
           <input type="hidden" name="enabled" value="[% jobset.enabled %]" />
           <button type="button" class="btn" value="1">Enabled</button>
           <button type="button" class="btn" value="2">One-shot</button>
+          <button type="button" class="btn" value="3">One-at-a-time</button>
           <button type="button" class="btn" value="0">Disabled</button>
         </div>
       </div>
