@@ -193,7 +193,8 @@ sub checkPath {
 sub serveFile {
     my ($c, $path) = @_;
 
-    my $res = run(cmd => ["nix", "ls-store", "--store", getStoreUri(), "--json", "$path"]);
+    my $res = run(cmd => ["nix", "--experimental-features", "nix-command",
+                          "ls-store", "--store", getStoreUri(), "--json", "$path"]);
 
     if ($res->{status}) {
         notFound($c, "File '$path' does not exist.") if $res->{stderr} =~ /does not exist/;
@@ -217,7 +218,8 @@ sub serveFile {
 
     elsif ($ls->{type} eq "regular") {
 
-        $c->stash->{'plain'} = { data => grab(cmd => ["nix", "cat-store", "--store", getStoreUri(), "$path"]) };
+        $c->stash->{'plain'} = { data => grab(cmd => ["nix", "--experimental-features", "nix-command",
+                                                      "cat-store", "--store", getStoreUri(), "$path"]) };
 
         # Detect MIME type. Borrowed from Catalyst::Plugin::Static::Simple.
         my $type = "text/plain";
