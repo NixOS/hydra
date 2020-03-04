@@ -15,6 +15,13 @@ using namespace nix;
 
 typedef std::pair<std::string, std::string> JobsetName;
 
+enum class EvaluationStyle
+{
+    SCHEDULE = 1,
+    ONESHOT = 2,
+    ONE_AT_A_TIME = 3,
+};
+
 struct Evaluator
 {
     std::unique_ptr<Config> config;
@@ -24,6 +31,7 @@ struct Evaluator
     struct Jobset
     {
         JobsetName name;
+        std::optional<EvaluationStyle> evaluation_style;
         time_t lastCheckedTime, triggerTime;
         int checkInterval;
         Pid pid;
@@ -60,7 +68,7 @@ struct Evaluator
         pqxx::work txn(*conn);
 
         auto res = txn.parameterized
-            ("select project, j.name, lastCheckedTime, triggerTime, checkInterval from Jobsets j join Projects p on j.project = p.name "
+            ("select project, j.name, lastCheckedTime, triggerTime, checkInterval, j.enabled as jobset_enabled from Jobsets j join Projects p on j.project = p.name "
              "where j.enabled != 0 and p.enabled != 0").exec();
 
         auto state(state_.lock());
@@ -78,6 +86,17 @@ struct Evaluator
             jobset.lastCheckedTime = row["lastCheckedTime"].as<time_t>(0);
             jobset.triggerTime = row["triggerTime"].as<time_t>(notTriggered);
             jobset.checkInterval = row["checkInterval"].as<time_t>();
+            switch (row["jobset_enabled"].as<int>(0)) {
+                case 1:
+                    jobset.evaluation_style = EvaluationStyle::SCHEDULE;
+                    break;
+                case 2:
+                    jobset.evaluation_style = EvaluationStyle::ONESHOT;
+                    break;
+                case 3:
+                    jobset.evaluation_style = EvaluationStyle::ONE_AT_A_TIME;
+                    break;
+            }
 
             seen.insert(name);
         }
@@ -133,24 +152,82 @@ struct Evaluator
     {
         if (jobset.pid != -1) {
             // Already running.
+            debug("shouldEvaluate %s:%s? no: already running",
+                  jobset.name.first, jobset.name.second);
             return false;
         }
 
-        if (jobset.triggerTime == std::numeric_limits<time_t>::max()) {
+        if (jobset.triggerTime != std::numeric_limits<time_t>::max()) {
             // An evaluation of this Jobset is requested
+            debug("shouldEvaluate %s:%s? yes: requested",
+                  jobset.name.first, jobset.name.second);
             return true;
         }
 
         if (jobset.checkInterval <= 0) {
             // Automatic scheduling is disabled. We allow requested
             // evaluations, but never schedule start one.
+            debug("shouldEvaluate %s:%s? no: checkInterval <= 0",
+                  jobset.name.first, jobset.name.second);
             return false;
         }
 
-
         if (jobset.lastCheckedTime + jobset.checkInterval <= time(0)) {
-            // Time to schedule a fresh evaluation
-            return true;
+            // Time to schedule a fresh evaluation. If the jobset
+            // is a ONE_AT_A_TIME jobset, ensure the previous jobset
+            // has no remaining, unfinished work.
+
+            auto conn(dbPool.get());
+
+            pqxx::work txn(*conn);
+
+            if (jobset.evaluation_style == EvaluationStyle::ONE_AT_A_TIME) {
+                auto evaluation_res = txn.parameterized
+                    ("select id from JobsetEvals "
+                     "where project = $1 and jobset = $2 "
+                     "order by id desc limit 1")
+                  (jobset.name.first)
+                  (jobset.name.second)
+                  .exec();
+
+                if (evaluation_res.empty()) {
+                    // First evaluation, so allow scheduling.
+                    debug("shouldEvaluate(one-at-a-time) %s:%s? yes: no prior eval",
+                          jobset.name.first, jobset.name.second);
+                    return true;
+                }
+
+                auto evaluation_id = evaluation_res[0][0].as<int>();
+
+                auto unfinished_build_res = txn.parameterized
+                    ("select id from Builds "
+                     "join JobsetEvalMembers "
+                     "    on (JobsetEvalMembers.build = Builds.id) "
+                     "where JobsetEvalMembers.eval = $1 "
+                     "  and builds.finished = 0 "
+                     " limit 1")
+                  (evaluation_id)
+                  .exec();
+
+                // If the previous evaluation has no unfinished builds
+                // schedule!
+                if (unfinished_build_res.empty()) {
+                    debug("shouldEvaluate(one-at-a-time) %s:%s? yes: no unfinished builds",
+                          jobset.name.first, jobset.name.second);
+                    return true;
+                } else {
+                    debug("shouldEvaluate(one-at-a-time) %s:%s? no: at least one unfinished build",
+                           jobset.name.first, jobset.name.second);
+                    return false;
+                }
+
+
+            } else {
+                // EvaluationStyle::ONESHOT, EvaluationStyle::SCHEDULED
+                debug("shouldEvaluate(oneshot/scheduled) %s:%s? yes: checkInterval elapsed",
+                      jobset.name.first, jobset.name.second);
+                return true;
+            }
         }
 
         return false;
