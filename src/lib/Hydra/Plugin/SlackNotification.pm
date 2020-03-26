@@ -87,20 +87,24 @@ sub buildFinished {
     # we send one aggregate message.
     my %channels;
     foreach my $b ($build, @{$dependents}) {
-        my $prevBuild = getPreviousBuild($b);
         my $jobName = showJobName $b;
+        my $buildStatus = $b->buildstatus;
+        my $cancelledOrAborted = $buildStatus == 4 || $buildStatus == 3;
+
+        my $prevBuild = getPreviousBuild($b);
+        my $sameAsPrevious = defined $prevBuild && ($buildStatus == $prevBuild->buildstatus);
 
         foreach my $channel (@config) {
             next unless $jobName =~ /^$channel->{jobs}$/;
 
             my $force = $channel->{force};
 
-            # If build is cancelled or aborted, do not send email.
-            next if ! $force && ($b->buildstatus == 4 || $b->buildstatus == 3);
+            # If build is cancelled or aborted, do not send Slack notification.
+            next if ! $force && $cancelledOrAborted;
 
             # If there is a previous (that is not cancelled or aborted) build
-            # with same buildstatus, do not send email.
-            next if ! $force && defined $prevBuild && ($b->buildstatus == $prevBuild->buildstatus);
+            # with same buildstatus, do not send Slack notification.
+            next if ! $force && $sameAsPrevious;
 
             $channels{$channel->{url}} //= { channel => $channel, builds => [] };
             push @{$channels{$channel->{url}}->{builds}}, $b;
