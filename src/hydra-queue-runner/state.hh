@@ -355,6 +355,7 @@ private:
     counter nrStepsCopyingTo{0};
     counter nrStepsCopyingFrom{0};
     counter nrStepsWaiting{0};
+    counter nrUnsupportedSteps{0};
     counter nrRetries{0};
     counter maxNrRetries{0};
     counter totalStepTime{0}; // total time for steps, including closure copying
