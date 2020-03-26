@@ -491,7 +491,7 @@ std::shared_ptr<PathLocks> State::acquireGlobalLock()
 }
 
 
-void State::dumpStatus(Connection & conn, bool log)
+void State::dumpStatus(Connection & conn)
 {
     std::ostringstream out;
 
@@ -672,11 +672,6 @@ void State::dumpStatus(Connection & conn, bool log)
         }
     }
 
-    if (log && time(0) >= lastStatusLogged + statusLogInterval) {
-        printMsg(lvlInfo, format("status: %1%") % out.str());
-        lastStatusLogged = time(0);
-    }
-
     {
         auto mc = startDbUpdate();
         pqxx::work txn(conn);
@@ -785,7 +780,7 @@ void State::run(BuildID buildOne)
     {
         auto conn(dbPool.get());
         clearBusy(*conn, 0);
-        dumpStatus(*conn, false);
+        dumpStatus(*conn);
     }
 
     std::thread(&State::monitorMachinesFile, this).detach();
@@ -848,8 +843,8 @@ void State::run(BuildID buildOne)
             auto conn(dbPool.get());
             receiver dumpStatus_(*conn, "dump_status");
             while (true) {
-                conn->await_notification(statusLogInterval / 2 + 1, 0);
-                dumpStatus(*conn, true);
+                conn->await_notification();
+                dumpStatus(*conn);
             }
         } catch (std::exception & e) {
             printMsg(lvlError, format("main thread: %1%") % e.what());
