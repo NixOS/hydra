@@ -46,6 +46,7 @@ std::string getEnvOrDie(const std::string & key)
 
 State::State()
     : config(std::make_unique<::Config>())
+    , maxUnsupportedTime(config->getIntOption("max_unsupported_time", 0))
     , dbPool(config->getIntOption("max_db_connections", 128))
     , memoryTokens(config->getIntOption("nar_buffer_size", getMemSize() / 2))
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))

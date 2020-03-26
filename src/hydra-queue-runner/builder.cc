@@ -376,97 +376,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             }
         }
 
-    } else {
-
-        /* Register failure in the database for all Build objects that
-           directly or indirectly depend on this step. */
-
-        std::vector<BuildID> dependentIDs;
-
-        while (true) {
-            /* Get the builds and steps that depend on this step. */
-            std::set<Build::ptr> indirect;
-            {
-                auto steps_(steps.lock());
-                std::set<Step::ptr> steps;
-                getDependents(step, indirect, steps);
-
-                /* If there are no builds left, delete all referring
-                   steps from ‘steps’. As for the success case, we can
-                   be certain no new referrers can be added. */
-                if (indirect.empty()) {
-                    for (auto & s : steps) {
-                        printMsg(lvlDebug, "finishing build step ‘%s’",
-                            localStore->printStorePath(s->drvPath));
-                        steps_->erase(s->drvPath);
-                    }
-                }
-            }
-
-            if (indirect.empty() && stepFinished) break;
-
-            /* Update the database. */
-            {
-                auto mc = startDbUpdate();
-
-                pqxx::work txn(*conn);
-
-                /* Create failed build steps for every build that
-                   depends on this, except when this step is cached
-                   and is the top-level of that build (since then it's
-                   redundant with the build's isCachedBuild field). */
-                for (auto & build2 : indirect) {
-                    if ((result.stepStatus == bsCachedFailure && build2->drvPath == step->drvPath) ||
-                        (result.stepStatus != bsCachedFailure && buildId == build2->id) ||
-                        build2->finishedInDB)
-                        continue;
-                    createBuildStep(txn, 0, build2->id, step, machine->sshName,
-                        result.stepStatus, result.errorMsg, buildId == build2->id ? 0 : buildId);
-                }
-
-                /* Mark all builds that depend on this derivation as failed. */
-                for (auto & build2 : indirect) {
-                    if (build2->finishedInDB) continue;
-                    printMsg(lvlError, format("marking build %1% as failed") % build2->id);
-                    txn.parameterized
-                        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0")
-                        (build2->id)
-                        ((int) (build2->drvPath != step->drvPath && result.buildStatus() == bsFailed ? bsDepFailed : result.buildStatus()))
-                        (result.startTime)
-                        (result.stopTime)
-                        (result.stepStatus == bsCachedFailure ? 1 : 0).exec();
-                    nrBuildsDone++;
-                }
-
-                /* Remember failed paths in the database so that they
-                   won't be built again. */
-                if (result.stepStatus != bsCachedFailure && result.canCache)
-                    for (auto & path : step->drv->outputPaths())
-                        txn.parameterized("insert into FailedPaths values ($1)")(localStore->printStorePath(path)).exec();
-
-                txn.commit();
-            }
-
-            stepFinished = true;
-
-            /* Remove the indirect dependencies from ‘builds’. This
-               will cause them to be destroyed. */
-            for (auto & b : indirect) {
-                auto builds_(builds.lock());
-                b->finishedInDB = true;
-                builds_->erase(b->id);
-                dependentIDs.push_back(b->id);
-                if (buildOne == b->id) quit = true;
-            }
-        }
-
-        /* Send notification about this build and its dependents. */
-        {
-            pqxx::work txn(*conn);
-            notifyBuildFinished(txn, buildId, dependentIDs);
-            txn.commit();
-        }
-    }
+    } else
+        failStep(*conn, step, buildId, result, machine, stepFinished, quit);
 
     // FIXME: keep stats about aborted steps?
     nrStepsDone++;
@@ -479,6 +390,107 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     if (quit) exit(0); // testing hack; FIXME: this won't run plugins
 
     return sDone;
+}
+
+
+void State::failStep(
+    Connection & conn,
+    Step::ptr step,
+    BuildID buildId,
+    const RemoteResult & result,
+    Machine::ptr machine,
+    bool & stepFinished,
+    bool & quit)
+{
+    /* Register failure in the database for all Build objects that
+       directly or indirectly depend on this step. */
+
+    std::vector<BuildID> dependentIDs;
+
+    while (true) {
+        /* Get the builds and steps that depend on this step. */
+        std::set<Build::ptr> indirect;
+        {
+            auto steps_(steps.lock());
+            std::set<Step::ptr> steps;
+            getDependents(step, indirect, steps);
+
+            /* If there are no builds left, delete all referring
+               steps from ‘steps’. As for the success case, we can
+               be certain no new referrers can be added. */
+            if (indirect.empty()) {
+                for (auto & s : steps) {
+                    printMsg(lvlDebug, "finishing build step ‘%s’",
+                        localStore->printStorePath(s->drvPath));
+                    steps_->erase(s->drvPath);
+                }
+            }
+        }
+
+        if (indirect.empty() && stepFinished) break;
+
+        /* Update the database. */
+        {
+            auto mc = startDbUpdate();
+
+            pqxx::work txn(conn);
+
+            /* Create failed build steps for every build that
+               depends on this, except when this step is cached
+               and is the top-level of that build (since then it's
+               redundant with the build's isCachedBuild field). */
+            for (auto & build : indirect) {
+                if ((result.stepStatus == bsCachedFailure && build->drvPath == step->drvPath) ||
+                    ((result.stepStatus != bsCachedFailure && result.stepStatus != bsUnsupported) && buildId == build->id) ||
+                    build->finishedInDB)
+                    continue;
+                createBuildStep(txn,
+                    0, build->id, step, machine ? machine->sshName : "",
+                    result.stepStatus, result.errorMsg, buildId == build->id ? 0 : buildId);
+            }
+
+            /* Mark all builds that depend on this derivation as failed. */
+            for (auto & build : indirect) {
+                if (build->finishedInDB) continue;
+                printMsg(lvlError, format("marking build %1% as failed") % build->id);
+                txn.parameterized
+                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0")
+                    (build->id)
+                    ((int) (build->drvPath != step->drvPath && result.buildStatus() == bsFailed ? bsDepFailed : result.buildStatus()))
+                    (result.startTime)
+                    (result.stopTime)
+                    (result.stepStatus == bsCachedFailure ? 1 : 0).exec();
+                nrBuildsDone++;
+            }
+
+            /* Remember failed paths in the database so that they
+               won't be built again. */
+            if (result.stepStatus != bsCachedFailure && result.canCache)
+                for (auto & path : step->drv->outputPaths())
+                    txn.parameterized("insert into FailedPaths values ($1)")(localStore->printStorePath(path)).exec();
+
+            txn.commit();
+        }
+
+        stepFinished = true;
+
+        /* Remove the indirect dependencies from ‘builds’. This
+           will cause them to be destroyed. */
+        for (auto & b : indirect) {
+            auto builds_(builds.lock());
+            b->finishedInDB = true;
+            builds_->erase(b->id);
+            dependentIDs.push_back(b->id);
+            if (buildOne == b->id) quit = true;
+        }
+    }
+
+    /* Send notification about this build and its dependents. */
+    {
+        pqxx::work txn(conn);
+        notifyBuildFinished(txn, buildId, dependentIDs);
+        txn.commit();
+    }
 }
 
 
