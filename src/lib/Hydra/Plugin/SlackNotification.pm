@@ -93,11 +93,17 @@ sub buildFinished {
 
         my $prevBuild = getPreviousBuild($b);
         my $sameAsPrevious = defined $prevBuild && ($buildStatus == $prevBuild->buildstatus);
+        my $prevBuildStatus = (defined $prevBuild) ? $prevBuild->buildstatus : -1;
+        my $prevBuildId = (defined $prevBuild) ? $prevBuild->id : -1;
+
+        print STDERR "SlackNotification_Debug job name $jobName status $buildStatus (previous: $prevBuildStatus from $prevBuildId)\n";
 
         foreach my $channel (@config) {
             next unless $jobName =~ /^$channel->{jobs}$/;
 
             my $force = $channel->{force};
+
+            print STDERR "SlackNotification_Debug found match with '$channel->{jobs}' with force=$force\n";
 
             # If build is cancelled or aborted, do not send Slack notification.
             next if ! $force && $cancelledOrAborted;
@@ -106,6 +112,7 @@ sub buildFinished {
             # with same buildstatus, do not send Slack notification.
             next if ! $force && $sameAsPrevious;
 
+            print STDERR "SlackNotification_Debug adding $jobName to the report list\n";
             $channels{$channel->{url}} //= { channel => $channel, builds => [] };
             push @{$channels{$channel->{url}}->{builds}}, $b;
         }
@@ -144,6 +151,8 @@ sub buildFinished {
             $text .= "$nrCommits commits by " if $nrCommits > 1;
             $text .= join(" or ", scalar @x > 1 ? join(", ", @x[0..scalar @x - 2]) : (), $x[-1]);
         }
+
+        print STDERR "SlackNotification_Debug POSTing to url ending with: ${\substr $url, -8}\n";
 
         my $msg =
         { attachments =>
