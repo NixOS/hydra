@@ -229,9 +229,9 @@ BLOCK renderBuildStatusIcon;
     [% ELSIF buildstatus == 6 %]
       <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Failed with output" alt="Failed with output" class="build-status" />
     [% ELSIF buildstatus == 7 %]
-      <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Timed out" alt="Timed out" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-stopsign-1f6d1.svg") %]" height="[% size %]" width="[% size %]" title="Timed out" alt="Timed out" class="build-status" />
     [% ELSIF buildstatus == 10 %]
-      <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Log limit exceeded" alt="Log limit exceeded" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-stopsign-1f6d1.svg") %]" height="[% size %]" width="[% size %]" title="Log limit exceeded" alt="Log limit exceeded" class="build-status" />
     [% ELSIF buildstatus == 11 %]
       <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Output size limit exceeded" alt="Output size limit exceeded" class="build-status" />
     [% ELSIF buildstatus == 12 %]

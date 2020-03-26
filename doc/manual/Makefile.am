@@ -3,14 +3,13 @@ DOCBOOK_FILES = installation.xml introduction.xml manual.xml projects.xml hackin
 EXTRA_DIST = $(DOCBOOK_FILES)
 
 xsltproc_opts =					\
- --param html.stylesheet \'style.css\'		\
  --param callout.graphics.extension \'.gif\'	\
  --param section.autolabel 1 			\
  --param section.label.includes.component.label 1
 
 
 # Include the manual in the tarball.
-dist_html_DATA = manual.html style.css
+dist_html_DATA = manual.html
 
 # Embed Docbook's callout images in the distribution.
 EXTRA_DIST += images

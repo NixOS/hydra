@@ -51,7 +51,7 @@ WARNING: Schema version 62 and 63 make nullable jobset_id fields on
          migration will take many hours. Because of that, the
          migration is not automatic, and must be performed manually.
 
-         To backfill these IDs, run: hydra-fill-ids
+         To backfill these IDs, run: hydra-backfill-ids
 QUOTE
 }
 
