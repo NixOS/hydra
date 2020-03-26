@@ -328,6 +328,8 @@ void State::abortUnsupported()
 
     std::unordered_set<Step::ptr> aborted;
 
+    size_t count = 0;
+
     for (auto & wstep : runnable2) {
         auto step(wstep.lock());
         if (!step) continue;
@@ -340,6 +342,9 @@ void State::abortUnsupported()
                 break;
             }
         }
+
+        if (!supported)
+            count++;
 
         if (!supported
             && std::chrono::duration_cast<std::chrono::seconds>(now - step->state.lock()->lastSupported).count() >= maxUnsupportedTime)
@@ -396,6 +401,8 @@ void State::abortUnsupported()
                 ++i;
         }
     }
+
+    nrUnsupportedSteps = count;
 }
 
 
