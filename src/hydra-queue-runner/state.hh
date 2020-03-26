@@ -68,7 +68,7 @@ struct RemoteResult
     std::unique_ptr<nix::TokenServer::Token> tokens;
     std::shared_ptr<nix::FSAccessor> accessor;
 
-    BuildStatus buildStatus()
+    BuildStatus buildStatus() const
     {
         return stepStatus == bsCachedFailure ? bsFailed : stepStatus;
     }
@@ -198,6 +198,10 @@ struct Step
 
         /* The time at which this step became runnable. */
         system_time runnableSince;
+
+        /* The time that we last saw a machine that supports this
+           step. */
+        system_time lastSupported = std::chrono::system_clock::now();
     };
 
     std::atomic_bool finished{false}; // debugging
@@ -302,6 +306,9 @@ private:
     const unsigned int retryInterval = 60; // seconds
     const float retryBackoff = 3.0;
     const unsigned int maxParallelCopyClosure = 4;
+
+    /* Time in seconds before unsupported build steps are aborted. */
+    const unsigned int maxUnsupportedTime = 0;
 
     nix::Path hydraData, logDir;
 
@@ -483,6 +490,15 @@ private:
         Build::ptr referringBuild, Step::ptr referringStep, std::set<nix::StorePath> & finishedDrvs,
         std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable);
 
+    void failStep(
+        Connection & conn,
+        Step::ptr step,
+        BuildID buildId,
+        const RemoteResult & result,
+        Machine::ptr machine,
+        bool & stepFinished,
+        bool & quit);
+
     Jobset::ptr createJobset(pqxx::work & txn,
         const std::string & projectName, const std::string & jobsetName);
 
@@ -496,6 +512,8 @@ private:
     system_time doDispatch();
 
     void wakeDispatcher();
+
+    void abortUnsupported();
 
     void builder(MachineReservation::ptr reservation);
 
