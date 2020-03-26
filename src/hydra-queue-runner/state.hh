@@ -420,9 +420,6 @@ private:
     size_t maxOutputSize;
     size_t maxLogSize;
 
-    time_t lastStatusLogged = 0;
-    const int statusLogInterval = 300;
-
     /* Steps that were busy while we encounted a PostgreSQL
        error. These need to be cleared at a later time to prevent them
        from showing up as busy until the queue runner is restarted. */
@@ -546,7 +543,7 @@ private:
        has it. */
     std::shared_ptr<nix::PathLocks> acquireGlobalLock();
 
-    void dumpStatus(Connection & conn, bool log);
+    void dumpStatus(Connection & conn);
 
     void addRoot(const nix::StorePath & storePath);
 
