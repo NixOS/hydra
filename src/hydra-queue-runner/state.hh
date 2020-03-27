@@ -68,7 +68,7 @@ struct RemoteResult
     std::unique_ptr<nix::TokenServer::Token> tokens;
     std::shared_ptr<nix::FSAccessor> accessor;
 
-    BuildStatus buildStatus()
+    BuildStatus buildStatus() const
     {
         return stepStatus == bsCachedFailure ? bsFailed : stepStatus;
     }
@@ -198,6 +198,10 @@ struct Step
 
         /* The time at which this step became runnable. */
         system_time runnableSince;
+
+        /* The time that we last saw a machine that supports this
+           step. */
+        system_time lastSupported = std::chrono::system_clock::now();
     };
 
     std::atomic_bool finished{false}; // debugging
@@ -303,6 +307,9 @@ private:
     const float retryBackoff = 3.0;
     const unsigned int maxParallelCopyClosure = 4;
 
+    /* Time in seconds before unsupported build steps are aborted. */
+    const unsigned int maxUnsupportedTime = 0;
+
     nix::Path hydraData, logDir;
 
     bool useSubstitutes = false;
@@ -348,6 +355,7 @@ private:
     counter nrStepsCopyingTo{0};
     counter nrStepsCopyingFrom{0};
     counter nrStepsWaiting{0};
+    counter nrUnsupportedSteps{0};
     counter nrRetries{0};
     counter maxNrRetries{0};
     counter totalStepTime{0}; // total time for steps, including closure copying
@@ -411,9 +419,6 @@ private:
 
     size_t maxOutputSize;
     size_t maxLogSize;
-
-    time_t lastStatusLogged = 0;
-    const int statusLogInterval = 300;
 
     /* Steps that were busy while we encounted a PostgreSQL
        error. These need to be cleared at a later time to prevent them
@@ -483,6 +488,15 @@ private:
         Build::ptr referringBuild, Step::ptr referringStep, std::set<nix::StorePath> & finishedDrvs,
         std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable);
 
+    void failStep(
+        Connection & conn,
+        Step::ptr step,
+        BuildID buildId,
+        const RemoteResult & result,
+        Machine::ptr machine,
+        bool & stepFinished,
+        bool & quit);
+
     Jobset::ptr createJobset(pqxx::work & txn,
         const std::string & projectName, const std::string & jobsetName);
 
@@ -496,6 +510,8 @@ private:
     system_time doDispatch();
 
     void wakeDispatcher();
+
+    void abortUnsupported();
 
     void builder(MachineReservation::ptr reservation);
 
@@ -527,7 +543,7 @@ private:
        has it. */
     std::shared_ptr<nix::PathLocks> acquireGlobalLock();
 
-    void dumpStatus(Connection & conn, bool log);
+    void dumpStatus(Connection & conn);
 
     void addRoot(const nix::StorePath & storePath);
 

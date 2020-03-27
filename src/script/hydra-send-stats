@@ -34,6 +34,7 @@ sub sendQueueRunnerStats {
     gauge("hydra.queue.steps.unfinished", $json->{nrUnfinishedSteps});
     gauge("hydra.queue.steps.finished", $json->{nrStepsDone});
     gauge("hydra.queue.steps.retries", $json->{nrRetries});
+    gauge("hydra.queue.steps.unsupported", $json->{nrUnsupportedSteps});
     gauge("hydra.queue.steps.max_retries", $json->{maxNrRetries});
     if ($json->{nrStepsDone}) {
         gauge("hydra.queue.steps.avg_total_time", $json->{avgStepTime});

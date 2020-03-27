@@ -46,6 +46,7 @@ std::string getEnvOrDie(const std::string & key)
 
 State::State()
     : config(std::make_unique<::Config>())
+    , maxUnsupportedTime(config->getIntOption("max_unsupported_time", 0))
     , dbPool(config->getIntOption("max_db_connections", 128))
     , memoryTokens(config->getIntOption("nar_buffer_size", getMemSize() / 2))
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
@@ -490,7 +491,7 @@ std::shared_ptr<PathLocks> State::acquireGlobalLock()
 }
 
 
-void State::dumpStatus(Connection & conn, bool log)
+void State::dumpStatus(Connection & conn)
 {
     std::ostringstream out;
 
@@ -522,6 +523,7 @@ void State::dumpStatus(Connection & conn, bool log)
         root.attr("nrStepsCopyingTo", nrStepsCopyingTo);
         root.attr("nrStepsCopyingFrom", nrStepsCopyingFrom);
         root.attr("nrStepsWaiting", nrStepsWaiting);
+        root.attr("nrUnsupportedSteps", nrUnsupportedSteps);
         root.attr("bytesSent", bytesSent);
         root.attr("bytesReceived", bytesReceived);
         root.attr("nrBuildsRead", nrBuildsRead);
@@ -670,11 +672,6 @@ void State::dumpStatus(Connection & conn, bool log)
         }
     }
 
-    if (log && time(0) >= lastStatusLogged + statusLogInterval) {
-        printMsg(lvlInfo, format("status: %1%") % out.str());
-        lastStatusLogged = time(0);
-    }
-
     {
         auto mc = startDbUpdate();
         pqxx::work txn(conn);
@@ -783,7 +780,7 @@ void State::run(BuildID buildOne)
     {
         auto conn(dbPool.get());
         clearBusy(*conn, 0);
-        dumpStatus(*conn, false);
+        dumpStatus(*conn);
     }
 
     std::thread(&State::monitorMachinesFile, this).detach();
@@ -846,8 +843,8 @@ void State::run(BuildID buildOne)
             auto conn(dbPool.get());
             receiver dumpStatus_(*conn, "dump_status");
             while (true) {
-                conn->await_notification(statusLogInterval / 2 + 1, 0);
-                dumpStatus(*conn, true);
+                conn->await_notification();
+                dumpStatus(*conn);
             }
         } catch (std::exception & e) {
             printMsg(lvlError, format("main thread: %1%") % e.what());
