@@ -200,7 +200,12 @@ static void worker(
             else throw TypeError("attribute '%s' is %s, which is not supported", attrPath, showType(*v));
 
         } catch (EvalError & e) {
+            // Transmits the error we got from the previous evaluation
+            // in the JSON output.
             reply["error"] = filterANSIEscapes(e.msg(), true);
+            // Don't forget to print it into the STDERR log, this is
+            // what's shown in the Hydra UI.
+            printError("error: %s", reply["error"]);
         }
 
         writeLine(to.get(), reply.dump());
@@ -286,6 +291,9 @@ int main(int argc, char * * argv)
                                     nlohmann::json err;
                                     err["error"] = e.what();
                                     writeLine(to->get(), err.dump());
+                                    // Don't forget to print it into the STDERR log, this is
+                                    // what's shown in the Hydra UI.
+                                    printError("error: %s", err["error"]);
                                 }
                             },
                             ProcessOptions { .allowVfork = false });
