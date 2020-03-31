@@ -41,7 +41,7 @@
 
           perlDeps = buildEnv {
             name = "hydra-perl-deps";
-            paths = with perlPackages;
+            paths = with perlPackages; lib.closePropagation
               [ ModulePluggable
                 CatalystActionREST
                 CatalystAuthenticationStoreDBIxClass
