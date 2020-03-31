@@ -3,7 +3,7 @@
 
   edition = 201909;
 
-  inputs.nixpkgs.uri = "nixpkgs/release-19.09";
+  inputs.nixpkgs.url = "nixpkgs/nixos-20.03";
 
   outputs = { self, nixpkgs, nix }:
     let
@@ -108,7 +108,9 @@
               perlDeps perl final.nix
               postgresql95 # for running the tests
               boost
-              (nlohmann_json.override { multipleHeaders = true; })
+              (if lib.versionAtLeast lib.version "20.03pre"
+               then nlohmann_json
+               else nlohmann_json.override { multipleHeaders = true; })
             ];
 
           hydraPath = lib.makeBinPath (
