@@ -453,21 +453,21 @@ void State::failStep(
             for (auto & build : indirect) {
                 if (build->finishedInDB) continue;
                 printMsg(lvlError, format("marking build %1% as failed") % build->id);
-                txn.parameterized
-                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0")
-                    (build->id)
-                    ((int) (build->drvPath != step->drvPath && result.buildStatus() == bsFailed ? bsDepFailed : result.buildStatus()))
-                    (result.startTime)
-                    (result.stopTime)
-                    (result.stepStatus == bsCachedFailure ? 1 : 0).exec();
+                txn.exec_params0
+                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0",
+                     build->id,
+                     (int) (build->drvPath != step->drvPath && result.buildStatus() == bsFailed ? bsDepFailed : result.buildStatus()),
+                     result.startTime,
+                     result.stopTime,
+                     result.stepStatus == bsCachedFailure ? 1 : 0);
                 nrBuildsDone++;
             }
 
             /* Remember failed paths in the database so that they
                won't be built again. */
             if (result.stepStatus != bsCachedFailure && result.canCache)
-                for (auto & path : step->drv->outputPaths())
-                    txn.parameterized("insert into FailedPaths values ($1)")(localStore->printStorePath(path)).exec();
+                for (auto & path : step->drv.outputPaths())
+                    txn.exec_params0("insert into FailedPaths values ($1)", localStore->printStorePath(path));
 
             txn.commit();
         }
