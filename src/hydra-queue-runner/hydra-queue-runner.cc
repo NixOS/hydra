@@ -219,6 +219,7 @@ void State::monitorMachinesFile()
             sleep(30);
         } catch (std::exception & e) {
             printMsg(lvlError, format("reloading machines file: %1%") % e.what());
+            sleep(5);
         }
     }
 }
