@@ -1,5 +1,5 @@
 { hydraSrc ? builtins.fetchGit ./.
-, nixpkgs ? builtins.fetchGit { url = https://github.com/NixOS/nixpkgs-channels.git; ref = "nixos-19.09-small"; }
+, nixpkgs ? builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/release-19.09.tar.gz
 , officialRelease ? false
 , shell ? false
 }:
@@ -129,11 +129,10 @@ rec {
       buildInputs =
         [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig sqlite libpqxx
           gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
-          guile # optional, for Guile + Guix support
           perlDeps perl nix
           postgresql95 # for running the tests
           boost
-          nlohmann_json
+          (nlohmann_json.override { multipleHeaders = true; })
         ];
 
       hydraPath = lib.makeBinPath (
@@ -155,9 +154,7 @@ rec {
 
       preConfigure = "autoreconf -vfi";
 
-      NIX_LDFLAGS = [
-          "-lpthread"
-	];
+      NIX_LDFLAGS = [ "-lpthread" ];
 
       enableParallelBuilding = true;
 

@@ -7,7 +7,7 @@
 
 namespace nix {
 
-MakeError(NoTokens, Error)
+MakeError(NoTokens, Error);
 
 /* This class hands out tokens. There are only ‘maxTokens’ tokens
    available. Calling get(N) will return a Token object, representing

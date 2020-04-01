@@ -68,7 +68,7 @@ struct RemoteResult
     std::unique_ptr<nix::TokenServer::Token> tokens;
     std::shared_ptr<nix::FSAccessor> accessor;
 
-    BuildStatus buildStatus()
+    BuildStatus buildStatus() const
     {
         return stepStatus == bsCachedFailure ? bsFailed : stepStatus;
     }
@@ -123,8 +123,8 @@ struct Build
     typedef std::weak_ptr<Build> wptr;
 
     BuildID id;
-    nix::Path drvPath;
-    std::map<std::string, nix::Path> outputs;
+    nix::StorePath drvPath;
+    std::map<std::string, nix::StorePath> outputs;
     std::string projectName, jobsetName, jobName;
     time_t timestamp;
     unsigned int maxSilentTime, buildTimeout;
@@ -135,6 +135,9 @@ struct Build
     Jobset::ptr jobset;
 
     std::atomic_bool finishedInDB{false};
+
+    Build(nix::StorePath && drvPath) : drvPath(std::move(drvPath))
+    { }
 
     std::string fullJobName()
     {
@@ -150,8 +153,8 @@ struct Step
     typedef std::shared_ptr<Step> ptr;
     typedef std::weak_ptr<Step> wptr;
 
-    nix::Path drvPath;
-    nix::Derivation drv;
+    nix::StorePath drvPath;
+    std::unique_ptr<nix::Derivation> drv;
     std::unique_ptr<nix::ParsedDerivation> parsedDrv;
     std::set<std::string> requiredSystemFeatures;
     bool preferLocalBuild;
@@ -195,11 +198,18 @@ struct Step
 
         /* The time at which this step became runnable. */
         system_time runnableSince;
+
+        /* The time that we last saw a machine that supports this
+           step. */
+        system_time lastSupported = std::chrono::system_clock::now();
     };
 
     std::atomic_bool finished{false}; // debugging
 
     nix::Sync<State> state;
+
+    Step(nix::StorePath && drvPath) : drvPath(std::move(drvPath))
+    { }
 
     ~Step()
     {
@@ -252,7 +262,7 @@ struct Machine
     {
         /* Check that this machine is of the type required by the
            step. */
-        if (!systemTypes.count(step->drv.platform == "builtin" ? nix::settings.thisSystem : step->drv.platform))
+        if (!systemTypes.count(step->drv->platform == "builtin" ? nix::settings.thisSystem : step->drv->platform))
             return false;
 
         /* Check that the step requires all mandatory features of this
@@ -297,6 +307,9 @@ private:
     const float retryBackoff = 3.0;
     const unsigned int maxParallelCopyClosure = 4;
 
+    /* Time in seconds before unsupported build steps are aborted. */
+    const unsigned int maxUnsupportedTime = 0;
+
     nix::Path hydraData, logDir;
 
     bool useSubstitutes = false;
@@ -313,7 +326,7 @@ private:
        queued builds). Note that these are weak pointers. Steps are
        kept alive by being reachable from Builds or by being in
        progress. */
-    typedef std::map<nix::Path, Step::wptr> Steps;
+    typedef std::map<nix::StorePath, Step::wptr> Steps;
     nix::Sync<Steps> steps;
 
     /* Build steps that have no unbuilt dependencies. */
@@ -342,6 +355,7 @@ private:
     counter nrStepsCopyingTo{0};
     counter nrStepsCopyingFrom{0};
     counter nrStepsWaiting{0};
+    counter nrUnsupportedSteps{0};
     counter nrRetries{0};
     counter maxNrRetries{0};
     counter totalStepTime{0}; // total time for steps, including closure copying
@@ -406,9 +420,6 @@ private:
     size_t maxOutputSize;
     size_t maxLogSize;
 
-    time_t lastStatusLogged = 0;
-    const int statusLogInterval = 300;
-
     /* Steps that were busy while we encounted a PostgreSQL
        error. These need to be cleared at a later time to prevent them
        from showing up as busy until the queue runner is restarted. */
@@ -454,7 +465,7 @@ private:
         const std::string & machine);
 
     int createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
-        Build::ptr build, const nix::Path & drvPath, const std::string & outputName, const nix::Path & storePath);
+        Build::ptr build, const nix::StorePath & drvPath, const std::string & outputName, const nix::StorePath & storePath);
 
     void updateBuild(pqxx::work & txn, Build::ptr build, BuildStatus status);
 
@@ -473,9 +484,18 @@ private:
         const nix::Derivation & drv);
 
     Step::ptr createStep(nix::ref<nix::Store> store,
-        Connection & conn, Build::ptr build, const nix::Path & drvPath,
-        Build::ptr referringBuild, Step::ptr referringStep, std::set<nix::Path> & finishedDrvs,
+        Connection & conn, Build::ptr build, const nix::StorePath & drvPath,
+        Build::ptr referringBuild, Step::ptr referringStep, std::set<nix::StorePath> & finishedDrvs,
         std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable);
+
+    void failStep(
+        Connection & conn,
+        Step::ptr step,
+        BuildID buildId,
+        const RemoteResult & result,
+        Machine::ptr machine,
+        bool & stepFinished,
+        bool & quit);
 
     Jobset::ptr createJobset(pqxx::work & txn,
         const std::string & projectName, const std::string & jobsetName);
@@ -490,6 +510,8 @@ private:
     system_time doDispatch();
 
     void wakeDispatcher();
+
+    void abortUnsupported();
 
     void builder(MachineReservation::ptr reservation);
 
@@ -521,9 +543,9 @@ private:
        has it. */
     std::shared_ptr<nix::PathLocks> acquireGlobalLock();
 
-    void dumpStatus(Connection & conn, bool log);
+    void dumpStatus(Connection & conn);
 
-    void addRoot(const nix::Path & storePath);
+    void addRoot(const nix::StorePath & storePath);
 
 public:
 

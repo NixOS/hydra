@@ -44,6 +44,17 @@ my @versions = $db->resultset('SchemaVersion')->all;
 die "couldn't get Hydra schema version!" if scalar @versions != 1;
 my $schemaVersion = $versions[0]->version;
 
+if ($schemaVersion <= 60) {
+    print STDERR <<QUOTE;
+WARNING: Schema version 62 and 63 make nullable jobset_id fields on
+         Builds and Jobs non-nullable. On big Hydra servers, this
+         migration will take many hours. Because of that, the
+         migration is not automatic, and must be performed manually.
+
+         To backfill these IDs, run: hydra-backfill-ids
+QUOTE
+}
+
 for (my $n = $schemaVersion; $n < $maxSchemaVersion; $n++) {
     my $m = $n + 1;
     print STDERR "upgrading Hydra schema from version $n to $m\n";

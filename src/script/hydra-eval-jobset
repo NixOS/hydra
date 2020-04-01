@@ -82,7 +82,7 @@ sub getPath {
 
     my $substituter = $config->{eval_substituter};
 
-    system("nix", "copy", "--from", $substituter, "--", $path)
+    system("nix", "--experimental-features", "nix-command", "copy", "--from", $substituter, "--", $path)
         if defined $substituter;
 
     return isValidPath($path);
@@ -143,7 +143,7 @@ sub fetchInputSystemBuild {
     $jobsetName ||= $jobset->name;
 
     my @latestBuilds = $db->resultset('LatestSucceededForJob')
-        ->search({}, {bind => [$projectName, $jobsetName, $jobName]});
+        ->search({}, {bind => [$jobsetName, $jobName]});
 
     my @validBuilds = ();
     foreach my $build (@latestBuilds) {
@@ -264,53 +264,31 @@ sub fetchInput {
 
 
 sub booleanToString {
-    my ($exprType, $value) = @_;
-    my $result;
-    if ($exprType eq "guile") {
-        if ($value eq "true") {
-            $result = "#t";
-        } else {
-            $result = "#f";
-        }
-        $result = $value;
-    } else {
-        $result = $value;
-    }
-    return $result;
+    my ($value) = @_;
+    return $value;
 }
 
 
 sub buildInputToString {
-    my ($exprType, $input) = @_;
-    my $result;
-    if ($exprType eq "guile") {
-        $result = "'((file-name . \"" . ${input}->{storePath} . "\")" .
-            (defined $input->{revision} ? "(revision . \"" . $input->{revision} . "\")" : "") .
-            (defined $input->{revCount} ? "(revision-count . " . $input->{revCount} . ")" : "") .
-            (defined $input->{gitTag} ? "(git-tag . \"" . $input->{gitTag} . "\")" : "") .
-            (defined $input->{shortRev} ? "(short-revision . \"" . $input->{shortRev} . "\")" : "") .
-            (defined $input->{version} ? "(version . \"" . $input->{version} . "\")" : "") .
-            ")";
-    } else {
-        $result = "{ outPath = builtins.storePath " . $input->{storePath} . "" .
-            "; inputType = \"" . $input->{type} . "\"" .
-            (defined $input->{uri} ? "; uri = \"" . $input->{uri} . "\"" : "") .
-            (defined $input->{revNumber} ? "; rev = " . $input->{revNumber} . "" : "") .
-            (defined $input->{revision} ? "; rev = \"" . $input->{revision} . "\"" : "") .
-            (defined $input->{revCount} ? "; revCount = " . $input->{revCount} . "" : "") .
-            (defined $input->{gitTag} ? "; gitTag = \"" . $input->{gitTag} . "\"" : "") .
-            (defined $input->{shortRev} ? "; shortRev = \"" . $input->{shortRev} . "\"" : "") .
-            (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
-            (defined $input->{outputName} ? "; outputName = \"" . $input->{outputName} . "\"" : "") .
-            (defined $input->{drvPath} ? "; drvPath = builtins.storePath " . $input->{drvPath} . "" : "") .
-            ";}";
-    }
-    return $result;
+    my ($input) = @_;
+    return
+        "{ outPath = builtins.storePath " . $input->{storePath} . "" .
+        "; inputType = \"" . $input->{type} . "\"" .
+        (defined $input->{uri} ? "; uri = \"" . $input->{uri} . "\"" : "") .
+        (defined $input->{revNumber} ? "; rev = " . $input->{revNumber} . "" : "") .
+        (defined $input->{revision} ? "; rev = \"" . $input->{revision} . "\"" : "") .
+        (defined $input->{revCount} ? "; revCount = " . $input->{revCount} . "" : "") .
+        (defined $input->{gitTag} ? "; gitTag = \"" . $input->{gitTag} . "\"" : "") .
+        (defined $input->{shortRev} ? "; shortRev = \"" . $input->{shortRev} . "\"" : "") .
+        (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
+        (defined $input->{outputName} ? "; outputName = \"" . $input->{outputName} . "\"" : "") .
+        (defined $input->{drvPath} ? "; drvPath = builtins.storePath " . $input->{drvPath} . "" : "") .
+        ";}";
 }
 
 
 sub inputsToArgs {
-    my ($inputInfo, $exprType) = @_;
+    my ($inputInfo) = @_;
     my @res = ();
 
     foreach my $input (sort keys %{$inputInfo}) {
@@ -327,14 +305,12 @@ sub inputsToArgs {
             push @res, "--argstr", $input, $alt->{value};
         }
         elsif ($alt->{type} eq "boolean") {
-            push @res, "--arg", $input, booleanToString($exprType, $alt->{value});
+            push @res, "--arg", $input, booleanToString($alt->{value});
         }
         elsif ($alt->{type} eq "nix") {
-            die "input type ‘nix’ only supported for Nix-based jobsets\n" unless $exprType eq "nix";
             push @res, "--arg", $input, $alt->{value};
         }
         elsif ($alt->{type} eq "eval") {
-            die "input type ‘eval’ only supported for Nix-based jobsets\n" unless $exprType eq "nix";
             my $s = "{ ";
             # FIXME: escape $_.  But dots should not be escaped.
             $s .= "$_ = builtins.storePath ${\$alt->{jobs}->{$_}}; "
@@ -343,7 +319,7 @@ sub inputsToArgs {
             push @res, "--arg", $input, $s;
         }
         else {
-            push @res, "--arg", $input, buildInputToString($exprType, $alt);
+            push @res, "--arg", $input, buildInputToString($alt);
         }
     }
 
@@ -352,18 +328,16 @@ sub inputsToArgs {
 
 
 sub evalJobs {
-    my ($inputInfo, $exprType, $nixExprInputName, $nixExprPath) = @_;
+    my ($inputInfo, $nixExprInputName, $nixExprPath) = @_;
 
     my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
         or die "cannot find the input containing the job expression\n";
 
-    my $evaluator = ($exprType eq "guile") ? "hydra-eval-guile-jobs" : "hydra-eval-jobs";
-
-    my @cmd = ($evaluator,
+    my @cmd = ("hydra-eval-jobs",
                "<" . $nixExprInputName . "/" . $nixExprPath . ">",
                "--gc-roots-dir", getGCRootsDir,
                "-j", 1,
-               inputsToArgs($inputInfo, $exprType));
+               inputsToArgs($inputInfo));
 
     if (defined $ENV{'HYDRA_DEBUG'}) {
         sub escape {
@@ -376,7 +350,7 @@ sub evalJobs {
     }
 
     (my $res, my $jobsJSON, my $stderr) = captureStdoutStderr(21600, @cmd);
-    die "$evaluator returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
+    die "hydra-eval-jobs returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
         . ":\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
         if $res;
 
@@ -417,7 +391,12 @@ sub checkBuild {
     my $build;
 
     txn_do($db, sub {
-        my $job = $jobset->jobs->update_or_create({ name => $jobName });
+        my $job = $jobset->jobs->update_or_create({
+            name => $jobName,
+            jobset_id => $jobset->id,
+            project => $jobset->project,
+            jobset => $jobset->name,
+        });
 
         # Don't add a build that has already been scheduled for this
         # job, or has been built but is still a "current" build for
@@ -464,6 +443,9 @@ sub checkBuild {
         # Add the build to the database.
         $build = $job->builds->create(
             { timestamp => $time
+            , project => $jobset->project
+            , jobset => $jobset->name
+            , jobset_id => $jobset->id
             , description => null($buildInfo->{description})
             , license => null($buildInfo->{license})
             , homepage => null($buildInfo->{homepage})
@@ -587,7 +569,6 @@ sub checkJobsetWrapped {
         $jobset->discard_changes;
         $inputInfo->{"declInput"} = [ $declInput ];
     }
-    my $exprType = $jobset->nixexprpath =~ /.scm$/ ? "guile" : "nix";
 
     # Fetch all values for all inputs.
     my $checkoutStart = clock_gettime(CLOCK_MONOTONIC);
@@ -613,7 +594,7 @@ sub checkJobsetWrapped {
     # Hash the arguments to hydra-eval-jobs and check the
     # JobsetInputHashes to see if the previous evaluation had the same
     # inputs.  If so, bail out.
-    my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo, $exprType));
+    my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo));
     my $argsHash = sha256_hex("@args");
     my $prevEval = getPrevJobsetEval($db, $jobset, 0);
     if (defined $prevEval && $prevEval->hash eq $argsHash && !$dryRun && !$jobset->forceeval) {
@@ -628,7 +609,7 @@ sub checkJobsetWrapped {
 
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
-    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $exprType, $jobset->nixexprinput, $jobset->nixexprpath);
+    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $jobset->nixexprinput, $jobset->nixexprpath);
     my $evalStop = clock_gettime(CLOCK_MONOTONIC);
 
     if ($jobsetsJobset) {
@@ -716,7 +697,7 @@ sub checkJobsetWrapped {
             foreach my $job (values %{$jobs}) {
                 next unless $job->{constituents};
                 my $x = $drvPathToId{$job->{drvPath}} or die;
-                foreach my $drvPath (split / /, $job->{constituents}) {
+                foreach my $drvPath (@{$job->{constituents}}) {
                     my $constituent = $drvPathToId{$drvPath};
                     if (defined $constituent) {
                         $db->resultset('AggregateConstituents')->update_or_create({aggregate => $x->{id}, constituent => $constituent->{id}});

@@ -229,9 +229,9 @@ BLOCK renderBuildStatusIcon;
     [% ELSIF buildstatus == 6 %]
       <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Failed with output" alt="Failed with output" class="build-status" />
     [% ELSIF buildstatus == 7 %]
-      <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Timed out" alt="Timed out" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-stopsign-1f6d1.svg") %]" height="[% size %]" width="[% size %]" title="Timed out" alt="Timed out" class="build-status" />
     [% ELSIF buildstatus == 10 %]
-      <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Log limit exceeded" alt="Log limit exceeded" class="build-status" />
+      <img src="[% c.uri_for("/static/images/emojione-stopsign-1f6d1.svg") %]" height="[% size %]" width="[% size %]" title="Log limit exceeded" alt="Log limit exceeded" class="build-status" />
     [% ELSIF buildstatus == 11 %]
       <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="[% size %]" width="[% size %]" title="Output size limit exceeded" alt="Output size limit exceeded" class="build-status" />
     [% ELSIF buildstatus == 12 %]
@@ -584,10 +584,10 @@ BLOCK renderJobsetOverview %]
         <td><span class="[% IF !j.enabled %]disabled-jobset[% END %] [%+ IF j.hidden %]hidden-jobset[% END %]">[% IF showProject; INCLUDE renderFullJobsetName project=j.get_column('project') jobset=j.name inRow=1; ELSE; INCLUDE renderJobsetName project=j.get_column('project') jobset=j.name inRow=1; END %]</span></td>
         <td>[% HTML.escape(j.description) %]</td>
         <td>[% IF j.lastcheckedtime;
-	         INCLUDE renderDateTime timestamp = j.lastcheckedtime;
-		 IF j.errormsg || j.fetcherrormsg; %]&nbsp;<span class = 'label label-warning'>Error</span>[% END;
-		 ELSE; "-";
-	       END %]</td>
+                 INCLUDE renderDateTime timestamp = j.lastcheckedtime;
+                 IF j.errormsg || j.fetcherrormsg; %]&nbsp;<span class = 'label label-warning'>Error</span>[% END;
+                 ELSE; "-";
+               END %]</td>
         [% IF j.get_column('nrtotal') > 0 %]
           [% successrate = ( j.get_column('nrsucceeded') / j.get_column('nrtotal') )*100 %]
           [% IF j.get_column('nrscheduled') > 0 %]

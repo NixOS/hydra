@@ -18,7 +18,7 @@ void setThreadName(const std::string & name)
 
 void State::builder(MachineReservation::ptr reservation)
 {
-    setThreadName("bld~" + baseNameOf(reservation->step->drvPath));
+    setThreadName("bld~" + std::string(reservation->step->drvPath.to_string()));
 
     StepResult res = sRetry;
 
@@ -39,8 +39,10 @@ void State::builder(MachineReservation::ptr reservation)
             auto destStore = getDestStore();
             res = doBuildStep(destStore, reservation, activeStep);
         } catch (std::exception & e) {
-            printMsg(lvlError, format("uncaught exception building ‘%1%’ on ‘%2%’: %3%")
-                % reservation->step->drvPath % reservation->machine->sshName % e.what());
+            printMsg(lvlError, "uncaught exception building ‘%s’ on ‘%s’: %s",
+                localStore->printStorePath(reservation->step->drvPath),
+                reservation->machine->sshName,
+                e.what());
         }
     }
 
@@ -60,7 +62,7 @@ void State::builder(MachineReservation::ptr reservation)
             nrRetries++;
             if (step_->tries > maxNrRetries) maxNrRetries = step_->tries; // yeah yeah, not atomic
             int delta = retryInterval * std::pow(retryBackoff, step_->tries - 1) + (rand() % 10);
-            printMsg(lvlInfo, format("will retry ‘%1%’ after %2%s") % step->drvPath % delta);
+            printMsg(lvlInfo, "will retry ‘%s’ after %ss", localStore->printStorePath(step->drvPath), delta);
             step_->after = std::chrono::system_clock::now() + std::chrono::seconds(delta);
         }
 
@@ -95,7 +97,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
        cancelled (namely if there are no more Builds referring to
        it). */
     BuildID buildId;
-    Path buildDrvPath;
+    std::optional<StorePath> buildDrvPath;
     unsigned int maxSilentTime, buildTimeout;
     unsigned int repeats = step->isDeterministic ? 1 : 0;
 
@@ -116,7 +118,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                possibility, we retry this step (putting it back in
                the runnable queue). If there are really no strong
                pointers to the step, it will be deleted. */
-            printMsg(lvlInfo, format("maybe cancelling build step ‘%1%’") % step->drvPath);
+            printMsg(lvlInfo, "maybe cancelling build step ‘%s’", localStore->printStorePath(step->drvPath));
             return sMaybeCancelled;
         }
 
@@ -138,15 +140,15 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         if (!build) build = *dependents.begin();
 
         buildId = build->id;
-        buildDrvPath = build->drvPath;
+        buildDrvPath = build->drvPath.clone();
         maxSilentTime = build->maxSilentTime;
         buildTimeout = build->buildTimeout;
 
         printInfo("performing step ‘%s’ %d times on ‘%s’ (needed by build %d and %d others)",
-            step->drvPath, repeats + 1, machine->sshName, buildId, (dependents.size() - 1));
+            localStore->printStorePath(step->drvPath), repeats + 1, machine->sshName, buildId, (dependents.size() - 1));
     }
 
-    bool quit = buildId == buildOne && step->drvPath == buildDrvPath;
+    bool quit = buildId == buildOne && step->drvPath == *buildDrvPath;
 
     RemoteResult result;
     BuildOutput res;
@@ -166,7 +168,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             try {
                 auto store = destStore.dynamic_pointer_cast<BinaryCacheStore>();
                 if (uploadLogsToBinaryCache && store && pathExists(result.logFile)) {
-                    store->upsertFile("log/" + baseNameOf(step->drvPath), readFile(result.logFile), "text/plain; charset=utf-8");
+                    store->upsertFile("log/" + std::string(step->drvPath.to_string()), readFile(result.logFile), "text/plain; charset=utf-8");
                     unlink(result.logFile.c_str());
                 }
             } catch (...) {
@@ -218,7 +220,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         if (result.stepStatus == bsSuccess) {
             updateStep(ssPostProcessing);
-            res = getBuildOutput(destStore, ref<FSAccessor>(result.accessor), step->drv);
+            res = getBuildOutput(destStore, ref<FSAccessor>(result.accessor), *step->drv);
         }
 
         result.accessor = 0;
@@ -255,8 +257,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     /* The step had a hopefully temporary failure (e.g. network
        issue). Retry a number of times. */
     if (result.canRetry) {
-        printMsg(lvlError, format("possibly transient failure building ‘%1%’ on ‘%2%’: %3%")
-            % step->drvPath % machine->sshName % result.errorMsg);
+        printMsg(lvlError, "possibly transient failure building ‘%s’ on ‘%s’: %s",
+            localStore->printStorePath(step->drvPath), machine->sshName, result.errorMsg);
         assert(stepNr);
         bool retry;
         {
@@ -275,7 +277,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         assert(stepNr);
 
-        for (auto & path : step->drv.outputPaths())
+        for (auto & path : step->drv->outputPaths())
             addRoot(path);
 
         /* Register success in the database for all Build objects that
@@ -308,7 +310,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                    no new referrers can have been added in the
                    meantime or be added afterwards. */
                 if (direct.empty()) {
-                    printMsg(lvlDebug, format("finishing build step ‘%1%’") % step->drvPath);
+                    printMsg(lvlDebug, "finishing build step ‘%s’",
+                        localStore->printStorePath(step->drvPath));
                     steps_->erase(step->drvPath);
                 }
             }
@@ -373,96 +376,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             }
         }
 
-    } else {
-
-        /* Register failure in the database for all Build objects that
-           directly or indirectly depend on this step. */
-
-        std::vector<BuildID> dependentIDs;
-
-        while (true) {
-            /* Get the builds and steps that depend on this step. */
-            std::set<Build::ptr> indirect;
-            {
-                auto steps_(steps.lock());
-                std::set<Step::ptr> steps;
-                getDependents(step, indirect, steps);
-
-                /* If there are no builds left, delete all referring
-                   steps from ‘steps’. As for the success case, we can
-                   be certain no new referrers can be added. */
-                if (indirect.empty()) {
-                    for (auto & s : steps) {
-                        printMsg(lvlDebug, format("finishing build step ‘%1%’") % s->drvPath);
-                        steps_->erase(s->drvPath);
-                    }
-                }
-            }
-
-            if (indirect.empty() && stepFinished) break;
-
-            /* Update the database. */
-            {
-                auto mc = startDbUpdate();
-
-                pqxx::work txn(*conn);
-
-                /* Create failed build steps for every build that
-                   depends on this, except when this step is cached
-                   and is the top-level of that build (since then it's
-                   redundant with the build's isCachedBuild field). */
-                for (auto & build2 : indirect) {
-                    if ((result.stepStatus == bsCachedFailure && build2->drvPath == step->drvPath) ||
-                        (result.stepStatus != bsCachedFailure && buildId == build2->id) ||
-                        build2->finishedInDB)
-                        continue;
-                    createBuildStep(txn, 0, build2->id, step, machine->sshName,
-                        result.stepStatus, result.errorMsg, buildId == build2->id ? 0 : buildId);
-                }
-
-                /* Mark all builds that depend on this derivation as failed. */
-                for (auto & build2 : indirect) {
-                    if (build2->finishedInDB) continue;
-                    printMsg(lvlError, format("marking build %1% as failed") % build2->id);
-                    txn.exec_params0
-                        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0",
-                         build2->id,
-                         (int) (build2->drvPath != step->drvPath && result.buildStatus() == bsFailed ? bsDepFailed : result.buildStatus()),
-                         result.startTime,
-                         result.stopTime,
-                         result.stepStatus == bsCachedFailure ? 1 : 0);
-                    nrBuildsDone++;
-                }
-
-                /* Remember failed paths in the database so that they
-                   won't be built again. */
-                if (result.stepStatus != bsCachedFailure && result.canCache)
-                    for (auto & path : step->drv.outputPaths())
-                        txn.exec_params0("insert into FailedPaths values ($1)", path);
-
-                txn.commit();
-            }
-
-            stepFinished = true;
-
-            /* Remove the indirect dependencies from ‘builds’. This
-               will cause them to be destroyed. */
-            for (auto & b : indirect) {
-                auto builds_(builds.lock());
-                b->finishedInDB = true;
-                builds_->erase(b->id);
-                dependentIDs.push_back(b->id);
-                if (buildOne == b->id) quit = true;
-            }
-        }
-
-        /* Send notification about this build and its dependents. */
-        {
-            pqxx::work txn(*conn);
-            notifyBuildFinished(txn, buildId, dependentIDs);
-            txn.commit();
-        }
-    }
+    } else
+        failStep(*conn, step, buildId, result, machine, stepFinished, quit);
 
     // FIXME: keep stats about aborted steps?
     nrStepsDone++;
@@ -478,8 +393,109 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 }
 
 
-void State::addRoot(const Path & storePath)
+void State::failStep(
+    Connection & conn,
+    Step::ptr step,
+    BuildID buildId,
+    const RemoteResult & result,
+    Machine::ptr machine,
+    bool & stepFinished,
+    bool & quit)
 {
-    auto root = rootsDir + "/" + baseNameOf(storePath);
+    /* Register failure in the database for all Build objects that
+       directly or indirectly depend on this step. */
+
+    std::vector<BuildID> dependentIDs;
+
+    while (true) {
+        /* Get the builds and steps that depend on this step. */
+        std::set<Build::ptr> indirect;
+        {
+            auto steps_(steps.lock());
+            std::set<Step::ptr> steps;
+            getDependents(step, indirect, steps);
+
+            /* If there are no builds left, delete all referring
+               steps from ‘steps’. As for the success case, we can
+               be certain no new referrers can be added. */
+            if (indirect.empty()) {
+                for (auto & s : steps) {
+                    printMsg(lvlDebug, "finishing build step ‘%s’",
+                        localStore->printStorePath(s->drvPath));
+                    steps_->erase(s->drvPath);
+                }
+            }
+        }
+
+        if (indirect.empty() && stepFinished) break;
+
+        /* Update the database. */
+        {
+            auto mc = startDbUpdate();
+
+            pqxx::work txn(conn);
+
+            /* Create failed build steps for every build that
+               depends on this, except when this step is cached
+               and is the top-level of that build (since then it's
+               redundant with the build's isCachedBuild field). */
+            for (auto & build : indirect) {
+                if ((result.stepStatus == bsCachedFailure && build->drvPath == step->drvPath) ||
+                    ((result.stepStatus != bsCachedFailure && result.stepStatus != bsUnsupported) && buildId == build->id) ||
+                    build->finishedInDB)
+                    continue;
+                createBuildStep(txn,
+                    0, build->id, step, machine ? machine->sshName : "",
+                    result.stepStatus, result.errorMsg, buildId == build->id ? 0 : buildId);
+            }
+
+            /* Mark all builds that depend on this derivation as failed. */
+            for (auto & build : indirect) {
+                if (build->finishedInDB) continue;
+                printMsg(lvlError, format("marking build %1% as failed") % build->id);
+                txn.exec_params0
+                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0",
+                     build->id,
+                     (int) (build->drvPath != step->drvPath && result.buildStatus() == bsFailed ? bsDepFailed : result.buildStatus()),
+                     result.startTime,
+                     result.stopTime,
+                     result.stepStatus == bsCachedFailure ? 1 : 0);
+                nrBuildsDone++;
+            }
+
+            /* Remember failed paths in the database so that they
+               won't be built again. */
+            if (result.stepStatus != bsCachedFailure && result.canCache)
+                for (auto & path : step->drv.outputPaths())
+                    txn.exec_params0("insert into FailedPaths values ($1)", localStore->printStorePath(path));
+
+            txn.commit();
+        }
+
+        stepFinished = true;
+
+        /* Remove the indirect dependencies from ‘builds’. This
+           will cause them to be destroyed. */
+        for (auto & b : indirect) {
+            auto builds_(builds.lock());
+            b->finishedInDB = true;
+            builds_->erase(b->id);
+            dependentIDs.push_back(b->id);
+            if (buildOne == b->id) quit = true;
+        }
+    }
+
+    /* Send notification about this build and its dependents. */
+    {
+        pqxx::work txn(conn);
+        notifyBuildFinished(txn, buildId, dependentIDs);
+        txn.commit();
+    }
+}
+
+
+void State::addRoot(const StorePath & storePath)
+{
+    auto root = rootsDir + "/" + std::string(storePath.to_string());
     if (!pathExists(root)) writeFile(root, "");
 }

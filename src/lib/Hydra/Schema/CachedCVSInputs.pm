@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<CachedCVSInputs>
+=head1 TABLE: C<cachedcvsinputs>
 
 =cut
 
-__PACKAGE__->table("CachedCVSInputs");
+__PACKAGE__->table("cachedcvsinputs");
 
 =head1 ACCESSORS
 
@@ -99,8 +99,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "module", "sha256hash");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Vi1qzjW52Lnsl0JSmGzy0w
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:6eQ+i/th+oVZNRiDPd2luA
 
 # You can replace this text with custom content, and it will be preserved on regeneration
 1;

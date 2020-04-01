@@ -10,7 +10,7 @@ using namespace nix;
 
 void State::makeRunnable(Step::ptr step)
 {
-    printMsg(lvlChatty, format("step ‘%1%’ is now runnable") % step->drvPath);
+    printMsg(lvlChatty, "step ‘%s’ is now runnable", localStore->printStorePath(step->drvPath));
 
     {
         auto step_(step->state.lock());
@@ -248,7 +248,7 @@ system_time State::doDispatch()
                 /* Can this machine do this step? */
                 if (!mi.machine->supportsStep(step)) {
                     debug("machine '%s' does not support step '%s' (system type '%s')",
-                        mi.machine->sshName, step->drvPath, step->drv.platform);
+                        mi.machine->sshName, localStore->printStorePath(step->drvPath), step->drv->platform);
                     continue;
                 }
 
@@ -300,6 +300,8 @@ system_time State::doDispatch()
 
     } while (keepGoing);
 
+    abortUnsupported();
+
     return sleepUntil;
 }
 
@@ -311,6 +313,96 @@ void State::wakeDispatcher()
         *dispatcherWakeup_ = true;
     }
     dispatcherWakeupCV.notify_one();
+}
+
+
+void State::abortUnsupported()
+{
+    /* Make a copy of 'runnable' and 'machines' so we don't block them
+       very long. */
+    auto runnable2 = *runnable.lock();
+    auto machines2 = *machines.lock();
+
+    system_time now = std::chrono::system_clock::now();
+    auto now2 = time(0);
+
+    std::unordered_set<Step::ptr> aborted;
+
+    size_t count = 0;
+
+    for (auto & wstep : runnable2) {
+        auto step(wstep.lock());
+        if (!step) continue;
+
+        bool supported = false;
+        for (auto & machine : machines2) {
+            if (machine.second->supportsStep(step)) {
+                step->state.lock()->lastSupported = now;
+                supported = true;
+                break;
+            }
+        }
+
+        if (!supported)
+            count++;
+
+        if (!supported
+            && std::chrono::duration_cast<std::chrono::seconds>(now - step->state.lock()->lastSupported).count() >= maxUnsupportedTime)
+        {
+            printError("aborting unsupported build step '%s' (type '%s')",
+                localStore->printStorePath(step->drvPath),
+                step->systemType);
+
+            aborted.insert(step);
+
+            auto conn(dbPool.get());
+
+            std::set<Build::ptr> dependents;
+            std::set<Step::ptr> steps;
+            getDependents(step, dependents, steps);
+
+            /* Maybe the step got cancelled. */
+            if (dependents.empty()) continue;
+
+            /* Find the build that has this step as the top-level (if
+               any). */
+            Build::ptr build;
+            for (auto build2 : dependents) {
+                if (build2->drvPath == step->drvPath)
+                    build = build2;
+            }
+            if (!build) build = *dependents.begin();
+
+            bool stepFinished = false;
+            bool quit = false;
+
+            failStep(
+                *conn, step, build->id,
+                RemoteResult {
+                    .stepStatus = bsUnsupported,
+                    .errorMsg = fmt("unsupported system type '%s'",
+                        step->systemType),
+                    .startTime = now2,
+                    .stopTime = now2,
+                },
+                nullptr, stepFinished, quit);
+
+            if (quit) exit(1);
+        }
+    }
+
+    /* Clean up 'runnable'. */
+    {
+        auto runnable_(runnable.lock());
+        for (auto i = runnable_->begin(); i != runnable_->end(); ) {
+            if (aborted.count(i->lock()))
+                i = runnable_->erase(i);
+            else
+                ++i;
+        }
+    }
+
+    nrUnsupportedSteps = count;
 }
 
 

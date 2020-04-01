@@ -27,19 +27,25 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<Jobsets>
+=head1 TABLE: C<jobsets>
 
 =cut
 
-__PACKAGE__->table("Jobsets");
+__PACKAGE__->table("jobsets");
 
 =head1 ACCESSORS
 
 =head2 name
 
   data_type: 'text'
-  is_foreign_key: 1
   is_nullable: 0
+
+=head2 id
+
+  data_type: 'integer'
+  is_auto_increment: 1
+  is_nullable: 0
+  sequence: 'jobsets_id_seq'
 
 =head2 project
 
@@ -55,13 +61,12 @@ __PACKAGE__->table("Jobsets");
 =head2 nixexprinput
 
   data_type: 'text'
-  is_foreign_key: 1
-  is_nullable: 0
+  is_nullable: 1
 
 =head2 nixexprpath
 
   data_type: 'text'
-  is_nullable: 0
+  is_nullable: 1
 
 =head2 errormsg
 
@@ -139,19 +144,37 @@ __PACKAGE__->table("Jobsets");
   data_type: 'integer'
   is_nullable: 1
 
+=head2 type
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 0
+
+=head2 flake
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
   "name",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
+  { data_type => "text", is_nullable => 0 },
+  "id",
+  {
+    data_type         => "integer",
+    is_auto_increment => 1,
+    is_nullable       => 0,
+    sequence          => "jobsets_id_seq",
+  },
   "project",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "description",
   { data_type => "text", is_nullable => 1 },
   "nixexprinput",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
+  { data_type => "text", is_nullable => 1 },
   "nixexprpath",
-  { data_type => "text", is_nullable => 0 },
+  { data_type => "text", is_nullable => 1 },
   "errormsg",
   { data_type => "text", is_nullable => 1 },
   "errortime",
@@ -180,6 +203,10 @@ __PACKAGE__->add_columns(
   { data_type => "boolean", is_nullable => 1 },
   "starttime",
   { data_type => "integer", is_nullable => 1 },
+  "type",
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
+  "flake",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -195,6 +222,20 @@ __PACKAGE__->add_columns(
 =cut
 
 __PACKAGE__->set_primary_key("project", "name");
+
+=head1 UNIQUE CONSTRAINTS
+
+=head2 C<jobsets_id_unique>
+
+=over 4
+
+=item * L</id>
+
+=back
+
+=cut
+
+__PACKAGE__->add_unique_constraint("jobsets_id_unique", ["id"]);
 
 =head1 RELATIONS
 
@@ -216,7 +257,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 builds
+=head2 builds_jobset_ids
 
 Type: has_many
 
@@ -225,7 +266,22 @@ Related object: L<Hydra::Schema::Builds>
 =cut
 
 __PACKAGE__->has_many(
-  "builds",
+  "builds_jobset_ids",
+  "Hydra::Schema::Builds",
+  { "foreign.jobset_id" => "self.id" },
+  undef,
+);
+
+=head2 builds_project_jobsets
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Builds>
+
+=cut
+
+__PACKAGE__->has_many(
+  "builds_project_jobsets",
   "Hydra::Schema::Builds",
   {
     "foreign.jobset"  => "self.name",
@@ -234,7 +290,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobs
+=head2 jobs_jobset_ids
 
 Type: has_many
 
@@ -243,7 +299,22 @@ Related object: L<Hydra::Schema::Jobs>
 =cut
 
 __PACKAGE__->has_many(
-  "jobs",
+  "jobs_jobset_ids",
+  "Hydra::Schema::Jobs",
+  { "foreign.jobset_id" => "self.id" },
+  undef,
+);
+
+=head2 jobs_project_jobsets
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Jobs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "jobs_project_jobsets",
   "Hydra::Schema::Jobs",
   {
     "foreign.jobset"  => "self.name",
@@ -268,21 +339,6 @@ __PACKAGE__->has_many(
     "foreign.project" => "self.project",
   },
   undef,
-);
-
-=head2 jobsetinput
-
-Type: belongs_to
-
-Related object: L<Hydra::Schema::JobsetInputs>
-
-=cut
-
-__PACKAGE__->belongs_to(
-  "jobsetinput",
-  "Hydra::Schema::JobsetInputs",
-  { jobset => "name", name => "nixexprinput", project => "project" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "NO ACTION" },
 );
 
 =head2 jobsetinputs
@@ -352,8 +408,43 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07045 @ 2017-03-09 13:03:05
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ivYvsUyhEeaeI4EmRQ0/QQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-09 15:32:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:P8+t7rgpOqkGwRdM2b+3Bw
+
+
+=head2 builds
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Builds>
+
+=cut
+
+__PACKAGE__->has_many(
+  "builds",
+  "Hydra::Schema::Builds",
+  { "foreign.jobset_id" => "self.id" },
+  undef,
+);
+
+=head2 jobs
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Jobs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "jobs",
+  "Hydra::Schema::Jobs",
+  { "foreign.jobset_id" => "self.id" },
+  undef,
+);
+
+__PACKAGE__->add_column(
+    "+id" => { retrieve_on_insert => 1 }
+);
 
 my %hint = (
     columns => [

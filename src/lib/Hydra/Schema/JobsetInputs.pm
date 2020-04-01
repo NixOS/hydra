@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<JobsetInputs>
+=head1 TABLE: C<jobsetinputs>
 
 =cut
 
-__PACKAGE__->table("JobsetInputs");
+__PACKAGE__->table("jobsetinputs");
 
 =head1 ACCESSORS
 
@@ -130,28 +130,9 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobsets
 
-Type: has_many
-
-Related object: L<Hydra::Schema::Jobsets>
-
-=cut
-
-__PACKAGE__->has_many(
-  "jobsets",
-  "Hydra::Schema::Jobsets",
-  {
-    "foreign.name"         => "self.jobset",
-    "foreign.nixexprinput" => "self.name",
-    "foreign.project"      => "self.project",
-  },
-  undef,
-);
-
-
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-10-08 13:06:15
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+mZZqLjQNwblb/EWW1alLQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:5uKwEhDXso4IR1TFmwRxiA
 
 my %hint = (
     relations => {

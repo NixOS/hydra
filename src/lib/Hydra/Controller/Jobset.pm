@@ -162,7 +162,7 @@ sub get_builds : Chained('jobsetChain') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{allBuilds} = $c->stash->{jobset}->builds;
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJobset')
-        ->search({}, {bind => [$c->stash->{project}->name, $c->stash->{jobset}->name]});
+        ->search({}, {bind => [$c->stash->{jobset}->name]});
     $c->stash->{channelBaseName} =
         $c->stash->{project}->name . "-" . $c->stash->{jobset}->name;
 }
@@ -223,15 +223,10 @@ sub updateJobset {
     error($c, "Cannot rename jobset to ‘$jobsetName’ since that identifier is already taken.")
         if $jobsetName ne $oldName && defined $c->stash->{project}->jobsets->find({ name => $jobsetName });
 
-    # When the expression is in a .scm file, assume it's a Guile + Guix
-    # build expression.
-    my $exprType =
-        $c->stash->{params}->{"nixexprpath"} =~ /.scm$/ ? "guile" : "nix";
-
     my ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
 
     my $enabled = int($c->stash->{params}->{enabled});
-    die if $enabled < 0 || $enabled > 2;
+    die if $enabled < 0 || $enabled > 3;
 
     my $shares = int($c->stash->{params}->{schedulingshares} // 1);
     error($c, "The number of scheduling shares must be positive.") if $shares <= 0;

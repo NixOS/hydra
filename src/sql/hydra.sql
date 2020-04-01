@@ -52,15 +52,16 @@ create table ProjectMembers (
 -- describing build jobs.
 create table Jobsets (
     name          text not null,
+    id            serial not null,
     project       text not null,
     description   text,
-    nixExprInput  text not null, -- name of the jobsetInput containing the Nix or Guix expression
-    nixExprPath   text not null, -- relative path of the Nix or Guix expression
+    nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
+    nixExprPath   text, -- relative path of the Nix or Guix expression
     errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
     errorTime     integer, -- timestamp associated with errorMsg
     lastCheckedTime integer, -- last time the evaluator looked at this jobset
     triggerTime   integer, -- set if we were triggered by a push event
-    enabled       integer not null default 1, -- 0 = disabled, 1 = enabled, 2 = one-shot
+    enabled       integer not null default 1, -- 0 = disabled, 1 = enabled, 2 = one-shot, 3 = one-at-a-time
     enableEmail   integer not null default 1,
     hidden        integer not null default 0,
     emailOverride text not null,
@@ -70,9 +71,14 @@ create table Jobsets (
     fetchErrorMsg text,
     forceEval     boolean,
     startTime     integer, -- if jobset is currently running
+    type          integer not null default 0, -- 0 == legacy, 1 == flake
+    flake         text,
     check (schedulingShares > 0),
+    check ((type = 0) = (nixExprInput is not null and nixExprPath is not null)),
+    check ((type = 1) = (flake is not null)),
     primary key   (project, name),
-    foreign key   (project) references Projects(name) on delete cascade on update cascade
+    foreign key   (project) references Projects(name) on delete cascade on update cascade,
+    constraint    Jobsets_id_unique UNIQUE(id)
 #ifdef SQLITE
     ,
     foreign key   (project, name, nixExprInput) references JobsetInputs(project, jobset, name)
@@ -140,9 +146,11 @@ create table JobsetInputAlts (
 create table Jobs (
     project       text not null,
     jobset        text not null,
+    jobset_id     integer not null,
     name          text not null,
 
     primary key   (project, jobset, name),
+    foreign key   (jobset_id) references Jobsets(id) on delete cascade,
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );
@@ -162,6 +170,7 @@ create table Builds (
     -- Info about the inputs.
     project       text not null,
     jobset        text not null,
+    jobset_id     integer not null,
     job           text not null,
 
     -- Info about the build result.
@@ -181,7 +190,8 @@ create table Builds (
 
     -- Copy of the nixExprInput/nixExprPath fields of the jobset that
     -- instantiated this build.  Needed if we want to reproduce this
-    -- build.
+    -- build.  FIXME: this should be stored in JobsetEvals, storing it
+    -- here is denormal.
     nixExprInput  text,
     nixExprPath   text,
 
@@ -227,6 +237,7 @@ create table Builds (
     check (finished = 0 or (stoptime is not null and stoptime != 0)),
     check (finished = 0 or (starttime is not null and starttime != 0)),
 
+    foreign key (jobset_id) references Jobsets(id) on delete cascade,
     foreign key (project) references Projects(name) on update cascade,
     foreign key (project, jobset) references Jobsets(project, name) on update cascade,
     foreign key (project, jobset, job) references Jobs(project, jobset, name) on update cascade
@@ -522,6 +533,8 @@ create table JobsetEvals (
     nrBuilds      integer,
     nrSucceeded   integer, -- set lazily when all builds are finished
 
+    flake         text, -- immutable flake reference
+
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );
@@ -669,6 +682,8 @@ create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);
 create index IndexBuildsOnFinishedStopTime on Builds(finished, stoptime DESC);
 create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
+create index IndexBuildsOnJobsetIdFinishedId on Builds(id DESC, finished, job, jobset_id);
+create index IndexFinishedSuccessfulBuilds on Builds(id DESC, buildstatus, finished, job, jobset_id) where buildstatus = 0 and finished = 1;
 create index IndexBuildsOnDrvPath on Builds(drvPath);
 create index IndexCachedHgInputsOnHash on CachedHgInputs(uri, branch, sha256hash);
 create index IndexCachedGitInputsOnHash on CachedGitInputs(uri, branch, sha256hash);

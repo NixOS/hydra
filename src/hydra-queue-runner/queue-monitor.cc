@@ -83,7 +83,7 @@ bool State::getQueuedBuilds(Connection & conn,
        them yet (since we don't want a long-running transaction). */
     std::vector<BuildID> newIDs;
     std::map<BuildID, Build::ptr> newBuildsByID;
-    std::multimap<Path, BuildID> newBuildsByPath;
+    std::multimap<StorePath, BuildID> newBuildsByPath;
 
     unsigned int newLastBuildId = lastBuildId;
 
@@ -102,9 +102,9 @@ bool State::getQueuedBuilds(Connection & conn,
             if (id > newLastBuildId) newLastBuildId = id;
             if (builds_->count(id)) continue;
 
-            auto build = std::make_shared<Build>();
+            auto build = std::make_shared<Build>(
+                localStore->parseStorePath(row["drvPath"].as<string>()));
             build->id = id;
-            build->drvPath = row["drvPath"].as<string>();
             build->projectName = row["project"].as<string>();
             build->jobsetName = row["jobset"].as<string>();
             build->jobName = row["job"].as<string>();
@@ -117,14 +117,14 @@ bool State::getQueuedBuilds(Connection & conn,
 
             newIDs.push_back(id);
             newBuildsByID[id] = build;
-            newBuildsByPath.emplace(std::make_pair(build->drvPath, id));
+            newBuildsByPath.emplace(std::make_pair(build->drvPath.clone(), id));
         }
     }
 
     std::set<Step::ptr> newRunnable;
     unsigned int nrAdded;
     std::function<void(Build::ptr)> createBuild;
-    std::set<Path> finishedDrvs;
+    std::set<StorePath> finishedDrvs;
 
     createBuild = [&](Build::ptr build) {
         printMsg(lvlTalkative, format("loading build %1% (%2%)") % build->id % build->fullJobName());
@@ -160,7 +160,8 @@ bool State::getQueuedBuilds(Connection & conn,
 
             /* Some step previously failed, so mark the build as
                failed right away. */
-            printMsg(lvlError, format("marking build %d as cached failure due to ‘%s’") % build->id % ex.step->drvPath);
+            printMsg(lvlError, "marking build %d as cached failure due to ‘%s’",
+                build->id, localStore->printStorePath(ex.step->drvPath));
             if (!build->finishedInDB) {
                 auto mc = startDbUpdate();
                 pqxx::work txn(conn);
@@ -171,14 +172,14 @@ bool State::getQueuedBuilds(Connection & conn,
 
                 auto res = txn.exec_params1
                     ("select max(build) from BuildSteps where drvPath = $1 and startTime != 0 and stopTime != 0 and status = 1",
-                     ex.step->drvPath);
+                     localStore->printStorePathh(ex.step->drvPath));
                 if (!res[0].is_null()) propagatedFrom = res[0].as<BuildID>();
 
                 if (!propagatedFrom) {
                     for (auto & output : ex.step->drv.outputs) {
                         auto res = txn.exec_params
                             ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1",
-                             output.second.path);
+                             localStore->printStorePath(output.second.path));
                         if (!res[0][0].is_null()) {
                             propagatedFrom = res[0][0].as<BuildID>();
                             break;
@@ -217,7 +218,7 @@ bool State::getQueuedBuilds(Connection & conn,
         /* If we didn't get a step, it means the step's outputs are
            all valid. So we mark this as a finished, cached build. */
         if (!step) {
-            Derivation drv = readDerivation(build->drvPath);
+            Derivation drv = readDerivation(*localStore, localStore->printStorePath(build->drvPath));
             BuildOutput res = getBuildOutputCached(conn, destStore, drv);
 
             for (auto & path : drv.outputPaths())
@@ -227,7 +228,7 @@ bool State::getQueuedBuilds(Connection & conn,
             auto mc = startDbUpdate();
             pqxx::work txn(conn);
             time_t now = time(0);
-            printMsg(lvlInfo, format("marking build %1% as succeeded (cached)") % build->id);
+            printMsg(lvlInfo, "marking build %1% as succeeded (cached)", build->id);
             markSucceededBuild(txn, build, res, true, now, now);
             notifyBuildFinished(txn, build->id, {});
             txn.commit();
@@ -250,8 +251,8 @@ bool State::getQueuedBuilds(Connection & conn,
 
         build->propagatePriorities();
 
-        printMsg(lvlChatty, format("added build %1% (top-level step %2%, %3% new steps)")
-            % build->id % step->drvPath % newSteps.size());
+        printMsg(lvlChatty, "added build %1% (top-level step %2%, %3% new steps)",
+            build->id, localStore->printStorePath(step->drvPath), newSteps.size());
     };
 
     /* Now instantiate build steps for each new build. The builder
@@ -271,7 +272,7 @@ bool State::getQueuedBuilds(Connection & conn,
         try {
             createBuild(build);
         } catch (Error & e) {
-            e.addPrefix(format("while loading build %1%: ") % build->id);
+            e.addPrefix(fmt("while loading build %1%: ", build->id));
             throw;
         }
 
@@ -358,10 +359,12 @@ void State::processQueueChange(Connection & conn)
                 activeStepState->cancelled = true;
                 if (activeStepState->pid != -1) {
                     printInfo("killing builder process %d of build step ‘%s’",
-                        activeStepState->pid, activeStep->step->drvPath);
+                        activeStepState->pid,
+                        localStore->printStorePath(activeStep->step->drvPath));
                     if (kill(activeStepState->pid, SIGINT) == -1)
                         printError("error killing build step ‘%s’: %s",
-                            activeStep->step->drvPath, strerror(errno));
+                            localStore->printStorePath(activeStep->step->drvPath),
+                            strerror(errno));
                 }
             }
         }
@@ -370,8 +373,8 @@ void State::processQueueChange(Connection & conn)
 
 
 Step::ptr State::createStep(ref<Store> destStore,
-    Connection & conn, Build::ptr build, const Path & drvPath,
-    Build::ptr referringBuild, Step::ptr referringStep, std::set<Path> & finishedDrvs,
+    Connection & conn, Build::ptr build, const StorePath & drvPath,
+    Build::ptr referringBuild, Step::ptr referringStep, std::set<StorePath> & finishedDrvs,
     std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable)
 {
     if (finishedDrvs.find(drvPath) != finishedDrvs.end()) return 0;
@@ -399,8 +402,7 @@ Step::ptr State::createStep(ref<Store> destStore,
 
         /* If it doesn't exist, create it. */
         if (!step) {
-            step = std::make_shared<Step>();
-            step->drvPath = drvPath;
+            step = std::make_shared<Step>(drvPath.clone());
             isNew = true;
         }
 
@@ -414,28 +416,28 @@ Step::ptr State::createStep(ref<Store> destStore,
         if (referringStep)
             step_->rdeps.push_back(referringStep);
 
-        (*steps_)[drvPath] = step;
+        steps_->insert_or_assign(drvPath.clone(), step);
     }
 
     if (!isNew) return step;
 
-    printMsg(lvlDebug, format("considering derivation ‘%1%’") % drvPath);
+    printMsg(lvlDebug, "considering derivation ‘%1%’", localStore->printStorePath(drvPath));
 
     /* Initialize the step. Note that the step may be visible in
        ‘steps’ before this point, but that doesn't matter because
        it's not runnable yet, and other threads won't make it
        runnable while step->created == false. */
-    step->drv = readDerivation(drvPath);
-    step->parsedDrv = std::make_unique<ParsedDerivation>(drvPath, step->drv);
+    step->drv = std::make_unique<Derivation>(readDerivation(*localStore, localStore->printStorePath(drvPath)));
+    step->parsedDrv = std::make_unique<ParsedDerivation>(drvPath.clone(), *step->drv);
 
     step->preferLocalBuild = step->parsedDrv->willBuildLocally();
-    step->isDeterministic = get(step->drv.env, "isDetermistic", "0") == "1";
+    step->isDeterministic = get(step->drv->env, "isDetermistic").value_or("0") == "1";
 
-    step->systemType = step->drv.platform;
+    step->systemType = step->drv->platform;
     {
-        auto i = step->drv.env.find("requiredSystemFeatures");
+        auto i = step->drv->env.find("requiredSystemFeatures");
         StringSet features;
-        if (i != step->drv.env.end())
+        if (i != step->drv->env.end())
             features = step->requiredSystemFeatures = tokenizeString<std::set<std::string>>(i->second);
         if (step->preferLocalBuild)
             features.insert("local");
@@ -451,12 +453,13 @@ Step::ptr State::createStep(ref<Store> destStore,
 
     /* Are all outputs valid? */
     bool valid = true;
-    PathSet outputs = step->drv.outputPaths();
+    auto outputs = step->drv->outputPaths();
     DerivationOutputs missing;
-    for (auto & i : step->drv.outputs)
+    for (auto & i : step->drv->outputs)
         if (!destStore->isValidPath(i.second.path)) {
             valid = false;
-            missing[i.first] = i.second;
+            missing.insert_or_assign(i.first,
+                DerivationOutput(i.second.path.clone(), std::string(i.second.hashAlgo), std::string(i.second.hash)));
         }
 
     /* Try to copy the missing paths from the local store or from
@@ -469,7 +472,7 @@ Step::ptr State::createStep(ref<Store> destStore,
                 avail++;
             else if (useSubstitutes) {
                 SubstitutablePathInfos infos;
-                localStore->querySubstitutablePathInfos({i.second.path}, infos);
+                localStore->querySubstitutablePathInfos(singleton(i.second.path), infos);
                 if (infos.size() == 1)
                     avail++;
             }
@@ -482,14 +485,18 @@ Step::ptr State::createStep(ref<Store> destStore,
                     time_t startTime = time(0);
 
                     if (localStore->isValidPath(i.second.path))
-                        printInfo("copying output ‘%1%’ of ‘%2%’ from local store", i.second.path, drvPath);
+                        printInfo("copying output ‘%1%’ of ‘%2%’ from local store",
+                            localStore->printStorePath(i.second.path),
+                            localStore->printStorePath(drvPath));
                     else {
-                        printInfo("substituting output ‘%1%’ of ‘%2%’", i.second.path, drvPath);
+                        printInfo("substituting output ‘%1%’ of ‘%2%’",
+                            localStore->printStorePath(i.second.path),
+                            localStore->printStorePath(drvPath));
                         localStore->ensurePath(i.second.path);
                         // FIXME: should copy directly from substituter to destStore.
                     }
 
-                    copyClosure(ref<Store>(localStore), destStore, {i.second.path});
+                    copyClosure(ref<Store>(localStore), destStore, singleton(i.second.path));
 
                     time_t stopTime = time(0);
 
@@ -501,7 +508,10 @@ Step::ptr State::createStep(ref<Store> destStore,
                     }
 
                 } catch (Error & e) {
-                    printError("while copying/substituting output ‘%s’ of ‘%s’: %s", i.second.path, drvPath, e.what());
+                    printError("while copying/substituting output ‘%s’ of ‘%s’: %s",
+                        localStore->printStorePath(i.second.path),
+                        localStore->printStorePath(drvPath),
+                        e.what());
                     valid = false;
                     break;
                 }
@@ -511,15 +521,15 @@ Step::ptr State::createStep(ref<Store> destStore,
 
     // FIXME: check whether all outputs are in the binary cache.
     if (valid) {
-        finishedDrvs.insert(drvPath);
+        finishedDrvs.insert(drvPath.clone());
         return 0;
     }
 
     /* No, we need to build. */
-    printMsg(lvlDebug, format("creating build step ‘%1%’") % drvPath);
+    printMsg(lvlDebug, "creating build step ‘%1%’", localStore->printStorePath(drvPath));
 
     /* Create steps for the dependencies. */
-    for (auto & i : step->drv.inputDrvs) {
+    for (auto & i : step->drv->inputDrvs) {
         auto dep = createStep(destStore, conn, build, i.first, 0, step, finishedDrvs, newSteps, newRunnable);
         if (dep) {
             auto step_(step->state.lock());
@@ -610,7 +620,7 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
             ("select id, buildStatus, releaseName, closureSize, size from Builds b "
              "join BuildOutputs o on b.id = o.build "
              "where finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1",
-             output.second.path);
+             localStore->printStorePath(output.second.path));
         if (r.empty()) continue;
         BuildID id = r[0][0].as<BuildID>();
 

@@ -1,5 +1,4 @@
-AC_INIT([Hydra], [m4_esyscmd([echo -n $(cat ./version)$VERSION_SUFFIX])],
-        [nix-dev@cs.uu.nl], [hydra], [http://nixos.org/hydra/])
+AC_INIT([Hydra], [m4_esyscmd([echo -n $(cat ./version)$VERSION_SUFFIX])])
 AC_CONFIG_AUX_DIR(config)
 AM_INIT_AUTOMAKE([foreign serial-tests])
 
@@ -53,15 +52,6 @@ fi
 
 PKG_CHECK_MODULES([NIX], [nix-main nix-expr nix-store])
 
-PKG_CHECK_MODULES([GUILE], [guile-2.0], [HAVE_GUILE=yes], [HAVE_GUILE=no])
-
-if test "x$HAVE_GUILE" = xyes; then
-  AC_PATH_PROG([GUILE], [guile])
-else
-  GUILE="guile"
-fi
-AC_SUBST([GUILE])
-
 testPath="$(dirname $(type -p expr))"
 AC_SUBST(testPath)
 
@@ -80,13 +70,11 @@ AC_CONFIG_FILES([
   src/lib/Makefile
   src/root/Makefile
   src/script/Makefile
-  src/script/hydra-eval-guile-jobs
   tests/Makefile
   tests/jobs/config.nix
 ])
 
-AC_CONFIG_COMMANDS([executable-scripts],
-  [chmod +x src/script/hydra-eval-guile-jobs])
+AC_CONFIG_COMMANDS([executable-scripts], [])
 
 AC_CONFIG_HEADER([hydra-config.h])
 

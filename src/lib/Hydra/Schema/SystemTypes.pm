@@ -27,11 +27,11 @@ use base 'DBIx::Class::Core';
 
 __PACKAGE__->load_components("+Hydra::Component::ToJSON");
 
-=head1 TABLE: C<SystemTypes>
+=head1 TABLE: C<systemtypes>
 
 =cut
 
-__PACKAGE__->table("SystemTypes");
+__PACKAGE__->table("systemtypes");
 
 =head1 ACCESSORS
 
@@ -68,7 +68,7 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("system");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-06-13 01:54:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:8cC34cEw9T3+x+7uRs4KHQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fYeKQQSS5J8rjO3t+Hbz0g
 
 1;
