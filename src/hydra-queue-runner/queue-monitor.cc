@@ -172,11 +172,11 @@ bool State::getQueuedBuilds(Connection & conn,
 
                 auto res = txn.exec_params1
                     ("select max(build) from BuildSteps where drvPath = $1 and startTime != 0 and stopTime != 0 and status = 1",
-                     localStore->printStorePathh(ex.step->drvPath));
+                     localStore->printStorePath(ex.step->drvPath));
                 if (!res[0].is_null()) propagatedFrom = res[0].as<BuildID>();
 
                 if (!propagatedFrom) {
-                    for (auto & output : ex.step->drv.outputs) {
+                    for (auto & output : ex.step->drv->outputs) {
                         auto res = txn.exec_params
                             ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1",
                              localStore->printStorePath(output.second.path));
