@@ -1,5 +1,5 @@
 { hydraSrc ? builtins.fetchGit ./.
-, nixpkgs ? builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/release-19.09.tar.gz
+, nixpkgs ? builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/release-20.03.tar.gz
 , officialRelease ? false
 , shell ? false
 }:
@@ -63,7 +63,7 @@ rec {
 
       perlDeps = buildEnv {
         name = "hydra-perl-deps";
-        paths = with perlPackages;
+        paths = with perlPackages; lib.closePropagation
           [ ModulePluggable
             CatalystActionREST
             CatalystAuthenticationStoreDBIxClass
@@ -132,7 +132,7 @@ rec {
           perlDeps perl nix
           postgresql95 # for running the tests
           boost
-          (nlohmann_json.override { multipleHeaders = true; })
+          nlohmann_json
         ];
 
       hydraPath = lib.makeBinPath (

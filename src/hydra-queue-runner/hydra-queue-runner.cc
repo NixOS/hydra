@@ -258,7 +258,7 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
          localStore->printStorePath(step->drvPath),
          status == bsBusy ? 1 : 0,
          startTime != 0 ? std::make_optional(startTime) : std::nullopt,
-         step->drv.platform,
+         step->drv->platform,
          status != bsBusy ? std::make_optional((int) status) : std::nullopt,
          propagatedFrom != 0 ? std::make_optional(propagatedFrom) : std::nullopt, // internal::params
          errorMsg != "" ? std::make_optional(errorMsg) : std::nullopt,
@@ -267,7 +267,7 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
 
     if (r.affected_rows() == 0) goto restart;
 
-    for (auto & output : step->drv.outputs)
+    for (auto & output : step->drv->outputs)
         txn.exec_params0
             ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
              buildId, stepNr, output.first, localStore->printStorePath(output.second.path));
@@ -452,7 +452,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 {
     pqxx::work txn(conn);
-    for (auto & path : step->drv.outputPaths())
+    for (auto & path : step->drv->outputPaths())
         if (!txn.exec_params("select 1 from FailedPaths where path = $1", localStore->printStorePath(path)).empty())
             return true;
     return false;
