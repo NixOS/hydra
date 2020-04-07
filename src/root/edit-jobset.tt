@@ -42,7 +42,7 @@
 [% END %]
 
 [% BLOCK renderJobsetInputs %]
-  <table class="table table-striped table-condensed">
+  <table class="table table-striped table-condensed show-on-legacy">
     <thead>
       <tr><th></th><th>Input name</th><th>Type</th><th style="width: 50%">Value</th><th>Notify committers</th></tr>
     </thead>
@@ -97,6 +97,24 @@
     </div>
 
     <div class="control-group">
+      <label class="control-label">Type</label>
+      <div class="controls">
+        <div class="btn-group" data-toggle="buttons-radio">
+          <input type="hidden" id="type" name="type" value="[% jobset.type %]" />
+          <button type="button" class="btn" value="1" id="type-flake">Flake</button>
+          <button type="button" class="btn" value="0" id="type-legacy">Legacy</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="control-group show-on-flake">
+      <label class="control-label">Flake URI</label>
+      <div class="controls">
+        <input type="text" class="span3" name="flakeref" [% HTML.attributes(value => jobset.flake) %]/>
+      </div>
+    </div>
+
+    <div class="control-group show-on-legacy">
       <label class="control-label">Nix expression</label>
       <div class="controls">
         <input type="text" class="span3" name="nixexprpath" [% HTML.attributes(value => jobset.nixexprpath) %]/>
@@ -167,6 +185,21 @@
 <script type="text/javascript">
   $(document).ready(function() {
     var id = 0;
+
+    function update() {
+      if ($("#type").val() == 0) {
+        $(".show-on-legacy").show();
+        $(".show-on-flake").hide();
+      } else {
+        $(".show-on-legacy").hide();
+        $(".show-on-flake").show();
+      }
+    }
+
+    $("#type-flake").click(function() { update(); });
+    $("#type-legacy").click(function() { update(); });
+
+    update();
 
     $(".add-input").click(function() {
       var newid = "input-" + id++;

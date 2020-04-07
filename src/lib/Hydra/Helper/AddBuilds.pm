@@ -30,6 +30,8 @@ sub updateDeclarativeJobset {
     my @allowed_keys = qw(
         enabled
         hidden
+        type
+        flake
         description
         nixexprinput
         nixexprpath

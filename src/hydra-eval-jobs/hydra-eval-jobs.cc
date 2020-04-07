@@ -9,6 +9,8 @@
 #include "get-drvs.hh"
 #include "globals.hh"
 #include "common-eval-args.hh"
+#include "flake/flakeref.hh"
+#include "flake/flake.hh"
 #include "attr-path.hh"
 #include "derivations.hh"
 
@@ -28,6 +30,7 @@ static size_t maxMemorySize;
 struct MyArgs : MixEvalArgs, MixCommonArgs
 {
     Path releaseExpr;
+    bool flake = false;
     bool dryRun = false;
 
     MyArgs() : MixCommonArgs("hydra-eval-jobs")
@@ -50,6 +53,11 @@ struct MyArgs : MixEvalArgs, MixCommonArgs
             .longName("dry-run")
             .description("don't create store derivations")
             .set(&dryRun, true);
+
+        mkFlag()
+            .longName("flake")
+            .description("build a flake")
+            .set(&flake, true);
 
         expectArg("expr", &releaseExpr);
     }
@@ -89,7 +97,37 @@ static void worker(
     AutoCloseFD & from)
 {
     Value vTop;
-    state.evalFile(lookupFileArg(state, myArgs.releaseExpr), vTop);
+
+    if (myArgs.flake) {
+        using namespace flake;
+
+        auto flakeRef = parseFlakeRef(myArgs.releaseExpr);
+
+        auto vFlake = state.allocValue();
+
+        auto lockedFlake = lockFlake(state, flakeRef,
+            LockFlags {
+                .updateLockFile = false,
+                .useRegistries = false,
+                .allowMutable = false,
+            });
+
+        callFlake(state, lockedFlake, *vFlake);
+
+        auto vOutputs = vFlake->attrs->get(state.symbols.create("outputs"))->value;
+        state.forceValue(*vOutputs);
+
+        auto aHydraJobs = vOutputs->attrs->get(state.symbols.create("hydraJobs"));
+        if (!aHydraJobs)
+            aHydraJobs = vOutputs->attrs->get(state.symbols.create("checks"));
+        if (!aHydraJobs)
+            throw Error("flake '%s' does not provide any Hydra jobs or checks", flakeRef);
+
+        vTop = *aHydraJobs->value;
+
+    } else {
+        state.evalFile(lookupFileArg(state, myArgs.releaseExpr), vTop);
+    }
 
     auto vRoot = state.allocValue();
     state.autoCallFunction(autoArgs, vTop, *vRoot);
@@ -109,7 +147,7 @@ static void worker(
         nlohmann::json reply;
 
         try {
-            auto vTmp = findAlongAttrPath(state, attrPath, autoArgs, *vRoot);
+            auto vTmp = findAlongAttrPath(state, attrPath, autoArgs, *vRoot).first;
 
             auto v = state.allocValue();
             state.autoCallFunction(autoArgs, *vTmp, *v);
@@ -139,23 +177,23 @@ static void worker(
 
                 /* If this is an aggregate, then get its constituents. */
                 auto a = v->attrs->get(state.symbols.create("_hydraAggregate"));
-                if (a && state.forceBool(*(*a)->value, *(*a)->pos)) {
+                if (a && state.forceBool(*a->value, *a->pos)) {
                     auto a = v->attrs->get(state.symbols.create("constituents"));
                     if (!a)
                         throw EvalError("derivation must have a ‘constituents’ attribute");
 
 
                     PathSet context;
-                    state.coerceToString(*(*a)->pos, *(*a)->value, context, true, false);
+                    state.coerceToString(*a->pos, *a->value, context, true, false);
                     for (auto & i : context)
                         if (i.at(0) == '!') {
                             size_t index = i.find("!", 1);
                             job["constituents"].push_back(string(i, index + 1));
                         }
 
-                    state.forceList(*(*a)->value, *(*a)->pos);
-                    for (unsigned int n = 0; n < (*a)->value->listSize(); ++n) {
-                        auto v = (*a)->value->listElems()[n];
+                    state.forceList(*a->value, *a->pos);
+                    for (unsigned int n = 0; n < a->value->listSize(); ++n) {
+                        auto v = a->value->listElems()[n];
                         state.forceValue(*v);
                         if (v->type == tString)
                             job["namedConstituents"].push_back(state.forceStringNoCtx(*v));
@@ -244,6 +282,10 @@ int main(int argc, char * * argv)
         /* Prevent access to paths outside of the Nix search path and
            to the environment. */
         evalSettings.restrictEval = true;
+
+        /* When building a flake, use pure evaluation (no access to
+           'getEnv', 'currentSystem' etc. */
+        evalSettings.pureEval = myArgs.flake;
 
         if (myArgs.dryRun) settings.readOnlyMode = true;
 

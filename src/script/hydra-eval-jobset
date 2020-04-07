@@ -328,16 +328,25 @@ sub inputsToArgs {
 
 
 sub evalJobs {
-    my ($inputInfo, $nixExprInputName, $nixExprPath) = @_;
+    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
 
-    my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
-        or die "cannot find the input containing the job expression\n";
+    my @cmd;
 
-    my @cmd = ("hydra-eval-jobs",
-               "<" . $nixExprInputName . "/" . $nixExprPath . ">",
-               "--gc-roots-dir", getGCRootsDir,
-               "-j", 1,
-               inputsToArgs($inputInfo));
+    if (defined $flakeRef) {
+        @cmd = ("hydra-eval-jobs",
+                "--flake", $flakeRef,
+                "--gc-roots-dir", getGCRootsDir,
+                "--max-jobs", 1);
+    } else {
+        my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
+            or die "cannot find the input containing the job expression\n";
+
+        @cmd = ("hydra-eval-jobs",
+                "<" . $nixExprInputName . "/" . $nixExprPath . ">",
+                "--gc-roots-dir", getGCRootsDir,
+                "--max-jobs", 1,
+                inputsToArgs($inputInfo));
+    }
 
     if (defined $ENV{'HYDRA_DEBUG'}) {
         sub escape {
@@ -356,7 +365,7 @@ sub evalJobs {
 
     print STDERR "$stderr";
 
-    return (decode_json($jobsJSON), $nixExprInput);
+    return decode_json($jobsJSON);
 }
 
 
@@ -374,7 +383,7 @@ sub getPrevJobsetEval {
 
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
-    my ($db, $jobset, $inputInfo, $nixExprInput, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
+    my ($db, $jobset, $inputInfo, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
 
     my @outputNames = sort keys %{$buildInfo->{outputs}};
     die unless scalar @outputNames;
@@ -577,6 +586,16 @@ sub checkJobsetWrapped {
     };
     my $fetchError = $@;
 
+    my $flakeRef = $jobset->flake;
+    if (defined $flakeRef) {
+        (my $res, my $json, my $stderr) = captureStdoutStderr(
+            600, "nix", "flake", "info", "--tarball-ttl", 0, "--json", "--", $flakeRef);
+        die "'nix flake info' returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
+            . ":\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
+            if $res;
+        $flakeRef = decode_json($json)->{'url'};
+    }
+
     Net::Statsd::increment("hydra.evaluator.checkouts");
     my $checkoutStop = clock_gettime(CLOCK_MONOTONIC);
     Net::Statsd::timing("hydra.evaluator.checkout_time", int(($checkoutStop - $checkoutStart) * 1000));
@@ -597,7 +616,7 @@ sub checkJobsetWrapped {
     my @args = ($jobset->nixexprinput, $jobset->nixexprpath, inputsToArgs($inputInfo));
     my $argsHash = sha256_hex("@args");
     my $prevEval = getPrevJobsetEval($db, $jobset, 0);
-    if (defined $prevEval && $prevEval->hash eq $argsHash && !$dryRun && !$jobset->forceeval) {
+    if (defined $prevEval && $prevEval->hash eq $argsHash && !$dryRun && !$jobset->forceeval && $prevEval->flake eq $flakeRef) {
         print STDERR "  jobset is unchanged, skipping\n";
         Net::Statsd::increment("hydra.evaluator.unchanged_checkouts");
         txn_do($db, sub {
@@ -609,7 +628,7 @@ sub checkJobsetWrapped {
 
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
-    my ($jobs, $nixExprInput) = evalJobs($inputInfo, $jobset->nixexprinput, $jobset->nixexprpath);
+    my $jobs = evalJobs($inputInfo, $jobset->nixexprinput, $jobset->nixexprpath, $flakeRef);
     my $evalStop = clock_gettime(CLOCK_MONOTONIC);
 
     if ($jobsetsJobset) {
@@ -654,7 +673,7 @@ sub checkJobsetWrapped {
         foreach my $job (permute(values %{$jobs})) {
             next if defined $job->{error};
             #print STDERR "considering job " . $project->name, ":", $jobset->name, ":", $job->{jobName} . "\n";
-            checkBuild($db, $jobset, $inputInfo, $nixExprInput, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins);
+            checkBuild($db, $jobset, $inputInfo, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins);
         }
 
         # Have any builds been added or removed since last time?
@@ -669,6 +688,7 @@ sub checkJobsetWrapped {
             , evaltime => abs(int($evalStop - $evalStart))
             , hasnewbuilds => $jobsetChanged ? 1 : 0
             , nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
+            , flake => $flakeRef
             });
 
         $db->storage->dbh->do("notify eval_added, ?", undef,

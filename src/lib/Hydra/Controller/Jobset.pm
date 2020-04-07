@@ -223,7 +223,19 @@ sub updateJobset {
     error($c, "Cannot rename jobset to ‘$jobsetName’ since that identifier is already taken.")
         if $jobsetName ne $oldName && defined $c->stash->{project}->jobsets->find({ name => $jobsetName });
 
-    my ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
+    my $type = int($c->stash->{params}->{"type"}) // 0;
+
+    my ($nixExprPath, $nixExprInput);
+    my $flake;
+
+    if ($type == 0) {
+        ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
+    } elsif ($type == 1) {
+        $flake = trim($c->stash->{params}->{"flakeref"});
+        error($c, "Invalid flake URI ‘$flake’.") if $flake !~ /^[a-zA-Z]/;
+    } else {
+        error($c, "Invalid jobset type.");
+    }
 
     my $enabled = int($c->stash->{params}->{enabled});
     die if $enabled < 0 || $enabled > 3;
@@ -246,6 +258,8 @@ sub updateJobset {
         , checkinterval => $checkinterval
         , triggertime => ($enabled && $checkinterval > 0) ? $jobset->triggertime // time() : undef
         , schedulingshares => $shares
+        , type => $type
+        , flake => $flake
         });
 
     $jobset->project->jobsetrenames->search({ from_ => $jobsetName })->delete;
@@ -255,23 +269,25 @@ sub updateJobset {
     # Set the inputs of this jobset.
     $jobset->jobsetinputs->delete;
 
-    foreach my $name (keys %{$c->stash->{params}->{inputs}}) {
-        my $inputData = $c->stash->{params}->{inputs}->{$name};
-        my $type = $inputData->{type};
-        my $value = $inputData->{value};
-        my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
+    if ($type == 0) {
+        foreach my $name (keys %{$c->stash->{params}->{inputs}}) {
+            my $inputData = $c->stash->{params}->{inputs}->{$name};
+            my $type = $inputData->{type};
+            my $value = $inputData->{value};
+            my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
 
-        error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
-        error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
+            error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
+            error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
 
-        my $input = $jobset->jobsetinputs->create(
-            { name => $name,
-              type => $type,
-              emailresponsible => $emailresponsible
-            });
+            my $input = $jobset->jobsetinputs->create(
+                { name => $name,
+                  type => $type,
+                  emailresponsible => $emailresponsible
+                });
 
-        $value = checkInputValue($c, $name, $type, $value);
-        $input->jobsetinputalts->create({altnr => 0, value => $value});
+            $value = checkInputValue($c, $name, $type, $value);
+            $input->jobsetinputalts->create({altnr => 0, value => $value});
+        }
     }
 }
 

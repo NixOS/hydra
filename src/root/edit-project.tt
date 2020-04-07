@@ -8,7 +8,7 @@
     <div class="control-group">
       <div class="controls">
         <label class="checkbox">
-          <input type="checkbox" name="enabled" [% IF project.enabled; 'checked="checked"'; END %]/>Enabled
+          <input type="checkbox" name="enabled" [% IF create || project.enabled; 'checked="checked"'; END %]/>Enabled
         </label>
       </div>
       <div class="controls">
