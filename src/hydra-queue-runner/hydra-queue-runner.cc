@@ -468,9 +468,9 @@ void State::notifyBuildStarted(pqxx::work & txn, BuildID buildId)
 void State::notifyBuildFinished(pqxx::work & txn, BuildID buildId,
     const std::vector<BuildID> & dependentIds)
 {
-    auto payload = fmt("%d ", buildId);
+    auto payload = fmt("%d", buildId);
     for (auto & d : dependentIds)
-        payload += fmt("%d ", d);
+        payload += fmt("\t%d", d);
     // FIXME: apparently parameterized() doesn't support NOTIFY.
     txn.exec(fmt("notify build_finished, '%s'", payload));
 }
