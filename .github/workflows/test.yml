@@ -1,0 +1,14 @@
+name: "Test"
+on:
+  pull_request:
+  push:
+jobs:
+  tests:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - uses: cachix/install-nix-action@v8
+    #- run: nix flake check
+    - run: nix-build -A checks.x86_64-linux
