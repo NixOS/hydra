@@ -32,3 +32,4 @@ Makefile.in
 hydra-config.h
 hydra-config.h.in
 result
+tests/jobs/config.nix

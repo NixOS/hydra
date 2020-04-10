@@ -62,7 +62,6 @@
                 CatalystXRoleApplicator
                 CryptRandPasswd
                 DBDPg
-                DBDSQLite
                 DataDump
                 DateTime
                 DigestSHA1
@@ -103,7 +102,7 @@
           src = self;
 
           buildInputs =
-            [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig sqlite libpqxx
+            [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig libpqxx
               gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
               perlDeps perl final.nix
               postgresql95 # for running the tests
@@ -114,7 +113,7 @@
             ];
 
           hydraPath = lib.makeBinPath (
-            [ sqlite subversion openssh final.nix coreutils findutils pixz
+            [ subversion openssh final.nix coreutils findutils pixz
               gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
             ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
