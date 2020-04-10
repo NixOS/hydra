@@ -41,7 +41,7 @@ sub project_PUT {
     if (defined $c->stash->{project}) {
         requireProjectOwner($c, $c->stash->{project});
 
-        txn_do($c->model('DB')->schema, sub {
+        $c->model('DB')->schema->txn_do(sub {
             updateProject($c, $c->stash->{project});
         });
 
@@ -55,7 +55,7 @@ sub project_PUT {
         requireMayCreateProjects($c);
 
         my $project;
-        txn_do($c->model('DB')->schema, sub {
+        $c->model('DB')->schema->txn_do(sub {
             # Note: $projectName is validated in updateProject,
             # which will abort the transaction if the name isn't
             # valid.  Idem for the owner.
@@ -77,7 +77,7 @@ sub project_DELETE {
 
     requireProjectOwner($c, $c->stash->{project});
 
-    txn_do($c->model('DB')->schema, sub {
+    $c->model('DB')->schema->txn_do(sub {
         $c->stash->{project}->jobsetevals->delete;
         $c->stash->{project}->builds->delete;
         $c->stash->{project}->delete;
@@ -198,7 +198,7 @@ sub create_release_submit : Chained('projectChain') PathPart('create-release/sub
     my $releaseName = $c->request->params->{name};
 
     my $release;
-    txn_do($c->model('DB')->schema, sub {
+    $c->model('DB')->schema->txn_do(sub {
         # Note: $releaseName is validated in updateRelease, which will
         # abort the transaction if the name isn't valid.
         $release = $c->stash->{project}->releases->create(

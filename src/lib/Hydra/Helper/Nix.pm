@@ -14,7 +14,7 @@ use IPC::Run;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getHydraHome getHydraConfig getBaseUrl txn_do
+    getHydraHome getHydraConfig getBaseUrl
     getSCMCacheDir
     registerRoot getGCRootsDir gcRootFor
     jobsetOverview jobsetOverview_
@@ -58,22 +58,6 @@ sub getHydraConfig {
 sub getBaseUrl {
     my ($config) = @_;
     return $config->{'base_uri'} // "http://" . hostname_long . ":3000";
-}
-
-
-# Awful hack to handle timeouts in SQLite: just retry the transaction.
-# DBD::SQLite *has* a 30 second retry window, but apparently it
-# doesn't work.
-sub txn_do {
-    my ($db, $coderef) = @_;
-    my $res;
-    while (1) {
-        eval {
-            $res = $db->txn_do($coderef);
-        };
-        return $res if !$@;
-        die $@ unless $@ =~ "database is locked";
-    }
 }
 
 
@@ -446,7 +430,7 @@ sub getTotalShares {
 
 sub cancelBuilds($$) {
     my ($db, $builds) = @_;
-    return txn_do($db, sub {
+    return $db->txn_do(sub {
         $builds = $builds->search({ finished => 0 });
         my $n = $builds->count;
         my $time = time();
@@ -473,7 +457,7 @@ sub restartBuilds($$) {
 
     my $nrRestarted = 0;
 
-    txn_do($db, sub {
+    $db->txn_do(sub {
         # Reset the stats for the evals to which the builds belongs.
         # !!! Should do this in a trigger.
         $db->resultset('JobsetEvals')->search(

@@ -146,7 +146,7 @@ sub release : Chained('evalChain') PathPart('release') Args(0) {
 
     my $release;
 
-    txn_do($c->model('DB')->schema, sub {
+    $c->model('DB')->schema->txn_do(sub {
 
         $release = $c->stash->{project}->releases->create(
             { name => $releaseName

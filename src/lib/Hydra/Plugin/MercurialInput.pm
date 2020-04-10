@@ -85,7 +85,7 @@ sub fetchInput {
         # FIXME: time window between nix-prefetch-hg and addTempRoot.
         addTempRoot($storePath);
 
-        txn_do($self->{db}, sub {
+        $self->{db}->txn_do(sub {
             $self->{db}->resultset('CachedHgInputs')->update_or_create(
                 { uri => $uri
                 , branch => $branch

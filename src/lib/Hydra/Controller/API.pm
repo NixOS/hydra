@@ -214,7 +214,7 @@ sub scmdiff : Path('/api/scmdiff') Args(0) {
 sub triggerJobset {
     my ($self, $c, $jobset, $force) = @_;
     print STDERR "triggering jobset ", $jobset->get_column('project') . ":" . $jobset->name, "\n";
-    txn_do($c->model('DB')->schema, sub {
+    $c->model('DB')->schema->txn_do(sub {
         $jobset->update({ triggertime => time });
         $jobset->update({ forceeval => 1 }) if $force;
     });

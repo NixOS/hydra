@@ -163,7 +163,7 @@ sub register :Local Args(0) {
     error($c, "Your user name is already taken.")
         if $c->find_user({ username => $userName });
 
-    txn_do($c->model('DB')->schema, sub {
+    $c->model('DB')->schema->txn_do(sub {
         my $user = $c->model('DB::Users')->create(
             { username => $userName
             , password => "!"
@@ -261,7 +261,7 @@ sub edit_PUT {
         return;
     }
 
-    txn_do($c->model('DB')->schema, sub {
+    $c->model('Db')->schema->txn_do(sub {
         updatePreferences($c, $user);
     });
 

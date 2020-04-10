@@ -90,7 +90,7 @@ sub news_submit : Chained('admin') PathPart('news/submit') Args(0) {
 sub news_delete : Chained('admin') PathPart('news/delete') Args(1) {
     my ($self, $c, $id) = @_;
 
-    txn_do($c->model('DB')->schema, sub {
+    $c->model('DB')->schema->txn_do(sub {
         my $newsItem = $c->model('DB::NewsItems')->find($id)
           or notFound($c, "Newsitem with id $id doesn't exist.");
         $newsItem->delete;

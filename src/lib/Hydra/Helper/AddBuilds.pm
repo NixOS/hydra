@@ -46,7 +46,7 @@ sub updateDeclarativeJobset {
         $update{$key} = $declSpec->{$key};
         delete $declSpec->{$key};
     }
-    txn_do($db, sub {
+    $db->txn_do(sub {
         my $jobset = $project->jobsets->update_or_create(\%update);
         $jobset->jobsetinputs->delete;
         while ((my $name, my $data) = each %{$declSpec->{"inputs"}}) {
@@ -79,7 +79,7 @@ sub handleDeclarativeJobsetBuild {
         }
 
         my $declSpec = decode_json($declText);
-        txn_do($db, sub {
+        $db->txn_do(sub {
             my @kept = keys %$declSpec;
             push @kept, ".jobsets";
             $project->jobsets->search({ name => { "not in" => \@kept } })->update({ enabled => 0, hidden => 1 });

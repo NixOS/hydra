@@ -218,7 +218,7 @@ sub fetchInput {
         # FIXME: time window between nix-prefetch-git and addTempRoot.
         addTempRoot($storePath);
 
-        txn_do($self->{db}, sub {
+        $self->{db}->txn_do(sub {
             $self->{db}->resultset('CachedGitInputs')->update_or_create(
                 { uri => $uri
                 , branch => $branch
