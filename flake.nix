@@ -62,6 +62,7 @@
                 CatalystXRoleApplicator
                 CryptRandPasswd
                 DBDPg
+                DBDSQLite
                 DataDump
                 DateTime
                 DigestSHA1
