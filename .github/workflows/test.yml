@@ -11,4 +11,4 @@ jobs:
         fetch-depth: 0
     - uses: cachix/install-nix-action@v8
     #- run: nix flake check
-    - run: nix-build -A checks.x86_64-linux
+    - run: nix-build -A checks.x86_64-linux.build
