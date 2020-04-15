@@ -54,7 +54,7 @@ die "$0: type must be `hydra' or `google'\n"
 
 my $db = Hydra::Model::DB->new();
 
-txn_do($db, sub {
+$db->txn_do(sub {
     my $user = $db->resultset('Users')->find({ username => $renameFrom // $userName });
     if ($renameFrom) {
         die "$0: user `$renameFrom' does not exist\n" unless $user;

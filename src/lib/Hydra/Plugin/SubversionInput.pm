@@ -71,7 +71,7 @@ sub fetchInput {
 
         $sha256 = queryPathHash($storePath); $sha256 =~ s/sha256://;
 
-        txn_do($self->{db}, sub {
+        $self->{db}->txn_do(sub {
             $self->{db}->resultset('CachedSubversionInputs')->update_or_create(
                 { uri => $uri
                 , revision => $revision

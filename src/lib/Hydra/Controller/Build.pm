@@ -526,7 +526,7 @@ sub keep : Chained('buildChain') PathPart Args(1) {
         registerRoot $_->path foreach $build->buildoutputs;
     }
 
-    txn_do($c->model('DB')->schema, sub {
+    $c->model('DB')->schema->txn_do(sub {
         $build->update({keep => $keep});
     });
 

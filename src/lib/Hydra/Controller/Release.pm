@@ -63,13 +63,13 @@ sub submit : Chained('release') PathPart('submit') Args(0) {
     requireProjectOwner($c, $c->stash->{project});
 
     if (($c->request->params->{action} || "") eq "delete") {
-        txn_do($c->model('DB')->schema, sub {
+        $c->model('DB')->schema->txn_do(sub {
             $c->stash->{release}->delete;
         });
         $c->res->redirect($c->uri_for($c->controller('Project')->action_for('project'),
             [$c->stash->{project}->name]));
     } else {
-        txn_do($c->model('DB')->schema, sub {
+        $c->model('DB')->schema->txn_do(sub {
             updateRelease($c, $c->stash->{release});
         });
         $c->res->redirect($c->uri_for($self->action_for("view"),

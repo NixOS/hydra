@@ -54,7 +54,7 @@ sub fetchInput {
         # changes, we get a new "revision", but if it doesn't change
         # (or changes back), we don't get a new "revision".
         if (!defined $cachedInput) {
-            txn_do($self->{db}, sub {
+            $self->{db}->txn_do(sub {
                 $self->{db}->resultset('CachedPathInputs')->update_or_create(
                     { srcpath => $uri
                     , timestamp => $timestamp
@@ -65,7 +65,7 @@ sub fetchInput {
                 });
         } else {
             $timestamp = $cachedInput->timestamp;
-            txn_do($self->{db}, sub {
+            $self->{db}->txn_do(sub {
                 $cachedInput->update({lastseen => time});
             });
         }

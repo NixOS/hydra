@@ -399,7 +399,7 @@ sub checkBuild {
 
     my $build;
 
-    txn_do($db, sub {
+    $db->txn_do(sub {
         my $job = $jobset->jobs->update_or_create({
             name => $jobName,
             jobset_id => $jobset->id,
@@ -501,7 +501,7 @@ sub setJobsetError {
     my $prevError = $jobset->errormsg;
 
     eval {
-        txn_do($db, sub {
+        $db->txn_do(sub {
             $jobset->update({ errormsg => $errorMsg, errortime => time, fetcherrormsg => undef });
         });
     };
@@ -603,7 +603,7 @@ sub checkJobsetWrapped {
     if ($fetchError) {
         Net::Statsd::increment("hydra.evaluator.failed_checkouts");
         print STDERR $fetchError;
-        txn_do($db, sub {
+        $db->txn_do(sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => $fetchError }) if !$dryRun;
             $db->storage->dbh->do("notify eval_failed, ?", undef, join('\t', $tmpId));
         });
@@ -619,7 +619,7 @@ sub checkJobsetWrapped {
     if (defined $prevEval && $prevEval->hash eq $argsHash && !$dryRun && !$jobset->forceeval && $prevEval->flake eq $flakeRef) {
         print STDERR "  jobset is unchanged, skipping\n";
         Net::Statsd::increment("hydra.evaluator.unchanged_checkouts");
-        txn_do($db, sub {
+        $db->txn_do(sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
             $db->storage->dbh->do("notify eval_cached, ?", undef, join('\t', $tmpId));
         });
@@ -660,7 +660,7 @@ sub checkJobsetWrapped {
     my $dbStart = clock_gettime(CLOCK_MONOTONIC);
 
     my %buildMap;
-    txn_do($db, sub {
+    $db->txn_do(sub {
 
         my $prevEval = getPrevJobsetEval($db, $jobset, 1);
 
@@ -806,7 +806,7 @@ sub checkJobset {
     my $failed = 0;
     if ($checkError) {
         print STDERR $checkError;
-        txn_do($db, sub {
+        $db->txn_do(sub {
             $jobset->update({lastcheckedtime => time});
             setJobsetError($jobset, $checkError);
             $db->storage->dbh->do("notify eval_failed, ?", undef, join('\t', $tmpId));

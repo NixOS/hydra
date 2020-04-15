@@ -8,22 +8,23 @@
 
 * Setting the maximum number of concurrent builds per system type:
 
-  $ sqlite3 hydra.sqlite "insert into SystemTypes(system, maxConcurrent) values('i686-linux', 3);"
+  $ psql -d hydra <<< "insert into SystemTypes(system, maxConcurrent) values('i686-linux', 3);"
 
 * Creating a user:
 
-  $ sqlite3 hydra.sqlite "insert into Users(userName, emailAddress, password) values('root', 'e.dolstra@tudelft.nl', '$(echo -n foobar | sha1sum | cut -c1-40)');"
+  $ hydra-create-user root --email-address 'e.dolstra@tudelft.nl' \
+      --password-hash "$(echo -n foobar | sha1sum | cut -c1-40)"
 
   (Replace "foobar" with the desired password.)
 
   To make the user an admin:
 
-  $ sqlite3 hydra.sqlite "insert into UserRoles(userName, role) values('root', 'admin');"
+  $ hydra-create-user root --role admin
 
   To enable a non-admin user to create projects:
-  
-  $ sqlite3 hydra.sqlite "insert into UserRoles(userName, role) values('alice', 'create-projects');"
-  
+
+  $ hydra-create-user root --role create-projects
+
 * Creating a release set:
 
   insert into ReleaseSets(project, name) values('patchelf', 'unstable');

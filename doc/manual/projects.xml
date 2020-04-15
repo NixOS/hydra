@@ -43,16 +43,11 @@ Identifier: patchelf
       The identifier should be a unique name (it is the primary
       database key for the project table in the database). If you try
       to create a project with an already existing identifier you'd
-      get an error message such as:
+      get an error message from the database.
 
-<screen>
-I'm very sorry, but an error occurred:
-DBIx::Class::ResultSet::create(): DBI Exception: DBD::SQLite::st execute failed: column name is not unique(19) at dbdimp.c line 402
-</screen>
-
-       So try to create the project after entering just the general
-       information to figure out if you have chosen a unique name.
-       Job sets can be added once the project has been created.
+      So try to create the project after entering just the general
+      information to figure out if you have chosen a unique name.
+      Job sets can be added once the project has been created.
 
 <screen>
 Display name: Patchelf
