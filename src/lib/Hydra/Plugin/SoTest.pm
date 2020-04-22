@@ -30,8 +30,7 @@ The plugin is configured by a C<sotest> block in the Hydra config file
 
  <sotest>
  uri = https://sotest.example # defaults to https://opensource.sotest.io
- username = Aladdin
- password = OpenSesame
+ authfile = /var/lib/hydra/sotest.auth # file containing «username»:«password»
  priority = 1 # optional
  </sotest>
 
@@ -59,8 +58,12 @@ sub isEnabled {
     }
 
     my $sotest = $self->{config}->{sotest};
-    die 'SoTest username and password must be specified'
-      unless ( defined $sotest->{username} and defined $sotest->{password} );
+    die 'SoTest authfile is not specified'
+      unless ( defined $sotest->{authfile} );
+
+    open( my $authfile, "<", $sotest->{authfile} )
+      or die "Cannot open Sotest authfile \${\$sotest->{authfile}}";
+    close($authfile);
 
     return 1;
 }
@@ -91,12 +94,30 @@ sub buildFinished {
     my $sotest_name     = showJobName $build;
     my $sotest_url      = "${\$baseurl}/build/${\$build->id}";
     my $sotest_priority = int( $sotest->{priority} || '0' );
+    my $sotest_username;
+    my $sotest_password;
 
-    _logIfDebug 'post job for ', $sotest_name;
+    my $authfile;
+    open( $authfile, "<", $sotest->{authfile} )
+      or die "Cannot open Sotest authfile \${\$sotest->{authfile}}";
+
+    while (<$authfile>) {
+        if ( $_ =~ /(.+):(.+)/m ) {
+            $sotest_username = $1;
+            $sotest_password = $2;
+        }
+    }
+
+    close($authfile);
+
+    die "failed to parse username and password from ${\$sotest->{authfile}}"
+      unless ( defined $sotest_username and defined $sotest_password );
+
+    _logIfDebug "post job for $sotest_name";
 
     my $ua = LWP::UserAgent->new();
-    $ua->default_headers->authorization_basic( $sotest->{username},
-        $sotest->{password} );
+    $ua->default_headers->authorization_basic( $sotest_username,
+        $sotest_password );
 
     my $res = $ua->post(
         ( $sotest->{uri} || 'https://opensource.sotest.io' ) . '/api/create',
