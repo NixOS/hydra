@@ -33,9 +33,13 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 [% END %]
 
 <form class="form-search">
-  <input name="filter" type="text" class="input-large search-query" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]/>
+  <input name="filter" type="text" class="input-large search-query" placeholder="Search jobs by..." [% HTML.attributes(value => filter) %]/>
   <input name="compare" type="hidden" [% HTML.attributes(value => otherEval.id) %]/>
   <input name="full" type="hidden" [% HTML.attributes(value => full) %]/>
+  <select name="field">
+    <option value="name" [% IF field == "name" %]selected="selected"[% END %]>Name</option>
+    <option value="maintainer" [% IF field == "maintainer" %]selected="selected"[% END %]>Maintainer</option>
+  </select>
 </form>
 
 <ul class="nav nav-tabs">

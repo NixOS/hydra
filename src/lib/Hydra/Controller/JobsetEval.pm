@@ -31,7 +31,33 @@ sub view_GET {
     my $eval = $c->stash->{eval};
 
     $c->stash->{filter} = $c->request->params->{filter} // "";
-    my $filter = $c->stash->{filter} eq "" ? {} : { job => { ilike => "%" . $c->stash->{filter} . "%" } };
+    $c->stash->{field} = $c->request->params->{field} // "name";
+
+    my $extra;
+    my $filter;
+    if ($c->stash->{filter} ne "") {
+        if ($c->stash->{field} eq "maintainer") {
+            $filter = {
+                -or => {
+                    "maintainer.github_handle" => { ilike => "%" . $c->stash->{filter} . "%" },
+                    "maintainer.email" => { ilike => "%" . $c->stash->{filter} . "%" }
+                }
+            };
+            $extra = {
+                columns => [@buildListColumns],
+                join => { 'buildsbymaintainers' => 'maintainer' }
+            };
+        } else {
+            # FIXME allow arbitrary fields (at least for the API)
+            $filter = {"job" => { ilike => "%" . $c->stash->{filter} . "%" }};
+            $extra = { columns => [@buildListColumns] };
+        }
+    } else {
+        $filter = {};
+        $extra = { columns => [@buildListColumns] };
+    }
+
+    #$extra{columns} = [@buildListColumns];
 
     my $compare = $c->req->params->{compare};
     my $eval2;
@@ -69,8 +95,8 @@ sub view_GET {
             || $a->get_column('system') cmp $b->get_column('system')
     }
 
-    my @builds = $eval->builds->search($filter, { columns => [@buildListColumns] });
-    my @builds2 = defined $eval2 ? $eval2->builds->search($filter, { columns => [@buildListColumns] }) : ();
+    my @builds = $eval->builds->search($filter, $extra);
+    my @builds2 = defined $eval2 ? $eval2->builds->search($filter, $extra) : ();
 
     @builds  = sort { cmpBuilds($a, $b) } @builds;
     @builds2 = sort { cmpBuilds($a, $b) } @builds2;
