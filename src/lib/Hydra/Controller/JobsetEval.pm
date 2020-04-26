@@ -123,6 +123,11 @@ sub view_GET {
 
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
 
+    $c->stash->{maintainer} = sub {
+        my $m = shift;
+        return $m->github_handle // $m->email;
+    };
+
     $self->status_ok(
         $c,
         entity => $eval

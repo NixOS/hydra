@@ -112,6 +112,7 @@ BLOCK renderBuildListHeader %]
         [% IF showDescription %]
           <th>Description</th>
         [% END %]
+        <th>Maintainers</th>
       </tr>
     </thead>
     <tbody>
@@ -139,6 +140,11 @@ BLOCK renderBuildListBody;
       [% IF showDescription %]
         <td>[% build.description %]</td>
       [% END %]
+      <td>
+        [% FOREACH m IN build.maintainers %]
+          <em>[% maintainer(m) %]</em>[% UNLESS loop.last %], [% END %]
+        [% END %]
+      </td>
     </tr>
   [% END;
   IF linkToAll %]

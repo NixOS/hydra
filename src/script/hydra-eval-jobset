@@ -20,8 +20,6 @@ use Nix::Store;
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use Try::Tiny;
 
-use Data::Dumper;
-
 STDOUT->autoflush();
 STDERR->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
