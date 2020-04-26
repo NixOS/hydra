@@ -188,6 +188,7 @@
             mkdir -p .hydra-data
             export HYDRA_DATA="$(pwd)/.hydra-data"
             export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
+            export HYDRA_DEBUG=1
           '';
 
           preConfigure = "autoreconf -vfi";
