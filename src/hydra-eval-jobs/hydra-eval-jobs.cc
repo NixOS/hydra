@@ -71,6 +71,41 @@ struct MyArgs : MixEvalArgs, MixCommonArgs
 
 static MyArgs myArgs;
 
+static nlohmann::json retrieveMaintainers(EvalState &state, DrvInfo &drv)
+{
+    nlohmann::json rs = nlohmann::json::array();
+    Value *v = drv.queryMeta("maintainers");
+
+    if (v) {
+        state.forceValue(*v);
+        if (!v->isList()) {
+            return rs; // FIXME throw an error here?
+        }
+
+        for (unsigned int n = 0; n < v->listSize(); ++n) {
+            Value &m = *v->listElems()[n];
+            if (m.type == tString) {
+                rs.push_back(m.string.s);
+            } else if (m.type == tAttrs) {
+                auto email = m.attrs->find(state.symbols.create("email"));
+                auto github = m.attrs->find(state.symbols.create("github"));
+                nlohmann::json entry;
+
+                if (email != m.attrs->end()) {
+                    entry["email"] = state.forceString(*email->value);
+                }
+                if (github != m.attrs->end()) {
+                    entry["github"] = state.forceString(*github->value);
+                }
+
+                rs.push_back(entry);
+            }
+        }
+    }
+
+    return rs;
+}
+
 static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name, const string & subAttribute)
 {
     Strings res;
@@ -175,7 +210,7 @@ static void worker(
                 job["description"] = drv->queryMetaString("description");
                 job["license"] = queryMetaStrings(state, *drv, "license", "shortName");
                 job["homepage"] = drv->queryMetaString("homepage");
-                job["maintainers"] = queryMetaStrings(state, *drv, "maintainers", "email");
+                job["maintainers"] = retrieveMaintainers(state, *drv);
                 job["schedulingPriority"] = drv->queryMetaInt("schedulingPriority", 100);
                 job["timeout"] = drv->queryMetaInt("timeout", 36000);
                 job["maxSilent"] = drv->queryMetaInt("maxSilent", 7200);

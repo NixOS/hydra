@@ -20,6 +20,8 @@ use Nix::Store;
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use Try::Tiny;
 
+use Data::Dumper;
+
 STDOUT->autoflush();
 STDERR->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
@@ -457,7 +459,6 @@ sub checkBuild {
             , description => null($buildInfo->{description})
             , license => null($buildInfo->{license})
             , homepage => null($buildInfo->{homepage})
-            , maintainers => null($buildInfo->{maintainers})
             , maxsilent => $buildInfo->{maxSilent}
             , timeout => $buildInfo->{timeout}
             , nixname => $buildInfo->{nixName}
@@ -468,6 +469,28 @@ sub checkBuild {
             , iscurrent => 1
             , ischannel => $buildInfo->{isChannel}
             });
+
+        for my $maintainer (@{$buildInfo->{maintainers}}) {
+            my $entity = $db->resultset('Maintainer')
+                ->search({ email => $maintainer->{email} })
+                ->single;
+
+            unless (defined $entity) {
+                $entity = $db->resultset('Maintainer')->create({
+                    email => $maintainer->{email},
+                    github_handle => $maintainer->{github},
+                });
+            }
+
+            if ($maintainer->{github} != $entity->github_handle) {
+                $maintainer->update({github_handle => $maintainer->{github}});
+            }
+
+            $db->resultset('Buildsbymaintainer')->create({
+                maintainer_id => $entity->id,
+                build_id => $build->id
+            });
+        }
 
         $build->buildoutputs->create({ name => $_, path => $buildInfo->{outputs}->{$_} })
             foreach @outputNames;

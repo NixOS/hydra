@@ -192,8 +192,8 @@ Composing rels: L</projectmembers> -> project
 __PACKAGE__->many_to_many("projects", "projectmembers", "project");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4/WZ95asbnGmK+nEHb4sLQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-04-26 17:06:48
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:X1f88sTwpz5kKg/yZPWQVQ
 
 my %hint = (
     columns => [

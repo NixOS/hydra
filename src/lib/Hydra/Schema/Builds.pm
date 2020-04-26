@@ -105,11 +105,6 @@ __PACKAGE__->table("builds");
   data_type: 'text'
   is_nullable: 1
 
-=head2 maintainers
-
-  data_type: 'text'
-  is_nullable: 1
-
 =head2 maxsilent
 
   data_type: 'integer'
@@ -225,8 +220,6 @@ __PACKAGE__->add_columns(
   "license",
   { data_type => "text", is_nullable => 1 },
   "homepage",
-  { data_type => "text", is_nullable => 1 },
-  "maintainers",
   { data_type => "text", is_nullable => 1 },
   "maxsilent",
   { data_type => "integer", default_value => 3600, is_nullable => 1 },
@@ -379,6 +372,21 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 buildsbymaintainers
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Buildsbymaintainer>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildsbymaintainers",
+  "Hydra::Schema::Buildsbymaintainer",
+  { "foreign.build_id" => "self.id" },
+  undef,
+);
+
 =head2 buildstepoutputs
 
 Type: has_many
@@ -526,6 +534,16 @@ __PACKAGE__->many_to_many(
   "aggregateconstituents_aggregates",
   "constituent",
 );
+
+=head2 maintainers
+
+Type: many_to_many
+
+Composing rels: L</buildsbymaintainers> -> maintainer
+
+=cut
+
+__PACKAGE__->many_to_many("maintainers", "buildsbymaintainers", "maintainer");
 
 
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-22 07:11:57
