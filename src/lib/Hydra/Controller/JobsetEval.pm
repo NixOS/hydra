@@ -57,8 +57,6 @@ sub view_GET {
         $extra = { columns => [@buildListColumns] };
     }
 
-    #$extra{columns} = [@buildListColumns];
-
     my $compare = $c->req->params->{compare};
     my $eval2;
 

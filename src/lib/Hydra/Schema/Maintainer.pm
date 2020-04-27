@@ -127,4 +127,16 @@ __PACKAGE__->many_to_many("builds", "buildsbymaintainers", "build");
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
+
+my %hint = (
+    columns => [
+        'email',
+        'github_handle'
+    ],
+);
+
+sub json_hint {
+    return \%hint;
+}
+
 1;

@@ -9,5 +9,9 @@ in {
     system = builtins.currentSystem;
     builder = "/bin/sh";
     args = [ builder ];
+    meta.maintainers = [
+      { github = "Ma27"; email = "ma27@localhost"; }
+    ];
+    meta.outPath = placeholder "out";
   };
 }
