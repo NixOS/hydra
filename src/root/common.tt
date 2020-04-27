@@ -141,8 +141,12 @@ BLOCK renderBuildListBody;
         <td>[% build.description %]</td>
       [% END %]
       <td>
-        [% FOREACH m IN build.maintainers %]
-          <em>[% maintainer(m) %]</em>[% UNLESS loop.last %], [% END %]
+        [% UNLESS build.maintainers.size %]
+          <em>not given</em>
+        [% ELSE %]
+          [% FOREACH m IN build.maintainers %]
+            <em>[% maintainer(m) %]</em>[% UNLESS loop.last %], [% END %]
+          [% END %]
         [% END %]
       </td>
     </tr>

@@ -451,15 +451,20 @@ sub my_jobs_tab :Chained('dashboard_base') :PathPart('my-jobs-tab') :Args(0) {
 
     error($c, "No email address is set for this user.") unless $c->stash->{user}->emailaddress;
 
+    $c->stash->{maintainer} = sub {
+        my $m = shift;
+        return $m->github_handle // $m->email;
+    };
+
     # Get all current builds of which this user is a maintainer.
     $c->stash->{builds} = [$c->model('DB::Builds')->search(
         { iscurrent => 1
-        , maintainers => { ilike => "%" . $c->stash->{user}->emailaddress . "%" }
+        , 'maintainer.email' => { ilike => "%" . $c->stash->{user}->emailaddress . "%" }
         , "project.enabled" => 1
         , "jobset.enabled" => 1
         },
         { order_by => ["project", "jobset", "job"]
-        , join => ["project", "jobset"]
+        , join => ["project", "jobset", {"buildsbymaintainers" => 'maintainer'}]
         })];
 }
 

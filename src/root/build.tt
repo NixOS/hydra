@@ -370,7 +370,15 @@ END;
       </tr>
       <tr>
         <th>Maintainer(s):</th>
-        <td>[% IF build.maintainers %][% HTML.escape(build.maintainers) %][% ELSE %]<em>not given</em>[% END %]</td>
+        <td>
+          [% UNLESS build.maintainers %]
+            <em>not given</em>
+          [% ELSE %]
+            [% FOREACH m IN build.maintainers %]
+              <em>[% maintainer(m) %]</em>[% UNLESS loop.last %], [% END %]
+            [% END %]
+          [% END %]
+        </td>
       </tr>
       <tr>
         <th>System:</th>
