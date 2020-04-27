@@ -84,12 +84,13 @@ static nlohmann::json retrieveMaintainers(EvalState &state, DrvInfo &drv)
 
         for (unsigned int n = 0; n < v->listSize(); ++n) {
             Value &m = *v->listElems()[n];
+            nlohmann::json entry;
             if (m.type == tString) {
-                rs.push_back(m.string.s);
+                entry["email"] = m.string.s;
+                rs.push_back(entry);
             } else if (m.type == tAttrs) {
                 auto email = m.attrs->find(state.symbols.create("email"));
                 auto github = m.attrs->find(state.symbols.create("github"));
-                nlohmann::json entry;
 
                 if (email != m.attrs->end()) {
                     entry["email"] = state.forceString(*email->value);
