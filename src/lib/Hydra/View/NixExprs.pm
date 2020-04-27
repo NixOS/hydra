@@ -79,8 +79,9 @@ EOF
                 if $build->description;
             $res .= "      license = ${\escape $build->license};\n"
                 if $build->license;
-            $res .= "      maintainers = ${\escape $build->maintainers};\n"
-                if $build->maintainers;
+            # FIXME re-add maintainers
+            #$res .= "      maintainers = ${\escape $build->maintainers};\n"
+                #if $build->maintainers;
             $res .= "    };\n";
             $res .= "  } {\n";
             my @outputNames = sort (keys %{$pkg->{outputs}});
