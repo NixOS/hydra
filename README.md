@@ -46,7 +46,7 @@ You can use the provided shell.nix to get a working development environment:
 ```
 $ nix-shell
 $ ./bootstrap
-$ configurePhase # NOTE: note ./configure
+$ configurePhase # NOTE: not ./configure
 $ make
 ```
 
