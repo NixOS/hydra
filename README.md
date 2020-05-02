@@ -33,6 +33,38 @@ $ hydra-create-user <USER> --full-name '<NAME>' \
 
 Afterwards you should be able to log by clicking on "_Sign In_" on the top right of the web interface using the credentials specified by `hydra-crate-user`. Once you are logged in you can click "_Admin -> Create Project_" to configure your first project.
 
+### Creating A Simple Project And Jobset
+In order to evaluate and build anything you need to crate _projects_ that contain _jobsets_. Hydra supports imperative and declarative projects and many different configurations. The steps below will guide you through the required steps to creating a minimal imperative project configuration.
+
+#### Creating A Project
+Log in as adminstrator, click "_Admin_" and select "_Create project_". Fill the form as follows:
+
+- **Identifier**: `hello`
+- **Display name**: `hello`
+- **Description**: `hello project`
+
+Click "_Create project_".
+
+#### Creating A Jobset
+After creating a project you are forwarded to the project page. Click "_Actions_" and choose "_Create jobset_". Fill the form with the following values:
+
+- **Identifier**: `hello`
+- **Nix expression**: `examples/hello.nix` in `hydra`
+- **Check interval**: 60
+- **Scheduling shares**: 1
+
+We have to add two inputs for this jobset. One for _nixpkgs_ and one for _hydra_ (which we are referrencing in the Nix expression above):
+
+- **Input name**: `nixpkgs`
+- **Type**: `Git checkout`
+- **Value**: `https://github.com/nixos/nixpkgs-channels nixos-20.03`
+
+- **Input name**: `hydra`
+- **Type**: `Git checkout`
+- **Value**: `https://github.com/nixos/hydra`
+
+Make sure **State** at the top of the page is set to "_Enabled_" and click on "_Create jobset_". This concludes the creation of a jobset that evaluates [./examples/hello.nix](./examples/hello.nix) once a minute. Clicking "_Evaluations_" should list the first evaluation of the newly created jobset after a brief delay.
+
 ## Building And Developing
 
 ### Building Hydra
