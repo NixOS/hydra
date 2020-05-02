@@ -1,6 +1,8 @@
 # Hydra
 
-Hydra is a [Continuous Integration](https://en.wikipedia.org/wiki/Continuous_integration) service for [Nix](https://nixos.org/nix) based projects. 
+[![CI](https://github.com/NixOS/hydra/workflows/Test/badge.svg)](https://github.com/NixOS/hydra/actions)
+
+Hydra is a [Continuous Integration](https://en.wikipedia.org/wiki/Continuous_integration) service for [Nix](https://nixos.org/nix) based projects.
 
 ## Installation And Setup
 
