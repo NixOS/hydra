@@ -50,7 +50,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
         Strings argv;
         if (machine->isLocalhost()) {
             pgmName = "nix-store";
-            argv = {"nix-store", "--serve", "--write"};
+            argv = {"nix-store", "--builders", "", "--serve", "--write"};
         }
         else {
             pgmName = "ssh";
