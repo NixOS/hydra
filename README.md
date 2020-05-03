@@ -84,6 +84,10 @@ $ configurePhase # NOTE: not ./configure
 $ make
 ```
 
+### JSON API
+
+You can also interface with Hydra through a JSON API. The API is defined in [hydra.yaml](./hydra.yaml) and you can test and explore it on the [API Page](http://www.tpflug.me/api.html)
+
 ## Additional Resources
 
 - [Hydra User's Guide](https://nixos.org/hydra/manual/)
