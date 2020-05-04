@@ -45,9 +45,12 @@ paths:
                     type: array
                     items:
                       type: string
-                    
-          
-              
+        '403':
+          description: login failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /:
     get:
@@ -86,6 +89,12 @@ paths:
               examples:
                 project-success:
                   $ref: '#/components/examples/project-success'
+        '404':
+          description: project could not be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /jobset/{project-id}/{jobset-id}:
     get:
@@ -113,6 +122,12 @@ paths:
               examples:
                 jobset-success:
                   $ref: '#/components/examples/jobset-success'
+        '404':
+          description: jobset couldn't be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /jobset/{project-id}/{jobset-id}/evals:
     get:
@@ -142,6 +157,12 @@ paths:
               examples:
                 evals-success:
                   $ref: '#/components/examples/evals-success'
+        '404':
+          description: jobset couldn't be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /build/{build-id}:
     get:
@@ -163,9 +184,22 @@ paths:
               examples:
                 build-success:
                   $ref: '#/components/examples/build-success'
+        '404':
+          description: build couldn't be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
 components:
   schemas:
+  
+    Error:
+      type: object
+      properties:
+        error:
+          description: error message
+          type: string
 
     Project:
       type: object
