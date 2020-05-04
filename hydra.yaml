@@ -129,7 +129,7 @@ components:
       type: object
       properties:
         owner:
-          description: user owning this project
+          description: username of the project owner
           type: string
         name:
           description: name of the project
@@ -162,6 +162,7 @@ components:
       properties:
         jobsetinputalts:
           type: array
+          description: ???
           items:
             type: string
 
@@ -173,18 +174,17 @@ components:
           description: contains the error message when there was a problem fetching sources for a jobset
           type: string
         nixexprinput:
-          nullable: true
-          description: ???
+          description: the name of the jobset input which contains the nixexprpath
           type: string
         errormsg:
-          description: contains the error message when there was a problem during evaluation
+          description: contains the stderr output of the nix-instantiate command 
           type: string
         emailoverride:
-          description: ???
+          description: email address to send notices to instead of the package maintainer (can be a comma separated list)
           type: string
         nixexprpath:
           nullable: true
-          description: ???
+          description: the path to the file to evaluate
           type: string
         enabled:
           description: when set to true the jobset gets scheduled for evaluation
@@ -200,7 +200,7 @@ components:
       properties:
         uri:
           nullable: true
-          description: URI of this input
+          description: URI of this input (which differs depending on the type of the input)
           type: string
         'type':
           description: The type of this input # XXX: should be an enum
@@ -225,7 +225,7 @@ components:
         id:
           type: integer
         hasnewbuilds:
-          description: ???
+          description: is true if the number of JobsetEval members is different from the prior evaluation. (will always be true on the first evaluation)
           type: boolean
         builds:
           description: List of builds generated for this jobset evaluation
@@ -252,6 +252,7 @@ components:
           type: string
         evals:
           type: array
+          description: List of evaluations
           items:
             type: object
             additionalProperties:
@@ -262,37 +263,37 @@ components:
       properties:
         filesize:
           nullable: true
-          description: ???
+          description: Size of the produced file
           type: integer
         defaultpath:
           description: ???
           type: string
         'type':
-          description: ???
+          description: Types of build product (user defined)
           type: string
         name:
-          description: ???
+          description: Name of the file
           type: string
         sha1hash:
           nullable: true
-          description: ???
+          description: sha1 hash of the file
           type: string
         path:
-          description: ???
+          description: the nix store path
           type: string
         subtype:
-          description: ???
+          description: user-specified
           type: string
         sha256hash:
           nullable: true
-          description: ???
+          description: sha256 hash of the file
           type: string
 
     BuildOutput:
       type: object
       properties:
         path:
-          description: path of the output
+          description: The nix store path
           type: string
 
     Build:
@@ -307,37 +308,53 @@ components:
           description: time when build ended
           type: integer
         timestamp:
-          description: ???
+          description: time when the build was first created
           type: integer
         jobsetevals:
-          description: list of evaluations belonging to this build
+          description: list of evaluations this build is part of
           type: array
           items:
             type: integer
         finished:
-          description: set to true when this build is already finished
+          description: true when the build is finished
           type: boolean
         releasename:
           nullable: true
           description: ???
           type: string
         nixname:
-          description: ???
+          description: name from the build's derivation
           type: string
         buildstatus:
-          description: ???
-          type: boolean
+          nullable: true # should only be null if finished is false
+          description: |
+            Indicates the build status:</br>
+            <ul>
+             <li>0 : succeeded</li>
+             <li>1 : failed</li>
+             <li>2 : dependency failed</li>
+             <li>3 : aborted</li>
+             <li>4 : canceled by the user</li>
+             <li>6 : failed with output</li>
+             <li>7 : timed out</li>
+             <li>9 : aborted</li>
+             <li>10 : log size limit exceeded</li>
+             <li>11 : output size limit exceeded</li>
+             <li>*  : failed</li>
+            </ul>
+            <strong>Note:</strong>buildstatus should only be `null` if `finished` is false.
+          type: integer
         jobset:
           description: jobset this build belongs to
           type: string
         priority:
-          description: ???
+          description: determines the priority with which this build will be executed (higher value means higher priority)
           type: integer
         job:
-          description: ???
+          description: nix attribute from the nixexprpath
           type: string
         drvpath:
-          description: ???
+          description: filename of the drv
           type: string
         system:
           description: system this build was done for
@@ -354,6 +371,14 @@ components:
           additionalProperties:
             $ref: '#/components/schemas/BuildOutput'
         buildmetrics:
+          description: |
+            user defined build metrics from `$out/nix-support/hydra-metrics`. The file should
+            define metrics separated by new lines using the following format:
+
+            ```
+            <name> <value>[ <unit>]
+            ```
+            The name and unit fields are strings, the value is a float. The unit is optional.
           type: object
           properties:
             name:
