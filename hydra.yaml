@@ -7,6 +7,48 @@ servers:
   - url: https://hydra.nixos.org
 paths:
 
+  /login:
+    post:
+      summary: Log in using username/password credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  description: user
+                  type: string
+                password:
+                  description: password
+                  type: string
+      responses:
+        '200':
+          description: successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  username:
+                    description: user
+                    type: string
+                  fullname:
+                    description: full name
+                    type: string
+                  emailaddress:
+                    description: email
+                    type: string
+                  userroles:
+                    description: user roles
+                    type: array
+                    items:
+                      type: string
+                    
+          
+              
+
   /:
     get:
       summary: Retrieves all projects
