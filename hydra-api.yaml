@@ -304,7 +304,8 @@ components:
           type: boolean
         dependency:
           nullable: true
-          description: <b>Deprecated</b>: The build id of another build
+          description: >
+            **Deprecated**: The build id of another build
           type: string
 
 
