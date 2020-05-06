@@ -227,11 +227,6 @@ components:
           type: array
           items:
             type: string
-        releases:
-          description: list of releases of this project
-          type: array
-          items:
-            type: string
 
     JobsetInput:
       type: object
@@ -279,20 +274,38 @@ components:
           description: URI of this input (which differs depending on the type of the input)
           type: string
         'type':
-          description: The type of this input # XXX: should be an enum
+          description: The type of this input
           type: string
+          enum:
+            - bzr
+            - bzr-checkout
+            - bitbucketpulls
+            - darcs
+            - git
+            - githubpulls
+            - gitlabpulls
+            - hg
+            - path
+            - svn
+            - svn-checkout
         revision:
           nullable: true
-          description: ???
+          description: A Git/Mercurial commit hash or a Subversion revision number.
           type: string
         value:
           nullable: true
-          description: ???
-          type: boolean # ?? seems to be either 'false' or null ?
+          description: A value that corresponds to the type of input
+          oneOf:
+            - type: boolean
+            - type: string
+            - type: array
+              items:
+                type: string
+          type: boolean
         dependency:
           nullable: true
-          description: ???
-          type: string # ?? i have no idea this is always null
+          description: <b>Deprecated</b>: The build id of another build
+          type: string
 
 
     JobsetEval:
@@ -342,7 +355,7 @@ components:
           description: Size of the produced file
           type: integer
         defaultpath:
-          description: ???
+          description: This is a Git/Mercurial commit hash or a Subversion revision number
           type: string
         'type':
           description: Types of build product (user defined)
@@ -394,10 +407,6 @@ components:
         finished:
           description: true when the build is finished
           type: boolean
-        releasename:
-          nullable: true
-          description: ???
-          type: string
         nixname:
           description: name from the build's derivation
           type: string
@@ -475,7 +484,6 @@ components:
         hidden: 0
         description: hello
         owner: hydra-user
-        releases: []
         jobsets:
           - hello
         displayname: example-hello
@@ -483,8 +491,6 @@ components:
         jobsets:
           - foobar
         owner: hydra-user
-        releases:
-          - release-1
         name: foo
         enabled: 1
         description: foo project
@@ -497,8 +503,6 @@ components:
         hidden: 0
         description: foo project
         displayname: foo
-        releases:
-          - release-1
         owner: gilligan
         jobsets:
           - foobar
@@ -556,7 +560,6 @@ components:
             path: /nix/store/y26qxcq1gg2hrqpxdc58b2fghv2bhxjg-hello-2.10
         id: 1
         buildstatus: 0
-        releasename: null
         nixname: hello-2.10
         finished: 1
         jobsetevals:
