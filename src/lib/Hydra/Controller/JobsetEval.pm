@@ -130,42 +130,6 @@ sub view_GET {
 }
 
 
-sub release : Chained('evalChain') PathPart('release') Args(0) {
-    my ($self, $c) = @_;
-    my $eval = $c->stash->{eval};
-
-    requireProjectOwner($c, $c->stash->{project});
-
-    my @builds = $eval->builds;
-
-    my $releaseName;
-    $releaseName ||= $_->releasename foreach @builds;
-
-    # If no release name has been defined by any of the builds, compose one of the project name and evaluation id
-    $releaseName = $eval->get_column('project') . "-" . $eval->id unless defined $releaseName;
-
-    my $release;
-
-    $c->model('DB')->schema->txn_do(sub {
-
-        $release = $c->stash->{project}->releases->create(
-            { name => $releaseName
-            , timestamp => time
-            });
-
-        foreach my $build (@builds) {
-            $release->releasemembers->create(
-                { build => $build->id
-                , description => $build->description
-                }) if $build->buildstatus == 0;
-        }
-    });
-
-    $c->res->redirect($c->uri_for($c->controller('Release')->action_for('view'),
-        [$c->stash->{project}->name, $release->name]));
-}
-
-
 sub create_jobset : Chained('evalChain') PathPart('create-jobset') Args(0) {
     my ($self, $c) = @_;
     my $eval = $c->stash->{eval};

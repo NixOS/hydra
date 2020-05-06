@@ -378,8 +378,7 @@ create table BuildMetrics (
 
 -- Cache for inputs of type "path" (used for testing Hydra), storing
 -- the SHA-256 hash and store path for each source path.  Also stores
--- the timestamp when we first saw the path have these contents, which
--- may be used to generate release names.
+-- the timestamp when we first saw the path have these contents.
 create table CachedPathInputs (
     srcPath       text not null,
     timestamp     integer not null, -- when we first saw this hash
@@ -448,35 +447,6 @@ create table CachedCVSInputs (
 create table SystemTypes (
     system        text primary key not null,
     maxConcurrent integer not null default 2
-);
-
-
--- A release is a named set of builds.  The ReleaseMembers table lists
--- the builds that constitute each release.
-create table Releases (
-    project       text not null,
-    name          text not null,
-
-    timestamp     integer not null,
-
-    description   text,
-
-    primary key   (project, name),
-    foreign key   (project) references Projects(name) on delete cascade
-);
-
-
-create table ReleaseMembers (
-    project       text not null,
-    release_      text not null,
-    build         integer not null,
-
-    description   text,
-
-    primary key   (project, release_, build),
-    foreign key   (project) references Projects(name) on delete cascade on update cascade,
-    foreign key   (project, release_) references Releases(project, name) on delete cascade on update cascade,
-    foreign key   (build) references Builds(id)
 );
 
 
@@ -660,7 +630,6 @@ create index IndexJobsetEvalMembersOnEval on JobsetEvalMembers(eval);
 create index IndexJobsetInputAltsOnInput on JobsetInputAlts(project, jobset, input);
 create index IndexJobsetInputAltsOnJobset on JobsetInputAlts(project, jobset);
 create index IndexProjectsOnEnabled on Projects(enabled);
-create index IndexReleaseMembersOnBuild on ReleaseMembers(build);
 
 --  For hydra-update-gc-roots.
 create index IndexBuildsOnKeep on Builds(keep) where keep = 1;

@@ -14,14 +14,12 @@
         [% UNLESS project.declfile %]
         [% INCLUDE menuItem title="Create jobset" icon="icon-plus" uri=c.uri_for(c.controller('Project').action_for('create_jobset'), c.req.captures) %]
         [% END %]
-        [% INCLUDE menuItem title="Create release" icon="icon-plus" uri=c.uri_for(c.controller('Project').action_for('create_release'), c.req.captures) %]
       </ul>
     </li>
   [% END %]
 
   <li class="active"><a href="#tabs-project" data-toggle="tab">Jobsets</a></li>
   <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
-  <li><a href="#tabs-releases" data-toggle="tab">Releases</a></li>
 </ul>
 
 <div class="tab-content">
@@ -93,37 +91,6 @@
         <td>[% project.enabled ? "Yes" : "No" %]</td>
       </tr>
     </table>
-  </div>
-
-  <div id="tabs-releases" class="tab-pane">
-
-    [% IF releases.size == 0 %]
-
-    <p><em>This project has no releases yet.</em></p>
-
-    [% ELSE %]
-
-    <p>This project has made the following releases:</p>
-
-    <table class="table table-condensed table-striped clickable-rows">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Date</th>
-        </tr>
-      </thead>
-      <tbody>
-        [% FOREACH release IN releases %]
-          <tr>
-            <td><a class="row-link" href="[% c.uri_for('/release' project.name release.name) %]"><tt>[% release.name %]</tt></a></td>
-            <td>[% INCLUDE renderDateTime timestamp = release.timestamp %]</td>
-          </tr>
-        [% END %]
-      </tbody>
-    </table>
-
-    [% END %]
-
   </div>
 
 </div>

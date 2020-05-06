@@ -29,8 +29,6 @@ sub project_GET {
     $c->stash->{template} = 'project.tt';
 
     $c->stash->{jobsets} = [jobsetOverview($c, $c->stash->{project})];
-    $c->stash->{releases} = [$c->stash->{project}->releases->search({},
-        {order_by => ["timestamp DESC"]})];
 
     $self->status_ok($c, entity => $c->stash->{project});
 }
@@ -179,37 +177,6 @@ sub get_builds : Chained('projectChain') PathPart('') CaptureArgs(0) {
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForProject')
         ->search({}, {bind => [$c->stash->{project}->name]});
     $c->stash->{channelBaseName} = $c->stash->{project}->name;
-}
-
-
-sub create_release : Chained('projectChain') PathPart('create-release') Args(0) {
-    my ($self, $c) = @_;
-    requireProjectOwner($c, $c->stash->{project});
-    $c->stash->{template} = 'edit-release.tt';
-    $c->stash->{create} = 1;
-}
-
-
-sub create_release_submit : Chained('projectChain') PathPart('create-release/submit') Args(0) {
-    my ($self, $c) = @_;
-
-    requireProjectOwner($c, $c->stash->{project});
-
-    my $releaseName = $c->request->params->{name};
-
-    my $release;
-    $c->model('DB')->schema->txn_do(sub {
-        # Note: $releaseName is validated in updateRelease, which will
-        # abort the transaction if the name isn't valid.
-        $release = $c->stash->{project}->releases->create(
-            { name => $releaseName
-            , timestamp => time
-            });
-        Hydra::Controller::Release::updateRelease($c, $release);
-    });
-
-    $c->res->redirect($c->uri_for($c->controller('Release')->action_for('view'),
-        [$c->stash->{project}->name, $release->name]));
 }
 
 
