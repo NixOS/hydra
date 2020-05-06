@@ -529,21 +529,6 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
 );
 
-=head2 releasemembers
-
-Type: has_many
-
-Related object: L<Hydra::Schema::ReleaseMembers>
-
-=cut
-
-__PACKAGE__->has_many(
-  "releasemembers",
-  "Hydra::Schema::ReleaseMembers",
-  { "foreign.build" => "self.id" },
-  undef,
-);
-
 =head2 aggregates
 
 Type: many_to_many
@@ -573,8 +558,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:34:25
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:EEXlcKN/ydXJ129vT0jTUw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-05-06 12:32:57
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3IyFj/9Zf/hvmhBY4U/IBQ
 
 __PACKAGE__->has_many(
   "dependents",

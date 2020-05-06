@@ -72,13 +72,6 @@ print STDERR "*** looking for scheduled builds\n";
 keepBuild($_, 0) foreach $db->resultset('Builds')->search({ finished => 0 }, { columns => [ @columns ] });
 
 
-# Keep every build in every release of every project.
-print STDERR "*** looking for release members\n";
-keepBuild($_, 0) foreach $db->resultset('Builds')->search_literal(
-    "exists (select 1 from releasemembers where build = me.id)",
-    { order_by => ["project", "jobset", "job", "id"], columns => [ @columns ] });
-
-
 # Keep all builds that have been marked as "keep".
 print STDERR "*** looking for kept builds\n";
 my @buildsToKeep = $db->resultset('Builds')->search(

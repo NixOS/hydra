@@ -25,24 +25,6 @@
 
   $ hydra-create-user root --role create-projects
 
-* Creating a release set:
-
-  insert into ReleaseSets(project, name) values('patchelf', 'unstable');
-  insert into ReleaseSetJobs(isPrimary, project, release, job, attrs, description) values(1, 'patchelf', 'unstable', 'tarball', 'officialRelease=false', 'Source distribution');
-  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'unstable', 'build', 'system=i686-linux', 'Build on i686-linux');
-  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'unstable', 'build', 'system=x86_64-linux', 'Build on x86_64-linux');
-  insert into ReleaseSetJobs(project, release, job, attrs, description, mayFail) values('patchelf', 'unstable', 'rpm_fedora9i386', '', 'Fedora 9 (i386)', 1);
-  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'unstable', 'rpm_fedora10i386', '', 'Fedora 10 (i386)');
-  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'unstable', 'deb_ubuntu804i386', '', 'Ubuntu 8.04 (i386)');
-
-  insert into ReleaseSets(project, name) values('patchelf', 'stable');
-  insert into ReleaseSetJobs(isPrimary, project, release, job, attrs, description) values(1, 'patchelf', 'stable', 'tarball', 'officialRelease=true', 'Source distribution');
-  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'stable', 'build', 'system=i686-linux', 'Build on i686-linux');
-  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'stable', 'build', 'system=x86_64-linux', 'Build on x86_64-linux');
-  insert into ReleaseSetJobs(project, release, job, attrs, description, mayFail) values('patchelf', 'stable', 'rpm_fedora9i386', '', 'Fedora 9 (i386)', 1);
-  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'stable', 'rpm_fedora10i386', '', 'Fedora 10 (i386)');
-  insert into ReleaseSetJobs(project, release, job, attrs, description) values('patchelf', 'stable', 'deb_ubuntu804i386', '', 'Ubuntu 8.04 (i386)');
-
 * Changing the priority of a scheduled build:
 
   update buildschedulinginfo set priority = 200 where id = <ID>;

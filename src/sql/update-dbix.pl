@@ -34,8 +34,6 @@ make_schema_at("Hydra::Schema", {
             "nrbuilds" => "NrBuilds",
             "projectmembers" => "ProjectMembers",
             "projects" => "Projects",
-            "releasemembers" => "ReleaseMembers",
-            "releases" => "Releases",
             "schemaversion" => "SchemaVersion",
             "starredjobs" => "StarredJobs",
             "systemstatus" => "SystemStatus",

@@ -554,35 +554,6 @@ sub bump : Chained('buildChain') PathPart('bump') {
 }
 
 
-sub add_to_release : Chained('buildChain') PathPart('add-to-release') Args(0) {
-    my ($self, $c) = @_;
-
-    my $build = $c->stash->{build};
-
-    requireProjectOwner($c, $build->project);
-
-    my $releaseName = trim $c->request->params->{name};
-
-    my $release = $build->project->releases->find({name => $releaseName});
-
-    error($c, "This project has no release named `$releaseName'.") unless $release;
-
-    error($c, "This build is already a part of release `$releaseName'.")
-        if $release->releasemembers->find({build => $build->id});
-
-    foreach my $output ($build->buildoutputs) {
-        error($c, "This build is no longer available.") unless isValidPath $output->path;
-        registerRoot $output->path;
-    }
-
-    $release->releasemembers->create({build => $build->id, description => $build->description});
-
-    $c->flash->{successMsg} = "Build added to project <tt>$releaseName</tt>.";
-
-    $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
-}
-
-
 sub get_info : Chained('buildChain') PathPart('api/get-info') Args(0) {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
