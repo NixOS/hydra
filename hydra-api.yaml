@@ -70,6 +70,72 @@ paths:
                   $ref: '#/components/examples/projects-success'
 
   /project/{id}:
+    put:
+      summary: Create a project
+      parameters:
+        - name: id
+          in: path
+          description: project identifier
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayname:
+                  description: name of the project
+                  type: string
+                enabled:
+                  description: when set to true the project gets scheduled for evaluation
+                  type: boolean
+                hiddden:
+                  description: when set to true the project is displayed in the web interface
+                  type: boolean
+      responses:
+        '403':
+          description: request unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    description: error message
+                    type: string
+        '200':
+          description: projects exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect:
+                    description: URL of the created project
+                    type: string
+        '201':
+          description: successful project creation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uri:
+                    description: URL of the created project
+                    type: string
+                  name:
+                    description: name of the project
+                    type: string
+                  redirect:
+                    description: URL of the created project
+                    type: string
+                  type:
+                    description: type of the created resource ("project")
+                    type: string
+
     get:
       summary: Retrieves a project designated by name
       parameters:
