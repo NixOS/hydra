@@ -69,6 +69,34 @@ paths:
                 projects-success:
                   $ref: '#/components/examples/projects-success'
 
+  /search:
+    get:
+      summary: search for evaluations
+      description: search for evaluations by name
+      parameters:
+        - in: query
+          name: query
+          schema:
+            type: string
+          description: string to search for
+      responses:
+        '200':
+          description: search response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResult'
+        '500':
+          description: Empty search term or other internal error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: error message
+
   /project/{id}:
     put:
       summary: Create a project
@@ -259,7 +287,32 @@ paths:
 
 components:
   schemas:
-  
+
+    SearchResult:
+      type: object
+      properties:
+        jobsets:
+          description: jobsets matching search term
+          type: array
+          items:
+            $ref: '#/components/schemas/Jobset'
+        projects:
+          description: projects missing search term
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        builds:
+          description: builds matching search term
+          type: array
+          items:
+            $ref: '#/components/schemas/Build'
+        buildsdrv:
+          description: derivations matching search term
+          type: array
+          items:
+            $ref: '#/components/schemas/Build'
+
+
     Error:
       type: object
       properties:
