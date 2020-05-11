@@ -249,7 +249,6 @@ paths:
         - name: jobset-id
           required: true
           in: path
-          in: path
           description: name of the jobset to create
           schema:
             type: string
