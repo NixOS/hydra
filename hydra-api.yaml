@@ -237,6 +237,84 @@ paths:
                 $ref: '#/components/schemas/Error'
 
   /jobset/{project-id}/{jobset-id}:
+    put:
+      summary: Creates a jobset in an existing project
+      parameters:
+        - name: project-id
+          in: path
+          description: name of the project to create the jobset in
+          schema:
+            type: string
+        - name: jobset-id
+          in: path
+          description: name of the jobset to create
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                'description':
+                  description: a description of the jobset
+                  type: string
+                checkinterval:
+                  description: interval (in seconds) in which to check for evaluation
+                  type: integer
+                enabled:
+                  description: when true the jobset gets scheduled for evaluation
+                  type: boolean
+                visible:
+                  description: when true the jobset is visible in the web frontend
+                  type: boolean
+                keepnr:
+                  description: number or evaluations to keep
+                  type: integer
+                nixexprinput:
+                  description: the name of the jobset input which contains the nixexprpath
+                  type: string
+                nixexprpath:
+                  nullable: true
+                  description: the path to the file to evaluate
+                  type: string
+                inputs:
+                  description: inputs for this jobset
+                  type: object
+                  additionalProperties:
+                    $ref: '#/components/schemas/JobsetInput'
+      responses:
+        '201':
+          description: jobset creation response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect:
+                    type: string
+                    description: url pointing to the webui for the created jobset
+                  uri:
+                    type: string
+                    description: url to the created jobset
+                  name:
+                    type: string
+                    description: name of the created jobset
+                  'type':
+                    type: string
+                    description: Set to "jobset"
+        '200':
+          description: jobset creation response when jobset exists already
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect:
+                    type: string
+                    description: url pointing to the webui for the created jobset
+
     get:
       summary: Retrieves a jobset designated by project and jobset id
       parameters:
