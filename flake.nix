@@ -175,50 +175,54 @@
           '';
 
         tests.install.x86_64-linux =
-          with import (nixpkgs + "/nixos/lib/testing.nix") { system = "x86_64-linux"; };
+          with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
           simpleTest {
             machine = hydraServer;
             testScript =
               ''
-                $machine->waitForJob("hydra-init");
-                $machine->waitForJob("hydra-server");
-                $machine->waitForJob("hydra-evaluator");
-                $machine->waitForJob("hydra-queue-runner");
-                $machine->waitForOpenPort("3000");
-                $machine->succeed("curl --fail http://localhost:3000/");
+                machine.wait_for_job("hydra-init")
+                machine.wait_for_job("hydra-server")
+                machine.wait_for_job("hydra-evaluator")
+                machine.wait_for_job("hydra-queue-runner")
+                machine.wait_for_open_port("3000")
+                machine.succeed("curl --fail http://localhost:3000/")
               '';
           };
 
         tests.api.x86_64-linux =
-          with import (nixpkgs + "/nixos/lib/testing.nix") { system = "x86_64-linux"; };
+          with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
           simpleTest {
             machine = hydraServer;
             testScript =
               let dbi = "dbi:Pg:dbname=hydra;user=root;"; in
               ''
-                $machine->waitForJob("hydra-init");
+                machine.wait_for_job("hydra-init")
 
                 # Create an admin account and some other state.
-                $machine->succeed
-                    ( "su - hydra -c \"hydra-create-user root --email-address 'alice\@example.org' --password foobar --role admin\""
-                    , "mkdir /run/jobset /tmp/nix"
-                    , "chmod 755 /run/jobset /tmp/nix"
-                    , "cp ${./tests/api-test.nix} /run/jobset/default.nix"
-                    , "chmod 644 /run/jobset/default.nix"
-                    , "chown -R hydra /run/jobset /tmp/nix"
-                    );
+                machine.succeed(
+                    """
+                        su - hydra -c "hydra-create-user root --email-address 'alice@example.org' --password foobar --role admin"
+                        mkdir /run/jobset /tmp/nix
+                        chmod 755 /run/jobset /tmp/nix
+                        cp ${./tests/api-test.nix} /run/jobset/default.nix
+                        chmod 644 /run/jobset/default.nix
+                        chown -R hydra /run/jobset /tmp/nix
+                """
+                )
 
-                $machine->succeed("systemctl stop hydra-evaluator hydra-queue-runner");
-                $machine->waitForJob("hydra-server");
-                $machine->waitForOpenPort("3000");
+                machine.succeed("systemctl stop hydra-evaluator hydra-queue-runner")
+                machine.wait_for_job("hydra-server")
+                machine.wait_for_open_port("3000")
 
                 # Run the API tests.
-                $machine->mustSucceed("su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./tests/api-test.pl}' >&2");
+                machine.succeed(
+                    "su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./tests/api-test.pl}' >&2"
+                )
               '';
         };
 
         tests.notifications.x86_64-linux =
-          with import (nixpkgs + "/nixos/lib/testing.nix") { system = "x86_64-linux"; };
+          with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
           simpleTest {
             machine = { pkgs, ... }: {
               imports = [ hydraServer ];
@@ -231,41 +235,46 @@
               services.influxdb.enable = true;
             };
             testScript = ''
-              $machine->waitForJob("hydra-init");
+              machine.wait_for_job("hydra-init")
 
               # Create an admin account and some other state.
-              $machine->succeed
-                  ( "su - hydra -c \"hydra-create-user root --email-address 'alice\@example.org' --password foobar --role admin\""
-                  , "mkdir /run/jobset"
-                  , "chmod 755 /run/jobset"
-                  , "cp ${./tests/api-test.nix} /run/jobset/default.nix"
-                  , "chmod 644 /run/jobset/default.nix"
-                  , "chown -R hydra /run/jobset"
-                  );
+              machine.succeed(
+                  """
+                      su - hydra -c "hydra-create-user root --email-address 'alice@example.org' --password foobar --role admin"
+                      mkdir /run/jobset
+                      chmod 755 /run/jobset
+                      cp ${./tests/api-test.nix} /run/jobset/default.nix
+                      chmod 644 /run/jobset/default.nix
+                      chown -R hydra /run/jobset
+              """
+              )
 
               # Wait until InfluxDB can receive web requests
-              $machine->waitForJob("influxdb");
-              $machine->waitForOpenPort("8086");
+              machine.wait_for_job("influxdb")
+              machine.wait_for_open_port("8086")
 
               # Create an InfluxDB database where hydra will write to
-              $machine->succeed(
-                "curl -XPOST 'http://127.0.0.1:8086/query' \\
-                --data-urlencode 'q=CREATE DATABASE hydra'");
+              machine.succeed(
+                  "curl -XPOST 'http://127.0.0.1:8086/query' "
+                  + "--data-urlencode 'q=CREATE DATABASE hydra'"
+              )
 
               # Wait until hydra-server can receive HTTP requests
-              $machine->waitForJob("hydra-server");
-              $machine->waitForOpenPort("3000");
+              machine.wait_for_job("hydra-server")
+              machine.wait_for_open_port("3000")
 
               # Setup the project and jobset
-              $machine->mustSucceed(
-                "su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./tests/setup-notifications-jobset.pl}' >&2");
+              machine.succeed(
+                  "su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./tests/setup-notifications-jobset.pl}' >&2"
+              )
 
               # Wait until hydra has build the job and
               # the InfluxDBNotification plugin uploaded its notification to InfluxDB
-              $machine->waitUntilSucceeds(
-                "curl -s -H 'Accept: application/csv' \\
-                -G 'http://127.0.0.1:8086/query?db=hydra' \\
-                --data-urlencode 'q=SELECT * FROM hydra_build_status' | grep success");
+              machine.wait_until_succeeds(
+                  "curl -s -H 'Accept: application/csv' "
+                  + "-G 'http://127.0.0.1:8086/query?db=hydra' "
+                  + "--data-urlencode 'q=SELECT * FROM hydra_build_status' | grep success"
+              )
             '';
         };
 
