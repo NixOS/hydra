@@ -614,9 +614,6 @@ components:
             nrfailed:
               description: number of failed evaluations
               type: integer
-            nrscheduled:
-              description: number of scheduled evaluations
-              type: integer
             errortime:
               description: time an error occurred during evaluation (unix time stamp)
               type: integer
