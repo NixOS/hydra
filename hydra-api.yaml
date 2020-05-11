@@ -69,6 +69,29 @@ paths:
                 projects-success:
                   $ref: '#/components/examples/projects-success'
 
+  /api/push:
+    put:
+      summary: trigger jobsets
+      parameters:
+        - in: query
+          name: jobsets
+          description: project and jobset formatted as "<project>:<jobset>" to evaluate
+          schema:
+            type: string
+      responses:
+        '200':
+          description: jobset trigger response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobsetsTriggered:
+                    type: array
+                    items:
+                      type: string
+
+
   /api/jobsets:
     get:
       summary: retrieve a jobset overview for a project
