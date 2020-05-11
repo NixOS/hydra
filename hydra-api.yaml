@@ -1,0 +1,888 @@
+openapi: "3.0.0"
+info:
+  version: 1.0.0
+  title: Hydra API
+  description: Specification of the Hydra REST API
+servers:
+  - url: https://hydra.nixos.org
+paths:
+
+  /login:
+    post:
+      summary: Log in using username/password credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  description: user
+                  type: string
+                password:
+                  description: password
+                  type: string
+      responses:
+        '200':
+          description: successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  username:
+                    description: user
+                    type: string
+                  fullname:
+                    description: full name
+                    type: string
+                  emailaddress:
+                    description: email
+                    type: string
+                  userroles:
+                    description: user roles
+                    type: array
+                    items:
+                      type: string
+        '403':
+          description: login failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /:
+    get:
+      summary: Retrieves all projects
+      description: Retrieves a list of all projects.
+      responses:
+        '200':
+          description: List of all configured projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+              examples:
+                projects-success:
+                  $ref: '#/components/examples/projects-success'
+
+  /api/push:
+    put:
+      summary: trigger jobsets
+      parameters:
+        - in: query
+          name: jobsets
+          description: project and jobset formatted as "<project>:<jobset>" to evaluate
+          schema:
+            type: string
+      responses:
+        '200':
+          description: jobset trigger response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobsetsTriggered:
+                    type: array
+                    items:
+                      type: string
+
+
+  /api/jobsets:
+    get:
+      summary: retrieve a jobset overview for a project
+      parameters:
+        - in: query
+          name: project
+          description: name of the project
+          schema:
+            type: string
+      responses:
+        '200':
+          description: jobset overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobsetOverview'
+        '404':
+          description: project could not be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /search:
+    get:
+      summary: search for evaluations
+      description: search for evaluations by name
+      parameters:
+        - in: query
+          name: query
+          schema:
+            type: string
+          description: string to search for
+      responses:
+        '200':
+          description: search response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResult'
+        '500':
+          description: Empty search term or other internal error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: error message
+
+  /project/{id}:
+    put:
+      summary: Create a project
+      parameters:
+        - name: id
+          in: path
+          description: project identifier
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayname:
+                  description: name of the project
+                  type: string
+                enabled:
+                  description: when set to true the project gets scheduled for evaluation
+                  type: boolean
+                hidden:
+                  description: when set to true the project is displayed in the web interface
+                  type: boolean
+      responses:
+        '403':
+          description: request unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    description: error message
+                    type: string
+        '200':
+          description: projects exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect:
+                    description: URL of the created project
+                    type: string
+        '201':
+          description: successful project creation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uri:
+                    description: URL of the created project
+                    type: string
+                  name:
+                    description: name of the project
+                    type: string
+                  redirect:
+                    description: URL of the created project
+                    type: string
+                  type:
+                    description: type of the created resource ("project")
+                    type: string
+
+    get:
+      summary: Retrieves a project designated by name
+      parameters:
+        - name: id
+          in: path
+          description: project identifier
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: project response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+              examples:
+                project-success:
+                  $ref: '#/components/examples/project-success'
+        '404':
+          description: project could not be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /jobset/{project-id}/{jobset-id}:
+    put:
+      summary: Creates a jobset in an existing project
+      parameters:
+        - name: project-id
+          required: true
+          in: path
+          description: name of the project to create the jobset in
+          schema:
+            type: string
+        - name: jobset-id
+          required: true
+          in: path
+          description: name of the jobset to create
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                'description':
+                  description: a description of the jobset
+                  type: string
+                checkinterval:
+                  description: interval (in seconds) in which to check for evaluation
+                  type: integer
+                enabled:
+                  description: when true the jobset gets scheduled for evaluation
+                  type: boolean
+                visible:
+                  description: when true the jobset is visible in the web frontend
+                  type: boolean
+                keepnr:
+                  description: number or evaluations to keep
+                  type: integer
+                nixexprinput:
+                  description: the name of the jobset input which contains the nixexprpath
+                  type: string
+                nixexprpath:
+                  nullable: true
+                  description: the path to the file to evaluate
+                  type: string
+                inputs:
+                  description: inputs for this jobset
+                  type: object
+                  additionalProperties:
+                    $ref: '#/components/schemas/JobsetInput'
+      responses:
+        '201':
+          description: jobset creation response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect:
+                    type: string
+                    description: url pointing to the webui for the created jobset
+                  uri:
+                    type: string
+                    description: url to the created jobset
+                  name:
+                    type: string
+                    description: name of the created jobset
+                  'type':
+                    type: string
+                    description: Set to "jobset"
+        '200':
+          description: jobset creation response when jobset exists already
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect:
+                    type: string
+                    description: url pointing to the webui for the created jobset
+
+    get:
+      summary: Retrieves a jobset designated by project and jobset id
+      parameters:
+        - name: project-id
+          in: path
+          description: name of the project the jobset belongs to
+          required: true
+          schema:
+            type: string
+        - name: jobset-id
+          in: path
+          description: name of the jobset to retrieve
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: jobset response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Jobset'
+              examples:
+                jobset-success:
+                  $ref: '#/components/examples/jobset-success'
+        '404':
+          description: jobset couldn't be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /jobset/{project-id}/{jobset-id}/evals:
+    get:
+      summary: Retrieves all evaluations of a jobset
+      parameters:
+      - name: project-id
+        in: path
+        description: project identifier
+        required: true
+        schema:
+          type: string
+      - name: jobset-id
+        in: path
+        description: jobset identifier
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: evaluations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Evaluations'
+              examples:
+                evals-success:
+                  $ref: '#/components/examples/evals-success'
+        '404':
+          description: jobset couldn't be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /build/{build-id}:
+    get:
+      summary: Retrieves a single build of a jobset by id
+      parameters:
+      - name: build-id
+        in: path
+        description: build identifier
+        required: true
+        schema:
+            type: integer
+      responses:
+        '200':
+          description: build
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Build'
+              examples:
+                build-success:
+                  $ref: '#/components/examples/build-success'
+        '404':
+          description: build couldn't be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /eval/{build-id}:
+    get:
+      summary: Retrieves evaluations identified by build id
+      parameters:
+        - name: build-id
+          in: path
+          description: build identifier
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: evaluation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobsetEval'
+
+components:
+  schemas:
+
+    SearchResult:
+      type: object
+      properties:
+        jobsets:
+          description: jobsets matching search term
+          type: array
+          items:
+            $ref: '#/components/schemas/Jobset'
+        projects:
+          description: projects missing search term
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        builds:
+          description: builds matching search term
+          type: array
+          items:
+            $ref: '#/components/schemas/Build'
+        buildsdrv:
+          description: derivations matching search term
+          type: array
+          items:
+            $ref: '#/components/schemas/Build'
+
+
+    Error:
+      type: object
+      properties:
+        error:
+          description: error message
+          type: string
+
+    Project:
+      type: object
+      properties:
+        owner:
+          description: username of the project owner
+          type: string
+        name:
+          description: name of the project
+          type: string
+        displayname:
+          description: name to be displayed in the web interface
+          type: string
+        description:
+          description: description of the project
+          type: string
+        hidden:
+          description: when set to true the project is not displayed in the web interface
+          type: boolean
+        enabled:
+          description: when set to true the project gets scheduled for evaluation
+          type: boolean
+        jobsets:
+          description: list of jobsets belonging to this project
+          type: array
+          items:
+            type: string
+
+    JobsetInput:
+      type: object
+      properties:
+        jobsetinputalts:
+          type: array
+          description: ???
+          items:
+            type: string
+
+    Jobset:
+      type: object
+      properties:
+        fetcherrormsg:
+          nullable: true
+          description: contains the error message when there was a problem fetching sources for a jobset
+          type: string
+        nixexprinput:
+          description: the name of the jobset input which contains the nixexprpath
+          type: string
+        errormsg:
+          description: contains the stderr output of the nix-instantiate command
+          type: string
+        emailoverride:
+          description: email address to send notices to instead of the package maintainer (can be a comma separated list)
+          type: string
+        nixexprpath:
+          nullable: true
+          description: the path to the file to evaluate
+          type: string
+        enabled:
+          description: when set to true the jobset gets scheduled for evaluation
+          type: boolean
+        jobsetinputs:
+          description: inputs configured for this jobset
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/JobsetInput'
+
+    JobsetEvalInput:
+      type: object
+      properties:
+        uri:
+          nullable: true
+          description: URI of this input (which differs depending on the type of the input)
+          type: string
+        'type':
+          description: The type of this input
+          type: string
+          enum:
+            - bzr
+            - bzr-checkout
+            - bitbucketpulls
+            - darcs
+            - git
+            - githubpulls
+            - gitlabpulls
+            - hg
+            - path
+            - svn
+            - svn-checkout
+        revision:
+          nullable: true
+          description: A Git/Mercurial commit hash or a Subversion revision number.
+          type: string
+        value:
+          nullable: true
+          description: A value that corresponds to the type of input
+          oneOf:
+            - type: boolean
+            - type: string
+            - type: array
+              items:
+                type: string
+          type: boolean
+        dependency:
+          nullable: true
+          description: >
+            **Deprecated**: The build id of another build
+          type: string
+
+
+    JobsetEval:
+      type: object
+      properties:
+        id:
+          type: integer
+        hasnewbuilds:
+          description: is true if the number of JobsetEval members is different from the prior evaluation. (will always be true on the first evaluation)
+          type: boolean
+        builds:
+          description: List of builds generated for this jobset evaluation
+          type: array
+          items:
+            type: integer
+        jobsetevalinputs:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/JobsetEvalInput'
+
+    JobsetOverview:
+      type: array
+      items:
+          type: object
+          properties:
+            name:
+              description: name of the jobset
+              type: string
+            project:
+              description: name of the project
+              type: string
+            nrtotal:
+              description: number of evaluations
+              type: integer
+            checkinterval:
+              description: interval in seconds at which to check the jobset inputs
+              type: integer
+            haserrormsg:
+              description: true if the evaluation had errors
+              type: boolean
+            nrscheduled:
+              description: number of scheduled evaluations
+              type: integer
+            nrfailed:
+              description: number of failed evaluations
+              type: integer
+            errortime:
+              description: time an error occurred during evaluation (unix time stamp)
+              type: integer
+            fetcherrormsg:
+              nullable: true
+              description: contains the error message when there was a problem fetching sources for a jobset
+            starttime:
+              nullable: true
+              description: time when build started
+              type: integer
+            lastcheckedtime:
+              description: the last time the jobset inputs where checked to see if an evaluation needs to be scheduled (unix time stamp)
+              type: integer
+            triggertime:
+              nullable: true
+              description: time of the last evaluation trigger for this jobset (unix time stamp)
+              type: integer
+
+
+
+    Evaluations:
+      type: object
+      properties:
+        first:
+          description: first list of results
+          type: string
+        next:
+          description: next list of results
+          type: string
+        last:
+          description: last list of results
+          type: string
+        evals:
+          type: array
+          description: List of evaluations
+          items:
+            type: object
+            additionalProperties:
+              $ref: '#/components/schemas/JobsetEval'
+
+    BuildProduct:
+      type: object
+      properties:
+        filesize:
+          nullable: true
+          description: Size of the produced file
+          type: integer
+        defaultpath:
+          description: This is a Git/Mercurial commit hash or a Subversion revision number
+          type: string
+        'type':
+          description: Types of build product (user defined)
+          type: string
+        name:
+          description: Name of the file
+          type: string
+        sha1hash:
+          nullable: true
+          description: sha1 hash of the file
+          type: string
+        path:
+          description: the nix store path
+          type: string
+        subtype:
+          description: user-specified
+          type: string
+        sha256hash:
+          nullable: true
+          description: sha256 hash of the file
+          type: string
+
+    BuildOutput:
+      type: object
+      properties:
+        path:
+          description: The nix store path
+          type: string
+
+    Build:
+      type: object
+      properties:
+        id:
+          type: integer
+        starttime:
+          description: time when build started
+          type: integer
+        stoptime:
+          description: time when build ended
+          type: integer
+        timestamp:
+          description: time when the build was first created
+          type: integer
+        jobsetevals:
+          description: list of evaluations this build is part of
+          type: array
+          items:
+            type: integer
+        finished:
+          description: true when the build is finished
+          type: boolean
+        nixname:
+          description: name from the build's derivation
+          type: string
+        buildstatus:
+          nullable: true # should only be null if finished is false
+          description: |
+            Indicates the build status:</br>
+            <ul>
+             <li>0 : succeeded</li>
+             <li>1 : failed</li>
+             <li>2 : dependency failed</li>
+             <li>3 : aborted</li>
+             <li>4 : canceled by the user</li>
+             <li>6 : failed with output</li>
+             <li>7 : timed out</li>
+             <li>9 : aborted</li>
+             <li>10 : log size limit exceeded</li>
+             <li>11 : output size limit exceeded</li>
+             <li>*  : failed</li>
+            </ul>
+            <strong>Note:</strong>buildstatus should only be `null` if `finished` is false.
+          type: integer
+        jobset:
+          description: jobset this build belongs to
+          type: string
+        priority:
+          description: determines the priority with which this build will be executed (higher value means higher priority)
+          type: integer
+        job:
+          description: nix attribute from the nixexprpath
+          type: string
+        drvpath:
+          description: filename of the drv
+          type: string
+        system:
+          description: system this build was done for
+          type: string
+        project:
+          description: project this build belongs to
+          type: string
+        buildproducts:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/BuildProduct'
+        buildoutputs:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/BuildOutput'
+        buildmetrics:
+          description: |
+            user defined build metrics from `$out/nix-support/hydra-metrics`. The file should
+            define metrics separated by new lines using the following format:
+
+            ```
+            <name> <value>[ <unit>]
+            ```
+            The name and unit fields are strings, the value is a float. The unit is optional.
+          type: object
+          properties:
+            name:
+              type: string
+              description: name of the measured build metric
+            value:
+              type: string
+              description: measured value
+            unit:
+              type: string
+              description: unit of the measured build metric
+
+  examples:
+    projects-success:
+      value:
+      - enabled: 1
+        name: example-hello
+        hidden: 0
+        description: hello
+        owner: hydra-user
+        jobsets:
+          - hello
+        displayname: example-hello
+      - displayname: foo
+        jobsets:
+          - foobar
+        owner: hydra-user
+        name: foo
+        enabled: 1
+        description: foo project
+        hidden: 0
+
+    project-success:
+      value:
+        name: foo
+        enabled: 1
+        hidden: 0
+        description: foo project
+        displayname: foo
+        owner: gilligan
+        jobsets:
+          - foobar
+
+    jobset-success:
+      value:
+        nixexprpath: examples/hello.nix
+        enabled: 1
+        jobsetinputs:
+          hydra:
+            jobsetinputalts:
+              - 'https://github.com/gilligan/hydra extend-readme'
+          nixpkgs:
+            jobsetinputalts:
+              - 'https://github.com/nixos/nixpkgs-channels nixos-20.03'
+        emailoverride: ''
+        errormsg: ''
+        nixexprinput: hydra
+        fetcherrormsg: null
+
+    evals-success:
+      value:
+        last: '?page=1'
+        evals:
+          - builds:
+              - 2
+            jobsetevalinputs:
+              hydra:
+                revision: 84a3aecb1d976366060d0f0fd4df7d67b0855f5e
+                uri: 'https://github.com/gilligan/hydra'
+                type: git
+                value: null
+                dependency: null
+              nixpkgs:
+                dependency: null
+                value: null
+                uri: 'https://github.com/nixos/nixpkgs-channels'
+                type: git
+                revision: ab3adfe1c769c22b6629e59ea0ef88ec8ee4563f
+            id: 2
+            hasnewbuilds: 1
+        first: '?page=1'
+
+    build-success:
+      value:
+        buildproducts:
+          '1':
+            filesize: null
+            defaultpath: ''
+            name: hello-2.10
+            type: nix-build
+            sha1hash: null
+            sha256hash: null
+            subtype: ''
+            path: /nix/store/y26qxcq1gg2hrqpxdc58b2fghv2bhxjg-hello-2.10
+        id: 1
+        buildstatus: 0
+        nixname: hello-2.10
+        finished: 1
+        jobsetevals:
+          - 1
+        stoptime: 1588365711
+        system: x86_64-linux
+        drvpath: /nix/store/ab9zv2y5gm8hr6g318p0s6kaclwj4slr-hello-2.10.drv
+        buildoutputs:
+          out:
+            path: /nix/store/y26qxcq1gg2hrqpxdc58b2fghv2bhxjg-hello-2.10
+        job: hello
+        jobset: hello
+        buildmetrics: {}
+        priority: 100
+        project: example-hello
+        starttime: 1588365711
+        timestamp: 1588365711
