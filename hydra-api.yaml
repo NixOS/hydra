@@ -241,11 +241,14 @@ paths:
       summary: Creates a jobset in an existing project
       parameters:
         - name: project-id
+          required: true
           in: path
           description: name of the project to create the jobset in
           schema:
             type: string
         - name: jobset-id
+          required: true
+          in: path
           in: path
           description: name of the jobset to create
           schema:
