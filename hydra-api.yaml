@@ -409,6 +409,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /eval/{build-id}:
+    get:
+      summary: Retrieves evaluations identified by build id
+      parameters:
+        - name: build-id
+          in: path
+          description: build identifier
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: evaluation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobsetEval'
+
 components:
   schemas:
 
@@ -491,7 +509,7 @@ components:
           description: the name of the jobset input which contains the nixexprpath
           type: string
         errormsg:
-          description: contains the stderr output of the nix-instantiate command 
+          description: contains the stderr output of the nix-instantiate command
           type: string
         emailoverride:
           description: email address to send notices to instead of the package maintainer (can be a comma separated list)
