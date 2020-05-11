@@ -69,6 +69,29 @@ paths:
                 projects-success:
                   $ref: '#/components/examples/projects-success'
 
+  /api/jobsets:
+    get:
+      summary: retrieve a jobset overview for a project
+      parameters:
+        - in: query
+          name: project
+          description: name of the project
+          schema:
+            type: string
+      responses:
+        '200':
+          description: jobset overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobsetOverview'
+        '404':
+          description: project could not be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /search:
     get:
       summary: search for evaluations
@@ -445,6 +468,54 @@ components:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/JobsetEvalInput'
+
+    JobsetOverview:
+      type: array
+      items:
+          type: object
+          properties:
+            name:
+              description: name of the jobset
+              type: string
+            project:
+              description: name of the project
+              type: string
+            nrtotal:
+              description: number of evaluations
+              type: integer
+            checkinterval:
+              description: interval in seconds at which to check the jobset inputs
+              type: integer
+            haserrormsg:
+              description: true if the evaluation had errors
+              type: boolean
+            nrscheduled:
+              description: number of scheduled evaluations
+              type: integer
+            nrfailed:
+              description: number of failed evaluations
+              type: integer
+            nrscheduled:
+              description: number of scheduled evaluations
+              type: integer
+            errortime:
+              description: time an error occurred during evaluation (unix time stamp)
+              type: integer
+            fetcherrormsg:
+              nullable: true
+              description: contains the error message when there was a problem fetching sources for a jobset
+            starttime:
+              nullable: true
+              description: time when build started
+              type: integer
+            lastcheckedtime:
+              description: the last time the jobset inputs where checked to see if an evaluation needs to be scheduled (unix time stamp)
+              type: integer
+            triggertime:
+              nullable: true
+              description: time of the last evaluation trigger for this jobset (unix time stamp)
+              type: integer
+
 
 
     Evaluations:
