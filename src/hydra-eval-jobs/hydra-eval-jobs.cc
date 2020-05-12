@@ -35,29 +35,33 @@ struct MyArgs : MixEvalArgs, MixCommonArgs
 
     MyArgs() : MixCommonArgs("hydra-eval-jobs")
     {
-        mkFlag()
-            .longName("help")
-            .description("show usage information")
-            .handler([&]() {
+        addFlag({
+            .longName = "help",
+            .description = "show usage information",
+            .handler = {[&]() {
                 printHelp(programName, std::cout);
                 throw Exit();
-            });
+            }}
+        });
 
-        mkFlag()
-            .longName("gc-roots-dir")
-            .description("garbage collector roots directory")
-            .labels({"path"})
-            .dest(&gcRootsDir);
+        addFlag({
+            .longName = "gc-roots-dir",
+            .description = "garbage collector roots directory",
+            .labels = {"path"},
+            .handler = {&gcRootsDir}
+        });
 
-        mkFlag()
-            .longName("dry-run")
-            .description("don't create store derivations")
-            .set(&dryRun, true);
+        addFlag({
+            .longName = "dry-run",
+            .description = "don't create store derivations",
+            .handler = {&dryRun, true}
+        });
 
-        mkFlag()
-            .longName("flake")
-            .description("build a flake")
-            .set(&flake, true);
+        addFlag({
+            .longName = "flake",
+            .description = "build a flake",
+            .handler = {&flake, true}
+        });
 
         expectArg("expr", &releaseExpr);
     }
