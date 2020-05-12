@@ -1,8 +1,6 @@
 {
   description = "A Nix-based continuous build system";
 
-  edition = 201909;
-
   inputs.nixpkgs.url = "nixpkgs/nixos-20.03";
 
   outputs = { self, nixpkgs, nix }:
