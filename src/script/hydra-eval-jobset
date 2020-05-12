@@ -348,6 +348,8 @@ sub evalJobs {
                 inputsToArgs($inputInfo));
     }
 
+    push @cmd, "--no-allow-import-from-derivation";
+
     if (defined $ENV{'HYDRA_DEBUG'}) {
         sub escape {
             my $s = $_;
