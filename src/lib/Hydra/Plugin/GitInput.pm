@@ -118,7 +118,7 @@ sub fetchInput {
                             $name);
     # give preference to the options from the input value
     while (my ($opt_name, $opt_value) = each %{$options}) {
-        if ($opt_value =~ /\d+/) {
+        if ($opt_value =~ /^[+-]?\d+\z/) {
             $opt_value = int($opt_value);
         }
         $cfg->{$opt_name} = $opt_value;
