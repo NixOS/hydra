@@ -294,6 +294,15 @@
       };
 
       runHydra = pkgs.callPackage ./run-hydra.nix {};
+      devShell = pkgs.hydra.overrideAttrs (old: {
+        buildInputs = old.buildInputs ++ [ pkgs.foreman pkgs.netcat ];
+        shellHook = old.shellHook + ''
+          export HYDRA_HOME="src/"
+          mkdir -p .hydra-data
+          export HYDRA_DATA="$(pwd)/.hydra-data"
+          export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;'
+        '';
+      });
 
       nixosModules.hydraTest = {
         imports = [ self.nixosModules.hydra ];
