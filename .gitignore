@@ -3,6 +3,7 @@
 Makefile
 Makefile.in
 .deps
+.hydra-data
 /config.guess
 /config.log
 /config.status

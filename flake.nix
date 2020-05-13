@@ -104,12 +104,15 @@
             [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig libpqxx
               gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
               perlDeps perl final.nix
-              postgresql95 # for running the tests
               boost
               (if lib.versionAtLeast lib.version "20.03pre"
                then nlohmann_json
                else nlohmann_json.override { multipleHeaders = true; })
             ];
+
+          checkInputs = [
+            postgresql95
+          ];
 
           hydraPath = lib.makeBinPath (
             [ subversion openssh final.nix coreutils findutils pixz
@@ -289,6 +292,8 @@
         imports = [ ./hydra-module.nix ];
         nixpkgs.overlays = [ self.overlay nix.overlay ];
       };
+
+      runHydra = pkgs.callPackage ./run-hydra.nix {};
 
       nixosModules.hydraTest = {
         imports = [ self.nixosModules.hydra ];
