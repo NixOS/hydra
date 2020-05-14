@@ -1,6 +1,7 @@
 #!/bin/sh
 
-# wait until hydra is listening on port 3000
-while ! nc -z localhost 3000; do sleep 1; done
+# wait until hydra is listening on port 63333
+while ! nc -z localhost 63333; do sleep 1; done
 
-hydra-queue-runner
+touch .hydra-data/hydra.conf
+HYDRA_CONFIG=$(pwd)/.hydra-data/hydra.conf exec hydra-queue-runner

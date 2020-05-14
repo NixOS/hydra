@@ -9,7 +9,7 @@ mkShell {
     export HYDRA_HOME="src/"
     mkdir -p .hydra-data
     export HYDRA_DATA="$(pwd)/.hydra-data"
-    export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;'
+    export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
 
     exec foreman start
   '';
