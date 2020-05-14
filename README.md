@@ -70,6 +70,7 @@ Make sure **State** at the top of the page is set to "_Enabled_" and click on "_
 ### Building Hydra
 
 You can build Hydra via `nix-build` using the provided [default.nix](./default.nix):
+
 ```
 $ nix-build
 ```
@@ -82,6 +83,44 @@ $ nix-shell
 $ ./bootstrap
 $ configurePhase # NOTE: not ./configure
 $ make
+```
+
+### Development Workflow
+
+When working on new features or bug fixes you want to be able to run Hydra from your working copy. There are
+two ways to do this. One is better for interactive development and provides faster feedback cycles, the other
+is more convenient for a single test run of Hydra from the working copy (suiteable for PR reviews).
+
+#### Using runHydra
+
+Hydra can be built and executed using the `runHydra` shell:
+
+```
+$ nix-shell default.nix -A runHydra
+```
+
+This will spawn a shell that starts hydra-server, hydra-queue-runner, hydra-evaluator and postgres using [foreman](https://github.com/ddollar/foreman).
+In order to not collide with potentially existing installations running on default ports hydra and postgres are running on custom ports:
+
+- hydra-server: 63333
+- postgresql: 64444
+
+**Note**: In some cases you may want to skip test execution. You can do so by passing `doCheck false`:
+
+```
+$ nix-shell default.nix -A runHydra --arg doCheck false
+```
+
+#### Using foreman
+
+When you are actively working on the code, you need fast feedback cycles and thus want incremental builds. Instead of using
+`runHydra` you can just run `foreman start` directly in the normal `nix-shell` environment:
+
+```
+$ nix-shell
+$ # hack hack
+$ make
+$ foreman start
 ```
 
 ### JSON API
