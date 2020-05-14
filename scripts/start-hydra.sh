@@ -9,4 +9,4 @@ hydra-init
 hydra-create-user alice --password foobar --role admin
 
 touch .hydra-data/hydra.conf
-HYDRA_CONFIG=$(pwd)/.hydra-data/hydra.conf exec hydra-server --port 63333
+HYDRA_CONFIG=$(pwd)/.hydra-data/hydra.conf exec hydra-dev-server --port 63333
