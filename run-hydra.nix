@@ -1,8 +1,8 @@
-{ foreman, mkShell, hydra, netcat, postgresql95 }:
+{ foreman, mkShell, hydra, postgresql95 }:
 { doCheck ? true }:
 mkShell {
   buildInputs = [
-    foreman (hydra.overrideAttrs (_: { inherit doCheck; })) netcat postgresql95
+    foreman (hydra.overrideAttrs (_: { inherit doCheck; })) postgresql95
   ];
 
   shellHook = ''

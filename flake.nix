@@ -295,7 +295,7 @@
 
       runHydra = pkgs.callPackage ./run-hydra.nix {};
       devShell = pkgs.hydra.overrideAttrs (old: {
-        buildInputs = old.buildInputs ++ [ pkgs.foreman pkgs.netcat ];
+        buildInputs = old.buildInputs ++ [ pkgs.foreman ];
         shellHook = old.shellHook + ''
           export HYDRA_HOME="src/"
           mkdir -p .hydra-data
