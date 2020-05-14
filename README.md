@@ -86,7 +86,7 @@ $ make
 
 ### JSON API
 
-You can also interface with Hydra through a JSON API. The API is defined in [hydra.yaml](./hydra.yaml) and you can test and explore via the [swagger editor](https://editor.swagger.io/?url=https://raw.githubusercontent.com/NixOS/hydra/master/hydra-api.yaml)
+You can also interface with Hydra through a JSON API. The API is defined in [hydra-api.yaml](./hydra-api.yaml) and you can test and explore via the [swagger editor](https://editor.swagger.io/?url=https://raw.githubusercontent.com/NixOS/hydra/master/hydra-api.yaml)
 
 ## Additional Resources
 
