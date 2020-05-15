@@ -85,36 +85,10 @@ $ configurePhase # NOTE: not ./configure
 $ make
 ```
 
-### Development Workflow
+### Executing Hydra During Development
 
-When working on new features or bug fixes you want to be able to run Hydra from your working copy. There are
-two ways to do this. One is better for interactive development and provides faster feedback cycles, the other
-is more convenient for a single test run of Hydra from the working copy (suiteable for PR reviews).
-
-#### Using runHydra
-
-Hydra can be built and executed using the `runHydra` shell:
-
-```
-$ nix-shell default.nix -A runHydra
-```
-
-This will spawn a shell that starts hydra-server, hydra-queue-runner, hydra-evaluator and postgres using [foreman](https://github.com/ddollar/foreman).
-In order to not collide with potentially existing installations running on default ports hydra and postgres are running on custom ports:
-
-- hydra-server: 63333
-- postgresql: 64444
-
-**Note**: In some cases you may want to skip test execution. You can do so by passing `doCheck false`:
-
-```
-$ nix-shell default.nix -A runHydra --arg doCheck false
-```
-
-#### Using foreman
-
-When you are actively working on the code, you need fast feedback cycles and thus want incremental builds. Instead of using
-`runHydra` you can just run `foreman start` directly in the normal `nix-shell` environment:
+When working on new features or bug fixes you need to be able to run Hydra from your working copy. This
+can be done using [foreman](https://github.com/ddollar/foreman):
 
 ```
 $ nix-shell
@@ -122,6 +96,15 @@ $ # hack hack
 $ make
 $ foreman start
 ```
+
+Have a look at the [Procfile](./Procfile) if you want to see how the processes are being started. In order to avoid
+conflicts with services that might be running on your host, hydra and postgress are started on custom ports:
+
+- hydra-server: 63333
+- postgresql: 64444
+
+Note that this is only ever meant as an ad-hoc way of executing Hydra during development. Please make use of the
+NixOS module for actually running Hydra in production.
 
 ### JSON API
 
