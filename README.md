@@ -70,6 +70,7 @@ Make sure **State** at the top of the page is set to "_Enabled_" and click on "_
 ### Building Hydra
 
 You can build Hydra via `nix-build` using the provided [default.nix](./default.nix):
+
 ```
 $ nix-build
 ```
@@ -83,6 +84,27 @@ $ ./bootstrap
 $ configurePhase # NOTE: not ./configure
 $ make
 ```
+
+### Executing Hydra During Development
+
+When working on new features or bug fixes you need to be able to run Hydra from your working copy. This
+can be done using [foreman](https://github.com/ddollar/foreman):
+
+```
+$ nix-shell
+$ # hack hack
+$ make
+$ foreman start
+```
+
+Have a look at the [Procfile](./Procfile) if you want to see how the processes are being started. In order to avoid
+conflicts with services that might be running on your host, hydra and postgress are started on custom ports:
+
+- hydra-server: 63333
+- postgresql: 64444
+
+Note that this is only ever meant as an ad-hoc way of executing Hydra during development. Please make use of the
+NixOS module for actually running Hydra in production.
 
 ### JSON API
 

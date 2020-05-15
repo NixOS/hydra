@@ -104,12 +104,16 @@
             [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig libpqxx
               gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
               perlDeps perl final.nix
-              postgresql95 # for running the tests
               boost
+              postgresql95
               (if lib.versionAtLeast lib.version "20.03pre"
                then nlohmann_json
                else nlohmann_json.override { multipleHeaders = true; })
             ];
+
+          checkInputs = [
+            foreman
+          ];
 
           hydraPath = lib.makeBinPath (
             [ subversion openssh final.nix coreutils findutils pixz
@@ -121,6 +125,10 @@
           shellHook = ''
             PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
             PERL5LIB=$(pwd)/src/lib:$PERL5LIB
+            export HYDRA_HOME="src/"
+            mkdir -p .hydra-data
+            export HYDRA_DATA="$(pwd)/.hydra-data"
+            export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
           '';
 
           preConfigure = "autoreconf -vfi";
