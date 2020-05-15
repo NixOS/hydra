@@ -105,13 +105,14 @@
               gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
               perlDeps perl final.nix
               boost
+              postgresql95
               (if lib.versionAtLeast lib.version "20.03pre"
                then nlohmann_json
                else nlohmann_json.override { multipleHeaders = true; })
             ];
 
           checkInputs = [
-            postgresql95
+            foreman
           ];
 
           hydraPath = lib.makeBinPath (
@@ -124,6 +125,10 @@
           shellHook = ''
             PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
             PERL5LIB=$(pwd)/src/lib:$PERL5LIB
+            export HYDRA_HOME="src/"
+            mkdir -p .hydra-data
+            export HYDRA_DATA="$(pwd)/.hydra-data"
+            export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
           '';
 
           preConfigure = "autoreconf -vfi";
@@ -292,17 +297,6 @@
         imports = [ ./hydra-module.nix ];
         nixpkgs.overlays = [ self.overlay nix.overlay ];
       };
-
-      runHydra = pkgs.callPackage ./run-hydra.nix {};
-      devShell = pkgs.hydra.overrideAttrs (old: {
-        buildInputs = old.buildInputs ++ [ pkgs.foreman ];
-        shellHook = old.shellHook + ''
-          export HYDRA_HOME="src/"
-          mkdir -p .hydra-data
-          export HYDRA_DATA="$(pwd)/.hydra-data"
-          export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
-        '';
-      });
 
       nixosModules.hydraTest = {
         imports = [ self.nixosModules.hydra ];
