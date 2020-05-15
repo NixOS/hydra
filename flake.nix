@@ -16,7 +16,7 @@
       # - `hydra` via overalay
       pkgs = import nixpkgs {
         system = "x86_64-linux";
-        overlays = [ self.hydraOverlay nix.overlay ];
+        overlays = [ self.overlay nix.overlay ];
       };
 
 
@@ -28,7 +28,7 @@
         defaultPackage.x86_64-linux = pkgs.hydra;
 
         # A Nixpkgs overlay that provides a 'hydra' package.
-        hydraOverlay = final: prev: {
+        overlay = final: prev: {
           hydra = final.callPackage ./nix/hydra.nix {
             hydraSrc = self.outPath;
             system = "x86_64-linux";
@@ -53,7 +53,7 @@
           # The default hydra module
           hydra = {
             imports = [ ./hydra-module.nix ];
-            nixpkgs.overlays = [ hydraOverlay nix.overlay ];
+            nixpkgs.overlays = [ overlay nix.overlay ];
           };
 
           # Debug version of the hydra module
