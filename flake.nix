@@ -38,9 +38,9 @@
 
         hydraJobs = import ./nix/hydra-jobs.nix {
           inherit (pkgs) hydra perlPackages runCommand;
-          inherit packages nixpkgs version;
           inherit (nixosModules) hydraTest hydraProxy;
           inherit (self) rev;
+          inherit nixpkgs version;
 
           system = "x86_64-linux";
         };

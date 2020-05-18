@@ -3,7 +3,6 @@
   hydraProxy,
   hydraTest,
   nixpkgs,
-  packages,
   perlPackages,
   rev,
   runCommand,
@@ -52,7 +51,7 @@ let
 in
 {
 
-  build.x86_64-linux = packages.x86_64-linux.hydra;
+  build.x86_64-linux = hydra;
 
   manual =
     runCommand "hydra-manual-${version}" {}
