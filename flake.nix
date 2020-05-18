@@ -36,17 +36,19 @@
           };
         };
 
-        hydraJobs = pkgs.callPackage ./nix/hydra-jobs.nix {
+        hydraJobs = import ./nix/hydra-jobs.nix {
+          inherit (pkgs) hydra perlPackages runCommand;
           inherit packages nixpkgs version;
           inherit (nixosModules) hydraTest hydraProxy;
           inherit (self) rev;
+
+          system = "x86_64-linux";
         };
 
         checks.x86_64-linux = {
           build = hydraJobs.build.x86_64-linux;
           install = hydraJobs.tests.install.x86_64-linux;
         };
-
 
         nixosModules = {
 

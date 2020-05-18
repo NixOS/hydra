@@ -1,9 +1,20 @@
-{ pkgs, nixpkgs, packages, version, hydraTest, hydraProxy, rev }:
+{
+  hydra,
+  hydraProxy,
+  hydraTest,
+  nixpkgs,
+  packages,
+  perlPackages,
+  rev,
+  runCommand,
+  system,
+  version
+}:
 
 let
 
   nixosConfigurations.container = nixpkgs.lib.nixosSystem {
-    system = "x86_64-linux";
+    inherit system;
     modules =
       [
         hydraTest
@@ -29,7 +40,7 @@ let
         virtualisation.memorySize = 1024;
         virtualisation.writableStore = true;
 
-        environment.systemPackages = [ pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
+        environment.systemPackages = [ perlPackages.LWP perlPackages.JSON ];
 
         nix = {
           # Without this nix tries to fetch packages from the default
@@ -44,17 +55,17 @@ in
   build.x86_64-linux = packages.x86_64-linux.hydra;
 
   manual =
-    pkgs.runCommand "hydra-manual-${version}" {}
+    runCommand "hydra-manual-${version}" {}
       ''
         mkdir -p $out/share
-        cp -prvd ${pkgs.hydra}/share/doc $out/share/
+        cp -prvd ${hydra}/share/doc $out/share/
 
             mkdir $out/nix-support
             echo "doc manual $out/share/doc/hydra" >> $out/nix-support/hydra-build-products
       '';
 
   tests.install.x86_64-linux =
-    with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
+    with import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
     simpleTest {
       machine = hydraServer;
       testScript =
@@ -69,7 +80,7 @@ in
     };
 
   tests.api.x86_64-linux =
-    with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
+    with import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
     simpleTest {
       machine = hydraServer;
       testScript =
@@ -97,15 +108,15 @@ in
 
             # Run the API tests.
               machine.succeed(
-                "su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./tests/api-test.pl}' >&2"
+                "su - hydra -c 'perl -I ${hydra.perlDeps}/lib/perl5/site_perl ${./tests/api-test.pl}' >&2"
               )
           '';
     };
 
   tests.notifications.x86_64-linux =
-    with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
+    with import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
     simpleTest {
-      machine = { pkgs, ... }: {
+      machine = { ... }: {
         imports = [ hydraServer ];
         services.hydra-dev.extraConfig = ''
           <influxdb>
@@ -146,7 +157,7 @@ in
 
         # Setup the project and jobset
               machine.succeed(
-              "su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./tests/setup-notifications-jobset.pl}' >&2"
+              "su - hydra -c 'perl -I ${hydra.perlDeps}/lib/perl5/site_perl ${./tests/setup-notifications-jobset.pl}' >&2"
               )
 
         # Wait until hydra has build the job and
