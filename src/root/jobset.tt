@@ -119,7 +119,7 @@
 
   [% IF jobset.errormsg || jobset.fetcherrormsg %]
     <div id="tabs-errors" class="tab-pane">
-      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=jobset.errortime %].</p>
+      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(jobset.errortime || jobset.lastcheckedtime) %].</p>
       <pre class="alert alert-error">[% HTML.escape(jobset.fetcherrormsg || jobset.errormsg) %]</pre>
     </div>
   [% END %]
