@@ -29,9 +29,11 @@ sub buildStarted {
         or die "build $buildId does not exist\n";
 
     foreach my $plugin (@plugins) {
-        eval { $plugin->buildStarted($build); };
-        if ($@) {
-            print STDERR "$plugin->buildStarted: $@\n";
+        eval {
+            $plugin->buildStarted($build);
+            1;
+        } or do {
+            print STDERR "error with $plugin->buildStarted: $@\n";
         }
     }
 }
@@ -53,9 +55,11 @@ sub buildFinished {
     }
 
     foreach my $plugin (@plugins) {
-        eval { $plugin->buildFinished($build, [@dependents]); };
-        if ($@) {
-            print STDERR "$plugin->buildFinished: $@\n";
+        eval {
+            $plugin->buildFinished($build, [@dependents]);
+            1;
+        } or do {
+            print STDERR "error with $plugin->buildFinished: $@\n";
         }
     }
 
@@ -74,9 +78,11 @@ sub stepFinished {
     $logPath = undef if $logPath eq "-";
 
     foreach my $plugin (@plugins) {
-        eval { $plugin->stepFinished($step, $logPath); };
-        if ($@) {
-            print STDERR "$plugin->stepFinished: $@\n";
+        eval {
+            $plugin->stepFinished($step, $logPath);
+            1;
+        } or do {
+            print STDERR "error with $plugin->stepFinished: $@\n";
         }
     }
 }
@@ -115,8 +121,8 @@ while (1) {
             } elsif ($channelName eq "step_finished") {
                 stepFinished(int($payload[0]), int($payload[1]));
             }
-        };
-        if ($@) {
+            1;
+        } or do {
             print STDERR "error processing message '$payload' on channel '$channelName': $@\n";
         }
     }

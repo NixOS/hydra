@@ -74,11 +74,11 @@ sub handleDeclarativeJobsetBuild {
         my $declPath = ($build->buildoutputs)[0]->path;
         my $declText = eval {
             readNixFile($declPath)
-        };
-        if ($@) {
+        } or do {
+            # If readNixFile errors or returns an undef or an empty string
             print STDERR "ERROR: failed to readNixFile $declPath: ", $@, "\n";
             die;
-        }
+        };
 
         my $declSpec = decode_json($declText);
         $db->txn_do(sub {
@@ -88,16 +88,17 @@ sub handleDeclarativeJobsetBuild {
             while ((my $jobsetName, my $spec) = each %$declSpec) {
                 eval {
                     updateDeclarativeJobset($db, $project, $jobsetName, $spec);
-                };
-                if ($@) {
+                    1;
+                } or do {
                     print STDERR "ERROR: failed to process declarative jobset ", $project->name, ":${jobsetName}, ", $@, "\n";
                 }
             }
         });
+        1;
+    } or do {
+        # note the error in the database in the case eval fails for whatever reason
+        $project->jobsets->find({ name => ".jobsets" })->update({ errormsg => $@, errortime => time, fetcherrormsg => undef })
     };
-    $project->jobsets->find({ name => ".jobsets" })->update({ errormsg => $@, errortime => time, fetcherrormsg => undef })
-        if defined $@;
-
 };
 
 

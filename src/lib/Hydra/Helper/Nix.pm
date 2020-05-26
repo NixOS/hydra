@@ -356,14 +356,13 @@ sub captureStdoutStderr {
         alarm $timeout;
         IPC::Run::run(\@cmd, \$stdin, \$stdout, \$stderr);
         alarm 0;
-    };
-
-    if ($@) {
+        1;
+    } or do {
         die unless $@ eq "timeout\n"; # propagate unexpected errors
         return (-1, $stdout, ($stderr // "") . "timeout\n");
-    } else {
-        return ($?, $stdout, $stderr);
-    }
+    };
+
+    return ($?, $stdout, $stderr);
 }
 
 
@@ -391,16 +390,15 @@ sub run {
                 }
             });
         alarm 0;
-    };
+        $res->{status} = $?;
+        chomp $res->{stdout} if $args{chomp} // 0;
 
-    if ($@) {
+        1;
+    } or do {
         die unless $@ eq "timeout\n"; # propagate unexpected errors
         $res->{status} = -1;
         $res->{stderr} = "timeout\n";
-    } else {
-        $res->{status} = $?;
-        chomp $res->{stdout} if $args{chomp} // 0;
-    }
+    };
 
     return $res;
 }
