@@ -348,7 +348,7 @@ sub evalJobs {
                 inputsToArgs($inputInfo));
     }
 
-    push @cmd, "--no-allow-import-from-derivation";
+    push @cmd, "--no-allow-import-from-derivation" if $config->{allow_import_from_derivation} // "true" ne "true";
 
     if (defined $ENV{'HYDRA_DEBUG'}) {
         sub escape {
