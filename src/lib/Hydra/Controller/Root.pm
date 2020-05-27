@@ -459,16 +459,16 @@ sub search :Local Args(0) {
         },
         { order_by => ["project", "name"], join => ["project"] } ) ];
 
-    $c->stash->{jobs} = [ $c->model('DB::Jobs')->search(
-        { "me.name" => { ilike => "%$query%" }
+    $c->stash->{jobs} = [ $c->model('DB::Builds')->search(
+        { "job" => { ilike => "%$query%" }
         , "project.hidden" => 0
         , "jobset.hidden" => 0
+        , iscurrent => 1
         },
-        { order_by => ["enabled_ desc", "project", "jobset", "name"], join => ["project", "jobset"]
-        , "+select" => [\ "(project.enabled = 1 and jobset.enabled = 1 and exists (select 1 from Builds where project = project.name and jobset = jobset.name and job = me.name and iscurrent = 1)) as enabled_"]
-        , "+as" => ["enabled"]
+        { order_by => ["project", "jobset", "job"], join => ["project", "jobset"]
         , rows => $c->stash->{limit} + 1
-        } ) ];
+        } )
+    ];
 
     # Perform build search in separate queries to prevent seq scan on buildoutputs table.
     $c->stash->{builds} = [ $c->model('DB::Builds')->search(

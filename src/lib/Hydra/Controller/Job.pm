@@ -24,18 +24,16 @@ sub job : Chained('/') PathPart('job') CaptureArgs(3) {
         $c->detach;
     }
 
-    $c->stash->{job} = $c->stash->{jobset}->jobs->find({ name => $jobName })
-        or notFound($c, "Job $projectName:$jobsetName:$jobName doesn't exist.");
-    $c->stash->{project} = $c->stash->{job}->project;
+    $c->stash->{job} = $jobName;
+    $c->stash->{project} = $c->stash->{jobset}->project;
 }
 
 sub prometheus : Chained('job') PathPart('prometheus') Args(0) {
     my ($self, $c) = @_;
-    my $job = $c->stash->{job};
     my $prometheus = Net::Prometheus->new;
 
-    my $lastBuild = $job->builds->find(
-        { finished => 1 },
+    my $lastBuild = $c->stash->{jobset}->builds->find(
+        { job => $c->stash->{job}, finished => 1 },
         { order_by => 'id DESC', rows => 1, columns => [@buildListColumns] }
     );
 
@@ -46,7 +44,7 @@ sub prometheus : Chained('job') PathPart('prometheus') Args(0) {
     )->labels(
         $c->stash->{project}->name,
         $c->stash->{jobset}->name,
-        $c->stash->{job}->name,
+        $c->stash->{job},
     )->inc($lastBuild->stoptime);
 
     $prometheus->new_gauge(
@@ -56,7 +54,7 @@ sub prometheus : Chained('job') PathPart('prometheus') Args(0) {
     )->labels(
         $c->stash->{project}->name,
         $c->stash->{jobset}->name,
-        $c->stash->{job}->name,
+        $c->stash->{job},
     )->inc($lastBuild->buildstatus > 0);
 
     $c->stash->{'plain'} = { data => $prometheus->render };
@@ -65,23 +63,22 @@ sub prometheus : Chained('job') PathPart('prometheus') Args(0) {
 
 sub overview : Chained('job') PathPart('') Args(0) {
     my ($self, $c) = @_;
-    my $job = $c->stash->{job};
 
     $c->stash->{template} = 'job.tt';
 
     $c->stash->{lastBuilds} =
-        [ $job->builds->search({ finished => 1 },
+        [ $c->stash->{jobset}->builds->search({ job => $c->stash->{job}, finished => 1 },
             { order_by => 'id DESC', rows => 10, columns => [@buildListColumns] }) ];
 
     $c->stash->{queuedBuilds} = [
-        $job->builds->search(
-            { finished => 0 },
+        $c->stash->{jobset}->builds->search(
+            { job => $c->stash->{job}, finished => 0 },
             { order_by => ["priority DESC", "id"] }
         ) ];
 
     # If this is an aggregate job, then get its constituents.
     my @constituents = $c->model('DB::Builds')->search(
-        { aggregate => { -in => $job->builds->search({}, { columns => ["id"], order_by => "id desc", rows => 15 })->as_query } },
+        { aggregate => { -in => $c->stash->{jobset}->builds->search({ job => $c->stash->{job} }, { columns => ["id"], order_by => "id desc", rows => 15 })->as_query } },
         { join => 'aggregateconstituents_constituents',
           columns => ['id', 'job', 'finished', 'buildstatus'],
           +select => ['aggregateconstituents_constituents.aggregate'],
@@ -91,10 +88,9 @@ sub overview : Chained('job') PathPart('') Args(0) {
     my $aggregates = {};
     my %constituentJobs;
     foreach my $b (@constituents) {
-        my $jobName = $b->get_column('job');
-        $aggregates->{$b->get_column('aggregate')}->{constituents}->{$jobName} =
+        $aggregates->{$b->get_column('aggregate')}->{constituents}->{$b->job} =
             { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
-        $constituentJobs{$jobName} = 1;
+        $constituentJobs{$b->job} = 1;
     }
 
     foreach my $agg (keys %$aggregates) {
@@ -109,24 +105,23 @@ sub overview : Chained('job') PathPart('') Args(0) {
     $c->stash->{starred} = $c->user->starredjobs(
         { project => $c->stash->{project}->name
         , jobset => $c->stash->{jobset}->name
-        , job => $c->stash->{job}->name
+        , job => $c->stash->{job}
         })->count == 1 if $c->user_exists;
 }
 
 
 sub metrics_tab : Chained('job') PathPart('metrics-tab') Args(0) {
     my ($self, $c) = @_;
-    my $job = $c->stash->{job};
     $c->stash->{template} = 'job-metrics-tab.tt';
-    $c->stash->{metrics} = [ $job->buildmetrics->search(
-        { }, { select => ["name"], distinct => 1, order_by => "name",  }) ];
+    $c->stash->{metrics} = [ $c->stash->{jobset}->buildmetrics->search(
+        { job => $c->stash->{job} }, { select => ["name"], distinct => 1, order_by => "name",  }) ];
 }
 
 
 sub build_times : Chained('job') PathPart('build-times') Args(0) {
     my ($self, $c) = @_;
-    my @res = $c->stash->{job}->builds->search(
-        { finished => 1, buildstatus => 0, closuresize => { '!=', 0 } },
+    my @res = $c->stash->{jobset}->builds->search(
+        { job => $c->stash->{job}, finished => 1, buildstatus => 0, closuresize => { '!=', 0 } },
         { join => "actualBuildStep"
         , "+select" => ["actualBuildStep.stoptime - actualBuildStep.starttime"]
         , "+as" => ["actualBuildTime"],
@@ -137,8 +132,8 @@ sub build_times : Chained('job') PathPart('build-times') Args(0) {
 
 sub closure_sizes : Chained('job') PathPart('closure-sizes') Args(0) {
     my ($self, $c) = @_;
-    my @res = $c->stash->{job}->builds->search(
-        { finished => 1, buildstatus => 0, closuresize => { '!=', 0 } },
+    my @res = $c->stash->{jobset}->builds->search(
+        { job => $c->stash->{job}, finished => 1, buildstatus => 0, closuresize => { '!=', 0 } },
         { order_by => "id", columns => [ "id", "timestamp", "closuresize" ] });
     $self->status_ok($c, entity => [ map { { id => $_->id, timestamp => $_ ->timestamp, value => $_->closuresize } } @res ]);
 }
@@ -146,8 +141,8 @@ sub closure_sizes : Chained('job') PathPart('closure-sizes') Args(0) {
 
 sub output_sizes : Chained('job') PathPart('output-sizes') Args(0) {
     my ($self, $c) = @_;
-    my @res = $c->stash->{job}->builds->search(
-        { finished => 1, buildstatus => 0, size => { '!=', 0 } },
+    my @res = $c->stash->{jobset}->builds->search(
+        { job => $c->stash->{job}, finished => 1, buildstatus => 0, size => { '!=', 0 } },
         { order_by => "id", columns => [ "id", "timestamp", "size" ] });
     $self->status_ok($c, entity => [ map { { id => $_->id, timestamp => $_ ->timestamp, value => $_->size } } @res ]);
 }
@@ -159,8 +154,8 @@ sub metric : Chained('job') PathPart('metric') Args(1) {
     $c->stash->{template} = 'metric.tt';
     $c->stash->{metricName} = $metricName;
 
-    my @res = $c->stash->{job}->buildmetrics->search(
-        { name => $metricName },
+    my @res = $c->stash->{jobset}->buildmetrics->search(
+        { job => $c->stash->{job}, name => $metricName },
         { order_by => "timestamp", columns => [ "build", "name", "timestamp", "value", "unit" ] });
 
     $self->status_ok($c, entity => [ map { { id => $_->get_column("build"), timestamp => $_ ->timestamp, value => $_->value, unit => $_->unit } } @res ]);
@@ -170,11 +165,11 @@ sub metric : Chained('job') PathPart('metric') Args(1) {
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('job') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
-    $c->stash->{allBuilds} = $c->stash->{job}->builds;
+    $c->stash->{allBuilds} = $c->stash->{jobset}->builds->search({ job => $c->stash->{job} });
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJob')
-        ->search({}, {bind => [$c->stash->{jobset}->id, $c->stash->{job}->name]});
+        ->search({}, {bind => [$c->stash->{jobset}->id, $c->stash->{job}]});
     $c->stash->{channelBaseName} =
-        $c->stash->{project}->name . "-" . $c->stash->{jobset}->name . "-" . $c->stash->{job}->name;
+        $c->stash->{project}->name . "-" . $c->stash->{jobset}->name . "-" . $c->stash->{job};
 }
 
 
@@ -185,7 +180,7 @@ sub star : Chained('job') PathPart('star') Args(0) {
     my $args =
         { project => $c->stash->{project}->name
         , jobset => $c->stash->{jobset}->name
-        , job => $c->stash->{job}->name
+        , job => $c->stash->{job}
         };
     if ($c->request->params->{star} eq "1") {
         $c->user->starredjobs->update_or_create($args);

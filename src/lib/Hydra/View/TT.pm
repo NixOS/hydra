@@ -37,12 +37,8 @@ sub stripSSHUser {
 # Check whether the given job is a member of the most recent jobset
 # evaluation.
 sub jobExists {
-    my ($self, $c, $job) = @_;
-    my $latestEval = $job->jobset->jobsetevals->search(
-        { hasnewbuilds => 1},
-        { rows => 1, order_by => ["id desc"] })->single;
-    return 0 if !defined $latestEval; # can't happen
-    return scalar($latestEval->builds->search({ job => $job->name })) != 0;
+    my ($self, $c, $jobset, $jobName) = @_;
+    return defined $jobset->builds->search({ job => $jobName, iscurrent => 1 })->single;
 }
 
 1;

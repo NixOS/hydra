@@ -22,7 +22,6 @@ make_schema_at("Hydra::Schema", {
             "cachedpathinputs" => "CachedPathInputs",
             "cachedsubversioninputs" => "CachedSubversionInputs",
             "failedpaths" => "FailedPaths",
-            "jobs" => "Jobs",
             "jobsetevalinputs" => "JobsetEvalInputs",
             "jobsetevalmembers" => "JobsetEvalMembers",
             "jobsetevals" => "JobsetEvals",

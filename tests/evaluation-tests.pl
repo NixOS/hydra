@@ -25,10 +25,10 @@ ok(evalSucceeds($jobset),                  "Evaluating jobs/basic.nix should exi
 ok(nrQueuedBuildsForJobset($jobset) == 3 , "Evaluating jobs/basic.nix should result in 3 builds");
 
 for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
+    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with code 0");
     my $newbuild = $db->resultset('Builds')->find($build->id);
-    my $expected = $build->job->name eq "fails" ? 1 : $build->job->name =~ /with_failed/ ? 6 : 0;
-    ok($newbuild->finished == 1 && $newbuild->buildstatus == $expected, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus $expected");
+    my $expected = $build->job eq "fails" ? 1 : $build->job =~ /with_failed/ ? 6 : 0;
+    ok($newbuild->finished == 1 && $newbuild->buildstatus == $expected, "Build '".$build->job."' from jobs/basic.nix should have buildstatus $expected");
 }
 
 # Test jobset with 2 jobs, one has parameter of succeeded build of the other
@@ -37,17 +37,17 @@ $jobset = createJobsetWithOneInput("build-output-as-input", "build-output-as-inp
 ok(evalSucceeds($jobset),                  "Evaluating jobs/build-output-as-input.nix should exit with return code 0");
 ok(nrQueuedBuildsForJobset($jobset) == 1 , "Evaluating jobs/build-output-as-input.nix for first time should result in 1 build in queue");
 for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
+    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with code 0");
     my $newbuild = $db->resultset('Builds')->find($build->id);
-    ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus 0");
+    ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job."' from jobs/basic.nix should have buildstatus 0");
 }
 
 ok(evalSucceeds($jobset),                  "Evaluating jobs/build-output-as-input.nix for second time should exit with return code 0");
 ok(nrQueuedBuildsForJobset($jobset) == 1 , "Evaluating jobs/build-output-as-input.nix for second time after building build1 should result in 1 build in queue");
 for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job->name."' from jobs/basic.nix should exit with code 0");
+    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with code 0");
     my $newbuild = $db->resultset('Builds')->find($build->id);
-    ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job->name."' from jobs/basic.nix should have buildstatus 0");
+    ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job."' from jobs/basic.nix should have buildstatus 0");
 }
 
 
@@ -158,16 +158,16 @@ ok(evalSucceeds($jobset),                  "Evaluating jobs/build-products.nix s
 ok(nrQueuedBuildsForJobset($jobset) == 2 , "Evaluating jobs/build-products.nix should result in 2 builds");
 
 for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job->name."' from jobs/build-products.nix should exit with code 0");
+    ok(runBuild($build), "Build '".$build->job."' from jobs/build-products.nix should exit with code 0");
     my $newbuild = $db->resultset('Builds')->find($build->id);
-    ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job->name."' from jobs/build-products.nix should have buildstatus 0");
-    
+    ok($newbuild->finished == 1 && $newbuild->buildstatus == 0, "Build '".$build->job."' from jobs/build-products.nix should have buildstatus 0");
+
     my $buildproducts = $db->resultset('BuildProducts')->search({ build => $build->id });
     my $buildproduct = $buildproducts->next;
-    
-    if($build->job->name eq "simple") {
+
+    if($build->job eq "simple") {
         ok($buildproduct->name eq "text.txt", "We should have text.txt, but found: ".$buildproduct->name."\n");
-    } elsif ($build->job->name eq "with_spaces") {
+    } elsif ($build->job eq "with_spaces") {
         ok($buildproduct->name eq "some text.txt", "We should have: \"some text.txt\", but found: ".$buildproduct->name."\n");
     }
 }
