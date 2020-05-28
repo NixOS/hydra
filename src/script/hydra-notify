@@ -63,7 +63,13 @@ sub buildFinished {
         }
     }
 
-    $build->update({ notificationpendingsince => undef });
+    # We have to iterate through all dependents as well, and if they are finished
+    # to mark their notificationpendingsince.
+    # Otherwise, the dependent builds will remain with notificationpendingsince set
+    # until hydra-notify is started, as buildFinished is never emitted for them.
+    foreach my $b ($build, @dependents) {
+        $b->update({ notificationpendingsince => undef }) if $b->finished;
+    }
 }
 
 sub stepFinished {
