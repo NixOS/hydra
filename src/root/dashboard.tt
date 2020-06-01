@@ -22,7 +22,7 @@
         <tdata>
           [% FOREACH j IN starredJobs %]
             <tr>
-              <td><span class="[% IF !jobExists(j.job) %]disabled-job[% END %]">[% INCLUDE renderFullJobName project=j.job.get_column('project') jobset=j.job.get_column('jobset') job=j.job.name %]</span></td>
+              <td><span class="[% IF !jobExists(j.job.jobset j.job.job) %]disabled-job[% END %]">[% INCLUDE renderFullJobName project=j.job.get_column('project') jobset=j.job.get_column('jobset') job=j.job.job %]</span></td>
               [% FOREACH b IN j.builds %]
                 <td><a href="[% c.uri_for('/build' b.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=b %]</a></td>
               [% END %]

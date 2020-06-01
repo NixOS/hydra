@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title="Build $id of job $project.name:$jobset.name:$job.name" %]
+[% WRAPPER layout.tt title="Build $id of job $project.name:$jobset.name:$job" %]
 [% PROCESS common.tt %]
 [% PROCESS "product-list.tt" %]
 [% USE HTML %]
@@ -258,7 +258,7 @@ END;
         <p class="error">Note: this build is no longer available.</p>
       [% END %]
 
-      [% INCLUDE renderProductList latestRoot=['/job' build.project.name build.jobset.name build.job.name 'latest'] %]
+      [% INCLUDE renderProductList latestRoot=['/job' build.project.name build.jobset.name build.job 'latest'] %]
 
     [% END %]
 
@@ -384,7 +384,7 @@ END;
         <th>Output store paths:</th>
         <td><tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt></td>
       </tr>
-      [% chartsURL = c.uri_for('/job' build.project.name build.jobset.name build.job.name) _ "#tabs-charts" %]
+      [% chartsURL = c.uri_for('/job' build.project.name build.jobset.name build.job) _ "#tabs-charts" %]
       [% IF build.finished && build.closuresize %]
         <tr>
           <th>Closure size:</th>
@@ -425,7 +425,7 @@ END;
         <tbody>
           [% FOREACH metric IN build.buildmetrics %]
             <tr>
-              <td><tt><a class="row-link" [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job.name 'metric' metric.name)) %]">[%HTML.escape(metric.name)%]</a></tt></td>
+              <td><tt><a class="row-link" [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job 'metric' metric.name)) %]">[%HTML.escape(metric.name)%]</a></tt></td>
               <td style="text-align: right">[%metric.value%]</td>
               <td>[%metric.unit%]</td>
             </tr>
@@ -507,7 +507,7 @@ END;
     running the following command:</p>
 
 <pre>
-<span class="shell-prompt"># </span>nix build [% HTML.escape(eval.flake) %]#hydraJobs.[% HTML.escape(job.name) %]
+<span class="shell-prompt"># </span>nix build [% HTML.escape(eval.flake) %]#hydraJobs.[% HTML.escape(job) %]
 </pre>
 
     [% ELSE %]

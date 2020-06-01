@@ -402,13 +402,6 @@ sub checkBuild {
     my $build;
 
     $db->txn_do(sub {
-        my $job = $jobset->jobs->update_or_create({
-            name => $jobName,
-            jobset_id => $jobset->id,
-            project => $jobset->project,
-            jobset => $jobset->name,
-        });
-
         # Don't add a build that has already been scheduled for this
         # job, or has been built but is still a "current" build for
         # this job.  Note that this means that if the sources of a job
@@ -452,11 +445,12 @@ sub checkBuild {
         }
 
         # Add the build to the database.
-        $build = $job->builds->create(
+        $build = $jobset->builds->create(
             { timestamp => $time
             , project => $jobset->project
             , jobset => $jobset->name
             , jobset_id => $jobset->id
+            , job => $jobName
             , description => null($buildInfo->{description})
             , license => null($buildInfo->{license})
             , homepage => null($buildInfo->{homepage})

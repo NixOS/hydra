@@ -46,7 +46,7 @@ sub getBuild {
 sub getPreviousBuild {
     my ($build) = @_;
     return undef if !defined $build;
-    return $build->job->builds->search(
+    return $build->jobset->builds->search(
       { finished => 1
       , system => $build->system
       , 'me.id' =>  { '<' => $build->id }

@@ -105,7 +105,7 @@
               gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
               perlDeps perl final.nix
               boost
-              postgresql95
+              postgresql_11
               (if lib.versionAtLeast lib.version "20.03pre"
                then nlohmann_json
                else nlohmann_json.override { multipleHeaders = true; })
@@ -308,7 +308,7 @@
         systemd.services.hydra-send-stats.enable = false;
 
         services.postgresql.enable = true;
-        services.postgresql.package = pkgs.postgresql95;
+        services.postgresql.package = pkgs.postgresql_11;
 
         # The following is to work around the following error from hydra-server:
         #   [error] Caught exception in engine "Cannot determine local time zone"

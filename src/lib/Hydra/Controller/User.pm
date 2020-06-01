@@ -339,10 +339,10 @@ sub dashboard :Chained('dashboard_base') :PathPart('') :Args(0) {
     # Get the N most recent builds for each starred job.
     $c->stash->{starredJobs} = [];
     foreach my $j ($c->stash->{user}->starredjobs->search({}, { order_by => ['project', 'jobset', 'job'] })) {
-        my @builds = $j->job->builds->search(
-            { },
+        my @builds = $j->jobset->builds->search(
+            { job => $j->job },
             { rows => 20, order_by => "id desc" });
-        push @{$c->stash->{starredJobs}}, { job => $j->job, builds => [@builds] };
+        push @{$c->stash->{starredJobs}}, { job => $j, builds => [@builds] };
     }
 }
 

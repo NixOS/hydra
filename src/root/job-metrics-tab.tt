@@ -4,23 +4,23 @@
 
   <h3>Build time (in seconds)</h3>
 
-  [% INCLUDE createChart id="build-times" yaxis="sec" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'build-times') %]
+  [% INCLUDE createChart id="build-times" yaxis="sec" dataUrl=c.uri_for('/job' project.name jobset.name job 'build-times') %]
 
   <h3>Closure size (in MiB)</h3>
 
-  [% INCLUDE createChart id="closure-size" yaxis="mib" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'closure-sizes') %]
+  [% INCLUDE createChart id="closure-size" yaxis="mib" dataUrl=c.uri_for('/job' project.name jobset.name job 'closure-sizes') %]
 
   <h3>Output size (in MiB)</h3>
 
-  [% INCLUDE createChart id="output-size" yaxis="mib" dataUrl=c.uri_for('/job' project.name jobset.name job.name 'output-sizes') %]
+  [% INCLUDE createChart id="output-size" yaxis="mib" dataUrl=c.uri_for('/job' project.name jobset.name job 'output-sizes') %]
 
   [% FOREACH metric IN metrics %]
 
-    <h3>Metric: <a [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job.name 'metric' metric.name)) %]><tt>[%HTML.escape(metric.name)%]</tt></a></h3>
+    <h3>Metric: <a [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job 'metric' metric.name)) %]><tt>[%HTML.escape(metric.name)%]</tt></a></h3>
 
     [% id = "metric-" _ metric.name;
        id = id.replace('\.', '_');
-       INCLUDE createChart dataUrl=c.uri_for('/job' project.name jobset.name job.name 'metric' metric.name); %]
+       INCLUDE createChart dataUrl=c.uri_for('/job' project.name jobset.name job 'metric' metric.name); %]
 
   [% END %]
 

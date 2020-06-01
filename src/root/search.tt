@@ -67,7 +67,7 @@
     <tbody>
       [% FOREACH j IN jobs %]
         <tr>
-          <td><span class="[% IF !j.get_column('enabled') %]disabled-job[% END %]">[% INCLUDE renderFullJobName project=j.get_column('project') jobset=j.get_column('jobset') job=j.name inRow=1 %]</span></td>
+          <td><span>[% INCLUDE renderFullJobName project=j.get_column('project') jobset=j.get_column('jobset') job=j.job inRow=1 %]</span></td>
         </tr>
       [% END %]
     </tbody>

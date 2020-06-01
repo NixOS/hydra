@@ -134,19 +134,6 @@ create table JobsetInputAlts (
 );
 
 
-create table Jobs (
-    project       text not null,
-    jobset        text not null,
-    jobset_id     integer not null,
-    name          text not null,
-
-    primary key   (project, jobset, name),
-    foreign key   (jobset_id) references Jobsets(id) on delete cascade,
-    foreign key   (project) references Projects(name) on delete cascade on update cascade,
-    foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
-);
-
-
 create table Builds (
     id            serial primary key not null,
 
@@ -226,8 +213,7 @@ create table Builds (
 
     foreign key (jobset_id) references Jobsets(id) on delete cascade,
     foreign key (project) references Projects(name) on update cascade,
-    foreign key (project, jobset) references Jobsets(project, name) on update cascade,
-    foreign key (project, jobset, job) references Jobs(project, jobset, name) on update cascade
+    foreign key (project, jobset) references Jobsets(project, name) on update cascade
 );
 
 
@@ -371,8 +357,7 @@ create table BuildMetrics (
     primary key   (build, name),
     foreign key   (build) references Builds(id) on delete cascade,
     foreign key   (project) references Projects(name) on update cascade,
-    foreign key   (project, jobset) references Jobsets(project, name) on update cascade,
-    foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade
+    foreign key   (project, jobset) references Jobsets(project, name) on update cascade
 );
 
 
@@ -545,8 +530,7 @@ create table StarredJobs (
     primary key   (userName, project, jobset, job),
     foreign key   (userName) references Users(userName) on update cascade on delete cascade,
     foreign key   (project) references Projects(name) on update cascade on delete cascade,
-    foreign key   (project, jobset) references Jobsets(project, name) on update cascade on delete cascade,
-    foreign key   (project, jobset, job) references Jobs(project, jobset, name) on update cascade on delete cascade
+    foreign key   (project, jobset) references Jobsets(project, name) on update cascade on delete cascade
 );
 
 

@@ -1,5 +1,5 @@
 [% WRAPPER layout.tt title="Latest builds" _
-    (job ? " for job $project.name:$jobset.name:$job.name" :
+    (job ? " for job $project.name:$jobset.name:$job" :
      jobset ? " for jobset $project.name:$jobset.name" :
      project ? " for project $project.name" : "") %]
 [% PROCESS common.tt %]

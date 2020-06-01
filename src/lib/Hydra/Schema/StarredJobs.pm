@@ -56,7 +56,6 @@ __PACKAGE__->table("starredjobs");
 =head2 job
 
   data_type: 'text'
-  is_foreign_key: 1
   is_nullable: 0
 
 =cut
@@ -69,7 +68,7 @@ __PACKAGE__->add_columns(
   "jobset",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "job",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
+  { data_type => "text", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -91,21 +90,6 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("username", "project", "jobset", "job");
 
 =head1 RELATIONS
-
-=head2 job
-
-Type: belongs_to
-
-Related object: L<Hydra::Schema::Jobs>
-
-=cut
-
-__PACKAGE__->belongs_to(
-  "job",
-  "Hydra::Schema::Jobs",
-  { jobset => "jobset", name => "job", project => "project" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
-);
 
 =head2 jobset
 
@@ -153,8 +137,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:fw4FfzmOhzDk0ZoSuNr2ww
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-05-27 17:36:07
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:RRDQ6UQL/bjXPD+HO1s5ug
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

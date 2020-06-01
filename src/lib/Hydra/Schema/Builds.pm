@@ -73,7 +73,6 @@ __PACKAGE__->table("builds");
 =head2 job
 
   data_type: 'text'
-  is_foreign_key: 1
   is_nullable: 0
 
 =head2 nixname
@@ -224,7 +223,7 @@ __PACKAGE__->add_columns(
   "jobset_id",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "job",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
+  { data_type => "text", is_nullable => 0 },
   "nixname",
   { data_type => "text", is_nullable => 1 },
   "description",
@@ -439,21 +438,6 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 job
-
-Type: belongs_to
-
-Related object: L<Hydra::Schema::Jobs>
-
-=cut
-
-__PACKAGE__->belongs_to(
-  "job",
-  "Hydra::Schema::Jobs",
-  { jobset => "jobset", name => "job", project => "project" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
-);
-
 =head2 jobset
 
 Type: belongs_to
@@ -558,8 +542,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-05-06 12:32:57
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3IyFj/9Zf/hvmhBY4U/IBQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-05-27 17:40:41
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:RIKKFfcKXFWIUeM8ma++iw
 
 __PACKAGE__->has_many(
   "dependents",

@@ -1,5 +1,5 @@
 [% WRAPPER layout.tt
-    title="Job $project.name:$jobset.name:$job.name"
+    title="Job $project.name:$jobset.name:$job"
     starUri=c.uri_for(c.controller('Job').action_for('star'), c.req.captures)
 %]
 [% PROCESS common.tt %]
@@ -7,7 +7,7 @@
 
 [% INCLUDE includeFlot %]
 
-[% IF !jobExists(job) %]
+[% IF !jobExists(jobset, job) %]
 <div class="alert alert-warning">This job is not a member of the <a
 href="[%c.uri_for('/jobset' project.name jobset.name
 'evals')%]">latest evaluation</a> of its jobset. This means it was
@@ -29,7 +29,7 @@ removed or had an evaluation error.</div>
     [% IF lastBuilds.size != 0 %]
       <h3>Latest builds</h3>
       [% INCLUDE renderBuildList builds=lastBuilds
-          linkToAll=c.uri_for('/job' project.name jobset.name job.name 'all') %]
+          linkToAll=c.uri_for('/job' project.name jobset.name job 'all') %]
     [% END %]
     [% IF queuedBuilds.size != 0 %]
       <h3>Queued builds</h3>
@@ -84,12 +84,12 @@ removed or had an evaluation error.</div>
 
   [% END %]
 
-  [% INCLUDE makeLazyTab tabName="tabs-charts" uri=c.uri_for('/job' project.name jobset.name job.name 'metrics-tab') %]
+  [% INCLUDE makeLazyTab tabName="tabs-charts" uri=c.uri_for('/job' project.name jobset.name job 'metrics-tab') %]
 
   <div id="tabs-links" class="tab-pane">
     <ul>
-      <li><a href="[% c.uri_for('/job' project.name jobset.name job.name 'latest') %]">Latest successful build</a></li>
-      <li><a href="[% c.uri_for('/job' project.name jobset.name job.name 'latest-finished') %]">Latest successful build from a finished evaluation</a></li>
+      <li><a href="[% c.uri_for('/job' project.name jobset.name job 'latest') %]">Latest successful build</a></li>
+      <li><a href="[% c.uri_for('/job' project.name jobset.name job 'latest-finished') %]">Latest successful build from a finished evaluation</a></li>
     </ul>
   </div>
 

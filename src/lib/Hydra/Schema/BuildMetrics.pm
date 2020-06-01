@@ -71,7 +71,6 @@ __PACKAGE__->table("buildmetrics");
 =head2 job
 
   data_type: 'text'
-  is_foreign_key: 1
   is_nullable: 0
 
 =head2 timestamp
@@ -95,7 +94,7 @@ __PACKAGE__->add_columns(
   "jobset",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "job",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
+  { data_type => "text", is_nullable => 0 },
   "timestamp",
   { data_type => "integer", is_nullable => 0 },
 );
@@ -131,21 +130,6 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
-=head2 job
-
-Type: belongs_to
-
-Related object: L<Hydra::Schema::Jobs>
-
-=cut
-
-__PACKAGE__->belongs_to(
-  "job",
-  "Hydra::Schema::Jobs",
-  { jobset => "jobset", name => "job", project => "project" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
-);
-
 =head2 jobset
 
 Type: belongs_to
@@ -177,8 +161,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Roy7h/K9u7DQOzet4B1sbA
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-05-27 17:40:41
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:AYUVs6RdefFKw+g9Yxcu/A
 
 sub json_hint {
     return { columns => ['value', 'unit'] };

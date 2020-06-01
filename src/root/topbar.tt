@@ -65,15 +65,15 @@
 
   [% IF job %]
     [% WRAPPER makeSubMenu title="Job" %]
-      <li class="nav-header">[% HTML.escape(job.name) %]</li>
+      <li class="nav-header">[% HTML.escape(job) %]</li>
       <li class="divider"></li>
       [% INCLUDE menuItem
-        uri = c.uri_for(c.controller('Job').action_for('overview'), [project.name, jobset.name, job.name])
+        uri = c.uri_for(c.controller('Job').action_for('overview'), [project.name, jobset.name, job])
         title = "Overview" %]
       [% INCLUDE menuItem
-        uri = c.uri_for(c.controller('Job').action_for('all'), [project.name, jobset.name, job.name])
+        uri = c.uri_for(c.controller('Job').action_for('all'), [project.name, jobset.name, job])
         title = "Latest builds" %]
-      [% INCLUDE menuItem uri = c.uri_for('/job' project.name jobset.name job.name 'channel' 'latest') title = "Channel" %]
+      [% INCLUDE menuItem uri = c.uri_for('/job' project.name jobset.name job 'channel' 'latest') title = "Channel" %]
     [% END %]
   [% END %]
 
