@@ -584,12 +584,18 @@ sub checkJobsetWrapped {
 
     my $flakeRef = $jobset->flake;
     if (defined $flakeRef) {
+        my @refParts = split(/#/, $flakeRef, 2);
+        $flakeRef = @refParts[0];
+        my $fragment = @refParts[1];
         (my $res, my $json, my $stderr) = captureStdoutStderr(
             600, "nix", "flake", "info", "--tarball-ttl", 0, "--json", "--", $flakeRef);
         die "'nix flake info' returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
             . ":\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
             if $res;
         $flakeRef = decode_json($json)->{'url'};
+        if ($fragment) {
+            $flakeRef .= "#" . $fragment;
+        };
     }
 
     Net::Statsd::increment("hydra.evaluator.checkouts");

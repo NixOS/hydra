@@ -105,7 +105,17 @@ static void worker(
     if (myArgs.flake) {
         using namespace flake;
 
-        auto flakeRef = parseFlakeRef(myArgs.releaseExpr);
+        auto attrPath = std::string("");
+        auto releaseExpr = myArgs.releaseExpr;
+
+        // Handle attribute selectors
+        auto hash = releaseExpr.find('#');
+        if (hash != std::string::npos) {
+            attrPath = std::string(releaseExpr.substr(hash + 1));
+            releaseExpr = std::string(releaseExpr.substr(0, hash));
+        }
+
+        auto flakeRef = parseFlakeRef(releaseExpr);
 
         auto vFlake = state.allocValue();
 
@@ -118,14 +128,26 @@ static void worker(
 
         callFlake(state, lockedFlake, *vFlake);
 
-        auto vOutputs = vFlake->attrs->get(state.symbols.create("outputs"))->value;
-        state.forceValue(*vOutputs);
+        auto aOutputs = vFlake->attrs->get(state.symbols.create("outputs"));
+        assert(aOutputs);
+        state.forceValue(*aOutputs->value);
 
-        auto aHydraJobs = vOutputs->attrs->get(state.symbols.create("hydraJobs"));
+        auto emptyArgs = state.allocBindings(0);
+
+        auto [vRoot, pos] = findAlongAttrPath(state, attrPath, *emptyArgs, *(aOutputs->value));
+        state.forceValue(*vRoot);
+
+        auto aHydraJobs = vRoot->attrs->get(state.symbols.create("hydraJobs"));
         if (!aHydraJobs)
-            aHydraJobs = vOutputs->attrs->get(state.symbols.create("checks"));
-        if (!aHydraJobs)
-            throw Error("flake '%s' does not provide any Hydra jobs or checks", flakeRef);
+            aHydraJobs = vRoot->attrs->get(state.symbols.create("checks"));
+        if (!aHydraJobs) {
+            auto ref = flakeRef.to_string();
+            if (attrPath != "") {
+                ref += "#";
+                ref += attrPath;
+            }
+            throw Error("flake '%s' does not provide any Hydra jobs or checks", ref);
+        }
 
         vTop = *aHydraJobs->value;
 
