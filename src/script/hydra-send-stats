@@ -63,7 +63,7 @@ while (1) {
     eval {
         sendQueueRunnerStats();
         1;
-    } or do { warn "$@"; }
+    } or do { warn "$@"; };
 
     my $meminfo = read_file("/proc/meminfo", err_mode => 'quiet') // "";
     $meminfo =~ m/Dirty:\s*(\d+) kB/;
