@@ -282,6 +282,19 @@ system_time State::doDispatch()
             if (keepGoing) break;
         }
 
+        for (auto & stepInfo : runnableSorted) {
+            auto & step(stepInfo.step);
+            bool couldRunStep = false;
+            for (auto & mi : machinesSorted)
+                if (mi.machine->supportsStep(step)) {
+                    couldRunStep = true;
+                    break;
+                }
+            if (couldRunStep) continue;
+            printMsg(lvlError, format("No machine available to run step '%1%' (needs system type '%2%')") %
+                     localStore->printStorePath(step->drvPath) % step->systemType);
+        }
+
         /* Update the stats for the auto-scaler. */
         {
             auto machineTypes_(machineTypes.lock());
