@@ -1,6 +1,6 @@
 use LWP::UserAgent;
 use JSON;
-use Test::Simple tests => 19;
+use Test::Simple tests => 20;
 
 my $ua = LWP::UserAgent->new;
 $ua->cookie_jar({});
@@ -59,6 +59,7 @@ ok($eval->{hasnewbuilds} == 1, "The first eval of a jobset has new builds");
 
 system("echo >> /run/jobset/default.nix; hydra-eval-jobset sample default");
 my $evals = decode_json(request_json({ uri => '/jobset/sample/default/evals' })->content())->{evals};
+ok(scalar(@$evals) == 2, "Changing a jobset source creates the second evaluation");
 ok($evals->[0]->{jobsetevalinputs}->{"my-src"}->{revision} != $evals->[1]->{jobsetevalinputs}->{"my-src"}->{revision}, "Changing a jobset source changes its revision");
 
 my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{builds}->[0] })->content());
