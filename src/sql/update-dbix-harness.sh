@@ -33,7 +33,7 @@ pg_ctl -D "$data" \
 
 createdb -h "$socket" "$dbname"
 
-psql -h "$socket" "$dbname" -f ./hydra-postgresql.sql
+psql -h "$socket" "$dbname" -f ./hydra.sql
 
 perl -I ../lib \
      -MDBIx::Class::Schema::Loader=make_schema_at,dump_to_dir:../lib \
