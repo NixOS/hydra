@@ -405,9 +405,11 @@ in
             spaceleft=$(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store)))
             spacestopstart() {  # $1 = job, $2 = min GB free
               if [ $spaceleft -lt $(($2 * 1024**3)) ]; then
-                echo "stopping $1 due to lack of free space..."
-                systemctl stop $1
-                date > /var/lib/hydra/.$1-stopped-minspace
+                if [ $(systemctl is-active $1) == active ]; then
+                  echo "stopping $1 due to lack of free space..."
+                  systemctl stop $1
+                  date > /var/lib/hydra/.$1-stopped-minspace
+                fi
               else
                 if [ $spaceleft -gt $(( ($2 + 10) * 1024**3)) -a \
                      -r /var/lib/hydra/.$1-stopped-minspace ] ; then
