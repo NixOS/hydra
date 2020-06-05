@@ -474,8 +474,7 @@ private:
     void queueMonitorLoop();
 
     /* Check the queue for new builds. */
-    bool getQueuedBuilds(Connection & conn,
-        nix::ref<nix::Store> destStore, unsigned int & lastBuildId);
+    bool getQueuedBuilds(Connection & conn, nix::ref<nix::Store> destStore);
 
     /* Handle cancellation, deletion and priority bumps. */
     void processQueueChange(Connection & conn);
