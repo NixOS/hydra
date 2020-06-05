@@ -22,9 +22,11 @@ sub fetchInput {
     my $sha256;
     my $storePath;
 
+    my $timeout = $self->{config}->{path_input_cache_validity_seconds} // 30;
+
     # Some simple caching: don't check a path more than once every N seconds.
     (my $cachedInput) = $self->{db}->resultset('CachedPathInputs')->search(
-        {srcpath => $uri, lastseen => {">", $timestamp - 30}},
+        {srcpath => $uri, lastseen => {">", $timestamp - $timeout}},
         {rows => 1, order_by => "lastseen DESC"});
 
     if (defined $cachedInput && isValidPath($cachedInput->storepath)) {

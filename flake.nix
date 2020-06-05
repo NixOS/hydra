@@ -198,7 +198,14 @@
         tests.api.x86_64-linux =
           with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
           simpleTest {
-            machine = hydraServer;
+            machine = { pkgs, ... }: {
+              imports = [ hydraServer ];
+              # No caching for PathInput plugin, otherwise we get wrong values
+              # (as it has a 30s window where no changes to the file are considered).
+              services.hydra-dev.extraConfig = ''
+                path_input_cache_validity_seconds = 0
+              '';
+            };
             testScript =
               let dbi = "dbi:Pg:dbname=hydra;user=root;"; in
               ''
