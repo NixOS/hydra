@@ -18,7 +18,6 @@ let
 
   env =
     { NIX_REMOTE = "daemon";
-      SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt"; # Remove in 16.03
       PGPASSFILE = "${baseDir}/pgpass";
       NIX_REMOTE_SYSTEMS = concatStringsSep ":" cfg.buildMachinesFiles;
     } // optionalAttrs (cfg.smtpHost != null) {
