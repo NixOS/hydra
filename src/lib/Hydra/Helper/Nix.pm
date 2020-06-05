@@ -93,27 +93,6 @@ sub registerRoot {
 }
 
 
-sub attrsToSQL {
-    my ($attrs, $id) = @_;
-    my @attrs = split / /, $attrs;
-
-    my $query = "1 = 1";
-
-    foreach my $attr (@attrs) {
-        $attr =~ /^([\w-]+)=([\w-]*)$/ or die "invalid attribute in view: $attr";
-        my $name = $1;
-        my $value = $2;
-        # !!! Yes, this is horribly injection-prone... (though
-        # name/value are filtered above).  Should use SQL::Abstract,
-        # but it can't deal with subqueries.  At least we should use
-        # placeholders.
-        $query .= " and exists (select 1 from buildinputs where build = $id and name = '$name' and value = '$value')";
-    }
-
-    return $query;
-}
-
-
 sub jobsetOverview_ {
     my ($c, $jobsets) = @_;
     return $jobsets->search({},
