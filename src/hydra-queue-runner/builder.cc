@@ -232,7 +232,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     if (result.stepStatus != bsSuccess) {
         const std::string failtype(result.canRetry ? " (possibly transient)" : "");
         printMsg(lvlError, format("Build %6%%4% %7% (attempt #%5%) building ‘%1%’ on ‘%2%’: %3%  [Log tail: %8%]")
-                 % step->drvPath % machine->sshName % result.errorMsg
+                 % localStore->printStorePath(step->drvPath)
+                 % machine->sshName % result.errorMsg
                  % failtype % result.timesBuilt % buildId
                  % buildStatusStr(result.stepStatus) % result.errorLog);
     }
