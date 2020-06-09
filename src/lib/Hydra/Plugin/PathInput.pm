@@ -16,9 +16,11 @@ sub _parseValue {
     my @parts = split ' ', $value;
     (my $uri, my $freq) = @parts;
     # by default don't check a path more often than every 30 seconds,
-    # but the second path argument can change that value.
-    $freq = defined $freq ? $freq : 30;
-    return ($uri, $freq);
+    # but the second path argument can change that value or the global
+    # path_input_cache_validity_seconds configuration, in that order.
+    my $timeout = defined $freq ? $freq : ($self->{config}->{path_input_cache_validity_seconds} // 30);
+
+    return ($uri, $timeout);
 }
 
 sub fetchInput {
@@ -31,8 +33,6 @@ sub fetchInput {
     my $timestamp = time;
     my $sha256;
     my $storePath;
-
-    my $timeout = $self->{config}->{path_input_cache_validity_seconds} // 30;
 
     # Some simple caching: don't check a path more than once every N seconds.
     (my $cachedInput) = $self->{db}->resultset('CachedPathInputs')->search(
