@@ -12,13 +12,15 @@ sub supportedInputTypes {
 }
 
 sub _parseValue {
-    my ($value) = @_;
+    # The input is a local path or URL, optionally followed by a
+    # time period specified in seconds.
+    my ($config, $value) = @_;
     my @parts = split ' ', $value;
     (my $uri, my $freq) = @parts;
-    # by default don't check a path more often than every 30 seconds,
+    # By default don't check a path more often than every 30 seconds,
     # but the second path argument can change that value or the global
     # path_input_cache_validity_seconds configuration, in that order.
-    my $timeout = defined $freq ? $freq : ($self->{config}->{path_input_cache_validity_seconds} // 30);
+    my $timeout = defined $freq ? $freq : ($config->{path_input_cache_validity_seconds} // 30);
 
     return ($uri, $timeout);
 }
@@ -28,7 +30,7 @@ sub fetchInput {
 
     return undef if $type ne "path";
 
-    my ($uri, $timeout) = _parseValue($value);
+    my ($uri, $timeout) = _parseValue($self->{config}, $value);
 
     my $timestamp = time;
     my $sha256;
