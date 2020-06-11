@@ -81,11 +81,13 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> destStore)
     std::multimap<StorePath, BuildID> newBuildsByPath;
 
     {
+        auto processedAt = time(0);
+
         pqxx::work txn(conn);
 
         auto res = txn.exec_params
             ("select id, project, jobset, job, drvPath, maxsilent, timeout, timestamp, globalPriority, priority from Builds "
-             "where finished = 0 order by globalPriority desc, id");
+             "where finished = 0 and startTime is null order by globalPriority desc, id");
 
         for (auto const & row : res) {
             auto builds_(builds.lock());
@@ -109,6 +111,11 @@ bool State::getQueuedBuilds(Connection & conn, ref<Store> destStore)
             newIDs.push_back(id);
             newBuildsByID[id] = build;
             newBuildsByPath.emplace(std::make_pair(build->drvPath.clone(), id));
+
+            // Mark that this build has been started (i.e. processed
+            // here) so that the next call to the getQueuedBuilds
+            // select above doesn't re-process this same build.
+            txn.exec_params0("update Builds set startTime = $2 where id = $1", id, processedAt);
         }
     }
 
