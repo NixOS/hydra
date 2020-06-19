@@ -176,7 +176,10 @@ create table Builds (
     -- the front of the queue via the web interface.
     globalPriority integer not null default 0,
 
-    -- FIXME: remove startTime?
+    -- startTime will be set once the queue-monitor processes this
+    -- build to create all the steps.  startTime will be updated and
+    -- stopTime will be set when the build has actually been
+    -- completed.
     startTime     integer, -- if busy/finished, time we started
     stopTime      integer, -- if finished, time we finished
 
