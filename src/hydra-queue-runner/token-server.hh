@@ -39,7 +39,7 @@ public:
             : ts(ts), tokens(tokens)
         {
             if (tokens >= ts->maxTokens)
-                throw NoTokens(format("requesting more tokens (%d) than exist (%d)") % tokens % ts->maxTokens);
+                throw NoTokens("requesting more tokens (%d) than exist (%d)", tokens, ts->maxTokens);
             debug("acquiring %d tokens", tokens);
             auto inUse(ts->inUse.lock());
             while (*inUse + tokens > ts->maxTokens)

@@ -140,7 +140,7 @@ struct Evaluator
         jobset.pid = startProcess([&]() {
             Strings args = { "hydra-eval-jobset", jobset.name.first, jobset.name.second };
             execvp(args.front().c_str(), stringsToCharPtrs(args).data());
-            throw SysError(format("executing ‘%1%’") % args.front());
+            throw SysError("executing ‘%1%’", args.front());
         });
 
         state.runningEvals++;

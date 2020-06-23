@@ -472,7 +472,11 @@ int main(int argc, char * * argv)
                 auto h = hashDerivationModulo(*store, drv, true);
                 auto outPath = store->makeOutputPath("out", h, drvName);
                 drv.env["out"] = store->printStorePath(outPath);
-                drv.outputs.insert_or_assign("out", DerivationOutput(outPath.clone(), "", ""));
+                drv.outputs.insert_or_assign("out", DerivationOutput {
+                    .path = outPath,
+                    .hashAlgo = "",
+                    .hash = ""
+                });
                 auto newDrvPath = store->printStorePath(writeDerivation(store, drv, drvName));
 
                 debug("rewrote aggregate derivation %s -> %s", drvPath, newDrvPath);

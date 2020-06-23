@@ -187,7 +187,7 @@ void State::monitorMachinesFile()
             struct stat st;
             if (stat(machinesFile.c_str(), &st) != 0) {
                 if (errno != ENOENT)
-                    throw SysError(format("getting stats about ‘%1%’") % machinesFile);
+                    throw SysError("getting stats about ‘%s’", machinesFile);
                 st.st_ino = st.st_mtime = 0;
             }
             auto & old(fileStats[n]);
@@ -219,7 +219,7 @@ void State::monitorMachinesFile()
             // FIXME: use inotify.
             sleep(30);
         } catch (std::exception & e) {
-            printMsg(lvlError, format("reloading machines file: %1%") % e.what());
+            printMsg(lvlError, "reloading machines file: %s", e.what());
             sleep(5);
         }
     }
@@ -804,7 +804,7 @@ void State::run(BuildID buildOne)
                 auto conn(dbPool.get());
                 pqxx::work txn(*conn);
                 for (auto & step : steps) {
-                    printMsg(lvlError, format("cleaning orphaned step %d of build %d") % step.second % step.first);
+                    printMsg(lvlError, "cleaning orphaned step %d of build %d", step.second, step.first);
                     txn.exec_params0
                         ("update BuildSteps set busy = 0, status = $1 where build = $2 and stepnr = $3 and busy != 0",
                          (int) bsAborted,
@@ -813,7 +813,7 @@ void State::run(BuildID buildOne)
                 }
                 txn.commit();
             } catch (std::exception & e) {
-                printMsg(lvlError, format("cleanup thread: %1%") % e.what());
+                printMsg(lvlError, "cleanup thread: %s", e.what());
                 auto orphanedSteps_(orphanedSteps.lock());
                 orphanedSteps_->insert(steps.begin(), steps.end());
             }
@@ -829,7 +829,7 @@ void State::run(BuildID buildOne)
                 if (auto remoteStore = getDestStore().dynamic_pointer_cast<RemoteStore>())
                     remoteStore->flushBadConnections();
             } catch (std::exception & e) {
-                printMsg(lvlError, format("connection flush thread: %1%") % e.what());
+                printMsg(lvlError, "connection flush thread: %s", e.what());
             }
         }
     }).detach();
@@ -845,7 +845,7 @@ void State::run(BuildID buildOne)
                 dumpStatus(*conn);
             }
         } catch (std::exception & e) {
-            printMsg(lvlError, format("main thread: %1%") % e.what());
+            printMsg(lvlError, "main thread: %s", e.what());
             sleep(10); // probably a DB problem, so don't retry right away
         }
     }

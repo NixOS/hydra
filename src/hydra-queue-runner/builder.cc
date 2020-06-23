@@ -140,7 +140,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         if (!build) build = *dependents.begin();
 
         buildId = build->id;
-        buildDrvPath = build->drvPath.clone();
+        buildDrvPath = build->drvPath;
         maxSilentTime = build->maxSilentTime;
         buildTimeout = build->buildTimeout;
 

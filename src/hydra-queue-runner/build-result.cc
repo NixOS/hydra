@@ -17,7 +17,7 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
     auto outputs = drv.outputPaths();
     StorePathSet closure;
     for (auto & output : outputs)
-        store->computeFSClosure(singleton(output), closure);
+        store->computeFSClosure(output, closure);
     for (auto & path : closure) {
         auto info = store->queryPathInfo(path);
         res.closureSize += info->narSize;

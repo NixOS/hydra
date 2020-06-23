@@ -208,7 +208,7 @@ struct Step
 
     nix::Sync<State> state;
 
-    Step(nix::StorePath && drvPath) : drvPath(std::move(drvPath))
+    Step(const nix::StorePath & drvPath) : drvPath(drvPath)
     { }
 
     ~Step()

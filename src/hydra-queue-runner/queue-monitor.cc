@@ -117,7 +117,7 @@ bool State::getQueuedBuilds(Connection & conn,
 
             newIDs.push_back(id);
             newBuildsByID[id] = build;
-            newBuildsByPath.emplace(std::make_pair(build->drvPath.clone(), id));
+            newBuildsByPath.emplace(std::make_pair(build->drvPath, id));
         }
     }
 
@@ -402,7 +402,7 @@ Step::ptr State::createStep(ref<Store> destStore,
 
         /* If it doesn't exist, create it. */
         if (!step) {
-            step = std::make_shared<Step>(drvPath.clone());
+            step = std::make_shared<Step>(drvPath);
             isNew = true;
         }
 
@@ -416,7 +416,7 @@ Step::ptr State::createStep(ref<Store> destStore,
         if (referringStep)
             step_->rdeps.push_back(referringStep);
 
-        steps_->insert_or_assign(drvPath.clone(), step);
+        steps_->insert_or_assign(drvPath, step);
     }
 
     if (!isNew) return step;
@@ -428,7 +428,7 @@ Step::ptr State::createStep(ref<Store> destStore,
        it's not runnable yet, and other threads won't make it
        runnable while step->created == false. */
     step->drv = std::make_unique<Derivation>(readDerivation(*localStore, localStore->printStorePath(drvPath)));
-    step->parsedDrv = std::make_unique<ParsedDerivation>(drvPath.clone(), *step->drv);
+    step->parsedDrv = std::make_unique<ParsedDerivation>(drvPath, *step->drv);
 
     step->preferLocalBuild = step->parsedDrv->willBuildLocally();
     step->isDeterministic = get(step->drv->env, "isDetermistic").value_or("0") == "1";
@@ -459,7 +459,7 @@ Step::ptr State::createStep(ref<Store> destStore,
         if (!destStore->isValidPath(i.second.path)) {
             valid = false;
             missing.insert_or_assign(i.first,
-                DerivationOutput(i.second.path.clone(), std::string(i.second.hashAlgo), std::string(i.second.hash)));
+                DerivationOutput { i.second.path, i.second.hashAlgo, i.second.hash });
         }
 
     /* Try to copy the missing paths from the local store or from
@@ -472,7 +472,7 @@ Step::ptr State::createStep(ref<Store> destStore,
                 avail++;
             else if (useSubstitutes) {
                 SubstitutablePathInfos infos;
-                localStore->querySubstitutablePathInfos(singleton(i.second.path), infos);
+                localStore->querySubstitutablePathInfos({i.second.path}, infos);
                 if (infos.size() == 1)
                     avail++;
             }
@@ -496,7 +496,7 @@ Step::ptr State::createStep(ref<Store> destStore,
                         // FIXME: should copy directly from substituter to destStore.
                     }
 
-                    copyClosure(ref<Store>(localStore), destStore, singleton(i.second.path));
+                    copyClosure(ref<Store>(localStore), destStore, {i.second.path});
 
                     time_t stopTime = time(0);
 
@@ -521,7 +521,7 @@ Step::ptr State::createStep(ref<Store> destStore,
 
     // FIXME: check whether all outputs are in the binary cache.
     if (valid) {
-        finishedDrvs.insert(drvPath.clone());
+        finishedDrvs.insert(drvPath);
         return 0;
     }
 

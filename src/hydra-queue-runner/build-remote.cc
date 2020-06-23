@@ -108,9 +108,9 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
 
     StorePathSet missing;
     for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
-        if (!present.count(*i)) missing.insert(i->clone());
+        if (!present.count(*i)) missing.insert(*i);
 
-    printMsg(lvlDebug, format("sending %1% missing paths") % missing.size());
+    printMsg(lvlDebug, "sending %d missing paths", missing.size());
 
     std::unique_lock<std::timed_mutex> sendLock(sendMutex,
         std::chrono::seconds(600));
@@ -139,7 +139,7 @@ void State::buildRemote(ref<Store> destStore,
     createDirs(dirOf(result.logFile));
 
     AutoCloseFD logFD = open(result.logFile.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0666);
-    if (!logFD) throw SysError(format("creating log file ‘%1%’") % result.logFile);
+    if (!logFD) throw SysError("creating log file ‘%s’", result.logFile);
 
     nix::Path tmpDir = createTempDir();
     AutoDelete tmpDirDel(tmpDir, true);
@@ -187,10 +187,10 @@ void State::buildRemote(ref<Store> destStore,
 
             unsigned int magic = readInt(from);
             if (magic != SERVE_MAGIC_2)
-                throw Error(format("protocol mismatch with ‘nix-store --serve’ on ‘%1%’") % machine->sshName);
+                throw Error("protocol mismatch with ‘nix-store --serve’ on ‘%1%’", machine->sshName);
             remoteVersion = readInt(from);
             if (GET_PROTOCOL_MAJOR(remoteVersion) != 0x200)
-                throw Error(format("unsupported ‘nix-store --serve’ protocol version on ‘%1%’") % machine->sshName);
+                throw Error("unsupported ‘nix-store --serve’ protocol version on ‘%1%’", machine->sshName);
             // Always send the derivation to localhost, since it's a
             // no-op anyway but we might not be privileged to use
             // cmdBuildDerivation (e.g. if we're running in a NixOS
@@ -203,7 +203,7 @@ void State::buildRemote(ref<Store> destStore,
         } catch (EndOfFile & e) {
             child.pid.wait();
             string s = chomp(readFile(result.logFile));
-            throw Error(format("cannot connect to ‘%1%’: %2%") % machine->sshName % s);
+            throw Error("cannot connect to ‘%1%’: %2%", machine->sshName, s);
         }
 
         {
@@ -222,18 +222,18 @@ void State::buildRemote(ref<Store> destStore,
         BasicDerivation basicDrv(*step->drv);
 
         if (sendDerivation)
-            inputs.insert(step->drvPath.clone());
+            inputs.insert(step->drvPath);
         else
             for (auto & p : step->drv->inputSrcs)
-                inputs.insert(p.clone());
+                inputs.insert(p);
 
         for (auto & input : step->drv->inputDrvs) {
             Derivation drv2 = readDerivation(*localStore, localStore->printStorePath(input.first));
             for (auto & name : input.second) {
                 auto i = drv2.outputs.find(name);
                 if (i == drv2.outputs.end()) continue;
-                inputs.insert(i->second.path.clone());
-                basicDrv.inputSrcs.insert(i->second.path.clone());
+                inputs.insert(i->second.path);
+                basicDrv.inputSrcs.insert(i->second.path);
             }
         }
 
@@ -282,7 +282,7 @@ void State::buildRemote(ref<Store> destStore,
 
         if (sendDerivation) {
             to << cmdBuildPaths;
-            writeStorePaths(*localStore, to, singleton(step->drvPath));
+            writeStorePaths(*localStore, to, {step->drvPath});
         } else {
             to << cmdBuildDerivation << localStore->printStorePath(step->drvPath);
             writeDerivation(to, *localStore, basicDrv);
@@ -306,7 +306,7 @@ void State::buildRemote(ref<Store> destStore,
 
         if (sendDerivation) {
             if (res) {
-                result.errorMsg = (format("%1% on ‘%2%’") % readString(from) % machine->sshName).str();
+                result.errorMsg = fmt("%s on ‘%s’", readString(from), machine->sshName);
                 if (res == 100) {
                     result.stepStatus = bsFailed;
                     result.canCache = true;
@@ -472,7 +472,7 @@ void State::buildRemote(ref<Store> destStore,
             info->consecutiveFailures = std::min(info->consecutiveFailures + 1, (unsigned int) 4);
             info->lastFailure = now;
             int delta = retryInterval * std::pow(retryBackoff, info->consecutiveFailures - 1) + (rand() % 30);
-            printMsg(lvlInfo, format("will disable machine ‘%1%’ for %2%s") % machine->sshName % delta);
+            printMsg(lvlInfo, "will disable machine ‘%1%’ for %2%s", machine->sshName, delta);
             info->disabledUntil = now + std::chrono::seconds(delta);
         }
         throw;
