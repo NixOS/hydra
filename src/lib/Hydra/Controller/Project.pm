@@ -12,12 +12,14 @@ sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
     my ($self, $c, $projectName) = @_;
     $c->stash->{params}->{name} //= $projectName;
 
+    my $isCreate = $c->action->name eq "project" && $c->request->method eq "PUT";
+
     $c->stash->{project} = $c->model('DB::Projects')->find($projectName);
 
-    $c->stash->{isProjectOwner} = isProjectOwner($c, $c->stash->{project});
+    $c->stash->{isProjectOwner} = !$isCreate && isProjectOwner($c, $c->stash->{project});
 
     notFound($c, "Project ‘$projectName’ doesn't exist.")
-        if !$c->stash->{project} && !($c->action->name eq "project" and $c->request->method eq "PUT");
+        if !$c->stash->{project} && !$isCreate;
 }
 
 
