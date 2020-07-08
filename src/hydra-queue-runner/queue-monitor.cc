@@ -272,7 +272,7 @@ bool State::getQueuedBuilds(Connection & conn,
         try {
             createBuild(build);
         } catch (Error & e) {
-            e.addPrefix(fmt("while loading build %1%: ", build->id));
+            e.addTrace({}, hintfmt("while loading build %d: ", build->id));
             throw;
         }
 
@@ -458,8 +458,7 @@ Step::ptr State::createStep(ref<Store> destStore,
     for (auto & i : step->drv->outputs)
         if (!destStore->isValidPath(i.second.path)) {
             valid = false;
-            missing.insert_or_assign(i.first,
-                DerivationOutput { i.second.path, i.second.hashAlgo, i.second.hash });
+            missing.insert_or_assign(i.first, i.second);
         }
 
     /* Try to copy the missing paths from the local store or from

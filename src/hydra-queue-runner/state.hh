@@ -292,14 +292,14 @@ struct Machine
 };
 
 
-class Config;
+class HydraConfig;
 
 
 class State
 {
 private:
 
-    std::unique_ptr<Config> config;
+    std::unique_ptr<HydraConfig> config;
 
     // FIXME: Make configurable.
     const unsigned int maxTries = 5;

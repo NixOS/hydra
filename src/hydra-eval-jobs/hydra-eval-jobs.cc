@@ -270,7 +270,7 @@ int main(int argc, char * * argv)
 
     return handleExceptions(argv[0], [&]() {
 
-        auto config = std::make_unique<::Config>();
+        auto config = std::make_unique<HydraConfig>();
 
         auto nrWorkers = config->getIntOption("evaluator_workers", 1);
         maxMemorySize = config->getIntOption("evaluator_max_memory_size", 4096);
@@ -472,11 +472,7 @@ int main(int argc, char * * argv)
                 auto h = hashDerivationModulo(*store, drv, true);
                 auto outPath = store->makeOutputPath("out", h, drvName);
                 drv.env["out"] = store->printStorePath(outPath);
-                drv.outputs.insert_or_assign("out", DerivationOutput {
-                    .path = outPath,
-                    .hashAlgo = "",
-                    .hash = ""
-                });
+                drv.outputs.insert_or_assign("out", DerivationOutput { .path = outPath });
                 auto newDrvPath = store->printStorePath(writeDerivation(store, drv, drvName));
 
                 debug("rewrote aggregate derivation %s -> %s", drvPath, newDrvPath);

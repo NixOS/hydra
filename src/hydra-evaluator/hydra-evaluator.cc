@@ -24,7 +24,7 @@ enum class EvaluationStyle
 
 struct Evaluator
 {
-    std::unique_ptr<Config> config;
+    std::unique_ptr<HydraConfig> config;
 
     nix::Pool<Connection> dbPool;
 
@@ -57,7 +57,7 @@ struct Evaluator
     const time_t notTriggered = std::numeric_limits<time_t>::max();
 
     Evaluator()
-        : config(std::make_unique<::Config>())
+        : config(std::make_unique<HydraConfig>())
         , maxEvals(std::max((size_t) 1, (size_t) config->getIntOption("max_concurrent_evals", 4)))
     { }
 

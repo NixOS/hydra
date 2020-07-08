@@ -4,11 +4,11 @@
 
 #include "util.hh"
 
-struct Config
+struct HydraConfig
 {
     std::map<std::string, std::string> options;
 
-    Config()
+    HydraConfig()
     {
         using namespace nix;
 
