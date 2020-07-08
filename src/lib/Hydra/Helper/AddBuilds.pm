@@ -52,11 +52,12 @@ sub updateDeclarativeJobset {
         my $jobset = $project->jobsets->update_or_create(\%update);
         $jobset->jobsetinputs->delete;
         while ((my $name, my $data) = each %{$declSpec->{"inputs"}}) {
-            my $input = $jobset->jobsetinputs->create(
-                { name => $name,
-                  type => $data->{type},
-                  emailresponsible => $data->{emailresponsible}
-                });
+            my $row = {
+                name => $name,
+                type => $data->{type}
+            };
+            $row->{emailresponsible} = $data->{emailresponsible} if defined $data->{emailresponsible};
+            my $input = $jobset->jobsetinputs->create($row);
             $input->jobsetinputalts->create({altnr => 0, value => $data->{value}});
         }
         delete $declSpec->{"inputs"};
