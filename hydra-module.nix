@@ -403,18 +403,21 @@ in
       { script =
           ''
             spaceleft=$(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store)))
-            spacestopstart() {  # $1 = job, $2 = min GB free
-              if [ $spaceleft -lt $(($2 * 1024**3)) ]; then
-                if [ $(systemctl is-active $1) == active ]; then
-                  echo "stopping $1 due to lack of free space..."
-                  systemctl stop $1
-                  date > /var/lib/hydra/.$1-stopped-minspace
+            spacestopstart() {
+              service=$1
+              minFreeGB=$2
+              if [ $spaceleft -lt $(($minFreeGB * 1024**3)) ]; then
+                if [ $(systemctl is-active $service) == active ]; then
+                  echo "stopping $service due to lack of free space..."
+                  systemctl stop $service
+                  date > /var/lib/hydra/.$service-stopped-minspace
                 fi
               else
-                if [ $spaceleft -gt $(( ($2 + 10) * 1024**3)) -a \
-                     -r /var/lib/hydra/.$1-stopped-minspace ] ; then
-                  rm /var/lib/hydra/.$1-stopped-minspace
-                  systemctl start $1
+                if [ $spaceleft -gt $(( ($minFreeGB + 10) * 1024**3)) -a \
+                     -r /var/lib/hydra/.$service-stopped-minspace ] ; then
+                  rm /var/lib/hydra/.$service-stopped-minspace
+                  echo "restarting $service due to newly available free space..."
+                  systemctl start $service
                 fi
               fi
             }
