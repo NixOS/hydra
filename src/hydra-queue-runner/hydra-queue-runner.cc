@@ -414,13 +414,12 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
     unsigned int productNr = 1;
     for (auto & product : res.products) {
         txn.exec_params0
-            ("insert into BuildProducts (build, productnr, type, subtype, fileSize, sha1hash, sha256hash, path, name, defaultPath) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+            ("insert into BuildProducts (build, productnr, type, subtype, fileSize, sha256hash, path, name, defaultPath) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
              build->id,
              productNr++,
              product.type,
              product.subtype,
              product.isRegular ? std::make_optional(product.fileSize) : std::nullopt,
-             product.isRegular ? std::make_optional(product.sha1hash.to_string(Base16, false)) : std::nullopt,
              product.isRegular ? std::make_optional(product.sha256hash.to_string(Base16, false)) : std::nullopt,
              product.path,
              product.name,

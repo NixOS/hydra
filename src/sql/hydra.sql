@@ -330,7 +330,6 @@ create table BuildProducts (
     type          text not null, -- "nix-build", "file", "doc", "report", ...
     subtype       text not null, -- "source-dist", "rpm", ...
     fileSize      bigint,
-    sha1hash      text,
     sha256hash    text,
     path          text,
     name          text not null, -- generally just the filename part of `path'

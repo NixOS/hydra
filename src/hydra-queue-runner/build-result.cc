@@ -78,7 +78,6 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
                 product.isRegular = true;
                 product.fileSize = st.fileSize;
                 auto contents = accessor->readFile(product.path);
-                product.sha1hash = hashString(htSHA1, contents);
                 product.sha256hash = hashString(htSHA256, contents);
             }
 

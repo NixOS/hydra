@@ -61,11 +61,6 @@ __PACKAGE__->table("buildproducts");
   data_type: 'bigint'
   is_nullable: 1
 
-=head2 sha1hash
-
-  data_type: 'text'
-  is_nullable: 1
-
 =head2 sha256hash
 
   data_type: 'text'
@@ -99,8 +94,6 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "filesize",
   { data_type => "bigint", is_nullable => 1 },
-  "sha1hash",
-  { data_type => "text", is_nullable => 1 },
   "sha256hash",
   { data_type => "text", is_nullable => 1 },
   "path",
@@ -143,8 +136,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:iI0gmKqQxiPBTy5QsM6tpQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-07-27 18:21:03
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:O4R8b/GukNaUmmAErb3Jlw
 
 my %hint = (
     columns => [
@@ -152,7 +145,6 @@ my %hint = (
         'subtype',
         'name',
         'filesize',
-        'sha1hash',
         'sha256hash',
         'path',
         'defaultpath'
