@@ -395,17 +395,33 @@ in
 
     # If there is less than a certain amount of free disk space, stop
     # the queue/evaluator to prevent builds from failing or aborting.
+    # Leaves a tag file indicating this reason; if the tag file exists
+    # and disk space is above the threshold + 10GB, the queue/evaluator will be
+    # restarted; starting it if it is already started is not harmful.
     systemd.services.hydra-check-space =
       { script =
           ''
-            if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFree} * 1024**3)) ]; then
-                echo "stopping Hydra queue runner due to lack of free space..."
-                systemctl stop hydra-queue-runner
-            fi
-            if [ $(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store))) -lt $((${toString cfg.minimumDiskFreeEvaluator} * 1024**3)) ]; then
-                echo "stopping Hydra evaluator due to lack of free space..."
-                systemctl stop hydra-evaluator
-            fi
+            spaceleft=$(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store)))
+            spacestopstart() {
+              service=$1
+              minFreeGB=$2
+              if [ $spaceleft -lt $(($minFreeGB * 1024**3)) ]; then
+                if [ $(systemctl is-active $service) == active ]; then
+                  echo "stopping $service due to lack of free space..."
+                  systemctl stop $service
+                  date > /var/lib/hydra/.$service-stopped-minspace
+                fi
+              else
+                if [ $spaceleft -gt $(( ($minFreeGB + 10) * 1024**3)) -a \
+                     -r /var/lib/hydra/.$service-stopped-minspace ] ; then
+                  rm /var/lib/hydra/.$service-stopped-minspace
+                  echo "restarting $service due to newly available free space..."
+                  systemctl start $service
+                fi
+              fi
+            }
+            spacestopstart hydra-queue-runner ${toString cfg.minimumDiskFree}
+            spacestopstart hydra-evaluator ${toString cfg.minimumDiskFreeEvaluator}
           '';
         startAt = "*:0/5";
       };
