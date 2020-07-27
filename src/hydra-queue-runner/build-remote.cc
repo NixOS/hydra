@@ -444,7 +444,7 @@ void State::buildRemote(ref<Store> destStore,
             to << cmdExportPaths << 0;
             writeStorePaths(*localStore, to, outputs);
             to.flush();
-            destStore->importPaths(from, result.accessor, NoCheckSigs);
+            destStore->importPaths(from, /* result.accessor, */ NoCheckSigs);
 
             /* Release the tokens pertaining to NAR
                compression. After this we only have the uncompressed
