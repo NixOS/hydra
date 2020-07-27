@@ -8,8 +8,10 @@
 using namespace nix;
 
 
-BuildOutput getBuildOutput(nix::ref<Store> store,
-    nix::ref<nix::FSAccessor> accessor, const Derivation & drv)
+BuildOutput getBuildOutput(
+    nix::ref<Store> store,
+    NarMemberDatas & narMembers,
+    const Derivation & drv)
 {
     BuildOutput res;
 
@@ -22,6 +24,20 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
         auto info = store->queryPathInfo(path);
         res.closureSize += info->narSize;
         if (outputs.count(path)) res.size += info->narSize;
+    }
+
+    /* Fetch missing data. Usually buildRemote() will have extracted
+       this data from the incoming NARs. */
+    for (auto & output : outputs) {
+        auto outputS = store->printStorePath(output);
+        if (!narMembers.count(outputS)) {
+            printInfo("fetching NAR contents of '%s'...", outputS);
+            auto source = sinkToSource([&](Sink & sink)
+            {
+                store->narFromPath(output, sink);
+            });
+            extractNarData(*source, outputS, narMembers);
+        }
     }
 
     /* Get build products. */
@@ -39,17 +55,18 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
     for (auto & output : outputs) {
         auto outputS = store->printStorePath(output);
 
-        Path failedFile = outputS + "/nix-support/failed";
-        if (accessor->stat(failedFile).type == FSAccessor::Type::tRegular)
+        if (narMembers.count(outputS + "/nix-support/failed"))
             res.failed = true;
 
-        Path productsFile = outputS + "/nix-support/hydra-build-products";
-        if (accessor->stat(productsFile).type != FSAccessor::Type::tRegular)
+        auto productsFile = narMembers.find(outputS + "/nix-support/hydra-build-products");
+        if (productsFile == narMembers.end() ||
+            productsFile->second.type != FSAccessor::Type::tRegular)
             continue;
+        assert(productsFile->second.contents);
 
         explicitProducts = true;
 
-        for (auto & line : tokenizeString<Strings>(accessor->readFile(productsFile), "\n")) {
+        for (auto & line : tokenizeString<Strings>(productsFile->second.contents.value(), "\n")) {
             BuildProduct product;
 
             std::smatch match;
@@ -69,16 +86,15 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
             product.path = canonPath(product.path);
             if (!store->isInStore(product.path)) continue;
 
-            auto st = accessor->stat(product.path);
-            if (st.type == FSAccessor::Type::tMissing) continue;
+            auto file = narMembers.find(product.path);
+            if (file == narMembers.end()) continue;
 
             product.name = product.path == store->printStorePath(output) ? "" : baseNameOf(product.path);
 
-            if (st.type == FSAccessor::Type::tRegular) {
+            if (file->second.type == FSAccessor::Type::tRegular) {
                 product.isRegular = true;
-                product.fileSize = st.fileSize;
-                auto contents = accessor->readFile(product.path);
-                product.sha256hash = hashString(htSHA256, contents);
+                product.fileSize = file->second.fileSize.value();
+                product.sha256hash = file->second.sha256.value();
             }
 
             res.products.push_back(product);
@@ -95,29 +111,30 @@ BuildOutput getBuildOutput(nix::ref<Store> store,
             product.subtype = output.first == "out" ? "" : output.first;
             product.name = output.second.path.name();
 
-            auto st = accessor->stat(product.path);
-            if (st.type == FSAccessor::Type::tMissing)
-                throw Error("getting status of ‘%s’", product.path);
-            if (st.type == FSAccessor::Type::tDirectory)
+            auto file = narMembers.find(product.path);
+            assert(file != narMembers.end());
+            if (file->second.type == FSAccessor::Type::tDirectory)
                 res.products.push_back(product);
         }
     }
 
     /* Get the release name from $output/nix-support/hydra-release-name. */
     for (auto & output : outputs) {
-        auto p = store->printStorePath(output) + "/nix-support/hydra-release-name";
-        if (accessor->stat(p).type != FSAccessor::Type::tRegular) continue;
-        try {
-            res.releaseName = trim(accessor->readFile(p));
-        } catch (Error & e) { continue; }
+        auto file = narMembers.find(store->printStorePath(output) + "/nix-support/hydra-release-name");
+        if (file == narMembers.end() ||
+            file->second.type != FSAccessor::Type::tRegular)
+            continue;
+        res.releaseName = trim(file->second.contents.value());
         // FIXME: validate release name
     }
 
     /* Get metrics. */
     for (auto & output : outputs) {
-        auto metricsFile = store->printStorePath(output) + "/nix-support/hydra-metrics";
-        if (accessor->stat(metricsFile).type != FSAccessor::Type::tRegular) continue;
-        for (auto & line : tokenizeString<Strings>(accessor->readFile(metricsFile), "\n")) {
+        auto file = narMembers.find(store->printStorePath(output) + "/nix-support/hydra-metrics");
+        if (file == narMembers.end() ||
+            file->second.type != FSAccessor::Type::tRegular)
+            continue;
+        for (auto & line : tokenizeString<Strings>(file->second.contents.value(), "\n")) {
             auto fields = tokenizeString<std::vector<std::string>>(line);
             if (fields.size() < 2) continue;
             BuildMetric metric;

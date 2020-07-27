@@ -5,6 +5,7 @@
 #include "hash.hh"
 #include "derivations.hh"
 #include "store-api.hh"
+#include "nar-extractor.hh"
 
 struct BuildProduct
 {
@@ -38,5 +39,7 @@ struct BuildOutput
     std::map<std::string, BuildMetric> metrics;
 };
 
-BuildOutput getBuildOutput(nix::ref<nix::Store> store,
-    nix::ref<nix::FSAccessor> accessor, const nix::Derivation & drv);
+BuildOutput getBuildOutput(
+    nix::ref<nix::Store> store,
+    NarMemberDatas & narMembers,
+    const nix::Derivation & drv);

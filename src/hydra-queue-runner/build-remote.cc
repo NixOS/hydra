@@ -160,7 +160,8 @@ void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
     unsigned int maxSilentTime, unsigned int buildTimeout, unsigned int repeats,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
-    std::function<void(StepState)> updateStep)
+    std::function<void(StepState)> updateStep,
+    NarMemberDatas & narMembers)
 {
     assert(BuildResult::TimedOut == 8);
 
@@ -427,8 +428,6 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         /* Copy the output paths. */
-        result.accessor = destStore->getFSAccessor();
-
         if (!machine->isLocalhost() || localStore != std::shared_ptr<Store>(destStore)) {
             updateStep(ssReceivingOutputs);
 
@@ -475,7 +474,17 @@ void State::buildRemote(ref<Store> destStore,
                 auto & info = infos.find(path)->second;
                 to << cmdDumpStorePath << localStore->printStorePath(path);
                 to.flush();
-                destStore->addToStore(info, from);
+
+                /* Receive the NAR from the remote and add it to the
+                   destination store. Meanwhile, extract all the info from the
+                   NAR that getBuildOutput() needs. */
+                auto source2 = sinkToSource([&](Sink & sink)
+                {
+                    TeeSource tee(from, sink);
+                    extractNarData(tee, localStore->printStorePath(path), narMembers);
+                });
+
+                destStore->addToStore(info, *source2);
             }
 
             auto now2 = std::chrono::steady_clock::now();

@@ -14,6 +14,7 @@
 #include "pool.hh"
 #include "store-api.hh"
 #include "sync.hh"
+#include "nar-extractor.hh"
 
 
 typedef unsigned int BuildID;
@@ -64,7 +65,6 @@ struct RemoteResult
     time_t startTime = 0, stopTime = 0;
     unsigned int overhead = 0;
     nix::Path logFile;
-    std::shared_ptr<nix::FSAccessor> accessor;
 
     BuildStatus buildStatus() const
     {
@@ -518,7 +518,8 @@ private:
         unsigned int maxSilentTime, unsigned int buildTimeout,
         unsigned int repeats,
         RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
-        std::function<void(StepState)> updateStep);
+        std::function<void(StepState)> updateStep,
+        NarMemberDatas & narMembers);
 
     void markSucceededBuild(pqxx::work & txn, Build::ptr build,
         const BuildOutput & res, bool isCachedBuild, time_t startTime, time_t stopTime);

@@ -672,5 +672,6 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
 
     }
 
-    return getBuildOutput(destStore, destStore->getFSAccessor(), drv);
+    NarMemberDatas narMembers;
+    return getBuildOutput(destStore, narMembers, drv);
 }
