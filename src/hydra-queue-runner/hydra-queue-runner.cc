@@ -30,13 +30,6 @@ template<> void toJSON<double>(std::ostream & str, const double & n) { str << n;
 }
 
 
-static uint64_t getMemSize()
-{
-    auto pages = sysconf(_SC_PHYS_PAGES);
-    return pages >= 0 ? pages * sysconf(_SC_PAGESIZE) : 4ULL << 30;
-}
-
-
 std::string getEnvOrDie(const std::string & key)
 {
     auto value = getEnv(key);
