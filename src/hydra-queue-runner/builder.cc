@@ -204,8 +204,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
             buildRemote(destStore, machine, step, maxSilentTime, buildTimeout, repeats, result, activeStep, updateStep);
-        } catch (NoTokens & e) {
-            result.stepStatus = bsNarSizeLimitExceeded;
         } catch (Error & e) {
             if (activeStep->state_.lock()->cancelled) {
                 printInfo("marking step %d of build %d as cancelled", stepNr, buildId);
@@ -224,7 +222,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         }
 
         result.accessor = 0;
-        result.tokens = 0;
     }
 
     time_t stepStopTime = time(0);

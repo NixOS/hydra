@@ -8,7 +8,6 @@
 #include <queue>
 
 #include "db.hh"
-#include "token-server.hh"
 
 #include "parsed-derivations.hh"
 #include "pathlocks.hh"
@@ -65,7 +64,6 @@ struct RemoteResult
     time_t startTime = 0, stopTime = 0;
     unsigned int overhead = 0;
     nix::Path logFile;
-    std::unique_ptr<nix::TokenServer::Token> tokens;
     std::shared_ptr<nix::FSAccessor> accessor;
 
     BuildStatus buildStatus() const
@@ -409,13 +407,6 @@ private:
 
     std::shared_ptr<nix::Store> localStore;
     std::shared_ptr<nix::Store> _destStore;
-
-    /* Token server to prevent threads from allocating too many big
-       strings concurrently while importing NARs from the build
-       machines. When a thread imports a NAR of size N, it will first
-       acquire N memory tokens, causing it to block until that many
-       tokens are available. */
-    nix::TokenServer memoryTokens;
 
     size_t maxOutputSize;
     size_t maxLogSize;
