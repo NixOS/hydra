@@ -100,7 +100,7 @@ $ foreman start
 Have a look at the [Procfile](./Procfile) if you want to see how the processes are being started. In order to avoid
 conflicts with services that might be running on your host, hydra and postgress are started on custom ports:
 
-- hydra-server: 63333
+- hydra-server: 63333 with the username "alice" and the password "foobar"
 - postgresql: 64444
 
 Note that this is only ever meant as an ad-hoc way of executing Hydra during development. Please make use of the
