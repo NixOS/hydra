@@ -632,7 +632,7 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
         res.size = r[0][4].is_null() ? 0 : r[0][4].as<unsigned long long>();
 
         auto products = txn.exec_params
-            ("select type, subtype, fileSize, sha1hash, sha256hash, path, name, defaultPath from BuildProducts where build = $1 order by productnr",
+            ("select type, subtype, fileSize, sha256hash, path, name, defaultPath from BuildProducts where build = $1 order by productnr",
              id);
 
         for (auto row : products) {
@@ -646,14 +646,12 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
                 product.fileSize = row[2].as<off_t>();
             }
             if (!row[3].is_null())
-                product.sha1hash = Hash(row[3].as<std::string>(), htSHA1);
+                product.sha256hash = Hash(row[3].as<std::string>(), htSHA256);
             if (!row[4].is_null())
-                product.sha256hash = Hash(row[4].as<std::string>(), htSHA256);
-            if (!row[5].is_null())
-                product.path = row[5].as<std::string>();
-            product.name = row[6].as<std::string>();
-            if (!row[7].is_null())
-                product.defaultPath = row[7].as<std::string>();
+                product.path = row[4].as<std::string>();
+            product.name = row[5].as<std::string>();
+            if (!row[6].is_null())
+                product.defaultPath = row[6].as<std::string>();
             res.products.emplace_back(product);
         }
 
@@ -674,5 +672,6 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
 
     }
 
-    return getBuildOutput(destStore, destStore->getFSAccessor(), drv);
+    NarMemberDatas narMembers;
+    return getBuildOutput(destStore, narMembers, drv);
 }

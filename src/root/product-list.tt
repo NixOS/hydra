@@ -191,7 +191,6 @@
             <table class="info-table">
               [% INCLUDE renderProductLinks %]
               <tr><th>File size:</th><td>[% product.filesize %] bytes ([% mibs(product.filesize / (1024 * 1024)) %] MiB)</td></tr>
-              <tr><th>SHA-1 hash:</th><td><tt>[% product.sha1hash %]</tt></td></tr>
               <tr><th>SHA-256 hash:</th><td><tt>[% product.sha256hash %]</tt></td></tr>
               <tr><th>Full path:</th><td><tt>[% product.path %]</tt></td></tr>
             </table>

@@ -672,10 +672,6 @@ components:
         name:
           description: Name of the file
           type: string
-        sha1hash:
-          nullable: true
-          description: sha1 hash of the file
-          type: string
         path:
           description: the nix store path
           type: string
@@ -863,7 +859,6 @@ components:
             defaultpath: ''
             name: hello-2.10
             type: nix-build
-            sha1hash: null
             sha256hash: null
             subtype: ''
             path: /nix/store/y26qxcq1gg2hrqpxdc58b2fghv2bhxjg-hello-2.10

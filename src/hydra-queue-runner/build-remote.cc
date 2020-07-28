@@ -124,11 +124,42 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
 }
 
 
+// FIXME: use Store::topoSortPaths().
+StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> & paths)
+{
+    StorePaths sorted;
+    StorePathSet visited;
+
+    std::function<void(const StorePath & path)> dfsVisit;
+
+    dfsVisit = [&](const StorePath & path) {
+        if (!visited.insert(path).second) return;
+
+        auto info = paths.find(path);
+        auto references = info == paths.end() ? StorePathSet() : info->second.references;
+
+        for (auto & i : references)
+            /* Don't traverse into paths that don't exist.  That can
+               happen due to substitutes for non-existent paths. */
+            if (i != path && paths.count(i))
+                dfsVisit(i);
+
+        sorted.push_back(path);
+    };
+
+    for (auto & i : paths)
+        dfsVisit(i.first);
+
+    return sorted;
+}
+
+
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
     unsigned int maxSilentTime, unsigned int buildTimeout, unsigned int repeats,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
-    std::function<void(StepState)> updateStep)
+    std::function<void(StepState)> updateStep,
+    NarMemberDatas & narMembers)
 {
     assert(BuildResult::TimedOut == 8);
 
@@ -148,6 +179,7 @@ void State::buildRemote(ref<Store> destStore,
 
         updateStep(ssConnecting);
 
+        // FIXME: rewrite to use Store.
         Child child;
         openConnection(machine, tmpDir, logFD.get(), child);
 
@@ -182,7 +214,7 @@ void State::buildRemote(ref<Store> destStore,
         unsigned int remoteVersion;
 
         try {
-            to << SERVE_MAGIC_1 << 0x203;
+            to << SERVE_MAGIC_1 << 0x204;
             to.flush();
 
             unsigned int magic = readInt(from);
@@ -394,8 +426,6 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         /* Copy the output paths. */
-        result.accessor = destStore->getFSAccessor();
-
         if (!machine->isLocalhost() || localStore != std::shared_ptr<Store>(destStore)) {
             updateStep(ssReceivingOutputs);
 
@@ -405,17 +435,26 @@ void State::buildRemote(ref<Store> destStore,
 
             auto outputs = step->drv->outputPaths();
 
-            /* Query the size of the output paths. */
+            /* Get info about each output path. */
+            std::map<StorePath, ValidPathInfo> infos;
             size_t totalNarSize = 0;
             to << cmdQueryPathInfos;
             writeStorePaths(*localStore, to, outputs);
             to.flush();
             while (true) {
-                if (readString(from) == "") break;
+                auto storePathS = readString(from);
+                if (storePathS == "") break;
+                ValidPathInfo info(localStore->parseStorePath(storePathS));
+                assert(outputs.count(info.path));
                 readString(from); // deriver
-                readStrings<PathSet>(from); // references
+                info.references = readStorePaths<StorePathSet>(*localStore, from);
                 readLongLong(from); // download size
-                totalNarSize += readLongLong(from);
+                info.narSize = readLongLong(from);
+                totalNarSize += info.narSize;
+                info.narHash = Hash(readString(from), htSHA256);
+                info.ca = parseContentAddressOpt(readString(from));
+                readStrings<StringSet>(from); // sigs
+                infos.insert_or_assign(info.path, info);
             }
 
             if (totalNarSize > maxOutputSize) {
@@ -423,33 +462,28 @@ void State::buildRemote(ref<Store> destStore,
                 return;
             }
 
+            /* Copy each path. */
             printMsg(lvlDebug, "copying outputs of ‘%s’ from ‘%s’ (%d bytes)",
                 localStore->printStorePath(step->drvPath), machine->sshName, totalNarSize);
 
-            /* Block until we have the required amount of memory
-               available, which is twice the NAR size (namely the
-               uncompressed and worst-case compressed NAR), plus 150
-               MB for xz compression overhead. (The xz manpage claims
-               ~94 MiB, but that's not was I'm seeing.) */
-            auto resStart = std::chrono::steady_clock::now();
-            size_t compressionCost = totalNarSize + 150 * 1024 * 1024;
-            result.tokens = std::make_unique<nix::TokenServer::Token>(memoryTokens.get(totalNarSize + compressionCost));
-            auto resStop = std::chrono::steady_clock::now();
+            auto pathsSorted = reverseTopoSortPaths(infos);
 
-            auto resMs = std::chrono::duration_cast<std::chrono::milliseconds>(resStop - resStart).count();
-            if (resMs >= 1000)
-                printMsg(lvlError, "warning: had to wait %d ms for %d memory tokens for %s",
-                    resMs, totalNarSize, localStore->printStorePath(step->drvPath));
+            for (auto & path : pathsSorted) {
+                auto & info = infos.find(path)->second;
+                to << cmdDumpStorePath << localStore->printStorePath(path);
+                to.flush();
 
-            to << cmdExportPaths << 0;
-            writeStorePaths(*localStore, to, outputs);
-            to.flush();
-            destStore->importPaths(from, result.accessor, NoCheckSigs);
+                /* Receive the NAR from the remote and add it to the
+                   destination store. Meanwhile, extract all the info from the
+                   NAR that getBuildOutput() needs. */
+                auto source2 = sinkToSource([&](Sink & sink)
+                {
+                    TeeSource tee(from, sink);
+                    extractNarData(tee, localStore->printStorePath(path), narMembers);
+                });
 
-            /* Release the tokens pertaining to NAR
-               compression. After this we only have the uncompressed
-               NAR in memory. */
-            result.tokens->give_back(compressionCost);
+                destStore->addToStore(info, *source2);
+            }
 
             auto now2 = std::chrono::steady_clock::now();
 

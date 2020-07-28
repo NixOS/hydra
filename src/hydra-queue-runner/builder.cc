@@ -201,11 +201,11 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         };
 
         /* Do the build. */
+        NarMemberDatas narMembers;
+
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(destStore, machine, step, maxSilentTime, buildTimeout, repeats, result, activeStep, updateStep);
-        } catch (NoTokens & e) {
-            result.stepStatus = bsNarSizeLimitExceeded;
+            buildRemote(destStore, machine, step, maxSilentTime, buildTimeout, repeats, result, activeStep, updateStep, narMembers);
         } catch (Error & e) {
             if (activeStep->state_.lock()->cancelled) {
                 printInfo("marking step %d of build %d as cancelled", stepNr, buildId);
@@ -220,11 +220,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         if (result.stepStatus == bsSuccess) {
             updateStep(ssPostProcessing);
-            res = getBuildOutput(destStore, ref<FSAccessor>(result.accessor), *step->drv);
+            res = getBuildOutput(destStore, narMembers, *step->drv);
         }
-
-        result.accessor = 0;
-        result.tokens = 0;
     }
 
     time_t stepStopTime = time(0);

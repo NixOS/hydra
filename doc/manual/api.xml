@@ -311,7 +311,6 @@ Content-Type: application/json
   "buildproducts": {
     "1": {
       "path": "/nix/store/lzrxkjc35mhp8w7r8h82g0ljyizfchma-vm-test-run-unnamed",
-      "sha1hash": null,
       "defaultpath": "log.html",
       "type": "report",
       "sha256hash": null,

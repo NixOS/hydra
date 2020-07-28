@@ -5,13 +5,14 @@
 #include "hash.hh"
 #include "derivations.hh"
 #include "store-api.hh"
+#include "nar-extractor.hh"
 
 struct BuildProduct
 {
     nix::Path path, defaultPath;
     std::string type, subtype, name;
     bool isRegular = false;
-    nix::Hash sha1hash, sha256hash;
+    nix::Hash sha256hash;
     off_t fileSize = 0;
     BuildProduct() { }
 };
@@ -38,5 +39,7 @@ struct BuildOutput
     std::map<std::string, BuildMetric> metrics;
 };
 
-BuildOutput getBuildOutput(nix::ref<nix::Store> store,
-    nix::ref<nix::FSAccessor> accessor, const nix::Derivation & drv);
+BuildOutput getBuildOutput(
+    nix::ref<nix::Store> store,
+    NarMemberDatas & narMembers,
+    const nix::Derivation & drv);

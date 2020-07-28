@@ -30,13 +30,6 @@ template<> void toJSON<double>(std::ostream & str, const double & n) { str << n;
 }
 
 
-static uint64_t getMemSize()
-{
-    auto pages = sysconf(_SC_PHYS_PAGES);
-    return pages >= 0 ? pages * sysconf(_SC_PAGESIZE) : 4ULL << 30;
-}
-
-
 std::string getEnvOrDie(const std::string & key)
 {
     auto value = getEnv(key);
@@ -49,14 +42,11 @@ State::State()
     : config(std::make_unique<HydraConfig>())
     , maxUnsupportedTime(config->getIntOption("max_unsupported_time", 0))
     , dbPool(config->getIntOption("max_db_connections", 128))
-    , memoryTokens(config->getIntOption("nar_buffer_size", getMemSize() / 2))
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
     , maxLogSize(config->getIntOption("max_log_size", 64ULL << 20))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
     , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
 {
-    debug("using %d bytes for the NAR buffer", memoryTokens.capacity());
-
     hydraData = getEnvOrDie("HYDRA_DATA");
 
     logDir = canonPath(hydraData + "/build-logs");
@@ -417,13 +407,12 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
     unsigned int productNr = 1;
     for (auto & product : res.products) {
         txn.exec_params0
-            ("insert into BuildProducts (build, productnr, type, subtype, fileSize, sha1hash, sha256hash, path, name, defaultPath) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+            ("insert into BuildProducts (build, productnr, type, subtype, fileSize, sha256hash, path, name, defaultPath) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
              build->id,
              productNr++,
              product.type,
              product.subtype,
              product.isRegular ? std::make_optional(product.fileSize) : std::nullopt,
-             product.isRegular ? std::make_optional(product.sha1hash.to_string(Base16, false)) : std::nullopt,
              product.isRegular ? std::make_optional(product.sha256hash.to_string(Base16, false)) : std::nullopt,
              product.path,
              product.name,
@@ -544,7 +533,6 @@ void State::dumpStatus(Connection & conn)
         root.attr("dispatchTimeAvgMs", nrDispatcherWakeups == 0 ? 0.0 : (float) dispatchTimeMs / nrDispatcherWakeups);
         root.attr("nrDbConnections", dbPool.count());
         root.attr("nrActiveDbUpdates", nrActiveDbUpdates);
-        root.attr("memoryTokensInUse", memoryTokens.currentUse());
 
         {
             auto nested = root.object("machines");

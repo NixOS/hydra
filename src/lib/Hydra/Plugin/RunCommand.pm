@@ -90,7 +90,6 @@ sub buildFinished {
                     type => $product->type,
                     subtype => $product->subtype,
                     fileSize => $product->filesize,
-                    sha1hash => $product->sha1hash,
                     sha256hash => $product->sha256hash,
                     path => $product->path,
                     name => $product->name,
