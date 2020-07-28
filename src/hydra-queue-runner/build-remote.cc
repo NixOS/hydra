@@ -125,7 +125,7 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
 
 
 // FIXME: use Store::topoSortPaths().
-StorePaths topoSortPaths(const std::map<StorePath, ValidPathInfo> & paths)
+StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> & paths)
 {
     StorePaths sorted;
     StorePathSet visited;
@@ -149,8 +149,6 @@ StorePaths topoSortPaths(const std::map<StorePath, ValidPathInfo> & paths)
 
     for (auto & i : paths)
         dfsVisit(i.first);
-
-    std::reverse(sorted.begin(), sorted.end());
 
     return sorted;
 }
@@ -468,7 +466,7 @@ void State::buildRemote(ref<Store> destStore,
             printMsg(lvlDebug, "copying outputs of ‘%s’ from ‘%s’ (%d bytes)",
                 localStore->printStorePath(step->drvPath), machine->sshName, totalNarSize);
 
-            auto pathsSorted = topoSortPaths(infos);
+            auto pathsSorted = reverseTopoSortPaths(infos);
 
             for (auto & path : pathsSorted) {
                 auto & info = infos.find(path)->second;
