@@ -636,7 +636,12 @@ void State::dumpStatus(Connection & conn)
             auto nested2 = nested.object("s3");
             auto & s3Stats = s3Store->getS3Stats();
             nested2.attr("put", s3Stats.put);
+            nested2.attr("putBytes", s3Stats.putBytes);
             nested2.attr("putTimeMs", s3Stats.putTimeMs);
+            nested2.attr("putSpeed",
+                s3Stats.putTimeMs
+                ? (double) s3Stats.putBytes / s3Stats.putTimeMs * 1000.0 / (1024.0 * 1024.0)
+                : 0.0);
             nested2.attr("get", s3Stats.get);
             nested2.attr("getBytes", s3Stats.getBytes);
             nested2.attr("getTimeMs", s3Stats.getTimeMs);
