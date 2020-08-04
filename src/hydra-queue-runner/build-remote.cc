@@ -482,7 +482,7 @@ void State::buildRemote(ref<Store> destStore,
                     extractNarData(tee, localStore->printStorePath(path), narMembers);
                 });
 
-                destStore->addToStore(info, *source2);
+                destStore->addToStore(info, *source2, NoRepair, NoCheckSigs);
             }
 
             auto now2 = std::chrono::steady_clock::now();
