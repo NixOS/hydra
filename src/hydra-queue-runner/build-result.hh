@@ -12,8 +12,8 @@ struct BuildProduct
     nix::Path path, defaultPath;
     std::string type, subtype, name;
     bool isRegular = false;
-    nix::Hash sha256hash;
-    off_t fileSize = 0;
+    std::optional<nix::Hash> sha256hash;
+    std::optional<off_t> fileSize;
     BuildProduct() { }
 };
 

@@ -39,13 +39,13 @@ struct Extractor : ParseSink
     std::optional<unsigned long long> expectedSize;
     std::unique_ptr<HashSink> hashSink;
 
-    void preallocateContents(unsigned long long size) override
+    void preallocateContents(uint64_t size) override
     {
         expectedSize = size;
         hashSink = std::make_unique<HashSink>(htSHA256);
     }
 
-    void receiveContents(unsigned char * data, unsigned int len) override
+    void receiveContents(unsigned char * data, size_t len) override
     {
         assert(expectedSize);
         assert(curMember);

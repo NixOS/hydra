@@ -453,29 +453,29 @@ int main(int argc, char * * argv)
                     job["constituents"].push_back(drvPath2);
                 }
             } else {
-                std::string drvPath = job["drvPath"];
-                auto drv = readDerivation(*store, drvPath);
+                auto drvPath = store->parseStorePath((std::string) job["drvPath"]);
+                auto drv = store->readDerivation(drvPath);
 
                 for (std::string jobName2 : *named) {
                     auto job2 = state->jobs.find(jobName2);
                     if (job2 == state->jobs.end())
                         throw Error("aggregate job '%s' references non-existent job '%s'", jobName, jobName2);
-                    std::string drvPath2 = (*job2)["drvPath"];
-                    auto drv2 = readDerivation(*store, drvPath2);
-                    job["constituents"].push_back(drvPath2);
-                    drv.inputDrvs[store->parseStorePath(drvPath2)] = {drv2.outputs.begin()->first};
+                    auto drvPath2 = store->parseStorePath((std::string) (*job2)["drvPath"]);
+                    auto drv2 = store->readDerivation(drvPath2);
+                    job["constituents"].push_back(store->printStorePath(drvPath2));
+                    drv.inputDrvs[drvPath2] = {drv2.outputs.begin()->first};
                 }
 
-                std::string drvName(store->parseStorePath(drvPath).name());
+                std::string drvName(drvPath.name());
                 assert(hasSuffix(drvName, drvExtension));
                 drvName.resize(drvName.size() - drvExtension.size());
                 auto h = hashDerivationModulo(*store, drv, true);
                 auto outPath = store->makeOutputPath("out", h, drvName);
                 drv.env["out"] = store->printStorePath(outPath);
-                drv.outputs.insert_or_assign("out", DerivationOutput { .path = outPath });
+                drv.outputs.insert_or_assign("out", DerivationOutput { .output = DerivationOutputInputAddressed { .path = outPath } });
                 auto newDrvPath = store->printStorePath(writeDerivation(store, drv, drvName));
 
-                debug("rewrote aggregate derivation %s -> %s", drvPath, newDrvPath);
+                debug("rewrote aggregate derivation %s -> %s", store->printStorePath(drvPath), newDrvPath);
 
                 job["drvPath"] = newDrvPath;
                 job["outputs"]["out"] = store->printStorePath(outPath);

@@ -274,7 +274,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         assert(stepNr);
 
-        for (auto & path : step->drv->outputPaths())
+        for (auto & path : step->drv->outputPaths(*localStore))
             addRoot(path);
 
         /* Register success in the database for all Build objects that
@@ -463,7 +463,7 @@ void State::failStep(
             /* Remember failed paths in the database so that they
                won't be built again. */
             if (result.stepStatus != bsCachedFailure && result.canCache)
-                for (auto & path : step->drv->outputPaths())
+                for (auto & path : step->drv->outputPaths(*localStore))
                     txn.exec_params0("insert into FailedPaths values ($1)", localStore->printStorePath(path));
 
             txn.commit();

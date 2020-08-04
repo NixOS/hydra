@@ -260,7 +260,7 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
     for (auto & output : step->drv->outputs)
         txn.exec_params0
             ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-             buildId, stepNr, output.first, localStore->printStorePath(output.second.path));
+            buildId, stepNr, output.first, localStore->printStorePath(output.second.path(*localStore, step->drv->name)));
 
     if (status == bsBusy)
         txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));
@@ -412,8 +412,8 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
              productNr++,
              product.type,
              product.subtype,
-             product.isRegular ? std::make_optional(product.fileSize) : std::nullopt,
-             product.isRegular ? std::make_optional(product.sha256hash.to_string(Base16, false)) : std::nullopt,
+             product.fileSize ? std::make_optional(*product.fileSize) : std::nullopt,
+             product.sha256hash ? std::make_optional(product.sha256hash->to_string(Base16, false)) : std::nullopt,
              product.path,
              product.name,
              product.defaultPath);
@@ -441,7 +441,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 {
     pqxx::work txn(conn);
-    for (auto & path : step->drv->outputPaths())
+    for (auto & path : step->drv->outputPaths(*localStore))
         if (!txn.exec_params("select 1 from FailedPaths where path = $1", localStore->printStorePath(path)).empty())
             return true;
     return false;
@@ -637,12 +637,7 @@ void State::dumpStatus(Connection & conn)
             auto nested2 = nested.object("s3");
             auto & s3Stats = s3Store->getS3Stats();
             nested2.attr("put", s3Stats.put);
-            nested2.attr("putBytes", s3Stats.putBytes);
             nested2.attr("putTimeMs", s3Stats.putTimeMs);
-            nested2.attr("putSpeed",
-                s3Stats.putTimeMs
-                ? (double) s3Stats.putBytes / s3Stats.putTimeMs * 1000.0 / (1024.0 * 1024.0)
-                : 0.0);
             nested2.attr("get", s3Stats.get);
             nested2.attr("getBytes", s3Stats.getBytes);
             nested2.attr("getTimeMs", s3Stats.getTimeMs);

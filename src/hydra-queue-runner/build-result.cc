@@ -16,7 +16,7 @@ BuildOutput getBuildOutput(
     BuildOutput res;
 
     /* Compute the closure size. */
-    auto outputs = drv.outputPaths();
+    auto outputs = drv.outputPaths(*store);
     StorePathSet closure;
     for (auto & output : outputs)
         store->computeFSClosure(output, closure);
@@ -106,10 +106,11 @@ BuildOutput getBuildOutput(
     if (!explicitProducts) {
         for (auto & output : drv.outputs) {
             BuildProduct product;
-            product.path = store->printStorePath(output.second.path);
+            auto outPath = output.second.path(*store, drv.name);
+            product.path = store->printStorePath(outPath);
             product.type = "nix-build";
             product.subtype = output.first == "out" ? "" : output.first;
-            product.name = output.second.path.name();
+            product.name = outPath.name();
 
             auto file = narMembers.find(product.path);
             assert(file != narMembers.end());
