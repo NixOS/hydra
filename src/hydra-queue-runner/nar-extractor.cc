@@ -36,7 +36,7 @@ struct Extractor : ParseSink
         }).first->second;
     }
 
-    std::optional<unsigned long long> expectedSize;
+    std::optional<uint64_t> expectedSize;
     std::unique_ptr<HashSink> hashSink;
 
     void preallocateContents(uint64_t size) override

@@ -631,8 +631,8 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
         BuildOutput res;
         res.failed = r[0][1].as<int>() == bsFailedWithOutput;
         res.releaseName = r[0][2].is_null() ? "" : r[0][2].as<std::string>();
-        res.closureSize = r[0][3].is_null() ? 0 : r[0][3].as<unsigned long long>();
-        res.size = r[0][4].is_null() ? 0 : r[0][4].as<unsigned long long>();
+        res.closureSize = r[0][3].is_null() ? 0 : r[0][3].as<uint64_t>();
+        res.size = r[0][4].is_null() ? 0 : r[0][4].as<uint64_t>();
 
         auto products = txn.exec_params
             ("select type, subtype, fileSize, sha256hash, path, name, defaultPath from BuildProducts where build = $1 order by productnr",

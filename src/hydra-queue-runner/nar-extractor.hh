@@ -8,7 +8,7 @@
 struct NarMemberData
 {
     nix::FSAccessor::Type type;
-    std::optional<unsigned long long> fileSize;
+    std::optional<uint64_t> fileSize;
     std::optional<std::string> contents;
     std::optional<nix::Hash> sha256;
 };

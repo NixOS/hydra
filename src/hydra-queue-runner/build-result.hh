@@ -32,7 +32,7 @@ struct BuildOutput
 
     std::string releaseName;
 
-    unsigned long long closureSize = 0, size = 0;
+    uint64_t closureSize = 0, size = 0;
 
     std::list<BuildProduct> products;
 
