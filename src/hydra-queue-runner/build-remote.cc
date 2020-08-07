@@ -452,7 +452,7 @@ void State::buildRemote(ref<Store> destStore,
                 readLongLong(from); // download size
                 info.narSize = readLongLong(from);
                 totalNarSize += info.narSize;
-                info.narHash = Hash(readString(from), htSHA256);
+                info.narHash = Hash::parseAny(readString(from), htSHA256);
                 info.ca = parseContentAddressOpt(readString(from));
                 readStrings<StringSet>(from); // sigs
                 infos.insert_or_assign(info.path, info);

@@ -469,7 +469,7 @@ int main(int argc, char * * argv)
                 std::string drvName(drvPath.name());
                 assert(hasSuffix(drvName, drvExtension));
                 drvName.resize(drvName.size() - drvExtension.size());
-                auto h = hashDerivationModulo(*store, drv, true);
+                auto h = std::get<Hash>(hashDerivationModulo(*store, drv, true));
                 auto outPath = store->makeOutputPath("out", h, drvName);
                 drv.env["out"] = store->printStorePath(outPath);
                 drv.outputs.insert_or_assign("out", DerivationOutput { .output = DerivationOutputInputAddressed { .path = outPath } });
