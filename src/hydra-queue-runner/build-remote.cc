@@ -445,16 +445,20 @@ void State::buildRemote(ref<Store> destStore,
             while (true) {
                 auto storePathS = readString(from);
                 if (storePathS == "") break;
-                ValidPathInfo info(localStore->parseStorePath(storePathS));
-                assert(outputs.count(info.path));
                 readString(from); // deriver
-                info.references = readStorePaths<StorePathSet>(*localStore, from);
+                auto references = readStorePaths<StorePathSet>(*localStore, from);
                 readLongLong(from); // download size
-                info.narSize = readLongLong(from);
-                totalNarSize += info.narSize;
-                info.narHash = Hash::parseAny(readString(from), htSHA256);
-                info.ca = parseContentAddressOpt(readString(from));
+                auto narSize = readLongLong(from);
+                auto narHash = Hash::parseAny(readString(from), htSHA256);
+                auto ca = parseContentAddressOpt(readString(from));
                 readStrings<StringSet>(from); // sigs
+                ValidPathInfo info(localStore->parseStorePath(storePathS), narHash);
+                assert(outputs.count(info.path));
+                info.references = references;
+                info.narSize = narSize;
+                totalNarSize += info.narSize;
+                info.narHash = narHash;
+                info.ca = ca;
                 infos.insert_or_assign(info.path, info);
             }
 

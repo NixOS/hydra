@@ -430,7 +430,7 @@ Step::ptr State::createStep(ref<Store> destStore,
     step->drv = std::make_unique<Derivation>(localStore->readDerivation(drvPath));
     step->parsedDrv = std::make_unique<ParsedDerivation>(drvPath, *step->drv);
 
-    step->preferLocalBuild = step->parsedDrv->willBuildLocally();
+    step->preferLocalBuild = step->parsedDrv->willBuildLocally(*localStore);
     step->isDeterministic = get(step->drv->env, "isDetermistic").value_or("0") == "1";
 
     step->systemType = step->drv->platform;
