@@ -127,12 +127,11 @@ sub buildFinished {
         my $channel = $channels{$url};
         my @deps = grep { $_->id != $build->id } @{$channel->{builds}};
 
-        my $imgBase = "http://hydra.nixos.org";
         my $img =
-            $build->buildstatus == 0 ? "$imgBase/static/images/checkmark_256.png" :
-            $build->buildstatus == 2 ? "$imgBase/static/images/dependency_256.png" :
-            $build->buildstatus == 4 ? "$imgBase/static/images/cancelled_128.png" :
-            "$imgBase/static/images/error_256.png";
+            $build->buildstatus == 0 ? "$baseurl/static/images/checkmark_256.png" :
+            $build->buildstatus == 2 ? "$baseurl/static/images/dependency_256.png" :
+            $build->buildstatus == 4 ? "$baseurl/static/images/cancelled_256.png" :
+            "$baseurl/static/images/error_256.png";
 
         my $color =
             $build->buildstatus == 0 ? "good" :
