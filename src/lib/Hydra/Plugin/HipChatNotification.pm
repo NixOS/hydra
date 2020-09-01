@@ -50,12 +50,11 @@ sub buildFinished {
         my $room = $rooms{$roomId};
         my @deps = grep { $_->id != $build->id } @{$room->{builds}};
 
-        my $imgBase = "http://hydra.nixos.org";
         my $img =
-            $build->buildstatus == 0 ? "$imgBase/static/images/checkmark_16.png" :
-            $build->buildstatus == 2 ? "$imgBase/static/images/dependency_16.png" :
-            $build->buildstatus == 4 ? "$imgBase/static/images/cancelled_16.png" :
-            "$imgBase/static/images/error_16.png";
+            $build->buildstatus == 0 ? "$baseurl/static/images/checkmark_16.png" :
+            $build->buildstatus == 2 ? "$baseurl/static/images/dependency_16.png" :
+            $build->buildstatus == 4 ? "$baseurl/static/images/cancelled_16.png" :
+            "$baseurl/static/images/error_16.png";
 
         my $msg = "";
         $msg .= "<img src='$img'/> ";
