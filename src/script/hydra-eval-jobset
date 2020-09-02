@@ -569,10 +569,28 @@ sub checkJobsetWrapped {
         eval {
             $declSpec = decode_json($declText);
         };
+
         die "Declarative specification file $declFile not valid JSON: $@\n" if $@;
-        updateDeclarativeJobset($db, $project, ".jobsets", $declSpec);
-        $jobset->discard_changes;
-        $inputInfo->{"declInput"} = [ $declInput ];
+
+        if (ref $declSpec eq "HASH") {
+            if (grep ref $_ eq "HASH", values %$declSpec) {
+                # Since all of its keys are hashes, assume the json document
+                # itself is the entire set of jobs
+                handleDeclarativeJobsetJson($db, $project, $declSpec);
+                $db->txn_do(sub {
+                    $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
+                });
+                return;
+            } else {
+                # Update the jobset with the spec's inputs, and the continue
+                # evaluating the .jobsets jobset.
+                updateDeclarativeJobset($db, $project, ".jobsets", $declSpec);
+                $jobset->discard_changes;
+                $inputInfo->{"declInput"} = [ $declInput ];
+            }
+        } else {
+            die "Declarative specification file $declFile is not a dictionary"
+        }
     }
 
     # Fetch all values for all inputs.
