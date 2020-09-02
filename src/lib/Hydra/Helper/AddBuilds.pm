@@ -21,6 +21,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(
     updateDeclarativeJobset
     handleDeclarativeJobsetBuild
+    handleDeclarativeJobsetJson
 );
 
 
@@ -65,6 +66,22 @@ sub updateDeclarativeJobset {
     });
 };
 
+sub handleDeclarativeJobsetJson {
+    my ($db, $project, $declSpec) = @_;
+    $db->txn_do(sub {
+            my @kept = keys %$declSpec;
+            push @kept, ".jobsets";
+            $project->jobsets->search({ name => { "not in" => \@kept } })->update({ enabled => 0, hidden => 1 });
+            while ((my $jobsetName, my $spec) = each %$declSpec) {
+                eval {
+                    updateDeclarativeJobset($db, $project, $jobsetName, $spec);
+                    1;
+                } or do {
+                    print STDERR "ERROR: failed to process declarative jobset ", $project->name, ":${jobsetName}, ", $@, "\n";
+                }
+            }
+        });
+}
 
 sub handleDeclarativeJobsetBuild {
     my ($db, $project, $build) = @_;
@@ -82,19 +99,7 @@ sub handleDeclarativeJobsetBuild {
         };
 
         my $declSpec = decode_json($declText);
-        $db->txn_do(sub {
-            my @kept = keys %$declSpec;
-            push @kept, ".jobsets";
-            $project->jobsets->search({ name => { "not in" => \@kept } })->update({ enabled => 0, hidden => 1 });
-            while ((my $jobsetName, my $spec) = each %$declSpec) {
-                eval {
-                    updateDeclarativeJobset($db, $project, $jobsetName, $spec);
-                    1;
-                } or do {
-                    print STDERR "ERROR: failed to process declarative jobset ", $project->name, ":${jobsetName}, ", $@, "\n";
-                }
-            }
-        });
+        handleDeclarativeJobsetJson($db, $project, $declSpec);
         1;
     } or do {
         # note the error in the database in the case eval fails for whatever reason
