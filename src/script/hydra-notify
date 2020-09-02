@@ -8,6 +8,7 @@ use Hydra::Helper::AddBuilds;
 use IO::Select;
 
 STDERR->autoflush(1);
+STDOUT->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
 
 my $config = getHydraConfig();
