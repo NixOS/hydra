@@ -381,6 +381,18 @@
                   objectClass: top
                   objectClass: organizationalUnit
 
+                  dn: ou=groups,dc=example
+                  ou: groups
+                  description: All groups
+                  objectClass: top
+                  objectClass: organizationalUnit
+
+                  dn: cn=hydra_admin,ou=groups,dc=example
+                  cn: hydra_admin
+                  description: Hydra Admin user group
+                  objectClass: groupOfNames
+                  member: cn=admin,ou=users,dc=example
+
                   dn: cn=user,ou=users,dc=example
                   objectClass: organizationalPerson
                   objectClass: inetOrgPerson
@@ -388,6 +400,14 @@
                   cn: user
                   mail: user@example
                   userPassword: foobar
+
+                  dn: cn=admin,ou=users,dc=example
+                  objectClass: organizationalPerson
+                  objectClass: inetOrgPerson
+                  sn: admin
+                  cn: admin
+                  mail: admin@example
+                  userPassword: password
                 '';
               };
               systemd.services.hdyra-server.environment.CATALYST_DEBUG = "1";
@@ -413,11 +433,11 @@
                     user_field: cn
                     user_search_options:
                       deref: always
-                    use_roles: 0
-                    role_basedn: "ou=groups,ou=OxObjects,dc=yourcompany,dc=com"
-                    role_filter: "(&(objectClass=posixGroup)(memberUid=%s))"
+                    use_roles: 1
+                    role_basedn: "ou=groups,dc=example"
+                    role_filter: "(&(objectClass=groupOfNames)(member=%s))"
                     role_scope: one
-                    role_field: uid
+                    role_field: cn
                     role_value: dn
                     role_search_options:
                       deref: always
@@ -425,15 +445,34 @@
               networking.firewall.enable = false;
             };
             testScript = ''
+              import json
+
               machine.wait_for_unit("openldap.service")
               machine.wait_for_job("hydra-init")
               machine.wait_for_open_port("3000")
-              machine.succeed(
+              response = machine.succeed(
                   "curl --fail http://localhost:3000/login -H 'Accept: application/json' -H 'Referer: http://localhost:3000' --data 'username=user&password=foobar'"
               )
+
+              response_json = json.loads(response)
+              assert "user" == response_json["username"]
+              assert "user@example" == response_json["emailaddress"]
+              assert len(response_json["userroles"]) == 0
+
+              # logging on with wrong credentials shouldn't work
               machine.fail(
                   "curl --fail http://localhost:3000/login -H 'Accept: application/json' -H 'Referer: http://localhost:3000' --data 'username=user&password=wrongpassword'"
               )
+
+              # the admin user should get the admin role from his group membership in `hydra_admin`
+              response = machine.succeed(
+                  "curl --fail http://localhost:3000/login -H 'Accept: application/json' -H 'Referer: http://localhost:3000' --data 'username=admin&password=password'"
+              )
+
+              response_json = json.loads(response)
+              assert "admin" == response_json["username"]
+              assert "admin@example" == response_json["emailaddress"]
+              assert "admin" in response_json["userroles"]
             '';
           };
 
