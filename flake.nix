@@ -351,6 +351,92 @@
             '';
         };
 
+        tests.ldap.x86_64-linux =
+          with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
+          makeTest {
+            machine = { pkgs, ... }: {
+              imports = [ hydraServer ];
+
+              services.openldap = {
+                enable = true;
+                suffix = "dc=example";
+                rootdn = "cn=root,dc=example";
+                rootpw = "notapassword";
+                database = "bdb";
+                dataDir = "/var/lib/openldap";
+                extraDatabaseConfig = ''
+                '';
+
+                declarativeContents = ''
+                  dn: dc=example
+                  dc: example
+                  o: Root
+                  objectClass: top
+                  objectClass: dcObject
+                  objectClass: organization
+
+                  dn: ou=users,dc=example
+                  ou: users
+                  description: All users
+                  objectClass: top
+                  objectClass: organizationalUnit
+
+                  dn: cn=user,ou=users,dc=example
+                  objectClass: organizationalPerson
+                  objectClass: inetOrgPerson
+                  sn: user
+                  cn: user
+                  mail: user@example
+                  userPassword: foobar
+                '';
+              };
+              systemd.services.hdyra-server.environment.CATALYST_DEBUG = "1";
+              systemd.services.hydra-server.environment.HYDRA_LDAP_CONFIG = pkgs.writeText "config.yaml"
+                # example config based on https://metacpan.org/source/ILMARI/Catalyst-Authentication-Store-LDAP-1.016/README#L103
+                ''
+                  credential:
+                    class: Password
+                    password_field: password
+                    password_type: self_check
+                  store:
+                    class: LDAP
+                    ldap_server: localhost
+                    ldap_server_options.timeout: 30
+                    binddn: "cn=root,dc=example"
+                    bindpw: notapassword
+                    start_tls: 0
+                    start_tls_options
+                      verify:  none
+                    user_basedn: "ou=users,dc=example"
+                    user_filter: "(&(objectClass=inetOrgPerson)(cn=%s))"
+                    user_scope: one
+                    user_field: cn
+                    user_search_options:
+                      deref: always
+                    use_roles: 0
+                    role_basedn: "ou=groups,ou=OxObjects,dc=yourcompany,dc=com"
+                    role_filter: "(&(objectClass=posixGroup)(memberUid=%s))"
+                    role_scope: one
+                    role_field: uid
+                    role_value: dn
+                    role_search_options:
+                      deref: always
+                  '';
+              networking.firewall.enable = false;
+            };
+            testScript = ''
+              machine.wait_for_unit("openldap.service")
+              machine.wait_for_job("hydra-init")
+              machine.wait_for_open_port("3000")
+              machine.succeed(
+                  "curl --fail http://localhost:3000/login -H 'Accept: application/json' -H 'Referer: http://localhost:3000' --data 'username=user&password=foobar'"
+              )
+              machine.fail(
+                  "curl --fail http://localhost:3000/login -H 'Accept: application/json' -H 'Referer: http://localhost:3000' --data 'username=user&password=wrongpassword'"
+              )
+            '';
+          };
+
         container = nixosConfigurations.container.config.system.build.toplevel;
       };
 
