@@ -272,6 +272,62 @@ server {
 
     </para>
   </section>
+  <section>
+    <title>Using LDAP as authentication backend (optional)</title>
+    <para>
+      Instead of using Hydra's built-in user management you can optionally use LDAP to manage roles and users.
+    </para>
+
+    <para>
+      The <command>hydra-server</command> accepts the environment
+      variable <emphasis>HYDRA_LDAP_CONFIG</emphasis>. The value of
+      the variable should point to a valid YAML file containing the
+      Catalyst LDAP configuration. The format of the configuration
+      file is describe in the
+      <link xlink:href="https://metacpan.org/pod/Catalyst::Authentication::Store::LDAP#CONFIGURATION-OPTIONS">
+        <emphasis>Catalyst::Authentication::Store::LDAP</emphasis> documentation</link>.
+      An example is given below.
+    </para>
+
+    <para>
+      Roles can be assigned to users based on their LDAP group membership
+      (<emphasis>use_roles: 1</emphasis> in the below example).
+      For a user to have the role <emphasis>admin</emphasis> assigned to them
+      they should be in the group <emphasis>hydra_admin</emphasis>. In general
+      any LDAP group of the form <emphasis>hydra_some_role</emphasis>
+      (notice the <emphasis>hydra_</emphasis> prefix) will work.
+    </para>
+
+    <screen>
+credential:
+  class: Password
+  password_field: password
+  password_type: self_check
+store:
+  class: LDAP
+  ldap_server: localhost
+  ldap_server_options.timeout: 30
+  binddn: "cn=root,dc=example"
+  bindpw: notapassword
+  start_tls: 0
+  start_tls_options
+    verify:  none
+  user_basedn: "ou=users,dc=example"
+  user_filter: "(&amp;(objectClass=inetOrgPerson)(cn=%s))"
+  user_scope: one
+  user_field: cn
+  user_search_options:
+    deref: always
+  use_roles: 1
+  role_basedn: "ou=groups,dc=example"
+  role_filter: "(&amp;(objectClass=groupOfNames)(member=%s))"
+  role_scope: one
+  role_field: cn
+  role_value: dn
+  role_search_options:
+    deref: always
+    </screen>
+  </section>
 </chapter>
 
 <!--
