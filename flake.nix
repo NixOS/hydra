@@ -35,14 +35,73 @@
       # A Nixpkgs overlay that provides a 'hydra' package.
       overlay = final: prev: {
 
-        hydra = with final; let
+        # Add LDAP dependencies that aren't currently found within nixpkgs.
+        perlPackages = prev.perlPackages // {
+          NetLDAPServer = prev.perlPackages.buildPerlPackage {
+            pname = "Net-LDAP-Server";
+            version = "0.43";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/A/AA/AAR/Net-LDAP-Server-0.43.tar.gz";
+              sha256 = "0qmh3cri3fpccmwz6bhwp78yskrb3qmalzvqn0a23hqbsfs4qv6x";
+            };
+            propagatedBuildInputs = with final.perlPackages; [ NetLDAP ConvertASN1 ];
+            meta = {
+              description = "LDAP server side protocol handling";
+              license = with final.stdenv.lib.licenses; [ artistic1 ];
+            };
+          };
 
+          NetLDAPSID = prev.perlPackages.buildPerlPackage {
+            pname = "Net-LDAP-SID";
+            version = "0.0001";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/K/KA/KARMAN/Net-LDAP-SID-0.001.tar.gz";
+              sha256 = "1mnnpkmj8kpb7qw50sm8h4sd8py37ssy2xi5hhxzr5whcx0cvhm8";
+            };
+            meta = {
+              description= "Active Directory Security Identifier manipulation";
+              license = with final.stdenv.lib.licenses; [ artistic2 ];
+            };
+          };
+
+          NetLDAPServerTest = prev.perlPackages.buildPerlPackage {
+            pname = "Net-LDAP-Server-Test";
+            version = "0.22";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/K/KA/KARMAN/Net-LDAP-Server-Test-0.22.tar.gz";
+              sha256 = "13idip7jky92v4adw60jn2gcc3zf339gsdqlnc9nnvqzbxxp285i";
+            };
+            propagatedBuildInputs = with final.perlPackages; [ NetLDAP NetLDAPServer TestMore DataDump NetLDAPSID ];
+            meta = {
+              description= "test Net::LDAP code";
+              license = with final.stdenv.lib.licenses; [ artistic1 ];
+            };
+          };
+
+          CatalystAuthenticationStoreLDAP = prev.perlPackages.buildPerlPackage {
+            pname = "Catalyst-Authentication-Store-LDAP";
+            version = "1.016";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/I/IL/ILMARI/Catalyst-Authentication-Store-LDAP-1.016.tar.gz";
+              sha256 = "0cm399vxqqf05cjgs1j5v3sk4qc6nmws5nfhf52qvpbwc4m82mq8";
+            };
+            propagatedBuildInputs = with final.perlPackages; [ NetLDAP CatalystPluginAuthentication ClassAccessorFast ];
+            buildInputs = with final.perlPackages; [ TestMore TestMockObject TestException NetLDAPServerTest ];
+            meta = {
+              description= "Authentication from an LDAP Directory";
+              license = with final.stdenv.lib.licenses; [ artistic1 ];
+            };
+          };
+        };
+
+        hydra = with final; let
           perlDeps = buildEnv {
             name = "hydra-perl-deps";
             paths = with perlPackages; lib.closePropagation
               [ ModulePluggable
                 CatalystActionREST
                 CatalystAuthenticationStoreDBIxClass
+                CatalystAuthenticationStoreLDAP
                 CatalystDevel
                 CatalystDispatchTypeRegex
                 CatalystPluginAccessLog
@@ -88,6 +147,7 @@
                 TextDiff
                 TextTable
                 XMLSimple
+                YAML
                 final.nix
                 final.nix.perl-bindings
                 git
@@ -290,6 +350,131 @@
               )
             '';
         };
+
+        tests.ldap.x86_64-linux =
+          with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
+          makeTest {
+            machine = { pkgs, ... }: {
+              imports = [ hydraServer ];
+
+              services.openldap = {
+                enable = true;
+                suffix = "dc=example";
+                rootdn = "cn=root,dc=example";
+                rootpw = "notapassword";
+                database = "bdb";
+                dataDir = "/var/lib/openldap";
+                extraDatabaseConfig = ''
+                '';
+
+                declarativeContents = ''
+                  dn: dc=example
+                  dc: example
+                  o: Root
+                  objectClass: top
+                  objectClass: dcObject
+                  objectClass: organization
+
+                  dn: ou=users,dc=example
+                  ou: users
+                  description: All users
+                  objectClass: top
+                  objectClass: organizationalUnit
+
+                  dn: ou=groups,dc=example
+                  ou: groups
+                  description: All groups
+                  objectClass: top
+                  objectClass: organizationalUnit
+
+                  dn: cn=hydra_admin,ou=groups,dc=example
+                  cn: hydra_admin
+                  description: Hydra Admin user group
+                  objectClass: groupOfNames
+                  member: cn=admin,ou=users,dc=example
+
+                  dn: cn=user,ou=users,dc=example
+                  objectClass: organizationalPerson
+                  objectClass: inetOrgPerson
+                  sn: user
+                  cn: user
+                  mail: user@example
+                  userPassword: foobar
+
+                  dn: cn=admin,ou=users,dc=example
+                  objectClass: organizationalPerson
+                  objectClass: inetOrgPerson
+                  sn: admin
+                  cn: admin
+                  mail: admin@example
+                  userPassword: password
+                '';
+              };
+              systemd.services.hdyra-server.environment.CATALYST_DEBUG = "1";
+              systemd.services.hydra-server.environment.HYDRA_LDAP_CONFIG = pkgs.writeText "config.yaml"
+                # example config based on https://metacpan.org/source/ILMARI/Catalyst-Authentication-Store-LDAP-1.016/README#L103
+                ''
+                  credential:
+                    class: Password
+                    password_field: password
+                    password_type: self_check
+                  store:
+                    class: LDAP
+                    ldap_server: localhost
+                    ldap_server_options.timeout: 30
+                    binddn: "cn=root,dc=example"
+                    bindpw: notapassword
+                    start_tls: 0
+                    start_tls_options
+                      verify:  none
+                    user_basedn: "ou=users,dc=example"
+                    user_filter: "(&(objectClass=inetOrgPerson)(cn=%s))"
+                    user_scope: one
+                    user_field: cn
+                    user_search_options:
+                      deref: always
+                    use_roles: 1
+                    role_basedn: "ou=groups,dc=example"
+                    role_filter: "(&(objectClass=groupOfNames)(member=%s))"
+                    role_scope: one
+                    role_field: cn
+                    role_value: dn
+                    role_search_options:
+                      deref: always
+                  '';
+              networking.firewall.enable = false;
+            };
+            testScript = ''
+              import json
+
+              machine.wait_for_unit("openldap.service")
+              machine.wait_for_job("hydra-init")
+              machine.wait_for_open_port("3000")
+              response = machine.succeed(
+                  "curl --fail http://localhost:3000/login -H 'Accept: application/json' -H 'Referer: http://localhost:3000' --data 'username=user&password=foobar'"
+              )
+
+              response_json = json.loads(response)
+              assert "user" == response_json["username"]
+              assert "user@example" == response_json["emailaddress"]
+              assert len(response_json["userroles"]) == 0
+
+              # logging on with wrong credentials shouldn't work
+              machine.fail(
+                  "curl --fail http://localhost:3000/login -H 'Accept: application/json' -H 'Referer: http://localhost:3000' --data 'username=user&password=wrongpassword'"
+              )
+
+              # the admin user should get the admin role from his group membership in `hydra_admin`
+              response = machine.succeed(
+                  "curl --fail http://localhost:3000/login -H 'Accept: application/json' -H 'Referer: http://localhost:3000' --data 'username=admin&password=password'"
+              )
+
+              response_json = json.loads(response)
+              assert "admin" == response_json["username"]
+              assert "admin@example" == response_json["emailaddress"]
+              assert "admin" in response_json["userroles"]
+            '';
+          };
 
         container = nixosConfigurations.container.config.system.build.toplevel;
       };

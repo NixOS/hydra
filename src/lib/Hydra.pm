@@ -20,7 +20,8 @@ use Catalyst qw/ConfigLoader
                 Captcha/,
                 '-Log=warn,fatal,error';
 use CatalystX::RoleApplicator;
-
+use YAML qw(LoadFile);
+use Path::Class 'file';
 
 our $VERSION = '0.01';
 
@@ -44,6 +45,9 @@ __PACKAGE__->config(
                     role_field => "role",
                 },
             },
+            ldap => $ENV{'HYDRA_LDAP_CONFIG'} ? LoadFile(
+                file($ENV{'HYDRA_LDAP_CONFIG'})
+            ) : undef
         },
     },
     'Plugin::Static::Simple' => {
