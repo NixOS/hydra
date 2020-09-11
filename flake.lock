@@ -1,15 +1,33 @@
 {
   "nodes": {
+    "lowdown-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1598296217,
+        "narHash": "sha256-ha7lyNY1d8m+osmDpPc9f/bfZ3ZC1IVIXwfyklSWg8I=",
+        "owner": "edolstra",
+        "repo": "lowdown",
+        "rev": "c7a4e715af1e233080842db82d15b261cb74cb28",
+        "type": "github"
+      },
+      "original": {
+        "owner": "edolstra",
+        "ref": "no-structs-in-anonymous-unions",
+        "repo": "lowdown",
+        "type": "github"
+      }
+    },
     "nix": {
       "inputs": {
+        "lowdown-src": "lowdown-src",
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1598539168,
-        "narHash": "sha256-2i95APppDPjN7wKfgJHlg9r7vU13vOI22iK88mtuvy4=",
+        "lastModified": 1600084131,
+        "narHash": "sha256-haVF8TAEj2Uws2dJgCIvq+GAZRe6I+7U85C/7I/0YUU=",
         "owner": "NixOS",
         "repo": "nix",
-        "rev": "eb75282b8dc855983368c79cc4c2943c298518f7",
+        "rev": "a59e77d9e54e8e7bf0f3c3f40c22cd34b7a81225",
         "type": "github"
       },
       "original": {
@@ -34,11 +52,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1594117931,
-        "narHash": "sha256-x7nZvITCLJiK7miPXU6yl2zdq+MlhjHicggfvjLguFg=",
+        "lastModified": 1599903709,
+        "narHash": "sha256-tinVKY7zRdSXmVOp7BAulNtIb2iP5nvNp5UAxihKXNI=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "c9d124e39dbeefc53c7b3e09fbfc2c26bcbd4845",
+        "rev": "252bfe0107587d40092057f338e9ffcf7bbd90cb",
         "type": "github"
       },
       "original": {

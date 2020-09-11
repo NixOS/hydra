@@ -211,7 +211,7 @@ static void worker(
                 if (gcRootsDir != "" && localStore) {
                     Path root = gcRootsDir + "/" + std::string(baseNameOf(drvPath));
                     if (!pathExists(root))
-                        localStore->addPermRoot(localStore->parseStorePath(drvPath), root, false);
+                        localStore->addPermRoot(localStore->parseStorePath(drvPath), root);
                 }
 
                 nlohmann::json out;
