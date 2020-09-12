@@ -107,17 +107,17 @@ if ! [ -d "$inputDir" ]; then
     inputDirTmp="$inputDir.tmp"
     rm -rf "$inputDirTmp"
     mkdir -p "$inputDirTmp"
-    git clone '[% input.uri %]' "$inputDirTmp"
-    (cd "$inputDirTmp" && git checkout '[% input.revision %]')
-    revCount="$(cd "$inputDirTmp" && (git rev-list '[% input.revision %]' | wc -l))"
+    cd "$inputDirTmp"
+    git init
+    git remote add origin '[% input.uri %]'
+    git fetch origin '[% input.revision %]' --depth=1
+    git reset --hard FETCH_HEAD
+    cd "$tmpDir"
     rm -rf "$inputDirTmp/.git"
     mv "$inputDirTmp" "$inputDir"
-    echo -n $revCount > "$tmpDir/[% input.name %]/rev-count"
-else
-    revCount="$(cat "$tmpDir/[% input.name %]/rev-count")"
 fi
 
-args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; shortRev = \"[% input.revision.substr(0, 7) %]\"; revCount = \"$revCount\"; }")
+args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; shortRev = \"[% input.revision.substr(0, 7) %]\"; revCount = \"[% input.revCount %]\"; }")
 
 [%+ ELSIF input.type == "hg" %]
 
@@ -131,15 +131,11 @@ if ! [ -d "$inputDir" ]; then
     mkdir -p "$inputDirTmp"
     hg clone '[% input.uri %]' "$inputDirTmp"
     (cd "$inputDirTmp" && hg update '[% input.revision %]')
-    revCount="$(cd "$inputDirTmp" && (hg log -r '[% input.revision %]' --template "{rev}"))"
     rm -rf "$inputDirTmp/.hg"
     mv "$inputDirTmp" "$inputDir"
-    echo -n $revCount > "$tmpDir/[% input.name %]/rev-count"
-else
-    revCount="$(cat "$tmpDir/[% input.name %]/rev-count")"
 fi
 
-args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; revCount = \"$revCount\"; }")
+args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; revCount = \"[% input.revCount %]\"; }")
 
 [%+ ELSIF input.type == "svn" %]
 
