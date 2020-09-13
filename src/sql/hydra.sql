@@ -75,7 +75,7 @@ create table Jobsets (
     enabled       integer not null default 1, -- 0 = disabled, 1 = enabled, 2 = one-shot, 3 = one-at-a-time
     enableEmail   integer not null default 1,
     hidden        integer not null default 0,
-    emailOverride text not null,
+    emailOverride text not null default '',
     keepnr        integer not null default 3,
     checkInterval integer not null default 300, -- minimum time in seconds between polls (0 = disable polling)
     schedulingShares integer not null default 100,
