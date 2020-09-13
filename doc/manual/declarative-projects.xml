@@ -103,7 +103,6 @@
 
   <title>Generated, Declarative Projects</title>
   <para>
-  <para>
     Hydra also supports generated declarative projects, where jobsets are
     configured automatically from specification files instead of being
     managed through the UI. A jobset specification is a JSON object
