@@ -425,7 +425,7 @@
                     binddn: "cn=root,dc=example"
                     bindpw: notapassword
                     start_tls: 0
-                    start_tls_options
+                    start_tls_options:
                       verify:  none
                     user_basedn: "ou=users,dc=example"
                     user_filter: "(&(objectClass=inetOrgPerson)(cn=%s))"
