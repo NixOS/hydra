@@ -117,7 +117,7 @@ else
     revCount="$(cat "$tmpDir/[% input.name %]/rev-count")"
 fi
 
-args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; shortRev = \"[% input.revision.substr(0, 7) %]\"; revCount = \"$revCount\"; }")
+args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; shortRev = \"[% input.revision.substr(0, 7) %]\"; revCount = $revCount; }")
 
 [%+ ELSIF input.type == "hg" %]
 
@@ -139,7 +139,7 @@ else
     revCount="$(cat "$tmpDir/[% input.name %]/rev-count")"
 fi
 
-args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; revCount = \"$revCount\"; }")
+args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; revCount = $revCount; }")
 
 [%+ ELSIF input.type == "svn" %]
 
