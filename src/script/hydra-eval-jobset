@@ -573,7 +573,14 @@ sub checkJobsetWrapped {
         die "Declarative specification file $declFile not valid JSON: $@\n" if $@;
 
         if (ref $declSpec eq "HASH") {
-            if (grep ref $_ eq "HASH", values %$declSpec) {
+            my $isStatic = 1;
+            foreach my $elem (values %$declSpec) {
+                if (ref $elem ne "HASH") {
+                    $isStatic = 0;
+                    last;
+                }
+            }
+            if ($isStatic) {
                 # Since all of its keys are hashes, assume the json document
                 # itself is the entire set of jobs
                 handleDeclarativeJobsetJson($db, $project, $declSpec);
