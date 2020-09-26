@@ -256,10 +256,10 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
 
     if (r.affected_rows() == 0) goto restart;
 
-    for (auto & output : step->drv->outputs)
+    for (auto & [name, output] : step->drv->outputs)
         txn.exec_params0
             ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-            buildId, stepNr, output.first, localStore->printStorePath(output.second.path(*localStore, step->drv->name)));
+            buildId, stepNr, name, localStore->printStorePath(*output.path(*localStore, step->drv->name, name)));
 
     if (status == bsBusy)
         txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));
@@ -440,9 +440,10 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 bool State::checkCachedFailure(Step::ptr step, Connection & conn)
 {
     pqxx::work txn(conn);
-    for (auto & path : step->drv->outputPaths(*localStore))
-        if (!txn.exec_params("select 1 from FailedPaths where path = $1", localStore->printStorePath(path)).empty())
-            return true;
+    for (auto & i : step->drv->outputsAndOptPaths(*localStore))
+        if (i.second.second)
+            if (!txn.exec_params("select 1 from FailedPaths where path = $1", localStore->printStorePath(*i.second.second)).empty())
+                return true;
     return false;
 }
 

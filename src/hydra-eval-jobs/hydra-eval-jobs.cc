@@ -1,5 +1,6 @@
 #include <map>
 #include <iostream>
+#include <thread>
 
 #include "shared.hh"
 #include "store-api.hh"

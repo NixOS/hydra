@@ -274,8 +274,10 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         assert(stepNr);
 
-        for (auto & path : step->drv->outputPaths(*localStore))
-            addRoot(path);
+        for (auto & i : step->drv->outputsAndOptPaths(*localStore)) {
+            if (i.second.second)
+               addRoot(*i.second.second);
+        }
 
         /* Register success in the database for all Build objects that
            have this step as the top-level step. Since the queue
@@ -463,8 +465,9 @@ void State::failStep(
             /* Remember failed paths in the database so that they
                won't be built again. */
             if (result.stepStatus != bsCachedFailure && result.canCache)
-                for (auto & path : step->drv->outputPaths(*localStore))
-                    txn.exec_params0("insert into FailedPaths values ($1)", localStore->printStorePath(path));
+                for (auto & i : step->drv->outputsAndOptPaths(*localStore))
+                    if (i.second.second)
+                       txn.exec_params0("insert into FailedPaths values ($1)", localStore->printStorePath(*i.second.second));
 
             txn.commit();
         }
