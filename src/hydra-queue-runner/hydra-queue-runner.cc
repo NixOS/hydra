@@ -57,8 +57,6 @@ State::State()
         printMsg(lvlError, "hydra.conf: binary_cache_dir is deprecated and ignored. use store_uri=file:// instead");
     if (config->getStrOption("binary_cache_s3_bucket") != "")
         printMsg(lvlError, "hydra.conf: binary_cache_s3_bucket is deprecated and ignored. use store_uri=s3:// instead");
-    if (config->getStrOption("binary_cache_secret_key_file") != "")
-        printMsg(lvlError, "hydra.conf: binary_cache_secret_key_file is deprecated and ignored. use store_uri=...?secret-key= instead");
 
     createDirs(rootsDir);
 }
