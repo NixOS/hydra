@@ -154,6 +154,8 @@
               ];
           };
 
+          breezyOrBazaar = final.breezy or final.bazaar;
+
         in stdenv.mkDerivation {
 
           name = "hydra-${version}";
@@ -162,7 +164,7 @@
 
           buildInputs =
             [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig libpqxx
-              gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
+              gitAndTools.topGit mercurial darcs subversion breezyOrBazaar openssl bzip2 libxslt
               perlDeps perl final.nix
               boost
               postgresql_11
@@ -177,7 +179,7 @@
 
           hydraPath = lib.makeBinPath (
             [ subversion openssh final.nix coreutils findutils pixz
-              gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
+              gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused breezyOrBazaar
             ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
           configureFlags = [ "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook" ];
@@ -202,6 +204,7 @@
           preCheck = ''
             patchShebangs .
             export LOGNAME=''${LOGNAME:-foo}
+            export HOME=$NIX_BUILD_TOP
           '';
 
           postInstall = ''
