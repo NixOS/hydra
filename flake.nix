@@ -1,7 +1,7 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "nixpkgs/nixos-20.03";
+  inputs.nixpkgs.url = "nixpkgs/nixos-20.09";
 
   outputs = { self, nixpkgs, nix }:
     let
@@ -162,7 +162,7 @@
 
           buildInputs =
             [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig libpqxx
-              gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
+              gitAndTools.topGit mercurial darcs subversion breezy openssl bzip2 libxslt
               perlDeps perl final.nix
               boost
               postgresql_11
@@ -177,7 +177,7 @@
 
           hydraPath = lib.makeBinPath (
             [ subversion openssh final.nix coreutils findutils pixz
-              gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
+              gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused breezy
             ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
           configureFlags = [ "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook" ];
@@ -202,6 +202,8 @@
           preCheck = ''
             patchShebangs .
             export LOGNAME=''${LOGNAME:-foo}
+            # set $HOME for bzr so it can create its trace file
+            export HOME=$(mktemp -d)
           '';
 
           postInstall = ''
