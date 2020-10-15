@@ -15,6 +15,7 @@ use File::Basename;
 use JSON;
 use List::MoreUtils qw{any};
 use Net::Prometheus;
+use IO::Handle;
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -311,11 +312,7 @@ sub nar :Local :Args(1) {
 
     die if $path =~ /\//;
 
-    if (!isLocalStore) {
-        notFound($c, "There is no binary cache here.");
-    }
-
-    else {
+    if (isLocalStore) {
         $path = $Nix::Config::storeDir . "/$path";
 
         gone($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
@@ -323,13 +320,26 @@ sub nar :Local :Args(1) {
         $c->stash->{current_view} = 'NixNAR';
         $c->stash->{storePath} = $path;
     }
+
+    elsif (isLocalBinaryCacheStore && getStoreUri =~ "^file:/+(.+)") {
+        $c->response->content_type('application/x-nix-archive');
+
+        $path = "/" . $1 . "/nar/$path";
+        my $fh = new IO::Handle;
+        open $fh, "<", $path;
+        $c->response->body($fh);
+    }
+
+    else {
+        notFound($c, "There is no binary cache here.");
+    }
 }
 
 
 sub nix_cache_info :Path('nix-cache-info') :Args(0) {
     my ($self, $c) = @_;
 
-    if (!isLocalStore) {
+    if (!isLocalStore && !isLocalBinaryCacheStore) {
         notFound($c, "There is no binary cache here.");
     }
 
@@ -350,14 +360,11 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
 sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
     my ($self, $c) = @_;
 
-    if (!isLocalStore) {
-        notFound($c, "There is no binary cache here.");
-    }
+    my $hash = $c->req->captures->[0];
 
-    else {
-        my $hash = $c->req->captures->[0];
+    die if length($hash) != 32;
 
-        die if length($hash) != 32;
+    if (isLocalStore) {
         my $path = queryPathFromHashPart($hash);
 
         if (!$path) {
@@ -371,6 +378,19 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
 
         $c->stash->{storePath} = $path;
         $c->forward('Hydra::View::NARInfo');
+    }
+
+    elsif (isLocalBinaryCacheStore && getStoreUri =~ "^file:/+(.+)") {
+        $c->response->content_type('application/x-nix-archive');
+
+        my $path = "/" . $1 . "/" . $hash . ".narinfo";
+        my $fh = new IO::Handle;
+        open $fh, "<", $path;
+        $c->response->body($fh);
+    }
+
+    else {
+        notFound($c, "There is no binary cache here.");
     }
 }
 
