@@ -263,9 +263,9 @@ void State::buildRemote(ref<Store> destStore,
             auto drv2 = localStore->readDerivation(input.first);
             for (auto & name : input.second) {
                 if (auto i = get(drv2.outputs, name)) {
-                    auto outPath = i->path(*localStore, drv2.name);
-                    inputs.insert(outPath);
-                    basicDrv.inputSrcs.insert(outPath);
+                    auto outPath = i->path(*localStore, drv2.name, name);
+                    inputs.insert(*outPath);
+                    basicDrv.inputSrcs.insert(*outPath);
                 }
             }
         }
@@ -434,7 +434,11 @@ void State::buildRemote(ref<Store> destStore,
 
             auto now1 = std::chrono::steady_clock::now();
 
-            auto outputs = step->drv->outputPaths(*localStore);
+            StorePathSet outputs;
+            for (auto & i : step->drv->outputsAndOptPaths(*localStore)) {
+                if (i.second.second)
+                   outputs.insert(*i.second.second);
+            }
 
             /* Get info about each output path. */
             std::map<StorePath, ValidPathInfo> infos;

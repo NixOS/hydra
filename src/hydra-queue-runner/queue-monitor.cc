@@ -176,13 +176,15 @@ bool State::getQueuedBuilds(Connection & conn,
                 if (!res[0].is_null()) propagatedFrom = res[0].as<BuildID>();
 
                 if (!propagatedFrom) {
-                    for (auto & output : ex.step->drv->outputPaths(*localStore)) {
-                        auto res = txn.exec_params
-                            ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1",
-                             localStore->printStorePath(output));
-                        if (!res[0][0].is_null()) {
-                            propagatedFrom = res[0][0].as<BuildID>();
-                            break;
+                    for (auto & i : ex.step->drv->outputsAndOptPaths(*localStore)) {
+                        if (i.second.second) {
+                            auto res = txn.exec_params
+                                ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1",
+                                 localStore->printStorePath(*i.second.second));
+                            if (!res[0][0].is_null()) {
+                                propagatedFrom = res[0][0].as<BuildID>();
+                                break;
+                            }
                         }
                     }
                 }
@@ -221,8 +223,9 @@ bool State::getQueuedBuilds(Connection & conn,
             auto drv = localStore->readDerivation(build->drvPath);
             BuildOutput res = getBuildOutputCached(conn, destStore, drv);
 
-            for (auto & path : drv.outputPaths(*localStore))
-                addRoot(path);
+            for (auto & i : drv.outputsAndOptPaths(*localStore))
+                if (i.second.second)
+                    addRoot(*i.second.second);
 
             {
             auto mc = startDbUpdate();
@@ -453,10 +456,9 @@ Step::ptr State::createStep(ref<Store> destStore,
 
     /* Are all outputs valid? */
     bool valid = true;
-    auto outputs = step->drv->outputPaths(*localStore);
     DerivationOutputs missing;
     for (auto & i : step->drv->outputs)
-        if (!destStore->isValidPath(i.second.path(*localStore, step->drv->name))) {
+        if (!destStore->isValidPath(*i.second.path(*localStore, step->drv->name, i.first))) {
             valid = false;
             missing.insert_or_assign(i.first, i.second);
         }
@@ -467,12 +469,12 @@ Step::ptr State::createStep(ref<Store> destStore,
 
         size_t avail = 0;
         for (auto & i : missing) {
-            auto path = i.second.path(*localStore, step->drv->name);
-            if (/* localStore != destStore && */ localStore->isValidPath(path))
+            auto path = i.second.path(*localStore, step->drv->name, i.first);
+            if (/* localStore != destStore && */ localStore->isValidPath(*path))
                 avail++;
             else if (useSubstitutes) {
                 SubstitutablePathInfos infos;
-                localStore->querySubstitutablePathInfos({{path, {}}}, infos);
+                localStore->querySubstitutablePathInfos({{*path, {}}}, infos);
                 if (infos.size() == 1)
                     avail++;
             }
@@ -481,37 +483,37 @@ Step::ptr State::createStep(ref<Store> destStore,
         if (missing.size() == avail) {
             valid = true;
             for (auto & i : missing) {
-                auto path = i.second.path(*localStore, step->drv->name);
+                auto path = i.second.path(*localStore, step->drv->name, i.first);
 
                 try {
                     time_t startTime = time(0);
 
-                    if (localStore->isValidPath(path))
+                    if (localStore->isValidPath(*path))
                         printInfo("copying output ‘%1%’ of ‘%2%’ from local store",
-                            localStore->printStorePath(path),
+                            localStore->printStorePath(*path),
                             localStore->printStorePath(drvPath));
                     else {
                         printInfo("substituting output ‘%1%’ of ‘%2%’",
-                            localStore->printStorePath(path),
+                            localStore->printStorePath(*path),
                             localStore->printStorePath(drvPath));
-                        localStore->ensurePath(path);
+                        localStore->ensurePath(*path);
                         // FIXME: should copy directly from substituter to destStore.
                     }
 
-                    copyClosure(ref<Store>(localStore), destStore, {path});
+                    copyClosure(ref<Store>(localStore), destStore, {*path});
 
                     time_t stopTime = time(0);
 
                     {
                         auto mc = startDbUpdate();
                         pqxx::work txn(conn);
-                        createSubstitutionStep(txn, startTime, stopTime, build, drvPath, "out", path);
+                        createSubstitutionStep(txn, startTime, stopTime, build, drvPath, "out", *path);
                         txn.commit();
                     }
 
                 } catch (Error & e) {
                     printError("while copying/substituting output ‘%s’ of ‘%s’: %s",
-                        localStore->printStorePath(path),
+                        localStore->printStorePath(*path),
                         localStore->printStorePath(drvPath),
                         e.what());
                     valid = false;
@@ -617,12 +619,12 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
     {
     pqxx::work txn(conn);
 
-    for (auto & output : drv.outputPaths(*localStore)) {
+    for (auto & [name, output] : drv.outputsAndOptPaths(*localStore)) {
         auto r = txn.exec_params
             ("select id, buildStatus, releaseName, closureSize, size from Builds b "
              "join BuildOutputs o on b.id = o.build "
              "where finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1",
-             localStore->printStorePath(output));
+             localStore->printStorePath(*output.second));
         if (r.empty()) continue;
         BuildID id = r[0][0].as<BuildID>();
 
