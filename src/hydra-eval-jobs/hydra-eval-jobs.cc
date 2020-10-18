@@ -14,6 +14,7 @@
 #include "flake/flake.hh"
 #include "attr-path.hh"
 #include "derivations.hh"
+#include "local-fs-store.hh"
 
 #include "hydra-config.hh"
 

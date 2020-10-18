@@ -95,12 +95,12 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
        the remote host to substitute missing paths. */
     // FIXME: substitute output pollutes our build log
     to << cmdQueryValidPaths << 1 << useSubstitutes;
-    writeStorePaths(*destStore, to, closure);
+    worker_proto::write(*destStore, to, closure);
     to.flush();
 
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = readStorePaths<StorePathSet>(*destStore, from);
+    auto present = worker_proto::read(*destStore, from, Phantom<StorePathSet> {});
 
     if (present.size() == closure.size()) return;
 
@@ -315,7 +315,7 @@ void State::buildRemote(ref<Store> destStore,
 
         if (sendDerivation) {
             to << cmdBuildPaths;
-            writeStorePaths(*localStore, to, {step->drvPath});
+            worker_proto::write(*localStore, to, {step->drvPath});
         } else {
             to << cmdBuildDerivation << localStore->printStorePath(step->drvPath);
             writeDerivation(to, *localStore, basicDrv);
@@ -444,13 +444,13 @@ void State::buildRemote(ref<Store> destStore,
             std::map<StorePath, ValidPathInfo> infos;
             size_t totalNarSize = 0;
             to << cmdQueryPathInfos;
-            writeStorePaths(*localStore, to, outputs);
+            worker_proto::write(*localStore, to, outputs);
             to.flush();
             while (true) {
                 auto storePathS = readString(from);
                 if (storePathS == "") break;
                 readString(from); // deriver
-                auto references = readStorePaths<StorePathSet>(*localStore, from);
+                auto references = worker_proto::read(*localStore, from, Phantom<StorePathSet> {});
                 readLongLong(from); // download size
                 auto narSize = readLongLong(from);
                 auto narHash = Hash::parseAny(readString(from), htSHA256);
