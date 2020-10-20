@@ -315,7 +315,7 @@ void State::buildRemote(ref<Store> destStore,
 
         if (sendDerivation) {
             to << cmdBuildPaths;
-            worker_proto::write(*localStore, to, {step->drvPath});
+            worker_proto::write(*localStore, to, StorePathSet{step->drvPath});
         } else {
             to << cmdBuildDerivation << localStore->printStorePath(step->drvPath);
             writeDerivation(to, *localStore, basicDrv);
