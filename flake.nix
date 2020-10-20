@@ -1,7 +1,7 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "nixpkgs/nixos-20.03";
+  inputs.nixpkgs.url = "nixpkgs/nixos-20.09";
 
   outputs = { self, nixpkgs, nix }:
     let
@@ -161,7 +161,7 @@
 
           buildInputs =
             [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig libpqxx
-              gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
+              gitAndTools.topGit mercurial darcs subversion breezy openssl bzip2 libxslt
               final.nix perlDeps perl
               boost
               postgresql_11
@@ -176,7 +176,7 @@
 
           hydraPath = lib.makeBinPath (
             [ subversion openssh final.nix coreutils findutils pixz
-              gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused bazaar
+              gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused breezy
             ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
           configureFlags = [ "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook" ];
@@ -201,6 +201,8 @@
           preCheck = ''
             patchShebangs .
             export LOGNAME=''${LOGNAME:-foo}
+            # set $HOME for bzr so it can create its trace file
+            export HOME=$(mktemp -d)
           '';
 
           postInstall = ''
@@ -363,9 +365,14 @@
                 rootpw = "notapassword";
                 database = "bdb";
                 dataDir = "/var/lib/openldap";
+                extraConfig = ''
+                  moduleload pw-sha2
+                '';
                 extraDatabaseConfig = ''
                 '';
 
+                # userPassword generated via `slappasswd -o module-load=pw-sha2  -h '{SSHA256}'`
+                # The admin user has the password `password and `user` has the password `foobar`.
                 declarativeContents = ''
                   dn: dc=example
                   dc: example
@@ -398,7 +405,7 @@
                   sn: user
                   cn: user
                   mail: user@example
-                  userPassword: foobar
+                  userPassword: {SSHA256}B9rfUbNgv8nIGn1Hm5qbVQdv6AIQb012ORJwegqELB0DWCzoMCY+4A==
 
                   dn: cn=admin,ou=users,dc=example
                   objectClass: organizationalPerson
@@ -406,7 +413,7 @@
                   sn: admin
                   cn: admin
                   mail: admin@example
-                  userPassword: password
+                  userPassword: {SSHA256}meKP7fSWhkzXFC1f8RWRb8V8ssmN/VQJp7xJrUFFcNUDuwP1PbitMg==
                 '';
               };
               systemd.services.hdyra-server.environment.CATALYST_DEBUG = "1";

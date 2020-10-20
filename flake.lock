@@ -60,7 +60,7 @@
       },
       "original": {
         "id": "nixpkgs",
-        "ref": "nixos-20.03",
+        "ref": "nixos-20.09",
         "type": "indirect"
       }
     },
