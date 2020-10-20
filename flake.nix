@@ -148,7 +148,6 @@
                 TextTable
                 XMLSimple
                 YAML
-                final.nix
                 final.nix.perl-bindings
                 git
               ];
@@ -163,7 +162,7 @@
           buildInputs =
             [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig libpqxx
               gitAndTools.topGit mercurial darcs subversion bazaar openssl bzip2 libxslt
-              perlDeps perl final.nix
+              final.nix perlDeps perl
               boost
               postgresql_11
               (if lib.versionAtLeast lib.version "20.03pre"
@@ -222,7 +221,7 @@
           dontStrip = true;
 
           meta.description = "Build of Hydra on ${system}";
-          passthru.perlDeps = perlDeps;
+          passthru = { inherit perlDeps; inherit (final) nix; };
         };
       };
 
