@@ -10,12 +10,13 @@ use Hydra::View::TT;
 use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
 use Nix::Config;
+use Nix::Utils;
+use Nix::Manifest;
 use Encode;
 use File::Basename;
 use JSON;
 use List::MoreUtils qw{any};
 use Net::Prometheus;
-use IO::Handle;
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -321,7 +322,7 @@ sub nar :Local :Args(1) {
         $c->stash->{storePath} = $path;
     }
 
-    elsif (isLocalBinaryCacheStore && getStoreUri =~ "^file:/+(.+)") {
+    elsif (isLocalBinaryCacheStore && getStoreUri =~ "^file:/+([^\?]+)") {
         $c->response->content_type('application/x-nix-archive');
 
         $path = "/" . $1 . "/nar/$path";
@@ -380,13 +381,42 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
         $c->forward('Hydra::View::NARInfo');
     }
 
-    elsif (isLocalBinaryCacheStore && getStoreUri =~ "^file:/+(.+)") {
+    elsif (isLocalBinaryCacheStore && getStoreUri =~ "^file:/+([^\?]+)") {
         $c->response->content_type('application/x-nix-archive');
+        setCacheHeaders($c, 24 * 60 * 60);
 
         my $path = "/" . $1 . "/" . $hash . ".narinfo";
-        my $fh = new IO::Handle;
-        open $fh, "<", $path;
-        $c->response->body($fh);
+        if (!-f $path) {
+            return notFound($c, "NARInfo not found");
+        }
+
+        my $secretKeyFile = $c->config->{binary_cache_secret_key_file};
+        if (! defined $secretKeyFile && getStoreUri =~ "[\?\&]secret-key=([^\?\&]+)") {
+            $secretKeyFile = $1;
+        }
+        if (defined $secretKeyFile) {
+            # Optionally, sign the NAR info file
+            my $content = readFile $path;
+            my %info;
+            foreach my $line (split "\n", $content) {
+                return undef unless $line =~ /^(.*): (.*)$/;
+                $info{$1} = $2;
+            }
+
+            my @refs = map { $Nix::Config::storeDir . "/" . $_ } split(" ", $info{References});
+            my $fingerprint = fingerprintPath($info{StorePath}, $info{NarHash}, $info{NarSize}, [ @refs ]);
+            my $secretKey = readFile $secretKeyFile;
+            my $sig = signString($secretKey, $fingerprint);
+
+            $content =~ s/^Sig:.+\n//m;
+            $content .= "Sig: $sig\n";
+            $c->response->body($content);
+        }
+        else {
+            my $fh = new IO::Handle;
+            open $fh, "<", $path;
+            $c->response->body($fh);
+        }
     }
 
     else {
