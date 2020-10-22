@@ -142,7 +142,7 @@ sub fetchInputSystemBuild {
     $projectName ||= $project->name;
     $jobsetName ||= $jobset->name;
 
-    my @latestBuilds = $db->resultset('LatestSucceededForJob')
+    my @latestBuilds = $db->resultset('LatestSucceededForJobName')
         ->search({}, {bind => [$jobsetName, $jobName]});
 
     my @validBuilds = ();

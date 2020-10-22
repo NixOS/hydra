@@ -608,6 +608,7 @@ makeQueries('', "");
 makeQueries('ForProject', "and project = ?");
 makeQueries('ForJobset', "and jobset_id = ?");
 makeQueries('ForJob', "and jobset_id = ? and job = ?");
+makeQueries('ForJobName', "and jobset_id = (select id from jobsets j where j.name = ?) and job = ?");
 
 
 my %hint = (
