@@ -442,45 +442,57 @@ int main(int argc, char * * argv)
         for (auto i = state->jobs.begin(); i != state->jobs.end(); ++i) {
             auto jobName = i.key();
             auto & job = i.value();
+            // For the error message
+            std::string lastTriedJobName = i.key();
 
             auto named = job.find("namedConstituents");
             if (named == job.end()) continue;
 
-            if (myArgs.dryRun) {
-                for (std::string jobName2 : *named) {
-                    auto job2 = state->jobs.find(jobName2);
-                    if (job2 == state->jobs.end())
-                        throw Error("aggregate job '%s' references non-existent job '%s'", jobName, jobName2);
-                    std::string drvPath2 = (*job2)["drvPath"];
-                    job["constituents"].push_back(drvPath2);
+            try {
+                if (myArgs.dryRun) {
+                    for (std::string jobName2 : *named) {
+                        lastTriedJobName = jobName2;
+                        auto job2 = state->jobs.find(jobName2);
+                        if (job2 == state->jobs.end())
+                            throw Error("aggregate job '%s' references non-existent job '%s'", jobName, jobName2);
+                        std::string drvPath2 = (*job2)["drvPath"];
+                        job["constituents"].push_back(drvPath2);
+                    }
+                } else {
+                    auto drvPath = store->parseStorePath((std::string) job["drvPath"]);
+                    auto drv = store->readDerivation(drvPath);
+
+                    for (std::string jobName2 : *named) {
+                        lastTriedJobName = jobName2;
+                        auto job2 = state->jobs.find(jobName2);
+                        if (job2 == state->jobs.end())
+                            throw Error("aggregate job '%s' references non-existent job '%s'", jobName, jobName2);
+                        auto drvPath2 = store->parseStorePath((std::string) (*job2)["drvPath"]);
+                        auto drv2 = store->readDerivation(drvPath2);
+                        job["constituents"].push_back(store->printStorePath(drvPath2));
+                        drv.inputDrvs[drvPath2] = {drv2.outputs.begin()->first};
+                    }
+
+                    std::string drvName(drvPath.name());
+                    assert(hasSuffix(drvName, drvExtension));
+                    drvName.resize(drvName.size() - drvExtension.size());
+                    auto h = std::get<Hash>(hashDerivationModulo(*store, drv, true));
+                    auto outPath = store->makeOutputPath("out", h, drvName);
+                    drv.env["out"] = store->printStorePath(outPath);
+                    drv.outputs.insert_or_assign("out", DerivationOutput { .output = DerivationOutputInputAddressed { .path = outPath } });
+                    auto newDrvPath = store->printStorePath(writeDerivation(*store, drv));
+
+                    debug("rewrote aggregate derivation %s -> %s", store->printStorePath(drvPath), newDrvPath);
+
+                    job["drvPath"] = newDrvPath;
+                    job["outputs"]["out"] = store->printStorePath(outPath);
                 }
-            } else {
-                auto drvPath = store->parseStorePath((std::string) job["drvPath"]);
-                auto drv = store->readDerivation(drvPath);
+            } catch (std::exception & e) {
+                // Print more information to help debugging.
+                printError("Unexpected error in hydra-eval-jobs when handling job '%s', when producing aggregate job '%s':", lastTriedJobName, jobName);
 
-                for (std::string jobName2 : *named) {
-                    auto job2 = state->jobs.find(jobName2);
-                    if (job2 == state->jobs.end())
-                        throw Error("aggregate job '%s' references non-existent job '%s'", jobName, jobName2);
-                    auto drvPath2 = store->parseStorePath((std::string) (*job2)["drvPath"]);
-                    auto drv2 = store->readDerivation(drvPath2);
-                    job["constituents"].push_back(store->printStorePath(drvPath2));
-                    drv.inputDrvs[drvPath2] = {drv2.outputs.begin()->first};
-                }
-
-                std::string drvName(drvPath.name());
-                assert(hasSuffix(drvName, drvExtension));
-                drvName.resize(drvName.size() - drvExtension.size());
-                auto h = std::get<Hash>(hashDerivationModulo(*store, drv, true));
-                auto outPath = store->makeOutputPath("out", h, drvName);
-                drv.env["out"] = store->printStorePath(outPath);
-                drv.outputs.insert_or_assign("out", DerivationOutput { .output = DerivationOutputInputAddressed { .path = outPath } });
-                auto newDrvPath = store->printStorePath(writeDerivation(*store, drv));
-
-                debug("rewrote aggregate derivation %s -> %s", store->printStorePath(drvPath), newDrvPath);
-
-                job["drvPath"] = newDrvPath;
-                job["outputs"]["out"] = store->printStorePath(outPath);
+                // And throw the original exception!
+                throw;
             }
 
             job.erase("namedConstituents");
