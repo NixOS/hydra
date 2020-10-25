@@ -467,10 +467,18 @@ int main(int argc, char * * argv)
                         auto job2 = state->jobs.find(jobName2);
                         if (job2 == state->jobs.end())
                             throw Error("aggregate job '%s' references non-existent job '%s'", jobName, jobName2);
-                        auto drvPath2 = store->parseStorePath((std::string) (*job2)["drvPath"]);
-                        auto drv2 = store->readDerivation(drvPath2);
-                        job["constituents"].push_back(store->printStorePath(drvPath2));
-                        drv.inputDrvs[drvPath2] = {drv2.outputs.begin()->first};
+
+                        if ((*job2).find("error") != (*job2).end()) {
+                            if (job.find("error") == job.end()) {
+                                job["error"] = fmt("Errors aggregating aggregate job '%1%'.\n", jobName);
+                            }
+                            job["error"] = fmt("While handling '%1%': %2%\n", jobName2, (std::string) (*job2)["error"]);
+                        } else {
+                            auto drvPath2 = store->parseStorePath((std::string) (*job2)["drvPath"]);
+                            auto drv2 = store->readDerivation(drvPath2);
+                            job["constituents"].push_back(store->printStorePath(drvPath2));
+                            drv.inputDrvs[drvPath2] = {drv2.outputs.begin()->first};
+                        }
                     }
 
                     std::string drvName(drvPath.name());
