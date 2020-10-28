@@ -46,11 +46,13 @@ sub getBuild {
 sub getPreviousBuild {
     my ($build) = @_;
     return undef if !defined $build;
+    # FIXME: slow
     return $build->jobset->builds->search(
       { finished => 1
       , system => $build->system
       , 'me.id' =>  { '<' => $build->id }
-        , -not => { buildstatus => { -in => [4, 3]} }
+      , job => $build->job
+      , -not => { buildstatus => { -in => [4, 3]} }
       }, { rows => 1, order_by => "me.id DESC" })->single;
 }
 
