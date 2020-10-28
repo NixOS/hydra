@@ -30,7 +30,6 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     notFound($c, "Build with ID $id doesn't exist.")
         if !defined $c->stash->{build};
 
-    $c->stash->{prevBuild} = getPreviousBuild($c->stash->{build});
     $c->stash->{prevSuccessfulBuild} = getPreviousSuccessfulBuild($c, $c->stash->{build});
     $c->stash->{firstBrokenBuild} = getNextBuild($c, $c->stash->{prevSuccessfulBuild});
 
