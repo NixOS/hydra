@@ -449,7 +449,7 @@ void State::buildRemote(ref<Store> destStore,
             while (true) {
                 auto storePathS = readString(from);
                 if (storePathS == "") break;
-                readString(from); // deriver
+                auto deriver = readString(from); // deriver
                 auto references = worker_proto::read(*localStore, from, Phantom<StorePathSet> {});
                 readLongLong(from); // download size
                 auto narSize = readLongLong(from);
@@ -463,6 +463,8 @@ void State::buildRemote(ref<Store> destStore,
                 totalNarSize += info.narSize;
                 info.narHash = narHash;
                 info.ca = ca;
+                if (deriver != "")
+                    info.deriver = localStore->parseStorePath(deriver);
                 infos.insert_or_assign(info.path, info);
             }
 
