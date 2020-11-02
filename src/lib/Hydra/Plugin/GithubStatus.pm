@@ -37,7 +37,6 @@ sub common {
         my $ua = LWP::UserAgent->new();
 
         foreach my $conf (@config) {
-            print STDERR "GithubStatus_Debug job name $jobName\n";
             next unless $jobName =~ /^$conf->{jobs}$/;
             # Don't send out "pending" status updates if the build is already finished
             next if !$finished && $b->finished == 1;
@@ -70,7 +69,6 @@ sub common {
                     my $owner = $1;
                     my $repo = $2;
                     my $url = "https://api.github.com/repos/$owner/$repo/statuses/$rev";
-                    print STDERR "GithubStatus_Debug POSTing to '", $url, "'\n";
                     my $req = HTTP::Request->new('POST', $url);
                     $req->header('Content-Type' => 'application/json');
                     $req->header('Accept' => 'application/vnd.github.v3+json');
