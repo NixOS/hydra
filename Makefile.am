@@ -1,4 +1,4 @@
-SUBDIRS = src tests doc
+SUBDIRS = src tests
 BOOTCLEAN_SUBDIRS = $(SUBDIRS)
 DIST_SUBDIRS      = $(SUBDIRS)
 EXTRA_DIST        = hydra-module.nix

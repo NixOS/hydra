@@ -6,7 +6,7 @@ use Setup;
 
 my $db = Hydra::Model::DB->new;
 
-use Test::Simple tests => 76;
+use Test::Simple tests => 79;
 
 hydra_setup($db);
 
@@ -155,7 +155,7 @@ foreach my $scm ( @scminputs ) {
 $jobset = createBaseJobset("build-products", "build-products.nix");
 
 ok(evalSucceeds($jobset),                  "Evaluating jobs/build-products.nix should exit with return code 0");
-ok(nrQueuedBuildsForJobset($jobset) == 2 , "Evaluating jobs/build-products.nix should result in 2 builds");
+ok(nrQueuedBuildsForJobset($jobset) == 3 , "Evaluating jobs/build-products.nix should result in 3 builds");
 
 for my $build (queuedBuildsForJobset($jobset)) {
     ok(runBuild($build), "Build '".$build->job."' from jobs/build-products.nix should exit with code 0");
@@ -169,5 +169,7 @@ for my $build (queuedBuildsForJobset($jobset)) {
         ok($buildproduct->name eq "text.txt", "We should have text.txt, but found: ".$buildproduct->name."\n");
     } elsif ($build->job eq "with_spaces") {
         ok($buildproduct->name eq "some text.txt", "We should have: \"some text.txt\", but found: ".$buildproduct->name."\n");
+    } elsif ($build->job eq "multiple_store_paths") {
+        ok($buildproduct->name =~ /^.*-test$/, "We should have something matching '^.*-test\$', but found: ".$buildproduct->name."\n");
     }
 }
