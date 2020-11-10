@@ -481,14 +481,22 @@ void State::buildRemote(ref<Store> destStore,
 
             for (auto & path : pathsSorted) {
                 auto & info = infos.find(path)->second;
-                to << cmdDumpStorePath << localStore->printStorePath(path);
-                to.flush();
 
                 /* Receive the NAR from the remote and add it to the
                    destination store. Meanwhile, extract all the info from the
                    NAR that getBuildOutput() needs. */
                 auto source2 = sinkToSource([&](Sink & sink)
                 {
+                    /* Note: we should only send the command to dump the store
+                       path to the remote if the NAR is actually going to get read
+                       by the destination store, which won't happen if this path
+                       is already valid on the destination store. Since this
+                       lambda function only gets executed if someone tries to read
+                       from source2, we will send the command from here rather
+                       than outside the lambda. */
+                    to << cmdDumpStorePath << localStore->printStorePath(path);
+                    to.flush();
+
                     TeeSource tee(from, sink);
                     extractNarData(tee, localStore->printStorePath(path), narMembers);
                 });
