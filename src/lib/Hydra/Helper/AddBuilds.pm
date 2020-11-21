@@ -57,7 +57,7 @@ sub updateDeclarativeJobset {
                 name => $name,
                 type => $data->{type}
             };
-            $row->{emailresponsible} = $data->{emailresponsible} if defined $data->{emailresponsible};
+            $row->{emailresponsible} = $data->{emailresponsible} // 0;
             my $input = $jobset->jobsetinputs->create($row);
             $input->jobsetinputalts->create({altnr => 0, value => $data->{value}});
         }
