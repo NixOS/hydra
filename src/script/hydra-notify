@@ -104,6 +104,7 @@ $listener->subscribe("eval_failed");
 $listener->subscribe("eval_started");
 $listener->subscribe("hydra_notify_dump_metrics");
 $listener->subscribe("step_finished");
+$listener->subscribe("kill_notify");
 
 
 # Process builds that finished while hydra-notify wasn't running.
@@ -130,6 +131,11 @@ while (!$queued_only) {
         my $payload = $message->{"payload"};
 
         $prom->inc("notify_event", { channel => $channelName });
+
+        if ($channelName eq "kill_notify") {
+            print("got notification: kys\n");
+            exit 1;
+        }
 
         if ($channelName eq "hydra_notify_dump_metrics") {
             print STDERR "Dumping prometheus metrics:\n${\$prom->format}\n";

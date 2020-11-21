@@ -110,6 +110,27 @@
         title = "Clear VCS caches"
         confirmmsg = "Are you sure you want to clear the VCS cache?"
         class = "" %]
+      <div class="dropdown-divider"></div>
+      [% INCLUDE menuItem
+        uri = c.uri_for(c.controller('Admin').action_for('restart_queue_runner'))
+        title = "Kill Queue Runner"
+        confirmmsg = "Are you sure you want to restart the queue runner?"
+        class = "" %]
+      [% INCLUDE menuItem
+        uri = c.uri_for(c.controller('Admin').action_for('restart_evaluator'))
+        title = "Kill Evaluator"
+        confirmmsg = "Are you sure you want to restart the evaluator?"
+        class = "" %]
+      [% INCLUDE menuItem
+        uri = c.uri_for(c.controller('Admin').action_for('restart_www'))
+        title = "Kill Webserver"
+        confirmmsg = "Are you sure you want to restart the web server?"
+        class = "" %]
+      [% INCLUDE menuItem
+        uri = c.uri_for(c.controller('Admin').action_for('restart_notify'))
+        title = "Kill Notify"
+        confirmmsg = "Are you sure you want to restart the notify daemon?"
+        class = "" %]
       [% END %]
     [% END %]
   [% END %]

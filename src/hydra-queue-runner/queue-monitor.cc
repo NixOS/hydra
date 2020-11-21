@@ -30,6 +30,7 @@ void State::queueMonitorLoop()
     receiver buildsDeleted(*conn, "builds_deleted");
     receiver buildsBumped(*conn, "builds_bumped");
     receiver jobsetSharesChanged(*conn, "jobset_shares_changed");
+    receiver kill(*conn, "kill_queue_runner");
 
     auto destStore = getDestStore();
 
@@ -66,6 +67,10 @@ void State::queueMonitorLoop()
         if (jobsetSharesChanged.get()) {
             printMsg(lvlTalkative, "got notification: jobset shares changed");
             processJobsetSharesChange(*conn);
+        }
+        if (kill.get()) {
+            printMsg(lvlError, "got notification: kys");
+            exit(1);
         }
     }
 

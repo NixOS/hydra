@@ -58,6 +58,32 @@ sub clearvcscache : Chained('admin') PathPart('clear-vcs-cache') Args(0) {
     $c->res->redirect($c->request->referer // "/");
 }
 
+sub restart_queue_runner : Chained('admin') PathPart('restart-queue-runner') Args(0) {
+    my ($self, $c) = @_;
+    $c->model('DB')->storage->dbh->do("notify kill_queue_runner");
+    $c->flash->{successMsg} = "Queue runner was killed and should restart soon.";
+    $c->res->redirect($c->request->referer // "/");
+}
+
+sub restart_evaluator : Chained('admin') PathPart('restart-evaluator') Args(0) {
+    my ($self, $c) = @_;
+    $c->model('DB')->storage->dbh->do("notify kill_evaluator");
+    $c->flash->{successMsg} = "Evaluator was killed and should restart soon.";
+    $c->res->redirect($c->request->referer // "/");
+}
+
+sub restart_www : Chained('admin') PathPart('restart-www') Args(0) {
+    my ($self, $c) = @_;
+    print("was asked to kms\n");
+    exit 1;
+}
+
+sub restart_notify : Chained('admin') PathPart('restart-notify') Args(0) {
+    my ($self, $c) = @_;
+    $c->model('DB')->storage->dbh->do("notify kill_notify");
+    $c->flash->{successMsg} = "Notification daemon was killed and should restart soon.";
+    $c->res->redirect($c->request->referer // "/");
+}
 
 sub managenews : Chained('admin') PathPart('news') Args(0) {
     my ($self, $c) = @_;
