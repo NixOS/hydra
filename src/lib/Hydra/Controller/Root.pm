@@ -327,7 +327,7 @@ sub nar :Local :Args(1) {
 
         $path = "/" . $1 . "/nar/$path";
         my $fh = new IO::Handle;
-        open $fh, "<", $path;
+        open $fh, "<:raw", $path;
         $c->response->body($fh);
     }
 
