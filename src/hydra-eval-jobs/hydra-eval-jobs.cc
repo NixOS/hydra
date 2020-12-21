@@ -209,8 +209,13 @@ static void worker(
                 }
 
                 nlohmann::json out;
-                for (auto & j : outputs)
-                    out[j.first] = j.second;
+                if (settings.isExperimentalFeatureEnabled("ca-derivations")) {
+                  for (auto & j : outputs)
+                    out[j.first] = "";
+                } else {
+                  for (auto & j : outputs)
+                      out[j.first] = j.second;
+                }
                 job["outputs"] = std::move(out);
 
                 reply["job"] = std::move(job);

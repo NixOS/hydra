@@ -42,4 +42,4 @@ struct BuildOutput
 BuildOutput getBuildOutput(
     nix::ref<nix::Store> store,
     NarMemberDatas & narMembers,
-    const nix::Derivation & drv);
+    const nix::StorePath & drvPath);

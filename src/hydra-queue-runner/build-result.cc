@@ -11,18 +11,17 @@ using namespace nix;
 BuildOutput getBuildOutput(
     nix::ref<Store> store,
     NarMemberDatas & narMembers,
-    const Derivation & drv)
+    const StorePath & drvPath)
 {
     BuildOutput res;
 
     /* Compute the closure size. */
     StorePathSet outputs;
     StorePathSet closure;
-    for (auto & i : drv.outputsAndOptPaths(*store))
-        if (i.second.second) {
-            store->computeFSClosure(*i.second.second, closure);
-            outputs.insert(*i.second.second);
-        }
+    for (auto& [outputName, outputPath] : store->queryDerivationOutputMap(drvPath)) {
+        store->computeFSClosure(outputPath, closure);
+        outputs.insert(outputPath);
+    }
     for (auto & path : closure) {
         auto info = store->queryPathInfo(path);
         res.closureSize += info->narSize;
@@ -107,9 +106,9 @@ BuildOutput getBuildOutput(
     /* If no build products were explicitly declared, then add all
        outputs as a product of type "nix-build". */
     if (!explicitProducts) {
-        for (auto & [name, output] : drv.outputs) {
+        for (auto& [name, output] : store->queryPartialDerivationOutputMap(drvPath)) {
             BuildProduct product;
-            auto outPath = output.path(*store, drv.name, name);
+            auto outPath = output;
             product.path = store->printStorePath(*outPath);
             product.type = "nix-build";
             product.subtype = name == "out" ? "" : name;

@@ -221,7 +221,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         if (result.stepStatus == bsSuccess) {
             updateStep(ssPostProcessing);
-            res = getBuildOutput(destStore, narMembers, *step->drv);
+            res = getBuildOutput(destStore, narMembers, step->drvPath);
         }
     }
 
@@ -275,9 +275,9 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         assert(stepNr);
 
-        for (auto & i : step->drv->outputsAndOptPaths(*localStore)) {
-            if (i.second.second)
-               addRoot(*i.second.second);
+        for (auto & i : localStore->queryPartialDerivationOutputMap(step->drvPath)) {
+            if (i.second)
+               addRoot(*i.second);
         }
 
         /* Register success in the database for all Build objects that

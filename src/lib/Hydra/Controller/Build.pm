@@ -66,9 +66,11 @@ sub build_GET {
 
     $c->stash->{template} = 'build.tt';
     $c->stash->{isLocalStore} = isLocalStore();
+    # XXX: If ca-derivations is enabled then this will always return false
+    # because `$_->path` will be empty
     $c->stash->{available} =
         $c->stash->{isLocalStore}
-        ? all { isValidPath($_->path) } $build->buildoutputs->all
+        ? all { $_->path && isValidPath($_->path) } $build->buildoutputs->all
         : 1;
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
 

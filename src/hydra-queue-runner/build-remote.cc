@@ -213,7 +213,7 @@ void State::buildRemote(ref<Store> destStore,
         unsigned int remoteVersion;
 
         try {
-            to << SERVE_MAGIC_1 << 0x204;
+            to << SERVE_MAGIC_1 << 0x205;
             to.flush();
 
             unsigned int magic = readInt(from);
@@ -244,21 +244,27 @@ void State::buildRemote(ref<Store> destStore,
         updateStep(ssSendingInputs);
 
         StorePathSet inputs;
-        BasicDerivation basicDrv(*step->drv);
+        BasicDerivation basicDrv;
+        if (auto maybeBasicDrv = step->drv->tryResolve(*destStore))
+            basicDrv = *maybeBasicDrv;
+        else {
+            basicDrv = BasicDerivation(*step->drv);
+            for (auto & input : step->drv->inputDrvs) {
+              auto drv2 = localStore->readDerivation(input.first);
+              auto hashes = staticOutputHashes(*localStore, drv2);
+              for (auto & name : input.second) {
+                if (settings.isExperimentalFeatureEnabled("ca-derivations")) {
+                  auto inputRealisation = destStore->queryRealisation(DrvOutput{hashes.at(name), name});
+                  assert(inputRealisation);
+                  inputs.insert(inputRealisation->outPath);
+                  basicDrv.inputSrcs.insert(inputRealisation->outPath);
+                }
+              }
+            }
+        }
 
         for (auto & p : step->drv->inputSrcs)
             inputs.insert(p);
-
-        for (auto & input : step->drv->inputDrvs) {
-            auto drv2 = localStore->readDerivation(input.first);
-            for (auto & name : input.second) {
-                if (auto i = get(drv2.outputs, name)) {
-                    auto outPath = i->path(*localStore, drv2.name, name);
-                    inputs.insert(*outPath);
-                    basicDrv.inputSrcs.insert(*outPath);
-                }
-            }
-        }
 
         /* Ensure that the inputs exist in the destination store. This is
            a no-op for regular stores, but for the binary cache store,
@@ -398,6 +404,27 @@ void State::buildRemote(ref<Store> destStore,
             result.logFile = "";
         }
 
+        DrvOutputs builtOutputs;
+        if (GET_PROTOCOL_MINOR(remoteVersion) >= 6) {
+            builtOutputs = worker_proto::read(*localStore, from, Phantom<DrvOutputs>{});
+        } else {
+            assert(
+                step->drv->type() != DerivationType::CAFloating &&
+                step->drv->type() != DerivationType::DeferredInputAddressed
+            );
+            auto outputMap = localStore->queryPartialDerivationOutputMap(step->drvPath);
+            auto outputHashes = staticOutputHashes(*localStore, *step->drv);
+            for (auto & [outputName, outputPath] : outputMap)
+              if (outputPath) {
+                auto outputHash = outputHashes.at(outputName);
+                auto drvOutput = DrvOutput{outputHash, outputName};
+                builtOutputs.insert({drvOutput, Realisation{drvOutput, *outputPath}});
+              }
+        }
+        StorePathSet outputs;
+        for (auto & [_, realisation] : builtOutputs)
+            outputs.insert(realisation.outPath);
+
         /* Copy the output paths. */
         if (!machine->isLocalhost() || localStore != std::shared_ptr<Store>(destStore)) {
             updateStep(ssReceivingOutputs);
@@ -405,12 +432,6 @@ void State::buildRemote(ref<Store> destStore,
             MaintainCount<counter> mc(nrStepsCopyingFrom);
 
             auto now1 = std::chrono::steady_clock::now();
-
-            StorePathSet outputs;
-            for (auto & i : step->drv->outputsAndOptPaths(*localStore)) {
-                if (i.second.second)
-                   outputs.insert(*i.second.second);
-            }
 
             /* Get info about each output path. */
             std::map<StorePath, ValidPathInfo> infos;
@@ -479,6 +500,13 @@ void State::buildRemote(ref<Store> destStore,
             auto now2 = std::chrono::steady_clock::now();
 
             result.overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
+        }
+
+        /* Register the outputs of the newly built drv */
+        if (settings.isExperimentalFeatureEnabled("ca-derivations")) {
+          for (auto & [_, realisation] : builtOutputs) {
+              localStore->registerDrvOutput(realisation);
+          }
         }
 
         /* Shut down the connection. */
