@@ -5,6 +5,7 @@ die "$0: dbi connection string required \n" if scalar @ARGV != 1;
 make_schema_at("Hydra::Schema", {
     naming => { ALL => "v5" },
     relationships => 1,
+    overwrite_modifications => 1,
     moniker_map => {
         "aggregateconstituents" => "AggregateConstituents",
             "buildinputs" => "BuildInputs",
