@@ -28,6 +28,40 @@ sub job : Chained('/') PathPart('job') CaptureArgs(3) {
     $c->stash->{project} = $c->stash->{jobset}->project;
 }
 
+sub shield :Chained('job') PathPart('shield') Args(0) {
+    my ($self, $c) = @_;
+
+    my $job = $c->stash->{job};
+
+    my $lastBuild = $c->stash->{jobset}->builds->find(
+        { job => $job, finished => 1 },
+        { order_by => 'id DESC', rows => 1, columns => [@buildListColumns] }
+    );
+    notFound($c, "No latest build for job ‘$job’.") unless defined $lastBuild;
+
+    my $color =
+            $lastBuild->buildstatus == 0 ? "green" :
+            $lastBuild->buildstatus == 4 ? "yellow" :
+            "red";
+    my $message =
+            $lastBuild->buildstatus == 0 ? "passing" :
+            $lastBuild->buildstatus == 4 ? "cancelled" :
+            "failing";
+
+    $c->response->content_type('application/json');
+    $c->stash->{'plain'} = {
+        data => scalar (JSON::Any->objToJson(
+            {
+                schemaVersion => 1,
+                label => "hydra build",
+                color => $color,
+                message => $message,
+            }))
+    };
+    $c->forward('Hydra::View::Plain');
+}
+
+
 sub prometheus : Chained('job') PathPart('prometheus') Args(0) {
     my ($self, $c) = @_;
     my $prometheus = Net::Prometheus->new;

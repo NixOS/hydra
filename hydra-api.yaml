@@ -384,6 +384,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /job/{project-id}/{jobset-id}/{job-id}/shield:
+    get:
+      summary: Generate data for a shields.io badge
+      parameters:
+      - name: project-id
+        in: path
+        description: project identifier
+        required: true
+        schema:
+          type: string
+      - name: jobset-id
+        in: path
+        description: jobset identifier
+        required: true
+        schema:
+          type: string
+      - name: job-id
+        in: path
+        description: job identifier
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: see <a href="https://shields.io/endpoint">https://shields.io/endpoint</a> on how to use this
+          content:
+            application/json:
+              examples:
+                shield-success:
+                  value:
+                    color: green
+                    schemaVersion: 1
+                    label: hydra build
+                    message: passing
+
   /build/{build-id}:
     get:
       summary: Retrieves a single build of a jobset by id
