@@ -1,0 +1,88 @@
+<chapter xmlns="http://docbook.org/ns/docbook"
+         xmlns:xlink="http://www.w3.org/1999/xlink"
+         xml:id="chap-release">
+
+  <title>Releasing Hydra</title>
+
+  <para>
+    This chapter covers how the mainter does Hydra releases.
+  </para>
+
+  <section>
+    <title>Before the release</title>
+    <itemizedlist>
+      <listitem>
+        <para>
+          Check that the changelog is really up to date
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          Mark any backwards incompatible changes
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          Make sure that all hydra tests pass
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          Make sure that the upgrade procedue works from the previous
+          release
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          Test that setting up hydra from scratch works by following the
+          installation guide (this will be automated with NixOS tests)
+        </para>
+      </listitem>
+    </itemizedlist>
+  </section>
+
+  <section>
+    <title>At release time</title>
+    <itemizedlist>
+      <listitem>
+        <para>
+          Mark the release date and version in the changelog
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          Do a <literal>Release v&lt;version&gt;</literal> commit with the
+          changes
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          Create a git (annotated) tag <literal>v&lt;version&gt;</literal>
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          Post a mail to nix-dev announcing the release with the changelog
+          and release details
+        </para>
+      </listitem>
+    </itemizedlist>
+  </section>
+  <section>
+    <title>After release</title>
+    <itemizedlist>
+      <listitem>
+        <para>
+          Bump the package in nixpkgs (Hydra is not packaged yet)
+        </para>
+      </listitem>
+    </itemizedlist>
+  </section>
+</chapter>
+
+<!--
+ Local Variables:
+ indent-tabs-mode: nil
+ ispell-local-dictionary: "american"
+ End:
+ -->
