@@ -136,6 +136,10 @@
         <li><a href="#" id="google-signin">Sign in with Google</a></li>
         <li class="divider"></li>
       [% END %]
+      [% IF c.config.enable_github_login %]
+        <li><a href="/github-redirect?after=[% c.req.path %]">Sign in with GitHub</a></li>
+        <li class="divider"></li>
+      [% END %]
       <li>
         <a href="#hydra-signin" data-toggle="modal">Sign in with a Hydra account</a>
       </li>

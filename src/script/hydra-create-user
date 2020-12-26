@@ -11,7 +11,7 @@ sub showHelp {
     print <<EOF;
 Usage: $0 NAME
   [--rename-from NAME]
-  [--type hydra|google]
+  [--type hydra|google|github]
   [--full-name FULLNAME]
   [--email-address EMAIL-ADDRESS]
   [--password PASSWORD]
@@ -49,8 +49,8 @@ GetOptions("rename-from=s" => \$renameFrom,
 die "$0: one user name required\n" if scalar @ARGV != 1;
 my $userName = $ARGV[0];
 
-die "$0: type must be `hydra' or `google'\n"
-    if defined $type && $type ne "hydra" && $type ne "google";
+die "$0: type must be `hydra', `google' or `github'\n"
+    if defined $type && $type ne "hydra" && $type ne "google" && $type ne "github";
 
 my $db = Hydra::Model::DB->new();
 
@@ -67,19 +67,19 @@ $db->txn_do(sub {
             { username => $userName, type => "hydra", emailaddress => "", password => "!" });
     }
 
-    die "$0: Google user names must be email addresses\n"
-        if $user->type eq "google" && $userName !~ /\@/;
+    die "$0: Google or GitHub user names must be email addresses\n"
+        if ($user->type eq "google" || $user->type eq "github") && $userName !~ /\@/;
 
     $user->update({ type => $type }) if defined $type;
 
     $user->update({ fullname => $fullName eq "" ? undef : $fullName }) if defined $fullName;
 
-    if ($user->type eq "google") {
-        die "$0: Google accounts do not have an explicitly set email address.\n"
+    if ($user->type eq "google" || $user->type eq "github") {
+        die "$0: Google and GitHub accounts do not have an explicitly set email address.\n"
             if defined $emailAddress;
-        die "$0: Google accounts do not have a password.\n"
+        die "$0: Google and GitHub accounts do not have a password.\n"
             if defined $password;
-        die "$0: Google accounts do not have a password.\n"
+        die "$0: Google and GitHub accounts do not have a password.\n"
             if defined $passwordHash;
         $user->update({ emailaddress => $userName, password => "!" });
     } else {
