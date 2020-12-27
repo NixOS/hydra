@@ -3,6 +3,7 @@ EXTRA_DIST =					\
 
 distributable_scripts =				\
   hydra-backfill-ids				\
+  hydra-update-maintainers \
   hydra-init					\
   hydra-eval-jobset				\
   hydra-server					\

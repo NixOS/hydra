@@ -13,5 +13,3 @@ create table BuildsByMaintainers (
     foreign key (maintainer_id) references Maintainers(id),
     foreign key (build_id) references Builds(id)
 );
-
-alter table Builds drop column if exists maintainers;

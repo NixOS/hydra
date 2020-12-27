@@ -1,0 +1,72 @@
+#! /usr/bin/env perl
+
+# Heavily inspired by `hydra-backfill-ids`.
+#
+# It is mandatory to run this after `upgrade-69.sql` was executed!
+# If the migration was done already, the script will exit early.
+#
+# * `VACUUM;` at beginning and end of the script.
+# * Insert all maintainer emails into the `Maintainers` table that can be found
+#   in the `Builds` table.
+# * Set the associations to the builds in `BuildsByMaintainers`.
+#
+# TODO Everything will happen in 5k batches of rows.
+#
+# TODO batches, alle split_parts, re-eval, `.maintainers.""` in response
+
+use utf8;
+use Hydra::Model::DB;
+
+STDOUT->autoflush();
+STDERR->autoflush(1);
+binmode STDERR, ":encoding(utf8)";
+
+my $db = Hydra::Model::DB->new();
+my $vacuum = $db->storage->dbh->prepare("VACUUM;");
+
+die "syntax: $0\n" unless @ARGV == 0;
+
+print STDERR "Checking if script needs to be executed\n";
+my $column_check = $db->storage->dbh->prepare(<<QUERY);
+SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'builds'
+    AND column_name = 'maintainers'
+);
+QUERY
+
+$column_check->execute();
+if ($column_check->fetchrow_array == 0) {
+    print STDERR "Migration seems to be done already\n";
+    exit(0);
+}
+
+sub updateMaintainers {
+    my $new_entries = $db->storage->dbh->prepare(<<QUERY);
+INSERT INTO Maintainers (email)
+    SELECT DISTINCT split_part(b.maintainers, ', ', 1) m FROM Builds b
+QUERY
+
+    my $assoc = $db->storage->dbh->prepare(<<QUERY);
+INSERT INTO BuildsByMaintainers (maintainer_id, build_id)
+    SELECT m.id, b.id FROM Builds b
+    INNER JOIN Maintainers m
+    ON m.email LIKE '% ' || b.maintainers || ',%'
+    OR m.email = b.maintainers;
+QUERY
+
+    my $cleanup = $db->storage->dbh->prepare(<<QUERY);
+ALTER TABLE Builds DROP COLUMN IF EXISTS maintainers;
+QUERY
+
+    $new_entries->execute();
+    $assoc->execute();
+    $cleanup->execute();
+}
+
+print STDERR "Beginning with a VACUUM\n";
+$vacuum->execute();
+
+updateMaintainers();
+
+$vacuum->execute();
