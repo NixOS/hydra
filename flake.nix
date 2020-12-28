@@ -255,6 +255,15 @@
                 machine.wait_for_open_port("3000")
                 machine.succeed("curl --fail http://localhost:3000/")
               '';
+            };
+
+        tests.maintainer-upgrade.x86_64-linux =
+          with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
+          import ./tests/maintainers-upgrade-test.nix {
+            inherit nixpkgs pkgs simpleTest;
+            inherit (pkgs) lib;
+            module = self.nixosModules.hydra;
+            package = pkgs.hydra;
           };
 
         tests.api.x86_64-linux =

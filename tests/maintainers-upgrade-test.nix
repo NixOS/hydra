@@ -1,13 +1,20 @@
-import <nixpkgs/nixos/tests/make-test-python.nix> ({ pkgs, lib, ... }: let
+{ nixpkgs, module, package, lib, pkgs, simpleTest }:
+
+let
   base = { pkgs, lib, config, ... }: {
     virtualisation.memorySize = 4096;
-    imports = [ ./hydra-module.nix ];
+    nixpkgs.overlays = [
+      (self: super: {
+        nix = super.nixUnstable;
+      })
+    ];
+    imports = [ module ];
     environment.systemPackages = [ pkgs.jq ];
     nix = {
       distributedBuilds = true;
       buildMachines = [{
         hostName = "localhost";
-        systems = [ builtins.currentSystem ];
+        systems = [ "x86_64-linux" ];
       }];
       binaryCaches = [];
     };
@@ -17,7 +24,7 @@ import <nixpkgs/nixos/tests/make-test-python.nix> ({ pkgs, lib, ... }: let
       notificationSender = "webmaster@example.com";
     };
   };
-in {
+in simpleTest {
   nodes = {
     original = { pkgs, lib, config, ... }: {
       imports = [ base ];
@@ -33,7 +40,7 @@ in {
     };
     new = { pkgs, lib, config, ... }: {
       imports = [ base ];
-      services.hydra-dev.package = (import ./.).defaultPackage.x86_64-linux;
+      services.hydra-dev = { inherit package; };
     };
   };
 
@@ -67,7 +74,7 @@ in {
               ''';
             in builtins.derivation {
               name = "drv-${name}";
-              system = "${builtins.currentSystem}";
+              system = "x86_64-linux";
               builder = "/bin/sh";
               args = [ builder ];
               allowSubstitutes = false;
@@ -142,22 +149,23 @@ in {
       original.succeed("${setupJobset}")
 
       # Wait for builds to succeed
-      for i in range(1, 6):
-          original.wait_until_succeeds(
-              f"curl -L -s http://localhost:3000/build/{i} -H 'Accept: application/json' "
-              + "|  jq .buildstatus | xargs test 0 -eq"
-          )
+      with subtest("Demo data was set up properly"):
+          for i in range(1, 6):
+              original.wait_until_succeeds(
+                  f"curl -L -s http://localhost:3000/build/{i} -H 'Accept: application/json' "
+                  + "|  jq .buildstatus | xargs test 0 -eq"
+              )
 
-      # Confirm that email from maintainers exist
-      maintainers_old = original.succeed(
-          "su -l postgres -c 'psql -d hydra <<< \"select maintainers from builds limit 5;\"'"
-      ).split("\n")[2:7]
+          # Confirm that email from maintainers exist
+          maintainers_old = original.succeed(
+              "su -l postgres -c 'psql -d hydra <<< \"select maintainers from builds limit 5;\"'"
+          ).split("\n")[2:7]
 
-      for row in maintainers_old:
-          row_ = row.strip()
-          assert (
-              row_ == "ma27@localhost" or row_ == "ma27@localhost, foo@localhost"
-          ), f"Expected correct emails to be present in `builds` table (got '{row_}')!"
+          for row in maintainers_old:
+              row_ = row.strip()
+              assert (
+                  row_ == "ma27@localhost" or row_ == "ma27@localhost, foo@localhost"
+              ), f"Expected correct emails to be present in `builds` table (got '{row_}')!"
 
       # Perform migration
       original.succeed(
@@ -165,8 +173,10 @@ in {
       )
 
       original.wait_for_unit("hydra-init.service")
-      out = original.succeed("hydra-update-maintainers 2>&1")
-      assert out.find("Migration seems to be done already") == -1
+
+      with subtest("Rerun of migration script doesn't do anything"):
+          out = original.succeed("hydra-update-maintainers 2>&1")
+          assert out.find("Migration seems to be done already") == -1
 
       # Check if new structure for maintainers works
       original.wait_for_open_port(3000)
@@ -183,32 +193,34 @@ in {
           assert n == str(expected), f"Expected {expected} entry in {table}, but got {n}!"
 
 
-      check_table_len("maintainers", 2)
-      check_table_len("buildsbymaintainers", 6)
+      with subtest("Data was migrated properly"):
+          check_table_len("maintainers", 2)
+          check_table_len("buildsbymaintainers", 6)
 
-      email = original.succeed(
-          "curl -L http://localhost:3000/build/1 -H 'Accept: application/json' | jq '.maintainers.\"ma27@localhost\".email' | xargs echo"
-      ).strip()
+          email = original.succeed(
+              "curl -L http://localhost:3000/build/1 -H 'Accept: application/json' | jq '.maintainers.\"ma27@localhost\".email' | xargs echo"
+          ).strip()
 
-      assert email == "ma27@localhost"
+          assert email == "ma27@localhost"
 
-      build_id = (
-          original.succeed(
-              "su -l postgres -c 'psql -d hydra <<< \"select b.id from builds b inner join buildsbymaintainers m on m.build_id = b.id group by b.id having count(m) > 1;\"'"
+          build_id = (
+              original.succeed(
+                  "su -l postgres -c 'psql -d hydra <<< \"select b.id from builds b inner join buildsbymaintainers m on m.build_id = b.id group by b.id having count(m) > 1;\"'"
+              )
+              .split("\n")[2]
+              .strip()
           )
-          .split("\n")[2]
-          .strip()
-      )
 
-      original.succeed(
-          f"test 2 -eq \"$(curl -L http://localhost:3000/build/{build_id} -H 'Accept: application/json' | jq '.maintainers|length')\""
-      )
+          original.succeed(
+              f"test 2 -eq \"$(curl -L http://localhost:3000/build/{build_id} -H 'Accept: application/json' | jq '.maintainers|length')\""
+          )
 
       # Check if rerun doesn't do anything
-      out = original.succeed("hydra-update-maintainers 2>&1")
-      assert out.find("Migration seems to be done already") != -1
+      with subtest("Rerun still doesn't do anything"):
+          out = original.succeed("hydra-update-maintainers 2>&1")
+          assert out.find("Migration seems to be done already") != -1
 
       # Finish
       original.shutdown()
     '';
-})
+}
