@@ -44,15 +44,16 @@ if ($column_check->fetchrow_array == 0) {
 sub updateMaintainers {
     my $new_entries = $db->storage->dbh->prepare(<<QUERY);
 INSERT INTO Maintainers (email)
-    SELECT DISTINCT split_part(b.maintainers, ', ', 1) m FROM Builds b
+    SELECT DISTINCT s.maintainer
+    FROM Builds b, unnest(string_to_array(b.maintainers, ', ')) s(maintainer);
 QUERY
 
     my $assoc = $db->storage->dbh->prepare(<<QUERY);
 INSERT INTO BuildsByMaintainers (maintainer_id, build_id)
-    SELECT m.id, b.id FROM Builds b
+    SELECT DISTINCT m.id, b.id
+    FROM Builds b, unnest(string_to_array(b.maintainers, ', ')) s(maintainer)
     INNER JOIN Maintainers m
-    ON m.email LIKE '% ' || b.maintainers || ',%'
-    OR m.email = b.maintainers;
+    ON m.email = s.maintainer;
 QUERY
 
     my $cleanup = $db->storage->dbh->prepare(<<QUERY);

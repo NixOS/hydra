@@ -56,6 +56,8 @@ in {
         visible = toString 1;
       });
 
+      elWithTwoMaintainers = 2;
+
       testexpr = pkgs.writeTextDir "test.nix" ''
         {
           ${lib.flip lib.concatMapStrings [ "demo1" "demo2" "demo3" "demo4" "demo5" ] (name: ''
@@ -72,6 +74,9 @@ in {
               preferLocalBuild = true;
               meta.maintainers = [
                 { github = "Ma27"; email = "ma27@localhost"; }
+                ${lib.optionalString (name == "demo${toString elWithTwoMaintainers}") ''
+                  { github = "foobar"; email = "foo@localhost"; }
+                ''}
               ];
               meta.outPath = placeholder "out";
             };
@@ -151,8 +156,8 @@ in {
       for row in maintainers_old:
           row_ = row.strip()
           assert (
-              row_ == "ma27@localhost"
-          ), f"Expected a single email to be present in `builds` table (got '{row_}')!"
+              row_ == "ma27@localhost" or row_ == "ma27@localhost, foo@localhost"
+          ), f"Expected correct emails to be present in `builds` table (got '{row_}')!"
 
       # Perform migration
       original.succeed(
@@ -175,11 +180,11 @@ in {
               .split("\n")[2]
               .strip()
           )
-          assert n == str(expected), f"Expected one entry in {table}, but got {n}!"
+          assert n == str(expected), f"Expected {expected} entry in {table}, but got {n}!"
 
 
-      check_table_len("maintainers", 1)
-      check_table_len("buildsbymaintainers", 5)
+      check_table_len("maintainers", 2)
+      check_table_len("buildsbymaintainers", 6)
 
       email = original.succeed(
           "curl -L http://localhost:3000/build/1 -H 'Accept: application/json' | jq '.maintainers.\"\".email' | xargs echo"
