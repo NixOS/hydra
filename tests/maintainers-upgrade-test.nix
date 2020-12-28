@@ -169,9 +169,11 @@ in simpleTest {
 
       original.wait_for_unit("hydra-init.service")
 
-      with subtest("Rerun of migration script doesn't do anything"):
-          out = original.succeed("hydra-update-maintainers 2>&1")
-          assert out.find("Migration seems to be done already") == -1
+      out = original.succeed(
+          "env HYDRA_UPDATE_MAINTAINERS_BATCH_SIZE=3 hydra-update-maintainers 2>&1"
+      )
+      assert out.find("Migration seems to be done already") == -1
+      print(f"Output from 'hydra-update-maintainers': {out}")
 
       # Check if new structure for maintainers works
       original.wait_for_open_port(3000)
