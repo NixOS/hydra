@@ -3,11 +3,6 @@
 let
   base = { pkgs, lib, config, ... }: {
     virtualisation.memorySize = 4096;
-    nixpkgs.overlays = [
-      (self: super: {
-        nix = super.nixUnstable;
-      })
-    ];
     imports = [ module ];
     environment.systemPackages = [ pkgs.jq ];
     nix = {
@@ -28,7 +23,7 @@ in simpleTest {
   nodes = {
     original = { pkgs, lib, config, ... }: {
       imports = [ base ];
-      services.hydra-dev.package = pkgs.hydra-unstable.overrideAttrs (old: rec {
+      services.hydra-dev.package = (pkgs.hydra-unstable.override { nix = pkgs.nixUnstable; }).overrideAttrs (old: rec {
         inherit (old) pname;
         src = pkgs.fetchFromGitHub {
           owner = "NixOS";
