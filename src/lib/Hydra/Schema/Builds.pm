@@ -639,7 +639,7 @@ my %hint = (
         buildoutputs => 'name',
         buildproducts => 'productnr',
         buildmetrics => 'name',
-        maintainers => 'github_handle',
+        maintainers => 'email',
     }
 );
 

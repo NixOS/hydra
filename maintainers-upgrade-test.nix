@@ -187,10 +187,22 @@ in {
       check_table_len("buildsbymaintainers", 6)
 
       email = original.succeed(
-          "curl -L http://localhost:3000/build/1 -H 'Accept: application/json' | jq '.maintainers.\"\".email' | xargs echo"
+          "curl -L http://localhost:3000/build/1 -H 'Accept: application/json' | jq '.maintainers.\"ma27@localhost\".email' | xargs echo"
       ).strip()
 
       assert email == "ma27@localhost"
+
+      build_id = (
+          original.succeed(
+              "su -l postgres -c 'psql -d hydra <<< \"select b.id from builds b inner join buildsbymaintainers m on m.build_id = b.id group by b.id having count(m) > 1;\"'"
+          )
+          .split("\n")[2]
+          .strip()
+      )
+
+      original.succeed(
+          f"test 2 -eq \"$(curl -L http://localhost:3000/build/{build_id} -H 'Accept: application/json' | jq '.maintainers|length')\""
+      )
 
       # Check if rerun doesn't do anything
       out = original.succeed("hydra-update-maintainers 2>&1")
