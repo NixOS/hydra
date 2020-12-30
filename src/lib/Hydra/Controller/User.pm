@@ -215,7 +215,7 @@ sub github_redirect :Path('/github-redirect') Args(0) {
         value => $after,
     };
 
-    $c->res->redirect("https://github.com/login/oauth/authorize?client_id=$client_id");
+    $c->res->redirect("https://github.com/login/oauth/authorize?client_id=$client_id&scope=user:email");
 }
 
 
