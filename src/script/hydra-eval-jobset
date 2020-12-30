@@ -480,8 +480,8 @@ sub checkBuild {
                 });
             }
 
-            if ($maintainer->{github} != $entity->github_handle) {
-                $maintainer->update({github_handle => $maintainer->{github}});
+            if ($maintainer->{github} ne $entity->github_handle) {
+                $entity->update({github_handle => $maintainer->{github}});
             }
 
             $db->resultset('Buildsbymaintainer')->create({
