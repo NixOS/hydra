@@ -66,7 +66,7 @@ my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{builds}-
 ok($build->{job} eq "job", "The build's job name is job");
 ok($build->{finished} == 0, "The build isn't finished yet");
 ok($build->{buildoutputs}->{out}->{path} =~ /^\/nix\/store\/[a-zA-Z0-9]{32}-job$/, "The build's outpath is in the Nix store and named 'job'");
-ok($build->{maintainers}->{'ma27@localhost'}->{github_handle} == 'Ma27', "Maintainers are properly parsed and saved per build");
+ok($build->{maintainers}[0] == 'ma27@localhost', "Maintainers are properly parsed and saved per build");
 
 
 my $search_project = decode_json(request_json({ uri => "/search/?query=sample" })->content());

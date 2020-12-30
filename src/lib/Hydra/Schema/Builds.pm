@@ -633,13 +633,13 @@ my %hint = (
         'drvpath',
     ],
     relations => {
-        jobsetevals => 'id'
+        jobsetevals => 'id',
+        maintainers => 'email'
     },
     eager_relations => {
         buildoutputs => 'name',
         buildproducts => 'productnr',
-        buildmetrics => 'name',
-        maintainers => 'email',
+        buildmetrics => 'name'
     }
 );
 

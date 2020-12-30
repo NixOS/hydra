@@ -195,10 +195,10 @@ in simpleTest {
           check_table_len("buildsbymaintainers", 6)
 
           email = original.succeed(
-              "curl -L http://localhost:3000/build/1 -H 'Accept: application/json' | jq '.maintainers.\"ma27@localhost\".email' | xargs echo"
+              "curl -L http://localhost:3000/build/1 -H 'Accept: application/json' | jq '.maintainers[0]' | xargs echo"
           ).strip()
 
-          assert email == "ma27@localhost"
+          assert email in ["ma27@localhost", "foo@localhost"]
 
           build_id = (
               original.succeed(
