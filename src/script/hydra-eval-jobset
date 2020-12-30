@@ -33,6 +33,8 @@ my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
 
 my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
 
+my %maintainer_cache = ();
+
 alarm 3600; # FIXME: make configurable
 
 
@@ -469,9 +471,14 @@ sub checkBuild {
             });
 
         for my $maintainer (@{$buildInfo->{maintainers}}) {
-            my $entity = $db->resultset('Maintainer')
-                ->search({ email => $maintainer->{email} })
-                ->single;
+            my $entity;
+            unless (exists $maintainer_cache{$maintainer->{email}}) {
+                $entity = $db->resultset('Maintainer')
+                    ->search({ email => $maintainer->{email} })
+                    ->single;
+            } else {
+                $entity = $maintainer_cache{$maintainer->{email}};
+            }
 
             unless (defined $entity) {
                 $entity = $db->resultset('Maintainer')->create({
@@ -483,6 +490,8 @@ sub checkBuild {
             if ($maintainer->{github} ne $entity->github_handle) {
                 $entity->update({github_handle => $maintainer->{github}});
             }
+
+            $maintainer_cache{$maintainer->{email}} = $entity;
 
             $db->resultset('Buildsbymaintainer')->create({
                 maintainer_id => $entity->id,
