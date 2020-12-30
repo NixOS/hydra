@@ -181,11 +181,23 @@ sub github_login :Path('/github-login') Args(0) {
     my $data = decode_json($response->decoded_content) or die;
     my $access_token = $data->{access_token} // die "No access_token in response from GitHub.";
 
-    $response = $ua->get('https://api.github.com/user', Authorization => "token $access_token");
-    error($c, "Did not get a response from GitHub for user info.") unless $response->is_success;
+    $response = $ua->get('https://api.github.com/user/emails', Accept => 'application/vnd.github.v3+json', Authorization => "token $access_token");
+    error($c, "Did not get a response from GitHub for email info.") unless $response->is_success;
 
     $data = decode_json($response->decoded_content) or die;
-    doEmailLogin($self, $c, "github", $data->{email}, $data->{name} // undef);
+    my $email;
+
+    foreach my $eml (@{$data}) {
+        $email = $eml->{email} if $eml->{verified} && $eml->{primary};
+        print STDERR "$eml->{email}\n";
+    }
+
+    print STDERR "$email\n";
+    $response = $ua->get('https://api.github.com/user', Authorization => "token $access_token");
+    error($c, "Did not get a response from GitHub for user info.") unless $response->is_success;
+    $data = decode_json($response->decoded_content) or die;
+
+    doEmailLogin($self, $c, "github", $email, $data->{name} // undef);
 
     $c->res->redirect($c->uri_for($c->res->cookies->{'after_github'}));
 }
