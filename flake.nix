@@ -482,11 +482,19 @@
             '';
           };
 
+        tests.validate-openapi = pkgs.runCommand "validate-openapi"
+          { buildInputs = [ pkgs.openapi-generator-cli ]; }
+          ''
+            openapi-generator-cli validate -i ${./hydra-api.yaml}
+            touch $out
+          '';
+
         container = nixosConfigurations.container.config.system.build.toplevel;
       };
 
       checks.x86_64-linux.build = hydraJobs.build.x86_64-linux;
       checks.x86_64-linux.install = hydraJobs.tests.install.x86_64-linux;
+      checks.x86_64-linux.validate-openapi = hydraJobs.tests.validate-openapi;
 
       packages.x86_64-linux.hydra = pkgs.hydra;
       defaultPackage.x86_64-linux = pkgs.hydra;

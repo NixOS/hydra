@@ -11,12 +11,4 @@ jobs:
         fetch-depth: 0
     - uses: cachix/install-nix-action@v12
     #- run: nix flake check
-    - run: nix-build -A checks.x86_64-linux.build
-  #validate-openapi:
-  #  runs-on: ubuntu-18.04
-  #  steps:
-  #  - uses: actions/checkout@v2
-  #    with:
-  #      fetch-depth: 0
-  #  - uses: cachix/install-nix-action@v12
-  #  - run: nix-shell -p openapi-generator-cli --run "openapi-generator-cli validate -i ./hydra-api.yaml"
+    - run: nix-build -A checks.x86_64-linux.build -A checks.x86_64-linux.validate-openapi
