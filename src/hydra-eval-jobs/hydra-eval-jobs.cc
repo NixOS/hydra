@@ -78,12 +78,12 @@ static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const stri
 
     rec = [&](Value & v) {
         state.forceValue(v);
-        if (v.type == tString)
+        if (v.type() == nString)
             res.push_back(v.string.s);
         else if (v.isList())
             for (unsigned int n = 0; n < v.listSize(); ++n)
                 rec(*v.listElems()[n]);
-        else if (v.type == tAttrs) {
+        else if (v.type() == nAttrs) {
             auto a = v.attrs->find(state.symbols.create(subAttribute));
             if (a != v.attrs->end())
                 res.push_back(state.forceString(*a->value));
@@ -201,7 +201,7 @@ static void worker(
                     for (unsigned int n = 0; n < a->value->listSize(); ++n) {
                         auto v = a->value->listElems()[n];
                         state.forceValue(*v);
-                        if (v->type == tString)
+                        if (v->type() == nString)
                             job["namedConstituents"].push_back(state.forceStringNoCtx(*v));
                     }
                 }
@@ -224,7 +224,7 @@ static void worker(
                 reply["job"] = std::move(job);
             }
 
-            else if (v->type == tAttrs) {
+            else if (v->type() == nAttrs) {
                 auto attrs = nlohmann::json::array();
                 StringSet ss;
                 for (auto & i : v->attrs->lexicographicOrder()) {
@@ -238,7 +238,7 @@ static void worker(
                 reply["attrs"] = std::move(attrs);
             }
 
-            else if (v->type == tNull)
+            else if (v->type() == nNull)
                 ;
 
             else throw TypeError("attribute '%s' is %s, which is not supported", attrPath, showType(*v));
