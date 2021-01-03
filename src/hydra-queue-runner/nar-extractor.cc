@@ -45,15 +45,15 @@ struct Extractor : ParseSink
         hashSink = std::make_unique<HashSink>(htSHA256);
     }
 
-    void receiveContents(unsigned char * data, size_t len) override
+    void receiveContents(std::string_view data) override
     {
         assert(expectedSize);
         assert(curMember);
         assert(hashSink);
-        *curMember->fileSize += len;
-        (*hashSink)(data, len);
+        *curMember->fileSize += data.size();
+        (*hashSink)(data);
         if (curMember->contents) {
-            curMember->contents->append((char *) data, len);
+            curMember->contents->append(data);
         }
         assert(curMember->fileSize <= expectedSize);
         if (curMember->fileSize == expectedSize) {
