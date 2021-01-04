@@ -191,6 +191,8 @@ sub github_login :Path('/github-login') Args(0) {
         $email = $eml->{email} if $eml->{verified} && $eml->{primary};
     }
 
+    die "No primary email for this GitHub profile" unless $email;
+
     $response = $ua->get('https://api.github.com/user', Authorization => "token $access_token");
     error($c, "Did not get a response from GitHub for user info.") unless $response->is_success;
     $data = decode_json($response->decoded_content) or die;
