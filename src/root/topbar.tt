@@ -136,7 +136,7 @@
         <li><a href="#" id="google-signin">Sign in with Google</a></li>
         <li class="divider"></li>
       [% END %]
-      [% IF c.config.enable_github_login %]
+      [% IF c.config.github_client_id %]
         <li><a href="/github-redirect?after=[% c.req.path %]">Sign in with GitHub</a></li>
         <li class="divider"></li>
       [% END %]

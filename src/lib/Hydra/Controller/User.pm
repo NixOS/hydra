@@ -158,7 +158,6 @@ sub google_login :Path('/google-login') Args(0) {
 sub github_login :Path('/github-login') Args(0) {
     my ($self, $c) = @_;
 
-    error($c, "Logging in via GitHub is not enabled.") unless $c->config->{enable_github_login};
     my $client_id = $c->config->{github_client_id} or die "github_client_id not configured.";
     my $client_secret = $c->config->{github_client_secret} // do {
         my $client_secret_file = $c->config->{github_client_secret_file} or die "github_client_secret nor github_client_secret_file is configured.";
@@ -205,7 +204,6 @@ sub github_login :Path('/github-login') Args(0) {
 sub github_redirect :Path('/github-redirect') Args(0) {
     my ($self, $c) = @_;
 
-    error($c, "Logging in via GitHub is not enabled.") unless $c->config->{enable_github_login};
     my $client_id = $c->config->{github_client_id} or die "github_client_id not configured.";
 
     my $after = "/" . $c->req->params->{after};
