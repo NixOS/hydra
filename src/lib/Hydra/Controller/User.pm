@@ -189,7 +189,6 @@ sub github_login :Path('/github-login') Args(0) {
 
     foreach my $eml (@{$data}) {
         $email = $eml->{email} if $eml->{verified} && $eml->{primary};
-        print STDERR "$eml->{email}\n";
     }
 
     print STDERR "$email\n";
