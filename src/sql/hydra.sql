@@ -613,6 +613,8 @@ create index IndexJobsetEvalMembersOnEval on JobsetEvalMembers(eval);
 create index IndexJobsetInputAltsOnInput on JobsetInputAlts(project, jobset, input);
 create index IndexJobsetInputAltsOnJobset on JobsetInputAlts(project, jobset);
 create index IndexProjectsOnEnabled on Projects(enabled);
+create index IndexBuildOutputsPath on BuildOutputs using hash(path);
+
 
 --  For hydra-update-gc-roots.
 create index IndexBuildsOnKeep on Builds(keep) where keep = 1;
