@@ -440,6 +440,9 @@ create table JobsetEvals (
     project       text not null,
     jobset        text not null,
 
+    errorMsg      text, -- error output from the evaluator
+    errorTime     integer, -- timestamp associated with errorMsg
+
     timestamp     integer not null, -- when this entry was added
     checkoutTime  integer not null, -- how long obtaining the inputs took (in seconds)
     evalTime      integer not null, -- how long evaluation took (in seconds)

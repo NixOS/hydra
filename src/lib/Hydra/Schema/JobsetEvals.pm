@@ -54,6 +54,16 @@ __PACKAGE__->table("jobsetevals");
   is_foreign_key: 1
   is_nullable: 0
 
+=head2 errormsg
+
+  data_type: 'text'
+  is_nullable: 1
+
+=head2 errortime
+
+  data_type: 'integer'
+  is_nullable: 1
+
 =head2 timestamp
 
   data_type: 'integer'
@@ -108,6 +118,10 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "jobset",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
+  "errormsg",
+  { data_type => "text", is_nullable => 1 },
+  "errortime",
+  { data_type => "integer", is_nullable => 1 },
   "timestamp",
   { data_type => "integer", is_nullable => 0 },
   "checkouttime",
@@ -201,8 +215,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-05-27 17:40:41
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:M61ikfnjORU7jDAH8P/j7w
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-21 11:13:38
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zDBtAFc4HiFUcL/TpkuCcg
 
 __PACKAGE__->has_many(
   "buildIds",
