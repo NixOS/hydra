@@ -134,16 +134,6 @@ __PACKAGE__->table("builds");
   default_value: 0
   is_nullable: 1
 
-=head2 nixexprinput
-
-  data_type: 'text'
-  is_nullable: 1
-
-=head2 nixexprpath
-
-  data_type: 'text'
-  is_nullable: 1
-
 =head2 priority
 
   data_type: 'integer'
@@ -246,10 +236,6 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "iscurrent",
   { data_type => "integer", default_value => 0, is_nullable => 1 },
-  "nixexprinput",
-  { data_type => "text", is_nullable => 1 },
-  "nixexprpath",
-  { data_type => "text", is_nullable => 1 },
   "priority",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "globalpriority",
@@ -542,8 +528,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-05-27 17:40:41
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:RIKKFfcKXFWIUeM8ma++iw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-22 07:11:57
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Df5N0EByYJqoSUqA0dld/A
 
 __PACKAGE__->has_many(
   "dependents",
