@@ -493,12 +493,12 @@ sub fetchInputs {
 
 
 sub setJobsetError {
-    my ($jobset, $errorMsg) = @_;
+    my ($jobset, $errorMsg, $errorTime) = @_;
     my $prevError = $jobset->errormsg;
 
     eval {
         $db->txn_do(sub {
-            $jobset->update({ errormsg => $errorMsg, errortime => time, fetcherrormsg => undef });
+            $jobset->update({ errormsg => $errorMsg, errortime => $errorTime, fetcherrormsg => undef });
         });
     };
     if (defined $errorMsg && $errorMsg ne ($prevError // "") || $ENV{'HYDRA_MAIL_TEST'}) {
@@ -680,6 +680,18 @@ sub checkJobsetWrapped {
     my $jobsetChanged = 0;
     my $dbStart = clock_gettime(CLOCK_MONOTONIC);
 
+
+    # Store the error messages for jobs that failed to evaluate.
+    my $evaluationErrorTime = time;
+    my $evaluationErrorMsg = "";
+    foreach my $job (values %{$jobs}) {
+        next unless defined $job->{error};
+        $evaluationErrorMsg .=
+            ($job->{jobName} ne "" ? "in job ‘$job->{jobName}’" : "at top-level") .
+            ":\n" . $job->{error} . "\n\n";
+    }
+    setJobsetError($jobset, $evaluationErrorMsg, $evaluationErrorTime);
+
     my %buildMap;
     $db->txn_do(sub {
 
@@ -706,6 +718,8 @@ sub checkJobsetWrapped {
             { hash => $argsHash
             , timestamp => time
             , checkouttime => abs(int($checkoutStop - $checkoutStart))
+            , errormsg => $evaluationErrorMsg
+            , errortime => $evaluationErrorTime
             , evaltime => abs(int($evalStop - $evalStart))
             , hasnewbuilds => $jobsetChanged ? 1 : 0
             , nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
@@ -791,16 +805,6 @@ sub checkJobsetWrapped {
     Net::Statsd::timing("hydra.evaluator.db_time", int(($dbStop - $dbStart) * 1000));
     Net::Statsd::increment("hydra.evaluator.evals");
     Net::Statsd::increment("hydra.evaluator.cached_evals") unless $jobsetChanged;
-
-    # Store the error messages for jobs that failed to evaluate.
-    my $msg = "";
-    foreach my $job (values %{$jobs}) {
-        next unless defined $job->{error};
-        $msg .=
-            ($job->{jobName} ne "" ? "in job ‘$job->{jobName}’" : "at top-level") .
-            ":\n" . $job->{error} . "\n\n";
-    }
-    setJobsetError($jobset, $msg);
 }
 
 
@@ -827,9 +831,10 @@ sub checkJobset {
     my $failed = 0;
     if ($checkError) {
         print STDERR $checkError;
+        my $eventTime = time;
         $db->txn_do(sub {
-            $jobset->update({lastcheckedtime => time});
-            setJobsetError($jobset, $checkError);
+            $jobset->update({lastcheckedtime => $eventTime});
+            setJobsetError($jobset, $checkError, $eventTime);
             $db->storage->dbh->do("notify eval_failed, ?", undef, join('\t', $tmpId));
         }) if !$dryRun;
         $failed = 1;

@@ -88,6 +88,11 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
     <li><a href="#tabs-unfinished" data-toggle="tab">Queued jobs ([% unfinished.size %])</a></li>
   [% END %]
   <li><a href="#tabs-inputs" data-toggle="tab">Inputs</a></li>
+
+  [% IF eval.errormsg %]
+    <li><a href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation errors</span></a></li>
+  [% END %]
+
 </ul>
 
 [% BLOCK renderSome %]
@@ -102,6 +107,13 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 [% END %]
 
 <div class="tab-content">
+
+  [% IF eval.errormsg %]
+    <div id="tabs-errors" class="tab-pane">
+      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.errortime || eval.timestamp) %].</p>
+      <pre class="alert alert-error">[% HTML.escape(eval.errormsg) %]</pre>
+    </div>
+  [% END %]
 
   <div id="tabs-aborted" class="tab-pane">
     [% INCLUDE renderSome builds=aborted tabname="#tabs-aborted" %]
@@ -160,6 +172,12 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
     [% END %]
   </div>
 
+  [% IF eval.errormsg %]
+    <div id="tabs-errors" class="tab-pane">
+      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.errortime || eval.timestamp) %].</p>
+      <pre class="alert alert-error">[% HTML.escape(eval.errormsg) %]</pre>
+    </div>
+  [% END %]
 </div>
 
 [% END %]

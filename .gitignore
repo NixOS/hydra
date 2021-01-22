@@ -35,3 +35,7 @@ hydra-config.h.in
 result
 tests/jobs/config.nix
 outputs
+config
+stamp-h1
+src/hydra-evaluator/hydra-evaluator
+src/hydra-queue-runner/hydra-queue-runner

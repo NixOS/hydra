@@ -476,6 +476,9 @@ BLOCK renderEvals %]
             ELSE %]
              -
             [% END %]
+            [% IF eval.errormsg %]
+              <span class="label label-warning">Eval Errors</span>
+            [% END %]
           </td>
           <td align='right' class="nowrap">
             <span class="label label-success">[% e.nrSucceeded %]</span>
