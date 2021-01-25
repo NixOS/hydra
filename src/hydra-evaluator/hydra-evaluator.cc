@@ -13,7 +13,7 @@
 
 using namespace nix;
 
-typedef std::pair<std::string, std::string> JobsetName;
+typedef std::pair<std::string, std::string> JobsetIdentity;
 
 enum class EvaluationStyle
 {
@@ -30,16 +30,16 @@ struct Evaluator
 
     struct Jobset
     {
-        JobsetName name;
+        JobsetIdentity name;
         std::optional<EvaluationStyle> evaluation_style;
         time_t lastCheckedTime, triggerTime;
         int checkInterval;
         Pid pid;
     };
 
-    typedef std::map<JobsetName, Jobset> Jobsets;
+    typedef std::map<JobsetIdentity, Jobset> Jobsets;
 
-    std::optional<JobsetName> evalOne;
+    std::optional<JobsetIdentity> evalOne;
 
     const size_t maxEvals;
 
@@ -76,10 +76,10 @@ struct Evaluator
 
         auto state(state_.lock());
 
-        std::set<JobsetName> seen;
+        std::set<JobsetIdentity> seen;
 
         for (auto const & row : res) {
-            auto name = JobsetName{row["project"].as<std::string>(), row["name"].as<std::string>()};
+            auto name = JobsetIdentity{row["project"].as<std::string>(), row["name"].as<std::string>()};
 
             if (evalOne && name != *evalOne) continue;
 
@@ -466,7 +466,7 @@ int main(int argc, char * * argv)
         else {
             if (!args.empty()) {
                 if (args.size() != 2) throw UsageError("Syntax: hydra-evaluator [<project> <jobset>]");
-                evaluator.evalOne = JobsetName(args[0], args[1]);
+                evaluator.evalOne = JobsetIdentity(args[0], args[1]);
             }
             evaluator.run();
         }
