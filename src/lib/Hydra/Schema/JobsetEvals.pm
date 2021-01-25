@@ -42,15 +42,9 @@ __PACKAGE__->table("jobsetevals");
   is_nullable: 0
   sequence: 'jobsetevals_id_seq'
 
-=head2 project
+=head2 jobset_id
 
-  data_type: 'text'
-  is_foreign_key: 1
-  is_nullable: 0
-
-=head2 jobset
-
-  data_type: 'text'
+  data_type: 'integer'
   is_foreign_key: 1
   is_nullable: 0
 
@@ -124,10 +118,8 @@ __PACKAGE__->add_columns(
     is_nullable       => 0,
     sequence          => "jobsetevals_id_seq",
   },
-  "project",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
-  "jobset",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
+  "jobset_id",
+  { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "errormsg",
   { data_type => "text", is_nullable => 1 },
   "errortime",
@@ -179,8 +171,8 @@ Related object: L<Hydra::Schema::Jobsets>
 __PACKAGE__->belongs_to(
   "jobset",
   "Hydra::Schema::Jobsets",
-  { name => "jobset", project => "project" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
+  { id => "jobset_id" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
 =head2 jobsetevalinputs
@@ -213,24 +205,9 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 project
 
-Type: belongs_to
-
-Related object: L<Hydra::Schema::Projects>
-
-=cut
-
-__PACKAGE__->belongs_to(
-  "project",
-  "Hydra::Schema::Projects",
-  { name => "project" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
-);
-
-
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-25 14:43:28
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:VKQNG53wwdbO8p1CTdX+WA
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-25 14:44:07
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OVxeYH+eoZZrAsAJ2/mAAA
 
 __PACKAGE__->has_many(
   "buildIds",
