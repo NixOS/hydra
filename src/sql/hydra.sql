@@ -1,3 +1,14 @@
+-- Making a database change:
+--
+-- 1. Update this schema document to match what the end result should be.
+--
+-- 2. Run `make -C src/sql update-dbix hydra-postgresql.sql` in the root
+--    of the project directory, and git add / git commit the changed,
+--    generated files.
+--
+-- 3. Create a migration in this same directory, named `upgrade-N.sql`
+--
+
 -- Singleton table to keep track of the schema version.
 create table SchemaVersion (
     version       integer not null
