@@ -169,7 +169,7 @@ echo "$0: input ‘[% input.name %]’ has unsupported type ‘[% input.type %]�
 exit 1
 [% END %]
 
-[% IF input.name == build.nixexprinput +%]
+[% IF input.name == eval.nixexprinput +%]
 nixExprInputDir="$inputDir"
 [%+ END %]
 
@@ -197,7 +197,7 @@ args+=(--option extra-binary-caches '[% c.uri_for('/') %]')
 # when evaluating jobs that rely on builtins.currentSystem.
 args+=(--option system x86_64-linux)
 
-args+=("$nixExprInputDir/[% build.nixexprpath %]" -A '[% build.job.name %]')
+args+=("$nixExprInputDir/[% eval.nixexprpath %]" -A '[% build.job.name %]')
 
 if [ -n "$printFlags" ]; then
     first=1

@@ -89,6 +89,16 @@ __PACKAGE__->table("jobsetevals");
   data_type: 'text'
   is_nullable: 0
 
+=head2 nixexprinput
+
+  data_type: 'text'
+  is_nullable: 1
+
+=head2 nixexprpath
+
+  data_type: 'text'
+  is_nullable: 1
+
 =head2 nrbuilds
 
   data_type: 'integer'
@@ -132,6 +142,10 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 0 },
   "hash",
   { data_type => "text", is_nullable => 0 },
+  "nixexprinput",
+  { data_type => "text", is_nullable => 1 },
+  "nixexprpath",
+  { data_type => "text", is_nullable => 1 },
   "nrbuilds",
   { data_type => "integer", is_nullable => 1 },
   "nrsucceeded",
@@ -215,8 +229,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-21 11:13:38
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zDBtAFc4HiFUcL/TpkuCcg
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-22 07:11:57
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:hdu+0WWo2363dVvImMKxdA
 
 __PACKAGE__->has_many(
   "buildIds",

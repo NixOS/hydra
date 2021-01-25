@@ -460,8 +460,6 @@ sub checkBuild {
             , nixname => $buildInfo->{nixName}
             , drvpath => $drvPath
             , system => $buildInfo->{system}
-            , nixexprinput => $jobset->nixexprinput
-            , nixexprpath => $jobset->nixexprpath
             , priority => $buildInfo->{schedulingPriority}
             , finished => 0
             , iscurrent => 1
@@ -724,6 +722,8 @@ sub checkJobsetWrapped {
             , hasnewbuilds => $jobsetChanged ? 1 : 0
             , nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
             , flake => $flakeRef
+            , nixexprinput => $jobset->nixexprinput
+            , nixexprpath => $jobset->nixexprpath
             });
 
         $db->storage->dbh->do("notify eval_added, ?", undef,

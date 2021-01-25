@@ -162,13 +162,6 @@ create table Builds (
     isChannel     integer not null default 0, -- meta.isHydraChannel
     isCurrent     integer default 0,
 
-    -- Copy of the nixExprInput/nixExprPath fields of the jobset that
-    -- instantiated this build.  Needed if we want to reproduce this
-    -- build.  FIXME: this should be stored in JobsetEvals, storing it
-    -- here is denormal.
-    nixExprInput  text,
-    nixExprPath   text,
-
     -- Priority within a jobset, set via meta.schedulingPriority.
     priority      integer not null default 0,
 
@@ -466,6 +459,8 @@ create table JobsetEvals (
     nrSucceeded   integer, -- set lazily when all builds are finished
 
     flake         text, -- immutable flake reference
+    nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
+    nixExprPath   text, -- relative path of the Nix or Guix expression
 
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade

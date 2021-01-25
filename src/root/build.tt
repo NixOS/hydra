@@ -120,7 +120,7 @@ END;
       <b class="caret"></b>
     </a>
     <ul class="dropdown-menu">
-      [% IF build.nixexprinput || eval.flake %]
+      [% IF eval.nixexprinput || eval.flake %]
         <li><a href="#reproduce" data-toggle="modal">Reproduce locally</a></li>
       [% END %]
       [% IF c.user_exists %]
@@ -346,10 +346,10 @@ END;
           <td>[% build.priority %]</td>
         </tr>
       [% END %]
-      [% IF build.nixexprinput %]
+      [% IF eval.nixexprinput %]
         <tr>
           <th>Nix expression:</th>
-          <td>file <tt>[% HTML.escape(build.nixexprpath) %]</tt> in input <tt>[% HTML.escape(build.nixexprinput) %]</tt></td>
+          <td>file <tt>[% HTML.escape(eval.nixexprpath) %]</tt> in input <tt>[% HTML.escape(eval.nixexprinput) %]</tt></td>
         </tr>
       [% END %]
       <tr>
