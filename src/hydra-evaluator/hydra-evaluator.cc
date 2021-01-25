@@ -68,7 +68,9 @@ struct Evaluator
         pqxx::work txn(*conn);
 
         auto res = txn.exec
-            ("select project, j.name, lastCheckedTime, triggerTime, checkInterval, j.enabled as jobset_enabled from Jobsets j join Projects p on j.project = p.name "
+            ("select project, j.name, lastCheckedTime, triggerTime, checkInterval, j.enabled as jobset_enabled "
+             "from Jobsets j "
+             "join Projects p on j.project = p.name "
              "where j.enabled != 0 and p.enabled != 0");
 
 
