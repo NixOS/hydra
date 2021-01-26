@@ -42,6 +42,7 @@ make_schema_at("Hydra::Schema", {
             "urirevmapper" => "UriRevMapper",
             "userroles" => "UserRoles",
             "users" => "Users",
+            "buildsbymaintainer" => "BuildsByMaintainer",
     } , #sub { return "$_"; },
     components => [ "+Hydra::Component::ToJSON" ],
     rel_name_map => { buildsteps_builds => "buildsteps" }
