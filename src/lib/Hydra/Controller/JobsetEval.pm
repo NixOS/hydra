@@ -16,8 +16,8 @@ sub evalChain : Chained('/') PathPart('eval') CaptureArgs(1) {
         or notFound($c, "Evaluation $evalId doesn't exist.");
 
     $c->stash->{eval} = $eval;
-    $c->stash->{project} = $eval->project;
     $c->stash->{jobset} = $eval->jobset;
+    $c->stash->{project} = $eval->jobset->project;
 }
 
 

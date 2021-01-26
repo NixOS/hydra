@@ -219,7 +219,7 @@ sub getEvals {
     foreach my $curEval (@evals) {
 
         my ($prevEval) = $c->model('DB::JobsetEvals')->search(
-            { project => $curEval->get_column('project'), jobset => $curEval->get_column('jobset')
+            { jobset_id => $curEval->get_column('jobset_id')
             , hasnewbuilds => 1, id => { '<', $curEval->id } },
             { order_by => "id DESC", rows => 1 });
 

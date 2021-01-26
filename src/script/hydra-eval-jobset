@@ -191,8 +191,11 @@ sub fetchInputEval {
         $eval = getLatestFinishedEval($jobset);
         die "jobset ‘$value’ does not have a finished evaluation\n" unless defined $eval;
     } elsif ($value =~ /^($projectNameRE):($jobsetNameRE):($jobNameRE)$/) {
+        my $jobset = $db->resultset('Jobsets')->find({ project => $1, name => $2 });
+        die "jobset ‘$1:$2’ does not exist\n" unless defined $jobset;
+
         $eval = $db->resultset('JobsetEvals')->find(
-            { project => $1, jobset => $2, hasnewbuilds => 1 },
+            { jobset_id => $jobset->id, hasnewbuilds => 1 },
             { order_by => "id DESC", rows => 1
             , where =>
                 \ [ # All builds in this jobset should be finished...
