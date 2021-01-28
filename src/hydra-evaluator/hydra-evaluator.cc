@@ -13,9 +13,9 @@
 
 using namespace nix;
 
-typedef std::pair<std::string, std::string> JobsetSymbolicIdentity;
+typedef std::pair<std::string, std::string> JobsetName;
 
-class JobsetIdentity {
+class JobsetId {
     public:
 
     std::string project;
@@ -23,44 +23,44 @@ class JobsetIdentity {
     int id;
 
 
-    JobsetIdentity(const std::string& project, const std::string& jobset, const int id)
+    JobsetId(const std::string & project, const std::string & jobset, int id)
         : project{ project }, jobset{ jobset }, id{ id }
     {
     }
 
-    friend bool operator== (const JobsetIdentity &lhs, const JobsetIdentity &rhs);
-    friend bool operator!= (const JobsetIdentity &lhs, const JobsetIdentity &rhs);
-    friend bool operator< (const JobsetIdentity &lhs, const JobsetIdentity &rhs);
+    friend bool operator== (const JobsetId & lhs, const JobsetId & rhs);
+    friend bool operator!= (const JobsetId & lhs, const JobsetId & rhs);
+    friend bool operator< (const JobsetId & lhs, const JobsetId & rhs);
 
 
-    friend bool operator== (const JobsetIdentity &lhs, const JobsetSymbolicIdentity &rhs);
-    friend bool operator!= (const JobsetIdentity &lhs, const JobsetSymbolicIdentity &rhs);
+    friend bool operator== (const JobsetId & lhs, const JobsetName & rhs);
+    friend bool operator!= (const JobsetId & lhs, const JobsetName & rhs);
 
     std::string display() const {
         return str(format("%1%:%2% (jobset#%3%)") % project % jobset % id);
     }
 };
-bool operator==(const JobsetIdentity & lhs, const JobsetIdentity & rhs)
+bool operator==(const JobsetId & lhs, const JobsetId & rhs)
 {
     return lhs.id == rhs.id;
 }
 
-bool operator!=(const JobsetIdentity & lhs, const JobsetIdentity & rhs)
+bool operator!=(const JobsetId & lhs, const JobsetId & rhs)
 {
     return lhs.id != rhs.id;
 }
 
-bool operator<(const JobsetIdentity & lhs, const JobsetIdentity & rhs)
+bool operator<(const JobsetId & lhs, const JobsetId & rhs)
 {
     return lhs.id < rhs.id;
 }
 
-bool operator==(const JobsetIdentity & lhs, const JobsetSymbolicIdentity & rhs)
+bool operator==(const JobsetId & lhs, const JobsetName & rhs)
 {
     return lhs.project == rhs.first && lhs.jobset == rhs.second;
 }
 
-bool operator!=(const JobsetIdentity & lhs, const JobsetSymbolicIdentity & rhs)
+bool operator!=(const JobsetId & lhs, const JobsetName & rhs)
 {
     return ! (lhs == rhs);
 }
@@ -80,16 +80,16 @@ struct Evaluator
 
     struct Jobset
     {
-        JobsetIdentity name;
+        JobsetId name;
         std::optional<EvaluationStyle> evaluation_style;
         time_t lastCheckedTime, triggerTime;
         int checkInterval;
         Pid pid;
     };
 
-    typedef std::map<JobsetIdentity, Jobset> Jobsets;
+    typedef std::map<JobsetId, Jobset> Jobsets;
 
-    std::optional<JobsetSymbolicIdentity> evalOne;
+    std::optional<JobsetName> evalOne;
 
     const size_t maxEvals;
 
@@ -126,10 +126,10 @@ struct Evaluator
 
         auto state(state_.lock());
 
-        std::set<JobsetIdentity> seen;
+        std::set<JobsetId> seen;
 
         for (auto const & row : res) {
-            auto name = JobsetIdentity{row["project"].as<std::string>(), row["name"].as<std::string>(), row["id"].as<int>()};
+            auto name = JobsetId{row["project"].as<std::string>(), row["name"].as<std::string>(), row["id"].as<int>()};
 
             if (evalOne && name != *evalOne) continue;
 
@@ -511,7 +511,7 @@ int main(int argc, char * * argv)
         else {
             if (!args.empty()) {
                 if (args.size() != 2) throw UsageError("Syntax: hydra-evaluator [<project> <jobset>]");
-                evaluator.evalOne = JobsetSymbolicIdentity(args[0], args[1]);
+                evaluator.evalOne = JobsetName(args[0], args[1]);
             }
             evaluator.run();
         }
