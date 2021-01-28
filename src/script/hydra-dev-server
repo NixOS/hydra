@@ -5,6 +5,11 @@ BEGIN {
 }
 
 use Catalyst::ScriptRunner;
+
+STDOUT->autoflush();
+STDERR->autoflush(1);
+binmode STDERR, ":encoding(utf8)";
+
 Catalyst::ScriptRunner->run('Hydra', 'DevServer');
 
 1;

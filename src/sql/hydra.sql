@@ -1,3 +1,14 @@
+-- Making a database change:
+--
+-- 1. Update this schema document to match what the end result should be.
+--
+-- 2. Run `make -C src/sql update-dbix hydra-postgresql.sql` in the root
+--    of the project directory, and git add / git commit the changed,
+--    generated files.
+--
+-- 3. Create a migration in this same directory, named `upgrade-N.sql`
+--
+
 -- Singleton table to keep track of the schema version.
 create table SchemaVersion (
     version       integer not null
@@ -429,9 +440,7 @@ create table SystemTypes (
 
 create table JobsetEvals (
     id            serial primary key not null,
-
-    project       text not null,
-    jobset        text not null,
+    jobset_id     integer not null,
 
     errorMsg      text, -- error output from the evaluator
     errorTime     integer, -- timestamp associated with errorMsg
@@ -462,8 +471,7 @@ create table JobsetEvals (
     nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
     nixExprPath   text, -- relative path of the Nix or Guix expression
 
-    foreign key   (project) references Projects(name) on delete cascade on update cascade,
-    foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
+    foreign key   (jobset_id) references Jobsets(id) on delete cascade
 );
 
 
@@ -618,7 +626,8 @@ create index IndexBuildOutputsPath on BuildOutputs using hash(path);
 create index IndexBuildsOnKeep on Builds(keep) where keep = 1;
 
 -- To get the most recent eval for a jobset.
-create index IndexJobsetEvalsOnJobsetId on JobsetEvals(project, jobset, id desc) where hasNewBuilds = 1;
+create index IndexJobsetEvalsOnJobsetId on JobsetEvals(jobset_id, id desc) where hasNewBuilds = 1;
+create index IndexJobsetIdEvals on JobsetEvals(jobset_id) where hasNewBuilds = 1;
 
 create index IndexBuildsOnNotificationPendingSince on Builds(notificationPendingSince) where notificationPendingSince is not null;
 

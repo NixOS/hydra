@@ -463,7 +463,7 @@ BLOCK renderEvals %]
         <tr>
           <td><a class="row-link" href="[% link %]">[% eval.id %]</a></td>
           [% IF !jobset && !build %]
-            <td>[% INCLUDE renderFullJobsetName project=eval.get_column('project') jobset=eval.get_column('jobset') %]</td>
+            <td>[% INCLUDE renderFullJobsetName project=eval.jobset.project.name jobset=eval.jobset.name %]</td>
           [% END %]
           <td class="nowrap">[% INCLUDE renderRelativeDate timestamp = eval.timestamp %]</td>
           <td>

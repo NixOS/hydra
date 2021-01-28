@@ -301,10 +301,7 @@ Related object: L<Hydra::Schema::JobsetEvals>
 __PACKAGE__->has_many(
   "jobsetevals",
   "Hydra::Schema::JobsetEvals",
-  {
-    "foreign.jobset"  => "self.name",
-    "foreign.project" => "self.project",
-  },
+  { "foreign.jobset_id" => "self.id" },
   undef,
 );
 
@@ -375,8 +372,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-22 07:11:57
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:6P1qlC5oVSPRSgRBp6nmrw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-25 14:38:14
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:7XtIqrrGAIvReqly1kapog
 
 
 =head2 builds
