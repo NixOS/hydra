@@ -442,50 +442,53 @@ sub search :Local Args(0) {
     my $limit = int(trim ($c->request->params->{"limit"} || "10"));
     $c->stash->{limit} = min(50, max(1, $limit));
 
-    $c->stash->{projects} = [ $c->model('DB::Projects')->search(
-        { -and =>
-            [ { -or => [ name => { ilike => "%$query%" }, displayName => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] }
-            , { hidden => 0 }
-            ]
-        },
-        { order_by => ["name"] } ) ];
+    $c->model('DB')->schema->txn_do(sub {
+        $c->model('DB')->schema->storage->dbh->do("SET LOCAL statement_timeout = 20000");
+        $c->stash->{projects} = [ $c->model('DB::Projects')->search(
+            { -and =>
+                [ { -or => [ name => { ilike => "%$query%" }, displayName => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] }
+                , { hidden => 0 }
+                ]
+            },
+            { order_by => ["name"] } ) ];
 
-    $c->stash->{jobsets} = [ $c->model('DB::Jobsets')->search(
-        { -and =>
-            [ { -or => [ "me.name" => { ilike => "%$query%" }, "me.description" => { ilike => "%$query%" } ] }
-            , { "project.hidden" => 0, "me.hidden" => 0 }
-            ]
-        },
-        { order_by => ["project", "name"], join => ["project"] } ) ];
+        $c->stash->{jobsets} = [ $c->model('DB::Jobsets')->search(
+            { -and =>
+                [ { -or => [ "me.name" => { ilike => "%$query%" }, "me.description" => { ilike => "%$query%" } ] }
+                , { "project.hidden" => 0, "me.hidden" => 0 }
+                ]
+            },
+            { order_by => ["project", "name"], join => ["project"] } ) ];
 
-    $c->stash->{jobs} = [ $c->model('DB::Builds')->search(
-        { "job" => { ilike => "%$query%" }
-        , "project.hidden" => 0
-        , "jobset.hidden" => 0
-        , iscurrent => 1
-        },
-        { order_by => ["project", "jobset", "job"], join => ["project", "jobset"]
-        , rows => $c->stash->{limit} + 1
-        } )
-    ];
+        $c->stash->{jobs} = [ $c->model('DB::Builds')->search(
+            { "job" => { ilike => "%$query%" }
+            , "project.hidden" => 0
+            , "jobset.hidden" => 0
+            , iscurrent => 1
+            },
+            { order_by => ["project", "jobset", "job"], join => ["project", "jobset"]
+            , rows => $c->stash->{limit} + 1
+            } )
+        ];
 
-    # Perform build search in separate queries to prevent seq scan on buildoutputs table.
-    $c->stash->{builds} = [ $c->model('DB::Builds')->search(
-        { "buildoutputs.path" => { ilike => "%$query%" } },
-        { order_by => ["id desc"], join => ["buildoutputs"]
-        , rows => $c->stash->{limit}
-        } ) ];
+        # Perform build search in separate queries to prevent seq scan on buildoutputs table.
+        $c->stash->{builds} = [ $c->model('DB::Builds')->search(
+            { "buildoutputs.path" => { ilike => "%$query%" } },
+            { order_by => ["id desc"], join => ["buildoutputs"]
+            , rows => $c->stash->{limit}
+            } ) ];
 
-    $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
-        { "drvpath" => { ilike => "%$query%" } },
-        { order_by => ["id desc"]
-        , rows => $c->stash->{limit}
-        } ) ];
+        $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
+            { "drvpath" => { ilike => "%$query%" } },
+            { order_by => ["id desc"]
+            , rows => $c->stash->{limit}
+            } ) ];
 
-    $c->stash->{resource} = { projects => $c->stash->{projects},
-                              jobsets  => $c->stash->{jobsets},
-                              builds  => $c->stash->{builds},
-                              buildsdrv  => $c->stash->{buildsdrv} };
+        $c->stash->{resource} = { projects => $c->stash->{projects},
+                                jobsets  => $c->stash->{jobsets},
+                                builds  => $c->stash->{builds},
+                                buildsdrv  => $c->stash->{buildsdrv} };
+    });
 }
 
 sub serveLogFile {
