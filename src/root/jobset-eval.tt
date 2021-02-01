@@ -89,7 +89,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% END %]
   <li><a href="#tabs-inputs" data-toggle="tab">Inputs</a></li>
 
-  [% IF eval.errormsg %]
+  [% IF eval.evaluationerror.errormsg %]
     <li><a href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation errors</span></a></li>
   [% END %]
 
@@ -108,10 +108,10 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 
 <div class="tab-content">
 
-  [% IF eval.errormsg %]
+  [% IF eval.evaluationerror.errormsg %]
     <div id="tabs-errors" class="tab-pane">
-      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.errortime || eval.timestamp) %].</p>
-      <pre class="alert alert-error">[% HTML.escape(eval.errormsg) %]</pre>
+      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.evaluationerror.errortime || eval.timestamp) %].</p>
+      <pre class="alert alert-error">[% HTML.escape(eval.evaluationerror.errormsg) %]</pre>
     </div>
   [% END %]
 
@@ -172,10 +172,10 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
     [% END %]
   </div>
 
-  [% IF eval.errormsg %]
+  [% IF eval.evaluationerror.errormsg %]
     <div id="tabs-errors" class="tab-pane">
-      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.errortime || eval.timestamp) %].</p>
-      <pre class="alert alert-error">[% HTML.escape(eval.errormsg) %]</pre>
+      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.evaluationerror.errortime || eval.timestamp) %].</p>
+      <pre class="alert alert-error">[% HTML.escape(eval.evaluationerror.errormsg) %]</pre>
     </div>
   [% END %]
 </div>

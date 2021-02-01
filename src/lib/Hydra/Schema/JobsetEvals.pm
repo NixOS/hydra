@@ -48,14 +48,10 @@ __PACKAGE__->table("jobsetevals");
   is_foreign_key: 1
   is_nullable: 0
 
-=head2 errormsg
-
-  data_type: 'text'
-  is_nullable: 1
-
-=head2 errortime
+=head2 evaluationerror_id
 
   data_type: 'integer'
+  is_foreign_key: 1
   is_nullable: 1
 
 =head2 timestamp
@@ -120,10 +116,8 @@ __PACKAGE__->add_columns(
   },
   "jobset_id",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
-  "errormsg",
-  { data_type => "text", is_nullable => 1 },
-  "errortime",
-  { data_type => "integer", is_nullable => 1 },
+  "evaluationerror_id",
+  { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
   "timestamp",
   { data_type => "integer", is_nullable => 0 },
   "checkouttime",
@@ -159,6 +153,26 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("id");
 
 =head1 RELATIONS
+
+=head2 evaluationerror
+
+Type: belongs_to
+
+Related object: L<Hydra::Schema::EvaluationErrors>
+
+=cut
+
+__PACKAGE__->belongs_to(
+  "evaluationerror",
+  "Hydra::Schema::EvaluationErrors",
+  { id => "evaluationerror_id" },
+  {
+    is_deferrable => 0,
+    join_type     => "LEFT",
+    on_delete     => "SET NULL",
+    on_update     => "NO ACTION",
+  },
+);
 
 =head2 jobset
 
@@ -206,8 +220,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-25 14:44:07
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OVxeYH+eoZZrAsAJ2/mAAA
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-02-01 20:17:39
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SGtK0PwRkbxiMuitQvs4wQ
 
 __PACKAGE__->has_many(
   "buildIds",
