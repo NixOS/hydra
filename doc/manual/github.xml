@@ -1,0 +1,52 @@
+<chapter xmlns="http://docbook.org/ns/docbook"
+         xmlns:xlink="http://www.w3.org/1999/xlink"
+         xml:id="sec-github-features">
+
+<title>GitHub specific features</title>
+
+<para>
+  Hydra contains some features that hook into GitHub APIs or
+  receive updates from GitHub.
+</para>
+
+<section xml:id="sec-github-auth">
+
+  <title>Authenticating to GitHub</title>
+
+  <para>
+    The GitHubStatus plugin and GitHubPulls plugin can both use
+    the same configuration for authentication. The GitHubPulls plugin
+    doesn't require authentication for public repos, but will use it when
+    the configuration exists.
+  </para>
+
+  <para>
+    The configuration can be done per-repo, per-owner or globally. The examples
+    show what what should be added to the config in each case:
+  </para>
+
+<programlisting>
+# Per repo config
+&lt;github_authorization_file_repo&gt;
+  &lt;NixOS&gt;
+    hydra = "/run/hydra_repo_token"
+  &lt;/NixOS&gt;
+&lt;/github_authorization_file_repo&gt;
+
+# Per owner config
+&lt;github_authorization_file_owner&gt;
+  NixOS = "/run/hydra_token"
+&lt;/github_authorization_file_owner&gt;
+
+# Global config
+github_authorization_file = "/run/hydra_token"
+</programlisting>
+
+  <note><para>
+    GitHub authorization will fall back to the global config if the owner or
+    repo specific configurations cannot be found.
+  </para></note>
+
+</section>
+
+</chapter>

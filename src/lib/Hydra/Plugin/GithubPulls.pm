@@ -6,6 +6,7 @@ use HTTP::Request;
 use LWP::UserAgent;
 use JSON;
 use Hydra::Helper::CatalystUtils;
+use File::Slurp;
 use File::Temp;
 use POSIX qw(strftime);
 
@@ -46,7 +47,15 @@ sub fetchInput {
     return undef if $type ne "githubpulls";
     # TODO Allow filtering of some kind here?
     (my $owner, my $repo) = split ' ', $value;
-    my $auth = $self->{config}->{github_authorization}->{$owner};
+    my $auth_file = $self->{config}->{github_authorization_file_repo}->{$owner}->{$repo} //
+        $self->{config}->{github_authorization_file_owner}->{$owner} //
+        $self->{config}->{github_authorization_file};
+    my $auth;
+    if ($auth_file) {
+        $auth = read_file($auth_file);
+    } else {
+        $auth = $self->{config}->{github_authorization}->{$owner};
+    }
     my %pulls;
     my $ua = LWP::UserAgent->new();
     _iterate("https://api.github.com/repos/$owner/$repo/pulls?per_page=100", $auth, \%pulls, $ua);
