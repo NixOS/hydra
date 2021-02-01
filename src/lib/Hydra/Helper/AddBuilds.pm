@@ -49,6 +49,18 @@ sub updateDeclarativeJobset {
         $update{$key} = $declSpec->{$key};
         delete $declSpec->{$key};
     }
+    # Ensure jobset constraints are met, only have nixexpr{path,input} or
+    # flakes set if the type is 0 or 1 respectively. So in the update we need
+    # to null the field of the other type.
+    if (defined $update{type}) {
+        if ($update{type} == 0) {
+            $update{flake} = undef;
+        } elsif ($update{type} == 1) {
+            $update{nixexprpath} = undef;
+            $update{nixexprinput} = undef;
+        }
+    }
+
     $db->txn_do(sub {
         my $jobset = $project->jobsets->update_or_create(\%update);
         $jobset->jobsetinputs->delete;
