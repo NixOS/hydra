@@ -143,7 +143,7 @@ sub create_jobset : Chained('evalChain') PathPart('create-jobset') Args(0) {
 
 sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
     my ($self, $c) = @_;
-    requireCancelBuildPrivileges($c, $c->stash->{eval}->project);
+    requireCancelBuildPrivileges($c, $c->stash->{project});
     my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->builds);
     $c->flash->{successMsg} = "$n builds have been cancelled.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
@@ -152,7 +152,7 @@ sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
 
 sub restart {
     my ($self, $c, $condition) = @_;
-    requireRestartPrivileges($c, $c->stash->{eval}->project);
+    requireRestartPrivileges($c, $c->stash->{project});
     my $builds = $c->stash->{eval}->builds->search({ finished => 1, buildstatus => $condition });
     my $n = restartBuilds($c->model('DB')->schema, $builds);
     $c->flash->{successMsg} = "$n builds have been restarted.";
@@ -174,7 +174,7 @@ sub restart_failed : Chained('evalChain') PathPart('restart-failed') Args(0) {
 
 sub bump : Chained('evalChain') PathPart('bump') Args(0) {
     my ($self, $c) = @_;
-    requireBumpPrivileges($c, $c->stash->{eval}->project); # FIXME: require admin?
+    requireBumpPrivileges($c, $c->stash->{project}); # FIXME: require admin?
     my $builds = $c->stash->{eval}->builds->search({ finished => 0 });
     my $n = $builds->count();
     $c->model('DB')->schema->txn_do(sub {
