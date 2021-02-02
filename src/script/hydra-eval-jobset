@@ -693,6 +693,12 @@ sub checkJobsetWrapped {
     }
     setJobsetError($jobset, $evaluationErrorMsg, $evaluationErrorTime);
 
+    my $evaluationErrorRecord = $db->resultset('EvaluationErrors')->create(
+        { errormsg => $evaluationErrorMsg
+        , errortime => $evaluationErrorTime
+        }
+    );
+
     my %buildMap;
     $db->txn_do(sub {
 
@@ -715,12 +721,12 @@ sub checkJobsetWrapped {
             (scalar(grep { $_->{new} } values(%buildMap)) > 0)
             || (defined $prevEval && $prevEval->jobsetevalmembers->count != scalar(keys %buildMap));
 
+
         my $ev = $jobset->jobsetevals->create(
             { hash => $argsHash
+            , evaluationerror => $evaluationErrorRecord
             , timestamp => time
             , checkouttime => abs(int($checkoutStop - $checkoutStart))
-            , errormsg => $evaluationErrorMsg
-            , errortime => $evaluationErrorTime
             , evaltime => abs(int($evalStop - $evalStart))
             , hasnewbuilds => $jobsetChanged ? 1 : 0
             , nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef

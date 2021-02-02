@@ -437,13 +437,17 @@ create table SystemTypes (
     maxConcurrent integer not null default 2
 );
 
+create table EvaluationErrors (
+    id            serial primary key not null,
+    errorMsg      text,    -- error output from the evaluator
+    errorTime     integer  -- timestamp associated with errorMsg
+);
 
 create table JobsetEvals (
     id            serial primary key not null,
     jobset_id     integer not null,
 
-    errorMsg      text, -- error output from the evaluator
-    errorTime     integer, -- timestamp associated with errorMsg
+    evaluationerror_id integer,
 
     timestamp     integer not null, -- when this entry was added
     checkoutTime  integer not null, -- how long obtaining the inputs took (in seconds)
@@ -471,7 +475,8 @@ create table JobsetEvals (
     nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
     nixExprPath   text, -- relative path of the Nix or Guix expression
 
-    foreign key   (jobset_id) references Jobsets(id) on delete cascade
+    foreign key   (jobset_id) references Jobsets(id) on delete cascade,
+    foreign key   (evaluationerror_id) references EvaluationErrors(id) on delete set null
 );
 
 

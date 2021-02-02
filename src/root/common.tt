@@ -476,7 +476,7 @@ BLOCK renderEvals %]
             ELSE %]
              -
             [% END %]
-            [% IF eval.errormsg %]
+            [% IF eval.evaluationerror.errormsg %]
               <span class="label label-warning">Eval Errors</span>
             [% END %]
           </td>
