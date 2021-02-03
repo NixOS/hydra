@@ -84,9 +84,14 @@ create table Jobsets (
     startTime     integer, -- if jobset is currently running
     type          integer not null default 0, -- 0 == legacy, 1 == flake
     flake         text,
-    check (schedulingShares > 0),
-    check ((type = 0) = (nixExprInput is not null and nixExprPath is not null)),
-    check ((type = 1) = (flake is not null)),
+    constraint jobsets_schedulingshares_nonzero_check check (schedulingShares > 0),
+    constraint jobsets_type_known_check   check (type = 0 or type = 1),
+    -- If the type is 0, then nixExprInput and nixExprPath should be non-null and other type-specific fields should be null
+    -- Otherwise the check passes
+    constraint jobsets_legacy_paths_check check ((type = 0) = (nixExprInput is not null and nixExprPath is not null and flake is     null)),
+    -- If the type is 1, then flake should be non-null and other type-specific fields should be null
+    -- Otherwise the check passes
+    constraint jobsets_flake_paths_check  check ((type = 1) = (nixExprInput is     null and nixExprPath is     null and flake is not null)),
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     constraint    Jobsets_id_unique UNIQUE(id)
