@@ -30,6 +30,8 @@ sub noLoginNeeded {
 
   return $whitelisted ||
          $c->request->path eq "api/push-github" ||
+         $c->request->path eq "api/push-github-branch" ||
+         $c->request->path eq "api/push-github-pr" ||
          $c->request->path eq "google-login" ||
          $c->request->path eq "github-redirect" ||
          $c->request->path eq "github-login" ||
@@ -75,7 +77,10 @@ sub begin :Private {
     $_->supportedInputTypes($c->stash->{inputTypes}) foreach @{$c->hydra_plugins};
 
     # XSRF protection: require POST requests to have the same origin.
-    if ($c->req->method eq "POST" && $c->req->path ne "api/push-github") {
+    if ($c->req->method eq "POST"
+            && $c->req->path ne "api/push-github"
+            && $c->req->path ne "api/push-github-branch"
+            && $c->req->path ne "api/push-github-pr") {
         my $referer = $c->req->header('Origin');
         $referer //= $c->req->header('Referer');
         my $base = $c->req->base;

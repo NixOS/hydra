@@ -63,6 +63,7 @@
   <xi:include href="introduction.xml" />
   <xi:include href="installation.xml" />
   <xi:include href="projects.xml" />
+  <xi:include href="github.xml" />
   <xi:include href="api.xml" />
   <xi:include href="hacking.xml" />
 

@@ -1,0 +1,54 @@
+<chapter xmlns="http://docbook.org/ns/docbook"
+         xmlns:xlink="http://www.w3.org/1999/xlink"
+         xml:id="sec-github-features">
+
+<title>GitHub specific features</title>
+
+<para>
+  Hydra contains some features that hook into GitHub APIs or
+  receive updates from GitHub.
+</para>
+
+<section xml:id="sec-github-push">
+
+  <title>Receiving updates about repositories</title>
+
+  <para>
+    In the GitHub repo settings, you can setup webhooks which execute
+    when something in the repo changes. Hydra has some endpoints
+    designed to receive these events. When configuring these in the GitHub
+    webhook settings, you should leave the secret value empty, and set
+    the Content Type to <varname>application/json</varname>. More than one
+    webhook to the same Hydra server is possible.
+  </para>
+
+  <para>
+    If you want to rebuild all jobsets that use your repo everytime
+    the repo changes, you should use the
+    <varname>/api/push-github</varname> endpoint. You should
+    select the option in GitHub to send the <varname>push</varname>
+    event for this endpoint.
+  </para>
+
+  <para>
+    There is a more specific endpoint which supports filtering on branch
+    names. This requires that you include the branch name anywhere in the
+    jobset name. In the GitHub webhook settings, you should setup the
+    <varname>/api/push-github-branch</varname> url, configured to send
+    the <varname>push</varname> event.
+  </para>
+
+  <para>
+    If you have set up a generative jobset which makes new jobsets for
+    pull requests, you can use the <varname>/api/push-github-pr</varname>
+    endpoint. This endpoint will take two different actions depending on the
+    event action that happened. If a new pull request is created or one is deleted,
+    it will trigger the .jobsets jobset that has a pullRequestsJSON configured
+    for the repository. If a pull request is changed (synchronized), it will look
+    for a jobset containing the pull request number. For this endpoint, you should
+    configure jobset to send specifically the "Pull requests" events.
+  </para>
+
+</section>
+
+</chapter>

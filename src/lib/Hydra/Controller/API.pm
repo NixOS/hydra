@@ -251,7 +251,67 @@ sub push : Chained('api') PathPart('push') Args(0) {
     );
 }
 
+# If you have configured your project with a .jobsets that generates your jobsets
+# from PRs, you can use this endpoint to update .jobsets, or update the jobsets
+# corresponding to the PRs.
+sub push_github_pr : Chained('api') PathPart('push-github-pr') Args(0) {
+    my ($self, $c) = @_;
 
+    $c->{stash}->{json}->{jobsetsTriggered} = [];
+    my $in = $c->request->{data};
+    my $action = $in->{action} or die "no action";
+    my $pr_num = $in->{number} or die "no pr number";
+    my $owner = $in->{repository}->{owner}->{login} or die "no owner";
+    my $repo = $in->{repository}->{name} or die "no repo";
+
+    # .jobsets should be triggered, if it has this repo as a pullRequestsJSON input
+    if ($action eq 'opened' || $action eq 'reopened' || $action eq 'closed') {
+        triggerJobset($self, $c, $_, 0) foreach $c->model('DB::Jobsets')->search(
+            { 'project.enabled' => 1, 'me.enabled' => 1, 'me.name' => '.jobsets' },
+            { join => 'project'
+            , where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and input = \'pullRequestsJSON\' and value = ?)', [ 'value', "$owner $repo" ] ]
+            });
+    } elsif ($action eq 'synchronize') {
+        # This requires you to name PR jobsets as the number of the PR
+        triggerJobset($self, $c, $_, 0) foreach $c->model('DB::Jobsets')->search(
+            { 'project.enabled' => 1, 'me.enabled' => 1 },
+            { join => 'project'
+            , where => \ [ 'me.name like ? and (me.flake like ? or exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?))', [ 'name', "%$pr_num%" ], [ 'flake', "%github%$owner/$repo%"], [ 'value', "%github.com%$owner/$repo%" ] ]
+            });
+    } else {
+        error($c, "Doing nothing with action $action");
+    }
+    $c->response->body("");
+}
+
+# If your jobset names correspond vaguely to the branch name, using this
+# api will trigger less jobsets than push-github, as only jobsets matching
+# %$branch% will be triggered
+sub push_github_branch : Chained('api') PathPart('push-github-branch') Args(0) {
+    my ($self, $c) = @_;
+
+    $c->{stash}->{json}->{jobsetsTriggered} = [];
+
+    my $in = $c->request->{data};
+    my $owner = $in->{repository}->{owner}->{login} or die "no owner";
+    my $repo = $in->{repository}->{name} or die "no repo";
+    $in->{'ref'} =~ m!refs/heads/([^/]+)$!;
+    my $branch = $1;
+
+    print STDERR "got push from GitHub repository $owner/$repo\n";
+
+    # This requires you to name a jobset according do the branch name they use
+    triggerJobset($self, $c, $_, 0) foreach $c->model('DB::Jobsets')->search(
+        { 'project.enabled' => 1, 'me.enabled' => 1 },
+        { join => 'project'
+        , where => \ [ '(me.name like ?) and (me.flake like ? or exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?))', [ 'name', "%$branch%" ], [ 'flake', "%github%$owner/$repo%"], [ 'value', "%github.com%$owner/$repo%" ] ]
+        });
+    $c->response->body("");
+}
+
+# Trigger all jobsets that have a flake for the repo in the notify, or a source
+# for that repo. You can use push-github-branch or push-github-pr if your
+# jobsets have (automatic) names that correspond to a branch name or PR number
 sub push_github : Chained('api') PathPart('push-github') Args(0) {
     my ($self, $c) = @_;
 
