@@ -2,6 +2,7 @@ package Hydra::Plugin::GithubStatus;
 
 use strict;
 use parent 'Hydra::Plugin';
+use File::Slurp;
 use HTTP::Request;
 use JSON;
 use LWP::UserAgent;
@@ -72,7 +73,16 @@ sub common {
                     my $req = HTTP::Request->new('POST', $url);
                     $req->header('Content-Type' => 'application/json');
                     $req->header('Accept' => 'application/vnd.github.v3+json');
-                    $req->header('Authorization' => ($self->{config}->{github_authorization}->{$owner} // $conf->{authorization}));
+                    my $auth_file = $self->{config}->{github_authorization_file_repo}->{$owner}->{$repo} //
+                        $self->{config}->{github_authorization_file_owner}->{$owner} //
+                        $self->{config}->{github_authorization_file};
+                    my $auth;
+                    if ($auth_file) {
+                        $auth = read_file($auth_file);
+                    } else {
+                        $auth = $self->{config}->{github_authorization}->{$owner} // $conf->{authorization};
+                    }
+                    $req->header('Authorization' => $auth);
                     $req->content($body);
                     my $res = $ua->request($req);
                     print STDERR $res->status_line, ": ", $res->decoded_content, "\n" unless $res->is_success;
