@@ -2,6 +2,7 @@
 
 use strict;
 use utf8;
+use JSON;
 use Hydra::Plugin;
 use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
@@ -22,6 +23,9 @@ my $dbh = $db->storage->dbh;
 $dbh->do("listen build_started");
 $dbh->do("listen build_finished");
 $dbh->do("listen step_finished");
+$dbh->do("listen eval_job_failed");
+$dbh->do("listen eval_failed");
+$dbh->do("listen eval_finished");
 
 sub buildStarted {
     my ($buildId) = @_;
@@ -70,6 +74,45 @@ sub buildFinished {
     # until hydra-notify is started, as buildFinished is never emitted for them.
     foreach my $b ($build, @dependents) {
         $b->update({ notificationpendingsince => undef }) if $b->finished;
+    }
+}
+
+sub jobEvalFailed {
+    my ($eval, $project, $jobset, $job) = @_;
+
+    foreach my $plugin (@plugins) {
+        eval {
+            $plugin->jobEvalFailed($eval, $project, $jobset, $job);
+            1;
+        } or do {
+            print STDERR "$plugin->jobEvalFailed: $@\n";
+        }
+    }
+}
+
+sub evalFailed {
+    my ($project, $jobset, $inputs) = @_;
+
+    foreach my $plugin (@plugins) {
+        eval {
+            $plugin->evalFailed($project, $jobset, $inputs);
+            1;
+        } or do {
+            print STDERR "$plugin->evalFailed: $@\n";
+        }
+    }
+}
+
+sub evalFinished {
+    my ($eval) = @_;
+
+    foreach my $plugin (@plugins) {
+        eval {
+            $plugin->evalFinished($eval);
+            1;
+        } or do{
+            print STDERR "$plugin->evalFinished: $@\n";
+        }
     }
 }
 
@@ -127,6 +170,26 @@ while (1) {
                 buildFinished($build, @payload[1..$#payload]);
             } elsif ($channelName eq "step_finished") {
                 stepFinished(int($payload[0]), int($payload[1]));
+            } elsif ($channelName eq "eval_finished") {
+                my ($evalId) = @payload;
+                my $eval = $db->resultset('JobsetEvals')->find($evalId)
+                    or die "eval $evalId does not exist\n";
+                evalFinished($eval);
+            } elsif ($channelName eq "eval_job_failed") {
+                my ($project, $jobset, $job, $evalId) = @payload;
+                my $eval = $db->resultset('JobsetEvals')->find($evalId)
+                    or die "eval $evalId does not exist\n";
+                jobEvalFailed($eval, $project, $jobset, $job);
+            } elsif ($channelName eq "eval_failed") {
+                my ($_, $project, $jobset, $inputInfo) = @payload;
+                my $inputInfo = decode_json($inputInfo);
+                my @inputsWithName = ();
+                foreach my $k (keys %$inputInfo) {
+                    my ($inputObj) = @{$inputInfo->{$k}};
+                    $inputObj->{name} = $k;
+                    push @inputsWithName, $inputObj;
+                }
+                evalFailed($project, $jobset, \@inputsWithName);
             }
             1;
         } or do {
