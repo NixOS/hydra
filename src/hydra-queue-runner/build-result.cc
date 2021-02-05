@@ -69,6 +69,9 @@ BuildOutput getBuildOutput(
 
         explicitProducts = true;
 
+
+        auto accessor = store->getFSAccessor();
+
         for (auto & line : tokenizeString<Strings>(productsFile->second.contents.value(), "\n")) {
             BuildProduct product;
 
@@ -85,19 +88,21 @@ BuildOutput getBuildOutput(
                store. */
             // FIXME: should we disallow products referring to other
             // store paths, or that are outside the input closure?
+
             if (product.path == "" || product.path[0] != '/') continue;
             product.path = canonPath(product.path);
             if (!store->isInStore(product.path)) continue;
 
-            auto file = narMembers.find(product.path);
-            if (file == narMembers.end()) continue;
+            auto st = accessor->stat(product.path);
+            if (st.type == FSAccessor::Type::tMissing) continue;
 
             product.name = product.path == store->printStorePath(output) ? "" : baseNameOf(product.path);
 
-            if (file->second.type == FSAccessor::Type::tRegular) {
+            if (st.type == FSAccessor::Type::tRegular) {
                 product.isRegular = true;
-                product.fileSize = file->second.fileSize.value();
-                product.sha256hash = file->second.sha256.value();
+                product.fileSize = st.fileSize;
+                auto contents = accessor->readFile(product.path);
+                product.sha256hash = hashString(htSHA256, contents);
             }
 
             res.products.push_back(product);
