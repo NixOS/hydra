@@ -23,7 +23,17 @@ in simpleTest {
   nodes = {
     original = { pkgs, lib, config, ... }: {
       imports = [ base ];
-      services.hydra-dev.package = (pkgs.hydra-unstable.override { nix = pkgs.nixUnstable; }).overrideAttrs (old: rec {
+      services.hydra-dev.package = let
+        nixUnstable = pkgs.nixUnstable.overrideAttrs (lib.const {
+          src = pkgs.fetchFromGitHub {
+            owner = "NixOS";
+            repo = "nix";
+            rev = "5a6ddb3de14a1684af6c793d663764d093fa7846";
+            sha256 = "sha256-b8gNzGIXnbwS/AtYgSdYmPk0RIM9Ibid/l9/vLsdDWI=";
+          };
+        });
+        myhydra = pkgs.hydra-unstable.override { nix = nixUnstable; };
+      in myhydra.overrideAttrs (old: rec {
         inherit (old) pname;
         src = pkgs.fetchFromGitHub {
           owner = "NixOS";

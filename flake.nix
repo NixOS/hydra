@@ -5,7 +5,7 @@
   # This is needed for `tests/maintainers-upgrade-test.nix` to successfully
   # build an older Hydra to automatically test DB upgrades.
   inputs.nixpkgs.url = github:NixOS/nixpkgs/release-20.09;
-  inputs.nix.url = github:NixOS/nix/79aa7d95183cbe6c0d786965f0dbff414fd1aa67;
+  inputs.nix.url = github:NixOS/nix/8a2ce0f455da32bc20978e68c0aad9efb4560abc;
 
   outputs = { self, nixpkgs, nix }:
     let
