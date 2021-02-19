@@ -96,8 +96,10 @@ void State::parseMachines(const std::string & contents)
         machine->sshName = tokens[0];
         machine->systemTypes = tokenizeString<StringSet>(tokens[1], ",");
         machine->sshKey = tokens[2] == "-" ? string("") : tokens[2];
-        if (tokens[3] != "")
-            string2Int(tokens[3], machine->maxJobs);
+        if (tokens[3] != "") {
+          if (auto maxJobs = string2Int<unsigned int>(tokens[3]))
+              machine->maxJobs = *maxJobs;
+        }
         else
             machine->maxJobs = 1;
         machine->speedFactor = atof(tokens[4].c_str());
@@ -862,7 +864,9 @@ int main(int argc, char * * argv)
             else if (*arg == "--status")
                 status = true;
             else if (*arg == "--build-one") {
-                if (!string2Int<BuildID>(getArg(*arg, arg, end), buildOne))
+                if (auto maybeBuildOne = string2Int<BuildID>(getArg(*arg, arg, end)))
+                    buildOne = *maybeBuildOne;
+                else
                     throw Error("‘--build-one’ requires a build ID");
             } else
                 return false;
