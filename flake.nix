@@ -126,6 +126,7 @@
                 EmailMIME
                 EmailSender
                 FileSlurp
+                FileWhich
                 IOCompress
                 IPCRun
                 JSON
@@ -145,6 +146,7 @@
                 TermSizeAny
                 TestMore
                 TextDiff
+                Test2Harness
                 TextTable
                 XMLSimple
                 YAML
