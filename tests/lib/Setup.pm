@@ -2,12 +2,27 @@ package Setup;
 
 use strict;
 use Exporter;
-use Hydra::Helper::Nix;
-use Hydra::Model::DB;
+use Test::PostgreSQL;
 use Cwd;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild updateRepository);
+our @EXPORT = qw(dbinit hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild updateRepository);
+
+sub dbinit() {
+    my $pgsql = Test::PostgreSQL->new();
+    $ENV{'HYDRA_DBI'} = $pgsql->dsn;
+    system("hydra-init") == 0 or die;
+    return $pgsql;
+}
+
+sub captureStdoutStderr {
+    # "Lazy"-load Hydra::Helper::Nix to avoid the compile-time
+    # import of Hydra::Model::DB. Early loading of the DB class
+    # causes fixation of the DSN, and we need to fixate it after
+    # the temporary DB is setup.
+    require Hydra::Helper::Nix;
+    return Hydra::Helper::Nix::captureStdoutStderr(@_)
+}
 
 sub hydra_setup {
     my ($db) = @_;

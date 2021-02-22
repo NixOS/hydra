@@ -1,13 +1,16 @@
 use strict;
-use Hydra::Schema;
-use Hydra::Model::DB;
 use Cwd;
 use Setup;
 
-my $db = Hydra::Model::DB->new;
+my $pgsql = dbinit();
+my $dsn = $pgsql->dsn;
+
+require Hydra::Schema;
+require Hydra::Model::DB;
 
 use Test::Simple tests => 76;
 
+my $db = Hydra::Model::DB->new;
 hydra_setup($db);
 
 my $res;

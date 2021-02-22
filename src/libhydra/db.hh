@@ -13,10 +13,16 @@ struct Connection : pqxx::connection
     {
         using namespace nix;
         auto s = getEnv("HYDRA_DBI").value_or("dbi:Pg:dbname=hydra;");
-        std::string prefix = "dbi:Pg:";
-        if (std::string(s, 0, prefix.size()) != prefix)
-            throw Error("$HYDRA_DBI does not denote a PostgreSQL database");
-        return concatStringsSep(" ", tokenizeString<Strings>(string(s, prefix.size()), ";"));
+
+        std::string lower_prefix = "dbi:Pg:";
+        std::string upper_prefix = "DBI:Pg:";
+
+        if ((std::string(s, 0, lower_prefix.size()) == lower_prefix) ||
+            (std::string(s, 0, upper_prefix.size()) == upper_prefix)) {
+            return concatStringsSep(" ", tokenizeString<Strings>(string(s, lower_prefix.size()), ";"));
+        }
+
+        throw Error("$HYDRA_DBI does not denote a PostgreSQL database");
     }
 };
 
