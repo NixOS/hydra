@@ -25,9 +25,7 @@ EXTRA_DIST = \
   $(TESTS)
 
 TESTS = \
-  set-up.pl \
-  test.pl \
-  tear-down.pl
+  test.pl
 
 check_SCRIPTS = repos
 
