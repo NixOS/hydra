@@ -38,15 +38,6 @@ struct MyArgs : MixEvalArgs, MixCommonArgs
     MyArgs() : MixCommonArgs("hydra-eval-jobs")
     {
         addFlag({
-            .longName = "help",
-            .description = "show usage information",
-            .handler = {[&]() {
-                printHelp(programName, std::cout);
-                throw Exit();
-            }}
-        });
-
-        addFlag({
             .longName = "gc-roots-dir",
             .description = "garbage collector roots directory",
             .labels = {"path"},
