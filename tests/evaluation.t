@@ -2,13 +2,12 @@ use strict;
 use Cwd;
 use Setup;
 
-my $pgsql = dbinit();
-my $dsn = $pgsql->dsn;
+(my $datadir, my $pgsql) = test_init();
 
 require Hydra::Schema;
 require Hydra::Model::DB;
 
-use Test::Simple tests => 76;
+use Test::Simple tests => 68;
 
 my $db = Hydra::Model::DB->new;
 hydra_setup($db);
@@ -21,18 +20,6 @@ my $jobsBaseUri = "file://".getcwd;
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 my $jobset;
 
-# Most basic test case, no parameters
-$jobset = createBaseJobset("basic", "basic.nix");
-
-ok(evalSucceeds($jobset),                  "Evaluating jobs/basic.nix should exit with return code 0");
-ok(nrQueuedBuildsForJobset($jobset) == 3 , "Evaluating jobs/basic.nix should result in 3 builds");
-
-for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with code 0");
-    my $newbuild = $db->resultset('Builds')->find($build->id);
-    my $expected = $build->job eq "fails" ? 1 : $build->job =~ /with_failed/ ? 6 : 0;
-    ok($newbuild->finished == 1 && $newbuild->buildstatus == $expected, "Build '".$build->job."' from jobs/basic.nix should have buildstatus $expected");
-}
 
 # Test jobset with 2 jobs, one has parameter of succeeded build of the other
 $jobset = createJobsetWithOneInput("build-output-as-input", "build-output-as-input.nix", "build1", "build", "build1");
