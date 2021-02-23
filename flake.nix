@@ -37,6 +37,83 @@
 
         # Add LDAP dependencies that aren't currently found within nixpkgs.
         perlPackages = prev.perlPackages // {
+          Test2Harness = final.buildPerlPackage {
+            pname = "Test2-Harness";
+            version = "1.000042";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/E/EX/EXODIST/Test2-Harness-1.000042.tar.gz";
+              sha256 = "aaf231a68af1a6ffd6a11188875fcf572e373e43c8285945227b9d687b43db2d";
+            };
+
+            checkPhase = ''
+              patchShebangs ./t ./scripts/yath
+              ./scripts/yath test -j $NIX_BUILD_CORES
+            '';
+
+            propagatedBuildInputs = with final.perlPackages; [ DataUUID Importer LongJump ScopeGuard TermTable Test2PluginMemUsage Test2PluginUUID Test2Suite gotofile ];
+            meta = {
+              description = "A new and improved test harness with better Test2 integration";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          Test2PluginMemUsage = prev.perlPackages.buildPerlPackage {
+            pname = "Test2-Plugin-MemUsage";
+            version = "0.002003";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/E/EX/EXODIST/Test2-Plugin-MemUsage-0.002003.tar.gz";
+              sha256 = "5e0662d5a823ae081641f5ce82843111eec1831cd31f883a6c6de54afdf87c25";
+            };
+            buildInputs = with final.perlPackages; [ Test2Suite ];
+            meta = {
+              description = "Collect and display memory usage information";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          Test2PluginUUID = prev.perlPackages.buildPerlPackage {
+            pname = "Test2-Plugin-UUID";
+            version = "0.002001";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/E/EX/EXODIST/Test2-Plugin-UUID-0.002001.tar.gz";
+              sha256 = "4c6c8d484d7153d8779dc155a992b203095b5c5aa1cfb1ee8bcedcd0601878c9";
+            };
+            buildInputs = with final.perlPackages;[ Test2Suite ];
+            propagatedBuildInputs = with final.perlPackages; [ DataUUID ];
+            meta = {
+              description = "Use REAL UUIDs in Test2";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          LongJump = final.buildPerlPackage {
+            pname = "Long-Jump";
+            version = "0.000001";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/E/EX/EXODIST/Long-Jump-0.000001.tar.gz";
+              sha256 = "d5d6456d86992b559d8f66fc90960f919292cd3803c13403faac575762c77af4";
+            };
+            buildInputs = with final.perlPackages; [ Test2Suite ];
+            meta = {
+              description = "Mechanism for returning to a specific point from a deeply nested stack";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          gotofile = final.buildPerlPackage {
+            pname = "goto-file";
+            version = "0.005";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/E/EX/EXODIST/goto-file-0.005.tar.gz";
+              sha256 = "c6cdd5ee4a6cdcbdbf314d92a4f9985dbcdf9e4258048cae76125c052aa31f77";
+            };
+            buildInputs = with final.perlPackages; [ Test2Suite ];
+            meta = {
+              description = "Stop parsing the current file and move on to a different one";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
           NetLDAPServer = prev.perlPackages.buildPerlPackage {
             pname = "Net-LDAP-Server";
             version = "0.43";
@@ -126,6 +203,7 @@
                 EmailMIME
                 EmailSender
                 FileSlurp
+                FileWhich
                 IOCompress
                 IPCRun
                 JSON
@@ -145,6 +223,7 @@
                 TermSizeAny
                 TestMore
                 TextDiff
+                Test2Harness
                 TextTable
                 XMLSimple
                 YAML

@@ -26,7 +26,7 @@ EXTRA_DIST = \
 
 TESTS = \
   set-up.pl \
-  evaluation-tests.pl \
+  test.pl \
   tear-down.pl
 
 check_SCRIPTS = repos
