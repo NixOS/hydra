@@ -83,34 +83,37 @@ my @scminputs = (
 
 foreach my $scm ( @scminputs ) {
     my $scmName = $scm->{"name"};
-    my $nixexpr = $scm->{"nixexpr"};
-    my $type = $scm->{"type"};
-    my $uri = $scm->{"uri"};
-    my $update = $scm->{"update"};
-    my $jobset = createJobsetWithOneInput($scmName, $nixexpr, "src", $type, $uri);
 
-    my $state = 0;
-    my $q = 0;
-    my ($loop, $updated) = updateRepository($scmName, $update);
-    while($loop) {
-        my $c = 0;
+    subtest "With the SCM input named $scmName" => sub {
+        my $nixexpr = $scm->{"nixexpr"};
+        my $type = $scm->{"type"};
+        my $uri = $scm->{"uri"};
+        my $update = $scm->{"update"};
+        my $jobset = createJobsetWithOneInput($scmName, $nixexpr, "src", $type, $uri);
 
-        # Verify that it can be fetched and possibly queued.
-        ok(evalSucceeds($jobset),                  "$scmName:$state.$c: Evaluating nix-expression."); $c++;
+        my $state = 0;
+        my $q = 0;
+        my ($loop, $updated) = updateRepository($scmName, $update);
+        while($loop) {
+            subtest "Mutation number $state" => sub {
+                # Verify that it can be fetched and possibly queued.
+                ok(evalSucceeds($jobset),                  "Evaluating nix-expression.");
 
-        # Verify that the evaluation has queued a new job and evaluate again to ...
-        if ($updated) {
-            $q++;
-            ok(nrQueuedBuildsForJobset($jobset) == $q, "$scmName:$state.$c: Expect $q jobs in the queue."); $c++;
-            ok(evalSucceeds($jobset),                  "$scmName:$state.$c: Evaluating nix-expression again."); $c++;
+                # Verify that the evaluation has queued a new job and evaluate again to ...
+                if ($updated) {
+                    $q++;
+                    is(nrQueuedBuildsForJobset($jobset), $q, "Expect $q jobs in the queue.");
+                    ok(evalSucceeds($jobset),                "Evaluating nix-expression again.");
+                }
+
+                # ... check that it is deterministic and not queued again.
+                is(nrQueuedBuildsForJobset($jobset), $q, "Expect deterministic evaluation.");
+
+                $state++;
+                ($loop, $updated) = updateRepository($scmName, $update, getcwd . "/$scmName-repo/");
+            };
         }
-
-        # ... check that it is deterministic and not queued again.
-        ok(nrQueuedBuildsForJobset($jobset) == $q, "$scmName:$state.$c: Expect $q jobs in the queue."); $c++;
-
-        $state++;
-        ($loop, $updated) = updateRepository($scmName, $update, getcwd . "/$scmName-repo/");
-    }
+    };
 }
 
 done_testing;
