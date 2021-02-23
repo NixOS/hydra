@@ -106,6 +106,15 @@ conflicts with services that might be running on your host, hydra and postgress 
 Note that this is only ever meant as an ad-hoc way of executing Hydra during development. Please make use of the
 NixOS module for actually running Hydra in production.
 
+### Running Tests
+
+After making your changes, verify the test suite still passes. After following the steps in [Development Environment](#development-environment), run:
+
+```
+$ nix-shell
+$ make check
+```
+
 ### JSON API
 
 You can also interface with Hydra through a JSON API. The API is defined in [hydra-api.yaml](./hydra-api.yaml) and you can test and explore via the [swagger editor](https://editor.swagger.io/?url=https://raw.githubusercontent.com/NixOS/hydra/master/hydra-api.yaml)
