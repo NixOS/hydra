@@ -162,7 +162,7 @@
           buildInputs =
             [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig libpqxx
               gitAndTools.topGit mercurial darcs subversion breezy openssl bzip2 libxslt
-              final.nix perlDeps perl
+              final.nix perlDeps perl mdbook
               boost
               postgresql_11
               (if lib.versionAtLeast lib.version "20.03pre"
@@ -178,8 +178,6 @@
             [ subversion openssh final.nix coreutils findutils pixz
               gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused breezy
             ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
-
-          configureFlags = [ "--with-docbook-xsl=${docbook_xsl}/xml/xsl/docbook" ];
 
           shellHook = ''
             PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
