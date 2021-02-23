@@ -8,7 +8,7 @@ use File::Path qw(make_path);
 use Cwd;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(test_init hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild updateRepository);
+our @EXPORT = qw(test_init hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild sendNotifications updateRepository);
 
 # Set up the environment for running tests.
 #
@@ -139,6 +139,15 @@ sub runBuild {
     if ($res) {
         print STDERR "Queue runner stdout: $stdout\n" if $stdout ne "";
         print STDERR "Queue runner stderr: $stderr\n" if $stderr ne "";
+    }
+    return !$res;
+}
+
+sub sendNotifications() {
+    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-notify", "--queued-only"));
+    if ($res) {
+        print STDERR "hydra notify stdout: $stdout\n" if $stdout ne "";
+        print STDERR "hydra notify stderr: $stderr\n" if $stderr ne "";
     }
     return !$res;
 }
