@@ -7,18 +7,11 @@ use Setup;
 require Hydra::Schema;
 require Hydra::Model::DB;
 
-use Test::Simple tests => 8;
+use Test2::V0;
 
 my $db = Hydra::Model::DB->new;
 hydra_setup($db);
 
-my $res;
-my $stdout;
-my $stderr;
-
-my $jobsBaseUri = "file://".getcwd;
-my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
-my $jobset;
 
 # Test build products
 
@@ -41,3 +34,5 @@ for my $build (queuedBuildsForJobset($jobset)) {
         ok($buildproduct->name eq "some text.txt", "We should have: \"some text.txt\", but found: ".$buildproduct->name."\n");
     }
 }
+
+done_testing;
