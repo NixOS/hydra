@@ -12,7 +12,10 @@ use Test2::V0;
 my $db = Hydra::Model::DB->new;
 hydra_setup($db);
 
-my $jobsBaseUri = "file://".getcwd;
+my $testdir = getcwd;
+my $scratchdir = "$datadir/scratch";
+mkdir $scratchdir;
+my $jobsBaseUri = "file://".$scratchdir;
 
 # Test scm inputs
 my @scminputs = (
@@ -21,63 +24,63 @@ my @scminputs = (
         nixexpr => "svn-input.nix",
         type => "svn",
         uri => "$jobsBaseUri/svn-repo",
-        update => getcwd . "/jobs/svn-update.sh"
+        update => $testdir . "/jobs/svn-update.sh"
     },
     {
         name => "svn-checkout",
         nixexpr => "svn-checkout-input.nix",
         type => "svn-checkout",
         uri => "$jobsBaseUri/svn-checkout-repo",
-        update => getcwd . "/jobs/svn-checkout-update.sh"
+        update => $testdir . "/jobs/svn-checkout-update.sh"
     },
     {
         name => "git",
         nixexpr => "git-input.nix",
         type => "git",
         uri => "$jobsBaseUri/git-repo",
-        update => getcwd . "/jobs/git-update.sh"
+        update => $testdir . "/jobs/git-update.sh"
     },
     {
         name => "git-rev",
         nixexpr => "git-rev-input.nix",
         type => "git",
         uri => "$jobsBaseUri/git-repo 7f60df502b96fd54bbfa64dd94b56d936a407701",
-        update => getcwd . "/jobs/git-rev-update.sh"
+        update => $testdir . "/jobs/git-rev-update.sh"
     },
     {
         name => "deepgit",
         nixexpr => "deepgit-input.nix",
         type => "git",
         uri => "$jobsBaseUri/git-repo master 1",
-        update => getcwd . "/jobs/git-update.sh"
+        update => $testdir . "/jobs/git-update.sh"
     },
     {
         name => "bzr",
         nixexpr => "bzr-input.nix",
         type => "bzr",
         uri => "$jobsBaseUri/bzr-repo",
-        update => getcwd . "/jobs/bzr-update.sh"
+        update => $testdir . "/jobs/bzr-update.sh"
     },
     {
         name => "bzr-checkout",
         nixexpr => "bzr-checkout-input.nix",
         type => "bzr-checkout",
         uri => "$jobsBaseUri/bzr-checkout-repo",
-        update => getcwd . "/jobs/bzr-checkout-update.sh"
+        update => $testdir . "/jobs/bzr-checkout-update.sh"
     },
     {
         name => "hg",
         nixexpr => "hg-input.nix",
         type => "hg",
         uri => "$jobsBaseUri/hg-repo",
-        update => getcwd . "/jobs/hg-update.sh"
+        update => $testdir . "/jobs/hg-update.sh"
     },
     {
         name => "darcs",
         nixexpr => "darcs-input.nix",
         type => "darcs",
         uri => "$jobsBaseUri/darcs-repo",
-        update => getcwd . "/jobs/darcs-update.sh"
+        update => $testdir . "/jobs/darcs-update.sh"
     }
 );
 
@@ -93,7 +96,7 @@ foreach my $scm ( @scminputs ) {
 
         my $state = 0;
         my $q = 0;
-        my ($loop, $updated) = updateRepository($scmName, $update);
+        my ($loop, $updated) = updateRepository($scmName, $update, $scratchdir);
         while($loop) {
             subtest "Mutation number $state" => sub {
                 # Verify that it can be fetched and possibly queued.
@@ -110,7 +113,7 @@ foreach my $scm ( @scminputs ) {
                 is(nrQueuedBuildsForJobset($jobset), $q, "Expect deterministic evaluation.");
 
                 $state++;
-                ($loop, $updated) = updateRepository($scmName, $update, getcwd . "/$scmName-repo/");
+                ($loop, $updated) = updateRepository($scmName, $update, $scratchdir);
             };
         }
     };

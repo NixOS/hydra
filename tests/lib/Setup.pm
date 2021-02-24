@@ -115,8 +115,11 @@ sub runBuild {
 }
 
 sub updateRepository {
-    my ($scm, $update) = @_;
+    my ($scm, $update, $scratchdir) = @_;
+    my $curdir = getcwd;
+    chdir "$scratchdir";
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ($update, $scm));
+    chdir "$curdir";
     die "unexpected update error with $scm: $stderr\n" if $res;
     my ($message, $loop, $status) = $stdout =~ m/::(.*) -- (.*) -- (.*)::/;
     print STDOUT "Update $scm repository: $message\n";
