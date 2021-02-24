@@ -8,9 +8,32 @@ use File::Path qw(make_path);
 use Cwd;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(test_init hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild updateRepository);
+our @EXPORT = qw(test_init hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild sendNotifications updateRepository);
 
-sub test_init() {
+# Set up the environment for running tests.
+#
+# Hash Parameters:
+#
+#  * hydra_config: configuration for the Hydra processes for your test.
+#
+# This clears several environment variables and sets them to ephemeral
+# values: a temporary database, temporary Nix store, temporary Hydra
+# data directory, etc.
+#
+# Note: This function must run _very_ early, before nearly any Hydra
+# libraries are loaded. To use this, you very likely need to `use Setup`
+# and then run `test_init`, and then `require` the Hydra libraries you
+# need.
+#
+# It returns a tuple: a handle to a temporary directory and a handle to
+# the postgres service. If either of these variables go out of scope,
+# those resources are released and the test environment becomes invalid.
+#
+# Look at the top of an existing `.t` file to see how this should be used
+# in practice.
+sub test_init {
+    my %opts = @_;
+
     my $dir = File::Temp->newdir();
 
     $ENV{'HYDRA_DATA'} = "$dir/hydra-data";
@@ -20,6 +43,12 @@ sub test_init() {
     my $nixconf = "$ENV{'NIX_CONF_DIR'}/nix.conf";
     open(my $fh, '>', $nixconf) or die "Could not open file '$nixconf' $!";
     print $fh "sandbox = false\n";
+    close $fh;
+
+    $ENV{'HYDRA_CONFIG'} = "$dir/hydra.conf";
+
+    open(my $fh, '>', $ENV{'HYDRA_CONFIG'}) or die "Could not open file '" . $ENV{'HYDRA_CONFIG'}. " $!";
+    print $fh $opts{'hydra_config'} || "";
     close $fh;
 
     $ENV{'NIX_STATE_DIR'} = "$dir/nix/var/nix";
@@ -110,6 +139,15 @@ sub runBuild {
     if ($res) {
         print STDERR "Queue runner stdout: $stdout\n" if $stdout ne "";
         print STDERR "Queue runner stderr: $stderr\n" if $stderr ne "";
+    }
+    return !$res;
+}
+
+sub sendNotifications() {
+    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-notify", "--queued-only"));
+    if ($res) {
+        print STDERR "hydra notify stdout: $stdout\n" if $stdout ne "";
+        print STDERR "hydra notify stderr: $stderr\n" if $stderr ne "";
     }
     return !$res;
 }
