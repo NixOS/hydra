@@ -37,6 +37,66 @@
 
         # Add LDAP dependencies that aren't currently found within nixpkgs.
         perlPackages = prev.perlPackages // {
+          TestPostgreSQL = final.perlPackages.buildPerlModule {
+            pname = "Test-PostgreSQL";
+            version = "1.27";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/T/TJ/TJC/Test-PostgreSQL-1.27.tar.gz";
+              sha256 = "b1bd231693100cc40905fb0ba3173173201621de9c8301f21c5b593b0a46f907";
+            };
+            buildInputs = with final.perlPackages; [ ModuleBuildTiny TestSharedFork pkgs.postgresql ];
+            propagatedBuildInputs = with final.perlPackages; [ DBDPg DBI FileWhich FunctionParameters Moo TieHashMethod TryTiny TypeTiny ];
+
+            makeMakerFlags = "POSTGRES_HOME=${final.postgresql}";
+
+            meta = {
+              homepage = https://github.com/TJC/Test-postgresql;
+              description = "PostgreSQL runner for tests";
+              license = with final.lib.licenses; [ artistic2 ];
+            };
+          };
+
+          FunctionParameters = final.buildPerlPackage {
+            pname = "Function-Parameters";
+            version = "2.001003";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/M/MA/MAUKE/Function-Parameters-2.001003.tar.gz";
+              sha256 = "eaa22c6b43c02499ec7db0758c2dd218a3b2ab47a714b2bdf8010b5ee113c242";
+            };
+            buildInputs = with final.perlPackages; [ DirSelf TestFatal ];
+            meta = {
+              description = "Define functions and methods with parameter lists (\"subroutine signatures\")";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          DirSelf = final.buildPerlPackage {
+            pname = "Dir-Self";
+            version = "0.11";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/M/MA/MAUKE/Dir-Self-0.11.tar.gz";
+              sha256 = "e251a51abc7d9ba3e708f73c2aa208e09d47a0c528d6254710fa78cc8d6885b5";
+            };
+            meta = {
+              homepage = "https://github.com/mauke/Dir-Self";
+              description = "A __DIR__ constant for the directory your source file is in";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          TieHashMethod = final.buildPerlPackage {
+              pname = "Tie-Hash-Method";
+              version = "0.02";
+              src = final.fetchurl {
+                url = "mirror://cpan/authors/id/Y/YV/YVES/Tie-Hash-Method-0.02.tar.gz";
+                sha256 = "d513fbb51413f7ca1e64a1bdce6194df7ec6076dea55066d67b950191eec32a9";
+              };
+              meta = {
+                description = "Tied hash with specific methods overriden by callbacks";
+                license = with final.lib.licenses; [ artistic1 ];
+              };
+            };
+
           Test2Harness = final.buildPerlPackage {
             pname = "Test2-Harness";
             version = "1.000042";
@@ -222,6 +282,7 @@
                 SysHostnameLong
                 TermSizeAny
                 TestMore
+                TestPostgreSQL
                 TextDiff
                 Test2Harness
                 TextTable
