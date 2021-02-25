@@ -58,10 +58,15 @@ subtest "Validate the top level fields match" => sub {
     is($dat->{project}, "tests", "The project matches.");
     is($dat->{jobset}, "basic", "The jobset matches.");
     is($dat->{job}, "metrics", "The job matches.");
+    is($dat->{nixName}, "my-build-product", "The nixName matches.");
+    is($dat->{system}, $newbuild->system, "The system matches.");
     is($dat->{drvPath}, $newbuild->drvpath, "The derivation path matches.");
     is($dat->{timestamp}, $newbuild->timestamp, "The result has a timestamp field.");
     is($dat->{startTime}, $newbuild->starttime, "The result has a startTime field.");
     is($dat->{stopTime}, $newbuild->stoptime, "The result has a stopTime field.");
+    is($dat->{homepage}, "https://github.com/NixOS/hydra", "The homepage is passed.");
+    is($dat->{description}, "An example meta property.", "The description is passed.");
+    is($dat->{license}, "GPL", "The license is passed.");
 };
 
 subtest "Validate the outputs match" => sub {
