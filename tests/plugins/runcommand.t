@@ -5,7 +5,7 @@ use Cwd;
 use JSON;
 use Setup;
 
-(my $datadir, my $pgsql) = test_init(
+my %ctx = test_init(
     hydra_config => q|
     <runcommand>
       command = cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"

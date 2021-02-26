@@ -62,7 +62,10 @@ sub test_init {
     );
     $ENV{'HYDRA_DBI'} = $pgsql->dsn;
     system("hydra-init") == 0 or die;
-    return ($dir, $pgsql);
+    return (
+        tmpdir => $dir,
+        db => $pgsql
+    );
 }
 
 sub captureStdoutStderr {

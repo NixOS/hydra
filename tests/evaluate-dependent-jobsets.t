@@ -2,7 +2,7 @@ use strict;
 use Cwd;
 use Setup;
 
-(my $datadir, my $pgsql) = test_init();
+my %ctx = test_init();
 
 require Hydra::Schema;
 require Hydra::Model::DB;
