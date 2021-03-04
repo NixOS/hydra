@@ -3,6 +3,7 @@ set -e
 
 repo=git-repo
 export HOME=$(pwd)
+export XDG_CONFIG_HOME=$(pwd)/.config
 STATE_FILE=$(pwd)/.git-rev-state
 if test -e $STATE_FILE; then
     state=1

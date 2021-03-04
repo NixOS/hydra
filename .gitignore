@@ -29,6 +29,7 @@ Makefile.in
 /tests/.git*
 /tests/.hg*
 /tests/nix
+/tests/data
 /inst
 hydra-config.h
 hydra-config.h.in
