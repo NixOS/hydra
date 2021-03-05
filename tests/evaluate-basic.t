@@ -16,7 +16,7 @@ hydra_setup($db);
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
 # Most basic test case, no parameters
-my $jobset = createBaseJobset("basic", "basic.nix");
+my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
