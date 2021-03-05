@@ -320,12 +320,16 @@
             ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
 
           shellHook = ''
+            pushd $(git rev-parse --show-toplevel) >/dev/null
+
             PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
             PERL5LIB=$(pwd)/src/lib:$PERL5LIB
-            export HYDRA_HOME="src/"
+            export HYDRA_HOME="$(pwd)/src/"
             mkdir -p .hydra-data
             export HYDRA_DATA="$(pwd)/.hydra-data"
             export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
+
+            popd >/dev/null
           '';
 
           preConfigure = "autoreconf -vfi";
@@ -416,7 +420,7 @@
                         su - hydra -c "hydra-create-user root --email-address 'alice@example.org' --password foobar --role admin"
                         mkdir /run/jobset /tmp/nix
                         chmod 755 /run/jobset /tmp/nix
-                        cp ${./tests/api-test.nix} /run/jobset/default.nix
+                        cp ${./t/api-test.nix} /run/jobset/default.nix
                         chmod 644 /run/jobset/default.nix
                         chown -R hydra /run/jobset /tmp/nix
                 """
@@ -428,7 +432,7 @@
 
                 # Run the API tests.
                 machine.succeed(
-                    "su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./tests/api-test.pl}' >&2"
+                    "su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./t/api-test.pl}' >&2"
                 )
               '';
         };
@@ -455,7 +459,7 @@
                       su - hydra -c "hydra-create-user root --email-address 'alice@example.org' --password foobar --role admin"
                       mkdir /run/jobset
                       chmod 755 /run/jobset
-                      cp ${./tests/api-test.nix} /run/jobset/default.nix
+                      cp ${./t/api-test.nix} /run/jobset/default.nix
                       chmod 644 /run/jobset/default.nix
                       chown -R hydra /run/jobset
               """
@@ -477,7 +481,7 @@
 
               # Setup the project and jobset
               machine.succeed(
-                  "su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./tests/setup-notifications-jobset.pl}' >&2"
+                  "su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./t/setup-notifications-jobset.pl}' >&2"
               )
 
               # Wait until hydra has build the job and

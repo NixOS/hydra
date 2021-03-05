@@ -70,8 +70,8 @@ AC_CONFIG_FILES([
   src/lib/Makefile
   src/root/Makefile
   src/script/Makefile
-  tests/Makefile
-  tests/jobs/config.nix
+  t/Makefile
+  t/jobs/config.nix
 ])
 
 AC_CONFIG_COMMANDS([executable-scripts], [])
