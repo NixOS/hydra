@@ -1,5 +1,4 @@
 use strict;
-use Cwd;
 use Setup;
 use TestScmInput;
 

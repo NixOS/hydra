@@ -1,6 +1,5 @@
 use feature 'unicode_strings';
 use strict;
-use Cwd;
 use Setup;
 
 my %ctx = test_init();
