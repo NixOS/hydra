@@ -26,3 +26,21 @@ To build Hydra, you should then do:
 You can run the Hydra web server in your source tree as follows:
 
     $ ./src/script/hydra-server
+
+You can run Hydra's test suite with the following:
+
+    [nix-shell]$ make check
+    [nix-shell]$ # to run as many tests as you have cores:
+    [nix-shell]$ make check YATH_JOB_COUNT=$NIX_BUILD_CORES
+    [nix-shell]$ # or run yath directly:
+    [nix-shell]$ yath test
+    [nix-shell]$ # to run as many tests as you have cores:
+    [nix-shell]$ yath test -j $NIX_BUILD_CORES
+
+When using `yath` instead of `make check`, ensure you have run `make`
+in the root of the repository at least once.
+
+**Warning**: Currently, the tests can fail
+if run with high parallelism [due to an issue in
+`Test::PostgreSQL`](https://github.com/TJC/Test-postgresql/issues/40)
+causing database ports to collide.
