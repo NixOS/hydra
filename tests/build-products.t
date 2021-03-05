@@ -1,8 +1,7 @@
 use strict;
-use Cwd;
 use Setup;
 
-(my $datadir, my $pgsql) = test_init();
+my %ctx = test_init();
 
 require Hydra::Schema;
 require Hydra::Model::DB;
@@ -15,7 +14,7 @@ hydra_setup($db);
 
 # Test build products
 
-my $jobset = createBaseJobset("build-products", "build-products.nix");
+my $jobset = createBaseJobset("build-products", "build-products.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset),               "Evaluating jobs/build-products.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 2, "Evaluating jobs/build-products.nix should result in 2 builds");

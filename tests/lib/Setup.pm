@@ -5,7 +5,8 @@ use Exporter;
 use Test::PostgreSQL;
 use File::Temp;
 use File::Path qw(make_path);
-use Cwd;
+use File::Basename;
+use Cwd qw(abs_path getcwd);
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(test_init hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild sendNotifications updateRepository);
@@ -62,7 +63,12 @@ sub test_init {
     );
     $ENV{'HYDRA_DBI'} = $pgsql->dsn;
     system("hydra-init") == 0 or die;
-    return ($dir, $pgsql);
+    return (
+        db => $pgsql,
+        tmpdir => $dir,
+        testdir => abs_path(dirname(__FILE__) . "/.."),
+        jobsdir => abs_path(dirname(__FILE__) . "/../jobs")
+    );
 }
 
 sub captureStdoutStderr {
@@ -95,7 +101,7 @@ sub nrQueuedBuildsForJobset {
 }
 
 sub createBaseJobset {
-    my ($jobsetName, $nixexprpath) = @_;
+    my ($jobsetName, $nixexprpath, $jobspath) = @_;
 
     my $db = Hydra::Model::DB->new;
     my $project = $db->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
@@ -105,14 +111,14 @@ sub createBaseJobset {
     my $jobsetinputals;
 
     $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
-    $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => getcwd."/jobs"});
+    $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => $jobspath});
 
     return $jobset;
 }
 
 sub createJobsetWithOneInput {
-    my ($jobsetName, $nixexprpath, $name, $type, $uri) = @_;
-    my $jobset = createBaseJobset($jobsetName, $nixexprpath);
+    my ($jobsetName, $nixexprpath, $name, $type, $uri, $jobspath) = @_;
+    my $jobset = createBaseJobset($jobsetName, $nixexprpath, $jobspath);
 
     my $jobsetinput;
     my $jobsetinputals;

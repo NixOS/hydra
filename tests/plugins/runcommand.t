@@ -1,11 +1,10 @@
 use feature 'unicode_strings';
 use strict;
 use warnings;
-use Cwd;
 use JSON;
 use Setup;
 
-(my $datadir, my $pgsql) = test_init(
+my %ctx = test_init(
     hydra_config => q|
     <runcommand>
       command = cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"
@@ -23,7 +22,7 @@ hydra_setup($db);
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
 # Most basic test case, no parameters
-my $jobset = createBaseJobset("basic", "runcommand.nix");
+my $jobset = createBaseJobset("basic", "runcommand.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset), "Evaluating jobs/runcommand.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 1, "Evaluating jobs/runcommand.nix should result in 1 build1");

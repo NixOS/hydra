@@ -1,9 +1,8 @@
 use strict;
-use Cwd;
 use Setup;
 use TestScmInput;
 
-(my $datadir, my $pgsql) = test_init();
+my %ctx = test_init();
 
 require Hydra::Schema;
 require Hydra::Model::DB;
@@ -21,8 +20,9 @@ testScmInput(
   update => 'jobs/hg-update.sh',
 
   # directories
-  datadir => $datadir,
-  testdir => getcwd,
+  datadir => $ctx{tmpdir},
+  testdir => $ctx{testdir},
+  jobsdir => $ctx{jobsdir},
 );
 
 done_testing;

@@ -1,8 +1,7 @@
 use strict;
-use Cwd;
 use Setup;
 
-(my $datadir, my $pgsql) = test_init();
+my %ctx = test_init();
 
 require Hydra::Schema;
 require Hydra::Model::DB;
@@ -13,7 +12,7 @@ my $db = Hydra::Model::DB->new;
 hydra_setup($db);
 
 # Test jobset with 2 jobs, one has parameter of succeeded build of the other
-my $jobset = createJobsetWithOneInput("build-output-as-input", "build-output-as-input.nix", "build1", "build", "build1");
+my $jobset = createJobsetWithOneInput("build-output-as-input", "build-output-as-input.nix", "build1", "build", "build1", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset), "Evaluating jobs/build-output-as-input.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 1 , "Evaluation should result in 1 build in queue");
