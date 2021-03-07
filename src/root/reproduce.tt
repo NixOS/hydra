@@ -210,10 +210,9 @@ if [ -n "$printFlags" ]; then
 fi
 
 info "running nix-build..."
-echo "using these flags: ${args[@]}" >&2
-
-exec nix-build "${args[@]}" "${extraArgs[@]}"
-
+echo "using the following invocation:" >&2
+set -x
+nix-build "${args[@]}" "${extraArgs[@]}"
 }
 
 main "$@"
