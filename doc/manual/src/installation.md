@@ -187,6 +187,18 @@ following:
         }
     }
 
+Statsd Configuration
+--------------------
+
+By default, Hydra will send stats to statsd at `localhost:8125`. Point Hydra to a different server via:
+
+```
+<statsd>
+  host = alternative.host
+  port = 18125
+</statsd>
+```
+
 Using LDAP as authentication backend (optional)
 -----------------------------------------------
 
@@ -234,4 +246,4 @@ general any LDAP group of the form *hydra\_some\_role* (notice the
       role_value: dn
       role_search_options:
         deref: always
-        
+
