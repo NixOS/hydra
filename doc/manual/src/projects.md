@@ -435,7 +435,8 @@ evaluated will go through the steps above in reverse order:
 2.  Hydra will use the configuration given in the declarative spec file
     as the jobset configuration for this evaluation. In addition to any
     inputs specified in the spec file, hydra will also pass the
-    `declInput` argument corresponding to the input fetched in step 1.
+    `declInput` argument corresponding to the input fetched in step 1 and
+    the `projectName` argument containing the project\'s name.
 
 3.  As normal, hydra will build the jobs specified in the jobset
     repository, which in this case is the single `jobsets` job. When
