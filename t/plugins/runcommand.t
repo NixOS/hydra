@@ -53,7 +53,7 @@ subtest "Validate the top level fields match" => sub {
     is($dat->{build}, $newbuild->id, "The build event matches our expected ID.");
     is($dat->{buildStatus}, 0, "The build status matches.");
     is($dat->{event}, "buildFinished", "The build event matches.");
-    is($dat->{finished}, 1, "The build finished.");
+    is($dat->{finished}, JSON::true, "The build finished.");
     is($dat->{project}, "tests", "The project matches.");
     is($dat->{jobset}, "basic", "The jobset matches.");
     is($dat->{job}, "metrics", "The job matches.");

@@ -62,7 +62,7 @@ sub buildFinished {
             my $json = {
                 event => $event,
                 build => $build->id,
-                finished => $build->get_column('finished'),
+                finished => $build->get_column('finished') ? JSON::true : JSON::false,
                 timestamp => $build->get_column('timestamp'),
                 project => $build->get_column('project'),
                 jobset => $build->get_column('jobset'),
