@@ -500,7 +500,9 @@ Step::ptr State::createStep(ref<Store> destStore,
                         // FIXME: should copy directly from substituter to destStore.
                     }
 
-                    copyClosure(ref<Store>(localStore), destStore, {*path});
+                    StorePathSet closure;
+                    localStore->computeFSClosure({*path}, closure);
+                    copyPaths(ref<Store>(localStore), destStore, closure, NoRepair, CheckSigs, NoSubstitute);
 
                     time_t stopTime = time(0);
 
