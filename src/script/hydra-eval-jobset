@@ -599,7 +599,7 @@ sub checkJobsetWrapped {
                 updateDeclarativeJobset($db, $project, ".jobsets", $declSpec);
                 $jobset->discard_changes;
                 $inputInfo->{"declInput"} = [ $declInput ];
-                $inputInfo ->{"projectName"} = [ { "value" => $project->name, } ];
+                $inputInfo->{"projectName"} = [ fetchInput($plugins, $db, $project, $jobset, "", "string", $project->name, 0) ];
 
             }
         } else {
