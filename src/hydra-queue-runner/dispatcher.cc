@@ -374,7 +374,6 @@ void State::abortUnsupported()
             if (!build) build = *dependents.begin();
 
             bool stepFinished = false;
-            bool quit = false;
 
             failStep(
                 *conn, step, build->id,
@@ -385,9 +384,9 @@ void State::abortUnsupported()
                     .startTime = now2,
                     .stopTime = now2,
                 },
-                nullptr, stepFinished, quit);
+                nullptr, stepFinished);
 
-            if (quit) exit(1);
+            if (buildOneDone) exit(1);
         }
     }
 
