@@ -148,7 +148,8 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             localStore->printStorePath(step->drvPath), repeats + 1, machine->sshName, buildId, (dependents.size() - 1));
     }
 
-    bool quit = buildId == buildOne && step->drvPath == *buildDrvPath;
+    if (!buildOneDone)
+        buildOneDone = buildId == buildOne && step->drvPath == *buildDrvPath;
 
     RemoteResult result;
     BuildOutput res;
@@ -265,7 +266,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         if (retry) {
             auto mc = startDbUpdate();
             stepFinished = true;
-            if (quit) exit(1);
+            if (buildOneDone) exit(1);
             return sRetry;
         }
     }
@@ -376,7 +377,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         }
 
     } else
-        failStep(*conn, step, buildId, result, machine, stepFinished, quit);
+        failStep(*conn, step, buildId, result, machine, stepFinished);
 
     // FIXME: keep stats about aborted steps?
     nrStepsDone++;
@@ -386,7 +387,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     machine->state->totalStepTime += stepStopTime - stepStartTime;
     machine->state->totalStepBuildTime += result.stopTime - result.startTime;
 
-    if (quit) exit(0); // testing hack; FIXME: this won't run plugins
+    if (buildOneDone) exit(0); // testing hack; FIXME: this won't run plugins
 
     return sDone;
 }
@@ -398,8 +399,7 @@ void State::failStep(
     BuildID buildId,
     const RemoteResult & result,
     Machine::ptr machine,
-    bool & stepFinished,
-    bool & quit)
+    bool & stepFinished)
 {
     /* Register failure in the database for all Build objects that
        directly or indirectly depend on this step. */
@@ -481,7 +481,7 @@ void State::failStep(
             b->finishedInDB = true;
             builds_->erase(b->id);
             dependentIDs.push_back(b->id);
-            if (buildOne == b->id) quit = true;
+            if (!buildOneDone && buildOne == b->id) buildOneDone = true;
         }
     }
 

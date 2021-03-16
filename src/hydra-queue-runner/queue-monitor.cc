@@ -35,14 +35,17 @@ void State::queueMonitorLoop()
 
     unsigned int lastBuildId = 0;
 
-    while (true) {
+    bool quit = false;
+    while (!quit) {
         localStore->clearPathInfoCache();
 
         bool done = getQueuedBuilds(*conn, destStore, lastBuildId);
 
+        if (buildOne && buildOneDone) quit = true;
+
         /* Sleep until we get notification from the database about an
            event. */
-        if (done) {
+        if (done && !quit) {
             conn->await_notification();
             nrQueueWakeups++;
         } else
@@ -65,6 +68,8 @@ void State::queueMonitorLoop()
             processJobsetSharesChange(*conn);
         }
     }
+
+    exit(0);
 }
 
 
@@ -160,6 +165,7 @@ bool State::getQueuedBuilds(Connection & conn,
 
             /* Some step previously failed, so mark the build as
                failed right away. */
+            if (!buildOneDone && build->id == buildOne) buildOneDone = true;
             printMsg(lvlError, "marking build %d as cached failure due to ‘%s’",
                 build->id, localStore->printStorePath(ex.step->drvPath));
             if (!build->finishedInDB) {
@@ -231,6 +237,7 @@ bool State::getQueuedBuilds(Connection & conn,
             auto mc = startDbUpdate();
             pqxx::work txn(conn);
             time_t now = time(0);
+            if (!buildOneDone && build->id == buildOne) buildOneDone = true;
             printMsg(lvlInfo, "marking build %1% as succeeded (cached)", build->id);
             markSucceededBuild(txn, build, res, true, now, now);
             notifyBuildFinished(txn, build->id, {});
@@ -288,6 +295,8 @@ bool State::getQueuedBuilds(Connection & conn,
         printMsg(lvlChatty, format("got %1% new runnable steps from %2% new builds") % newRunnable.size() % nrAdded);
         for (auto & r : newRunnable)
             makeRunnable(r);
+
+        if (buildOne && newRunnable.size() == 0) buildOneDone = true;
 
         nrBuildsRead += nrAdded;
 
