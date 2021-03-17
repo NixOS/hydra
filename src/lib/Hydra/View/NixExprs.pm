@@ -4,10 +4,11 @@ use strict;
 use base qw/Catalyst::View/;
 use Hydra::Helper::Nix;
 use Hydra::Helper::Escape;
+use Hydra::Helper::AttributeSet;
 use Archive::Tar;
 use IO::Compress::Bzip2 qw(bzip2);
 use Encode;
-
+use Data::Dumper;
 
 
 sub process {
@@ -56,14 +57,15 @@ EOF
     foreach my $system (keys %perSystem) {
         $res .= "else " if !$first;
         $res .= "if system == ${\escapeString $system} then {\n\n";
-
+        my $attrsets = Hydra::Helper::AttributeSet->new();
         foreach my $job (keys %{$perSystem{$system}}) {
             my $pkg = $perSystem{$system}->{$job};
             my $build = $pkg->{build};
-            $res .= "  # Hydra build ${\$build->id}\n";
             my $attr = $build->get_column('job');
-            $attr =~ s/\./-/g;
-            $res .= "  ${\escapeString $attr} = (mkFakeDerivation {\n";
+            $attrsets->registerValue($attr);
+
+            $res .= "  # Hydra build ${\$build->id}\n";
+            $res .= "  ${\escapeAttributePath $attr} = (mkFakeDerivation {\n";
             $res .= "    type = \"derivation\";\n";
             $res .= "    name = ${\escapeString ($build->get_column('releasename') or $build->nixname)};\n";
             $res .= "    system = ${\escapeString $build->system};\n";
@@ -80,6 +82,10 @@ EOF
             $res .= "    ${\escapeString $_} = ${\escapeString $pkg->{outputs}->{$_}};\n" foreach @outputNames;
             my $out = defined $pkg->{outputs}->{"out"} ? "out" : $outputNames[0];
             $res .= "  }).$out;\n\n";
+        }
+
+        for my $attrset ($attrsets->enumerate()) {
+            $res .= "  ${\escapeAttributePath $attrset}.recurseForDerivations = true;\n\n";
         }
 
         $res .= "}\n\n";
