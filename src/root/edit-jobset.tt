@@ -94,11 +94,11 @@
   <div class="form-group row">
     <label class="col-sm-3" for="editjobsettype">Type</label>
     <div class="btn-group btn-group-toggle col-sm-9" data-toggle="buttons">
-      <label class="btn btn-secondary[% IF jobset.type == 1 %] active[% END %]">
-        <input type="radio" id="type-flake" name="enabled" value="1" [% IF jobset.type == 1 %]checked[% END %]>Flake</button>
+      <label id="type-flake" class="btn btn-secondary[% IF jobset.type == 1 %] active[% END %]">
+        <input type="radio" name="type" value="1" [% IF jobset.type == 1 %]checked[% END %]>Flake</button>
       </label>
-      <label class="btn btn-secondary[% IF jobset.type == 0 %] active[% END %]">
-        <input type="radio" id="type-legacy" name="enabled" value="0" [% IF jobset.type == 0 %]checked[% END %]>Legacy</button>
+      <label id="type-legacy" class="btn btn-secondary[% IF jobset.type == 0 %] active[% END %]">
+        <input type="radio" name="type" value="0" [% IF jobset.type == 0 %]checked[% END %]>Legacy</button>
       </label>
     </div>
   </div>
@@ -195,7 +195,7 @@
     var id = 0;
 
     function update() {
-      if ($("#type").val() == 0) {
+      if ($("input[type='radio'][name='type']:checked").val() == 0) {
         $(".show-on-legacy").show();
         $(".show-on-flake").hide();
       } else {
@@ -204,8 +204,7 @@
       }
     }
 
-    $("#type-flake").click(function() { update(); });
-    $("#type-legacy").click(function() { update(); });
+    $("input[type='radio'][name='type']").change(function() { update(); });
 
     update();
 
