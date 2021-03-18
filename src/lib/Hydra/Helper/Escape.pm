@@ -17,5 +17,5 @@ sub escapeString {
 sub escapeAttributePath {
     my ($s) = @_;
 
-    return join(".", map( { escapeString($_) } Hydra::Helper::AttributeSet::splitPath($s)));
+    return join ".", map { escapeString($_) } Hydra::Helper::AttributeSet::splitPath($s);
 }
