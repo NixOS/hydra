@@ -21,6 +21,15 @@ sub toBitBucketState {
     }
 }
 
+sub getToken {
+    my ($auth, $ua) = @_;
+    my $token_url = "https://bitbucket.org/site/oauth2/access_token";
+    my $out = `curl -X POST -u $auth->{key}:$auth->{secret} $token_url -d grant_type=client_credentials`;
+    my $ojson= decode_json $out;
+    my $token = $ojson->{access_token} or die "Error occurred in token-access request.";
+    return $token
+}
+
 sub common {
     my ($self, $build, $dependents, $finished) = @_;
     my $bitbucket = $self->{config}->{bitbucket};
@@ -44,7 +53,7 @@ sub common {
 
                 # Skip if the emailResponsible field is disabled
                 my $input = $eval->jobset->jobsetinputs->find({name => $i->name });
-                next unless $input->emailresponsible;
+                next unless ($input eq undef or $input->emailresponsible);
 
                 my $uri = $i->uri;
                 my $rev = $i->revision;
@@ -53,9 +62,20 @@ sub common {
                 $uri =~ m![:/]([^/]+)/([^/]+?)?$!;
                 my $owner = $1;
                 my $repo = $2;
-                my $req = HTTP::Request->new('POST', "https://api.bitbucket.org/2.0/repositories/$owner/$repo/commit/$rev/statuses/build");
-                $req->header('Content-Type' => 'application/json');
-                $req->authorization_basic($bitbucket->{username}, $bitbucket->{password});
+                my $status_url = "https://api.bitbucket.org/2.0/repositories/$owner/$repo/commit/$rev/statuses/build";
+                my $req;
+                # Use oAuth2 for bitbucket authentication
+                if ($bitbucket->{key} ne undef and $bitbucket->{secret} ne undef) {
+                    my $token = getToken($bitbucket);
+                    my $url = join "", $status_url, "?access_token=", $token;
+                    $req = HTTP::Request->new('POST', $url);
+                }
+                # Use http basic for bitbucket authentication as a fallback
+                else {
+                    $req = HTTP::Request->new('POST', $status_url);
+                    $req->header('Content-Type' => 'application/json');
+                    $req->authorization_basic($bitbucket->{username}, $bitbucket->{password});
+                }
                 $req->content($body);
                 my $res = $ua->request($req);
                 print STDERR $res->status_line, ": ", $res->decoded_content, "\n" unless $res->is_success;
