@@ -9,7 +9,10 @@ use File::Basename;
 use Cwd qw(abs_path getcwd);
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(test_init hydra_setup nrBuildsForJobset queuedBuildsForJobset nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput evalSucceeds runBuild sendNotifications updateRepository);
+our @EXPORT = qw(test_init hydra_setup nrBuildsForJobset queuedBuildsForJobset
+                 nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput
+                 evalSucceeds runBuild sendNotifications updateRepository
+                 captureStdoutStderr);
 
 # Set up the environment for running tests.
 #
