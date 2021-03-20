@@ -2,6 +2,7 @@
 
 use strict;
 use utf8;
+use Hydra::Helper::Nix;
 use Net::Statsd;
 use File::Slurp;
 use JSON;
@@ -10,7 +11,7 @@ STDERR->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
 
 my $config = getHydraConfig();
-my $statsdConfig = Hydra::Helper::Nix::getStatsdConfig($config);
+my $statsdConfig = getStatsdConfig($config);
 $Net::Statsd::HOST = $statsdConfig->{'host'};
 $Net::Statsd::PORT = $statsdConfig->{'port'};
 
