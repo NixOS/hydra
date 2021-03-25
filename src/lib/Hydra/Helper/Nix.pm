@@ -113,7 +113,7 @@ sub registerRoot {
 sub jobsetOverview_ {
     my ($c, $jobsets) = @_;
     return $jobsets->search({},
-        { order_by => "name"
+        { order_by => ["hidden ASC", "enabled DESC", "name"]
         , "+select" =>
           [ "(select count(*) from Builds as a where a.finished = 0 and me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
           , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus <> 0 and a.isCurrent = 1)"
