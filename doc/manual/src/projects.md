@@ -486,9 +486,10 @@ analogous:
 * For a jobset with a `Git`-input which points to a `gitea`-instance, add the following
   additional inputs:
 
-  | Type           | Name                | Value                               |
-  | -------------- | ------------------- | ----------------------------------- |
-  | `String value` | `gitea_repo_name`   | *Name of the repository to build*   |
-  | `String value` | `gitea_repo_owner`  | *Owner of the repository*           |
-  | `String value` | `gitea_status_repo` | *Name of the `Git checkout` input*  |
+  | Type           | Name                | Value                              |
+  | -------------- | ------------------- | ---------------------------------- |
+  | `String value` | `gitea_repo_name`   | *Name of the repository to build*  |
+  | `String value` | `gitea_repo_owner`  | *Owner of the repository*          |
+  | `String value` | `gitea_status_repo` | *Name of the `Git checkout` input* |
+  | `String value` | `gitea_http_url`    | *Public URL of `gitea`*, optional  |
 

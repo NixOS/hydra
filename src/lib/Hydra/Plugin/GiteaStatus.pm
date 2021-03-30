@@ -55,6 +55,7 @@ sub common {
             next unless defined $giteastatusInput && defined $giteastatusInput->value;
             my $i = $eval->jobsetevalinputs->find({ name => $giteastatusInput->value, altnr => 0 });
             next unless defined $i;
+            my $gitea_url = $eval->jobsetevalinputs->find({ name => "gitea_http_url" });
 
             my $repoOwner = $eval->jobsetevalinputs->find({ name => "gitea_repo_owner" })->value;
             my $repoName = $eval->jobsetevalinputs->find({ name => "gitea_repo_name" })->value;
@@ -62,7 +63,14 @@ sub common {
 
             my $rev = $i->revision;
             my $domain = URI->new($i->uri)->host;
-            my $url = "http://$domain:3001/api/v1/repos/$repoOwner/$repoName/statuses/$rev";
+            my $host;
+            unless (defined $gitea_url) {
+                $host = "https://$domain";
+            } else {
+                $host = $gitea_url->value;
+            }
+
+            my $url = "$host/api/v1/repos/$repoOwner/$repoName/statuses/$rev";
 
             print STDERR "GiteaStatus POSTing $state to $url\n";
             my $req = HTTP::Request->new('POST', $url);

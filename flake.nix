@@ -591,7 +591,8 @@
                     "git": {"value": "http://localhost:3001/root/repo.git", "type": "git"},
                     "gitea_repo_name": {"value": "repo", "type": "string"},
                     "gitea_repo_owner": {"value": "root", "type": "string"},
-                    "gitea_status_repo": {"value": "git", "type": "string"}
+                    "gitea_status_repo": {"value": "git", "type": "string"},
+                    "gitea_http_url": {"value": "http://localhost:3001", "type": "string"}
                   }
                 }
                 EOF
