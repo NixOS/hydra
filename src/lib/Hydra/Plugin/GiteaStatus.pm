@@ -62,7 +62,7 @@ sub common {
 
             my $rev = $i->revision;
             my $domain = URI->new($i->uri)->host;
-            my $url = "http://$domain:3000/api/v1/repos/$repoOwner/$repoName/statuses/$rev";
+            my $url = "http://$domain:3001/api/v1/repos/$repoOwner/$repoName/statuses/$rev";
 
             print STDERR "GiteaStatus POSTing $state to $url\n";
             my $req = HTTP::Request->new('POST', $url);
