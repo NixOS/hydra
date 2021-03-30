@@ -21,8 +21,10 @@ sub toGiteaState {
         return "pending";
     } elsif ($buildStatus == 0) {
         return "success";
-    } else {
+    } elsif ($buildStatus == 3 || $buildStatus == 4 || $buildStatus == 8 || $buildStatus == 10 || $buildStatus == 11) {
         return "error";
+    } else {
+        return "failure";
     }
 }
 
