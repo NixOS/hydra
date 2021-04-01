@@ -147,3 +147,7 @@ td.step-status span.warn {
 	cursor: help;
 	border-bottom: 1px dotted #999;
 }
+
+.tab-content > .tab-pane {
+    padding-top: 1.5rem;
+}
