@@ -47,18 +47,20 @@
   <body>
 
     <nav class="navbar navbar-expand-md navbar-light bg-light">
-      <a class="navbar-brand" href="[% c.uri_for(c.controller('Root').action_for('index')) %]">
-        [% IF logo == "" %]
-          Hydra
-        [% ELSE %]
-          <img src="[% c.uri_for(logo) %]" alt="Hydra Logo" class="logo" />
-        [% END %]
-      </a>
-      <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbarSupportedContent">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navbarSupportedContent">
-        [% PROCESS topbar.tt %]
+      <div class="container">
+        <a class="navbar-brand" href="[% c.uri_for(c.controller('Root').action_for('index')) %]">
+          [% IF logo == "" %]
+            Hydra
+          [% ELSE %]
+            <img src="[% c.uri_for(logo) %]" alt="Hydra Logo" class="logo" />
+          [% END %]
+        </a>
+        <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbarSupportedContent">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+          [% PROCESS topbar.tt %]
+        </div>
       </div>
     </nav>
 
