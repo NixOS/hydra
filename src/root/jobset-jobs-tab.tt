@@ -1,9 +1,9 @@
 [% PROCESS common.tt; USE Math %]
 
 <form id="filter-jobs">
-  <div class="input-group">
+  <div class="form-group input-group">
     <input name="filter" type="search" class="form-control" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]/>
-    <div class="input-group-prepend">
+    <div class="input-group-append">
       <button type="button" class="btn btn-info [% IF showInactive %]active[% END %]" id="active-toggle">
         <span class="spinner-border spinner-border-sm" id="filter-loading" style="display:none"/>
         Show inactive jobs
