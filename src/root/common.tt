@@ -439,10 +439,7 @@ BLOCK renderEvals %]
         [% END %]
         <th rowspan="2" style="width: 10em">Date</th>
         <th rowspan="2">Input changes</th>
-        <th colspan="3">Jobs</th>
-        <th rowspan="2">
-            <img src="[% c.uri_for("/static/images/delta.svg") %]" height="12" width="12" title="Delta" alt="Delta" class="build-status" />
-        </th>
+        <th colspan="4">Jobs</th>
       </tr>
       <tr>
         <th style="width: 2em">
@@ -453,6 +450,9 @@ BLOCK renderEvals %]
         </th>
         <th style="width: 2em">
             <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="12" width="12" title="Queued" alt="Queued" class="build-status" />
+        </th>
+        <th style="width: 2em">
+            <img src="[% c.uri_for("/static/images/delta.svg") %]" height="12" width="12" title="Delta" alt="Delta" class="build-status" />
         </th>
       </tr>
     </thead>
@@ -503,7 +503,7 @@ BLOCK renderEvals %]
         </tr>
       [% END;
       IF linkToAll %]
-        <tr><td class="centered" colspan="5"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+        <tr><td class="centered" colspan="7"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
       [% END %]
     </tbody>
   </table>
