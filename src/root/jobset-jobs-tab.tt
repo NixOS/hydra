@@ -36,12 +36,12 @@
 
 [% IF jobs.size == 0 %]
 
-  <div class="alert">There are no matching jobs.</div>
+  <div class="alert alert-warning">There are no matching jobs.</div>
 
 [% ELSE %]
 
   [% IF nrJobs > jobs.size %]
-    <div class="alert">Showing the first [% jobs.size %] jobs.  <a href="javascript:setFilter('filter=%')">Show all [% nrJobs %] jobs...</a></div>
+    <div class="alert alert-info">Showing the first [% jobs.size %] jobs.  <a href="javascript:setFilter('filter=%')">Show all [% nrJobs %] jobs...</a></div>
   [% END %]
 
   [% evalIds = evals.keys.nsort.reverse %]

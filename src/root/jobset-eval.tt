@@ -29,7 +29,7 @@ project=otherEval.jobset.project.name jobset=otherEval.jobset.name %] evaluation
 c.uri_for(c.controller('JobsetEval').action_for('view'),
 [otherEval.id]) %]">[% otherEval.id %]</a>.</p>
 [% ELSE %]
-<div class="alert">Couldn't find an evaluation to compare to.</div>
+<div class="alert alert-danger">Couldn't find an evaluation to compare to.</div>
 [% END %]
 
 <form>
