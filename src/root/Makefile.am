@@ -22,15 +22,16 @@ nobase_hydra_DATA = $(EXTRA_DIST)
 all:
 	mkdir -p $(srcdir)/static/js
 	unzip -u -d $(srcdir)/static $(BOOTSTRAP)
+	mv $(srcdir)/static/$(basename $(BOOTSTRAP)) $(srcdir)/static/bootstrap
 	unzip -u -d $(srcdir)/static/js $(FLOT)
 	unzip -u -d $(srcdir)/static $(FONTAWESOME)
+	mv $(srcdir)/static/$(basename $(FONTAWESOME)) $(srcdir)/static/fontawesome
 
 install-data-local: $(ZIPS)
 	mkdir -p $(hydradir)/static/js
 	cp -prvd $(srcdir)/static/js/* $(hydradir)/static/js
 	mkdir -p $(hydradir)/static/bootstrap
-	cp -prvd $(srcdir)/static/$(basename $(BOOTSTRAP))/* $(hydradir)/static/bootstrap
-	mkdir -p $(hydradir)/static/fontawesome/css
-	cp -prvd $(srcdir)/static/$(basename $(FONTAWESOME))/css/all.css $(hydradir)/static/fontawesome/css
-	mkdir -p $(hydradir)/static/fontawesome/webfonts
-	cp -prvd $(srcdir)/static/$(basename $(FONTAWESOME))/webfonts/* $(hydradir)/static/fontawesome/webfonts
+	cp -prvd $(srcdir)/static/bootstrap/* $(hydradir)/static/bootstrap
+	mkdir -p $(hydradir)/static/fontawesome/{css,webfonts}
+	cp -prvd $(srcdir)/static/fontawesome/css/* $(hydradir)/static/fontawesome/css
+	cp -prvd $(srcdir)/static/fontawesome/webfonts/* $(hydradir)/static/fontawesome/webfonts
