@@ -56,41 +56,6 @@
             };
           };
 
-          HTTPParser = final.perlPackages.buildPerlPackage {
-            pname = "HTTP-Parser";
-            version = "0.06";
-            src = final.fetchurl {
-              url = "mirror://cpan/authors/id/E/ED/EDECA/HTTP-Parser-0.06.tar.gz";
-              sha256 = "sha256-+MWh4cvY8ndb09HOX6zIQx8FkQi/V1oMjb2kMuXAvEU=";
-            };
-
-            buildInputs = with final.perlPackages; [ TestMore URI HTTPMessage ];
-
-            meta = {
-              homepage = https://metacpan.org/pod/HTTP::Parser;
-              description = "HTTP::Parser - parse HTTP/1.1 request into HTTP::Request/Response object";
-              license = final.lib.licenses.artistic1;
-            };
-          };
-
-          TestHTTPMockServer = final.perlPackages.buildPerlModule {
-            pname = "Test-HTTP-MockServer";
-            version = "0.0.1";
-            src = final.fetchurl {
-              url = "mirror://cpan/authors/id/D/DR/DRUOSO/Test-HTTP-MockServer-v0.0.1.tar.gz";
-              sha256 = "sha256-cnVjaKGgOxA0IcJiuzk/a2nxQGbhKD3vpaLFWIqINDg=";
-            };
-
-            buildInputs = with final.perlPackages; [ JSONXS LWP HTTPMessage HTTPParser ];
-            doCheck = false;
-
-            meta = {
-              homepage = https://metacpan.org/pod/Test::HTTP::MockServer;
-              description = "Implement a mock HTTP server for use in tests";
-              license = final.lib.licenses.asl20;
-            };
-          };
-
           FunctionParameters = final.buildPerlPackage {
             pname = "Function-Parameters";
             version = "2.001003";
@@ -299,7 +264,6 @@
                 EmailSender
                 FileSlurp
                 FileWhich
-                HTTPParser
                 IOCompress
                 IPCRun
                 JSON
@@ -317,7 +281,6 @@
                 Starman
                 SysHostnameLong
                 TermSizeAny
-                TestHTTPMockServer
                 TestMore
                 TestPostgreSQL
                 TextDiff
@@ -348,7 +311,7 @@
             ];
 
           checkInputs = [
-            foreman
+            foreman python3
           ];
 
           hydraPath = lib.makeBinPath (
@@ -382,6 +345,9 @@
             export LOGNAME=''${LOGNAME:-foo}
             # set $HOME for bzr so it can create its trace file
             export HOME=$(mktemp -d)
+
+            export NIX_REDIRECTS=/etc/protocols=${iana-etc}/etc/protocols
+            export LD_PRELOAD="${pkgs.libredirect}/lib/libredirect.so"
           '';
 
           postInstall = ''

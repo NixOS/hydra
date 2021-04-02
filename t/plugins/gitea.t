@@ -4,11 +4,6 @@ use warnings;
 use JSON;
 use Setup;
 
-use Test::HTTP::MockServer;
-
-my $server = Test::HTTP::MockServer->new();
-my $url = $server->url_base();
-
 my %ctx = test_init(
     hydra_config => q|
     <gitea_authorization>
@@ -40,7 +35,7 @@ sub addStringInput {
 addStringInput($jobset, "gitea_repo_owner", "root");
 addStringInput($jobset, "gitea_repo_name", "foo");
 addStringInput($jobset, "gitea_status_repo", "src");
-addStringInput($jobset, "gitea_http_url", "$url/gitea");
+addStringInput($jobset, "gitea_http_url", "http://localhost:8282/gitea");
 
 updateRepository('gitea', "$ctx{testdir}/jobs/git-update.sh", $scratch);
 
@@ -51,24 +46,19 @@ is(nrQueuedBuildsForJobset($jobset), 1, "Evaluating jobs/runcommand.nix should r
 ok(runBuild($build), "Build should succeed with exit code 0");
 
 my $filename = $ENV{'HYDRA_DATA'} . "/giteaout.json";
-my $handle = sub {
-    my ($request, $response) = @_;
+my $pid;
+if (!defined($pid = fork())) {
+    die "Cannot fork(): $!";
+} elsif ($pid == 0) {
+    exec("python3 $ctx{jobsdir}/server.py $filename");
+} else {
+    my $newbuild = $db->resultset('Builds')->find($build->id);
+    is($newbuild->finished, 1, "Build should be finished.");
+    is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");
+    ok(sendNotifications(), "Sent notifications");
 
-    open(FH, ">", $filename) or die("Can't open(): $!\n");
-    print FH $request->uri . "\n";
-    print FH $request->content . "\n";
-    close(FH);
-
-    return $response;
-};
-
-$server->start_mock_server($handle);
-my $newbuild = $db->resultset('Builds')->find($build->id);
-is($newbuild->finished, 1, "Build should be finished.");
-is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");
-ok(sendNotifications(), "Sent notifications");
-
-$server->stop_mock_server();
+    kill('INT', $pid);
+}
 
 open my $fh, $filename or die ("Can't open(): $!\n");
 my $i = 0;
