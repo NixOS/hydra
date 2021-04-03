@@ -345,9 +345,6 @@
             export LOGNAME=''${LOGNAME:-foo}
             # set $HOME for bzr so it can create its trace file
             export HOME=$(mktemp -d)
-
-            export NIX_REDIRECTS=/etc/protocols=${iana-etc}/etc/protocols
-            export LD_PRELOAD="${pkgs.libredirect}/lib/libredirect.so"
           '';
 
           postInstall = ''
