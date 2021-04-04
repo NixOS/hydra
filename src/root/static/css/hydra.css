@@ -28,7 +28,7 @@ table.table-small {
     width: auto !important;
 }
 
-span:target > span.dep-tree-line {
+span:target {
     font-style: italic;
     font-weight: bold;
 }

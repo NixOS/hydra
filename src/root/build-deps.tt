@@ -2,8 +2,58 @@
 
 [% global.nodeId = 10000 %]
 
-<div class="dep-tree">
-  <ul class="tree">
-    [% INCLUDE renderNode node=buildTimeGraph %]
-  </ul>
+<button id="collapse-all-button" onclick='
+$("#dep-root details").each(function () {
+    this.removeAttribute("open")
+});
+global_expand_counter = 1;
+document.getElementById("collapse-button").textContent = "Collapse level " + global_expand_counter;
+document.getElementById("expand-button").textContent = "Expand level " + global_expand_counter;
+'>Collapse All</button>
+
+<button id="expand-all-button" onclick='
+global_expand_counter = 1;
+var nodes = $("#dep-root > details");
+var thisButton = this;
+function expander(nodes){
+    if (nodes.length <=0) {
+        thisButton.disabled=false;
+        return
+    }
+    nodes.each(function () {
+        this.setAttribute("open","")
+    });
+    global_expand_counter = global_expand_counter + 1;
+    nodes = $("#dep-root" + " > details".repeat(global_expand_counter));
+    document.getElementById("collapse-button").textContent = "Collapse level " + global_expand_counter;
+    document.getElementById("expand-button").textContent = "Expand level " + global_expand_counter;
+    setTimeout(expander,50,nodes);
+}
+this.disabled=true;
+expander(nodes);
+'>Expand All</button>
+
+<button id="collapse-button" onclick='
+global_expand_counter = global_expand_counter - 1;
+$("#dep-root" + " > details".repeat(global_expand_counter)).each(function () {
+    this.removeAttribute("open")
+});
+document.getElementById("collapse-button").textContent = "Collapse level " + global_expand_counter;
+document.getElementById("expand-button").textContent = "Expand level " + global_expand_counter;
+'>Collapse Level 1</button>
+
+<script>
+var global_expand_counter = 1;
+</script>
+<button id="expand-button" onclick='
+$("#dep-root" + " > details".repeat(global_expand_counter)).each(function () {
+    this.setAttribute("open","")
+});
+global_expand_counter = global_expand_counter + 1;
+document.getElementById("expand-button").textContent = "Expand level " + global_expand_counter;
+document.getElementById("collapse-button").textContent = "Collapse level " + global_expand_counter;
+'>Expand Level 1</button>
+
+<div id="dep-root">
+  [% INCLUDE renderNode node=buildTimeGraph %]
 </div>

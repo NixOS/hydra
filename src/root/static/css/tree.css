@@ -1,39 +1,48 @@
-ul.tree, ul.subtree {
+.subtree {
     padding: 0;
     margin: 0;
     list-style-type: none;
+    padding-left: 2.0em;
 }
 
 /* Indent each tree level and draw vertical tree lines next to all
    children except the last. */
-ul.subtree > li {
+details.subtree > .subtree {
     position: relative;
     padding-left: 2.0em;
     border-left: 0.1em solid #6185a0;
 }
+details.subtree > details.subtree {
+    position: relative;
+    padding-left: 2.0em;
+    border-left: 0.1em solid #6185a0;
+}
+details.subtree > div.subtree {
+    position: relative;
+    padding-left: 3.0em;
+    border-left: 0.1em solid #6185a0;
+}
 
-ul.subtree > li:last-child {
+details.subtree > details.subtree:last-child {
     padding-left: 2.1em; /* for the 0.1em border-left in the last child */
+    border-left: 0;
+}
+details.subtree > div.subtree:last-child {
+    padding-left: 3.1em; /* for the 0.1em border-left in the last child */
     border-left: 0;
 }
 
 /* Draw the vertical tree line to the last child. */
-ul.subtree > li:last-child > *:first-child:before {
+details.subtree > .subtree:last-child > *:first-child:before {
     border-left: 0.1em solid #6185a0;
 }
 
 /* Draw horizontal tree lines to all children. */
-ul.subtree > li > *:first-child:before {
+details.subtree > .subtree > *:first-child:before {
     content: "";
     position: absolute;
     height: 0.65em;
     left: 0em;
     width: 1.5em;
     border-bottom: 0.1em solid #6185a0;
-}
-
-/* Ensure that the + and - have the same size. */
-a.tree-toggle {
-    text-decoration: none;
-    font-family: monospace;
 }
