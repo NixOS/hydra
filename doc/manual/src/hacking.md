@@ -59,7 +59,7 @@ causing database ports to collide.
 ## Working on the Manual
 
 By default, `foreman start` runs mdbook in "watch" mode. mdbook listens
-at [http://localhost:63332/](http://localhost:63332/) by default, and
+at [http://localhost:63332/](http://localhost:63332/), and
 will reload the page every time you save.
 
 ## Building
