@@ -172,7 +172,7 @@ some additional configuration must be made.
 
 Edit your `hydra.conf` file in a similar way to this example:
 
-```
+```conf
 using_frontend_proxy 1
 base_uri example.com
 ```
@@ -262,4 +262,3 @@ general any LDAP group of the form *hydra\_some\_role* (notice the
       role_value: dn
       role_search_options:
         deref: always
-
