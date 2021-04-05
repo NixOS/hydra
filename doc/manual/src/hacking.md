@@ -44,6 +44,12 @@ if run with high parallelism [due to an issue in
 `Test::PostgreSQL`](https://github.com/TJC/Test-postgresql/issues/40)
 causing database ports to collide.
 
+## Working on the Manual
+
+By default, `foreman start` runs mdbook in "watch" mode. mdbook listens
+at [http://localhost:63332/](http://localhost:63332/) by default, and
+will reload the page every time you save.
+
 ## Building
 
 To build Hydra and its dependencies:
