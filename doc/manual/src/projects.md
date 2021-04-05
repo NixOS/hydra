@@ -220,7 +220,9 @@ expressions, they can be evaluated using the standard Nix tools.
 To evaluate the `tarball` jobset of the above example, just
 run:
 
-    $ nix-build release.nix -A tarball
+```console
+$ nix-build release.nix -A tarball
+```
 
 However, doing this with the example as is will probably
 yield an error like this:
@@ -230,11 +232,15 @@ yield an error like this:
 The error is self-explanatory. Assuming `$HOME/src/hello` points to a
 checkout of Hello, this can be fixed this way:
 
-    $ nix-build -I ~/src release.nix -A tarball
+```console
+$ nix-build -I ~/src release.nix -A tarball
+```
 
 Similarly, the `build` jobset can be evaluated:
 
-    $ nix-build -I ~/src release.nix -A build
+```console
+$ nix-build -I ~/src release.nix -A build
+```
 
 The `build` job reuses the result of the `tarball` job, rebuilding it
 only if it needs to.
