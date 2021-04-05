@@ -1,5 +1,4 @@
-Hacking
-=======
+# Hacking
 
 This section provides some notes on how to hack on Hydra. To get the
 latest version of Hydra from GitHub:
@@ -7,13 +6,8 @@ latest version of Hydra from GitHub:
     $ git clone git://github.com/NixOS/hydra.git
     $ cd hydra
 
-To build it and its dependencies:
-
-    $ nix-build release.nix -A build.x86_64-linux
-
-To build all dependencies and start a shell in which all environment
-variables (such as PERL5LIB) are set up so that those dependencies can
-be found:
+To enter a shell in which all environment variables (such as PERL5LIB)
+are set up so that those dependencies can be found:
 
     $ nix-shell
 
@@ -23,7 +17,12 @@ To build Hydra, you should then do:
     [nix-shell]$ configurePhase
     [nix-shell]$ make
 
-You can run the Hydra web server in your source tree as follows:
+You start a local database, the webserver, and other components with
+foreman:
+
+    $ foreman start
+
+You can run just the Hydra web server in your source tree as follows:
 
     $ ./src/script/hydra-server
 
@@ -44,3 +43,9 @@ in the root of the repository at least once.
 if run with high parallelism [due to an issue in
 `Test::PostgreSQL`](https://github.com/TJC/Test-postgresql/issues/40)
 causing database ports to collide.
+
+## Building
+
+To build Hydra and its dependencies:
+
+    $ nix-build release.nix -A build.x86_64-linux
