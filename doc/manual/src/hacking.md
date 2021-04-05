@@ -8,7 +8,7 @@ $ git clone git://github.com/NixOS/hydra.git
 $ cd hydra
 ```
 
-To enter a shell in which all environment variables (such as PERL5LIB)
+To enter a shell in which all environment variables (such as `PERL5LIB`)
 are set up so that those dependencies can be found:
 
 ```console
