@@ -2,5 +2,5 @@
 
 mdbook serve \
   --port 63332 \
-  --dest-dir $(pwd)/.hydra-data/manual \
-  $(pwd)/doc/manual/
+  --dest-dir ./.hydra-data/manual \
+  ./doc/manual/
