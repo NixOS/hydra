@@ -76,8 +76,10 @@ Hydra stores its results in a PostgreSQL database.
 To setup a PostgreSQL database with *hydra* as database name and user
 name, issue the following commands on the PostgreSQL server:
 
-    createuser -S -D -R -P hydra
-    createdb -O hydra hydra
+```console
+createuser -S -D -R -P hydra
+createdb -O hydra hydra
+```
 
 Note that *\$prefix* is the location of Hydra in the nix store.
 
@@ -86,12 +88,16 @@ used, and a variable which point to a location that holds some state. To
 set these variables for a PostgreSQL database, add the following to the
 file `~/.profile` of the user running the Hydra services.
 
-    export HYDRA_DBI="dbi:Pg:dbname=hydra;host=dbserver.example.org;user=hydra;"
-    export HYDRA_DATA=/var/lib/hydra
+```console
+export HYDRA_DBI="dbi:Pg:dbname=hydra;host=dbserver.example.org;user=hydra;"
+export HYDRA_DATA=/var/lib/hydra
+```
 
 You can provide the username and password in the file `~/.pgpass`, e.g.
 
-    dbserver.example.org:*:hydra:hydra:password
+```
+dbserver.example.org:*:hydra:hydra:password
+```
 
 Make sure that the *HYDRA\_DATA* directory exists and is writable for
 the user which will run the Hydra services.
@@ -99,13 +105,17 @@ the user which will run the Hydra services.
 Having set these environment variables, you can now initialise the
 database by doing:
 
-    hydra-init
+```console
+hydra-init
+```
 
 To create projects, you need to create a user with *admin* privileges.
 This can be done using the command `hydra-create-user`:
 
-    $ hydra-create-user alice --full-name 'Alice Q. User' \
-        --email-address 'alice@example.org' --password foobar --role admin
+```console
+$ hydra-create-user alice --full-name 'Alice Q. User' \
+    --email-address 'alice@example.org' --password foobar --role admin
+```
 
 Additional users can be created through the web interface.
 
@@ -115,14 +125,18 @@ Upgrading
 If you\'re upgrading Hydra from a previous version, you should do the
 following to perform any necessary database schema migrations:
 
-    hydra-init
+```console
+hydra-init
+```
 
 Getting Started
 ---------------
 
 To start the Hydra web server, execute:
 
-    hydra-server
+```console
+hydra-server
+```
 
 When the server is started, you can browse to [http://localhost:3000/]()
 to start configuring your Hydra instance.
@@ -158,8 +172,10 @@ some additional configuration must be made.
 
 Edit your `hydra.conf` file in a similar way to this example:
 
-    using_frontend_proxy 1
-    base_uri example.com
+```conf
+using_frontend_proxy 1
+base_uri example.com
+```
 
 `base_uri` should be your hydra servers proxied URL. If you are using
 Hydra nixos module then setting `hydraURL` option should be enough.
@@ -246,4 +262,3 @@ general any LDAP group of the form *hydra\_some\_role* (notice the
       role_value: dn
       role_search_options:
         deref: always
-
