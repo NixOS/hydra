@@ -109,7 +109,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% IF eval.evaluationerror.errormsg %]
     <div id="tabs-errors" class="tab-pane">
       <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.evaluationerror.errortime || eval.timestamp) %].</p>
-      <pre class="alert alert-error">[% HTML.escape(eval.evaluationerror.errormsg) %]</pre>
+      <div class="card bg-light"><div class="card-body"><pre>[% HTML.escape(eval.evaluationerror.errormsg) %]</pre></div></div>
     </div>
   [% END %]
 
@@ -173,7 +173,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% IF eval.evaluationerror.errormsg %]
     <div id="tabs-errors" class="tab-pane">
       <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.evaluationerror.errortime || eval.timestamp) %].</p>
-      <pre class="alert alert-error">[% HTML.escape(eval.evaluationerror.errormsg) %]</pre>
+      <div class="card bg-light"><div class="card-body"><pre>[% HTML.escape(eval.evaluationerror.errormsg) %]</pre></div></div>
     </div>
   [% END %]
 </div>

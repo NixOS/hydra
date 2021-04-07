@@ -1,8 +1,6 @@
 [% WRAPPER layout.tt title="Queue runner status" %]
 [% PROCESS common.tt %]
 
-<pre>
-[% HTML.escape(status) %]
-</pre>
+<div class="card bg-light"><div class="card-body"><pre>[% HTML.escape(status) %]</pre></div></div>
 
 [% END %]

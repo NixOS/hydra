@@ -504,9 +504,9 @@ END;
           installed</a>, you can reproduce this build on your own machine by
           running the following command:</p>
 
-<pre>
+<div class="card bg-light"><div class="card-body p-2"><code>
 <span class="shell-prompt"># </span>nix build [% HTML.escape(eval.flake) %]#hydraJobs.[% HTML.escape(job) %]
-</pre>
+</code></div></div>
 
         [% ELSE %]
 
@@ -519,9 +519,9 @@ END;
           <p>To download and execute the script from the command line, run the
           following command:</p>
 
-<pre>
+<div class="card bg-light"><div class="card-body p-2"><code>
 <span class="shell-prompt"># </span>curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a> | bash
-</pre>
+</code></div></div>
 
         [% END %]
 
