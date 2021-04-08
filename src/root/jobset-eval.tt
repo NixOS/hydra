@@ -1,21 +1,21 @@
 [% WRAPPER layout.tt title="Evaluation $eval.id of jobset $project.name:$jobset.name " %]
 [% PROCESS common.tt %]
 
-<div class="btn-group pull-right">
-  <a class="btn btn-primary dropdown-toggle" data-toggle="dropdown" href="#"><i class="fas fa-eye"></i> Compare to...</a>
-  <ul class="dropdown-menu">
-    <li><a href="?">Preceding evaluation in this jobset</a></li>
-    <li class="divider"></li>
-    <li><a href="?compare=-[% 24 * 60 * 60 %]">This jobset <strong>one day</strong> earlier</a></li>
-    <li><a href="?compare=-[% 7 * 24 * 60 * 60 %]">This jobset <strong>one week</strong> earlier</a></li>
-    <li><a href="?compare=-[% 31 * 24 * 60 * 60 %]">This jobset <strong>one month</strong> earlier</a></li>
+<div class="dropdown">
+  <button class="btn btn-primary dropdown-toggle float-right" data-toggle="dropdown"><i class="fas fa-eye"></i> Compare to...</button>
+  <div class="dropdown-menu dropdown-menu-right">
+    <a class="dropdown-item" href="?">Preceding evaluation in this jobset</a>
+    <div class="dropdown-divider"></div>
+    <a class="dropdown-item" href="?compare=-[% 24 * 60 * 60 %]">This jobset <strong>one day</strong> earlier</a>
+    <a class="dropdown-item" href="?compare=-[% 7 * 24 * 60 * 60 %]">This jobset <strong>one week</strong> earlier</a>
+    <a class="dropdown-item" href="?compare=-[% 31 * 24 * 60 * 60 %]">This jobset <strong>one month</strong> earlier</a>
     [% IF project.jobsets_rs.count > 1 %]
-      <li class="divider"></li>
+      <div class="dropdown-divider"></div>
       [% FOREACH j IN project.jobsets.sort('name'); IF j.name != jobset.name %]
-        <li><a href="?compare=[% j.name %]">Jobset <tt>[% project.name %]:[% j.name %]</tt></a></li>
+        <a class="dropdown-item" href="?compare=[% j.name %]">Jobset <tt>[% project.name %]:[% j.name %]</tt></a>
       [% END; END %]
     [% END %]
-  </ul>
+  </div>
 </div>
 
 <p>This evaluation was performed [% IF eval.flake %]from the flake
