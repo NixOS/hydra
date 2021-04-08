@@ -6,7 +6,7 @@
   <div class="form-group row">
     <label class="col-sm-3" for="editprojectenabled">Enabled</label>
     <div class="col-sm-9">
-      <input type="checkbox" id="editprojectenabled" name="enabled" [% IF project.enabled %] checked="checked" [% END %]/>
+      <input type="checkbox" id="editprojectenabled" name="enabled" [% IF create || project.enabled %] checked="checked" [% END %]/>
     </div>
   </div>
 

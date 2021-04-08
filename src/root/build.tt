@@ -498,32 +498,32 @@ END;
 
       <div class="modal-body">
 
-    [% IF eval.flake %]
+        [% IF eval.flake %]
 
-        <p>If you have <a href='https://nixos.org/nix/download.html'>Nix
-        installed</a>, you can reproduce this build on your own machine by
-        running the following command:</p>
+          <p>If you have <a href='https://nixos.org/nix/download.html'>Nix
+          installed</a>, you can reproduce this build on your own machine by
+          running the following command:</p>
 
 <pre>
 <span class="shell-prompt"># </span>nix build [% HTML.escape(eval.flake) %]#hydraJobs.[% HTML.escape(job) %]
 </pre>
 
-    [% ELSE %]
+        [% ELSE %]
 
-        <p>If you have <a href='https://nixos.org/nix/download.html'>Nix
-        installed</a>, you can reproduce this build on your own machine by
-        downloading <a [% HTML.attributes(href => url) %]>a script</a>
-        that checks out all inputs of the build and then invokes Nix to
-        perform the build.</p>
+          <p>If you have <a href='https://nixos.org/nix/download.html'>Nix
+          installed</a>, you can reproduce this build on your own machine by
+          downloading <a [% HTML.attributes(href => url) %]>a script</a>
+          that checks out all inputs of the build and then invokes Nix to
+          perform the build.</p>
 
-        <p>To download and execute the script from the command line, run the
-        following command:</p>
+          <p>To download and execute the script from the command line, run the
+          following command:</p>
 
 <pre>
 <span class="shell-prompt"># </span>curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a> | bash
 </pre>
 
-    [% END %]
+        [% END %]
 
       </div>
 
