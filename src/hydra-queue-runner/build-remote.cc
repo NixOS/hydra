@@ -36,7 +36,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 
     child.pid = startProcess([&]() {
 
-        restoreSignals();
+        restoreProcessContext();
 
         if (dup2(to.readSide.get(), STDIN_FILENO) == -1)
             throw SysError("cannot dup input pipe to stdin");
