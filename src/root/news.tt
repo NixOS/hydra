@@ -14,7 +14,7 @@
             <tr>
                 <td>[% INCLUDE renderDateTime timestamp=i.createtime %]</td>
                 <td>[% contents.replace('\n','<br />\n') %]</td>
-                <td>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('news_delete') i.id) content = "Delete" confirmmsg = "Are you sure you want to delete this news item?" class = "btn btn-mini btn-danger" %]</td>
+                <td>[% INCLUDE maybeLink uri = c.uri_for(c.controller('Admin').action_for('news_delete') i.id) content = "Delete" confirmmsg = "Are you sure you want to delete this news item?" class = "btn btn-sm btn-danger" %]</td>
             </tr>
         [% END %]
         </tbody>

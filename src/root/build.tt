@@ -236,9 +236,9 @@ END;
                 <th>Logfile:</th>
                 <td>
                   [% actualLog = cachedBuildStep ? c.uri_for('/build' cachedBuild.id 'nixlog' cachedBuildStep.stepnr) : c.uri_for('/build' build.id 'log') %]
-                  <a class="btn btn-mini" href="[%actualLog%]">pretty</a>
-                  <a class="btn btn-mini" href="[%actualLog%]/raw">raw</a>
-                  <a class="btn btn-mini" href="[%actualLog%]/tail">tail</a>
+                  <a class="btn btn-secondary btn-sm" href="[%actualLog%]">pretty</a>
+                  <a class="btn btn-secondary btn-sm" href="[%actualLog%]/raw">raw</a>
+                  <a class="btn btn-secondary btn-sm" href="[%actualLog%]/tail">tail</a>
                 </td>
               </tr>
             [% END %]
