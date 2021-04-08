@@ -468,3 +468,34 @@ notifications, add it to the path option of the Hydra services in your
     systemd.services.hydra-queue-runner.path = [ pkgs.ssmtp ];
     systemd.services.hydra-server.path = [ pkgs.ssmtp ];
 
+Gitea Integration
+-----------------
+
+Hydra can notify Git servers (such as [GitLab](https://gitlab.com/), [GitHub](https://github.com)
+or [Gitea](https://gitea.io/en-us/)) about the result of a build from a Git checkout.
+
+This section describes how it can be implemented for `gitea`, but the approach for `gitlab` is
+analogous:
+
+* [Obtain an API token for your user](https://docs.gitea.io/en-us/api-usage/#authentication)
+* Add it to your `hydra.conf` like this:
+  ``` nix
+  {
+    services.hydra-dev.extraConfig = ''
+      <gitea_authorization>
+      your_username=your_token
+      </gitea_authorization>
+    '';
+  }
+  ```
+
+* For a jobset with a `Git`-input which points to a `gitea`-instance, add the following
+  additional inputs:
+
+  | Type           | Name                | Value                              |
+  | -------------- | ------------------- | ---------------------------------- |
+  | `String value` | `gitea_repo_name`   | *Name of the repository to build*  |
+  | `String value` | `gitea_repo_owner`  | *Owner of the repository*          |
+  | `String value` | `gitea_status_repo` | *Name of the `Git checkout` input* |
+  | `String value` | `gitea_http_url`    | *Public URL of `gitea`*, optional  |
+
