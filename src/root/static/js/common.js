@@ -48,6 +48,14 @@ $(document).ready(function() {
 
     bootbox.setDefaults({ animate: false });
 
+    /* Enable popovers (and allow table and teletype elements in them). */
+    $.fn.popover.Constructor.Default.whiteList.table = [];
+    $.fn.popover.Constructor.Default.whiteList.thead = []
+    $.fn.popover.Constructor.Default.whiteList.tbody = [];
+    $.fn.popover.Constructor.Default.whiteList.tr = [];
+    $.fn.popover.Constructor.Default.whiteList.th = [];
+    $.fn.popover.Constructor.Default.whiteList.td = [];
+    $.fn.popover.Constructor.Default.whiteList.tt = [];
     $(".hydra-popover").popover({});
 
     /* Activates tab according to URL anchor. */
