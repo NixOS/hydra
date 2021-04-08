@@ -15,7 +15,7 @@
     </li>
   [% END %]
 
-  <li class="nav-item active"><a class="nav-link" href="#tabs-project" data-toggle="tab">Jobsets</a></li>
+  <li class="nav-item"><a class="nav-link active" href="#tabs-project" data-toggle="tab">Jobsets</a></li>
   <li class="nav-item"><a class="nav-link" href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
 </ul>
 

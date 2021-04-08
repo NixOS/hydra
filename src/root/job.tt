@@ -15,7 +15,7 @@ removed or had an evaluation error.</div>
 [% END %]
 
 <ul class="nav nav-tabs">
-  <li class="nav-item active"><a class="nav-link" href="#tabs-status" data-toggle="tab">Status</a></li>
+  <li class="nav-item"><a class="nav-link active" href="#tabs-status" data-toggle="tab">Status</a></li>
   [% IF constituentJobs.size > 0 %]
     <li class="nav-item"><a class="nav-link" href="#tabs-constituents" data-toggle="tab">Constituents</a></li>
   [% END %]
