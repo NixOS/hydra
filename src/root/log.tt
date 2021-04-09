@@ -18,9 +18,9 @@
   [% END %]
 </p>
 
-<pre class="log" id="contents">
+<div class="card bg-light"><div class="card-body"><pre class="log" id="contents">
 <em>Loading...</em>
-</pre>
+</pre></div></div>
 
 <script type="text/javascript">
   $(document).ready(function() {

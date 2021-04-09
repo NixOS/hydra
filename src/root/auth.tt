@@ -31,26 +31,26 @@
 [% ELSE %]
 
   <div id="hydra-signin" class="modal hide fade" tabindex="-1" role="dialog" aria-hidden="true">
-    <form class="form-horizontal">
-      <div class="modal-body">
-        <div class="control-group">
-          <label class="control-label">User name</label>
-          <div class="controls">
-            <input type="text" class="span3" name="username" value=""/>
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <form>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="username" class="col-form-label">User name</label>
+              <input type="text" class="form-control" name="username"/>
+            </div>
+            <div class="form-group">
+              <label for="password" class="col-form-label">Password</label>
+              <input type="password" class="form-control" name="password"/>
+            </div>
           </div>
-        </div>
-        <div class="control-group">
-          <label class="control-label">Password</label>
-          <div class="controls">
-            <input type="password" class="span3" name="password" value=""/>
+          <div class="modal-footer">
+            <button id="do-signin" type="button" class="btn btn-primary">Sign in</button>
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
           </div>
-        </div>
+        </form>
       </div>
-      <div class="modal-footer">
-        <button id="do-signin" class="btn btn-primary">Sign in</button>
-        <button class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
-      </div>
-    </form>
+    </div>
   </div>
 
   <script>

@@ -1,18 +1,18 @@
 [% BLOCK makeSubMenu %]
-  <li class="dropdown" [% IF id; HTML.attributes(id => id); END %] >
-    <a class="dropdown-toggle" href="#" data-toggle="dropdown">[% title %]<b class="caret"></b></a>
-    <ul class="dropdown-menu">
+  <li class="nav-item dropdown" [% IF id; HTML.attributes(id => id); END %] >
+    <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">[% title %]<b class="caret"></b></a>
+    <div class="dropdown-menu[% IF align == 'right' %] dropdown-menu-right[% END %]">
       [% content %]
-    </ul>
+    </div>
   </li>
 [% END %]
 [% showPrivate = (isPrivateHydra && c.user_exists) || ! isPrivateHydra %]
 
 [% IF showPrivate %]
-<ul class="nav pull-left">
+<ul class="navbar-nav mr-auto">
 
   [% IF c.user_exists %]
-    [% INCLUDE menuItem uri = c.uri_for(c.controller('User').action_for('dashboard'), [c.user.username]) title = "Dashboard" %]
+    [% INCLUDE navItem uri = c.uri_for(c.controller('User').action_for('dashboard'), [c.user.username]) title = "Dashboard" %]
   [% END %]
 
   [% WRAPPER makeSubMenu title="Status" %]
@@ -38,8 +38,8 @@
 
   [% IF project %]
     [% WRAPPER makeSubMenu title="Project"  %]
-      <li class="nav-header">[% HTML.escape(project.name) %]</li>
-      <li class="divider"></li>
+      <h6 class="dropdown-header">[% HTML.escape(project.name) %]</h6>
+      <div class="dropdown-divider"></div>
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('project'), [project.name]) title = "Overview" %]
       [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('all'), [project.name]) title = "Latest builds" %]
       [% INCLUDE menuItem uri = c.uri_for('/project' project.name 'channel' 'latest') title = "Channel" %]
@@ -48,8 +48,8 @@
 
   [% IF jobset %]
     [% WRAPPER makeSubMenu title="Jobset" %]
-      <li class="nav-header">[% HTML.escape(jobset.name) %]</li>
-      <li class="divider"></li>
+      <h6 class="dropdown-header">[% HTML.escape(jobset.name) %]</h6>
+      <div class="dropdown-divider"></div>
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Jobset').action_for('jobset'), [project.name, jobset.name])
         title = "Overview" %]
@@ -65,8 +65,8 @@
 
   [% IF job %]
     [% WRAPPER makeSubMenu title="Job" %]
-      <li class="nav-header">[% HTML.escape(job) %]</li>
-      <li class="divider"></li>
+      <h6 class="dropdown-header">[% HTML.escape(job) %]</h6>
+      <div class="dropdown-divider"></div>
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Job').action_for('overview'), [project.name, jobset.name, job])
         title = "Overview" %]
@@ -82,7 +82,7 @@
     [% WRAPPER makeSubMenu title="Admin" %]
       [% IF c.check_user_roles('admin') || c.check_user_roles('create-projects') %]
         [% INCLUDE menuItem uri = c.uri_for(c.controller('Project').action_for('create')) title = "Create project" %]
-        <li class="divider"></li>
+        <div class="dropdown-divider"></div>
       [% END %]
       [% IF c.check_user_roles('admin') %]
       [% INCLUDE menuItem
@@ -94,7 +94,7 @@
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Admin').action_for('users'))
         title = "Manage users" %]
-      <li class="divider"></li>
+      <div class="dropdown-divider"></div>
       [% INCLUDE menuItem
         uri = c.uri_for(c.controller('Admin').action_for('clear_queue_non_current'))
         title = "Cancel queued non-current builds"
@@ -117,32 +117,31 @@
 </ul>
 [% END %]
 
-<ul class="nav pull-right">
+[% IF showPrivate %]
+  <form class="form-inline" action="[% c.uri_for('/search') %]">
+    <input name="query" type="text" class="form-control" placeholder="Search" [% HTML.attributes(value => c.req.params.query) %]/>
+  </form>
+[% END %]
 
-  [% IF showPrivate %]
-    <form class="navbar-search" action="[% c.uri_for('/search') %]">
-      <input name="query" type="text" class="search-query span2" placeholder="Search" [% HTML.attributes(value => c.req.params.query) %]/>
-    </form>
-  [% END %]
+<ul class="navbar-nav">
+
   [% IF c.user_exists %]
-    [% INCLUDE menuItem uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
-    <li>
-      <a href="#" onclick="signOut();">Sign out</a>
+    [% INCLUDE navItem uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
+    <li class="nav-item">
+      <a class="nav-link" href="#" onclick="signOut();">Sign out</a>
     </li>
   [% ELSE %]
-    [% WRAPPER makeSubMenu title="Sign in" id="sign-in-menu" %]
+    [% WRAPPER makeSubMenu title="Sign in" id="sign-in-menu" align="right" %]
       [% IF c.config.enable_google_login %]
-        <div style="display: none" class="g-signin2" data-onsuccess="onGoogleSignIn" data-theme="dark"></div></a>
-        <li><a href="#" id="google-signin">Sign in with Google</a></li>
-        <li class="divider"></li>
+        <div style="display: none" class="g-signin2" data-onsuccess="onGoogleSignIn" data-theme="dark"></div>
+        <a class="dropdown-item" href="#" id="google-signin">Sign in with Google</a>
+        <div class="dropdown-divider"></div>
       [% END %]
       [% IF c.config.github_client_id %]
-        <li><a href="/github-redirect?after=[% c.req.path %]">Sign in with GitHub</a></li>
-        <li class="divider"></li>
+        <a class="dropdown-item" href="/github-redirect?after=[% c.req.path %]">Sign in with GitHub</a>
+        <div class="dropdown-divider"></div>
       [% END %]
-      <li>
-        <a href="#hydra-signin" data-toggle="modal">Sign in with a Hydra account</a>
-      </li>
+      <a class="dropdown-item" href="#hydra-signin" data-toggle="modal">Sign in with a Hydra account</a>
     [% END %]
   [% END %]
 
