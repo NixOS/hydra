@@ -2,7 +2,7 @@
 --
 -- 1. Update this schema document to match what the end result should be.
 --
--- 2. Run `make -C src/sql update-dbix hydra-postgresql.sql` in the root
+-- 2. Run `make -C src/sql update-dbix` in the root
 --    of the project directory, and git add / git commit the changed,
 --    generated files.
 --
