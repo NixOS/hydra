@@ -40,7 +40,7 @@ ok(sendNotifications(), "Notifications execute successfully.");
 my $dat = do {
     my $filename = $ENV{'HYDRA_DATA'} . "/joboutput.json";
     open(my $json_fh, "<", $filename)
-        or die("Can't open \$filename\": $!\n");
+        or die("Can't open $filename\": $!\n");
     local $/;
     my $json = JSON->new;
     $json->decode(<$json_fh>)
@@ -66,6 +66,7 @@ subtest "Validate the top level fields match" => sub {
     is($dat->{homepage}, "https://github.com/NixOS/hydra", "The homepage is passed.");
     is($dat->{description}, "An example meta property.", "The description is passed.");
     is($dat->{license}, "GPL", "The license is passed.");
+    is($dat->{outputsToInstall}, ["bin"], "The list of outputs to install are passed.");
 };
 
 subtest "Validate the outputs match" => sub {

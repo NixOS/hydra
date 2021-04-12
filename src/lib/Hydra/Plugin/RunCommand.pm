@@ -76,6 +76,7 @@ sub buildFinished {
                 homepage => $build->get_column('homepage'),
                 description => $build->get_column('description'),
                 license => $build->get_column('license'),
+                outputsToInstall => decode_json($build->get_column('outputstoinstall')),
                 outputs => [],
                 products => [],
                 metrics => [],

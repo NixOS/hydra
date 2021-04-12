@@ -25,6 +25,7 @@ with import ./config.nix;
     }
   ) // {
     meta = {
+      outputsToInstall = [ "bin" ];
       license = "GPL";
       description = "An example meta property.";
       homepage = "https://github.com/NixOS/hydra";
