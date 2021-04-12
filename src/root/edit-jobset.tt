@@ -62,8 +62,8 @@
   <div class="form-group row">
     <label class="col-sm-3" for="editjobsetenabled">State</label>
     <div class="btn-group btn-group-toggle col-sm-9" data-toggle="buttons">
-      <label class="btn btn-secondary[% IF jobset.enabled == 1 %] active[% END %]">
-        <input type="radio" id="editjobsetenabled" name="enabled" value="1" [% IF jobset.enabled == 1 %]checked[% END %]>Enabled</button>
+      <label class="btn btn-secondary[% IF jobset.enabled == 1 or jobset.enabled == undef %] active[% END %]">
+        <input type="radio" id="editjobsetenabled" name="enabled" value="1" [% IF jobset.enabled == 1 or jobset.enabled == undef %]checked[% END %]>Enabled</button>
       </label>
       <label class="btn btn-secondary[% IF jobset.enabled == 2 %] active[% END %]">
         <input type="radio" name="enabled" value="2" [% IF jobset.enabled == 2 %]checked[% END %]>One-shot</button>
