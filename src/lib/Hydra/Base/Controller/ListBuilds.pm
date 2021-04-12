@@ -38,7 +38,7 @@ sub nix : Chained('get_builds') PathPart('channel/latest') CaptureArgs(0) {
     $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
     $c->stash->{channelBuilds} = $c->stash->{latestSucceeded}
         ->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')")
-        ->search({}, { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
+        ->search({}, { columns => [@buildListColumns, 'drvpath', 'description', 'homepage', 'outputstoinstall']
                      , join => ["buildoutputs"]
                      , order_by => ["me.id", "buildoutputs.name"]
                      , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });

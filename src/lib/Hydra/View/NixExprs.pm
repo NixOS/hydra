@@ -8,8 +8,7 @@ use Hydra::Helper::AttributeSet;
 use Archive::Tar;
 use IO::Compress::Bzip2 qw(bzip2);
 use Encode;
-use Data::Dumper;
-
+use JSON::PP;
 
 sub process {
     my ($self, $c) = @_;
@@ -76,6 +75,12 @@ EOF
                 if $build->license;
             $res .= "      maintainers = ${\escapeString $build->maintainers};\n"
                 if $build->maintainers;
+            if ($build->outputstoinstall) {
+                $res .= "      outputsToInstall = [ ";
+                $res .= join " ", map escape($_), @{decode_json $build->outputstoinstall};
+                $res .= "];\n"
+            }
+
             $res .= "    };\n";
             $res .= "  } {\n";
             my @outputNames = sort (keys %{$pkg->{outputs}});

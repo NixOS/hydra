@@ -370,6 +370,10 @@ END;
         <td>[% IF build.maintainers %][% HTML.escape(build.maintainers) %][% ELSE %]<em>not given</em>[% END %]</td>
       </tr>
       <tr>
+        <th>Outputs to install:</th>
+        <td>[% IF build.outputstoinstall %]<tt>[% HTML.escape(build.outputstoinstall) %]</tt>[% ELSE %]<em>not given</em>[% END %]</td>
+      </tr>
+      <tr>
         <th>System:</th>
         <td><tt>[% build.system %]</tt></td>
       </tr>

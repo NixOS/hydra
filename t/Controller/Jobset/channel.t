@@ -65,4 +65,14 @@ subtest "Nested attributes generate valid Nix expressions" => sub {
     };
 };
 
+subtest 'Outputs To Install are present in the channel data' => sub {
+    my $jobset = createBaseJobset("outputs-to-install", "outputs-to-install.nix",, $ctx{jobsdir});
+    ok(evalSucceeds($jobset), "Evaluating jobs/outputs-to-install.nix should exit with return code 0");
+    my $build = $jobset->builds->find({job => "example"});
+    isnt($build, undef, "Our build was created.");
+
+    my $outputstoinstall = $build->get_column("outputstoinstall");
+    is(decode_json($outputstoinstall), [ "out", "installed" ], "Outputs to install include out and installed");
+};
+
 done_testing;
