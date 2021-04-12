@@ -245,6 +245,7 @@ void State::buildRemote(ref<Store> destStore,
 
         StorePathSet inputs;
         BasicDerivation basicDrv;
+        auto outputHashes = staticOutputHashes(*localStore, *step->drv);
         if (auto maybeBasicDrv = step->drv->tryResolve(*destStore))
             basicDrv = *maybeBasicDrv;
         else {
@@ -413,7 +414,6 @@ void State::buildRemote(ref<Store> destStore,
                 step->drv->type() != DerivationType::DeferredInputAddressed
             );
             auto outputMap = localStore->queryPartialDerivationOutputMap(step->drvPath);
-            auto outputHashes = staticOutputHashes(*localStore, *step->drv);
             for (auto & [outputName, outputPath] : outputMap)
               if (outputPath) {
                 auto outputHash = outputHashes.at(outputName);
@@ -504,8 +504,15 @@ void State::buildRemote(ref<Store> destStore,
 
         /* Register the outputs of the newly built drv */
         if (settings.isExperimentalFeatureEnabled("ca-derivations")) {
-          for (auto & [_, realisation] : builtOutputs) {
+          for (auto & [outputId, realisation] : builtOutputs) {
+              // Register the resolved drv output
               localStore->registerDrvOutput(realisation);
+
+              // Also register the unresolved one
+              auto unresolvedRealisation = realisation;
+              unresolvedRealisation.signatures.clear();
+              unresolvedRealisation.id.drvHash = outputHashes.at(outputId.outputName);
+              localStore->registerDrvOutput(unresolvedRealisation);
           }
         }
 
