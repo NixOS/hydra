@@ -51,7 +51,7 @@
         [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
       <tr>
-        <td colspan="4" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="fas fa-plus"></i> Add a new input</button></td>
+        <td colspan="5" style="text-align: center;"><button type="button" class="add-input btn btn-success"><i class="fas fa-plus"></i> Add a new input</button></td>
       </tr>
     </tbody>
   </table>
