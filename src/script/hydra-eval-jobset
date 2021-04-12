@@ -451,6 +451,11 @@ sub checkBuild {
             return $s eq "" ? undef : $s;
         }
 
+        my $outputstoinstall = undef;
+        if ($buildInfo->{outputsToInstall}) {
+            $outputstoinstall = encode_json $buildInfo->{outputsToInstall};
+        }
+
         # Add the build to the database.
         $build = $jobset->builds->create(
             { timestamp => $time
@@ -462,6 +467,7 @@ sub checkBuild {
             , license => null($buildInfo->{license})
             , homepage => null($buildInfo->{homepage})
             , maintainers => null($buildInfo->{maintainers})
+            , outputstoinstall => $outputstoinstall
             , maxsilent => $buildInfo->{maxSilent}
             , timeout => $buildInfo->{timeout}
             , nixname => $buildInfo->{nixName}

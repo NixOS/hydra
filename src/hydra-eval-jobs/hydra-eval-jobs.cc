@@ -87,6 +87,27 @@ static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const stri
     return concatStringsSep(", ", res);
 }
 
+static nlohmann::json queryMetaJSONList(EvalState & state, DrvInfo & drv, const string & name)
+{
+    auto attrs = nlohmann::json::array();
+
+    std::function<void(Value & v)> rec;
+
+    rec = [&](Value & v) {
+        state.forceValue(v);
+        if (v.type() == nString)
+            attrs.push_back(v.string.s);
+        else if (v.isList())
+            for (unsigned int n = 0; n < v.listSize(); ++n)
+                rec(*v.listElems()[n]);
+    };
+
+    Value * v = drv.queryMeta(name);
+    if (v) rec(*v);
+
+    return attrs;
+}
+
 static void worker(
     EvalState & state,
     Bindings & autoArgs,
@@ -167,6 +188,7 @@ static void worker(
                 job["license"] = queryMetaStrings(state, *drv, "license", "shortName");
                 job["homepage"] = drv->queryMetaString("homepage");
                 job["maintainers"] = queryMetaStrings(state, *drv, "maintainers", "email");
+                job["outputsToInstall"] = queryMetaJSONList(state, *drv, "outputsToInstall");
                 job["schedulingPriority"] = drv->queryMetaInt("schedulingPriority", 100);
                 job["timeout"] = drv->queryMetaInt("timeout", 36000);
                 job["maxSilent"] = drv->queryMetaInt("maxSilent", 7200);

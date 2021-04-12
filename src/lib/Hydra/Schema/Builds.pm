@@ -110,6 +110,11 @@ __PACKAGE__->table("builds");
   data_type: 'text'
   is_nullable: 1
 
+=head2 outputstoinstall
+
+  data_type: 'jsonb'
+  is_nullable: 1
+
 =head2 maxsilent
 
   data_type: 'integer'
@@ -228,6 +233,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "maintainers",
   { data_type => "text", is_nullable => 1 },
+  "outputstoinstall",
+  { data_type => "jsonb", is_nullable => 1 },
   "maxsilent",
   { data_type => "integer", default_value => 3600, is_nullable => 1 },
   "timeout",
@@ -528,8 +535,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-22 07:11:57
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Df5N0EByYJqoSUqA0dld/A
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-02-02 16:49:21
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:F3VjMvX+DndC9mCgOaMO5g
 
 __PACKAGE__->has_many(
   "dependents",
