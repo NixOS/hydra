@@ -19,6 +19,7 @@ our @EXPORT = qw(test_init hydra_setup nrBuildsForJobset queuedBuildsForJobset
 # Hash Parameters:
 #
 #  * hydra_config: configuration for the Hydra processes for your test.
+#  * nix_config: text to include in the test's nix.conf
 #
 # This clears several environment variables and sets them to ephemeral
 # values: a temporary database, temporary Nix store, temporary Hydra
@@ -47,6 +48,7 @@ sub test_init {
     my $nixconf = "$ENV{'NIX_CONF_DIR'}/nix.conf";
     open(my $fh, '>', $nixconf) or die "Could not open file '$nixconf' $!";
     print $fh "sandbox = false\n";
+    print $fh $opts{'nix_config'} || "";
     close $fh;
 
     $ENV{'HYDRA_CONFIG'} = "$dir/hydra.conf";
@@ -55,11 +57,11 @@ sub test_init {
     print $fh $opts{'hydra_config'} || "";
     close $fh;
 
-    $ENV{'NIX_STATE_DIR'} = "$dir/nix/var/nix";
-
-    $ENV{'NIX_MANIFESTS_DIR'} = "$dir/nix/var/nix/manifests";
-    $ENV{'NIX_STORE_DIR'} = "$dir/nix/store";
     $ENV{'NIX_LOG_DIR'} = "$dir/nix/var/log/nix";
+    $ENV{'NIX_REMOTE_SYSTEMS'} = '';
+    $ENV{'NIX_REMOTE'} = '';
+    $ENV{'NIX_STATE_DIR'} = "$dir/nix/var/nix";
+    $ENV{'NIX_STORE_DIR'} = "$dir/nix/store";
 
     my $pgsql = Test::PostgreSQL->new(
         extra_initdb_args => "--locale C.UTF-8"
