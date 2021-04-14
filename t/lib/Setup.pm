@@ -55,9 +55,9 @@ sub test_init {
     print $fh $opts{'hydra_config'} || "";
     close $fh;
 
+    $ENV{'NIX_LOG_DIR'} = "$dir/nix/var/log/nix";
     $ENV{'NIX_STATE_DIR'} = "$dir/nix/var/nix";
     $ENV{'NIX_STORE_DIR'} = "$dir/nix/store";
-    $ENV{'NIX_LOG_DIR'} = "$dir/nix/var/log/nix";
 
     my $pgsql = Test::PostgreSQL->new(
         extra_initdb_args => "--locale C.UTF-8"
