@@ -56,8 +56,6 @@ sub test_init {
     close $fh;
 
     $ENV{'NIX_STATE_DIR'} = "$dir/nix/var/nix";
-
-    $ENV{'NIX_MANIFESTS_DIR'} = "$dir/nix/var/nix/manifests";
     $ENV{'NIX_STORE_DIR'} = "$dir/nix/store";
     $ENV{'NIX_LOG_DIR'} = "$dir/nix/var/log/nix";
 
