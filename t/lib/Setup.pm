@@ -19,6 +19,7 @@ our @EXPORT = qw(test_init hydra_setup nrBuildsForJobset queuedBuildsForJobset
 # Hash Parameters:
 #
 #  * hydra_config: configuration for the Hydra processes for your test.
+#  * nix_config: text to include in the test's nix.conf
 #
 # This clears several environment variables and sets them to ephemeral
 # values: a temporary database, temporary Nix store, temporary Hydra
@@ -47,6 +48,7 @@ sub test_init {
     my $nixconf = "$ENV{'NIX_CONF_DIR'}/nix.conf";
     open(my $fh, '>', $nixconf) or die "Could not open file '$nixconf' $!";
     print $fh "sandbox = false\n";
+    print $fh $opts{'nix_config'} || "";
     close $fh;
 
     $ENV{'HYDRA_CONFIG'} = "$dir/hydra.conf";
