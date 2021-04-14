@@ -56,6 +56,8 @@ sub test_init {
     close $fh;
 
     $ENV{'NIX_LOG_DIR'} = "$dir/nix/var/log/nix";
+    $ENV{'NIX_REMOTE_SYSTEMS'} = '';
+    $ENV{'NIX_REMOTE'} = '';
     $ENV{'NIX_STATE_DIR'} = "$dir/nix/var/nix";
     $ENV{'NIX_STORE_DIR'} = "$dir/nix/store";
 
