@@ -5,17 +5,16 @@ use Hydra::Schema;
 use Hydra::Helper::Nix;
 use Hydra::Model::DB;
 use Getopt::Long qw(:config gnu_getopt);
-use Digest::SHA1 qw(sha1_hex);
 
 sub showHelp {
-    print <<EOF;
-Usage: $0 NAME
+    print q%
+Usage: hydra-create-user NAME
   [--rename-from NAME]
   [--type hydra|google|github]
   [--full-name FULLNAME]
   [--email-address EMAIL-ADDRESS]
   [--password PASSWORD]
-  [--password-hash SHA1-HASH]
+  [--password-hash HASH]
   [--wipe-roles]
   [--role ROLE]...
 
@@ -25,9 +24,31 @@ exists, roles are added to the existing roles unless --wipe-roles is
 specified.  If --rename-from is given, the specified account is
 renamed.
 
-Example:
-  \$ hydra-create-user alice --password foobar --role admin
-EOF
+* PASSWORD HASH
+The password hash should be an Argon2id hash, which can be generated
+via:
+
+    $ nix-shell -p libargon2
+    [nix-shell]$ argon2 "$(LC_ALL=C tr -dc '[:alnum:]' < /dev/urandom | head -c16)" -id -t 3 -k 262144 -p 1 -l 16 -e
+    foobar
+    Ctrl^D
+    $argon2id$v=19$m=262144,t=3,p=1$NFU1QXJRNnc4V1BhQ0NJQg$6GHqjqv5cNDDwZqrqUD0zQ
+
+SHA1 is also accepted, but SHA1 support is deprecated and the user's
+password will be upgraded to Argon2id on first login.
+
+
+Examples:
+
+Create a user with an argon2 password:
+
+  $ hydra-create-user alice --password-hash '$argon2id$v=19$m=262144,t=3,p=1$NFU1QXJRNnc4V1BhQ0NJQg$6GHqjqv5cNDDwZqrqUD0zQ' --role admin
+
+Create a user with a password insecurely provided on the commandline:
+
+  $ hydra-create-user alice --password foobar --role admin
+
+%;
     exit 0;
 }
 
@@ -84,8 +105,9 @@ $db->txn_do(sub {
         $user->update({ emailaddress => $userName, password => "!" });
     } else {
         $user->update({ emailaddress => $emailAddress }) if defined $emailAddress;
+
         if (defined $password && !(defined $passwordHash)) {
-            $passwordHash = sha1_hex($password);
+            $user->setPassword($password);
         }
         $user->update({ password => $passwordHash }) if defined $passwordHash;
     }

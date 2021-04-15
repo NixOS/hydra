@@ -70,6 +70,47 @@
             };
           };
 
+          CryptArgon2 = final.perlPackages.buildPerlModule {
+            pname = "Crypt-Argon2";
+            version = "0.010";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/L/LE/LEONT/Crypt-Argon2-0.010.tar.gz";
+              sha256 = "3ea1c006f10ef66fd417e502a569df15c4cc1c776b084e35639751c41ce6671a";
+            };
+            nativeBuildInputs = [ pkgs.ld-is-cc-hook ];
+            meta = {
+              description = "Perl interface to the Argon2 key derivation functions";
+              license = final.lib.licenses.cc0;
+            };
+          };
+
+          CryptPassphrase = final.buildPerlPackage {
+            pname = "Crypt-Passphrase";
+            version = "0.003";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/L/LE/LEONT/Crypt-Passphrase-0.003.tar.gz";
+              sha256 = "685aa090f8179a86d6896212ccf8ccfde7a79cce857199bb14e2277a10d240ad";
+            };
+            meta = {
+              description = "A module for managing passwords in a cryptographically agile manner";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          CryptPassphraseArgon2 = final.buildPerlPackage {
+            pname = "Crypt-Passphrase-Argon2";
+            version = "0.002";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/L/LE/LEONT/Crypt-Passphrase-Argon2-0.002.tar.gz";
+              sha256 = "3906ff81697d13804ee21bd5ab78ffb1c4408b4822ce020e92ecf4737ba1f3a8";
+            };
+            propagatedBuildInputs = with final.perlPackages; [ CryptArgon2 CryptPassphrase ];
+            meta = {
+              description = "An Argon2 encoder for Crypt::Passphrase";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
           DirSelf = final.buildPerlPackage {
             pname = "Dir-Self";
             version = "0.11";
@@ -229,6 +270,19 @@
               license = with final.stdenv.lib.licenses; [ artistic1 ];
             };
           };
+
+          StringCompareConstantTime = final.buildPerlPackage {
+            pname = "String-Compare-ConstantTime";
+            version = "0.321";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/F/FR/FRACTAL/String-Compare-ConstantTime-0.321.tar.gz";
+              sha256 = "0b26ba2b121d8004425d4485d1d46f59001c83763aa26624dff6220d7735d7f7";
+            };
+            meta = {
+              description = "Timing side-channel protected string compare";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
         };
 
         hydra = with final; let
@@ -254,6 +308,8 @@
                 CatalystViewTT
                 CatalystXScriptServerStarman
                 CatalystXRoleApplicator
+                CryptPassphrase
+                CryptPassphraseArgon2
                 CryptRandPasswd
                 DBDPg
                 DBDSQLite
@@ -279,6 +335,7 @@
                 SQLSplitStatement
                 SetScalar
                 Starman
+                StringCompareConstantTime
                 SysHostnameLong
                 TermSizeAny
                 TestMore
