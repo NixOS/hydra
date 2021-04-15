@@ -338,6 +338,9 @@ void State::buildRemote(ref<Store> destStore,
                 result.stopTime = stop;
             }
         }
+        if (GET_PROTOCOL_MINOR(remoteVersion) >= 6) {
+            worker_proto::read(*localStore, from, Phantom<DrvOutputs> {});
+        }
         switch ((BuildResult::Status) res) {
             case BuildResult::Built:
                 result.stepStatus = bsSuccess;
