@@ -7,7 +7,6 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::View::TT;
-use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
 use Nix::Config;
 use Encode;
