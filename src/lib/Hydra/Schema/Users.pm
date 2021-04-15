@@ -214,9 +214,7 @@ sub json_hint {
     return \%hint;
 }
 
-sub check_password {
-    my ($self, $password) = @_;
-
+sub _authenticator() {
     my $authenticator = Crypt::Passphrase->new(
         encoder    => 'Argon2',
         validators => [
@@ -228,17 +226,30 @@ sub check_password {
         ],
     );
 
+    return $authenticator;
+}
+
+sub check_password {
+    my ($self, $password) = @_;
+
+    my $authenticator = _authenticator();
     if ($authenticator->verify_password($password, $self->password)) {
         if ($authenticator->needs_rehash($self->password)) {
-            $self->update({
-                "password" => $authenticator->hash_password($password),
-            });
+            $self->setPassword($password);
         }
 
         return 1;
     } else {
         return 0;
     }
+}
+
+sub setPassword {
+    my ($self, $password) = @_;;
+
+    $self->update({
+        "password" => _authenticator()->hash_password($password),
+    });
 }
 
 1;
