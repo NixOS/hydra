@@ -229,6 +229,19 @@
               license = with final.stdenv.lib.licenses; [ artistic1 ];
             };
           };
+
+          StringCompareConstantTime = final.buildPerlPackage {
+            pname = "String-Compare-ConstantTime";
+            version = "0.321";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/F/FR/FRACTAL/String-Compare-ConstantTime-0.321.tar.gz";
+              sha256 = "0b26ba2b121d8004425d4485d1d46f59001c83763aa26624dff6220d7735d7f7";
+            };
+            meta = {
+              description = "Timing side-channel protected string compare";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
         };
 
         hydra = with final; let
@@ -279,6 +292,7 @@
                 SQLSplitStatement
                 SetScalar
                 Starman
+                StringCompareConstantTime
                 SysHostnameLong
                 TermSizeAny
                 TestMore

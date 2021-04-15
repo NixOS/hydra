@@ -34,8 +34,7 @@ __PACKAGE__->config(
             credential => {
                 class => "Password",
                 password_field => "password",
-                password_type => "hashed",
-                password_hash_type => "SHA-1",
+                password_type => "self_check",
             },
             store => {
                 class => "DBIx::Class",
