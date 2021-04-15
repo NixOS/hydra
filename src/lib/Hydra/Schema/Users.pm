@@ -195,6 +195,7 @@ __PACKAGE__->many_to_many("projects", "projectmembers", "project");
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4/WZ95asbnGmK+nEHb4sLQ
 
+use Crypt::Passphrase;
 use Digest::SHA1 qw(sha1_hex);
 use String::Compare::ConstantTime;
 
@@ -216,7 +217,28 @@ sub json_hint {
 sub check_password {
     my ($self, $password) = @_;
 
-    return String::Compare::ConstantTime::equals($self->password, sha1_hex($password));
+    my $authenticator = Crypt::Passphrase->new(
+        encoder    => 'Argon2',
+        validators => [
+            (sub {
+                my ($password, $hash) = @_;
+
+                return String::Compare::ConstantTime::equals($hash, sha1_hex($password));
+            })
+        ],
+    );
+
+    if ($authenticator->verify_password($password, $self->password)) {
+        if ($authenticator->needs_rehash($self->password)) {
+            $self->update({
+                "password" => $authenticator->hash_password($password),
+            });
+        }
+
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 1;
