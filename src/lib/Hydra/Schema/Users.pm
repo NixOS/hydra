@@ -239,6 +239,12 @@ sub check_password {
         }
 
         return 1;
+    } elsif ($authenticator->verify_password(sha1_hex($password), $self->password)) {
+        # The user's database record has their old password as sha1, re-hashed as Argon2.
+        # Store their password hashed only with Argon2.
+        $self->setPassword($password);
+
+        return 1;
     } else {
         return 0;
     }

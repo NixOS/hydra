@@ -39,4 +39,15 @@ ok($user->check_password("foobar"), "Checking the password, foobar, is right");
 isnt($user->password, "8843d7f92416211de9ebb963ff4ce28125932878", "The user has had their password rehashed.");
 ok($user->check_password("foobar"), "Checking the password, foobar, is still right");
 
+# All sha1 passwords will be upgraded when `hydra-init` is run, by passing the sha1 through
+# Argon2. Verify a rehashed sha1 validates too. This removes very weak password hashes
+# from the database without requiring users to log in.
+subtest "Hashing their sha1 as Argon2 still lets them log in with their password" => sub {
+    $user->setPassword("8843d7f92416211de9ebb963ff4ce28125932878"); # SHA1 of "foobar"
+    my $hashedHashPassword = $user->password;
+    isnt($user->password, "8843d7f92416211de9ebb963ff4ce28125932878", "The user has had their password's hash rehashed.");
+    ok($user->check_password("foobar"), "Checking the password, foobar, is still right");
+    isnt($user->password, $hashedHashPassword, "The user's hashed hash was replaced with just Argon2.");
+};
+
 done_testing;
