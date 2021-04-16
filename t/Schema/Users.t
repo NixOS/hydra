@@ -50,4 +50,23 @@ subtest "Hashing their sha1 as Argon2 still lets them log in with their password
     isnt($user->password, $hashedHashPassword, "The user's hashed hash was replaced with just Argon2.");
 };
 
+
+subtest "Setting the user's passwordHash to a sha1 stores the password as a hashed sha1" => sub {
+    $user->setPasswordHash("8843d7f92416211de9ebb963ff4ce28125932878");
+    isnt($user->password, "8843d7f92416211de9ebb963ff4ce28125932878", "The password was not saved in plain text.");
+
+    my $storedPassword = $user->password;
+    ok($user->check_password("foobar"), "Their password validates");
+    isnt($storedPassword, $user->password, "The password was upgraded.");
+};
+
+subtest "Setting the user's passwordHash to an argon2 password stores the password as given" => sub {
+    $user->setPasswordHash('$argon2id$v=19$m=262144,t=3,p=1$tMnV5paYjmIrUIb6hylaNA$M8/e0i3NGrjhOliVLa5LqQ');
+    isnt($user->password, "8843d7f92416211de9ebb963ff4ce28125932878", "The password was not saved in plain text.");
+    is($user->password, '$argon2id$v=19$m=262144,t=3,p=1$tMnV5paYjmIrUIb6hylaNA$M8/e0i3NGrjhOliVLa5LqQ', "The password was saved as-is.");
+
+    my $storedPassword = $user->password;
+    ok($user->check_password("foobar"), "Their password validates");
+    is($storedPassword, $user->password, "The password was not upgraded.");
+};
 done_testing;

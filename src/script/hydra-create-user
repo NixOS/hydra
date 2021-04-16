@@ -109,7 +109,10 @@ $db->txn_do(sub {
         if (defined $password && !(defined $passwordHash)) {
             $user->setPassword($password);
         }
-        $user->update({ password => $passwordHash }) if defined $passwordHash;
+
+        if (defined $passwordHash) {
+            $user->setPasswordHash($passwordHash);
+        }
     }
 
     $user->userroles->delete if $wipeRoles;

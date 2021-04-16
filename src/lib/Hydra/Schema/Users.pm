@@ -258,4 +258,15 @@ sub setPassword {
     });
 }
 
+sub setPasswordHash {
+    my ($self, $passwordHash) = @_;;
+
+    if ($passwordHash =~ /^[a-f0-9]{40}$/) {
+        # This is (probably) a sha1 password, re-hash it and we'll check for a hashed sha1 in Users.pm
+        $self->setPassword($passwordHash);
+    } else {
+        $self->update({ password => $passwordHash });
+    }
+}
+
 1;
