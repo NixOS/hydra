@@ -54,7 +54,13 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
         }
         else {
             pgmName = "ssh";
-            argv = {"ssh", machine->sshName};
+            auto sshName = machine->sshName;
+            std::string prefix = "ssh-ng://";
+            size_t pos = sshName.find(prefix);
+            if (pos != std::string::npos) {
+                sshName.erase(pos, prefix.length());
+            }
+            argv = {"ssh", sshName};
             if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
             if (machine->sshPublicHostKey != "") {
                 Path fileName = tmpDir + "/host-key";
