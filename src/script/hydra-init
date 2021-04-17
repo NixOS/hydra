@@ -72,3 +72,12 @@ for (my $n = $schemaVersion; $n < $maxSchemaVersion; $n++) {
     };
     die "schema upgrade failed: $@\n" if $@;
 }
+
+my @usersWithSha1s = $db->resultset('Users')->search(\['LENGTH(password) = 40 AND password ~ \'^[0-9a-f]{40}$\'']);
+if (scalar(@usersWithSha1s) > 0) {
+    print STDERR "upgrading user passwords from sha1\n";
+    for my $user (@usersWithSha1s) {
+        print STDERR " * " . $user->username . "\n";
+        $user->setPassword($user->password);
+    }
+}

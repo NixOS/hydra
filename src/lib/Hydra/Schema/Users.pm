@@ -239,6 +239,12 @@ sub check_password {
         }
 
         return 1;
+    } elsif ($authenticator->verify_password(sha1_hex($password), $self->password)) {
+        # The user's database record has their old password as sha1, re-hashed as Argon2.
+        # Store their password hashed only with Argon2.
+        $self->setPassword($password);
+
+        return 1;
     } else {
         return 0;
     }
@@ -250,6 +256,17 @@ sub setPassword {
     $self->update({
         "password" => _authenticator()->hash_password($password),
     });
+}
+
+sub setPasswordHash {
+    my ($self, $passwordHash) = @_;;
+
+    if ($passwordHash =~ /^[a-f0-9]{40}$/) {
+        # This is (probably) a sha1 password, re-hash it and we'll check for a hashed sha1 in Users.pm
+        $self->setPassword($passwordHash);
+    } else {
+        $self->update({ password => $passwordHash });
+    }
 }
 
 1;
