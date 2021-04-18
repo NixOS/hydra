@@ -261,7 +261,7 @@ sub requireProjectOwner {
 
 sub checkProjectVisibleForGuest {
     my ($c, $project) = @_;
-    if ($project->private == 1) {
+    if (defined $project && $project->private == 1) {
         requireUser($c);
     }
 }
