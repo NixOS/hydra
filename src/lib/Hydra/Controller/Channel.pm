@@ -10,6 +10,8 @@ sub channel : Chained('/') PathPart('channel/custom') CaptureArgs(3) {
 
     $c->stash->{project} = $c->model('DB::Projects')->find($projectName);
 
+    checkProjectVisibleForGuest($c, $c->stash->{project});
+
     notFound($c, "Project $projectName doesn't exist.")
         if !$c->stash->{project};
 

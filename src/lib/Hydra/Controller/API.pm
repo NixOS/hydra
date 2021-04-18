@@ -50,6 +50,8 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     error($c, "Parameter not defined!") if !defined $nr;
 
     my $project = $c->request->params->{project};
+    checkProjectVisibleForGuest($c, $c->stash->{project});
+
     my $jobset = $c->request->params->{jobset};
     my $job = $c->request->params->{job};
     my $system = $c->request->params->{system};
@@ -101,6 +103,8 @@ sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
     my $project = $c->model('DB::Projects')->find($projectName)
         or notFound($c, "Project $projectName doesn't exist.");
 
+    checkProjectVisibleForGuest($c, $project);
+
     my @jobsets = jobsetOverview($c, $project);
 
     my @list;
@@ -119,7 +123,17 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
     my $nr = $c->request->params->{nr};
     error($c, "Parameter not defined!") if !defined $nr;
 
-    my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["priority DESC", "id"]});
+    my $criteria = {finished => 0};
+    my $extra = {
+        rows => $nr,
+        order_by => ["priority DESC", "id"]
+    };
+    unless ($c->user_exists) {
+        $criteria->{"project.private"} = 0;
+        $extra->{join} = ["project"];
+    }
+
+    my @builds = $c->model('DB::Builds')->search($criteria, $extra);
 
     my @list;
     push @list, buildToHash($_) foreach @builds;
@@ -182,6 +196,16 @@ sub scmdiff : Path('/api/scmdiff') Args(0) {
     my $type = $c->request->params->{type};
     my $rev1 = $c->request->params->{rev1};
     my $rev2 = $c->request->params->{rev2};
+
+    unless ($c->user_exists) {
+        my $search = $c->model('DB::JobsetEvalInputs')->search(
+            { "project.private" => 0, "me.uri" => $uri },
+            { join => { "eval" => { jobset => "project" } } }
+        );
+        if ($search == 0) {
+            forceLogin($c);
+        }
+    }
 
     die("invalid revisions: [$rev1] [$rev2]") if $rev1 !~ m/^[a-zA-Z0-9_.]+$/ || $rev2 !~ m/^[a-zA-Z0-9_.]+$/;
 

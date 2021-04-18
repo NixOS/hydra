@@ -23,23 +23,37 @@ sub all : Chained('get_builds') PathPart {
     $c->stash->{total} = $c->stash->{allBuilds}->search({finished => 1})->count
         unless defined $c->stash->{total};
 
-    $c->stash->{builds} = [ $c->stash->{allBuilds}->search(
-        { finished => 1 },
-        { order_by => "stoptime DESC"
+    my $extra = {
+          order_by => "stoptime DESC"
         , columns => [@buildListColumns]
         , rows => $resultsPerPage
-        , page => $page }) ];
+        , page => $page };
+
+    my $criteria = { finished => 1 };
+
+    unless ($c->user_exists) {
+        $extra->{join} = ["project"];
+        $criteria->{"project.private"} = 0;
+    }
+
+    $c->stash->{builds} = [ $c->stash->{allBuilds}->search(
+        $criteria,
+        $extra
+    ) ];
 }
 
 
 sub nix : Chained('get_builds') PathPart('channel/latest') CaptureArgs(0) {
     my ($self, $c) = @_;
 
+    my $private = $c->user_exists ? [1,0] : [0];
+
     $c->stash->{channelName} = $c->stash->{channelBaseName} . "-latest";
     $c->stash->{channelBuilds} = $c->stash->{latestSucceeded}
         ->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')")
-        ->search({}, { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
-                     , join => ["buildoutputs"]
+        ->search({"project.private" => {-in => $private}},
+                    { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
+                     , join => ["buildoutputs", "project"]
                      , order_by => ["me.id", "buildoutputs.name"]
                      , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
 }

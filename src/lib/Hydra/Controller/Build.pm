@@ -37,6 +37,8 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     $c->stash->{project} = $c->stash->{build}->project;
     $c->stash->{jobset} = $c->stash->{build}->jobset;
     $c->stash->{job} = $c->stash->{build}->job;
+
+    checkProjectVisibleForGuest($c, $c->stash->{project});
 }
 
 

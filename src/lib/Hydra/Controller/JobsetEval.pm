@@ -18,6 +18,8 @@ sub evalChain : Chained('/') PathPart('eval') CaptureArgs(1) {
     $c->stash->{eval} = $eval;
     $c->stash->{jobset} = $eval->jobset;
     $c->stash->{project} = $eval->jobset->project;
+
+    checkProjectVisibleForGuest($c, $c->stash->{project});
 }
 
 

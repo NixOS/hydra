@@ -62,6 +62,12 @@ __PACKAGE__->table("projects");
   default_value: 0
   is_nullable: 0
 
+=head2 private
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 0
+
 =head2 owner
 
   data_type: 'text'
@@ -100,6 +106,8 @@ __PACKAGE__->add_columns(
   "enabled",
   { data_type => "integer", default_value => 1, is_nullable => 0 },
   "hidden",
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
+  "private",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "owner",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
@@ -243,8 +251,8 @@ Composing rels: L</projectmembers> -> username
 __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:nKVZ8ZNCZQQ52zbpDAaoQQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-29 20:52:46
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zh+ccEbTfH0WypoHW+FPSw
 
 use JSON;
 
@@ -262,6 +270,7 @@ sub as_json {
         # boolean_columns
         "enabled" => $self->get_column("enabled") ? JSON::true : JSON::false,
         "hidden" => $self->get_column("hidden") ? JSON::true : JSON::false,
+        "private" => $self->get_column("private") ? JSON::true : JSON::false,
 
         "jobsets" => [ map { $_->name } $self->jobsets ]
     );

@@ -16,6 +16,8 @@ sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
 
     $c->stash->{project} = $c->model('DB::Projects')->find($projectName);
 
+    checkProjectVisibleForGuest($c, $c->stash->{project});
+
     $c->stash->{isProjectOwner} = !$isCreate && isProjectOwner($c, $c->stash->{project});
 
     notFound($c, "Project ‘$projectName’ doesn't exist.")
@@ -156,6 +158,7 @@ sub updateProject {
         , homepage => trim($c->stash->{params}->{homepage})
         , enabled => defined $c->stash->{params}->{enabled} ? 1 : 0
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
+        , private => defined $c->stash->{params}->{private} ? 1 : 0
         , owner => $owner
         , declfile => trim($c->stash->{params}->{declarative}->{file})
         , decltype => trim($c->stash->{params}->{declarative}->{type})

@@ -44,6 +44,7 @@ create table Projects (
     description   text,
     enabled       integer not null default 1,
     hidden        integer not null default 0,
+    private       integer not null default 0,
     owner         text not null,
     homepage      text, -- URL for the project
     declfile      text, -- File containing declarative jobset specification

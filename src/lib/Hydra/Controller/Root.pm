@@ -103,7 +103,13 @@ sub deserialize :ActionClass('Deserialize') { }
 sub index :Path :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'overview.tt';
-    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => ['enabled DESC', 'name']})];
+
+    my $includePrivate = $c->user_exists ? [1,0] : [0];
+
+    $c->stash->{projects} = [$c->model('DB::Projects')->search(
+        {private => {-in => $includePrivate}},
+        {order_by => ['enabled DESC', 'name']}
+    )];
     $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, { order_by => ['createtime DESC'], rows => 5 })];
     $self->status_ok($c,
         entity => $c->stash->{projects}
@@ -115,15 +121,23 @@ sub queue :Local :Args(0) :ActionClass('REST') { }
 
 sub queue_GET {
     my ($self, $c) = @_;
+    my $criteria = {finished => 0};
+    my $extra = {
+        columns => [@buildListColumns],
+        order_by => ["priority DESC", "id"]
+    };
+    unless ($c->user_exists) {
+        $criteria->{"project.private"} = 0;
+        $extra->{join} = ["project"];
+    }
     $c->stash->{template} = 'queue.tt';
     $c->stash->{flashMsg} //= $c->flash->{buildMsg};
     $self->status_ok(
         $c,
         entity => [$c->model('DB::Builds')->search(
-            { finished => 0 },
-            { order_by => ["globalpriority desc", "id"],
-            , columns => [@buildListColumns]
-            })]
+            $criteria,
+            $extra
+        )]
     );
 }
 
@@ -132,9 +146,14 @@ sub queue_summary :Local :Path('queue-summary') :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'queue-summary.tt';
 
+    my $extra = " where ";
+    unless ($c->user_exists) {
+        $extra = "inner join Projects p on p.name = project where p.private = 0 and ";
+    }
+
     $c->stash->{queued} = dbh($c)->selectall_arrayref(
         "select project, jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from Builds " .
-        "where finished = 0 group by project, jobset order by queued desc",
+        "$extra finished = 0 group by project, jobset order by queued desc",
         { Slice => {} });
 
     $c->stash->{systems} = dbh($c)->selectall_arrayref(
@@ -147,12 +166,19 @@ sub status :Local :Args(0) :ActionClass('REST') { }
 
 sub status_GET {
     my ($self, $c) = @_;
+    my $criteria = { "buildsteps.busy" => { '!=', 0 } };
+    my @join = ("buildsteps");
+    unless ($c->user_exists) {
+        $criteria->{"project.private"} = 0;
+        push @join, "project";
+    }
+
     $self->status_ok(
         $c,
         entity => [$c->model('DB::Builds')->search(
-            { "buildsteps.busy" => { '!=', 0 } },
+            $criteria,
             { order_by => ["globalpriority DESC", "id"],
-              join => "buildsteps",
+              join => @join,
               columns => [@buildListColumns]
             })]
     );
@@ -194,11 +220,16 @@ sub machines :Local Args(0) {
         }
     }
 
+    my $extra = "where";
+    unless ($c->user_exists) {
+        $extra = "inner join Projects p on p.name = b.project where p.private = 0 and ";
+    }
+
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = dbh($c)->selectall_arrayref(
         "select build, stepnr, s.system as system, s.drvpath as drvpath, machine, s.starttime as starttime, project, jobset, job, s.busy as busy " .
         "from BuildSteps s join Builds b on s.build = b.id " .
-        "where busy != 0 order by machine, stepnr",
+        "$extra busy != 0 order by machine, stepnr",
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
     $self->status_ok($c, entity => $c->stash->{machines});
@@ -413,16 +444,28 @@ sub steps :Local Args(0) {
 
     my $resultsPerPage = 20;
 
+    my $criteria = {
+        "me.starttime" => { '!=', undef },
+        "me.stoptime" => { '!=', undef }
+    };
+
+    my $extra = {
+        order_by => [ "me.stoptime desc" ],
+        rows => $resultsPerPage,
+        offset => ($page - 1) * $resultsPerPage,
+    };
+
+    unless ($c->user_exists) {
+        $criteria->{"project.private"} = 0;
+        $extra->{join} = {"build" => "project"};
+    }
+
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{steps} = [ $c->model('DB::BuildSteps')->search(
-        { starttime => { '!=', undef },
-          stoptime => { '!=', undef }
-        },
-        { order_by => [ "stoptime desc" ],
-          rows => $resultsPerPage,
-          offset => ($page - 1) * $resultsPerPage
-        }) ];
+        $criteria,
+        $extra
+    ) ];
 
     $c->stash->{total} = approxTableSize($c, "IndexBuildStepsOnStopTime");
 }
@@ -443,45 +486,74 @@ sub search :Local Args(0) {
 
     $c->model('DB')->schema->txn_do(sub {
         $c->model('DB')->schema->storage->dbh->do("SET LOCAL statement_timeout = 20000");
-        $c->stash->{projects} = [ $c->model('DB::Projects')->search(
-            { -and =>
+
+        my $projectCriteria = {
+            -and =>
                 [ { -or => [ name => { ilike => "%$query%" }, displayName => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] }
                 , { hidden => 0 }
                 ]
-            },
-            { order_by => ["name"] } ) ];
+        };
 
-        $c->stash->{jobsets} = [ $c->model('DB::Jobsets')->search(
-            { -and =>
+        my $jobsetCriteria = {
+            -and =>
                 [ { -or => [ "me.name" => { ilike => "%$query%" }, "me.description" => { ilike => "%$query%" } ] }
                 , { "project.hidden" => 0, "me.hidden" => 0 }
                 ]
-            },
-            { order_by => ["project", "name"], join => ["project"] } ) ];
+        };
 
-        $c->stash->{jobs} = [ $c->model('DB::Builds')->search(
-            { "job" => { ilike => "%$query%" }
+        my $buildCriteria = {
+            "job" => { ilike => "%$query%" }
             , "project.hidden" => 0
             , "jobset.hidden" => 0
             , iscurrent => 1
-            },
+        };
+
+        my $buildSearchExtra = {
+            order_by => ["id desc"]
+            , rows => $c->stash->{limit}, join => []
+        };
+
+        my $outCriteria = {
+            "buildoutputs.path" => { ilike => "%$query%" }
+        };
+
+        my $drvCriteria = { "drvpath" => { ilike => "%$query%" } };
+
+        unless ($c->user_exists) {
+            $projectCriteria->{private} = 0;
+            $jobsetCriteria->{"project.private"} = 0;
+            $buildCriteria->{"project.private"} = 0;
+            push @{$buildSearchExtra->{join}}, "project";
+            $outCriteria->{"project.private"} = 0;
+            $drvCriteria->{"project.private"} = 0;
+        }
+
+        $c->stash->{projects} = [ $c->model('DB::Projects')->search(
+            $projectCriteria,
+            { order_by => ["name"] } ) ];
+
+        $c->stash->{jobsets} = [ $c->model('DB::Jobsets')->search(
+            $jobsetCriteria,
+            { order_by => ["project", "name"], join => ["project"] } ) ];
+
+        $c->stash->{jobs} = [ $c->model('DB::Builds')->search(
+            $buildCriteria,
             { order_by => ["project", "jobset", "job"], join => ["project", "jobset"]
             , rows => $c->stash->{limit} + 1
             } )
         ];
 
         # Perform build search in separate queries to prevent seq scan on buildoutputs table.
+        my $outExtra = $buildSearchExtra;
+        push @{$outExtra->{join}}, "buildoutputs";
         $c->stash->{builds} = [ $c->model('DB::Builds')->search(
-            { "buildoutputs.path" => { ilike => "%$query%" } },
-            { order_by => ["id desc"], join => ["buildoutputs"]
-            , rows => $c->stash->{limit}
-            } ) ];
+            $outCriteria,
+            $outExtra
+        ) ];
 
         $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
-            { "drvpath" => { ilike => "%$query%" } },
-            { order_by => ["id desc"]
-            , rows => $c->stash->{limit}
-            } ) ];
+            $drvCriteria,
+            $buildSearchExtra ) ];
 
         $c->stash->{resource} = { projects => $c->stash->{projects},
                                 jobsets  => $c->stash->{jobsets},

@@ -18,6 +18,13 @@
   </div>
 
   <div class="form-group row">
+    <label class="col-sm-3" for="editprojectprivate">Private</label>
+    <div class="col-sm-9">
+      <input type="checkbox" id="editprojectprivate" name="private" [% IF project.private %] checked="checked" [% END %]/>
+    </div>
+  </div>
+
+  <div class="form-group row">
     <label class="col-sm-3" for="editprojectidentifier">Identifier</label>
     <div class="col-sm-9">
       <input type="text" class="form-control" id="editprojectidentifier" name="name" [% HTML.attributes(value => project.name) %]/>
