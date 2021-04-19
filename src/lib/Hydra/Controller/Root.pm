@@ -349,33 +349,6 @@ sub nar :Local :Args(1) {
     }
 
     else {
-        unless ($c->user_exists) {
-            my $stmt = dbh($c)->prepare_cached(<<QUERY);
-select 1
-  from builds b
-  inner join buildoutputs bo on bo.build = b.id
-  inner join projects p on p.name = b.project
-  where p.private = 0
-  and bo.path like ? || '%'
-union select 1
-  from builds b
-  inner join buildstepoutputs so on so.build = b.id
-  inner join projects p on p.name = b.project
-  where p.private = 0
-  and so.path like ? || '%';
-QUERY
-
-            my $path_ = $path;
-            $path_ =~ s/^nar\///;
-            $path_ =~ s/\.xz$//;
-            $path_ = "/nix/store/$path_";
-
-            my $r = dbh($c)->selectall_array($stmt, {}, $path_, $path_);
-
-            if ($r == 0) {
-                forceLogin($c);
-            }
-        }
         $path = $Nix::Config::storeDir . "/$path";
 
         gone($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
