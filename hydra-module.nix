@@ -243,10 +243,6 @@ in
     nix.extraOptions = ''
       gc-keep-outputs = true
       gc-keep-derivations = true
-
-      # The default (`true') slows Nix down a lot since the build farm
-      # has so many GC roots.
-      gc-check-reachability = false
     '';
 
     systemd.services.hydra-init =
