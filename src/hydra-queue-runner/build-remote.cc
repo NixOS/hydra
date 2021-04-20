@@ -246,7 +246,7 @@ void State::buildRemote(ref<Store> destStore,
         StorePathSet inputs;
         BasicDerivation basicDrv;
         auto outputHashes = staticOutputHashes(*localStore, *step->drv);
-        if (auto maybeBasicDrv = step->drv->tryResolve(*destStore))
+        if (auto maybeBasicDrv = step->drv->tryResolve(*localStore))
             basicDrv = *maybeBasicDrv;
         else {
             basicDrv = BasicDerivation(*step->drv);
@@ -255,7 +255,7 @@ void State::buildRemote(ref<Store> destStore,
               auto hashes = staticOutputHashes(*localStore, drv2);
               for (auto & name : input.second) {
                 if (settings.isExperimentalFeatureEnabled("ca-derivations")) {
-                  auto inputRealisation = destStore->queryRealisation(DrvOutput{hashes.at(name), name});
+                  auto inputRealisation = localStore->queryRealisation(DrvOutput{hashes.at(name), name});
                   assert(inputRealisation);
                   inputs.insert(inputRealisation->outPath);
                   basicDrv.inputSrcs.insert(inputRealisation->outPath);
