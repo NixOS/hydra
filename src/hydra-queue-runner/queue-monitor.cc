@@ -468,12 +468,18 @@ Step::ptr State::createStep(ref<Store> destStore,
     auto outputHashes = staticOutputHashes(*localStore, *(step->drv));
     bool valid = true;
     std::map<DrvOutput, std::optional<StorePath>> missing;
-    for (auto & [outputName, maybeOutputPath] : destStore->queryPartialDerivationOutputMap(step->drvPath)) {
-      if (!(maybeOutputPath && destStore->isValidPath(*maybeOutputPath))) {
+    for (auto [outputName, outputHash] : outputHashes) {
+      if (! destStore->queryRealisation(DrvOutput{outputHash, outputName})) {
         valid = false;
-        missing.insert({{outputHashes.at(outputName), outputName}, maybeOutputPath});
+        missing.insert({{outputHash, outputName}, std::nullopt});
       }
     }
+    /* for (auto & [outputName, maybeOutputPath] : destStore->queryPartialDerivationOutputMap(step->drvPath)) { */
+    /*   if (!(maybeOutputPath && destStore->isValidPath(*maybeOutputPath))) { */
+    /*     valid = false; */
+    /*     missing.insert({{outputHashes.at(outputName), outputName}, maybeOutputPath}); */
+    /*   } */
+    /* } */
 
     /* Try to copy the missing paths from the local store or from
        substitutes. */
