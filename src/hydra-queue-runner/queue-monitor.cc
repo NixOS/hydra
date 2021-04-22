@@ -468,18 +468,23 @@ Step::ptr State::createStep(ref<Store> destStore,
     auto outputHashes = staticOutputHashes(*localStore, *(step->drv));
     bool valid = true;
     std::map<DrvOutput, std::optional<StorePath>> missing;
-    for (auto [outputName, outputHash] : outputHashes) {
-      if (! destStore->queryRealisation(DrvOutput{outputHash, outputName})) {
-        valid = false;
-        missing.insert({{outputHash, outputName}, std::nullopt});
+    if (settings.isExperimentalFeatureEnabled("ca-derivations")) {
+      for (auto [outputName, outputHash] : outputHashes) {
+        if (! destStore->queryRealisation(DrvOutput{outputHash, outputName})) {
+          valid = false;
+          missing.insert({{outputHash, outputName}, std::nullopt});
+        }
+      }
+    } else {
+      for (auto & [outputName, maybeOutputPath] : step->drv->outputsAndOptPaths(*destStore)) {
+        // If we're not CA, all the output paths should be known
+        assert(maybeOutputPath.second);
+        if (!destStore->isValidPath(*maybeOutputPath.second)) {
+          valid = false;
+          missing.insert({{outputHashes.at(outputName), outputName}, maybeOutputPath.second});
+        }
       }
     }
-    /* for (auto & [outputName, maybeOutputPath] : destStore->queryPartialDerivationOutputMap(step->drvPath)) { */
-    /*   if (!(maybeOutputPath && destStore->isValidPath(*maybeOutputPath))) { */
-    /*     valid = false; */
-    /*     missing.insert({{outputHashes.at(outputName), outputName}, maybeOutputPath}); */
-    /*   } */
-    /* } */
 
     /* Try to copy the missing paths from the local store or from
        substitutes. */
