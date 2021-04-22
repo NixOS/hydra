@@ -635,10 +635,13 @@ void State::processJobsetSharesChange(Connection & conn)
 
 BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> destStore, const nix::StorePath & drvPath)
 {
+
+    auto derivationOutputs = localStore->queryDerivationOutputMap(drvPath);
+
     {
     pqxx::work txn(conn);
 
-    for (auto & [name, output] : localStore->queryDerivationOutputMap(drvPath)) {
+    for (auto & [name, output] : derivationOutputs) {
         auto r = txn.exec_params
             ("select id, buildStatus, releaseName, closureSize, size from Builds b "
              "join BuildOutputs o on b.id = o.build "
@@ -697,5 +700,5 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
     }
 
     NarMemberDatas narMembers;
-    return getBuildOutput(destStore, narMembers, drvPath);
+    return getBuildOutput(destStore, narMembers, derivationOutputs);
 }

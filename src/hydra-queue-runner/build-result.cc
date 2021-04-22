@@ -11,14 +11,14 @@ using namespace nix;
 BuildOutput getBuildOutput(
     nix::ref<Store> store,
     NarMemberDatas & narMembers,
-    const StorePath & drvPath)
+    const OutputPathMap derivationOutputs)
 {
     BuildOutput res;
 
     /* Compute the closure size. */
     StorePathSet outputs;
     StorePathSet closure;
-    for (auto& [outputName, outputPath] : store->queryDerivationOutputMap(drvPath)) {
+    for (auto& [_, outputPath] : derivationOutputs) {
         store->computeFSClosure(outputPath, closure);
         outputs.insert(outputPath);
     }
@@ -106,13 +106,12 @@ BuildOutput getBuildOutput(
     /* If no build products were explicitly declared, then add all
        outputs as a product of type "nix-build". */
     if (!explicitProducts) {
-        for (auto& [name, output] : store->queryPartialDerivationOutputMap(drvPath)) {
+        for (auto& [name, output] : derivationOutputs) {
             BuildProduct product;
-            auto outPath = output;
-            product.path = store->printStorePath(*outPath);
+            product.path = store->printStorePath(output);
             product.type = "nix-build";
             product.subtype = name == "out" ? "" : name;
-            product.name = outPath->name();
+            product.name = output.name();
 
             auto file = narMembers.find(product.path);
             assert(file != narMembers.end());

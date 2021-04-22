@@ -221,7 +221,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         if (result.stepStatus == bsSuccess) {
             updateStep(ssPostProcessing);
-            res = getBuildOutput(destStore, narMembers, step->drvPath);
+            res = getBuildOutput(destStore, narMembers, localStore->queryDerivationOutputMap(step->drvPath));
         }
     }
 
