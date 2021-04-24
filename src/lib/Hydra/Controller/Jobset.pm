@@ -285,26 +285,24 @@ sub updateJobset {
     # Set the inputs of this jobset.
     $jobset->jobsetinputs->delete;
 
-    if ($type == 0) {
-        foreach my $name (keys %{$c->stash->{params}->{inputs}}) {
-            my $inputData = $c->stash->{params}->{inputs}->{$name};
-            my $type = $inputData->{type};
-            my $value = $inputData->{value};
-            my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
-            my $types = knownInputTypes($c);
+    foreach my $name (keys %{$c->stash->{params}->{inputs}}) {
+        my $inputData = $c->stash->{params}->{inputs}->{$name};
+        my $type = $inputData->{type};
+        my $value = $inputData->{value};
+        my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
+        my $types = knownInputTypes($c);
 
-            badRequest($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
-            badRequest($c, "Invalid input type ‘$type’; valid types: $types.") unless defined $c->stash->{inputTypes}->{$type};
+        badRequest($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
+        badRequest($c, "Invalid input type ‘$type’; valid types: $types.") unless defined $c->stash->{inputTypes}->{$type};
 
-            my $input = $jobset->jobsetinputs->create(
-                { name => $name,
-                  type => $type,
-                  emailresponsible => $emailresponsible
-                });
+        my $input = $jobset->jobsetinputs->create(
+            { name => $name,
+              type => $type,
+              emailresponsible => $emailresponsible
+            });
 
-            $value = checkInputValue($c, $name, $type, $value);
-            $input->jobsetinputalts->create({altnr => 0, value => $value});
-        }
+        $value = checkInputValue($c, $name, $type, $value);
+        $input->jobsetinputalts->create({altnr => 0, value => $value});
     }
 }
 
