@@ -126,6 +126,7 @@ sub create_jobset : Chained('projectChain') PathPart('create-jobset') Args(0) {
     $c->stash->{template} = 'edit-jobset.tt';
     $c->stash->{create} = 1;
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
+    $c->stash->{emailNotification} = $c->config->{email_notification} // 0;
 }
 
 
