@@ -203,7 +203,7 @@ sub scmdiff : Path('/api/scmdiff') Args(0) {
             { join => { "eval" => { jobset => "project" } } }
         );
         if ($search == 0) {
-            forceLogin($c);
+            die("invalid revisions: [$rev1] [$rev2]")
         }
     }
 

@@ -194,7 +194,7 @@ sub findLog {
                 {join => {build => "project"}}
             );
             if ($existsForGuest == 0) {
-                forceLogin($c);
+                notFound($c, "Resource not found");
             }
         }
 

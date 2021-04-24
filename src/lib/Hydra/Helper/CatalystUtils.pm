@@ -261,8 +261,9 @@ sub requireProjectOwner {
 
 sub checkProjectVisibleForGuest {
     my ($c, $project) = @_;
-    if (defined $project && $project->private == 1) {
-        requireUser($c);
+    if (defined $project && $project->private == 1 && !$c->user_exists) {
+        my $projectName = $project->name;
+        notFound($c, "Project ‘$projectName’ not found!");
     }
 }
 
