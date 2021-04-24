@@ -102,4 +102,17 @@ ok(
     'Build available for authenticated User'
 );
 
+(my $build) = queuedBuildsForJobset($jobset);
+ok(runBuild($build), "Build should succeed with exit code 0");
+
+ok(
+    request(GET '/jobset/tests/gitea/channel/latest', Cookie => $cookie)->is_success,
+    'Channel available for authenticated user'
+);
+
+ok(
+    request(GET '/jobset/tests/gitea/channel/latest')->code == 404,
+    'Channel unavailable for guest'
+);
+
 done_testing;

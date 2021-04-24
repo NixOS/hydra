@@ -3,6 +3,7 @@ package Hydra::Controller::Channel;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::REST';
+use Hydra::Helper::CatalystUtils;
 
 
 sub channel : Chained('/') PathPart('channel/custom') CaptureArgs(3) {
