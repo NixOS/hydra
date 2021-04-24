@@ -458,6 +458,45 @@ Hydra can send email notifications when the status of a build changes.
 This provides immediate feedback to maintainers or committers when a
 change causes build failures.
 
+The feature can be turned on by adding the following line to `hydra.conf`
+
+``` conf
+email_notification = 1
+```
+
+By default, Hydra only sends email notifications if a previously successful
+build starts to fail. In order to force Hydra to send an email for each build
+(including e.g. successful or cancelled ones), the environment variable
+`HYDRA_FORCE_SEND_MAIL` can be declared:
+
+``` nix
+services.hydra-dev.extraEnv.HYDRA_FORCE_SEND_MAIL = "1";
+```
+
+SASL Authentication for the email address that's used to send notifications
+can be configured like this:
+
+``` conf
+EMAIL_SENDER_TRANSPORT_sasl_username=hydra@example.org
+EMAIL_SENDER_TRANSPORT_sasl_password=verysecret
+EMAIL_SENDER_TRANSPORT_port=587
+EMAIL_SENDER_TRANSPORT_ssl=starttls
+```
+
+Further information about these environment variables can be found at the
+[MetaCPAN documentation of `Email::Sender::Manual::QuickStart`](https://metacpan.org/pod/Email::Sender::Manual::QuickStart#specifying-transport-in-the-environment).
+
+It's recommended to not put this in `services.hydra-dev.extraEnv` as this would
+leak the secrets into the Nix store. Instead, it should be written into an
+environment file and configured like this:
+
+``` nix
+{ systemd.services.hydra-notify = {
+    serviceConfig.EnvironmentFile = "/etc/secrets/hydra-mail-cfg";
+  };
+}
+```
+
 The simplest approach to enable Email Notifications is to use the ssmtp
 package, which simply hands off the emails to another SMTP server. For
 details on how to configure ssmtp, see the documentation for the
