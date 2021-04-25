@@ -517,7 +517,7 @@ sub save_or_update_package_maintainer {
     # `email' will be used to identify a maintainer. Because of this, it's
     # possible to keep track of e.g. a changed GitHub handle, but not of a
     # changed email.
-    if ($maintainer->{github} ne $entity->github_handle) {
+    if ($maintainer->{github} ne $entity->github_handle && $maintainer->{github} ne "") {
         $entity->update({github_handle => $maintainer->{github}});
     }
 
