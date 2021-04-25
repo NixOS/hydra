@@ -475,32 +475,7 @@ sub checkBuild {
             });
 
         for my $maintainer (@{$buildInfo->{maintainers}}) {
-            my $entity;
-            unless (exists $maintainer_cache{$maintainer->{email}}) {
-                $entity = $db->resultset('Maintainer')
-                    ->search({ email => $maintainer->{email} })
-                    ->single;
-            } else {
-                $entity = $maintainer_cache{$maintainer->{email}};
-            }
-
-            unless (defined $entity) {
-                $entity = $db->resultset('Maintainer')->create({
-                    email => $maintainer->{email},
-                    github_handle => $maintainer->{github},
-                });
-            }
-
-            if ($maintainer->{github} ne $entity->github_handle) {
-                $entity->update({github_handle => $maintainer->{github}});
-            }
-
-            $maintainer_cache{$maintainer->{email}} = $entity;
-
-            $db->resultset('Buildsbymaintainer')->create({
-                maintainer_id => $entity->id,
-                build_id => $build->id
-            });
+            save_or_update_package_maintainer($maintainer, $db, $build);
         }
 
         $build->buildoutputs->create({ name => $_, path => $buildInfo->{outputs}->{$_} })
@@ -515,6 +490,46 @@ sub checkBuild {
     return $build;
 };
 
+sub save_or_update_package_maintainer {
+    my ($maintainer, $db, $build) = @_;
+    my $entity;
+
+    # For big jobset evaluations it doesn't make sense to re-fetch an active maintainer
+    # for each build. So every maintainer which is "processed" during this evaluation will
+    # be kept inside the attr-set `$maintainer_cache' to save queries.
+    unless (exists $maintainer_cache{$maintainer->{email}}) {
+        $entity = $db->resultset('Maintainer')
+            ->search({ email => $maintainer->{email} })
+            ->single;
+    } else {
+        $entity = $maintainer_cache{$maintainer->{email}};
+    }
+
+    unless (defined $entity) {
+        $entity = $db->resultset('Maintainer')->create({
+            email => $maintainer->{email},
+            github_handle => $maintainer->{github},
+        });
+    }
+
+    # Since there's no practical way to extract the "key" of a maintainer
+    # from an expression (i.e. `foo' from `meta.maintainers = [ foo ];') the
+    # `email' will be used to identify a maintainer. Because of this, it's
+    # possible to keep track of e.g. a changed GitHub handle, but not of a
+    # changed email.
+    if ($maintainer->{github} ne $entity->github_handle) {
+        $entity->update({github_handle => $maintainer->{github}});
+    }
+
+    $maintainer_cache{$maintainer->{email}} = $entity;
+
+    # The `Buildsbymaintainer' table is a join table between the `Builds' and
+    # `Maintainer' table to associate maintainers with the related builds.
+    $db->resultset('Buildsbymaintainer')->create({
+        maintainer_id => $entity->id,
+        build_id => $build->id
+    });
+}
 
 sub fetchInputs {
     my ($project, $jobset, $inputInfo) = @_;

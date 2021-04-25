@@ -76,6 +76,14 @@ static nlohmann::json retrieveMaintainers(EvalState &state, DrvInfo &drv)
         for (unsigned int n = 0; n < v->listSize(); ++n) {
             Value &m = *v->listElems()[n];
             nlohmann::json entry;
+
+            // Allow to retrieve maintainers from older Nix expressions. Right now
+            // the structure looks like this:
+            //
+            //      [ { github = "..."; email = "..."; /* ... */ }]
+            //
+            // However on older Nix expressions, the `meta.maintainers` field was
+            // a list of email addresses.
             if (m.type() == nString) {
                 entry["email"] = m.string.s;
                 rs.push_back(entry);
