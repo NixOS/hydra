@@ -92,4 +92,21 @@ ok(index($search_for_maintainer, 'none') == -1, 'no maintainer expected');
 ok(index($search_for_maintainer, 'old_maintainer_style') != -1, 'maintainer expected');
 ok(index($search_for_maintainer, 'mixed') == -1, 'no maintainer expected');
 
+# Evaluate jobset here the GitHub handle of a maintainer has changed. Ensure that
+# `hydra-eval-jobset` updates it correctly.
+
+my $jobset2 = createBaseJobset("next", "maintainers2.nix", $ctx{jobsdir});
+ok(
+    evalSucceeds($jobset2),
+    "Evaluating jobs/maintainers2.nix.nix should exit with return code 0"
+);
+is(
+    nrQueuedBuildsForJobset($jobset2),
+    1,
+    "Evaluating jobs/maintainers2.nix.nix should result in 1 builds"
+);
+
+my $maintainer_foo2 = $db->resultset('Maintainer')->find({email => "foo\@example.org"});
+is($maintainer_foo2->github_handle, "foo_new", "Correct maintainer declared");
+
 done_testing;
