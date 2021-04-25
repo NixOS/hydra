@@ -21,6 +21,47 @@ sub evalChain : Chained('/') PathPart('eval') CaptureArgs(1) {
 }
 
 
+sub build_filter_for_search {
+    my ($filter, $field) = @_;
+
+    if ($filter ne "") {
+        if ($field eq "maintainer") {
+            # To search for maintainers of a build, the following relation has to be
+            # resolved:
+            #
+            #                   <build_id>                       <maintainer_id>
+            #       JobsetEval ------------> Buildsbymaintainer -----------------> Maintainer
+            #
+            # In the `maintainer`-table, the query for a Maintainer will be matched
+            # against both a maintainer's email and github handle.
+            return (
+                {
+                    -or => {
+                        "maintainer.github_handle" => { ilike => "%" . $filter . "%" },
+                        "maintainer.email" => { ilike => "%" . $filter . "%" }
+                    }
+                },
+                {
+                    columns => [@buildListColumns],
+                    join => { 'buildsbymaintainers' => 'maintainer' }
+                }
+            );
+        } else {
+            # FIXME allow to search for arbitrary fields from jobset evals.
+            # Most other columns of a JobsetEval entity should be queryable with
+            # a simple `LIKE %<query>%`.
+            return (
+                {"job" => { ilike => "%" . $filter . "%" }},
+                { columns => [@buildListColumns] }
+            );
+        }
+    }
+
+    # If no filter (search by name / search by maintainer) is specified,
+    # no additional criteria is needed for DBIx.
+    return ({}, {columns => [@buildListColumns]});
+}
+
 sub view :Chained('evalChain') :PathPart('') :Args(0) :ActionClass('REST') { }
 
 sub view_GET {
@@ -33,29 +74,7 @@ sub view_GET {
     $c->stash->{filter} = $c->request->params->{filter} // "";
     $c->stash->{field} = $c->request->params->{field} // "name";
 
-    my $extra;
-    my $filter;
-    if ($c->stash->{filter} ne "") {
-        if ($c->stash->{field} eq "maintainer") {
-            $filter = {
-                -or => {
-                    "maintainer.github_handle" => { ilike => "%" . $c->stash->{filter} . "%" },
-                    "maintainer.email" => { ilike => "%" . $c->stash->{filter} . "%" }
-                }
-            };
-            $extra = {
-                columns => [@buildListColumns],
-                join => { 'buildsbymaintainers' => 'maintainer' }
-            };
-        } else {
-            # FIXME allow arbitrary fields (at least for the API)
-            $filter = {"job" => { ilike => "%" . $c->stash->{filter} . "%" }};
-            $extra = { columns => [@buildListColumns] };
-        }
-    } else {
-        $filter = {};
-        $extra = { columns => [@buildListColumns] };
-    }
+    my ($filter, $extra) = build_filter_for_search($c->stash->{filter}, $c->stash->{field});
 
     my $compare = $c->req->params->{compare};
     my $eval2;
