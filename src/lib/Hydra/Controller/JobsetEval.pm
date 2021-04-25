@@ -63,7 +63,7 @@ sub view_GET {
     # Allow comparing this evaluation against the previous evaluation
     # (default), an arbitrary evaluation, or the latest completed
     # evaluation of another jobset.
-    if (defined $compare) {
+    if (defined $compare && $compare ne "") {
         if ($compare =~ /^\d+$/) {
             $eval2 = $c->model('DB::JobsetEvals')->find($compare)
                 or notFound($c, "Evaluation $compare doesn't exist.");
