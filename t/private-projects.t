@@ -115,4 +115,36 @@ ok(
     'Channel unavailable for guest'
 );
 
+updateRepository('gitea', "$ctx{testdir}/jobs/git-update.sh", $scratch);
+ok(evalSucceeds($jobset), "Evaluating nix expression");
+
+my @latest = split /\n/, `cd $scratch/git-repo && git log --oneline | head -2 | awk '{ print \$1 }'`;
+my $rev1 = $latest[0];
+my $rev2 = $latest[1];
+
+my $scmdiff = "/api/scmdiff?type=git&rev1=$rev1&rev2=$rev2&branch=&uri=$uri";
+my $auth_scmdiff = request(GET $scmdiff, Cookie => $cookie);
+
+my $expected = <<DIFF;
+diff --git a/bar b/bar
+deleted file mode 100644
+index 573541a..0000000
+--- a/bar
++++ /dev/null
+@@ -1 +0,0 @@
+-0
+DIFF
+
+ok($auth_scmdiff->content eq $expected, 'Correct diff shown');
+
+ok(
+    $auth_scmdiff->is_success,
+    'SCM diff works fine'
+);
+
+ok(
+    request($scmdiff)->code == 500,
+    'Unauthenticated SCM diff for priate project doesn\'t work'
+);
+
 done_testing;
