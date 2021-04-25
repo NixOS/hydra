@@ -36,7 +36,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 
     child.pid = startProcess([&]() {
 
-        restoreSignals();
+        restoreProcessContext();
 
         if (dup2(to.readSide.get(), STDIN_FILENO) == -1)
             throw SysError("cannot dup input pipe to stdin");
@@ -210,7 +210,6 @@ void State::buildRemote(ref<Store> destStore,
         });
 
         /* Handshake. */
-        bool sendDerivation = true;
         unsigned int remoteVersion;
 
         try {
@@ -223,12 +222,6 @@ void State::buildRemote(ref<Store> destStore,
             remoteVersion = readInt(from);
             if (GET_PROTOCOL_MAJOR(remoteVersion) != 0x200)
                 throw Error("unsupported ‘nix-store --serve’ protocol version on ‘%1%’", machine->sshName);
-            // Always send the derivation to localhost, since it's a
-            // no-op anyway but we might not be privileged to use
-            // cmdBuildDerivation (e.g. if we're running in a NixOS
-            // container).
-            if (GET_PROTOCOL_MINOR(remoteVersion) >= 1 && !machine->isLocalhost())
-                sendDerivation = false;
             if (GET_PROTOCOL_MINOR(remoteVersion) < 3 && repeats > 0)
                 throw Error("machine ‘%1%’ does not support repeating a build; please upgrade it to Nix 1.12", machine->sshName);
 
@@ -253,11 +246,8 @@ void State::buildRemote(ref<Store> destStore,
         StorePathSet inputs;
         BasicDerivation basicDrv(*step->drv);
 
-        if (sendDerivation)
-            inputs.insert(step->drvPath);
-        else
-            for (auto & p : step->drv->inputSrcs)
-                inputs.insert(p);
+        for (auto & p : step->drv->inputSrcs)
+            inputs.insert(p);
 
         for (auto & input : step->drv->inputDrvs) {
             auto drv2 = localStore->readDerivation(input.first);
@@ -274,8 +264,11 @@ void State::buildRemote(ref<Store> destStore,
            a no-op for regular stores, but for the binary cache store,
            this will copy the inputs to the binary cache from the local
            store. */
-        if (localStore != std::shared_ptr<Store>(destStore))
-            copyClosure(ref<Store>(localStore), destStore, step->drv->inputSrcs, NoRepair, NoCheckSigs);
+        if (localStore != std::shared_ptr<Store>(destStore)) {
+            StorePathSet closure;
+            localStore->computeFSClosure(step->drv->inputSrcs, closure);
+            copyPaths(ref<Store>(localStore), destStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
+        }
 
         /* Copy the input closure. */
         if (!machine->isLocalhost()) {
@@ -313,13 +306,8 @@ void State::buildRemote(ref<Store> destStore,
 
         updateStep(ssBuilding);
 
-        if (sendDerivation) {
-            to << cmdBuildPaths;
-            worker_proto::write(*localStore, to, StorePathSet{step->drvPath});
-        } else {
-            to << cmdBuildDerivation << localStore->printStorePath(step->drvPath);
-            writeDerivation(to, *localStore, basicDrv);
-        }
+        to << cmdBuildDerivation << localStore->printStorePath(step->drvPath);
+        writeDerivation(to, *localStore, basicDrv);
         to << maxSilentTime << buildTimeout;
         if (GET_PROTOCOL_MINOR(remoteVersion) >= 2)
             to << maxLogSize;
@@ -337,83 +325,67 @@ void State::buildRemote(ref<Store> destStore,
         }
         result.stopTime = time(0);
 
-        if (sendDerivation) {
-            if (res) {
-                result.errorMsg = fmt("%s on ‘%s’", readString(from), machine->sshName);
-                if (res == 100) {
-                    result.stepStatus = bsFailed;
-                    result.canCache = true;
-                }
-                else if (res == 101) {
-                    result.stepStatus = bsTimedOut;
-                }
-                else {
-                    result.stepStatus = bsAborted;
-                    result.canRetry = true;
-                }
-                return;
+        result.errorMsg = readString(from);
+        if (GET_PROTOCOL_MINOR(remoteVersion) >= 3) {
+            result.timesBuilt = readInt(from);
+            result.isNonDeterministic = readInt(from);
+            auto start = readInt(from);
+            auto stop = readInt(from);
+            if (start && start) {
+                /* Note: this represents the duration of a single
+                    round, rather than all rounds. */
+                result.startTime = start;
+                result.stopTime = stop;
             }
-            result.stepStatus = bsSuccess;
-        } else {
-            result.errorMsg = readString(from);
-            if (GET_PROTOCOL_MINOR(remoteVersion) >= 3) {
-                result.timesBuilt = readInt(from);
-                result.isNonDeterministic = readInt(from);
-                auto start = readInt(from);
-                auto stop = readInt(from);
-                if (start && start) {
-                    /* Note: this represents the duration of a single
-                       round, rather than all rounds. */
-                    result.startTime = start;
-                    result.stopTime = stop;
-                }
-            }
-            switch ((BuildResult::Status) res) {
-                case BuildResult::Built:
-                    result.stepStatus = bsSuccess;
-                    break;
-                case BuildResult::Substituted:
-                case BuildResult::AlreadyValid:
-                    result.stepStatus = bsSuccess;
-                    result.isCached = true;
-                    break;
-                case BuildResult::PermanentFailure:
-                    result.stepStatus = bsFailed;
-                    result.canCache = true;
-                    result.errorMsg = "";
-                    break;
-                case BuildResult::InputRejected:
-                case BuildResult::OutputRejected:
-                    result.stepStatus = bsFailed;
-                    result.canCache = true;
-                    break;
-                case BuildResult::TransientFailure:
-                    result.stepStatus = bsFailed;
-                    result.canRetry = true;
-                    result.errorMsg = "";
-                    break;
-                case BuildResult::TimedOut:
-                    result.stepStatus = bsTimedOut;
-                    result.errorMsg = "";
-                    break;
-                case BuildResult::MiscFailure:
-                    result.stepStatus = bsAborted;
-                    result.canRetry = true;
-                    break;
-                case BuildResult::LogLimitExceeded:
-                    result.stepStatus = bsLogLimitExceeded;
-                    break;
-                case BuildResult::NotDeterministic:
-                    result.stepStatus = bsNotDeterministic;
-                    result.canRetry = false;
-                    result.canCache = true;
-                    break;
-                default:
-                    result.stepStatus = bsAborted;
-                    break;
-            }
-            if (result.stepStatus != bsSuccess) return;
         }
+        if (GET_PROTOCOL_MINOR(remoteVersion) >= 6) {
+            worker_proto::read(*localStore, from, Phantom<DrvOutputs> {});
+        }
+        switch ((BuildResult::Status) res) {
+            case BuildResult::Built:
+                result.stepStatus = bsSuccess;
+                break;
+            case BuildResult::Substituted:
+            case BuildResult::AlreadyValid:
+                result.stepStatus = bsSuccess;
+                result.isCached = true;
+                break;
+            case BuildResult::PermanentFailure:
+                result.stepStatus = bsFailed;
+                result.canCache = true;
+                result.errorMsg = "";
+                break;
+            case BuildResult::InputRejected:
+            case BuildResult::OutputRejected:
+                result.stepStatus = bsFailed;
+                result.canCache = true;
+                break;
+            case BuildResult::TransientFailure:
+                result.stepStatus = bsFailed;
+                result.canRetry = true;
+                result.errorMsg = "";
+                break;
+            case BuildResult::TimedOut:
+                result.stepStatus = bsTimedOut;
+                result.errorMsg = "";
+                break;
+            case BuildResult::MiscFailure:
+                result.stepStatus = bsAborted;
+                result.canRetry = true;
+                break;
+            case BuildResult::LogLimitExceeded:
+                result.stepStatus = bsLogLimitExceeded;
+                break;
+            case BuildResult::NotDeterministic:
+                result.stepStatus = bsNotDeterministic;
+                result.canRetry = false;
+                result.canCache = true;
+                break;
+            default:
+                result.stepStatus = bsAborted;
+                break;
+        }
+        if (result.stepStatus != bsSuccess) return;
 
         result.errorMsg = "";
 
@@ -481,14 +453,22 @@ void State::buildRemote(ref<Store> destStore,
 
             for (auto & path : pathsSorted) {
                 auto & info = infos.find(path)->second;
-                to << cmdDumpStorePath << localStore->printStorePath(path);
-                to.flush();
 
                 /* Receive the NAR from the remote and add it to the
                    destination store. Meanwhile, extract all the info from the
                    NAR that getBuildOutput() needs. */
                 auto source2 = sinkToSource([&](Sink & sink)
                 {
+                    /* Note: we should only send the command to dump the store
+                       path to the remote if the NAR is actually going to get read
+                       by the destination store, which won't happen if this path
+                       is already valid on the destination store. Since this
+                       lambda function only gets executed if someone tries to read
+                       from source2, we will send the command from here rather
+                       than outside the lambda. */
+                    to << cmdDumpStorePath << localStore->printStorePath(path);
+                    to.flush();
+
                     TeeSource tee(from, sink);
                     extractNarData(tee, localStore->printStorePath(path), narMembers);
                 });

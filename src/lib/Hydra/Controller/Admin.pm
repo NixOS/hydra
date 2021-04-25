@@ -6,7 +6,6 @@ use base 'Catalyst::Controller';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Data::Dump qw(dump);
-use Digest::SHA1 qw(sha1_hex);
 use Config::General;
 
 

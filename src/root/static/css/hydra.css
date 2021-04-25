@@ -33,12 +33,6 @@ span:target > span.dep-tree-line {
     font-weight: bold;
 }
 
-:target {
-    padding-top: 40px;
-    margin-top: -40px;
-    display: inline-block; /* required for webkit browsers */
-}
-
 span.disabled-project, span.disabled-jobset, span.disabled-job {
     text-decoration: line-through;
 }
@@ -50,11 +44,6 @@ span.hidden-project a, span.hidden-jobset a {
 table.info-table th {
     padding-right: 1.0em;
     padding-bottom: 0.2em;
-}
-
-/* Missing in bootstrap 2.0.2 */
-.text-warning {
-    color: #c09853;
 }
 
 table.clickable-rows > tbody > tr {
@@ -151,4 +140,8 @@ td.step-status span.warn {
 .date {
 	cursor: help;
 	border-bottom: 1px dotted #999;
+}
+
+.tab-content > .tab-pane {
+    padding-top: 1.5rem;
 }

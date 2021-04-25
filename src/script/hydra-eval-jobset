@@ -35,6 +35,10 @@ my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
 
 my %maintainer_cache = ();
 
+my $statsdConfig = Hydra::Helper::Nix::getStatsdConfig($config);
+$Net::Statsd::HOST = $statsdConfig->{'host'};
+$Net::Statsd::PORT = $statsdConfig->{'port'};
+
 alarm 3600; # FIXME: make configurable
 
 
@@ -591,7 +595,7 @@ sub checkJobsetWrapped {
     if ($jobsetsJobset) {
         my @declInputs = fetchInput($plugins, $db, $project, $jobset, "decl", $project->decltype, $project->declvalue, 0);
         my $declInput = @declInputs[0] or die "cannot find the input containing the declarative project specification\n";
-        die "multiple alternatives for the input containing the declarative project specificaiton are not supported\n"
+        die "multiple alternatives for the input containing the declarative project specification are not supported\n"
             if scalar @declInputs != 1;
         my $declFile = $declInput->{storePath} . "/" . $project->declfile;
         my $declText = read_file($declFile)
@@ -625,6 +629,8 @@ sub checkJobsetWrapped {
                 updateDeclarativeJobset($db, $project, ".jobsets", $declSpec);
                 $jobset->discard_changes;
                 $inputInfo->{"declInput"} = [ $declInput ];
+                $inputInfo->{"projectName"} = [ fetchInput($plugins, $db, $project, $jobset, "", "string", $project->name, 0) ];
+
             }
         } else {
             die "Declarative specification file $declFile is not a dictionary"

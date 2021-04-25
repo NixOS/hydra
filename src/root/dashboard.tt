@@ -2,9 +2,9 @@
 [% PROCESS common.tt %]
 
 <ul class="nav nav-tabs">
-  <li class="active"><a href="#tabs-starred-jobs" data-toggle="tab">Starred jobs</a></li>
-  <li><a href="#tabs-my-jobs" data-toggle="tab">My jobs</a></li>
-  <li><a href="#tabs-my-jobsets" data-toggle="tab">My jobsets</a></li>
+  <li class="nav-item"><a class="nav-link active" href="#tabs-starred-jobs" data-toggle="tab">Starred jobs</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-my-jobs" data-toggle="tab">My jobs</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-my-jobsets" data-toggle="tab">My jobsets</a></li>
 </ul>
 
 <div id="generic-tabs" class="tab-content">

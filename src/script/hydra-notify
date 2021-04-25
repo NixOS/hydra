@@ -6,10 +6,17 @@ use Hydra::Plugin;
 use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
 use IO::Select;
+use Getopt::Long;
 
 STDERR->autoflush(1);
 STDOUT->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
+
+my $queued_only;
+
+GetOptions(
+    "queued-only" => \$queued_only
+) or exit 1;
 
 my $config = getHydraConfig();
 
@@ -103,11 +110,12 @@ for my $build ($db->resultset('Builds')->search(
     buildFinished($build);
 }
 
+
 # Process incoming notifications.
 my $fd = $dbh->func("getfd");
 my $sel = IO::Select->new($fd);
 
-while (1) {
+while (!$queued_only) {
     $sel->can_read;
 
     while (my $notify = $dbh->func("pg_notifies")) {

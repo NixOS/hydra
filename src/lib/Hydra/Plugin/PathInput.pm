@@ -8,7 +8,7 @@ use Nix::Store;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
-    $inputTypes->{'path'} = 'Local path';
+    $inputTypes->{'path'} = 'Local path or URL';
 }
 
 sub fetchInput {

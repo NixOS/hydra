@@ -46,29 +46,30 @@ $(document).ready(function() {
           window.location = link.attr("href");
     });
 
-    bootbox.animate(false);
+    bootbox.setDefaults({ animate: false });
 
+    /* Enable popovers (and allow table and teletype elements in them). */
+    $.fn.popover.Constructor.Default.whiteList.table = [];
+    $.fn.popover.Constructor.Default.whiteList.thead = []
+    $.fn.popover.Constructor.Default.whiteList.tbody = [];
+    $.fn.popover.Constructor.Default.whiteList.tr = [];
+    $.fn.popover.Constructor.Default.whiteList.th = [];
+    $.fn.popover.Constructor.Default.whiteList.td = [];
+    $.fn.popover.Constructor.Default.whiteList.tt = [];
     $(".hydra-popover").popover({});
 
-    $(function() {
-        if (window.location.hash) {
-            $(".nav-tabs a[href='" + window.location.hash + "']").tab('show');
-        }
+    /* Activates tab according to URL anchor. */
+    if (window.location.hash) {
+        $('.nav-tabs > .nav-item:not(.dropdown) a[href="' + window.location.hash + '"]').tab('show');
+    }
 
-        /* If no tab is active, show the first one. */
-        $(".nav-tabs").each(function() {
-            if ($("li.active", this).length > 0) return;
-            $("a", $(this).children("li:not(.dropdown)").first()).tab('show');
-        });
+    $('.nav-tabs').each(function() {
+        if ($('.nav-item:not(.dropdown) a.active',this).length == 0)
+            $('.nav-item:not(.dropdown) a',this).first().tab('show');
+    });
 
-        /* Ensure that pressing the back button on another page
-           navigates back to the previously selected tab on this
-           page. */
-        $('.nav-tabs').bind('show', function(e) {
-            var pattern = /#.+/gi;
-            var id = e.target.toString().match(pattern)[0];
-            history.replaceState(null, "", id);
-        });
+    $('.nav-tabs > .nav-item:not(.dropdown) a[href^="#"]').on('click', function() {
+        history.replaceState(null, null, window.location.href.split("#")[0] + $(this).attr("href"));
     });
 
     /* Automatically set Bootstrap radio buttons from hidden form controls. */
@@ -131,7 +132,7 @@ $(document).ready(function() {
 var tabsLoaded = {};
 
 function makeLazyTab(tabName, uri) {
-    $('.nav-tabs').bind('show', function(e) {
+    $('.nav-tabs').bind('show.bs.tab', function(e) {
         var pattern = /#.+/gi;
         var id = e.target.toString().match(pattern)[0];
         if (id == '#' + tabName && !tabsLoaded[id]) {

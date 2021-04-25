@@ -15,7 +15,7 @@ use IPC::Run;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     getHydraHome getHydraConfig getBaseUrl
-    getSCMCacheDir
+    getSCMCacheDir getStatsdConfig
     registerRoot getGCRootsDir gcRootFor
     jobsetOverview jobsetOverview_
     getDrvLogPath findLog
@@ -52,6 +52,23 @@ sub getHydraConfig {
         $hydraConfig = {};
     }
     return $hydraConfig;
+}
+
+
+# Return hash of statsd configuration of the following shape:
+# (
+#   host => string,
+#   port => digit
+# )
+sub getStatsdConfig {
+    my ($config) = @_;
+    my $cfg = $config->{statsd};
+    my %statsd = defined $cfg ? ref $cfg eq "HASH" ? %$cfg : ($cfg) : ();
+
+    return {
+        "host" => %statsd{'host'}  // 'localhost',
+        "port" => %statsd{'port'}  // 8125,
+    }
 }
 
 
@@ -96,7 +113,7 @@ sub registerRoot {
 sub jobsetOverview_ {
     my ($c, $jobsets) = @_;
     return $jobsets->search({},
-        { order_by => "name"
+        { order_by => ["hidden ASC", "enabled DESC", "name"]
         , "+select" =>
           [ "(select count(*) from Builds as a where a.finished = 0 and me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
           , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus <> 0 and a.isCurrent = 1)"

@@ -114,41 +114,38 @@ END;
 [% END %]
 
 <ul class="nav nav-tabs">
-  <li class="dropdown">
-    <a class="dropdown-toggle actions" data-toggle="dropdown" href="#">
-      Actions
-      <b class="caret"></b>
-    </a>
-    <ul class="dropdown-menu">
+  <li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" area-haspopup="true" aria-expanded="false">Actions</a>
+    <div class="dropdown-menu">
       [% IF eval.nixexprinput || eval.flake %]
-        <li><a href="#reproduce" data-toggle="modal">Reproduce locally</a></li>
+        <a class="dropdown-item" href="#reproduce" data-toggle="modal">Reproduce locally</a>
       [% END %]
       [% IF c.user_exists %]
         [% IF available %]
           [% IF build.keep %]
-            <li><a href="[% c.uri_for('/build' build.id 'keep' 0) %]">Unkeep</a></li>
+            <a class="dropdown-item" href="[% c.uri_for('/build' build.id 'keep' 0) %]">Unkeep</a>
           [% ELSE %]
-            <li><a href="[% c.uri_for('/build' build.id 'keep' 1) %]">Keep</a></li>
+            <a class="dropdown-item" href="[% c.uri_for('/build' build.id 'keep' 1) %]">Keep</a>
           [% END %]
         [% END %]
         [% IF build.finished %]
-          <li><a href="[% c.uri_for('/build' build.id 'restart') %]">Restart</a></li>
+          <a class="dropdown-item" href="[% c.uri_for('/build' build.id 'restart') %]">Restart</a>
         [% ELSE %]
-          <li><a href="[% c.uri_for('/build' build.id 'cancel') %]">Cancel</a></li>
-          <li><a href="[% c.uri_for('/build' build.id 'bump') %]">Bump up</a></li>
+          <a class="dropdown-item" href="[% c.uri_for('/build' build.id 'cancel') %]">Cancel</a>
+          <a class="dropdown-item" href="[% c.uri_for('/build' build.id 'bump') %]">Bump up</a>
         [% END %]
       [% END %]
-    </ul>
+    </div>
   </li>
 
-  <li class="active"><a href="#tabs-summary" data-toggle="tab">Summary</a></li>
-  [% IF isAggregate %]<li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>[% END %]
-  <li><a href="#tabs-details" data-toggle="tab">Details</a></li>
-  <li><a href="#tabs-buildinputs" data-toggle="tab">Inputs</a></li>
-  [% IF steps.size() > 0 %]<li><a href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
-  [% IF build.dependents %]<li><a href="#tabs-usedby" data-toggle="tab">Used by</a></li>[% END%]
-  [% IF drvAvailable %]<li><a href="#tabs-build-deps" data-toggle="tab">Build dependencies</a></li>[% END %]
-  [% IF localStore && available %]<li><a href="#tabs-runtime-deps" data-toggle="tab">Runtime dependencies</a></li>[% END %]
+  <li class="nav-item"><a class="nav-link active" href="#tabs-summary" data-toggle="tab">Summary</a></li>
+  [% IF isAggregate %]<li class="nav-item"><a class="nav-link" href="#tabs-constituents" data-toggle="tab">Constituents</a></li>[% END %]
+  <li class="nav-item"><a class="nav-link" href="#tabs-details" data-toggle="tab">Details</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-buildinputs" data-toggle="tab">Inputs</a></li>
+  [% IF steps.size() > 0 %]<li class="nav-item"><a class="nav-link" href="#tabs-buildsteps" data-toggle="tab">Build steps</a></li>[% END %]
+  [% IF build.dependents %]<li class="nav-item"><a class="nav-link" href="#tabs-usedby" data-toggle="tab">Used by</a></li>[% END%]
+  [% IF drvAvailable %]<li class="nav-item"><a class="nav-link" href="#tabs-build-deps" data-toggle="tab">Build dependencies</a></li>[% END %]
+  [% IF localStore && available %]<li class="nav-item"><a class="nav-link" href="#tabs-runtime-deps" data-toggle="tab">Runtime dependencies</a></li>[% END %]
 </ul>
 
 <div id="generic-tabs" class="tab-content">
@@ -239,9 +236,9 @@ END;
                 <th>Logfile:</th>
                 <td>
                   [% actualLog = cachedBuildStep ? c.uri_for('/build' cachedBuild.id 'nixlog' cachedBuildStep.stepnr) : c.uri_for('/build' build.id 'log') %]
-                  <a class="btn btn-mini" href="[%actualLog%]">pretty</a>
-                  <a class="btn btn-mini" href="[%actualLog%]/raw">raw</a>
-                  <a class="btn btn-mini" href="[%actualLog%]/tail">tail</a>
+                  <a class="btn btn-secondary btn-sm" href="[%actualLog%]">pretty</a>
+                  <a class="btn btn-secondary btn-sm" href="[%actualLog%]/raw">raw</a>
+                  <a class="btn btn-secondary btn-sm" href="[%actualLog%]/tail">tail</a>
                 </td>
               </tr>
             [% END %]
@@ -497,48 +494,51 @@ END;
 
 </div>
 
-
 <div id="reproduce" class="modal hide fade" tabindex="-1" role="dialog" aria-hidden="true">
-  [% url = c.uri_for('/build' build.id 'reproduce') %]
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      [% url = c.uri_for('/build' build.id 'reproduce') %]
 
-  <div class="modal-header">
-    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-    <h3>Reproduce this build</h3>
-  </div>
+      <div class="modal-header">
+        <h3>Reproduce this build</h3>
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+      </div>
 
-  <div class="modal-body">
+      <div class="modal-body">
 
-    [% IF eval.flake %]
+        [% IF eval.flake %]
 
-    <p>If you have <a href='https://nixos.org/nix/download.html'>Nix
-    installed</a>, you can reproduce this build on your own machine by
-    running the following command:</p>
+          <p>If you have <a href='https://nixos.org/nix/download.html'>Nix
+          installed</a>, you can reproduce this build on your own machine by
+          running the following command:</p>
 
-<pre>
+<div class="card bg-light"><div class="card-body p-2"><code>
 <span class="shell-prompt"># </span>nix build [% HTML.escape(eval.flake) %]#hydraJobs.[% HTML.escape(job) %]
-</pre>
+</code></div></div>
 
-    [% ELSE %]
+        [% ELSE %]
 
-    <p>If you have <a href='https://nixos.org/nix/download.html'>Nix
-    installed</a>, you can reproduce this build on your own machine by
-    downloading <a [% HTML.attributes(href => url) %]>a script</a>
-    that checks out all inputs of the build and then invokes Nix to
-    perform the build.</p>
+          <p>If you have <a href='https://nixos.org/nix/download.html'>Nix
+          installed</a>, you can reproduce this build on your own machine by
+          downloading <a [% HTML.attributes(href => url) %]>a script</a>
+          that checks out all inputs of the build and then invokes Nix to
+          perform the build.</p>
 
-    <p>To download and execute the script from the command line, run the
-    following command:</p>
+          <p>To download and execute the script from the command line, run the
+          following command:</p>
 
-<pre>
+<div class="card bg-light"><div class="card-body p-2"><code>
 <span class="shell-prompt"># </span>curl <a [% HTML.attributes(href => url) %]>[% HTML.escape(url) %]</a> | bash
-</pre>
+</code></div></div>
 
-    [% END %]
+        [% END %]
 
-  </div>
+      </div>
 
-  <div class="modal-footer">
-    <a href="#" class="btn btn-primary" data-dismiss="modal">Close</a>
+      <div class="modal-footer">
+        <a href="#" class="btn btn-primary" data-dismiss="modal">Close</a>
+      </div>
+    </div>
   </div>
 </div>
 

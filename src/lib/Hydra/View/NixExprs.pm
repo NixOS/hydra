@@ -3,18 +3,12 @@ package Hydra::View::NixExprs;
 use strict;
 use base qw/Catalyst::View/;
 use Hydra::Helper::Nix;
+use Hydra::Helper::Escape;
+use Hydra::Helper::AttributeSet;
 use Archive::Tar;
 use IO::Compress::Bzip2 qw(bzip2);
 use Encode;
-
-
-sub escape {
-    my ($s) = @_;
-    $s =~ s|\\|\\\\|g;
-    $s =~ s|\"|\\\"|g;
-    $s =~ s|\$|\\\$|g;
-    return "\"" . $s . "\"";
-}
+use Data::Dumper;
 
 
 sub process {
@@ -62,22 +56,23 @@ EOF
     my $first = 1;
     foreach my $system (keys %perSystem) {
         $res .= "else " if !$first;
-        $res .= "if system == ${\escape $system} then {\n\n";
-
+        $res .= "if system == ${\escapeString $system} then {\n\n";
+        my $attrsets = Hydra::Helper::AttributeSet->new();
         foreach my $job (keys %{$perSystem{$system}}) {
             my $pkg = $perSystem{$system}->{$job};
             my $build = $pkg->{build};
-            $res .= "  # Hydra build ${\$build->id}\n";
             my $attr = $build->get_column('job');
-            $attr =~ s/\./-/g;
-            $res .= "  ${\escape $attr} = (mkFakeDerivation {\n";
+            $attrsets->registerValue($attr);
+
+            $res .= "  # Hydra build ${\$build->id}\n";
+            $res .= "  ${\escapeAttributePath $attr} = (mkFakeDerivation {\n";
             $res .= "    type = \"derivation\";\n";
-            $res .= "    name = ${\escape ($build->get_column('releasename') or $build->nixname)};\n";
-            $res .= "    system = ${\escape $build->system};\n";
+            $res .= "    name = ${\escapeString ($build->get_column('releasename') or $build->nixname)};\n";
+            $res .= "    system = ${\escapeString $build->system};\n";
             $res .= "    meta = {\n";
-            $res .= "      description = ${\escape $build->description};\n"
+            $res .= "      description = ${\escapeString $build->description};\n"
                 if $build->description;
-            $res .= "      license = ${\escape $build->license};\n"
+            $res .= "      license = ${\escapeString $build->license};\n"
                 if $build->license;
             # FIXME re-add maintainers
             #$res .= "      maintainers = ${\escape $build->maintainers};\n"
@@ -85,9 +80,13 @@ EOF
             $res .= "    };\n";
             $res .= "  } {\n";
             my @outputNames = sort (keys %{$pkg->{outputs}});
-            $res .= "    ${\escape $_} = ${\escape $pkg->{outputs}->{$_}};\n" foreach @outputNames;
+            $res .= "    ${\escapeString $_} = ${\escapeString $pkg->{outputs}->{$_}};\n" foreach @outputNames;
             my $out = defined $pkg->{outputs}->{"out"} ? "out" : $outputNames[0];
             $res .= "  }).$out;\n\n";
+        }
+
+        for my $attrset ($attrsets->enumerate()) {
+            $res .= "  ${\escapeAttributePath $attrset}.recurseForDerivations = true;\n\n";
         }
 
         $res .= "}\n\n";

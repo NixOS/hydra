@@ -229,12 +229,6 @@ sub isValidPassword {
 }
 
 
-sub setPassword {
-    my ($user, $password) = @_;
-    $user->update({ password => sha1_hex($password) });
-}
-
-
 sub register :Local Args(0) {
     my ($self, $c) = @_;
 
@@ -294,7 +288,7 @@ sub updatePreferences {
         error($c, "The passwords you specified did not match.")
             if $password ne trim $c->stash->{params}->{password2};
 
-        setPassword($user, $password);
+        $user->setPassword($password);
     }
 
     my $emailAddress = trim($c->stash->{params}->{emailaddress} // "");
@@ -394,7 +388,7 @@ sub reset_password :Chained('user') :PathPart('reset-password') :Args(0) {
         unless $user->emailaddress;
 
     my $password = Crypt::RandPasswd->word(8,10);
-    setPassword($user, $password);
+    $user->setPassword($password);
     sendEmail(
         $c->config,
         $user->emailaddress,

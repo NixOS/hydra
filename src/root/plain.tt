@@ -5,6 +5,6 @@
 [% jobset = build.jobset %]
 [% job = build.job %]
 
-<pre>[% HTML.escape(contents) %]</pre>
+<div class="card bg-light"><div class="card-body"><pre>[% HTML.escape(contents) %]</pre></div></div>
 
 [% END %]

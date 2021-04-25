@@ -367,6 +367,7 @@ private:
 
     /* Specific build to do for --build-one (testing only). */
     BuildID buildOne;
+    bool buildOneDone = false;
 
     /* Statistics per machine type for the Hydra auto-scaler. */
     struct MachineType
@@ -485,8 +486,7 @@ private:
         BuildID buildId,
         const RemoteResult & result,
         Machine::ptr machine,
-        bool & stepFinished,
-        bool & quit);
+        bool & stepFinished);
 
     Jobset::ptr createJobset(pqxx::work & txn,
         const std::string & projectName, const std::string & jobsetName);

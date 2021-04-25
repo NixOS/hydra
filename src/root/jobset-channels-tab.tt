@@ -2,7 +2,7 @@
 
 [% IF channels.size == 0 %]
 
-  <div class="alert">There are no channels available.</div>
+  <div class="alert alert-warning">There are no channels available.</div>
 
 [% ELSE %]
 

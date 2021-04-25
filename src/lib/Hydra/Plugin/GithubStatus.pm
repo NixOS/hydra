@@ -57,17 +57,14 @@ sub common {
             my @inputs = defined $inputs_cfg ? ref $inputs_cfg eq "ARRAY" ? @$inputs_cfg : ($inputs_cfg) : ();
             my %seen = map { $_ => {} } @inputs;
             while (my $eval = $evals->next) {
-                foreach my $input (@inputs) {
-                    my $i = $eval->jobsetevalinputs->find({ name => $input, altnr => 0 });
-                    next unless defined $i;
-                    my $uri = $i->uri;
-                    my $rev = $i->revision;
-                    my $key = $uri . "-" . $rev;
-                    next if exists $seen{$input}->{$key};
+
+                my $sendStatus = sub {
+                    my ($input, $owner, $repo, $rev) = @_;
+
+                    my $key = $owner . "-" . $repo . "-" . $rev;
+                    return if exists $seen{$input}->{$key};
                     $seen{$input}->{$key} = 1;
-                    $uri =~ m![:/]([^/]+)/([^/]+?)(?:.git)?$!;
-                    my $owner = $1;
-                    my $repo = $2;
+
                     my $url = "https://api.github.com/repos/$owner/$repo/statuses/$rev";
                     my $req = HTTP::Request->new('POST', $url);
                     $req->header('Content-Type' => 'application/json');
@@ -90,6 +87,25 @@ sub common {
                       sleep $delay;
                     } else {
                       print STDERR "GithubStatus ratelimit $limitRemaining/$limit, resets in $diff\n";
+                    }
+                };
+
+                if (defined $eval->flake) {
+                    my $fl = $eval->flake;
+                    print STDERR "Flake is $fl\n";
+                    $eval->flake =~ m!github:([^/]+)/([^/]+)/(.+)$!;
+                    $sendStatus->("src", $1, $2, $3);
+                } else {
+                    foreach my $input (@inputs) {
+                        my $i = $eval->jobsetevalinputs->find({ name => $input, altnr => 0 });
+                        if (! defined $i) {
+                            print STDERR "Evaluation $eval doesn't have input $input\n";
+                        }
+                        next unless defined $i;
+                        my $uri = $i->uri;
+                        my $rev = $i->revision;
+                        $uri =~ m![:/]([^/]+)/([^/]+?)(?:.git)?$!;
+                        $sendStatus->($input, $1, $2, $rev);
                     }
                 }
             }

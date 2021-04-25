@@ -1,12 +1,15 @@
 [% PROCESS common.tt; USE Math %]
 
-<form class="form-search" id="filter-jobs">
-  <div class="input-append">
-    <input name="filter" type="text" class="input-large search-query" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]/>
-    <button type="button" class="btn btn-info [% IF showInactive %]active[% END %]" id="active-toggle">Show inactive jobs</button>
+<form id="filter-jobs">
+  <div class="form-group input-group">
+    <input name="filter" type="search" class="form-control" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]/>
+    <div class="input-group-append">
+      <button type="button" class="btn btn-info [% IF showInactive %]active[% END %]" id="active-toggle">
+        <span class="spinner-border spinner-border-sm" id="filter-loading" style="display:none"/>
+        Show inactive jobs
+      </button>
+    </div>
   </div>
-  &nbsp;
-  <img src="[% c.uri_for("/static/images/ajax-loader.gif") %]" alt="Loading..." style="display: none;" id="filter-loading" />
 </form>
 
 <script>
@@ -33,12 +36,12 @@
 
 [% IF jobs.size == 0 %]
 
-  <div class="alert">There are no matching jobs.</div>
+  <div class="alert alert-warning">There are no matching jobs.</div>
 
 [% ELSE %]
 
   [% IF nrJobs > jobs.size %]
-    <div class="alert">Showing the first [% jobs.size %] jobs.  <a href="javascript:setFilter('filter=%')">Show all [% nrJobs %] jobs...</a></div>
+    <div class="alert alert-info">Showing the first [% jobs.size %] jobs.  <a href="javascript:setFilter('filter=%')">Show all [% nrJobs %] jobs...</a></div>
   [% END %]
 
   [% evalIds = evals.keys.nsort.reverse %]

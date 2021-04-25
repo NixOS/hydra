@@ -7,7 +7,6 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::View::TT;
-use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
 use Nix::Config;
 use Encode;
@@ -76,8 +75,8 @@ sub begin :Private {
 
     # XSRF protection: require POST requests to have the same origin.
     if ($c->req->method eq "POST" && $c->req->path ne "api/push-github") {
-        my $referer = $c->req->header('Origin');
-        $referer //= $c->req->header('Referer');
+        my $referer = $c->req->header('Referer');
+        $referer //= $c->req->header('Origin');
         my $base = $c->req->base;
         die unless $base =~ /\/$/;
         $referer .= "/";
@@ -104,7 +103,7 @@ sub deserialize :ActionClass('Deserialize') { }
 sub index :Path :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'overview.tt';
-    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'name'})];
+    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => ['enabled DESC', 'name']})];
     $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, { order_by => ['createtime DESC'], rows => 5 })];
     $self->status_ok($c,
         entity => $c->stash->{projects}
