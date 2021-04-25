@@ -32,11 +32,13 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 <div class="alert alert-danger">Couldn't find an evaluation to compare to.</div>
 [% END %]
 
-<form>
-  <div class="form-group">
+<form class="form-inline">
+  <div class="form-group mb-2">
     <input name="filter" type="text" class="form-control" placeholder="Search jobs by..." [% HTML.attributes(value => filter) %]/>
-    <input name="compare" type="hidden" [% HTML.attributes(value => otherEval.id) %]/>
-    <input name="full" type="hidden" [% HTML.attributes(value => full) %]/>
+    </div>
+  <input name="compare" type="hidden" [% HTML.attributes(value => otherEval.id) %]/>
+  <input name="full" type="hidden" [% HTML.attributes(value => full) %]/>
+  <div class="form-group mb-2 mx-sm-3">
     <select name="field" class="form-control">
       <option value="name" [% IF field == "name" %]selected="selected"[% END %]>Name</option>
       <option value="maintainer" [% IF field == "maintainer" %]selected="selected"[% END %]>Maintainer</option>
