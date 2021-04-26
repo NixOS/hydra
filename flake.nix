@@ -290,6 +290,7 @@
             name = "hydra-perl-deps";
             paths = with perlPackages; lib.closePropagation
               [ ModulePluggable
+                AuthenSASL
                 CatalystActionREST
                 CatalystAuthenticationStoreDBIxClass
                 CatalystAuthenticationStoreLDAP
