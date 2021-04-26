@@ -251,6 +251,7 @@ my %hint = (
         "name",
         "displayname",
         "description",
+        "homepage",
         "enabled",
         "hidden",
         "owner"
