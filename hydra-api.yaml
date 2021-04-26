@@ -163,6 +163,15 @@ paths:
                 displayname:
                   description: name of the project
                   type: string
+                description:
+                  description: description of the project
+                  type: string
+                homepage:
+                  description: homepage of the project
+                  type: string
+                owner:
+                  description: owner of the project
+                  type: string
                 enabled:
                   description: when set to true the project gets scheduled for evaluation
                   type: boolean
