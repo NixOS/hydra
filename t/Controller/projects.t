@@ -25,11 +25,11 @@ my $projectinfo = request(GET '/project/tests',
 
 ok($projectinfo->is_success);
 is(decode_json($projectinfo->content), {
-    description => undef,
+    description => "",
     displayname => "",
     enabled => JSON::true,
     hidden => JSON::false,
-    homepage => undef,
+    homepage => "",
     jobsets => [],
     name => "tests",
     owner => "root"

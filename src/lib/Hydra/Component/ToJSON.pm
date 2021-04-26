@@ -18,6 +18,10 @@ sub TO_JSON {
         $json{$column} = $self->get_column($column);
     }
 
+    foreach my $column (@{$hint->{string_columns}}) {
+      $json{$column} = $self->get_column($column) // "";
+    }
+
     foreach my $column (@{$hint->{boolean_columns}}) {
         $json{$column} = $self->get_column($column) ? JSON::true : JSON::false;
     }
