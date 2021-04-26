@@ -175,7 +175,7 @@ paths:
                 enabled:
                   description: when set to true the project gets scheduled for evaluation
                   type: boolean
-                hidden:
+                visible:
                   description: when set to true the project is displayed in the web interface
                   type: boolean
       responses:
