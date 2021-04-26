@@ -5,6 +5,7 @@ use strict;
 use warnings;
 
 use base 'DBIx::Class';
+use JSON;
 
 sub TO_JSON {
     my $self = shift;
@@ -15,6 +16,14 @@ sub TO_JSON {
 
     foreach my $column (@{$hint->{columns}}) {
         $json{$column} = $self->get_column($column);
+    }
+
+    foreach my $column (@{$hint->{string_columns}}) {
+      $json{$column} = $self->get_column($column) // "";
+    }
+
+    foreach my $column (@{$hint->{boolean_columns}}) {
+        $json{$column} = $self->get_column($column) ? JSON::true : JSON::false;
     }
 
     foreach my $relname (keys %{$hint->{relations}}) {
