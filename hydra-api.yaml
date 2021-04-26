@@ -533,6 +533,9 @@ components:
         description:
           description: description of the project
           type: string
+        homepage:
+          description: homepage of the project
+          type: string
         hidden:
           description: when set to true the project is not displayed in the web interface
           type: boolean
