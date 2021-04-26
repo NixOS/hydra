@@ -170,6 +170,16 @@ paths:
                   description: when set to true the project is displayed in the web interface
                   type: boolean
       responses:
+        '400':
+          description: bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    description: error message
+                    type: string
         '403':
           description: request unauthorized
           content:

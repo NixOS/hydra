@@ -135,7 +135,7 @@ sub updateProject {
     my $owner = $project->owner;
     if ($c->check_user_roles('admin') and defined $c->stash->{params}->{owner}) {
         $owner = trim $c->stash->{params}->{owner};
-        error($c, "The user name ‘$owner’ does not exist.")
+        badRequest($c, "The user name ‘$owner’ does not exist.")
             unless defined $c->model('DB::Users')->find($owner);
     }
 
