@@ -252,9 +252,11 @@ my %hint = (
         "displayname",
         "description",
         "homepage",
-        "enabled",
-        "hidden",
         "owner"
+    ],
+    boolean_columns => [
+      "enabled",
+      "hidden"
     ],
     relations => {
         jobsets => "name"
