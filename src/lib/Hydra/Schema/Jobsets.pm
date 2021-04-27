@@ -412,12 +412,30 @@ __PACKAGE__->add_column(
 
 my %hint = (
     columns => [
+        "errortime",
+        "lastcheckedtime",
+        "triggertime",
         "enabled",
-        "errormsg",
-        "fetcherrormsg",
-        "emailoverride",
+        "keepnr",
+        "checkinterval",
+        "schedulingshares",
+        "starttime"
+    ],
+    string_columns => [
+        "name",
+        "project",
+        "description",
+        "nixexprinput",
         "nixexprpath",
-        "nixexprinput"
+        "errormsg",
+        "emailoverride",
+        "fetcherrormsg",
+        "type",
+        "flake"
+    ],
+    boolean_columns => [
+        "enableemail",
+        "hidden"
     ],
     eager_relations => {
         jobsetinputs => "name"

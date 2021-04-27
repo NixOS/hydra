@@ -306,35 +306,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                'description':
-                  description: a description of the jobset
-                  type: string
-                checkinterval:
-                  description: interval (in seconds) in which to check for evaluation
-                  type: integer
-                enabled:
-                  description: when true the jobset gets scheduled for evaluation
-                  type: boolean
-                visible:
-                  description: when true the jobset is visible in the web frontend
-                  type: boolean
-                keepnr:
-                  description: number or evaluations to keep
-                  type: integer
-                nixexprinput:
-                  description: the name of the jobset input which contains the nixexprpath
-                  type: string
-                nixexprpath:
-                  nullable: true
-                  description: the path to the file to evaluate
-                  type: string
-                inputs:
-                  description: inputs for this jobset
-                  type: object
-                  additionalProperties:
-                    $ref: '#/components/schemas/JobsetInput'
+              $ref: '#/components/schemas/Jobset'
       responses:
         '201':
           description: jobset creation response
@@ -590,26 +562,76 @@ components:
     Jobset:
       type: object
       properties:
-        fetcherrormsg:
+        name:
+          description: the name of the jobset
+          type: string
+        project:
+          description: the project this jobset belongs to
+          type: string
+        description:
           nullable: true
-          description: contains the error message when there was a problem fetching sources for a jobset
+          description: a description of the jobset
           type: string
         nixexprinput:
+          nullable: true
           description: the name of the jobset input which contains the nixexprpath
-          type: string
-        errormsg:
-          description: contains the stderr output of the nix-instantiate command
-          type: string
-        emailoverride:
-          description: email address to send notices to instead of the package maintainer (can be a comma separated list)
           type: string
         nixexprpath:
           nullable: true
           description: the path to the file to evaluate
           type: string
+        errormsg:
+          nullable: true
+          description: contains the stderr output of the nix-instantiate command
+          type: string
+        errortime:
+          nullable: true
+          description: timestamp associated with errormsg
+          type: integer
+        lastcheckedtime:
+          nullable: true
+          description: the last time the evaluator looked at this jobset
+          type: integer
+        triggertime:
+          nullable: true
+          description: set to the time we were triggered by a push event
+          type: integer
         enabled:
-          description: when set to true the jobset gets scheduled for evaluation
+          description: 0 is disabled, 1 is enabled, 2 is one-shot, and 3 is one-at-a-time
+          type: integer
+        enableemail:
+          description: when true the jobset sends emails when previously-successful builds fail
           type: boolean
+        hidden:
+          description: when false the jobset is visible in the web frontend
+          type: boolean
+        emailoverride:
+          description: email address to send notices to instead of the package maintainer (can be a comma separated list)
+          type: string
+        keepnr:
+          description: number or evaluations to keep
+          type: integer
+        checkinterval:
+          description: interval (in seconds) in which to check for evaluation
+          type: integer
+        schedulingshares:
+          description: how many shares to be allocated to the jobset
+          type: integer
+        fetcherrormsg:
+          nullable: true
+          description: contains the error message when there was a problem fetching sources for a jobset
+          type: string
+        startime:
+          nullable: true
+          description: set to the time the latest evaluation started (if one is currently running)
+          type: integer
+        type:
+          description: the type of the jobset
+          type: string
+        flake:
+          nullable: true
+          description: the flake uri to evaluate
+          type: string
         jobsetinputs:
           description: inputs configured for this jobset
           type: object
