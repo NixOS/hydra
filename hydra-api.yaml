@@ -160,8 +160,11 @@ paths:
             schema:
               type: object
               properties:
-                displayname:
+                name:
                   description: name of the project
+                  type: string
+                displayname:
+                  description: display name of the project
                   type: string
                 description:
                   description: description of the project
