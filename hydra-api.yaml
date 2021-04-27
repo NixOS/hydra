@@ -258,6 +258,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+    delete:
+      summary: Deletes a project
+      parameters:
+        - name: id
+          in: path
+          description: project identifier
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: project deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect:
+                    type: string
+                    description: root of the Hydra instance
+        '404':
+          description: project could not be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /jobset/{project-id}/{jobset-id}:
     put:
       summary: Creates a jobset in an existing project
