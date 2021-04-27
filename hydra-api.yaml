@@ -553,6 +553,15 @@ components:
     JobsetInput:
       type: object
       properties:
+        name:
+          description: name of the input
+          type: string
+        type:
+          description: type of input
+          type: string
+        emailresponsible:
+          description: whether or not to email responsible parties
+          type: boolean
         jobsetinputalts:
           type: array
           description: ???
