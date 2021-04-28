@@ -11,7 +11,7 @@ my %ctx = test_init(
 require Hydra::Schema;
 require Hydra::Model::DB;
 
-use JSON;
+use JSON::MaybeXS;
 
 use HTTP::Request::Common;
 use Test2::V0;
