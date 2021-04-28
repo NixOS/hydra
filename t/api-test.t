@@ -50,67 +50,82 @@ sub request_json {
     return $res;
 }
 
-my $result = request_json({ uri => "/login", method => "POST", data => { username => "root", password => "wrong" } });
-is($result->code(), 403, "Incorrect password rejected.");
+subtest "login" => sub {
+    subtest "bad password" => sub {
+        my $result = request_json({ uri => "/login", method => "POST", data => { username => "root", password => "wrong" } });
+        is($result->code(), 403, "Incorrect password rejected.");
+    };
 
-my $result = request_json({ uri => "/login", method => "POST", data => { username => "root", password => "foobar" } });
+    my $result = request_json({ uri => "/login", method => "POST", data => { username => "root", password => "foobar" } });
 
-my $user = decode_json($result->content());
+    my $user = decode_json($result->content());
 
-is($user->{username}, "root", "The root user is named root");
-is($user->{userroles}->[0], "admin", "The root user is an admin");
-$cookie = $result->header("set-cookie");
+    is($user->{username}, "root", "The root user is named root");
+    is($user->{userroles}->[0], "admin", "The root user is an admin");
+    $cookie = $result->header("set-cookie");
 
-$user = decode_json(request_json({ uri => "/current-user" })->content());
-is($user->{username}, "root", "The current user is named root");
-is($user->{userroles}->[0], "admin", "The current user is an admin");
+    $user = decode_json(request_json({ uri => "/current-user" })->content());
+    is($user->{username}, "root", "The current user is named root");
+    is($user->{userroles}->[0], "admin", "The current user is an admin");
+};
 
-is(request_json({ uri => '/project/sample' })->code(), 404, "Non-existent projects don't exist");
+subtest "projects" => sub {
+    is(request_json({ uri => '/project/sample' })->code(), 404, "Non-existent projects don't exist");
 
-$result = request_json({ uri => '/project/sample', method => 'PUT', data => { displayname => "Sample", enabled => "1", visible => "1", } });
-is($result->code(), 201, "PUTting a new project creates it");
+    my $result = request_json({ uri => '/project/sample', method => 'PUT', data => { displayname => "Sample", enabled => "1", visible => "1", } });
+    is($result->code(), 201, "PUTting a new project creates it");
 
-my $project = decode_json(request_json({ uri => '/project/sample' })->content());
+    my $project = decode_json(request_json({ uri => '/project/sample' })->content());
 
-ok((not @{$project->{jobsets}}), "A new project has no jobsets");
+    ok((not @{$project->{jobsets}}), "A new project has no jobsets");
+};
 
-$result = request_json({ uri => '/jobset/sample/default', method => 'PUT', data => { nixexprpath => "default.nix", nixexprinput => "my-src", jobsetinputs => { "my-src" => { type => "path", value => $jobsetdir } }, enabled => "1", visible => "1", checkinterval => "3600"} });
-is($result->code(), 201, "PUTting a new jobset creates it");
+subtest "jobsets" => sub {
+    my $result = request_json({ uri => '/jobset/sample/default', method => 'PUT', data => { nixexprpath => "default.nix", nixexprinput => "my-src", jobsetinputs => { "my-src" => { type => "path", value => $jobsetdir } }, enabled => "1", visible => "1", checkinterval => "3600"} });
+    is($result->code(), 201, "PUTting a new jobset creates it");
 
-my $jobset = decode_json(request_json({ uri => '/jobset/sample/default' })->content());
+    my $jobset = decode_json(request_json({ uri => '/jobset/sample/default' })->content());
 
-ok(exists $jobset->{jobsetinputs}->{"my-src"}, "The new jobset has a 'my-src' input");
+    ok(exists $jobset->{jobsetinputs}->{"my-src"}, "The new jobset has a 'my-src' input");
 
-is($jobset->{jobsetinputs}->{"my-src"}->{"jobsetinputalts"}->[0], $jobsetdir, "The 'my-src' input is in $jobsetdir");
+    is($jobset->{jobsetinputs}->{"my-src"}->{"jobsetinputalts"}->[0], $jobsetdir, "The 'my-src' input is in $jobsetdir");
+};
 
-ok(evalSucceeds($db->resultset('Jobsets')->find({ name => 'default' })), "Evaluating should exit with return code 0");
+subtest "evaluation" => sub {
+    subtest "initial evaluaton" => sub {
+        ok(evalSucceeds($db->resultset('Jobsets')->find({ name => 'default' })), "Evaluating should exit with return code 0");
 
-$result = request_json({ uri => '/jobset/sample/default/evals' });
-is($result->code(), 200, "Can get evals of a jobset");
-my $evals = decode_json($result->content())->{evals};
-my $eval = $evals->[0];
-is($eval->{hasnewbuilds}, 1, "The first eval of a jobset has new builds");
+        my $result = request_json({ uri => '/jobset/sample/default/evals' });
+        is($result->code(), 200, "Can get evals of a jobset");
+        my $evals = decode_json($result->content())->{evals};
+        my $eval = $evals->[0];
+        is($eval->{hasnewbuilds}, 1, "The first eval of a jobset has new builds");
+    };
 
+    subtest "second evaluation" => sub {
+        open(my $fh, ">>", "${jobsetdir}/default.nix") or die "didn't open?";
+        say $fh "\n";
+        close $fh;
+        ok(evalSucceeds($db->resultset('Jobsets')->find({ name => 'default' })), "Evaluating should exit with return code 0");
 
-open(my $fh, ">>", "${jobsetdir}/default.nix") or die "didn't open?";
-say $fh "\n";
-close $fh;
-ok(evalSucceeds($db->resultset('Jobsets')->find({ name => 'default' })), "Evaluating should exit with return code 0");
+        my $evals = decode_json(request_json({ uri => '/jobset/sample/default/evals' })->content())->{evals};
+        is(scalar(@$evals), 2, "Changing a jobset source creates the second evaluation");
+        isnt($evals->[0]->{jobsetevalinputs}->{"my-src"}->{revision}, $evals->[1]->{jobsetevalinputs}->{"my-src"}->{revision}, "Changing a jobset source changes its revision");
 
-my $evals = decode_json(request_json({ uri => '/jobset/sample/default/evals' })->content())->{evals};
-is(scalar(@$evals), 2, "Changing a jobset source creates the second evaluation");
-isnt($evals->[0]->{jobsetevalinputs}->{"my-src"}->{revision}, $evals->[1]->{jobsetevalinputs}->{"my-src"}->{revision}, "Changing a jobset source changes its revision");
+        my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{builds}->[0] })->content());
+        is($build->{job}, "job", "The build's job name is job");
+        is($build->{finished}, 0, "The build isn't finished yet");
+        ok($build->{buildoutputs}->{out}->{path} =~ /\/nix\/store\/[a-zA-Z0-9]{32}-job$/, "The build's outpath is in the Nix store and named 'job'");
 
-my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{builds}->[0] })->content());
-is($build->{job}, "job", "The build's job name is job");
-is($build->{finished}, 0, "The build isn't finished yet");
-ok($build->{buildoutputs}->{out}->{path} =~ /\/nix\/store\/[a-zA-Z0-9]{32}-job$/, "The build's outpath is in the Nix store and named 'job'");
+        subtest "search" => sub {
+            my $search_project = decode_json(request_json({ uri => "/search/?query=sample" })->content());
+            is($search_project->{projects}[0]->{name}, "sample", "Search for project 'sample' works");
 
+            my $search_build = decode_json(request_json({ uri => "/search/?query=" . $build->{buildoutputs}->{out}->{path} })->content());
+            is($search_build->{builds}[0]->{buildoutputs}->{out}->{path}, $build->{buildoutputs}->{out}->{path}, "Search for builds work");
+        };
+    };
+};
 
-my $search_project = decode_json(request_json({ uri => "/search/?query=sample" })->content());
-is($search_project->{projects}[0]->{name}, "sample", "Search for project 'sample' works");
-
-my $search_build = decode_json(request_json({ uri => "/search/?query=" . $build->{buildoutputs}->{out}->{path} })->content());
-is($search_build->{builds}[0]->{buildoutputs}->{out}->{path}, $build->{buildoutputs}->{out}->{path}, "Search for builds work");
 
 done_testing;
