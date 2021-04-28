@@ -935,49 +935,72 @@ components:
   examples:
     projects-success:
       value:
-      - enabled: 1
-        name: example-hello
-        hidden: 0
-        description: hello
-        owner: hydra-user
+      - displayname: Foo Bar
+        description: Foo Bar Baz Qux
+        enabled: true
+        owner: alice
         jobsets:
-          - hello
-        displayname: example-hello
-      - displayname: foo
-        jobsets:
-          - foobar
-        owner: hydra-user
-        name: foo
-        enabled: 1
-        description: foo project
-        hidden: 0
+          - bar-jobset
+        hidden: false
+        homepage: https://example.com/
+        name: foobar
+      - jobsets:
+          - test-jobset
+        hidden: false
+        name: hello
+        homepage: https://example.com/
+        description: Hi There
+        displayname: Hello
+        enabled: true
+        owner: alice
 
     project-success:
       value:
-        name: foo
-        enabled: 1
-        hidden: 0
-        description: foo project
-        displayname: foo
-        owner: gilligan
         jobsets:
-          - foobar
+          - bar-jobset
+        homepage: https://example.com/
+        name: foobar
+        hidden: false
+        enabled: true
+        displayname: Foo Bar
+        description: Foo Bar Baz Qux
+        owner: alice
 
     jobset-success:
       value:
-        nixexprpath: examples/hello.nix
-        enabled: 1
+        triggertime: null
+        enableemail: false
         jobsetinputs:
-          hydra:
-            jobsetinputalts:
-              - 'https://github.com/gilligan/hydra extend-readme'
           nixpkgs:
+            type: git
+            name: nixpkgs
+            emailresponsible: false
             jobsetinputalts:
-              - 'https://github.com/nixos/nixpkgs-channels nixos-20.03'
+              - https://github.com/NixOS/nixpkgs.git
+          officialRelease:
+            jobsetinputalts:
+              - 'false'
+            emailresponsible: false
+            name: officialRelease
+            type: boolean
+        fetcherrormsg: ''
+        hidden: false
+        schedulingshares: 1
         emailoverride: ''
+        starttime: null
+        description: ''
         errormsg: ''
-        nixexprinput: hydra
-        fetcherrormsg: null
+        lastcheckedtime: null
+        nixexprinput: nixpkgs
+        checkinterval: 0
+        project: foobar
+        flake: ''
+        type: 0
+        enabled: 1
+        name: bar-jobset
+        keepnr: 0
+        nixexprpath: pkgs/top-level/release.nix
+        errortime: null
 
     evals-success:
       value:
