@@ -40,7 +40,7 @@ sub login_POST {
     $self->status_found(
         $c,
         location => $c->uri_for("current-user"),
-        entity => {}
+        entity => $c->model("DB::Users")->find($c->user->username)
     );
 }
 
