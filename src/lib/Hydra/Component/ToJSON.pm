@@ -10,6 +10,10 @@ use JSON;
 sub TO_JSON {
     my $self = shift;
 
+    if ($self->can("as_json")) {
+        return $self->as_json();
+    }
+
     my $hint = $self->json_hint;
 
     my %json = ();
