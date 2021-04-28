@@ -270,8 +270,8 @@ sub updateJobset {
     $jobset->jobsetinputs->delete;
 
     if ($type == 0) {
-        foreach my $name (keys %{$c->stash->{params}->{jobsetinputs}}) {
-            my $inputData = $c->stash->{params}->{jobsetinputs}->{$name};
+        foreach my $name (keys %{$c->stash->{params}->{inputs}}) {
+            my $inputData = $c->stash->{params}->{inputs}->{$name};
             my $type = $inputData->{type};
             my $value = $inputData->{value};
             my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;

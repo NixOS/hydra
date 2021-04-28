@@ -410,40 +410,40 @@ __PACKAGE__->add_column(
     "+id" => { retrieve_on_insert => 1 }
 );
 
-my %hint = (
-    columns => [
-        "errortime",
-        "lastcheckedtime",
-        "triggertime",
-        "enabled",
-        "keepnr",
-        "checkinterval",
-        "schedulingshares",
-        "starttime"
-    ],
-    string_columns => [
-        "name",
-        "project",
-        "description",
-        "nixexprinput",
-        "nixexprpath",
-        "errormsg",
-        "emailoverride",
-        "fetcherrormsg",
-        "type",
-        "flake"
-    ],
-    boolean_columns => [
-        "enableemail",
-        "hidden"
-    ],
-    eager_relations => {
-        jobsetinputs => "name"
-    }
-);
+sub as_json {
+    my $self = shift;
 
-sub json_hint {
-    return \%hint;
+    my %json = (
+        # columns
+        "errortime" => $self->get_column("errortime"),
+        "lastcheckedtime" => $self->get_column("lastcheckedtime"),
+        "triggertime" => $self->get_column("triggertime"),
+        "enabled" => $self->get_column("enabled"),
+        "keepnr" => $self->get_column("keepnr"),
+        "checkinterval" => $self->get_column("checkinterval"),
+        "schedulingshares" => $self->get_column("schedulingshares"),
+        "starttime" => $self->get_column("starttime"),
+
+        # string_columns
+        "name" => $self->get_column("name") // "",
+        "project" => $self->get_column("project") // "",
+        "description" => $self->get_column("description") // "",
+        "nixexprinput" => $self->get_column("nixexprinput") // "",
+        "nixexprpath" => $self->get_column("nixexprpath") // "",
+        "errormsg" => $self->get_column("errormsg") // "",
+        "emailoverride" => $self->get_column("emailoverride") // "",
+        "fetcherrormsg" => $self->get_column("fetcherrormsg") // "",
+        "type" => $self->get_column("type") // "",
+        "flake" => $self->get_column("flake") // "",
+
+        # boolean_columns
+        "enableemail" => $self->get_column("enableemail") ? JSON::true : JSON::false,
+        "visible" => $self->get_column("hidden") ? JSON::false : JSON::true,
+
+        "inputs" => { map { $_->name => $_ } $self->jobsetinputs }
+    );
+
+    return \%json;
 }
 
 1;

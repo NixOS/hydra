@@ -46,8 +46,8 @@
     <thead>
       <tr><th></th><th>Input name</th><th>Type</th><th style="width: 50%">Value</th><th>Notify committers</th></tr>
     </thead>
-    <tbody class="jobsetinputs">
-      [% jobsetinputs = createFromEval ? eval.jobsetevalinputs : jobset.jobsetinputs; FOREACH input IN jobsetinputs %]
+    <tbody class="inputs">
+      [% inputs = createFromEval ? eval.jobsetevalinputs : jobset.jobsetinputs; FOREACH input IN inputs %]
         [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
       <tr>
@@ -220,8 +220,8 @@
 
   $("#submit-jobset").click(function() {
     var formElements = $(this).parents("form").serializeArray();
-    var data = { 'jobsetinputs': {} };
-    var jobsetinputs = {};
+    var data = { 'inputs': {} };
+    var inputs = {};
     for (var i = 0; formElements.length > i; i++) {
       var elem = formElements[i];
       var match = elem.name.match(/^input-([\w-]+)-(\w+)$/);
@@ -233,13 +233,13 @@
 
         if (baseName === "template") continue;
 
-        if (!(baseName in jobsetinputs))
-            jobsetinputs[baseName] = {};
+        if (!(baseName in inputs))
+            inputs[baseName] = {};
 
         if (param === "name")
-            data.jobsetinputs[elem.value] = jobsetinputs[baseName];
+            data.inputs[elem.value] = inputs[baseName];
         else
-            jobsetinputs[baseName][param] = elem.value;
+            inputs[baseName][param] = elem.value;
       }
     }
     redirectJSON({
