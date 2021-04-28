@@ -54,6 +54,7 @@ sub test_init {
     $ENV{'HYDRA_CONFIG'} = "$dir/hydra.conf";
 
     open(my $fh, '>', $ENV{'HYDRA_CONFIG'}) or die "Could not open file '" . $ENV{'HYDRA_CONFIG'}. " $!";
+    print $fh "store_uri = file:$dir/nix/dest-store\n";
     print $fh $opts{'hydra_config'} || "";
     close $fh;
 
