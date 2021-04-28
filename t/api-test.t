@@ -74,7 +74,7 @@ my $project = decode_json(request_json({ uri => '/project/sample' })->content())
 
 ok((not @{$project->{jobsets}}), "A new project has no jobsets");
 
-$result = request_json({ uri => '/jobset/sample/default', method => 'PUT', data => { nixexprpath => "default.nix", nixexprinput => "my-src", inputs => { "my-src" => { type => "path", value => $jobsetdir } }, enabled => "1", visible => "1", checkinterval => "3600"} });
+$result = request_json({ uri => '/jobset/sample/default', method => 'PUT', data => { nixexprpath => "default.nix", nixexprinput => "my-src", jobsetinputs => { "my-src" => { type => "path", value => $jobsetdir } }, enabled => "1", visible => "1", checkinterval => "3600"} });
 is($result->code(), 201, "PUTting a new jobset creates it");
 
 my $jobset = decode_json(request_json({ uri => '/jobset/sample/default' })->content());
