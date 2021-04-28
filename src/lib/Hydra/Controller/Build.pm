@@ -66,8 +66,8 @@ sub build_GET {
 
     $c->stash->{template} = 'build.tt';
     $c->stash->{isLocalStore} = isLocalStore();
-    # XXX: If ca-derivations is enabled then this will always return false
-    # because `$_->path` will be empty
+    # XXX: If the derivation is content-addressed then this will always return
+    # false because `$_->path` will be empty
     $c->stash->{available} =
         $c->stash->{isLocalStore}
         ? all { $_->path && isValidPath($_->path) } $build->buildoutputs->all
