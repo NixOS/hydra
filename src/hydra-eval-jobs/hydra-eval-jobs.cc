@@ -209,13 +209,15 @@ static void worker(
                 }
 
                 nlohmann::json out;
-                if (settings.isExperimentalFeatureEnabled("ca-derivations")) {
-                  for (auto & j : outputs)
+                for (auto & j : outputs)
+                  if (localStore->maybeParseStorePath(j.second))
+                    out[j.first] = j.second;
+                  else
+                    // If this isn't a real store path, it means that it's a
+                    // placeholder.
+                    // Replace it by an empty string for the time being until
+                    // we build the derivation and can give this a proper value
                     out[j.first] = "";
-                } else {
-                  for (auto & j : outputs)
-                      out[j.first] = j.second;
-                }
                 job["outputs"] = std::move(out);
 
                 reply["job"] = std::move(job);
