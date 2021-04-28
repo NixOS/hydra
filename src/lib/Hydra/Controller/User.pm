@@ -37,7 +37,11 @@ sub login_POST {
         accessDenied($c, "Bad username or password.")
     }
 
-    currentUser_GET($self, $c);
+    $self->status_found(
+        $c,
+        location => $c->uri_for("current-user"),
+        entity => {}
+    );
 }
 
 
