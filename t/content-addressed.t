@@ -2,7 +2,11 @@ use feature 'unicode_strings';
 use strict;
 use Setup;
 
-my %ctx = test_init();
+my %ctx = test_init(
+    nix_config => qq|
+    experimental-features = ca-derivations
+    |,
+);
 
 require Hydra::Schema;
 require Hydra::Model::DB;
@@ -14,7 +18,7 @@ hydra_setup($db);
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
-$jobset = createBaseJobset("content-addressed", "content-addressed.nix");
+my $jobset = createBaseJobset("content-addressed", "content-addressed.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset),                  "Evaluating jobs/content-addressed.nix should exit with return code 0");
 ok(nrQueuedBuildsForJobset($jobset) == 3 , "Evaluating jobs/content-addressed.nix should result in 3 builds");
