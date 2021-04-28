@@ -306,35 +306,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                'description':
-                  description: a description of the jobset
-                  type: string
-                checkinterval:
-                  description: interval (in seconds) in which to check for evaluation
-                  type: integer
-                enabled:
-                  description: when true the jobset gets scheduled for evaluation
-                  type: boolean
-                visible:
-                  description: when true the jobset is visible in the web frontend
-                  type: boolean
-                keepnr:
-                  description: number or evaluations to keep
-                  type: integer
-                nixexprinput:
-                  description: the name of the jobset input which contains the nixexprpath
-                  type: string
-                nixexprpath:
-                  nullable: true
-                  description: the path to the file to evaluate
-                  type: string
-                inputs:
-                  description: inputs for this jobset
-                  type: object
-                  additionalProperties:
-                    $ref: '#/components/schemas/JobsetInput'
+              $ref: '#/components/schemas/Jobset'
       responses:
         '201':
           description: jobset creation response
@@ -391,6 +363,39 @@ paths:
               examples:
                 jobset-success:
                   $ref: '#/components/examples/jobset-success'
+        '404':
+          description: jobset couldn't be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Deletes a jobset designated by project and jobset id
+      parameters:
+        - name: project-id
+          in: path
+          description: name of the project the jobset belongs to
+          required: true
+          schema:
+            type: string
+        - name: jobset-id
+          in: path
+          description: name of the jobset to retrieve
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: jobset successfully deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect:
+                    type: string
+                    description: root of the Hydra instance
         '404':
           description: jobset couldn't be found
           content:
@@ -581,6 +586,15 @@ components:
     JobsetInput:
       type: object
       properties:
+        name:
+          description: name of the input
+          type: string
+        type:
+          description: type of input
+          type: string
+        emailresponsible:
+          description: whether or not to email responsible parties
+          type: boolean
         jobsetinputalts:
           type: array
           description: ???
@@ -590,26 +604,76 @@ components:
     Jobset:
       type: object
       properties:
-        fetcherrormsg:
+        name:
+          description: the name of the jobset
+          type: string
+        project:
+          description: the project this jobset belongs to
+          type: string
+        description:
           nullable: true
-          description: contains the error message when there was a problem fetching sources for a jobset
+          description: a description of the jobset
           type: string
         nixexprinput:
+          nullable: true
           description: the name of the jobset input which contains the nixexprpath
-          type: string
-        errormsg:
-          description: contains the stderr output of the nix-instantiate command
-          type: string
-        emailoverride:
-          description: email address to send notices to instead of the package maintainer (can be a comma separated list)
           type: string
         nixexprpath:
           nullable: true
           description: the path to the file to evaluate
           type: string
+        errormsg:
+          nullable: true
+          description: contains the stderr output of the nix-instantiate command
+          type: string
+        errortime:
+          nullable: true
+          description: timestamp associated with errormsg
+          type: integer
+        lastcheckedtime:
+          nullable: true
+          description: the last time the evaluator looked at this jobset
+          type: integer
+        triggertime:
+          nullable: true
+          description: set to the time we were triggered by a push event
+          type: integer
         enabled:
-          description: when set to true the jobset gets scheduled for evaluation
+          description: 0 is disabled, 1 is enabled, 2 is one-shot, and 3 is one-at-a-time
+          type: integer
+        enableemail:
+          description: when true the jobset sends emails when previously-successful builds fail
           type: boolean
+        hidden:
+          description: when false the jobset is visible in the web frontend
+          type: boolean
+        emailoverride:
+          description: email address to send notices to instead of the package maintainer (can be a comma separated list)
+          type: string
+        keepnr:
+          description: number or evaluations to keep
+          type: integer
+        checkinterval:
+          description: interval (in seconds) in which to check for evaluation
+          type: integer
+        schedulingshares:
+          description: how many shares to be allocated to the jobset
+          type: integer
+        fetcherrormsg:
+          nullable: true
+          description: contains the error message when there was a problem fetching sources for a jobset
+          type: string
+        startime:
+          nullable: true
+          description: set to the time the latest evaluation started (if one is currently running)
+          type: integer
+        type:
+          description: the type of the jobset
+          type: string
+        flake:
+          nullable: true
+          description: the flake uri to evaluate
+          type: string
         jobsetinputs:
           description: inputs configured for this jobset
           type: object
@@ -871,49 +935,72 @@ components:
   examples:
     projects-success:
       value:
-      - enabled: 1
-        name: example-hello
-        hidden: 0
-        description: hello
-        owner: hydra-user
+      - displayname: Foo Bar
+        description: Foo Bar Baz Qux
+        enabled: true
+        owner: alice
         jobsets:
-          - hello
-        displayname: example-hello
-      - displayname: foo
-        jobsets:
-          - foobar
-        owner: hydra-user
-        name: foo
-        enabled: 1
-        description: foo project
-        hidden: 0
+          - bar-jobset
+        hidden: false
+        homepage: https://example.com/
+        name: foobar
+      - jobsets:
+          - test-jobset
+        hidden: false
+        name: hello
+        homepage: https://example.com/
+        description: Hi There
+        displayname: Hello
+        enabled: true
+        owner: alice
 
     project-success:
       value:
-        name: foo
-        enabled: 1
-        hidden: 0
-        description: foo project
-        displayname: foo
-        owner: gilligan
         jobsets:
-          - foobar
+          - bar-jobset
+        homepage: https://example.com/
+        name: foobar
+        hidden: false
+        enabled: true
+        displayname: Foo Bar
+        description: Foo Bar Baz Qux
+        owner: alice
 
     jobset-success:
       value:
-        nixexprpath: examples/hello.nix
-        enabled: 1
+        triggertime: null
+        enableemail: false
         jobsetinputs:
-          hydra:
-            jobsetinputalts:
-              - 'https://github.com/gilligan/hydra extend-readme'
           nixpkgs:
+            type: git
+            name: nixpkgs
+            emailresponsible: false
             jobsetinputalts:
-              - 'https://github.com/nixos/nixpkgs-channels nixos-20.03'
+              - https://github.com/NixOS/nixpkgs.git
+          officialRelease:
+            jobsetinputalts:
+              - 'false'
+            emailresponsible: false
+            name: officialRelease
+            type: boolean
+        fetcherrormsg: ''
+        hidden: false
+        schedulingshares: 1
         emailoverride: ''
+        starttime: null
+        description: ''
         errormsg: ''
-        nixexprinput: hydra
-        fetcherrormsg: null
+        lastcheckedtime: null
+        nixexprinput: nixpkgs
+        checkinterval: 0
+        project: foobar
+        flake: ''
+        type: 0
+        enabled: 1
+        name: bar-jobset
+        keepnr: 0
+        nixexprpath: pkgs/top-level/release.nix
+        errortime: null
 
     evals-success:
       value:

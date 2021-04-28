@@ -46,8 +46,8 @@
     <thead>
       <tr><th></th><th>Input name</th><th>Type</th><th style="width: 50%">Value</th><th>Notify committers</th></tr>
     </thead>
-    <tbody class="inputs">
-      [% inputs = createFromEval ? eval.jobsetevalinputs : jobset.jobsetinputs; FOREACH input IN inputs %]
+    <tbody class="jobsetinputs">
+      [% jobsetinputs = createFromEval ? eval.jobsetevalinputs : jobset.jobsetinputs; FOREACH input IN jobsetinputs %]
         [% INCLUDE renderJobsetInput input=input baseName="input-$input.name" %]
       [% END %]
       <tr>
@@ -111,9 +111,9 @@
   </div>
 
   <div class="form-group row show-on-flake">
-    <label class="col-form-label col-sm-3" for="editjobsetflakeref">Flake URI</label>
+    <label class="col-form-label col-sm-3" for="editjobsetflake">Flake URI</label>
     <div class="col-sm-9">
-      <input type="text" class="form-control" id="editjobsetflakeref" name="flakeref" [% HTML.attributes(value => jobset.flake) %]/>
+      <input type="text" class="form-control" id="editjobsetflake" name="flake" [% HTML.attributes(value => jobset.flake) %]/>
     </div>
   </div>
 
@@ -220,8 +220,8 @@
 
   $("#submit-jobset").click(function() {
     var formElements = $(this).parents("form").serializeArray();
-    var data = { 'inputs': {} };
-    var inputs = {};
+    var data = { 'jobsetinputs': {} };
+    var jobsetinputs = {};
     for (var i = 0; formElements.length > i; i++) {
       var elem = formElements[i];
       var match = elem.name.match(/^input-([\w-]+)-(\w+)$/);
@@ -233,13 +233,13 @@
 
         if (baseName === "template") continue;
 
-        if (!(baseName in inputs))
-            inputs[baseName] = {};
+        if (!(baseName in jobsetinputs))
+            jobsetinputs[baseName] = {};
 
         if (param === "name")
-            data.inputs[elem.value] = inputs[baseName];
+            data.jobsetinputs[elem.value] = jobsetinputs[baseName];
         else
-            inputs[baseName][param] = elem.value;
+            jobsetinputs[baseName][param] = elem.value;
       }
     }
     redirectJSON({

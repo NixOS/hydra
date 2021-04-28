@@ -135,6 +135,13 @@ __PACKAGE__->has_many(
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:5uKwEhDXso4IR1TFmwRxiA
 
 my %hint = (
+    string_columns => [
+        "name",
+        "type"
+    ],
+    boolean_columns => [
+        "emailresponsible"
+    ],
     relations => {
         "jobsetinputalts" => "value"
     }

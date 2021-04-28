@@ -231,7 +231,7 @@ sub updateJobset {
     if ($type == 0) {
         ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
     } elsif ($type == 1) {
-        $flake = trim($c->stash->{params}->{"flakeref"});
+        $flake = trim($c->stash->{params}->{"flake"});
         error($c, "Invalid flake URI ‘$flake’.") if $flake !~ /^[a-zA-Z]/;
     } else {
         error($c, "Invalid jobset type.");
@@ -270,8 +270,8 @@ sub updateJobset {
     $jobset->jobsetinputs->delete;
 
     if ($type == 0) {
-        foreach my $name (keys %{$c->stash->{params}->{inputs}}) {
-            my $inputData = $c->stash->{params}->{inputs}->{$name};
+        foreach my $name (keys %{$c->stash->{params}->{jobsetinputs}}) {
+            my $inputData = $c->stash->{params}->{jobsetinputs}->{$name};
             my $type = $inputData->{type};
             my $value = $inputData->{value};
             my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
