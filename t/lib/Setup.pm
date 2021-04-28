@@ -48,6 +48,7 @@ sub test_init {
     my $nixconf = "$ENV{'NIX_CONF_DIR'}/nix.conf";
     open(my $fh, '>', $nixconf) or die "Could not open file '$nixconf' $!";
     print $fh "sandbox = false\n";
+    print $fh "system-features = test-system-feature\n";
     print $fh $opts{'nix_config'} || "";
     close $fh;
 
