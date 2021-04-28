@@ -27,8 +27,8 @@ sub login_POST {
     my $username = $c->stash->{params}->{username} // "";
     my $password = $c->stash->{params}->{password} // "";
 
-    error($c, "You must specify a user name.") if $username eq "";
-    error($c, "You must specify a password.") if $password eq "";
+    badRequest($c, "You must specify a user name.") if $username eq "";
+    badRequest($c, "You must specify a password.") if $password eq "";
 
     if ($c->get_auth_realm('ldap') && $c->authenticate({username => $username, password => $password}, 'ldap')) {
         doLDAPLogin($self, $c, $username);
