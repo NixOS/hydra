@@ -1,26 +1,19 @@
 let cfg =  import ./config.nix; in
-let
-  mkDerivation = args: cfg.mkDerivation ({
-    __contentAddressed = true;
-    outputHashMode = "recursive";
-    outputHashAlgo = "sha256";
-  } // args);
-in
 {
   empty_dir =
-    mkDerivation {
+    cfg.mkContentAddressedDerivation {
       name = "empty-dir";
       builder = ./empty-dir-builder.sh;
     };
 
   fails =
-    mkDerivation {
+    cfg.mkContentAddressedDerivation {
       name = "fails";
       builder = ./fail.sh;
     };
 
   succeed_with_failed =
-    mkDerivation {
+    cfg.mkContentAddressedDerivation {
       name = "succeed-with-failed";
       builder = ./succeed-with-failed.sh;
     };
