@@ -11,7 +11,12 @@ my %ctx = test_init(
 require Hydra::Schema;
 require Hydra::Model::DB;
 
+use JSON;
+
+use HTTP::Request::Common;
 use Test2::V0;
+require Catalyst::Test;
+Catalyst::Test->import('Hydra');
 
 my $db = Hydra::Model::DB->new;
 hydra_setup($db);
@@ -29,6 +34,24 @@ for my $build (queuedBuildsForJobset($jobset)) {
     is($newbuild->finished, 1, "Build '".$build->job."' from jobs/content-addressed.nix should be finished.");
     my $expected = $build->job eq "fails" ? 1 : $build->job =~ /with_failed/ ? 6 : 0;
     is($newbuild->buildstatus, $expected, "Build '".$build->job."' from jobs/content-addressed.nix should have buildstatus $expected.");
+
+    my $response = request("/build/".$build->id);
+    ok($response->is_success, "The 'build' page for build '".$build->job."' should load properly");
+
+    if ($newbuild->buildstatus == 0) {
+      my $buildOutputs = $newbuild->buildoutputs;
+      for my $output ($newbuild->buildoutputs) {
+        # XXX: This hardcodes /nix/store/.
+        # It's fine because in practice the nix store for the tests will be of
+        # the form `/some/thing/nix/store/`, but it would be cleaner if there
+        # was a way to query Nix for its store dir?
+        like(
+          $output->path, qr|/nix/store/|,
+          "Output '".$output->name."' of build '".$build->job."' should be a valid store path"
+        );
+      }
+    }
+
 }
 
 
