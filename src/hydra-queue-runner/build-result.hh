@@ -36,6 +36,8 @@ struct BuildOutput
 
     std::list<BuildProduct> products;
 
+    std::map<std::string, nix::StorePath> outputs;
+
     std::map<std::string, BuildMetric> metrics;
 };
 

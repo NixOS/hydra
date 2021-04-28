@@ -414,6 +414,15 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
          res.releaseName != "" ? std::make_optional(res.releaseName) : std::nullopt,
          isCachedBuild ? 1 : 0);
 
+    for (auto & [outputName, outputPath] : res.outputs) {
+      txn.exec_params0
+        ("update BuildOutputs set path = $3 where build = $1 and name = $2",
+         build->id,
+         outputName,
+         localStore->printStorePath(outputPath)
+        );
+    }
+
     txn.exec_params0("delete from BuildProducts where build = $1", build->id);
 
     unsigned int productNr = 1;

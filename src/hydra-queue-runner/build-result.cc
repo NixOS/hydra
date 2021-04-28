@@ -18,9 +18,10 @@ BuildOutput getBuildOutput(
     /* Compute the closure size. */
     StorePathSet outputs;
     StorePathSet closure;
-    for (auto& [_, outputPath] : derivationOutputs) {
+    for (auto& [outputName, outputPath] : derivationOutputs) {
         store->computeFSClosure(outputPath, closure);
         outputs.insert(outputPath);
+        res.outputs.insert({outputName, outputPath});
     }
     for (auto & path : closure) {
         auto info = store->queryPathInfo(path);
