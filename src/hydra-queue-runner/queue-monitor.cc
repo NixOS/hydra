@@ -468,20 +468,19 @@ Step::ptr State::createStep(ref<Store> destStore,
     auto outputHashes = staticOutputHashes(*localStore, *(step->drv));
     bool valid = true;
     std::map<DrvOutput, std::optional<StorePath>> missing;
-    if (settings.isExperimentalFeatureEnabled("ca-derivations")) {
-      for (auto [outputName, outputHash] : outputHashes) {
-        if (! destStore->queryRealisation(DrvOutput{outputHash, outputName})) {
-          valid = false;
-          missing.insert({{outputHash, outputName}, std::nullopt});
-        }
-      }
-    } else {
-      for (auto & [outputName, maybeOutputPath] : step->drv->outputsAndOptPaths(*destStore)) {
-        // If we're not CA, all the output paths should be known
-        assert(maybeOutputPath.second);
+    for (auto &[outputName, maybeOutputPath] :
+         step->drv->outputsAndOptPaths(*destStore)) {
+      auto outputHash = outputHashes.at(outputName);
+      if (maybeOutputPath.second) {
         if (!destStore->isValidPath(*maybeOutputPath.second)) {
           valid = false;
-          missing.insert({{outputHashes.at(outputName), outputName}, maybeOutputPath.second});
+          missing.insert({{outputHash, outputName}, maybeOutputPath.second});
+        }
+      } else {
+        settings.requireExperimentalFeature("ca-derivations");
+        if (!destStore->queryRealisation(DrvOutput{outputHash, outputName})) {
+          valid = false;
+          missing.insert({{outputHash, outputName}, std::nullopt});
         }
       }
     }
