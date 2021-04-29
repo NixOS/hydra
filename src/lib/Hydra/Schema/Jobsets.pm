@@ -375,6 +375,7 @@ __PACKAGE__->has_many(
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-25 14:38:14
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:7XtIqrrGAIvReqly1kapog
 
+use JSON;
 
 =head2 builds
 

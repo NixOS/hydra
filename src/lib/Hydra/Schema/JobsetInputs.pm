@@ -134,6 +134,8 @@ __PACKAGE__->has_many(
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:5uKwEhDXso4IR1TFmwRxiA
 
+use JSON;
+
 sub as_json {
     my $self = shift;
 
