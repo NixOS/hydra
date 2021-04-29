@@ -20,6 +20,9 @@ our @EXPORT = qw(test_init hydra_setup nrBuildsForJobset queuedBuildsForJobset
 #
 #  * hydra_config: configuration for the Hydra processes for your test.
 #  * nix_config: text to include in the test's nix.conf
+#  * use_external_destination_store: Boolean indicating whether hydra should
+#       use a destination store different from the evaluation store.
+#       True by default.
 #
 # This clears several environment variables and sets them to ephemeral
 # values: a temporary database, temporary Nix store, temporary Hydra
@@ -54,6 +57,9 @@ sub test_init {
     $ENV{'HYDRA_CONFIG'} = "$dir/hydra.conf";
 
     open(my $fh, '>', $ENV{'HYDRA_CONFIG'}) or die "Could not open file '" . $ENV{'HYDRA_CONFIG'}. " $!";
+    if ($opts{'use_external_destination_store'} // 1) {
+        print $fh "store_uri = file:$dir/nix/dest-store\n"
+    }
     print $fh $opts{'hydra_config'} || "";
     close $fh;
 
