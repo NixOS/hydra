@@ -5,7 +5,9 @@ use IO::Uncompress::Bunzip2 qw(bunzip2);
 use Archive::Tar;
 use JSON qw(decode_json);
 use Data::Dumper;
-my %ctx = test_init();
+my %ctx = test_init(
+  use_external_destination_store => 0
+);
 
 require Hydra::Schema;
 require Hydra::Model::DB;
