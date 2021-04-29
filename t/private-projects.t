@@ -4,8 +4,11 @@ use Test2::V0;
 use HTTP::Request::Common;
 use Crypt::Passphrase;
 use HTML::TreeBuilder::XPath;
+use JSON;
 
-my %ctx = test_init();
+my %ctx = test_init(
+    use_external_destination_store => 0
+);
 
 require Hydra::Schema;
 require Hydra::Model::DB;
@@ -22,7 +25,7 @@ my $uri = "file://$scratch/git-repo";
 my $jobset = createJobsetWithOneInput('gitea', 'git-input.nix', 'src', 'git', $uri, $ctx{jobsdir});
 
 ok(request('/project/tests')->is_success, "Project 'tests' exists");
-my $project = $db->resultset('Projects')->find({name => "tests"})->update({private => 1});
+my $project = $db->resultset('Projects')->find({name => "tests"})->update({private => JSON::true});
 ok(
     !request('/project/tests')->is_success,
     "Project 'tests' is private now and should be unreachable"
@@ -38,10 +41,10 @@ my $authenticator = Crypt::Passphrase->new(
         })
     ],
 );
-$db->resultset('Users')->create({
+my $user = $db->resultset('Users')->create({
     username => "testing",
     emailaddress => 'testing@invalid.org',
-    password => $authenticator->hash_password('foobar')
+    password => $authenticator->hash_password('foobar'),
 });
 
 my $auth = request(
@@ -54,7 +57,7 @@ my $auth = request(
 );
 
 ok(
-    $auth->is_success,
+    $auth->code == 302,
     "Successfully logged in"
 );
 

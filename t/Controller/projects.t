@@ -51,6 +51,7 @@ subtest "Read project 'tests'" => sub {
         jobsets => [],
         name => "tests",
         owner => "root"
+        "private" => JSON::false
     });
 };
 
@@ -94,7 +95,8 @@ subtest "Transitioning from declarative project to normal" => sub {
                 file => "bogus",
                 type => "boolean",
                 value => "false"
-            }
+            },
+            "private" => JSON::false
         });
     };
 
@@ -133,6 +135,7 @@ subtest "Transitioning from declarative project to normal" => sub {
             jobsets => [],
             name => "tests",
             owner => "root"
+            "private" => JSON::false
         });
     };
 };
