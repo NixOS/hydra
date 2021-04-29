@@ -2,7 +2,11 @@ use feature 'unicode_strings';
 use strict;
 use Setup;
 
-my %ctx = test_init();
+my %ctx = test_init(
+  nix_config => q|
+    system-features = test-system-feature
+  |
+);
 
 require Hydra::Schema;
 require Hydra::Model::DB;
