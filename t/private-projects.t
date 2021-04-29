@@ -3,6 +3,7 @@ use Setup;
 use Test2::V0;
 use HTTP::Request::Common;
 use Crypt::Passphrase;
+use HTML::TreeBuilder::XPath;
 
 my %ctx = test_init();
 
@@ -145,6 +146,58 @@ ok(
 ok(
     request($scmdiff)->code == 500,
     'Unauthenticated SCM diff for priate project doesn\'t work'
+);
+
+my $latest_builds_unauth = request(GET "/all");
+
+my $tree = HTML::TreeBuilder::XPath->new;
+$tree->parse($latest_builds_unauth->content);
+ok(!$tree->exists('/html//tbody/tr'), "No builds available");
+
+my $latest_builds = request(GET "/all", Cookie => $cookie);
+
+$tree = HTML::TreeBuilder::XPath->new;
+$tree->parse($latest_builds->content);
+ok($tree->exists('/html//tbody/tr'), "Builds available");
+
+my $p2 = $db->resultset("Projects")->create({name => "public", displayname => "public", owner => "root"});
+my $jobset2 = $p2->jobsets->create({
+    name => "public", nixexprpath => 'basic.nix', nixexprinput => "jobs", emailoverride => ""
+});
+
+my $jobsetinput = $jobset2->jobsetinputs->create({name => "jobs", type => "path"});
+$jobsetinput->jobsetinputalts->create({altnr => 0, value => $ctx{jobsdir}});
+
+updateRepository('gitea', "$ctx{testdir}/jobs/git-update.sh", $scratch);
+ok(evalSucceeds($jobset2), "Evaluating nix expression");
+is(
+    nrQueuedBuildsForJobset($jobset2),
+    3,
+    "Evaluating jobs/runcommand.nix should result in 3 builds"
+);
+
+(my $b1, my $b2, my $b3) = queuedBuildsForJobset($jobset2);
+ok(runBuild($b1), "Build should succeed with exit code 0");
+ok(runBuild($b2), "Build should succeed with exit code 0");
+ok(runBuild($b3), "Build should succeed with exit code 0");
+my $latest_builds_unauth2 = request(GET "/all");
+
+$tree = HTML::TreeBuilder::XPath->new;
+$tree->parse($latest_builds_unauth2->content);
+is(
+    scalar $tree->findvalues('/html//tbody/tr'),
+    3,
+    "Three builds available"
+);
+
+my $latest_builds2 = request(GET "/all", Cookie => $cookie);
+
+$tree = HTML::TreeBuilder::XPath->new;
+$tree->parse($latest_builds2->content);
+is(
+    scalar $tree->findvalues('/html//tbody/tr'),
+    4,
+    "Three builds available"
 );
 
 done_testing;

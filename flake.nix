@@ -458,6 +458,7 @@
                 FileWhich
                 final.nix.perl-bindings
                 git
+                HTMLTreeBuilderXPath
                 IOCompress
                 IPCRun
                 JSON
