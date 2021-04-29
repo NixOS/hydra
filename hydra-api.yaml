@@ -589,17 +589,15 @@ components:
         name:
           description: name of the input
           type: string
+        value:
+          description: value of the input
+          type: string
         type:
           description: type of input
           type: string
         emailresponsible:
           description: whether or not to email responsible parties
           type: boolean
-        jobsetinputalts:
-          type: array
-          description: ???
-          items:
-            type: string
 
     Jobset:
       type: object
@@ -644,8 +642,8 @@ components:
         enableemail:
           description: when true the jobset sends emails when previously-successful builds fail
           type: boolean
-        hidden:
-          description: when false the jobset is visible in the web frontend
+        visible:
+          description: when true the jobset is visible in the web frontend
           type: boolean
         emailoverride:
           description: email address to send notices to instead of the package maintainer (can be a comma separated list)
@@ -669,12 +667,12 @@ components:
           type: integer
         type:
           description: the type of the jobset
-          type: string
+          type: integer
         flake:
           nullable: true
           description: the flake uri to evaluate
           type: string
-        jobsetinputs:
+        inputs:
           description: inputs configured for this jobset
           type: object
           additionalProperties:
