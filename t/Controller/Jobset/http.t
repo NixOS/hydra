@@ -157,6 +157,36 @@ subtest 'Update jobset "job" to legacy type' => sub {
 };
 
 
+subtest 'Update jobset "job" to have an invalid input type' => sub {
+  my $jobsetupdate = request(PUT '/jobset/tests/job',
+      Accept => 'application/json',
+      Content_Type => 'application/json',
+      Cookie => $cookie,
+      Content => encode_json({
+        enabled => 3,
+        visible => JSON::true,
+        name => "job",
+        type => 0,
+        nixexprinput => "ofborg",
+        nixexprpath => "release.nix",
+        inputs => {
+          ofborg => {
+            name => "ofborg",
+            type => "123",
+            value => "https://github.com/NixOS/ofborg.git released"
+          }
+        },
+        description => "test jobset",
+        checkinterval => 0,
+        schedulingshares => 50,
+        keepnr => 1
+      })
+  );
+  ok(!$jobsetupdate->is_success);
+  ok($jobsetupdate->content =~ m/Invalid input type.*valid types:/);
+};
+
+
 subtest 'Delete jobset "job"' => sub {
   my $jobsetinfo = request(DELETE '/jobset/tests/job',
       Accept => 'application/json',
