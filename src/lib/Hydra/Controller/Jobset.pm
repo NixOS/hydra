@@ -213,6 +213,22 @@ sub checkInputValue {
 }
 
 
+sub knownInputTypes {
+    my ($c) = @_;
+
+    my @keys = keys %{$c->stash->{inputTypes}};
+    my $types = "";
+    my $counter = 0;
+
+    foreach my $key (@keys) {
+        $types = $types . "and ‘$key’" if ++$counter == scalar(@keys);
+        $types = $types . "‘$key’, " if $counter != scalar(@keys);
+    }
+
+    return $types;
+}
+
+
 sub updateJobset {
     my ($c, $jobset) = @_;
 
@@ -275,9 +291,10 @@ sub updateJobset {
             my $type = $inputData->{type};
             my $value = $inputData->{value};
             my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
+            my $types = knownInputTypes($c);
 
-            error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
-            error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
+            badRequest($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
+            badRequest($c, "Invalid input type ‘$type’; valid types: $types.") unless defined $c->stash->{inputTypes}->{$type};
 
             my $input = $jobset->jobsetinputs->create(
                 { name => $name,
