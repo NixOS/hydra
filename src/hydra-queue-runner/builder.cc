@@ -228,11 +228,6 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     time_t stepStopTime = time(0);
     if (!result.stopTime) result.stopTime = stepStopTime;
 
-    /* For standard failures, we don't care about the error
-       message. */
-    if (result.stepStatus != bsAborted)
-        result.errorMsg = "";
-
     /* Account the time we spent building this step by dividing it
        among the jobsets that depend on it. */
     {
