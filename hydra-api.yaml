@@ -688,18 +688,6 @@ components:
         'type':
           description: The type of this input
           type: string
-          enum:
-            - bzr
-            - bzr-checkout
-            - bitbucketpulls
-            - darcs
-            - git
-            - githubpulls
-            - gitlabpulls
-            - hg
-            - path
-            - svn
-            - svn-checkout
         revision:
           nullable: true
           description: A Git/Mercurial commit hash or a Subversion revision number.
