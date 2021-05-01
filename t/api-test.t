@@ -128,4 +128,23 @@ subtest "evaluation" => sub {
 };
 
 
+subtest "delete project" => sub {
+    subtest "with evaluations and builds" => sub {
+        my $result = request_json({ uri => "/project/sample", method => "DELETE" });
+        is($result->code(), 200, "DELETEing a project with evaluations and builds succeeds");
+    };
+
+    subtest "without evaluations and builds" => sub {
+        my $project = request_json({ uri => '/project/sample2', method => 'PUT', data => { displayname => "Sample2", enabled => "1", visible => "1", } });
+        is($project->code(), 201, "PUTting a new project creates it");
+
+        my $jobset = request_json({ uri => '/jobset/sample2/default2', method => 'PUT', data => { type => "1", flake => "github:nixos/nix", enabled => "1", visible => "1", checkinterval => "0"} });
+        is($jobset->code(), 201, "PUTting a new jobset creates it");
+
+        my $delete = request_json({ uri => "/project/sample2", method => "DELETE" });
+        is($delete->code(), 200, "DELETEing a jobset with no evaluations and builds succeeds");
+    };
+};
+
+
 done_testing;
