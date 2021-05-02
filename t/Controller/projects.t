@@ -32,7 +32,12 @@ is(decode_json($projectinfo->content), {
     homepage => "",
     jobsets => [],
     name => "tests",
-    owner => "root"
+    owner => "root",
+    declarative => {
+        file => "",
+        type => "",
+        value => ""
+    }
 });
 
 done_testing;

@@ -181,6 +181,10 @@ paths:
                 visible:
                   description: when set to true the project is displayed in the web interface
                   type: boolean
+                declarative:
+                  description: declarative input configured for this project
+                  type: object
+                  $ref: '#/components/schemas/DeclarativeInput'
       responses:
         '400':
           description: bad request
@@ -577,11 +581,28 @@ components:
         enabled:
           description: when set to true the project gets scheduled for evaluation
           type: boolean
+        declarative:
+          description: declarative input configured for this project
+          type: object
+          $ref: '#/components/schemas/DeclarativeInput'
         jobsets:
           description: list of jobsets belonging to this project
           type: array
           items:
             type: string
+
+    DeclarativeInput:
+      type: object
+      properties:
+        file:
+          description: The file in `value` which contains the declarative spec file. Relative to the root of `value`.
+          type: string
+        type:
+          description: The type of the declarative input.
+          type: string
+        value:
+          description: The value of the declarative input.
+          type: string
 
     JobsetInput:
       type: object

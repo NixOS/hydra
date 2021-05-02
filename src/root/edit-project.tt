@@ -79,13 +79,28 @@
 
 <script type="text/javascript">
   $("#submit-project").click(function() {
+    var formElements = $(this).parents("form").serializeArray();
+    var data = { 'declarative': {} };
+    var decl = {};
+    for (var i = 0; formElements.length > i; i++) {
+      var elem = formElements[i];
+      var match = elem.name.match(/^decl(file|type|value)$/);
+      if (match === null) {
+        data[elem.name] = elem.value;
+      } else {
+        var param = match[1];
+        decl[param] = elem.value;
+      }
+    }
+    data.declarative = decl;
     redirectJSON({
       [% IF create %]
         url: "[% c.uri_for('/project' '.new') %]",
       [% ELSE %]
         url: "[% c.uri_for('/project' project.name) %]",
       [% END %]
-      data: $(this).parents("form").serialize(),
+      data: JSON.stringify(data),
+      contentType: 'application/json',
       type: 'PUT'
     });
     return false;
