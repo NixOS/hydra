@@ -387,6 +387,8 @@ void State::buildRemote(ref<Store> destStore,
         }
         if (result.stepStatus != bsSuccess) return;
 
+        result.errorMsg = "";
+
         /* If the path was substituted or already valid, then we didn't
            get a build log. */
         if (result.isCached) {
