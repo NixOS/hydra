@@ -496,9 +496,10 @@
                 JSON
                 JSONMaybeXS
                 JSONXS
-                ListSomeUtils
                 LWP
                 LWPProtocolHttps
+                LinuxInotify2
+                ListSomeUtils
                 ModulePluggable
                 NetAmazonS3
                 NetPrometheus

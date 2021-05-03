@@ -19,6 +19,10 @@
   The <a href="[% step ? c.uri_for('/build' build.id 'nixlog' step.stepnr)
   : c.uri_for('/build' build.id 'log') %]">full log</a> is also available.
   [% END %]
+  [% IF tailon_bin && step && step.machine %]
+  <a href="[% step ? c.uri_for('/build' build.id 'tailon' step.stepnr)
+  : c.uri_for('/build' build.id 'log') %]">Tailon</a> is also available for this build.
+  [% END %]
 </p>
 
 <div class="card bg-light"><div class="card-body"><pre class="log" id="contents">

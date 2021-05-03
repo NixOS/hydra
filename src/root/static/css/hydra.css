@@ -277,6 +277,13 @@ td.step-status span.warn {
     }
 
     /*
+    Tailon
+    */
+    iframe {
+        border: solid 1px #404040;
+    }
+
+    /*
     Tabs
     */
     ul.nav-tabs {
