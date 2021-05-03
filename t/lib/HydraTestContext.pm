@@ -35,6 +35,8 @@ use CliRunners;
 sub new {
     my ($class, %opts) = @_;
 
+    my $deststoredir;
+
     my $dir = File::Temp->newdir();
 
     $ENV{'HYDRA_DATA'} = "$dir/hydra-data";
@@ -48,6 +50,7 @@ sub new {
 
     my $hydra_config = $opts{'hydra_config'} || "";
     if ($opts{'use_external_destination_store'} // 1) {
+        $deststoredir = "$dir/nix/dest-store";
         $hydra_config = "store_uri = file:$dir/nix/dest-store\n" . $hydra_config;
     }
 
@@ -70,7 +73,8 @@ sub new {
         db_handle => $pgsql,
         tmpdir => $dir,
         testdir => abs_path(dirname(__FILE__) . "/.."),
-        jobsdir => abs_path(dirname(__FILE__) . "/../jobs")
+        jobsdir => abs_path(dirname(__FILE__) . "/../jobs"),
+        deststoredir => $deststoredir,
     };
 
     return bless $self, $class;

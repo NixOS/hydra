@@ -507,12 +507,14 @@ void State::buildRemote(ref<Store> destStore,
           for (auto & [outputId, realisation] : builtOutputs) {
               // Register the resolved drv output
               localStore->registerDrvOutput(realisation);
+              destStore->registerDrvOutput(realisation);
 
               // Also register the unresolved one
               auto unresolvedRealisation = realisation;
               unresolvedRealisation.signatures.clear();
               unresolvedRealisation.id.drvHash = outputHashes.at(outputId.outputName);
               localStore->registerDrvOutput(unresolvedRealisation);
+              destStore->registerDrvOutput(unresolvedRealisation);
           }
         }
 

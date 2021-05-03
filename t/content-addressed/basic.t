@@ -54,6 +54,7 @@ for my $build (queuedBuildsForJobset($jobset)) {
 
 }
 
+isnt(<$ctx{deststoredir}/realisations/*>, "", "The destination store should have the realisations of the built derivations registered");
 
 done_testing;
 
