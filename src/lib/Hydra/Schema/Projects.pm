@@ -246,25 +246,31 @@ __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-25 14:38:14
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+4yWd9UjCyxxLZYDrVUAxA
 
-my %hint = (
-    string_columns => [
-        "name",
-        "displayname",
-        "description",
-        "homepage",
-        "owner"
-    ],
-    boolean_columns => [
-      "enabled",
-      "hidden"
-    ],
-    relations => {
-        jobsets => "name"
-    }
-);
+sub as_json {
+    my $self = shift;
 
-sub json_hint {
-    return \%hint;
+    my %json = (
+        # string_columns
+        "name" => $self->get_column("name") // "",
+        "displayname" => $self->get_column("displayname") // "",
+        "description" => $self->get_column("description") // "",
+        "homepage" => $self->get_column("homepage") // "",
+        "owner" => $self->get_column("owner") // "",
+
+        # boolean_columns
+        "enabled" => $self->get_column("enabled") ? JSON::true : JSON::false,
+        "hidden" => $self->get_column("hidden") ? JSON::true : JSON::false,
+
+        "declarative" => {
+            "file" => $self->get_column("declfile") // "",
+            "type" => $self->get_column("decltype") // "",
+            "value" => $self->get_column("declvalue") // ""
+        },
+
+        "jobsets" => [ map { $_->name } $self->jobsets ]
+    );
+
+    return \%json;
 }
 
 1;
