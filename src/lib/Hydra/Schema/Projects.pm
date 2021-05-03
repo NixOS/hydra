@@ -246,6 +246,8 @@ __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-01-25 14:38:14
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:+4yWd9UjCyxxLZYDrVUAxA
 
+use JSON;
+
 sub as_json {
     my $self = shift;
 
