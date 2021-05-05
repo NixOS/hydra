@@ -286,9 +286,6 @@ sub as_json {
     %json = (%json, %decl) if !($decl{"declarative"}->{"file"} eq "");
 
     return \%json;
-
-sub json_hint {
-    return \%hint;
 }
 
 1;
