@@ -2,7 +2,6 @@ use strict;
 use Setup;
 use Test2::V0;
 use HTTP::Request::Common;
-use Crypt::Passphrase;
 use HTML::TreeBuilder::XPath;
 use JSON;
 
@@ -25,27 +24,18 @@ my $uri = "file://$scratch/git-repo";
 my $jobset = createJobsetWithOneInput('gitea', 'git-input.nix', 'src', 'git', $uri, $ctx{jobsdir});
 
 ok(request('/project/tests')->is_success, "Project 'tests' exists");
-my $project = $db->resultset('Projects')->find({name => "tests"})->update({private => JSON::true});
+my $project = $db->resultset('Projects')->find({name => "tests"})->update({private => 1});
 ok(
     !request('/project/tests')->is_success,
     "Project 'tests' is private now and should be unreachable"
 );
 
-my $authenticator = Crypt::Passphrase->new(
-    encoder    => 'Argon2',
-    validators => [
-        (sub {
-            my ($password, $hash) = @_;
-
-            return String::Compare::ConstantTime::equals($hash, sha1_hex($password));
-        })
-    ],
-);
 my $user = $db->resultset('Users')->create({
     username => "testing",
     emailaddress => 'testing@invalid.org',
-    password => $authenticator->hash_password('foobar'),
+    password => ''
 });
+$user->setPassword('foobar');
 
 my $auth = request(
     POST(
