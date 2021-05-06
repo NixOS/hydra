@@ -169,6 +169,12 @@ sub updateProject {
             , emailoverride => ""
             , triggertime => time
             });
+    } else {
+        $project->jobsets->search({ name => ".jobsets" })->delete;
+        $project->update(
+            { decltype => ""
+            , declvalue => ""
+            });
     }
 }
 
