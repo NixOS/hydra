@@ -112,7 +112,7 @@ ok(
 updateRepository('gitea', "$ctx{testdir}/jobs/git-update.sh", $scratch);
 ok(evalSucceeds($jobset), "Evaluating nix expression");
 
-my @latest = split /\n/, `cd $scratch/git-repo && git log --oneline | head -2 | awk '{ print \$1 }'`;
+my @latest = split /\n/, `cd $scratch/git-repo && git log --oneline 2>/dev/null| head -2 | awk '{ print \$1 }'`;
 my $rev1 = $latest[0];
 my $rev2 = $latest[1];
 
