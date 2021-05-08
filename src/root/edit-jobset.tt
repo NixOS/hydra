@@ -111,9 +111,9 @@
   </div>
 
   <div class="form-group row show-on-flake">
-    <label class="col-form-label col-sm-3" for="editjobsetflakeref">Flake URI</label>
+    <label class="col-form-label col-sm-3" for="editjobsetflake">Flake URI</label>
     <div class="col-sm-9">
-      <input type="text" class="form-control" id="editjobsetflakeref" name="flakeref" [% HTML.attributes(value => jobset.flake) %]/>
+      <input type="text" class="form-control" id="editjobsetflake" name="flake" [% HTML.attributes(value => jobset.flake) %]/>
     </div>
   </div>
 

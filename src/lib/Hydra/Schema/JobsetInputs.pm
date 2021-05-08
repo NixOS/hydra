@@ -134,14 +134,24 @@ __PACKAGE__->has_many(
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:5uKwEhDXso4IR1TFmwRxiA
 
-my %hint = (
-    relations => {
-        "jobsetinputalts" => "value"
-    }
-);
+use JSON;
 
-sub json_hint {
-    return \%hint;
+sub as_json {
+    my $self = shift;
+
+    my ($input) = $self->jobsetinputalts;
+
+    my %json = (
+        # string_columns
+        "name" => $self->get_column("name") // "",
+        "type" => $self->get_column("type") // "",
+        "value" => $input->value // "",
+
+        # boolean_columns
+        "emailresponsible" => $self->get_column("emailresponsible") ? JSON::true : JSON::false,
+    );
+
+    return \%json;
 }
 
 1;

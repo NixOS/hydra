@@ -11,7 +11,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(
     getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild
     searchBuildsAndEvalsForJobset
-    error notFound gone accessDenied
+    error notFound gone accessDenied badRequest
     forceLogin requireUser requireProjectOwner requireRestartPrivileges requireAdmin requirePost isAdmin isProjectOwner
     requireBumpPrivileges
     requireCancelBuildPrivileges
@@ -155,6 +155,10 @@ sub accessDenied {
     error($c, $msg, 403);
 }
 
+sub badRequest {
+    my ($c, $msg) = @_;
+    error($c, $msg, 400);
+}
 
 sub backToReferer {
     my ($c) = @_;

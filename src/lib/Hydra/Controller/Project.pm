@@ -78,7 +78,7 @@ sub project_DELETE {
     requireProjectOwner($c, $c->stash->{project});
 
     $c->model('DB')->schema->txn_do(sub {
-        $c->stash->{project}->jobsetevals->delete;
+        $c->stash->{project}->jobsets->delete;
         $c->stash->{project}->builds->delete;
         $c->stash->{project}->delete;
     });
@@ -126,6 +126,7 @@ sub create_jobset : Chained('projectChain') PathPart('create-jobset') Args(0) {
     $c->stash->{template} = 'edit-jobset.tt';
     $c->stash->{create} = 1;
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
+    $c->stash->{emailNotification} = $c->config->{email_notification} // 0;
 }
 
 
@@ -135,7 +136,7 @@ sub updateProject {
     my $owner = $project->owner;
     if ($c->check_user_roles('admin') and defined $c->stash->{params}->{owner}) {
         $owner = trim $c->stash->{params}->{owner};
-        error($c, "The user name ‘$owner’ does not exist.")
+        badRequest($c, "The user name ‘$owner’ does not exist.")
             unless defined $c->model('DB::Users')->find($owner);
     }
 
@@ -156,9 +157,9 @@ sub updateProject {
         , enabled => defined $c->stash->{params}->{enabled} ? 1 : 0
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , owner => $owner
-        , declfile => trim($c->stash->{params}->{declfile})
-        , decltype => trim($c->stash->{params}->{decltype})
-        , declvalue => trim($c->stash->{params}->{declvalue})
+        , declfile => trim($c->stash->{params}->{declarative}->{file})
+        , decltype => trim($c->stash->{params}->{declarative}->{type})
+        , declvalue => trim($c->stash->{params}->{declarative}->{value})
         });
     if (length($project->declfile)) {
         $project->jobsets->update_or_create(
@@ -167,6 +168,12 @@ sub updateProject {
             , nixexprpath => ""
             , emailoverride => ""
             , triggertime => time
+            });
+    } else {
+        $project->jobsets->search({ name => ".jobsets" })->delete;
+        $project->update(
+            { decltype => ""
+            , declvalue => ""
             });
     }
 }

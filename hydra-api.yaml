@@ -160,16 +160,42 @@ paths:
             schema:
               type: object
               properties:
-                displayname:
+                name:
                   description: name of the project
+                  type: string
+                displayname:
+                  description: display name of the project
+                  type: string
+                description:
+                  description: description of the project
+                  type: string
+                homepage:
+                  description: homepage of the project
+                  type: string
+                owner:
+                  description: owner of the project
                   type: string
                 enabled:
                   description: when set to true the project gets scheduled for evaluation
                   type: boolean
-                hidden:
+                visible:
                   description: when set to true the project is displayed in the web interface
                   type: boolean
+                declarative:
+                  description: declarative input configured for this project
+                  type: object
+                  $ref: '#/components/schemas/DeclarativeInput'
       responses:
+        '400':
+          description: bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    description: error message
+                    type: string
         '403':
           description: request unauthorized
           content:
@@ -236,6 +262,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+    delete:
+      summary: Deletes a project
+      parameters:
+        - name: id
+          in: path
+          description: project identifier
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: project deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect:
+                    type: string
+                    description: root of the Hydra instance
+        '404':
+          description: project could not be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /jobset/{project-id}/{jobset-id}:
     put:
       summary: Creates a jobset in an existing project
@@ -257,35 +310,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                'description':
-                  description: a description of the jobset
-                  type: string
-                checkinterval:
-                  description: interval (in seconds) in which to check for evaluation
-                  type: integer
-                enabled:
-                  description: when true the jobset gets scheduled for evaluation
-                  type: boolean
-                visible:
-                  description: when true the jobset is visible in the web frontend
-                  type: boolean
-                keepnr:
-                  description: number or evaluations to keep
-                  type: integer
-                nixexprinput:
-                  description: the name of the jobset input which contains the nixexprpath
-                  type: string
-                nixexprpath:
-                  nullable: true
-                  description: the path to the file to evaluate
-                  type: string
-                inputs:
-                  description: inputs for this jobset
-                  type: object
-                  additionalProperties:
-                    $ref: '#/components/schemas/JobsetInput'
+              $ref: '#/components/schemas/Jobset'
       responses:
         '201':
           description: jobset creation response
@@ -342,6 +367,39 @@ paths:
               examples:
                 jobset-success:
                   $ref: '#/components/examples/jobset-success'
+        '404':
+          description: jobset couldn't be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Deletes a jobset designated by project and jobset id
+      parameters:
+        - name: project-id
+          in: path
+          description: name of the project the jobset belongs to
+          required: true
+          schema:
+            type: string
+        - name: jobset-id
+          in: path
+          description: name of the jobset to retrieve
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: jobset successfully deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect:
+                    type: string
+                    description: root of the Hydra instance
         '404':
           description: jobset couldn't be found
           content:
@@ -514,51 +572,128 @@ components:
         description:
           description: description of the project
           type: string
+        homepage:
+          description: homepage of the project
+          type: string
         hidden:
           description: when set to true the project is not displayed in the web interface
           type: boolean
         enabled:
           description: when set to true the project gets scheduled for evaluation
           type: boolean
+        declarative:
+          description: declarative input configured for this project
+          type: object
+          $ref: '#/components/schemas/DeclarativeInput'
         jobsets:
           description: list of jobsets belonging to this project
           type: array
           items:
             type: string
 
+    DeclarativeInput:
+      type: object
+      properties:
+        file:
+          description: The file in `value` which contains the declarative spec file. Relative to the root of `value`.
+          type: string
+        type:
+          description: The type of the declarative input.
+          type: string
+        value:
+          description: The value of the declarative input.
+          type: string
+
     JobsetInput:
       type: object
       properties:
-        jobsetinputalts:
-          type: array
-          description: ???
-          items:
-            type: string
+        name:
+          description: name of the input
+          type: string
+        value:
+          description: value of the input
+          type: string
+        type:
+          description: type of input
+          type: string
+        emailresponsible:
+          description: whether or not to email responsible parties
+          type: boolean
 
     Jobset:
       type: object
       properties:
-        fetcherrormsg:
+        name:
+          description: the name of the jobset
+          type: string
+        project:
+          description: the project this jobset belongs to
+          type: string
+        description:
           nullable: true
-          description: contains the error message when there was a problem fetching sources for a jobset
+          description: a description of the jobset
           type: string
         nixexprinput:
+          nullable: true
           description: the name of the jobset input which contains the nixexprpath
-          type: string
-        errormsg:
-          description: contains the stderr output of the nix-instantiate command
-          type: string
-        emailoverride:
-          description: email address to send notices to instead of the package maintainer (can be a comma separated list)
           type: string
         nixexprpath:
           nullable: true
           description: the path to the file to evaluate
           type: string
+        errormsg:
+          nullable: true
+          description: contains the stderr output of the nix-instantiate command
+          type: string
+        errortime:
+          nullable: true
+          description: timestamp associated with errormsg
+          type: integer
+        lastcheckedtime:
+          nullable: true
+          description: the last time the evaluator looked at this jobset
+          type: integer
+        triggertime:
+          nullable: true
+          description: set to the time we were triggered by a push event
+          type: integer
         enabled:
-          description: when set to true the jobset gets scheduled for evaluation
+          description: 0 is disabled, 1 is enabled, 2 is one-shot, and 3 is one-at-a-time
+          type: integer
+        enableemail:
+          description: when true the jobset sends emails when previously-successful builds fail
           type: boolean
-        jobsetinputs:
+        visible:
+          description: when true the jobset is visible in the web frontend
+          type: boolean
+        emailoverride:
+          description: email address to send notices to instead of the package maintainer (can be a comma separated list)
+          type: string
+        keepnr:
+          description: number or evaluations to keep
+          type: integer
+        checkinterval:
+          description: interval (in seconds) in which to check for evaluation
+          type: integer
+        schedulingshares:
+          description: how many shares to be allocated to the jobset
+          type: integer
+        fetcherrormsg:
+          nullable: true
+          description: contains the error message when there was a problem fetching sources for a jobset
+          type: string
+        startime:
+          nullable: true
+          description: set to the time the latest evaluation started (if one is currently running)
+          type: integer
+        type:
+          description: the type of the jobset
+          type: integer
+        flake:
+          nullable: true
+          description: the flake uri to evaluate
+          type: string
+        inputs:
           description: inputs configured for this jobset
           type: object
           additionalProperties:
@@ -574,18 +709,6 @@ components:
         'type':
           description: The type of this input
           type: string
-          enum:
-            - bzr
-            - bzr-checkout
-            - bitbucketpulls
-            - darcs
-            - git
-            - githubpulls
-            - gitlabpulls
-            - hg
-            - path
-            - svn
-            - svn-checkout
         revision:
           nullable: true
           description: A Git/Mercurial commit hash or a Subversion revision number.
@@ -819,49 +942,72 @@ components:
   examples:
     projects-success:
       value:
-      - enabled: 1
-        name: example-hello
-        hidden: 0
-        description: hello
-        owner: hydra-user
+      - displayname: Foo Bar
+        description: Foo Bar Baz Qux
+        enabled: true
+        owner: alice
         jobsets:
-          - hello
-        displayname: example-hello
-      - displayname: foo
-        jobsets:
-          - foobar
-        owner: hydra-user
-        name: foo
-        enabled: 1
-        description: foo project
-        hidden: 0
+          - bar-jobset
+        hidden: false
+        homepage: https://example.com/
+        name: foobar
+      - jobsets:
+          - test-jobset
+        hidden: false
+        name: hello
+        homepage: https://example.com/
+        description: Hi There
+        displayname: Hello
+        enabled: true
+        owner: alice
 
     project-success:
       value:
-        name: foo
-        enabled: 1
-        hidden: 0
-        description: foo project
-        displayname: foo
-        owner: gilligan
         jobsets:
-          - foobar
+          - bar-jobset
+        homepage: https://example.com/
+        name: foobar
+        hidden: false
+        enabled: true
+        displayname: Foo Bar
+        description: Foo Bar Baz Qux
+        owner: alice
 
     jobset-success:
       value:
-        nixexprpath: examples/hello.nix
-        enabled: 1
+        triggertime: null
+        enableemail: false
         jobsetinputs:
-          hydra:
-            jobsetinputalts:
-              - 'https://github.com/gilligan/hydra extend-readme'
           nixpkgs:
+            type: git
+            name: nixpkgs
+            emailresponsible: false
             jobsetinputalts:
-              - 'https://github.com/nixos/nixpkgs-channels nixos-20.03'
+              - https://github.com/NixOS/nixpkgs.git
+          officialRelease:
+            jobsetinputalts:
+              - 'false'
+            emailresponsible: false
+            name: officialRelease
+            type: boolean
+        fetcherrormsg: ''
+        hidden: false
+        schedulingshares: 1
         emailoverride: ''
+        starttime: null
+        description: ''
         errormsg: ''
-        nixexprinput: hydra
-        fetcherrormsg: null
+        lastcheckedtime: null
+        nixexprinput: nixpkgs
+        checkinterval: 0
+        project: foobar
+        flake: ''
+        type: 0
+        enabled: 1
+        name: bar-jobset
+        keepnr: 0
+        nixexprpath: pkgs/top-level/release.nix
+        errortime: null
 
     evals-success:
       value:

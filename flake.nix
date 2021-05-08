@@ -294,6 +294,7 @@
             name = "hydra-perl-deps";
             paths = with perlPackages; lib.closePropagation
               [ ModulePluggable
+                AuthenSASL
                 CatalystActionREST
                 CatalystAuthenticationStoreDBIxClass
                 CatalystAuthenticationStoreLDAP
@@ -468,45 +469,6 @@
             module = self.nixosModules.hydra;
             package = pkgs.hydra;
           };
-
-        tests.api.x86_64-linux =
-          with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
-          simpleTest {
-            machine = { pkgs, ... }: {
-              imports = [ hydraServer ];
-              # No caching for PathInput plugin, otherwise we get wrong values
-              # (as it has a 30s window where no changes to the file are considered).
-              services.hydra-dev.extraConfig = ''
-                path_input_cache_validity_seconds = 0
-              '';
-            };
-            testScript =
-              let dbi = "dbi:Pg:dbname=hydra;user=root;"; in
-              ''
-                machine.wait_for_job("hydra-init")
-
-                # Create an admin account and some other state.
-                machine.succeed(
-                    """
-                        su - hydra -c "hydra-create-user root --email-address 'alice@example.org' --password foobar --role admin"
-                        mkdir /run/jobset /tmp/nix
-                        chmod 755 /run/jobset /tmp/nix
-                        cp ${./t/api-test.nix} /run/jobset/default.nix
-                        chmod 644 /run/jobset/default.nix
-                        chown -R hydra /run/jobset /tmp/nix
-                """
-                )
-
-                machine.succeed("systemctl stop hydra-evaluator hydra-queue-runner")
-                machine.wait_for_job("hydra-server")
-                machine.wait_for_open_port("3000")
-
-                # Run the API tests.
-                machine.succeed(
-                    "su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./t/api-test.pl}' >&2"
-                )
-              '';
-        };
 
         tests.notifications.x86_64-linux =
           with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };

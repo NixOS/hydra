@@ -60,6 +60,7 @@ $(document).ready(function() {
 
     /* Activates tab according to URL anchor. */
     if (window.location.hash) {
+        setTimeout(function () { $('.nav-tabs > .nav-item:not(.dropdown) a[href="' + window.location.hash + '"]').trigger('show.bs.tab'); }, 0);
         $('.nav-tabs > .nav-item:not(.dropdown) a[href="' + window.location.hash + '"]').tab('show');
     }
 
