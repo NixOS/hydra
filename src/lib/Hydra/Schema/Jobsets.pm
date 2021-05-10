@@ -392,21 +392,6 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobs
-
-Type: has_many
-
-Related object: L<Hydra::Schema::Jobs>
-
-=cut
-
-__PACKAGE__->has_many(
-  "jobs",
-  "Hydra::Schema::Jobs",
-  { "foreign.jobset_id" => "self.id" },
-  undef,
-);
-
 __PACKAGE__->add_column(
     "+id" => { retrieve_on_insert => 1 }
 );
