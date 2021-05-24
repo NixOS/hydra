@@ -204,6 +204,7 @@ in
         group = "hydra";
         createHome = true;
         home = baseDir;
+        isSystemUser = true;
         useDefaultShell = true;
       };
 
@@ -211,12 +212,14 @@ in
       { description = "Hydra queue runner";
         group = "hydra";
         useDefaultShell = true;
+        isSystemUser = true;
         home = "${baseDir}/queue-runner"; # really only to keep SSH happy
       };
 
     users.extraUsers.hydra-www =
       { description = "Hydra web server";
         group = "hydra";
+        isSystemUser = true;
         useDefaultShell = true;
       };
 
