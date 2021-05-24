@@ -263,14 +263,18 @@ sub as_json {
         "enabled" => $self->get_column("enabled") ? JSON::true : JSON::false,
         "hidden" => $self->get_column("hidden") ? JSON::true : JSON::false,
 
+        "jobsets" => [ map { $_->name } $self->jobsets ]
+    );
+
+    my %decl = (
         "declarative" => {
             "file" => $self->get_column("declfile") // "",
             "type" => $self->get_column("decltype") // "",
             "value" => $self->get_column("declvalue") // ""
-        },
-
-        "jobsets" => [ map { $_->name } $self->jobsets ]
+        }
     );
+
+    %json = (%json, %decl) if !($decl{"declarative"}->{"file"} eq "");
 
     return \%json;
 }
