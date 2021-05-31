@@ -243,12 +243,20 @@ void State::buildRemote(ref<Store> destStore,
            outputs of the input derivations. */
         updateStep(ssSendingInputs);
 
-        StorePathSet inputs;
         BasicDerivation basicDrv;
         auto outputHashes = staticOutputHashes(*localStore, *step->drv);
-        if (auto maybeBasicDrv = step->drv->tryResolve(*localStore))
+        if ((derivationIsCA(step->drv->type())
+             || step->drv->type() == DerivationType::DeferredInputAddressed)) {
+            auto maybeBasicDrv = step->drv->tryResolve(*localStore);
+            if (!maybeBasicDrv)
+                throw Error(
+                    "the derivation '%s' can’t be resolved. It’s probably "
+                    "missing some outputs",
+                    localStore->printStorePath(step->drvPath));
             basicDrv = *maybeBasicDrv;
-        else {
+        } else {
+            // If the derivation is a real `InputAddressed` derivation, we must
+            // resolve it manually to keep the original output paths
             basicDrv = BasicDerivation(*step->drv);
             for (auto & input : step->drv->inputDrvs) {
               auto drv2 = localStore->readDerivation(input.first);
@@ -257,15 +265,11 @@ void State::buildRemote(ref<Store> destStore,
                 if (settings.isExperimentalFeatureEnabled("ca-derivations")) {
                   auto inputRealisation = localStore->queryRealisation(DrvOutput{hashes.at(name), name});
                   assert(inputRealisation);
-                  inputs.insert(inputRealisation->outPath);
                   basicDrv.inputSrcs.insert(inputRealisation->outPath);
                 }
               }
             }
         }
-
-        for (auto & p : step->drv->inputSrcs)
-            inputs.insert(p);
 
         /* Ensure that the inputs exist in the destination store. This is
            a no-op for regular stores, but for the binary cache store,
@@ -287,7 +291,7 @@ void State::buildRemote(ref<Store> destStore,
 
             auto now1 = std::chrono::steady_clock::now();
 
-            copyClosureTo(machine->state->sendLock, destStore, from, to, inputs, true);
+            copyClosureTo(machine->state->sendLock, destStore, from, to, basicDrv.inputSrcs, true);
 
             auto now2 = std::chrono::steady_clock::now();
 
