@@ -426,7 +426,7 @@ sub checkBuild {
                 # semantically unnecessary (because they're implied by
                 # the eval), but they give a factor 1000 speedup on
                 # the Nixpkgs jobset with PostgreSQL.
-                { project => $jobset->get_column('project'), jobset => $jobset->name, job => $jobName,
+                { jobset_id => $jobset->get_column('id'), job => $jobName,
                   name => $firstOutputName, path => $firstOutputPath },
                 { rows => 1, columns => ['id'], join => ['buildoutputs'] });
             if (defined $prevBuild) {

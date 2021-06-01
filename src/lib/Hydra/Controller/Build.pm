@@ -83,8 +83,7 @@ sub build_GET {
 
     if ($build->finished) {
         $c->stash->{prevBuilds} = [$c->model('DB::Builds')->search(
-            { project => $c->stash->{project}->name
-            , jobset => $c->stash->{jobset}->name
+            { jobset_id => $c->stash->{jobset}->id
             , job => $c->stash->{job}
             , 'me.system' => $build->system
             , finished => 1

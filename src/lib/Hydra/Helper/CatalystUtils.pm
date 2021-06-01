@@ -64,8 +64,7 @@ sub getNextBuild {
     (my $nextBuild) = $c->model('DB::Builds')->search(
       { finished => 1
       , system => $build->system
-      , project => $build->get_column('project')
-      , jobset => $build->get_column('jobset')
+      , jobset_id => $build->get_column('jobset_id')
       , job => $build->get_column('job')
       , 'me.id' =>  { '>' => $build->id }
       }, {rows => 1, order_by => "me.id ASC"});
@@ -81,8 +80,7 @@ sub getPreviousSuccessfulBuild {
     (my $prevBuild) = $c->model('DB::Builds')->search(
       { finished => 1
       , system => $build->system
-      , project => $build->get_column('project')
-      , jobset => $build->get_column('jobset')
+      , jobset_id => $build->get_column('jobset_id')
       , job => $build->get_column('job')
       , buildstatus => 0
       , 'me.id' =>  { '<' => $build->id }
