@@ -115,10 +115,10 @@ sub jobsetOverview_ {
     return $jobsets->search({},
         { order_by => ["hidden ASC", "enabled DESC", "name"]
         , "+select" =>
-          [ "(select count(*) from Builds as a where a.finished = 0 and me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus <> 0 and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus = 0 and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
+          [ "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 0 and a.isCurrent = 1)"
+          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 1 and buildstatus <> 0 and a.isCurrent = 1)"
+          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 1 and buildstatus = 0 and a.isCurrent = 1)"
+          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.isCurrent = 1)"
           ]
         , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]
         });
