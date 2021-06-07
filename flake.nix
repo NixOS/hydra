@@ -152,6 +152,38 @@
               license = with final.lib.licenses; [ artistic1 gpl1Plus ];
             };
           };
+
+          PrometheusTiny = final.buildPerlPackage {
+            pname = "Prometheus-Tiny";
+            version = "0.007";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/R/RO/ROBN/Prometheus-Tiny-0.007.tar.gz";
+              sha256 = "0ef8b226a2025cdde4df80129dd319aa29e884e653c17dc96f4823d985c028ec";
+            };
+            buildInputs = with final.perlPackages; [ HTTPMessage Plack TestException ];
+            meta = {
+              homepage = "https://github.com/robn/Prometheus-Tiny";
+              description = "A tiny Prometheus client";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          PrometheusTinyShared = final.buildPerlPackage {
+            pname = "Prometheus-Tiny-Shared";
+            version = "0.023";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/R/RO/ROBN/Prometheus-Tiny-Shared-0.023.tar.gz";
+              sha256 = "7c2c72397be5d8e4839d1bf4033c1800f467f2509689673c6419df48794f2abe";
+            };
+            buildInputs = with final.perlPackages; [ DataRandom HTTPMessage Plack TestDifferences TestException ];
+            propagatedBuildInputs = with final.perlPackages; [ HashSharedMem JSONXS PrometheusTiny ];
+            meta = {
+              homepage = "https://github.com/robn/Prometheus-Tiny-Shared";
+              description = "A tiny Prometheus client with a shared database behind it";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
           TieHashMethod = final.buildPerlPackage {
               pname = "Tie-Hash-Method";
               version = "0.02";
