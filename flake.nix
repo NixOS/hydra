@@ -111,6 +111,20 @@
             };
           };
 
+          DataRandom = final.buildPerlPackage {
+            pname = "Data-Random";
+            version = "0.13";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/B/BA/BAREFOOT/Data-Random-0.13.tar.gz";
+              sha256 = "eb590184a8db28a7e49eab09e25f8650c33f1f668b6a472829de74a53256bfc0";
+            };
+            buildInputs = with final.perlPackages; [ FileShareDirInstall TestMockTime ];
+            meta = {
+              description = "Perl module to generate random data";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
           DirSelf = final.buildPerlPackage {
             pname = "Dir-Self";
             version = "0.11";
