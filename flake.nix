@@ -139,6 +139,19 @@
             };
           };
 
+          HashSharedMem = final.perlPackages.buildPerlModule {
+            pname = "Hash-SharedMem";
+            version = "0.005";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/Z/ZE/ZEFRAM/Hash-SharedMem-0.005.tar.gz";
+              sha256 = "324776808602f7bdc44adaa937895365454029a926fa611f321c9bf6b940bb5e";
+            };
+            buildInputs = with final.perlPackages; [ ScalarString ];
+            meta = {
+              description = "Efficient shared mutable hash";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
           TieHashMethod = final.buildPerlPackage {
               pname = "Tie-Hash-Method";
               version = "0.02";
