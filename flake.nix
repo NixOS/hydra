@@ -391,6 +391,7 @@
                 NetPrometheus
                 NetStatsd
                 PadWalker
+                PrometheusTinyShared
                 Readonly
                 SQLSplitStatement
                 SetScalar
