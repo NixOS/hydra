@@ -70,6 +70,21 @@
             };
           };
 
+          CatalystPluginPrometheusTiny = final.buildPerlPackage {
+            pname = "Catalyst-Plugin-PrometheusTiny";
+            version = "0.005";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/S/SY/SYSPETE/Catalyst-Plugin-PrometheusTiny-0.005.tar.gz";
+              sha256 = "a42ef09efdc3053899ae007c41220d3ed7207582cc86e491b4f534539c992c5a";
+            };
+            buildInputs = with final.perlPackages; [ HTTPMessage Plack SubOverride TestDeep ];
+            propagatedBuildInputs = with final.perlPackages; [ CatalystRuntime Moose PrometheusTiny PrometheusTinyShared ];
+            meta = {
+              description = "Prometheus metrics for Catalyst";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
           CryptArgon2 = final.perlPackages.buildPerlModule {
             pname = "Crypt-Argon2";
             version = "0.010";
@@ -358,6 +373,7 @@
                 CatalystPluginAccessLog
                 CatalystPluginAuthorizationRoles
                 CatalystPluginCaptcha
+                CatalystPluginPrometheusTiny
                 CatalystPluginSessionStateCookie
                 CatalystPluginSessionStoreFastMmap
                 CatalystPluginStackTrace
