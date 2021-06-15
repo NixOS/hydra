@@ -402,9 +402,10 @@ create table CachedGitInputs (
     uri           text not null,
     branch        text not null,
     revision      text not null,
+    isDeepClone   boolean not null,
     sha256hash    text not null,
     storePath     text not null,
-    primary key   (uri, branch, revision)
+    primary key   (uri, branch, revision, isDeepClone)
 );
 
 create table CachedDarcsInputs (
