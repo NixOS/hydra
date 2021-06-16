@@ -223,12 +223,39 @@ sub getEvalInfo {
 }
 
 
+=head2 getEvals
+
+This method returns a list of evaluations with details about what changed,
+intended to be used with `eval.tt`.
+
+Arguments:
+
+=over 4
+
+=item C<$c>
+L<Hydra> - the entire application.
+
+=item C<$evals_result_set>
+
+A L<DBIx::Class::ResultSet> for the result class of L<Hydra::Model::DB::JobsetEvals>
+
+=item C<$offset>
+
+Integer offset when selecting evaluations
+
+=item C<$rows>
+
+Integer rows to fetch
+
+=back
+
+=cut
 sub getEvals {
-    my ($self, $c, $evals_query_builder, $offset, $rows) = @_;
+    my ($c, $evals_result_set, $offset, $rows) = @_;
 
-    my $me = $evals_query_builder->current_source_alias;
+    my $me = $evals_result_set->current_source_alias;
 
-    my @evals = $evals_query_builder->search(
+    my @evals = $evals_result_set->search(
         { hasnewbuilds => 1 },
         { order_by => "$me.id DESC", rows => $rows, offset => $offset
         , prefetch => { evaluationerror => [ ] } });
