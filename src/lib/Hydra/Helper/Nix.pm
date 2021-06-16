@@ -224,11 +224,11 @@ sub getEvalInfo {
 
 
 sub getEvals {
-    my ($self, $c, $evals, $offset, $rows) = @_;
+    my ($self, $c, $evals_query_builder, $offset, $rows) = @_;
 
-    my $me = $evals->current_source_alias;
+    my $me = $evals_query_builder->current_source_alias;
 
-    my @evals = $evals->search(
+    my @evals = $evals_query_builder->search(
         { hasnewbuilds => 1 },
         { order_by => "$me.id DESC", rows => $rows, offset => $offset
         , prefetch => { evaluationerror => [ ] } });
