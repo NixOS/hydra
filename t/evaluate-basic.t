@@ -21,7 +21,7 @@ ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit w
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 
 for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with code 0");
+    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with return code 0");
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build '".$build->job."' from jobs/basic.nix should be finished.");
     my $expected = $build->job eq "fails" ? 1 : $build->job =~ /with_failed/ ? 6 : 0;

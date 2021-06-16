@@ -41,7 +41,7 @@ sub jobset_GET {
 
     $c->stash->{template} = 'jobset.tt';
 
-    $c->stash->{evals} = getEvals($self, $c, scalar $c->stash->{jobset}->jobsetevals, 0, 10);
+    $c->stash->{evals} = getEvals($c, scalar $c->stash->{jobset}->jobsetevals, 0, 10);
 
     $c->stash->{latestEval} = $c->stash->{jobset}->jobsetevals->search({ hasnewbuilds => 1 }, { rows => 1, order_by => ["id desc"] })->single;
 
@@ -337,7 +337,7 @@ sub evals_GET {
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
     my $offset = ($page - 1) * $resultsPerPage;
-    $c->stash->{evals} = getEvals($self, $c, $evals, $offset, $resultsPerPage);
+    $c->stash->{evals} = getEvals($c, $evals, $offset, $resultsPerPage);
     my %entity = (
         evals => [ map { $_->{eval} } @{$c->stash->{evals}} ],
         first => "?page=1",
