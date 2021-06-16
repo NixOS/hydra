@@ -21,7 +21,7 @@ is(nrQueuedBuildsForJobset($jobset), 2, "Evaluating jobs/build-products.nix shou
 
 for my $build (queuedBuildsForJobset($jobset)) {
     subtest "For the build job '" . $build->job . "'" => sub {
-        ok(runBuild($build), "Build should exit with code 0");
+        ok(runBuild($build), "Build should exit with return code 0");
         my $newbuild = $db->resultset('Builds')->find($build->id);
 
         is($newbuild->finished, 1, "Build should have finished");

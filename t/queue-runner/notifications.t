@@ -88,7 +88,7 @@ my @builds = queuedBuildsForJobset($jobset);
 
 subtest "Build: substitutable, canbesubstituted" => sub {
     my ($build) = grep { $_->nixname eq "can-be-substituted" } @builds;
-    ok(runBuild($build), "Build should exit with code 0");
+    ok(runBuild($build), "Build should exit with return code 0");
 
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build should be finished.");
@@ -107,7 +107,7 @@ subtest "Build: substitutable, canbesubstituted" => sub {
 
 subtest "Build: not substitutable, unsubstitutable" => sub {
     my ($build) = grep { $_->nixname eq "unsubstitutable" } @builds;
-    ok(runBuild($build), "Build should exit with code 0");
+    ok(runBuild($build), "Build should exit with return code 0");
 
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build should be finished.");

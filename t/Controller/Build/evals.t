@@ -23,7 +23,7 @@ ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit w
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 my ($build, @builds) = queuedBuildsForJobset($jobset);
 
-ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with code 0");
+ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with return code 0");
 
 subtest "/build/ID/evals" => sub {
     my $evals = request(GET '/build/' . $build->id . '/evals');
