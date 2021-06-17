@@ -299,7 +299,7 @@
             propagatedBuildInputs = with final.perlPackages; [ NetLDAP ConvertASN1 ];
             meta = {
               description = "LDAP server side protocol handling";
-              license = with final.stdenv.lib.licenses; [ artistic1 ];
+              license = with final.lib.licenses; [ artistic1 ];
             };
           };
 
@@ -312,7 +312,7 @@
             };
             meta = {
               description= "Active Directory Security Identifier manipulation";
-              license = with final.stdenv.lib.licenses; [ artistic2 ];
+              license = with final.lib.licenses; [ artistic2 ];
             };
           };
 
@@ -326,7 +326,7 @@
             propagatedBuildInputs = with final.perlPackages; [ NetLDAP NetLDAPServer TestMore DataDump NetLDAPSID ];
             meta = {
               description= "test Net::LDAP code";
-              license = with final.stdenv.lib.licenses; [ artistic1 ];
+              license = with final.lib.licenses; [ artistic1 ];
             };
           };
 
@@ -341,7 +341,7 @@
             buildInputs = with final.perlPackages; [ TestMore TestMockObject TestException NetLDAPServerTest ];
             meta = {
               description= "Authentication from an LDAP Directory";
-              license = with final.stdenv.lib.licenses; [ artistic1 ];
+              license = with final.lib.licenses; [ artistic1 ];
             };
           };
 
