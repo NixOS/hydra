@@ -34,6 +34,8 @@ Note that the notification format is subject to change and should not be conside
 
 After processing, the row's `notificationspendingsince` column is set to null.
 
+It is possible for subsequent deliveries of the same `build_finished` data to imply different outcomes. For example, if the build fails, is restarted, and then succeeds. In this scenario the `build_finished` events will be delivered at least twice, once for the failure and then once for the success.
+
 ## Development Notes
 
 ### Re-sending a notification
