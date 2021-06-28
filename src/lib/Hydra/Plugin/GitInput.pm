@@ -182,7 +182,7 @@ sub fetchInput {
     # TODO: Fix case where the branch is reset to a previous commit.
     my $cachedInput;
     ($cachedInput) = $self->{db}->resultset('CachedGitInputs')->search(
-        {uri => $uri, branch => $branch, revision => $revision},
+        {uri => $uri, branch => $branch, revision => $revision, isdeepclone => defined($deepClone) ? 1 : 0},
         {rows => 1});
 
     addTempRoot($cachedInput->storepath) if defined $cachedInput;
@@ -223,6 +223,7 @@ sub fetchInput {
                 { uri => $uri
                 , branch => $branch
                 , revision => $revision
+                , isdeepclone => defined($deepClone) ? 1 : 0
                 , sha256hash => $sha256
                 , storepath => $storePath
                 });

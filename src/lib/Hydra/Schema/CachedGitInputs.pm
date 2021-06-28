@@ -50,6 +50,11 @@ __PACKAGE__->table("cachedgitinputs");
   data_type: 'text'
   is_nullable: 0
 
+=head2 isdeepclone
+
+  data_type: 'boolean'
+  is_nullable: 0
+
 =head2 sha256hash
 
   data_type: 'text'
@@ -69,6 +74,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "revision",
   { data_type => "text", is_nullable => 0 },
+  "isdeepclone",
+  { data_type => "boolean", is_nullable => 0 },
   "sha256hash",
   { data_type => "text", is_nullable => 0 },
   "storepath",
@@ -85,14 +92,16 @@ __PACKAGE__->add_columns(
 
 =item * L</revision>
 
+=item * L</isdeepclone>
+
 =back
 
 =cut
 
-__PACKAGE__->set_primary_key("uri", "branch", "revision");
+__PACKAGE__->set_primary_key("uri", "branch", "revision", "isdeepclone");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2020-02-06 12:22:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:0sdK9uQZpx869oqS5thRLw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-06-19 17:26:24
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Wr0grsFTaqRlMeM9vpXjrw
 
 1;
