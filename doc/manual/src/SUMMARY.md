@@ -3,6 +3,7 @@
 - [Introduction](introduction.md)
 - [Installation](installation.md)
 - [Creating and Managing Projects](projects.md)
+- [Hydra jobs](./jobs.md)
 - [Using the external API](api.md)
 - [Monitoring Hydra](./monitoring/README.md)
 
