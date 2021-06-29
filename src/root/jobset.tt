@@ -88,6 +88,7 @@
         <td>
           [% IF latestEval %]
             [% INCLUDE renderDateTime timestamp = latestEval.timestamp %]
+            (took [% relativeDuration (latestEval.checkouttime + latestEval.evaltime) %])
           [% ELSE %]
             <em>never</em>
           [% END %]

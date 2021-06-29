@@ -3,13 +3,14 @@ package Hydra::View::TT;
 use strict;
 use base 'Catalyst::View::TT';
 use Hydra::Helper::Nix;
+use Time::Seconds;
 
 __PACKAGE__->config(
     TEMPLATE_EXTENSION => '.tt',
     ENCODING => 'utf-8',
     PRE_CHOMP => 1,
     POST_CHOMP => 1,
-    expose_methods => [qw/buildLogExists buildStepLogExists jobExists stripSSHUser/]);
+    expose_methods => [qw/buildLogExists buildStepLogExists jobExists relativeDuration stripSSHUser/]);
 
 sub buildLogExists {
     my ($self, $c, $build) = @_;
@@ -23,6 +24,27 @@ sub buildStepLogExists {
     return 1 if defined $c->config->{log_prefix};
     my @outPaths = map { $_->path } $step->buildstepoutputs->all;
     return defined findLog($c, $step->drvpath, @outPaths);
+}
+
+=head2 relativeDuration
+
+Given an integer of seconds, return an English representation of the
+duration as a string.
+
+Arguments:
+
+=over 1
+
+=item C<$seconds>
+
+An integer number of seconds
+
+=back
+
+=cut
+sub relativeDuration {
+    my ($self, $c, $seconds) = @_;
+    return Time::Seconds->new($seconds)->pretty();
 }
 
 sub stripSSHUser {
