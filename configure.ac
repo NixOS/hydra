@@ -1,4 +1,4 @@
-AC_INIT([Hydra], [m4_esyscmd([echo -n $(cat ./version)$VERSION_SUFFIX])])
+AC_INIT([Hydra], [m4_esyscmd([echo -n $(cat ./version.txt)$VERSION_SUFFIX])])
 AC_CONFIG_AUX_DIR(config)
 AM_INIT_AUTOMAKE([foreign serial-tests])
 

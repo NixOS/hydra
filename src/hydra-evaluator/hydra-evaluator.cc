@@ -233,12 +233,12 @@ struct Evaluator
             pqxx::work txn(*conn);
 
             if (jobset.evaluation_style == EvaluationStyle::ONE_AT_A_TIME) {
-                auto evaluation_res = txn.parameterized
+                auto evaluation_res = txn.exec_params
                     ("select id from JobsetEvals "
                      "where jobset_id = $1 "
-                     "order by id desc limit 1")
-                  (jobset.name.id)
-                  .exec();
+                     "order by id desc limit 1"
+                    ,jobset.name.id
+                    );
 
                 if (evaluation_res.empty()) {
                     // First evaluation, so allow scheduling.
@@ -249,15 +249,15 @@ struct Evaluator
 
                 auto evaluation_id = evaluation_res[0][0].as<int>();
 
-                auto unfinished_build_res = txn.parameterized
+                auto unfinished_build_res = txn.exec_params
                     ("select id from Builds "
                      "join JobsetEvalMembers "
                      "    on (JobsetEvalMembers.build = Builds.id) "
                      "where JobsetEvalMembers.eval = $1 "
                      "  and builds.finished = 0 "
-                     " limit 1")
-                  (evaluation_id)
-                  .exec();
+                     " limit 1"
+                    ,evaluation_id
+                    );
 
                 // If the previous evaluation has no unfinished builds
                 // schedule!
