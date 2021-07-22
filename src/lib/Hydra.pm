@@ -48,6 +48,14 @@ __PACKAGE__->config(
             file($ENV{'HYDRA_LDAP_CONFIG'})
         ) : undef
     },
+    'Plugin::ConfigLoader' => {
+        driver => {
+            'General' => {
+                -UseApacheInclude => 1,
+                -IncludeAgain => 1
+            }
+        }
+    },
     'Plugin::PrometheusTiny' => {
         include_action_labels => 1,
     },
