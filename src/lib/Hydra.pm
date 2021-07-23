@@ -51,6 +51,11 @@ __PACKAGE__->config(
     'Plugin::ConfigLoader' => {
         driver => {
             'General' => {
+                # Please keep these options in sync with corresponding
+                # call to `new Config::General` in `getHydraConfig()` sub
+                # in `Hydra/Helper/Nix.pm`. This is necessary in order to
+                # maintain consistent interpretation of the config by the
+                # various hydra components.
                 -UseApacheInclude => 1,
                 -IncludeAgain => 1
             }

@@ -42,6 +42,11 @@ sub getHydraConfig {
     return $hydraConfig if defined $hydraConfig;
     my $conf = $ENV{"HYDRA_CONFIG"} || (Hydra::Model::DB::getHydraPath . "/hydra.conf");
     if (-f $conf) {
+
+        # Please keep these options in sync with corresponding
+        # `Catalyst::Plugin::ConfigLoader` configuration in `Hydra.pm`
+        # This is necessary in order to maintain consistent interpretation
+        # of the config by the various hydra components.
         my %h = new Config::General( -ConfigFile => $conf
                                    , -UseApacheInclude => 1
                                    , -IncludeAgain => 1
