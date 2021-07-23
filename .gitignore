@@ -1,3 +1,4 @@
+/.pls_cache
 *.o
 *~
 Makefile
@@ -22,6 +23,7 @@ Makefile.in
 /src/hydra-eval-jobs/hydra-eval-jobs
 /src/root/static/bootstrap
 /src/root/static/js/flot
+/tests
 /doc/manual/images
 /doc/manual/manual.html
 /doc/manual/manual.pdf
@@ -41,3 +43,4 @@ stamp-h1
 src/hydra-evaluator/hydra-evaluator
 src/hydra-queue-runner/hydra-queue-runner
 src/root/static/fontawesome/
+src/root/static/bootstrap*/
