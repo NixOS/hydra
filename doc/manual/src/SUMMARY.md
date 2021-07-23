@@ -2,6 +2,7 @@
 
 - [Introduction](introduction.md)
 - [Installation](installation.md)
+- [Configuration](configuration.md)
 - [Creating and Managing Projects](projects.md)
 - [Hydra jobs](./jobs.md)
 - [Using the external API](api.md)
