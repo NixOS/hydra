@@ -9,7 +9,7 @@ use File::Basename;
 use Cwd qw(abs_path getcwd);
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(test_init hydra_setup nrBuildsForJobset queuedBuildsForJobset
+our @EXPORT = qw(test_init hydra_setup write_file nrBuildsForJobset queuedBuildsForJobset
                  nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput
                  evalSucceeds runBuild sendNotifications updateRepository
                  captureStdoutStderr);
@@ -49,19 +49,16 @@ sub test_init {
     $ENV{'NIX_CONF_DIR'} = "$dir/nix/etc/nix";
     make_path($ENV{'NIX_CONF_DIR'});
     my $nixconf = "$ENV{'NIX_CONF_DIR'}/nix.conf";
-    open(my $fh, '>', $nixconf) or die "Could not open file '$nixconf' $!";
-    print $fh "sandbox = false\n";
-    print $fh $opts{'nix_config'} || "";
-    close $fh;
-
+    my $nix_config = "sandbox = false\n" . $opts{'nix_config'};
+    write_file($nixconf, $nix_config);
     $ENV{'HYDRA_CONFIG'} = "$dir/hydra.conf";
 
-    open(my $fh, '>', $ENV{'HYDRA_CONFIG'}) or die "Could not open file '" . $ENV{'HYDRA_CONFIG'}. " $!";
+    my $hydra_config = $opts{'hydra_config'} || "";
     if ($opts{'use_external_destination_store'} // 1) {
-        print $fh "store_uri = file:$dir/nix/dest-store\n"
+        $hydra_config = "store_uri = file:$dir/nix/dest-store\n" . $hydra_config;
     }
-    print $fh $opts{'hydra_config'} || "";
-    close $fh;
+
+    write_file($ENV{'HYDRA_CONFIG'}, $hydra_config);
 
     $ENV{'NIX_LOG_DIR'} = "$dir/nix/var/log/nix";
     $ENV{'NIX_REMOTE_SYSTEMS'} = '';
@@ -80,6 +77,13 @@ sub test_init {
         testdir => abs_path(dirname(__FILE__) . "/.."),
         jobsdir => abs_path(dirname(__FILE__) . "/../jobs")
     );
+}
+
+sub write_file {
+    my ($path, $text) = @_;
+    open(my $fh, '>', $path) or die "Could not open file '$path' $!";
+    print $fh $text || "";
+    close $fh;
 }
 
 sub captureStdoutStderr {
