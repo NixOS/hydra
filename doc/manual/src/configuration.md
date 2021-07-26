@@ -28,8 +28,6 @@ like so:
 Include /run/keys/hydra/github_authorizations.conf
 ```
 
-Note that the included files must be relative to `hydra.conf` (not absolute).
-
 Serving behind reverse proxy
 ----------------------------
 
