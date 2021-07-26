@@ -6,6 +6,7 @@ use parent 'Catalyst';
 use Moose;
 use Hydra::Plugin;
 use Hydra::Model::DB;
+use Hydra::Config;
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
                 Unicode::Encoding
@@ -50,15 +51,7 @@ __PACKAGE__->config(
     },
     'Plugin::ConfigLoader' => {
         driver => {
-            'General' => {
-                # Please keep these options in sync with corresponding
-                # call to `new Config::General` in `getHydraConfig()` sub
-                # in `Hydra/Helper/Nix.pm`. This is necessary in order to
-                # maintain consistent interpretation of the config by the
-                # various hydra components.
-                -UseApacheInclude => 1,
-                -IncludeAgain => 1
-            }
+            'General' => \%configGeneralOpts
         }
     },
     'Plugin::PrometheusTiny' => {
