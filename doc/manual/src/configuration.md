@@ -25,7 +25,7 @@ Instead, the above should be written to a file outside the Nix store by
 other means (manually, using Nixops' secrets feature, etc) and included
 like so:
 ```
-Include github_authorizations.conf
+Include /run/keys/hydra/github_authorizations.conf
 ```
 
 Note that the included files must be relative to `hydra.conf` (not absolute).
