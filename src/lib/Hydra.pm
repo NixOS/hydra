@@ -6,7 +6,6 @@ use parent 'Catalyst';
 use Moose;
 use Hydra::Plugin;
 use Hydra::Model::DB;
-use Hydra::Config;
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
                 Unicode::Encoding
@@ -51,7 +50,7 @@ __PACKAGE__->config(
     },
     'Plugin::ConfigLoader' => {
         driver => {
-            'General' => \%configGeneralOpts
+            'General' => \%Hydra::Config::configGeneralOpts
         }
     },
     'Plugin::PrometheusTiny' => {
