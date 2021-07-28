@@ -245,8 +245,7 @@ void State::buildRemote(ref<Store> destStore,
 
         BasicDerivation basicDrv;
         auto outputHashes = staticOutputHashes(*localStore, *step->drv);
-        if ((derivationIsCA(step->drv->type())
-             || step->drv->type() == DerivationType::DeferredInputAddressed)) {
+        if (!derivationHasKnownOutputPaths(step->drv->type())) {
             auto maybeBasicDrv = step->drv->tryResolve(*localStore);
             if (!maybeBasicDrv)
                 throw Error(
