@@ -259,13 +259,10 @@ void State::buildRemote(ref<Store> destStore,
             basicDrv = BasicDerivation(*step->drv);
             for (auto & input : step->drv->inputDrvs) {
               auto drv2 = localStore->readDerivation(input.first);
-              auto hashes = staticOutputHashes(*localStore, drv2);
+              auto drv2Outputs = drv2.outputsAndOptPaths(*localStore);
               for (auto & name : input.second) {
-                if (settings.isExperimentalFeatureEnabled("ca-derivations")) {
-                  auto inputRealisation = localStore->queryRealisation(DrvOutput{hashes.at(name), name});
-                  assert(inputRealisation);
-                  basicDrv.inputSrcs.insert(inputRealisation->outPath);
-                }
+                auto inputPath = drv2Outputs.at(name);
+                basicDrv.inputSrcs.insert(*inputPath.second);
               }
             }
         }
