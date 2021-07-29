@@ -113,6 +113,8 @@ After making your changes, verify the test suite still passes. After following t
 ```
 $ nix-shell
 $ make check
+$ # Or, to run a single test, use:
+$ yath test ./t/foo/bar.t
 ```
 
 ### JSON API

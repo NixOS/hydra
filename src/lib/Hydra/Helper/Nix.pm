@@ -5,6 +5,7 @@ use Exporter;
 use File::Path;
 use File::Basename;
 use Config::General;
+use Hydra::Config;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
 use Nix::Store;
@@ -41,11 +42,9 @@ my $hydraConfig;
 sub getHydraConfig {
     return $hydraConfig if defined $hydraConfig;
     my $conf = $ENV{"HYDRA_CONFIG"} || (Hydra::Model::DB::getHydraPath . "/hydra.conf");
+    my %opts = (%Hydra::Config::configGeneralOpts, -ConfigFile => $conf);
     if (-f $conf) {
-        my %h = new Config::General( -ConfigFile => $conf
-                                   , -UseApacheInclude => 1
-                                   , -IncludeAgain => 1
-                                   )->getall;
+        my %h = new Config::General(%opts)->getall;
 
         $hydraConfig = \%h;
     } else {
