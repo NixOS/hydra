@@ -40,5 +40,5 @@ It is possible for subsequent deliveries of the same `build_finished` data to im
 
 ### Re-sending a notification
 
-Notifications can be experimentally re-sent on the command line with `psql`, with `NOTIFY $notificationname '$payload'`.
+Notifications can be experimentally re-sent on the command line with `psql`, with `NOTIFY $notificationname, '$payload'`.
 
