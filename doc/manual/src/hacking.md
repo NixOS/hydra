@@ -3,7 +3,7 @@
 This section provides some notes on how to hack on Hydra. To get the
 latest version of Hydra from GitHub:
 
-```console 
+```console
 $ git clone git://github.com/NixOS/hydra.git
 $ cd hydra
 ```
@@ -68,4 +68,36 @@ To build Hydra and its dependencies:
 
 ```console
 $ nix-build release.nix -A build.x86_64-linux
+```
+
+## Development Tasks
+
+### Connecting to the database
+
+Assuming you're running the the default configuration with `foreman start`,
+open an interactive session with Postgres via:
+
+```console
+$ psql --host localhost --port 64444 hydra
+```
+
+### Runinng the builder locally
+
+For `hydra-queue-runner` to successfully build locally, your
+development user will need to be "trusted" by your Nix store.
+
+Add yourself to the `trusted_users` option of `/etc/nix/nix.conf`.
+
+On NixOS:
+
+```nix
+{
+  nix.trustedUsers = [ "YOURUSER" ];
+}
+```
+
+Off NixOS, change `/etc/nix/nix.conf`:
+
+```conf
+trusted-users = root YOURUSERNAME
 ```
