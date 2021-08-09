@@ -1,14 +1,9 @@
 package Hydra::Event;
 
-
 use strict;
 use Hydra::Event::BuildFinished;
 use Hydra::Event::BuildStarted;
 use Hydra::Event::StepFinished;
-our @ISA = qw(Exporter);
-our @EXPORT = qw(
-    parse_payload
-);
 
 my %channels_to_events = (
   build_started => \&Hydra::Event::BuildStarted::parse,
@@ -27,4 +22,15 @@ sub parse_payload :prototype($$) {
     }
 
     return $parser->(@payload);
+}
+
+
+sub new_event {
+    my ($self, $channel_name, $payload) = @_;
+
+    return bless {
+        "channel_name" => $channel_name,
+        "payload" => $payload,
+        "event" => parse_payload($channel_name, $payload),
+    }, $self;
 }
