@@ -511,7 +511,7 @@ Step::ptr State::createStep(ref<Store> destStore,
 
                     StorePathSet closure;
                     localStore->computeFSClosure({*path}, closure);
-                    copyPaths(ref<Store>(localStore), destStore, closure, NoRepair, CheckSigs, NoSubstitute);
+                    copyPaths(*localStore, *destStore, closure, NoRepair, CheckSigs, NoSubstitute);
 
                     time_t stopTime = time(0);
 
