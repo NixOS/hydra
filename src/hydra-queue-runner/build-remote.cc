@@ -267,7 +267,7 @@ void State::buildRemote(ref<Store> destStore,
         if (localStore != std::shared_ptr<Store>(destStore)) {
             StorePathSet closure;
             localStore->computeFSClosure(step->drv->inputSrcs, closure);
-            copyPaths(ref<Store>(localStore), destStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
+            copyPaths(*localStore, *destStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
         }
 
         /* Copy the input closure. */
