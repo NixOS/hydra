@@ -34,3 +34,8 @@ sub new_event {
         "event" => parse_payload($channel_name, $payload),
     }, $self;
 }
+
+sub execute {
+    my ($self, $db, $plugin) = @_;
+    return $self->{"event"}->execute($db, $plugin);
+}
