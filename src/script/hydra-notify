@@ -31,6 +31,19 @@ $listener->subscribe("build_started");
 $listener->subscribe("build_finished");
 $listener->subscribe("step_finished");
 
+sub runPluginsForEvent {
+    my ($event) = @_;
+
+    foreach my $plugin (@plugins) {
+        eval {
+            $event->execute($db, $plugin);
+            1;
+        } or do {
+            print STDERR "error running $event->{'channel_name'} hooks: $@\n";
+        }
+    }
+}
+
 sub buildStarted {
     my ($buildId) = @_;
 
