@@ -3,9 +3,9 @@
 use strict;
 use utf8;
 use Hydra::Plugin;
+use Hydra::PostgresListener;
 use Hydra::Helper::Nix;
 use Hydra::Helper::AddBuilds;
-use IO::Select;
 use Getopt::Long;
 
 STDERR->autoflush(1);
@@ -26,9 +26,10 @@ my @plugins = Hydra::Plugin->instantiate(db => $db, config => $config);
 
 my $dbh = $db->storage->dbh;
 
-$dbh->do("listen build_started");
-$dbh->do("listen build_finished");
-$dbh->do("listen step_finished");
+my $listener = Hydra::PostgresListener->new($dbh);
+$listener->subscribe("build_started");
+$listener->subscribe("build_finished");
+$listener->subscribe("step_finished");
 
 sub buildStarted {
     my ($buildId) = @_;
@@ -115,15 +116,13 @@ for my $build ($db->resultset('Builds')->search(
 
 
 # Process incoming notifications.
-my $fd = $dbh->func("getfd");
-my $sel = IO::Select->new($fd);
-
 while (!$queued_only) {
-    $sel->can_read;
+    my $messages = $listener->block_for_messages();
+    while (my $message = $messages->()) {
 
-    while (my $notify = $dbh->func("pg_notifies")) {
-
-        my ($channelName, $pid, $payload) = @$notify;
+        my $channelName = $message->{"channel"};
+        my $pid = $message->{"pid"};
+        my $payload = $message->{"payload"};
         #print STDERR "got '$channelName' from $pid: $payload\n";
 
         my @payload = split /\t/, $payload;
