@@ -44,22 +44,6 @@ sub runPluginsForEvent {
     }
 }
 
-sub buildStarted {
-    my ($buildId) = @_;
-
-    my $build = $db->resultset('Builds')->find($buildId)
-        or die "build $buildId does not exist\n";
-
-    foreach my $plugin (@plugins) {
-        eval {
-            $plugin->buildStarted($build);
-            1;
-        } or do {
-            print STDERR "error with $plugin->buildStarted: $@\n";
-        }
-    }
-}
-
 sub buildFinished {
     my ($buildId, @deps) = @_;
 
@@ -136,7 +120,8 @@ while (!$queued_only) {
 
         eval {
             if ($channelName eq "build_started") {
-                buildStarted(int($payload[0]));
+                my $event = Hydra::Event::new_event($channelName, $message->{"payload"});
+                runPluginsForEvent($event);
             } elsif ($channelName eq "build_finished") {
                 my $buildId = int($payload[0]);
                 buildFinished($buildId, @payload[1..$#payload]);

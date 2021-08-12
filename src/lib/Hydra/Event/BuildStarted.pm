@@ -19,7 +19,29 @@ sub parse :prototype(@) {
 
 sub new {
     my ($self, $id) = @_;
-    return bless { "build_id" => $id }, $self;
+    return bless {
+        "build_id" => $id,
+        "build" => undef
+    }, $self;
+}
+
+sub load {
+    my ($self, $db) = @_;
+
+    if (!defined($self->{"build"})) {
+        $self->{"build"} = $db->resultset('Builds')->find($self->{"build_id"})
+            or die "build $self->{'build_id'} does not exist\n";
+    }
+}
+
+sub execute {
+    my ($self, $db, $plugin) = @_;
+
+    $self->load($db);
+
+    $plugin->buildStarted($self->{"build"});
+
+    return 1;
 }
 
 1;

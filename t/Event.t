@@ -1,7 +1,6 @@
 use strict;
 use Hydra::Event;
 use Hydra::Event::BuildFinished;
-use Hydra::Event::BuildStarted;
 use Hydra::Event::StepFinished;
 
 use Test2::V0;
@@ -14,29 +13,6 @@ subtest "Event: new event" => sub {
     is($event->{'event'}->{'build_id'}, 19);
 };
 
-subtest "Payload type: build_started" => sub {
-    like(
-        dies { Hydra::Event::parse_payload("build_started", "") },
-        qr/one argument/,
-        "empty payload"
-    );
-    like(
-        dies { Hydra::Event::parse_payload("build_started", "abc123\tabc123") },
-        qr/only one argument/,
-        "two arguments"
-    );
-
-    like(
-        dies { Hydra::Event::parse_payload("build_started", "abc123") },
-        qr/should be an integer/,
-        "not an integer"
-    );
-    is(
-        Hydra::Event::parse_payload("build_started", "19"),
-        Hydra::Event::BuildStarted->new(19),
-        "Valid parse"
-    );
-};
 
 subtest "Payload type: step_finished" => sub {
     like(
