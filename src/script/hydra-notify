@@ -53,12 +53,6 @@ sub buildFinished {
     my $build = $db->resultset('Builds')->find($buildId)
     or die "build $buildId does not exist\n";
 
-    my $project = $build->project;
-    my $jobsetName = $build->get_column('jobset');
-    if (length($project->declfile) && $jobsetName eq ".jobsets" && $build->iscurrent) {
-        handleDeclarativeJobsetBuild($db, $project, $build);
-    }
-
     my @dependents;
     foreach my $id (@deps) {
         my $dep = $db->resultset('Builds')->find($id)
