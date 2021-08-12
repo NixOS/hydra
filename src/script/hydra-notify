@@ -75,27 +75,6 @@ sub buildFinished {
     }
 }
 
-sub stepFinished {
-    my ($buildId, $stepNr, $logPath) = @_;
-
-    my $build = $db->resultset('Builds')->find($buildId)
-        or die "build $buildId does not exist\n";
-
-    my $step = $build->buildsteps->find({stepnr => $stepNr})
-        or die "step $stepNr does not exist\n";
-
-    $logPath = undef if $logPath eq "-";
-
-    foreach my $plugin (@plugins) {
-        eval {
-            $plugin->stepFinished($step, $logPath);
-            1;
-        } or do {
-            print STDERR "error with $plugin->stepFinished: $@\n";
-        }
-    }
-}
-
 # Process builds that finished while hydra-notify wasn't running.
 for my $build ($db->resultset('Builds')->search(
                    { notificationpendingsince => { '!=', undef } }))
@@ -119,14 +98,12 @@ while (!$queued_only) {
         my @payload = split /\t/, $payload;
 
         eval {
-            if ($channelName eq "build_started") {
+            if ($channelName eq "build_started" || $channelName eq "step_finished" ) {
                 my $event = Hydra::Event::new_event($channelName, $message->{"payload"});
                 runPluginsForEvent($event);
             } elsif ($channelName eq "build_finished") {
                 my $buildId = int($payload[0]);
                 buildFinished($buildId, @payload[1..$#payload]);
-            } elsif ($channelName eq "step_finished") {
-                stepFinished(int($payload[0]), int($payload[1]));
             }
             1;
         } or do {

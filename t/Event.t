@@ -1,7 +1,6 @@
 use strict;
 use Hydra::Event;
 use Hydra::Event::BuildFinished;
-use Hydra::Event::StepFinished;
 
 use Test2::V0;
 use Test2::Tools::Exception;
@@ -13,43 +12,6 @@ subtest "Event: new event" => sub {
     is($event->{'event'}->{'build_id'}, 19);
 };
 
-
-subtest "Payload type: step_finished" => sub {
-    like(
-        dies { Hydra::Event::parse_payload("step_finished", "") },
-        qr/three arguments/,
-        "empty payload"
-    );
-    like(
-        dies { Hydra::Event::parse_payload("step_finished", "abc123") },
-        qr/three arguments/,
-        "one argument"
-    );
-    like(
-        dies { Hydra::Event::parse_payload("step_finished", "abc123\tabc123") },
-        qr/three arguments/,
-        "two arguments"
-    );
-    like(
-        dies { Hydra::Event::parse_payload("step_finished", "abc123\tabc123\tabc123\tabc123") },
-        qr/three arguments/,
-        "four arguments"
-    );
-    like(
-        dies { Hydra::Event::parse_payload("step_finished", "abc123\t123\t/path/to/log") },
-        qr/should be an integer/,
-        "not an integer: first position"
-    );
-    like(
-        dies { Hydra::Event::parse_payload("step_finished", "123\tabc123\t/path/to/log") },
-        qr/should be an integer/,
-        "not an integer: second argument"
-    );
-    is(
-        Hydra::Event::parse_payload("step_finished", "123\t456\t/path/to/logfile"),
-        Hydra::Event::StepFinished->new(123, 456, "/path/to/logfile")
-    );
-};
 
 subtest "Payload type: build_finished" => sub {
     like(
