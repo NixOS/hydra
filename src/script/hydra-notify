@@ -47,7 +47,10 @@ sub buildStarted {
 }
 
 sub buildFinished {
-    my ($build, @deps) = @_;
+    my ($buildId, @deps) = @_;
+
+    my $build = $db->resultset('Builds')->find($buildId)
+    or die "build $buildId does not exist\n";
 
     my $project = $build->project;
     my $jobsetName = $build->get_column('jobset');
@@ -107,7 +110,7 @@ for my $build ($db->resultset('Builds')->search(
 {
     my $buildId = $build->id;
     print STDERR "sending notifications for build ${\$buildId}...\n";
-    buildFinished($build);
+    buildFinished($build->id);
 }
 
 
@@ -130,9 +133,7 @@ while (!$queued_only) {
                 buildStarted(int($payload[0]));
             } elsif ($channelName eq "build_finished") {
                 my $buildId = int($payload[0]);
-                my $build = $db->resultset('Builds')->find($buildId)
-                    or die "build $buildId does not exist\n";
-                buildFinished($build, @payload[1..$#payload]);
+                buildFinished($buildId, @payload[1..$#payload]);
             } elsif ($channelName eq "step_finished") {
                 stepFinished(int($payload[0]), int($payload[1]));
             }
