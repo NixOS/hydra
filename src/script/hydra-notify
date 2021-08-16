@@ -2,10 +2,11 @@
 
 use strict;
 use utf8;
+use Hydra::Event::BuildFinished;
+use Hydra::Helper::AddBuilds;
+use Hydra::Helper::Nix;
 use Hydra::Plugin;
 use Hydra::PostgresListener;
-use Hydra::Helper::Nix;
-use Hydra::Helper::AddBuilds;
 use Getopt::Long;
 
 STDERR->autoflush(1);
@@ -31,70 +32,15 @@ $listener->subscribe("build_started");
 $listener->subscribe("build_finished");
 $listener->subscribe("step_finished");
 
-sub buildStarted {
-    my ($buildId) = @_;
-
-    my $build = $db->resultset('Builds')->find($buildId)
-        or die "build $buildId does not exist\n";
+sub runPluginsForEvent {
+    my ($event) = @_;
 
     foreach my $plugin (@plugins) {
         eval {
-            $plugin->buildStarted($build);
+            $event->execute($db, $plugin);
             1;
         } or do {
-            print STDERR "error with $plugin->buildStarted: $@\n";
-        }
-    }
-}
-
-sub buildFinished {
-    my ($buildId, @deps) = @_;
-
-    my $build = $db->resultset('Builds')->find($buildId)
-    or die "build $buildId does not exist\n";
-
-    my @dependents;
-    foreach my $id (@deps) {
-        my $dep = $db->resultset('Builds')->find($id)
-            or die "build $id does not exist\n";
-        push @dependents, $dep;
-    }
-
-    foreach my $plugin (@plugins) {
-        eval {
-            $plugin->buildFinished($build, [@dependents]);
-            1;
-        } or do {
-            print STDERR "error with $plugin->buildFinished: $@\n";
-        }
-    }
-
-    # We have to iterate through all dependents as well, and if they are finished
-    # to mark their notificationpendingsince.
-    # Otherwise, the dependent builds will remain with notificationpendingsince set
-    # until hydra-notify is started, as buildFinished is never emitted for them.
-    foreach my $b ($build, @dependents) {
-        $b->update({ notificationpendingsince => undef }) if $b->finished;
-    }
-}
-
-sub stepFinished {
-    my ($buildId, $stepNr, $logPath) = @_;
-
-    my $build = $db->resultset('Builds')->find($buildId)
-        or die "build $buildId does not exist\n";
-
-    my $step = $build->buildsteps->find({stepnr => $stepNr})
-        or die "step $stepNr does not exist\n";
-
-    $logPath = undef if $logPath eq "-";
-
-    foreach my $plugin (@plugins) {
-        eval {
-            $plugin->stepFinished($step, $logPath);
-            1;
-        } or do {
-            print STDERR "error with $plugin->stepFinished: $@\n";
+            print STDERR "error running $event->{'channel_name'} hooks: $@\n";
         }
     }
 }
@@ -103,9 +49,11 @@ sub stepFinished {
 for my $build ($db->resultset('Builds')->search(
                    { notificationpendingsince => { '!=', undef } }))
 {
-    my $buildId = $build->id;
-    print STDERR "sending notifications for build ${\$buildId}...\n";
-    buildFinished($build->id);
+    print STDERR "sending notifications for build $build->id...\n";
+
+
+    my $event = Hydra::Event::BuildFinished->new($build->id);
+    runPluginsForEvent($event);
 }
 
 
@@ -117,19 +65,11 @@ while (!$queued_only) {
         my $channelName = $message->{"channel"};
         my $pid = $message->{"pid"};
         my $payload = $message->{"payload"};
-        #print STDERR "got '$channelName' from $pid: $payload\n";
-
-        my @payload = split /\t/, $payload;
 
         eval {
-            if ($channelName eq "build_started") {
-                buildStarted(int($payload[0]));
-            } elsif ($channelName eq "build_finished") {
-                my $buildId = int($payload[0]);
-                buildFinished($buildId, @payload[1..$#payload]);
-            } elsif ($channelName eq "step_finished") {
-                stepFinished(int($payload[0]), int($payload[1]));
-            }
+            my $event = Hydra::Event::new_event($channelName, $message->{"payload"});
+            runPluginsForEvent($event);
+
             1;
         } or do {
             print STDERR "error processing message '$payload' on channel '$channelName': $@\n";
