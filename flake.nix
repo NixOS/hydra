@@ -554,7 +554,7 @@
                       su - hydra -c "hydra-create-user root --email-address 'alice@example.org' --password foobar --role admin"
                       mkdir /run/jobset
                       chmod 755 /run/jobset
-                      cp ${./t/api-test.nix} /run/jobset/default.nix
+                      cp ${./t/jobs/api-test.nix} /run/jobset/default.nix
                       chmod 644 /run/jobset/default.nix
                       chown -R hydra /run/jobset
               """
