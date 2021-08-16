@@ -2,12 +2,13 @@
 
 use strict;
 use utf8;
+use Getopt::Long;
+use Hydra::Event;
 use Hydra::Event::BuildFinished;
 use Hydra::Helper::AddBuilds;
 use Hydra::Helper::Nix;
 use Hydra::Plugin;
 use Hydra::PostgresListener;
-use Getopt::Long;
 
 STDERR->autoflush(1);
 STDOUT->autoflush(1);
