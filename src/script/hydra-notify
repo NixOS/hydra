@@ -50,7 +50,7 @@ sub runPluginsForEvent {
 for my $build ($db->resultset('Builds')->search(
                    { notificationpendingsince => { '!=', undef } }))
 {
-    print STDERR "sending notifications for build $build->id...\n";
+    print STDERR "sending notifications for build ${\$build->id}...\n";
 
 
     my $event = Hydra::Event::BuildFinished->new($build->id);
