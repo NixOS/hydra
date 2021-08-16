@@ -68,7 +68,7 @@ while (!$queued_only) {
         my $payload = $message->{"payload"};
 
         eval {
-            my $event = Hydra::Event::new_event($channelName, $message->{"payload"});
+            my $event = Hydra::Event->new_event($channelName, $message->{"payload"});
             runPluginsForEvent($event);
 
             1;
