@@ -363,7 +363,7 @@
           perlDeps = buildEnv {
             name = "hydra-perl-deps";
             paths = with perlPackages; lib.closePropagation
-              [ ModulePluggable
+              [
                 AuthenSASL
                 CatalystActionREST
                 CatalystAuthenticationStoreDBIxClass
@@ -382,20 +382,22 @@
                 CatalystViewDownload
                 CatalystViewJSON
                 CatalystViewTT
-                CatalystXScriptServerStarman
                 CatalystXRoleApplicator
+                CatalystXScriptServerStarman
                 CryptPassphrase
                 CryptPassphraseArgon2
                 CryptRandPasswd
-                DBDPg
-                DBDSQLite
                 DataDump
                 DateTime
+                DBDPg
+                DBDSQLite
                 DigestSHA1
                 EmailMIME
                 EmailSender
                 FileSlurp
                 FileWhich
+                final.nix.perl-bindings
+                git
                 IOCompress
                 IPCRun
                 JSON
@@ -403,27 +405,26 @@
                 JSONXS
                 LWP
                 LWPProtocolHttps
+                ModulePluggable
                 NetAmazonS3
                 NetPrometheus
                 NetStatsd
                 PadWalker
                 PrometheusTinyShared
                 Readonly
-                SQLSplitStatement
                 SetScalar
+                SQLSplitStatement
                 Starman
                 StringCompareConstantTime
                 SysHostnameLong
                 TermSizeAny
+                Test2Harness
                 TestMore
                 TestPostgreSQL
                 TextDiff
-                Test2Harness
                 TextTable
                 XMLSimple
                 YAML
-                final.nix.perl-bindings
-                git
               ];
           };
 
