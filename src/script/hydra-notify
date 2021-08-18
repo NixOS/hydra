@@ -21,6 +21,49 @@ binmode STDERR, ":encoding(utf8)";
 my $config = getHydraConfig();
 
 my $prom = Prometheus::Tiny::Shared->new;
+# Note: It is very important to pre-declare any metrics before using them.
+# Add a new declaration for any new metrics you create. See:
+# https://metacpan.org/pod/Prometheus::Tiny#declare
+$prom->declare(
+    "notify_plugin_executions",
+    type => "counter",
+    help => "Number of times each plugin has been called by channel."
+);
+$prom->declare(
+    "notify_plugin_runtime",
+    type => "histogram",
+    help => "Number of seconds spent executing each plugin by channel."
+);
+$prom->declare(
+    "notify_plugin_success",
+    type => "counter",
+    help => "Number of successful executions of this plugin on this channel."
+);
+$prom->declare(
+    "notify_plugin_error",
+    type => "counter",
+    help => "Number of failed executions of this plugin on this channel."
+);
+$prom->declare(
+    "event_loop_iterations",
+    type => "counter",
+    help => "Number of iterations through the event loop. Incremented at the start of the event loop."
+);
+$prom->declare(
+    "event_received",
+    type => "counter",
+    help => "Timestamp of the last time a new event was received."
+);
+$prom->declare(
+    "notify_event",
+    type => "counter",
+    help => "Number of events received on the given channel."
+);
+$prom->declare(
+    "notify_event_error",
+    type => "counter",
+    help => "Number of events received that were unprocessable by channel."
+);
 
 my $promCfg = Hydra::Helper::Nix::getHydraNotifyPrometheusConfig($config);
 if (defined($promCfg)) {
