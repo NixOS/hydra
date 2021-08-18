@@ -470,6 +470,7 @@
                 NetPrometheus
                 NetStatsd
                 PadWalker
+                ParallelForkManager
                 PerlCriticCommunity
                 PrometheusTinyShared
                 Readonly
