@@ -99,6 +99,7 @@ my $listener = Hydra::PostgresListener->new($dbh);
 $listener->subscribe("build_started");
 $listener->subscribe("build_finished");
 $listener->subscribe("step_finished");
+$listener->subscribe("hydra_notify_dump_metrics");
 
 sub runPluginsForEvent {
     my ($event) = @_;
@@ -144,6 +145,11 @@ while (!$queued_only) {
         my $payload = $message->{"payload"};
 
         $prom->inc("notify_event", { channel => $channelName });
+
+        if ($channelName eq "hydra_notify_dump_metrics") {
+            print STDERR "Dumping prometheus metrics:\n${\$prom->format}\n";
+            next;
+        }
 
         eval {
             my $event = Hydra::Event->new_event($channelName, $message->{"payload"});
