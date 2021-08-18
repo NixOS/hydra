@@ -67,6 +67,7 @@ $prom->declare(
 
 my $promCfg = Hydra::Helper::Nix::getHydraNotifyPrometheusConfig($config);
 if (defined($promCfg)) {
+    print STDERR "Starting the Prometheus exporter, listening on http://${\$promCfg->{'listen_address'}}:${\$promCfg->{'port'}}/metrics.\n";
     my $fork_manager = Parallel::ForkManager->new(1);
     $fork_manager->start_child("metrics_exporter", sub {
         my $server = HTTP::Server::PSGI->new(
@@ -77,6 +78,8 @@ if (defined($promCfg)) {
 
         $server->run($prom->psgi);
     });
+} else {
+    print STDERR "Not starting the hydra-notify Prometheus exporter.\n";
 }
 
 my $queued_only;
