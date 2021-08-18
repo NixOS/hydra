@@ -70,6 +70,29 @@ sub getStatsdConfig {
     }
 }
 
+sub getHydraNotifyPrometheusConfig {
+    my ($config) = @_;
+    my $cfg = $config->{hydra_notify};
+
+    if (!defined($cfg) || ref $cfg ne "HASH") {
+        return undef;
+    }
+
+    my $cfg = $cfg->{prometheus};
+    if (!defined($cfg) || ref $cfg ne "HASH") {
+        return undef;
+    }
+
+    if (defined($cfg->{"listen_address"}) && defined($cfg->{"port"})) {
+        return {
+            "listen_address" => $cfg->{'listen_address'},
+            "port" => $cfg->{'port'},
+        };
+    }
+
+    return undef;
+}
+
 
 sub getBaseUrl {
     my ($config) = @_;

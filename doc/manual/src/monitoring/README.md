@@ -13,3 +13,11 @@ $ curl --header "Accept: application/json" http://localhost:63333/queue-runner-s
 ... JSON payload ...
 ```
 
+## Notification Daemon
+
+The `hydra-notify` process can expose Prometheus metrics for plugin execution. See
+[hydra-notify's Prometheus service](../configuration.md#hydra-notifys-prometheus-service)
+for details on enabling and configuring the exporter.
+
+The notification exporter exposes metrics on a per-plugin, per-event-type basis: execution
+durations, frequency, successes, and failures.
