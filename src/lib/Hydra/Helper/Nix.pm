@@ -66,8 +66,8 @@ sub getStatsdConfig {
     my %statsd = defined $cfg ? ref $cfg eq "HASH" ? %$cfg : ($cfg) : ();
 
     return {
-        "host" => %statsd{'host'}  // 'localhost',
-        "port" => %statsd{'port'}  // 8125,
+        "host" => $statsd{'host'}  // 'localhost',
+        "port" => $statsd{'port'}  // 8125,
     }
 }
 
