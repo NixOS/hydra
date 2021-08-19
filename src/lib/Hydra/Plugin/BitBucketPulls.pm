@@ -1,6 +1,7 @@
 package Hydra::Plugin::BitBucketPulls;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use HTTP::Request;
 use LWP::UserAgent;

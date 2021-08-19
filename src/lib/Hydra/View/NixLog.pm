@@ -1,6 +1,7 @@
 package Hydra::View::NixLog;
 
 use strict;
+use warnings;
 use base qw/Catalyst::View/;
 use Hydra::Helper::CatalystUtils;
 

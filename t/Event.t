@@ -1,4 +1,5 @@
 use strict;
+use warnings;
 use Hydra::Event;
 
 use Test2::V0;

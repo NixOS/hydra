@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 
 use strict;
+use warnings;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 use Hydra::Model::DB;

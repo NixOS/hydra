@@ -1,6 +1,7 @@
 package Hydra::Helper::Escape;
 
 use strict;
+use warnings;
 use base qw(Exporter);
 use Hydra::Helper::AttributeSet;
 

@@ -1,4 +1,5 @@
 use strict;
+use warnings;
 use File::Basename;
 use Hydra::Model::DB;
 use Hydra::Helper::Nix;

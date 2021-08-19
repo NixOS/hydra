@@ -1,6 +1,7 @@
 package Hydra::View::TT;
 
 use strict;
+use warnings;
 use base 'Catalyst::View::TT';
 use Hydra::Helper::Nix;
 use Time::Seconds;

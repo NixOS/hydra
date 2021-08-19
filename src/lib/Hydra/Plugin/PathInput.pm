@@ -1,6 +1,7 @@
 package Hydra::Plugin::PathInput;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use POSIX qw(strftime);
 use Hydra::Helper::Nix;

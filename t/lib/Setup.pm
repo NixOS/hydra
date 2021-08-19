@@ -1,6 +1,7 @@
 package Setup;
 
 use strict;
+use warnings;
 use Exporter;
 use Test::PostgreSQL;
 use File::Temp;

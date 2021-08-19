@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 
 use strict;
+use warnings;
 use utf8;
 use Hydra::Helper::Nix;
 use Net::Statsd;

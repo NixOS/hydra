@@ -1,6 +1,7 @@
 package Hydra::Helper::AddBuilds;
 
 use strict;
+use warnings;
 use utf8;
 use Encode;
 use JSON;

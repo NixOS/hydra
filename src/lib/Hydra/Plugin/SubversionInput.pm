@@ -1,6 +1,7 @@
 package Hydra::Plugin::SubversionInput;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use Digest::SHA qw(sha256_hex);
 use Hydra::Helper::Nix;

@@ -1,6 +1,7 @@
 package Hydra::Helper::Nix;
 
 use strict;
+use warnings;
 use Exporter;
 use File::Path;
 use File::Basename;

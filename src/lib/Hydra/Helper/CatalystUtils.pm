@@ -2,6 +2,7 @@ package Hydra::Helper::CatalystUtils;
 
 use utf8;
 use strict;
+use warnings;
 use Exporter;
 use Readonly;
 use Nix::Store;

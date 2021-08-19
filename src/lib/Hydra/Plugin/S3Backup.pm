@@ -1,6 +1,7 @@
 package Hydra::Plugin::S3Backup;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use File::Temp;
 use File::Basename;

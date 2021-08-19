@@ -1,6 +1,7 @@
 package Hydra::Plugin::GithubPulls;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use HTTP::Request;
 use LWP::UserAgent;

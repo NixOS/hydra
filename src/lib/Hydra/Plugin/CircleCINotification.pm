@@ -1,6 +1,7 @@
 package Hydra::Plugin::CircleCINotification;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use HTTP::Request;
 use LWP::UserAgent;

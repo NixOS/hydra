@@ -1,6 +1,7 @@
 package Hydra::Event;
 
 use strict;
+use warnings;
 use Hydra::Event::BuildFinished;
 use Hydra::Event::BuildStarted;
 use Hydra::Event::StepFinished;

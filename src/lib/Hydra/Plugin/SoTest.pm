@@ -1,6 +1,7 @@
 package Hydra::Plugin::SoTest;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use Hydra::Helper::CatalystUtils;
 use HTTP::Request;

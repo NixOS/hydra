@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 
 use strict;
+use warnings;
 use utf8;
 use Config::General;
 use Data::Dump qw(dump);

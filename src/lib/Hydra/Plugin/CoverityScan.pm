@@ -1,6 +1,7 @@
 package Hydra::Plugin::CoverityScan;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use File::Basename;
 use LWP::UserAgent;

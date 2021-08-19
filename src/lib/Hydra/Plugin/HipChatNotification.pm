@@ -1,6 +1,7 @@
 package Hydra::Plugin::HipChatNotification;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
