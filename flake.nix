@@ -345,6 +345,66 @@
             };
           };
 
+          PerlCriticCommunity = prev.perlPackages.buildPerlModule {
+            pname = "Perl-Critic-Community";
+            version = "1.0.0";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/D/DB/DBOOK/Perl-Critic-Community-v1.0.0.tar.gz";
+              sha256 = "311b775da4193e9de94cf5225e993cc54dd096ae1e7ef60738cdae1d9b8854e7";
+            };
+            buildInputs = with final.perlPackages; [ ModuleBuildTiny ];
+            propagatedBuildInputs = with final.perlPackages; [ PPI PathTiny PerlCritic PerlCriticPolicyVariablesProhibitLoopOnHash PerlCriticPulp ];
+            meta = {
+              homepage = "https://github.com/Grinnz/Perl-Critic-Freenode";
+              description = "Community-inspired Perl::Critic policies";
+              license = final.lib.licenses.artistic2;
+            };
+          };
+
+          PerlCriticPolicyVariablesProhibitLoopOnHash = prev.perlPackages.buildPerlPackage {
+            pname = "Perl-Critic-Policy-Variables-ProhibitLoopOnHash";
+            version = "0.008";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/X/XS/XSAWYERX/Perl-Critic-Policy-Variables-ProhibitLoopOnHash-0.008.tar.gz";
+              sha256 = "12f5f0be96ea1bdc7828058577bd1c5c63ca23c17fac9c3709452b3dff5b84e0";
+            };
+            propagatedBuildInputs = with final.perlPackages; [ PerlCritic ];
+            meta = {
+              description = "Don't write loops on hashes, only on keys and values of hashes";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          PerlCriticPulp = prev.perlPackages.buildPerlPackage {
+            pname = "Perl-Critic-Pulp";
+            version = "99";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/K/KR/KRYDE/Perl-Critic-Pulp-99.tar.gz";
+              sha256 = "b8fda842fcbed74d210257c0a284b6dc7b1d0554a47a3de5d97e7d542e23e7fe";
+            };
+            propagatedBuildInputs = with final.perlPackages; [ IOString ListMoreUtils PPI PerlCritic PodMinimumVersion ];
+            meta = {
+              homepage = "http://user42.tuxfamily.org/perl-critic-pulp/index.html";
+              description = "Some add-on policies for Perl::Critic";
+              license = final.lib.licenses.gpl3Plus;
+            };
+          };
+
+          PodMinimumVersion = prev.perlPackages.buildPerlPackage {
+            pname = "Pod-MinimumVersion";
+            version = "50";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/K/KR/KRYDE/Pod-MinimumVersion-50.tar.gz";
+              sha256 = "0bd2812d9aacbd99bb71fa103a4bb129e955c138ba7598734207dc9fb67b5a6f";
+            };
+            propagatedBuildInputs = with final.perlPackages; [ IOString PodParser ];
+            meta = {
+              homepage = "http://user42.tuxfamily.org/pod-minimumversion/index.html";
+              description = "Determine minimum Perl version of POD directives";
+              license = final.lib.licenses.free;
+            };
+          };
+
           StringCompareConstantTime = final.buildPerlPackage {
             pname = "String-Compare-ConstantTime";
             version = "0.321";
@@ -410,6 +470,7 @@
                 NetPrometheus
                 NetStatsd
                 PadWalker
+                PerlCriticCommunity
                 PrometheusTinyShared
                 Readonly
                 SetScalar
