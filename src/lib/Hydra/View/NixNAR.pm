@@ -13,7 +13,7 @@ sub process {
 
     $c->response->content_type('application/x-nix-archive'); # !!! check MIME type
 
-    my $fh = new IO::Handle;
+    my $fh = IO::Handle->new();
 
     open $fh, "nix-store --dump '$storePath' | pixz -0 $pParam |";
 

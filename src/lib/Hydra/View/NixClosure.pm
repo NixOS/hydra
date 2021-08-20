@@ -11,7 +11,7 @@ sub process {
 
     my @storePaths = @{$c->stash->{storePaths}};
 
-    my $fh = new IO::Handle;
+    my $fh = IO::Handle->new();
 
     open $fh, "nix-store --export `nix-store -qR @storePaths` | gzip |";
 

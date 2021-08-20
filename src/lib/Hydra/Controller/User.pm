@@ -143,7 +143,7 @@ sub google_login :Path('/google-login') Args(0) {
 
     error($c, "Logging in via Google is not enabled.") unless $c->config->{enable_google_login};
 
-    my $ua = new LWP::UserAgent;
+    my $ua = LWP::UserAgent->new();
     my $response = $ua->post(
         'https://www.googleapis.com/oauth2/v3/tokeninfo',
         { id_token => ($c->stash->{params}->{id_token} // die "No token."),
@@ -171,7 +171,7 @@ sub github_login :Path('/github-login') Args(0) {
     };
     die "No github secret configured" unless $client_secret;
 
-    my $ua = new LWP::UserAgent;
+    my $ua = LWP::UserAgent->new();
     my $response = $ua->post(
         'https://github.com/login/oauth/access_token',
         {

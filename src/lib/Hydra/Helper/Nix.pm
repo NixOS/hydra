@@ -44,7 +44,7 @@ sub getHydraConfig {
     my $conf = $ENV{"HYDRA_CONFIG"} || (Hydra::Model::DB::getHydraPath . "/hydra.conf");
     my %opts = (%Hydra::Config::configGeneralOpts, -ConfigFile => $conf);
     if (-f $conf) {
-        my %h = new Config::General(%opts)->getall;
+        my %h = Config::General->new(%opts)->getall;
 
         $hydraConfig = \%h;
     } else {

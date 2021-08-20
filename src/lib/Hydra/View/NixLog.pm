@@ -11,7 +11,7 @@ sub process {
 
     $c->response->content_type('text/plain; charset=utf-8');
 
-    my $fh = new IO::Handle;
+    my $fh = IO::Handle->new();
 
     my $tail = int($c->stash->{tail} // "0");
 
