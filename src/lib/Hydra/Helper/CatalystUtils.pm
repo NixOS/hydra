@@ -109,14 +109,14 @@ sub searchBuildsAndEvalsForJobset {
             { columns => ['id', 'job', 'finished', 'buildstatus'] }
         );
 
-        foreach my $b (@allBuilds) {
-            my $jobName = $b->get_column('job');
+        foreach my $build (@allBuilds) {
+            my $jobName = $build->get_column('job');
 
             $evals->{$eval->id}->{timestamp} = $eval->timestamp;
             $evals->{$eval->id}->{builds}->{$jobName} = {
-                id => $b->id,
-                finished => $b->finished,
-                buildstatus => $b->buildstatus
+                id => $build->id,
+                finished => $build->finished,
+                buildstatus => $build->buildstatus
             };
             $builds{$jobName} = 1;
             $nrBuilds++;
