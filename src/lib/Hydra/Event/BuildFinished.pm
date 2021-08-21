@@ -53,9 +53,9 @@ sub execute {
     #
     # Otherwise, the dependent builds will remain with notificationpendingsince set
     # until hydra-notify is started, as buildFinished is never emitted for them.
-    foreach my $b ($self->{"build"}, @{$self->{"dependents"}}) {
-        if ($b->finished && defined($b->notificationpendingsince)) {
-            $b->update({ notificationpendingsince => undef })
+    foreach my $build ($self->{"build"}, @{$self->{"dependents"}}) {
+        if ($build->finished && defined($build->notificationpendingsince)) {
+            $build->update({ notificationpendingsince => undef })
         }
     }
 
