@@ -121,10 +121,10 @@ sub overview : Chained('job') PathPart('') Args(0) {
 
     my $aggregates = {};
     my %constituentJobs;
-    foreach my $b (@constituents) {
-        $aggregates->{$b->get_column('aggregate')}->{constituents}->{$b->job} =
-            { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
-        $constituentJobs{$b->job} = 1;
+    foreach my $build (@constituents) {
+        $aggregates->{$build->get_column('aggregate')}->{constituents}->{$build->job} =
+            { id => $build->id, finished => $build->finished, buildstatus => $build->buildstatus };
+        $constituentJobs{$build->job} = 1;
     }
 
     foreach my $agg (keys %$aggregates) {
