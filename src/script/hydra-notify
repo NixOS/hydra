@@ -22,7 +22,8 @@ my $config = getHydraConfig();
 
 my $prom = Prometheus::Tiny::Shared->new;
 # Note: It is very important to pre-declare any metrics before using them.
-# Add a new declaration for any new metrics you create. See:
+# Add a new declaration for any new metrics you create. Metrics which are
+# not pre-declared disappear when their value is null. See:
 # https://metacpan.org/pod/Prometheus::Tiny#declare
 $prom->declare(
     "notify_plugin_executions",
