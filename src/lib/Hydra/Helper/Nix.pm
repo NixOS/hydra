@@ -70,6 +70,42 @@ sub getStatsdConfig {
     }
 }
 
+sub getHydraNotifyPrometheusConfig {
+    my ($config) = @_;
+    my $cfg = $config->{hydra_notify};
+
+    if (!defined($cfg)) {
+        return undef;
+    }
+
+    if (ref $cfg ne "HASH") {
+        print STDERR "Error reading Hydra's configuration file: hydra_notify should be a block.\n";
+        return undef;
+    }
+
+    my $cfg = $cfg->{prometheus};
+    if (!defined($cfg)) {
+        return undef;
+    }
+
+    if (ref $cfg ne "HASH") {
+        print STDERR "Error reading Hydra's configuration file: hydra_notify.prometheus should be a block.\n";
+        return undef;
+    }
+
+    if (defined($cfg->{"listen_address"}) && defined($cfg->{"port"})) {
+        return {
+            "listen_address" => $cfg->{'listen_address'},
+            "port" => $cfg->{'port'},
+        };
+    } else {
+        print STDERR "Error reading Hydra's configuration file: hydra_notify.prometheus should include listen_address and port.\n";
+        return undef;
+    }
+
+    return undef;
+}
+
 
 sub getBaseUrl {
     my ($config) = @_;

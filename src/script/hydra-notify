@@ -3,16 +3,85 @@
 use strict;
 use utf8;
 use Getopt::Long;
+use HTTP::Server::PSGI;
 use Hydra::Event;
 use Hydra::Event::BuildFinished;
 use Hydra::Helper::AddBuilds;
 use Hydra::Helper::Nix;
 use Hydra::Plugin;
 use Hydra::PostgresListener;
+use Parallel::ForkManager;
+use Prometheus::Tiny::Shared;
+use Time::HiRes qw( gettimeofday tv_interval );
 
 STDERR->autoflush(1);
 STDOUT->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
+
+my $config = getHydraConfig();
+
+my $prom = Prometheus::Tiny::Shared->new;
+# Note: It is very important to pre-declare any metrics before using them.
+# Add a new declaration for any new metrics you create. Metrics which are
+# not pre-declared disappear when their value is null. See:
+# https://metacpan.org/pod/Prometheus::Tiny#declare
+$prom->declare(
+    "notify_plugin_executions",
+    type => "counter",
+    help => "Number of times each plugin has been called by channel."
+);
+$prom->declare(
+    "notify_plugin_runtime",
+    type => "histogram",
+    help => "Number of seconds spent executing each plugin by channel."
+);
+$prom->declare(
+    "notify_plugin_success",
+    type => "counter",
+    help => "Number of successful executions of this plugin on this channel."
+);
+$prom->declare(
+    "notify_plugin_error",
+    type => "counter",
+    help => "Number of failed executions of this plugin on this channel."
+);
+$prom->declare(
+    "event_loop_iterations",
+    type => "counter",
+    help => "Number of iterations through the event loop. Incremented at the start of the event loop."
+);
+$prom->declare(
+    "event_received",
+    type => "counter",
+    help => "Timestamp of the last time a new event was received."
+);
+$prom->declare(
+    "notify_event",
+    type => "counter",
+    help => "Number of events received on the given channel."
+);
+$prom->declare(
+    "notify_event_error",
+    type => "counter",
+    help => "Number of events received that were unprocessable by channel."
+);
+
+my $promCfg = Hydra::Helper::Nix::getHydraNotifyPrometheusConfig($config);
+if (defined($promCfg)) {
+    print STDERR "Starting the Prometheus exporter, listening on http://${\$promCfg->{'listen_address'}}:${\$promCfg->{'port'}}/metrics.\n";
+    my $fork_manager = Parallel::ForkManager->new(1);
+    $fork_manager->start_child("metrics_exporter", sub {
+        my $server = HTTP::Server::PSGI->new(
+            host => $promCfg->{"listen_address"},
+            port => $promCfg->{"port"},
+            timeout => 1,
+        );
+
+        $server->run($prom->psgi);
+    });
+} else {
+    print STDERR "Not starting the hydra-notify Prometheus exporter.\n";
+}
 
 my $queued_only;
 
@@ -20,7 +89,6 @@ GetOptions(
     "queued-only" => \$queued_only
 ) or exit 1;
 
-my $config = getHydraConfig();
 
 my $db = Hydra::Model::DB->new();
 
@@ -32,15 +100,24 @@ my $listener = Hydra::PostgresListener->new($dbh);
 $listener->subscribe("build_started");
 $listener->subscribe("build_finished");
 $listener->subscribe("step_finished");
+$listener->subscribe("hydra_notify_dump_metrics");
 
 sub runPluginsForEvent {
     my ($event) = @_;
 
+    my $channelName = $event->{'channel_name'};
+
     foreach my $plugin (@plugins) {
+        $prom->inc("notify_plugin_executions", { channel => $channelName, plugin => ref $plugin });
         eval {
+            my $startTime = [gettimeofday()];
             $event->execute($db, $plugin);
+
+            $prom->histogram_observe("notify_plugin_runtime", tv_interval($startTime), { channel => $channelName, plugin => ref $plugin });
+            $prom->inc("notify_plugin_success", { channel => $channelName, plugin => ref $plugin });
             1;
         } or do {
+            $prom->inc("notify_plugin_error", { channel => $channelName, plugin => ref $plugin });
             print STDERR "error running $event->{'channel_name'} hooks: $@\n";
         }
     }
@@ -60,12 +137,20 @@ for my $build ($db->resultset('Builds')->search(
 
 # Process incoming notifications.
 while (!$queued_only) {
+    $prom->inc("event_loop_iterations");
     my $messages = $listener->block_for_messages();
     while (my $message = $messages->()) {
-
+        $prom->set("event_received", time());
         my $channelName = $message->{"channel"};
         my $pid = $message->{"pid"};
         my $payload = $message->{"payload"};
+
+        $prom->inc("notify_event", { channel => $channelName });
+
+        if ($channelName eq "hydra_notify_dump_metrics") {
+            print STDERR "Dumping prometheus metrics:\n${\$prom->format}\n";
+            next;
+        }
 
         eval {
             my $event = Hydra::Event->new_event($channelName, $message->{"payload"});
@@ -73,6 +158,7 @@ while (!$queued_only) {
 
             1;
         } or do {
+            $prom->inc("notify_event_error", { channel => $channelName });
             print STDERR "error processing message '$payload' on channel '$channelName': $@\n";
         }
     }

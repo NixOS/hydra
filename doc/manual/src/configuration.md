@@ -79,6 +79,22 @@ By default, Hydra will send stats to statsd at `localhost:8125`. Point Hydra to 
 </statsd>
 ```
 
+hydra-notify's Prometheus service
+---------------------------------
+
+hydra-notify supports running a Prometheus webserver for metrics. The
+exporter does not run unless a listen address and port are specified
+in the hydra configuration file, as below:
+
+```conf
+<hydra_notify>
+  <prometheus>
+    listen_address = 127.0.0.1
+    port = 9199
+  </prometheus>
+</hydra_notify>
+```
+
 Using LDAP as authentication backend (optional)
 -----------------------------------------------
 
