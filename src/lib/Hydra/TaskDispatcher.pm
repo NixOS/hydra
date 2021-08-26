@@ -29,6 +29,21 @@ sub new {
         type => "counter",
         help => "Number of failed executions of this plugin on this channel."
     );
+    $prometheus->declare(
+        "notify_plugin_retry_success",
+        type => "counter",
+        help => "Number of successful executions of retried tasks."
+    );
+    $prometheus->declare(
+        "notify_plugin_drop",
+        type => "counter",
+        help => "Number of tasks that have been dropped after too many retries."
+    );
+    $prometheus->declare(
+        "notify_plugin_requeue",
+        type => "counter",
+        help => "Number of tasks that have been requeued after a failure."
+    );
 
     my %plugins_by_name = map { ref $_ => $_ } @{$plugins};
 
@@ -53,10 +68,7 @@ sub dispatchTask {
 
     my $channelName = $task->{"event"}->{'channel_name'};
     my $pluginName = $task->{"plugin_name"};
-    my $eventLabels = {
-        channel => $channelName,
-        plugin => $pluginName,
-    };
+    my $eventLabels = $self->promLabelsForTask($task);
 
     my $plugin = $self->{"plugins_by_name"}->{$pluginName};
 
@@ -74,12 +86,48 @@ sub dispatchTask {
 
         $self->{"prometheus"}->histogram_observe("notify_plugin_runtime", tv_interval($startTime), $eventLabels);
         $self->{"prometheus"}->inc("notify_plugin_success", $eventLabels);
+        $self->success($task);
         1;
     } or do {
+        $self->failure($task);
         $self->{"prometheus"}->inc("notify_plugin_error", $eventLabels);
         print STDERR "error running $channelName hooks: $@\n";
         return 0;
     }
 }
 
+sub promLabelsForTask {
+    my ($self, $task) = @_;
+
+    my $channelName = $task->{"event"}->{'channel_name'};
+    my $pluginName = $task->{"plugin_name"};
+    return {
+        channel => $channelName,
+        plugin => $pluginName,
+    };
+}
+
+sub success {
+    my ($self, $task) = @_;
+
+    if (defined($task->{"record"})) {
+        $task->{"record"}->delete();
+    }
+}
+
+sub failure {
+    my ($self, $task) = @_;
+
+    my $eventLabels = $self->promLabelsForTask($task);
+
+    if (defined($task->{"record"})) {
+        if ($task->{"record"}->{"attempts"} > 100) {
+            $self->{"prometheus"}->inc("notify_plugin_drop", $eventLabels);
+            $task->{"record"}->delete();
+        } else {
+            $self->{"prometheus"}->inc("notify_plugin_requeue", $eventLabels);
+            $task->{"record"}->requeue();
+        }
+    }
+}
 1;
