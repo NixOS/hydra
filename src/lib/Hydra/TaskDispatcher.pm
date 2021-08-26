@@ -133,6 +133,7 @@ sub failure {
             $task->{"record"}->requeue();
         }
     } else {
+        $self->{"prometheus"}->inc("notify_plugin_requeue", $eventLabels);
         $self->{"store_task"}($task);
     }
 }
