@@ -5,6 +5,7 @@ use warnings;
 use utf8;
 use base 'DBIx::Class::ResultSet';
 use List::Util qw(max);
+use Hydra::Math qw(exponential_backoff);
 
 =head2 get_seconds_to_next_retry
 
@@ -36,6 +37,34 @@ sub get_seconds_to_next_retry {
     } else {
         return undef;
     }
+}
+
+=head2 save_task
+
+Save a failing L<Hydra::Task> in the database, with a retry scheduled
+for a few seconds away.
+
+Arguments:
+
+=over 1
+
+=item C<$task>
+
+L<Hydra::Task> The failing task to retry.
+
+=back
+
+=cut
+sub save_task {
+    my ($self, $task) = @_;
+
+    return $self->create({
+        channel => $task->{"event"}->{"channel_name"},
+        pluginname => $task->{"plugin_name"},
+        payload => $task->{"event"}->{"payload"},
+        attempts => 1,
+        retry_at => time() + exponential_backoff(1),
+    });
 }
 
 1;

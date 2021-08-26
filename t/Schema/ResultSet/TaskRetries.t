@@ -4,6 +4,8 @@ use Setup;
 
 my %ctx = test_init();
 
+use Hydra::Event;
+use Hydra::Task;
 require Hydra::Schema;
 require Hydra::Model::DB;
 
@@ -40,6 +42,22 @@ subtest "get_seconds_to_next_retry" => sub {
         });
         is($taskretries->get_seconds_to_next_retry(), 0, "We should retry immediately");
     }
+};
+
+subtest "save_task" => sub {
+    my $event = Hydra::Event->new_event("build_started", "1");
+    my $task = Hydra::Task->new(
+        $event,
+        "FooPluginName",
+    );
+
+    my $retry = $taskretries->save_task($task);
+
+    is($retry->channel, "build_started", "Channel name should match");
+    is($retry->pluginname, "FooPluginName", "Plugin name should match");
+    is($retry->payload, "1", "Payload should match");
+    is($retry->attempts, 1, "We've had one attempt");
+    is($retry->retry_at, within(time() + 1, 2), "The retry at should be approximately one second away");
 };
 
 done_testing;
