@@ -2,11 +2,15 @@
 --
 -- 1. Update this schema document to match what the end result should be.
 --
--- 2. Run `make -C src/sql update-dbix` in the root
+-- 2. If you're making a new database table, edit `update-dbix.pl` and
+--    add a map of the lowercase name of your table to the CamelCase
+--    version of your table.
+--
+-- 3. Run `make -C src/sql update-dbix` in the root
 --    of the project directory, and git add / git commit the changed,
 --    generated files.
 --
--- 3. Create a migration in this same directory, named `upgrade-N.sql`
+-- 4. Create a migration in this same directory, named `upgrade-N.sql`
 --
 
 -- Singleton table to keep track of the schema version.
