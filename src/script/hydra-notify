@@ -73,7 +73,15 @@ GetOptions(
 my $db = Hydra::Model::DB->new();
 
 my @plugins = Hydra::Plugin->instantiate(db => $db, config => $config);
-my $task_dispatcher = Hydra::TaskDispatcher->new($db, $prom, [@plugins]);
+my $task_dispatcher = Hydra::TaskDispatcher->new(
+    $db,
+    $prom,
+    [@plugins],
+    sub {
+        my ($task) = @_;
+        $db->resultset("TaskRetries")->save_task($task);
+    }
+);
 
 my $dbh = $db->storage->dbh;
 
