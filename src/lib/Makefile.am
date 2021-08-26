@@ -5,6 +5,8 @@ PERL_MODULES =					\
   $(wildcard Hydra/Model/*.pm)			\
   $(wildcard Hydra/View/*.pm)			\
   $(wildcard Hydra/Schema/*.pm)			\
+  $(wildcard Hydra/Schema/Result/*.pm)			\
+  $(wildcard Hydra/Schema/ResultSet/*.pm)			\
   $(wildcard Hydra/Controller/*.pm)		\
   $(wildcard Hydra/Base/*.pm)			\
   $(wildcard Hydra/Base/Controller/*.pm) 	\
