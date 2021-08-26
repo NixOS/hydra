@@ -5,6 +5,7 @@ use warnings;
 use utf8;
 use base 'DBIx::Class::ResultSet';
 use List::Util qw(max);
+use Hydra::Math qw(exponential_backoff);
 
 sub getSecondsToNextRetry {
     my ($self) = @_;
@@ -24,6 +25,18 @@ sub getSecondsToNextRetry {
     } else {
         return undef;
     }
+}
+
+sub saveTask {
+    my ($self, $task) = @_;
+
+    return $self->create({
+        channel => $task->{"event"}->{"channel_name"},
+        pluginname => $task->{"plugin_name"},
+        payload => $task->{"event"}->{"payload"},
+        attempts => 1,
+        retry_at => time() + exponential_backoff(1),
+    });
 }
 
 1;
