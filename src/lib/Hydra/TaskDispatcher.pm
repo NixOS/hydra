@@ -7,7 +7,7 @@ use Time::HiRes qw( gettimeofday tv_interval );
 
 
 sub new {
-    my ($self, $db, $prometheus, $plugins) = @_;
+    my ($self, $db, $prometheus, $plugins, $store_task) = @_;
 
     $prometheus->declare(
         "notify_plugin_executions",
@@ -51,6 +51,7 @@ sub new {
         "db" => $db,
         "prometheus" => $prometheus,
         "plugins_by_name" => \%plugins_by_name,
+        "store_task" => $store_task,
     }, $self;
 }
 
@@ -110,7 +111,10 @@ sub promLabelsForTask {
 sub success {
     my ($self, $task) = @_;
 
+    my $eventLabels = $self->promLabelsForTask($task);
+
     if (defined($task->{"record"})) {
+        $self->{"prometheus"}->inc("notify_plugin_retry_sucess", $eventLabels);
         $task->{"record"}->delete();
     }
 }
@@ -128,6 +132,8 @@ sub failure {
             $self->{"prometheus"}->inc("notify_plugin_requeue", $eventLabels);
             $task->{"record"}->requeue();
         }
+    } else {
+        $self->{"store_task"}($task);
     }
 }
 1;

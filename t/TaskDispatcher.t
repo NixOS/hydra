@@ -128,6 +128,29 @@ subtest "dispatchTask" => sub {
         );
     };
 
+
+    subtest "a failed run without a record saves the task for later" => sub {
+        my $db = "bogus db";
+
+        my $record = makeFakeRecord();
+        my $bogusPlugin = makeNoopPlugin("bogus-1");
+        my $task = {
+            "event" => makeFailingEvent("fail-event"),
+            "plugin_name" => ref $bogusPlugin,
+            "record" => undef,
+        };
+
+        my $save_hook_called = 0;
+        my $dispatcher = Hydra::TaskDispatcher->new($db, $prometheus, [$bogusPlugin],
+            sub {
+                $save_hook_called = 1;
+            }
+        );
+        $dispatcher->dispatchTask($task);
+
+        is($save_hook_called, 1, "The record was requeued with the store hook.");
+    };
+
     subtest "a successful run from a record deletes the record" => sub {
         my $db = "bogus db";
 
