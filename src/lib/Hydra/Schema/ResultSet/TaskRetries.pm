@@ -6,6 +6,7 @@ use utf8;
 use base 'DBIx::Class::ResultSet';
 use List::Util qw(max);
 use Hydra::Math qw(exponential_backoff);
+use Hydra::Task;
 
 =head2 get_seconds_to_next_retry
 

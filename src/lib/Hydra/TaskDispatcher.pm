@@ -254,7 +254,7 @@ sub failure {
     my $event_labels = $self->prom_labels_for_task($task);
 
     if (defined($task->{"record"})) {
-        if ($task->{"record"}->{"attempts"} > 100) {
+        if ($task->{"record"}->attempts > 100) {
             $self->{"prometheus"}->inc("notify_plugin_drop", $event_labels);
             $task->{"record"}->delete();
         } else {

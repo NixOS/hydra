@@ -101,10 +101,12 @@ for my $build ($db->resultset('Builds')->search(
     $task_dispatcher->dispatch_event($event);
 }
 
+my $taskretries = $db->resultset('TaskRetries');
+
 # Process incoming notifications.
 while (!$queued_only) {
     $prom->inc("event_loop_iterations");
-    my $messages = $listener->block_for_messages();
+    my $messages = $listener->block_for_messages($taskretries->get_seconds_to_next_retry());
     while (my $message = $messages->()) {
         $prom->set("event_received", time());
         my $channelName = $message->{"channel"};
@@ -128,4 +130,10 @@ while (!$queued_only) {
             print STDERR "error processing message '$payload' on channel '$channelName': $@\n";
         }
     }
+
+    my $task = $taskretries->getRetryableTask();
+    if (defined($task)) {
+        $task_dispatcher->dispatchTask($task);
+    }
+
 }
