@@ -73,7 +73,12 @@ GetOptions(
 my $db = Hydra::Model::DB->new();
 
 my @plugins = Hydra::Plugin->instantiate(db => $db, config => $config);
-my $task_dispatcher = Hydra::TaskDispatcher->new($db, $prom, @plugins, \$db->resultset("TaskRetries")->saveTask);
+my $task_dispatcher = Hydra::TaskDispatcher->new(
+    $db,
+    $prom,
+    [@plugins],
+    sub { my ($task) = @_; $db->resultset("TaskRetries")->saveTask($task); }
+);
 
 my $dbh = $db->storage->dbh;
 
@@ -93,11 +98,12 @@ for my $build ($db->resultset('Builds')->search(
     $task_dispatcher->dispatchEvent($event);
 }
 
+my $taskretries = $db->resultset('TaskRetries');
 
 # Process incoming notifications.
 while (!$queued_only) {
     $prom->inc("event_loop_iterations");
-    my $messages = $listener->block_for_messages();
+    my $messages = $listener->block_for_messages($taskretries->getSecondsToNextRetry());
     while (my $message = $messages->()) {
         $prom->set("event_received", time());
         my $channelName = $message->{"channel"};
@@ -121,4 +127,10 @@ while (!$queued_only) {
             print STDERR "error processing message '$payload' on channel '$channelName': $@\n";
         }
     }
+
+    my $task = $taskretries->getRetryableTask();
+    if (defined($task)) {
+        $task_dispatcher->dispatchTask($task);
+    }
+
 }
