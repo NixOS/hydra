@@ -858,15 +858,10 @@
                 rootpw = "notapassword";
                 database = "bdb";
                 dataDir = "/var/lib/openldap";
-                extraConfig = ''
-                  moduleload pw-sha2
-                '';
-                extraDatabaseConfig = ''
-                '';
 
-                # userPassword generated via `slappasswd -o module-load=pw-sha2  -h '{SSHA256}'`
-                # The admin user has the password `password and `user` has the password `foobar`.
-                declarativeContents = ''
+                # userPassword generated via `slappasswd`
+                # The admin user has the password `password` and `user` has the password `foobar`.
+                declarativeContents."dc=example" = ''
                   dn: dc=example
                   dc: example
                   o: Root
@@ -898,7 +893,7 @@
                   sn: user
                   cn: user
                   mail: user@example
-                  userPassword: {SSHA256}B9rfUbNgv8nIGn1Hm5qbVQdv6AIQb012ORJwegqELB0DWCzoMCY+4A==
+                  userPassword: {SSHA}gLgBMb86/3wecoCp8gtORgIF2/qCRpqs
 
                   dn: cn=admin,ou=users,dc=example
                   objectClass: organizationalPerson
@@ -906,7 +901,7 @@
                   sn: admin
                   cn: admin
                   mail: admin@example
-                  userPassword: {SSHA256}meKP7fSWhkzXFC1f8RWRb8V8ssmN/VQJp7xJrUFFcNUDuwP1PbitMg==
+                  userPassword: {SSHA}BsgOQcRnoiULzwLrGmuzVGH6EC5Dkwmf
                 '';
               };
               systemd.services.hdyra-server.environment.CATALYST_DEBUG = "1";
