@@ -51,6 +51,11 @@ subtest "Handling password and password hash creation" => sub {
         ok($user->check_password("foobar"), "Their password validates");
         is($storedPassword, $user->password, "The password was not upgraded.");
     };
+
+    subtest "Creating a user with a blank username should fail" => sub {
+        my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("hydra-create-user", "", "--password", "foobar"));
+        is($res, 1, "hydra-create-user should exit one");
+    };
 };
 
 done_testing;
