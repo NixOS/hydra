@@ -797,7 +797,7 @@
               machine.wait_for_open_port(3001)
 
               machine.succeed(
-                  "su -l gitea -c 'GITEA_WORK_DIR=/var/lib/gitea gitea admin create-user "
+                  "su -l gitea -c 'GITEA_WORK_DIR=/var/lib/gitea gitea admin user create "
                   + "--username root --password root --email test@localhost'"
               )
               machine.succeed("su -l postgres -c 'psql gitea < ${scripts.mktoken}'")
