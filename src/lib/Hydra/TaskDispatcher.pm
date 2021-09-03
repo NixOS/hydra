@@ -137,7 +137,7 @@ Arguments:
 
 =item C<$event>
 
-L<Hydra::Event> the event, usually from L<Hydra::PostgresListener>.
+L<Hydra::Event> The event, usually from L<Hydra::PostgresListener>.
 
 =back
 
@@ -154,7 +154,7 @@ sub dispatch_event {
 
 =head2 dispatch_task
 
-Execute a specifi plugin against the provided L<Hydra::Task>.
+Execute a specific plugin against the provided L<Hydra::Task>.
 The Task includes information about what plugin should be executed.
 If the provided plugin does not exist, an error logged is logged and the
 function returns falsey.
@@ -165,7 +165,7 @@ Arguments:
 
 =item C<$task>
 
-L<Hydra::Task> the task, usually from L<Hydra::Shema::Result::TaskRetries>.
+L<Hydra::Task> The task, usually from L<Hydra::Shema::Result::TaskRetries>.
 
 =back
 
@@ -215,7 +215,7 @@ Arguments:
 
 =item C<$task>
 
-L<Hydra::Task> the task to mark as successful.
+L<Hydra::Task> The task to mark as successful.
 
 =back
 
@@ -243,7 +243,7 @@ Arguments:
 
 =item C<$task>
 
-L<Hydra::Task> the task to mark as successful.
+L<Hydra::Task> The task to mark as successful.
 
 =back
 
@@ -278,7 +278,7 @@ Arguments:
 
 =item C<$task>
 
-L<Hydra::Task> the task to return labels for.
+L<Hydra::Task> The task to return labels for.
 
 =back
 
