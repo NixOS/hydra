@@ -141,8 +141,8 @@ sub registerRoot {
     my ($path) = @_;
     my $link = gcRootFor $path;
     return if -e $link;
-    open ROOT, ">$link" or die "cannot create GC root `$link' to `$path'";
-    close ROOT;
+    open my $root, ">$link" or die "cannot create GC root `$link' to `$path'";
+    close $root;
 }
 
 
@@ -341,8 +341,8 @@ sub getMachines {
 
     for my $machinesFile (@machinesFiles) {
         next unless -e $machinesFile;
-        open CONF, "<$machinesFile" or die;
-        while (<CONF>) {
+        open my $conf, "<$machinesFile" or die;
+        while (<$conf>) {
             chomp;
             s/\#.*$//g;
             next if /^\s*$/;
@@ -358,7 +358,7 @@ sub getMachines {
                 , mandatoryFeatures => [ @mandatoryFeatures ]
                 };
         }
-        close CONF;
+        close $conf;
     }
 
     return \%machines;

@@ -39,12 +39,12 @@ ok(-e "/tmp/s3/hydra/$successful_hash.nar", "The nar of a build that's a root is
 ok(-e "/tmp/s3/hydra/$successful_hash.narinfo", "The narinfo of a build that's a root is not removed by gc");
 
 my $gcRootsDir = getGCRootsDir;
-opendir DIR, $gcRootsDir or die;
-while(readdir DIR) {
+opendir my $dir, $gcRootsDir or die;
+while(readdir $dir) {
     next if $_ eq "." or $_ eq "..";
     unlink "$gcRootsDir/$_";
 }
-closedir DIR;
+closedir $dir;
 system("hydra-s3-backup-collect-garbage");
 ok(not -e "/tmp/s3/hydra/$successful_hash.nar", "The nar of a build that's not a root is removed by gc");
 ok(not -e "/tmp/s3/hydra/$successful_hash.narinfo", "The narinfo of a build that's not a root is removed by gc");

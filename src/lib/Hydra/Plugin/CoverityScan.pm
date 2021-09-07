@@ -52,12 +52,12 @@ sub buildFinished {
     my $tarballs  = "$storePath/tarballs";
     my $covTarball;
 
-    opendir TARBALLS, $tarballs or die;
-    while (readdir TARBALLS) {
+    opendir my $tarballs_handle, $tarballs or die;
+    while (readdir $tarballshandle) {
         next unless $_ =~ /.*-coverity-int\.(tgz|lzma|xz|bz2|zip)$/;
         $covTarball = "$tarballs/$_"; last;
     }
-    closedir TARBALLS;
+    closedir $tarballs_handle;
 
     unless (defined $covTarball) {
         print STDERR "CoverityScan.pm: Coverity tarball not found in $tarballs; skipping upload...\n";
