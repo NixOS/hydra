@@ -12,19 +12,19 @@ sub isEnabled {
 }
 
 sub buildFinished {
-    my ($self, $b, $dependents) = @_;
+    my ($self, $build, $dependents) = @_;
 
     my $cfg = $self->{config}->{coverityscan};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
     # Scan the job and see if it matches any of the Coverity Scan projects
     my $proj;
-    my $jobName = showJobName $b;
+    my $jobName = showJobName $build;
     foreach my $p (@config) {
         next unless $jobName =~ /^$p->{jobs}$/;
 
         # If build is cancelled or aborted, do not upload build
-        next if $b->buildstatus == 4 || $b->buildstatus == 3;
+        next if $build->buildstatus == 4 || $build->buildstatus == 3;
 
         # Otherwise, select this Coverity project
         $proj = $p; last;
@@ -47,7 +47,7 @@ sub buildFinished {
         unless defined $token;
 
     # Get tarball locations
-    my $storePath = ($b->buildoutputs)[0]->path;
+    my $storePath = ($build->buildoutputs)[0]->path;
     my $tarballs  = "$storePath/tarballs";
     my $covTarball;
 
@@ -87,7 +87,7 @@ sub buildFinished {
         unless defined $version;
 
     # Submit build
-    my $jobid = $b->id;
+    my $jobid = $build->id;
     my $desc = "Hydra Coverity Build ($jobName) - $jobid:$version";
 
     print STDERR "uploading $desc ($shortName) to Coverity Scan\n";

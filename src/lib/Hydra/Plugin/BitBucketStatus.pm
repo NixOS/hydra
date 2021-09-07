@@ -22,21 +22,21 @@ sub toBitBucketState {
 }
 
 sub common {
-    my ($self, $build, $dependents, $finished) = @_;
+    my ($self, $topbuild, $dependents, $finished) = @_;
     my $bitbucket = $self->{config}->{bitbucket};
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
 
-    foreach my $b ($build, @{$dependents}) {
-        my $jobName = showJobName $b;
-        my $evals = $build->jobsetevals;
+    foreach my $build ($topbuild, @{$dependents}) {
+        my $jobName = showJobName $build;
+        my $evals = $topbuild->jobsetevals;
         my $ua = LWP::UserAgent->new();
         my $body = encode_json(
             {
-                state => $finished ? toBitBucketState($b->buildstatus) : "INPROGRESS",
-                url => "$baseurl/build/" . $b->id,
+                state => $finished ? toBitBucketState($build->buildstatus) : "INPROGRESS",
+                url => "$baseurl/build/" . $build->id,
                 name => $jobName,
-                key => $b->id,
-                description => "Hydra build #" . $b->id . " of $jobName",
+                key => $build->id,
+                description => "Hydra build #" . $build->id . " of $jobName",
             });
         while (my $eval = $evals->next) {
             foreach my $i ($eval->jobsetevalinputs){

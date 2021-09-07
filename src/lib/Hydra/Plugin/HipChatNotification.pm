@@ -11,7 +11,7 @@ sub isEnabled {
 }
 
 sub buildFinished {
-    my ($self, $build, $dependents) = @_;
+    my ($self, $topbuild, $dependents) = @_;
 
     my $cfg = $self->{config}->{hipchat};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
@@ -21,46 +21,46 @@ sub buildFinished {
     # Figure out to which rooms to send notification.  For each email
     # room, we send one aggregate message.
     my %rooms;
-    foreach my $b ($build, @{$dependents}) {
-        my $prevBuild = getPreviousBuild($b);
-        my $jobName = showJobName $b;
+    foreach my $build ($topbuild, @{$dependents}) {
+        my $prevBuild = getPreviousBuild($build);
+        my $jobName = showJobName $build;
 
         foreach my $room (@config) {
             my $force = $room->{force};
             next unless $jobName =~ /^$room->{jobs}$/;
 
             # If build is cancelled or aborted, do not send email.
-            next if ! $force && ($b->buildstatus == 4 || $b->buildstatus == 3);
+            next if ! $force && ($build->buildstatus == 4 || $build->buildstatus == 3);
 
             # If there is a previous (that is not cancelled or aborted) build
             # with same buildstatus, do not send email.
-            next if ! $force && defined $prevBuild && ($b->buildstatus == $prevBuild->buildstatus);
+            next if ! $force && defined $prevBuild && ($build->buildstatus == $prevBuild->buildstatus);
 
             $rooms{$room->{room}} //= { room => $room, builds => [] };
-            push @{$rooms{$room->{room}}->{builds}}, $b;
+            push @{$rooms{$room->{room}}->{builds}}, $build;
         }
     }
 
     return if scalar keys %rooms == 0;
 
-    my ($authors, $nrCommits) = getResponsibleAuthors($build, $self->{plugins});
+    my ($authors, $nrCommits) = getResponsibleAuthors($topbuild, $self->{plugins});
 
     # Send a message to each room.
     foreach my $roomId (keys %rooms) {
         my $room = $rooms{$roomId};
-        my @deps = grep { $_->id != $build->id } @{$room->{builds}};
+        my @deps = grep { $_->id != $topbuild->id } @{$room->{builds}};
 
         my $img =
-            $build->buildstatus == 0 ? "$baseurl/static/images/checkmark_16.png" :
-            $build->buildstatus == 2 ? "$baseurl/static/images/dependency_16.png" :
-            $build->buildstatus == 4 ? "$baseurl/static/images/cancelled_16.png" :
+            $topbuild->buildstatus == 0 ? "$baseurl/static/images/checkmark_16.png" :
+            $topbuild->buildstatus == 2 ? "$baseurl/static/images/dependency_16.png" :
+            $topbuild->buildstatus == 4 ? "$baseurl/static/images/cancelled_16.png" :
             "$baseurl/static/images/error_16.png";
 
         my $msg = "";
         $msg .= "<img src='$img'/> ";
-        $msg .= "Job <a href='$baseurl/job/${\$build->get_column('project')}/${\$build->get_column('jobset')}/${\$build->get_column('job')}'>${\showJobName($build)}</a>";
+        $msg .= "Job <a href='$baseurl/job/${\$topbuild->get_column('project')}/${\$topbuild->get_column('jobset')}/${\$topbuild->get_column('job')}'>${\showJobName($topbuild)}</a>";
         $msg .= " (and ${\scalar @deps} others)" if scalar @deps > 0;
-        $msg .= ": <a href='$baseurl/build/${\$build->id}'>" . showStatus($build) . "</a>";
+        $msg .= ": <a href='$baseurl/build/${\$topbuild->id}'>" . showStatus($topbuild) . "</a>";
 
         if (scalar keys %{$authors} > 0) {
             # FIXME: HTML escaping
@@ -79,7 +79,7 @@ sub buildFinished {
             message => $msg,
             message_format => 'html',
             notify => $room->{room}->{notify} || 0,
-            color => $build->buildstatus == 0 ? 'green' : 'red' });
+            color => $topbuild->buildstatus == 0 ? 'green' : 'red' });
 
         print STDERR $resp->status_line, ": ", $resp->decoded_content,"\n" if !$resp->is_success;
     }

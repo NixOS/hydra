@@ -77,7 +77,7 @@ sub renderDuration {
 }
 
 sub buildFinished {
-    my ($self, $build, $dependents) = @_;
+    my ($self, $topbuild, $dependents) = @_;
     my $cfg = $self->{config}->{slack};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
@@ -86,12 +86,12 @@ sub buildFinished {
     # Figure out to which channelss to send notification.  For each channel
     # we send one aggregate message.
     my %channels;
-    foreach my $b ($build, @{$dependents}) {
-        my $jobName = showJobName $b;
-        my $buildStatus = $b->buildstatus;
+    foreach my $build ($topbuild, @{$dependents}) {
+        my $jobName = showJobName $build;
+        my $buildStatus = $build->buildstatus;
         my $cancelledOrAborted = $buildStatus == 4 || $buildStatus == 3;
 
-        my $prevBuild = getPreviousBuild($b);
+        my $prevBuild = getPreviousBuild($build);
         my $sameAsPrevious = defined $prevBuild && ($buildStatus == $prevBuild->buildstatus);
         my $prevBuildStatus = (defined $prevBuild) ? $prevBuild->buildstatus : -1;
         my $prevBuildId = (defined $prevBuild) ? $prevBuild->id : -1;
@@ -114,34 +114,34 @@ sub buildFinished {
 
             print STDERR "SlackNotification_Debug adding $jobName to the report list\n";
             $channels{$channel->{url}} //= { channel => $channel, builds => [] };
-            push @{$channels{$channel->{url}}->{builds}}, $b;
+            push @{$channels{$channel->{url}}->{builds}}, $build;
         }
     }
 
     return if scalar keys %channels == 0;
 
-    my ($authors, $nrCommits) = getResponsibleAuthors($build, $self->{plugins});
+    my ($authors, $nrCommits) = getResponsibleAuthors($topbuild, $self->{plugins});
 
     # Send a message to each room.
     foreach my $url (keys %channels) {
         my $channel = $channels{$url};
-        my @deps = grep { $_->id != $build->id } @{$channel->{builds}};
+        my @deps = grep { $_->id != $topbuild->id } @{$channel->{builds}};
 
         my $img =
-            $build->buildstatus == 0 ? "$baseurl/static/images/checkmark_256.png" :
-            $build->buildstatus == 2 ? "$baseurl/static/images/dependency_256.png" :
-            $build->buildstatus == 4 ? "$baseurl/static/images/cancelled_256.png" :
+            $topbuild->buildstatus == 0 ? "$baseurl/static/images/checkmark_256.png" :
+            $topbuild->buildstatus == 2 ? "$baseurl/static/images/dependency_256.png" :
+            $topbuild->buildstatus == 4 ? "$baseurl/static/images/cancelled_256.png" :
             "$baseurl/static/images/error_256.png";
 
         my $color =
-            $build->buildstatus == 0 ? "good" :
-            $build->buildstatus == 4 ? "warning" :
+            $topbuild->buildstatus == 0 ? "good" :
+            $topbuild->buildstatus == 4 ? "warning" :
             "danger";
 
         my $text = "";
-        $text .= "Job <$baseurl/job/${\$build->get_column('project')}/${\$build->get_column('jobset')}/${\$build->get_column('job')}|${\showJobName($build)}>";
+        $text .= "Job <$baseurl/job/${\$topbuild->get_column('project')}/${\$topbuild->get_column('jobset')}/${\$topbuild->get_column('job')}|${\showJobName($topbuild)}>";
         $text .= " (and ${\scalar @deps} others)" if scalar @deps > 0;
-        $text .= ": <$baseurl/build/${\$build->id}|" . showStatus($build) . ">". " in " . renderDuration($build);
+        $text .= ": <$baseurl/build/${\$topbuild->id}|" . showStatus($topbuild) . ">". " in " . renderDuration($topbuild);
 
         if (scalar keys %{$authors} > 0) {
             # FIXME: escaping
@@ -155,12 +155,12 @@ sub buildFinished {
 
         my $msg =
         { attachments =>
-          [{ fallback => "Job " . showJobName($build) . " build number " . $build->id . ": " . showStatus($build),
+          [{ fallback => "Job " . showJobName($topbuild) . " build number " . $topbuild->id . ": " . showStatus($topbuild),
             text => $text,
             thumb_url => $img,
             color => $color,
-            title => "Job " . showJobName($build) . " build number " . $build->id,
-            title_link => "$baseurl/build/${\$build->id}"
+            title => "Job " . showJobName($topbuild) . " build number " . $topbuild->id,
+            title_link => "$baseurl/build/${\$topbuild->id}"
           }]
         };
 
