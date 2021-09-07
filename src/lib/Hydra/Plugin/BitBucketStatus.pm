@@ -32,11 +32,11 @@ sub common {
         my $ua = LWP::UserAgent->new();
         my $body = encode_json(
             {
-                state => $finished ? toBitBucketState($tbuild->buildstatus) : "INPROGRESS",
-                url => "$baseurl/build/" . $tbuild->id,
+                state => $finished ? toBitBucketState($build->buildstatus) : "INPROGRESS",
+                url => "$baseurl/build/" . $build->id,
                 name => $jobName,
-                key => $tbuild->id,
-                description => "Hydra build #" . $tbuild->id . " of $jobName",
+                key => $build->id,
+                description => "Hydra build #" . $build->id . " of $jobName",
             });
         while (my $eval = $evals->next) {
             foreach my $i ($eval->jobsetevalinputs){
