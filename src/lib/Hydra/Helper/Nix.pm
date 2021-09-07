@@ -84,20 +84,20 @@ sub getHydraNotifyPrometheusConfig {
         return undef;
     }
 
-    my $cfg = $cfg->{prometheus};
-    if (!defined($cfg)) {
+    my $promcfg = $cfg->{prometheus};
+    if (!defined($promcfg)) {
         return undef;
     }
 
-    if (ref $cfg ne "HASH") {
+    if (ref $promcfg ne "HASH") {
         print STDERR "Error reading Hydra's configuration file: hydra_notify.prometheus should be a block.\n";
         return undef;
     }
 
-    if (defined($cfg->{"listen_address"}) && defined($cfg->{"port"})) {
+    if (defined($promcfg->{"listen_address"}) && defined($promcfg->{"port"})) {
         return {
-            "listen_address" => $cfg->{'listen_address'},
-            "port" => $cfg->{'port'},
+            "listen_address" => $promcfg->{'listen_address'},
+            "port" => $promcfg->{'port'},
         };
     } else {
         print STDERR "Error reading Hydra's configuration file: hydra_notify.prometheus should include listen_address and port.\n";
