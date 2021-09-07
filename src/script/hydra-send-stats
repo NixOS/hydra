@@ -5,7 +5,7 @@ use warnings;
 use utf8;
 use Hydra::Helper::Nix;
 use Net::Statsd;
-use File::Slurp;
+use File::Slurper qw(read_text);
 use JSON;
 use Getopt::Long qw(:config gnu_getopt);
 
@@ -93,7 +93,7 @@ while (1) {
         1;
     } or do { warn "$@"; };
 
-    my $meminfo = read_file("/proc/meminfo", err_mode => 'quiet') // "";
+    my $meminfo = read_text("/proc/meminfo") // "";
     $meminfo =~ m/Dirty:\s*(\d+) kB/;
     if (defined $1) {
         my $dirty = $1 / (1024.0 * 1024.0);

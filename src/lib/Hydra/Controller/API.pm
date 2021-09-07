@@ -12,7 +12,6 @@ use JSON::Any;
 use DateTime;
 use Digest::SHA qw(sha256_hex);
 use Text::Diff;
-use File::Slurp;
 use IPC::Run qw(run);
 
 

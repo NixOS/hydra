@@ -454,7 +454,7 @@
                 DigestSHA1
                 EmailMIME
                 EmailSender
-                FileSlurp
+                FileSlurper
                 FileWhich
                 final.nix.perl-bindings
                 git

@@ -4,7 +4,7 @@ use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::REST';
-use File::Slurp;
+use File::Slurper qw(read_text);
 use Crypt::RandPasswd;
 use Digest::SHA1 qw(sha1_hex);
 use Hydra::Helper::Nix;
@@ -165,7 +165,7 @@ sub github_login :Path('/github-login') Args(0) {
     my $client_id = $c->config->{github_client_id} or die "github_client_id not configured.";
     my $client_secret = $c->config->{github_client_secret} // do {
         my $client_secret_file = $c->config->{github_client_secret_file} or die "github_client_secret nor github_client_secret_file is configured.";
-        my $client_secret = read_file($client_secret_file);
+        my $client_secret = read_text($client_secret_file);
         $client_secret =~ s/\s+//;
         $client_secret;
     };

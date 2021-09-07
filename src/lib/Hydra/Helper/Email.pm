@@ -5,7 +5,6 @@ use warnings;
 use Email::MIME;
 use Email::Sender::Simple qw(sendmail);
 use Exporter 'import';
-use File::Slurp;
 use Hydra::Helper::Nix;
 use Sys::Hostname::Long;
 
