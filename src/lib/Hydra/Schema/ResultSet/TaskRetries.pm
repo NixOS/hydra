@@ -68,4 +68,47 @@ sub save_task {
     });
 }
 
+=head2 get_retryable_task
+=cut
+sub get_retryable_task {
+    my ($self) = @_;
+
+    my $row = $self->get_retryable_taskretries_row();
+    if (!defined($row)) {
+        return undef;
+    }
+
+    my $event = Hydra::Event->new_event(
+        $row->get_column("channel"),
+        $row->get_column("payload")
+    );
+
+    my $task = Hydra::Task->new($event, $row->get_column("pluginname"));
+    $task->{"record"} = $row;
+
+    return $task;
+}
+
+
+=head2 get_retryable_taskretries_row
+
+Fetch the next task to retry.
+
+=cut
+sub get_retryable_taskretries_row {
+    my ($self) = @_;
+
+    my $next_retry = $self->search(
+        {
+            'retry_at' => { '<=', time() }
+        }, # any task
+        {
+            order_by => {
+                -asc => 'retry_at'
+            },
+            rows => 1,
+        }
+    )->first;
+}
+
 1;

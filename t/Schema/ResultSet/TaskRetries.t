@@ -41,7 +41,51 @@ subtest "get_seconds_to_next_retry" => sub {
             retry_at => time() - 100,
         });
         is($taskretries->get_seconds_to_next_retry(), 0, "We should retry immediately");
-    }
+    };
+
+    $taskretries->delete_all();
+};
+
+subtest "get_retryable_taskretries_row" => sub {
+    subtest "Without any records in the database" => sub {
+        is($taskretries->get_retryable_taskretries_row(), undef, "Without any records we have no tasks to retry.");
+        is($taskretries->get_retryable_task(), undef, "Without any records we have no tasks to retry.");
+    };
+
+    subtest "With only tasks whose retry timestamps are in the future" => sub {
+        $taskretries->create({
+            channel => "bogus",
+            pluginname => "bogus",
+            payload => "bogus",
+            attempts => 1,
+            retry_at => time() + 100,
+        });
+        is($taskretries->get_retryable_taskretries_row(), undef, "We still have nothing to do");
+        is($taskretries->get_retryable_task(), undef, "We still have nothing to do");
+    };
+
+    subtest "With tasks whose retry timestamp are in the past" => sub {
+        $taskretries->create({
+            channel => "build_started",
+            pluginname => "bogus plugin",
+            payload => "123",
+            attempts => 1,
+            retry_at => time() - 100,
+        });
+
+        my $row = $taskretries->get_retryable_taskretries_row();
+        isnt($row, undef, "We should retry immediately");
+        is($row->channel, "build_started", "Channel name should match");
+        is($row->pluginname, "bogus plugin", "Plugin name should match");
+        is($row->payload, "123", "Payload should match");
+        is($row->attempts, 1, "We've had one attempt");
+
+        my $task = $taskretries->get_retryable_task();
+        is($task->{"event"}->{"channel_name"}, "build_started");
+        is($task->{"plugin_name"}, "bogus plugin");
+        is($task->{"event"}->{"payload"}, "123");
+        is($task->{"record"}->get_column("id"), $row->get_column("id"));
+    };
 };
 
 subtest "save_task" => sub {

@@ -131,9 +131,8 @@ while (!$queued_only) {
         }
     }
 
-    my $task = $taskretries->getRetryableTask();
+    my $task = $taskretries->get_retryable_task();
     if (defined($task)) {
-        $task_dispatcher->dispatchTask($task);
+        $task_dispatcher->dispatch_task($task);
     }
-
 }
