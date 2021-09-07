@@ -10,9 +10,9 @@ use Hydra::Helper::AddBuilds;
 use Hydra::Helper::Nix;
 use Hydra::Plugin;
 use Hydra::PostgresListener;
+use Hydra::TaskDispatcher;
 use Parallel::ForkManager;
 use Prometheus::Tiny::Shared;
-use Time::HiRes qw( gettimeofday tv_interval );
 
 STDERR->autoflush(1);
 STDOUT->autoflush(1);
@@ -25,26 +25,6 @@ my $prom = Prometheus::Tiny::Shared->new;
 # Add a new declaration for any new metrics you create. Metrics which are
 # not pre-declared disappear when their value is null. See:
 # https://metacpan.org/pod/Prometheus::Tiny#declare
-$prom->declare(
-    "notify_plugin_executions",
-    type => "counter",
-    help => "Number of times each plugin has been called by channel."
-);
-$prom->declare(
-    "notify_plugin_runtime",
-    type => "histogram",
-    help => "Number of seconds spent executing each plugin by channel."
-);
-$prom->declare(
-    "notify_plugin_success",
-    type => "counter",
-    help => "Number of successful executions of this plugin on this channel."
-);
-$prom->declare(
-    "notify_plugin_error",
-    type => "counter",
-    help => "Number of failed executions of this plugin on this channel."
-);
 $prom->declare(
     "event_loop_iterations",
     type => "counter",
@@ -93,6 +73,15 @@ GetOptions(
 my $db = Hydra::Model::DB->new();
 
 my @plugins = Hydra::Plugin->instantiate(db => $db, config => $config);
+my $task_dispatcher = Hydra::TaskDispatcher->new(
+    $db,
+    $prom,
+    [@plugins],
+    sub {
+        my ($task) = @_;
+        $db->resultset("TaskRetries")->save_task($task);
+    }
+);
 
 my $dbh = $db->storage->dbh;
 
@@ -102,43 +91,22 @@ $listener->subscribe("build_finished");
 $listener->subscribe("step_finished");
 $listener->subscribe("hydra_notify_dump_metrics");
 
-sub runPluginsForEvent {
-    my ($event) = @_;
-
-    my $channelName = $event->{'channel_name'};
-
-    foreach my $plugin (@plugins) {
-        $prom->inc("notify_plugin_executions", { channel => $channelName, plugin => ref $plugin });
-        eval {
-            my $startTime = [gettimeofday()];
-            $event->execute($db, $plugin);
-
-            $prom->histogram_observe("notify_plugin_runtime", tv_interval($startTime), { channel => $channelName, plugin => ref $plugin });
-            $prom->inc("notify_plugin_success", { channel => $channelName, plugin => ref $plugin });
-            1;
-        } or do {
-            $prom->inc("notify_plugin_error", { channel => $channelName, plugin => ref $plugin });
-            print STDERR "error running $event->{'channel_name'} hooks: $@\n";
-        }
-    }
-}
-
 # Process builds that finished while hydra-notify wasn't running.
 for my $build ($db->resultset('Builds')->search(
                    { notificationpendingsince => { '!=', undef } }))
 {
     print STDERR "sending notifications for build ${\$build->id}...\n";
 
-
-    my $event = Hydra::Event::BuildFinished->new($build->id);
-    runPluginsForEvent($event);
+    my $event = Hydra::Event->new_event("build_finished", $build->id);
+    $task_dispatcher->dispatch_event($event);
 }
 
+my $taskretries = $db->resultset('TaskRetries');
 
 # Process incoming notifications.
 while (!$queued_only) {
     $prom->inc("event_loop_iterations");
-    my $messages = $listener->block_for_messages();
+    my $messages = $listener->block_for_messages($taskretries->get_seconds_to_next_retry());
     while (my $message = $messages->()) {
         $prom->set("event_received", time());
         my $channelName = $message->{"channel"};
@@ -154,7 +122,7 @@ while (!$queued_only) {
 
         eval {
             my $event = Hydra::Event->new_event($channelName, $message->{"payload"});
-            runPluginsForEvent($event);
+            $task_dispatcher->dispatch_event($event);
 
             1;
         } or do {
@@ -162,4 +130,10 @@ while (!$queued_only) {
             print STDERR "error processing message '$payload' on channel '$channelName': $@\n";
         }
     }
+
+    my $task = $taskretries->getRetryableTask();
+    if (defined($task)) {
+        $task_dispatcher->dispatchTask($task);
+    }
+
 }
