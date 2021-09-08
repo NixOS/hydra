@@ -461,7 +461,7 @@
                 IOCompress
                 IPCRun
                 JSON
-                JSONAny
+                JSONMaybeXS
                 JSONXS
                 LWP
                 LWPProtocolHttps
