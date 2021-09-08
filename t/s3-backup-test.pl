@@ -40,9 +40,9 @@ ok(-e "/tmp/s3/hydra/$successful_hash.narinfo", "The narinfo of a build that's a
 
 my $gcRootsDir = getGCRootsDir;
 opendir my $dir, $gcRootsDir or die;
-while(readdir $dir) {
-    next if $_ eq "." or $_ eq "..";
-    unlink "$gcRootsDir/$_";
+while(my $file = readdir $dir) {
+    next if $file eq "." or $file eq "..";
+    unlink "$gcRootsDir/$file";
 }
 closedir $dir;
 system("hydra-s3-backup-collect-garbage");

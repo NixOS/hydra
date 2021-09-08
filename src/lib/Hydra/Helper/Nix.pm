@@ -343,11 +343,11 @@ sub getMachines {
     for my $machinesFile (@machinesFiles) {
         next unless -e $machinesFile;
         open my $conf, "<$machinesFile" or die;
-        while (<$conf>) {
+        while (my $line = <$conf>) {
             chomp;
             s/\#.*$//g;
             next if /^\s*$/;
-            my @tokens = split /\s/, $_;
+            my @tokens = split /\s/, $line;
             my @supportedFeatures = split(/,/, $tokens[5] || "");
             my @mandatoryFeatures = split(/,/, $tokens[6] || "");
             $machines{$tokens[0]} =

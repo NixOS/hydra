@@ -53,9 +53,9 @@ sub buildFinished {
     my $covTarball;
 
     opendir my $tarballs_handle, $tarballs or die;
-    while (readdir $tarballshandle) {
-        next unless $_ =~ /.*-coverity-int\.(tgz|lzma|xz|bz2|zip)$/;
-        $covTarball = "$tarballs/$_"; last;
+    while (my $file = readdir $tarballshandle) {
+        next unless $file =~ /.*-coverity-int\.(tgz|lzma|xz|bz2|zip)$/;
+        $covTarball = "$tarballs/$file"; last;
     }
     closedir $tarballs_handle;
 
