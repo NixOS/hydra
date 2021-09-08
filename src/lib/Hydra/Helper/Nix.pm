@@ -306,7 +306,8 @@ sub getEvals {
             { order_by => "id DESC", rows => 1 });
 
         my $curInfo = getEvalInfo($cache, $curEval);
-        my $prevInfo = getEvalInfo($cache, $prevEval) if defined $prevEval;
+        my $prevInfo;
+        $prevInfo = getEvalInfo($cache, $prevEval) if defined $prevEval;
 
         # Compute what inputs changed between each eval.
         my @changedInputs;

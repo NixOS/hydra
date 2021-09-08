@@ -82,7 +82,8 @@ sub buildFinished {
     my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
 
     my $shortName = basename($covTarball);
-    my $version = $2 if $shortName =~ /^($pkgNameRE)-($versionRE)-coverity-int.*$/;
+    my $version;
+    $version = $2 if $shortName =~ /^($pkgNameRE)-($versionRE)-coverity-int.*$/;
 
     die "CoverityScan.pm: Couldn't parse build version for upload! ($shortName)"
         unless defined $version;

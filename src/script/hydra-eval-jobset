@@ -122,7 +122,8 @@ sub fetchInputBuild {
     my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
 
     my $relName = ($prevBuild->releasename or $prevBuild->nixname);
-    my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
+    my $version;
+    $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
 
     my $mainOutput = getMainOutput($prevBuild);
 
@@ -167,7 +168,8 @@ sub fetchInputSystemBuild {
         my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
 
         my $relName = ($prevBuild->releasename or $prevBuild->nixname);
-        my $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
+        my $version;
+        $version = $2 if $relName =~ /^($pkgNameRE)-($versionRE)$/;
 
         my $input =
             { storePath => getMainOutput($prevBuild)->path
