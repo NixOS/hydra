@@ -851,65 +851,63 @@
             machine = { pkgs, ... }: {
               imports = [ hydraServer ];
 
-              services.openldap = {
-                enable = true;
-                suffix = "dc=example";
-                rootdn = "cn=root,dc=example";
-                rootpw = "notapassword";
-                database = "bdb";
-                dataDir = "/var/lib/openldap";
-                extraConfig = ''
-                  moduleload pw-sha2
-                '';
-                extraDatabaseConfig = ''
-                '';
-
-                # userPassword generated via `slappasswd -o module-load=pw-sha2  -h '{SSHA256}'`
-                # The admin user has the password `password and `user` has the password `foobar`.
-                declarativeContents = ''
-                  dn: dc=example
-                  dc: example
-                  o: Root
-                  objectClass: top
-                  objectClass: dcObject
-                  objectClass: organization
-
-                  dn: ou=users,dc=example
-                  ou: users
-                  description: All users
-                  objectClass: top
-                  objectClass: organizationalUnit
-
-                  dn: ou=groups,dc=example
-                  ou: groups
-                  description: All groups
-                  objectClass: top
-                  objectClass: organizationalUnit
-
-                  dn: cn=hydra_admin,ou=groups,dc=example
-                  cn: hydra_admin
-                  description: Hydra Admin user group
-                  objectClass: groupOfNames
-                  member: cn=admin,ou=users,dc=example
-
-                  dn: cn=user,ou=users,dc=example
-                  objectClass: organizationalPerson
-                  objectClass: inetOrgPerson
-                  sn: user
-                  cn: user
-                  mail: user@example
-                  userPassword: {SSHA256}B9rfUbNgv8nIGn1Hm5qbVQdv6AIQb012ORJwegqELB0DWCzoMCY+4A==
-
-                  dn: cn=admin,ou=users,dc=example
-                  objectClass: organizationalPerson
-                  objectClass: inetOrgPerson
-                  sn: admin
-                  cn: admin
-                  mail: admin@example
-                  userPassword: {SSHA256}meKP7fSWhkzXFC1f8RWRb8V8ssmN/VQJp7xJrUFFcNUDuwP1PbitMg==
-                '';
+              services.openldap.enable = true;
+              services.openldap.settings.children = {
+                "olcDatabase={1}mdb".attrs = {
+                  objectClass = [ "olcDatabaseConfig" "olcMdbConfig" ];
+                  database = "{1}mdbg";
+                  olcSuffix = "dc=example";
+                  olcRootDN = "cn=root,dc=example";
+                  olcRootPW = "notapassword";
+                  olcDbDirectory = "/var/lib/openldap";
+                };
               };
-              systemd.services.hdyra-server.environment.CATALYST_DEBUG = "1";
+
+              # userPassword generated via `slappasswd`
+              # The admin user has the password `password` and `user` has the password `foobar`.
+              services.openldap.declarativeContents."dc=example" = ''
+                dn: dc=example
+                dc: example
+                o: Root
+                objectClass: top
+                objectClass: dcObject
+                objectClass: organization
+
+                dn: ou=users,dc=example
+                ou: users
+                description: All users
+                objectClass: top
+                objectClass: organizationalUnit
+
+                dn: ou=groups,dc=example
+                ou: groups
+                description: All groups
+                objectClass: top
+                objectClass: organizationalUnit
+
+                dn: cn=hydra_admin,ou=groups,dc=example
+                cn: hydra_admin
+                description: Hydra Admin user group
+                objectClass: groupOfNames
+                member: cn=admin,ou=users,dc=example
+
+                dn: cn=user,ou=users,dc=example
+                objectClass: organizationalPerson
+                objectClass: inetOrgPerson
+                sn: user
+                cn: user
+                mail: user@example
+                userPassword: {SSHA}gLgBMb86/3wecoCp8gtORgIF2/qCRpqs
+
+                dn: cn=admin,ou=users,dc=example
+                objectClass: organizationalPerson
+                objectClass: inetOrgPerson
+                sn: admin
+                cn: admin
+                mail: admin@example
+                userPassword: {SSHA}BsgOQcRnoiULzwLrGmuzVGH6EC5Dkwmf
+              '';
+              systemd.services.hydra-server.environment.CATALYST_DEBUG = "1";
               systemd.services.hydra-server.environment.HYDRA_LDAP_CONFIG = pkgs.writeText "config.yaml"
                 # example config based on https://metacpan.org/source/ILMARI/Catalyst-Authentication-Store-LDAP-1.016/README#L103
                 ''
