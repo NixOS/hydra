@@ -504,6 +504,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /build/{build-id}/constituents:
+    get:
+      summary: Retrieves a build's constituent jobs
+      parameters:
+      - name: build-id
+        in: path
+        description: build identifier
+        required: true
+        schema:
+            type: integer
+      responses:
+        '200':
+          description: build
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Build'
+        '404':
+          description: build couldn't be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /eval/{build-id}:
     get:
       summary: Retrieves evaluations identified by build id
