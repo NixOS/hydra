@@ -197,12 +197,15 @@ in
 
   config = mkIf cfg.enable {
 
+    systemd.tmpfiles.rules = [
+      "d ${baseDir} 0750 hydra hydra"
+    ];
+
     users.extraGroups.hydra = { };
 
     users.extraUsers.hydra =
       { description = "Hydra";
         group = "hydra";
-        createHome = true;
         home = baseDir;
         isSystemUser = true;
         useDefaultShell = true;
@@ -257,10 +260,6 @@ in
         };
         path = [ pkgs.utillinux ];
         preStart = ''
-          mkdir -p ${baseDir}
-          chown hydra.hydra ${baseDir}
-          chmod 0750 ${baseDir}
-
           ln -sf ${hydraConf} ${baseDir}/hydra.conf
 
           mkdir -m 0700 -p ${baseDir}/www
