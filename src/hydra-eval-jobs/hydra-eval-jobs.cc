@@ -274,6 +274,8 @@ int main(int argc, char * * argv)
 
         myArgs.parseCmdline(argvToStrings(argc, argv));
 
+        auto pureEval = config->getBoolOption("evaluator_pure_eval", myArgs.flake);
+
         /* FIXME: The build hook in conjunction with import-from-derivation is causing "unexpected EOF" during eval */
         settings.builders = "";
 
@@ -283,7 +285,7 @@ int main(int argc, char * * argv)
 
         /* When building a flake, use pure evaluation (no access to
            'getEnv', 'currentSystem' etc. */
-        evalSettings.pureEval = myArgs.flake;
+        evalSettings.pureEval = pureEval;
 
         if (myArgs.dryRun) settings.readOnlyMode = true;
 
