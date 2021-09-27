@@ -84,7 +84,7 @@ removed or had an evaluation error.</div>
 
   [% END %]
 
-  [% INCLUDE makeLazyTab tabName="tabs-charts" uri=c.uri_for('/job' project.name jobset.name job 'metrics-tab') %]
+  [% INCLUDE makeLazyTab tabName="tabs-charts" uri=c.uri_for('/job' project.name jobset.name job 'metric-tab') %]
 
   <div id="tabs-links" class="tab-pane">
     <ul>

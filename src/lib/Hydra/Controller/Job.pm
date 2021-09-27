@@ -144,7 +144,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
 }
 
 
-sub metrics_tab : Chained('job') PathPart('metrics-tab') Args(0) {
+sub metrics_tab : Chained('job') PathPart('metric-tab') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'job-metrics-tab.tt';
     $c->stash->{metrics} = [ $c->stash->{jobset}->buildmetrics->search(
