@@ -8,7 +8,6 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use File::Basename;
 use File::stat;
-use File::Slurp;
 use Data::Dump qw(dump);
 use Nix::Store;
 use Nix::Config;

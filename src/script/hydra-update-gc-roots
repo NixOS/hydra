@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 
 use strict;
+use warnings;
 use File::Path;
 use File::stat;
 use File::Basename;
@@ -62,9 +63,9 @@ sub keepBuild {
 # Read the current GC roots.
 print STDERR "*** reading current roots...\n";
 my $gcRootsDir = getGCRootsDir;
-opendir DIR, $gcRootsDir or die;
-my @roots = readdir DIR;
-closedir DIR;
+opendir my $dir, $gcRootsDir or die;
+my @roots = readdir $dir;
+closedir $dir;
 
 
 # For scheduled builds, we register the derivation as a GC root.

@@ -1,6 +1,7 @@
 package Hydra::Plugin::CoverityScan;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use File::Basename;
 use LWP::UserAgent;
@@ -51,12 +52,12 @@ sub buildFinished {
     my $tarballs  = "$storePath/tarballs";
     my $covTarball;
 
-    opendir TARBALLS, $tarballs or die;
-    while (readdir TARBALLS) {
-        next unless $_ =~ /.*-coverity-int\.(tgz|lzma|xz|bz2|zip)$/;
-        $covTarball = "$tarballs/$_"; last;
+    opendir my $tarballs_handle, $tarballs or die;
+    while (my $file = readdir $tarballshandle) {
+        next unless $file =~ /.*-coverity-int\.(tgz|lzma|xz|bz2|zip)$/;
+        $covTarball = "$tarballs/$file"; last;
     }
-    closedir TARBALLS;
+    closedir $tarballs_handle;
 
     unless (defined $covTarball) {
         print STDERR "CoverityScan.pm: Coverity tarball not found in $tarballs; skipping upload...\n";
@@ -81,7 +82,8 @@ sub buildFinished {
     my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
 
     my $shortName = basename($covTarball);
-    my $version = $2 if $shortName =~ /^($pkgNameRE)-($versionRE)-coverity-int.*$/;
+    my $version;
+    $version = $2 if $shortName =~ /^($pkgNameRE)-($versionRE)-coverity-int.*$/;
 
     die "CoverityScan.pm: Couldn't parse build version for upload! ($shortName)"
         unless defined $version;

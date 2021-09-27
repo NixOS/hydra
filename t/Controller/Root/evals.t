@@ -1,4 +1,5 @@
 use strict;
+use warnings;
 use Setup;
 use Data::Dumper;
 my %ctx = test_init();

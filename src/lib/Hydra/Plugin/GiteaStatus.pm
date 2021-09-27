@@ -1,6 +1,7 @@
 package Hydra::Plugin::GiteaStatus;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 
 use HTTP::Request;

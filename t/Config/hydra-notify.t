@@ -1,4 +1,5 @@
 use strict;
+use warnings;
 use Setup;
 
 my %ctx = test_init(hydra_config => q|

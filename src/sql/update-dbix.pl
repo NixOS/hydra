@@ -1,4 +1,6 @@
 use Cwd;
+use strict;
+use warnings;
 
 die "$0: dbi connection string required \n" if scalar @ARGV != 1;
 

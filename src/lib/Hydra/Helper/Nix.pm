@@ -1,6 +1,7 @@
 package Hydra::Helper::Nix;
 
 use strict;
+use warnings;
 use Exporter;
 use File::Path;
 use File::Basename;
@@ -65,8 +66,8 @@ sub getStatsdConfig {
     my %statsd = defined $cfg ? ref $cfg eq "HASH" ? %$cfg : ($cfg) : ();
 
     return {
-        "host" => %statsd{'host'}  // 'localhost',
-        "port" => %statsd{'port'}  // 8125,
+        "host" => $statsd{'host'}  // 'localhost',
+        "port" => $statsd{'port'}  // 8125,
     }
 }
 
@@ -83,20 +84,20 @@ sub getHydraNotifyPrometheusConfig {
         return undef;
     }
 
-    my $cfg = $cfg->{prometheus};
-    if (!defined($cfg)) {
+    my $promcfg = $cfg->{prometheus};
+    if (!defined($promcfg)) {
         return undef;
     }
 
-    if (ref $cfg ne "HASH") {
+    if (ref $promcfg ne "HASH") {
         print STDERR "Error reading Hydra's configuration file: hydra_notify.prometheus should be a block.\n";
         return undef;
     }
 
-    if (defined($cfg->{"listen_address"}) && defined($cfg->{"port"})) {
+    if (defined($promcfg->{"listen_address"}) && defined($promcfg->{"port"})) {
         return {
-            "listen_address" => $cfg->{'listen_address'},
-            "port" => $cfg->{'port'},
+            "listen_address" => $promcfg->{'listen_address'},
+            "port" => $promcfg->{'port'},
         };
     } else {
         print STDERR "Error reading Hydra's configuration file: hydra_notify.prometheus should include listen_address and port.\n";
@@ -140,8 +141,8 @@ sub registerRoot {
     my ($path) = @_;
     my $link = gcRootFor $path;
     return if -e $link;
-    open ROOT, ">$link" or die "cannot create GC root `$link' to `$path'";
-    close ROOT;
+    open my $root, ">$link" or die "cannot create GC root `$link' to `$path'";
+    close $root;
 }
 
 
@@ -305,7 +306,8 @@ sub getEvals {
             { order_by => "id DESC", rows => 1 });
 
         my $curInfo = getEvalInfo($cache, $curEval);
-        my $prevInfo = getEvalInfo($cache, $prevEval) if defined $prevEval;
+        my $prevInfo;
+        $prevInfo = getEvalInfo($cache, $prevEval) if defined $prevEval;
 
         # Compute what inputs changed between each eval.
         my @changedInputs;
@@ -340,12 +342,12 @@ sub getMachines {
 
     for my $machinesFile (@machinesFiles) {
         next unless -e $machinesFile;
-        open CONF, "<$machinesFile" or die;
-        while (<CONF>) {
+        open my $conf, "<$machinesFile" or die;
+        while (my $line = <$conf>) {
             chomp;
             s/\#.*$//g;
             next if /^\s*$/;
-            my @tokens = split /\s/, $_;
+            my @tokens = split /\s/, $line;
             my @supportedFeatures = split(/,/, $tokens[5] || "");
             my @mandatoryFeatures = split(/,/, $tokens[6] || "");
             $machines{$tokens[0]} =
@@ -357,7 +359,7 @@ sub getMachines {
                 , mandatoryFeatures => [ @mandatoryFeatures ]
                 };
         }
-        close CONF;
+        close $conf;
     }
 
     return \%machines;

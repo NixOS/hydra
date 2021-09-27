@@ -1,6 +1,7 @@
 package Hydra::Plugin::DeclarativeJobsets;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use Hydra::Helper::AddBuilds;
 

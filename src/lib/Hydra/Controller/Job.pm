@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use JSON::MaybeXS;
 use Net::Prometheus;
 
 sub job : Chained('/') PathPart('job') CaptureArgs(3) {
@@ -50,7 +51,7 @@ sub shield :Chained('job') PathPart('shield') Args(0) {
 
     $c->response->content_type('application/json');
     $c->stash->{'plain'} = {
-        data => scalar (JSON::Any->objToJson(
+        data => scalar (encode_json(
             {
                 schemaVersion => 1,
                 label => "hydra build",

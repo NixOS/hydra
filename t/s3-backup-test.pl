@@ -1,4 +1,5 @@
 use strict;
+use warnings;
 use File::Basename;
 use Hydra::Model::DB;
 use Hydra::Helper::Nix;
@@ -38,12 +39,12 @@ ok(-e "/tmp/s3/hydra/$successful_hash.nar", "The nar of a build that's a root is
 ok(-e "/tmp/s3/hydra/$successful_hash.narinfo", "The narinfo of a build that's a root is not removed by gc");
 
 my $gcRootsDir = getGCRootsDir;
-opendir DIR, $gcRootsDir or die;
-while(readdir DIR) {
-    next if $_ eq "." or $_ eq "..";
-    unlink "$gcRootsDir/$_";
+opendir my $dir, $gcRootsDir or die;
+while(my $file = readdir $dir) {
+    next if $file eq "." or $file eq "..";
+    unlink "$gcRootsDir/$file";
 }
-closedir DIR;
+closedir $dir;
 system("hydra-s3-backup-collect-garbage");
 ok(not -e "/tmp/s3/hydra/$successful_hash.nar", "The nar of a build that's not a root is removed by gc");
 ok(not -e "/tmp/s3/hydra/$successful_hash.narinfo", "The narinfo of a build that's not a root is removed by gc");

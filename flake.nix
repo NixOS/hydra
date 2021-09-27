@@ -454,14 +454,14 @@
                 DigestSHA1
                 EmailMIME
                 EmailSender
-                FileSlurp
+                FileSlurper
                 FileWhich
                 final.nix.perl-bindings
                 git
                 IOCompress
                 IPCRun
                 JSON
-                JSONAny
+                JSONMaybeXS
                 JSONXS
                 LWP
                 LWPProtocolHttps

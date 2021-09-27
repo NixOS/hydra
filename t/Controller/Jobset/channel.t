@@ -1,5 +1,6 @@
 use feature 'unicode_strings';
 use strict;
+use warnings;
 use Setup;
 use IO::Uncompress::Bunzip2 qw(bunzip2);
 use Archive::Tar;

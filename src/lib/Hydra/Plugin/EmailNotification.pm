@@ -2,6 +2,7 @@ package Hydra::Plugin::EmailNotification;
 
 use utf8;
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use POSIX qw(strftime);
 use Template;

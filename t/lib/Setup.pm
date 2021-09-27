@@ -1,6 +1,7 @@
 package Setup;
 
 use strict;
+use warnings;
 use Exporter;
 use Test::PostgreSQL;
 use File::Temp;
@@ -49,7 +50,7 @@ sub test_init {
     $ENV{'NIX_CONF_DIR'} = "$dir/nix/etc/nix";
     make_path($ENV{'NIX_CONF_DIR'});
     my $nixconf = "$ENV{'NIX_CONF_DIR'}/nix.conf";
-    my $nix_config = "sandbox = false\n" . $opts{'nix_config'};
+    my $nix_config = "sandbox = false\n" . ($opts{'nix_config'} || "");
     write_file($nixconf, $nix_config);
     $ENV{'HYDRA_CONFIG'} = "$dir/hydra.conf";
 
