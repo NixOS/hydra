@@ -22,9 +22,11 @@ nobase_hydra_DATA = $(EXTRA_DIST)
 all:
 	mkdir -p $(srcdir)/static/js
 	unzip -u -d $(srcdir)/static $(BOOTSTRAP)
+	rm -rf $(srcdir)/static/bootstrap
 	mv $(srcdir)/static/$(basename $(BOOTSTRAP)) $(srcdir)/static/bootstrap
 	unzip -u -d $(srcdir)/static/js $(FLOT)
 	unzip -u -d $(srcdir)/static $(FONTAWESOME)
+	rm -rf $(srcdir)/static/fontawesome
 	mv $(srcdir)/static/$(basename $(FONTAWESOME)) $(srcdir)/static/fontawesome
 
 install-data-local: $(ZIPS)
