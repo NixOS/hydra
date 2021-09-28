@@ -103,6 +103,19 @@ sub build_GET {
     $c->stash->{binaryCachePublicUri} = $c->config->{binary_cache_public_uri};
 }
 
+sub constituents :Chained('buildChain') :PathPart('constituents') :Args(0) :ActionClass('REST') { }
+
+sub constituents_GET {
+    my ($self, $c) = @_;
+
+    my $build = $c->stash->{build};
+
+    $self->status_ok(
+        $c,
+        entity => [$build->constituents_->search({}, {order_by => ["job"]})]
+    );
+}
+
 
 sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
     my ($self, $c, $stepnr, $mode) = @_;
