@@ -1,4 +1,5 @@
 use strict;
+use warnings;
 use Setup;
 use JSON qw(decode_json encode_json);
 use Data::Dumper;
