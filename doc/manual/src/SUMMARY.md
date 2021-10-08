@@ -5,6 +5,8 @@
 - [Configuration](configuration.md)
 - [Creating and Managing Projects](projects.md)
 - [Hydra jobs](./jobs.md)
+- [Plugins](./plugins/README.md)
+  - [Declarative Projects](./plugins/declarative-projects.md)
 - [Using the external API](api.md)
 - [Monitoring Hydra](./monitoring/README.md)
 
