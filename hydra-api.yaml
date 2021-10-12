@@ -761,11 +761,24 @@ components:
       properties:
         id:
           type: integer
+        timestamp:
+          description: Time in seconds since the Unix epoch when this evaluation was created.
+          type: integer
+        checkouttime:
+          description: How long it took (in seconds) to fetch the jobset inputs.
+          type: integer
+        evaltime:
+          description: How long it took (in seconds) to evaluate the jobset.
+          type: integer
         hasnewbuilds:
-          description: is true if the number of JobsetEval members is different from the prior evaluation. (will always be true on the first evaluation)
+          description: Whether the number of JobsetEval members is different from the prior evaluation. This is always true on the first evaluation.
           type: boolean
+        flake:
+          description: For flake jobsets, the immutable flake reference allowing you to reproduce this evaluation. Null otherwise.
+          nullable: true
+          type: string
         builds:
-          description: List of builds generated for this jobset evaluation
+          description: List of builds generated for this jobset evaluation.
           type: array
           items:
             type: integer
