@@ -233,8 +233,12 @@ __PACKAGE__->many_to_many(builds => 'buildIds', 'build');
 
 my %hint = (
     columns => [
+        "timestamp",
+        "checkouttime",
+        "evaltime",
         "hasnewbuilds",
-        "id"
+        "id",
+        "flake",
     ],
     relations => {
         "builds" => "id"
