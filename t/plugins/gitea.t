@@ -41,7 +41,7 @@ updateRepository('gitea', "$ctx{testdir}/jobs/git-update.sh", $scratch);
 
 ok(evalSucceeds($jobset), "Evaluating nix expression");
 is(nrQueuedBuildsForJobset($jobset), 1, "Evaluating jobs/runcommand.nix should result in 1 build1");
- 
+
 (my $build) = queuedBuildsForJobset($jobset);
 ok(runBuild($build), "Build should succeed with exit code 0");
 
