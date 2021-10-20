@@ -499,7 +499,7 @@
           buildInputs =
             [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig libpqxx
               gitAndTools.topGit mercurial darcs subversion breezy openssl bzip2 libxslt
-              final.nix perlDeps perl mdbook
+              final.nix perlDeps perl mdbook pixz
               boost
               postgresql_11
               (if lib.versionAtLeast lib.version "20.03pre"
