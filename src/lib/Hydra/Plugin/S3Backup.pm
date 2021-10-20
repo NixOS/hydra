@@ -21,11 +21,18 @@ sub isEnabled {
 }
 
 my $client;
-my %compressors = (
-    xz => "| $Nix::Config::xz",
-    bzip2 => "| $Nix::Config::bzip2",
-    none => ""
-);
+my %compressors = ();
+
+$compressors{"none"} = "";
+
+if (defined($Nix::Config::bzip2)) {
+    $compressors{"bzip2"} = "| $Nix::Config::bzip2",
+}
+
+if (defined($Nix::Config::xz)) {
+    $compressors{"xz"} = "| $Nix::Config::xz",
+}
+
 my $lockfile = Hydra::Model::DB::getHydraPath . "/.hydra-s3backup.lock";
 
 sub buildFinished {
