@@ -141,7 +141,7 @@ sub registerRoot {
     my ($path) = @_;
     my $link = gcRootFor $path;
     return if -e $link;
-    open my $root, ">$link" or die "cannot create GC root `$link' to `$path'";
+    open(my $root, ">", $link) or die "cannot create GC root `$link' to `$path'";
     close $root;
 }
 
@@ -342,7 +342,7 @@ sub getMachines {
 
     for my $machinesFile (@machinesFiles) {
         next unless -e $machinesFile;
-        open my $conf, "<$machinesFile" or die;
+        open(my $conf, "<", $machinesFile) or die;
         while (my $line = <$conf>) {
             chomp;
             s/\#.*$//g;

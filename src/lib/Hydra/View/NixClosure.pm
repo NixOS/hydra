@@ -14,7 +14,7 @@ sub process {
 
     my $fh = IO::Handle->new();
 
-    open $fh, "nix-store --export `nix-store -qR @storePaths` | gzip |";
+    open($fh, "-|", "nix-store --export `nix-store -qR @storePaths` | gzip");
 
     $c->response->body($fh);
 
