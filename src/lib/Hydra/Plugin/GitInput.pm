@@ -34,7 +34,7 @@ sub _parseValue {
     my $start_options = 3;
     # if deepClone has "=" then is considered an option
     # and not the enabling of deepClone
-    if (index($deepClone, "=") != -1) {
+    if (defined($deepClone) && index($deepClone, "=") != -1) {
         undef $deepClone;
         $start_options = 2;
     }
