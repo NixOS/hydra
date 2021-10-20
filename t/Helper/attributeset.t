@@ -31,8 +31,9 @@ $attrs->registerValue("foo");
 $attrs->registerValue("bar.baz.tux");
 $attrs->registerValue("bar.baz.bux.foo.bar.baz");
 
+my @enumerated = $attrs->enumerate();
 is(
-    \@{$attrs->enumerate()},
+    \@enumerated,
     [
         # "foo": skipped since we're registering values, and we
         # only want to track nested attribute sets.

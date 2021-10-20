@@ -50,7 +50,7 @@ sub splitPath {
 sub enumerate {
     my ($self) = @_;
     my @paths = sort { length($a) <=> length($b) } @{$self->{"paths"}};
-    return wantarray ? @paths : \@paths;
+    return @paths;
 }
 
 1;
