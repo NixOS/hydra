@@ -65,7 +65,7 @@ sub updateDeclarativeJobset {
         my $jobset = $project->jobsets->update_or_create(\%update);
         $jobset->jobsetinputs->delete;
         foreach my $name (keys %{$declSpec->{"inputs"}}) {
-            my $data = $declSpec->{"inputs"}{$name};
+            my $data = $declSpec->{"inputs"}->{$name};
             my $row = {
                 name => $name,
                 type => $data->{type}
@@ -86,7 +86,7 @@ sub handleDeclarativeJobsetJson {
             push @kept, ".jobsets";
             $project->jobsets->search({ name => { "not in" => \@kept } })->update({ enabled => 0, hidden => 1 });
             foreach my $jobsetName (keys %$declSpec) {
-                my $spec = $declSpec{$jobsetName};
+                my $spec = $declSpec->{$jobsetName};
                 eval {
                     updateDeclarativeJobset($db, $project, $jobsetName, $spec);
                     1;

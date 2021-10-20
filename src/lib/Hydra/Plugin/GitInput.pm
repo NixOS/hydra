@@ -119,7 +119,7 @@ sub fetchInput {
                             $name);
     # give preference to the options from the input value
     foreach my $opt_name (keys %{$options}) {
-        my $opt_value = $options{$opt_name};
+        my $opt_value = $options->{$opt_name};
         if ($opt_value =~ /^[+-]?\d+\z/) {
             $opt_value = int($opt_value);
         }
