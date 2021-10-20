@@ -87,24 +87,23 @@ sub make_fake_record {
 
 subtest "dispatch_event" => sub {
     subtest "every plugin gets called once, even if it fails all of them." => sub {
-        my @plugins = [make_noop_plugin("bogus-1"), make_noop_plugin("bogus-2")];
+        my $plugins = [make_noop_plugin("bogus-1"), make_noop_plugin("bogus-2")];
 
-        my $dispatcher = Hydra::TaskDispatcher->new($db, $prometheus, @plugins);
+        my $dispatcher = Hydra::TaskDispatcher->new($db, $prometheus, $plugins);
 
         my $event = make_failing_event("bogus-channel");
         $dispatcher->dispatch_event($event);
 
         is(@{$event->{"called_with"}}, 2, "Both plugins should be called");
 
-        my @expected_names = [ "bogus-1", "bogus-2" ];
-        my @actual_names = sort([
-                $event->{"called_with"}[0]->name,
-                $event->{"called_with"}[1]->name
-        ]);
-
+        my @expected_names = ( "bogus-1", "bogus-2" );
+        my @actual_names = sort(
+            $event->{"called_with"}[0]->name,
+            $event->{"called_with"}[1]->name
+        );
         is(
-            @actual_names,
-            @expected_names,
+            \@actual_names,
+            \@expected_names,
             "Both plugins should be executed, but not in any particular order."
         );
     };
@@ -113,9 +112,9 @@ subtest "dispatch_event" => sub {
 subtest "dispatch_task" => sub {
     subtest "every plugin gets called once" => sub {
         my $bogus_plugin = make_noop_plugin("bogus-1");
-        my @plugins = [$bogus_plugin, make_noop_plugin("bogus-2")];
+        my $plugins = [$bogus_plugin, make_noop_plugin("bogus-2")];
 
-        my $dispatcher = Hydra::TaskDispatcher->new($db, $prometheus, @plugins);
+        my $dispatcher = Hydra::TaskDispatcher->new($db, $prometheus, $plugins);
 
         my $event = make_fake_event("bogus-channel");
         my $task = Hydra::Task->new($event, ref $bogus_plugin);
@@ -132,9 +131,9 @@ subtest "dispatch_task" => sub {
 
     subtest "a task with an invalid plugin is not fatal" => sub {
         my $bogus_plugin = make_noop_plugin("bogus-1");
-        my @plugins = [$bogus_plugin, make_noop_plugin("bogus-2")];
+        my $plugins = [$bogus_plugin, make_noop_plugin("bogus-2")];
 
-        my $dispatcher = Hydra::TaskDispatcher->new($db, $prometheus, @plugins);
+        my $dispatcher = Hydra::TaskDispatcher->new($db, $prometheus, $plugins);
 
         my $event = make_fake_event("bogus-channel");
         my $task = Hydra::Task->new($event, "this-plugin-does-not-exist");

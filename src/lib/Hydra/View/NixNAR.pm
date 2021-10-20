@@ -16,7 +16,7 @@ sub process {
 
     my $fh = IO::Handle->new();
 
-    open $fh, "nix-store --dump '$storePath' | pixz -0 $pParam |";
+    open($fh, "-|", "nix-store --dump '$storePath' | pixz -0 $pParam");
 
     setCacheHeaders($c, 365 * 24 * 60 * 60);
 
