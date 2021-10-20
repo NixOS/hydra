@@ -488,7 +488,7 @@ sub getTotalShares {
 }
 
 
-sub cancelBuilds($$) {
+sub cancelBuilds {
     my ($db, $builds) = @_;
     return $db->txn_do(sub {
         $builds = $builds->search({ finished => 0 });
@@ -505,7 +505,7 @@ sub cancelBuilds($$) {
 }
 
 
-sub restartBuilds($$) {
+sub restartBuilds {
     my ($db, $builds) = @_;
 
     $builds = $builds->search({ finished => 1 });
