@@ -10,7 +10,7 @@ use Hydra::Helper::CatalystUtils;
 
 sub isEnabled {
     my ($self) = @_;
-    return $self->{config}->{enable_bitbucket_status} == 1;
+    return defined($self->{config}->{enable_bitbucket_status}) && $self->{config}->{enable_bitbucket_status} == 1;
 }
 
 sub toBitBucketState {
