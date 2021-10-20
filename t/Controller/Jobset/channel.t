@@ -4,7 +4,7 @@ use warnings;
 use Setup;
 use IO::Uncompress::Bunzip2 qw(bunzip2);
 use Archive::Tar;
-use JSON qw(decode_json);
+use JSON::MaybeXS qw(decode_json);
 use Data::Dumper;
 my %ctx = test_init(
   use_external_destination_store => 0

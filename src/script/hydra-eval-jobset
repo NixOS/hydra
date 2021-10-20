@@ -15,7 +15,7 @@ use Hydra::Helper::Nix;
 use Hydra::Model::DB;
 use Hydra::Plugin;
 use Hydra::Schema;
-use JSON;
+use JSON::MaybeXS;
 use Net::Statsd;
 use Nix::Store;
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);

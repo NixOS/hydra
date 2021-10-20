@@ -5,7 +5,7 @@ use warnings;
 use parent 'Hydra::Plugin';
 
 use HTTP::Request;
-use JSON;
+use JSON::MaybeXS;
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
 use List::Util qw(max);

@@ -7,7 +7,6 @@ use base 'Hydra::Base::Controller::REST';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Controller::Project;
-use JSON;
 use JSON::MaybeXS;
 use DateTime;
 use Digest::SHA qw(sha256_hex);
@@ -87,7 +86,7 @@ sub jobsetToHash {
         triggertime => $jobset->triggertime,
         fetcherrormsg => $jobset->fetcherrormsg,
         errortime => $jobset->errortime,
-        haserrormsg => defined($jobset->errormsg) && $jobset->errormsg ne "" ? JSON::true : JSON::false
+        haserrormsg => defined($jobset->errormsg) && $jobset->errormsg ne "" ? JSON::MaybeXS::true : JSON::MaybeXS::false
     };
 }
 

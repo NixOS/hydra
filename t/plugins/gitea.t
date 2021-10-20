@@ -1,7 +1,7 @@
 use feature 'unicode_strings';
 use strict;
 use warnings;
-use JSON;
+use JSON::MaybeXS;
 use Setup;
 
 my %ctx = test_init(

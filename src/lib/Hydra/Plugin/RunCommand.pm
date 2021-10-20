@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use parent 'Hydra::Plugin';
 use experimental 'smartmatch';
-use JSON;
+use JSON::MaybeXS;
 
 sub isEnabled {
     my ($self) = @_;
@@ -74,7 +74,7 @@ sub makeJsonPayload {
     my $json = {
         event => $event,
         build => $build->id,
-        finished => $build->get_column('finished') ? JSON::true : JSON::false,
+        finished => $build->get_column('finished') ? JSON::MaybeXS::true : JSON::MaybeXS::false,
         timestamp => $build->get_column('timestamp'),
         project => $build->get_column('project'),
         jobset => $build->get_column('jobset'),

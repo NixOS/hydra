@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use utf8;
 use Encode;
-use JSON;
+use JSON::MaybeXS;
 use Nix::Store;
 use Nix::Config;
 use Hydra::Model::DB;

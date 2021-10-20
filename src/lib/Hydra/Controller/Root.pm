@@ -11,7 +11,7 @@ use Nix::Store;
 use Nix::Config;
 use Encode;
 use File::Basename;
-use JSON;
+use JSON::MaybeXS;
 use List::Util qw[min max];
 use List::MoreUtils qw{any};
 use Net::Prometheus;

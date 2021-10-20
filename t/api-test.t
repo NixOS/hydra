@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Setup;
-use JSON;
+use JSON::MaybeXS;
 use File::Copy;
 
 my %ctx = test_init(

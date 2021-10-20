@@ -2,7 +2,7 @@ use feature 'unicode_strings';
 use strict;
 use warnings;
 use Setup;
-use JSON qw(decode_json encode_json);
+use JSON::MaybeXS qw(decode_json encode_json);
 
 my %ctx = test_init();
 
@@ -47,7 +47,7 @@ subtest 'Create new jobset "job" as flake type' => sub {
       Cookie => $cookie,
       Content => encode_json({
         enabled => 2,
-        visible => JSON::true,
+        visible => JSON::MaybeXS::true,
         name => "job",
         type => 1,
         description => "test jobset",
@@ -72,12 +72,12 @@ subtest 'Read newly-created jobset "job"' => sub {
      description => "test jobset",
      emailoverride => "",
      enabled => 2,
-     enableemail => JSON::false,
+     enableemail => JSON::MaybeXS::false,
      errortime => undef,
      errormsg => "",
      fetcherrormsg => "",
      flake => "github:nixos/nix",
-     visible => JSON::true,
+     visible => JSON::MaybeXS::true,
      inputs => {},
      keepnr => 3,
      lastcheckedtime => undef,
@@ -100,7 +100,7 @@ subtest 'Update jobset "job" to legacy type' => sub {
       Cookie => $cookie,
       Content => encode_json({
         enabled => 3,
-        visible => JSON::true,
+        visible => JSON::MaybeXS::true,
         name => "job",
         type => 0,
         nixexprinput => "ofborg",
@@ -130,17 +130,17 @@ subtest 'Update jobset "job" to legacy type' => sub {
     description => "test jobset",
     emailoverride => "",
     enabled => 3,
-    enableemail => JSON::false,
+    enableemail => JSON::MaybeXS::false,
     errortime => undef,
     errormsg => "",
     fetcherrormsg => "",
     flake => "",
-    visible => JSON::true,
+    visible => JSON::MaybeXS::true,
     inputs => {
       ofborg => {
         name => "ofborg",
         type => "git",
-        emailresponsible => JSON::false,
+        emailresponsible => JSON::MaybeXS::false,
         value => "https://github.com/NixOS/ofborg.git released"
       }
     },
@@ -165,7 +165,7 @@ subtest 'Update jobset "job" to have an invalid input type' => sub {
       Cookie => $cookie,
       Content => encode_json({
         enabled => 3,
-        visible => JSON::true,
+        visible => JSON::MaybeXS::true,
         name => "job",
         type => 0,
         nixexprinput => "ofborg",
