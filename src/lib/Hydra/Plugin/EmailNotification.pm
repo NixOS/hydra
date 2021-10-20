@@ -12,7 +12,7 @@ use Hydra::Helper::Email;
 
 sub isEnabled {
     my ($self) = @_;
-    return $self->{config}->{email_notification} == 1;
+    return ($self->{config}->{email_notification} // 0) == 1;
 }
 
 my $template = <<EOF;

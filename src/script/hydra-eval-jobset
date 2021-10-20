@@ -567,7 +567,7 @@ sub checkJobsetWrapped {
     my $inputInfo = {};
     if ($jobsetsJobset) {
         my @declInputs = fetchInput($plugins, $db, $project, $jobset, "decl", $project->decltype, $project->declvalue, 0);
-        my $declInput = @declInputs[0] or die "cannot find the input containing the declarative project specification\n";
+        my $declInput = $declInputs[0] or die "cannot find the input containing the declarative project specification\n";
         die "multiple alternatives for the input containing the declarative project specification are not supported\n"
             if scalar @declInputs != 1;
         my $declFile = $declInput->{storePath} . "/" . $project->declfile;
