@@ -32,7 +32,7 @@ $attrs->registerValue("bar.baz.tux");
 $attrs->registerValue("bar.baz.bux.foo.bar.baz");
 
 is(
-    $attrs->enumerate(),
+    \@{$attrs->enumerate()},
     [
         # "foo": skipped since we're registering values, and we
         # only want to track nested attribute sets.
