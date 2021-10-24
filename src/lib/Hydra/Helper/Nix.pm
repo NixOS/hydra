@@ -344,11 +344,19 @@ sub getMachines {
         next unless -e $machinesFile;
         open(my $conf, "<", $machinesFile) or die;
         while (my $line = <$conf>) {
-            chomp;
-            s/\#.*$//g;
-            next if /^\s*$/;
+            chomp($line);
+            $line =~ s/\#.*$//g;
+            next if $line =~ /^\s*$/;
             my @tokens = split /\s/, $line;
+
+            if (!defined($tokens[5]) || $tokens[5] eq "-") {
+                $tokens[5] = "";
+            }
             my @supportedFeatures = split(/,/, $tokens[5] || "");
+
+            if (!defined($tokens[6]) || $tokens[6] eq "-") {
+                $tokens[6] = "";
+            }
             my @mandatoryFeatures = split(/,/, $tokens[6] || "");
             $machines{$tokens[0]} =
                 { systemTypes => [ split(/,/, $tokens[1]) ]
