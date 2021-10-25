@@ -40,7 +40,6 @@ make_schema_at("Hydra::Schema", {
         "schemaversion" => "SchemaVersion",
         "starredjobs" => "StarredJobs",
         "systemstatus" => "SystemStatus",
-        "systemtypes" => "SystemTypes",
         "taskretries" => "TaskRetries",
         "urirevmapper" => "UriRevMapper",
         "userroles" => "UserRoles",
