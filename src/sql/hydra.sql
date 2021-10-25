@@ -440,13 +440,6 @@ create table CachedCVSInputs (
     primary key   (uri, module, sha256hash)
 );
 
-
--- FIXME: remove
-create table SystemTypes (
-    system        text primary key not null,
-    maxConcurrent integer not null default 2
-);
-
 create table EvaluationErrors (
     id            serial primary key not null,
     errorMsg      text,    -- error output from the evaluator
