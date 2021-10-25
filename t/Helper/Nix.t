@@ -24,6 +24,7 @@ root@ip x86_64-darwin /sshkey 15 15 big-parallel,kvm,nixos-test - base64key
 root@baz aarch64-darwin /sshkey 4 1 big-parallel
 
 root@bux i686-linux,x86_64-linux /var/sshkey 1 1 kvm,nixos-test benchmark
+root@lotsofspace    i686-linux,x86_64-linux    /var/sshkey   1   1  kvm,nixos-test   benchmark
 
 |;
 close $fh;
@@ -46,6 +47,14 @@ is(Hydra::Helper::Nix::getMachines(), {
         'mandatoryFeatures' => [],
     },
     'root@bux' => {
+        'systemTypes' => [ "i686-linux", "x86_64-linux" ],
+        'sshKeys' => '/var/sshkey',
+        'maxJobs' => 1,
+        'speedFactor' => 1,
+        'supportedFeatures' => [ "kvm", "nixos-test", "benchmark" ],
+        'mandatoryFeatures' => [ "benchmark" ],
+    },
+    'root@lotsofspace' => {
         'systemTypes' => [ "i686-linux", "x86_64-linux" ],
         'sshKeys' => '/var/sshkey',
         'maxJobs' => 1,

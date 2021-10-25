@@ -347,7 +347,7 @@ sub getMachines {
             chomp($line);
             $line =~ s/\#.*$//g;
             next if $line =~ /^\s*$/;
-            my @tokens = split /\s/, $line;
+            my @tokens = split /\s+/, $line;
 
             if (!defined($tokens[5]) || $tokens[5] eq "-") {
                 $tokens[5] = "";
