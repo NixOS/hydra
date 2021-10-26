@@ -153,7 +153,7 @@ sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
 sub restart {
     my ($self, $c, $condition) = @_;
     requireRestartPrivileges($c, $c->stash->{project});
-    my $builds = $c->stash->{eval}->builds->search({ finished => 1, buildstatus => $condition });
+    my $builds = $c->stash->{eval}->builds->search_rs({ finished => 1, buildstatus => $condition });
     my $n = restartBuilds($c->model('DB')->schema, $builds);
     $c->flash->{successMsg} = "$n builds have been restarted.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
