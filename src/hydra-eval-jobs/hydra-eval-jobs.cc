@@ -1,6 +1,7 @@
-#include <map>
 #include <iostream>
 #include <thread>
+#include <optional>
+#include <unordered_map>
 
 #include "shared.hh"
 #include "store-api.hh"
@@ -442,11 +443,30 @@ int main(int argc, char * * argv)
             auto named = job.find("namedConstituents");
             if (named == job.end()) continue;
 
+            std::unordered_map<std::string, std::string> brokenJobs;
+            auto getNonBrokenJobOrRecordError = [&brokenJobs, &jobName, &state](
+                    const std::string & childJobName) -> std::optional<nlohmann::json> {
+                auto childJob = state->jobs.find(childJobName);
+                if (childJob == state->jobs.end()) {
+                    printError("aggregate job '%s' references non-existent job '%s'", jobName, childJobName);
+                    brokenJobs[childJobName] = "does not exist";
+                    return std::nullopt;
+                }
+                if (childJob->find("error") != childJob->end()) {
+                    std::string error = (*childJob)["error"];
+                    printError("aggregate job '%s' references broken job '%s': %s", jobName, childJobName, error);
+                    brokenJobs[childJobName] = error;
+                    return std::nullopt;
+                }
+                return *childJob;
+            };
+
             if (myArgs.dryRun) {
                 for (std::string jobName2 : *named) {
-                    auto job2 = state->jobs.find(jobName2);
-                    if (job2 == state->jobs.end())
-                        throw Error("aggregate job '%s' references non-existent job '%s'", jobName, jobName2);
+                    auto job2 = getNonBrokenJobOrRecordError(jobName2);
+                    if (!job2) {
+                        continue;
+                    }
                     std::string drvPath2 = (*job2)["drvPath"];
                     job["constituents"].push_back(drvPath2);
                 }
@@ -455,31 +475,42 @@ int main(int argc, char * * argv)
                 auto drv = store->readDerivation(drvPath);
 
                 for (std::string jobName2 : *named) {
-                    auto job2 = state->jobs.find(jobName2);
-                    if (job2 == state->jobs.end())
-                        throw Error("aggregate job '%s' references non-existent job '%s'", jobName, jobName2);
+                    auto job2 = getNonBrokenJobOrRecordError(jobName2);
+                    if (!job2) {
+                        continue;
+                    }
                     auto drvPath2 = store->parseStorePath((std::string) (*job2)["drvPath"]);
                     auto drv2 = store->readDerivation(drvPath2);
                     job["constituents"].push_back(store->printStorePath(drvPath2));
                     drv.inputDrvs[drvPath2] = {drv2.outputs.begin()->first};
                 }
 
-                std::string drvName(drvPath.name());
-                assert(hasSuffix(drvName, drvExtension));
-                drvName.resize(drvName.size() - drvExtension.size());
-                auto h = std::get<Hash>(hashDerivationModulo(*store, drv, true));
-                auto outPath = store->makeOutputPath("out", h, drvName);
-                drv.env["out"] = store->printStorePath(outPath);
-                drv.outputs.insert_or_assign("out", DerivationOutput { .output = DerivationOutputInputAddressed { .path = outPath } });
-                auto newDrvPath = store->printStorePath(writeDerivation(*store, drv));
+                if (brokenJobs.empty()) {
+                    std::string drvName(drvPath.name());
+                    assert(hasSuffix(drvName, drvExtension));
+                    drvName.resize(drvName.size() - drvExtension.size());
+                    auto h = std::get<Hash>(hashDerivationModulo(*store, drv, true));
+                    auto outPath = store->makeOutputPath("out", h, drvName);
+                    drv.env["out"] = store->printStorePath(outPath);
+                    drv.outputs.insert_or_assign("out", DerivationOutput { .output = DerivationOutputInputAddressed { .path = outPath } });
+                    auto newDrvPath = store->printStorePath(writeDerivation(*store, drv));
 
-                debug("rewrote aggregate derivation %s -> %s", store->printStorePath(drvPath), newDrvPath);
+                    debug("rewrote aggregate derivation %s -> %s", store->printStorePath(drvPath), newDrvPath);
 
-                job["drvPath"] = newDrvPath;
-                job["outputs"]["out"] = store->printStorePath(outPath);
+                    job["drvPath"] = newDrvPath;
+                    job["outputs"]["out"] = store->printStorePath(outPath);
+                }
             }
 
             job.erase("namedConstituents");
+
+            if (!brokenJobs.empty()) {
+                std::stringstream ss;
+                for (const auto& [jobName, error] : brokenJobs) {
+                    ss << jobName << ": " << error << "\n";
+                }
+                job["error"] = ss.str();
+            }
         }
 
         std::cout << state->jobs.dump(2) << "\n";

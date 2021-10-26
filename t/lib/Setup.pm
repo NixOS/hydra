@@ -148,6 +148,7 @@ sub createJobsetWithOneInput {
 sub evalSucceeds {
     my ($jobset) = @_;
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
+    $jobset->discard_changes;  # refresh from DB
     chomp $stdout; chomp $stderr;
     print STDERR "Evaluation errors for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
     print STDERR "STDOUT: $stdout\n" if $stdout ne "";
