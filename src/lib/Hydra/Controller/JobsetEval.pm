@@ -144,7 +144,7 @@ sub create_jobset : Chained('evalChain') PathPart('create-jobset') Args(0) {
 sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
     my ($self, $c) = @_;
     requireCancelBuildPrivileges($c, $c->stash->{project});
-    my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->builds);
+    my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->builds->search_rs({}));
     $c->flash->{successMsg} = "$n builds have been cancelled.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
 }
