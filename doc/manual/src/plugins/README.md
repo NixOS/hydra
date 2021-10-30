@@ -111,7 +111,7 @@ Sets GitHub CI status.
 - `githubstatus.[].jobs`
 
 Regular expression for jobs to match in the format `project:jobset:job`.
-Defaults to `*:*:*`.
+This field is required and has no default value.
 
 - `githubstatus.[].excludeBuildFromContext`
 
@@ -140,15 +140,18 @@ status we want to report. Can be repeated.
 
 Verbatim contents of the Authorization header. See
 [GitHub documentation](https://developer.github.com/v3/#authentication) for
-details.
+details. This field is only used if `github_authorization.<repo-owner>` is not set.
+
 
 ### Example
 
 ```xml
 <githubstatus>
   jobs = test:pr:build
+  ## This example will match all jobs
+  #jobs = .*
   inputs = src
-  authorization = Basic notgivingyoumypasswordosorry
+  authorization = Bearer gha-secret😱secret😱secret😱
   excludeBuildFromContext = 1
 </githubstatus>
 ```
