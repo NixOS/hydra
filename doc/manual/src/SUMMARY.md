@@ -8,6 +8,7 @@
 - [Plugins](./plugins/README.md)
   - [Declarative Projects](./plugins/declarative-projects.md)
 - [Using the external API](api.md)
+- [Webhooks](webhooks.md)
 - [Monitoring Hydra](./monitoring/README.md)
 
 ## Developer's Guide
