@@ -99,7 +99,7 @@ GitHub following a certain naming scheme.
 
 ### Configuration options
 
-- `github_endpoint`
+- `github_endpoint` (defaults to https://api.github.com)
 - `github_authorization.<repo-owner>`
 
 ## Github status
