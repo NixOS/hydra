@@ -11,7 +11,7 @@ Note that the notification format is subject to change and should not be conside
 ### `build_started`
 
 * **Payload:** Exactly one value, the ID of the build.
-* **When:** Issued directly before building happens, and only if the derivation's outputs cannot be subsituted.
+* **When:** Issued directly before building happens, and only if the derivation's outputs cannot be substituted.
 * **Delivery Semantics:** Ephemeral. `hydra-notify` must be running to react to this event. No record of this event is stored.
 
 ### `step_finished`
