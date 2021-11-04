@@ -1,4 +1,5 @@
 use strict;
+use warnings;
 use Setup;
 use Test2::V0;
 use HTTP::Request::Common;
