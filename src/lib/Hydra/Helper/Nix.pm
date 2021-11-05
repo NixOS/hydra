@@ -29,6 +29,7 @@ our @EXPORT = qw(
     getStoreUri
     readNixFile
     isLocalStore
+    isLocalBinaryCacheStore
     cancelBuilds restartBuilds);
 
 
@@ -569,6 +570,12 @@ sub readNixFile {
 sub isLocalStore {
     my $uri = getStoreUri();
     return $uri =~ "^(local|daemon|auto)";
+}
+
+
+sub isLocalBinaryCacheStore {
+    my $uri = getStoreUri();
+    return $uri =~ "^file:";
 }
 
 

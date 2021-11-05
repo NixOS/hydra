@@ -9,6 +9,8 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::View::TT;
 use Nix::Store;
 use Nix::Config;
+use Nix::Utils;
+use Nix::Manifest;
 use Encode;
 use File::Basename;
 use JSON;
@@ -313,11 +315,7 @@ sub nar :Local :Args(1) {
 
     die if $path =~ /\//;
 
-    if (!isLocalStore) {
-        notFound($c, "There is no binary cache here.");
-    }
-
-    else {
+    if (isLocalStore) {
         $path = $Nix::Config::storeDir . "/$path";
 
         gone($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
@@ -325,13 +323,26 @@ sub nar :Local :Args(1) {
         $c->stash->{current_view} = 'NixNAR';
         $c->stash->{storePath} = $path;
     }
+
+    elsif (isLocalBinaryCacheStore && getStoreUri =~ "^file:/+([^\?]+)") {
+        $c->response->content_type('application/x-nix-archive');
+
+        $path = "/" . $1 . "/nar/$path";
+        my $fh = new IO::Handle;
+        open $fh, "<:raw", $path;
+        $c->response->body($fh);
+    }
+
+    else {
+        notFound($c, "There is no binary cache here.");
+    }
 }
 
 
 sub nix_cache_info :Path('nix-cache-info') :Args(0) {
     my ($self, $c) = @_;
 
-    if (!isLocalStore) {
+    if (!isLocalStore && !isLocalBinaryCacheStore) {
         notFound($c, "There is no binary cache here.");
     }
 
@@ -352,14 +363,11 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
 sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
     my ($self, $c) = @_;
 
-    if (!isLocalStore) {
-        notFound($c, "There is no binary cache here.");
-    }
+    my $hash = $c->req->captures->[0];
 
-    else {
-        my $hash = $c->req->captures->[0];
+    die if length($hash) != 32;
 
-        die if length($hash) != 32;
+    if (isLocalStore) {
         my $path = queryPathFromHashPart($hash);
 
         if (!$path) {
@@ -373,6 +381,48 @@ sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
 
         $c->stash->{storePath} = $path;
         $c->forward('Hydra::View::NARInfo');
+    }
+
+    elsif (isLocalBinaryCacheStore && getStoreUri =~ "^file:/+([^\?]+)") {
+        $c->response->content_type('application/x-nix-archive');
+        setCacheHeaders($c, 24 * 60 * 60);
+
+        my $path = "/" . $1 . "/" . $hash . ".narinfo";
+        if (!-f $path) {
+            return notFound($c, "NARInfo not found");
+        }
+
+        my $secretKeyFile = $c->config->{binary_cache_secret_key_file};
+        if (! defined $secretKeyFile && getStoreUri =~ "[\?\&]secret-key=([^\?\&]+)") {
+            $secretKeyFile = $1;
+        }
+        if (defined $secretKeyFile) {
+            # Optionally, sign the NAR info file
+            my $content = readFile $path;
+            my %info;
+            foreach my $line (split "\n", $content) {
+                return undef unless $line =~ /^(.*): (.*)$/;
+                $info{$1} = $2;
+            }
+
+            my @refs = map { $Nix::Config::storeDir . "/" . $_ } split(" ", $info{References});
+            my $fingerprint = fingerprintPath($info{StorePath}, $info{NarHash}, $info{NarSize}, [ @refs ]);
+            my $secretKey = readFile $secretKeyFile;
+            my $sig = signString($secretKey, $fingerprint);
+
+            $content =~ s/^Sig:.+\n//m;
+            $content .= "Sig: $sig\n";
+            $c->response->body($content);
+        }
+        else {
+            my $fh = new IO::Handle;
+            open $fh, "<", $path;
+            $c->response->body($fh);
+        }
+    }
+
+    else {
+        notFound($c, "There is no binary cache here.");
     }
 }
 
