@@ -1,6 +1,7 @@
 package Hydra::Plugin::GiteaStatus;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 
 use HTTP::Request;
@@ -29,25 +30,25 @@ sub toGiteaState {
 }
 
 sub common {
-    my ($self, $build, $dependents, $status) = @_;
+    my ($self, $topbuild, $dependents, $status) = @_;
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
 
     # Find matching configs
-    foreach my $b ($build, @{$dependents}) {
-        my $jobName = showJobName $b;
-        my $evals = $build->jobsetevals;
+    foreach my $build ($topbuild, @{$dependents}) {
+        my $jobName = showJobName $build;
+        my $evals = $topbuild->jobsetevals;
         my $ua = LWP::UserAgent->new();
 
         # Don't send out "pending/running" status updates if the build is already finished
-        next if $status < 2 && $b->finished == 1;
+        next if $status < 2 && $build->finished == 1;
 
-        my $state = toGiteaState($status, $b->buildstatus);
+        my $state = toGiteaState($status, $build->buildstatus);
         my $body = encode_json(
             {
                 state => $state,
-                target_url => "$baseurl/build/" . $b->id,
-                description => "Hydra build #" . $b->id . " of $jobName",
-                context => "Hydra " . $b->get_column('job'),
+                target_url => "$baseurl/build/" . $build->id,
+                description => "Hydra build #" . $build->id . " of $jobName",
+                context => "Hydra " . $build->get_column('job'),
             });
 
         while (my $eval = $evals->next) {

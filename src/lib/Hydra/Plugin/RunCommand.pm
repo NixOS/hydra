@@ -1,6 +1,7 @@
 package Hydra::Plugin::RunCommand;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use experimental 'smartmatch';
 use JSON;

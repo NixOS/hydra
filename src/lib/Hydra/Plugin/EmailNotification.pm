@@ -2,6 +2,7 @@ package Hydra::Plugin::EmailNotification;
 
 use utf8;
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use POSIX qw(strftime);
 use Template;
@@ -11,7 +12,7 @@ use Hydra::Helper::Email;
 
 sub isEnabled {
     my ($self) = @_;
-    return $self->{config}->{email_notification} == 1;
+    return ($self->{config}->{email_notification} // 0) == 1;
 }
 
 my $template = <<EOF;
@@ -46,47 +47,52 @@ EOF
 
 
 sub buildFinished {
-    my ($self, $build, $dependents) = @_;
+    my ($self, $topbuild, $dependents) = @_;
 
-    die unless $build->finished;
+    die unless $topbuild->finished;
 
     # Figure out to whom to send notification for each build.  For
     # each email address, we send one aggregate email listing only the
     # relevant builds for that address.
     my %addresses;
-    foreach my $b ($build, @{$dependents}) {
-        my $prevBuild = getPreviousBuild($b);
+    foreach my $build ($topbuild, @{$dependents}) {
+        my $prevBuild = getPreviousBuild($build);
         # Do we want to send mail for this build?
         unless ($ENV{'HYDRA_FORCE_SEND_MAIL'}) {
-            next unless $b->jobset->enableemail;
+            next unless $build->jobset->enableemail;
 
             # If build is cancelled or aborted, do not send email.
-            next if $b->buildstatus == 4 || $b->buildstatus == 3;
+            next if $build->buildstatus == 4 || $build->buildstatus == 3;
 
             # If there is a previous (that is not cancelled or aborted) build
             # with same buildstatus, do not send email.
-            next if defined $prevBuild && ($b->buildstatus == $prevBuild->buildstatus);
+            next if defined $prevBuild && ($build->buildstatus == $prevBuild->buildstatus);
         }
 
-        if ($b->jobset->emailoverride ne "") {
-            $addresses{$b->jobset->emailoverride} //= { builds => [] };
-            push @{$addresses{$b->jobset->emailoverride}->{builds}}, $b;
+        if ($build->jobset->emailoverride ne "") {
+            my $to = $build->jobset->emailoverride;
+            foreach my $address (split ",", ($to // "")) {
+                $address = trim $address;
+
+                $addresses{$address} //= { builds => [] };
+                push @{$addresses{$address}->{builds}}, $build;
+            }
         } else {
-            foreach my $m ($b->maintainers) {
+            foreach my $m ($build->maintainers) {
                 $addresses{$m->email} //= { builds => [] };
-                push @{$addresses{$m->email}->{builds}}, $b;
+                push @{$addresses{$m->email}->{builds}}, $build;
             }
         }
     }
 
-    my ($authors, $nrCommits, $emailable_authors) = getResponsibleAuthors($build, $self->{plugins});
+    my ($authors, $nrCommits, $emailable_authors) = getResponsibleAuthors($topbuild, $self->{plugins});
     my $authorList;
-    my $prevBuild = getPreviousBuild($build);
+    my $prevBuild = getPreviousBuild($topbuild);
     if (scalar keys %{$authors} > 0 &&
-        ((!defined $prevBuild) || ($build->buildstatus != $prevBuild->buildstatus))) {
+        ((!defined $prevBuild) || ($topbuild->buildstatus != $prevBuild->buildstatus))) {
         my @x = map { "$_ <$authors->{$_}>" } (sort keys %{$authors});
         $authorList = join(" or ", scalar @x > 1 ? join(", ", @x[0..scalar @x - 2]): (), $x[-1]);
-        $addresses{$_} = { builds => [ $build ] } foreach (@{$emailable_authors});
+        $addresses{$_} = { builds => [ $topbuild ] } foreach (@{$emailable_authors});
     }
 
     # Send an email to each interested address.
@@ -97,11 +103,11 @@ sub buildFinished {
         my $tt = Template->new({});
 
         my $vars =
-            { build => $build, prevBuild => getPreviousBuild($build)
-            , dependents => [grep { $_->id != $build->id } @builds]
+            { build => $topbuild, prevBuild => getPreviousBuild($topbuild)
+            , dependents => [grep { $_->id != $topbuild->id } @builds]
             , baseurl => getBaseUrl($self->{config})
             , showJobName => \&showJobName, showStatus => \&showStatus
-            , showSystem => index($build->get_column('job'), $build->system) == -1
+            , showSystem => index($topbuild->get_column('job'), $topbuild->system) == -1
             , nrCommits => $nrCommits
             , authorList => $authorList
             };
@@ -114,16 +120,16 @@ sub buildFinished {
         $body =~ s/[\ ]+$//gm;
 
         my $subject =
-            showStatus($build) . ": Hydra job " . showJobName($build)
-            . ($vars->{showSystem} ? " on " . $build->system : "")
+            showStatus($topbuild) . ": Hydra job " . showJobName($topbuild)
+            . ($vars->{showSystem} ? " on " . $topbuild->system : "")
             . (scalar @{$vars->{dependents}} > 0 ? " (and " . scalar @{$vars->{dependents}} . " others)" : "");
 
         sendEmail(
             $self->{config}, $to, $subject, $body,
-            [ 'X-Hydra-Project'  => $build->get_column('project'),
-            , 'X-Hydra-Jobset'   => $build->get_column('jobset'),
-            , 'X-Hydra-Job'      => $build->get_column('job'),
-            , 'X-Hydra-System'   => $build->system
+            [ 'X-Hydra-Project'  => $topbuild->get_column('project'),
+            , 'X-Hydra-Jobset'   => $topbuild->get_column('jobset'),
+            , 'X-Hydra-Job'      => $topbuild->get_column('job'),
+            , 'X-Hydra-System'   => $topbuild->system
             ]);
     }
 }

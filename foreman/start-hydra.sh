@@ -19,6 +19,13 @@ if [ ! -f ./.hydra-data/hydra.conf ]; then
     cat << EOF > .hydra-data/hydra.conf
 # test-time instances likely don't want to bootstrap nixpkgs from scratch
 use-substitutes = true
+
+<hydra_notify>
+  <prometheus>
+    listen_address = 127.0.0.1
+    port = 64445
+  </prometheus>
+</hydra_notify>
 EOF
 fi
 HYDRA_CONFIG=$(pwd)/.hydra-data/hydra.conf exec hydra-dev-server --port 63333

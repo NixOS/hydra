@@ -1,4 +1,5 @@
 use strict;
+use warnings;
 use Setup;
 use Data::Dumper;
 use Test2::V0;

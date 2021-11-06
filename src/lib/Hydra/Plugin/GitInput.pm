@@ -1,6 +1,7 @@
 package Hydra::Plugin::GitInput;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use Digest::SHA qw(sha256_hex);
 use File::Path;
@@ -33,7 +34,7 @@ sub _parseValue {
     my $start_options = 3;
     # if deepClone has "=" then is considered an option
     # and not the enabling of deepClone
-    if (index($deepClone, "=") != -1) {
+    if (defined($deepClone) && index($deepClone, "=") != -1) {
         undef $deepClone;
         $start_options = 2;
     }
@@ -182,7 +183,7 @@ sub fetchInput {
     # TODO: Fix case where the branch is reset to a previous commit.
     my $cachedInput;
     ($cachedInput) = $self->{db}->resultset('CachedGitInputs')->search(
-        {uri => $uri, branch => $branch, revision => $revision},
+        {uri => $uri, branch => $branch, revision => $revision, isdeepclone => defined($deepClone) ? 1 : 0},
         {rows => 1});
 
     addTempRoot($cachedInput->storepath) if defined $cachedInput;
@@ -223,6 +224,7 @@ sub fetchInput {
                 { uri => $uri
                 , branch => $branch
                 , revision => $revision
+                , isdeepclone => defined($deepClone) ? 1 : 0
                 , sha256hash => $sha256
                 , storepath => $storePath
                 });

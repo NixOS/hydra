@@ -11,6 +11,9 @@
 # * Set the associations to the builds in `BuildsByMaintainers`.
 # * Everything will happen in 5k batches of rows.
 
+use strict;
+use warnings;
+
 use utf8;
 use Hydra::Model::DB;
 

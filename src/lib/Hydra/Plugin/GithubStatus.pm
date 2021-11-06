@@ -1,6 +1,7 @@
 package Hydra::Plugin::GithubStatus;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use HTTP::Request;
 use JSON;
@@ -25,32 +26,32 @@ sub toGithubState {
 }
 
 sub common {
-    my ($self, $build, $dependents, $finished) = @_;
+    my ($self, $topbuild, $dependents, $finished) = @_;
     my $cfg = $self->{config}->{githubstatus};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
 
     # Find matching configs
-    foreach my $b ($build, @{$dependents}) {
-        my $jobName = showJobName $b;
-        my $evals = $build->jobsetevals;
+    foreach my $build ($topbuild, @{$dependents}) {
+        my $jobName = showJobName $build;
+        my $evals = $topbuild->jobsetevals;
         my $ua = LWP::UserAgent->new();
 
         foreach my $conf (@config) {
             next unless $jobName =~ /^$conf->{jobs}$/;
             # Don't send out "pending" status updates if the build is already finished
-            next if !$finished && $b->finished == 1;
+            next if !$finished && $build->finished == 1;
 
-            my $contextTrailer = $conf->{excludeBuildFromContext} ? "" : (":" . $b->id);
+            my $contextTrailer = $conf->{excludeBuildFromContext} ? "" : (":" . $build->id);
             my $github_job_name = $jobName =~ s/-pr-\d+//r;
             my $extendedContext = $conf->{context} // "continuous-integration/hydra:" . $jobName . $contextTrailer;
             my $shortContext = $conf->{context} // "ci/hydra:" . $github_job_name . $contextTrailer;
             my $context = $conf->{useShortContext} ? $shortContext : $extendedContext;
             my $body = encode_json(
                 {
-                    state => $finished ? toGithubState($b->buildstatus) : "pending",
-                    target_url => "$baseurl/build/" . $b->id,
-                    description => $conf->{description} // "Hydra build #" . $b->id . " of $jobName",
+                    state => $finished ? toGithubState($build->buildstatus) : "pending",
+                    target_url => "$baseurl/build/" . $build->id,
+                    description => $conf->{description} // "Hydra build #" . $build->id . " of $jobName",
                     context => $context
                 });
             my $inputs_cfg = $conf->{inputs};

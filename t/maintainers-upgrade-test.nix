@@ -23,13 +23,13 @@ in simpleTest {
   nodes = {
     original = { pkgs, lib, config, ... }: {
       imports = [ base ];
-      services.hydra-dev.package = pkgs.hydra-unstable.overrideAttrs (old: rec {
-        inherit (old) pname;
+      services.hydra-dev.package = package.overrideAttrs (old: rec {
+        inherit (old) name;
         src = pkgs.fetchFromGitHub {
           owner = "NixOS";
-          repo = pname;
-          rev = "67b6f0d7ed989c4225dc3d41df950bdded00f4b6";
-          sha256 = "sha256-iurWIKPEza5ICsZOLVE1w6MoCohOqFifnedw/MafyI5=";
+          repo = "hydra";
+          rev = "9ae676072c4b4516503b8e661a1261e5a9b4dc95";
+          sha256 = "sha256-kw6ogxYmSfB26lLpBF/hEP7uJbrjuWgw8L2OjrD5JiM=";
         };
       });
     };

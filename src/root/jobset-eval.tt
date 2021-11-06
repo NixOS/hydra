@@ -6,13 +6,13 @@
   <div class="dropdown-menu dropdown-menu-right">
     <a class="dropdown-item" href="?">Preceding evaluation in this jobset</a>
     <div class="dropdown-divider"></div>
-    <a class="dropdown-item" href="?compare=-[% 24 * 60 * 60 %]">This jobset <strong>one day</strong> earlier</a>
-    <a class="dropdown-item" href="?compare=-[% 7 * 24 * 60 * 60 %]">This jobset <strong>one week</strong> earlier</a>
-    <a class="dropdown-item" href="?compare=-[% 31 * 24 * 60 * 60 %]">This jobset <strong>one month</strong> earlier</a>
+    <a class="dropdown-item" href="?compare=-[% 24 * 60 * 60 %]&full=[% full ? 1 : 0 %]">This jobset <strong>one day</strong> earlier</a>
+    <a class="dropdown-item" href="?compare=-[% 7 * 24 * 60 * 60 %]&full=[% full ? 1 : 0 %]">This jobset <strong>one week</strong> earlier</a>
+    <a class="dropdown-item" href="?compare=-[% 31 * 24 * 60 * 60 %]&full=[% full ? 1 : 0 %]">This jobset <strong>one month</strong> earlier</a>
     [% IF project.jobsets_rs.count > 1 %]
       <div class="dropdown-divider"></div>
       [% FOREACH j IN project.jobsets.sort('name'); IF j.name != jobset.name %]
-        <a class="dropdown-item" href="?compare=[% j.name %]">Jobset <tt>[% project.name %]:[% j.name %]</tt></a>
+        <a class="dropdown-item" href="?compare=[% j.name %]&full=[% full ? 1 : 0 %]">Jobset <tt>[% project.name %]:[% j.name %]</tt></a>
       [% END; END %]
     [% END %]
   </div>

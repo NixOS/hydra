@@ -1,6 +1,7 @@
 package Hydra::Plugin::SoTest;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use Hydra::Helper::CatalystUtils;
 use HTTP::Request;
@@ -101,8 +102,8 @@ sub buildFinished {
     open( $authfile, "<", $sotest->{authfile} )
       or die "Cannot open Sotest authfile \${\$sotest->{authfile}}";
 
-    while (<$authfile>) {
-        if ( $_ =~ /(.+):(.+)/m ) {
+    while (my $line = <$authfile>) {
+        if ( $line =~ /(.+):(.+)/m ) {
             $sotest_username = $1;
             $sotest_password = $2;
         }

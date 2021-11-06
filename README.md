@@ -106,13 +106,31 @@ conflicts with services that might be running on your host, hydra and postgress 
 Note that this is only ever meant as an ad-hoc way of executing Hydra during development. Please make use of the
 NixOS module for actually running Hydra in production.
 
-### Running Tests
+### Checking your patches
 
-After making your changes, verify the test suite still passes. After following the steps in [Development Environment](#development-environment), run:
+After making your changes, verify the test suite passes and perlcritic is still happy.
+
+Start by following the steps in [Development Environment](#development-environment).
+
+Then, you can run the tests and the perlcritic linter together with:
+
+```console
+$ nix-shell
+$ make check
+```
+
+You can run a single test with:
 
 ```
 $ nix-shell
-$ make check
+$ yath test ./t/foo/bar.t
+```
+
+And you can run just perlcritic with:
+
+```
+$ nix-shell
+$ make perlcritic
 ```
 
 ### JSON API

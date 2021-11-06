@@ -1,5 +1,7 @@
 package Hydra::View::NARInfo;
 
+use strict;
+use warnings;
 use File::Basename;
 use Hydra::Helper::CatalystUtils;
 use MIME::Base64;
@@ -7,7 +9,6 @@ use Nix::Manifest;
 use Nix::Store;
 use Nix::Utils;
 use base qw/Catalyst::View/;
-use strict;
 
 sub process {
     my ($self, $c) = @_;

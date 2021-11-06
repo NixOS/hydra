@@ -1,6 +1,7 @@
 package Hydra::View::NixLog;
 
 use strict;
+use warnings;
 use base qw/Catalyst::View/;
 use Hydra::Helper::CatalystUtils;
 
@@ -11,18 +12,18 @@ sub process {
 
     $c->response->content_type('text/plain; charset=utf-8');
 
-    my $fh = new IO::Handle;
+    my $fh = IO::Handle->new();
 
     my $tail = int($c->stash->{tail} // "0");
 
     if ($logPath =~ /\.bz2$/) {
-        my $doTail = $tail ? " tail -n '$tail' |" : "";
-        open $fh, "bzip2 -dc < '$logPath' | $doTail" or die;
+        my $doTail = $tail ? "| tail -n '$tail'" : "";
+        open($fh, "-|", "bzip2 -dc < '$logPath' $doTail") or die;
     } else {
         if ($tail) {
-            open $fh, "tail -n '$tail' '$logPath' |" or die;
+            open($fh, "-|", "tail -n '$tail' '$logPath'") or die;
         } else {
-            open $fh, "<$logPath" or die;
+            open($fh, "<", $logPath) or die;
         }
     }
     binmode($fh);

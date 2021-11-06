@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use JSON::MaybeXS;
 use Net::Prometheus;
 
 sub job : Chained('/') PathPart('job') CaptureArgs(3) {
@@ -50,7 +51,7 @@ sub shield :Chained('job') PathPart('shield') Args(0) {
 
     $c->response->content_type('application/json');
     $c->stash->{'plain'} = {
-        data => scalar (JSON::Any->objToJson(
+        data => scalar (encode_json(
             {
                 schemaVersion => 1,
                 label => "hydra build",
@@ -121,10 +122,10 @@ sub overview : Chained('job') PathPart('') Args(0) {
 
     my $aggregates = {};
     my %constituentJobs;
-    foreach my $b (@constituents) {
-        $aggregates->{$b->get_column('aggregate')}->{constituents}->{$b->job} =
-            { id => $b->id, finished => $b->finished, buildstatus => $b->buildstatus };
-        $constituentJobs{$b->job} = 1;
+    foreach my $build (@constituents) {
+        $aggregates->{$build->get_column('aggregate')}->{constituents}->{$build->job} =
+            { id => $build->id, finished => $build->finished, buildstatus => $build->buildstatus };
+        $constituentJobs{$build->job} = 1;
     }
 
     foreach my $agg (keys %$aggregates) {
@@ -144,7 +145,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
 }
 
 
-sub metrics_tab : Chained('job') PathPart('metrics-tab') Args(0) {
+sub metrics_tab : Chained('job') PathPart('metric-tab') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'job-metrics-tab.tt';
     $c->stash->{metrics} = [ $c->stash->{jobset}->buildmetrics->search(

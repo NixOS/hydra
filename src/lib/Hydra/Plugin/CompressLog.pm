@@ -1,6 +1,7 @@
 package Hydra::Plugin::CompressLog;
 
 use strict;
+use warnings;
 use utf8;
 use parent 'Hydra::Plugin';
 use Hydra::Helper::CatalystUtils;

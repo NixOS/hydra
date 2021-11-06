@@ -1,6 +1,7 @@
 package Hydra::Plugin::GithubRefs;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use HTTP::Request;
 use LWP::UserAgent;
@@ -96,8 +97,8 @@ sub _iterate {
 }
 
 sub fetchInput {
-    my ($self, $type, $name, $value, $project, $jobset) = @_;
-    return undef if $type ne "github_refs";
+    my ($self, $input_type, $name, $value, $project, $jobset) = @_;
+    return undef if $input_type ne "github_refs";
 
     my ($owner, $repo, $type, $fut, $prefix) = split ' ', $value;
     die "type field is neither 'heads' nor 'tags', but '$type'"

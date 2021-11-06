@@ -1,12 +1,12 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = github:NixOS/nixpkgs/release-20.09;
+  inputs.nixpkgs.url = github:NixOS/nixpkgs/release-21.05;
 
   outputs = { self, nixpkgs, nix }:
     let
 
-      version = "${builtins.readFile ./version}.${builtins.substring 0 8 self.lastModifiedDate}.${self.shortRev or "DIRTY"}";
+      version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 self.lastModifiedDate}.${self.shortRev or "DIRTY"}";
 
       pkgs = import nixpkgs {
         system = "x86_64-linux";
@@ -70,6 +70,21 @@
             };
           };
 
+          CatalystPluginPrometheusTiny = final.buildPerlPackage {
+            pname = "Catalyst-Plugin-PrometheusTiny";
+            version = "0.005";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/S/SY/SYSPETE/Catalyst-Plugin-PrometheusTiny-0.005.tar.gz";
+              sha256 = "a42ef09efdc3053899ae007c41220d3ed7207582cc86e491b4f534539c992c5a";
+            };
+            buildInputs = with final.perlPackages; [ HTTPMessage Plack SubOverride TestDeep ];
+            propagatedBuildInputs = with final.perlPackages; [ CatalystRuntime Moose PrometheusTiny PrometheusTinyShared ];
+            meta = {
+              description = "Prometheus metrics for Catalyst";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
           CryptArgon2 = final.perlPackages.buildPerlModule {
             pname = "Crypt-Argon2";
             version = "0.010";
@@ -111,6 +126,20 @@
             };
           };
 
+          DataRandom = final.buildPerlPackage {
+            pname = "Data-Random";
+            version = "0.13";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/B/BA/BAREFOOT/Data-Random-0.13.tar.gz";
+              sha256 = "eb590184a8db28a7e49eab09e25f8650c33f1f668b6a472829de74a53256bfc0";
+            };
+            buildInputs = with final.perlPackages; [ FileShareDirInstall TestMockTime ];
+            meta = {
+              description = "Perl module to generate random data";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
           DirSelf = final.buildPerlPackage {
             pname = "Dir-Self";
             version = "0.11";
@@ -121,6 +150,51 @@
             meta = {
               homepage = "https://github.com/mauke/Dir-Self";
               description = "A __DIR__ constant for the directory your source file is in";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          HashSharedMem = final.perlPackages.buildPerlModule {
+            pname = "Hash-SharedMem";
+            version = "0.005";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/Z/ZE/ZEFRAM/Hash-SharedMem-0.005.tar.gz";
+              sha256 = "324776808602f7bdc44adaa937895365454029a926fa611f321c9bf6b940bb5e";
+            };
+            buildInputs = with final.perlPackages; [ ScalarString ];
+            meta = {
+              description = "Efficient shared mutable hash";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          PrometheusTiny = final.buildPerlPackage {
+            pname = "Prometheus-Tiny";
+            version = "0.007";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/R/RO/ROBN/Prometheus-Tiny-0.007.tar.gz";
+              sha256 = "0ef8b226a2025cdde4df80129dd319aa29e884e653c17dc96f4823d985c028ec";
+            };
+            buildInputs = with final.perlPackages; [ HTTPMessage Plack TestException ];
+            meta = {
+              homepage = "https://github.com/robn/Prometheus-Tiny";
+              description = "A tiny Prometheus client";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          PrometheusTinyShared = final.buildPerlPackage {
+            pname = "Prometheus-Tiny-Shared";
+            version = "0.023";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/R/RO/ROBN/Prometheus-Tiny-Shared-0.023.tar.gz";
+              sha256 = "7c2c72397be5d8e4839d1bf4033c1800f467f2509689673c6419df48794f2abe";
+            };
+            buildInputs = with final.perlPackages; [ DataRandom HTTPMessage Plack TestDifferences TestException ];
+            propagatedBuildInputs = with final.perlPackages; [ HashSharedMem JSONXS PrometheusTiny ];
+            meta = {
+              homepage = "https://github.com/robn/Prometheus-Tiny-Shared";
+              description = "A tiny Prometheus client with a shared database behind it";
               license = with final.lib.licenses; [ artistic1 gpl1Plus ];
             };
           };
@@ -225,7 +299,7 @@
             propagatedBuildInputs = with final.perlPackages; [ NetLDAP ConvertASN1 ];
             meta = {
               description = "LDAP server side protocol handling";
-              license = with final.stdenv.lib.licenses; [ artistic1 ];
+              license = with final.lib.licenses; [ artistic1 ];
             };
           };
 
@@ -238,7 +312,7 @@
             };
             meta = {
               description= "Active Directory Security Identifier manipulation";
-              license = with final.stdenv.lib.licenses; [ artistic2 ];
+              license = with final.lib.licenses; [ artistic2 ];
             };
           };
 
@@ -252,7 +326,7 @@
             propagatedBuildInputs = with final.perlPackages; [ NetLDAP NetLDAPServer TestMore DataDump NetLDAPSID ];
             meta = {
               description= "test Net::LDAP code";
-              license = with final.stdenv.lib.licenses; [ artistic1 ];
+              license = with final.lib.licenses; [ artistic1 ];
             };
           };
 
@@ -267,7 +341,67 @@
             buildInputs = with final.perlPackages; [ TestMore TestMockObject TestException NetLDAPServerTest ];
             meta = {
               description= "Authentication from an LDAP Directory";
-              license = with final.stdenv.lib.licenses; [ artistic1 ];
+              license = with final.lib.licenses; [ artistic1 ];
+            };
+          };
+
+          PerlCriticCommunity = prev.perlPackages.buildPerlModule {
+            pname = "Perl-Critic-Community";
+            version = "1.0.0";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/D/DB/DBOOK/Perl-Critic-Community-v1.0.0.tar.gz";
+              sha256 = "311b775da4193e9de94cf5225e993cc54dd096ae1e7ef60738cdae1d9b8854e7";
+            };
+            buildInputs = with final.perlPackages; [ ModuleBuildTiny ];
+            propagatedBuildInputs = with final.perlPackages; [ PPI PathTiny PerlCritic PerlCriticPolicyVariablesProhibitLoopOnHash PerlCriticPulp ];
+            meta = {
+              homepage = "https://github.com/Grinnz/Perl-Critic-Freenode";
+              description = "Community-inspired Perl::Critic policies";
+              license = final.lib.licenses.artistic2;
+            };
+          };
+
+          PerlCriticPolicyVariablesProhibitLoopOnHash = prev.perlPackages.buildPerlPackage {
+            pname = "Perl-Critic-Policy-Variables-ProhibitLoopOnHash";
+            version = "0.008";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/X/XS/XSAWYERX/Perl-Critic-Policy-Variables-ProhibitLoopOnHash-0.008.tar.gz";
+              sha256 = "12f5f0be96ea1bdc7828058577bd1c5c63ca23c17fac9c3709452b3dff5b84e0";
+            };
+            propagatedBuildInputs = with final.perlPackages; [ PerlCritic ];
+            meta = {
+              description = "Don't write loops on hashes, only on keys and values of hashes";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
+          PerlCriticPulp = prev.perlPackages.buildPerlPackage {
+            pname = "Perl-Critic-Pulp";
+            version = "99";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/K/KR/KRYDE/Perl-Critic-Pulp-99.tar.gz";
+              sha256 = "b8fda842fcbed74d210257c0a284b6dc7b1d0554a47a3de5d97e7d542e23e7fe";
+            };
+            propagatedBuildInputs = with final.perlPackages; [ IOString ListMoreUtils PPI PerlCritic PodMinimumVersion ];
+            meta = {
+              homepage = "http://user42.tuxfamily.org/perl-critic-pulp/index.html";
+              description = "Some add-on policies for Perl::Critic";
+              license = final.lib.licenses.gpl3Plus;
+            };
+          };
+
+          PodMinimumVersion = prev.perlPackages.buildPerlPackage {
+            pname = "Pod-MinimumVersion";
+            version = "50";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/K/KR/KRYDE/Pod-MinimumVersion-50.tar.gz";
+              sha256 = "0bd2812d9aacbd99bb71fa103a4bb129e955c138ba7598734207dc9fb67b5a6f";
+            };
+            propagatedBuildInputs = with final.perlPackages; [ IOString PodParser ];
+            meta = {
+              homepage = "http://user42.tuxfamily.org/pod-minimumversion/index.html";
+              description = "Determine minimum Perl version of POD directives";
+              license = final.lib.licenses.free;
             };
           };
 
@@ -289,7 +423,7 @@
           perlDeps = buildEnv {
             name = "hydra-perl-deps";
             paths = with perlPackages; lib.closePropagation
-              [ ModulePluggable
+              [
                 AuthenSASL
                 CatalystActionREST
                 CatalystAuthenticationStoreDBIxClass
@@ -299,6 +433,7 @@
                 CatalystPluginAccessLog
                 CatalystPluginAuthorizationRoles
                 CatalystPluginCaptcha
+                CatalystPluginPrometheusTiny
                 CatalystPluginSessionStateCookie
                 CatalystPluginSessionStoreFastMmap
                 CatalystPluginStackTrace
@@ -307,47 +442,51 @@
                 CatalystViewDownload
                 CatalystViewJSON
                 CatalystViewTT
-                CatalystXScriptServerStarman
                 CatalystXRoleApplicator
+                CatalystXScriptServerStarman
                 CryptPassphrase
                 CryptPassphraseArgon2
                 CryptRandPasswd
-                DBDPg
-                DBDSQLite
                 DataDump
                 DateTime
+                DBDPg
+                DBDSQLite
                 DigestSHA1
                 EmailMIME
                 EmailSender
-                FileSlurp
+                FileSlurper
                 FileWhich
+                final.nix.perl-bindings
+                git
                 IOCompress
                 IPCRun
                 JSON
-                JSONAny
+                JSONMaybeXS
                 JSONXS
                 LWP
                 LWPProtocolHttps
+                ModulePluggable
                 NetAmazonS3
                 NetPrometheus
                 NetStatsd
                 PadWalker
+                ParallelForkManager
+                PerlCriticCommunity
+                PrometheusTinyShared
                 Readonly
-                SQLSplitStatement
                 SetScalar
+                SQLSplitStatement
                 Starman
                 StringCompareConstantTime
                 SysHostnameLong
                 TermSizeAny
+                Test2Harness
                 TestMore
                 TestPostgreSQL
                 TextDiff
-                Test2Harness
                 TextTable
                 XMLSimple
                 YAML
-                final.nix.perl-bindings
-                git
               ];
           };
 
@@ -360,7 +499,7 @@
           buildInputs =
             [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig libpqxx
               gitAndTools.topGit mercurial darcs subversion breezy openssl bzip2 libxslt
-              final.nix perlDeps perl mdbook
+              final.nix perlDeps perl mdbook pixz
               boost
               postgresql_11
               (if lib.versionAtLeast lib.version "20.03pre"
@@ -488,7 +627,7 @@
                       su - hydra -c "hydra-create-user root --email-address 'alice@example.org' --password foobar --role admin"
                       mkdir /run/jobset
                       chmod 755 /run/jobset
-                      cp ${./t/api-test.nix} /run/jobset/default.nix
+                      cp ${./t/jobs/api-test.nix} /run/jobset/default.nix
                       chmod 644 /run/jobset/default.nix
                       chown -R hydra /run/jobset
               """
@@ -668,7 +807,7 @@
               machine.wait_for_open_port(3001)
 
               machine.succeed(
-                  "su -l gitea -c 'GITEA_WORK_DIR=/var/lib/gitea gitea admin create-user "
+                  "su -l gitea -c 'GITEA_WORK_DIR=/var/lib/gitea gitea admin user create "
                   + "--username root --password root --email test@localhost'"
               )
               machine.succeed("su -l postgres -c 'psql gitea < ${scripts.mktoken}'")
@@ -722,65 +861,63 @@
             machine = { pkgs, ... }: {
               imports = [ hydraServer ];
 
-              services.openldap = {
-                enable = true;
-                suffix = "dc=example";
-                rootdn = "cn=root,dc=example";
-                rootpw = "notapassword";
-                database = "bdb";
-                dataDir = "/var/lib/openldap";
-                extraConfig = ''
-                  moduleload pw-sha2
-                '';
-                extraDatabaseConfig = ''
-                '';
-
-                # userPassword generated via `slappasswd -o module-load=pw-sha2  -h '{SSHA256}'`
-                # The admin user has the password `password and `user` has the password `foobar`.
-                declarativeContents = ''
-                  dn: dc=example
-                  dc: example
-                  o: Root
-                  objectClass: top
-                  objectClass: dcObject
-                  objectClass: organization
-
-                  dn: ou=users,dc=example
-                  ou: users
-                  description: All users
-                  objectClass: top
-                  objectClass: organizationalUnit
-
-                  dn: ou=groups,dc=example
-                  ou: groups
-                  description: All groups
-                  objectClass: top
-                  objectClass: organizationalUnit
-
-                  dn: cn=hydra_admin,ou=groups,dc=example
-                  cn: hydra_admin
-                  description: Hydra Admin user group
-                  objectClass: groupOfNames
-                  member: cn=admin,ou=users,dc=example
-
-                  dn: cn=user,ou=users,dc=example
-                  objectClass: organizationalPerson
-                  objectClass: inetOrgPerson
-                  sn: user
-                  cn: user
-                  mail: user@example
-                  userPassword: {SSHA256}B9rfUbNgv8nIGn1Hm5qbVQdv6AIQb012ORJwegqELB0DWCzoMCY+4A==
-
-                  dn: cn=admin,ou=users,dc=example
-                  objectClass: organizationalPerson
-                  objectClass: inetOrgPerson
-                  sn: admin
-                  cn: admin
-                  mail: admin@example
-                  userPassword: {SSHA256}meKP7fSWhkzXFC1f8RWRb8V8ssmN/VQJp7xJrUFFcNUDuwP1PbitMg==
-                '';
+              services.openldap.enable = true;
+              services.openldap.settings.children = {
+                "olcDatabase={1}mdb".attrs = {
+                  objectClass = [ "olcDatabaseConfig" "olcMdbConfig" ];
+                  database = "{1}mdbg";
+                  olcSuffix = "dc=example";
+                  olcRootDN = "cn=root,dc=example";
+                  olcRootPW = "notapassword";
+                  olcDbDirectory = "/var/lib/openldap";
+                };
               };
-              systemd.services.hdyra-server.environment.CATALYST_DEBUG = "1";
+
+              # userPassword generated via `slappasswd`
+              # The admin user has the password `password` and `user` has the password `foobar`.
+              services.openldap.declarativeContents."dc=example" = ''
+                dn: dc=example
+                dc: example
+                o: Root
+                objectClass: top
+                objectClass: dcObject
+                objectClass: organization
+
+                dn: ou=users,dc=example
+                ou: users
+                description: All users
+                objectClass: top
+                objectClass: organizationalUnit
+
+                dn: ou=groups,dc=example
+                ou: groups
+                description: All groups
+                objectClass: top
+                objectClass: organizationalUnit
+
+                dn: cn=hydra_admin,ou=groups,dc=example
+                cn: hydra_admin
+                description: Hydra Admin user group
+                objectClass: groupOfNames
+                member: cn=admin,ou=users,dc=example
+
+                dn: cn=user,ou=users,dc=example
+                objectClass: organizationalPerson
+                objectClass: inetOrgPerson
+                sn: user
+                cn: user
+                mail: user@example
+                userPassword: {SSHA}gLgBMb86/3wecoCp8gtORgIF2/qCRpqs
+
+                dn: cn=admin,ou=users,dc=example
+                objectClass: organizationalPerson
+                objectClass: inetOrgPerson
+                sn: admin
+                cn: admin
+                mail: admin@example
+                userPassword: {SSHA}BsgOQcRnoiULzwLrGmuzVGH6EC5Dkwmf
+              '';
+              systemd.services.hydra-server.environment.CATALYST_DEBUG = "1";
               systemd.services.hydra-server.environment.HYDRA_LDAP_CONFIG = pkgs.writeText "config.yaml"
                 # example config based on https://metacpan.org/source/ILMARI/Catalyst-Authentication-Store-LDAP-1.016/README#L103
                 ''

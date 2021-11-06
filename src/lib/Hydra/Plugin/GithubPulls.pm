@@ -1,6 +1,7 @@
 package Hydra::Plugin::GithubPulls;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use HTTP::Request;
 use LWP::UserAgent;
@@ -52,11 +53,12 @@ sub fetchInput {
     _iterate("https://api.github.com/repos/$owner/$repo/pulls?per_page=100", $auth, \%pulls, $ua);
     my $tempdir = File::Temp->newdir("github-pulls" . "XXXXX", TMPDIR => 1);
     my $filename = "$tempdir/github-pulls.json";
+
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
-    print $fh encode_json \%pulls;
+    print $fh JSON->new->utf8->canonical->encode(\%pulls);
     close $fh;
-    system("jq -S . < $filename > $tempdir/github-pulls-sorted.json");
-    my $storePath = trim(`nix-store --add "$tempdir/github-pulls-sorted.json"`
+
+    my $storePath = trim(`nix-store --add "$filename"`
         or die "cannot copy path $filename to the Nix store.\n");
     chomp $storePath;
     my $timestamp = time;

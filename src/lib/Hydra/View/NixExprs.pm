@@ -1,6 +1,7 @@
 package Hydra::View::NixExprs;
 
 use strict;
+use warnings;
 use base qw/Catalyst::View/;
 use Hydra::Helper::Nix;
 use Hydra::Helper::Escape;

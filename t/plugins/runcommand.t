@@ -30,7 +30,7 @@ is(nrQueuedBuildsForJobset($jobset), 1, "Evaluating jobs/runcommand.nix should r
 (my $build) = queuedBuildsForJobset($jobset);
 
 is($build->job, "metrics", "The only job should be metrics");
-ok(runBuild($build), "Build should exit with code 0");
+ok(runBuild($build), "Build should exit with return code 0");
 my $newbuild = $db->resultset('Builds')->find($build->id);
 is($newbuild->finished, 1, "Build should be finished.");
 is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");

@@ -1,6 +1,7 @@
 package Hydra::View::NixClosure;
 
 use strict;
+use warnings;
 use base qw/Catalyst::View/;
 use IO::Pipe;
 
@@ -11,9 +12,9 @@ sub process {
 
     my @storePaths = @{$c->stash->{storePaths}};
 
-    my $fh = new IO::Handle;
+    my $fh = IO::Handle->new();
 
-    open $fh, "nix-store --export `nix-store -qR @storePaths` | gzip |";
+    open($fh, "-|", "nix-store --export `nix-store -qR @storePaths` | gzip");
 
     $c->response->body($fh);
 

@@ -1,15 +1,5 @@
-create table Maintainers (
-    id            serial primary key not null,
+-- These take about 9 minutes in total on a replica of hydra.nixos.org
 
-    email         text not null unique,
-    github_handle text null
-);
-
-create table BuildsByMaintainers (
-    maintainer_id   integer not null,
-    build_id        integer not null,
-
-    primary key (maintainer_id, build_id),
-    foreign key (maintainer_id) references Maintainers(id),
-    foreign key (build_id) references Builds(id)
-);
+create index IndexBuildsJobsetIdCurrentUnfinished on Builds(jobset_id) where isCurrent = 1 and finished = 0;
+create index IndexBuildsJobsetIdCurrentFinishedStatus on Builds(jobset_id, buildstatus) where isCurrent = 1 and finished = 1;
+create index IndexBuildsJobsetIdCurrent on Builds(jobset_id) where isCurrent = 1;

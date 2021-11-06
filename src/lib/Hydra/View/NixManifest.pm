@@ -1,6 +1,7 @@
 package Hydra::View::NixManifest;
 
 use strict;
+use warnings;
 use base qw/Catalyst::View/;
 use Hydra::Helper::Nix;
 use Nix::Store;

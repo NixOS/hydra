@@ -1,6 +1,7 @@
 package Hydra::Helper::AddBuilds;
 
 use strict;
+use warnings;
 use utf8;
 use Encode;
 use JSON;
@@ -14,7 +15,6 @@ use File::stat;
 use File::Path;
 use File::Temp;
 use File::Spec;
-use File::Slurp;
 use Hydra::Helper::CatalystUtils;
 
 our @ISA = qw(Exporter);

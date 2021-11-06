@@ -1,16 +1,68 @@
 #! /usr/bin/env perl
 
 use strict;
+use warnings;
 use utf8;
-use Hydra::Plugin;
-use Hydra::Helper::Nix;
-use Hydra::Helper::AddBuilds;
-use IO::Select;
 use Getopt::Long;
+use HTTP::Server::PSGI;
+use Hydra::Event;
+use Hydra::Event::BuildFinished;
+use Hydra::Helper::AddBuilds;
+use Hydra::Helper::Nix;
+use Hydra::Plugin;
+use Hydra::PostgresListener;
+use Hydra::TaskDispatcher;
+use Parallel::ForkManager;
+use Prometheus::Tiny::Shared;
 
 STDERR->autoflush(1);
 STDOUT->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
+
+my $config = getHydraConfig();
+
+my $prom = Prometheus::Tiny::Shared->new;
+# Note: It is very important to pre-declare any metrics before using them.
+# Add a new declaration for any new metrics you create. Metrics which are
+# not pre-declared disappear when their value is null. See:
+# https://metacpan.org/pod/Prometheus::Tiny#declare
+$prom->declare(
+    "event_loop_iterations",
+    type => "counter",
+    help => "Number of iterations through the event loop. Incremented at the start of the event loop."
+);
+$prom->declare(
+    "event_received",
+    type => "counter",
+    help => "Timestamp of the last time a new event was received."
+);
+$prom->declare(
+    "notify_event",
+    type => "counter",
+    help => "Number of events received on the given channel."
+);
+$prom->declare(
+    "notify_event_error",
+    type => "counter",
+    help => "Number of events received that were unprocessable by channel."
+);
+
+my $promCfg = Hydra::Helper::Nix::getHydraNotifyPrometheusConfig($config);
+if (defined($promCfg)) {
+    print STDERR "Starting the Prometheus exporter, listening on http://${\$promCfg->{'listen_address'}}:${\$promCfg->{'port'}}/metrics.\n";
+    my $fork_manager = Parallel::ForkManager->new(1);
+    $fork_manager->start_child("metrics_exporter", sub {
+        my $server = HTTP::Server::PSGI->new(
+            host => $promCfg->{"listen_address"},
+            port => $promCfg->{"port"},
+            timeout => 1,
+        );
+
+        $server->run($prom->psgi);
+    });
+} else {
+    print STDERR "Not starting the hydra-notify Prometheus exporter.\n";
+}
 
 my $queued_only;
 
@@ -18,127 +70,70 @@ GetOptions(
     "queued-only" => \$queued_only
 ) or exit 1;
 
-my $config = getHydraConfig();
 
 my $db = Hydra::Model::DB->new();
 
 my @plugins = Hydra::Plugin->instantiate(db => $db, config => $config);
+my $task_dispatcher = Hydra::TaskDispatcher->new(
+    $db,
+    $prom,
+    [@plugins],
+    sub {
+        my ($task) = @_;
+        $db->resultset("TaskRetries")->save_task($task);
+    }
+);
 
 my $dbh = $db->storage->dbh;
 
-$dbh->do("listen build_started");
-$dbh->do("listen build_finished");
-$dbh->do("listen step_finished");
-
-sub buildStarted {
-    my ($buildId) = @_;
-
-    my $build = $db->resultset('Builds')->find($buildId)
-        or die "build $buildId does not exist\n";
-
-    foreach my $plugin (@plugins) {
-        eval {
-            $plugin->buildStarted($build);
-            1;
-        } or do {
-            print STDERR "error with $plugin->buildStarted: $@\n";
-        }
-    }
-}
-
-sub buildFinished {
-    my ($build, @deps) = @_;
-
-    my $project = $build->project;
-    my $jobsetName = $build->get_column('jobset');
-    if (length($project->declfile) && $jobsetName eq ".jobsets" && $build->iscurrent) {
-        handleDeclarativeJobsetBuild($db, $project, $build);
-    }
-
-    my @dependents;
-    foreach my $id (@deps) {
-        my $dep = $db->resultset('Builds')->find($id)
-            or die "build $id does not exist\n";
-        push @dependents, $dep;
-    }
-
-    foreach my $plugin (@plugins) {
-        eval {
-            $plugin->buildFinished($build, [@dependents]);
-            1;
-        } or do {
-            print STDERR "error with $plugin->buildFinished: $@\n";
-        }
-    }
-
-    # We have to iterate through all dependents as well, and if they are finished
-    # to mark their notificationpendingsince.
-    # Otherwise, the dependent builds will remain with notificationpendingsince set
-    # until hydra-notify is started, as buildFinished is never emitted for them.
-    foreach my $b ($build, @dependents) {
-        $b->update({ notificationpendingsince => undef }) if $b->finished;
-    }
-}
-
-sub stepFinished {
-    my ($buildId, $stepNr, $logPath) = @_;
-
-    my $build = $db->resultset('Builds')->find($buildId)
-        or die "build $buildId does not exist\n";
-
-    my $step = $build->buildsteps->find({stepnr => $stepNr})
-        or die "step $stepNr does not exist\n";
-
-    $logPath = undef if $logPath eq "-";
-
-    foreach my $plugin (@plugins) {
-        eval {
-            $plugin->stepFinished($step, $logPath);
-            1;
-        } or do {
-            print STDERR "error with $plugin->stepFinished: $@\n";
-        }
-    }
-}
+my $listener = Hydra::PostgresListener->new($dbh);
+$listener->subscribe("build_started");
+$listener->subscribe("build_finished");
+$listener->subscribe("step_finished");
+$listener->subscribe("hydra_notify_dump_metrics");
 
 # Process builds that finished while hydra-notify wasn't running.
 for my $build ($db->resultset('Builds')->search(
                    { notificationpendingsince => { '!=', undef } }))
 {
-    my $buildId = $build->id;
-    print STDERR "sending notifications for build ${\$buildId}...\n";
-    buildFinished($build);
+    print STDERR "sending notifications for build ${\$build->id}...\n";
+
+    my $event = Hydra::Event->new_event("build_finished", $build->id);
+    $task_dispatcher->dispatch_event($event);
 }
 
+my $taskretries = $db->resultset('TaskRetries');
 
 # Process incoming notifications.
-my $fd = $dbh->func("getfd");
-my $sel = IO::Select->new($fd);
-
 while (!$queued_only) {
-    $sel->can_read;
+    $prom->inc("event_loop_iterations");
+    my $messages = $listener->block_for_messages($taskretries->get_seconds_to_next_retry());
+    while (my $message = $messages->()) {
+        $prom->set("event_received", time());
+        my $channelName = $message->{"channel"};
+        my $pid = $message->{"pid"};
+        my $payload = $message->{"payload"};
 
-    while (my $notify = $dbh->func("pg_notifies")) {
+        $prom->inc("notify_event", { channel => $channelName });
 
-        my ($channelName, $pid, $payload) = @$notify;
-        #print STDERR "got '$channelName' from $pid: $payload\n";
-
-        my @payload = split /\t/, $payload;
+        if ($channelName eq "hydra_notify_dump_metrics") {
+            print STDERR "Dumping prometheus metrics:\n${\$prom->format}\n";
+            next;
+        }
 
         eval {
-            if ($channelName eq "build_started") {
-                buildStarted(int($payload[0]));
-            } elsif ($channelName eq "build_finished") {
-                my $buildId = int($payload[0]);
-                my $build = $db->resultset('Builds')->find($buildId)
-                    or die "build $buildId does not exist\n";
-                buildFinished($build, @payload[1..$#payload]);
-            } elsif ($channelName eq "step_finished") {
-                stepFinished(int($payload[0]), int($payload[1]));
-            }
+            my $event = Hydra::Event->new_event($channelName, $message->{"payload"});
+            $task_dispatcher->dispatch_event($event);
+
             1;
         } or do {
+            $prom->inc("notify_event_error", { channel => $channelName });
             print STDERR "error processing message '$payload' on channel '$channelName': $@\n";
         }
+    }
+
+    my $task = $taskretries->get_retryable_task();
+    if (defined($task)) {
+        $task_dispatcher->dispatch_task($task);
     }
 }

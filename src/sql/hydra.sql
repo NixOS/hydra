@@ -2,11 +2,15 @@
 --
 -- 1. Update this schema document to match what the end result should be.
 --
--- 2. Run `make -C src/sql update-dbix hydra-postgresql.sql` in the root
+-- 2. If you're making a new database table, edit `update-dbix.pl` and
+--    add a map of the lowercase name of your table to the CamelCase
+--    version of your table.
+--
+-- 3. Run `make -C src/sql update-dbix` in the root
 --    of the project directory, and git add / git commit the changed,
 --    generated files.
 --
--- 3. Create a migration in this same directory, named `upgrade-N.sql`
+-- 4. Create a migration in this same directory, named `upgrade-N.sql`
 --
 
 -- Singleton table to keep track of the schema version.
@@ -416,9 +420,10 @@ create table CachedGitInputs (
     uri           text not null,
     branch        text not null,
     revision      text not null,
+    isDeepClone   boolean not null,
     sha256hash    text not null,
     storePath     text not null,
-    primary key   (uri, branch, revision)
+    primary key   (uri, branch, revision, isDeepClone)
 );
 
 create table CachedDarcsInputs (
@@ -447,13 +452,6 @@ create table CachedCVSInputs (
     sha256hash    text not null,
     storePath     text not null,
     primary key   (uri, module, sha256hash)
-);
-
-
--- FIXME: remove
-create table SystemTypes (
-    system        text primary key not null,
-    maxConcurrent integer not null default 2
 );
 
 create table EvaluationErrors (
@@ -562,6 +560,21 @@ create table StarredJobs (
     foreign key   (project, jobset) references Jobsets(project, name) on update cascade on delete cascade
 );
 
+-- Events processed by hydra-notify which have failed at least once
+--
+-- The payload field contains the original, unparsed payload.
+--
+-- One row is created for each plugin which fails to process the event,
+-- with an increasing retry_at and attempts field.
+create table TaskRetries (
+    id            serial primary key not null,
+    channel       text not null,
+    pluginname    text not null,
+    payload       text not null,
+    attempts      integer not null,
+    retry_at      integer not null
+);
+create index IndexTaskRetriesOrdered on TaskRetries(retry_at asc);
 
 -- The output paths that have permanently failed.
 create table FailedPaths (
@@ -626,6 +639,9 @@ create index IndexBuildsOnFinished on Builds(finished) where finished = 0;
 create index IndexBuildsOnIsCurrent on Builds(isCurrent) where isCurrent = 1;
 create index IndexBuildsOnJobsetIsCurrent on Builds(project, jobset, isCurrent) where isCurrent = 1;
 create index IndexBuildsOnJobIsCurrent on Builds(project, jobset, job, isCurrent) where isCurrent = 1;
+create index IndexBuildsJobsetIdCurrentUnfinished on Builds(jobset_id) where isCurrent = 1 and finished = 0;
+create index IndexBuildsJobsetIdCurrentFinishedStatus on Builds(jobset_id, buildstatus) where isCurrent = 1 and finished = 1;
+create index IndexBuildsJobsetIdCurrent on Builds(jobset_id) where isCurrent = 1;
 create index IndexBuildsOnJobset on Builds(project, jobset);
 create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);

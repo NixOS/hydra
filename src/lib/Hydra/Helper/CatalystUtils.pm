@@ -2,6 +2,7 @@ package Hydra::Helper::CatalystUtils;
 
 use utf8;
 use strict;
+use warnings;
 use Exporter;
 use Readonly;
 use Nix::Store;
@@ -64,8 +65,7 @@ sub getNextBuild {
     (my $nextBuild) = $c->model('DB::Builds')->search(
       { finished => 1
       , system => $build->system
-      , project => $build->get_column('project')
-      , jobset => $build->get_column('jobset')
+      , jobset_id => $build->get_column('jobset_id')
       , job => $build->get_column('job')
       , 'me.id' =>  { '>' => $build->id }
       }, {rows => 1, order_by => "me.id ASC"});
@@ -81,8 +81,7 @@ sub getPreviousSuccessfulBuild {
     (my $prevBuild) = $c->model('DB::Builds')->search(
       { finished => 1
       , system => $build->system
-      , project => $build->get_column('project')
-      , jobset => $build->get_column('jobset')
+      , jobset_id => $build->get_column('jobset_id')
       , job => $build->get_column('job')
       , buildstatus => 0
       , 'me.id' =>  { '<' => $build->id }
@@ -111,14 +110,14 @@ sub searchBuildsAndEvalsForJobset {
             { columns => ['id', 'job', 'finished', 'buildstatus'] }
         );
 
-        foreach my $b (@allBuilds) {
-            my $jobName = $b->get_column('job');
+        foreach my $build (@allBuilds) {
+            my $jobName = $build->get_column('job');
 
             $evals->{$eval->id}->{timestamp} = $eval->timestamp;
             $evals->{$eval->id}->{builds}->{$jobName} = {
-                id => $b->id,
-                finished => $b->finished,
-                buildstatus => $b->buildstatus
+                id => $build->id,
+                finished => $build->finished,
+                buildstatus => $build->buildstatus
             };
             $builds{$jobName} = 1;
             $nrBuilds++;

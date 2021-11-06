@@ -23,6 +23,7 @@ EXTRA_DIST = \
   $(TESTS)
 
 TESTS = \
+  perlcritic.pl \
   test.pl
 
 check_SCRIPTS = repos

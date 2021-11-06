@@ -1,6 +1,7 @@
 #! /usr/bin/env perl
 
 use strict;
+use warnings;
 use File::Basename;
 use Fcntl;
 use IO::File;
@@ -25,9 +26,9 @@ my $client = Net::Amazon::S3::Client->new( s3 => Net::Amazon::S3->new( retry => 
 my $db = Hydra::Model::DB->new();
 
 my $gcRootsDir = getGCRootsDir;
-opendir DIR, $gcRootsDir or die;
-my @roots = readdir DIR;
-closedir DIR;
+opendir my $dir, $gcRootsDir or die;
+my @roots = readdir $dir;
+closedir $dir;
 
 my @actual_roots = ();
 foreach my $link (@roots) {

@@ -1,6 +1,7 @@
 package Hydra::View::NixNAR;
 
 use strict;
+use warnings;
 use base qw/Catalyst::View/;
 use Hydra::Helper::CatalystUtils;
 
@@ -13,9 +14,9 @@ sub process {
 
     $c->response->content_type('application/x-nix-archive'); # !!! check MIME type
 
-    my $fh = new IO::Handle;
+    my $fh = IO::Handle->new();
 
-    open $fh, "nix-store --dump '$storePath' | pixz -0 $pParam |";
+    open($fh, "-|", "nix-store --dump '$storePath' | pixz -0 $pParam");
 
     setCacheHeaders($c, 365 * 24 * 60 * 60);
 
