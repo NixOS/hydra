@@ -46,9 +46,6 @@ my $dat = do {
     $json->decode(<$json_fh>)
 };
 
-use Data::Dumper;
-print Dumper($dat);
-
 subtest "Validate the top level fields match" => sub {
     is($dat->{build}, $newbuild->id, "The build event matches our expected ID.");
     is($dat->{buildStatus}, 0, "The build status matches.");
