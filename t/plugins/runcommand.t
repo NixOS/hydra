@@ -40,7 +40,7 @@ ok(sendNotifications(), "Notifications execute successfully.");
 my $dat = do {
     my $filename = $ENV{'HYDRA_DATA'} . "/joboutput.json";
     open(my $json_fh, "<", $filename)
-        or die("Can't open \$filename\": $!\n");
+        or die("Can't open \"$filename\": $!\n");
     local $/;
     my $json = JSON->new;
     $json->decode(<$json_fh>)
