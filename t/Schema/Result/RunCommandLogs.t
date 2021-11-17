@@ -1,0 +1,111 @@
+use strict;
+use warnings;
+use Setup;
+
+my %ctx = test_init();
+
+require Hydra::Schema;
+require Hydra::Model::DB;
+
+use Test2::V0;
+
+my $db = Hydra::Model::DB->new;
+hydra_setup($db);
+
+my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
+my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
+ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
+is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
+
+my ($build, @_) = queuedBuildsForJobset($jobset);
+
+sub new_run_log {
+    return $db->resultset('RunCommandLogs')->create({
+        job_matcher => "*:*:*",
+        build_id => $build->get_column('id'),
+        command => "bogus",
+    });
+}
+
+
+subtest "Not yet started" => sub {
+    my $runlog = new_run_log();
+
+    is($runlog->start_time, undef, "The start time is undefined.");
+    is($runlog->end_time, undef, "The start time is undefined.");
+    is($runlog->exit_code, undef, "The exit code is undefined.");
+    is($runlog->signal, undef, "The signal is undefined.");
+    is($runlog->core_dumped, undef, "The core dump status is undefined.");
+};
+
+subtest "Completing a process before it is started is invalid" => sub {
+    my $runlog = new_run_log();
+
+    like(
+        dies {
+            $runlog->completed_with_child_error(0, 0);
+        },
+        qr/runcommandlogs_end_time_has_start_time/,
+        "It is invalid to complete the process before it started"
+    );
+};
+
+subtest "Starting a process" => sub {
+    my $runlog = new_run_log();
+    $runlog->started();
+    is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
+    is($runlog->end_time, undef, "The end time is undefined.");
+    is($runlog->exit_code, undef, "The exit code is undefined.");
+    is($runlog->signal, undef, "The signal is undefined.");
+    is($runlog->core_dumped, undef, "The core dump status is undefined.");
+};
+
+subtest "The process completed (success)" => sub {
+    my $runlog = new_run_log();
+    $runlog->started();
+    $runlog->completed_with_child_error(0, 123);
+    is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
+    is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
+    is($runlog->error_number, undef, "The error number is undefined");
+    is($runlog->exit_code, 0, "The exit code is 0.");
+    is($runlog->signal, undef, "The signal is undefined.");
+    is($runlog->core_dumped, undef, "The core dump is undefined.");
+};
+
+subtest "The process completed (errored)" => sub {
+    my $runlog = new_run_log();
+    $runlog->started();
+    $runlog->completed_with_child_error(21760, 123);
+    is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
+    is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
+    is($runlog->error_number, undef, "The error number is undefined");
+    is($runlog->exit_code, 85, "The exit code is 85.");
+    is($runlog->signal, undef, "The signal is undefined.");
+    is($runlog->core_dumped, undef, "The core dump is undefined.");
+};
+
+subtest "The process completed (signaled)" => sub {
+    my $runlog = new_run_log();
+    $runlog->started();
+    $runlog->completed_with_child_error(393, 234);
+    is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
+    is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
+    is($runlog->error_number, undef, "The error number is undefined");
+    is($runlog->exit_code, undef, "The exit code is undefined.");
+    is($runlog->signal, 9, "The signal is 9.");
+    is($runlog->core_dumped, 1, "The core dumped.");
+};
+
+subtest "The process failed to start" => sub {
+    my $runlog = new_run_log();
+    $runlog->started();
+    $runlog->completed_with_child_error(-1, 2);
+    is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
+    is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
+    is($runlog->error_number, 2, "The error number is saved");
+    is($runlog->exit_code, undef, "The exit code is undefined.");
+    is($runlog->signal, undef, "The signal is undefined.");
+    is($runlog->core_dumped, undef, "The core dumped is not defined.");
+};
+
+done_testing;

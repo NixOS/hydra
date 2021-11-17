@@ -148,10 +148,82 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-11-18 12:35:52
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:N0G71diB8DNDgkYgaSQrFA
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-11-19 15:15:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:9AIzlQl1RjRXrs9gQCZKVw
+
+use POSIX qw(WEXITSTATUS WIFEXITED WIFSIGNALED WTERMSIG);
+
+=head2 started
+
+Update the row with the current timestamp as the start time.
+
+=cut
+sub started {
+    my ($self) = @_;
+
+    return $self->update({
+      start_time => time()
+    });
+}
+
+=head2 completed_with_child_error
+
+Update the row with the current timestamp, exit code, core dump, errno,
+and signal status.
+
+Arguments:
+
+=over 2
+
+=item C<$child_error>
+
+The value of $? or $CHILD_ERROR (with use English) after calling system().
+
+=item C<$errno>
+
+The value of $! or $ERRNO (with use English) after calling system().
+
+=back
+
+=cut
+sub completed_with_child_error {
+    my ($self, $child_error, $reported_errno) = @_;
+
+    my $errno = undef;
+    my $exit_code = undef;
+    my $signal = undef;
+    my $core_dumped = undef;
+
+    if ($child_error == -1) {
+      # -1 indicates `exec` failed, and this is the only
+      # case where the reported errno is valid.
+      $errno = $reported_errno;
+    }
+
+    if (WIFEXITED($child_error)) {
+      # The exit status bits are only meaningful if the process exited
+      $exit_code = WEXITSTATUS($child_error);
+    }
+
+    if (WIFSIGNALED($child_error)) {
+      # The core dump and signal bits are only meaningful if the
+      # process was terminated via a signal
+      $signal = WTERMSIG($child_error);
+
+      # This `& 128` comes from where Perl constructs the CHILD_ERROR
+      # value:
+      # https://github.com/Perl/perl5/blob/a9d7a07c2ebbfd8ee992f1d27ef4cfbed53085b6/perl.h#L3609-L3621
+      $core_dumped = ($child_error & 128) == 128;
+    }
+
+    return $self->update({
+      end_time => time(),
+      error_number => $errno,
+      exit_code => $exit_code,
+      signal => $signal,
+      core_dumped => $core_dumped,
+    });
+}
 
 
-
-# You can replace this text with custom code or comments, and it will be preserved on regeneration
 1;
