@@ -161,9 +161,9 @@ sub buildFinished {
         $runlog->started();
 
         system("$command") == 0
-            or warn "notification command '$command' failed with exit status $?\n";
+            or warn "notification command '$command' failed with exit status $? ($!)\n";
 
-        $runlog->completed_with_child_error($?);
+        $runlog->completed_with_child_error($?, $!);
     }
 }
 

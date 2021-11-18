@@ -197,7 +197,10 @@ sub completed_with_child_error {
     if ($child_error == -1) {
       # -1 indicates `exec` failed, and this is the only
       # case where the reported errno is valid.
-      $errno = $reported_errno;
+      #
+      # The `+ 0` is because $! is a dual var and likes to be a string
+      # if it can. +0 forces it to not be. Sigh.
+      $errno = $reported_errno + 0;
     }
 
     if (WIFEXITED($child_error)) {
