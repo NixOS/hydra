@@ -228,5 +228,27 @@ sub completed_with_child_error {
     });
 }
 
+=head2 did_succeed
+
+Return:
+
+* true if the task ran and finished successfully,
+* false if the task did not run successfully but is completed
+* undef if the task has not yet run
+
+=cut
+sub did_succeed {
+    my ($self) = @_;
+
+    if (!defined($self->end_time)) {
+      return undef;
+    }
+
+    if (!defined($self->exit_code)) {
+      return 0;
+    }
+
+    return $self->exit_code == 0;
+}
 
 1;

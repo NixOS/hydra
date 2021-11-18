@@ -39,6 +39,7 @@ ok(sendNotifications(), "Notifications execute successfully.");
 
 subtest "Validate a run log was created" => sub {
     my $runlog = $build->runcommandlogs->find({});
+    ok(!$runlog->did_succeed(), "The process did not succeed.");
     is($runlog->job_matcher, "*:*:*", "An unspecified job matcher is defaulted to *:*:*");
     is($runlog->command, 'invalid-command-this-does-not-exist', "The executed command is saved.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");

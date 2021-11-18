@@ -52,6 +52,7 @@ subtest "Validate the file parsed and at least one field matches" => sub {
 
 subtest "Validate a run log was created" => sub {
     my $runlog = $build->runcommandlogs->find({});
+    ok($runlog->did_succeed(), "The process did succeed.");
     is($runlog->job_matcher, "*:*:*", "An unspecified job matcher is defaulted to *:*:*");
     is($runlog->command, 'cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"', "The executed command is saved.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");

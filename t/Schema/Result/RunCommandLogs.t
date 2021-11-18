@@ -53,6 +53,7 @@ subtest "Completing a process before it is started is invalid" => sub {
 subtest "Starting a process" => sub {
     my $runlog = new_run_log();
     $runlog->started();
+    is($runlog->did_succeed(), undef, "The process has not yet succeeded.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, undef, "The end time is undefined.");
     is($runlog->exit_code, undef, "The exit code is undefined.");
@@ -64,6 +65,7 @@ subtest "The process completed (success)" => sub {
     my $runlog = new_run_log();
     $runlog->started();
     $runlog->completed_with_child_error(0, 123);
+    ok($runlog->did_succeed(), "The process did succeed.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
     is($runlog->error_number, undef, "The error number is undefined");
@@ -76,6 +78,7 @@ subtest "The process completed (errored)" => sub {
     my $runlog = new_run_log();
     $runlog->started();
     $runlog->completed_with_child_error(21760, 123);
+    ok(!$runlog->did_succeed(), "The process did not succeed.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
     is($runlog->error_number, undef, "The error number is undefined");
@@ -88,6 +91,7 @@ subtest "The process completed (signaled)" => sub {
     my $runlog = new_run_log();
     $runlog->started();
     $runlog->completed_with_child_error(393, 234);
+    ok(!$runlog->did_succeed(), "The process did not succeed.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
     is($runlog->error_number, undef, "The error number is undefined");
@@ -100,6 +104,7 @@ subtest "The process failed to start" => sub {
     my $runlog = new_run_log();
     $runlog->started();
     $runlog->completed_with_child_error(-1, 2);
+    ok(!$runlog->did_succeed(), "The process did not succeed.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
     is($runlog->error_number, 2, "The error number is saved");
