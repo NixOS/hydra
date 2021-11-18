@@ -8,6 +8,7 @@ make_schema_at("Hydra::Schema", {
     naming => { ALL => "v5" },
     relationships => 1,
     use_namespaces => 1,
+    overwrite_modifications => 1,
     moniker_map => {
         "aggregateconstituents" => "AggregateConstituents",
         "buildinputs" => "BuildInputs",
