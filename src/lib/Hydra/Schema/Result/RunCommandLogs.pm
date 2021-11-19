@@ -216,7 +216,13 @@ sub completed_with_child_error {
       # This `& 128` comes from where Perl constructs the CHILD_ERROR
       # value:
       # https://github.com/Perl/perl5/blob/a9d7a07c2ebbfd8ee992f1d27ef4cfbed53085b6/perl.h#L3609-L3621
-      $core_dumped = ($child_error & 128) == 128;
+      #
+      # The `+ 0` is handling another dualvar. It is a bool, but a
+      # bool false is an empty string in boolean context and 0 in a
+      # numeric concept. The ORM knows the column is a bool, but
+      # does not treat the empty string as a bool when talking to
+      # postgres.
+      $core_dumped = (($child_error & 128) == 128) + 0;
     }
 
     return $self->update({

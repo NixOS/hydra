@@ -87,6 +87,19 @@ subtest "The process completed (errored)" => sub {
     is($runlog->core_dumped, undef, "The core dump is undefined.");
 };
 
+subtest "The process completed (status 15, child error 0)" => sub {
+    my $runlog = new_run_log();
+    $runlog->started();
+    $runlog->completed_with_child_error(15, 0);
+    ok(!$runlog->did_succeed(), "The process did not succeed.");
+    is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
+    is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
+    is($runlog->error_number, undef, "The error number is undefined");
+    is($runlog->exit_code, undef, "The exit code is undefined.");
+    is($runlog->signal, 15, "Signal 15 was sent.");
+    is($runlog->core_dumped, 1, "There was no core dump.");
+};
+
 subtest "The process completed (signaled)" => sub {
     my $runlog = new_run_log();
     $runlog->started();
