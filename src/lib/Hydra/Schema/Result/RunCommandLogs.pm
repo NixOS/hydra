@@ -297,5 +297,27 @@ sub did_fail_with_signal {
     return defined($self->signal);
 }
 
+=head2 did_fail_with_exec_error
+
+Looks in the database to see if the task failed with a signal.
+
+Return:
+
+* true if the task is not running and failed with a signal.
+* false if the task is running or exited with an exit code.
+=cut
+sub did_fail_with_exec_error {
+    my ($self) = @_;
+
+    if ($self->is_running()) {
+      return 0;
+    }
+
+    if ($self->did_succeed()) {
+      return 0;
+    }
+
+    return defined($self->error_number);
+}
 
 1;
