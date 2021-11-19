@@ -54,6 +54,8 @@ subtest "Starting a process" => sub {
     my $runlog = new_run_log();
     $runlog->started();
     is($runlog->did_succeed(), undef, "The process has not yet succeeded.");
+    ok($runlog->is_running(), "The process is running.");
+    ok(!$runlog->did_fail_with_signal(), "The process was not killed by a signal.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, undef, "The end time is undefined.");
     is($runlog->exit_code, undef, "The exit code is undefined.");
@@ -66,6 +68,8 @@ subtest "The process completed (success)" => sub {
     $runlog->started();
     $runlog->completed_with_child_error(0, 123);
     ok($runlog->did_succeed(), "The process did succeed.");
+    ok(!$runlog->is_running(), "The process is not running.");
+    ok(!$runlog->did_fail_with_signal(), "The process was not killed by a signal.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
     is($runlog->error_number, undef, "The error number is undefined");
@@ -79,6 +83,8 @@ subtest "The process completed (errored)" => sub {
     $runlog->started();
     $runlog->completed_with_child_error(21760, 123);
     ok(!$runlog->did_succeed(), "The process did not succeed.");
+    ok(!$runlog->is_running(), "The process is not running.");
+    ok(!$runlog->did_fail_with_signal(), "The process was not killed by a signal.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
     is($runlog->error_number, undef, "The error number is undefined");
@@ -92,12 +98,14 @@ subtest "The process completed (status 15, child error 0)" => sub {
     $runlog->started();
     $runlog->completed_with_child_error(15, 0);
     ok(!$runlog->did_succeed(), "The process did not succeed.");
+    ok(!$runlog->is_running(), "The process is not running.");
+    ok($runlog->did_fail_with_signal(), "The process was killed by a signal.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
     is($runlog->error_number, undef, "The error number is undefined");
     is($runlog->exit_code, undef, "The exit code is undefined.");
     is($runlog->signal, 15, "Signal 15 was sent.");
-    is($runlog->core_dumped, 1, "There was no core dump.");
+    is($runlog->core_dumped, 0, "There was no core dump.");
 };
 
 subtest "The process completed (signaled)" => sub {
@@ -105,6 +113,8 @@ subtest "The process completed (signaled)" => sub {
     $runlog->started();
     $runlog->completed_with_child_error(393, 234);
     ok(!$runlog->did_succeed(), "The process did not succeed.");
+    ok(!$runlog->is_running(), "The process is not running.");
+    ok($runlog->did_fail_with_signal(), "The process was killed by a signal.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
     is($runlog->error_number, undef, "The error number is undefined");
@@ -118,6 +128,8 @@ subtest "The process failed to start" => sub {
     $runlog->started();
     $runlog->completed_with_child_error(-1, 2);
     ok(!$runlog->did_succeed(), "The process did not succeed.");
+    ok(!$runlog->is_running(), "The process is running.");
+    ok(!$runlog->did_fail_with_signal(), "The process was not killed by a signal.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, within(time() - 1, 2), "The end time is recent.");
     is($runlog->error_number, 2, "The error number is saved");

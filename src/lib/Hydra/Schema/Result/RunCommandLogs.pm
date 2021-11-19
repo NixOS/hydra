@@ -257,4 +257,45 @@ sub did_succeed {
     return $self->exit_code == 0;
 }
 
+
+=head2 is_running
+
+Looks in the database to see if the task has been marked as completed.
+Does not actually examine to see if the process is running anywhere.
+
+Return:
+
+* true if the task does not have a marked end date
+* false if the task does have a recorded end
+=cut
+sub is_running {
+    my ($self) = @_;
+
+    return !defined($self->end_time);
+}
+
+=head2 did_fail_with_signal
+
+Looks in the database to see if the task failed with a signal.
+
+Return:
+
+* true if the task is not running and failed with a signal.
+* false if the task is running or exited with an exit code.
+=cut
+sub did_fail_with_signal {
+    my ($self) = @_;
+
+    if ($self->is_running()) {
+      return 0;
+    }
+
+    if ($self->did_succeed()) {
+      return 0;
+    }
+
+    return defined($self->signal);
+}
+
+
 1;
