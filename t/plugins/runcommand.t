@@ -40,14 +40,11 @@ ok(sendNotifications(), "Notifications execute successfully.");
 my $dat = do {
     my $filename = $ENV{'HYDRA_DATA'} . "/joboutput.json";
     open(my $json_fh, "<", $filename)
-        or die("Can't open \$filename\": $!\n");
+        or die("Can't open \"$filename\": $!\n");
     local $/;
     my $json = JSON->new;
     $json->decode(<$json_fh>)
 };
-
-use Data::Dumper;
-print Dumper($dat);
 
 subtest "Validate the top level fields match" => sub {
     is($dat->{build}, $newbuild->id, "The build event matches our expected ID.");
