@@ -1,4 +1,6 @@
-[% WRAPPER layout.tt title="Evaluation $eval.id of jobset $project.name:$jobset.name " %]
+[% WRAPPER layout.tt
+  title="Evaluation $eval.id of jobset " _ makeNameTextForJobset(jobset)
+  titleHTML="Evaluation $eval.id of jobset " _ linkToJobset(jobset) %]
 [% PROCESS common.tt %]
 
 <div class="dropdown">

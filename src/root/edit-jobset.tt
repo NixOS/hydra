@@ -1,8 +1,8 @@
 [% WRAPPER layout.tt title=
     (create ? "Creating jobset in project $project.name" :
-     createFromEval ? "Creating jobset from evaluation $eval.id of $project.name:$jobset.name" :
-     cloneJobset ? "Cloning jobset $project.name:$jobset.name" :
-     "Editing jobset $project.name:$jobset.name") %]
+     createFromEval ? "Creating jobset from evaluation $eval.id of " _ makeNameTextForJobset(jobset) :
+     cloneJobset ? "Cloning jobset " _ makeNameTextForJobset(jobset) :
+     "Editing jobset " _ makeNameTextForJobset(jobset)) %]
 [% PROCESS common.tt %]
 [% USE format %]
 
