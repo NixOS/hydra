@@ -37,15 +37,15 @@ is(
 );
 is(
     Hydra::View::TT::linkToJobset(undef, $c, $jobset),
-    '<a href="http://localhost/project/tests">tests</a>:'
-    . '<a href="http://localhost/jobset/tests/example">example</a>',
+    '<a href="http://localhost/project/tests">tests</a>'
+    . ':<a href="http://localhost/jobset/tests/example">example</a>',
     "linkToJobset"
 );
 is(
     Hydra::View::TT::linkToJob(undef, $c, $jobset, $job),
-    '<a href="http://localhost/project/tests">tests</a>:'
-    . '<a href="http://localhost/jobset/tests/example">example</a>:'
-    . '<a href="http://localhost/job/tests/example/myjob">myjob</a>',
+    '<a href="http://localhost/project/tests">tests</a>'
+    . ':<a href="http://localhost/jobset/tests/example">example</a>'
+    . ':<a href="http://localhost/job/tests/example/myjob">myjob</a>',
     "linkToJob"
 );
 
@@ -57,8 +57,8 @@ is(
 );
 is(
     Hydra::View::TT::makeNameLinksForJob(undef, $c, $jobset, $job),
-    '<a href="http://localhost/project/tests">tests</a>:'
-    . '<a href="http://localhost/jobset/tests/example">example</a>'
+    '<a href="http://localhost/project/tests">tests</a>'
+    . ':<a href="http://localhost/jobset/tests/example">example</a>'
     . ':myjob',
     "makeNameLinksForJob"
 );
