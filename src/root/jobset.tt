@@ -1,4 +1,6 @@
-[% WRAPPER layout.tt title="Jobset $project.name:$jobset.name" %]
+[% WRAPPER layout.tt
+  titleHTML=makeNameLinksForJobset(jobset)
+  title=makeNameTextForJobset(jobset) %]
 [% PROCESS common.tt %]
 [% USE format %]
 

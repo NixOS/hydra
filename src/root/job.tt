@@ -1,5 +1,6 @@
 [% WRAPPER layout.tt
-    title="Job $project.name:$jobset.name:$job"
+    title=makeNameTextForJob(jobset, job)
+    titleHTML=makeNameLinksForJob(jobset, job)
     starUri=c.uri_for(c.controller('Job').action_for('star'), c.req.captures)
 %]
 [% PROCESS common.tt %]

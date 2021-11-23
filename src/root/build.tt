@@ -1,4 +1,7 @@
-[% WRAPPER layout.tt title="Build $id of job $project.name:$jobset.name:$job" %]
+[% WRAPPER layout.tt
+  title="Build $id of job " _ makeNameTextForJob(jobset, job)
+  titleHTML="Build $id of job " _ linkToJob(jobset, job)
+%]
 [% PROCESS common.tt %]
 [% PROCESS "product-list.tt" %]
 [% USE HTML %]
