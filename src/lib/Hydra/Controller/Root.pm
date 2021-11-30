@@ -15,6 +15,9 @@ use JSON;
 use List::Util qw[min max];
 use List::MoreUtils qw{any};
 use Net::Prometheus;
+use Types::Standard qw/StrMatch/;
+
+use constant NARINFO_REGEX => qr{^([a-z0-9]{32})\.narinfo$};
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -349,17 +352,17 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
 }
 
 
-sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
-    my ($self, $c) = @_;
+sub narinfo :Path :Args(StrMatch[NARINFO_REGEX]) {
+    my ($self, $c, $narinfo) = @_;
 
     if (!isLocalStore) {
         notFound($c, "There is no binary cache here.");
     }
 
     else {
-        my $hash = $c->req->captures->[0];
+        my ($hash) = $narinfo =~ NARINFO_REGEX;
 
-        die if length($hash) != 32;
+        die("Hash length was not 32") if length($hash) != 32;
         my $path = queryPathFromHashPart($hash);
 
         if (!$path) {
