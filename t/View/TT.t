@@ -22,7 +22,7 @@ require Hydra::View::TT;
 # there is no other reason to call /.
 require Catalyst::Test;
 Catalyst::Test->import('Hydra');
-my($_, $c) = ctx_request('/');
+my ($_request, $c) = ctx_request('/');
 
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
