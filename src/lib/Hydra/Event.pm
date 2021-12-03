@@ -17,7 +17,7 @@ sub parse_payload :prototype($$) {
     my ($channel_name, $payload) = @_;
     my @payload = split /\t/, $payload;
 
-    my $parser = %channels_to_events{$channel_name};
+    my $parser = $channels_to_events{$channel_name};
     unless (defined $parser) {
       die "Invalid channel name: '$channel_name'";
     }

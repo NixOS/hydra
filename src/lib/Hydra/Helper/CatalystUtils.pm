@@ -279,7 +279,7 @@ sub requirePost {
 
 
 sub trim {
-    my $s = shift;
+    my $s = shift // "";
     $s =~ s/^\s+|\s+$//g;
     return $s;
 }

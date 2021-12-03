@@ -429,7 +429,6 @@
                 CatalystAuthenticationStoreDBIxClass
                 CatalystAuthenticationStoreLDAP
                 CatalystDevel
-                CatalystDispatchTypeRegex
                 CatalystPluginAccessLog
                 CatalystPluginAuthorizationRoles
                 CatalystPluginCaptcha
