@@ -134,4 +134,44 @@ subtest "eventMatches" => sub {
     );
 };
 
+subtest "fanoutToCommands" => sub {
+    my $config = {
+        runcommand => [
+            {
+                job => "",
+                command => "foo"
+            },
+            {
+                job => "project:*:*",
+                command => "bar"
+            },
+            {
+                job => "project:jobset:nomatch",
+                command => "baz"
+            }
+        ]
+    };
+
+    is(
+        Hydra::Plugin::RunCommand::fanoutToCommands(
+            $config,
+            "buildFinished",
+            "project",
+            "jobset",
+            "job"
+        ),
+        [
+            {
+                matcher => "",
+                command => "foo"
+            },
+            {
+                matcher => "project:*:*",
+                command => "bar"
+            }
+        ],
+        "fanoutToCommands returns a command per matching job"
+    );
+};
+
 done_testing;
