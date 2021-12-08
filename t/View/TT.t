@@ -2,31 +2,25 @@ use feature 'unicode_strings';
 use strict;
 use warnings;
 use Setup;
-
-my %ctx = test_init();
-
-require Hydra::Schema;
-require Hydra::Model::DB;
-
 use Test2::V0;
 
+my $ctx = test_context();
+
 require Hydra; # calls setup()
-
-
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
-
 require Hydra::View::TT;
+require Catalyst::Test;
+
+my $db = $ctx->db;
+
 
 # The following lines are a cheap and hacky trick to get $c,
 # there is no other reason to call /.
-require Catalyst::Test;
 Catalyst::Test->import('Hydra');
 my ($_request, $c) = ctx_request('/');
 
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
-my $jobset = createBaseJobset("example", "bogus.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset("example", "bogus.nix", $ctx->jobsdir);
 my $job = "myjob";
 
 
