@@ -38,6 +38,64 @@ sub eventMatches {
     return 0;
 }
 
+sub makeJsonPayload {
+    my ($event, $build) = @_;
+    my $json = {
+        event => $event,
+        build => $build->id,
+        finished => $build->get_column('finished') ? JSON::true : JSON::false,
+        timestamp => $build->get_column('timestamp'),
+        project => $build->get_column('project'),
+        jobset => $build->get_column('jobset'),
+        job => $build->get_column('job'),
+        drvPath => $build->get_column('drvpath'),
+        startTime => $build->get_column('starttime'),
+        stopTime => $build->get_column('stoptime'),
+        buildStatus => $build->get_column('buildstatus'),
+        nixName => $build->get_column('nixname'),
+        system => $build->get_column('system'),
+        homepage => $build->get_column('homepage'),
+        description => $build->get_column('description'),
+        license => $build->get_column('license'),
+        outputs => [],
+        products => [],
+        metrics => [],
+    };
+
+    for my $output ($build->buildoutputs) {
+        my $j = {
+            name => $output->name,
+            path => $output->path,
+        };
+        push @{$json->{outputs}}, $j;
+    }
+
+    for my $product ($build->buildproducts) {
+        my $j = {
+            productNr => $product->productnr,
+            type => $product->type,
+            subtype => $product->subtype,
+            fileSize => $product->filesize,
+            sha256hash => $product->sha256hash,
+            path => $product->path,
+            name => $product->name,
+            defaultPath => $product->defaultpath,
+        };
+        push @{$json->{products}}, $j;
+    }
+
+    for my $metric ($build->buildmetrics) {
+        my $j = {
+            name => $metric->name,
+            unit => $metric->unit,
+            value => 0 + $metric->value,
+        };
+        push @{$json->{metrics}}, $j;
+    }
+
+    return $json;
+}
+
 sub buildFinished {
     my ($self, $build, $dependents) = @_;
     my $event = "buildFinished";
@@ -59,61 +117,7 @@ sub buildFinished {
 
         unless (defined $tmp) {
             $tmp = File::Temp->new(SUFFIX => '.json');
-
-            my $json = {
-                event => $event,
-                build => $build->id,
-                finished => $build->get_column('finished') ? JSON::true : JSON::false,
-                timestamp => $build->get_column('timestamp'),
-                project => $build->get_column('project'),
-                jobset => $build->get_column('jobset'),
-                job => $build->get_column('job'),
-                drvPath => $build->get_column('drvpath'),
-                startTime => $build->get_column('starttime'),
-                stopTime => $build->get_column('stoptime'),
-                buildStatus => $build->get_column('buildstatus'),
-                nixName => $build->get_column('nixname'),
-                system => $build->get_column('system'),
-                homepage => $build->get_column('homepage'),
-                description => $build->get_column('description'),
-                license => $build->get_column('license'),
-                outputs => [],
-                products => [],
-                metrics => [],
-            };
-
-            for my $output ($build->buildoutputs) {
-                my $j = {
-                    name => $output->name,
-                    path => $output->path,
-                };
-                push @{$json->{outputs}}, $j;
-            }
-
-            for my $product ($build->buildproducts) {
-                my $j = {
-                    productNr => $product->productnr,
-                    type => $product->type,
-                    subtype => $product->subtype,
-                    fileSize => $product->filesize,
-                    sha256hash => $product->sha256hash,
-                    path => $product->path,
-                    name => $product->name,
-                    defaultPath => $product->defaultpath,
-                };
-                push @{$json->{products}}, $j;
-            }
-
-            for my $metric ($build->buildmetrics) {
-                my $j = {
-                    name => $metric->name,
-                    unit => $metric->unit,
-                    value => 0 + $metric->value,
-                };
-                push @{$json->{metrics}}, $j;
-            }
-
-            print $tmp encode_json($json) or die;
+            print $tmp encode_json(makeJsonPayload($event, $build)) or die;
         }
 
         $ENV{"HYDRA_JSON"} = $tmp->filename;
