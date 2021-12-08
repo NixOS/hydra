@@ -7,13 +7,13 @@ use Hydra::Plugin::RunCommand;
 subtest "isEnabled" => sub {
     is(
         Hydra::Plugin::RunCommand::isEnabled({}),
-        "",
+        0,
         "Disabled by default."
     );
 
     is(
         Hydra::Plugin::RunCommand::isEnabled({ config => {}}),
-        "",
+        0,
         "Disabled by default."
     );
 
@@ -21,6 +21,121 @@ subtest "isEnabled" => sub {
         Hydra::Plugin::RunCommand::isEnabled({ config => { runcommand => {}}}),
         1,
         "Enabled if any runcommand blocks exist."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::isEnabled({ config => { dynamicruncommand => {}}}),
+        0,
+        "Not enabled if an empty dynamicruncommand blocks exist."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::isEnabled({ config => { dynamicruncommand => { enable => 0 }}}),
+        0,
+        "Not enabled if a dynamicruncommand blocks exist without enable being set to 1."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::isEnabled({ config => { dynamicruncommand => { enable => 1 }}}),
+        1,
+        "Enabled if a dynamicruncommand blocks exist with enable being set to 1."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::isEnabled({ config => {
+            runcommand => {},
+            dynamicruncommand => { enable => 0 }
+        }}),
+        1,
+        "Enabled if a runcommand config block exists, even if a dynamicruncommand is explicitly disabled."
+    );
+};
+
+subtest "areStaticCommandsEnabled" => sub {
+    is(
+        Hydra::Plugin::RunCommand::areStaticCommandsEnabled({}),
+        0,
+        "Disabled by default."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::areStaticCommandsEnabled({}),
+        0,
+        "Disabled by default."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::areStaticCommandsEnabled({ runcommand => {}}),
+        1,
+        "Enabled if any runcommand blocks exist."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::areStaticCommandsEnabled({ dynamicruncommand => {}}),
+        0,
+        "Not enabled by dynamicruncommand blocks."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::areStaticCommandsEnabled({ dynamicruncommand => { enable => 0 }}),
+        0,
+        "Not enabled by dynamicruncommand blocks."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::areStaticCommandsEnabled({ dynamicruncommand => { enable => 1 }}),
+        0,
+        "Not enabled by dynamicruncommand blocks."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::areStaticCommandsEnabled({
+            runcommand => {},
+            dynamicruncommand => { enable => 0 }
+        }),
+        1,
+        "Enabled if a runcommand config block exists, even if a dynamicruncommand is explicitly disabled."
+    );
+};
+
+subtest "areDynamicCommandsEnabled" => sub {
+    is(
+        Hydra::Plugin::RunCommand::areDynamicCommandsEnabled({}),
+        0,
+        "Disabled by default."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::areDynamicCommandsEnabled({ runcommand => {}}),
+        0,
+        "Disabled even if any runcommand blocks exist."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::areDynamicCommandsEnabled({ dynamicruncommand => {}}),
+        0,
+        "Not enabled if an empty dynamicruncommand blocks exist."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::areDynamicCommandsEnabled({ dynamicruncommand => { enable => 0 }}),
+        0,
+        "Not enabled if a dynamicruncommand blocks exist without enable being set to 1."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::areDynamicCommandsEnabled({ dynamicruncommand => { enable => 1 }}),
+        1,
+        "Enabled if a dynamicruncommand blocks exist with enable being set to 1."
+    );
+
+    is(
+        Hydra::Plugin::RunCommand::areDynamicCommandsEnabled({
+            runcommand => {},
+            dynamicruncommand => { enable => 0 }
+        }),
+        0,
+        "Disabled if dynamicruncommand is explicitly disabled."
     );
 };
 

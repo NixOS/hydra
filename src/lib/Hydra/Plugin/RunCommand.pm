@@ -12,7 +12,29 @@ use Try::Tiny;
 
 sub isEnabled {
     my ($self) = @_;
-    return defined $self->{config}->{runcommand};
+
+    return areStaticCommandsEnabled($self->{config}) || areDynamicCommandsEnabled($self->{config});
+}
+
+sub areStaticCommandsEnabled {
+    my ($config) = @_;
+
+    if (defined $config->{runcommand}) {
+        return 1;
+    }
+
+    return 0;
+}
+
+sub areDynamicCommandsEnabled {
+    my ($config) = @_;
+
+    if ((defined $config->{dynamicruncommand})
+        && $config->{dynamicruncommand}->{enable}) {
+        return 1;
+    }
+
+    return 0;
 }
 
 sub configSectionMatches {
