@@ -65,10 +65,11 @@ sub eventMatches {
 }
 
 sub fanoutToCommands {
-    my ($config, $event, $project, $jobset, $job) = @_;
+    my ($config, $event, $build) = @_;
 
     my @commands;
 
+    # Calculate all the statically defined commands to execute
     my $cfg = $config->{runcommand};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
@@ -77,9 +78,10 @@ sub fanoutToCommands {
         next unless eventMatches($conf, $event);
         next unless configSectionMatches(
             $matcher,
-            $project,
-            $jobset,
-            $job);
+            $build->get_column('project'),
+            $build->get_column('jobset'),
+            $build->get_column('job')
+        );
 
         if (!defined($conf->{command})) {
             warn "<runcommand> section for '$matcher' lacks a 'command' option";
@@ -90,6 +92,25 @@ sub fanoutToCommands {
             matcher => $matcher,
             command => $conf->{command},
         })
+    }
+
+    # Calculate all dynamically defined commands to execute
+    if (areDynamicCommandsEnabled($config)) {
+        # missing test cases:
+        #
+        # 1. is it enabled on the jobset?
+        # 2. what if the result is a directory?
+        # 3. what if the job doens't have an out?
+        # 4. what if the build failed?
+        my $job = $build->get_column('job');
+
+        if ($job =~ "^runCommandHook\.") {
+            my $out = $build->buildoutputs->find({name => "out"});
+            push(@commands, {
+                matcher => "DynamicRunCommand($job)",
+                command => $out->path
+            })
+        }
     }
 
     return \@commands;
@@ -160,9 +181,7 @@ sub buildFinished {
     my $commandsToRun = fanoutToCommands(
         $self->{config},
         $event,
-        $build->project->get_column('name'),
-        $build->jobset->get_column('name'),
-        $build->get_column('job')
+        $build
     );
 
     if (@$commandsToRun == 0) {
