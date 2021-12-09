@@ -65,33 +65,33 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% END %]
 
   [% IF aborted.size > 0 %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-aborted" data-toggle="tab"><span class="text-warning">Aborted jobs ([% aborted.size %])</span></a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-aborted" data-toggle="tab"><span class="text-warning">Aborted Jobs ([% aborted.size %])</span></a></li>
   [% END %]
   [% IF nowFail.size > 0 %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-now-fail" data-toggle="tab"><span class="text-warning">Newly failing jobs ([% nowFail.size %])</span></a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-now-fail" data-toggle="tab"><span class="text-warning">Newly Failing Jobs ([% nowFail.size %])</span></a></li>
   [% END %]
   [% IF nowSucceed.size > 0 %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-now-succeed" data-toggle="tab"><span class="text-success">Newly succeeding jobs ([% nowSucceed.size %])</span></a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-now-succeed" data-toggle="tab"><span class="text-success">Newly Succeeding Jobs ([% nowSucceed.size %])</span></a></li>
   [% END %]
   [% IF new.size > 0 %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-new" data-toggle="tab">New jobs ([% new.size %])</a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-new" data-toggle="tab">New Jobs ([% new.size %])</a></li>
   [% END %]
   [% IF removed.size > 0 %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-removed" data-toggle="tab">Removed jobs ([% removed.size %])</a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-removed" data-toggle="tab">Removed Jobs ([% removed.size %])</a></li>
   [% END %]
   [% IF stillFail.size > 0 %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-still-fail" data-toggle="tab">Still failing jobs ([% stillFail.size %])</a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-still-fail" data-toggle="tab">Still Failing Jobs ([% stillFail.size %])</a></li>
   [% END %]
   [% IF stillSucceed.size > 0 %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-still-succeed" data-toggle="tab">Still succeeding jobs ([% stillSucceed.size %])</a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-still-succeed" data-toggle="tab">Still Succeeding Jobs ([% stillSucceed.size %])</a></li>
   [% END %]
   [% IF unfinished.size > 0 %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-unfinished" data-toggle="tab">Queued jobs ([% unfinished.size %])</a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-unfinished" data-toggle="tab">Queued Jobs ([% unfinished.size %])</a></li>
   [% END %]
   <li class="nav-item"><a class="nav-link" href="#tabs-inputs" data-toggle="tab">Inputs</a></li>
 
   [% IF eval.evaluationerror.errormsg %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation errors</span></a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation Errors</span></a></li>
   [% END %]
 </ul>
 

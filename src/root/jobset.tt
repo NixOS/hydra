@@ -62,7 +62,7 @@
 
   <li class="nav-item"><a class="nav-link active" href="#tabs-evaluations" data-toggle="tab">Evaluations</a></li>
   [% IF jobset.errormsg || jobset.fetcherrormsg %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation errors</span></a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation Errors</span></a></li>
   [% END %]
   <li class="nav-item"><a class="nav-link" href="#tabs-jobs" data-toggle="tab">Jobs</a></li>
   <li class="nav-item"><a class="nav-link" href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
