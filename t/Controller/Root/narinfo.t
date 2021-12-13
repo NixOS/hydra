@@ -2,7 +2,7 @@ use strict;
 use warnings;
 use Setup;
 use Data::Dumper;
-use JSON qw(decode_json);
+use JSON::MaybeXS qw(decode_json);
 my %ctx = test_init(
   # Without this, the test will fail because a `file:` store is not treated as a
   # local store by `isLocalStore` in src/lib/Hydra/Helper/Nix.pm, and any

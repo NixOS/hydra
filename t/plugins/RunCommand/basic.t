@@ -1,7 +1,7 @@
 use feature 'unicode_strings';
 use strict;
 use warnings;
-use JSON;
+use JSON::MaybeXS;
 use Setup;
 
 my %ctx = test_init(
@@ -42,7 +42,7 @@ my $dat = do {
     open(my $json_fh, "<", $filename)
         or die("Can't open \"$filename\": $!\n");
     local $/;
-    my $json = JSON->new;
+    my $json = JSON::MaybeXS->new;
     $json->decode(<$json_fh>)
 };
 
