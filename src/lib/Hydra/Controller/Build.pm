@@ -11,7 +11,7 @@ use File::stat;
 use Data::Dump qw(dump);
 use Nix::Store;
 use Nix::Config;
-use List::MoreUtils qw(all);
+use List::SomeUtils qw(all);
 use Encode;
 use MIME::Types;
 use JSON::PP;

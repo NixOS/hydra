@@ -477,6 +477,7 @@
                 JSON
                 JSONMaybeXS
                 JSONXS
+                ListSomeUtils
                 LWP
                 LWPProtocolHttps
                 ModulePluggable
