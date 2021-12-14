@@ -105,4 +105,38 @@ subtest "fanoutToCommandsWithDynamicRunCommandSupport" => sub {
     );
 };
 
+subtest "isBuildEligibleForDynamicRunCommand" => sub {
+    my $build = Hydra::Schema::Result::Builds->new({
+        "job" => "foo bar baz"
+    });
+
+    is(
+        Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($build),
+        0,
+        "The job name does not match"
+    );
+
+    $build->set_column("job", "runCommandHook");
+    is(
+        Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($build),
+        0,
+        "The job name does not match"
+    );
+
+    $build->set_column("job", "runCommandHook.");
+    is(
+        Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($build),
+        0,
+        "The job name does not match"
+    );
+
+    $build->set_column("job", "runCommandHook.a");
+    is(
+        Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($build),
+        1,
+        "The job name does match"
+    );
+};
+
+
 done_testing;

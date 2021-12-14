@@ -37,6 +37,16 @@ sub areDynamicCommandsEnabled {
     return 0;
 }
 
+sub isBuildEligibleForDynamicRunCommand {
+    my ($build) = @_;
+
+    if ($build->get_column("job") =~ "^runCommandHook\..+") {
+        return 1;
+    }
+
+    return 0;
+}
+
 sub configSectionMatches {
     my ($name, $project, $jobset, $job) = @_;
 
@@ -102,9 +112,8 @@ sub fanoutToCommands {
         # 2. what if the result is a directory?
         # 3. what if the job doens't have an out?
         # 4. what if the build failed?
-        my $job = $build->get_column('job');
-
-        if ($job =~ "^runCommandHook\.") {
+        if (isBuildEligibleForDynamicRunCommand($build)) {
+            my $job = $build->get_column('job');
             my $out = $build->buildoutputs->find({name => "out"});
             push(@commands, {
                 matcher => "DynamicRunCommand($job)",
