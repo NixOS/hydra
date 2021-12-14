@@ -375,7 +375,7 @@ __PACKAGE__->has_many(
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:iI44C3BFTo6IsS1tBwWYsg
 
-use JSON;
+use JSON::MaybeXS;
 
 =head2 builds
 
@@ -423,8 +423,8 @@ sub as_json {
         "flake" => $self->get_column("flake") // "",
 
         # boolean_columns
-        "enableemail" => $self->get_column("enableemail") ? JSON::true : JSON::false,
-        "visible" => $self->get_column("hidden") ? JSON::false : JSON::true,
+        "enableemail" => $self->get_column("enableemail") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
+        "visible" => $self->get_column("hidden") ? JSON::MaybeXS::false : JSON::MaybeXS::true,
 
         "inputs" => { map { $_->name => $_ } $self->jobsetinputs }
     );

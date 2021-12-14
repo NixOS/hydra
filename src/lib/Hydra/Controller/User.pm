@@ -11,7 +11,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
 use LWP::UserAgent;
-use JSON;
+use JSON::MaybeXS;
 use HTML::Entities;
 use Encode qw(decode);
 

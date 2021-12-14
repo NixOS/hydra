@@ -118,7 +118,8 @@ sub fetchInput {
                             $jobset->get_column('name'),
                             $name);
     # give preference to the options from the input value
-    while (my ($opt_name, $opt_value) = each %{$options}) {
+    foreach my $opt_name (keys %{$options}) {
+        my $opt_value = $options->{$opt_name};
         if ($opt_value =~ /^[+-]?\d+\z/) {
             $opt_value = int($opt_value);
         }

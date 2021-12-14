@@ -134,7 +134,7 @@ __PACKAGE__->has_many(
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:CkU+hbVTmhfOzQhkHJHCsg
 
-use JSON;
+use JSON::MaybeXS;
 
 sub as_json {
     my $self = shift;
@@ -148,7 +148,7 @@ sub as_json {
         "value" => $input->value // "",
 
         # boolean_columns
-        "emailresponsible" => $self->get_column("emailresponsible") ? JSON::true : JSON::false,
+        "emailresponsible" => $self->get_column("emailresponsible") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
     );
 
     return \%json;

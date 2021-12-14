@@ -6,7 +6,7 @@ use parent 'Hydra::Plugin';
 use HTTP::Request;
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
-use JSON;
+use JSON::MaybeXS;
 
 =head1 NAME
 

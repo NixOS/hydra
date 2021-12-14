@@ -2,7 +2,7 @@ use feature 'unicode_strings';
 use strict;
 use warnings;
 use Setup;
-use JSON qw(decode_json encode_json);
+use JSON::MaybeXS qw(decode_json encode_json);
 
 my %ctx = test_init();
 

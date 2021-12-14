@@ -6,7 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
-use List::MoreUtils qw(uniq);
+use List::SomeUtils qw(uniq);
 
 
 sub evalChain : Chained('/') PathPart('eval') CaptureArgs(1) {

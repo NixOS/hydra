@@ -15,7 +15,7 @@ use Hydra::Helper::Nix;
 use Hydra::Model::DB;
 use Hydra::Plugin;
 use Hydra::Schema;
-use JSON;
+use JSON::MaybeXS;
 use Net::Statsd;
 use Nix::Store;
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
@@ -753,7 +753,8 @@ sub checkJobsetWrapped {
 
         if ($jobsetChanged) {
             # Create JobsetEvalMembers mappings.
-            while (my ($id, $x) = each %buildMap) {
+            foreach my $id (keys %buildMap) {
+                my $x = $buildMap{$id};
                 $ev->jobsetevalmembers->create({ build => $id, isnew => $x->{new} });
             }
 
@@ -762,7 +763,8 @@ sub checkJobsetWrapped {
             # builds for the same derivation, pick the one with the
             # shortest name.
             my %drvPathToId;
-            while (my ($id, $x) = each %buildMap) {
+            foreach my $id (keys %buildMap) {
+                my $x = $buildMap{$id};
                 my $y = $drvPathToId{$x->{drvPath}};
                 if (defined $y) {
                     next if length $x->{jobName} > length $y->{jobName};
@@ -806,7 +808,8 @@ sub checkJobsetWrapped {
 
             # Wake up hydra-queue-runner.
             my $lowestId;
-            while (my ($id, $x) = each %buildMap) {
+            foreach my $id (keys %buildMap) {
+                my $x = $buildMap{$id};
                 $lowestId = $id if $x->{new} && (!defined $lowestId || $id < $lowestId);
             }
             $notifyAdded->execute($lowestId) if defined $lowestId;
