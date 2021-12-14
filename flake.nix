@@ -199,6 +199,21 @@
             };
           };
 
+          ReadonlyX = final.perlPackages.buildPerlModule {
+            pname = "ReadonlyX";
+            version = "1.04";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/S/SA/SANKO/ReadonlyX-1.04.tar.gz";
+              sha256 = "81bb97dba93ac6b5ccbce04a42c3590eb04557d75018773ee18d5a30fcf48188";
+            };
+            buildInputs = with final.perlPackages; [ ModuleBuildTiny TestFatal ];
+            meta = {
+              homepage = "https://github.com/sanko/readonly";
+              description = "Faster facility for creating read-only scalars, arrays, hashes";
+              license = final.lib.licenses.artistic2;
+            };
+          };
+
           TieHashMethod = final.buildPerlPackage {
               pname = "Tie-Hash-Method";
               version = "0.02";
@@ -472,7 +487,7 @@
                 ParallelForkManager
                 PerlCriticCommunity
                 PrometheusTinyShared
-                Readonly
+                ReadonlyX
                 SetScalar
                 SQLSplitStatement
                 Starman
