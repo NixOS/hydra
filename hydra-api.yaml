@@ -689,6 +689,9 @@ components:
         enableemail:
           description: when true the jobset sends emails when previously-successful builds fail
           type: boolean
+        enable_dynamic_run_command:
+          description: when true the jobset supports executing dynamically defined RunCommand hooks. Requires the server and project's configuration to also enable dynamic RunCommand.
+          type: boolean
         visible:
           description: when true the jobset is visible in the web frontend
           type: boolean

@@ -73,6 +73,7 @@ subtest 'Read newly-created jobset "job"' => sub {
      emailoverride => "",
      enabled => 2,
      enableemail => JSON::MaybeXS::false,
+     enable_dynamic_run_command => JSON::MaybeXS::false,
      errortime => undef,
      errormsg => "",
      fetcherrormsg => "",
