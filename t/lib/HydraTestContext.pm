@@ -133,11 +133,18 @@ sub makeAndEvaluateJobset {
     my $should_build = $opts{'build'} // 0;
 
 
+    # Create a new user for this test
+    my $user = $self->db()->resultset('Users')->create({
+        username => rand_chars(),
+        emailaddress => rand_chars() . '@example.org',
+        password => ''
+    });
+
     # Create a new project for this test
     my $project = $self->db()->resultset('Projects')->create({
         name => rand_chars(),
         displayname => rand_chars(),
-        owner => "root"
+        owner => $user->username
     });
 
     # Create a new jobset for this test and set up the inputs
