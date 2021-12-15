@@ -37,30 +37,30 @@ subtest "Pre-build the job, upload to the cache, and then delete locally" => sub
     $ENV{'NIX_LOG_DIR'} = "$scratchlogdir";
 
     my $outlink = $ctx->tmpdir . "/basic-canbesubstituted";
-    is(system("nix-build '" . $ctx->jobsdir . "/notifications.nix' -A canbesubstituted --out-link '${outlink}'"), 0, "Building notifications.nix succeeded");
-    is(system("nix copy --to 'file://${binarycachedir}' '${outlink}'"), 0, "Copying the closure to the binary cache succeeded");
+    is(system('nix-build', $ctx->jobsdir . '/notifications.nix', '-A', 'canbesubstituted', '--out-link', $outlink), 0, "Building notifications.nix succeeded");
+    is(system('nix', 'copy', '--to', "file://${binarycachedir}", $outlink), 0, "Copying the closure to the binary cache succeeded");
     my $outpath = readlink($outlink);
 
     # Delete the store path and all of the system's garbage
     is(unlink($outlink), 1, "Deleting the GC root succeeds");
-    is(system("nix log '$outpath'"), 0, "Reading the output's log succeeds");
-    is(system("nix-store --delete '$outpath'"), 0, "Deleting the notifications.nix output succeeded");
+    is(system('nix', 'log', $outpath), 0, "Reading the output's log succeeds");
+    is(system('nix-store', '--delete', $outpath), 0, "Deleting the notifications.nix output succeeded");
     is(system("nix-collect-garbage"), 0, "Delete all the system's garbage");
 };
 
 subtest "Ensure substituting the job works, but reading the log fails" => sub {
     # Build the store path, with --max-jobs 0 to prevent builds
     my $outlink = $ctx->tmpdir . "/basic-canbesubstituted";
-    is(system("nix-build '" . $ctx->jobsdir . "/notifications.nix' -A canbesubstituted --max-jobs 0 --out-link '${outlink}'"), 0, "Building notifications.nix succeeded");
+    is(system('nix-build', $ctx->jobsdir . '/notifications.nix', '-A', 'canbesubstituted', '--max-jobs', '0', '--out-link', $outlink), 0, "Building notifications.nix succeeded");
     my $outpath = readlink($outlink);
 
     # Verify trying to read this path's log fails, since we substituted it
-    isnt(system("nix log '$outpath'"), 0, "Reading the deleted output's log fails");
+    isnt(system('nix', 'log', $outpath), 0, "Reading the deleted output's log fails");
 
     # Delete the store path again and all of the store's garbage, ensuring
     # Hydra will try to build it.
     is(unlink($outlink), 1, "Deleting the GC root succeeds");
-    is(system("nix-store --delete '$outpath'"), 0, "Deleting the basic output succeeded");
+    is(system('nix-store', '--delete', $outpath), 0, "Deleting the notifications.nix output succeeded");
     is(system("nix-collect-garbage"), 0, "Delete all the system's garbage");
 };
 
