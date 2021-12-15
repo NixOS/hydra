@@ -127,4 +127,22 @@ rec {
     ];
   };
 
+  runCommandHook.failed = mkDerivation {
+    name = "failed";
+    builder = "/bin/sh";
+    outputs = [ "out" ];
+    args = [
+      (
+        builtins.toFile "builder.sh" ''
+          #! /bin/sh
+
+          touch $out
+          chmod +x $out
+
+          exit 1
+        ''
+      )
+    ];
+  };
+
 }

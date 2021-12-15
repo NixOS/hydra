@@ -40,6 +40,10 @@ sub areDynamicCommandsEnabled {
 sub isBuildEligibleForDynamicRunCommand {
     my ($build) = @_;
 
+    if ($build->get_column("buildstatus") != 0) {
+        return 0;
+    }
+
     if ($build->get_column("job") =~ "^runCommandHook\..+") {
         my $out = $build->buildoutputs->find({name => "out"});
         if (!defined $out) {
@@ -135,7 +139,6 @@ sub fanoutToCommands {
         # missing test cases:
         #
         # 1. is it enabled on the jobset?
-        # 2. what if the build failed?
         if (isBuildEligibleForDynamicRunCommand($build)) {
             my $job = $build->get_column('job');
             my $out = $build->buildoutputs->find({name => "out"});

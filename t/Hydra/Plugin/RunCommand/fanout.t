@@ -159,6 +159,14 @@ subtest "isBuildEligibleForDynamicRunCommand" => sub {
             "out is a symlink to a directory"
         );
     };
+
+    subtest "On build status ..." => sub {
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.failed"}),
+            0,
+            "Failed builds don't get run"
+        );
+    };
 };
 
 
