@@ -5,6 +5,7 @@ package HydraTestContext;
 use File::Path qw(make_path);
 use File::Basename;
 use Cwd qw(abs_path getcwd);
+use CliRunners;
 
 # Set up the environment for running tests.
 #
@@ -114,6 +115,58 @@ sub jobsdir {
     return $self->{jobsdir};
 }
 
+# Create a jobset, evaluate it, and optionally build the jobs.
+#
+# In return, you get a hash of all the Builds records, keyed
+# by their Nix attribute name.
+#
+# This always uses an `expression` from the `jobsdir` directory.
+#
+# Hash Parameters:
+#
+#  * expression: The file in the jobsdir directory to evaluate
+#  * build: Bool. Attempt to build all the resulting jobs. Default: false.
+sub makeAndEvaluateJobset {
+    my ($self, %opts) = @_;
+
+    my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeAndEValuateJobset.";
+    my $should_build = $opts{'build'} // 0;
+
+
+    # Create a new project for this test
+    my $project = $self->db()->resultset('Projects')->create({
+        name => rand_chars(),
+        displayname => rand_chars(),
+        owner => "root"
+    });
+
+    # Create a new jobset for this test and set up the inputs
+    my $jobset = $project->jobsets->create({
+        name => rand_chars(),
+        nixexprinput => "jobs",
+        nixexprpath => $expression,
+        emailoverride => ""
+    });
+    my $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
+    $jobsetinput->jobsetinputalts->create({altnr => 0, value => $self->jobsdir});
+
+    evalSucceeds($jobset) or die "Evaluating jobs/$expression should exit with return code 0";
+
+    my $builds = {};
+
+    for my $build ($jobset->builds) {
+        if ($should_build) {
+            runBuild($build) or die "Build '".$build->job."' from jobs/$expression should exit with return code 0";
+            $build->discard_changes();
+        }
+
+        $builds->{$build->job} = $build;
+    }
+
+    return $builds;
+}
+
+
 sub DESTROY
 {
     my ($self) = @_;
@@ -126,6 +179,10 @@ sub write_file {
     open(my $fh, '>', $path) or die "Could not open file '$path' $!";
     print $fh $text || "";
     close $fh;
+}
+
+sub rand_chars {
+    return sprintf("%08X", rand(0xFFFFFFFF));
 }
 
 1;
