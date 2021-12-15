@@ -168,7 +168,7 @@ sub queue_runner_status_GET {
     my ($self, $c) = @_;
 
     #my $status = from_json($c->model('DB::SystemStatus')->find('queue-runner')->status);
-    my $status = from_json(`hydra-queue-runner --status`);
+    my $status = decode_json(`hydra-queue-runner --status`);
     if ($?) { $status->{status} = "unknown"; }
     my $json = JSON->new->pretty()->canonical();
 
