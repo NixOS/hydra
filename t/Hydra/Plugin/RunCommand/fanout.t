@@ -13,7 +13,8 @@ my $builds = $ctx->makeAndEvaluateJobset(
 
 my $build = $builds->{"runCommandHook.example"};
 
-# Enable dynamic runcommand on the jobset
+# Enable dynamic runcommand on the project and jobset
+$build->project->update({enable_dynamic_run_command => 1});
 $build->jobset->update({enable_dynamic_run_command => 1});
 
 is($build->job, "runCommandHook.example", "The only job should be runCommandHook.example");
@@ -172,13 +173,38 @@ subtest "isBuildEligibleForDynamicRunCommand" => sub {
     };
 
     subtest "With dynamic runcommand disabled ..." => sub {
-        $build->jobset->update({enable_dynamic_run_command => 0});
+        subtest "disabled on the project, enabled on the jobset" => {
+            $build->project->update({enable_dynamic_run_command => 0});
+            $build->jobset->update({enable_dynamic_run_command => 1});
 
-        is(
-            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
-            0,
-            "Builds don't run from a jobset with disabled dynamic runcommand"
-        );
+            is(
+                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
+                0,
+                "Builds don't run from a jobset with disabled dynamic runcommand"
+            );
+        };
+
+        subtest "enabled on the project, disabled on the jobset" => {
+            $build->project->update({enable_dynamic_run_command => 1});
+            $build->jobset->update({enable_dynamic_run_command => 0});
+
+            is(
+                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
+                0,
+                "Builds don't run from a jobset with disabled dynamic runcommand"
+            );
+        };
+
+        subtest "disabled on the project, disabled on the jobset" => {
+            $build->project->update({enable_dynamic_run_command => 0});
+            $build->jobset->update({enable_dynamic_run_command => 0});
+
+            is(
+                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
+                0,
+                "Builds don't run from a jobset with disabled dynamic runcommand"
+            );
+        };
     };
 };
 
