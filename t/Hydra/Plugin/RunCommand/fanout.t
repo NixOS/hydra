@@ -1,34 +1,21 @@
 use strict;
 use warnings;
 use Setup;
-
-my %ctx = test_init();
-
 use Test2::V0;
 use Hydra::Plugin::RunCommand;
 
-require Hydra::Schema;
-require Hydra::Model::DB;
+my $ctx = test_context();
 
-use Test2::V0;
+my $builds = $ctx->makeAndEvaluateJobset(
+    expression => "runcommand-dynamic.nix",
+    build => 1
+);
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
-
-my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
-
-my $jobset = createBaseJobset("basic", "runcommand-dynamic.nix", $ctx{jobsdir});
-
-ok(evalSucceeds($jobset), "Evaluating jobs/runcommand-dynamic.nix should exit with return code 0");
-is(nrQueuedBuildsForJobset($jobset), 1, "Evaluating jobs/runcommand-dynamic.nix should result in 1 build1");
-
-(my $build) = queuedBuildsForJobset($jobset);
+my $build = $builds->{"runCommandHook.example"};
 
 is($build->job, "runCommandHook.example", "The only job should be runCommandHook.example");
-ok(runBuild($build), "Build should exit with return code 0");
-my $newbuild = $db->resultset('Builds')->find($build->id);
-is($newbuild->finished, 1, "Build should be finished.");
-is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");
+is($build->finished, 1, "Build should be finished.");
+is($build->buildstatus, 0, "Build should have buildstatus 0.");
 
 subtest "fanoutToCommands" => sub {
     my $config = {
@@ -38,7 +25,7 @@ subtest "fanoutToCommands" => sub {
                 command => "foo"
             },
             {
-                job => "tests:*:*",
+                job => "*:*:*",
                 command => "bar"
             },
             {
@@ -52,7 +39,7 @@ subtest "fanoutToCommands" => sub {
         Hydra::Plugin::RunCommand::fanoutToCommands(
             $config,
             "buildFinished",
-            $newbuild
+            $build
         ),
         [
             {
@@ -60,7 +47,7 @@ subtest "fanoutToCommands" => sub {
                 command => "foo"
             },
             {
-                matcher => "tests:*:*",
+                matcher => "*:*:*",
                 command => "bar"
             }
         ],
@@ -79,7 +66,7 @@ subtest "fanoutToCommandsWithDynamicRunCommandSupport" => sub {
         dynamicruncommand => { enable => 1 },
         runcommand => [
             {
-                job => "tests:basic:*",
+                job => "*:*:*",
                 command => "baz"
             }
         ]
@@ -93,7 +80,7 @@ subtest "fanoutToCommandsWithDynamicRunCommandSupport" => sub {
         ),
         [
             {
-                matcher => "tests:basic:*",
+                matcher => "*:*:*",
                 command => "baz"
             },
             {
