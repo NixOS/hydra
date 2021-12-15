@@ -132,6 +132,7 @@ subtest 'Update jobset "job" to legacy type' => sub {
     emailoverride => "",
     enabled => 3,
     enableemail => JSON::MaybeXS::false,
+    enable_dynamic_run_command => JSON::MaybeXS::false,
     errortime => undef,
     errormsg => "",
     fetcherrormsg => "",
