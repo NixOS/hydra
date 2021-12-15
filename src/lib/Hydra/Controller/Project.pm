@@ -157,6 +157,7 @@ sub updateProject {
         , enabled => defined $c->stash->{params}->{enabled} ? 1 : 0
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , owner => $owner
+        , enable_dynamic_run_command => defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0
         , declfile => trim($c->stash->{params}->{declarative}->{file})
         , decltype => trim($c->stash->{params}->{declarative}->{type})
         , declvalue => trim($c->stash->{params}->{declarative}->{value})

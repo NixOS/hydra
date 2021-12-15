@@ -259,6 +259,7 @@ sub as_json {
 
         # boolean_columns
         "enabled" => $self->get_column("enabled") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
+        "enable_dynamic_run_command" => $self->get_column("enable_dynamic_run_command") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
         "hidden" => $self->get_column("hidden") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
 
         "jobsets" => [ map { $_->name } $self->jobsets ]

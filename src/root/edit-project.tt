@@ -52,6 +52,14 @@
     </div>
   </div>
 
+
+  <div class="form-group row">
+    <label class="col-sm-3" for="editprojectenable_dynamic_run_command">Enable Dynamic RunCommand Hooks for Jobsets</label>
+    <div class="col-sm-9">
+      <input type="checkbox" id="editprojectenable_dynamic_run_command" name="enable_dynamic_run_command" [% IF jobset.enable_dynamic_run_command %]checked[% END %]/>
+    </div>
+  </div>
+
   <div class="form-group row">
     <label class="col-sm-3" for="editprojectdeclfile">
       Declarative spec file

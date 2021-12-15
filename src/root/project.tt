@@ -92,6 +92,10 @@
         <th>Enabled:</th>
         <td>[% project.enabled ? "Yes" : "No" %]</td>
       </tr>
+      <tr>
+        <th>Enable Dynamic RunCommand Hooks:</th>
+        <td>[% project.enable_dynamic_run_command ? "Yes" : "No" %]</td>
+      </tr>
     </table>
   </div>
 
