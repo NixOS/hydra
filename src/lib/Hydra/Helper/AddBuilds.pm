@@ -39,6 +39,7 @@ sub updateDeclarativeJobset {
         checkinterval
         schedulingshares
         enableemail
+        enable_dynamic_run_command
         emailoverride
         keepnr
     );
