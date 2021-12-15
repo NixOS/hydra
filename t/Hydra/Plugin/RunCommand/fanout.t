@@ -13,6 +13,9 @@ my $builds = $ctx->makeAndEvaluateJobset(
 
 my $build = $builds->{"runCommandHook.example"};
 
+# Enable dynamic runcommand on the jobset
+$build->jobset->update({enable_dynamic_run_command => 1});
+
 is($build->job, "runCommandHook.example", "The only job should be runCommandHook.example");
 is($build->finished, 1, "Build should be finished.");
 is($build->buildstatus, 0, "Build should have buildstatus 0.");
@@ -165,6 +168,16 @@ subtest "isBuildEligibleForDynamicRunCommand" => sub {
             Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.failed"}),
             0,
             "Failed builds don't get run"
+        );
+    };
+
+    subtest "With dynamic runcommand disabled ..." => sub {
+        $build->jobset->update({enable_dynamic_run_command => 0});
+
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
+            0,
+            "Builds don't run from a jobset with disabled dynamic runcommand"
         );
     };
 };

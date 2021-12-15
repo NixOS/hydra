@@ -71,7 +71,9 @@ sub isBuildEligibleForDynamicRunCommand {
             return 0;
         }
 
-        return 1;
+        if ($build->jobset->enable_dynamic_run_command) {
+            return 1;
+        }
     }
 
     return 0;
@@ -136,9 +138,6 @@ sub fanoutToCommands {
 
     # Calculate all dynamically defined commands to execute
     if (areDynamicCommandsEnabled($config)) {
-        # missing test cases:
-        #
-        # 1. is it enabled on the jobset?
         if (isBuildEligibleForDynamicRunCommand($build)) {
             my $job = $build->get_column('job');
             my $out = $build->buildoutputs->find({name => "out"});
