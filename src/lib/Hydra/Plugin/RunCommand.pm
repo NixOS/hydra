@@ -41,6 +41,32 @@ sub isBuildEligibleForDynamicRunCommand {
     my ($build) = @_;
 
     if ($build->get_column("job") =~ "^runCommandHook\..+") {
+        my $out = $build->buildoutputs->find({name => "out"});
+        if (!defined $out) {
+            warn "DynamicRunCommand hook on " . $build->job . " (" . $build->id . ") rejected: no output named 'out'.";
+            return 0;
+        }
+
+        my $path = $out->path;
+        if (-l $path) {
+            $path = readlink($path);
+        }
+
+        if (! -e $path) {
+            warn "DynamicRunCommand hook on " . $build->job . " (" . $build->id . ") rejected: The 'out' output doesn't exist locally. This is a bug.";
+            return 0;
+        }
+
+        if (! -x $path) {
+            warn "DynamicRunCommand hook on " . $build->job . " (" . $build->id . ") rejected: The 'out' output is not executable.";
+            return 0;
+        }
+
+        if (! -f $path) {
+            warn "DynamicRunCommand hook on " . $build->job . " (" . $build->id . ") rejected: The 'out' output is not a regular file or symlink.";
+            return 0;
+        }
+
         return 1;
     }
 
@@ -109,9 +135,7 @@ sub fanoutToCommands {
         # missing test cases:
         #
         # 1. is it enabled on the jobset?
-        # 2. what if the result is a directory?
-        # 3. what if the job doens't have an out?
-        # 4. what if the build failed?
+        # 2. what if the build failed?
         if (isBuildEligibleForDynamicRunCommand($build)) {
             my $job = $build->get_column('job');
             my $out = $build->buildoutputs->find({name => "out"});

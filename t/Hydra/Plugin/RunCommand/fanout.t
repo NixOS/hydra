@@ -93,36 +93,72 @@ subtest "fanoutToCommandsWithDynamicRunCommandSupport" => sub {
 };
 
 subtest "isBuildEligibleForDynamicRunCommand" => sub {
-    my $build = Hydra::Schema::Result::Builds->new({
-        "job" => "foo bar baz"
-    });
+    subtest "Non-matches based on name alone ..." => sub {
+        my $build = $builds->{"foo-bar-baz"};
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($build),
+            0,
+            "The job name does not match"
+        );
 
-    is(
-        Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($build),
-        0,
-        "The job name does not match"
-    );
+        $build->set_column("job", "runCommandHook");
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($build),
+            0,
+            "The job name does not match"
+        );
 
-    $build->set_column("job", "runCommandHook");
-    is(
-        Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($build),
-        0,
-        "The job name does not match"
-    );
+        $build->set_column("job", "runCommandHook.");
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($build),
+            0,
+            "The job name does not match"
+        );
+    };
 
-    $build->set_column("job", "runCommandHook.");
-    is(
-        Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($build),
-        0,
-        "The job name does not match"
-    );
+    subtest "On outputs ..." => sub {
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
+            1,
+            "out is an executable file"
+        );
 
-    $build->set_column("job", "runCommandHook.a");
-    is(
-        Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($build),
-        1,
-        "The job name does match"
-    );
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.symlink"}),
+            1,
+            "out is a symlink to an executable file"
+        );
+
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.no-out"}),
+            0,
+            "No output named out"
+        );
+
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.out-is-directory"}),
+            0,
+            "out is a directory"
+        );
+
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.out-is-not-executable-file"}),
+            0,
+            "out is a file which is not not executable"
+        );
+
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.symlink-non-executable"}),
+            0,
+            "out is a symlink to a non-executable file"
+        );
+
+        is(
+            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.symlink-directory"}),
+            0,
+            "out is a symlink to a directory"
+        );
+    };
 };
 
 

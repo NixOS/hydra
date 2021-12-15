@@ -1,27 +1,130 @@
 with import ./config.nix;
-{
-  runCommandHook.example = mkDerivation
-    {
-      name = "my-build-product";
-      builder = "/bin/sh";
-      outputs = [ "out" "bin" ];
-      args = [
-        (
-          builtins.toFile "builder.sh" ''
-            #! /bin/sh
+rec {
+  foo-bar-baz = mkDerivation {
+    name = "foo-bar-baz";
+    builder = "/bin/sh";
+    outputs = [ "out" ];
+    args = [
+      (
+        builtins.toFile "builder.sh" ''
+          #! /bin/sh
 
-            echo "$PATH"
+          touch $out
+        ''
+      )
+    ];
+  };
 
-            mkdir $bin
-            echo "foo" > $bin/bar
+  runCommandHook.example = mkDerivation {
+    name = "my-build-product";
+    builder = "/bin/sh";
+    outputs = [ "out" ];
+    args = [
+      (
+        builtins.toFile "builder.sh" ''
+          #! /bin/sh
 
-            metrics=$out/nix-support/hydra-metrics
-            mkdir -p "$(dirname "$metrics")"
-            echo "lineCoverage 18 %" >> "$metrics"
-            echo "maxResident 27 KiB" >> "$metrics"
-          ''
-        )
-      ];
-    };
+          touch $out
+          chmod +x $out
+          # ... dunno ...
+        ''
+      )
+    ];
+  };
+
+  runCommandHook.symlink = mkDerivation {
+    name = "symlink-out";
+    builder = "/bin/sh";
+    outputs = [ "out" ];
+    args = [
+      (
+        builtins.toFile "builder.sh" ''
+          #! /bin/sh
+
+          ln -s $1 $out
+        ''
+      )
+
+      runCommandHook.example
+    ];
+  };
+
+  runCommandHook.no-out = mkDerivation {
+    name = "no-out";
+    builder = "/bin/sh";
+    outputs = [ "bin" ];
+    args = [
+      (
+        builtins.toFile "builder.sh" ''
+          #! /bin/sh
+          mkdir $bin
+        ''
+      )
+    ];
+  };
+
+  runCommandHook.out-is-directory = mkDerivation {
+    name = "out-is-directory";
+    builder = "/bin/sh";
+    outputs = [ "out" ];
+    args = [
+      (
+        builtins.toFile "builder.sh" ''
+          #! /bin/sh
+
+          mkdir $out
+        ''
+      )
+    ];
+  };
+
+  runCommandHook.out-is-not-executable-file = mkDerivation {
+    name = "out-is-directory";
+    builder = "/bin/sh";
+    outputs = [ "out" ];
+    args = [
+      (
+        builtins.toFile "builder.sh" ''
+          #! /bin/sh
+
+          touch $out
+        ''
+      )
+    ];
+  };
+
+  runCommandHook.symlink-non-executable = mkDerivation {
+    name = "symlink-out";
+    builder = "/bin/sh";
+    outputs = [ "out" ];
+    args = [
+      (
+        builtins.toFile "builder.sh" ''
+          #! /bin/sh
+
+          ln -s $1 $out
+        ''
+      )
+
+      runCommandHook.out-is-not-executable-file
+    ];
+  };
+
+  runCommandHook.symlink-directory = mkDerivation {
+    name = "symlink-directory";
+    builder = "/bin/sh";
+    outputs = [ "out" ];
+    args = [
+      (
+        builtins.toFile "builder.sh" ''
+          #! /bin/sh
+
+          ln -s $1 $out
+        ''
+      )
+
+      runCommandHook.out-is-directory
+    ];
+  };
 
 }
