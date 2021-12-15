@@ -118,6 +118,7 @@ sub DESTROY
 {
     my ($self) = @_;
     $self->db(0)->schema->storage->disconnect();
+    $self->{db_handle}->stop();
 }
 
 sub write_file {
