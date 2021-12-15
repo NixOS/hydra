@@ -1,23 +1,16 @@
 use strict;
 use warnings;
 use Setup;
-
-my %ctx = test_init();
-
-require Hydra::Schema;
-require Hydra::Model::DB;
-
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $ctx = test_context();
+my $db = $ctx->db();
 
-my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
-my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
-ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
-is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
+my $builds = $ctx->makeAndEvaluateJobset(
+    expression => "basic.nix",
+);
 
-my ($build, @_) = queuedBuildsForJobset($jobset);
+my $build = $builds->{"empty_dir"};
 
 sub new_run_log {
     return $db->resultset('RunCommandLogs')->create({
@@ -26,7 +19,6 @@ sub new_run_log {
         command => "bogus",
     });
 }
-
 
 subtest "Not yet started" => sub {
     my $runlog = new_run_log();
