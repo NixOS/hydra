@@ -173,7 +173,7 @@ subtest "isBuildEligibleForDynamicRunCommand" => sub {
     };
 
     subtest "With dynamic runcommand disabled ..." => sub {
-        subtest "disabled on the project, enabled on the jobset" => {
+        subtest "disabled on the project, enabled on the jobset" => sub {
             $build->project->update({enable_dynamic_run_command => 0});
             $build->jobset->update({enable_dynamic_run_command => 1});
 
@@ -184,7 +184,7 @@ subtest "isBuildEligibleForDynamicRunCommand" => sub {
             );
         };
 
-        subtest "enabled on the project, disabled on the jobset" => {
+        subtest "enabled on the project, disabled on the jobset" => sub {
             $build->project->update({enable_dynamic_run_command => 1});
             $build->jobset->update({enable_dynamic_run_command => 0});
 
@@ -195,7 +195,7 @@ subtest "isBuildEligibleForDynamicRunCommand" => sub {
             );
         };
 
-        subtest "disabled on the project, disabled on the jobset" => {
+        subtest "disabled on the project, disabled on the jobset" => sub {
             $build->project->update({enable_dynamic_run_command => 0});
             $build->jobset->update({enable_dynamic_run_command => 0});
 
