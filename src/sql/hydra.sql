@@ -49,6 +49,7 @@ create table Projects (
     declfile      text, -- File containing declarative jobset specification
     decltype      text, -- Type of the input containing declarative jobset specification
     declvalue     text, -- Value of the input containing declarative jobset specification
+    enable_dynamic_run_command boolean not null default false,
     foreign key   (owner) references Users(userName) on update cascade
 );
 
