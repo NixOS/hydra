@@ -1,12 +1,12 @@
-use feature 'unicode_strings';
 use strict;
 use warnings;
 use JSON::MaybeXS;
 use Setup;
+use Test2::V0;
 
 my $binarycachedir = File::Temp->newdir();
 
-my %ctx = test_init(
+my $ctx = test_context(
     nix_config => qq|
     experimental-features = nix-command
     substituters = file://${binarycachedir}?trusted=1
@@ -18,13 +18,9 @@ my %ctx = test_init(
     </runcommand>
 |);
 
-require Hydra::Schema;
-require Hydra::Model::DB;
-
-use Test2::V0;
 
 # Check that hydra's queue runner sends notifications.
-# 
+#
 # The prelude to the test prebuilds one attribute and puts it in a
 # binary cache. The jobset will try to build that job plus another,
 # and we'll be able to check the behavior in both cases.
@@ -40,11 +36,11 @@ subtest "Pre-build the job, upload to the cache, and then delete locally" => sub
     my $scratchlogdir = File::Temp->newdir();
     $ENV{'NIX_LOG_DIR'} = "$scratchlogdir";
 
-    my $outlink = "$ctx{tmpdir}/basic-canbesubstituted";
-    is(system("nix-build '${ctx{jobsdir}}/notifications.nix' -A canbesubstituted --out-link '${outlink}'"), 0, "Building notifications.nix succeeded");
+    my $outlink = $ctx->tmpdir . "/basic-canbesubstituted";
+    is(system("nix-build '" . $ctx->jobsdir . "/notifications.nix' -A canbesubstituted --out-link '${outlink}'"), 0, "Building notifications.nix succeeded");
     is(system("nix copy --to 'file://${binarycachedir}' '${outlink}'"), 0, "Copying the closure to the binary cache succeeded");
     my $outpath = readlink($outlink);
-    
+
     # Delete the store path and all of the system's garbage
     is(unlink($outlink), 1, "Deleting the GC root succeeds");
     is(system("nix log '$outpath'"), 0, "Reading the output's log succeeds");
@@ -54,8 +50,8 @@ subtest "Pre-build the job, upload to the cache, and then delete locally" => sub
 
 subtest "Ensure substituting the job works, but reading the log fails" => sub {
     # Build the store path, with --max-jobs 0 to prevent builds
-    my $outlink = "$ctx{tmpdir}/basic-canbesubstituted";
-    is(system("nix-build '${ctx{jobsdir}}/notifications.nix' -A canbesubstituted --max-jobs 0 --out-link '${outlink}'"), 0, "Building notifications.nix succeeded");
+    my $outlink = $ctx->tmpdir . "/basic-canbesubstituted";
+    is(system("nix-build '" . $ctx->jobsdir . "/notifications.nix' -A canbesubstituted --max-jobs 0 --out-link '${outlink}'"), 0, "Building notifications.nix succeeded");
     my $outpath = readlink($outlink);
 
     # Verify trying to read this path's log fails, since we substituted it
@@ -68,35 +64,27 @@ subtest "Ensure substituting the job works, but reading the log fails" => sub {
     is(system("nix-collect-garbage"), 0, "Delete all the system's garbage");
 };
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
-
-my $jobset = createBaseJobset("queue-runner-notifs", "notifications.nix", $ctx{jobsdir});
+my $db = $ctx->db();
 
 my $dbh = $db->storage->dbh;
 $dbh->do("listen build_started");
 $dbh->do("listen build_finished");
 $dbh->do("listen step_finished");
 
-subtest "Evaluation of the jobset" => sub {
-    ok(evalSucceeds($jobset), "Evaluation should exit with return code 0");
-    is(nrQueuedBuildsForJobset($jobset), 2, "Evaluation should result in 2 builds");
-};
-
-my @builds = queuedBuildsForJobset($jobset);
-
+my $builds = $ctx->makeAndEvaluateJobset(
+    expression => "notifications.nix",
+    build => 1
+);
 
 subtest "Build: substitutable, canbesubstituted" => sub {
-    my ($build) = grep { $_->nixname eq "can-be-substituted" } @builds;
-    ok(runBuild($build), "Build should exit with return code 0");
+    my $build = $builds->{"canbesubstituted"};
 
-    my $newbuild = $db->resultset('Builds')->find($build->id);
-    is($newbuild->finished, 1, "Build should be finished.");
-    is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");
+    is($build->finished, 1, "Build should be finished.");
+    is($build->buildstatus, 0, "Build should have buildstatus 0.");
 
     # Verify that hydra-notify will process this job, even if hydra-notify isn't
     # running at the time.
-    isnt($newbuild->notificationpendingsince, undef, "The build has a pending notification");
+    isnt($build->notificationpendingsince, undef, "The build has a pending notification");
 
     subtest "First notification: build_finished" => sub {
         my ($channelName, $pid, $payload) = @{$dbh->func("pg_notifies")};
@@ -106,16 +94,13 @@ subtest "Build: substitutable, canbesubstituted" => sub {
 };
 
 subtest "Build: not substitutable, unsubstitutable" => sub {
-    my ($build) = grep { $_->nixname eq "unsubstitutable" } @builds;
-    ok(runBuild($build), "Build should exit with return code 0");
-
-    my $newbuild = $db->resultset('Builds')->find($build->id);
-    is($newbuild->finished, 1, "Build should be finished.");
-    is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");
+    my $build = $builds->{"unsubstitutable"};
+    is($build->finished, 1, "Build should be finished.");
+    is($build->buildstatus, 0, "Build should have buildstatus 0.");
 
     # Verify that hydra-notify will process this job, even if hydra-notify isn't
     # running at the time.
-    isnt($newbuild->notificationpendingsince, undef, "The build has a pending notification");
+    isnt($build->notificationpendingsince, undef, "The build has a pending notification");
 
     subtest "First notification: build_started" => sub {
         my ($channelName, $pid, $payload) = @{$dbh->func("pg_notifies")};
