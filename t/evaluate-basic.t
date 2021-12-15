@@ -2,31 +2,34 @@ use feature 'unicode_strings';
 use strict;
 use warnings;
 use Setup;
-
-my %ctx = test_init();
-
-require Hydra::Schema;
-require Hydra::Model::DB;
-
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $ctx = test_context();
 
-my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
+my $builds = $ctx->makeAndEvaluateJobset(
+    expression => "basic.nix",
+    build => 1
+);
 
-# Most basic test case, no parameters
-my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
+subtest "Build: succeed_with_failed" => sub {
+    my $build = $builds->{"succeed_with_failed"};
 
-ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
-is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
+    is($build->finished, 1, "Build should be finished.");
+    is($build->buildstatus, 6, "succeeeded-but-failed should have buildstatus 6.");
+};
 
-for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with return code 0");
-    my $newbuild = $db->resultset('Builds')->find($build->id);
-    is($newbuild->finished, 1, "Build '".$build->job."' from jobs/basic.nix should be finished.");
-    my $expected = $build->job eq "fails" ? 1 : $build->job =~ /with_failed/ ? 6 : 0;
-    is($newbuild->buildstatus, $expected, "Build '".$build->job."' from jobs/basic.nix should have buildstatus $expected.");
-}
+subtest "Build: empty_dir" => sub {
+    my $build = $builds->{"empty_dir"};
+
+    is($build->finished, 1, "Build should be finished.");
+    is($build->buildstatus, 0, "Should have succeeded.");
+};
+
+subtest "Build: fails" => sub {
+    my $build = $builds->{"fails"};
+
+    is($build->finished, 1, "Build should be finished.");
+    is($build->buildstatus, 1, "Should have failed.");
+};
 
 done_testing;
