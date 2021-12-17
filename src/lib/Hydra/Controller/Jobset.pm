@@ -261,6 +261,14 @@ sub updateJobset {
 
     my $checkinterval = int(trim($c->stash->{params}->{checkinterval}));
 
+    my $enable_dynamic_run_command = defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
+    if ($enable_dynamic_run_command
+        && !($c->config->{dynamicruncommand}->{enable}
+            && $jobset->project->enable_dynamic_run_command))
+    {
+        badRequest($c, "Dynamic RunCommand is not enabled by the server or the parent project.");
+    }
+
     $jobset->update(
         { name => $jobsetName
         , description => trim($c->stash->{params}->{"description"})
@@ -268,7 +276,7 @@ sub updateJobset {
         , nixexprinput => $nixExprInput
         , enabled => $enabled
         , enableemail => defined $c->stash->{params}->{enableemail} ? 1 : 0
-        , enable_dynamic_run_command => defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0
+        , enable_dynamic_run_command => $enable_dynamic_run_command
         , emailoverride => trim($c->stash->{params}->{emailoverride}) || ""
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , keepnr => int(trim($c->stash->{params}->{keepnr} // "0"))
