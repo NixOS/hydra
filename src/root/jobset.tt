@@ -162,7 +162,7 @@
       </tr>
       <tr>
         <th>Enable Dynamic RunCommand Hooks:</th>
-        <td>[% jobset.enable_dynamic_run_command ? "Yes" : "No" %]</td>
+        <td>[% c.config.dynamicruncommand.enable ? project.enable_dynamic_run_command ? jobset.enable_dynamic_run_command ? "Yes" : "No (not enabled by jobset)" : "No (not enabled by project)" : "No (not enabled by server)" %]</td>
       </tr>
       [% IF emailNotification %]
       <tr>
