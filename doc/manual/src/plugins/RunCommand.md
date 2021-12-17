@@ -33,8 +33,9 @@ Command to run. Can use the `$HYDRA_JSON` environment variable to access informa
 
 ### Dynamic Commands
 
-Hydra can optionally run RunCommand hooks defined dynamically by the jobset.
-This must be turned on explicitly in the `hydra.conf` and per jobset.
+Hydra can optionally run RunCommand hooks defined dynamically by the jobset. In
+order to enable dynamic commands, you must enable this feature in your
+`hydra.conf`, *as well as* in the parent project and jobset configuration.
 
 #### Behavior
 
