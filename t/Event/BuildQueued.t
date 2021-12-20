@@ -39,6 +39,28 @@ subtest "Parsing build_queued" => sub {
     );
 };
 
+subtest "interested" => sub {
+    my $event = Hydra::Event::BuildQueued->new(123, []);
+
+    subtest "A plugin which does not implement the API" => sub {
+        my $plugin = {};
+        my $mock = mock_obj $plugin => ();
+
+        is($event->interestedIn($plugin), 0, "The plugin is not interesting.");
+    };
+
+    subtest "A plugin which does implement the API" => sub {
+        my $plugin = {};
+        my $mock = mock_obj $plugin => (
+            add => [
+                "buildQueued" => sub {}
+            ]
+        );
+
+        is($event->interestedIn($plugin), 1, "The plugin is interesting.");
+    };
+};
+
 subtest "load" => sub {
     my $build = $builds->{"empty_dir"};
 

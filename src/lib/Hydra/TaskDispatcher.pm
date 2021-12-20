@@ -117,6 +117,11 @@ sub new {
         type => "counter",
         help => "Number of tasks that have not been processed because the plugin does not exist."
     );
+    $prometheus->declare(
+        "notify_plugin_not_interested",
+        type => "counter",
+        help => "Number of tasks that have not been processed because the plugin was not interested in the event."
+    );
 
     my %plugins_by_name = map { ref $_ => $_ } @{$plugins};
 
@@ -187,6 +192,11 @@ sub dispatch_task {
     if (!defined($plugin)) {
         $self->{"prometheus"}->inc("notify_plugin_no_such_plugin", $event_labels);
         print STDERR "No plugin named $plugin_name\n";
+        return 0;
+    }
+
+    if (!$task->{"event"}->interested($plugin)) {
+        $self->{"prometheus"}->inc("notify_plugin_not_interested", $event_labels);
         return 0;
     }
 

@@ -64,6 +64,28 @@ subtest "Parsing step_finished" => sub {
     );
 };
 
+subtest "interested" => sub {
+    my $event = Hydra::Event::StepFinished->new(123, []);
+
+    subtest "A plugin which does not implement the API" => sub {
+        my $plugin = {};
+        my $mock = mock_obj $plugin => ();
+
+        is($event->interestedIn($plugin), 0, "The plugin is not interesting.");
+    };
+
+    subtest "A plugin which does implement the API" => sub {
+        my $plugin = {};
+        my $mock = mock_obj $plugin => (
+            add => [
+                "stepFinished" => sub {}
+            ]
+        );
+
+        is($event->interestedIn($plugin), 1, "The plugin is interesting.");
+    };
+};
+
 subtest "load" => sub {
 
     my $step = $db->resultset('BuildSteps')->search(

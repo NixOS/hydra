@@ -38,6 +38,12 @@ sub new_event {
     }, $self;
 }
 
+sub interested {
+    my ($self, $plugin) = @_;
+
+    return $self->{"event"}->interestedIn($plugin);
+}
+
 sub execute {
     my ($self, $db, $plugin) = @_;
     return $self->{"event"}->execute($db, $plugin);
