@@ -38,7 +38,7 @@ sub new_event {
     }, $self;
 }
 
-sub interested {
+sub interestedIn {
     my ($self, $plugin) = @_;
 
     return $self->{"event"}->interestedIn($plugin);

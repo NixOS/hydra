@@ -195,7 +195,7 @@ sub dispatch_task {
         return 0;
     }
 
-    if (!$task->{"event"}->interested($plugin)) {
+    if (!$task->{"event"}->interestedIn($plugin)) {
         $self->{"prometheus"}->inc("notify_plugin_not_interested", $event_labels);
         return 0;
     }
