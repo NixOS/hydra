@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use utf8;
 use Getopt::Long;
+use Time::HiRes qw( gettimeofday tv_interval );
 use HTTP::Server::PSGI;
 use Hydra::Event;
 use Hydra::Event::BuildFinished;
@@ -45,6 +46,11 @@ $prom->declare(
     "notify_event_error",
     type => "counter",
     help => "Number of events received that were unprocessable by channel."
+);
+$prom->declare(
+    "notify_event_runtime",
+    type => "histogram",
+    help => "Number of seconds spent executing events by channel."
 );
 
 my $promCfg = Hydra::Helper::Nix::getHydraNotifyPrometheusConfig($config);
@@ -109,6 +115,7 @@ while (!$queued_only) {
     $prom->inc("event_loop_iterations");
     my $messages = $listener->block_for_messages($taskretries->get_seconds_to_next_retry());
     while (my $message = $messages->()) {
+        my $start_time = [gettimeofday()];
         $prom->set("event_received", time());
         my $channelName = $message->{"channel"};
         my $pid = $message->{"pid"};
@@ -129,7 +136,9 @@ while (!$queued_only) {
         } or do {
             $prom->inc("notify_event_error", { channel => $channelName });
             print STDERR "error processing message '$payload' on channel '$channelName': $@\n";
-        }
+        };
+
+        $prom->histogram_observe("notify_event_runtime", tv_interval($start_time), { channel => $channelName });
     }
 
     my $task = $taskretries->get_retryable_task();
