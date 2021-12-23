@@ -34,6 +34,11 @@ sub new :prototype($$$) {
     }, $self;
 }
 
+sub interestedIn {
+    my ($self, $plugin) = @_;
+    return int(defined($plugin->can('stepFinished')));
+}
+
 sub load {
     my ($self, $db) = @_;
 

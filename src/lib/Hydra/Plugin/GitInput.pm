@@ -14,7 +14,6 @@ use Data::Dumper;
 
 my $CONFIG_SECTION = "git-input";
 
-
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
     $inputTypes->{'git'} = 'Git checkout';

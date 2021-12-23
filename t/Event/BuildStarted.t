@@ -45,6 +45,28 @@ subtest "Parsing build_started" => sub {
     );
 };
 
+subtest "interested" => sub {
+    my $event = Hydra::Event::BuildStarted->new(123, []);
+
+    subtest "A plugin which does not implement the API" => sub {
+        my $plugin = {};
+        my $mock = mock_obj $plugin => ();
+
+        is($event->interestedIn($plugin), 0, "The plugin is not interesting.");
+    };
+
+    subtest "A plugin which does implement the API" => sub {
+        my $plugin = {};
+        my $mock = mock_obj $plugin => (
+            add => [
+                "buildStarted" => sub {}
+            ]
+        );
+
+        is($event->interestedIn($plugin), 1, "The plugin is interesting.");
+    };
+};
+
 subtest "load" => sub {
     my $build = $db->resultset('Builds')->search(
       { },

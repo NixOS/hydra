@@ -1,20 +1,20 @@
-package Hydra::Event::BuildStarted;
+package Hydra::Event::BuildQueued;
 
 use strict;
 use warnings;
 
 sub parse :prototype(@) {
     unless (@_ == 1) {
-        die "build_started: payload takes only one argument, but ", scalar(@_), " were given";
+        die "build_queued: payload takes only one argument, but ", scalar(@_), " were given";
     }
 
     my ($build_id) = @_;
 
     unless ($build_id =~ /^\d+$/) {
-        die "build_started: payload argument should be an integer, but '", $build_id, "' was given"
+        die "build_queued: payload argument should be an integer, but '", $build_id, "' was given"
     }
 
-    return Hydra::Event::BuildStarted->new(int($build_id));
+    return Hydra::Event::BuildQueued->new(int($build_id));
 }
 
 sub new {
@@ -27,7 +27,7 @@ sub new {
 
 sub interestedIn {
     my ($self, $plugin) = @_;
-    return int(defined($plugin->can('buildStarted')));
+    return int(defined($plugin->can('buildQueued')));
 }
 
 sub load {
@@ -44,7 +44,7 @@ sub execute {
 
     $self->load($db);
 
-    $plugin->buildStarted($self->{"build"});
+    $plugin->buildQueued($self->{"build"});
 
     return 1;
 }

@@ -486,6 +486,7 @@ sub checkBuild {
         $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath };
         $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
 
+        $db->storage->dbh->do("notify build_queued, ?", undef, $build->id);
         print STDERR "added build ${\$build->id} (${\$jobset->get_column('project')}:${\$jobset->name}:$jobName)\n";
     });
 

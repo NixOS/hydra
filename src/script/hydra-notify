@@ -93,6 +93,7 @@ my $task_dispatcher = Hydra::TaskDispatcher->new(
 my $dbh = $db->storage->dbh;
 
 my $listener = Hydra::PostgresListener->new($dbh);
+$listener->subscribe("build_queued");
 $listener->subscribe("build_started");
 $listener->subscribe("build_finished");
 $listener->subscribe("step_finished");

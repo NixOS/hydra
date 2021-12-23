@@ -8,6 +8,12 @@ Notifications are passed from `hydra-queue-runner` to `hydra-notify` through Pos
 
 Note that the notification format is subject to change and should not be considered an API. Integrate with `hydra-notify` instead of listening directly.
 
+### `build_queued`
+
+* **Payload:** Exactly one value, the ID of the build.
+* **When:** Issued after the transaction inserting the build in to the database is committed. One notification is sent per new build.
+* **Delivery Semantics:** Ephemeral. `hydra-notify` must be running to react to this event. No record of this event is stored.
+
 ### `build_started`
 
 * **Payload:** Exactly one value, the ID of the build.
