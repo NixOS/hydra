@@ -137,6 +137,15 @@ sub view_log : Chained('buildChain') PathPart('log') {
 }
 
 
+sub view_runcommand_log : Chained('buildChain') PathPart('runcommand-log') {
+    my ($self, $c, $sha) = @_;
+
+    $c->stash->{is_runcommand} = 1;
+    $c->stash->{log_uri} = $c->uri_for($c->controller('Root')->action_for("runcommandlog"), $sha . "-" . $c->stash->{build}->id);
+    $c->stash->{template} = 'log.tt';
+}
+
+
 sub showLog {
     my ($c, $mode, $finished, $drvPath) = @_;
     $mode //= "pretty";

@@ -7,6 +7,7 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::View::TT;
+use Hydra::Model::DB;
 use Nix::Store;
 use Nix::Config;
 use Encode;
@@ -527,6 +528,22 @@ sub log :Local :Args(1) {
         $c->res->redirect($logPrefix . "log/" . basename($drvPath));
     } else {
         notFound($c, "The build log of $drvPath is not available.");
+    }
+}
+
+sub runcommandlog :Local :Args(1) {
+    my ($self, $c, $filename) = @_;
+
+    my $tail = $c->request->params->{"tail"};
+
+    die if defined $tail && $tail !~ /^[0-9]+$/;
+
+    my $logFile = Hydra::Model::DB::getHydraPath . "/runcommand-logs/" . substr($filename, 0, 2) . "/$filename";
+    if (-f $logFile) {
+        serveLogFile($c, $logFile, $tail);
+        return;
+    } else {
+        notFound($c, "The RunCommand log is not available.");
     }
 }
 

@@ -152,6 +152,8 @@ __PACKAGE__->belongs_to(
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:9AIzlQl1RjRXrs9gQCZKVw
 
 use POSIX qw(WEXITSTATUS WIFEXITED WIFSIGNALED WTERMSIG);
+use Digest::SHA1 qw(sha1_hex);
+use Hydra::Model::DB;
 
 =head2 started
 
@@ -321,3 +323,29 @@ sub did_fail_with_exec_error {
 }
 
 1;
+
+=head2 log_relative_url
+
+Returns the URL to the log file relative to the build it belongs to.
+
+Return:
+
+* The relative URL if a log file exists
+* An empty string otherwise
+=cut
+sub log_relative_url() {
+    my ($self) = @_;
+
+    # Do not return a URL when there is no build yet
+    if (not defined($self->start_time)) {
+      return "";
+    }
+
+    my $sha = sha1_hex($self->command);
+    # Do not return a URL when there is no log file yet
+    if (not -f Hydra::Model::DB::getHydraPath . "/runcommand-logs/" . substr($sha, 0, 2) . "/$sha-" . $self->build_id) {
+        return "";
+    }
+
+    return "runcommand-log/$sha";
+}

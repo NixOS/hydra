@@ -1,6 +1,6 @@
 [% WRAPPER layout.tt
-  titleHTML="Log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ linkToJob(build.jobset, job)
-  title="Log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ makeNameTextForJob(build.jobset, job)
+  titleHTML=(is_runcommand ? "RunCommand log of " : "Log of ") _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ linkToJob(build.jobset, job)
+  title=(is_runcommand ? "RunCommand log of " : "Log of ") _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ makeNameTextForJob(build.jobset, job)
 %]
 [% PROCESS common.tt %]
 
@@ -11,7 +11,7 @@
   [% ELSE %]
   is
   [% END %]
-  the build log of derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
+  [% IF is_runcommand %] the output of a RunCommand execution of[% ELSE %] the build log of[% END %] derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
   [% IF step && step.machine %]
     It was built on <tt>[% step.machine %]</tt>.
   [% END %]
