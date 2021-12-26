@@ -5,6 +5,8 @@ use warnings;
 use parent 'Hydra::Plugin';
 use experimental 'smartmatch';
 use JSON::MaybeXS;
+use Digest::SHA1 qw(sha1_hex);
+use Hydra::Model::DB;
 
 sub isEnabled {
     my ($self) = @_;
@@ -160,7 +162,18 @@ sub buildFinished {
 
         $runlog->started();
 
-        system("$command") == 0
+        # Prepare log collection
+        my $filename = sha1_hex($command) . "-" . $build->get_column('id');
+        my $dir = Hydra::Model::DB::getHydraPath . "/runcommand-logs/" . substr($filename, 0, 2);
+        my $logpath = "$dir/$filename";
+        mkdir($dir, oct(755));
+        # This creates the file with the correct permissions
+        open(my $f, '>', $logpath);
+        close($f);
+        chmod(oct(644), $logpath);
+
+        # Run the command
+        system("$command 1>$logpath 2>&1") == 0
             or warn "notification command '$command' failed with exit status $? ($!)\n";
 
         $runlog->completed_with_child_error($?, $!);
