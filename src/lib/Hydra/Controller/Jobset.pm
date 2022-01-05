@@ -243,12 +243,17 @@ sub updateJobset {
 
     my ($nixExprPath, $nixExprInput);
     my $flake;
+    my $flakeattr;
 
     if ($type == 0) {
         ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
     } elsif ($type == 1) {
         $flake = trim($c->stash->{params}->{"flake"});
         error($c, "Invalid flake URI ‘$flake’.") if $flake !~ /^[a-zA-Z]/;
+        $flakeattr = trim($c->stash->{params}->{"flakeattr"});
+        if (defined $flakeattr && $flakeattr ne "") {
+            error($c, "Invalid flake attribute ‘$flakeattr’.") if $flakeattr !~ /^[[:alpha:]][\w-]*$/;
+        }
     } else {
         error($c, "Invalid jobset type.");
     }
@@ -276,6 +281,7 @@ sub updateJobset {
         , schedulingshares => $shares
         , type => $type
         , flake => $flake
+        , flakeattr => $flakeattr
         });
 
     $jobset->project->jobsetrenames->search({ from_ => $jobsetName })->delete;

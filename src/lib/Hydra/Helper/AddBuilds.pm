@@ -33,6 +33,7 @@ sub updateDeclarativeJobset {
         hidden
         type
         flake
+        flakeattr
         description
         nixexprinput
         nixexprpath
@@ -55,6 +56,7 @@ sub updateDeclarativeJobset {
     if (defined $update{type}) {
         if ($update{type} == 0) {
             $update{flake} = undef;
+            $update{flakeattr} = undef;
         } elsif ($update{type} == 1) {
             $update{nixexprpath} = undef;
             $update{nixexprinput} = undef;

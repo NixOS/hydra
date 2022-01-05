@@ -155,6 +155,11 @@ __PACKAGE__->table("jobsets");
   data_type: 'text'
   is_nullable: 1
 
+=head2 flakeattr
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -206,6 +211,8 @@ __PACKAGE__->add_columns(
   "type",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "flake",
+  { data_type => "text", is_nullable => 1 },
+  "flakeattr",
   { data_type => "text", is_nullable => 1 },
 );
 
@@ -403,6 +410,7 @@ sub as_json {
         "fetcherrormsg" => $self->get_column("fetcherrormsg") // "",
         "type" => $self->get_column("type") // "",
         "flake" => $self->get_column("flake") // "",
+        "flakeattr" => $self->get_column("flakeattr") // "",
 
         # boolean_columns
         "enableemail" => $self->get_column("enableemail") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
