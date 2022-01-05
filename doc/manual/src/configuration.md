@@ -142,3 +142,12 @@ general any LDAP group of the form *hydra\_some\_role* (notice the
       role_value: dn
       role_search_options:
         deref: always
+
+Embedding Extra HTML
+--------------------
+
+Embed an analytics widget or other HTML in the `<head>` of each HTML document via:
+
+```conf
+tracker = <script src="...">
+```

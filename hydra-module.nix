@@ -26,7 +26,7 @@ let
     } // hydraEnv // cfg.extraEnv;
 
   serverEnv = env //
-    { HYDRA_TRACKER = cfg.tracker;
+    {
       COLUMNS = "80";
       PGPASSFILE = "${baseDir}/pgpass-www"; # grrr
       XDG_CACHE_HOME = "${baseDir}/www/.cache";
@@ -240,6 +240,14 @@ in
         ''}
         gc_roots_dir = ${cfg.gcRootsDir}
         use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
+
+        ${optionalString (cfg.tracker != null) (let
+            indentedTrackerData = lib.concatMapStringsSep "\n" (line: "    ${line}") (lib.splitString "\n" cfg.tracker);
+          in ''
+          tracker = <<TRACKER
+          ${indentedTrackerData}
+            TRACKER
+        '')}
       '';
 
     environment.systemPackages = [ cfg.package ];
