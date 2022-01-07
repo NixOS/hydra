@@ -83,6 +83,7 @@ sub view_GET {
     $c->stash->{removed} = [];
     $c->stash->{unfinished} = [];
     $c->stash->{aborted} = [];
+    $c->stash->{failed} = [];
 
     my $n = 0;
     foreach my $build (@builds) {
@@ -118,6 +119,9 @@ sub view_GET {
             push @{$c->stash->{aborted}}, $build;
         } else {
             push @{$c->stash->{new}}, $build if !$found;
+        }
+        if ($build->buildstatus != 0) {
+            push @{$c->stash->{failed}}, $build;
         }
     }
 
