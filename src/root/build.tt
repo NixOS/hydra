@@ -149,7 +149,7 @@ END;
   [% IF build.dependents %]<li class="nav-item"><a class="nav-link" href="#tabs-usedby" data-toggle="tab">Used By</a></li>[% END%]
   [% IF drvAvailable %]<li class="nav-item"><a class="nav-link" href="#tabs-build-deps" data-toggle="tab">Build Dependencies</a></li>[% END %]
   [% IF localStore && available %]<li class="nav-item"><a class="nav-link" href="#tabs-runtime-deps" data-toggle="tab">Runtime Dependencies</a></li>[% END %]
-  <li class="nav-item"><a class="nav-link" href="#tabs-runcommandlogs" data-toggle="tab">RunCommand Logs</a></li>
+  [% IF runcommandlogs.size() > 0 %]<li class="nav-item"><a class="nav-link" href="#tabs-runcommandlogs" data-toggle="tab">RunCommand Logs</a></li>[% END %]
 </ul>
 
 <div id="generic-tabs" class="tab-content">
