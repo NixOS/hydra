@@ -10,6 +10,7 @@
 #include "util.hh"
 #include "worker-protocol.hh"
 #include "finally.hh"
+#include "url.hh"
 
 using namespace nix;
 
@@ -26,6 +27,25 @@ static void append(Strings & dst, const Strings & src)
     dst.insert(dst.end(), src.begin(), src.end());
 }
 
+static Strings extraStoreArgs(std::string & machine)
+{
+    Strings result;
+    try {
+        auto parsed = parseURL(machine);
+        if (parsed.scheme != "ssh") {
+            throw SysError("Currently, only (legacy-)ssh stores are supported!");
+        }
+        machine = parsed.authority.value_or("");
+        auto remoteStore = parsed.query.find("remote-store");
+        if (remoteStore != parsed.query.end()) {
+            result = {"--store", shellEscape(remoteStore->second)};
+        }
+    } catch (BadURL &) {
+        // We just try to continue with `machine->sshName` here for backwards compat.
+    }
+
+    return result;
+}
 
 static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Child & child)
 {
@@ -54,7 +74,9 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
         }
         else {
             pgmName = "ssh";
-            argv = {"ssh", machine->sshName};
+            auto sshName = machine->sshName;
+            Strings extraArgs = extraStoreArgs(sshName);
+            argv = {"ssh", sshName};
             if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
             if (machine->sshPublicHostKey != "") {
                 Path fileName = tmpDir + "/host-key";
@@ -66,6 +88,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
             append(argv,
                 { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
                 , "--", "nix-store", "--serve", "--write" });
+            append(argv, extraArgs);
         }
 
         execvp(argv.front().c_str(), (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
