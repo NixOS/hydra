@@ -1,15 +1,14 @@
 [% PROCESS common.tt %]
 
 [% BLOCK renderNode %]
-  <li>
     [% IF done.${node.path} %]
-      <tt>[% node.name %]</tt> (<a href="#[% done.${node.path} %]"><em>repeated</em></a>)
+    <div class="subtree">
+      <tt>[% node.name %]</tt> (<a href="#[% done.${node.path} %]"><em>repeated</em></a>)</div>
     [% ELSE %]
+  <details class="subtree">
+    <summary>
       [% done.${node.path} = global.nodeId; global.nodeId = global.nodeId + 1; %]
-      [% IF node.refs.size > 0 %]
-        <a href="javascript:" class="tree-toggle"></a>
-      [% END %]
-      <span id="[% done.${node.path} %]"><span class="dep-tree-line">
+      <span id="[% done.${node.path} %]">
         [% IF node.buildStep %]
           <a href="[% c.uri_for('/build' node.buildStep.get_column('build')) %]"><tt>[% node.name %]</tt></a> [%
             IF buildStepLogExists(node.buildStep);
@@ -18,12 +17,11 @@
         [% ELSE %]
           <tt>[% node.name %]</tt> (<em>no info</em>)
         [% END %]
-      </span></span>
+      </span>
+      </summary>
       [% IF node.refs.size > 0 %]
-        <ul class="subtree">
           [% FOREACH ref IN node.refs; INCLUDE renderNode node=ref; END %]
-        </ul>
       [% END %]
+  </details>
     [% END %]
-  </li>
 [% END %]
