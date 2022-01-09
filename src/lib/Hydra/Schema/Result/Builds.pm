@@ -584,7 +584,7 @@ sub makeSource {
 sub makeQueries {
     my ($name, $constraint) = @_;
 
-    my $activeJobs = "(select distinct project, jobset, job, system from Builds where isCurrent = 1 $constraint)";
+    my $activeJobs = "(select distinct jobset_id, job, system from Builds where isCurrent = 1 $constraint)";
 
     makeSource(
         "LatestSucceeded$name",
@@ -594,7 +594,7 @@ sub makeQueries {
             (select
                (select max(b.id) from builds b
                 where
-                  project = activeJobs.project and jobset = activeJobs.jobset
+                  jobset_id = activeJobs.jobset_id
                   and job = activeJobs.job and system = activeJobs.system
                   and finished = 1 and buildstatus = 0
                ) as id
@@ -606,7 +606,7 @@ QUERY
 }
 
 makeQueries('', "");
-makeQueries('ForProject', "and project = ?");
+makeQueries('ForProject', "and jobset_id in (select id from jobsets j where j.project = ?)");
 makeQueries('ForJobset', "and jobset_id = ?");
 makeQueries('ForJob', "and jobset_id = ? and job = ?");
 makeQueries('ForJobName', "and jobset_id = (select id from jobsets j where j.name = ?) and job = ?");
