@@ -611,36 +611,36 @@ makeQueries('ForJobset', "and jobset_id = ?");
 makeQueries('ForJob', "and jobset_id = ? and job = ?");
 makeQueries('ForJobName', "and jobset_id = (select id from jobsets j where j.name = ?) and job = ?");
 
+sub as_json {
+  my ($self) = @_;
 
-my %hint = (
-    columns => [
-        'id',
-        'finished',
-        'timestamp',
-        'starttime',
-        'stoptime',
-        'project',
-        'jobset',
-        'job',
-        'nixname',
-        'system',
-        'priority',
-        'buildstatus',
-        'releasename',
-        'drvpath',
-    ],
-    relations => {
-        jobsetevals => 'id'
-    },
-    eager_relations => {
-        buildoutputs => 'name',
-        buildproducts => 'productnr',
-        buildmetrics => 'name',
-    }
-);
+  # After #1093 merges this can become $self->jobset;
+  # However, with ->jobset being a column on master
+  # it seems DBIX gets a it confused.
+  my ($jobset) = $self->search_related('jobset')->first;
 
-sub json_hint {
-    return \%hint;
+  my $json = {
+    id => $self->get_column('id'),
+    finished => $self->get_column('finished'),
+    timestamp => $self->get_column('timestamp'),
+    starttime => $self->get_column('starttime'),
+    stoptime => $self->get_column('stoptime'),
+    project => $jobset->get_column('project'),
+    jobset => $jobset->name,
+    job => $self->get_column('job'),
+    nixname => $self->get_column('nixname'),
+    system => $self->get_column('system'),
+    priority => $self->get_column('priority'),
+    buildstatus => $self->get_column('buildstatus'),
+    releasename => $self->get_column('releasename'),
+    drvpath => $self->get_column('drvpath'),
+    jobsetevals => [ map { $_->id } $self->jobsetevals ],
+    buildoutputs => { map { $_->name  => $_ } $self->buildoutputs },
+    buildproducts => { map { $_->productnr => $_ } $self->buildproducts },
+    buildmetrics => { map { $_->name => $_ } $self->buildmetrics },
+  };
+
+  return $json;
 }
 
 1;
