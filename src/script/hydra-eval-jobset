@@ -106,9 +106,17 @@ sub fetchInputBuild {
         $projectName ||= $project->name;
         $jobsetName ||= $jobset->name;
 
+        my $jobset = $db->resultset('Jobsets')->search(
+            {
+                name => $jobsetName,
+                project => $projectName,
+            },
+            {}
+        )->single;
+
         # Pick the most recent successful build of the specified job.
         $prevBuild = $db->resultset('Builds')->search(
-            { finished => 1, project => $projectName, jobset => $jobsetName
+            { finished => 1, jobset_id => $jobset->get_column('id')
             , job => $jobName, buildStatus => 0 },
             { order_by => "me.id DESC", rows => 1
             , where => \ attrsToSQL($attrs, "me.id") })->single;
