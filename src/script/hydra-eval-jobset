@@ -476,8 +476,6 @@ sub checkBuild {
         # Add the build to the database.
         $build = $jobset->builds->create(
             { timestamp => $time
-            , project => $jobset->project
-            , jobset => $jobset->name
             , jobset_id => $jobset->id
             , job => $jobName
             , description => null($buildInfo->{description})
