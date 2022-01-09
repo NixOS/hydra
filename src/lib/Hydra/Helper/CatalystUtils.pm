@@ -337,7 +337,8 @@ sub parseJobsetName {
 
 sub showJobName {
     my ($build) = @_;
-    return $build->get_column('project') . ":" . $build->get_column('jobset') . ":" . $build->get_column('job');
+    my $jobset = $build->jobset;
+    return $jobset->get_column('project') . ":" . $jobset->get_column('name') . ":" . $build->get_column('job');
 }
 
 
