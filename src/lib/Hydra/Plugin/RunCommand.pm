@@ -76,8 +76,8 @@ sub makeJsonPayload {
         build => $build->id,
         finished => $build->get_column('finished') ? JSON::MaybeXS::true : JSON::MaybeXS::false,
         timestamp => $build->get_column('timestamp'),
-        project => $build->get_column('project'),
-        jobset => $build->get_column('jobset'),
+        project => $build->project->get_column('name'),
+        jobset => $build->jobset->get_column('name'),
         job => $build->get_column('job'),
         drvPath => $build->get_column('drvpath'),
         startTime => $build->get_column('starttime'),
@@ -134,8 +134,8 @@ sub buildFinished {
     my $commandsToRun = fanoutToCommands(
         $self->{config},
         $event,
-        $build->get_column('project'),
-        $build->get_column('jobset'),
+        $build->project->get_column('name'),
+        $build->jobset->get_column('name'),
         $build->get_column('job')
     );
 
