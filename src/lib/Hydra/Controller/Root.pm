@@ -136,8 +136,9 @@ sub queue_summary :Local :Path('queue-summary') :Args(0) {
     $c->stash->{template} = 'queue-summary.tt';
 
     $c->stash->{queued} = dbh($c)->selectall_arrayref(
-        "select project, jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from Builds " .
-        "where finished = 0 group by project, jobset order by queued desc",
+        "select jobsets.project as project, jobsets.name as jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from Builds " .
+        "join Jobsets jobsets on jobsets.id = builds.jobset_id " .
+        "where finished = 0 group by jobsets.project, jobsets.name order by queued desc",
         { Slice => {} });
 
     $c->stash->{systems} = dbh($c)->selectall_arrayref(
