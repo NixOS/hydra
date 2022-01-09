@@ -597,4 +597,9 @@ sub as_json {
   return $json;
 }
 
+sub project {
+  my ($self) = @_;
+  return $self->jobset->project;
+}
+
 1;
