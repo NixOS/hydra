@@ -200,8 +200,10 @@ sub machines :Local Args(0) {
 
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = dbh($c)->selectall_arrayref(
-        "select build, stepnr, s.system as system, s.drvpath as drvpath, machine, s.starttime as starttime, project, jobset, job, s.busy as busy " .
-        "from BuildSteps s join Builds b on s.build = b.id " .
+        "select build, stepnr, s.system as system, s.drvpath as drvpath, machine, s.starttime as starttime, jobsets.project, jobsets.name, job, s.busy as busy " .
+        "from BuildSteps s " .
+        "join Builds b on s.build = b.id " .
+        "join Jobsets jobsets on jobsets.id = b.jobset_id " .
         "where busy != 0 order by machine, stepnr",
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
