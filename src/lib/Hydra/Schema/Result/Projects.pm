@@ -142,21 +142,6 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 builds
-
-Type: has_many
-
-Related object: L<Hydra::Schema::Result::Builds>
-
-=cut
-
-__PACKAGE__->has_many(
-  "builds",
-  "Hydra::Schema::Result::Builds",
-  { "foreign.project" => "self.name" },
-  undef,
-);
-
 =head2 jobsetrenames
 
 Type: has_many
@@ -243,8 +228,8 @@ Composing rels: L</projectmembers> -> username
 __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:nKVZ8ZNCZQQ52zbpDAaoQQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-01-08 22:24:10
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:r/wbX3FAm5/OFrrwOQL5fA
 
 use JSON::MaybeXS;
 
