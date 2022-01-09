@@ -55,4 +55,21 @@ subtest "Deleting a simple project" => sub {
     );
 };
 
+subtest "Deleting a project with metrics" => sub {
+    my $builds = $ctx->makeAndEvaluateJobset(
+        expression => "runcommand.nix",
+        build => 1
+    );
+    my $project = $builds->{"metrics"}->project;
+
+    my $responseAuthed = request(DELETE "/project/${\$project->name}",
+        Cookie => $cookie,
+        Accept => "application/json"
+    );
+    is($responseAuthed->code, 200, "Deleting a project with auth returns a 200");
+
+    my $response = request(GET "/project/${\$project->name}");
+    is($response->code, 404, "Then getting the project returns a 404");
+};
+
 done_testing;
