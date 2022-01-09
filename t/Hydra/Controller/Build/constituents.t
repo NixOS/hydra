@@ -36,7 +36,14 @@ my $constituents = request(GET $url,
   );
 
 ok($constituents->is_success, "Getting the constituent builds");
-my $data = decode_json($constituents->content);
+
+my $data;
+my $valid_json = lives { $data = decode_json($constituents->content); };
+ok($valid_json, "We get back valid JSON.");
+if (!$valid_json) {
+    use Data::Dumper;
+    print STDERR Dumper $constituents->content;
+}
 
 my ($buildA) = grep { $_->{nixname} eq "empty-dir-a" } @$data;
 my ($buildB) = grep { $_->{nixname} eq "empty-dir-b" } @$data;
