@@ -24,8 +24,8 @@ sub buildToHash {
     my ($build) = @_;
     my $result = {
         id => $build->id,
-        project => $build->get_column("project"),
-        jobset => $build->get_column("jobset"),
+        project => $build->jobset->get_column("project"),
+        jobset => $build->jobset->get_column("name"),
         job => $build->get_column("job"),
         system => $build->system,
         nixname => $build->nixname,
