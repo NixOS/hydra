@@ -12,19 +12,23 @@ my $builds = $ctx->makeAndEvaluateJobset(
     build => 1
 );
 
-subtest "response" => sub {
+subtest "empty diff" => sub {
     my $ret = buildDiff([], []);
-    is($ret, {
-        stillSucceed => [],
-        stillFail => [],
-        nowSucceed => [],
-        nowFail => [],
-        new => [],
-        removed => [],
-        unfinished => [],
-        aborted => [],
-        failed => [],
-    });
+    is(
+        $ret,
+        {
+            stillSucceed => [],
+            stillFail => [],
+            nowSucceed => [],
+            nowFail => [],
+            new => [],
+            removed => [],
+            unfinished => [],
+            aborted => [],
+            failed => [],
+        },
+        "empty list of jobs returns empty diff"
+    );
 };
 
 subtest "2 different jobs" => sub {
