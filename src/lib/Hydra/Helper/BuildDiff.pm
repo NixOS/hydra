@@ -22,6 +22,7 @@ sub cmpBuilds {
 
 sub buildDiff {
     my ($builds, $builds2) = @_;
+    # $builds is the list of current builds, and $builds2 is the list of previous (compared-to) builds
 
     my $ret = {
         stillSucceed => [],
