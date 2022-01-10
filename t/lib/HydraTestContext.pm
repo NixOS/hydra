@@ -189,7 +189,7 @@ sub write_file {
 }
 
 sub rand_chars {
-    return sprintf("%08X", rand(0xFFFFFFFF));
+    return sprintf("t%08X", rand(0xFFFFFFFF));
 }
 
 1;
