@@ -7,7 +7,7 @@ use Setup;
 my %ctx = test_init(
     hydra_config => q|
     <runcommand>
-      command = cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"
+      command = invalid-command-this-does-not-exist
     </runcommand>
 |);
 
@@ -37,27 +37,16 @@ is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");
 
 ok(sendNotifications(), "Notifications execute successfully.");
 
-my $dat = do {
-    my $filename = $ENV{'HYDRA_DATA'} . "/joboutput.json";
-    open(my $json_fh, "<", $filename)
-        or die("Can't open \"$filename\": $!\n");
-    local $/;
-    my $json = JSON::MaybeXS->new;
-    $json->decode(<$json_fh>)
-};
-
-subtest "Validate the file parsed and at least one field matches" => sub {
-    is($dat->{build}, $newbuild->id, "The build event matches our expected ID.");
-};
-
 subtest "Validate a run log was created" => sub {
     my $runlog = $build->runcommandlogs->find({});
-    ok($runlog->did_succeed(), "The process did succeed.");
+    ok(!$runlog->did_succeed(), "The process did not succeed.");
+    ok($runlog->did_fail_with_exec_error(), "The process failed to start due to an exec error.");
     is($runlog->job_matcher, "*:*:*", "An unspecified job matcher is defaulted to *:*:*");
-    is($runlog->command, 'cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"', "The executed command is saved.");
+    is($runlog->command, 'invalid-command-this-does-not-exist', "The executed command is saved.");
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, within(time() - 1, 2), "The end time is also recent.");
-    is($runlog->exit_code, 0, "This command should have succeeded.");
+    is($runlog->exit_code, undef, "This command should not have executed.");
+    is($runlog->error_number, 2, "This command failed to exec.");
 };
 
 done_testing;

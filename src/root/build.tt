@@ -149,6 +149,7 @@ END;
   [% IF build.dependents %]<li class="nav-item"><a class="nav-link" href="#tabs-usedby" data-toggle="tab">Used By</a></li>[% END%]
   [% IF drvAvailable %]<li class="nav-item"><a class="nav-link" href="#tabs-build-deps" data-toggle="tab">Build Dependencies</a></li>[% END %]
   [% IF localStore && available %]<li class="nav-item"><a class="nav-link" href="#tabs-runtime-deps" data-toggle="tab">Runtime Dependencies</a></li>[% END %]
+  [% IF runcommandlogs.size() > 0 %]<li class="nav-item"><a class="nav-link" href="#tabs-runcommandlogs" data-toggle="tab">RunCommand Logs</a></li>[% END %]
 </ul>
 
 <div id="generic-tabs" class="tab-content">
@@ -477,7 +478,7 @@ END;
         </tbody>
       </table>
     </div>
-  [% END %]
+[% END %]
 
   [% IF drvAvailable %]
     [% INCLUDE makeLazyTab tabName="tabs-build-deps" uri=c.uri_for('/build' build.id 'build-deps') %]
@@ -487,6 +488,56 @@ END;
     [% INCLUDE makeLazyTab tabName="tabs-runtime-deps" uri=c.uri_for('/build' build.id 'runtime-deps') %]
   [% END %]
 
+  <div id="tabs-runcommandlogs" class="tab-pane">
+    <div class="d-flex flex-column">
+    [% FOREACH runcommandlog IN runcommandlogs %]
+      <div class="p-2 border-bottom">
+        <div class="d-flex flex-row">
+          <div class="d-flex flex-column" style="padding: 10px; width: 50px;">
+            [% IF runcommandlog.did_succeed() %]
+              <img src="[% c.uri_for("/static/images/emojione-check-2714.svg") %]" height="30" width="30" title="Succeeded" alt="Succeeded" class="build-status" />
+            [% ELSIF runcommandlog.is_running() %]
+
+            [% ELSE %]
+              <img src="[% c.uri_for("/static/images/emojione-red-x-274c.svg") %]" height="30" width="30" title="Failed" alt="Failed" class="build-status" />
+            [% END %]
+          </div>
+
+          <div class="d-flex flex-column mr-auto align-self-center">
+            <div><tt>[% runcommandlog.command | html%]</tt></div>
+            <div>
+              [% IF not runcommandlog.is_running() %]
+                [% IF runcommandlog.did_fail_with_signal() %]
+                  Exit signal: [% runcommandlog.signal %]
+                  [% IF runcommandlog.core_dumped %]
+                    (Core Dumped)
+                  [% END %]
+                [% ELSIF runcommandlog.did_fail_with_exec_error() %]
+                  Exec error: [% runcommandlog.error_number %]
+                [% ELSIF not runcommandlog.did_succeed() %]
+                  Exit code: [% runcommandlog.exit_code %]
+                [% END %]
+              [% END %]
+            </div>
+          </div>
+
+          <div class="d-flex flex-column  align-items-end">
+            [% IF runcommandlog.start_time != undef %]
+              <div>Started at [% INCLUDE renderDateTime timestamp = runcommandlog.start_time; %]</div>
+              [% IF runcommandlog.end_time != undef %]
+                <div>Ran for [% INCLUDE renderDuration duration = runcommandlog.end_time - runcommandlog.start_time %]</div>
+              [% ELSE %]
+                <div>Running for [% INCLUDE renderDuration duration = curTime - runcommandlog.start_time %]</div>
+              [% END %]
+            [% ELSE %]
+              <div>Pending</div>
+            [% END %]
+          </div>
+        </div>
+      </div>
+    [% END %]
+    </div>
+  </div>
 </div>
 
 <div id="reproduce" class="modal hide fade" tabindex="-1" role="dialog" aria-hidden="true">

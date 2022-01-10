@@ -499,6 +499,21 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
 );
 
+=head2 runcommandlogs
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Result::RunCommandLogs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "runcommandlogs",
+  "Hydra::Schema::Result::RunCommandLogs",
+  { "foreign.build_id" => "self.id" },
+  undef,
+);
+
 =head2 aggregates
 
 Type: many_to_many
@@ -528,8 +543,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:WHdSVHhQykmUz0tR/TExVg
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-11-17 12:42:34
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ylttv/NTMDcSZumBXRCOCw
 
 __PACKAGE__->has_many(
   "dependents",

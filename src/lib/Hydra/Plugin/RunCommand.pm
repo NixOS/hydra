@@ -150,8 +150,20 @@ sub buildFinished {
 
     foreach my $commandToRun (@{$commandsToRun}) {
         my $command = $commandToRun->{command};
+
+        # todo: make all the to-run jobs "unstarted" in a batch, then start processing
+        my $runlog = $self->{db}->resultset("RunCommandLogs")->create({
+            job_matcher => $commandToRun->{matcher},
+            build_id => $build->get_column('id'),
+            command => $command
+        });
+
+        $runlog->started();
+
         system("$command") == 0
-            or warn "notification command '$command' failed with exit status $?\n";
+            or warn "notification command '$command' failed with exit status $? ($!)\n";
+
+        $runlog->completed_with_child_error($?, $!);
     }
 }
 
