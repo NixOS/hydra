@@ -94,7 +94,7 @@ sub common {
                 if (defined $eval->flake) {
                     my $fl = $eval->flake;
                     print STDERR "Flake is $fl\n";
-                    if ($eval->flake =~ m!github:([^/]+)/([^/]+)/([[:xdigit:]]{40})$! or $eval->flake =~ m!git\+ssh://git\@github.com/([^/]+)/([^/]+)\?.*rev=([[:xdigit:]]{40})$!) {
+                    if ($eval->flake =~ m!github:([^/]+)/([^/]+)/([[:xdigit:]]{40})$! or $eval->flake =~ m!git\+ssh://git\@github[^/]+/([^/]+)/([^/]+)\?.*rev=([[:xdigit:]]{40})$!) {
                         $sendStatus->("src", $1, $2, $3);
                     } else {
                         print STDERR "Can't parse flake, skipping GitHub status update\n";
