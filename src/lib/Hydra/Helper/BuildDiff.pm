@@ -18,7 +18,7 @@ use Data::Dumper;
 sub buildDiff {
     my ($builds, $builds2) = @_;
 
-    my $ret = [
+    my $ret = {
         stillSucceed => [],
         stillFail => [],
         nowSucceed => [],
@@ -28,7 +28,7 @@ sub buildDiff {
         unfinished => [],
         aborted => [],
         failed => [],
-    ];
+    };
 
     my $n = 0;
     foreach my $build (@{$builds}) {

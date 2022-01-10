@@ -9,7 +9,7 @@ my $ctx = test_context();
 
 subtest "response" => sub {
     my $ret = buildDiff([], []);
-    is($ret, [
+    is($ret, {
         stillSucceed => [],
         stillFail => [],
         nowSucceed => [],
@@ -19,7 +19,7 @@ subtest "response" => sub {
         unfinished => [],
         aborted => [],
         failed => [],
-    ]);
+    });
 };
 
 is(1, 1);
