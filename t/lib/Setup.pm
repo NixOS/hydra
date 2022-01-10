@@ -11,10 +11,23 @@ use Cwd qw(abs_path getcwd);
 use CliRunners;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(test_context test_init hydra_setup write_file nrBuildsForJobset queuedBuildsForJobset
-                 nrQueuedBuildsForJobset createBaseJobset createJobsetWithOneInput
-                 evalSucceeds runBuild sendNotifications updateRepository
-                 captureStdoutStderr);
+our @EXPORT = qw(
+    captureStdoutStderr
+    createBaseJobset
+    createJobsetWithOneInput
+    evalFails
+    evalSucceeds
+    hydra_setup
+    nrBuildsForJobset
+    nrQueuedBuildsForJobset
+    queuedBuildsForJobset
+    runBuild
+    sendNotifications
+    test_context
+    test_init
+    updateRepository
+    write_file
+);
 
 # Set up the environment for running tests.
 #
