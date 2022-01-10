@@ -340,9 +340,9 @@ sub inputsToArgs {
 
 
 sub evalJobs {
-    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
+    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
 
-    print STDERR "Evaluating...\n";
+    print STDERR "($jobsetName) Evaluating...\n";
 
     my @cmd;
 
@@ -664,7 +664,7 @@ sub checkJobsetWrapped {
 
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
-    my $jobs = evalJobs($inputInfo, $jobset->nixexprinput, $jobset->nixexprpath, $flakeRef);
+    my $jobs = evalJobs($project->name . ":" . $jobset->name, $inputInfo, $jobset->nixexprinput, $jobset->nixexprpath, $flakeRef);
     my $evalStop = clock_gettime(CLOCK_MONOTONIC);
 
     if ($jobsetsJobset) {
