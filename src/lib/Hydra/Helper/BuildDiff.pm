@@ -41,7 +41,7 @@ sub buildDiff {
         my $aborted = $build->finished != 0 && ($build->buildstatus == 3 || $build->buildstatus == 4);
         my $d;
         my $found = 0;
-        while ($n < scalar($builds2)) {
+        while ($n < scalar(@{$builds2})) {
             my $build2 = @{$builds2}[$n];
             my $d = cmpBuilds($build, $build2);
             last if $d == -1;
