@@ -9,8 +9,6 @@ our @EXPORT = qw(
     buildDiff
 );
 
-use Data::Dumper;
-
 sub cmpBuilds {
     my ($left, $right) = @_;
     return $left->get_column('job') cmp $right->get_column('job')
@@ -18,8 +16,9 @@ sub cmpBuilds {
 }
 
 sub buildDiff {
+    # $builds is the list of current builds
+    # $builds2 is the list of previous (to-be-compared-to) builds
     my ($builds, $builds2) = @_;
-    # $builds is the list of current builds, and $builds2 is the list of previous (compared-to) builds
 
     $builds  = [sort { cmpBuilds($a, $b) } @{$builds}];
     $builds2 = [sort { cmpBuilds($a, $b) } @{$builds2}];
