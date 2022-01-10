@@ -42,12 +42,11 @@ sub request_json {
     $req->uri("http://localhost$opts->{uri}");
     $req->header(Accept => "application/json");
     $req->header(Content_Type => "application/json");
-    $req->header(Origin => "http://localhost/") if $opts->{method} eq "POST";
+    $req->header(Origin => "http://localhost/") if ($opts->{method} // "") eq "POST";
     $req->header(Cookie => $cookie);
 
     $req->content(encode_json($opts->{data})) if defined $opts->{data};
     my $res = request($req);
-    print $res->as_string();
     return $res;
 }
 
