@@ -71,7 +71,7 @@ sub buildDiff {
         } else {
             push @{$ret->{new}}, $build if !$found;
         }
-        if ($build->buildstatus != 0) {
+        if (defined $build->buildstatus && $build->buildstatus != 0) {
             push @{$ret->{failed}}, $build;
         }
     }
