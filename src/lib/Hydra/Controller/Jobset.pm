@@ -239,7 +239,7 @@ sub updateJobset {
     error($c, "Cannot rename jobset to ‘$jobsetName’ since that identifier is already taken.")
         if $jobsetName ne $oldName && defined $c->stash->{project}->jobsets->find({ name => $jobsetName });
 
-    my $type = int($c->stash->{params}->{"type"}) // 0;
+    my $type = int($c->stash->{params}->{"type"} // 0);
 
     my ($nixExprPath, $nixExprInput);
     my $flake;
@@ -270,7 +270,7 @@ sub updateJobset {
         , enableemail => defined $c->stash->{params}->{enableemail} ? 1 : 0
         , emailoverride => trim($c->stash->{params}->{emailoverride}) || ""
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
-        , keepnr => int(trim($c->stash->{params}->{keepnr}))
+        , keepnr => int(trim($c->stash->{params}->{keepnr} // "0"))
         , checkinterval => $checkinterval
         , triggertime => ($enabled && $checkinterval > 0) ? $jobset->triggertime // time() : undef
         , schedulingshares => $shares
