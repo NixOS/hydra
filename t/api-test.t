@@ -47,7 +47,6 @@ sub request_json {
 
     $req->content(encode_json($opts->{data})) if defined $opts->{data};
     my $res = request($req);
-    print $res->as_string();
     return $res;
 }
 
