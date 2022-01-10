@@ -67,4 +67,40 @@ subtest "2 different jobs" => sub {
     );
 };
 
+subtest "failed job with no previous history" => sub {
+    my $ret = buildDiff([$builds->{"fails"}], []);
+
+    is(scalar(@{$ret->{failed}}), 1, "list of failed jobs is 1 element long");
+    is(
+        $ret->{failed}[0]->get_column('id'),
+        $builds->{"fails"}->get_column('id'),
+        "fails is a failed job"
+    );
+};
+
+subtest "not-yet-built job with no previous history" => sub {
+    my $builds = $ctx->makeAndEvaluateJobset(
+        expression => "build-products.nix",
+        build => 0
+    );
+
+    my $ret = buildDiff([$builds->{"simple"}], []);
+
+    is($ret->{stillSucceed}, [], "stillSucceed");
+    is($ret->{stillFail}, [], "stillFail");
+    is($ret->{nowSucceed}, [], "nowSucceed");
+    is($ret->{nowFail}, [], "nowFail");
+    is($ret->{removed}, [], "removed");
+    is($ret->{unfinished}, [], "unfinished");
+    is($ret->{aborted}, [], "aborted");
+    is($ret->{failed}, [], "failed");
+
+    is(scalar(@{$ret->{new}}), 1, "list of new jobs is 1 element long");
+    is(
+        $ret->{new}[0]->get_column('id'),
+        $builds->{"simple"}->get_column('id'),
+        "simple is a new job"
+    );
+};
+
 done_testing;
