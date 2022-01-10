@@ -3,10 +3,6 @@ package Hydra::Helper::BuildDiff;
 use utf8;
 use strict;
 use warnings;
-use base 'Hydra::Base::Controller::NixChannel';
-use Hydra::Helper::Nix;
-use Hydra::Helper::CatalystUtils;
-use List::SomeUtils qw(uniq);
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -66,7 +62,8 @@ sub buildDiff {
                 } else { die; }
                 last;
             }
-            push @{$ret->{removed}}, { job => $build2->get_column('job'), system => $build2->get_column('system') };
+            my $job_system = { job => $build2->get_column('job'), system => $build2->get_column('system') };
+            push @{$ret->{removed}}, $job_system;
             $n++;
         }
         if ($aborted) {
