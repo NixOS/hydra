@@ -69,7 +69,23 @@ subtest "on a fresh evaluation with changed sources" => sub {
     ok(evalSucceeds($builds->{"variable-job"}->jobset), "evaluating for the third time");
     is($listener->block_for_messages(0)->()->{"channel"}, "eval_started", "the evaluation started");
 
-    is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect only one new build being queued");
+    # The order of builds is randomized when writing to the database,
+    # so we can't expect the list in any specific order here.
+    is(
+        [sort(
+            $listener->block_for_messages(0)->()->{"channel"},
+            $listener->block_for_messages(0)->()->{"channel"},
+            $listener->block_for_messages(0)->()->{"channel"},
+            $listener->block_for_messages(0)->()->{"channel"}
+        )],
+        [
+            "build_queued",
+            "cached_build_finished",
+            "cached_build_finished",
+            "cached_build_queued",
+        ],
+        "we get a notice that a build is queued, one is still queued from a previous eval"
+    );
 
     is($listener->block_for_messages(0)->()->{"channel"}, "eval_added", "a new evaluation was added");
     is($listener->block_for_messages(0)->()->{"channel"}, "builds_added", "a new build was added");
