@@ -125,12 +125,14 @@ sub jobsdir {
 # Hash Parameters:
 #
 #  * expression: The file in the jobsdir directory to evaluate
+#  * jobsdir: An alternative jobsdir to source the expression from
 #  * build: Bool. Attempt to build all the resulting jobs. Default: false.
 sub makeAndEvaluateJobset {
     my ($self, %opts) = @_;
 
     my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeAndEValuateJobset.";
     my $should_build = $opts{'build'} // 0;
+    my $jobsdir = $opts{'jobsdir'} // $self->jobsdir;
 
 
     # Create a new user for this test
@@ -155,7 +157,7 @@ sub makeAndEvaluateJobset {
         emailoverride => ""
     });
     my $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
-    $jobsetinput->jobsetinputalts->create({altnr => 0, value => $self->jobsdir});
+    $jobsetinput->jobsetinputalts->create({altnr => 0, value => $jobsdir});
 
     evalSucceeds($jobset) or die "Evaluating jobs/$expression should exit with return code 0";
 
