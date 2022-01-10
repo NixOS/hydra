@@ -67,7 +67,16 @@ sub view_GET {
     my @builds = $eval->builds->search($filter, { columns => [@buildListColumns] });
     my @builds2 = defined $eval2 ? $eval2->builds->search($filter, { columns => [@buildListColumns] }) : ();
 
-    buildDiff(@builds, @builds2);
+    my $diff = buildDiff([@builds], [@builds2]);
+    $c->stash->{stillSucceed} = $diff->{stillSucceed};
+    $c->stash->{stillFail} = $diff->{stillFail};
+    $c->stash->{nowSucceed} = $diff->{nowSucceed};
+    $c->stash->{nowFail} = $diff->{nowFail};
+    $c->stash->{new} = $diff->{new};
+    $c->stash->{removed} = $diff->{removed};
+    $c->stash->{unfinished} = $diff->{unfinished};
+    $c->stash->{aborted} = $diff->{aborted};
+    $c->stash->{failed} = $diff->{failed};
 
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
 
