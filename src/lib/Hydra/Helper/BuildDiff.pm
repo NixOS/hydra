@@ -15,6 +15,15 @@ our @EXPORT = qw(
 
 use Data::Dumper;
 
+sub cmpBuilds {
+    my ($left, $right) = @_;
+    return $left->get_column('job') cmp $right->get_column('job')
+        || $left->get_column('system') cmp $right->get_column('system')
+}
+
+    # $builds  = sort { cmpBuilds($a, $b) } $builds;
+    # $builds2 = sort { cmpBuilds($a, $b) } $builds2;
+
 sub buildDiff {
     my ($builds, $builds2) = @_;
 

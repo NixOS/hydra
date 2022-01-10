@@ -64,17 +64,8 @@ sub view_GET {
 
     $c->stash->{otherEval} = $eval2 if defined $eval2;
 
-    sub cmpBuilds {
-        my ($left, $right) = @_;
-        return $left->get_column('job') cmp $right->get_column('job')
-            || $left->get_column('system') cmp $right->get_column('system')
-    }
-
     my @builds = $eval->builds->search($filter, { columns => [@buildListColumns] });
     my @builds2 = defined $eval2 ? $eval2->builds->search($filter, { columns => [@buildListColumns] }) : ();
-
-    @builds  = sort { cmpBuilds($a, $b) } @builds;
-    @builds2 = sort { cmpBuilds($a, $b) } @builds2;
 
     buildDiff(@builds, @builds2);
 
