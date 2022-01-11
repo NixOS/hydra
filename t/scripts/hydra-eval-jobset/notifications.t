@@ -79,9 +79,17 @@ subtest "on a fresh evaluation with changed sources" => sub {
             $listener->block_for_messages(0)->()->{"channel"}
         )],
         [
+            # The `variable-job` build since it is the only one that is
+            # totally different in this evaluation.
             "build_queued",
+
+            # The next two are `stable-job-passing` and `stable-job-failing`,
+            # since those are the two we explicitly built above
             "cached_build_finished",
             "cached_build_finished",
+
+            # Finally, this should be `stable-job-queued` since we never
+            # built it.
             "cached_build_queued",
         ],
         "we get a notice that a build is queued, one is still queued from a previous eval"
