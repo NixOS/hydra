@@ -8,6 +8,12 @@ Notifications are passed from `hydra-queue-runner` to `hydra-notify` through Pos
 
 Note that the notification format is subject to change and should not be considered an API. Integrate with `hydra-notify` instead of listening directly.
 
+### `cached_build_finished`
+
+* **Payload:** Exactly two values, tab separated: The ID of the evaluation which contains the finished build, followed by the ID of the finished build.
+* **When:** Issued directly after an evaluation completes, when that evaluation includes this finished build.
+* **Delivery Semantics:** At most once per evaluation.
+
 ### `build_queued`
 
 * **Payload:** Exactly one value, the ID of the build.

@@ -96,6 +96,7 @@ my $listener = Hydra::PostgresListener->new($dbh);
 $listener->subscribe("build_finished");
 $listener->subscribe("build_queued");
 $listener->subscribe("build_started");
+$listener->subscribe("cached_build_finished");
 $listener->subscribe("hydra_notify_dump_metrics");
 $listener->subscribe("step_finished");
 
