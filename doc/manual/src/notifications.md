@@ -14,6 +14,13 @@ Note that the notification format is subject to change and should not be conside
 * **When:** Issued directly after an evaluation completes, when that evaluation includes this finished build.
 * **Delivery Semantics:** At most once per evaluation.
 
+
+### `cached_build_queued`
+
+* **Payload:** Exactly two values, tab separated: The ID of the evaluation which contains the finished build, followed by the ID of the queued build.
+* **When:** Issued directly after an evaluation completes, when that evaluation includes this queued build.
+* **Delivery Semantics:** At most once per evaluation.
+
 ### `build_queued`
 
 * **Payload:** Exactly one value, the ID of the build.
