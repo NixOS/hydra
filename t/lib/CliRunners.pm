@@ -27,7 +27,7 @@ sub evalSucceeds {
     $jobset->discard_changes;  # refresh from DB
     if ($res) {
         chomp $stdout; chomp $stderr;
-        print STDERR "Evaluation errors for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
+        print STDERR "Evaluation unexpectedly failed for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
         print STDERR "STDOUT: $stdout\n" if $stdout ne "";
         print STDERR "STDERR: $stderr\n" if $stderr ne "";
     }
@@ -40,7 +40,7 @@ sub evalFails {
     $jobset->discard_changes;  # refresh from DB
     if (!$res) {
         chomp $stdout; chomp $stderr;
-        print STDERR "Evaluation errors for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
+        print STDERR "Evaluation unexpectedly succeeded for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
         print STDERR "STDOUT: $stdout\n" if $stdout ne "";
         print STDERR "STDERR: $stderr\n" if $stderr ne "";
     }
