@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::BuildDiff;
 use List::SomeUtils qw(uniq);
 
 
@@ -63,63 +64,19 @@ sub view_GET {
 
     $c->stash->{otherEval} = $eval2 if defined $eval2;
 
-    sub cmpBuilds {
-        my ($left, $right) = @_;
-        return $left->get_column('job') cmp $right->get_column('job')
-            || $left->get_column('system') cmp $right->get_column('system')
-    }
-
     my @builds = $eval->builds->search($filter, { columns => [@buildListColumns] });
     my @builds2 = defined $eval2 ? $eval2->builds->search($filter, { columns => [@buildListColumns] }) : ();
 
-    @builds  = sort { cmpBuilds($a, $b) } @builds;
-    @builds2 = sort { cmpBuilds($a, $b) } @builds2;
-
-    $c->stash->{stillSucceed} = [];
-    $c->stash->{stillFail} = [];
-    $c->stash->{nowSucceed} = [];
-    $c->stash->{nowFail} = [];
-    $c->stash->{new} = [];
-    $c->stash->{removed} = [];
-    $c->stash->{unfinished} = [];
-    $c->stash->{aborted} = [];
-
-    my $n = 0;
-    foreach my $build (@builds) {
-        my $aborted = $build->finished != 0 && ($build->buildstatus == 3 || $build->buildstatus == 4);
-        my $d;
-        my $found = 0;
-        while ($n < scalar(@builds2)) {
-            my $build2 = $builds2[$n];
-            my $d = cmpBuilds($build, $build2);
-            last if $d == -1;
-            if ($d == 0) {
-                $n++;
-                $found = 1;
-                if ($aborted) {
-                    # do nothing
-                } elsif ($build->finished == 0 || $build2->finished == 0) {
-                    push @{$c->stash->{unfinished}}, $build;
-                } elsif ($build->buildstatus == 0 && $build2->buildstatus == 0) {
-                    push @{$c->stash->{stillSucceed}}, $build;
-                } elsif ($build->buildstatus != 0 && $build2->buildstatus != 0) {
-                    push @{$c->stash->{stillFail}}, $build;
-                } elsif ($build->buildstatus == 0 && $build2->buildstatus != 0) {
-                    push @{$c->stash->{nowSucceed}}, $build;
-                } elsif ($build->buildstatus != 0 && $build2->buildstatus == 0) {
-                    push @{$c->stash->{nowFail}}, $build;
-                } else { die; }
-                last;
-            }
-            push @{$c->stash->{removed}}, { job => $build2->get_column('job'), system => $build2->get_column('system') };
-            $n++;
-        }
-        if ($aborted) {
-            push @{$c->stash->{aborted}}, $build;
-        } else {
-            push @{$c->stash->{new}}, $build if !$found;
-        }
-    }
+    my $diff = buildDiff([@builds], [@builds2]);
+    $c->stash->{stillSucceed} = $diff->{stillSucceed};
+    $c->stash->{stillFail} = $diff->{stillFail};
+    $c->stash->{nowSucceed} = $diff->{nowSucceed};
+    $c->stash->{nowFail} = $diff->{nowFail};
+    $c->stash->{new} = $diff->{new};
+    $c->stash->{removed} = $diff->{removed};
+    $c->stash->{unfinished} = $diff->{unfinished};
+    $c->stash->{aborted} = $diff->{aborted};
+    $c->stash->{failed} = $diff->{failed};
 
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
 
