@@ -6,7 +6,6 @@ use warnings;
 use Exporter;
 use ReadonlyX;
 use Nix::Store;
-use Hydra::Helper::Nix;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -414,6 +413,7 @@ sub approxTableSize {
 
 sub requireLocalStore {
     my ($c) = @_;
+    require Hydra::Helper::Nix;
     notFound($c, "Nix channels are not supported by this Hydra server.") if !Hydra::Helper::Nix::isLocalStore();
 }
 
