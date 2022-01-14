@@ -54,12 +54,18 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     my $system = $c->request->params->{system};
 
     my $filter = {finished => 1};
-    $filter->{project} = $project if ! $project eq "";
-    $filter->{jobset} = $jobset if ! $jobset eq "";
+    $filter->{"jobset.project"} = $project if ! $project eq "";
+    $filter->{"jobset.name"} = $jobset if ! $jobset eq "";
     $filter->{job} = $job if !$job eq "";
     $filter->{system} = $system if !$system eq "";
 
-    my @latest = $c->model('DB::Builds')->search($filter, {rows => $nr, order_by => ["id DESC"] });
+    my @latest = $c->model('DB::Builds')->search(
+        $filter,
+        {
+            rows => $nr,
+            order_by => ["id DESC"],
+            join => [ "jobset" ]
+        });
 
     my @list;
     push @list, buildToHash($_) foreach @latest;
