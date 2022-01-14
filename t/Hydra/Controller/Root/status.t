@@ -2,26 +2,18 @@ use strict;
 use warnings;
 use Setup;
 use Data::Dumper;
-use JSON::MaybeXS qw(decode_json);
-my %ctx = test_init();
-
-require Hydra::Schema;
-require Hydra::Model::DB;
-require Hydra::Helper::Nix;
-
 use Test2::V0;
-require Catalyst::Test;
+use JSON::MaybeXS qw(decode_json);
+use Catalyst::Test ();
 use HTTP::Request::Common;
+
+my $ctx = test_context();
+
 Catalyst::Test->import('Hydra');
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
-
-my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
-
-my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
-
-ok(evalSucceeds($jobset), "Evaluating jobs/basic.nix should exit with return code 0");
+my $builds = $ctx->makeAndEvaluateJobset(
+    expression => "basic.nix"
+);
 
 subtest "/machines" => sub {
     my $response = request(GET '/machines');
@@ -50,6 +42,36 @@ subtest "/queue" => sub {
         print STDERR Dumper $response->content;
     }
 };
+
+subtest "/search" => sub {
+    my $build = $builds->{"empty_dir"};
+    my ($build_output_out) = $build->buildoutputs->find({ name => "out" });
+    subtest "searching for projects" => sub {
+        my $response = request(GET "/search?query=${\$build->project->name}");
+        is($response->code, 200, "The search page 200's.");
+    };
+
+    subtest "searching for jobsets" => sub {
+        my $response = request(GET "/search?query=${\$build->jobset->name}");
+        is($response->code, 200, "The search page 200's.");
+    };
+
+    subtest "searching for jobs" => sub {
+        my $response = request(GET "/search?query=${\$build->job}");
+        is($response->code, 200, "The search page 200's.");
+    };
+
+    subtest "searching for output paths" => sub {
+        my $response = request(GET "/search?query=${\$build_output_out->path}");
+        is($response->code, 200, "The search page 200's.");
+    };
+
+    subtest "searching for derivation path" => sub {
+        my $response = request(GET "/search?query=${\$build->drvpath}");
+        is($response->code, 200, "The search page 200's.");
+    };
+};
+
 subtest "/status" => sub {
     my $response = request(GET '/status', Accept => 'application/json');
     ok($response->is_success, "The page showing the status 200's.");
