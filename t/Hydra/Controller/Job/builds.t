@@ -19,6 +19,11 @@ my $build = $builds->{"empty_dir"};
 my $jobset = $build->jobset;
 my $project = $build->project;
 
+subtest "/job/PROJECT/JOBSET/JOB" => sub {
+    my $response = request(GET '/job/' . $project->name . '/' . $jobset->name . '/' . $build->job);
+    ok($response->is_success, "The page showing the job's overview data returns 200.");
+};
+
 subtest "/job/PROJECT/JOBSET/JOB/all" => sub {
     my $response = request(GET '/job/' . $project->name . '/' . $jobset->name . '/' . $build->job . '/all');
     ok($response->is_success, "The page showing the job's builds returns 200.");
