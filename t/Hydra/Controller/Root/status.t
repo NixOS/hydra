@@ -11,7 +11,12 @@ my $ctx = test_context();
 
 Catalyst::Test->import('Hydra');
 
-my $builds = $ctx->makeAndEvaluateJobset(
+my $doneBuilds = $ctx->makeAndEvaluateJobset(
+    expression => "basic.nix",
+    build => 1
+);
+
+my $queuedBuilds = $ctx->makeAndEvaluateJobset(
     expression => "basic.nix"
 );
 
@@ -44,7 +49,7 @@ subtest "/queue" => sub {
 };
 
 subtest "/search" => sub {
-    my $build = $builds->{"empty_dir"};
+    my $build = $doneBuilds->{"empty_dir"};
     my ($build_output_out) = $build->buildoutputs->find({ name => "out" });
     subtest "searching for projects" => sub {
         my $response = request(GET "/search?query=${\$build->project->name}");
@@ -83,6 +88,16 @@ subtest "/status" => sub {
         use Data::Dumper;
         print STDERR Dumper $response->content;
     }
+};
+
+subtest "/steps" => sub {
+    my $response = request(GET '/steps');
+    is($response->code, 200, "The page showing steps 200's.");
+};
+
+subtest "/evals" => sub {
+    my $response = request(GET '/evals');
+    is($response->code, 200, "The page showing evals 200's.");
 };
 
 done_testing;
