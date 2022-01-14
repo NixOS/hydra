@@ -23,9 +23,19 @@ my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset), "Evaluating jobs/basic.nix should exit with return code 0");
 
+subtest "/machines" => sub {
+    my $response = request(GET '/machines');
+    ok($response->is_success, "The page showing the machine status 200's.");
+};
+
 subtest "/queue-runner-status" => sub {
     my $global = request(GET '/queue-runner-status');
     ok($global->is_success, "The page showing the queue runner status 200's.");
+};
+
+subtest "/queue-summary" => sub {
+    my $response = request(GET '/queue-summary');
+    ok($response->is_success, "The page showing the queue summary 200's.");
 };
 
 subtest "/queue" => sub {
