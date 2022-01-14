@@ -22,4 +22,9 @@ subtest "/project/PROJECT/all" => sub {
     ok($response->is_success, "The page showing the project's builds returns 200.");
 };
 
+subtest "/project/PROJECT/channel/latest" => sub {
+    my $response = request(GET '/project/' . $project->name . '/channel/latest');
+    ok($response->is_success, "The page showing the project's builds returns 200.");
+};
+
 done_testing;
