@@ -248,6 +248,11 @@ __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 
 use JSON::MaybeXS;
 
+sub builds {
+  my ($self) = @_;
+  return $self->jobsets->related_resultset('builds');
+};
+
 sub as_json {
     my $self = shift;
 
