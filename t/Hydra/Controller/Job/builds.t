@@ -47,4 +47,9 @@ subtest "/job/PROJECT/JOBSET/JOB/shield" => sub {
     is($data->{"schemaVersion"}, 1);
 };
 
+subtest "/job/PROJECT/JOBSET/JOB/prometheus" => sub {
+    my $response = request(GET '/job/' . $project->name . '/' . $jobset->name . '/' . $build->job . '/prometheus');
+    ok($response->is_success, "The page showing the job's prometheus data returns 200.");
+};
+
 done_testing;
