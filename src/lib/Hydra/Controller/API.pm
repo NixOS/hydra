@@ -254,8 +254,10 @@ sub push : Chained('api') PathPart('push') Args(0) {
     foreach my $r (@repos) {
         triggerJobset($self, $c, $_, $force) foreach $c->model('DB::Jobsets')->search(
             { 'project.enabled' => 1, 'me.enabled' => 1 },
-            { join => 'project'
-            , where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ]
+            {
+                join => 'project',
+                where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ],
+                order_by => 'me.id DESC'
             });
     }
 

@@ -100,4 +100,45 @@ subtest "/api/nrbuilds" => sub {
     };
 };
 
+subtest "/api/push" => sub {
+    subtest "with a specific jobset" => sub {
+        my $build = $finishedBuilds->{"one_job"};
+        my $jobset = $build->jobset;
+        my $projectName = $jobset->project->name;
+        my $jobsetName = $jobset->name;
+        is($jobset->forceeval, undef, "The existing jobset is not set to be forced to eval");
+
+        my $response = request(GET "/api/push?jobsets=$projectName:$jobsetName&force=1");
+        ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
+
+        my $data = is_json($response);
+        is($data, { jobsetsTriggered => [ "$projectName:$jobsetName" ] });
+
+        my $updatedJobset = $ctx->db->resultset('Jobsets')->find({ id => $jobset->id });
+        is($updatedJobset->forceeval, 1, "The jobset is now forced to eval");
+    };
+
+    subtest "with a specific source" => sub {
+        my $repo = $ctx->jobsdir;
+        my $jobsetA = $queuedBuilds->{"one_job"}->jobset;
+        my $jobsetB = $finishedBuilds->{"one_job"}->jobset;
+
+        is($jobsetA->forceeval, undef, "The existing jobset is not set to be forced to eval");
+
+        print STDERR $repo;
+
+        my $response = request(GET "/api/push?repos=$repo&force=1");
+        ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
+
+        my $data = is_json($response);
+        is($data, { jobsetsTriggered => [
+            "${\$jobsetA->project->name}:${\$jobsetA->name}",
+            "${\$jobsetB->project->name}:${\$jobsetB->name}"
+        ] });
+
+        my $updatedJobset = $ctx->db->resultset('Jobsets')->find({ id => $jobsetA->id });
+        is($updatedJobset->forceeval, 1, "The jobset is now forced to eval");
+    };
+};
+
 done_testing;
