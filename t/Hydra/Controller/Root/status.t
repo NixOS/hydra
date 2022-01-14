@@ -28,6 +28,11 @@ subtest "/queue-runner-status" => sub {
     ok($global->is_success, "The page showing the queue runner status 200's.");
 };
 
+subtest "/queue-summary" => sub {
+    my $response = request(GET '/queue-summary');
+    ok($response->is_success, "The page showing the queue summary 200's.");
+};
+
 subtest "/queue" => sub {
     my $response = request(GET '/queue', Accept => 'application/json');
     ok($response->is_success, "The page showing the queue 200's.");
