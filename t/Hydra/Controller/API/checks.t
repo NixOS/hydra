@@ -3,8 +3,9 @@ use warnings;
 use Setup;
 use Test2::V0;
 use Catalyst::Test ();
+use HTTP::Request;
 use HTTP::Request::Common;
-use JSON::MaybeXS qw(decode_json);
+use JSON::MaybeXS qw(decode_json encode_json);
 
 sub is_json {
     my ($response, $message) = @_;
@@ -138,6 +139,76 @@ subtest "/api/push" => sub {
 
         my $updatedJobset = $ctx->db->resultset('Jobsets')->find({ id => $jobsetA->id });
         is($updatedJobset->forceeval, 1, "The jobset is now forced to eval");
+    };
+};
+
+subtest "/api/push-github" => sub {
+    # Create a project and jobset which looks like it comes from GitHub
+    my $user = $ctx->db()->resultset('Users')->create({
+        username => "api-push-github",
+        emailaddress => 'api-push-github@example.org',
+        password => ''
+    });
+
+    my $project = $ctx->db()->resultset('Projects')->create({
+        name => "api-push-github",
+        displayname => "api-push-github",
+        owner => $user->username
+    });
+
+    subtest "with a legacy input type" => sub {
+        my $jobset = $project->jobsets->create({
+            name => "legacy-input-type",
+            nixexprinput => "src",
+            nixexprpath => "default.nix",
+            emailoverride => ""
+        });
+
+        my $jobsetinput = $jobset->jobsetinputs->create({name => "src", type => "git"});
+        $jobsetinput->jobsetinputalts->create({altnr => 0, value => "https://github.com/OWNER/LEGACY-REPO.git"});
+
+        my $req = POST '/api/push-github',
+            "Content-Type" => "application/json",
+            "Content" => encode_json({
+                repository => {
+                    owner => {
+                        name => "OWNER",
+                    },
+                    name => "LEGACY-REPO",
+                }
+            });
+
+        my $response = request($req);
+        ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
+
+        my $data = is_json($response);
+        is($data, { jobsetsTriggered => [ "api-push-github:legacy-input-type" ] }, "The correct jobsets are triggered.");
+    };
+
+    subtest "with a flake input type" => sub {
+        my $jobset = $project->jobsets->create({
+            name => "flake-input-type",
+            type => 1,
+            flake => "github:OWNER/FLAKE-REPO",
+            emailoverride => ""
+        });
+
+        my $req = POST '/api/push-github',
+            "Content-Type" => "application/json",
+            "Content" => encode_json({
+                repository => {
+                    owner => {
+                        name => "OWNER",
+                    },
+                    name => "FLAKE-REPO",
+                }
+            });
+
+        my $response = request($req);
+        ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
+
+        my $data = is_json($response);
+        is($data, { jobsetsTriggered => [ "api-push-github:flake-input-type" ] }, "The correct jobsets are triggered.");
     };
 };
 

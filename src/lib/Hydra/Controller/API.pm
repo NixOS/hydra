@@ -267,7 +267,6 @@ sub push : Chained('api') PathPart('push') Args(0) {
     );
 }
 
-
 sub push_github : Chained('api') PathPart('push-github') Args(0) {
     my ($self, $c) = @_;
 
