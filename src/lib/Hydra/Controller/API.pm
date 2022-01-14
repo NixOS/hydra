@@ -160,15 +160,25 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     my $system = $c->request->params->{system};
 
     my $filter = {finished => 1};
-    $filter->{project} = $project if ! $project eq "";
-    $filter->{jobset} = $jobset if ! $jobset eq "";
+    $filter->{"jobset.project"} = $project if ! $project eq "";
+    $filter->{"jobset.name"} = $jobset if ! $jobset eq "";
     $filter->{job} = $job if !$job eq "";
     $filter->{system} = $system if !$system eq "";
 
     $base = 60*60 if($period eq "hour");
     $base = 24*60*60 if($period eq "day");
 
-    my @stats = $c->model('DB::Builds')->search($filter, {select => [{ count => "*" }], as => ["nr"], group_by => ["timestamp - timestamp % $base"], order_by => "timestamp - timestamp % $base DESC", rows => $nr});
+    my @stats = $c->model('DB::Builds')->search(
+        $filter,
+        {
+            select => [{ count => "*" }],
+            as => ["nr"],
+            group_by => ["timestamp - timestamp % $base"],
+            order_by => "timestamp - timestamp % $base DESC",
+            rows => $nr,
+            join => [ "jobset" ]
+        }
+    );
     my @arr;
     push @arr, int($_->get_column("nr")) foreach @stats;
     @arr = reverse(@arr);

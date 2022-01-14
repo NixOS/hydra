@@ -77,4 +77,27 @@ subtest "/api/latestbuilds" => sub {
     };
 };
 
+subtest "/api/nrbuilds" => sub {
+    subtest "with no specific parameters" => sub {
+        my $response = request(GET '/api/nrbuilds?nr=1&period=hour');
+        ok($response->is_success, "The API enpdoint showing the latest builds returns 200.");
+
+        my $data = is_json($response);
+        is($data, [1]);
+    };
+
+    subtest "with very specific parameters" => sub {
+        my $build = $finishedBuilds->{"one_job"};
+        my $projectName = $build->project->name;
+        my $jobsetName = $build->jobset->name;
+        my $jobName = $build->job;
+        my $system = $build->system;
+        my $response = request(GET "/api/nrbuilds?nr=1&period=hour&project=$projectName&jobset=$jobsetName&job=$jobName&system=$system");
+        ok($response->is_success, "The API enpdoint showing the latest builds returns 200.");
+
+        my $data = is_json($response);
+        is($data, [1]);
+    };
+};
+
 done_testing;
