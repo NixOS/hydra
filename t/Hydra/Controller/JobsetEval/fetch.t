@@ -22,7 +22,19 @@ my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
 ok(evalSucceeds($jobset), "Evaluating jobs/basic.nix should exit with return code 0");
 
 my ($eval, @evals) = $jobset->jobsetevals;
-my $fetch = request(GET '/eval/' . $eval->id);
-is($fetch->code, 200, "eval page is 200");
+
+subtest "Fetching the eval's overview" => sub {
+    my $fetch = request(GET '/eval/' . $eval->id);
+    is($fetch->code, 200, "eval page is 200");
+};
+
+subtest "Fetching the eval's overview" => sub {
+    my $fetch = request(GET '/eval/' . $eval->id . '/channel');
+    use Data::Dumper;
+    print STDERR Dumper $fetch->content;
+    is($fetch->code, 200, "channel page is 200");
+};
+
+
 
 done_testing;
