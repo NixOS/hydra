@@ -399,7 +399,7 @@ sub getPrevJobsetEval {
 
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
-    my ($db, $jobset, $inputInfo, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
+    my ($db, $jobset, $eval, $inputInfo, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
 
     my @outputNames = sort keys %{$buildInfo->{outputs}};
     die unless scalar @outputNames;
@@ -435,10 +435,17 @@ sub checkBuild {
                 # the Nixpkgs jobset with PostgreSQL.
                 { jobset_id => $jobset->get_column('id'), job => $jobName,
                   name => $firstOutputName, path => $firstOutputPath },
-                { rows => 1, columns => ['id'], join => ['buildoutputs'] });
+                { rows => 1, columns => ['id', 'finished'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
                 #print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
                 $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath };
+
+                if ($prevBuild->finished) {
+                    $db->storage->dbh->do("notify cached_build_finished, ?", undef, "${\$eval->id}\t${\$prevBuild->id}");
+                } else {
+                    $db->storage->dbh->do("notify cached_build_queued, ?", undef, "${\$eval->id}\t${\$prevBuild->id}");
+                }
+
                 return;
             }
         }
@@ -723,11 +730,24 @@ sub checkJobsetWrapped {
         # current builds have been added.
         $jobset->builds->search({iscurrent => 1})->update({iscurrent => 0});
 
+        my $ev = $jobset->jobsetevals->create(
+            { hash => $argsHash
+            , evaluationerror => $evaluationErrorRecord
+            , timestamp => time
+            , checkouttime => abs(int($checkoutStop - $checkoutStart))
+            , evaltime => abs(int($evalStop - $evalStart))
+            , hasnewbuilds => 0
+            , nrbuilds => 0
+            , flake => $flakeRef
+            , nixexprinput => $jobset->nixexprinput
+            , nixexprpath => $jobset->nixexprpath
+            });
+
         # Schedule each successfully evaluated job.
         foreach my $job (permute(values %{$jobs})) {
             next if defined $job->{error};
             #print STDERR "considering job " . $project->name, ":", $jobset->name, ":", $job->{jobName} . "\n";
-            checkBuild($db, $jobset, $inputInfo, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins);
+            checkBuild($db, $jobset, $ev, $inputInfo, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins);
         }
 
         # Have any builds been added or removed since last time?
@@ -735,19 +755,10 @@ sub checkJobsetWrapped {
             (scalar(grep { $_->{new} } values(%buildMap)) > 0)
             || (defined $prevEval && $prevEval->jobsetevalmembers->count != scalar(keys %buildMap));
 
-
-        my $ev = $jobset->jobsetevals->create(
-            { hash => $argsHash
-            , evaluationerror => $evaluationErrorRecord
-            , timestamp => time
-            , checkouttime => abs(int($checkoutStop - $checkoutStart))
-            , evaltime => abs(int($evalStop - $evalStart))
-            , hasnewbuilds => $jobsetChanged ? 1 : 0
-            , nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
-            , flake => $flakeRef
-            , nixexprinput => $jobset->nixexprinput
-            , nixexprpath => $jobset->nixexprpath
-            });
+        $ev->update({
+            hasnewbuilds => $jobsetChanged ? 1 : 0,
+            nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
+        });
 
         $db->storage->dbh->do("notify eval_added, ?", undef,
                               join('\t', $tmpId, $ev->id));

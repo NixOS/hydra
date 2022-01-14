@@ -36,6 +36,18 @@ sub instantiate {
 #     my ($self, $build) = @_;
 # }
 
+# # Called when build $build has been queued again by evaluation $evaluation
+# where $build has not yet finished.
+# sub cachedBuildQueued {
+#     my ($self, $evaluation, $build) = @_;
+# }
+
+# # Called when build $build is a finished build, and is
+# part evaluation $evaluation
+# sub cachedBuildFinished {
+#     my ($self, $evaluation, $build) = @_;
+# }
+
 # # Called when build $build has started.
 # sub buildStarted {
 #     my ($self, $build) = @_;
