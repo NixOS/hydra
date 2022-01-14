@@ -24,8 +24,8 @@ sub buildToHash {
     my ($build) = @_;
     my $result = {
         id => $build->id,
-        project => $build->get_column("project"),
-        jobset => $build->get_column("jobset"),
+        project => $build->jobset->get_column("project"),
+        jobset => $build->jobset->get_column("name"),
         job => $build->get_column("job"),
         system => $build->system,
         nixname => $build->nixname,
@@ -54,12 +54,18 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     my $system = $c->request->params->{system};
 
     my $filter = {finished => 1};
-    $filter->{project} = $project if ! $project eq "";
-    $filter->{jobset} = $jobset if ! $jobset eq "";
+    $filter->{"jobset.project"} = $project if ! $project eq "";
+    $filter->{"jobset.name"} = $jobset if ! $jobset eq "";
     $filter->{job} = $job if !$job eq "";
     $filter->{system} = $system if !$system eq "";
 
-    my @latest = $c->model('DB::Builds')->search($filter, {rows => $nr, order_by => ["id DESC"] });
+    my @latest = $c->model('DB::Builds')->search(
+        $filter,
+        {
+            rows => $nr,
+            order_by => ["id DESC"],
+            join => [ "jobset" ]
+        });
 
     my @list;
     push @list, buildToHash($_) foreach @latest;
@@ -154,15 +160,25 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     my $system = $c->request->params->{system};
 
     my $filter = {finished => 1};
-    $filter->{project} = $project if ! $project eq "";
-    $filter->{jobset} = $jobset if ! $jobset eq "";
+    $filter->{"jobset.project"} = $project if ! $project eq "";
+    $filter->{"jobset.name"} = $jobset if ! $jobset eq "";
     $filter->{job} = $job if !$job eq "";
     $filter->{system} = $system if !$system eq "";
 
     $base = 60*60 if($period eq "hour");
     $base = 24*60*60 if($period eq "day");
 
-    my @stats = $c->model('DB::Builds')->search($filter, {select => [{ count => "*" }], as => ["nr"], group_by => ["timestamp - timestamp % $base"], order_by => "timestamp - timestamp % $base DESC", rows => $nr});
+    my @stats = $c->model('DB::Builds')->search(
+        $filter,
+        {
+            select => [{ count => "*" }],
+            as => ["nr"],
+            group_by => ["timestamp - timestamp % $base"],
+            order_by => "timestamp - timestamp % $base DESC",
+            rows => $nr,
+            join => [ "jobset" ]
+        }
+    );
     my @arr;
     push @arr, int($_->get_column("nr")) foreach @stats;
     @arr = reverse(@arr);
@@ -238,8 +254,10 @@ sub push : Chained('api') PathPart('push') Args(0) {
     foreach my $r (@repos) {
         triggerJobset($self, $c, $_, $force) foreach $c->model('DB::Jobsets')->search(
             { 'project.enabled' => 1, 'me.enabled' => 1 },
-            { join => 'project'
-            , where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ]
+            {
+                join => 'project',
+                where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ],
+                order_by => 'me.id DESC'
             });
     }
 
@@ -248,7 +266,6 @@ sub push : Chained('api') PathPart('push') Args(0) {
         entity => { jobsetsTriggered => $c->stash->{json}->{jobsetsTriggered} }
     );
 }
-
 
 sub push_github : Chained('api') PathPart('push-github') Args(0) {
     my ($self, $c) = @_;
