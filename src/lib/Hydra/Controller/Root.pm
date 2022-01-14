@@ -471,8 +471,10 @@ sub search :Local Args(0) {
             , "jobset.hidden" => 0
             , iscurrent => 1
             },
-            { order_by => ["project", "jobset", "job"], join => ["project", "jobset"]
-            , rows => $c->stash->{limit} + 1
+            {
+                order_by => ["jobset.project", "jobset.name", "job"],
+                join => { "jobset" => "project" },
+                rows => $c->stash->{limit} + 1
             } )
         ];
 
