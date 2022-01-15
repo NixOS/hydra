@@ -162,6 +162,8 @@ sub updateProject {
         , declvalue => trim($c->stash->{params}->{declarative}->{value})
         });
     if (length($project->declfile)) {
+        # This logic also exists in the DeclarativeJobets tests.
+        # TODO: refactor and deduplicate.
         $project->jobsets->update_or_create(
             { name=> ".jobsets"
             , nixexprinput => ""

@@ -9,7 +9,7 @@ sub buildFinished {
     my ($self, $build, $dependents) = @_;
 
     my $project = $build->project;
-    my $jobsetName = $build->get_column('jobset');
+    my $jobsetName = $build->jobset->get_column('name');
     if (length($project->declfile) && $jobsetName eq ".jobsets" && $build->iscurrent) {
         handleDeclarativeJobsetBuild($self->{"db"}, $project, $build);
     }

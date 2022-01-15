@@ -33,6 +33,7 @@ Makefile.in
 /t/nix
 /t/data
 /t/jobs/config.nix
+t/jobs/declarative/project.json
 /inst
 hydra-config.h
 hydra-config.h.in
