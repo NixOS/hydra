@@ -96,8 +96,11 @@ bool State::getQueuedBuilds(Connection & conn,
         pqxx::work txn(conn);
 
         auto res = txn.exec_params
-            ("select id, project, jobset, job, drvPath, maxsilent, timeout, timestamp, globalPriority, priority from Builds "
-             "where id > $1 and finished = 0 order by globalPriority desc, id",
+            ("select builds.id, builds.jobset_id, jobsets.project as project, "
+             "jobsets.name as jobset, job, drvPath, maxsilent, timeout, timestamp, "
+             "globalPriority, priority from Builds "
+             "inner join jobsets on builds.jobset_id = jobsets.id "
+             "where builds.id > $1 and finished = 0 order by globalPriority desc, builds.id",
             lastBuildId);
 
         for (auto const & row : res) {
@@ -110,6 +113,7 @@ bool State::getQueuedBuilds(Connection & conn,
             auto build = std::make_shared<Build>(
                 localStore->parseStorePath(row["drvPath"].as<string>()));
             build->id = id;
+            build->jobsetId = row["jobset_id"].as<JobsetID>();
             build->projectName = row["project"].as<string>();
             build->jobsetName = row["jobset"].as<string>();
             build->jobName = row["job"].as<string>();
@@ -118,7 +122,7 @@ bool State::getQueuedBuilds(Connection & conn,
             build->timestamp = row["timestamp"].as<time_t>();
             build->globalPriority = row["globalPriority"].as<int>();
             build->localPriority = row["priority"].as<int>();
-            build->jobset = createJobset(txn, build->projectName, build->jobsetName);
+            build->jobset = createJobset(txn, build->projectName, build->jobsetName, build->jobsetId);
 
             newIDs.push_back(id);
             newBuildsByID[id] = build;
@@ -569,7 +573,7 @@ Step::ptr State::createStep(ref<Store> destStore,
 
 
 Jobset::ptr State::createJobset(pqxx::work & txn,
-    const std::string & projectName, const std::string & jobsetName)
+    const std::string & projectName, const std::string & jobsetName, const JobsetID jobsetID)
 {
     auto p = std::make_pair(projectName, jobsetName);
 
@@ -580,9 +584,8 @@ Jobset::ptr State::createJobset(pqxx::work & txn,
     }
 
     auto res = txn.exec_params1
-        ("select schedulingShares from Jobsets where project = $1 and name = $2",
-         projectName,
-         jobsetName);
+        ("select schedulingShares from Jobsets where id = $1",
+         jobsetID);
     if (res.empty()) throw Error("missing jobset - can't happen");
 
     auto shares = res["schedulingShares"].as<unsigned int>();
@@ -593,10 +596,9 @@ Jobset::ptr State::createJobset(pqxx::work & txn,
     /* Load the build steps from the last 24 hours. */
     auto res2 = txn.exec_params
         ("select s.startTime, s.stopTime from BuildSteps s join Builds b on build = id "
-         "where s.startTime is not null and s.stopTime > $1 and project = $2 and jobset = $3",
+         "where s.startTime is not null and s.stopTime > $1 and jobset_id = $2",
          time(0) - Jobset::schedulingWindow * 10,
-         projectName,
-         jobsetName);
+         jobsetID);
     for (auto const & row : res2) {
         time_t startTime = row["startTime"].as<time_t>();
         time_t stopTime = row["stopTime"].as<time_t>();
