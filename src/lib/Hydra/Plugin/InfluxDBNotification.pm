@@ -111,9 +111,9 @@ sub buildFinished {
         my $tagSet = {
             status  => toBuildStatusClass($b->buildstatus),
             result  => toBuildStatusDetailed($b->buildstatus),
-            project => $b->get_column('project'),
-            jobset  => $b->get_column('jobset'),
-            repo    => ($b->get_column('jobset') =~ /^(.*)\.pr-/) ? $1 : $b->get_column('jobset'),
+            project => $b->jobset->get_column('project'),
+            jobset  => $b->jobset->get_column('name'),
+            repo    => ($b->jobset->get_column('name') =~ /^(.*)\.pr-/) ? $1 : $b->jobset->get_column('name'),
             job     => $b->get_column('job'),
             system  => $b->system,
             cached  => $b->iscachedbuild ? "true" : "false",
