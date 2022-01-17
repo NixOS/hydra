@@ -162,8 +162,6 @@ create table Builds (
     timestamp     integer not null, -- time this build was added
 
     -- Info about the inputs.
-    project       text not null,
-    jobset        text not null,
     jobset_id     integer not null,
     job           text not null,
 
@@ -224,9 +222,7 @@ create table Builds (
     check (finished = 0 or (stoptime is not null and stoptime != 0)),
     check (finished = 0 or (starttime is not null and starttime != 0)),
 
-    foreign key (jobset_id) references Jobsets(id) on delete cascade,
-    foreign key (project) references Projects(name) on update cascade,
-    foreign key (project, jobset) references Jobsets(project, name) on update cascade
+    foreign key (jobset_id) references Jobsets(id) on delete cascade
 );
 
 
@@ -672,16 +668,11 @@ create index IndexBuildStepsOnStopTime on BuildSteps(stopTime desc) where startT
 create index IndexBuildStepOutputsOnPath on BuildStepOutputs(path);
 create index IndexBuildsOnFinished on Builds(finished) where finished = 0;
 create index IndexBuildsOnIsCurrent on Builds(isCurrent) where isCurrent = 1;
-create index IndexBuildsOnJobsetIsCurrent on Builds(project, jobset, isCurrent) where isCurrent = 1;
-create index IndexBuildsOnJobIsCurrent on Builds(project, jobset, job, isCurrent) where isCurrent = 1;
 create index IndexBuildsJobsetIdCurrentUnfinished on Builds(jobset_id) where isCurrent = 1 and finished = 0;
 create index IndexBuildsJobsetIdCurrentFinishedStatus on Builds(jobset_id, buildstatus) where isCurrent = 1 and finished = 1;
 create index IndexBuildsJobsetIdCurrent on Builds(jobset_id) where isCurrent = 1;
-create index IndexBuildsOnJobset on Builds(project, jobset);
-create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);
 create index IndexBuildsOnFinishedStopTime on Builds(finished, stoptime DESC);
-create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
 create index IndexBuildsOnJobsetIdFinishedId on Builds(jobset_id, job, finished, id DESC);
 create index IndexFinishedSuccessfulBuilds on Builds(jobset_id, job, finished, buildstatus, id DESC) where buildstatus = 0 and finished = 1;
 create index IndexBuildsOnDrvPath on Builds(drvPath);

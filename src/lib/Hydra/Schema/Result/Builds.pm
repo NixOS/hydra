@@ -52,18 +52,6 @@ __PACKAGE__->table("builds");
   data_type: 'integer'
   is_nullable: 0
 
-=head2 project
-
-  data_type: 'text'
-  is_foreign_key: 1
-  is_nullable: 0
-
-=head2 jobset
-
-  data_type: 'text'
-  is_foreign_key: 1
-  is_nullable: 0
-
 =head2 jobset_id
 
   data_type: 'integer'
@@ -206,10 +194,6 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 0 },
   "timestamp",
   { data_type => "integer", is_nullable => 0 },
-  "project",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
-  "jobset",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "jobset_id",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "job",
@@ -439,21 +423,6 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
-=head2 jobset_project_jobset
-
-Type: belongs_to
-
-Related object: L<Hydra::Schema::Result::Jobsets>
-
-=cut
-
-__PACKAGE__->belongs_to(
-  "jobset_project_jobset",
-  "Hydra::Schema::Result::Jobsets",
-  { name => "jobset", project => "project" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
-);
-
 =head2 jobsetevalinputs
 
 Type: has_many
@@ -482,21 +451,6 @@ __PACKAGE__->has_many(
   "Hydra::Schema::Result::JobsetEvalMembers",
   { "foreign.build" => "self.id" },
   undef,
-);
-
-=head2 project
-
-Type: belongs_to
-
-Related object: L<Hydra::Schema::Result::Projects>
-
-=cut
-
-__PACKAGE__->belongs_to(
-  "project",
-  "Hydra::Schema::Result::Projects",
-  { name => "project" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
 );
 
 =head2 runcommandlogs
@@ -543,8 +497,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-11-17 12:42:34
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ylttv/NTMDcSZumBXRCOCw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-01-10 09:43:38
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DQF8KRinnf0imJOP+lvH9Q
 
 __PACKAGE__->has_many(
   "dependents",
@@ -641,6 +595,11 @@ sub as_json {
   };
 
   return $json;
+}
+
+sub project {
+  my ($self) = @_;
+  return $self->jobset->project;
 }
 
 1;

@@ -200,7 +200,7 @@ sub machines :Local Args(0) {
 
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = dbh($c)->selectall_arrayref(
-        "select build, stepnr, s.system as system, s.drvpath as drvpath, machine, s.starttime as starttime, jobsets.project, jobsets.name, job, s.busy as busy " .
+        "select build, stepnr, s.system as system, s.drvpath as drvpath, machine, s.starttime as starttime, jobsets.project as project, jobsets.name as jobset, job, s.busy as busy " .
         "from BuildSteps s " .
         "join Builds b on s.build = b.id " .
         "join Jobsets jobsets on jobsets.id = b.jobset_id " .
