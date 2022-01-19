@@ -528,7 +528,7 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         /* Register the outputs of the newly built drv */
-        if (settings.isExperimentalFeatureEnabled("ca-derivations")) {
+        if (settings.isExperimentalFeatureEnabled(Xp::CaDerivations)) {
           auto outputHashes = staticOutputHashes(*localStore, *step->drv);
           for (auto & [outputId, realisation] : builtOutputs) {
               // Register the resolved drv output

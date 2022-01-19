@@ -477,7 +477,7 @@ Step::ptr State::createStep(ref<Store> destStore,
           missing.insert({{outputHash, outputName}, maybeOutputPath.second});
         }
       } else {
-        settings.requireExperimentalFeature("ca-derivations");
+        settings.requireExperimentalFeature(Xp::CaDerivations);
         if (!destStore->queryRealisation(DrvOutput{outputHash, outputName})) {
           valid = false;
           missing.insert({{outputHash, outputName}, std::nullopt});
@@ -493,7 +493,7 @@ Step::ptr State::createStep(ref<Store> destStore,
         for (auto & [i, maybePath] : missing) {
             if ((maybePath && localStore->isValidPath(*maybePath)))
                 avail++;
-            else if (settings.isExperimentalFeatureEnabled("ca-derivations") && localStore->queryRealisation(i)) {
+            else if (settings.isExperimentalFeatureEnabled(Xp::CaDerivations) && localStore->queryRealisation(i)) {
                 maybePath = localStore->queryRealisation(i)->outPath;
                 avail++;
             } else if (useSubstitutes && maybePath) {
