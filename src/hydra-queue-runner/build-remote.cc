@@ -86,8 +86,7 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
     bool useSubstitutes = false)
 {
     StorePathSet closure;
-    for (auto & path : paths)
-        destStore->computeFSClosure(path, closure);
+    destStore->computeFSClosure(paths, closure);
 
     /* Send the "query valid paths" command with the "lock" option
        enabled. This prevents a race where the remote host
