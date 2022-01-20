@@ -271,7 +271,11 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         /* Copy the input closure. */
-        if (!machine->isLocalhost()) {
+        if (machine->isLocalhost()) {
+            StorePathSet closure;
+            destStore->computeFSClosure(inputs, closure);
+            copyPaths(*destStore, *localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
+        } else {
             auto mc1 = std::make_shared<MaintainCount<counter>>(nrStepsWaiting);
             mc1.reset();
             MaintainCount<counter> mc2(nrStepsCopyingTo);
