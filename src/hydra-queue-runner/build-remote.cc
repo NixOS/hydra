@@ -270,17 +270,24 @@ void State::buildRemote(ref<Store> destStore,
             copyPaths(*localStore, *destStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
         }
 
-        /* Copy the input closure. */
-        if (!machine->isLocalhost()) {
+        {
             auto mc1 = std::make_shared<MaintainCount<counter>>(nrStepsWaiting);
             mc1.reset();
             MaintainCount<counter> mc2(nrStepsCopyingTo);
+
             printMsg(lvlDebug, "sending closure of ‘%s’ to ‘%s’",
                 localStore->printStorePath(step->drvPath), machine->sshName);
 
             auto now1 = std::chrono::steady_clock::now();
 
-            copyClosureTo(machine->state->sendLock, destStore, from, to, inputs, true);
+            /* Copy the input closure. */
+            if (machine->isLocalhost()) {
+                StorePathSet closure;
+                destStore->computeFSClosure(inputs, closure);
+                copyPaths(*destStore, *localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
+            } else {
+                copyClosureTo(machine->state->sendLock, destStore, from, to, inputs, true);
+            }
 
             auto now2 = std::chrono::steady_clock::now();
 

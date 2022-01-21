@@ -69,6 +69,7 @@ sub new {
         _db => undef,
         db_handle => $pgsql,
         tmpdir => $dir,
+        nix_state_dir => "$dir/nix/var/nix",
         testdir => abs_path(dirname(__FILE__) . "/.."),
         jobsdir => abs_path(dirname(__FILE__) . "/../jobs")
     };
@@ -113,6 +114,12 @@ sub jobsdir {
     my ($self) = @_;
 
     return $self->{jobsdir};
+}
+
+sub nix_state_dir {
+    my ($self) = @_;
+
+    return $self->{nix_state_dir};
 }
 
 # Create a jobset, evaluate it, and optionally build the jobs.
