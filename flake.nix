@@ -495,6 +495,7 @@
                 StringCompareConstantTime
                 SysHostnameLong
                 TermSizeAny
+                TermReadKey
                 Test2Harness
                 TestMore
                 TestPostgreSQL

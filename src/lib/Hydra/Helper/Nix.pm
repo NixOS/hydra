@@ -16,20 +16,32 @@ use IPC::Run;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getHydraHome getHydraConfig getBaseUrl
-    getSCMCacheDir getStatsdConfig
-    registerRoot getGCRootsDir gcRootFor
-    jobsetOverview jobsetOverview_
-    getDrvLogPath findLog
-    getMainOutput
+    cancelBuilds
+    captureStdoutStderr
+    captureStdoutStderrWithStdin
+    findLog
+    gcRootFor
+    getBaseUrl
+    getDrvLogPath
     getEvals getMachines
-    pathIsInsidePrefix
-    captureStdoutStderr run grab
-    getTotalShares
+    getGCRootsDir
+    getHydraConfig
+    getHydraHome
+    getMainOutput
+    getSCMCacheDir
+    getStatsdConfig
     getStoreUri
-    readNixFile
+    getTotalShares
+    grab
     isLocalStore
-    cancelBuilds restartBuilds);
+    jobsetOverview
+    jobsetOverview_
+    pathIsInsidePrefix
+    readNixFile
+    registerRoot
+    restartBuilds
+    run
+    );
 
 
 sub getHydraHome {
@@ -417,14 +429,19 @@ sub pathIsInsidePrefix {
 
 sub captureStdoutStderr {
     my ($timeout, @cmd) = @_;
-    my $stdin = "";
+
+    return captureStdoutStderrWithStdin($timeout, \@cmd, "");
+}
+
+sub captureStdoutStderrWithStdin {
+    my ($timeout, $cmd, $stdin) = @_;
     my $stdout;
     my $stderr;
 
     eval {
         local $SIG{ALRM} = sub { die "timeout\n" }; # NB: \n required
         alarm $timeout;
-        IPC::Run::run(\@cmd, \$stdin, \$stdout, \$stderr);
+        IPC::Run::run($cmd, \$stdin, \$stdout, \$stderr);
         alarm 0;
         1;
     } or do {
