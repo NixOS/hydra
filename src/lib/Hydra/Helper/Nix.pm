@@ -16,20 +16,31 @@ use IPC::Run;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getHydraHome getHydraConfig getBaseUrl
-    getSCMCacheDir getStatsdConfig
-    registerRoot getGCRootsDir gcRootFor
-    jobsetOverview jobsetOverview_
-    getDrvLogPath findLog
-    getMainOutput
+    cancelBuilds
+    captureStdoutStderr
+    findLog
+    gcRootFor
+    getBaseUrl
+    getDrvLogPath
     getEvals getMachines
-    pathIsInsidePrefix
-    captureStdoutStderr run grab
-    getTotalShares
+    getGCRootsDir
+    getHydraConfig
+    getHydraHome
+    getMainOutput
+    getSCMCacheDir
+    getStatsdConfig
     getStoreUri
-    readNixFile
+    getTotalShares
+    grab
     isLocalStore
-    cancelBuilds restartBuilds);
+    jobsetOverview
+    jobsetOverview_
+    pathIsInsidePrefix
+    readNixFile
+    registerRoot
+    restartBuilds
+    run
+    );
 
 
 sub getHydraHome {
