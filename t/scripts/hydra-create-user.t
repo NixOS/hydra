@@ -1,17 +1,10 @@
-use feature 'unicode_strings';
 use strict;
 use warnings;
 use Setup;
-
-my %ctx = test_init();
-
-require Hydra::Schema;
-require Hydra::Model::DB;
-
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $ctx = test_context();
+my $db = $ctx->db();
 
 subtest "Handling password and password hash creation" => sub {
     subtest "Creating a user with a plain text password (insecure) stores the password securely" => sub {
