@@ -10,6 +10,7 @@ subtest "Handling password and password hash creation" => sub {
     subtest "Creating a user with a plain text password (insecure) stores the password securely" => sub {
         my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("hydra-create-user", "plain-text-user", "--password", "foobar"));
         is($res, 0, "hydra-create-user should exit zero");
+        like($stderr, qr/Submitting plaintext passwords as arguments is deprecated and will be removed/, "Submitting a plain text password is deprecated.");
 
         my $user = $db->resultset('Users')->find({ username => "plain-text-user" });
         isnt($user, undef, "The user exists");

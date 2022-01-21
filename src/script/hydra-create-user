@@ -138,6 +138,8 @@ $db->txn_do(sub {
         $user->update({ emailaddress => $emailAddress }) if defined $emailAddress;
 
         if (defined $password) {
+            # !!! TODO: Remove support for plaintext passwords in 2023.
+            print STDERR "Submitting plaintext passwords as arguments is deprecated and will be removed. See --help for alternatives.\n";
             $user->setPassword($password);
         }
 
