@@ -28,10 +28,10 @@ subtest "Handling password and password hash creation" => sub {
     };
 
     subtest "Creating a user with a sha1 password (still insecure) stores the password as a hashed sha1" => sub {
-        my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("hydra-create-user", "plain-text-user", "--password-hash", "8843d7f92416211de9ebb963ff4ce28125932878"));
+        my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("hydra-create-user", "old-password-hash-user", "--password-hash", "8843d7f92416211de9ebb963ff4ce28125932878"));
         is($res, 0, "hydra-create-user should exit zero");
 
-        my $user = $db->resultset('Users')->find({ username => "plain-text-user" });
+        my $user = $db->resultset('Users')->find({ username => "old-password-hash-user" });
         isnt($user, undef, "The user exists");
         isnt($user->password, "8843d7f92416211de9ebb963ff4ce28125932878", "The password was not saved in plain text.");
 
@@ -41,10 +41,10 @@ subtest "Handling password and password hash creation" => sub {
     };
 
     subtest "Creating a user with an argon2 password stores the password as given" => sub {
-        my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("hydra-create-user", "plain-text-user", "--password-hash", '$argon2id$v=19$m=262144,t=3,p=1$tMnV5paYjmIrUIb6hylaNA$M8/e0i3NGrjhOliVLa5LqQ'));
+        my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("hydra-create-user", "argon2-hash-user", "--password-hash", '$argon2id$v=19$m=262144,t=3,p=1$tMnV5paYjmIrUIb6hylaNA$M8/e0i3NGrjhOliVLa5LqQ'));
         is($res, 0, "hydra-create-user should exit zero");
 
-        my $user = $db->resultset('Users')->find({ username => "plain-text-user" });
+        my $user = $db->resultset('Users')->find({ username => "argon2-hash-user" });
         isnt($user, undef, "The user exists");
         is($user->password, '$argon2id$v=19$m=262144,t=3,p=1$tMnV5paYjmIrUIb6hylaNA$M8/e0i3NGrjhOliVLa5LqQ', "The password was saved as-is.");
 
