@@ -59,7 +59,7 @@ sub doLDAPLogin {
 
     my $user = $c->find_user({ username => $username });
     my $LDAPUser = $c->find_user({ username => $username }, 'ldap');
-    my @LDAPRoles = grep { (substr $_, 0, 5) eq "hydra" } $LDAPUser->roles;
+    my @LDAPRoles = grep { (substr $_, 0, 6) eq "hydra_" } $LDAPUser->roles;
 
     if (!$user) {
         $c->model('DB::Users')->create(
