@@ -45,6 +45,25 @@ subtest "Handling password and password hash creation" => sub {
         ok($user->check_password("foobar"), "Their password validates");
         is($storedPassword, $user->password, "The password was not upgraded.");
     };
+
+    subtest "Specifying conflicting password options fails" => sub {
+        my @cases = (
+            [ "--password=foo", "--password-hash=8843d7f92416211de9ebb963ff4ce28125932878" ],
+        );
+
+        for my $case (@cases) {
+            my ($res, $stdout, $stderr) = captureStdoutStderr(5, (
+                "hydra-create-user", "bogus-password-options", @{$case}));
+            like($stderr, qr/please specify only one --password\* option/, "We get an error about specifying the password");
+            isnt($res, 0, "hydra-create-user should exit non-zero with conflicting " . join(" ", @{$case}));
+        }
+    };
+
+    subtest "A password is not required for creating a Google-based account" => sub {
+        my ($res, $stdout, $stderr) = captureStdoutStderr(5, (
+            "hydra-create-user", "google-account", "--type", "google"));
+        is($res, 0, "hydra-create-user should exit zero");
+    };
 };
 
 done_testing;
