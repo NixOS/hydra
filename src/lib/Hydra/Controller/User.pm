@@ -59,7 +59,9 @@ sub doLDAPLogin {
 
     my $user = $c->find_user({ username => $username });
     my $LDAPUser = $c->find_user({ username => $username }, 'ldap');
-    my @LDAPRoles = grep { (substr $_, 0, 6) eq "hydra_" } $LDAPUser->roles;
+    my @LDAPRoles = $LDAPUser->roles;
+    my %ldap_config = %{Hydra::Helper::Nix::getHydraConfig->{'ldap'}};
+    my %role_mapping = $ldap_config{'role_mapping'} ? %{$ldap_config{'role_mapping'}} : ();
 
     if (!$user) {
         $c->model('DB::Users')->create(
@@ -79,8 +81,10 @@ sub doLDAPLogin {
         });
     }
     $user->userroles->delete;
-    if (@LDAPRoles) {
-        $user->userroles->create({ role => (substr $_, 6) }) for @LDAPRoles;
+    foreach my $ldap_role (@LDAPRoles) {
+        if (%role_mapping{$ldap_role}) {
+            $user->userroles->create({ role => $role_mapping{$ldap_role} });
+        }
     }
     $c->set_authenticated($user);
 }

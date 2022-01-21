@@ -522,7 +522,6 @@
                 TextTable
                 UUID4Tiny
                 XMLSimple
-                YAML
               ];
           };
 
