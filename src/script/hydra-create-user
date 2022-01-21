@@ -5,6 +5,7 @@ use warnings;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 use Hydra::Model::DB;
+use Term::ReadKey;
 use Getopt::Long qw(:config gnu_getopt);
 
 sub showHelp {
@@ -143,13 +144,17 @@ $db->txn_do(sub {
         }
 
         if (defined $passwordPrompt) {
+            ReadMode 2;
             print STDERR "Password: ";
             my $password = <STDIN> // "";
             chomp $password;
 
-            print STDERR "Password Confirmation: ";
+            print STDERR "\nPassword Confirmation: ";
             my $passwordConfirm = <STDIN> // "";
             chomp $passwordConfirm;
+            ReadMode 0;
+
+            print STDERR "\n";
 
             if ($password ne $passwordConfirm) {
                 die "Passwords don't match."
