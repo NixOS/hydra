@@ -33,6 +33,8 @@ renamed.
 
 Pass `--password-prompt` to collect the password on stdin.
 
+The password will be hashed with Argon2id when stored.
+
 Example:
 
   $ hydra-create-user alice --password-prompt --role admin
@@ -94,7 +96,7 @@ my $userName = $ARGV[0];
 
 my $chosenPasswordOptions = grep { defined($_) }  ($passwordPrompt, $passwordHash, $password);
 if ($chosenPasswordOptions > 1) {
-    die "$0: please specify one of --password-prompt or --password-hash. See --help for more information.\n";
+    die "$0: please specify only one of --password-prompt or --password-hash. See --help for more information.\n";
 }
 
 die "$0: type must be `hydra', `google' or `github'\n"
@@ -135,7 +137,7 @@ $db->txn_do(sub {
     } else {
         $user->update({ emailaddress => $emailAddress }) if defined $emailAddress;
 
-        if (defined $password && !(defined $passwordHash)) {
+        if (defined $password) {
             $user->setPassword($password);
         }
 

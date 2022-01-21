@@ -76,7 +76,7 @@ subtest "Handling password and password hash creation" => sub {
         for my $case (@cases) {
             my ($res, $stdout, $stderr) = captureStdoutStderr(5, (
                 "hydra-create-user", "bogus-password-options", @{$case}));
-            like($stderr, qr/please specify one of --password-prompt or --password-hash/, "We get an error about specifying the password");
+            like($stderr, qr/please specify only one of --password-prompt or --password-hash/, "We get an error about specifying the password");
             isnt($res, 0, "hydra-create-user should exit non-zero with conflicting " . join(" ", @{$case}));
         }
     };
