@@ -13,6 +13,7 @@ use CliRunners;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     captureStdoutStderr
+    captureStdoutStderrWithStdin
     createBaseJobset
     createJobsetWithOneInput
     evalFails

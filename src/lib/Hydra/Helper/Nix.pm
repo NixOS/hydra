@@ -18,6 +18,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(
     cancelBuilds
     captureStdoutStderr
+    captureStdoutStderrWithStdin
     findLog
     gcRootFor
     getBaseUrl
@@ -428,14 +429,19 @@ sub pathIsInsidePrefix {
 
 sub captureStdoutStderr {
     my ($timeout, @cmd) = @_;
-    my $stdin = "";
+
+    return captureStdoutStderrWithStdin($timeout, \@cmd, "");
+}
+
+sub captureStdoutStderrWithStdin {
+    my ($timeout, $cmd, $stdin) = @_;
     my $stdout;
     my $stderr;
 
     eval {
         local $SIG{ALRM} = sub { die "timeout\n" }; # NB: \n required
         alarm $timeout;
-        IPC::Run::run(\@cmd, \$stdin, \$stdout, \$stderr);
+        IPC::Run::run($cmd, \$stdin, \$stdout, \$stderr);
         alarm 0;
         1;
     } or do {
