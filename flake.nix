@@ -501,7 +501,6 @@
                 TextDiff
                 TextTable
                 XMLSimple
-                YAML
               ];
           };
 
@@ -945,39 +944,52 @@
 
               '';
               systemd.services.hydra-server.environment.CATALYST_DEBUG = "1";
-              systemd.services.hydra-server.environment.HYDRA_LDAP_CONFIG = pkgs.writeText "config.yaml"
-                # example config based on https://metacpan.org/source/ILMARI/Catalyst-Authentication-Store-LDAP-1.016/README#L103
-                ''
-                  credential:
-                    class: Password
-                    password_field: password
-                    password_type: self_check
-                  store:
-                    class: LDAP
-                    ldap_server: localhost
-                    ldap_server_options:
-                      timeout: 30
-                      debug: 2
-                    binddn: "cn=root,dc=example"
-                    bindpw: notapassword
-                    start_tls: 0
-                    start_tls_options:
-                      verify:  none
-                    user_basedn: "ou=users,dc=example"
-                    user_filter: "(&(objectClass=inetOrgPerson)(cn=%s))"
-                    user_scope: one
-                    user_field: cn
-                    user_search_options:
-                      deref: always
-                    use_roles: 1
-                    role_basedn: "ou=groups,dc=example"
-                    role_filter: "(&(objectClass=groupOfNames)(member=%s))"
-                    role_scope: one
-                    role_field: cn
-                    role_value: dn
-                    role_search_options:
-                      deref: always
-                '';
+              services.hydra-dev.extraConfig = ''
+                <ldap>
+                  # example config based on https://metacpan.org/source/ILMARI/Catalyst-Authentication-Store-LDAP-1.016/README#L103
+                  <config>
+                    <credential>
+                      class = Password
+                      password_field = password
+                      password_type = self_check
+                    </credential>
+                    <store>
+                      class = LDAP
+                      ldap_server = localhost
+                      <ldap_server_options>
+                        timeout = 30
+                        debug = 2
+                      </ldap_server_options>
+                      binddn = "cn=root,dc=example"
+                      bindpw = notapassword
+                      start_tls = 0
+                      <start_tls_options>
+                        verify = none
+                      </start_tls_options>
+                      user_basedn = "ou=users,dc=example"
+                      user_filter = "(&(objectClass=inetOrgPerson)(cn=%s))"
+                      user_scope = one
+                      user_field = cn
+                      <user_search_options>
+                        deref = always
+                      </user_search_options>
+                      use_roles = 1
+                      role_basedn = "ou=groups,dc=example"
+                      role_filter = "(&(objectClass=groupOfNames)(member=%s))"
+                      role_scope = one
+                      role_field = cn
+                      role_value = dn
+                      <role_search_options>
+                        deref = always
+                      </role_search_options>
+                    </store>
+                  </config>
+
+                  <role_mapping>
+                    hydra_admin = admin
+                  </role_mapping>
+                </ldap>
+              '';
               networking.firewall.enable = false;
             };
             testScript = ''
