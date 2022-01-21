@@ -28,7 +28,7 @@ Once the Hydra service has been configured as above and activate you should alre
 ```
 $ su - hydra
 $ hydra-create-user <USER> --full-name '<NAME>' \
-    --email-address '<EMAIL>' --password <PASSWORD> --role admin
+    --email-address '<EMAIL>' --password-prompt --role admin
 ```
 
 Afterwards you should be able to log by clicking on "_Sign In_" on the top right of the web interface using the credentials specified by `hydra-create-user`. Once you are logged in you can click "_Admin -> Create Project_" to configure your first project.
