@@ -4,6 +4,13 @@ Configuration
 This chapter is a collection of configuration snippets for different
 scenarios.
 
+The configuration is parsed by `Config::General` which has [a pretty
+thorough documentation on their file format](https://metacpan.org/pod/Config::General#CONFIG-FILE-FORMAT).
+Hydra calls the parser with the following options:
+- `-UseApacheInclude => 1`
+- `-IncludeAgain => 1`
+- `-IncludeRelative => 1`
+
 Including files
 ---------------
 
