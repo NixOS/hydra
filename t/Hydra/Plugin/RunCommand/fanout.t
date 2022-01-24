@@ -121,47 +121,61 @@ subtest "isBuildEligibleForDynamicRunCommand" => sub {
     };
 
     subtest "On outputs ..." => sub {
-        is(
-            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
-            1,
-            "out is an executable file"
-        );
+        ok(!warns {
+            is(
+                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
+                1,
+                "out is an executable file"
+            );
+        }, "No warnings for an executable file.");
 
-        is(
-            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.symlink"}),
-            1,
-            "out is a symlink to an executable file"
-        );
+        ok(!warns {
+            is(
+                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.symlink"}),
+                1,
+                "out is a symlink to an executable file"
+            );
+        }, "No warnings for a symlink to an executable file.");
 
-        is(
-            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.no-out"}),
-            0,
-            "No output named out"
-        );
+        like(warning {
+            is(
+                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.no-out"}),
+                0,
+                "No output named out"
+            );
+        }, qr/rejected: no output named 'out'/, "A relevant warning is provided for a missing output");
 
-        is(
-            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.out-is-directory"}),
-            0,
-            "out is a directory"
-        );
+        like(warning {
+            is(
+                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.out-is-directory"}),
+                0,
+                "out is a directory"
+            );
+        }, qr/output is not a regular file or symlink/, "A relevant warning is provided for a directory output");
 
-        is(
-            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.out-is-not-executable-file"}),
-            0,
-            "out is a file which is not not executable"
-        );
+        like(warning {
+            is(
+                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.out-is-not-executable-file"}),
+                0,
+                "out is a file which is not a regular file or symlink"
+            );
+        }, qr/output is not executable/, "A relevant warning is provided if the file isn't executable");
 
-        is(
-            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.symlink-non-executable"}),
-            0,
-            "out is a symlink to a non-executable file"
-        );
+        like(warning {
+            is(
+                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.symlink-non-executable"}),
+                0,
+                "out is a symlink to a non-executable file"
+            );
+        }, qr/output is not executable/, "A relevant warning is provided for symlinks to non-executables");
 
-        is(
-            Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.symlink-directory"}),
-            0,
-            "out is a symlink to a directory"
-        );
+        like(warning {
+            is(
+                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.symlink-directory"}),
+                0,
+                "out is a symlink to a directory"
+            );
+        }, qr/output is not a regular file or symlink/, "A relevant warning is provided for symlinks to directories");
     };
 
     subtest "On build status ..." => sub {
