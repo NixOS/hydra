@@ -167,12 +167,16 @@ sub buildFinished {
         my $filename = constructRunCommandLogFilename(sha1_hex($command), $build->get_column('id'));
         my $logPath = constructRunCommandLogPath($filename);
         my $dir = dirname($logPath);
+        my $oldUmask = umask();
 
-        mkdir($dir, oct(755));
+        # file: 640, dir: 750
+        umask(0027);
+        mkdir($dir);
 
         open(my $f, '>', $logPath);
         close($f);
-        chmod(oct(644), $logPath);
+
+        umask($oldUmask);
 
         # Run the command
         system("$command 1>$logpath 2>&1") == 0
