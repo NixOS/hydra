@@ -246,6 +246,12 @@ sub builds {
   return $self->jobsets->related_resultset('builds');
 };
 
+sub supportsDynamicRunCommand {
+  my ($self) = @_;
+
+  return $self->get_column('enable_dynamic_run_command') == 1;
+}
+
 sub as_json {
     my $self = shift;
 
