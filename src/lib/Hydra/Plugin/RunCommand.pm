@@ -126,8 +126,8 @@ sub fanoutToCommands {
         next unless eventMatches($conf, $event);
         next unless configSectionMatches(
             $matcher,
-            $build->get_column('project'),
-            $build->get_column('jobset'),
+            $build->jobset->get_column('project'),
+            $build->jobset->get_column('name'),
             $build->get_column('job')
         );
 
