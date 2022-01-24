@@ -191,33 +191,40 @@ subtest "isBuildEligibleForDynamicRunCommand" => sub {
             $build->project->update({enable_dynamic_run_command => 0});
             $build->jobset->update({enable_dynamic_run_command => 1});
 
-            is(
-                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
-                0,
-                "Builds don't run from a jobset with disabled dynamic runcommand"
-            );
+
+            like(warning {
+                is(
+                    Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
+                    0,
+                    "Builds don't run from a jobset with disabled dynamic runcommand"
+                );
+            }, qr/project or jobset don't have dynamic runcommand enabled./, "A relevant warning is provided for a disabled runcommand support")
         };
 
         subtest "enabled on the project, disabled on the jobset" => sub {
             $build->project->update({enable_dynamic_run_command => 1});
             $build->jobset->update({enable_dynamic_run_command => 0});
 
-            is(
-                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
-                0,
-                "Builds don't run from a jobset with disabled dynamic runcommand"
-            );
+            like(warning {
+                is(
+                    Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
+                    0,
+                    "Builds don't run from a jobset with disabled dynamic runcommand"
+                );
+            }, qr/project or jobset don't have dynamic runcommand enabled./, "A relevant warning is provided for a disabled runcommand support")
         };
 
         subtest "disabled on the project, disabled on the jobset" => sub {
             $build->project->update({enable_dynamic_run_command => 0});
             $build->jobset->update({enable_dynamic_run_command => 0});
 
-            is(
-                Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
-                0,
-                "Builds don't run from a jobset with disabled dynamic runcommand"
-            );
+            like(warning {
+                is(
+                    Hydra::Plugin::RunCommand::isBuildEligibleForDynamicRunCommand($builds->{"runCommandHook.example"}),
+                    0,
+                    "Builds don't run from a jobset with disabled dynamic runcommand"
+                );
+            }, qr/project or jobset don't have dynamic runcommand enabled./, "A relevant warning is provided for a disabled runcommand support")
         };
     };
 };

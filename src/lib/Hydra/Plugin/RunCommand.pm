@@ -72,6 +72,7 @@ sub isBuildEligibleForDynamicRunCommand {
         }
 
         if (! $build->jobset->supportsDynamicRunCommand()) {
+            warn "DynamicRunCommand hook on " . $build->job . " (" . $build->id . ") rejected: The project or jobset don't have dynamic runcommand enabled.";
             return 0;
         }
 
