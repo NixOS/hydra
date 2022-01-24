@@ -7,7 +7,6 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::View::TT;
-use Hydra::Model::DB;
 use Nix::Store;
 use Nix::Config;
 use Encode;
@@ -538,7 +537,7 @@ sub runcommandlog :Local :Args(1) {
 
     die if defined $tail && $tail !~ /^[0-9]+$/;
 
-    my $logFile = Hydra::Model::DB::getHydraPath . "/runcommand-logs/" . substr($filename, 0, 2) . "/$filename";
+    my $logFile = constructRunCommandLogPath($filename);
     if (-f $logFile) {
         serveLogFile($c, $logFile, $tail);
         return;

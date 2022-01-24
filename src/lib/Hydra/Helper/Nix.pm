@@ -19,6 +19,8 @@ our @EXPORT = qw(
     cancelBuilds
     captureStdoutStderr
     captureStdoutStderrWithStdin
+    constructRunCommandLogFilename
+    constructRunCommandLogPath
     findLog
     gcRootFor
     getBaseUrl
@@ -588,5 +590,21 @@ sub isLocalStore {
     return $uri =~ "^(local|daemon|auto|file)";
 }
 
+
+sub constructRunCommandLogFilename {
+    my ($sha, $build_id) = @_;
+    my $filename = "$sha-$build_id";
+    return $filename;
+}
+
+
+sub constructRunCommandLogPath {
+    my ($filename) = @_;
+
+    my $hydra_path = Hydra::Model::DB::getHydraPath;
+    my $bucket = substr($filename, 0, 2);
+
+    return "$hydra_path/runcommand-logs/$bucket/$filename";
+}
 
 1;
