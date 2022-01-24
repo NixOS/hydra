@@ -174,8 +174,29 @@ __PACKAGE__->belongs_to(
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZVpYU6k3d/k/nitjpdgf/A
 
 use POSIX qw(WEXITSTATUS WIFEXITED WIFSIGNALED WTERMSIG);
+use UUID4::Tiny qw(create_uuid_string);
 use Digest::SHA1 qw(sha1_hex);
 use Hydra::Model::DB;
+
+
+=head2 new
+
+Initialize a new row object.
+
+Sets the UUID automatically unless a UUID is specified in the attributes.
+
+=cut
+sub new {
+    my ($class, $attrs) = @_;
+
+    if (!defined $attrs->{uuid}) {
+      $attrs->{uuid} = create_uuid_string();
+    }
+
+    my $new = $class->next::method($attrs);
+
+    return $new;
+}
 
 =head2 started
 
