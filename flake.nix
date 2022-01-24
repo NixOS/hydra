@@ -518,7 +518,7 @@
               gitAndTools.topGit mercurial darcs subversion breezy openssl bzip2 libxslt
               final.nix perlDeps perl mdbook pixz
               boost
-              postgresql_11
+              postgresql_13
               (if lib.versionAtLeast lib.version "20.03pre"
                then nlohmann_json
                else nlohmann_json.override { multipleHeaders = true; })
