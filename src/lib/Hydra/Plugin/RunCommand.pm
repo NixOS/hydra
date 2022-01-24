@@ -71,11 +71,7 @@ sub isBuildEligibleForDynamicRunCommand {
             return 0;
         }
 
-        if (! $build->jobset->enable_dynamic_run_command) {
-            return 0;
-        }
-
-        if (! $build->project->supportsDynamicRunCommand()) {
+        if (! $build->jobset->supportsDynamicRunCommand()) {
             return 0;
         }
 

@@ -386,6 +386,13 @@ __PACKAGE__->add_column(
     "+id" => { retrieve_on_insert => 1 }
 );
 
+sub supportsDynamicRunCommand {
+  my ($self) = @_;
+
+  return $self->get_column('enable_dynamic_run_command') == 1
+    && $self->project->supportsDynamicRunCommand();
+}
+
 sub as_json {
     my $self = shift;
 
