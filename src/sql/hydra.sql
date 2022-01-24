@@ -568,6 +568,7 @@ create index IndexTaskRetriesOrdered on TaskRetries(retry_at asc);
 -- 3. Update the end_time and exit_code when it completes
 create table RunCommandLogs (
     id            serial primary key not null,
+    uuid          uuid not null,
     job_matcher   text not null,
     build_id      integer not null,
     -- TODO: evaluation_id integer not null,
@@ -599,7 +600,9 @@ create table RunCommandLogs (
     constraint RunCommandLogs_end_time_has_start_time check (
         -- If end time is not null, then end_time, exit_code, and core_dumped should not be null
         (end_time is null) or (start_time is not null)
-    )
+    ),
+    -- The uuid should be actually unique.
+    constraint RunCommandLogs_uuid_unique unique(uuid)
 
     -- Note: if exit_code is not null then signal and core_dumped must be null.
     -- Similarly, if signal is not null then exit_code must be null and
