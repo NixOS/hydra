@@ -9,6 +9,7 @@ use Digest::SHA1 qw(sha1_hex);
 use Hydra::Model::DB;
 use Hydra::Helper::Nix;
 use File::Basename qw(dirname);
+use IPC::Run;
 
 sub isEnabled {
     my ($self) = @_;
@@ -174,13 +175,14 @@ sub buildFinished {
         mkdir($dir);
 
         open(my $f, '>', $logPath);
-        close($f);
-
         umask($oldUmask);
 
-        # Run the command
-        system("$command 1>$logpath 2>&1") == 0
+        my $stdin = "";
+        my @cmd = ["sh", "-c", $command];
+        IPC::Run::run(@cmd, \$stdin, $f, '2>&1') == 1
             or warn "notification command '$command' failed with exit status $? ($!)\n";
+
+        close($f);
 
         $runlog->completed_with_child_error($?, $!);
     }
