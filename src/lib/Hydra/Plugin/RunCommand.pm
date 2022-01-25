@@ -5,9 +5,6 @@ use warnings;
 use parent 'Hydra::Plugin';
 use experimental 'smartmatch';
 use JSON::MaybeXS;
-use Digest::SHA1 qw(sha1_hex);
-use Hydra::Model::DB;
-use Hydra::Helper::Nix;
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
 use IPC::Run3;
@@ -166,8 +163,8 @@ sub buildFinished {
 
         $runlog->started();
 
-        my $filename = constructRunCommandLogFilename(sha1_hex($command), $build->get_column('id'));
-        my $logPath = constructRunCommandLogPath($filename);
+        my $filename = Hydra::Helper::Nix::constructRunCommandLogFilename(sha1_hex($command), $build->get_column('id'));
+        my $logPath = Hydra::Helper::Nix::constructRunCommandLogPath($filename);
         my $dir = dirname($logPath);
         my $oldUmask = umask();
 
