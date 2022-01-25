@@ -474,6 +474,7 @@
                 git
                 IOCompress
                 IPCRun
+                IPCRun3
                 JSON
                 JSONMaybeXS
                 JSONXS

@@ -10,7 +10,7 @@ use Hydra::Model::DB;
 use Hydra::Helper::Nix;
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
-use IPC::Run;
+use IPC::Run3;
 
 sub isEnabled {
     my ($self) = @_;
@@ -178,9 +178,7 @@ sub buildFinished {
         open(my $f, '>', $logPath);
         umask($oldUmask);
 
-        my $stdin = "";
-        my @cmd = ["sh", "-c", $command];
-        IPC::Run::run(@cmd, \$stdin, $f, '2>&1') == 1
+        run3($command, \undef, $f, $f, { return_if_system_error => 1 }) == 1
             or warn "notification command '$command' failed with exit status $? ($!)\n";
 
         close($f);
