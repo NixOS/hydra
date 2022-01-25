@@ -9,6 +9,7 @@ use Digest::SHA1 qw(sha1_hex);
 use Hydra::Model::DB;
 use Hydra::Helper::Nix;
 use File::Basename qw(dirname);
+use File::Path qw(make_path);
 use IPC::Run;
 
 sub isEnabled {
@@ -172,7 +173,7 @@ sub buildFinished {
 
         # file: 640, dir: 750
         umask(0027);
-        mkdir($dir);
+        make_path($dir);
 
         open(my $f, '>', $logPath);
         umask($oldUmask);
