@@ -461,7 +461,7 @@ in
         script =
           ''
             find ${baseDir}/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v -f
-            find ${baseDir}/runcommand-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v -f
+            find ${baseDir}/runcommand-logs -type f -mtime +3 -size +0c | xargs -r bzip2 -v -f
           '';
         startAt = "Sun 01:45";
       };
