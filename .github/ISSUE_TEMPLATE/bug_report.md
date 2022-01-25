@@ -24,6 +24,9 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **Hydra Server:**
+
+Please fill out this data as well as you can, but don't worry if you can't -- just do your best.
+
 - OS and version: [e.g. NixOS 22.05.20211203.ee3794c]
 - Version of Hydra
 - Version of Nix Hydra is built against
