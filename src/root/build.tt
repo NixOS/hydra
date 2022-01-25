@@ -525,9 +525,17 @@ END;
             [% IF runcommandlog.start_time != undef %]
               <div>Started at [% INCLUDE renderDateTime timestamp = runcommandlog.start_time; %]</div>
               [% IF runcommandlog.end_time != undef %]
-                <div>Ran for [% INCLUDE renderDuration duration = runcommandlog.end_time - runcommandlog.start_time %][% IF runcommandlog.log_relative_url() %]&nbsp—&nbsp;<a href="[% c.uri_for('/build', build.id, runcommandlog.log_relative_url()) %]">Logs</a>[% END %]</div>
+                <div>Ran for [% INCLUDE renderDuration duration = runcommandlog.end_time - runcommandlog.start_time %]
+                  [% IF runcommandlog.log_relative_url() %]
+                    &nbsp—&nbsp;<a href="[% c.uri_for('/build', build.id, runcommandlog.log_relative_url()) %]">Logs</a>
+                  [% END %]
+                </div>
               [% ELSE %]
-                <div>Running for [% INCLUDE renderDuration duration = curTime - runcommandlog.start_time %][% IF runcommandlog.log_relative_url() %]&nbsp—&nbsp;<a href="[% c.uri_for('/build', build.id, runcommandlog.log_relative_url()) %]">Logs</a>[% END %]</div>
+                <div>Running for [% INCLUDE renderDuration duration = curTime - runcommandlog.start_time %]
+                  [% IF runcommandlog.log_relative_url() %]
+                    &nbsp—&nbsp;<a href="[% c.uri_for('/build', build.id, runcommandlog.log_relative_url()) %]">Logs</a>
+                  [% END %]
+                </div>
               [% END %]
             [% ELSE %]
               <div>Pending</div>
