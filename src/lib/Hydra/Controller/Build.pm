@@ -126,14 +126,13 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
 
     $c->stash->{step} = $step;
 
-    showLog($c, $mode, $step->busy == 0, $step->drvpath);
+    showLog($c, $mode, $step->drvpath);
 }
 
 
 sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
-    showLog($c, $mode, $c->stash->{build}->finished,
-            $c->stash->{build}->drvpath);
+    showLog($c, $mode, $c->stash->{build}->drvpath);
 }
 
 
@@ -146,7 +145,7 @@ sub view_runcommandlog : Chained('buildChain') PathPart('runcommandlog') {
 
 
 sub showLog {
-    my ($c, $mode, $finished, $drvPath) = @_;
+    my ($c, $mode, $drvPath) = @_;
     $mode //= "pretty";
 
     my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
