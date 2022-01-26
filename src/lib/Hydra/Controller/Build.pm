@@ -142,10 +142,12 @@ sub view_log : Chained('buildChain') PathPart('log') {
 
 
 sub view_runcommandlog : Chained('buildChain') PathPart('runcommandlog') {
-    my ($self, $c, $uuid) = @_;
+    my ($self, $c, $uuid, $mode) = @_;
 
-    $c->stash->{log_uri} = $c->uri_for($c->controller('Root')->action_for("runcommandlog"), $uuid);
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("runcommandlog"), $uuid);
+    showLog($c, $mode, $log_uri);
     $c->stash->{template} = 'runcommand-log.tt';
+    $c->stash->{runcommandlog} = $c->stash->{build}->runcommandlogs->find({ uuid => $uuid });
 }
 
 
