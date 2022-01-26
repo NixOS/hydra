@@ -19,7 +19,6 @@ our @EXPORT = qw(
     cancelBuilds
     captureStdoutStderr
     captureStdoutStderrWithStdin
-    constructRunCommandLogFilename
     constructRunCommandLogPath
     findLog
     gcRootFor
@@ -588,13 +587,6 @@ sub readNixFile {
 sub isLocalStore {
     my $uri = getStoreUri();
     return $uri =~ "^(local|daemon|auto|file)";
-}
-
-
-sub constructRunCommandLogFilename {
-    my ($sha, $build_id) = @_;
-    my $filename = "$sha-$build_id";
-    return $filename;
 }
 
 
