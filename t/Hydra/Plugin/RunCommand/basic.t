@@ -60,8 +60,7 @@ subtest "Validate a run log was created" => sub {
     is($runlog->exit_code, 0, "This command should have succeeded.");
 
     subtest "Validate the run log file exists" => sub {
-        my $filename = Hydra::Helper::Nix::constructRunCommandLogFilename(sha1_hex($runlog->command), $build->get_column('id'));
-        my $logPath = Hydra::Helper::Nix::constructRunCommandLogPath($filename);
+        my $logPath = Hydra::Helper::Nix::constructRunCommandLogPath($runlog->uuid);
         ok(-f $logPath, "The run log was saved to a file.");
         ok(-z $logPath, "The run log was empty.");
     };
