@@ -524,19 +524,29 @@ END;
           <div class="d-flex flex-column  align-items-end">
             [% IF runcommandlog.start_time != undef %]
               <div>Started at [% INCLUDE renderDateTime timestamp = runcommandlog.start_time; %]</div>
-              [% IF runcommandlog.end_time != undef %]
-                <div>Ran for [% INCLUDE renderDuration duration = runcommandlog.end_time - runcommandlog.start_time %]
-                  [% IF runcommandlog.uuid != undef %]
-                    &nbsp—&nbsp;<a href="[% c.uri_for('/build', build.id, 'runcommandlog', runcommandlog.uuid) %]">Logs</a>
-                  [% END %]
-                </div>
-              [% ELSE %]
-                <div>Running for [% INCLUDE renderDuration duration = curTime - runcommandlog.start_time %]
-                  [% IF runcommandlog.uuid != undef %]
-                    &nbsp—&nbsp;<a href="[% c.uri_for('/build', build.id, 'runcommandlog', runcommandlog.uuid) %]">Logs</a>
-                  [% END %]
-                </div>
-              [% END %]
+              <div class="d-flex flex-column align-items-end">
+                [% IF runcommandlog.end_time != undef %]
+                  Ran for [% INCLUDE renderDuration duration = runcommandlog.end_time - runcommandlog.start_time %]
+                    [% IF runcommandlog.uuid != undef %]
+                      [% runLog = c.uri_for('/build', build.id, 'runcommandlog', runcommandlog.uuid) %]
+                      <div>
+                        <a class="btn btn-secondary btn-sm" href="[% runLog %]">pretty</a>
+                        <a class="btn btn-secondary btn-sm" href="[% runLog %]/raw">raw</a>
+                        <a class="btn btn-secondary btn-sm" href="[% runLog %]/tail">tail</a>
+                      </div>
+                    [% END %]
+                [% ELSE %]
+                  Running for [% INCLUDE renderDuration duration = curTime - runcommandlog.start_time %]
+                    [% IF runcommandlog.uuid != undef %]
+                      [% runLog = c.uri_for('/build', build.id, 'runcommandlog', runcommandlog.uuid) %]
+                      <div>
+                        <a class="btn btn-secondary btn-sm" href="[% runLog %]">pretty</a>
+                        <a class="btn btn-secondary btn-sm" href="[% runLog %]/raw">raw</a>
+                        <a class="btn btn-secondary btn-sm" href="[% runLog %]/tail">tail</a>
+                      </div>
+                    [% END %]
+                [% END %]
+              </div>
             [% ELSE %]
               <div>Pending</div>
             [% END %]
