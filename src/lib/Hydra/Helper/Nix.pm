@@ -592,12 +592,17 @@ sub isLocalStore {
 
 sub constructRunCommandLogPath {
     my ($runlog) = @_;
+    my $path = undef;
 
-    my $uuid = $runlog->uuid;
-    my $hydra_path = Hydra::Model::DB::getHydraPath;
-    my $bucket = substr($uuid, 0, 2);
+    eval {
+        my $uuid = $runlog->uuid;
+        my $hydra_path = Hydra::Model::DB::getHydraPath;
+        my $bucket = substr($uuid, 0, 2);
 
-    return "$hydra_path/runcommand-logs/$bucket/$uuid";
+        $path = "$hydra_path/runcommand-logs/$bucket/$uuid";
+    };
+
+    return $path;
 }
 
 1;

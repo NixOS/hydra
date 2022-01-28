@@ -163,7 +163,7 @@ sub buildFinished {
 
         $runlog->started();
 
-        my $logPath = Hydra::Helper::Nix::constructRunCommandLogPath($runlog);
+        my $logPath = Hydra::Helper::Nix::constructRunCommandLogPath($runlog) or die "RunCommandLog not found.";
         my $dir = dirname($logPath);
         my $oldUmask = umask();
 
