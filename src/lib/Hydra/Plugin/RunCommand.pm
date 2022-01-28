@@ -163,7 +163,7 @@ sub buildFinished {
 
         $runlog->started();
 
-        my $logPath = Hydra::Helper::Nix::constructRunCommandLogPath($runlog->uuid);
+        my $logPath = Hydra::Helper::Nix::constructRunCommandLogPath($runlog);
         my $dir = dirname($logPath);
         my $oldUmask = umask();
 
