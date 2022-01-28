@@ -11,7 +11,7 @@
   [% ELSE %]
   is
   [% END %]
-  the output of a RunCommand execution of the command <tt>[% runcommandlog.command %]</tt>
+  the output of a RunCommand execution of the command <tt>[% HTML.escape(runcommandlog.command) %]</tt>
   on <a href="[% c.uri_for('/build', build.id) %]">Build [% build.id %]</a>.
   [% IF tail %]
   The <a href="[% c.uri_for('/build', build.id, 'runcommandlog', runcommandlog.uuid) %]">full log</a> is also available.
