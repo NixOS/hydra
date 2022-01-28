@@ -537,8 +537,10 @@ sub runcommandlog :Local :Args(1) {
 
     die if defined $tail && $tail !~ /^[0-9]+$/;
 
-    my $runlog = $c->model('DB')->resultset('RunCommandLogs')->find({ uuid => $uuid });
-    my $logFile = constructRunCommandLogPath($runlog) or notFound($c, "RunCommandLog not found.");
+    my $runlog = $c->model('DB')->resultset('RunCommandLogs')->find({ uuid => $uuid })
+        or notFound($c, "The RunCommand log is not available.");
+
+    my $logFile = constructRunCommandLogPath($runlog);
     if (-f $logFile) {
         serveLogFile($c, $logFile, $tail);
         return;

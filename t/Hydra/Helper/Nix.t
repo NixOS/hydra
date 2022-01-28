@@ -82,6 +82,12 @@ subtest "constructRunCommandLogPath" => sub {
         qr@/runcommand-logs/[0-9a-f]{2}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}@,
         "The constructed RunCommandLog path is sufficiently bucketed and UUID-like."
     );
+
+    my $badlog = $db->resultset('RunCommandLogs')->new({ uuid => "../../../etc/passwd" });
+    ok(
+        dies { Hydra::Helper::Nix::constructRunCommandLogPath($badlog) },
+        "Expected invalid UUID to be rejected and not have a path constructed for it.",
+    );
 };
 
 done_testing;

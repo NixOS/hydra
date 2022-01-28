@@ -13,6 +13,7 @@ use Nix::Store;
 use Encode;
 use Sys::Hostname::Long;
 use IPC::Run;
+use UUID4::Tiny qw(is_uuid4_string);
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -592,17 +593,16 @@ sub isLocalStore {
 
 sub constructRunCommandLogPath {
     my ($runlog) = @_;
-    my $path = undef;
+    my $uuid = $runlog->uuid;
 
-    eval {
-        my $uuid = $runlog->uuid;
-        my $hydra_path = Hydra::Model::DB::getHydraPath;
-        my $bucket = substr($uuid, 0, 2);
+    if (!is_uuid4_string($uuid)) {
+        die "UUID was invalid."
+    }
 
-        $path = "$hydra_path/runcommand-logs/$bucket/$uuid";
-    };
+    my $hydra_path = Hydra::Model::DB::getHydraPath;
+    my $bucket = substr($uuid, 0, 2);
 
-    return $path;
+    return "$hydra_path/runcommand-logs/$bucket/$uuid";
 }
 
 1;
