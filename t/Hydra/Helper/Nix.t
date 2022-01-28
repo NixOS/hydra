@@ -3,7 +3,7 @@ use warnings;
 use Setup;
 use File::Temp;
 
-my %ctx = test_init();
+my $ctx = test_context();
 
 require Hydra::Helper::Nix;
 
