@@ -137,7 +137,8 @@ sub buildFinished {
                 my $prefix = exists $bucket_config->{prefix} ? $bucket_config->{prefix} : "";
                 my $nar_object = $bucket->object(
                     key => $prefix . "$hash.nar",
-                    content_type => "application/x-nix-archive"
+                    content_type => "application/x-nix-archive",
+                    cache_control => "public, max-age=31536000, immutable"
                 );
                 $nar_object->put_filename("$tempdir/nar");
             }
