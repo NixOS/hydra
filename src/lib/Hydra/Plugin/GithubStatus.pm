@@ -26,7 +26,7 @@ sub toGithubState {
 }
 
 sub common {
-    my ($self, $topbuild, $dependents, $finished) = @_;
+    my ($self, $topbuild, $dependents, $finished, $cachedEval) = @_;
     my $cfg = $self->{config}->{githubstatus};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
@@ -58,6 +58,9 @@ sub common {
             my @inputs = defined $inputs_cfg ? ref $inputs_cfg eq "ARRAY" ? @$inputs_cfg : ($inputs_cfg) : ();
             my %seen = map { $_ => {} } @inputs;
             while (my $eval = $evals->next) {
+                if (defined($cachedEval) && $cachedEval->id != $eval->id) {
+                    next;
+                }
 
                 my $sendStatus = sub {
                     my ($input, $owner, $repo, $rev) = @_;
@@ -127,6 +130,16 @@ sub buildStarted {
 
 sub buildFinished {
     common(@_, 1);
+}
+
+sub cachedBuildQueued {
+    my ($self, $evaluation, $build) = @_;
+    common($self, $build, [], 0, $evaluation);
+}
+
+sub cachedBuildFinished {
+    my ($self, $evaluation, $build) = @_;
+    common($self, $build, [], 1, $evaluation);
 }
 
 1;
