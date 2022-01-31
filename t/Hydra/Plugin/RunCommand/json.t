@@ -10,13 +10,11 @@ my %ctx = test_init(
     </runcommand>
 |);
 
-use Test2::V0;
-use Hydra::Plugin::RunCommand;
-
 require Hydra::Schema;
 require Hydra::Model::DB;
 
 use Test2::V0;
+use Hydra::Plugin::RunCommand;
 
 my $db = Hydra::Model::DB->new;
 hydra_setup($db);

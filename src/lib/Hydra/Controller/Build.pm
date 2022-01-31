@@ -126,22 +126,34 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
 
     $c->stash->{step} = $step;
 
-    showLog($c, $mode, $step->busy == 0, $step->drvpath);
+    my $drvPath = $step->drvpath;
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
+    showLog($c, $mode, $log_uri);
 }
 
 
 sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
-    showLog($c, $mode, $c->stash->{build}->finished,
-            $c->stash->{build}->drvpath);
+
+    my $drvPath = $c->stash->{build}->drvpath;
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
+    showLog($c, $mode, $log_uri);
+}
+
+
+sub view_runcommandlog : Chained('buildChain') PathPart('runcommandlog') {
+    my ($self, $c, $uuid, $mode) = @_;
+
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("runcommandlog"), $uuid);
+    showLog($c, $mode, $log_uri);
+    $c->stash->{template} = 'runcommand-log.tt';
+    $c->stash->{runcommandlog} = $c->stash->{build}->runcommandlogs->find({ uuid => $uuid });
 }
 
 
 sub showLog {
-    my ($c, $mode, $finished, $drvPath) = @_;
+    my ($c, $mode, $log_uri) = @_;
     $mode //= "pretty";
-
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
 
     if ($mode eq "pretty") {
         $c->stash->{log_uri} = $log_uri;

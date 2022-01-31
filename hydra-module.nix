@@ -275,7 +275,11 @@ in
 
           mkdir -m 0700 -p ${baseDir}/queue-runner
           mkdir -m 0750 -p ${baseDir}/build-logs
-          chown hydra-queue-runner.hydra ${baseDir}/queue-runner ${baseDir}/build-logs
+          mkdir -m 0750 -p ${baseDir}/runcommand-logs
+          chown hydra-queue-runner.hydra \
+            ${baseDir}/queue-runner \
+            ${baseDir}/build-logs \
+            ${baseDir}/runcommand-logs
 
           ${optionalString haveLocalDB ''
             if ! [ -e ${baseDir}/.db-created ]; then
@@ -432,12 +436,12 @@ in
                 if [ $(systemctl is-active $service) == active ]; then
                   echo "stopping $service due to lack of free space..."
                   systemctl stop $service
-                  date > /var/lib/hydra/.$service-stopped-minspace
+                  date > ${baseDir}/.$service-stopped-minspace
                 fi
               else
                 if [ $spaceleft -gt $(( ($minFreeGB + 10) * 1024**3)) -a \
-                     -r /var/lib/hydra/.$service-stopped-minspace ] ; then
-                  rm /var/lib/hydra/.$service-stopped-minspace
+                     -r ${baseDir}/.$service-stopped-minspace ] ; then
+                  rm ${baseDir}/.$service-stopped-minspace
                   echo "restarting $service due to newly available free space..."
                   systemctl start $service
                 fi
@@ -456,7 +460,7 @@ in
       { path = [ pkgs.bzip2 ];
         script =
           ''
-            find /var/lib/hydra/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v -f
+            find ${baseDir}/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v -f
           '';
         startAt = "Sun 01:45";
       };

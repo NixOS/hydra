@@ -58,6 +58,12 @@ subtest "Validate a run log was created" => sub {
     is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
     is($runlog->end_time, within(time() - 1, 2), "The end time is also recent.");
     is($runlog->exit_code, 0, "This command should have succeeded.");
+
+    subtest "Validate the run log file exists" => sub {
+        my $logPath = Hydra::Helper::Nix::constructRunCommandLogPath($runlog);
+        ok(-f $logPath, "The run log was saved to a file.");
+        ok(-z $logPath, "The run log was empty.");
+    };
 };
 
 done_testing;

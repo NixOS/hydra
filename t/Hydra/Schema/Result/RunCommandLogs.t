@@ -20,6 +20,12 @@ sub new_run_log {
     });
 }
 
+subtest "A new record has a UUID" => sub {
+    my $runlog = new_run_log();
+    is(length($runlog->uuid), 36, "The UUID attribute is sufficiently UUID-like.");
+    like($runlog->uuid, qr/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/, "The UUID attribute is sufficiently UUID-like.");
+};
+
 subtest "Not yet started" => sub {
     my $runlog = new_run_log();
 

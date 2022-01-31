@@ -432,6 +432,20 @@
               license = with final.lib.licenses; [ artistic1 gpl1Plus ];
             };
           };
+
+          UUID4Tiny = final.buildPerlPackage {
+            pname = "UUID4-Tiny";
+            version = "0.002";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/C/CV/CVLIBRARY/UUID4-Tiny-0.002.tar.gz";
+              sha256 = "e7535b31e386d432dec7adde214348389e1d5cf753e7ed07f1ae04c4360840cf";
+            };
+            meta = {
+              description = "Cryptographically secure v4 UUIDs for Linux x64";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
         };
 
         hydra = with final; let
@@ -474,6 +488,7 @@
                 git
                 IOCompress
                 IPCRun
+                IPCRun3
                 JSON
                 JSONMaybeXS
                 JSONXS
@@ -501,6 +516,7 @@
                 TestPostgreSQL
                 TextDiff
                 TextTable
+                UUID4Tiny
                 XMLSimple
                 YAML
               ];
@@ -517,7 +533,7 @@
               gitAndTools.topGit mercurial darcs subversion breezy openssl bzip2 libxslt
               final.nix perlDeps perl mdbook pixz
               boost
-              postgresql_11
+              postgresql_13
               (if lib.versionAtLeast lib.version "20.03pre"
                then nlohmann_json
                else nlohmann_json.override { multipleHeaders = true; })

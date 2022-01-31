@@ -530,4 +530,23 @@ sub log :Local :Args(1) {
     }
 }
 
+sub runcommandlog :Local :Args(1) {
+    my ($self, $c, $uuid) = @_;
+
+    my $tail = $c->request->params->{"tail"};
+
+    die if defined $tail && $tail !~ /^[0-9]+$/;
+
+    my $runlog = $c->model('DB')->resultset('RunCommandLogs')->find({ uuid => $uuid })
+        or notFound($c, "The RunCommand log is not available.");
+
+    my $logFile = constructRunCommandLogPath($runlog);
+    if (-f $logFile) {
+        serveLogFile($c, $logFile, $tail);
+        return;
+    } else {
+        notFound($c, "The RunCommand log is not available.");
+    }
+}
+
 1;

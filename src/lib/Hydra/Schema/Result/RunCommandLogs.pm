@@ -42,6 +42,12 @@ __PACKAGE__->table("runcommandlogs");
   is_nullable: 0
   sequence: 'runcommandlogs_id_seq'
 
+=head2 uuid
+
+  data_type: 'uuid'
+  is_nullable: 0
+  size: 16
+
 =head2 job_matcher
 
   data_type: 'text'
@@ -98,6 +104,8 @@ __PACKAGE__->add_columns(
     is_nullable       => 0,
     sequence          => "runcommandlogs_id_seq",
   },
+  "uuid",
+  { data_type => "uuid", is_nullable => 0, size => 16 },
   "job_matcher",
   { data_type => "text", is_nullable => 0 },
   "build_id",
@@ -130,6 +138,20 @@ __PACKAGE__->add_columns(
 
 __PACKAGE__->set_primary_key("id");
 
+=head1 UNIQUE CONSTRAINTS
+
+=head2 C<runcommandlogs_uuid_unique>
+
+=over 4
+
+=item * L</uuid>
+
+=back
+
+=cut
+
+__PACKAGE__->add_unique_constraint("runcommandlogs_uuid_unique", ["uuid"]);
+
 =head1 RELATIONS
 
 =head2 build
@@ -148,10 +170,31 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-11-19 15:15:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:9AIzlQl1RjRXrs9gQCZKVw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-01-24 10:24:52
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZVpYU6k3d/k/nitjpdgf/A
 
 use POSIX qw(WEXITSTATUS WIFEXITED WIFSIGNALED WTERMSIG);
+use UUID4::Tiny qw(create_uuid_string);
+
+
+=head2 new
+
+Initialize a new row object.
+
+Sets the UUID automatically unless a UUID is specified in the attributes.
+
+=cut
+sub new {
+    my ($class, $attrs) = @_;
+
+    if (!defined $attrs->{uuid}) {
+      $attrs->{uuid} = create_uuid_string();
+    }
+
+    my $new = $class->next::method($attrs);
+
+    return $new;
+}
 
 =head2 started
 
