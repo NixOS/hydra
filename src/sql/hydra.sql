@@ -609,6 +609,7 @@ create table RunCommandLogs (
     -- core_dumped must not be null. However, these semantics are tricky
     -- to encode as constraints and probably provide limited actual value.
 );
+create index IndexRunCommandLogsOnBuildID on RunCommandLogs(build_id);
 
 -- The output paths that have permanently failed.
 create table FailedPaths (
