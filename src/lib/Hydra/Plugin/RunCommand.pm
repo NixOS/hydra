@@ -8,6 +8,7 @@ use JSON::MaybeXS;
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
 use IPC::Run3;
+use Try::Tiny;
 
 sub isEnabled {
     my ($self) = @_;
@@ -166,20 +167,28 @@ sub buildFinished {
         my $logPath = Hydra::Helper::Nix::constructRunCommandLogPath($runlog) or die "RunCommandLog not found.";
         my $dir = dirname($logPath);
         my $oldUmask = umask();
+        my $f;
 
-        # file: 640, dir: 750
-        umask(0027);
-        make_path($dir);
+        try {
+            # file: 640, dir: 750
+            umask(0027);
+            make_path($dir);
 
-        open(my $f, '>', $logPath);
-        umask($oldUmask);
+            open($f, '>', $logPath);
+            umask($oldUmask);
 
-        run3($command, \undef, $f, $f, { return_if_system_error => 1 }) == 1
-            or warn "notification command '$command' failed with exit status $? ($!)\n";
+            run3($command, \undef, $f, $f, { return_if_system_error => 1 }) == 1
+                or warn "notification command '$command' failed with exit status $? ($!)\n";
 
-        close($f);
+            close($f);
 
-        $runlog->completed_with_child_error($?, $!);
+            $runlog->completed_with_child_error($?, $!);
+            1;
+        } catch {
+            die "Died while trying to process RunCommand (${\$runlog->uuid}): $_";
+        } finally {
+            umask($oldUmask);
+        };
     }
 }
 
