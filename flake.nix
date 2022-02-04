@@ -42,24 +42,7 @@
       overlays.default = final: prev: {
 
         # Add LDAP dependencies that aren't currently found within nixpkgs.
-        perlPackages = prev.perlPackages // {
-
-          PrometheusTiny = final.perlPackages.buildPerlPackage {
-            pname = "Prometheus-Tiny";
-            version = "0.007";
-            src = final.fetchurl {
-              url = "mirror://cpan/authors/id/R/RO/ROBN/Prometheus-Tiny-0.007.tar.gz";
-              sha256 = "0ef8b226a2025cdde4df80129dd319aa29e884e653c17dc96f4823d985c028ec";
-            };
-            buildInputs = with final.perlPackages; [ HTTPMessage Plack TestException ];
-            meta = {
-              homepage = "https://github.com/robn/Prometheus-Tiny";
-              description = "A tiny Prometheus client";
-              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
-            };
-          };
-
-        };
+        perlPackages = prev.perlPackages // import ./perl-packages.nix prev;
 
         hydra = with final; let
           perlDeps = buildEnv {
@@ -112,6 +95,7 @@
                 NetAmazonS3
                 NetPrometheus
                 NetStatsd
+                OIDCLite
                 PadWalker
                 ParallelForkManager
                 PerlCriticCommunity

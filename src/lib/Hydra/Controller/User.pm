@@ -11,13 +11,25 @@ use Hydra::Config qw(getLDAPConfigAmbient);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
+use OIDC::Lite::Client::WebServer;
 use LWP::UserAgent;
 use JSON::MaybeXS;
 use HTML::Entities;
+use UUID4::Tiny;
 use Encode qw(decode);
 
 
 __PACKAGE__->config->{namespace} = '';
+
+sub get_oidc_client {
+    my $c = shift;
+    return OIDC::Lite::Client::WebServer->new(
+        id               => $c->config->{oidc_client_id},
+        secret           => $c->config->{oidc_client_secret},
+        authorize_uri    => $c->config->{oidc_auth_uri},
+        access_token_uri => $c->config->{oidc_token_uri},
+    );
+}
 
 
 sub login :Local :Args(0) :ActionClass('REST') { }
@@ -92,13 +104,15 @@ sub doLDAPLogin {
 }
 
 sub doEmailLogin {
-    my ($self, $c, $type, $email, $fullName) = @_;
+    my ($self, $c, $type, $email, $fullName, $username) = @_;
 
     die "No email address provided.\n" unless defined $email;
 
     # Be paranoid about the email address format, since we do use it
     # in URLs.
     die "Illegal email address.\n" unless $email =~ /^[a-zA-Z0-9\.\-\_]+@[a-zA-Z0-9\.\-\_]+$/;
+
+    $username = $email unless defined $username;
 
     # If allowed_domains is set, check if the email address
     # returned is on these domains.  When not configured, allow all
@@ -142,6 +156,38 @@ sub doEmailLogin {
     $c->flash->{successMsg} = "You are now signed in as <tt>" . encode_entities($email) . "</tt>.";
 }
 
+
+sub oidc_login :Path('/oidc-login') Args(0) {
+    my ($self, $c) = @_;
+
+    error($c, "Logging in via OIDC is not enabled.", 404) unless $c->config->{enable_oidc_login};
+    my $oidc_client = get_oidc_client($c);
+
+    error($c, q{OIDC state mismatch. Is this a CSRF attack?}) unless $c->session->{oidc_state} && $c->session->{oidc_state} eq $c->request->param("state");
+
+    my $code = $c->request->param("code");
+    my $token_response = $oidc_client->get_access_token(
+        code => $code,
+        redirect_uri => $c->uri_for('/oidc-login'),
+    ) or error($c, $oidc_client->errstr);
+
+    $c->session->{access_token} = $token_response->access_token;
+    $c->session->{expires_at} = time() + $token_response->expires_in;
+    $c->session->{refresh_token} = $token_response->refresh_token;
+
+    my $res = LWP::UserAgent->new->get(
+        $c->config->{oidc_userinfo_uri},
+        Authorization => sprintf(q{Bearer %s}, $token_response->access_token)
+    );
+
+    my $claims = decode_json($res->decoded_content) or error($c, q{Could not decode claims.}, 401);
+
+    error($c, "Email address must be verified.", 401) unless $claims->{email_verified};
+
+    doEmailLogin($self, $c, "oidc", $claims->{email}, $claims->{name} // undef, sprintf("oidc:$claims->{sub}"));
+
+    $c->res->redirect($c->uri_for($c->res->cookies->{'after_oidc'}));
+}
 
 sub google_login :Path('/google-login') Args(0) {
     my ($self, $c) = @_;
@@ -224,6 +270,29 @@ sub github_redirect :Path('/github-redirect') Args(0) {
     };
 
     $c->res->redirect("https://github.com/login/oauth/authorize?client_id=$client_id&scope=user:email");
+}
+
+sub oidc_redirect :Path('/oidc-redirect') Args(0) {
+
+    my ($self, $c) = @_;
+
+    my $after = "/" . $c->req->params->{after};
+
+    $c->res->cookies->{'after_oidc'} = {
+        name => 'after_oidc',
+        value => $after,
+    };
+
+    my $oidc_client = get_oidc_client($c);
+    my $state = UUID4::Tiny::create_uuid_string();
+    $c->session->{oidc_state} = $state;
+    my $redirect_url = $oidc_client->uri_to_redirect(
+        redirect_uri => $c->uri_for('/oidc-login'),
+        scope        => q{openid},
+        state        => $state,
+    );
+
+    $c->res->redirect( $redirect_url );
 }
 
 
