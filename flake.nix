@@ -2,6 +2,7 @@
   description = "A Nix-based continuous build system";
 
   inputs.nixpkgs.follows = "nix/nixpkgs";
+  inputs.nix.url = github:NixOS/nix/2.6.0;
 
   outputs = { self, nixpkgs, nix }:
     let
