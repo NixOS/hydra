@@ -540,7 +540,7 @@
             ];
 
           checkInputs = [
-            foreman python3 netcat-openbsd
+            foreman python3 netcat-openbsd glibcLocales cacert
           ];
 
           hydraPath = lib.makeBinPath (
