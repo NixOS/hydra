@@ -1,16 +1,14 @@
-# This plugin allows to build Gitlab merge requests.
-#
-# The declarative project spec.json file must contains an input such as
-#   "pulls": {
-#      "type": "gitlabpulls",
-#      "value": "https://gitlab.com 42",
-#      "emailresponsible": false
-#   }
-# where 42 is the project id of a repository.
-#
-# The values `target_repo_url` and `iid` can then be used to
-# build the git input value, e.g.:
-# "${target_repo_url} merge-requests/${iid}/head".
+# This plugin allows to build Gitlab merge requests
+# with a declarative project.
+# 
+# Hydra configuration
+# - `gitlab_authorization.access_token`
+# - `gitlab_authorization.projects.<projectId>.access_token`
+# Project configuration
+# - base_url
+# - project_id
+# - clone_type
+# - access_token
 
 package Hydra::Plugin::GitlabPulls;
 
@@ -34,18 +32,20 @@ sub _query {
     my $req = HTTP::Request->new('GET', $url);
     my $res = $ua->request($req);
     my $content = $res->decoded_content;
-    die "Error pulling from the gitlab pulls API: $content\n"
+    die "Error pulling from the gitlab pulls\nUrl: $url\nContent: $content\n"
         unless $res->is_success;
     return (decode_json $content, $res);
 }
 
 sub _iterate {
-    my ($url, $baseUrl, $pulls, $ua, $target_repo_url) = @_;
-    my ($pulls_list, $res) = _query($url, $ua);
+    my ($url, $config, $repo, $mrs, $ua) = @_;
 
-    foreach my $pull (@$pulls_list) {
-        $pull->{target_repo_url} = $target_repo_url;
-        $pulls->{$pull->{iid}} = $pull;
+    my ($mrs_list, $res) = _query($url, $ua);
+
+    foreach my $mr (@$mrs_list) {
+        my $jobset = gitlabMrToJobset($config, $repo, $mr);
+        my $mrIID = $mr->{iid};
+        $mrs->{"MR${mrIID}"} = $jobset;
     }
     # TODO Make Link header parsing more robust!!!
     my @links = split ',', $res->header("Link");
@@ -57,40 +57,128 @@ sub _iterate {
             last;
         }
     }
-    _iterate($next, $baseUrl, $pulls, $ua, $target_repo_url) unless $next eq "";
+    _iterate($next, $config, $repo, $mrs, $ua) unless $next eq "";
+}
+
+sub gitlabMrToJobset {
+    my ($config, $repo, $mr) = @_;
+
+    # $repo content https://docs.gitlab.com/ee/api/projects.html
+    # $mr content https://docs.gitlab.com/ee/api/merge_requests.html
+    my $mrTitle = $mr->{title};
+    my $mrIID = $mr->{iid};
+
+    my $clone_type = $config->{clone_type} || "http";
+    my $git_target = undef;
+    
+    if ($clone_type eq "http") {
+        $git_target = $repo->{http_url_to_repo};
+    } elsif ($clone_type eq "ssh") {
+        $git_target = $repo->{ssh_url_to_repo};
+    } else {
+        die "Unknown clone_type: `$clone_type`";
+    }
+
+    my $targetRepoId  = $repo->{id};
+
+    # TODO allwo jobset configuration
+    # BTW nice place to overlay here!!
+    my $jobset =
+        { enabled => 1
+        , hidden => 0
+        , description => "MR${mrIID}: ${mrTitle}"
+        , nixexprinput => "gitlab"
+        , nixexprpath => "default.nix"
+        , checkinterval => 50
+        , schedulingshares => 50
+        , enabled => 1
+        , enableemail => 0
+        , emailoverride => ""
+        , keepnr => 2
+        , inputs =>
+          { gitlab => { type => "git", value => "${git_target} merge-requests/${mrIID}/head", emailresponsible => 0 }
+            # TODO add here gitlabstatus stuff
+          }
+        };
+
+    return $jobset
 }
 
 sub fetchInput {
     my ($self, $type, $name, $value, $project, $jobset) = @_;
     return undef if $type ne "gitlabpulls";
 
-    (my $baseUrl, my $projectId) = split ' ', $value;
-    my $url = "$baseUrl/api/v4/projects/$projectId/merge_requests?per_page=100&state=opened";
+    my $config = decode_json($value);
+    # The url or your Gitlab instance 
+    my $baseUrl = $config->{'base_url'} || "https://gitlab.com";
 
-    my $accessToken = $self->{config}->{gitlab_authorization}->{$projectId};
+    # $subject is the first part of the Gitlab API in which the 
+    # subject is specified, `projects` is not the only subject that
+    # the api allow to use
+    # TODO support more subjects
+    my $subject = "";
+    if (defined $config->{'project_id'}) {
+        my $projectId = $config->{'project_id'};
+        $subject = "projects/$projectId/";
+    } else {
+        die "missing 'project_id' field";
+    }
+    $config->{'subject'} = $subject;
 
     my %pulls;
     my $ua = LWP::UserAgent->new();
-    $ua->default_header('Private-Token' => $accessToken) if defined $accessToken;
+
+    # Authorization for the Gitlab http API
+    # retrieve the access token from:
+    # - hydra configuration -> gitlab_authorization
+    # - project configuration
+    my $accessToken = undef;
+    my $gitlabConfig = $self->{config}->{gitlab_authorization};
+
+    my $gitlabAccessToken = $gitlabConfig->{'access_token'};
+    if (defined $gitlabAccessToken){
+        $accessToken = $gitlabAccessToken;
+    }
+
+    my $projectId = $config->{'project_id'};
+    my $gitlabProjectAccessToken = $gitlabConfig->{'projects'}->{$projectId}->{'access_token'};
+    if (defined $gitlabProjectAccessToken){
+        $accessToken = $gitlabProjectAccessToken;
+    }
+
+    my $hydraProjectAccessToken = $config->{'access_token'};
+    if (defined $hydraProjectAccessToken){
+        $accessToken = $hydraProjectAccessToken;
+    }
+    
+    if (defined $accessToken) {
+        $ua->default_header('Private-Token' => $accessToken);
+    } else {
+        die "missing Gitlab access_token";
+    }
 
     # Get the target project URL, as it is the one we need to build the pull
     # urls from later
-    (my $repo, my $res) = _query("$baseUrl/api/v4/projects/$projectId", $ua);
-    my $target_repo_url = $repo->{http_url_to_repo};
+    (my $repo, my $res) = _query("$baseUrl/api/v4/${subject}", $ua);
 
-    _iterate($url, $baseUrl, \%pulls, $ua, $target_repo_url);
+    my $url = "$baseUrl/api/v4/${subject}merge_requests?per_page=100&state=opened";
+    _iterate($url, $config, $repo, \%pulls, $ua);
 
     my $tempdir = File::Temp->newdir("gitlab-pulls" . "XXXXX", TMPDIR => 1);
     my $filename = "$tempdir/gitlab-pulls.json";
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
     print $fh encode_json \%pulls;
     close $fh;
-    system("jq -S . < $filename > $tempdir/gitlab-pulls-sorted.json");
-    my $storePath = trim(`nix-store --add "$tempdir/gitlab-pulls-sorted.json"`
-        or die "cannot copy path $filename to the Nix store.\n");
+    my $storePath = trim(`nix-store --add "$tempdir"`
+        or die "cannot copy path $tempdir to the Nix store.\n");
     chomp $storePath;
+
+    print STDERR "gitlab-pulls.jobs path: $storePath\n";
     my $timestamp = time;
-    return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };
+    return { 
+        storePath => $storePath,
+        revision => strftime("%Y%m%d%H%M%S", gmtime($timestamp))
+    };
 }
 
 1;
