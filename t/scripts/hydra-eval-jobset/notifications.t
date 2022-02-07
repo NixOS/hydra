@@ -55,6 +55,7 @@ my $builds = $ctx->makeAndEvaluateJobset(
     build => 0
 );
 my $jobset = $builds->{"stable-job-queued"}->jobset;
+my $evaluation = $builds->{"stable-job-queued"}->jobsetevals->first();
 
 subtest "on the initial evaluation" => sub {
     expectEvent($listener, "eval_started", sub {
@@ -72,9 +73,21 @@ subtest "on the initial evaluation" => sub {
 };
 
 subtest "on a subsequent, totally cached / unchanged evaluation" => sub {
-    ok(evalSucceeds($builds->{"variable-job"}->jobset), "evaluating for the second time");
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_started", "an evaluation has started");
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_cached", "the evaluation finished and nothing changed");
+    ok(evalSucceeds($jobset), "evaluating for the second time");
+
+    my $traceID;
+    expectEvent($listener, "eval_started", sub {
+        isnt($_->{"trace_id"}, "", "We got a trace ID");
+        $traceID = $_->{"trace_id"};
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+    });
+
+    expectEvent($listener, "eval_cached", sub {
+        is($_->{"trace_id"}, $traceID, "Trace ID matches");
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+        is($_->{"evaluation_id"}, $evaluation->get_column('id'), "the evaluation ID matches");
+    });
+
     is($listener->block_for_messages(0)->(), undef, "there are no more messages from the evaluator");
 };
 

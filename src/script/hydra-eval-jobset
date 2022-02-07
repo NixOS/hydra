@@ -670,7 +670,11 @@ sub checkJobsetWrapped {
         Net::Statsd::increment("hydra.evaluator.unchanged_checkouts");
         $db->txn_do(sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
-            $db->storage->dbh->do("notify eval_cached, ?", undef, join('\t', $tmpId));
+            $db->storage->dbh->do("notify eval_cached, ?", undef, join("\t",
+                $tmpId,
+                $jobset->get_column('id'),
+                $prevEval->get_column('id'))
+            );
         });
         return;
     }

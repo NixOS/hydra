@@ -37,6 +37,11 @@ sub instantiate {
 #     my ($self, $traceID, $jobset) = @_;
 # }
 
+# # Called when an evaluation of $jobset determined the inputs had not changed.
+# sub evalCached {
+#     my ($self, $traceID, $jobset, $evaluation) = @_;
+# }
+
 # # Called when build $build has been queued.
 # sub buildQueued {
 #     my ($self, $build) = @_;

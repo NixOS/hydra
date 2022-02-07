@@ -69,7 +69,7 @@ It is possible for subsequent deliveries of the same `build_finished` data to im
 
 ### `eval_cached`
 
-* **Payload:** Exactly one value: an opaque trace ID representing this evaluation.
+* **Payload:** Exactly three values: an opaque trace ID representing this evaluation, the ID of the jobset, and the ID of the previous identical evaluation.
 * **When:** After the evaluator fetches inputs, if none of the inputs changed.
 * **Delivery Semantics:** Ephemeral. `hydra-notify` must be running to react to this event. No record of this event is stored.
 
