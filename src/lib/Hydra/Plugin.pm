@@ -42,6 +42,11 @@ sub instantiate {
 #     my ($self, $traceID, $jobset, $evaluation) = @_;
 # }
 
+# # Called when an evaluation of $jobset failed.
+# sub evalFailed {
+#     my ($self, $traceID, $jobset) = @_;
+# }
+
 # # Called when build $build has been queued.
 # sub buildQueued {
 #     my ($self, $build) = @_;

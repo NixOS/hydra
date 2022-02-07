@@ -75,7 +75,7 @@ It is possible for subsequent deliveries of the same `build_finished` data to im
 
 ### `eval_failed`
 
-* **Payload:** Exactly one value: an opaque trace ID representing this evaluation.
+* **Payload:** Exactly two values: an opaque trace ID representing this evaluation, and the ID of the jobset.
 * **When:** After any fetching any input fails, or any other evaluation error occurs.
 * **Delivery Semantics:** Ephemeral. `hydra-notify` must be running to react to this event. No record of this event is stored.
 

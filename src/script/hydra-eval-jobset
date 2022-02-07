@@ -654,7 +654,7 @@ sub checkJobsetWrapped {
         print STDERR $fetchError;
         $db->txn_do(sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => $fetchError }) if !$dryRun;
-            $db->storage->dbh->do("notify eval_failed, ?", undef, join('\t', $tmpId));
+            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id')));
         });
         return;
     }
@@ -882,7 +882,7 @@ sub checkJobset {
         $db->txn_do(sub {
             $jobset->update({lastcheckedtime => $eventTime});
             setJobsetError($jobset, $checkError, $eventTime);
-            $db->storage->dbh->do("notify eval_failed, ?", undef, join('\t', $tmpId));
+            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id')));
         }) if !$dryRun;
         $failed = 1;
     }

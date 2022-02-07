@@ -142,8 +142,19 @@ subtest "on a fresh evaluation with corrupted sources" => sub {
     close $fh;
 
     ok(evalFails($builds->{"variable-job"}->jobset), "evaluating the corrupted job");
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_started", "the evaluation started");
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_failed", "the evaluation failed");
+
+    my $traceID;
+    expectEvent($listener, "eval_started", sub {
+        isnt($_->{"trace_id"}, "", "We got a trace ID");
+        $traceID = $_->{"trace_id"};
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+    });
+
+    expectEvent($listener, "eval_failed", sub {
+        is($_->{"trace_id"}, $traceID, "Trace ID matches");
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+    });
+
     is($listener->block_for_messages(0)->(), undef, "there are no more messages from the evaluator");
 
 };
