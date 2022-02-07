@@ -31,6 +31,12 @@ sub instantiate {
 # See the tests in t/Event/*.t for arguments, and the documentation for
 # notify events for semantics.
 #
+
+# # Called when an evaluation of $jobset has begun.
+# sub evalStarted {
+#     my ($self, $traceID, $jobset) = @_;
+# }
+
 # # Called when build $build has been queued.
 # sub buildQueued {
 #     my ($self, $build) = @_;

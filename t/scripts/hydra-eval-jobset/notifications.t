@@ -36,9 +36,18 @@ my $builds = $ctx->makeAndEvaluateJobset(
     jobsdir => $jobsetdir,
     build => 0
 );
+my $jobset = $builds->{"stable-job-queued"}->jobset;
+
+my $traceID;
 
 subtest "on the initial evaluation" => sub {
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_started", "every eval starts with a notification");
+    my $startedMsg = $listener->block_for_messages(0)->();
+    is($startedMsg->{"channel"}, "eval_started", "every eval starts with a notification");
+
+    my ($traceID, $jobsetID) = split("\t", $startedMsg->{"payload"});
+    isnt($traceID, "", "we got a trace id");
+    is($jobsetID, $jobset->get_column('id'), "the jobset ID matches");
+
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 1/4 builds being queued");
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 2/4 builds being queued");
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 3/4 builds being queued");

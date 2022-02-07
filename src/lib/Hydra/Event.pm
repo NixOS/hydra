@@ -7,6 +7,7 @@ use Hydra::Event::BuildQueued;
 use Hydra::Event::BuildStarted;
 use Hydra::Event::CachedBuildFinished;
 use Hydra::Event::CachedBuildQueued;
+use Hydra::Event::EvalStarted;
 use Hydra::Event::StepFinished;
 
 my %channels_to_events = (
@@ -15,6 +16,7 @@ my %channels_to_events = (
   build_started => \&Hydra::Event::BuildStarted::parse,
   cached_build_finished => \&Hydra::Event::CachedBuildFinished::parse,
   cached_build_queued => \&Hydra::Event::CachedBuildQueued::parse,
+  eval_started => \&Hydra::Event::EvalStarted::parse,
   step_finished => \&Hydra::Event::StepFinished::parse,
 );
 

@@ -861,7 +861,7 @@ sub checkJobset {
     my $tmpId = "${startTime}.$$";
 
     $db->storage->dbh->do("notify eval_started, ?", undef,
-                          join('\t', $tmpId, $jobset->get_column('project'), $jobset->name));
+                          join("\t", $tmpId, $jobset->get_column('id')));
 
     eval {
         checkJobsetWrapped($jobset, $tmpId);
