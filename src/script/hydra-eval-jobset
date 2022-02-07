@@ -771,7 +771,7 @@ sub checkJobsetWrapped {
         });
 
         $db->storage->dbh->do("notify eval_added, ?", undef,
-                              join('\t', $tmpId, $ev->id));
+                              join("\t", $tmpId, $jobset->get_column('id'), $ev->id));
 
         if ($jobsetChanged) {
             # Create JobsetEvalMembers mappings.

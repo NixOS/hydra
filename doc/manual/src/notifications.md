@@ -63,7 +63,7 @@ It is possible for subsequent deliveries of the same `build_finished` data to im
 
 ### `eval_added`
 
-* **Payload:** Exactly two values, separated by the two-character string `\t` (ie: not a tab): an opaque trace ID representing this evaluation, and the ID of the JobsetEval record.
+* **Payload:** Exactly three values, tab separated: an opaque trace ID representing this evaluation, the ID of the jobset, and the ID of the JobsetEval record.
 * **When:** After the evaluator fetches inputs and completes the evaluation successfully.
 * **Delivery Semantics:** Ephemeral. `hydra-notify` must be running to react to this event. No record of this event is stored.
 

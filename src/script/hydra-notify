@@ -98,6 +98,7 @@ $listener->subscribe("build_queued");
 $listener->subscribe("build_started");
 $listener->subscribe("cached_build_finished");
 $listener->subscribe("cached_build_queued");
+$listener->subscribe("eval_added");
 $listener->subscribe("eval_cached");
 $listener->subscribe("eval_failed");
 $listener->subscribe("eval_started");
