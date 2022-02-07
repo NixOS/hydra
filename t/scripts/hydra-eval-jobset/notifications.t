@@ -5,6 +5,24 @@ use Setup;
 use Test2::V0;
 use File::Copy;
 use Hydra::PostgresListener;
+use Hydra::Event;
+
+# expectEvent(Hydra::PostgresLister, name of the channel to expect, a sub which gets the parsed event)
+sub expectEvent {
+    my ($listener, $expectedChannel, $then) = @_;
+    my $message = $listener->block_for_messages(0)->();
+
+    my $channel = $message->{"channel"};
+
+    if ($channel eq $expectedChannel) {
+        my $event = Hydra::Event->new_event($message->{"channel"}, $message->{"payload"});
+        local $_ = $event->{event};
+        $then->();
+    } else {
+        is($expectedChannel, $channel, "Expecting a message on channel $channel");
+    }
+}
+
 
 my $ctx = test_context(
     hydra_config => q|
@@ -38,15 +56,11 @@ my $builds = $ctx->makeAndEvaluateJobset(
 );
 my $jobset = $builds->{"stable-job-queued"}->jobset;
 
-my $traceID;
-
 subtest "on the initial evaluation" => sub {
-    my $startedMsg = $listener->block_for_messages(0)->();
-    is($startedMsg->{"channel"}, "eval_started", "every eval starts with a notification");
-
-    my ($traceID, $jobsetID) = split("\t", $startedMsg->{"payload"});
-    isnt($traceID, "", "we got a trace id");
-    is($jobsetID, $jobset->get_column('id'), "the jobset ID matches");
+    expectEvent($listener, "eval_started", sub {
+        isnt($_->{"trace_id"}, "", "We got a trace ID");
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+    });
 
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 1/4 builds being queued");
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 2/4 builds being queued");
