@@ -62,7 +62,7 @@ sub common {
                     next;
                 }
 
-                my $sendStatus = sub {
+                my $cachingSendStatus = sub {
                     my ($input, $owner, $repo, $rev) = @_;
 
                     my $key = $owner . "-" . $repo . "-" . $rev;
@@ -98,7 +98,7 @@ sub common {
                     my $fl = $eval->flake;
                     print STDERR "Flake is $fl\n";
                     if ($eval->flake =~ m!github:([^/]+)/([^/]+)/([[:xdigit:]]{40})$! or $eval->flake =~ m!git\+ssh://git\@github.com/([^/]+)/([^/]+)\?.*rev=([[:xdigit:]]{40})$!) {
-                        $sendStatus->("src", $1, $2, $3);
+                        $cachingSendStatus->("src", $1, $2, $3);
                     } else {
                         print STDERR "Can't parse flake, skipping GitHub status update\n";
                     }
@@ -112,7 +112,7 @@ sub common {
                         my $uri = $i->uri;
                         my $rev = $i->revision;
                         $uri =~ m![:/]([^/]+)/([^/]+?)(?:.git)?$!;
-                        $sendStatus->($input, $1, $2, $rev);
+                        $cachingSendStatus->($input, $1, $2, $rev);
                     }
                 }
             }
