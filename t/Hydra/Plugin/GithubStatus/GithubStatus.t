@@ -12,6 +12,41 @@ my $builds = $ctx->makeAndEvaluateJobset(
     build => 1
 );
 
+subtest "calculateContext" => sub {
+    my $build = $builds->{"empty_dir"};
+    my $build_id = $build->id;
+
+    is(
+        Hydra::Plugin::GithubStatus::calculateContext($build, "my-job-name", {}),
+        "continuous-integration/hydra:my-job-name:${build_id}",
+        "An empty configuration produces a default result"
+    );
+
+    is(
+        Hydra::Plugin::GithubStatus::calculateContext($build, "my-job-name", {
+            useShortContext => 1
+        }),
+        "ci/hydra:my-job-name:${build_id}",
+        "useShortContext=1 uses abbreviates continuous-integration"
+    );
+
+    is(
+        Hydra::Plugin::GithubStatus::calculateContext($build, "my-job-name", {
+            excludeBuildFromContext => 1
+        }),
+        "continuous-integration/hydra:my-job-name",
+        "excludeBuildFromContext=1 removes the build ID"
+    );
+
+    is(
+        Hydra::Plugin::GithubStatus::calculateContext($build, "my-job-name", {
+            context => "my special context"
+        }),
+        "my special context",
+        "context=... replaces  any other context"
+    );
+};
+
 subtest "statusBody" => sub {
     my $build = $builds->{"empty_dir"};
 
