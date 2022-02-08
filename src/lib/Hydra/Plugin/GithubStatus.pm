@@ -53,6 +53,16 @@ sub sendStatus {
     }
 };
 
+sub statusBody {
+    my ($finished, $build, $baseurl, $conf, $jobName, $context) = @_;
+    return {
+        state => $finished ? toGithubState($build->buildstatus) : "pending",
+        target_url => "$baseurl/build/" . $build->id,
+        description => $conf->{description} // "Hydra build #" . $build->id . " of $jobName",
+        context => $context
+    };
+}
+
 sub common {
     my ($self, $topbuild, $dependents, $finished, $cachedEval) = @_;
     my $cfg = $self->{config}->{githubstatus};
@@ -75,13 +85,7 @@ sub common {
             my $extendedContext = $conf->{context} // "continuous-integration/hydra:" . $jobName . $contextTrailer;
             my $shortContext = $conf->{context} // "ci/hydra:" . $github_job_name . $contextTrailer;
             my $context = $conf->{useShortContext} ? $shortContext : $extendedContext;
-            my $body = encode_json(
-                {
-                    state => $finished ? toGithubState($build->buildstatus) : "pending",
-                    target_url => "$baseurl/build/" . $build->id,
-                    description => $conf->{description} // "Hydra build #" . $build->id . " of $jobName",
-                    context => $context
-                });
+            my $body = encode_json(statusBody($finished, $build, $baseurl, $conf, $jobName, $context));
             my $inputs_cfg = $conf->{inputs};
             my @inputs = defined $inputs_cfg ? ref $inputs_cfg eq "ARRAY" ? @$inputs_cfg : ($inputs_cfg) : ();
             my %seen = map { $_ => {} } @inputs;
