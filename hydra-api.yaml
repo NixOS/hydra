@@ -1021,11 +1021,9 @@ components:
             type: git
             name: nixpkgs
             emailresponsible: false
-            jobsetinputalts:
-              - https://github.com/NixOS/nixpkgs.git
+            value: https://github.com/NixOS/nixpkgs.git
           officialRelease:
-            jobsetinputalts:
-              - 'false'
+            value: 'false'
             emailresponsible: false
             name: officialRelease
             type: boolean

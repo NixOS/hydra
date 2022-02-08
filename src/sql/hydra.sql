@@ -133,24 +133,12 @@ create table JobsetInputs (
     jobset        text not null,
     name          text not null,
     type          text not null, -- "svn", "path", "uri", "string", "boolean", "nix"
-    emailResponsible integer not null default 0, -- whether to email committers to this input who change a build
-    primary key   (project, jobset, name),
-    foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
-);
-
-
-create table JobsetInputAlts (
-    project       text not null,
-    jobset        text not null,
-    input         text not null,
-    altnr         integer not null,
-
-    -- urgh
     value         text, -- for most types, a URI; for 'path', an absolute path; for 'string', an arbitrary value
     revision      text, -- for repositories
 
-    primary key   (project, jobset, input, altnr),
-    foreign key   (project, jobset, input) references JobsetInputs(project, jobset, name) on delete cascade on update cascade
+    emailResponsible integer not null default 0, -- whether to email committers to this input who change a build
+    primary key   (project, jobset, name),
+    foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
 );
 
 
@@ -686,8 +674,6 @@ create index IndexCachedSubversionInputsOnUriRevision on CachedSubversionInputs(
 create index IndexCachedBazaarInputsOnUriRevision on CachedBazaarInputs(uri, revision);
 create index IndexJobsetEvalMembersOnBuild on JobsetEvalMembers(build);
 create index IndexJobsetEvalMembersOnEval on JobsetEvalMembers(eval);
-create index IndexJobsetInputAltsOnInput on JobsetInputAlts(project, jobset, input);
-create index IndexJobsetInputAltsOnJobset on JobsetInputAlts(project, jobset);
 create index IndexProjectsOnEnabled on Projects(enabled);
 create index IndexBuildOutputsPath on BuildOutputs using hash(path);
 

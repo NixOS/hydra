@@ -14,15 +14,13 @@
       [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes %]
     </td>
     <td class="inputalts" id="[% baseName %]">
-      [% FOREACH alt IN input.search_related('jobsetinputalts', {}, { order_by => 'altnr' }) %]
-        <tt class="inputalt">
-          [% IF input.type == "string" %]
-            "<span class="keep-whitespace">[% HTML.escape(alt.value) %]</span>"
-          [% ELSE %]
-            [% HTML.escape(alt.value) %]
-          [% END %]
-        </tt>
-      [% END %]
+      <tt class="inputalt">
+        [% IF input.type == "string" %]
+          "<span class="keep-whitespace">[% HTML.escape(input.value) %]</span>"
+        [% ELSE %]
+          [% HTML.escape(input.value) %]
+        [% END %]
+      </tt>
     </td>
   </tr>
 [% END %]

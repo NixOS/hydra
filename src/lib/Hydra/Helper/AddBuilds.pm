@@ -66,13 +66,12 @@ sub updateDeclarativeJobset {
         $jobset->jobsetinputs->delete;
         foreach my $name (keys %{$declSpec->{"inputs"}}) {
             my $data = $declSpec->{"inputs"}->{$name};
-            my $row = {
+            $jobset->jobsetinputs->create({
                 name => $name,
-                type => $data->{type}
-            };
-            $row->{emailresponsible} = $data->{emailresponsible} // 0;
-            my $input = $jobset->jobsetinputs->create($row);
-            $input->jobsetinputalts->create({altnr => 0, value => $data->{value}});
+                type => $data->{type},
+                emailresponsible => $data->{emailresponsible} // 0,
+                value => $data->{value},
+            });
         }
         delete $declSpec->{"inputs"};
         die "invalid keys ($declSpec) in declarative specification file\n" if (%{$declSpec});

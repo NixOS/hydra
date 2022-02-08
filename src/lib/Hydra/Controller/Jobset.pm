@@ -299,11 +299,9 @@ sub updateJobset {
             my $input = $jobset->jobsetinputs->create(
                 { name => $name,
                   type => $type,
-                  emailresponsible => $emailresponsible
+                  emailresponsible => $emailresponsible,
+                  value => checkInputValue($c, $name, $type, $value),
                 });
-
-            $value = checkInputValue($c, $name, $type, $value);
-            $input->jobsetinputalts->create({altnr => 0, value => $value});
         }
     }
 }

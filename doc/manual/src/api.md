@@ -117,21 +117,9 @@ To get a single `job set` by identifier:
       "nixexprinput": "hydraSrc",
       "emailoverride": "rob.vermaas@gmail.com, eelco.dolstra@logicblox.com",
       "jobsetinputs": {
-        "officialRelease": {
-          "jobsetinputalts": [
-            "false"
-          ]
-        },
-        "hydraSrc": {
-          "jobsetinputalts": [
-            "https://github.com/NixOS/hydra.git build-ng"
-          ]
-        },
-        "nixpkgs": {
-          "jobsetinputalts": [
-            "https://github.com/NixOS/nixpkgs.git release-14.12"
-          ]
-        }
+        "officialRelease": "false",
+        "hydraSrc": "https://github.com/NixOS/hydra.git build-ng",
+        "nixpkgs": "https://github.com/NixOS/nixpkgs.git release-14.12"
       },
       "enabled": 0
     }

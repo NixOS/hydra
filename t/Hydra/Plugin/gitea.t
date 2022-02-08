@@ -28,8 +28,11 @@ my $jobset = createJobsetWithOneInput('gitea', 'git-input.nix', 'src', 'git', $u
 
 sub addStringInput {
     my ($jobset, $name, $value) = @_;
-    my $input = $jobset->jobsetinputs->create({name => $name, type => "string"});
-    $input->jobsetinputalts->create({value => $value, altnr => 0});
+    my $input = $jobset->jobsetinputs->create({
+        name => $name,
+        type => "string",
+        value => $value,
+    });
 }
 
 addStringInput($jobset, "gitea_repo_owner", "root");

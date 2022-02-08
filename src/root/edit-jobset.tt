@@ -20,18 +20,9 @@
     <td id="[% baseName %]">
       [% IF createFromEval %]
         [% value = (input.uri or input.value); IF input.revision; value = value _ " " _ input.revision; END;
-           warn = input.altnr != 0;
         %]
       [% ELSE %]
-        [% alt = input.search_related('jobsetinputalts', {altnr => 0});
-           value = alt.value
-           warn = input.jobsetinputalts_rs.count > 1;
-        %]
-      [% END %]
-      [% IF warn %]
-        <div class="alert alert-warning">Warning: This input had more
-        than one value. This is no longer supported. The additional
-        values have been removed.</div>
+        [% value = input.value %]
       [% END %]
       <input style="width: 95%" type="text" [% HTML.attributes(value => value, id => "$baseName-value", name => "$baseName-value") %]/>
     </td>

@@ -18,8 +18,12 @@ my $jobset = $project->jobsets->create({name => "basic", nixexprinput => "jobs",
 
 my $jobsetinput;
 
-$jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
-$jobsetinput->jobsetinputalts->create({altnr => 0, value => getcwd . "/jobs"});
+$jobsetinput = $jobset->jobsetinputs->create({
+    name => "jobs",
+    type => "path",
+    value => getcwd . "/jobs",
+});
+
 system("hydra-eval-jobset " . $jobset->project->name . " " . $jobset->name);
 
 my $successful_hash;

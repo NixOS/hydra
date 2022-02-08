@@ -163,8 +163,11 @@ sub makeAndEvaluateJobset {
         nixexprpath => $expression,
         emailoverride => ""
     });
-    my $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
-    $jobsetinput->jobsetinputalts->create({altnr => 0, value => $jobsdir});
+    my $jobsetinput = $jobset->jobsetinputs->create({
+        name => "jobs",
+        type => "path",
+        value => $jobsdir
+    });
 
     evalSucceeds($jobset) or die "Evaluating jobs/$expression should exit with return code 0";
 

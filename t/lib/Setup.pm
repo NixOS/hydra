@@ -90,8 +90,11 @@ sub createBaseJobset {
     my $jobsetinput;
     my $jobsetinputals;
 
-    $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
-    $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => $jobspath});
+    $jobsetinput = $jobset->jobsetinputs->create({
+        name => "jobs",
+        type => "path",
+        value => $jobspath
+    });
 
     return $jobset;
 }
@@ -103,8 +106,11 @@ sub createJobsetWithOneInput {
     my $jobsetinput;
     my $jobsetinputals;
 
-    $jobsetinput = $jobset->jobsetinputs->create({name => $name, type => $type});
-    $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => $uri});
+    $jobsetinput = $jobset->jobsetinputs->create({
+        name => $name,
+        type => $type,
+        value => $uri
+    });
 
     return $jobset;
 }

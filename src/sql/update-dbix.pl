@@ -30,7 +30,6 @@ make_schema_at("Hydra::Schema", {
         "jobsetevalinputs" => "JobsetEvalInputs",
         "jobsetevalmembers" => "JobsetEvalMembers",
         "jobsetevals" => "JobsetEvals",
-        "jobsetinputalts" => "JobsetInputAlts",
         "jobsetinputs" => "JobsetInputs",
         "jobsetrenames" => "JobsetRenames",
         "jobsets" => "Jobsets",

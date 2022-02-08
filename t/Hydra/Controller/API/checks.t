@@ -164,8 +164,11 @@ subtest "/api/push-github" => sub {
             emailoverride => ""
         });
 
-        my $jobsetinput = $jobset->jobsetinputs->create({name => "src", type => "git"});
-        $jobsetinput->jobsetinputalts->create({altnr => 0, value => "https://github.com/OWNER/LEGACY-REPO.git"});
+        my $jobsetinput = $jobset->jobsetinputs->create({
+            name => "src",
+            type => "git",
+            value => "https://github.com/OWNER/LEGACY-REPO.git",
+        });
 
         my $req = POST '/api/push-github',
             "Content-Type" => "application/json",
