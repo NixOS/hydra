@@ -25,6 +25,36 @@ sub toGithubState {
     }
 }
 
+sub sendStatus {
+    my ($input, $owner, $repo, $rev, $ua, $body, $authorization) = @_;
+
+    my $key = $owner . "-" . $repo . "-" . $rev;
+
+    my $url = "https://api.github.com/repos/$owner/$repo/statuses/$rev";
+    my $req = HTTP::Request->new('POST', $url);
+    $req->header('Content-Type' => 'application/json');
+    $req->header('Accept' => 'application/vnd.github.v3+json');
+    $req->header('Authorization' => ($authorization));
+    $req->content($body);
+    my $res = $ua->request($req);
+    print STDERR $res->status_line, ": ", $res->decoded_content, "\n" unless $res->is_success;
+    my $limit = $res->header("X-RateLimit-Limit");
+    my $limitRemaining = $res->header("X-RateLimit-Remaining");
+    my $limitReset = $res->header("X-RateLimit-Reset");
+    my $now = time();
+    my $diff = $limitReset - $now;
+    my $delay = (($limit - $limitRemaining) / $diff) * 5;
+    if ($limitRemaining < 1000) {
+        $delay = max(1, $delay);
+    }
+    if ($limitRemaining < 2000) {
+        print STDERR "GithubStatus ratelimit $limitRemaining/$limit, resets in $diff, sleeping $delay\n";
+        sleep $delay;
+    } else {
+        print STDERR "GithubStatus ratelimit $limitRemaining/$limit, resets in $diff\n";
+    }
+};
+
 sub common {
     my ($self, $topbuild, $dependents, $finished, $cachedEval) = @_;
     my $cfg = $self->{config}->{githubstatus};
@@ -69,29 +99,7 @@ sub common {
                     return if exists $seen{$input}->{$key};
                     $seen{$input}->{$key} = 1;
 
-                    my $url = "https://api.github.com/repos/$owner/$repo/statuses/$rev";
-                    my $req = HTTP::Request->new('POST', $url);
-                    $req->header('Content-Type' => 'application/json');
-                    $req->header('Accept' => 'application/vnd.github.v3+json');
-                    $req->header('Authorization' => ($self->{config}->{github_authorization}->{$owner} // $conf->{authorization}));
-                    $req->content($body);
-                    my $res = $ua->request($req);
-                    print STDERR $res->status_line, ": ", $res->decoded_content, "\n" unless $res->is_success;
-                    my $limit = $res->header("X-RateLimit-Limit");
-                    my $limitRemaining = $res->header("X-RateLimit-Remaining");
-                    my $limitReset = $res->header("X-RateLimit-Reset");
-                    my $now = time();
-                    my $diff = $limitReset - $now;
-                    my $delay = (($limit - $limitRemaining) / $diff) * 5;
-                    if ($limitRemaining < 1000) {
-                      $delay = max(1, $delay);
-                    }
-                    if ($limitRemaining < 2000) {
-                      print STDERR "GithubStatus ratelimit $limitRemaining/$limit, resets in $diff, sleeping $delay\n";
-                      sleep $delay;
-                    } else {
-                      print STDERR "GithubStatus ratelimit $limitRemaining/$limit, resets in $diff\n";
-                    }
+                    sendStatus($input, $owner, $repo, $rev, $ua, $body, ($self->{config}->{github_authorization}->{$owner} // $conf->{authorization}));
                 };
 
                 if (defined $eval->flake) {
