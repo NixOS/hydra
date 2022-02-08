@@ -121,20 +121,20 @@ sub common {
             my $inputs_cfg = $conf->{inputs};
             my @inputs = defined $inputs_cfg ? ref $inputs_cfg eq "ARRAY" ? @$inputs_cfg : ($inputs_cfg) : ();
             my %seen = map { $_ => {} } @inputs;
+            my $cachingSendStatus = sub {
+                my ($input, $owner, $repo, $rev) = @_;
+
+                my $key = $owner . "-" . $repo . "-" . $rev;
+                return if exists $seen{$input}->{$key};
+                $seen{$input}->{$key} = 1;
+
+                sendStatus($owner, $repo, $rev, $ua, $body, ($self->{config}->{github_authorization}->{$owner} // $conf->{authorization}));
+            };
+
             while (my $eval = $evals->next) {
                 if (defined($cachedEval) && $cachedEval->id != $eval->id) {
                     next;
                 }
-
-                my $cachingSendStatus = sub {
-                    my ($input, $owner, $repo, $rev) = @_;
-
-                    my $key = $owner . "-" . $repo . "-" . $rev;
-                    return if exists $seen{$input}->{$key};
-                    $seen{$input}->{$key} = 1;
-
-                    sendStatus($owner, $repo, $rev, $ua, $body, ($self->{config}->{github_authorization}->{$owner} // $conf->{authorization}));
-                };
 
                 if (defined $eval->flake) {
                     my $fl = $eval->flake;
