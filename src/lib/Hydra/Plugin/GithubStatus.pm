@@ -107,14 +107,15 @@ sub common {
 
     # Find matching configs
     foreach my $build ($topbuild, @{$dependents}) {
+        # Don't send out "pending" status updates if the build is already finished
+        next if !$finished && $build->finished == 1;
+
         my $jobName = showJobName $build;
         my $evals = $topbuild->jobsetevals;
         my $ua = LWP::UserAgent->new();
 
         foreach my $conf (@config) {
             next unless $jobName =~ /^$conf->{jobs}$/;
-            # Don't send out "pending" status updates if the build is already finished
-            next if !$finished && $build->finished == 1;
 
             my $context = calculateContext($build, $jobName, $conf);
             my $body = encode_json(statusBody($finished, $build, $baseurl, $conf, $jobName, $context));
