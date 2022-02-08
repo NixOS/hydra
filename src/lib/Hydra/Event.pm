@@ -2,20 +2,20 @@ package Hydra::Event;
 
 use strict;
 use warnings;
-use Hydra::Event::CachedBuildFinished;
-use Hydra::Event::CachedBuildQueued;
 use Hydra::Event::BuildFinished;
 use Hydra::Event::BuildQueued;
 use Hydra::Event::BuildStarted;
+use Hydra::Event::CachedBuildFinished;
+use Hydra::Event::CachedBuildQueued;
 use Hydra::Event::StepFinished;
 
 my %channels_to_events = (
+  build_finished => \&Hydra::Event::BuildFinished::parse,
   build_queued => \&Hydra::Event::BuildQueued::parse,
   build_started => \&Hydra::Event::BuildStarted::parse,
-  step_finished => \&Hydra::Event::StepFinished::parse,
-  build_finished => \&Hydra::Event::BuildFinished::parse,
   cached_build_finished => \&Hydra::Event::CachedBuildFinished::parse,
   cached_build_queued => \&Hydra::Event::CachedBuildQueued::parse,
+  step_finished => \&Hydra::Event::StepFinished::parse,
 );
 
 

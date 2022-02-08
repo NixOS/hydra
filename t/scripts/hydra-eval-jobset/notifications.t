@@ -17,14 +17,14 @@ path_input_cache_validity_seconds = 0
 my $dbh = $ctx->db()->storage->dbh;
 my $listener = Hydra::PostgresListener->new($dbh);
 
+$listener->subscribe("build_queued");
+$listener->subscribe("builds_added");
 $listener->subscribe("cached_build_finished");
 $listener->subscribe("cached_build_queued");
-$listener->subscribe("build_queued");
-$listener->subscribe("eval_failed");
-$listener->subscribe("eval_cached");
 $listener->subscribe("eval_added");
+$listener->subscribe("eval_cached");
+$listener->subscribe("eval_failed");
 $listener->subscribe("eval_started");
-$listener->subscribe("builds_added");
 
 
 my $jobsetdir = $ctx->tmpdir . '/jobset';

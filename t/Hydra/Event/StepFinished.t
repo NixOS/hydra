@@ -7,7 +7,7 @@ my %ctx = test_init();
 require Hydra::Schema;
 require Hydra::Model::DB;
 use Hydra::Event;
-use Hydra::Event::BuildStarted;
+use Hydra::Event::StepFinished;
 
 use Test2::V0;
 use Test2::Tools::Exception;
