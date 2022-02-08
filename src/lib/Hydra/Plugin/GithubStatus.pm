@@ -53,6 +53,15 @@ sub sendStatus {
     }
 };
 
+sub calculateContext {
+    my ($build, $jobName, $conf) = @_;
+    my $contextTrailer = $conf->{excludeBuildFromContext} ? "" : (":" . $build->id);
+    my $github_job_name = $jobName =~ s/-pr-\d+//r;
+    my $extendedContext = $conf->{context} // "continuous-integration/hydra:" . $jobName . $contextTrailer;
+    my $shortContext = $conf->{context} // "ci/hydra:" . $github_job_name . $contextTrailer;
+    return $conf->{useShortContext} ? $shortContext : $extendedContext;
+}
+
 sub statusBody {
     my ($finished, $build, $baseurl, $conf, $jobName, $context) = @_;
     return {
@@ -80,11 +89,7 @@ sub common {
             # Don't send out "pending" status updates if the build is already finished
             next if !$finished && $build->finished == 1;
 
-            my $contextTrailer = $conf->{excludeBuildFromContext} ? "" : (":" . $build->id);
-            my $github_job_name = $jobName =~ s/-pr-\d+//r;
-            my $extendedContext = $conf->{context} // "continuous-integration/hydra:" . $jobName . $contextTrailer;
-            my $shortContext = $conf->{context} // "ci/hydra:" . $github_job_name . $contextTrailer;
-            my $context = $conf->{useShortContext} ? $shortContext : $extendedContext;
+            my $context = calculateContext($build, $jobName, $conf);
             my $body = encode_json(statusBody($finished, $build, $baseurl, $conf, $jobName, $context));
             my $inputs_cfg = $conf->{inputs};
             my @inputs = defined $inputs_cfg ? ref $inputs_cfg eq "ARRAY" ? @$inputs_cfg : ($inputs_cfg) : ();
