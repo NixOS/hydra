@@ -85,6 +85,20 @@ sub extractGithubArgsFromFlake {
     return undef;
 }
 
+sub extractGithubArgsFromInput {
+    my ($uri, $rev) = @_;
+
+    if ($uri =~ m![:/]([^/]+)/([^/]+?)(?:\.git)?$!) {
+        return {
+            owner => $1,
+            repo => $2,
+            rev => $rev
+        };
+    }
+
+    return undef;
+}
+
 sub common {
     my ($self, $topbuild, $dependents, $finished, $cachedEval) = @_;
     my $cfg = $self->{config}->{githubstatus};
@@ -138,10 +152,13 @@ sub common {
                             print STDERR "Evaluation $eval doesn't have input $input\n";
                         }
                         next unless defined $i;
-                        my $uri = $i->uri;
-                        my $rev = $i->revision;
-                        $uri =~ m![:/]([^/]+)/([^/]+?)(?:.git)?$!;
-                        $cachingSendStatus->($input, $1, $2, $rev);
+
+                        my $githubArgs = extractGithubArgsFromInput($i->uri, $i->revision);
+                        if (defined($githubArgs)) {
+                            $cachingSendStatus->($input, $githubArgs->{"owner"}, $githubArgs->{"repo"}, $githubArgs->{"rev"});
+                        } else {
+                            print STDERR "Evaluation $eval: Can't parse input $input\'s URI, skipping GitHub status update\n";
+                        }
                     }
                 }
             }

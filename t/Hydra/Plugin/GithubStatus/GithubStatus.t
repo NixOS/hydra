@@ -123,4 +123,48 @@ subtest "extractGithubArgsFromFlake" => sub {
     };
 };
 
+subtest "extractGithubArgsFromInput" => sub {
+    my @failingURIs = (
+        '',
+        'a static string without slashes'
+    );
+    for my $uri (@failingURIs) {
+        my $githubArgs = Hydra::Plugin::GithubStatus::extractGithubArgsFromInput($uri, "the-revision");
+        is($githubArgs, undef, "$uri is not a parsable GitHub URI");
+    };
+
+    my $passingURIs = {
+        'git@github.com:NixOS/hydra.git' => {
+            owner => "NixOS",
+            repo => "hydra"
+        },
+        'git@github-alternative-domain:NixOS/hydra.git' => {
+            owner => "NixOS",
+            repo => "hydra"
+        },
+        'git@github-alternative-domain:NixOS/hydra.git.git' => {
+            owner => "NixOS",
+            repo => "hydra.git"
+        },
+        'git@github-alternative-domain:NixOS/hydragit' => {
+            owner => "NixOS",
+            repo => "hydragit"
+        },
+        'https://github.com/NixOS/hydragit.git' => {
+            owner => "NixOS",
+            repo => "hydragit"
+        },
+    };
+    for my $uri (keys %$passingURIs) {
+        my $expectedArgs = $passingURIs->{$uri};
+        subtest "Checking input URI: $uri" => sub {
+            my $githubArgs = Hydra::Plugin::GithubStatus::extractGithubArgsFromInput($uri, "the-revision");
+            is($githubArgs->{"rev"}, "the-revision", "The revision matches");
+            is($githubArgs->{"owner"}, $expectedArgs->{"owner"}, "The owner matches");
+            is($githubArgs->{"repo"}, $expectedArgs->{"repo"}, "The repo matches");
+
+        };
+    };
+};
+
 done_testing;
