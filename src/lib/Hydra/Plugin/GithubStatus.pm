@@ -99,6 +99,36 @@ sub extractGithubArgsFromInput {
     return undef;
 }
 
+sub sendStatusesForEval {
+    my ($cachingSendStatus, $eval, @inputs) = @_;
+
+    if (defined $eval->flake) {
+        my $fl = $eval->flake;
+        print STDERR "Flake is $fl\n";
+        my $githubArgs = extractGithubArgsFromFlake($fl);
+        if (defined($githubArgs)) {
+            $cachingSendStatus->("src", $githubArgs->{"owner"}, $githubArgs->{"repo"}, $githubArgs->{"rev"});
+        } else {
+            print STDERR "Can't parse flake, skipping GitHub status update\n";
+        }
+    } else {
+        foreach my $input (@inputs) {
+            my $i = $eval->jobsetevalinputs->find({ name => $input, altnr => 0 });
+            if (! defined $i) {
+                print STDERR "Evaluation $eval doesn't have input $input\n";
+            }
+            next unless defined $i;
+
+            my $githubArgs = extractGithubArgsFromInput($i->uri, $i->revision);
+            if (defined($githubArgs)) {
+                $cachingSendStatus->($input, $githubArgs->{"owner"}, $githubArgs->{"repo"}, $githubArgs->{"rev"});
+            } else {
+                print STDERR "Evaluation $eval: Can't parse input $input\'s URI, skipping GitHub status update\n";
+            }
+        }
+    }
+}
+
 sub common {
     my ($self, $topbuild, $dependents, $finished, $cachedEval) = @_;
     my $cfg = $self->{config}->{githubstatus};
@@ -137,31 +167,7 @@ sub common {
                     next;
                 }
 
-                if (defined $eval->flake) {
-                    my $fl = $eval->flake;
-                    print STDERR "Flake is $fl\n";
-                    my $githubArgs = extractGithubArgsFromFlake($fl);
-                    if (defined($githubArgs)) {
-                        $cachingSendStatus->("src", $githubArgs->{"owner"}, $githubArgs->{"repo"}, $githubArgs->{"rev"});
-                    } else {
-                        print STDERR "Can't parse flake, skipping GitHub status update\n";
-                    }
-                } else {
-                    foreach my $input (@inputs) {
-                        my $i = $eval->jobsetevalinputs->find({ name => $input, altnr => 0 });
-                        if (! defined $i) {
-                            print STDERR "Evaluation $eval doesn't have input $input\n";
-                        }
-                        next unless defined $i;
-
-                        my $githubArgs = extractGithubArgsFromInput($i->uri, $i->revision);
-                        if (defined($githubArgs)) {
-                            $cachingSendStatus->($input, $githubArgs->{"owner"}, $githubArgs->{"repo"}, $githubArgs->{"rev"});
-                        } else {
-                            print STDERR "Evaluation $eval: Can't parse input $input\'s URI, skipping GitHub status update\n";
-                        }
-                    }
-                }
+                sendStatusesForEval($cachingSendStatus, $eval, @inputs);
             }
         }
     }
