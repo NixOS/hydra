@@ -26,9 +26,7 @@ sub toGithubState {
 }
 
 sub sendStatus {
-    my ($input, $owner, $repo, $rev, $ua, $body, $authorization) = @_;
-
-    my $key = $owner . "-" . $repo . "-" . $rev;
+    my ($owner, $repo, $rev, $ua, $body, $authorization) = @_;
 
     my $url = "https://api.github.com/repos/$owner/$repo/statuses/$rev";
     my $req = HTTP::Request->new('POST', $url);
@@ -99,7 +97,7 @@ sub common {
                     return if exists $seen{$input}->{$key};
                     $seen{$input}->{$key} = 1;
 
-                    sendStatus($input, $owner, $repo, $rev, $ua, $body, ($self->{config}->{github_authorization}->{$owner} // $conf->{authorization}));
+                    sendStatus($owner, $repo, $rev, $ua, $body, ($self->{config}->{github_authorization}->{$owner} // $conf->{authorization}));
                 };
 
                 if (defined $eval->flake) {
