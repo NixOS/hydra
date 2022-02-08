@@ -72,6 +72,19 @@ sub statusBody {
     };
 }
 
+sub extractGithubArgsFromFlake {
+    my ($flakeref) = @_;
+    if ($flakeref =~ m!github:([^/]+)/([^/]+)/([[:xdigit:]]{40})$! or $flakeref =~ m!git\+ssh://git\@github.com/([^/]+)/([^/]+)\?.*rev=([[:xdigit:]]{40})$!) {
+        return {
+            owner => $1,
+            repo => $2,
+            rev => $3
+        };
+    }
+
+    return undef;
+}
+
 sub common {
     my ($self, $topbuild, $dependents, $finished, $cachedEval) = @_;
     my $cfg = $self->{config}->{githubstatus};
@@ -112,8 +125,9 @@ sub common {
                 if (defined $eval->flake) {
                     my $fl = $eval->flake;
                     print STDERR "Flake is $fl\n";
-                    if ($eval->flake =~ m!github:([^/]+)/([^/]+)/([[:xdigit:]]{40})$! or $eval->flake =~ m!git\+ssh://git\@github.com/([^/]+)/([^/]+)\?.*rev=([[:xdigit:]]{40})$!) {
-                        $cachingSendStatus->("src", $1, $2, $3);
+                    my $githubArgs = extractGithubArgsFromFlake($fl);
+                    if (defined($githubArgs)) {
+                        $cachingSendStatus->("src", $githubArgs->{"owner"}, $githubArgs->{"repo"}, $githubArgs->{"rev"});
                     } else {
                         print STDERR "Can't parse flake, skipping GitHub status update\n";
                     }

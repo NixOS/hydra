@@ -86,4 +86,41 @@ subtest "statusBody" => sub {
     );
 };
 
+subtest "extractGithubArgsFromFlake" => sub {
+    my @failingInputs = (
+        '',
+        'git@github.com:NixOS/hydra.git'
+    );
+    for my $input (@failingInputs) {
+        my $githubArgs = Hydra::Plugin::GithubStatus::extractGithubArgsFromFlake($input);
+        ok(!defined($githubArgs), "$input is not an extractable flake ref");
+    };
+
+    my $passingInputs = {
+        'github:NixOS/hydra/90aa8592925a688c37e8d93822d19bd74e25fca7' => {
+            owner => "NixOS",
+            repo => "hydra",
+            rev => "90aa8592925a688c37e8d93822d19bd74e25fca7"
+        },
+        'git+ssh://git@github.com/NixOS/hydra?rev=90aa8592925a688c37e8d93822d19bd74e25fca7' => {
+            owner => "NixOS",
+            repo => "hydra",
+            rev => "90aa8592925a688c37e8d93822d19bd74e25fca7"
+        },
+        'git+ssh://git@github.com/NixOS/hydra?randomjunkseemsokayhererev=90aa8592925a688c37e8d93822d19bd74e25fca7' => {
+            owner => "NixOS",
+            repo => "hydra",
+            rev => "90aa8592925a688c37e8d93822d19bd74e25fca7"
+        },
+    };
+    for my $flakeref (keys %$passingInputs) {
+        my $expectedArgs = $passingInputs->{$flakeref};
+        is(
+            Hydra::Plugin::GithubStatus::extractGithubArgsFromFlake($flakeref),
+            $expectedArgs,
+            "$flakeref: the GitHub args matched"
+        );
+    };
+};
+
 done_testing;
