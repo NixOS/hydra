@@ -566,6 +566,7 @@
             foreman
             glibcLocales
             netcat-openbsd
+            openldap
             python3
           ];
 
