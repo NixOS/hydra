@@ -11,6 +11,7 @@ use File::Slurper qw(read_text);
 use Hydra::Helper::AddBuilds;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
+use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Hydra::Model::DB;
 use Hydra::Plugin;

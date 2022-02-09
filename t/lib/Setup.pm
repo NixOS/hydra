@@ -8,12 +8,11 @@ use File::Temp;
 use File::Path qw(make_path);
 use File::Basename;
 use Cwd qw(abs_path getcwd);
+use Hydra::Helper::Exec;
 use CliRunners;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    captureStdoutStderr
-    captureStdoutStderrWithStdin
     createBaseJobset
     createJobsetWithOneInput
     evalFails

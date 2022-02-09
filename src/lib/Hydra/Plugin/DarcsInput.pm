@@ -5,6 +5,7 @@ use warnings;
 use parent 'Hydra::Plugin';
 use Digest::SHA qw(sha256_hex);
 use File::Path;
+use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Nix::Store;
 

@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Setup;
 use Test2::V0;
+use Hydra::Helper::Exec;
 
 my $ctx = test_context();
 my $builds = $ctx->makeAndEvaluateJobset(

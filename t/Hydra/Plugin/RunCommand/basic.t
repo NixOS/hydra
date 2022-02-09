@@ -13,6 +13,8 @@ my %ctx = test_init(
 
 require Hydra::Schema;
 require Hydra::Model::DB;
+require Hydra::Helper::Nix;
+
 
 use Test2::V0;
 
