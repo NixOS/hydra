@@ -5,6 +5,24 @@ use Setup;
 use Test2::V0;
 use File::Copy;
 use Hydra::PostgresListener;
+use Hydra::Event;
+
+# expectEvent(Hydra::PostgresLister, name of the channel to expect, a sub which gets the parsed event)
+sub expectEvent {
+    my ($listener, $expectedChannel, $then) = @_;
+    my $message = $listener->block_for_messages(0)->();
+
+    my $channel = $message->{"channel"};
+
+    if ($channel eq $expectedChannel) {
+        my $event = Hydra::Event->new_event($message->{"channel"}, $message->{"payload"});
+        local $_ = $event->{event};
+        $then->();
+    } else {
+        is($expectedChannel, $channel, "Expecting a message on channel $channel");
+    }
+}
+
 
 my $ctx = test_context(
     hydra_config => q|
@@ -36,22 +54,45 @@ my $builds = $ctx->makeAndEvaluateJobset(
     jobsdir => $jobsetdir,
     build => 0
 );
+my $jobset = $builds->{"stable-job-queued"}->jobset;
+my $evaluation = $builds->{"stable-job-queued"}->jobsetevals->first();
 
 subtest "on the initial evaluation" => sub {
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_started", "every eval starts with a notification");
+    expectEvent($listener, "eval_started", sub {
+        isnt($_->{"trace_id"}, "", "We got a trace ID");
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+    });
+
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 1/4 builds being queued");
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 2/4 builds being queued");
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 3/4 builds being queued");
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 4/4 builds being queued");
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_added", "the evaluation has completed");
+
+    expectEvent($listener, "eval_added", sub {
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+        is($_->{"evaluation_id"}, $evaluation->get_column('id'), "the evaluation ID matches");
+    });
     is($listener->block_for_messages(0)->()->{"channel"}, "builds_added", "new builds have been scheduled");
     is($listener->block_for_messages(0)->(), undef, "there are no more messages from the evaluator");
 };
 
 subtest "on a subsequent, totally cached / unchanged evaluation" => sub {
-    ok(evalSucceeds($builds->{"variable-job"}->jobset), "evaluating for the second time");
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_started", "an evaluation has started");
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_cached", "the evaluation finished and nothing changed");
+    ok(evalSucceeds($jobset), "evaluating for the second time");
+    my $evaluation = $builds->{"stable-job-queued"}->jobsetevals->first();
+
+    my $traceID;
+    expectEvent($listener, "eval_started", sub {
+        isnt($_->{"trace_id"}, "", "We got a trace ID");
+        $traceID = $_->{"trace_id"};
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+    });
+
+    expectEvent($listener, "eval_cached", sub {
+        is($_->{"trace_id"}, $traceID, "Trace ID matches");
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+        is($_->{"evaluation_id"}, $evaluation->get_column('id'), "the evaluation ID matches");
+    });
+
     is($listener->block_for_messages(0)->(), undef, "there are no more messages from the evaluator");
 };
 
@@ -67,7 +108,9 @@ subtest "on a fresh evaluation with changed sources" => sub {
     $builds->{"stable-job-failing"}->discard_changes();
 
     ok(evalSucceeds($builds->{"variable-job"}->jobset), "evaluating for the third time");
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_started", "the evaluation started");
+    expectEvent($listener, "eval_started", sub {
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+    });
 
     # The order of builds is randomized when writing to the database,
     # so we can't expect the list in any specific order here.
@@ -106,8 +149,19 @@ subtest "on a fresh evaluation with corrupted sources" => sub {
     close $fh;
 
     ok(evalFails($builds->{"variable-job"}->jobset), "evaluating the corrupted job");
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_started", "the evaluation started");
-    is($listener->block_for_messages(0)->()->{"channel"}, "eval_failed", "the evaluation failed");
+
+    my $traceID;
+    expectEvent($listener, "eval_started", sub {
+        isnt($_->{"trace_id"}, "", "We got a trace ID");
+        $traceID = $_->{"trace_id"};
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+    });
+
+    expectEvent($listener, "eval_failed", sub {
+        is($_->{"trace_id"}, $traceID, "Trace ID matches");
+        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+    });
+
     is($listener->block_for_messages(0)->(), undef, "there are no more messages from the evaluator");
 
 };

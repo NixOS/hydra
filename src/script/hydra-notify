@@ -98,8 +98,13 @@ $listener->subscribe("build_queued");
 $listener->subscribe("build_started");
 $listener->subscribe("cached_build_finished");
 $listener->subscribe("cached_build_queued");
+$listener->subscribe("eval_added");
+$listener->subscribe("eval_cached");
+$listener->subscribe("eval_failed");
+$listener->subscribe("eval_started");
 $listener->subscribe("hydra_notify_dump_metrics");
 $listener->subscribe("step_finished");
+
 
 # Process builds that finished while hydra-notify wasn't running.
 for my $build ($db->resultset('Builds')->search(
