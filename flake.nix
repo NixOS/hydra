@@ -592,6 +592,8 @@
             ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ]
           );
 
+          OPENLDAP_ROOT = openldap;
+
           shellHook = ''
             pushd $(git rev-parse --show-toplevel) >/dev/null
 
