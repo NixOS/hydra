@@ -23,56 +23,41 @@ $ldap->add_group("hydra_restart-jobs", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_bump-to-front", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_cancel-build", $users->{"many_roles"}->{"username"});
 
-my $ctx = test_context(
-    hydra_config => <<CFG
-        <ldap>
-            <config>
-                <credential>
-                    class = Password
-                    password_field = password
-                    password_type = self_check
-                </credential>
-                <store>
-                    class = LDAP
-                    ldap_server = ${\$ldap->server_url()}
-                    <ldap_server_options>
-                        timeout = 30
-                        debug = 0
-                    </ldap_server_options>
-                    binddn = "cn=root,dc=example"
-                    bindpw = notapassword
-                    start_tls = 0
-                    <start_tls_options>
-                        verify = none
-                    </start_tls_options>
-                    user_basedn = "ou=users,dc=example"
-                    user_filter = "(&(objectClass=inetOrgPerson)(cn=%s))"
-                    user_scope = one
-                    user_field = cn
-                    <user_search_options>
-                        deref = always
-                    </user_search_options>
-                    use_roles = 1
-                    role_basedn = "ou=groups,dc=example"
-                    role_filter = "(&(objectClass=groupOfNames)(member=%s))"
-                    role_scope = one
-                    role_field = cn
-                    role_value = dn
-                    <role_search_options>
-                        deref = always
-                    </role_search_options>
-                </store>
-            </config>
-            <role_mapping>
-                hydra_admin = admin
-                hydra_create-projects = create-projects
-                hydra_cancel-build = cancel-build
-                hydra_bump-to-front = bump-to-front
-                hydra_restart-jobs = restart-jobs
-            </role_mapping>
-        </ldap>
-CFG
-);
+my $hydra_ldap_config = "${\$ldap->tmpdir()}/hydra_ldap_config.yaml";
+LDAPContext::write_file($hydra_ldap_config, <<YAML);
+credential:
+    class: Password
+    password_field: password
+    password_type: self_check
+store:
+    class: LDAP
+    ldap_server: "${\$ldap->server_url()}"
+    ldap_server_options:
+        timeout: 30
+        debug: 0
+    binddn: "cn=root,dc=example"
+    bindpw: notapassword
+    start_tls: 0
+    start_tls_options:
+        verify:  none
+    user_basedn: "ou=users,dc=example"
+    user_filter: "(&(objectClass=inetOrgPerson)(cn=%s))"
+    user_scope: one
+    user_field: cn
+    user_search_options:
+        deref: always
+    use_roles: 1
+    role_basedn: "ou=groups,dc=example"
+    role_filter: "(&(objectClass=groupOfNames)(member=%s))"
+    role_scope: one
+    role_field: cn
+    role_value: dn
+    role_search_options:
+        deref: always
+YAML
+
+$ENV{'HYDRA_LDAP_CONFIG'} = $hydra_ldap_config;
+my $ctx = test_context();
 
 Catalyst::Test->import('Hydra');
 
