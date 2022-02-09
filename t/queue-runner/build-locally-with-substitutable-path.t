@@ -3,9 +3,13 @@ use warnings;
 use Setup;
 use Data::Dumper;
 use Test2::V0;
+use Hydra::Helper::Exec;
+
 my $ctx = test_context(
     use_external_destination_store => 1
 );
+
+require Hydra::Helper::Nix;
 
 # This test is regarding https://github.com/NixOS/hydra/pull/1126
 #
