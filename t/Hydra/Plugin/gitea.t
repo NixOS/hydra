@@ -60,6 +60,16 @@ if (!defined($pid = fork())) {
     kill('INT', $pid);
 }
 
+# We expect $ctx{jobsdir}/server.py to create the file at $filename, but the time it
+# takes to do so is non-deterministic. We need to give it _some_ time to hopefully
+# settle -- but not too much that it drastically slows things down.
+for my $i (1..10) {
+    if (! -f $filename) {
+       diag("$filename does not yet exist");
+       sleep(1);
+    }
+}
+
 open(my $fh, "<", $filename) or die ("Can't open(): $!\n");
 my $i = 0;
 my $uri = <$fh>;
