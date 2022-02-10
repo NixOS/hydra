@@ -182,6 +182,9 @@ sub _spawn {
 
     if ($pid == 0) {
         exec("${\$self->{'_openldap_source'}}/libexec/slapd",
+            # A debug flag `-d` must be specified to avoid backgrounding, and an empty
+            # argument means no additional debugging.
+            "-d", "",
             #  "-d", "conns", "-d", "filter", "-d", "config",
          "-F", $self->{"_slapd_dir"}, "-h", $self->server_url()) or die "Could not start slapd";
     } else {
