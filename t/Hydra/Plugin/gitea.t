@@ -60,6 +60,13 @@ if (!defined($pid = fork())) {
     kill('INT', $pid);
 }
 
+for my $i (1..10) {
+    if (! -f $filename) {
+       diag("$filename does not yet exist");
+       sleep(1);
+    }
+}
+
 open(my $fh, "<", $filename) or die ("Can't open(): $!\n");
 my $i = 0;
 my $uri = <$fh>;
