@@ -105,11 +105,11 @@ in the hydra configuration file, as below:
 Using LDAP as authentication backend (optional)
 -----------------------------------------------
 
-Instead of using Hydra\'s built-in user management you can optionally
+Instead of using Hydra's built-in user management you can optionally
 use LDAP to manage roles and users.
 
 This is configured by defining the `<ldap>` block in the configuration file.
-In this block it\'s possible to configure the authentication plugin in the
+In this block it's possible to configure the authentication plugin in the
 `<config>` block, all options are directly passed to `Catalyst::Authentication
 ::Store::LDAP`. The documentation for the available settings can be found [here]
 (https://metacpan.org/pod/Catalyst::Authentication::Store::LDAP#CONFIGURATION-OPTIONS).
@@ -135,7 +135,6 @@ Example configuration:
       ldap_server = localhost
       <ldap_server_options>
         timeout = 30
-        debug = 2
       </ldap_server_options>
       binddn = "cn=root,dc=example"
       bindpw = notapassword
@@ -164,14 +163,52 @@ Example configuration:
   <role_mapping>
     # Make all users in the hydra_admin group Hydra admins
     hydra_admin = admin
-    # Allow all users in the dev group to restart jobs
+    # Allow all users in the dev group to restart jobs and cancel builds
     dev = restart-jobs
+    dev = cancel-builds
   </role_mapping>
 </ldap>
 ```
 
-This example configuration also enables the (very verbose) LDAP debug logging
-by setting `config.ldap_server_options.debug`.
+### Debugging LDAP
+
+Set the `debug` parameter under `ldap.config.ldap_server_options.debug`:
+
+```
+<ldap>
+  <config>
+    <store>
+      <ldap_server_options>
+        debug = 2
+      </ldap_server_options>
+    </store>
+  </config>
+</ldap>
+```
+
+### Legacy LDAP Configuration
+
+Hydra used to load the LDAP configuration from a YAML file in the
+`HYDRA_LDAP_CONFIG` environment variable. This behavior is deperecated
+and will be removed.
+
+When Hydra uses the deprecated YAML file, Hydra applies the following
+default role mapping:
+
+```
+<ldap>
+  <role_mapping>
+    hydra_admin = admin
+    hydra_bump-to-front = bump-to-front
+    hydra_cancel-build = cancel-build
+    hydra_create-projects = create-projects
+    hydra_restart-jobs = restart-jobs
+  </role_mapping>
+</ldap>
+```
+
+Note that configuring both the LDAP parameters in the hydra.conf and via
+the environment variable is a fatal error.
 
 Embedding Extra HTML
 --------------------

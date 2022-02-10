@@ -13,10 +13,12 @@ my $users = {
     admin => $ldap->add_user("admin_user"),
     not_admin => $ldap->add_user("not_admin_user"),
     many_roles => $ldap->add_user("many_roles"),
+    many_roles_one_group => $ldap->add_user("many_roles_one_group"),
 };
 
 $ldap->add_group("hydra_admin", $users->{"admin"}->{"username"});
 $ldap->add_group("hydra-admin", $users->{"not_admin"}->{"username"});
+$ldap->add_group("hydra_one_group_many_roles", $users->{"many_roles_one_group"}->{"username"});
 
 $ldap->add_group("hydra_create-projects", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_restart-jobs", $users->{"many_roles"}->{"username"});
@@ -69,6 +71,10 @@ my $ctx = test_context(
                 hydra_cancel-build = cancel-build
                 hydra_bump-to-front = bump-to-front
                 hydra_restart-jobs = restart-jobs
+
+                hydra_one_group_many_roles = create-projects
+                hydra_one_group_many_roles = cancel-build
+                hydra_one_group_many_roles = bump-to-front
             </role_mapping>
         </ldap>
 CFG
@@ -79,9 +85,10 @@ Catalyst::Test->import('Hydra');
 subtest "Valid login attempts" => sub {
     my %users_to_roles = (
         unrelated => [],
-         admin => ["admin"],
-         not_admin => [],
-         many_roles => [ "create-projects", "restart-jobs", "bump-to-front", "cancel-build" ],
+        admin => ["admin"],
+        not_admin => [],
+        many_roles => [ "create-projects", "restart-jobs", "bump-to-front", "cancel-build" ],
+        many_roles_one_group => [ "create-projects", "bump-to-front", "cancel-build" ],
     );
     for my $username (keys %users_to_roles) {
         my $user = $users->{$username};

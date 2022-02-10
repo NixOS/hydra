@@ -6,7 +6,7 @@ use parent 'Catalyst';
 use Moose;
 use Hydra::Plugin;
 use Hydra::Model::DB;
-use Hydra::Helper::Nix qw(getHydraConfig);
+use Hydra::Config qw(getLDAPConfigAmbient);
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
                 Static::Simple
@@ -43,7 +43,7 @@ __PACKAGE__->config(
                 role_field => "role",
             },
         },
-        ldap => Hydra::Helper::Nix::getHydraConfig->{'ldap'}->{'config'}
+        ldap => getLDAPConfigAmbient()->{'config'}
     },
     'Plugin::ConfigLoader' => {
         driver => {

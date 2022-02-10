@@ -5,7 +5,6 @@ use warnings;
 use Exporter;
 use File::Path;
 use File::Basename;
-use Config::General;
 use Hydra::Config;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
@@ -48,24 +47,6 @@ sub getHydraHome {
     my $dir = $ENV{"HYDRA_HOME"} or die "The HYDRA_HOME directory does not exist!\n";
     return $dir;
 }
-
-
-my $hydraConfig;
-
-sub getHydraConfig {
-    return $hydraConfig if defined $hydraConfig;
-    my $conf = $ENV{"HYDRA_CONFIG"} || (Hydra::Model::DB::getHydraPath . "/hydra.conf");
-    my %opts = (%Hydra::Config::configGeneralOpts, -ConfigFile => $conf);
-    if (-f $conf) {
-        my %h = Config::General->new(%opts)->getall;
-
-        $hydraConfig = \%h;
-    } else {
-        $hydraConfig = {};
-    }
-    return $hydraConfig;
-}
-
 
 # Return hash of statsd configuration of the following shape:
 # (
