@@ -178,7 +178,7 @@ sub _spawn {
     my ($self) = @_;
 
     my $pid = fork;
-    die "When starting the LDAP server:failed to fork." if not defined $pid;
+    die "When starting the LDAP server: failed to fork." if not defined $pid;
 
     if ($pid == 0) {
         exec("${\$self->{'_openldap_source'}}/libexec/slapd",
