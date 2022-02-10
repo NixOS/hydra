@@ -7,7 +7,27 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(
     captureStdoutStderr
     captureStdoutStderrWithStdin
+    expectOkay
 );
+
+sub expectOkay {
+    my ($timeout, @cmd) = @_;
+
+    my ($res, $stdout, $stderr) = captureStdoutStderrWithStdin($timeout, \@cmd, "");
+    if ($res) {
+        die <<MSG;
+        Failure executing @cmd.
+
+        STDOUT:
+        $stdout
+
+        STDERR:
+        $stderr
+MSG
+    }
+
+    1;
+}
 
 sub captureStdoutStderr {
     my ($timeout, @cmd) = @_;
