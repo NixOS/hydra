@@ -30,12 +30,12 @@ sub new {
     my $socket = "$root/slapd.socket";
 
     my $self = {
-        _tmpdir => $root,
         _db_dir => $db_dir,
         _openldap_source => $ENV{"OPENLDAP_ROOT"},
         _pid_file => $pid_file,
         _slapd_dir => $slapd_dir,
         _socket => $socket,
+        _tmpdir => $root,
     };
 
     my $blessed = bless $self, $class;
