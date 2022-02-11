@@ -137,7 +137,7 @@ Example configuration:
         timeout = 30
       </ldap_server_options>
       binddn = "cn=root,dc=example"
-      bindpw = notapassword
+      include ldap-password.conf
       start_tls = 0
       <start_tls_options>
         verify = none
@@ -168,6 +168,12 @@ Example configuration:
     dev = cancel-builds
   </role_mapping>
 </ldap>
+```
+
+Then, place the password to your LDAP server in `/var/lib/hydra/ldap-password.conf`:
+
+```
+bindpw = the-ldap-password
 ```
 
 ### Debugging LDAP
