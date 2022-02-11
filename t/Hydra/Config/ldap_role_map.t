@@ -37,7 +37,7 @@ credential:
 YAML
 
 subtest "getLDAPConfig" => sub {
-     subtest "No ldap section and an env var gets us legacy data" => sub {
+    subtest "No ldap section and an env var gets us legacy data" => sub {
         like(
             warning {
                 is(
@@ -65,7 +65,7 @@ subtest "getLDAPConfig" => sub {
             qr/configured to use LDAP via the HYDRA_LDAP_CONFIG/,
             "Having the environment variable set warns."
         );
-     };
+    };
 
     subtest "An ldap section and no env var gets us normalized data" => sub {
         is(
