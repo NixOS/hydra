@@ -128,7 +128,7 @@ sub normalize_ldap_role_mappings {
     }
 
     if (@errors) {
-        die join "\n", @errors;
+        die "Failed to normalize LDAP role mappings:\n" . (join "\n", @errors);
     }
 
     return $mapping;

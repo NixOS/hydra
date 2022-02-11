@@ -223,7 +223,7 @@ subtest "normalize_ldap_role_mappings" => sub {
                 "group" => "invalid-role",
             }),
         },
-        qr/Invalid roles.*invalid-role/,
+        qr/Failed to normalize.*Invalid roles.*invalid-role/,
         "Invalid roles fail to normalize."
     );
 
