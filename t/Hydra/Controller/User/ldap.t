@@ -25,7 +25,12 @@ $ldap->add_group("hydra_restart-jobs", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_bump-to-front", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_cancel-build", $users->{"many_roles"}->{"username"});
 
+
 my $ctx = test_context(
+    before_init => sub {
+        my ($ctx) = @_;
+        write_file($ctx->{"tmpdir"} . "/password.conf", "bindpw = ${\$ldap->{'root_password'}}");
+    },
     hydra_config => <<CFG
         <ldap>
             <config>
@@ -42,7 +47,7 @@ my $ctx = test_context(
                         debug = 0
                     </ldap_server_options>
                     binddn = "cn=root,dc=example"
-                    bindpw = notapassword
+                    include password.conf
                     start_tls = 0
                     <start_tls_options>
                         verify = none
