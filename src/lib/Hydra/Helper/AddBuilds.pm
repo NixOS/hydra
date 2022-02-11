@@ -19,14 +19,16 @@ use Hydra::Helper::CatalystUtils;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
+    validateDeclarativeJobset
+    createJobsetInputsRowAndData
     updateDeclarativeJobset
     handleDeclarativeJobsetBuild
     handleDeclarativeJobsetJson
 );
 
 
-sub updateDeclarativeJobset {
-    my ($db, $project, $jobsetName, $declSpec) = @_;
+sub validateDeclarativeJobset {
+    my ($config, $project, $jobsetName, $declSpec) = @_;
 
     my @allowed_keys = qw(
         enabled
@@ -62,16 +64,39 @@ sub updateDeclarativeJobset {
         }
     }
 
+    my $enable_dynamic_run_command = defined $update{enable_dynamic_run_command} ? 1 : 0;
+    if ($enable_dynamic_run_command
+        && !($config->{dynamicruncommand}->{enable}
+            && $project->{enable_dynamic_run_command}))
+    {
+        die "Dynamic RunCommand is not enabled by the server or the parent project.";
+    }
+
+    return %update;
+}
+
+sub createJobsetInputsRowAndData {
+    my ($name, $declSpec) = @_;
+    my $data = $declSpec->{"inputs"}->{$name};
+    my $row = {
+        name => $name,
+        type => $data->{type}
+    };
+    $row->{emailresponsible} = $data->{emailresponsible} // 0;
+
+    return ($row, $data);
+}
+
+sub updateDeclarativeJobset {
+    my ($config, $db, $project, $jobsetName, $declSpec) = @_;
+
+    my %update = validateDeclarativeJobset($config, $project, $jobsetName, $declSpec);
+
     $db->txn_do(sub {
         my $jobset = $project->jobsets->update_or_create(\%update);
         $jobset->jobsetinputs->delete;
         foreach my $name (keys %{$declSpec->{"inputs"}}) {
-            my $data = $declSpec->{"inputs"}->{$name};
-            my $row = {
-                name => $name,
-                type => $data->{type}
-            };
-            $row->{emailresponsible} = $data->{emailresponsible} // 0;
+            my ($row, $data) = createJobsetInputsRowAndData($name, $declSpec);
             my $input = $jobset->jobsetinputs->create($row);
             $input->jobsetinputalts->create({altnr => 0, value => $data->{value}});
         }
@@ -82,6 +107,7 @@ sub updateDeclarativeJobset {
 
 sub handleDeclarativeJobsetJson {
     my ($db, $project, $declSpec) = @_;
+    my $config = getHydraConfig();
     $db->txn_do(sub {
             my @kept = keys %$declSpec;
             push @kept, ".jobsets";
@@ -89,7 +115,7 @@ sub handleDeclarativeJobsetJson {
             foreach my $jobsetName (keys %$declSpec) {
                 my $spec = $declSpec->{$jobsetName};
                 eval {
-                    updateDeclarativeJobset($db, $project, $jobsetName, $spec);
+                    updateDeclarativeJobset($config, $db, $project, $jobsetName, $spec);
                     1;
                 } or do {
                     print STDERR "ERROR: failed to process declarative jobset ", $project->name, ":${jobsetName}, ", $@, "\n";

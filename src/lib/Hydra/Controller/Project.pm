@@ -149,6 +149,11 @@ sub updateProject {
     my $displayName = trim $c->stash->{params}->{displayname};
     error($c, "You must specify a display name.") if $displayName eq "";
 
+    my $enable_dynamic_run_command = defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
+    if ($enable_dynamic_run_command && !$c->config->{dynamicruncommand}->{enable}) {
+        badRequest($c, "Dynamic RunCommand is not enabled by the server.");
+    }
+
     $project->update(
         { name => $projectName
         , displayname => $displayName
@@ -157,7 +162,7 @@ sub updateProject {
         , enabled => defined $c->stash->{params}->{enabled} ? 1 : 0
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , owner => $owner
-        , enable_dynamic_run_command => defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0
+        , enable_dynamic_run_command => $enable_dynamic_run_command
         , declfile => trim($c->stash->{params}->{declarative}->{file})
         , decltype => trim($c->stash->{params}->{declarative}->{type})
         , declvalue => trim($c->stash->{params}->{declarative}->{value})
