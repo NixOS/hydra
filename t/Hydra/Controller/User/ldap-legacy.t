@@ -7,7 +7,9 @@ use Catalyst::Test ();
 use HTTP::Request::Common;
 use JSON::MaybeXS;
 
-my $ldap = LDAPContext->new();
+my $ldap = LDAPContext->new(
+    root_password => "the-root-password",
+);
 my $users = {
     unrelated => $ldap->add_user("unrelated_user"),
     admin => $ldap->add_user("admin_user"),
@@ -36,7 +38,7 @@ store:
         timeout: 30
         debug: 0
     binddn: "cn=root,dc=example"
-    bindpw: notapassword
+    bindpw: the-root-password
     start_tls: 0
     start_tls_options:
         verify:  none
