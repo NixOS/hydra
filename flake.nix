@@ -569,6 +569,7 @@
             glibcLocales
             netcat-openbsd
             openldap
+            perlPackages.PerlTidy
             python3
           ];
 

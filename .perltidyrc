@@ -1,0 +1,7 @@
+--maximum-line-length=120
+--paren-tightness=2
+--backup-and-modify-in-place
+--backup-file-extension='/'
+--warning-output
+--standard-error-output
+--assert-tidy
