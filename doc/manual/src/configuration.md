@@ -110,8 +110,8 @@ use LDAP to manage roles and users.
 
 This is configured by defining the `<ldap>` block in the configuration file.
 In this block it's possible to configure the authentication plugin in the
-`<config>` block, all options are directly passed to `Catalyst::Authentication
-::Store::LDAP`. The documentation for the available settings can be found [here]
+`<config>` block. All options are directly passed to `Catalyst::Authentication::Store::LDAP`.
+The documentation for the available settings can be found [here]
 (https://metacpan.org/pod/Catalyst::Authentication::Store::LDAP#CONFIGURATION-OPTIONS).
 
 Note that the bind password (if needed) should be supplied as an included file to
@@ -128,7 +128,7 @@ Example configuration:
     <credential>
       class = Password
       password_field = password
-      password_type= self_check
+      password_type = self_check
     </credential>
     <store>
       class = LDAP
