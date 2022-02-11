@@ -12,9 +12,15 @@ use Hydra::Helper::Exec;
 # It creates a top level organization and structure, and provides
 # add_user and add_group.
 #
+# Hash Parameters:
+#
+#  * root_password: The clear text password required for connecting to the LDAP server
+#
 # The server is automatically terminated when the class is dropped.
 sub new {
-    my ($class) = @_;
+    my ($class, %opts) = @_;
+
+    my $rootPassword = $opts{'root_password'} // rand_chars();
 
     my $root = File::Temp->newdir();
     mkdir $root;
@@ -36,6 +42,7 @@ sub new {
         _slapd_dir => $slapd_dir,
         _socket => $socket,
         _tmpdir => $root,
+        root_password => $rootPassword,
     };
 
     my $blessed = bless $self, $class;
@@ -128,7 +135,7 @@ objectClass: olcMdbConfig
 olcDatabase: {1}mdb
 olcDbDirectory: ${\$self->{"_db_dir"}}
 olcRootDN: cn=root,dc=example
-olcRootPW: notapassword
+olcRootPW: ${\$self->{"root_password"}}
 olcSuffix: dc=example
 EOF
 }
