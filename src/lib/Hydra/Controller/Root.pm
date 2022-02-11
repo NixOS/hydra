@@ -124,7 +124,7 @@ sub queue_GET {
         $c,
         entity => [$c->model('DB::Builds')->search(
             { finished => 0 },
-            { order_by => ["globalpriority desc", "id"],
+            { order_by => ["globalpriority desc", "id"]
             , columns => [@buildListColumns]
             })]
     );

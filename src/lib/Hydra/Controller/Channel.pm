@@ -22,7 +22,7 @@ sub channel : Chained('/') PathPart('channel/custom') CaptureArgs(3) {
 
     my $lastSuccessful = $c->model('DB::Builds')->find(
         { 'eval.hasnewbuilds' => 1
-        , jobset_id => $c->stash->{jobset}->id,
+        , jobset_id => $c->stash->{jobset}->id
         , job => $channelName
         , buildstatus => 0
         },

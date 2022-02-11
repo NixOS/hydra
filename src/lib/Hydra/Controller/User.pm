@@ -128,9 +128,9 @@ sub doEmailLogin {
     } else {
         $c->model('DB::Users')->create(
             { username => $email
-            , fullname => $fullName,
+            , fullname => $fullName
             , password => "!"
-            , emailaddress => $email,
+            , emailaddress => $email
             , type => $type
             });
         $user = $c->find_user({ username => $email }) or die;
@@ -268,7 +268,7 @@ sub register :Local Args(0) {
         my $user = $c->model('DB::Users')->create(
             { username => $userName
             , password => "!"
-            , emailaddress => "",
+            , emailaddress => ""
             , type => "hydra"
             });
         updatePreferences($c, $user);
@@ -473,7 +473,7 @@ sub my_jobsets_tab :Chained('dashboard_base') :PathPart('my-jobsets-tab') :Args(
     $c->stash->{template} = 'dashboard-my-jobsets-tab.tt';
 
     my $jobsets = $c->model('DB::Jobsets')->search(
-        { "project.enabled" => 1, "me.enabled" => 1,
+        { "project.enabled" => 1, "me.enabled" => 1
         , owner => $c->stash->{user}->username
         },
         { order_by => ["project", "name"]

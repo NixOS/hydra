@@ -478,7 +478,7 @@ sub cancelBuilds {
         my $n = $builds->count;
         my $time = time();
         $builds->update(
-            { finished => 1,
+            { finished => 1
             , iscachedbuild => 0, buildstatus => 4 # = cancelled
             , starttime => $time
             , stoptime => $time

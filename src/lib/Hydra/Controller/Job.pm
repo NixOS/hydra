@@ -159,7 +159,7 @@ sub build_times : Chained('job') PathPart('build-times') Args(0) {
         { job => $c->stash->{job}, finished => 1, buildstatus => 0, closuresize => { '!=', 0 } },
         { join => "actualBuildStep"
         , "+select" => ["actualBuildStep.stoptime - actualBuildStep.starttime"]
-        , "+as" => ["actualBuildTime"],
+        , "+as" => ["actualBuildTime"]
         , order_by => "id" });
     $self->status_ok($c, entity => [ map { { id => $_->id, timestamp => $_ ->timestamp, value => $_->get_column('actualBuildTime') } } @res ]);
 }
