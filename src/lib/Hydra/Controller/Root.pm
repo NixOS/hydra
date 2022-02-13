@@ -52,6 +52,7 @@ sub begin :Private {
     $c->stash->{tracker} = defined $c->config->{tracker} ? $c->config->{tracker} : "";
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
+    $c->stash->{localStore} = isLocalStore;
 
     $c->stash->{isPrivateHydra} = $c->config->{private} // "0" ne "0";
 
