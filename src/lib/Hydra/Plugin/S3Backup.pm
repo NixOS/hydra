@@ -126,7 +126,7 @@ sub buildFinished {
             $narinfo .= "NarSize: $narSize\n";
             $narinfo .= "References: " . join(" ", map { basename $_ } @{$refs}) . "\n";
             if (defined $deriver) {
-                $narinfo .= "Deriver: " . basename $deriver . "\n";
+                $narinfo .= "Deriver: " . basename($deriver) . "\n";
                 if (defined $system) {
                     $narinfo .= "System: $system\n";
                 }
