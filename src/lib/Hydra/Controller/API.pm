@@ -13,35 +13,33 @@ use Digest::SHA qw(sha256_hex);
 use Text::Diff;
 use IPC::Run qw(run);
 
-
 sub api : Chained('/') PathPart('api') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->response->content_type('application/json');
 }
 
-
 sub buildToHash {
     my ($build) = @_;
     my $result = {
-        id => $build->id,
-        project => $build->jobset->get_column("project"),
-        jobset => $build->jobset->get_column("name"),
-        job => $build->get_column("job"),
-        system => $build->system,
-        nixname => $build->nixname,
-        finished => $build->finished,
+        id        => $build->id,
+        project   => $build->jobset->get_column("project"),
+        jobset    => $build->jobset->get_column("name"),
+        job       => $build->get_column("job"),
+        system    => $build->system,
+        nixname   => $build->nixname,
+        finished  => $build->finished,
         timestamp => $build->timestamp
     };
 
-    if($build->finished) {
+    if ($build->finished) {
         $result->{'buildstatus'} = $build->get_column("buildstatus");
-    } else {
+    }
+    else {
         $result->{'priority'} = $build->get_column("priority");
     }
 
     return $result;
-};
-
+}
 
 sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     my ($self, $c) = @_;
@@ -49,53 +47,51 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     error($c, "Parameter not defined!") if !defined $nr;
 
     my $project = $c->request->params->{project};
-    my $jobset = $c->request->params->{jobset};
-    my $job = $c->request->params->{job};
-    my $system = $c->request->params->{system};
+    my $jobset  = $c->request->params->{jobset};
+    my $job     = $c->request->params->{job};
+    my $system  = $c->request->params->{system};
 
-    my $filter = {finished => 1};
-    $filter->{"jobset.project"} = $project if ! $project eq "";
-    $filter->{"jobset.name"} = $jobset if ! $jobset eq "";
-    $filter->{job} = $job if !$job eq "";
-    $filter->{system} = $system if !$system eq "";
+    my $filter = { finished => 1 };
+    $filter->{"jobset.project"} = $project if !$project eq "";
+    $filter->{"jobset.name"}    = $jobset  if !$jobset eq "";
+    $filter->{job}              = $job     if !$job eq "";
+    $filter->{system}           = $system  if !$system eq "";
 
     my @latest = $c->model('DB::Builds')->search(
         $filter,
         {
-            rows => $nr,
+            rows     => $nr,
             order_by => ["id DESC"],
-            join => [ "jobset" ]
-        });
+            join     => ["jobset"]
+        }
+    );
 
     my @list;
     push @list, buildToHash($_) foreach @latest;
 
-    $c->stash->{'plain'} = {
-        data => scalar (encode_json(\@list))
-    };
+    $c->stash->{'plain'} = { data => scalar(encode_json(\@list)) };
     $c->forward('Hydra::View::Plain');
 }
-
 
 sub jobsetToHash {
     my ($jobset) = @_;
     return {
-        project => $jobset->get_column('project'),
-        name => $jobset->name,
-        nrscheduled => $jobset->get_column("nrscheduled"),
-        nrsucceeded => $jobset->get_column("nrsucceeded"),
-        nrfailed => $jobset->get_column("nrfailed"),
-        nrtotal => $jobset->get_column("nrtotal"),
+        project         => $jobset->get_column('project'),
+        name            => $jobset->name,
+        nrscheduled     => $jobset->get_column("nrscheduled"),
+        nrsucceeded     => $jobset->get_column("nrsucceeded"),
+        nrfailed        => $jobset->get_column("nrfailed"),
+        nrtotal         => $jobset->get_column("nrtotal"),
         lastcheckedtime => $jobset->lastcheckedtime,
-        starttime => $jobset->starttime,
-        checkinterval => $jobset->checkinterval,
-        triggertime => $jobset->triggertime,
-        fetcherrormsg => $jobset->fetcherrormsg,
-        errortime => $jobset->errortime,
-        haserrormsg => defined($jobset->errormsg) && $jobset->errormsg ne "" ? JSON::MaybeXS::true : JSON::MaybeXS::false
+        starttime       => $jobset->starttime,
+        checkinterval   => $jobset->checkinterval,
+        triggertime     => $jobset->triggertime,
+        fetcherrormsg   => $jobset->fetcherrormsg,
+        errortime       => $jobset->errortime,
+        haserrormsg     => defined($jobset->errormsg)
+          && $jobset->errormsg ne "" ? JSON::MaybeXS::true : JSON::MaybeXS::false
     };
 }
-
 
 sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
     my ($self, $c) = @_;
@@ -104,19 +100,16 @@ sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
     error($c, "Parameter 'project' not defined!") if !defined $projectName;
 
     my $project = $c->model('DB::Projects')->find($projectName)
-        or notFound($c, "Project $projectName doesn't exist.");
+      or notFound($c, "Project $projectName doesn't exist.");
 
     my @jobsets = jobsetOverview($c, $project);
 
     my @list;
     push @list, jobsetToHash($_) foreach @jobsets;
 
-    $c->stash->{'plain'} = {
-        data => scalar (encode_json(\@list))
-    };
+    $c->stash->{'plain'} = { data => scalar(encode_json(\@list)) };
     $c->forward('Hydra::View::Plain');
 }
-
 
 sub queue : Chained('api') PathPart('queue') Args(0) {
     my ($self, $c) = @_;
@@ -124,76 +117,68 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
     my $nr = $c->request->params->{nr};
     error($c, "Parameter not defined!") if !defined $nr;
 
-    my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["priority DESC", "id"]});
+    my @builds =
+      $c->model('DB::Builds')->search({ finished => 0 }, { rows => $nr, order_by => [ "priority DESC", "id" ] });
 
     my @list;
     push @list, buildToHash($_) foreach @builds;
 
-    $c->stash->{'plain'} = {
-        data => scalar (encode_json(\@list))
-    };
+    $c->stash->{'plain'} = { data => scalar(encode_json(\@list)) };
     $c->forward('Hydra::View::Plain');
 }
-
 
 sub nrqueue : Chained('api') PathPart('nrqueue') Args(0) {
     my ($self, $c) = @_;
-    my $nrQueuedBuilds = $c->model('DB::Builds')->search({finished => 0})->count();
-    $c->stash->{'plain'} = {
-        data => "$nrQueuedBuilds"
-    };
+    my $nrQueuedBuilds = $c->model('DB::Builds')->search({ finished => 0 })->count();
+    $c->stash->{'plain'} = { data => "$nrQueuedBuilds" };
     $c->forward('Hydra::View::Plain');
 }
 
-
 sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     my ($self, $c) = @_;
-    my $nr = $c->request->params->{nr};
+    my $nr     = $c->request->params->{nr};
     my $period = $c->request->params->{period};
 
     error($c, "Parameter not defined!") if !defined $nr || !defined $period;
     my $base;
 
     my $project = $c->request->params->{project};
-    my $jobset = $c->request->params->{jobset};
-    my $job = $c->request->params->{job};
-    my $system = $c->request->params->{system};
+    my $jobset  = $c->request->params->{jobset};
+    my $job     = $c->request->params->{job};
+    my $system  = $c->request->params->{system};
 
-    my $filter = {finished => 1};
-    $filter->{"jobset.project"} = $project if ! $project eq "";
-    $filter->{"jobset.name"} = $jobset if ! $jobset eq "";
-    $filter->{job} = $job if !$job eq "";
-    $filter->{system} = $system if !$system eq "";
+    my $filter = { finished => 1 };
+    $filter->{"jobset.project"} = $project if !$project eq "";
+    $filter->{"jobset.name"}    = $jobset  if !$jobset eq "";
+    $filter->{job}              = $job     if !$job eq "";
+    $filter->{system}           = $system  if !$system eq "";
 
-    $base = 60*60 if($period eq "hour");
-    $base = 24*60*60 if($period eq "day");
+    $base = 60 * 60      if ($period eq "hour");
+    $base = 24 * 60 * 60 if ($period eq "day");
 
     my @stats = $c->model('DB::Builds')->search(
         $filter,
         {
-            select => [{ count => "*" }],
-            as => ["nr"],
+            select   => [ { count => "*" } ],
+            as       => ["nr"],
             group_by => ["timestamp - timestamp % $base"],
             order_by => "timestamp - timestamp % $base DESC",
-            rows => $nr,
-            join => [ "jobset" ]
+            rows     => $nr,
+            join     => ["jobset"]
         }
     );
     my @arr;
     push @arr, int($_->get_column("nr")) foreach @stats;
     @arr = reverse(@arr);
 
-    $c->stash->{'plain'} = {
-        data => scalar (encode_json(\@arr))
-    };
+    $c->stash->{'plain'} = { data => scalar(encode_json(\@arr)) };
     $c->forward('Hydra::View::Plain');
 }
-
 
 sub scmdiff : Path('/api/scmdiff') Args(0) {
     my ($self, $c) = @_;
 
-    my $uri = $c->request->params->{uri};
+    my $uri  = $c->request->params->{uri};
     my $type = $c->request->params->{type};
     my $rev1 = $c->request->params->{rev1};
     my $rev2 = $c->request->params->{rev2};
@@ -205,17 +190,18 @@ sub scmdiff : Path('/api/scmdiff') Args(0) {
     my $diff = "";
     if ($type eq "hg") {
         my $clonePath = getSCMCacheDir . "/hg/" . sha256_hex($uri);
-        die "repository '$uri' is not in the SCM cache\n" if ! -d $clonePath;
+        die "repository '$uri' is not in the SCM cache\n" if !-d $clonePath;
         my $out;
-        run(["hg", "log", "-R", $clonePath, "-r", "reverse($rev1::$rev2) and not($rev1)"], \undef, \$out)
-            or die "hg log failed";
+        run([ "hg", "log", "-R", $clonePath, "-r", "reverse($rev1::$rev2) and not($rev1)" ], \undef, \$out)
+          or die "hg log failed";
         $diff .= $out;
-        run(["hg", "diff", "-R", $clonePath, "-r", "$rev1::$rev2"], \undef, \$out)
-            or die "hg diff failed";
+        run([ "hg", "diff", "-R", $clonePath, "-r", "$rev1::$rev2" ], \undef, \$out)
+          or die "hg diff failed";
         $diff .= $out;
-    } elsif ($type eq "git") {
+    }
+    elsif ($type eq "git") {
         my $clonePath = getSCMCacheDir . "/git/" . sha256_hex($uri);
-        die if ! -d $clonePath;
+        die if !-d $clonePath;
         $diff .= `(cd $clonePath; git log $rev1..$rev2)`;
         $diff .= `(cd $clonePath; git diff $rev1..$rev2)`;
     }
@@ -224,24 +210,24 @@ sub scmdiff : Path('/api/scmdiff') Args(0) {
     $c->forward('Hydra::View::Plain');
 }
 
-
 sub triggerJobset {
     my ($self, $c, $jobset, $force) = @_;
     print STDERR "triggering jobset ", $jobset->get_column('project') . ":" . $jobset->name, "\n";
-    $c->model('DB')->schema->txn_do(sub {
-        $jobset->update({ triggertime => time });
-        $jobset->update({ forceeval => 1 }) if $force;
-    });
-    push @{$c->{stash}->{json}->{jobsetsTriggered}}, $jobset->get_column('project') . ":" . $jobset->name;
+    $c->model('DB')->schema->txn_do(
+        sub {
+            $jobset->update({ triggertime => time });
+            $jobset->update({ forceeval   => 1 }) if $force;
+        }
+    );
+    push @{ $c->{stash}->{json}->{jobsetsTriggered} }, $jobset->get_column('project') . ":" . $jobset->name;
 }
-
 
 sub push : Chained('api') PathPart('push') Args(0) {
     my ($self, $c) = @_;
 
     $c->{stash}->{json}->{jobsetsTriggered} = [];
 
-    my $force = exists $c->request->query_params->{force};
+    my $force   = exists $c->request->query_params->{force};
     my @jobsets = split /,/, ($c->request->query_params->{jobsets} // "");
     foreach my $s (@jobsets) {
         my ($p, $j) = parseJobsetName($s);
@@ -255,16 +241,17 @@ sub push : Chained('api') PathPart('push') Args(0) {
         triggerJobset($self, $c, $_, $force) foreach $c->model('DB::Jobsets')->search(
             { 'project.enabled' => 1, 'me.enabled' => 1 },
             {
-                join => 'project',
-                where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ],
+                join  => 'project',
+                where => \[
+'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)',
+                    [ 'value', $r ]
+                ],
                 order_by => 'me.id DESC'
-            });
+            }
+        );
     }
 
-    $self->status_ok(
-        $c,
-        entity => { jobsetsTriggered => $c->stash->{json}->{jobsetsTriggered} }
-    );
+    $self->status_ok($c, entity => { jobsetsTriggered => $c->stash->{json}->{jobsetsTriggered} });
 }
 
 sub push_github : Chained('api') PathPart('push-github') Args(0) {
@@ -272,19 +259,23 @@ sub push_github : Chained('api') PathPart('push-github') Args(0) {
 
     $c->{stash}->{json}->{jobsetsTriggered} = [];
 
-    my $in = $c->request->{data};
+    my $in    = $c->request->{data};
     my $owner = $in->{repository}->{owner}->{name} or die;
-    my $repo = $in->{repository}->{name} or die;
+    my $repo  = $in->{repository}->{name}          or die;
     print STDERR "got push from GitHub repository $owner/$repo\n";
 
     triggerJobset($self, $c, $_, 0) foreach $c->model('DB::Jobsets')->search(
         { 'project.enabled' => 1, 'me.enabled' => 1 },
-        { join => 'project'
-        , where => \ [ 'me.flake like ? or exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)', [ 'flake', "%github%$owner/$repo%"], [ 'value', "%github.com%$owner/$repo%" ] ]
-        });
+        {
+            join  => 'project',
+            where => \[
+'me.flake like ? or exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)',
+                [ 'flake', "%github%$owner/$repo%" ],
+                [ 'value', "%github.com%$owner/$repo%" ]
+            ]
+        }
+    );
     $c->response->body("");
 }
-
-
 
 1;

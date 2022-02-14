@@ -9,7 +9,7 @@ require Hydra::Model::DB;
 use Hydra::PostgresListener;
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
+my $db  = Hydra::Model::DB->new;
 my $dbh = $db->storage->dbh;
 
 my $listener = Hydra::PostgresListener->new($dbh);
@@ -28,7 +28,6 @@ isnt($event->{'pid'}, undef, "The pid is set");
 is($event->{'payload'}, "hi", "The payload matches");
 
 is(undef, $listener->block_for_messages(0)->(), "There is no message");
-
 
 like(
     dies {
@@ -63,7 +62,7 @@ ok(
 );
 
 subtest "with wacky channel names" => sub {
-    my $channel = "foo! very weird channel names...; select * from t where 1 = 1";
+    my $channel        = "foo! very weird channel names...; select * from t where 1 = 1";
     my $escapedChannel = $dbh->quote_identifier($channel);
 
     $listener->subscribe($channel);

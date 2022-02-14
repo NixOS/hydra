@@ -16,33 +16,19 @@ use Test2::Tools::Mock qw(mock_obj);
 my $db = Hydra::Model::DB->new;
 hydra_setup($db);
 
-my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
-my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
-ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
+my $project = $db->resultset('Projects')->create({ name => "tests", displayname => "", owner => "root" });
+my $jobset  = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
+ok(evalSucceeds($jobset), "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 
 for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with return code 0");
+    ok(runBuild($build), "Build '" . $build->job . "' from jobs/basic.nix should exit with return code 0");
 }
 
-
-
 subtest "Parsing step_finished" => sub {
-    like(
-        dies { Hydra::Event::parse_payload("step_finished", "") },
-        qr/three arguments/,
-        "empty payload"
-    );
-    like(
-        dies { Hydra::Event::parse_payload("step_finished", "abc123") },
-        qr/three arguments/,
-        "one argument"
-    );
-    like(
-        dies { Hydra::Event::parse_payload("step_finished", "abc123\tabc123") },
-        qr/three arguments/,
-        "two arguments"
-    );
+    like(dies { Hydra::Event::parse_payload("step_finished", "") },               qr/three arguments/, "empty payload");
+    like(dies { Hydra::Event::parse_payload("step_finished", "abc123") },         qr/three arguments/, "one argument");
+    like(dies { Hydra::Event::parse_payload("step_finished", "abc123\tabc123") }, qr/three arguments/, "two arguments");
     like(
         dies { Hydra::Event::parse_payload("step_finished", "abc123\tabc123\tabc123\tabc123") },
         qr/three arguments/,
@@ -69,16 +55,16 @@ subtest "interested" => sub {
 
     subtest "A plugin which does not implement the API" => sub {
         my $plugin = {};
-        my $mock = mock_obj $plugin => ();
+        my $mock   = mock_obj $plugin => ();
 
         is($event->interestedIn($plugin), 0, "The plugin is not interesting.");
     };
 
     subtest "A plugin which does implement the API" => sub {
         my $plugin = {};
-        my $mock = mock_obj $plugin => (
+        my $mock   = mock_obj $plugin => (
             add => [
-                "stepFinished" => sub {}
+                "stepFinished" => sub { }
             ]
         );
 
@@ -88,10 +74,7 @@ subtest "interested" => sub {
 
 subtest "load" => sub {
 
-    my $step = $db->resultset('BuildSteps')->search(
-      { },
-      { limit => 1 }
-    )->next;
+    my $step  = $db->resultset('BuildSteps')->search({}, { limit => 1 })->next;
     my $build = $step->build;
 
     my $event = Hydra::Event::StepFinished->new($build->id, $step->stepnr, "/foo/bar/baz");
@@ -104,11 +87,11 @@ subtest "load" => sub {
     my $passedStep;
     my $passedLogPath;
     my $plugin = {};
-    my $mock = mock_obj $plugin => (
+    my $mock   = mock_obj $plugin => (
         add => [
             "stepFinished" => sub {
                 my ($self, $step, $log_path) = @_;
-                $passedStep = $step;
+                $passedStep    = $step;
                 $passedLogPath = $log_path;
             }
         ]
@@ -116,8 +99,10 @@ subtest "load" => sub {
 
     $event->execute($db, $plugin);
 
-    is($passedStep->get_column("build"), $build->id, "The plugin's stepFinished hook is called with a step from the expected build");
-    is($passedStep->stepnr, $step->stepnr, "The plugin's stepFinished hook is called with the proper step of the build");
+    is($passedStep->get_column("build"),
+        $build->id, "The plugin's stepFinished hook is called with a step from the expected build");
+    is($passedStep->stepnr, $step->stepnr,
+        "The plugin's stepFinished hook is called with the proper step of the build");
     is($passedLogPath, "/foo/bar/baz", "The plugin's stepFinished hook is called with the proper log path");
 };
 

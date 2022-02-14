@@ -15,15 +15,15 @@ hydra_setup($db);
 
 # Tests the creation of a Hydra jobset using a bzr repo as input.
 testScmInput(
-  type => 'bzr',
-  expr => 'bzr-input.nix',
-  uri => 'bzr-repo',
-  update => 'jobs/bzr-update.sh',
+    type   => 'bzr',
+    expr   => 'bzr-input.nix',
+    uri    => 'bzr-repo',
+    update => 'jobs/bzr-update.sh',
 
-  # directories
-  datadir => $ctx{tmpdir},
-  testdir => $ctx{testdir},
-  jobsdir => $ctx{jobsdir},
+    # directories
+    datadir => $ctx{tmpdir},
+    testdir => $ctx{testdir},
+    jobsdir => $ctx{jobsdir},
 );
 
 done_testing;

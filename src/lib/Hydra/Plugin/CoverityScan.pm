@@ -15,7 +15,7 @@ sub isEnabled {
 sub buildFinished {
     my ($self, $build, $dependents) = @_;
 
-    my $cfg = $self->{config}->{coverityscan};
+    my $cfg    = $self->{config}->{coverityscan};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
     # Scan the job and see if it matches any of the Coverity Scan projects
@@ -28,7 +28,8 @@ sub buildFinished {
         next if $build->buildstatus == 4 || $build->buildstatus == 3;
 
         # Otherwise, select this Coverity project
-        $proj = $p; last;
+        $proj = $p;
+        last;
     }
 
     # Bail if there's no matching project
@@ -42,10 +43,10 @@ sub buildFinished {
 
     # Sanity checks
     die "coverity project name not configured" unless defined $project;
-    die "email must be specified for Coverity project '".$project."'"
-        unless defined $email;
-    die "access token must be specified for Coverity project '".$project."'"
-        unless defined $token;
+    die "email must be specified for Coverity project '" . $project . "'"
+      unless defined $email;
+    die "access token must be specified for Coverity project '" . $project . "'"
+      unless defined $token;
 
     # Get tarball locations
     my $storePath = ($build->buildoutputs)[0]->path;
@@ -55,7 +56,8 @@ sub buildFinished {
     opendir my $tarballs_handle, $tarballs or die;
     while (my $file = readdir $tarballs_handle) {
         next unless $file =~ /.*-coverity-int\.(tgz|lzma|xz|bz2|zip)$/;
-        $covTarball = "$tarballs/$file"; last;
+        $covTarball = "$tarballs/$file";
+        last;
     }
     closedir $tarballs_handle;
 
@@ -68,12 +70,12 @@ sub buildFinished {
     my @exts = qw(.xz .bz2 .lzma .zip .tgz);
     my ($dir, $file, $ext) = fileparse($covTarball, @exts);
     my $mimetype;
-    if ($ext eq '.xz') { $mimetype = "application/x-xz"; }
+    if    ($ext eq '.xz')   { $mimetype = "application/x-xz"; }
     elsif ($ext eq '.lzma') { $mimetype = "application/x-xz"; }
-    elsif ($ext eq '.zip') { $mimetype = "application/zip"; }
-    elsif ($ext eq '.bz2') { $mimetype = "application/x-bzip2"; }
-    elsif ($ext eq '.tgz') { $mimetype = "application/x-gzip"; }
-    else { die "couldn't parse extension of $covTarball"; }
+    elsif ($ext eq '.zip')  { $mimetype = "application/zip"; }
+    elsif ($ext eq '.bz2')  { $mimetype = "application/x-bzip2"; }
+    elsif ($ext eq '.tgz')  { $mimetype = "application/x-gzip"; }
+    else                    { die "couldn't parse extension of $covTarball"; }
 
     die "couldn't detect mimetype of $covTarball" unless defined $mimetype;
 
@@ -86,28 +88,27 @@ sub buildFinished {
     $version = $2 if $shortName =~ /^($pkgNameRE)-($versionRE)-coverity-int.*$/;
 
     die "CoverityScan.pm: Couldn't parse build version for upload! ($shortName)"
-        unless defined $version;
+      unless defined $version;
 
     # Submit build
     my $jobid = $build->id;
-    my $desc = "Hydra Coverity Build ($jobName) - $jobid:$version";
+    my $desc  = "Hydra Coverity Build ($jobName) - $jobid:$version";
 
     print STDERR "uploading $desc ($shortName) to Coverity Scan\n";
 
-    my $ua = LWP::UserAgent->new();
-    my $resp = $ua->post($scanurl,
-            Content_Type => 'form-data',
-            Content => [
-                project     => $project,
-                email       => $email,
-                token       => $token,
-                version     => $version,
-                description => $desc,
-                file        => [ $covTarball, $shortName,
-                    Content_Type => $mimetype,
-                ],
-            ],
-        );
+    my $ua   = LWP::UserAgent->new();
+    my $resp = $ua->post(
+        $scanurl,
+        Content_Type => 'form-data',
+        Content      => [
+            project     => $project,
+            email       => $email,
+            token       => $token,
+            version     => $version,
+            description => $desc,
+            file        => [ $covTarball, $shortName, Content_Type => $mimetype, ],
+        ],
+    );
 
     # The Coverity HTTP endpoint doesn't handle errors very well, and always
     # returns a 200 :(

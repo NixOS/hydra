@@ -27,12 +27,12 @@ sub registerValue {
 sub registerChild {
     my ($self, $parent, $attributePath) = @_;
     if ($parent ne "") {
-        $parent .= "."
+        $parent .= ".";
     }
 
     my $name = $parent . $attributePath;
-    if (!grep { $_ eq $name} @{$self->{"paths"}}) {
-        push(@{$self->{"paths"}}, $name);
+    if (!grep { $_ eq $name } @{ $self->{"paths"} }) {
+        push(@{ $self->{"paths"} }, $name);
     }
     return $name;
 }
@@ -41,7 +41,7 @@ sub splitPath {
     my ($s) = @_;
 
     if ($s eq "") {
-        return ('')
+        return ('');
     }
 
     return split(/\./, $s, -1);
@@ -49,7 +49,7 @@ sub splitPath {
 
 sub enumerate {
     my ($self) = @_;
-    my @paths = sort { length($a) <=> length($b) } @{$self->{"paths"}};
+    my @paths = sort { length($a) <=> length($b) } @{ $self->{"paths"} };
     return @paths;
 }
 

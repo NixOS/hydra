@@ -17,7 +17,8 @@ sub toBitBucketState {
     my ($buildStatus) = @_;
     if ($buildStatus == 0) {
         return "SUCCESSFUL";
-    } else {
+    }
+    else {
         return "FAILED";
     }
 }
@@ -25,36 +26,39 @@ sub toBitBucketState {
 sub common {
     my ($self, $topbuild, $dependents, $finished) = @_;
     my $bitbucket = $self->{config}->{bitbucket};
-    my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
+    my $baseurl   = $self->{config}->{'base_uri'} || "http://localhost:3000";
 
     foreach my $build ($topbuild, @{$dependents}) {
         my $jobName = showJobName $build;
-        my $evals = $topbuild->jobsetevals;
-        my $ua = LWP::UserAgent->new();
-        my $body = encode_json(
+        my $evals   = $topbuild->jobsetevals;
+        my $ua      = LWP::UserAgent->new();
+        my $body    = encode_json(
             {
-                state => $finished ? toBitBucketState($build->buildstatus) : "INPROGRESS",
-                url => "$baseurl/build/" . $build->id,
-                name => $jobName,
-                key => $build->id,
+                state       => $finished ? toBitBucketState($build->buildstatus) : "INPROGRESS",
+                url         => "$baseurl/build/" . $build->id,
+                name        => $jobName,
+                key         => $build->id,
                 description => "Hydra build #" . $build->id . " of $jobName",
-            });
+            }
+        );
         while (my $eval = $evals->next) {
-            foreach my $i ($eval->jobsetevalinputs){
+            foreach my $i ($eval->jobsetevalinputs) {
                 next unless defined $i;
 
                 # Skip if the emailResponsible field is disabled
-                my $input = $eval->jobset->jobsetinputs->find({name => $i->name });
+                my $input = $eval->jobset->jobsetinputs->find({ name => $i->name });
                 next unless $input->emailresponsible;
 
                 my $uri = $i->uri;
                 my $rev = $i->revision;
+
                 # Skip if the uri is not a bitbucket repo
                 next unless index($uri, 'bitbucket') != -1;
                 $uri =~ m![:/]([^/]+)/([^/]+?)?$!;
                 my $owner = $1;
-                my $repo = $2;
-                my $req = HTTP::Request->new('POST', "https://api.bitbucket.org/2.0/repositories/$owner/$repo/commit/$rev/statuses/build");
+                my $repo  = $2;
+                my $req   = HTTP::Request->new('POST',
+                    "https://api.bitbucket.org/2.0/repositories/$owner/$repo/commit/$rev/statuses/build");
                 $req->header('Content-Type' => 'application/json');
                 $req->authorization_basic($bitbucket->{username}, $bitbucket->{password});
                 $req->content($body);

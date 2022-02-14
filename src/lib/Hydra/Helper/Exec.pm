@@ -3,11 +3,11 @@ use strict;
 use IPC::Run;
 
 package Hydra::Helper::Exec;
-our @ISA = qw(Exporter);
+our @ISA    = qw(Exporter);
 our @EXPORT = qw(
-    captureStdoutStderr
-    captureStdoutStderrWithStdin
-    expectOkay
+  captureStdoutStderr
+  captureStdoutStderrWithStdin
+  expectOkay
 );
 
 sub expectOkay {
@@ -41,13 +41,13 @@ sub captureStdoutStderrWithStdin {
     my $stderr;
 
     eval {
-        local $SIG{ALRM} = sub { die "timeout\n" }; # NB: \n required
+        local $SIG{ALRM} = sub { die "timeout\n" };    # NB: \n required
         alarm $timeout;
         IPC::Run::run($cmd, \$stdin, \$stdout, \$stderr);
         alarm 0;
         1;
     } or do {
-        die unless $@ eq "timeout\n"; # propagate unexpected errors
+        die unless $@ eq "timeout\n";                  # propagate unexpected errors
         return (-1, $stdout, ($stderr // "") . "timeout\n");
     };
 

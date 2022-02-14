@@ -15,23 +15,31 @@ sub isEnabled {
 
 sub buildFinished {
     my ($self, $topbuild, $dependents) = @_;
-    my $cfg = $self->{config}->{circleci};
+    my $cfg    = $self->{config}->{circleci};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
     # Figure out to which branches to send notification.
     my %branches;
     foreach my $build ($topbuild, @{$dependents}) {
         my $prevBuild = getPreviousBuild($build);
-        my $jobName = showJobName $build;
+        my $jobName   = showJobName $build;
 
         foreach my $branch (@config) {
             my $force = $branch->{force};
             next unless $jobName =~ /^$branch->{jobs}$/;
 
             # If build is failed, don't trigger circleci
-            next if ! $force && $build->buildstatus != 0;
+            next if !$force && $build->buildstatus != 0;
 
-            my $fullUrl = "https://circleci.com/api/v1.1/project/" . $branch->{vcstype} . "/" . $branch->{username} . "/" . $branch->{project} . "/tree/" . $branch->{branch} . "?circle-token=" . $branch->{token};
+            my $fullUrl =
+                "https://circleci.com/api/v1.1/project/"
+              . $branch->{vcstype} . "/"
+              . $branch->{username} . "/"
+              . $branch->{project}
+              . "/tree/"
+              . $branch->{branch}
+              . "?circle-token="
+              . $branch->{token};
             $branches{$fullUrl} = 1;
         }
     }

@@ -16,7 +16,7 @@ Catalyst::Test->import('Hydra');
 my $db = Hydra::Model::DB->new;
 hydra_setup($db);
 
-my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
+my $project = $db->resultset('Projects')->create({ name => "tests", displayname => "", owner => "root" });
 
 my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
 

@@ -31,11 +31,11 @@ sub supportedInputTypes {
 
 sub _query {
     my ($url, $ua) = @_;
-    my $req = HTTP::Request->new('GET', $url);
-    my $res = $ua->request($req);
+    my $req     = HTTP::Request->new('GET', $url);
+    my $res     = $ua->request($req);
     my $content = $res->decoded_content;
     die "Error pulling from the gitlab pulls API: $content\n"
-        unless $res->is_success;
+      unless $res->is_success;
     return (decode_json $content, $res);
 }
 
@@ -45,11 +45,12 @@ sub _iterate {
 
     foreach my $pull (@$pulls_list) {
         $pull->{target_repo_url} = $target_repo_url;
-        $pulls->{$pull->{iid}} = $pull;
+        $pulls->{ $pull->{iid} } = $pull;
     }
+
     # TODO Make Link header parsing more robust!!!
     my @links = split ',', $res->header("Link");
-    my $next = "";
+    my $next  = "";
     foreach my $link (@links) {
         my ($url, $rel) = split ";", $link;
         if (trim($rel) eq 'rel="next"') {
@@ -80,14 +81,16 @@ sub fetchInput {
 
     _iterate($url, $baseUrl, \%pulls, $ua, $target_repo_url);
 
-    my $tempdir = File::Temp->newdir("gitlab-pulls" . "XXXXX", TMPDIR => 1);
+    my $tempdir  = File::Temp->newdir("gitlab-pulls" . "XXXXX", TMPDIR => 1);
     my $filename = "$tempdir/gitlab-pulls.json";
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
     print $fh encode_json \%pulls;
     close $fh;
     system("jq -S . < $filename > $tempdir/gitlab-pulls-sorted.json");
-    my $storePath = trim(`nix-store --add "$tempdir/gitlab-pulls-sorted.json"`
-        or die "cannot copy path $filename to the Nix store.\n");
+    my $storePath = trim(
+        `nix-store --add "$tempdir/gitlab-pulls-sorted.json"`
+          or die "cannot copy path $filename to the Nix store.\n"
+    );
     chomp $storePath;
     my $timestamp = time;
     return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };

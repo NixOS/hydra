@@ -9,7 +9,7 @@ sub process {
     $c->clear_encoding;
     my $type = $c->response->content_type();
     $c->response->content_type('text/plain; charset=utf-8')
-        if !$type || $c->response->content_type() eq "text/plain";
+      if !$type || $c->response->content_type() eq "text/plain";
     $c->response->body($c->stash->{plain}->{data});
 }
 

@@ -15,15 +15,15 @@ hydra_setup($db);
 
 # Tests the creation of a Hydra jobset using a svn checkout as input.
 testScmInput(
-  type => 'svn-checkout',
-  expr => 'svn-checkout-input.nix',
-  uri => 'svn-checkout-repo',
-  update => 'jobs/svn-checkout-update.sh',
+    type   => 'svn-checkout',
+    expr   => 'svn-checkout-input.nix',
+    uri    => 'svn-checkout-repo',
+    update => 'jobs/svn-checkout-update.sh',
 
-  # directories
-  datadir => $ctx{tmpdir},
-  testdir => $ctx{testdir},
-  jobsdir => $ctx{jobsdir},
+    # directories
+    datadir => $ctx{tmpdir},
+    testdir => $ctx{testdir},
+    jobsdir => $ctx{jobsdir},
 );
 
 done_testing;

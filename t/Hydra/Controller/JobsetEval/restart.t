@@ -22,15 +22,16 @@ my $db = Hydra::Model::DB->new;
 hydra_setup($db);
 
 # Create a user to log in to
-my $user = $db->resultset('Users')->create({ username => 'alice', emailaddress => 'root@invalid.org', password => '!' });
+my $user =
+  $db->resultset('Users')->create({ username => 'alice', emailaddress => 'root@invalid.org', password => '!' });
 $user->setPassword('foobar');
 $user->userroles->update_or_create({ role => 'admin' });
 
-my $project = $db->resultset('Projects')->create({name => 'tests', displayname => 'Tests', owner => 'alice'});
+my $project = $db->resultset('Projects')->create({ name => 'tests', displayname => 'Tests', owner => 'alice' });
 
 my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
+ok(evalSucceeds($jobset), "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 
 my ($eval, @evals) = $jobset->jobsetevals;
@@ -40,24 +41,29 @@ isnt($eval, undef, "We have an evaluation to restart");
 
 # Make the build be aborted
 isnt($abortedBuild, undef, "We should have the aborted build to restart");
-$abortedBuild->update({
-    finished => 1,
-    buildstatus => 3,
-    stoptime => 1,
-    starttime => 1,
- });
+$abortedBuild->update(
+    {
+        finished    => 1,
+        buildstatus => 3,
+        stoptime    => 1,
+        starttime   => 1,
+    }
+);
 
 # Make the build be failed
 isnt($failedBuild, undef, "We should have the failed build to restart");
-$failedBuild->update({
-    finished => 1,
-    buildstatus => 5,
-    stoptime => 1,
-    starttime => 1,
- });
+$failedBuild->update(
+    {
+        finished    => 1,
+        buildstatus => 5,
+        stoptime    => 1,
+        starttime   => 1,
+    }
+);
 
 # Login and save cookie for future requests
-my $req = request(POST '/login',
+my $req = request(
+    POST '/login',
     Referer => 'http://localhost/',
     Content => {
         username => 'alice',
@@ -67,12 +73,12 @@ my $req = request(POST '/login',
 is($req->code, 302, "Logging in gets a 302");
 my $cookie = $req->header("set-cookie");
 
-
 subtest 'Restart all aborted JobsetEval builds' => sub {
-    my $restart = request(PUT '/eval/' . $eval->id . '/restart-aborted',
-        Accept => 'application/json',
+    my $restart = request(
+        PUT '/eval/' . $eval->id . '/restart-aborted',
+        Accept       => 'application/json',
         Content_Type => 'application/json',
-        Cookie => $cookie,
+        Cookie       => $cookie,
     );
     is($restart->code, 302, "Restarting 302's back to the build");
     is($restart->header("location"), "http://localhost/eval/" . $eval->id);
@@ -85,10 +91,11 @@ subtest 'Restart all aborted JobsetEval builds' => sub {
 };
 
 subtest 'Restart all failed JobsetEval builds' => sub {
-    my $restart = request(PUT '/eval/' . $eval->id . '/restart-failed',
-        Accept => 'application/json',
+    my $restart = request(
+        PUT '/eval/' . $eval->id . '/restart-failed',
+        Accept       => 'application/json',
         Content_Type => 'application/json',
-        Cookie => $cookie,
+        Cookie       => $cookie,
     );
     is($restart->code, 302, "Restarting 302's back to the build");
     is($restart->header("location"), "http://localhost/eval/" . $eval->id);

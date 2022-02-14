@@ -11,22 +11,22 @@ use Cwd qw(abs_path getcwd);
 use Hydra::Helper::Exec;
 use CliRunners;
 
-our @ISA = qw(Exporter);
+our @ISA    = qw(Exporter);
 our @EXPORT = qw(
-    createBaseJobset
-    createJobsetWithOneInput
-    evalFails
-    evalSucceeds
-    hydra_setup
-    nrBuildsForJobset
-    nrQueuedBuildsForJobset
-    queuedBuildsForJobset
-    runBuild
-    sendNotifications
-    test_context
-    test_init
-    updateRepository
-    write_file
+  createBaseJobset
+  createJobsetWithOneInput
+  evalFails
+  evalSucceeds
+  hydra_setup
+  nrBuildsForJobset
+  nrQueuedBuildsForJobset
+  queuedBuildsForJobset
+  runBuild
+  sendNotifications
+  test_context
+  test_init
+  updateRepository
+  write_file
 );
 
 # Set up the environment for running tests.
@@ -46,10 +46,10 @@ sub test_init {
 
     return (
         context => $ctx,
-        tmpdir => $ctx->tmpdir,
+        tmpdir  => $ctx->tmpdir,
         testdir => $ctx->testdir,
         jobsdir => $ctx->jobsdir
-    )
+    );
 }
 
 sub write_file {
@@ -66,31 +66,32 @@ sub hydra_setup {
 
 sub nrBuildsForJobset {
     my ($jobset) = @_;
-    return $jobset->builds->search({},{})->count ;
+    return $jobset->builds->search({}, {})->count;
 }
 
 sub queuedBuildsForJobset {
     my ($jobset) = @_;
-    return $jobset->builds->search({finished => 0});
+    return $jobset->builds->search({ finished => 0 });
 }
 
 sub nrQueuedBuildsForJobset {
     my ($jobset) = @_;
-    return queuedBuildsForJobset($jobset)->count ;
+    return queuedBuildsForJobset($jobset)->count;
 }
 
 sub createBaseJobset {
     my ($jobsetName, $nixexprpath, $jobspath) = @_;
 
-    my $db = Hydra::Model::DB->new;
-    my $project = $db->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
-    my $jobset = $project->jobsets->create({name => $jobsetName, nixexprinput => "jobs", nixexprpath => $nixexprpath, emailoverride => ""});
+    my $db      = Hydra::Model::DB->new;
+    my $project = $db->resultset('Projects')->update_or_create({ name => "tests", displayname => "", owner => "root" });
+    my $jobset  = $project->jobsets->create(
+        { name => $jobsetName, nixexprinput => "jobs", nixexprpath => $nixexprpath, emailoverride => "" });
 
     my $jobsetinput;
     my $jobsetinputals;
 
-    $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
-    $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => $jobspath});
+    $jobsetinput    = $jobset->jobsetinputs->create({ name => "jobs", type => "path" });
+    $jobsetinputals = $jobsetinput->jobsetinputalts->create({ altnr => 0, value => $jobspath });
 
     return $jobset;
 }
@@ -102,8 +103,8 @@ sub createJobsetWithOneInput {
     my $jobsetinput;
     my $jobsetinputals;
 
-    $jobsetinput = $jobset->jobsetinputs->create({name => $name, type => $type});
-    $jobsetinputals = $jobsetinput->jobsetinputalts->create({altnr => 0, value => $uri});
+    $jobsetinput    = $jobset->jobsetinputs->create({ name => $name, type => $type });
+    $jobsetinputals = $jobsetinput->jobsetinputalts->create({ altnr => 0, value => $uri });
 
     return $jobset;
 }

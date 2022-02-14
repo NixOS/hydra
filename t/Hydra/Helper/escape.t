@@ -7,14 +7,14 @@ use Hydra::Helper::Escape;
 
 subtest "checking individual attribute set elements" => sub {
     my %values = (
-        "" => '""',
-        "." => '"."',
-        "foobar" => '"foobar"',
-        "foo.bar" => '"foo.bar"',
-        "🌮" => '"🌮"',
-        'foo"bar' => '"foo\"bar"',
+        ""         => '""',
+        "."        => '"."',
+        "foobar"   => '"foobar"',
+        "foo.bar"  => '"foo.bar"',
+        "🌮"        => '"🌮"',
+        'foo"bar'  => '"foo\"bar"',
         'foo\\bar' => '"foo\\\\bar"',
-        '$bar' => '"\\$bar"',
+        '$bar'     => '"\\$bar"',
     );
 
     for my $input (keys %values) {
@@ -25,15 +25,15 @@ subtest "checking individual attribute set elements" => sub {
 
 subtest "escaping path components of a nested attribute" => sub {
     my %values = (
-        "" => '""',
-        "." => '"".""',
-        "...." => '""."".""."".""',
-        "foobar" => '"foobar"',
-        "foo.bar" => '"foo"."bar"',
-        "🌮" => '"🌮"',
-        'foo"bar' => '"foo\"bar"',
+        ""         => '""',
+        "."        => '"".""',
+        "...."     => '""."".""."".""',
+        "foobar"   => '"foobar"',
+        "foo.bar"  => '"foo"."bar"',
+        "🌮"        => '"🌮"',
+        'foo"bar'  => '"foo\"bar"',
         'foo\\bar' => '"foo\\\\bar"',
-        '$bar' => '"\\$bar"',
+        '$bar'     => '"\\$bar"',
     );
 
     for my $input (keys %values) {

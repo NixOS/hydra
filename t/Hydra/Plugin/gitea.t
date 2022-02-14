@@ -9,7 +9,8 @@ my %ctx = test_init(
     <gitea_authorization>
     root=d7f16a3412e01a43a414535b16007c6931d3a9c7
     </gitea_authorization>
-|);
+|
+);
 
 require Hydra::Schema;
 require Hydra::Model::DB;
@@ -28,14 +29,14 @@ my $jobset = createJobsetWithOneInput('gitea', 'git-input.nix', 'src', 'git', $u
 
 sub addStringInput {
     my ($jobset, $name, $value) = @_;
-    my $input = $jobset->jobsetinputs->create({name => $name, type => "string"});
-    $input->jobsetinputalts->create({value => $value, altnr => 0});
+    my $input = $jobset->jobsetinputs->create({ name => $name, type => "string" });
+    $input->jobsetinputalts->create({ value => $value, altnr => 0 });
 }
 
-addStringInput($jobset, "gitea_repo_owner", "root");
-addStringInput($jobset, "gitea_repo_name", "foo");
+addStringInput($jobset, "gitea_repo_owner",  "root");
+addStringInput($jobset, "gitea_repo_name",   "foo");
 addStringInput($jobset, "gitea_status_repo", "src");
-addStringInput($jobset, "gitea_http_url", "http://localhost:8282/gitea");
+addStringInput($jobset, "gitea_http_url",    "http://localhost:8282/gitea");
 
 updateRepository('gitea', "$ctx{testdir}/jobs/git-update.sh", $scratch);
 
@@ -49,11 +50,13 @@ my $filename = $ENV{'HYDRA_DATA'} . "/giteaout.json";
 my $pid;
 if (!defined($pid = fork())) {
     die "Cannot fork(): $!";
-} elsif ($pid == 0) {
+}
+elsif ($pid == 0) {
     exec("python3 $ctx{jobsdir}/server.py $filename");
-} else {
+}
+else {
     my $newbuild = $db->resultset('Builds')->find($build->id);
-    is($newbuild->finished, 1, "Build should be finished.");
+    is($newbuild->finished,    1, "Build should be finished.");
     is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");
     ok(sendNotifications(), "Sent notifications");
 
@@ -63,16 +66,16 @@ if (!defined($pid = fork())) {
 # We expect $ctx{jobsdir}/server.py to create the file at $filename, but the time it
 # takes to do so is non-deterministic. We need to give it _some_ time to hopefully
 # settle -- but not too much that it drastically slows things down.
-for my $i (1..10) {
-    if (! -f $filename) {
-       diag("$filename does not yet exist");
-       sleep(1);
+for my $i (1 .. 10) {
+    if (!-f $filename) {
+        diag("$filename does not yet exist");
+        sleep(1);
     }
 }
 
-open(my $fh, "<", $filename) or die ("Can't open(): $!\n");
-my $i = 0;
-my $uri = <$fh>;
+open(my $fh, "<", $filename) or die("Can't open(): $!\n");
+my $i    = 0;
+my $uri  = <$fh>;
 my $data = <$fh>;
 
 ok(index($uri, "gitea/api/v1/repos/root/foo/statuses") != -1, "Correct URL");

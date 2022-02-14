@@ -11,32 +11,15 @@ my $ctx = test_context();
 
 my $db = $ctx->db();
 
-my $builds = $ctx->makeAndEvaluateJobset(
-    expression => "basic.nix"
-);
+my $builds = $ctx->makeAndEvaluateJobset(expression => "basic.nix");
 
 subtest "Parsing build_queued" => sub {
-    like(
-        dies { Hydra::Event::parse_payload("build_queued", "") },
-        qr/one argument/,
-        "empty payload"
-    );
-    like(
-        dies { Hydra::Event::parse_payload("build_queued", "abc123\tabc123") },
-        qr/only one argument/,
-        "two arguments"
-    );
+    like(dies { Hydra::Event::parse_payload("build_queued", "") }, qr/one argument/, "empty payload");
+    like(dies { Hydra::Event::parse_payload("build_queued", "abc123\tabc123") }, qr/only one argument/,
+        "two arguments");
 
-    like(
-        dies { Hydra::Event::parse_payload("build_queued", "abc123") },
-        qr/should be an integer/,
-        "not an integer"
-    );
-    is(
-        Hydra::Event::parse_payload("build_queued", "19"),
-        Hydra::Event::BuildQueued->new(19),
-        "Valid parse"
-    );
+    like(dies { Hydra::Event::parse_payload("build_queued", "abc123") }, qr/should be an integer/, "not an integer");
+    is(Hydra::Event::parse_payload("build_queued", "19"), Hydra::Event::BuildQueued->new(19), "Valid parse");
 };
 
 subtest "interested" => sub {
@@ -44,16 +27,16 @@ subtest "interested" => sub {
 
     subtest "A plugin which does not implement the API" => sub {
         my $plugin = {};
-        my $mock = mock_obj $plugin => ();
+        my $mock   = mock_obj $plugin => ();
 
         is($event->interestedIn($plugin), 0, "The plugin is not interesting.");
     };
 
     subtest "A plugin which does implement the API" => sub {
         my $plugin = {};
-        my $mock = mock_obj $plugin => (
+        my $mock   = mock_obj $plugin => (
             add => [
-                "buildQueued" => sub {}
+                "buildQueued" => sub { }
             ]
         );
 
@@ -74,7 +57,7 @@ subtest "load" => sub {
     # global passedBuild variable.
     my $passedBuild;
     my $plugin = {};
-    my $mock = mock_obj $plugin => (
+    my $mock   = mock_obj $plugin => (
         add => [
             "buildQueued" => sub {
                 my ($self, $build) = @_;

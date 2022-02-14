@@ -15,15 +15,15 @@ hydra_setup($db);
 
 # Tests the creation of a Hydra jobset using a svn repo as input.
 testScmInput(
-  type => 'svn',
-  expr => 'svn-input.nix',
-  uri => 'svn-repo',
-  update => 'jobs/svn-update.sh',
+    type   => 'svn',
+    expr   => 'svn-input.nix',
+    uri    => 'svn-repo',
+    update => 'jobs/svn-update.sh',
 
-  # directories
-  datadir => $ctx{tmpdir},
-  testdir => $ctx{testdir},
-  jobsdir => $ctx{jobsdir},
+    # directories
+    datadir => $ctx{tmpdir},
+    testdir => $ctx{testdir},
+    jobsdir => $ctx{jobsdir},
 );
 
 done_testing;

@@ -39,16 +39,16 @@ sub fetchInput {
 
     # init local hg clone
 
-    my $stdout = ""; my $stderr = "";
+    my $stdout = "";
+    my $stderr = "";
 
     my $clonePath = _clonePath($uri);
 
     open(my $lock, ">", "$clonePath.lock") or die;
-    flock($lock, LOCK_EX) or die;
+    flock($lock, LOCK_EX)                  or die;
 
-    if (! -d $clonePath) {
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            "hg", "clone", $uri, $clonePath);
+    if (!-d $clonePath) {
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600, "hg", "clone", $uri, $clonePath);
         die "error cloning mercurial repo at `$uri':\n$stderr" if $res;
     }
 
@@ -57,29 +57,29 @@ sub fetchInput {
     (my $res, $stdout, $stderr) = captureStdoutStderr(600, "hg", "pull");
     die "error pulling latest change mercurial repo at `$uri':\n$stderr" if $res;
 
-    (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
-        "hg", "log", "-r", $id, "--template", "{node} {rev} {branch}");
+    (my $res1, $stdout, $stderr) =
+      captureStdoutStderr(600, "hg", "log", "-r", $id, "--template", "{node} {rev} {branch}");
     die "error getting branch and revision of $id from `$uri':\n$stderr" if $res1;
 
     my ($revision, $revCount, $branch) = split ' ', $stdout;
 
     my $storePath;
     my $sha256;
-    (my $cachedInput) = $self->{db}->resultset('CachedHgInputs')->search(
-        {uri => $uri, branch => $branch, revision => $revision});
+    (my $cachedInput) =
+      $self->{db}->resultset('CachedHgInputs')->search({ uri => $uri, branch => $branch, revision => $revision });
 
     addTempRoot($cachedInput->storepath) if defined $cachedInput;
 
     if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
-        $sha256 = $cachedInput->sha256hash;
-    } else {
+        $sha256    = $cachedInput->sha256hash;
+    }
+    else {
         print STDERR "checking out Mercurial input from $uri $branch revision $revision\n";
         $ENV{"NIX_HASH_ALGO"} = "sha256";
-        $ENV{"PRINT_PATH"} = "1";
+        $ENV{"PRINT_PATH"}    = "1";
 
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            "nix-prefetch-hg", $clonePath, $revision);
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600, "nix-prefetch-hg", $clonePath, $revision);
         die "cannot check out Mercurial repository `$uri':\n$stderr" if $res;
 
         ($sha256, $storePath) = split ' ', $stdout;
@@ -87,25 +87,29 @@ sub fetchInput {
         # FIXME: time window between nix-prefetch-hg and addTempRoot.
         addTempRoot($storePath);
 
-        $self->{db}->txn_do(sub {
-            $self->{db}->resultset('CachedHgInputs')->update_or_create(
-                { uri => $uri
-                , branch => $branch
-                , revision => $revision
-                , sha256hash => $sha256
-                , storepath => $storePath
-                });
-            });
+        $self->{db}->txn_do(
+            sub {
+                $self->{db}->resultset('CachedHgInputs')->update_or_create(
+                    {
+                        uri        => $uri,
+                        branch     => $branch,
+                        revision   => $revision,
+                        sha256hash => $sha256,
+                        storepath  => $storePath
+                    }
+                );
+            }
+        );
     }
 
-    return
-        { uri => $uri
-        , branch => $branch
-        , storePath => $storePath
-        , sha256hash => $sha256
-        , revision => $revision
-        , revCount => int($revCount)
-        };
+    return {
+        uri        => $uri,
+        branch     => $branch,
+        storePath  => $storePath,
+        sha256hash => $sha256,
+        revision   => $revision,
+        revCount   => int($revCount)
+    };
 }
 
 sub getCommits {
@@ -121,8 +125,14 @@ sub getCommits {
     chdir $clonePath or die $!;
 
     my $out;
-    IPC::Run::run(["hg", "log", "--template", "{node|short}\t{author|person}\t{author|email}\n", "-r", "$rev1::$rev2", $clonePath], \undef, \$out)
-        or die "cannot get mercurial logs: $?";
+    IPC::Run::run(
+        [
+            "hg", "log",          "--template", "{node|short}\t{author|person}\t{author|email}\n",
+            "-r", "$rev1::$rev2", $clonePath
+        ],
+        \undef,
+        \$out
+    ) or die "cannot get mercurial logs: $?";
 
     my $res = [];
     foreach my $line (split /\n/, $out) {
@@ -134,6 +144,5 @@ sub getCommits {
 
     return $res;
 }
-
 
 1;

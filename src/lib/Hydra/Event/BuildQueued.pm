@@ -3,7 +3,7 @@ package Hydra::Event::BuildQueued;
 use strict;
 use warnings;
 
-sub parse :prototype(@) {
+sub parse : prototype(@) {
     unless (@_ == 1) {
         die "build_queued: payload takes only one argument, but ", scalar(@_), " were given";
     }
@@ -11,7 +11,7 @@ sub parse :prototype(@) {
     my ($build_id) = @_;
 
     unless ($build_id =~ /^\d+$/) {
-        die "build_queued: payload argument should be an integer, but '", $build_id, "' was given"
+        die "build_queued: payload argument should be an integer, but '", $build_id, "' was given";
     }
 
     return Hydra::Event::BuildQueued->new(int($build_id));
@@ -21,7 +21,7 @@ sub new {
     my ($self, $id) = @_;
     return bless {
         "build_id" => $id,
-        "build" => undef
+        "build"    => undef
     }, $self;
 }
 
@@ -35,7 +35,7 @@ sub load {
 
     if (!defined($self->{"build"})) {
         $self->{"build"} = $db->resultset('Builds')->find($self->{"build_id"})
-            or die "build $self->{'build_id'} does not exist\n";
+          or die "build $self->{'build_id'} does not exist\n";
     }
 }
 

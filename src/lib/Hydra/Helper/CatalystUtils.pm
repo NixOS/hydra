@@ -7,33 +7,33 @@ use Exporter;
 use ReadonlyX;
 use Nix::Store;
 
-our @ISA = qw(Exporter);
+our @ISA    = qw(Exporter);
 our @EXPORT = qw(
-    getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild
-    searchBuildsAndEvalsForJobset
-    error notFound gone accessDenied badRequest
-    forceLogin requireUser requireProjectOwner requireRestartPrivileges requireAdmin requirePost isAdmin isProjectOwner
-    requireBumpPrivileges
-    requireCancelBuildPrivileges
-    trim
-    getLatestFinishedEval getFirstEval
-    paramToList
-    backToReferer
-    $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE $userNameRE $inputNameRE
-    @buildListColumns
-    parseJobsetName
-    showJobName
-    showStatus
-    getResponsibleAuthors
-    setCacheHeaders
-    approxTableSize
-    requireLocalStore
-    dbh
+  getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild
+  searchBuildsAndEvalsForJobset
+  error notFound gone accessDenied badRequest
+  forceLogin requireUser requireProjectOwner requireRestartPrivileges requireAdmin requirePost isAdmin isProjectOwner
+  requireBumpPrivileges
+  requireCancelBuildPrivileges
+  trim
+  getLatestFinishedEval getFirstEval
+  paramToList
+  backToReferer
+  $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE $userNameRE $inputNameRE
+  @buildListColumns
+  parseJobsetName
+  showJobName
+  showStatus
+  getResponsibleAuthors
+  setCacheHeaders
+  approxTableSize
+  requireLocalStore
+  dbh
 );
 
-
 # Columns from the Builds table needed to render build lists.
-Readonly::Array our @buildListColumns => ('id', 'finished', 'timestamp', 'stoptime', 'jobset_id', 'job', 'nixname', 'system', 'buildstatus', 'releasename');
+Readonly::Array our @buildListColumns =>
+  ('id', 'finished', 'timestamp', 'stoptime', 'jobset_id', 'job', 'nixname', 'system', 'buildstatus', 'releasename');
 
 sub getBuild {
     my ($c, $id) = @_;
@@ -41,80 +41,85 @@ sub getBuild {
     return $build;
 }
 
-
 sub getPreviousBuild {
     my ($build) = @_;
     return undef if !defined $build;
+
     # FIXME: slow
     return $build->jobset->builds->search(
-      { finished => 1
-      , system => $build->system
-      , 'me.id' =>  { '<' => $build->id }
-      , job => $build->job
-      , -not => { buildstatus => { -in => [4, 3]} }
-      }, { rows => 1, order_by => "me.id DESC" })->single;
+        {
+            finished => 1,
+            system   => $build->system,
+            'me.id'  => { '<' => $build->id },
+            job      => $build->job,
+            -not     => { buildstatus => { -in => [ 4, 3 ] } }
+        },
+        { rows => 1, order_by => "me.id DESC" }
+    )->single;
 }
-
 
 sub getNextBuild {
     my ($c, $build) = @_;
     return undef if !defined $build;
 
     (my $nextBuild) = $c->model('DB::Builds')->search(
-      { finished => 1
-      , system => $build->system
-      , jobset_id => $build->get_column('jobset_id')
-      , job => $build->get_column('job')
-      , 'me.id' =>  { '>' => $build->id }
-      }, {rows => 1, order_by => "me.id ASC"});
+        {
+            finished  => 1,
+            system    => $build->system,
+            jobset_id => $build->get_column('jobset_id'),
+            job       => $build->get_column('job'),
+            'me.id'   => { '>' => $build->id }
+        },
+        { rows => 1, order_by => "me.id ASC" }
+    );
 
     return $nextBuild;
 }
-
 
 sub getPreviousSuccessfulBuild {
     my ($c, $build) = @_;
     return undef if !defined $build;
 
     (my $prevBuild) = $c->model('DB::Builds')->search(
-      { finished => 1
-      , system => $build->system
-      , jobset_id => $build->get_column('jobset_id')
-      , job => $build->get_column('job')
-      , buildstatus => 0
-      , 'me.id' =>  { '<' => $build->id }
-      }, {rows => 1, order_by => "me.id DESC"});
+        {
+            finished    => 1,
+            system      => $build->system,
+            jobset_id   => $build->get_column('jobset_id'),
+            job         => $build->get_column('job'),
+            buildstatus => 0,
+            'me.id'     => { '<' => $build->id }
+        },
+        { rows => 1, order_by => "me.id DESC" }
+    );
 
     return $prevBuild;
 }
-
 
 sub searchBuildsAndEvalsForJobset {
     my ($jobset, $condition, $maxBuilds) = @_;
 
     my @evals = $jobset->jobsetevals->search(
-        { hasnewbuilds => 1},
-        { order_by => "id desc",
-        rows => 20
-    });
+        { hasnewbuilds => 1 },
+        {
+            order_by => "id desc",
+            rows     => 20
+        }
+    );
 
     my $evals = {};
     my %builds;
     my $nrBuilds = 0;
 
     foreach my $eval (@evals) {
-        my @allBuilds = $eval->builds->search(
-            $condition,
-            { columns => ['id', 'job', 'finished', 'buildstatus'] }
-        );
+        my @allBuilds = $eval->builds->search($condition, { columns => [ 'id', 'job', 'finished', 'buildstatus' ] });
 
         foreach my $build (@allBuilds) {
             my $jobName = $build->get_column('job');
 
-            $evals->{$eval->id}->{timestamp} = $eval->timestamp;
-            $evals->{$eval->id}->{builds}->{$jobName} = {
-                id => $build->id,
-                finished => $build->finished,
+            $evals->{ $eval->id }->{timestamp} = $eval->timestamp;
+            $evals->{ $eval->id }->{builds}->{$jobName} = {
+                id          => $build->id,
+                finished    => $build->finished,
                 buildstatus => $build->buildstatus
             };
             $builds{$jobName} = 1;
@@ -126,26 +131,22 @@ sub searchBuildsAndEvalsForJobset {
     return ($evals, \%builds);
 }
 
-
 sub error {
     my ($c, $msg, $status) = @_;
     $c->response->status($status) if defined $status;
     $c->error($msg);
-    $c->detach; # doesn't return
+    $c->detach;    # doesn't return
 }
-
 
 sub notFound {
     my ($c, $msg) = @_;
     error($c, $msg, 404);
 }
 
-
 sub gone {
     my ($c, $msg) = @_;
     error($c, $msg, 410);
 }
-
 
 sub accessDenied {
     my ($c, $msg) = @_;
@@ -164,13 +165,11 @@ sub backToReferer {
     $c->detach;
 }
 
-
 sub forceLogin {
     my ($c) = @_;
     $c->session->{referer} = $c->request->uri;
     accessDenied($c, "This page requires you to sign in.");
 }
-
 
 sub requireUser {
     my ($c) = @_;
@@ -179,11 +178,10 @@ sub requireUser {
 
 sub isProjectOwner {
     my ($c, $project) = @_;
-    return
-        $c->user_exists &&
-        (isAdmin($c) ||
-         $c->user->username eq $project->owner->username ||
-         defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
+    return $c->user_exists
+      && ( isAdmin($c)
+        || $c->user->username eq $project->owner->username
+        || defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
 }
 
 sub hasCancelBuildRole {
@@ -193,18 +191,18 @@ sub hasCancelBuildRole {
 
 sub mayCancelBuild {
     my ($c, $project) = @_;
-    return
-        $c->user_exists &&
-        (isAdmin($c) ||
-         hasCancelBuildRole($c) ||
-         isProjectOwner($c, $project));
+    return $c->user_exists
+      && ( isAdmin($c)
+        || hasCancelBuildRole($c)
+        || isProjectOwner($c, $project));
 }
 
 sub requireCancelBuildPrivileges {
     my ($c, $project) = @_;
     requireUser($c);
-    accessDenied($c, "Only the project members, administrators, and accounts with cancel-build privileges can perform this operation.")
-        unless mayCancelBuild($c, $project);
+    accessDenied($c,
+"Only the project members, administrators, and accounts with cancel-build privileges can perform this operation."
+    ) unless mayCancelBuild($c, $project);
 }
 
 sub hasBumpJobsRole {
@@ -214,18 +212,18 @@ sub hasBumpJobsRole {
 
 sub mayBumpJobs {
     my ($c, $project) = @_;
-    return
-        $c->user_exists &&
-        (isAdmin($c) ||
-         hasBumpJobsRole($c) ||
-         isProjectOwner($c, $project));
+    return $c->user_exists
+      && ( isAdmin($c)
+        || hasBumpJobsRole($c)
+        || isProjectOwner($c, $project));
 }
 
 sub requireBumpPrivileges {
     my ($c, $project) = @_;
     requireUser($c);
-    accessDenied($c, "Only the project members, administrators, and accounts with bump-to-front privileges can perform this operation.")
-        unless mayBumpJobs($c, $project);
+    accessDenied($c,
+"Only the project members, administrators, and accounts with bump-to-front privileges can perform this operation."
+    ) unless mayBumpJobs($c, $project);
 }
 
 sub hasRestartJobsRole {
@@ -235,27 +233,26 @@ sub hasRestartJobsRole {
 
 sub mayRestartJobs {
     my ($c, $project) = @_;
-    return
-        $c->user_exists &&
-        (isAdmin($c) ||
-         hasRestartJobsRole($c) ||
-         isProjectOwner($c, $project));
+    return $c->user_exists
+      && ( isAdmin($c)
+        || hasRestartJobsRole($c)
+        || isProjectOwner($c, $project));
 }
 
 sub requireRestartPrivileges {
     my ($c, $project) = @_;
     requireUser($c);
-    accessDenied($c, "Only the project members, administrators, and accounts with restart-jobs privileges can perform this operation.")
-        unless mayRestartJobs($c, $project);
+    accessDenied($c,
+"Only the project members, administrators, and accounts with restart-jobs privileges can perform this operation."
+    ) unless mayRestartJobs($c, $project);
 }
 
 sub requireProjectOwner {
     my ($c, $project) = @_;
     requireUser($c);
     accessDenied($c, "Only the project members or administrators can perform this operation.")
-        unless isProjectOwner($c, $project);
+      unless isProjectOwner($c, $project);
 }
-
 
 sub isAdmin {
     my ($c) = @_;
@@ -266,15 +263,13 @@ sub requireAdmin {
     my ($c) = @_;
     requireUser($c);
     accessDenied($c, "Only administrators can perform this operation.")
-        unless isAdmin($c);
+      unless isAdmin($c);
 }
-
 
 sub requirePost {
     my ($c) = @_;
     error($c, "Request must be POSTed.") if $c->request->method ne "POST";
 }
-
 
 sub trim {
     my $s = shift // "";
@@ -282,25 +277,24 @@ sub trim {
     return $s;
 }
 
-
 sub getLatestFinishedEval {
     my ($jobset) = @_;
-    my ($eval) = $jobset->jobsetevals->search(
+    my ($eval)   = $jobset->jobsetevals->search(
         { hasnewbuilds => 1 },
-        { order_by => "id DESC", rows => 1
-        , where => \ "not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0)"
-        });
+        {
+            order_by => "id DESC",
+            rows     => 1,
+            where    => \
+"not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0)"
+        }
+    );
     return $eval;
 }
 
-
 sub getFirstEval {
     my ($build) = @_;
-    return $build->jobsetevals->search(
-        { hasnewbuilds => 1},
-        { rows => 1, order_by => ["id"] })->single;
+    return $build->jobsetevals->search({ hasnewbuilds => 1 }, { rows => 1, order_by => ["id"] })->single;
 }
-
 
 # Catalyst request parameters can be an array or a scalar or
 # undefined, making them annoying to handle.  So this utility function
@@ -312,7 +306,6 @@ sub paramToList {
     return @$x if ref($x) eq 'ARRAY';
     return ($x);
 }
-
 
 # Security checking of filenames.
 Readonly::Scalar our $pathCompRE    => "(?:[A-Za-z0-9-\+\._\$][A-Za-z0-9-\+\._\$:]*)";
@@ -326,13 +319,11 @@ Readonly::Scalar our $systemRE      => "(?:[a-z0-9_]+-[a-z0-9_]+)";
 Readonly::Scalar our $userNameRE    => "(?:[a-z][a-z0-9_\.]*)";
 Readonly::Scalar our $inputNameRE   => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 
-
 sub parseJobsetName {
     my ($s) = @_;
     $s =~ /^($projectNameRE):(\.?$jobsetNameRE)$/ or die "invalid jobset specifier ‘$s’\n";
     return ($1, $2);
 }
-
 
 sub showJobName {
     my ($build) = @_;
@@ -340,12 +331,11 @@ sub showJobName {
     return $jobset->get_column('project') . ":" . $jobset->get_column('name') . ":" . $build->get_column('job');
 }
 
-
 sub showStatus {
     my ($build) = @_;
 
     my $status = "Failed";
-    if ($build->buildstatus == 0) { $status = "Success"; }
+    if    ($build->buildstatus == 0) { $status = "Success"; }
     elsif ($build->buildstatus == 1) { $status = "Failed"; }
     elsif ($build->buildstatus == 2) { $status = "Dependency failed"; }
     elsif ($build->buildstatus == 4) { $status = "Cancelled"; }
@@ -353,7 +343,6 @@ sub showStatus {
 
     return $status;
 }
-
 
 # Determine who broke/fixed the build.
 sub getResponsibleAuthors {
@@ -367,7 +356,7 @@ sub getResponsibleAuthors {
     my @emailable_authors;
 
     my $prevEval = getFirstEval($prevBuild);
-    my $eval = getFirstEval($build);
+    my $eval     = getFirstEval($build);
 
     foreach my $curInput ($eval->jobsetevalinputs) {
         next unless ($curInput->type eq "git" || $curInput->type eq "hg");
@@ -380,12 +369,14 @@ sub getResponsibleAuthors {
 
         my @commits;
         foreach my $plugin (@{$plugins}) {
-            push @commits, @{$plugin->getCommits($curInput->type, $curInput->uri, $prevInput->revision, $curInput->revision)};
+            push @commits,
+              @{ $plugin->getCommits($curInput->type, $curInput->uri, $prevInput->revision, $curInput->revision) };
         }
 
         foreach my $commit (@commits) {
+
             #print STDERR "$commit->{revision} by $commit->{author}\n";
-            $authors{$commit->{author}} = $commit->{email};
+            $authors{ $commit->{author} } = $commit->{email};
             my $inputSpec = $build->jobset->jobsetinputs->find({ name => $curInput->name });
             push @emailable_authors, $commit->{email} if $inputSpec && $inputSpec->emailresponsible;
             $nrCommits++;
@@ -395,7 +386,6 @@ sub getResponsibleAuthors {
     return (\%authors, $nrCommits, \@emailable_authors);
 }
 
-
 # Set HTTP headers for the Nix binary cache.
 sub setCacheHeaders {
     my ($c, $expiration) = @_;
@@ -403,13 +393,12 @@ sub setCacheHeaders {
     delete $c->response->cookies->{hydra_session};
 }
 
-
 sub approxTableSize {
     my ($c, $name) = @_;
-    return $c->model('DB')->schema->storage->dbh->selectrow_hashref(
-        "select reltuples::int from pg_class where relname = lower(?)", { }, $name)->{"reltuples"};
+    return $c->model('DB')
+      ->schema->storage->dbh->selectrow_hashref("select reltuples::int from pg_class where relname = lower(?)",
+        {}, $name)->{"reltuples"};
 }
-
 
 sub requireLocalStore {
     my ($c) = @_;
@@ -417,11 +406,9 @@ sub requireLocalStore {
     notFound($c, "Nix channels are not supported by this Hydra server.") if !Hydra::Helper::Nix::isLocalStore();
 }
 
-
 sub dbh {
     my ($c) = @_;
     return $c->model('DB')->schema->storage->dbh;
 }
-
 
 1;

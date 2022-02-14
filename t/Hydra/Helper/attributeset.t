@@ -5,22 +5,21 @@ use Data::Dumper;
 use Test2::V0;
 use Hydra::Helper::AttributeSet;
 
-
 subtest "splitting an attribute path in to its component parts" => sub {
     my %values = (
-        "" => [''],
-        "." => ['', ''],
-        "...." => ['', '', '', '', ''],
-        "foobar" => ['foobar'],
-        "foo.bar" => ['foo', 'bar'],
-        "🌮" => ['🌮'],
+        ""        => [''],
+        "."       => [ '', '' ],
+        "...."    => [ '', '', '', '', '' ],
+        "foobar"  => ['foobar'],
+        "foo.bar" => [ 'foo', 'bar' ],
+        "🌮"       => ['🌮'],
 
         # not supported: 'foo."bar.baz".tux' => [ 'foo', 'bar.baz', 'tux' ]
         # the edge cases are fairly significant around escaping and unescaping.
     );
 
     for my $input (keys %values) {
-        my @value = @{$values{$input}};
+        my @value      = @{ $values{$input} };
         my @components = Hydra::Helper::AttributeSet::splitPath($input);
         is(\@components, \@value, "Splitting the attribute path: " . $input);
     }

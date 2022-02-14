@@ -3,8 +3,8 @@ package Hydra::Plugin;
 use strict;
 use warnings;
 use Module::Pluggable
-    search_path => "Hydra::Plugin",
-    instantiate => 'new';
+  search_path => "Hydra::Plugin",
+  instantiate => 'new';
 
 sub new {
     my ($class, %args) = @_;

@@ -45,7 +45,6 @@ Regards,
 The Hydra build daemon.
 EOF
 
-
 sub buildFinished {
     my ($self, $topbuild, $dependents) = @_;
 
@@ -57,6 +56,7 @@ sub buildFinished {
     my %addresses;
     foreach my $build ($topbuild, @{$dependents}) {
         my $prevBuild = getPreviousBuild($build);
+
         # Do we want to send mail for this build?
         unless ($ENV{'HYDRA_FORCE_SEND_MAIL'}) {
             next unless $build->jobset->enableemail;
@@ -75,58 +75,65 @@ sub buildFinished {
             $address = trim $address;
 
             $addresses{$address} //= { builds => [] };
-            push @{$addresses{$address}->{builds}}, $build;
+            push @{ $addresses{$address}->{builds} }, $build;
         }
     }
 
     my ($authors, $nrCommits, $emailable_authors) = getResponsibleAuthors($topbuild, $self->{plugins});
     my $authorList;
     my $prevBuild = getPreviousBuild($topbuild);
-    if (scalar keys %{$authors} > 0 &&
-        ((!defined $prevBuild) || ($topbuild->buildstatus != $prevBuild->buildstatus))) {
+    if (scalar keys %{$authors} > 0
+        && ((!defined $prevBuild) || ($topbuild->buildstatus != $prevBuild->buildstatus)))
+    {
         my @x = map { "$_ <$authors->{$_}>" } (sort keys %{$authors});
-        $authorList = join(" or ", scalar @x > 1 ? join(", ", @x[0..scalar @x - 2]): (), $x[-1]);
-        $addresses{$_} = { builds => [ $topbuild ] } foreach (@{$emailable_authors});
+        $authorList = join(" or ", scalar @x > 1 ? join(", ", @x[ 0 .. scalar @x - 2 ]) : (), $x[-1]);
+        $addresses{$_} = { builds => [$topbuild] } foreach (@{$emailable_authors});
     }
 
     # Send an email to each interested address.
     for my $to (keys %addresses) {
         print STDERR "sending mail notification to ", $to, "\n";
-        my @builds = @{$addresses{$to}->{builds}};
+        my @builds = @{ $addresses{$to}->{builds} };
 
         my $tt = Template->new({});
 
-        my $vars =
-            { build => $topbuild, prevBuild => getPreviousBuild($topbuild)
-            , dependents => [grep { $_->id != $topbuild->id } @builds]
-            , baseurl => getBaseUrl($self->{config})
-            , showJobName => \&showJobName, showStatus => \&showStatus
-            , showSystem => index($topbuild->get_column('job'), $topbuild->system) == -1
-            , nrCommits => $nrCommits
-            , authorList => $authorList
-            };
+        my $vars = {
+            build       => $topbuild,
+            prevBuild   => getPreviousBuild($topbuild),
+            dependents  => [ grep { $_->id != $topbuild->id } @builds ],
+            baseurl     => getBaseUrl($self->{config}),
+            showJobName => \&showJobName,
+            showStatus  => \&showStatus,
+            showSystem  => index($topbuild->get_column('job'), $topbuild->system) == -1,
+            nrCommits   => $nrCommits,
+            authorList  => $authorList
+        };
 
         my $body;
         $tt->process(\$template, $vars, \$body)
-            or die "failed to generate email from template";
+          or die "failed to generate email from template";
 
         # stripping trailing spaces from lines
         $body =~ s/[\ ]+$//gm;
 
         my $subject =
-            showStatus($topbuild) . ": Hydra job " . showJobName($topbuild)
-            . ($vars->{showSystem} ? " on " . $topbuild->system : "")
-            . (scalar @{$vars->{dependents}} > 0 ? " (and " . scalar @{$vars->{dependents}} . " others)" : "");
+            showStatus($topbuild)
+          . ": Hydra job "
+          . showJobName($topbuild)
+          . ($vars->{showSystem}                 ? " on " . $topbuild->system                              : "")
+          . (scalar @{ $vars->{dependents} } > 0 ? " (and " . scalar @{ $vars->{dependents} } . " others)" : "");
 
         sendEmail(
-            $self->{config}, $to, $subject, $body,
-            [ 'X-Hydra-Project'  => $topbuild->jobset->get_column('project')
-            , 'X-Hydra-Jobset'   => $topbuild->jobset->get_column('name')
-            , 'X-Hydra-Job'      => $topbuild->get_column('job')
-            , 'X-Hydra-System'   => $topbuild->system
-            ]);
+            $self->{config},
+            $to, $subject, $body,
+            [
+                'X-Hydra-Project' => $topbuild->jobset->get_column('project'),
+                'X-Hydra-Jobset'  => $topbuild->jobset->get_column('name'),
+                'X-Hydra-Job'     => $topbuild->get_column('job'),
+                'X-Hydra-System'  => $topbuild->system
+            ]
+        );
     }
 }
-
 
 1;

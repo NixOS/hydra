@@ -27,24 +27,29 @@ Catalyst::Test->import('Hydra');
 
 my $finishedBuilds = $ctx->makeAndEvaluateJobset(
     expression => "one-job.nix",
-    build => 1
+    build      => 1
 );
 
 my $queuedBuilds = $ctx->makeAndEvaluateJobset(
     expression => "one-job.nix",
-    build => 0
+    build      => 0
 );
 
 subtest "/api/queue" => sub {
     my $response = request(GET '/api/queue?nr=1');
     ok($response->is_success, "The API enpdoint showing the queue returns 200.");
 
-    my $data = is_json($response);
+    my $data  = is_json($response);
     my $build = $queuedBuilds->{"one_job"};
-    like($data, [{
-        priority => $build->priority,
-        id => $build->id,
-    }]);
+    like(
+        $data,
+        [
+            {
+                priority => $build->priority,
+                id       => $build->id,
+            }
+        ]
+    );
 };
 
 subtest "/api/latestbuilds" => sub {
@@ -52,29 +57,40 @@ subtest "/api/latestbuilds" => sub {
         my $response = request(GET '/api/latestbuilds?nr=1');
         ok($response->is_success, "The API enpdoint showing the latest builds returns 200.");
 
-        my $data = is_json($response);
+        my $data  = is_json($response);
         my $build = $finishedBuilds->{"one_job"};
-        like($data, [{
-            buildstatus => $build->buildstatus,
-            id => $build->id,
-        }]);
+        like(
+            $data,
+            [
+                {
+                    buildstatus => $build->buildstatus,
+                    id          => $build->id,
+                }
+            ]
+        );
     };
 
     subtest "with very specific parameters" => sub {
-        my $build = $finishedBuilds->{"one_job"};
+        my $build       = $finishedBuilds->{"one_job"};
         my $projectName = $build->project->name;
-        my $jobsetName = $build->jobset->name;
-        my $jobName = $build->job;
-        my $system = $build->system;
-        my $response = request(GET "/api/latestbuilds?nr=1&project=$projectName&jobset=$jobsetName&job=$jobName&system=$system");
+        my $jobsetName  = $build->jobset->name;
+        my $jobName     = $build->job;
+        my $system      = $build->system;
+        my $response =
+          request(GET "/api/latestbuilds?nr=1&project=$projectName&jobset=$jobsetName&job=$jobName&system=$system");
         ok($response->is_success, "The API enpdoint showing the latest builds returns 200.");
 
         my $data = is_json($response);
 
-        like($data, [{
-            buildstatus => $build->buildstatus,
-            id => $build->id,
-        }]);
+        like(
+            $data,
+            [
+                {
+                    buildstatus => $build->buildstatus,
+                    id          => $build->id,
+                }
+            ]
+        );
     };
 };
 
@@ -88,12 +104,13 @@ subtest "/api/nrbuilds" => sub {
     };
 
     subtest "with very specific parameters" => sub {
-        my $build = $finishedBuilds->{"one_job"};
+        my $build       = $finishedBuilds->{"one_job"};
         my $projectName = $build->project->name;
-        my $jobsetName = $build->jobset->name;
-        my $jobName = $build->job;
-        my $system = $build->system;
-        my $response = request(GET "/api/nrbuilds?nr=1&period=hour&project=$projectName&jobset=$jobsetName&job=$jobName&system=$system");
+        my $jobsetName  = $build->jobset->name;
+        my $jobName     = $build->job;
+        my $system      = $build->system;
+        my $response    = request(
+            GET "/api/nrbuilds?nr=1&period=hour&project=$projectName&jobset=$jobsetName&job=$jobName&system=$system");
         ok($response->is_success, "The API enpdoint showing the latest builds returns 200.");
 
         my $data = is_json($response);
@@ -103,24 +120,24 @@ subtest "/api/nrbuilds" => sub {
 
 subtest "/api/push" => sub {
     subtest "with a specific jobset" => sub {
-        my $build = $finishedBuilds->{"one_job"};
-        my $jobset = $build->jobset;
+        my $build       = $finishedBuilds->{"one_job"};
+        my $jobset      = $build->jobset;
         my $projectName = $jobset->project->name;
-        my $jobsetName = $jobset->name;
+        my $jobsetName  = $jobset->name;
         is($jobset->forceeval, undef, "The existing jobset is not set to be forced to eval");
 
         my $response = request(GET "/api/push?jobsets=$projectName:$jobsetName&force=1");
         ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
 
         my $data = is_json($response);
-        is($data, { jobsetsTriggered => [ "$projectName:$jobsetName" ] });
+        is($data, { jobsetsTriggered => ["$projectName:$jobsetName"] });
 
         my $updatedJobset = $ctx->db->resultset('Jobsets')->find({ id => $jobset->id });
         is($updatedJobset->forceeval, 1, "The jobset is now forced to eval");
     };
 
     subtest "with a specific source" => sub {
-        my $repo = $ctx->jobsdir;
+        my $repo    = $ctx->jobsdir;
         my $jobsetA = $queuedBuilds->{"one_job"}->jobset;
         my $jobsetB = $finishedBuilds->{"one_job"}->jobset;
 
@@ -132,10 +149,14 @@ subtest "/api/push" => sub {
         ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
 
         my $data = is_json($response);
-        is($data, { jobsetsTriggered => [
-            "${\$jobsetA->project->name}:${\$jobsetA->name}",
-            "${\$jobsetB->project->name}:${\$jobsetB->name}"
-        ] });
+        is(
+            $data,
+            {
+                jobsetsTriggered => [
+                    "${\$jobsetA->project->name}:${\$jobsetA->name}", "${\$jobsetB->project->name}:${\$jobsetB->name}"
+                ]
+            }
+        );
 
         my $updatedJobset = $ctx->db->resultset('Jobsets')->find({ id => $jobsetA->id });
         is($updatedJobset->forceeval, 1, "The jobset is now forced to eval");
@@ -143,72 +164,85 @@ subtest "/api/push" => sub {
 };
 
 subtest "/api/push-github" => sub {
-    # Create a project and jobset which looks like it comes from GitHub
-    my $user = $ctx->db()->resultset('Users')->create({
-        username => "api-push-github",
-        emailaddress => 'api-push-github@example.org',
-        password => ''
-    });
 
-    my $project = $ctx->db()->resultset('Projects')->create({
-        name => "api-push-github",
-        displayname => "api-push-github",
-        owner => $user->username
-    });
+    # Create a project and jobset which looks like it comes from GitHub
+    my $user = $ctx->db()->resultset('Users')->create(
+        {
+            username     => "api-push-github",
+            emailaddress => 'api-push-github@example.org',
+            password     => ''
+        }
+    );
+
+    my $project = $ctx->db()->resultset('Projects')->create(
+        {
+            name        => "api-push-github",
+            displayname => "api-push-github",
+            owner       => $user->username
+        }
+    );
 
     subtest "with a legacy input type" => sub {
-        my $jobset = $project->jobsets->create({
-            name => "legacy-input-type",
-            nixexprinput => "src",
-            nixexprpath => "default.nix",
-            emailoverride => ""
-        });
+        my $jobset = $project->jobsets->create(
+            {
+                name          => "legacy-input-type",
+                nixexprinput  => "src",
+                nixexprpath   => "default.nix",
+                emailoverride => ""
+            }
+        );
 
-        my $jobsetinput = $jobset->jobsetinputs->create({name => "src", type => "git"});
-        $jobsetinput->jobsetinputalts->create({altnr => 0, value => "https://github.com/OWNER/LEGACY-REPO.git"});
+        my $jobsetinput = $jobset->jobsetinputs->create({ name => "src", type => "git" });
+        $jobsetinput->jobsetinputalts->create({ altnr => 0, value => "https://github.com/OWNER/LEGACY-REPO.git" });
 
         my $req = POST '/api/push-github',
-            "Content-Type" => "application/json",
-            "Content" => encode_json({
+          "Content-Type" => "application/json",
+          "Content"      => encode_json(
+            {
                 repository => {
                     owner => {
                         name => "OWNER",
                     },
                     name => "LEGACY-REPO",
                 }
-            });
+            }
+          );
 
         my $response = request($req);
         ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
 
         my $data = is_json($response);
-        is($data, { jobsetsTriggered => [ "api-push-github:legacy-input-type" ] }, "The correct jobsets are triggered.");
+        is($data, { jobsetsTriggered => ["api-push-github:legacy-input-type"] }, "The correct jobsets are triggered.");
     };
 
     subtest "with a flake input type" => sub {
-        my $jobset = $project->jobsets->create({
-            name => "flake-input-type",
-            type => 1,
-            flake => "github:OWNER/FLAKE-REPO",
-            emailoverride => ""
-        });
+        my $jobset = $project->jobsets->create(
+            {
+                name          => "flake-input-type",
+                type          => 1,
+                flake         => "github:OWNER/FLAKE-REPO",
+                emailoverride => ""
+            }
+        );
 
         my $req = POST '/api/push-github',
-            "Content-Type" => "application/json",
-            "Content" => encode_json({
+          "Content-Type" => "application/json",
+          "Content"      => encode_json(
+            {
                 repository => {
                     owner => {
                         name => "OWNER",
                     },
                     name => "FLAKE-REPO",
                 }
-            });
+            }
+          );
 
         my $response = request($req);
         ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
 
         my $data = is_json($response);
-        is($data, { jobsetsTriggered => [ "api-push-github:flake-input-type" ] }, "The correct jobsets are triggered.");
+        is($data, { jobsetsTriggered => ["api-push-github:flake-input-type"] }, "The correct jobsets are triggered.");
     };
 };
 

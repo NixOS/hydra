@@ -11,12 +11,12 @@ Catalyst::Test->import('Hydra');
 
 my $builds = $ctx->makeAndEvaluateJobset(
     expression => "basic.nix",
-    build => 1
+    build      => 1
 );
 
-my $build = $builds->{"empty_dir"};
+my $build   = $builds->{"empty_dir"};
 my $project = $build->project;
-my $jobset = $build->jobset;
+my $jobset  = $build->jobset;
 
 subtest "/jobset/PROJECT/JOBSET/all" => sub {
     my $response = request(GET '/jobset/' . $project->name . '/' . $jobset->name . '/all');

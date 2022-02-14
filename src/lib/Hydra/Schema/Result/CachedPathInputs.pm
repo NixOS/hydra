@@ -1,4 +1,5 @@
 use utf8;
+
 package Hydra::Schema::Result::CachedPathInputs;
 
 # Created by DBIx::Class::Schema::Loader
@@ -63,16 +64,11 @@ __PACKAGE__->table("cachedpathinputs");
 =cut
 
 __PACKAGE__->add_columns(
-  "srcpath",
-  { data_type => "text", is_nullable => 0 },
-  "timestamp",
-  { data_type => "integer", is_nullable => 0 },
-  "lastseen",
-  { data_type => "integer", is_nullable => 0 },
-  "sha256hash",
-  { data_type => "text", is_nullable => 0 },
-  "storepath",
-  { data_type => "text", is_nullable => 0 },
+    "srcpath",    { data_type => "text",    is_nullable => 0 },
+    "timestamp",  { data_type => "integer", is_nullable => 0 },
+    "lastseen",   { data_type => "integer", is_nullable => 0 },
+    "sha256hash", { data_type => "text",    is_nullable => 0 },
+    "storepath",  { data_type => "text",    is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -88,7 +84,6 @@ __PACKAGE__->add_columns(
 =cut
 
 __PACKAGE__->set_primary_key("srcpath", "sha256hash");
-
 
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:PZAkRje22dqftpqfU2jyGg

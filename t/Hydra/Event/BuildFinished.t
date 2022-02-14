@@ -17,11 +17,7 @@ my $db = Hydra::Model::DB->new;
 hydra_setup($db);
 
 subtest "Parsing" => sub {
-    like(
-        dies { Hydra::Event::parse_payload("build_finished", "") },
-        qr/at least one argument/,
-        "empty payload"
-    );
+    like(dies { Hydra::Event::parse_payload("build_finished", "") }, qr/at least one argument/, "empty payload");
     like(
         dies { Hydra::Event::parse_payload("build_finished", "abc123") },
         qr/should be integers/,
@@ -44,14 +40,14 @@ subtest "Parsing" => sub {
     );
     is(
         Hydra::Event::parse_payload("build_finished", "123\t456\t789\t012\t345"),
-        Hydra::Event::BuildFinished->new(123, [456, 789, 12, 345]),
+        Hydra::Event::BuildFinished->new(123, [ 456, 789, 12, 345 ]),
         "four dependent builds"
     );
 };
 
-my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
-my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
-ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
+my $project = $db->resultset('Projects')->create({ name => "tests", displayname => "", owner => "root" });
+my $jobset  = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
+ok(evalSucceeds($jobset), "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 
 subtest "interested" => sub {
@@ -59,16 +55,16 @@ subtest "interested" => sub {
 
     subtest "A plugin which does not implement the API" => sub {
         my $plugin = {};
-        my $mock = mock_obj $plugin => ();
+        my $mock   = mock_obj $plugin => ();
 
         is($event->interestedIn($plugin), 0, "The plugin is not interesting.");
     };
 
     subtest "A plugin which does implement the API" => sub {
         my $plugin = {};
-        my $mock = mock_obj $plugin => (
+        my $mock   = mock_obj $plugin => (
             add => [
-                "buildFinished" => sub {}
+                "buildFinished" => sub { }
             ]
         );
 
@@ -77,16 +73,13 @@ subtest "interested" => sub {
 };
 
 subtest "load" => sub {
-    my ($build, $dependent_a, $dependent_b) = $db->resultset('Builds')->search(
-      { },
-      { limit => 3 }
-    )->all;
+    my ($build, $dependent_a, $dependent_b) = $db->resultset('Builds')->search({}, { limit => 3 })->all;
 
-    my $event = Hydra::Event::BuildFinished->new($build->id, [$dependent_a->id, $dependent_b->id]);
+    my $event = Hydra::Event::BuildFinished->new($build->id, [ $dependent_a->id, $dependent_b->id ]);
 
     $event->load($db);
 
-    is($event->{"build"}->id, $build->id, "The build record matches.");
+    is($event->{"build"}->id,         $build->id,       "The build record matches.");
     is($event->{"dependents"}[0]->id, $dependent_a->id, "The dependent_a record matches.");
     is($event->{"dependents"}[1]->id, $dependent_b->id, "The dependent_b record matches.");
 
@@ -95,11 +88,11 @@ subtest "load" => sub {
     my $passedBuild;
     my $passedDependents;
     my $plugin = {};
-    my $mock = mock_obj $plugin => (
+    my $mock   = mock_obj $plugin => (
         add => [
             "buildFinished" => sub {
                 my ($self, $build, $dependents) = @_;
-                $passedBuild = $build;
+                $passedBuild      = $build;
                 $passedDependents = $dependents;
             }
         ]
@@ -108,8 +101,10 @@ subtest "load" => sub {
     $event->execute($db, $plugin);
 
     is($passedBuild->id, $build->id, "The plugin's buildFinished hook is called with a matching build");
-    is($passedDependents->[0]->id, $dependent_a->id, "The plugin's buildFinished hook is called with a matching dependent_a");
-    is($passedDependents->[1]->id, $dependent_b->id, "The plugin's buildFinished hook is called with a matching dependent_b");
+    is($passedDependents->[0]->id,
+        $dependent_a->id, "The plugin's buildFinished hook is called with a matching dependent_a");
+    is($passedDependents->[1]->id,
+        $dependent_b->id, "The plugin's buildFinished hook is called with a matching dependent_b");
 };
 
 done_testing;

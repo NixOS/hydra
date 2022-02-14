@@ -12,11 +12,11 @@ Catalyst::Test->import('Hydra');
 
 my $builds = $ctx->makeAndEvaluateJobset(
     expression => "basic.nix",
-    build => 1
+    build      => 1
 );
 
-my $build = $builds->{"empty_dir"};
-my $jobset = $build->jobset;
+my $build   = $builds->{"empty_dir"};
+my $jobset  = $build->jobset;
 my $project = $build->project;
 
 subtest "/job/PROJECT/JOBSET/JOB" => sub {
@@ -46,9 +46,9 @@ subtest "/job/PROJECT/JOBSET/JOB/shield" => sub {
         print STDERR Dumper $response->content;
     }
 
-    is($data->{"color"}, "green");
-    is($data->{"label"}, "hydra build");
-    is($data->{"message"}, "passing");
+    is($data->{"color"},         "green");
+    is($data->{"label"},         "hydra build");
+    is($data->{"message"},       "passing");
     is($data->{"schemaVersion"}, 1);
 };
 

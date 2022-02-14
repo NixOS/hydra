@@ -22,22 +22,23 @@ my $db = Hydra::Model::DB->new;
 hydra_setup($db);
 
 # Create a user to log in to
-my $user = $db->resultset('Users')->create({ username => 'alice', emailaddress => 'root@invalid.org', password => '!' });
+my $user =
+  $db->resultset('Users')->create({ username => 'alice', emailaddress => 'root@invalid.org', password => '!' });
 $user->setPassword('foobar');
 $user->userroles->update_or_create({ role => 'admin' });
 
-my $project = $db->resultset('Projects')->create({name => 'tests', displayname => 'Tests', owner => 'alice'});
+my $project = $db->resultset('Projects')->create({ name => 'tests', displayname => 'Tests', owner => 'alice' });
 
 my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
+ok(evalSucceeds($jobset), "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 
 my $failing;
 for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with return code 0");
+    ok(runBuild($build), "Build '" . $build->job . "' from jobs/basic.nix should exit with return code 0");
     my $newbuild = $db->resultset('Builds')->find($build->id);
-    is($newbuild->finished, 1, "Build '".$build->job."' from jobs/basic.nix should be finished.");
+    is($newbuild->finished, 1, "Build '" . $build->job . "' from jobs/basic.nix should be finished.");
 
     if ($build->job eq "fails") {
         is($newbuild->buildstatus, 1, "Build 'fails' from jobs/basic.nix should have buildstatus 1.");
@@ -49,7 +50,8 @@ for my $build (queuedBuildsForJobset($jobset)) {
 isnt($failing, undef, "We should have the failing build to restart");
 
 # Login and save cookie for future requests
-my $req = request(POST '/login',
+my $req = request(
+    POST '/login',
     Referer => 'http://localhost/',
     Content => {
         username => 'alice',
@@ -59,12 +61,12 @@ my $req = request(POST '/login',
 is($req->code, 302, "Logging in gets a 302");
 my $cookie = $req->header("set-cookie");
 
-
 subtest 'Restart the failing build' => sub {
-    my $restart = request(PUT '/build/' . $failing->id . '/restart',
-        Accept => 'application/json',
+    my $restart = request(
+        PUT '/build/' . $failing->id . '/restart',
+        Accept       => 'application/json',
         Content_Type => 'application/json',
-        Cookie => $cookie,
+        Cookie       => $cookie,
     );
     is($restart->code, 302, "Restarting 302's back to the build");
     is($restart->header("location"), "http://localhost/build/" . $failing->id);

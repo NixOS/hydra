@@ -1,4 +1,5 @@
 use utf8;
+
 package Hydra::Schema::Result::JobsetEvalInputs;
 
 # Created by DBIx::Class::Schema::Loader
@@ -90,26 +91,16 @@ __PACKAGE__->table("jobsetevalinputs");
 =cut
 
 __PACKAGE__->add_columns(
-  "eval",
-  { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
-  "name",
-  { data_type => "text", is_nullable => 0 },
-  "altnr",
-  { data_type => "integer", is_nullable => 0 },
-  "type",
-  { data_type => "text", is_nullable => 0 },
-  "uri",
-  { data_type => "text", is_nullable => 1 },
-  "revision",
-  { data_type => "text", is_nullable => 1 },
-  "value",
-  { data_type => "text", is_nullable => 1 },
-  "dependency",
-  { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
-  "path",
-  { data_type => "text", is_nullable => 1 },
-  "sha256hash",
-  { data_type => "text", is_nullable => 1 },
+    "eval",       { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
+    "name",       { data_type => "text",    is_nullable    => 0 },
+    "altnr",      { data_type => "integer", is_nullable    => 0 },
+    "type",       { data_type => "text",    is_nullable    => 0 },
+    "uri",        { data_type => "text",    is_nullable    => 1 },
+    "revision",   { data_type => "text",    is_nullable    => 1 },
+    "value",      { data_type => "text",    is_nullable    => 1 },
+    "dependency", { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
+    "path",       { data_type => "text",    is_nullable    => 1 },
+    "sha256hash", { data_type => "text",    is_nullable    => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -139,15 +130,15 @@ Related object: L<Hydra::Schema::Result::Builds>
 =cut
 
 __PACKAGE__->belongs_to(
-  "dependency",
-  "Hydra::Schema::Result::Builds",
-  { id => "dependency" },
-  {
-    is_deferrable => 0,
-    join_type     => "LEFT",
-    on_delete     => "NO ACTION",
-    on_update     => "NO ACTION",
-  },
+    "dependency",
+    "Hydra::Schema::Result::Builds",
+    { id => "dependency" },
+    {
+        is_deferrable => 0,
+        join_type     => "LEFT",
+        on_delete     => "NO ACTION",
+        on_update     => "NO ACTION",
+    },
 );
 
 =head2 eval
@@ -159,25 +150,16 @@ Related object: L<Hydra::Schema::Result::JobsetEvals>
 =cut
 
 __PACKAGE__->belongs_to(
-  "eval",
-  "Hydra::Schema::Result::JobsetEvals",
-  { id => "eval" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+    "eval",
+    "Hydra::Schema::Result::JobsetEvals",
+    { id            => "eval" },
+    { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
-
 
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:AgMH2XIxp7519fFaYgesVw
 
-my %hint = (
-    columns => [
-        "revision",
-        "value",
-        "type",
-        "uri",
-        'dependency',
-    ],
-);
+my %hint = (columns => [ "revision", "value", "type", "uri", 'dependency', ],);
 
 sub json_hint {
     return \%hint;

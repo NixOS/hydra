@@ -13,12 +13,10 @@ Catalyst::Test->import('Hydra');
 
 my $doneBuilds = $ctx->makeAndEvaluateJobset(
     expression => "basic.nix",
-    build => 1
+    build      => 1
 );
 
-my $queuedBuilds = $ctx->makeAndEvaluateJobset(
-    expression => "basic.nix"
-);
+my $queuedBuilds = $ctx->makeAndEvaluateJobset(expression => "basic.nix");
 
 subtest "/machines" => sub {
     my $response = request(GET '/machines');

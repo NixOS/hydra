@@ -11,16 +11,19 @@ my $ctx = test_context();
 
 Catalyst::Test->import('Hydra');
 
-my $user = $ctx->db()->resultset('Users')->create({
-    username => 'alice',
-    emailaddress => 'root@invalid.org',
-    password => '!'
-});
+my $user = $ctx->db()->resultset('Users')->create(
+    {
+        username     => 'alice',
+        emailaddress => 'root@invalid.org',
+        password     => '!'
+    }
+);
 $user->setPassword('foobar');
 $user->userroles->update_or_create({ role => 'admin' });
 
 # Login and save cookie for future requests
-my $req = request(POST '/login',
+my $req = request(
+    POST '/login',
     Referer => 'http://localhost/',
     Content => {
         username => 'alice',
@@ -31,15 +34,14 @@ is($req->code, 302, "Logging in gets a 302");
 my $cookie = $req->header("set-cookie");
 
 subtest "Deleting a simple project" => sub {
-    my $builds = $ctx->makeAndEvaluateJobset(
-        expression => "basic.nix"
-    );
+    my $builds  = $ctx->makeAndEvaluateJobset(expression => "basic.nix");
     my $project = $builds->{"empty_dir"}->project;
 
     my $responseNoAuth = request(DELETE "/project/${\$project->name}");
     is($responseNoAuth->code, 403, "Deleting a project without auth returns a 403");
 
-    my $responseAuthed = request(DELETE "/project/${\$project->name}",
+    my $responseAuthed = request(
+        DELETE "/project/${\$project->name}",
         Cookie => $cookie,
         Accept => "application/json"
     );
@@ -48,21 +50,19 @@ subtest "Deleting a simple project" => sub {
     my $response = request(GET "/project/${\$project->name}");
     is($response->code, 404, "Then getting the project returns a 404");
 
-    is(
-        $ctx->db->resultset('Builds')->find({ id => $builds->{"empty_dir"}->id }),
-        undef,
-        "The build isn't in the database anymore"
-    );
+    is($ctx->db->resultset('Builds')->find({ id => $builds->{"empty_dir"}->id }),
+        undef, "The build isn't in the database anymore");
 };
 
 subtest "Deleting a project with metrics" => sub {
     my $builds = $ctx->makeAndEvaluateJobset(
         expression => "runcommand.nix",
-        build => 1
+        build      => 1
     );
     my $project = $builds->{"metrics"}->project;
 
-    my $responseAuthed = request(DELETE "/project/${\$project->name}",
+    my $responseAuthed = request(
+        DELETE "/project/${\$project->name}",
         Cookie => $cookie,
         Accept => "application/json"
     );

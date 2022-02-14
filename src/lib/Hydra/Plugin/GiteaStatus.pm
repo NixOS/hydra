@@ -16,15 +16,19 @@ sub isEnabled {
 }
 
 sub toGiteaState {
+
     # See https://try.gitea.io/api/swagger#/repository/repoCreateStatus
     my ($status, $buildStatus) = @_;
     if ($status == 0 || $status == 1) {
         return "pending";
-    } elsif ($buildStatus == 0) {
+    }
+    elsif ($buildStatus == 0) {
         return "success";
-    } elsif ($buildStatus == 3 || $buildStatus == 4 || $buildStatus == 8 || $buildStatus == 10 || $buildStatus == 11) {
+    }
+    elsif ($buildStatus == 3 || $buildStatus == 4 || $buildStatus == 8 || $buildStatus == 10 || $buildStatus == 11) {
         return "error";
-    } else {
+    }
+    else {
         return "failure";
     }
 }
@@ -36,20 +40,21 @@ sub common {
     # Find matching configs
     foreach my $build ($topbuild, @{$dependents}) {
         my $jobName = showJobName $build;
-        my $evals = $topbuild->jobsetevals;
-        my $ua = LWP::UserAgent->new();
+        my $evals   = $topbuild->jobsetevals;
+        my $ua      = LWP::UserAgent->new();
 
         # Don't send out "pending/running" status updates if the build is already finished
         next if $status < 2 && $build->finished == 1;
 
         my $state = toGiteaState($status, $build->buildstatus);
-        my $body = encode_json(
+        my $body  = encode_json(
             {
-                state => $state,
-                target_url => "$baseurl/build/" . $build->id,
+                state       => $state,
+                target_url  => "$baseurl/build/" . $build->id,
                 description => "Hydra build #" . $build->id . " of $jobName",
-                context => "Hydra " . $build->get_column('job'),
-            });
+                context     => "Hydra " . $build->get_column('job'),
+            }
+        );
 
         while (my $eval = $evals->next) {
             my $giteastatusInput = $eval->jobsetevalinputs->find({ name => "gitea_status_repo" });
@@ -58,16 +63,17 @@ sub common {
             next unless defined $i;
             my $gitea_url = $eval->jobsetevalinputs->find({ name => "gitea_http_url" });
 
-            my $repoOwner = $eval->jobsetevalinputs->find({ name => "gitea_repo_owner" })->value;
-            my $repoName = $eval->jobsetevalinputs->find({ name => "gitea_repo_name" })->value;
+            my $repoOwner   = $eval->jobsetevalinputs->find({ name => "gitea_repo_owner" })->value;
+            my $repoName    = $eval->jobsetevalinputs->find({ name => "gitea_repo_name" })->value;
             my $accessToken = $self->{config}->{gitea_authorization}->{$repoOwner};
 
-            my $rev = $i->revision;
+            my $rev    = $i->revision;
             my $domain = URI->new($i->uri)->host;
             my $host;
             unless (defined $gitea_url) {
                 $host = "https://$domain";
-            } else {
+            }
+            else {
                 $host = $gitea_url->value;
             }
 
@@ -75,7 +81,7 @@ sub common {
 
             print STDERR "GiteaStatus POSTing $state to $url\n";
             my $req = HTTP::Request->new('POST', $url);
-            $req->header('Content-Type' => 'application/json');
+            $req->header('Content-Type'  => 'application/json');
             $req->header('Authorization' => "token $accessToken");
             $req->content($body);
             my $res = $ua->request($req);

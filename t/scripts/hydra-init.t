@@ -15,16 +15,20 @@ my $db = Hydra::Model::DB->new;
 hydra_setup($db);
 
 subtest "hydra-init upgrades user's password hashes from sha1 to sha1 inside Argon2" => sub {
-    my $alice = $db->resultset('Users')->create({
-        "username" => "alice",
-        "emailaddress" => 'alice@nixos.org',
-        "password" => "8843d7f92416211de9ebb963ff4ce28125932878" # SHA1 of "foobar"
-    });
-    my $janet = $db->resultset('Users')->create({
-        "username" => "janet",
-        "emailaddress" => 'janet@nixos.org',
-        "password" => "!"
-    });
+    my $alice = $db->resultset('Users')->create(
+        {
+            "username"     => "alice",
+            "emailaddress" => 'alice@nixos.org',
+            "password"     => "8843d7f92416211de9ebb963ff4ce28125932878"    # SHA1 of "foobar"
+        }
+    );
+    my $janet = $db->resultset('Users')->create(
+        {
+            "username"     => "janet",
+            "emailaddress" => 'janet@nixos.org',
+            "password"     => "!"
+        }
+    );
     $janet->setPassword("foobar");
 
     is($alice->password, "8843d7f92416211de9ebb963ff4ce28125932878", "Alices's sha1 is stored in the database");

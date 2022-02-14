@@ -15,15 +15,15 @@ hydra_setup($db);
 
 # Tests the creation of a Hydra jobset using a darcs repo as input.
 testScmInput(
-  type => 'darcs',
-  expr => 'darcs-input.nix',
-  uri => 'darcs-repo',
-  update => 'jobs/darcs-update.sh',
+    type   => 'darcs',
+    expr   => 'darcs-input.nix',
+    uri    => 'darcs-repo',
+    update => 'jobs/darcs-update.sh',
 
-  # directories
-  datadir => $ctx{tmpdir},
-  testdir => $ctx{testdir},
-  jobsdir => $ctx{jobsdir},
+    # directories
+    datadir => $ctx{tmpdir},
+    testdir => $ctx{testdir},
+    jobsdir => $ctx{jobsdir},
 );
 
 done_testing;

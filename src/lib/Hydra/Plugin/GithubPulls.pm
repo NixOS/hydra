@@ -18,20 +18,22 @@ sub supportedInputTypes {
 sub _iterate {
     my ($url, $auth, $pulls, $ua) = @_;
     my $req = HTTP::Request->new('GET', $url);
-    $req->header('Accept' => 'application/vnd.github.v3+json');
+    $req->header('Accept'        => 'application/vnd.github.v3+json');
     $req->header('Authorization' => $auth) if defined $auth;
-    my $res = $ua->request($req);
+    my $res     = $ua->request($req);
     my $content = $res->decoded_content;
     die "Error pulling from the github pulls API: $content\n"
-        unless $res->is_success;
+      unless $res->is_success;
     my $pulls_list = decode_json $content;
+
     # TODO Stream out the json instead
     foreach my $pull (@$pulls_list) {
-        $pulls->{$pull->{number}} = $pull;
+        $pulls->{ $pull->{number} } = $pull;
     }
+
     # TODO Make Link header parsing more robust!!!
     my @links = split ',', $res->header("Link");
-    my $next = "";
+    my $next  = "";
     foreach my $link (@links) {
         my ($url, $rel) = split ";", $link;
         if (trim($rel) eq 'rel="next"') {
@@ -45,21 +47,21 @@ sub _iterate {
 sub fetchInput {
     my ($self, $type, $name, $value, $project, $jobset) = @_;
     return undef if $type ne "githubpulls";
+
     # TODO Allow filtering of some kind here?
     (my $owner, my $repo) = split ' ', $value;
     my $auth = $self->{config}->{github_authorization}->{$owner};
     my %pulls;
     my $ua = LWP::UserAgent->new();
     _iterate("https://api.github.com/repos/$owner/$repo/pulls?per_page=100", $auth, \%pulls, $ua);
-    my $tempdir = File::Temp->newdir("github-pulls" . "XXXXX", TMPDIR => 1);
+    my $tempdir  = File::Temp->newdir("github-pulls" . "XXXXX", TMPDIR => 1);
     my $filename = "$tempdir/github-pulls.json";
 
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
     print $fh JSON->new->utf8->canonical->encode(\%pulls);
     close $fh;
 
-    my $storePath = trim(`nix-store --add "$filename"`
-        or die "cannot copy path $filename to the Nix store.\n");
+    my $storePath = trim(`nix-store --add "$filename"` or die "cannot copy path $filename to the Nix store.\n");
     chomp $storePath;
     my $timestamp = time;
     return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };

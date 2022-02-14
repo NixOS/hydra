@@ -70,22 +70,24 @@ sub supportedInputTypes {
 sub _iterate {
     my ($url, $auth, $refs, $ua) = @_;
     my $req = HTTP::Request->new('GET', $url);
-    $req->header('Accept' => 'application/vnd.github.v3+json');
+    $req->header('Accept'        => 'application/vnd.github.v3+json');
     $req->header('Authorization' => $auth) if defined $auth;
-    my $res = $ua->request($req);
+    my $res     = $ua->request($req);
     my $content = $res->decoded_content;
     die "Error pulling from the github refs API: $content\n"
-        unless $res->is_success;
+      unless $res->is_success;
     my $refs_list = decode_json $content;
+
     # TODO Stream out the json instead
     foreach my $ref (@$refs_list) {
         my $ref_name = $ref->{ref};
         $ref_name =~ s,^refs/(?:heads|tags)/,,o;
         $refs->{$ref_name} = $ref;
     }
+
     # TODO Make Link header parsing more robust!!!
     my @links = split ',', $res->header("Link");
-    my $next = "";
+    my $next  = "";
     foreach my $link (@links) {
         my ($url, $rel) = split ";", $link;
         if (trim($rel) eq 'rel="next"') {
@@ -102,21 +104,23 @@ sub fetchInput {
 
     my ($owner, $repo, $type, $fut, $prefix) = split ' ', $value;
     die "type field is neither 'heads' nor 'tags', but '$type'"
-        unless $type eq 'heads' or $type eq 'tags';
+      unless $type eq 'heads' or $type eq 'tags';
 
-    my $auth = $self->{config}->{github_authorization}->{$owner};
+    my $auth           = $self->{config}->{github_authorization}->{$owner};
     my $githubEndpoint = $self->{config}->{github_endpoint} // "https://api.github.com";
     my %refs;
     my $ua = LWP::UserAgent->new();
     _iterate("$githubEndpoint/repos/$owner/$repo/git/matching-refs/$type/$prefix?per_page=100", $auth, \%refs, $ua);
-    my $tempdir = File::Temp->newdir("github-refs" . "XXXXX", TMPDIR => 1);
+    my $tempdir  = File::Temp->newdir("github-refs" . "XXXXX", TMPDIR => 1);
     my $filename = "$tempdir/github-refs.json";
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
     print $fh encode_json \%refs;
     close $fh;
     system("jq -S . < $filename > $tempdir/github-refs-sorted.json");
-    my $storePath = trim(qx{nix-store --add "$tempdir/github-refs-sorted.json"}
-        or die "cannot copy path $filename to the Nix store.\n");
+    my $storePath = trim(
+        qx{nix-store --add "$tempdir/github-refs-sorted.json"}
+          or die "cannot copy path $filename to the Nix store.\n"
+    );
     chomp $storePath;
     my $timestamp = time;
     return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };

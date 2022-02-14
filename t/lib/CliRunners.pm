@@ -3,23 +3,28 @@ use strict;
 
 package CliRunners;
 use Hydra::Helper::Exec;
-our @ISA = qw(Exporter);
+our @ISA    = qw(Exporter);
 our @EXPORT = qw(
-    evalFails
-    evalSucceeds
-    runBuild
-    sendNotifications
+  evalFails
+  evalSucceeds
+  runBuild
+  sendNotifications
 );
 
 sub evalSucceeds {
     my ($jobset) = @_;
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
-    $jobset->discard_changes;  # refresh from DB
+    $jobset->discard_changes;    # refresh from DB
     if ($res) {
-        chomp $stdout; chomp $stderr;
+        chomp $stdout;
+        chomp $stderr;
         utf8::decode($stdout) or die "Invalid unicode in stdout.";
         utf8::decode($stderr) or die "Invalid unicode in stderr.";
-        print STDERR "Evaluation unexpectedly failed for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
+        print STDERR "Evaluation unexpectedly failed for jobset "
+          . $jobset->project->name . ":"
+          . $jobset->name . ": \n"
+          . $jobset->errormsg . "\n"
+          if $jobset->errormsg;
         print STDERR "STDOUT: $stdout\n" if $stdout ne "";
         print STDERR "STDERR: $stderr\n" if $stderr ne "";
     }
@@ -29,12 +34,17 @@ sub evalSucceeds {
 sub evalFails {
     my ($jobset) = @_;
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
-    $jobset->discard_changes;  # refresh from DB
+    $jobset->discard_changes;    # refresh from DB
     if (!$res) {
-        chomp $stdout; chomp $stderr;
+        chomp $stdout;
+        chomp $stderr;
         utf8::decode($stdout) or die "Invalid unicode in stdout.";
         utf8::decode($stderr) or die "Invalid unicode in stderr.";
-        print STDERR "Evaluation unexpectedly succeeded for jobset ".$jobset->project->name.":".$jobset->name.": \n".$jobset->errormsg."\n" if $jobset->errormsg;
+        print STDERR "Evaluation unexpectedly succeeded for jobset "
+          . $jobset->project->name . ":"
+          . $jobset->name . ": \n"
+          . $jobset->errormsg . "\n"
+          if $jobset->errormsg;
         print STDERR "STDOUT: $stdout\n" if $stdout ne "";
         print STDERR "STDERR: $stderr\n" if $stderr ne "";
     }

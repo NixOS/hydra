@@ -15,7 +15,7 @@ sub process {
 
     my $storePath = $c->stash->{storePath};
 
-    $c->response->content_type('text/x-nix-narinfo'); # !!! check MIME type
+    $c->response->content_type('text/x-nix-narinfo');    # !!! check MIME type
 
     my ($deriver, $narHash, $time, $narSize, $refs) = queryPathInfo($storePath, 1);
 
@@ -38,9 +38,9 @@ sub process {
     # Optionally, sign the NAR info file we just created.
     my $secretKeyFile = $c->config->{binary_cache_secret_key_file};
     if (defined $secretKeyFile) {
-        my $secretKey = readFile $secretKeyFile;
+        my $secretKey   = readFile $secretKeyFile;
         my $fingerprint = fingerprintPath($storePath, $narHash, $narSize, $refs);
-        my $sig = signString($secretKey, $fingerprint);
+        my $sig         = signString($secretKey, $fingerprint);
         $info .= "Sig: $sig\n";
     }
 

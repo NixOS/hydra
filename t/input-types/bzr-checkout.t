@@ -15,15 +15,15 @@ hydra_setup($db);
 
 # Tests the creation of a Hydra jobset using a bzr checkout as input.
 testScmInput(
-  type => 'bzr-checkout',
-  expr => 'bzr-checkout-input.nix',
-  uri => 'bzr-checkout-repo',
-  update => 'jobs/bzr-checkout-update.sh',
+    type   => 'bzr-checkout',
+    expr   => 'bzr-checkout-input.nix',
+    uri    => 'bzr-checkout-repo',
+    update => 'jobs/bzr-checkout-update.sh',
 
-  # directories
-  datadir => $ctx{tmpdir},
-  testdir => $ctx{testdir},
-  jobsdir => $ctx{jobsdir},
+    # directories
+    datadir => $ctx{tmpdir},
+    testdir => $ctx{testdir},
+    jobsdir => $ctx{jobsdir},
 );
 
 done_testing;

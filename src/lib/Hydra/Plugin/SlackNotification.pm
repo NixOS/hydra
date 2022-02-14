@@ -61,14 +61,14 @@ sub isEnabled {
 }
 
 sub renderDuration {
-    my ($build) = @_;
+    my ($build)  = @_;
     my $duration = $build->stoptime - $build->starttime;
-    my $res = "";
-    if ($duration >= 24*60*60) {
-       $res .= ($duration / (24*60*60)) . "d";
+    my $res      = "";
+    if ($duration >= 24 * 60 * 60) {
+        $res .= ($duration / (24 * 60 * 60)) . "d";
     }
-    if ($duration >= 60*60) {
-        $res .= (($duration / (60*60)) % 24) . "h";
+    if ($duration >= 60 * 60) {
+        $res .= (($duration / (60 * 60)) % 24) . "h";
     }
     if ($duration >= 60) {
         $res .= (($duration / 60) % 60) . "m";
@@ -79,7 +79,7 @@ sub renderDuration {
 
 sub buildFinished {
     my ($self, $topbuild, $dependents) = @_;
-    my $cfg = $self->{config}->{slack};
+    my $cfg    = $self->{config}->{slack};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
@@ -88,16 +88,17 @@ sub buildFinished {
     # we send one aggregate message.
     my %channels;
     foreach my $build ($topbuild, @{$dependents}) {
-        my $jobName = showJobName $build;
-        my $buildStatus = $build->buildstatus;
+        my $jobName            = showJobName $build;
+        my $buildStatus        = $build->buildstatus;
         my $cancelledOrAborted = $buildStatus == 4 || $buildStatus == 3;
 
-        my $prevBuild = getPreviousBuild($build);
-        my $sameAsPrevious = defined $prevBuild && ($buildStatus == $prevBuild->buildstatus);
+        my $prevBuild       = getPreviousBuild($build);
+        my $sameAsPrevious  = defined $prevBuild && ($buildStatus == $prevBuild->buildstatus);
         my $prevBuildStatus = (defined $prevBuild) ? $prevBuild->buildstatus : -1;
-        my $prevBuildId = (defined $prevBuild) ? $prevBuild->id : -1;
+        my $prevBuildId     = (defined $prevBuild) ? $prevBuild->id          : -1;
 
-        print STDERR "SlackNotification_Debug job name $jobName status $buildStatus (previous: $prevBuildStatus from $prevBuildId)\n";
+        print STDERR
+"SlackNotification_Debug job name $jobName status $buildStatus (previous: $prevBuildStatus from $prevBuildId)\n";
 
         foreach my $channel (@config) {
             next unless $jobName =~ /^$channel->{jobs}$/;
@@ -107,15 +108,15 @@ sub buildFinished {
             print STDERR "SlackNotification_Debug found match with '$channel->{jobs}' with force=$force\n";
 
             # If build is cancelled or aborted, do not send Slack notification.
-            next if ! $force && $cancelledOrAborted;
+            next if !$force && $cancelledOrAborted;
 
             # If there is a previous (that is not cancelled or aborted) build
             # with same buildstatus, do not send Slack notification.
-            next if ! $force && $sameAsPrevious;
+            next if !$force && $sameAsPrevious;
 
             print STDERR "SlackNotification_Debug adding $jobName to the report list\n";
-            $channels{$channel->{url}} //= { channel => $channel, builds => [] };
-            push @{$channels{$channel->{url}}->{builds}}, $build;
+            $channels{ $channel->{url} } //= { channel => $channel, builds => [] };
+            push @{ $channels{ $channel->{url} }->{builds} }, $build;
         }
     }
 
@@ -126,43 +127,52 @@ sub buildFinished {
     # Send a message to each room.
     foreach my $url (keys %channels) {
         my $channel = $channels{$url};
-        my @deps = grep { $_->id != $topbuild->id } @{$channel->{builds}};
+        my @deps    = grep { $_->id != $topbuild->id } @{ $channel->{builds} };
 
         my $img =
-            $topbuild->buildstatus == 0 ? "$baseurl/static/images/checkmark_256.png" :
-            $topbuild->buildstatus == 2 ? "$baseurl/static/images/dependency_256.png" :
-            $topbuild->buildstatus == 4 ? "$baseurl/static/images/cancelled_256.png" :
-            "$baseurl/static/images/error_256.png";
+            $topbuild->buildstatus == 0 ? "$baseurl/static/images/checkmark_256.png"
+          : $topbuild->buildstatus == 2 ? "$baseurl/static/images/dependency_256.png"
+          : $topbuild->buildstatus == 4 ? "$baseurl/static/images/cancelled_256.png"
+          :                               "$baseurl/static/images/error_256.png";
 
         my $color =
-            $topbuild->buildstatus == 0 ? "good" :
-            $topbuild->buildstatus == 4 ? "warning" :
-            "danger";
+            $topbuild->buildstatus == 0 ? "good"
+          : $topbuild->buildstatus == 4 ? "warning"
+          :                               "danger";
 
         my $text = "";
-        $text .= "Job <$baseurl/job/${\$topbuild->jobset->get_column('project')}/${\$topbuild->jobset->get_column('name')}/${\$topbuild->get_column('job')}|${\showJobName($topbuild)}>";
+        $text .=
+"Job <$baseurl/job/${\$topbuild->jobset->get_column('project')}/${\$topbuild->jobset->get_column('name')}/${\$topbuild->get_column('job')}|${\showJobName($topbuild)}>";
         $text .= " (and ${\scalar @deps} others)" if scalar @deps > 0;
-        $text .= ": <$baseurl/build/${\$topbuild->id}|" . showStatus($topbuild) . ">". " in " . renderDuration($topbuild);
+        $text .=
+          ": <$baseurl/build/${\$topbuild->id}|" . showStatus($topbuild) . ">" . " in " . renderDuration($topbuild);
 
         if (scalar keys %{$authors} > 0) {
+
             # FIXME: escaping
             my @x = map { "<mailto:$authors->{$_}|$_>" } (sort keys %{$authors});
             $text .= ", likely due to ";
             $text .= "$nrCommits commits by " if $nrCommits > 1;
-            $text .= join(" or ", scalar @x > 1 ? join(", ", @x[0..scalar @x - 2]) : (), $x[-1]);
+            $text .= join(" or ", scalar @x > 1 ? join(", ", @x[ 0 .. scalar @x - 2 ]) : (), $x[-1]);
         }
 
         print STDERR "SlackNotification_Debug POSTing to url ending with: ${\substr $url, -8}\n";
 
-        my $msg =
-        { attachments =>
-          [{ fallback => "Job " . showJobName($topbuild) . " build number " . $topbuild->id . ": " . showStatus($topbuild),
-            text => $text,
-            thumb_url => $img,
-            color => $color,
-            title => "Job " . showJobName($topbuild) . " build number " . $topbuild->id,
-            title_link => "$baseurl/build/${\$topbuild->id}"
-          }]
+        my $msg = {
+            attachments => [
+                {
+                    fallback => "Job "
+                      . showJobName($topbuild)
+                      . " build number "
+                      . $topbuild->id . ": "
+                      . showStatus($topbuild),
+                    text       => $text,
+                    thumb_url  => $img,
+                    color      => $color,
+                    title      => "Job " . showJobName($topbuild) . " build number " . $topbuild->id,
+                    title_link => "$baseurl/build/${\$topbuild->id}"
+                }
+            ]
         };
 
         my $req = HTTP::Request->new('POST', $url);

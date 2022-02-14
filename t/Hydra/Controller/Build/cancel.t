@@ -22,24 +22,25 @@ my $db = Hydra::Model::DB->new;
 hydra_setup($db);
 
 # Create a user to log in to
-my $user = $db->resultset('Users')->create({ username => 'alice', emailaddress => 'root@invalid.org', password => '!' });
+my $user =
+  $db->resultset('Users')->create({ username => 'alice', emailaddress => 'root@invalid.org', password => '!' });
 $user->setPassword('foobar');
 $user->userroles->update_or_create({ role => 'admin' });
 
-my $project = $db->resultset('Projects')->create({name => 'tests', displayname => 'Tests', owner => 'alice'});
+my $project = $db->resultset('Projects')->create({ name => 'tests', displayname => 'Tests', owner => 'alice' });
 
 my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
+ok(evalSucceeds($jobset), "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 
 my ($build, @builds) = queuedBuildsForJobset($jobset);
-is($build->finished, 0, "Unbuilt build should not be finished.");
+is($build->finished,    0,     "Unbuilt build should not be finished.");
 is($build->buildstatus, undef, "Unbuilt build should be undefined.");
 
-
 # Login and save cookie for future requests
-my $req = request(POST '/login',
+my $req = request(
+    POST '/login',
     Referer => 'http://localhost/',
     Content => {
         username => 'alice',
@@ -49,18 +50,18 @@ my $req = request(POST '/login',
 is($req->code, 302, "Logging in gets a 302");
 my $cookie = $req->header("set-cookie");
 
-
 subtest 'Cancel the build' => sub {
-    my $restart = request(PUT '/build/' . $build->id . '/cancel',
-        Accept => 'application/json',
+    my $restart = request(
+        PUT '/build/' . $build->id . '/cancel',
+        Accept       => 'application/json',
         Content_Type => 'application/json',
-        Cookie => $cookie,
+        Cookie       => $cookie,
     );
     is($restart->code, 302, "Restarting 302's back to the build");
     is($restart->header("location"), "http://localhost/build/" . $build->id);
 
     my $newbuild = $db->resultset('Builds')->find($build->id);
-    is($newbuild->finished, 1, "Build 'fails' from jobs/basic.nix should be 'finished'.");
+    is($newbuild->finished,    1, "Build 'fails' from jobs/basic.nix should be 'finished'.");
     is($newbuild->buildstatus, 4, "Build 'fails' from jobs/basic.nix should be canceled.");
 };
 

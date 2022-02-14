@@ -35,6 +35,4 @@ subtest "Fetching the eval's overview" => sub {
     is($fetch->code, 200, "channel page is 200");
 };
 
-
-
 done_testing;

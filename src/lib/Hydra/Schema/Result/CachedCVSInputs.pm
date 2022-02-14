@@ -1,4 +1,5 @@
 use utf8;
+
 package Hydra::Schema::Result::CachedCVSInputs;
 
 # Created by DBIx::Class::Schema::Loader
@@ -68,18 +69,12 @@ __PACKAGE__->table("cachedcvsinputs");
 =cut
 
 __PACKAGE__->add_columns(
-  "uri",
-  { data_type => "text", is_nullable => 0 },
-  "module",
-  { data_type => "text", is_nullable => 0 },
-  "timestamp",
-  { data_type => "integer", is_nullable => 0 },
-  "lastseen",
-  { data_type => "integer", is_nullable => 0 },
-  "sha256hash",
-  { data_type => "text", is_nullable => 0 },
-  "storepath",
-  { data_type => "text", is_nullable => 0 },
+    "uri",        { data_type => "text",    is_nullable => 0 },
+    "module",     { data_type => "text",    is_nullable => 0 },
+    "timestamp",  { data_type => "integer", is_nullable => 0 },
+    "lastseen",   { data_type => "integer", is_nullable => 0 },
+    "sha256hash", { data_type => "text",    is_nullable => 0 },
+    "storepath",  { data_type => "text",    is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -97,7 +92,6 @@ __PACKAGE__->add_columns(
 =cut
 
 __PACKAGE__->set_primary_key("uri", "module", "sha256hash");
-
 
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:yQt8poWCs/wI6WbE4/YdxA

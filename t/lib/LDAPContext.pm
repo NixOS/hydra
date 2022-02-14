@@ -36,13 +36,13 @@ sub new {
     my $socket = "$root/slapd.socket";
 
     my $self = {
-        _db_dir => $db_dir,
+        _db_dir          => $db_dir,
         _openldap_source => $ENV{"OPENLDAP_ROOT"},
-        _pid_file => $pid_file,
-        _slapd_dir => $slapd_dir,
-        _socket => $socket,
-        _tmpdir => $root,
-        root_password => $rootPassword,
+        _pid_file        => $pid_file,
+        _slapd_dir       => $slapd_dir,
+        _socket          => $socket,
+        _tmpdir          => $root,
+        root_password    => $rootPassword,
     };
 
     my $blessed = bless $self, $class;
@@ -67,7 +67,7 @@ sub new {
 sub add_user {
     my ($self, $name, %opts) = @_;
 
-    my $email = $opts{'email'} // "$name\@example";
+    my $email    = $opts{'email'}    // "$name\@example";
     my $password = $opts{'password'} // rand_chars();
 
     my ($res, $stdout, $stderr) = captureStdoutStderr(1, ("slappasswd", "-s", $password));
@@ -75,7 +75,7 @@ sub add_user {
         die "Failed to execute slappasswd ($res): $stderr, $stdout";
     }
     my $hashedPassword = $stdout;
-    $hashedPassword =~ s/^\s+|\s+$//g; # Trim whitespace
+    $hashedPassword =~ s/^\s+|\s+$//g;    # Trim whitespace
 
     $self->load_ldif("dc=example", <<LDIF);
 dn: cn=$name,ou=users,dc=example
@@ -88,9 +88,9 @@ userPassword: $hashedPassword
 LDIF
 
     return {
-        username => $name,
-        email => $email,
-        password => $password,
+        username        => $name,
+        email           => $email,
+        password        => $password,
         hashed_password => $hashedPassword,
     };
 }
@@ -112,6 +112,7 @@ LDIF
 
 sub _makeBootstrapConfig {
     my ($self) = @_;
+
     # This has been copied from the generated config used by the
     # ldap test in the flake.nix.
     return <<EOF;
@@ -142,6 +143,7 @@ EOF
 
 sub _makeBootstrapOrganization {
     my ($self) = @_;
+
     # This has been copied from the generated config used by the
     # ldap test in the flake.nix.
     return <<EOF;
@@ -169,10 +171,10 @@ EOF
 sub start {
     my ($self) = @_;
 
-    $self->load_ldif("cn=config", $self->_makeBootstrapConfig());
+    $self->load_ldif("cn=config",  $self->_makeBootstrapConfig());
     $self->load_ldif("dc=example", $self->_makeBootstrapOrganization());
 
-    $self->_spawn()
+    $self->_spawn();
 }
 
 sub validateConfig {
@@ -188,13 +190,18 @@ sub _spawn {
     die "When starting the LDAP server: failed to fork." if not defined $pid;
 
     if ($pid == 0) {
-        exec("${\$self->{'_openldap_source'}}/libexec/slapd",
+        exec(
+            "${\$self->{'_openldap_source'}}/libexec/slapd",
+
             # A debug flag `-d` must be specified to avoid backgrounding, and an empty
             # argument means no additional debugging.
             "-d", "",
+
             #  "-d", "conns", "-d", "filter", "-d", "config",
-         "-F", $self->{"_slapd_dir"}, "-h", $self->server_url()) or die "Could not start slapd";
-    } else {
+            "-F", $self->{"_slapd_dir"}, "-h", $self->server_url()
+        ) or die "Could not start slapd";
+    }
+    else {
         $self->{"_pid"} = $pid;
     }
 }
@@ -222,8 +229,7 @@ sub load_ldif {
     $self->validateConfig();
 }
 
-sub DESTROY
-{
+sub DESTROY {
     my ($self) = @_;
     if ($self->{"_pid"}) {
         kill SIGKILL, $self->{"_pid"};

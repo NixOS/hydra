@@ -10,7 +10,7 @@ sub process {
 
     $c->response->content_type('application/x-nix-export');
 
-    my @storePaths = @{$c->stash->{storePaths}};
+    my @storePaths = @{ $c->stash->{storePaths} };
 
     my $fh = IO::Handle->new();
 

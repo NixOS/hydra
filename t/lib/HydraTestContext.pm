@@ -45,7 +45,7 @@ sub new {
     mkdir $ENV{'HYDRA_DATA'};
     $ENV{'NIX_CONF_DIR'} = "$dir/nix/etc/nix";
     make_path($ENV{'NIX_CONF_DIR'});
-    my $nixconf = "$ENV{'NIX_CONF_DIR'}/nix.conf";
+    my $nixconf    = "$ENV{'NIX_CONF_DIR'}/nix.conf";
     my $nix_config = "sandbox = false\n" . ($opts{'nix_config'} || "");
     write_file($nixconf, $nix_config);
     $ENV{'HYDRA_CONFIG'} = "$dir/hydra.conf";
@@ -57,24 +57,22 @@ sub new {
 
     write_file($ENV{'HYDRA_CONFIG'}, $hydra_config);
 
-    $ENV{'NIX_LOG_DIR'} = "$dir/nix/var/log/nix";
+    $ENV{'NIX_LOG_DIR'}        = "$dir/nix/var/log/nix";
     $ENV{'NIX_REMOTE_SYSTEMS'} = '';
-    $ENV{'NIX_REMOTE'} = '';
-    $ENV{'NIX_STATE_DIR'} = "$dir/nix/var/nix";
-    $ENV{'NIX_STORE_DIR'} = "$dir/nix/store";
+    $ENV{'NIX_REMOTE'}         = '';
+    $ENV{'NIX_STATE_DIR'}      = "$dir/nix/var/nix";
+    $ENV{'NIX_STORE_DIR'}      = "$dir/nix/store";
 
-    my $pgsql = Test::PostgreSQL->new(
-        extra_initdb_args => "--locale C.UTF-8"
-    );
+    my $pgsql = Test::PostgreSQL->new(extra_initdb_args => "--locale C.UTF-8");
     $ENV{'HYDRA_DBI'} = $pgsql->dsn;
 
     my $self = bless {
-        _db => undef,
-        db_handle => $pgsql,
-        tmpdir => $dir,
+        _db           => undef,
+        db_handle     => $pgsql,
+        tmpdir        => $dir,
         nix_state_dir => "$dir/nix/var/nix",
-        testdir => abs_path(dirname(__FILE__) . "/.."),
-        jobsdir => abs_path(dirname(__FILE__) . "/../jobs")
+        testdir       => abs_path(dirname(__FILE__) . "/.."),
+        jobsdir       => abs_path(dirname(__FILE__) . "/../jobs")
     }, $class;
 
     if ($opts{'before_init'}) {
@@ -95,11 +93,13 @@ sub db {
         $self->{_db} = Hydra::Model::DB->new();
 
         if (!(defined $setup && $setup == 0)) {
-            $self->{_db}->resultset('Users')->create({
-                username => "root",
-                emailaddress => 'root@invalid.org',
-                password => ''
-            });
+            $self->{_db}->resultset('Users')->create(
+                {
+                    username     => "root",
+                    emailaddress => 'root@invalid.org',
+                    password     => ''
+                }
+            );
         }
     }
 
@@ -145,34 +145,39 @@ sub nix_state_dir {
 sub makeAndEvaluateJobset {
     my ($self, %opts) = @_;
 
-    my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeAndEValuateJobset.";
-    my $should_build = $opts{'build'} // 0;
-    my $jobsdir = $opts{'jobsdir'} // $self->jobsdir;
-
+    my $expression   = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeAndEValuateJobset.";
+    my $should_build = $opts{'build'}   // 0;
+    my $jobsdir      = $opts{'jobsdir'} // $self->jobsdir;
 
     # Create a new user for this test
-    my $user = $self->db()->resultset('Users')->create({
-        username => rand_chars(),
-        emailaddress => rand_chars() . '@example.org',
-        password => ''
-    });
+    my $user = $self->db()->resultset('Users')->create(
+        {
+            username     => rand_chars(),
+            emailaddress => rand_chars() . '@example.org',
+            password     => ''
+        }
+    );
 
     # Create a new project for this test
-    my $project = $self->db()->resultset('Projects')->create({
-        name => rand_chars(),
-        displayname => rand_chars(),
-        owner => $user->username
-    });
+    my $project = $self->db()->resultset('Projects')->create(
+        {
+            name        => rand_chars(),
+            displayname => rand_chars(),
+            owner       => $user->username
+        }
+    );
 
     # Create a new jobset for this test and set up the inputs
-    my $jobset = $project->jobsets->create({
-        name => rand_chars(),
-        nixexprinput => "jobs",
-        nixexprpath => $expression,
-        emailoverride => ""
-    });
-    my $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
-    $jobsetinput->jobsetinputalts->create({altnr => 0, value => $jobsdir});
+    my $jobset = $project->jobsets->create(
+        {
+            name          => rand_chars(),
+            nixexprinput  => "jobs",
+            nixexprpath   => $expression,
+            emailoverride => ""
+        }
+    );
+    my $jobsetinput = $jobset->jobsetinputs->create({ name => "jobs", type => "path" });
+    $jobsetinput->jobsetinputalts->create({ altnr => 0, value => $jobsdir });
 
     evalSucceeds($jobset) or die "Evaluating jobs/$expression should exit with return code 0";
 
@@ -180,19 +185,17 @@ sub makeAndEvaluateJobset {
 
     for my $build ($jobset->builds) {
         if ($should_build) {
-            runBuild($build) or die "Build '".$build->job."' from jobs/$expression should exit with return code 0";
+            runBuild($build) or die "Build '" . $build->job . "' from jobs/$expression should exit with return code 0";
             $build->discard_changes();
         }
 
-        $builds->{$build->job} = $build;
+        $builds->{ $build->job } = $build;
     }
 
     return $builds;
 }
 
-
-sub DESTROY
-{
+sub DESTROY {
     my ($self) = @_;
     $self->db(0)->schema->storage->disconnect();
     $self->{db_handle}->stop();

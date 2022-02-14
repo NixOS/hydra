@@ -12,7 +12,7 @@ sub process {
     my $numThreads = $c->config->{'compress_num_threads'};
     my $pParam     = ($numThreads > 0) ? "-p$numThreads" : "";
 
-    $c->response->content_type('application/x-nix-archive'); # !!! check MIME type
+    $c->response->content_type('application/x-nix-archive');    # !!! check MIME type
 
     my $fh = IO::Handle->new();
 

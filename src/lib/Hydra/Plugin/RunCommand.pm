@@ -47,27 +47,26 @@ sub fanoutToCommands {
 
     my @commands;
 
-    my $cfg = $config->{runcommand};
+    my $cfg    = $config->{runcommand};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
     foreach my $conf (@config) {
         my $matcher = $conf->{job} // "*:*:*";
         next unless eventMatches($conf, $event);
-        next unless configSectionMatches(
-            $matcher,
-            $project,
-            $jobset,
-            $job);
+        next unless configSectionMatches($matcher, $project, $jobset, $job);
 
         if (!defined($conf->{command})) {
             warn "<runcommand> section for '$matcher' lacks a 'command' option";
             next;
         }
 
-        push(@commands, {
-            matcher => $matcher,
-            command => $conf->{command},
-        })
+        push(
+            @commands,
+            {
+                matcher => $matcher,
+                command => $conf->{command},
+            }
+        );
     }
 
     return \@commands;
@@ -76,25 +75,25 @@ sub fanoutToCommands {
 sub makeJsonPayload {
     my ($event, $build) = @_;
     my $json = {
-        event => $event,
-        build => $build->id,
-        finished => $build->get_column('finished') ? JSON::MaybeXS::true : JSON::MaybeXS::false,
-        timestamp => $build->get_column('timestamp'),
-        project => $build->project->get_column('name'),
-        jobset => $build->jobset->get_column('name'),
-        job => $build->get_column('job'),
-        drvPath => $build->get_column('drvpath'),
-        startTime => $build->get_column('starttime'),
-        stopTime => $build->get_column('stoptime'),
+        event       => $event,
+        build       => $build->id,
+        finished    => $build->get_column('finished') ? JSON::MaybeXS::true : JSON::MaybeXS::false,
+        timestamp   => $build->get_column('timestamp'),
+        project     => $build->project->get_column('name'),
+        jobset      => $build->jobset->get_column('name'),
+        job         => $build->get_column('job'),
+        drvPath     => $build->get_column('drvpath'),
+        startTime   => $build->get_column('starttime'),
+        stopTime    => $build->get_column('stoptime'),
         buildStatus => $build->get_column('buildstatus'),
-        nixName => $build->get_column('nixname'),
-        system => $build->get_column('system'),
-        homepage => $build->get_column('homepage'),
+        nixName     => $build->get_column('nixname'),
+        system      => $build->get_column('system'),
+        homepage    => $build->get_column('homepage'),
         description => $build->get_column('description'),
-        license => $build->get_column('license'),
-        outputs => [],
-        products => [],
-        metrics => [],
+        license     => $build->get_column('license'),
+        outputs     => [],
+        products    => [],
+        metrics     => [],
     };
 
     for my $output ($build->buildoutputs) {
@@ -102,30 +101,30 @@ sub makeJsonPayload {
             name => $output->name,
             path => $output->path,
         };
-        push @{$json->{outputs}}, $j;
+        push @{ $json->{outputs} }, $j;
     }
 
     for my $product ($build->buildproducts) {
         my $j = {
-            productNr => $product->productnr,
-            type => $product->type,
-            subtype => $product->subtype,
-            fileSize => $product->filesize,
-            sha256hash => $product->sha256hash,
-            path => $product->path,
-            name => $product->name,
+            productNr   => $product->productnr,
+            type        => $product->type,
+            subtype     => $product->subtype,
+            fileSize    => $product->filesize,
+            sha256hash  => $product->sha256hash,
+            path        => $product->path,
+            name        => $product->name,
             defaultPath => $product->defaultpath,
         };
-        push @{$json->{products}}, $j;
+        push @{ $json->{products} }, $j;
     }
 
     for my $metric ($build->buildmetrics) {
         my $j = {
-            name => $metric->name,
-            unit => $metric->unit,
+            name  => $metric->name,
+            unit  => $metric->unit,
             value => 0 + $metric->value,
         };
-        push @{$json->{metrics}}, $j;
+        push @{ $json->{metrics} }, $j;
     }
 
     return $json;
@@ -136,14 +135,14 @@ sub buildFinished {
     my $event = "buildFinished";
 
     my $commandsToRun = fanoutToCommands(
-        $self->{config},
-        $event,
+        $self->{config}, $event,
         $build->project->get_column('name'),
         $build->jobset->get_column('name'),
         $build->get_column('job')
     );
 
     if (@$commandsToRun == 0) {
+
         # No matching jobs, don't bother generating the JSON
         return;
     }
@@ -156,16 +155,18 @@ sub buildFinished {
         my $command = $commandToRun->{command};
 
         # todo: make all the to-run jobs "unstarted" in a batch, then start processing
-        my $runlog = $self->{db}->resultset("RunCommandLogs")->create({
-            job_matcher => $commandToRun->{matcher},
-            build_id => $build->get_column('id'),
-            command => $command
-        });
+        my $runlog = $self->{db}->resultset("RunCommandLogs")->create(
+            {
+                job_matcher => $commandToRun->{matcher},
+                build_id    => $build->get_column('id'),
+                command     => $command
+            }
+        );
 
         $runlog->started();
 
-        my $logPath = Hydra::Helper::Nix::constructRunCommandLogPath($runlog) or die "RunCommandLog not found.";
-        my $dir = dirname($logPath);
+        my $logPath  = Hydra::Helper::Nix::constructRunCommandLogPath($runlog) or die "RunCommandLog not found.";
+        my $dir      = dirname($logPath);
         my $oldUmask = umask();
         my $f;
 
@@ -178,15 +179,17 @@ sub buildFinished {
             umask($oldUmask);
 
             run3($command, \undef, $f, $f, { return_if_system_error => 1 }) == 1
-                or warn "notification command '$command' failed with exit status $? ($!)\n";
+              or warn "notification command '$command' failed with exit status $? ($!)\n";
 
             close($f);
 
             $runlog->completed_with_child_error($?, $!);
             1;
-        } catch {
+        }
+        catch {
             die "Died while trying to process RunCommand (${\$runlog->uuid}): $_";
-        } finally {
+        }
+        finally {
             umask($oldUmask);
         };
     }

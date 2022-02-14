@@ -19,10 +19,12 @@ sub process {
     if ($logPath =~ /\.bz2$/) {
         my $doTail = $tail ? "| tail -n '$tail'" : "";
         open($fh, "-|", "bzip2 -dc < '$logPath' $doTail") or die;
-    } else {
+    }
+    else {
         if ($tail) {
             open($fh, "-|", "tail -n '$tail' '$logPath'") or die;
-        } else {
+        }
+        else {
             open($fh, "<", $logPath) or die;
         }
     }

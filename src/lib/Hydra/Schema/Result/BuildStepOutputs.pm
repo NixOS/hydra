@@ -1,4 +1,5 @@
 use utf8;
+
 package Hydra::Schema::Result::BuildStepOutputs;
 
 # Created by DBIx::Class::Schema::Loader
@@ -60,14 +61,10 @@ __PACKAGE__->table("buildstepoutputs");
 =cut
 
 __PACKAGE__->add_columns(
-  "build",
-  { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
-  "stepnr",
-  { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
-  "name",
-  { data_type => "text", is_nullable => 0 },
-  "path",
-  { data_type => "text", is_nullable => 0 },
+    "build",  { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
+    "stepnr", { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
+    "name",   { data_type => "text",    is_nullable    => 0 },
+    "path",   { data_type => "text",    is_nullable    => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -97,10 +94,10 @@ Related object: L<Hydra::Schema::Result::Builds>
 =cut
 
 __PACKAGE__->belongs_to(
-  "build",
-  "Hydra::Schema::Result::Builds",
-  { id => "build" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+    "build",
+    "Hydra::Schema::Result::Builds",
+    { id            => "build" },
+    { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
 =head2 buildstep
@@ -112,16 +109,14 @@ Related object: L<Hydra::Schema::Result::BuildSteps>
 =cut
 
 __PACKAGE__->belongs_to(
-  "buildstep",
-  "Hydra::Schema::Result::BuildSteps",
-  { build => "build", stepnr => "stepnr" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+    "buildstep",
+    "Hydra::Schema::Result::BuildSteps",
+    { build => "build", stepnr => "stepnr" },
+    { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
-
 
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:gxp8rOjpRVen4YbIjomHTw
-
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
 1;

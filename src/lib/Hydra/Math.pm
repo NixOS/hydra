@@ -21,10 +21,11 @@ Integer number of attempts made.
 =back
 
 =cut
+
 sub exponential_backoff {
     my ($attempt) = @_;
     my $clamp = min(10, $attempt);
-    return 2 ** $clamp;
+    return 2**$clamp;
 }
 
 1;

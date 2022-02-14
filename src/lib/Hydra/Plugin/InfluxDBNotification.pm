@@ -68,9 +68,7 @@ sub toBuildStatusClass {
 }
 
 # Get the hostname. If we can't, we swallow the exception from hostname.
-my $hostname = eval {
-    hostname_long;
-};
+my $hostname = eval { hostname_long; };
 
 # Syntax
 # build_status,job=my-job status=failed,result=dependency-failed duration=123i
@@ -86,6 +84,7 @@ sub createLine {
     foreach my $tag (sort keys %$tagSet) {
         push @tags, "$tag=$tagSet->{$tag}";
     }
+
     # we add host tag to all outputs
     push @tags, "host=$hostname" if defined $hostname;
     my @fields = ();
@@ -103,6 +102,7 @@ sub buildFinished {
 
     # skip if we didn't configure
     return unless defined $influxdb;
+
     # skip if we didn't set the URL and the DB
     return unless ref $influxdb eq 'HASH' and exists $influxdb->{url} and exists $influxdb->{db};
 
@@ -119,6 +119,7 @@ sub buildFinished {
             cached  => $b->iscachedbuild ? "true" : "false",
         };
         my $fieldSet = {
+
             # this line is needed to be able to query the statuses
             build_status  => $b->buildstatus . "i",
             build_id      => '"' . $b->id . '"',
@@ -126,10 +127,9 @@ sub buildFinished {
             duration      => ($b->stoptime - $b->starttime) . "i",
             queued        => ($b->starttime - $b->timestamp > 0 ? $b->starttime - $b->timestamp : 0) . "i",
             closure_size  => ($b->closuresize // 0) . "i",
-            size          => ($b->size // 0) . "i",
+            size          => ($b->size        // 0) . "i",
         };
-        my $line =
-          createLine("hydra_build_status", $tagSet, $fieldSet, $b->stoptime);
+        my $line = createLine("hydra_build_status", $tagSet, $fieldSet, $b->stoptime);
         push @lines, $line;
     }
 
@@ -137,8 +137,7 @@ sub buildFinished {
     print STDERR "sending InfluxDB measurements to server $influxdb->{url}:\n$payload\n";
 
     my $ua  = LWP::UserAgent->new();
-    my $req = HTTP::Request->new('POST',
-        "$influxdb->{url}/write?db=$influxdb->{db}&precision=s");
+    my $req = HTTP::Request->new('POST', "$influxdb->{url}/write?db=$influxdb->{db}&precision=s");
     $req->header('Content-Type' => 'application/x-www-form-urlencoded');
     $req->content($payload);
     my $res = $ua->request($req);

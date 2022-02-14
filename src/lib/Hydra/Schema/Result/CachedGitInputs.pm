@@ -1,4 +1,5 @@
 use utf8;
+
 package Hydra::Schema::Result::CachedGitInputs;
 
 # Created by DBIx::Class::Schema::Loader
@@ -68,18 +69,12 @@ __PACKAGE__->table("cachedgitinputs");
 =cut
 
 __PACKAGE__->add_columns(
-  "uri",
-  { data_type => "text", is_nullable => 0 },
-  "branch",
-  { data_type => "text", is_nullable => 0 },
-  "revision",
-  { data_type => "text", is_nullable => 0 },
-  "isdeepclone",
-  { data_type => "boolean", is_nullable => 0 },
-  "sha256hash",
-  { data_type => "text", is_nullable => 0 },
-  "storepath",
-  { data_type => "text", is_nullable => 0 },
+    "uri",         { data_type => "text",    is_nullable => 0 },
+    "branch",      { data_type => "text",    is_nullable => 0 },
+    "revision",    { data_type => "text",    is_nullable => 0 },
+    "isdeepclone", { data_type => "boolean", is_nullable => 0 },
+    "sha256hash",  { data_type => "text",    is_nullable => 0 },
+    "storepath",   { data_type => "text",    is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -99,7 +94,6 @@ __PACKAGE__->add_columns(
 =cut
 
 __PACKAGE__->set_primary_key("uri", "branch", "revision", "isdeepclone");
-
 
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:IxG58lqBfLgZ8RTZm1GQKA

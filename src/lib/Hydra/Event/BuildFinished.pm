@@ -3,14 +3,15 @@ package Hydra::Event::BuildFinished;
 use strict;
 use warnings;
 
-sub parse :prototype(@) {
+sub parse : prototype(@) {
     if (@_ == 0) {
         die "build_finished: payload takes at least one argument, but ", scalar(@_), " were given";
     }
 
     my @failures = grep(!/^\d+$/, @_);
     if (@failures > 0) {
-        die "build_finished: payload arguments should be integers, but we received the following non-integers:", @failures;
+        die "build_finished: payload arguments should be integers, but we received the following non-integers:",
+          @failures;
     }
 
     my ($build_id, @dependents) = map int, @_;
@@ -20,10 +21,10 @@ sub parse :prototype(@) {
 sub new {
     my ($self, $build_id, $dependent_ids) = @_;
     return bless {
-        "build_id" => $build_id,
+        "build_id"      => $build_id,
         "dependent_ids" => $dependent_ids,
-        "build" => undef,
-        "dependents" => [],
+        "build"         => undef,
+        "dependents"    => [],
     }, $self;
 }
 
@@ -37,12 +38,12 @@ sub load {
 
     if (!defined($self->{"build"})) {
         $self->{"build"} = $db->resultset('Builds')->find($self->{"build_id"})
-            or die "build $self->{'build_id'} does not exist\n";
+          or die "build $self->{'build_id'} does not exist\n";
 
-        foreach my $id (@{$self->{"dependent_ids"}}) {
+        foreach my $id (@{ $self->{"dependent_ids"} }) {
             my $dep = $db->resultset('Builds')->find($id)
-                or die "dependent build $id does not exist\n";
-            push @{$self->{"dependents"}}, $dep;
+              or die "dependent build $id does not exist\n";
+            push @{ $self->{"dependents"} }, $dep;
         }
     }
 }
@@ -58,9 +59,9 @@ sub execute {
     #
     # Otherwise, the dependent builds will remain with notificationpendingsince set
     # until hydra-notify is started, as buildFinished is never emitted for them.
-    foreach my $build ($self->{"build"}, @{$self->{"dependents"}}) {
+    foreach my $build ($self->{"build"}, @{ $self->{"dependents"} }) {
         if ($build->finished && defined($build->notificationpendingsince)) {
-            $build->update({ notificationpendingsince => undef })
+            $build->update({ notificationpendingsince => undef });
         }
     }
 

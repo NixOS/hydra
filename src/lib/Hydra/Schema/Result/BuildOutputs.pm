@@ -1,4 +1,5 @@
 use utf8;
+
 package Hydra::Schema::Result::BuildOutputs;
 
 # Created by DBIx::Class::Schema::Loader
@@ -54,12 +55,9 @@ __PACKAGE__->table("buildoutputs");
 =cut
 
 __PACKAGE__->add_columns(
-  "build",
-  { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
-  "name",
-  { data_type => "text", is_nullable => 0 },
-  "path",
-  { data_type => "text", is_nullable => 0 },
+    "build", { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
+    "name",  { data_type => "text",    is_nullable    => 0 },
+    "path",  { data_type => "text",    is_nullable    => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -87,21 +85,16 @@ Related object: L<Hydra::Schema::Result::Builds>
 =cut
 
 __PACKAGE__->belongs_to(
-  "build",
-  "Hydra::Schema::Result::Builds",
-  { id => "build" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+    "build",
+    "Hydra::Schema::Result::Builds",
+    { id            => "build" },
+    { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
-
 
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:gU+kZ6A0ISKpaXGRGve8mg
 
-my %hint = (
-    columns => [
-        'path'
-    ],
-);
+my %hint = (columns => ['path'],);
 
 sub json_hint {
     return \%hint;

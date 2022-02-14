@@ -9,18 +9,26 @@ my %ctx = test_init(
     hydra_config                   => "include foo.conf"
 );
 
-write_file($ctx{'tmpdir'} . "/foo.conf", q|
+write_file(
+    $ctx{'tmpdir'} . "/foo.conf", q|
 <foo>
   include bar.conf
 </foo>
-|);
+|
+);
 
-write_file($ctx{'tmpdir'} . "/bar.conf", q|
+write_file(
+    $ctx{'tmpdir'} . "/bar.conf", q|
   bar = baz
-|);
+|
+);
 
-is(getHydraConfig(), {
-    foo => { bar => "baz" }
-}, "Nested includes work.");
+is(
+    getHydraConfig(),
+    {
+        foo => { bar => "baz" }
+    },
+    "Nested includes work."
+);
 
 done_testing;

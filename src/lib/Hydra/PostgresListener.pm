@@ -93,11 +93,12 @@ sub block_for_messages {
             my ($channelName, $pid, $payload) = @$notify;
             return {
                 channel => $channelName,
-                pid => $pid,
+                pid     => $pid,
                 payload => $payload,
-            }
-        } else {
-            return undef
+            };
+        }
+        else {
+            return undef;
         }
     }
 }

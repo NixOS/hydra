@@ -9,7 +9,8 @@ my $ctx = test_context(
     <runcommand>
       command = cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"
     </runcommand>
-|);
+|
+);
 
 require Catalyst::Test;
 Catalyst::Test->import('Hydra');
@@ -19,7 +20,7 @@ my $db = $ctx->db();
 
 my $builds = $ctx->makeAndEvaluateJobset(
     expression => "runcommand.nix",
-    build => 1,
+    build      => 1,
 );
 my $build = $builds->{"metrics"};
 

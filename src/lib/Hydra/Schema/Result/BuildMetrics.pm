@@ -1,4 +1,5 @@
 use utf8;
+
 package Hydra::Schema::Result::BuildMetrics;
 
 # Created by DBIx::Class::Schema::Loader
@@ -81,22 +82,14 @@ __PACKAGE__->table("buildmetrics");
 =cut
 
 __PACKAGE__->add_columns(
-  "build",
-  { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
-  "name",
-  { data_type => "text", is_nullable => 0 },
-  "unit",
-  { data_type => "text", is_nullable => 1 },
-  "value",
-  { data_type => "double precision", is_nullable => 0 },
-  "project",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
-  "jobset",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
-  "job",
-  { data_type => "text", is_nullable => 0 },
-  "timestamp",
-  { data_type => "integer", is_nullable => 0 },
+    "build",     { data_type => "integer",          is_foreign_key => 1, is_nullable => 0 },
+    "name",      { data_type => "text",             is_nullable    => 0 },
+    "unit",      { data_type => "text",             is_nullable    => 1 },
+    "value",     { data_type => "double precision", is_nullable    => 0 },
+    "project",   { data_type => "text",             is_foreign_key => 1, is_nullable => 0 },
+    "jobset",    { data_type => "text",             is_foreign_key => 1, is_nullable => 0 },
+    "job",       { data_type => "text",             is_nullable    => 0 },
+    "timestamp", { data_type => "integer",          is_nullable    => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -124,10 +117,10 @@ Related object: L<Hydra::Schema::Result::Builds>
 =cut
 
 __PACKAGE__->belongs_to(
-  "build",
-  "Hydra::Schema::Result::Builds",
-  { id => "build" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+    "build",
+    "Hydra::Schema::Result::Builds",
+    { id            => "build" },
+    { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
 =head2 jobset
@@ -139,10 +132,10 @@ Related object: L<Hydra::Schema::Result::Jobsets>
 =cut
 
 __PACKAGE__->belongs_to(
-  "jobset",
-  "Hydra::Schema::Result::Jobsets",
-  { name => "jobset", project => "project" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
+    "jobset",
+    "Hydra::Schema::Result::Jobsets",
+    { name => "jobset", project => "project" },
+    { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
 );
 
 =head2 project
@@ -154,18 +147,17 @@ Related object: L<Hydra::Schema::Result::Projects>
 =cut
 
 __PACKAGE__->belongs_to(
-  "project",
-  "Hydra::Schema::Result::Projects",
-  { name => "project" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
+    "project",
+    "Hydra::Schema::Result::Projects",
+    { name          => "project" },
+    { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
 );
-
 
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:yp/kl6bkrm/CSEle7Y3How
 
 sub json_hint {
-    return { columns => ['value', 'unit'] };
+    return { columns => [ 'value', 'unit' ] };
 }
 
 1;

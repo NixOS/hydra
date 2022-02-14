@@ -9,23 +9,26 @@ use Time::Seconds;
 
 __PACKAGE__->config(
     TEMPLATE_EXTENSION => '.tt',
-    ENCODING => 'utf-8',
-    PRE_CHOMP => 1,
-    POST_CHOMP => 1,
-    expose_methods => [qw/
-    buildLogExists
-    buildStepLogExists
-    jobExists
-    linkToJob
-    linkToJobset
-    linkToProject
-    makeNameLinksForJob
-    makeNameLinksForJobset
-    makeNameTextForJob
-    makeNameTextForJobset
-    relativeDuration
-    stripSSHUser
-    /]);
+    ENCODING           => 'utf-8',
+    PRE_CHOMP          => 1,
+    POST_CHOMP         => 1,
+    expose_methods     => [
+        qw/
+          buildLogExists
+          buildStepLogExists
+          jobExists
+          linkToJob
+          linkToJobset
+          linkToProject
+          makeNameLinksForJob
+          makeNameLinksForJobset
+          makeNameTextForJob
+          makeNameTextForJobset
+          relativeDuration
+          stripSSHUser
+          /
+    ]
+);
 
 sub buildLogExists {
     my ($self, $c, $build) = @_;
@@ -57,6 +60,7 @@ An integer number of seconds
 =back
 
 =cut
+
 sub relativeDuration {
     my ($self, $c, $seconds) = @_;
     return Time::Seconds->new($seconds)->pretty();
@@ -66,7 +70,8 @@ sub stripSSHUser {
     my ($self, $c, $name) = @_;
     if ($name =~ /^.*@(.*)$/) {
         return $1;
-    } else {
+    }
+    else {
         return $name;
     }
 }
@@ -100,12 +105,13 @@ The L<Hydra::Schema::Result::Project> to link to.
 =back
 
 =cut
+
 sub linkToProject {
     my ($self, $c, $project) = @_;
 
     my $html = Template::Plugin::HTML->new();
 
-    my $projectName = $project->name;
+    my $projectName        = $project->name;
     my $escapedProjectName = $html->escape($projectName);
 
     return '<a href="' . $c->uri_for('/project', $projectName) . '">' . $escapedProjectName . '</a>';
@@ -134,16 +140,20 @@ The L<Hydra::Schema::Result::Jobset> to link to.
 =back
 
 =cut
+
 sub linkToJobset {
     my ($self, $c, $jobset) = @_;
 
     my $html = Template::Plugin::HTML->new();
 
-    my $jobsetName = $jobset->name;
+    my $jobsetName        = $jobset->name;
     my $escapedJobsetName = $html->escape($jobsetName);
 
-    return linkToProject($self, $c, $jobset->project) .
-           ':<a href="' . $c->uri_for('/jobset', $jobset->project->name, $jobsetName) . '">' . $escapedJobsetName . '</a>';
+    return
+        linkToProject($self, $c, $jobset->project)
+      . ':<a href="'
+      . $c->uri_for('/jobset', $jobset->project->name, $jobsetName) . '">'
+      . $escapedJobsetName . '</a>';
 }
 
 =head2 linkToJobset
@@ -174,6 +184,7 @@ The L<String> job name to link to.
 =back
 
 =cut
+
 sub linkToJob {
     my ($self, $c, $jobset, $jobName) = @_;
 
@@ -181,8 +192,11 @@ sub linkToJob {
 
     my $escapedJobName = $html->escape($jobName);
 
-    return linkToJobset($self, $c, $jobset) .
-           ':<a href="' . $c->uri_for('/job', $jobset->project->name, $jobset->name, $jobName) . '">' . $escapedJobName . '</a>';
+    return
+        linkToJobset($self, $c, $jobset)
+      . ':<a href="'
+      . $c->uri_for('/job', $jobset->project->name, $jobset->name, $jobName) . '">'
+      . $escapedJobName . '</a>';
 }
 
 =head2 makeNameLinksForJobset
@@ -208,6 +222,7 @@ The L<Hydra::Schema::Result::Jobset> to link to.
 =back
 
 =cut
+
 sub makeNameLinksForJobset {
     my ($self, $c, $jobset) = @_;
 
@@ -249,6 +264,7 @@ The L<String> job name to link to.
 =back
 
 =cut
+
 sub makeNameLinksForJob {
     my ($self, $c, $jobset, $jobName) = @_;
 
@@ -282,6 +298,7 @@ The L<Hydra::Schema::Result::Jobset> to link to.
 =back
 
 =cut
+
 sub makeNameTextForJobset {
     my ($self, $c, $jobset) = @_;
 
@@ -318,6 +335,7 @@ The L<String> job name to link to.
 =back
 
 =cut
+
 sub makeNameTextForJob {
     my ($self, $c, $jobset, $jobName) = @_;
 

@@ -16,28 +16,28 @@ hydra_setup($db);
 
 # This test checks a matrix of jobset configuration options for constraint violations.
 
-my @types = ( 0, 1, 2 );
-my @nixexprinputs = ( undef, "input" );
-my @nixexprpaths = ( undef, "path" );
-my @flakes = ( undef, "flake" );
+my @types         = (0,     1, 2);
+my @nixexprinputs = (undef, "input");
+my @nixexprpaths  = (undef, "path");
+my @flakes        = (undef, "flake");
 
 my @expected_failing;
 my @expected_succeeding = (
     {
-        "name" => "test",
+        "name"          => "test",
         "emailoverride" => "",
-        "type" => 0,
-        "nixexprinput" => "input",
-        "nixexprpath" => "path",
-        "flake" => undef,
+        "type"          => 0,
+        "nixexprinput"  => "input",
+        "nixexprpath"   => "path",
+        "flake"         => undef,
     },
     {
-        "name" => "test",
+        "name"          => "test",
         "emailoverride" => "",
-        "type" => 1,
-        "nixexprinput" => undef,
-        "nixexprpath" => undef,
-        "flake" => "flake",
+        "type"          => 1,
+        "nixexprinput"  => undef,
+        "nixexprpath"   => undef,
+        "flake"         => "flake",
     },
 );
 
@@ -50,7 +50,8 @@ sub test_scenario_matches {
 
     if (defined $ret == 1) {
         return 0;
-    } else {
+    }
+    else {
         return 1;
     }
 }
@@ -61,27 +62,27 @@ foreach my $type (@types) {
         foreach my $nixexprpath (@nixexprpaths) {
             foreach my $flake (@flakes) {
                 my $hash = {
-                    "name" => "test",
+                    "name"          => "test",
                     "emailoverride" => "",
-                    "type" => $type,
-                    "nixexprinput" => $nixexprinput,
-                    "nixexprpath" => $nixexprpath,
-                    "flake" => $flake,
+                    "type"          => $type,
+                    "nixexprinput"  => $nixexprinput,
+                    "nixexprpath"   => $nixexprpath,
+                    "flake"         => $flake,
                 };
 
                 push(@expected_failing, $hash) if (!grep { test_scenario_matches($_, $hash) } @expected_succeeding);
-            };
-        };
-    };
-};
+            }
+        }
+    }
+}
 
-my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
+my $project = $db->resultset('Projects')->create({ name => "tests", displayname => "", owner => "root" });
 
 # Validate that the list of parameters that should fail the constraints do indeed fail.
 subtest "Expected constraint failures" => sub {
     my $count = 1;
     foreach my $case (@expected_failing) {
-        subtest "Case $count: " . Dumper ($case) => sub {
+        subtest "Case $count: " . Dumper($case) => sub {
             dies {
                 # Necessary, otherwise cases will fail because the `->create`
                 # will throw an exception due to an expected constraint failure
@@ -89,35 +90,29 @@ subtest "Expected constraint failures" => sub {
                 # assertions in the subtest).
                 is(1, 1);
 
-                ok(
-                    !$project->jobsets->create($case),
-                    "Expected jobset to violate constraints"
-                );
+                ok(!$project->jobsets->create($case), "Expected jobset to violate constraints");
             };
         };
 
         $count++;
-    };
+    }
 };
 
 # Validate that the list of parameters that should not fail the constraints do indeed succeed.
 subtest "Expected constraint successes" => sub {
     my $count = 1;
     foreach my $case (@expected_succeeding) {
-        subtest "Case $count: " . Dumper ($case) => sub {
+        subtest "Case $count: " . Dumper($case) => sub {
             my $jobset = $project->jobsets->create($case);
 
-            ok(
-                $jobset,
-                "Expected jobset to not violate constraints"
-            );
+            ok($jobset, "Expected jobset to not violate constraints");
 
             # Delete the jobset so the next jobset won't violate the name constraint.
             $jobset->delete;
         };
 
         $count++;
-    };
+    }
 };
 
 done_testing;

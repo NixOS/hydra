@@ -26,13 +26,17 @@ sub toGitlabState {
     my ($status, $buildStatus) = @_;
     if ($status == 0) {
         return "pending";
-    } elsif ($status == 1) {
+    }
+    elsif ($status == 1) {
         return "running";
-    } elsif ($buildStatus == 0) {
+    }
+    elsif ($buildStatus == 0) {
         return "success";
-    } elsif ($buildStatus == 3 || $buildStatus == 4 || $buildStatus == 8 || $buildStatus == 10 || $buildStatus == 11) {
+    }
+    elsif ($buildStatus == 3 || $buildStatus == 4 || $buildStatus == 8 || $buildStatus == 10 || $buildStatus == 11) {
         return "canceled";
-    } else {
+    }
+    else {
         return "failed";
     }
 }
@@ -44,33 +48,34 @@ sub common {
     # Find matching configs
     foreach my $build ($topbuild, @{$dependents}) {
         my $jobName = showJobName $build;
-        my $evals = $topbuild->jobsetevals;
-        my $ua = LWP::UserAgent->new();
+        my $evals   = $topbuild->jobsetevals;
+        my $ua      = LWP::UserAgent->new();
 
         # Don't send out "pending/running" status updates if the build is already finished
         next if $status < 2 && $build->finished == 1;
 
         my $state = toGitlabState($status, $build->buildstatus);
-        my $body = encode_json(
+        my $body  = encode_json(
             {
-                state => $state,
-                target_url => "$baseurl/build/" . $build->id,
+                state       => $state,
+                target_url  => "$baseurl/build/" . $build->id,
                 description => "Hydra build #" . $build->id . " of $jobName",
-                name => "Hydra " . $build->get_column('job'),
-            });
+                name        => "Hydra " . $build->get_column('job'),
+            }
+        );
         while (my $eval = $evals->next) {
             my $gitlabstatusInput = $eval->jobsetevalinputs->find({ name => "gitlab_status_repo" });
             next unless defined $gitlabstatusInput && defined $gitlabstatusInput->value;
             my $i = $eval->jobsetevalinputs->find({ name => $gitlabstatusInput->value, altnr => 0 });
             next unless defined $i;
-            my $projectId = $eval->jobsetevalinputs->find({ name => "gitlab_project_id" })->value;
+            my $projectId   = $eval->jobsetevalinputs->find({ name => "gitlab_project_id" })->value;
             my $accessToken = $self->{config}->{gitlab_authorization}->{$projectId};
-            my $rev = $i->revision;
-            my $domain = URI->new($i->uri)->host;
-            my $url = "https://$domain/api/v4/projects/$projectId/statuses/$rev";
+            my $rev         = $i->revision;
+            my $domain      = URI->new($i->uri)->host;
+            my $url         = "https://$domain/api/v4/projects/$projectId/statuses/$rev";
             print STDERR "GitlabStatus POSTing $state to $url\n";
             my $req = HTTP::Request->new('POST', $url);
-            $req->header('Content-Type' => 'application/json');
+            $req->header('Content-Type'  => 'application/json');
             $req->header('Private-Token' => $accessToken);
             $req->content($body);
             my $res = $ua->request($req);

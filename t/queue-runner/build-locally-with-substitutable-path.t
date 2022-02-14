@@ -5,9 +5,7 @@ use Data::Dumper;
 use Test2::V0;
 use Hydra::Helper::Exec;
 
-my $ctx = test_context(
-    use_external_destination_store => 1
-);
+my $ctx = test_context(use_external_destination_store => 1);
 
 require Hydra::Helper::Nix;
 
@@ -28,11 +26,10 @@ require Hydra::Helper::Nix;
 # the output of underlyingJob, and build dependentJob. In order to pass
 # it must either rebuild underlyingJob or fetch it from the cache.
 
-
 subtest "Building, caching, and then garbage collecting the underlying job" => sub {
     my $builds = $ctx->makeAndEvaluateJobset(
         expression => "dependencies/underlyingOnly.nix",
-        build => 1
+        build      => 1
     );
 
     my $path = $builds->{"underlyingJob"}->buildoutputs->find({ name => "out" })->path;
@@ -44,12 +41,9 @@ subtest "Building, caching, and then garbage collecting the underlying job" => s
 };
 
 subtest "Building the dependent job should now succeed, even though we're missing a local dependency" => sub {
-    my $builds = $ctx->makeAndEvaluateJobset(
-        expression => "dependencies/dependentOnly.nix"
-    );
+    my $builds = $ctx->makeAndEvaluateJobset(expression => "dependencies/dependentOnly.nix");
 
     ok(runBuild($builds->{"dependentJob"}), "building the job should succeed");
 };
-
 
 done_testing;

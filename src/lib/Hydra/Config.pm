@@ -6,11 +6,11 @@ use Config::General;
 use List::SomeUtils qw(none);
 use YAML qw(LoadFile);
 
-our @ISA = qw(Exporter);
+our @ISA    = qw(Exporter);
 our @EXPORT = qw(
-    getHydraConfig
-    getLDAPConfig
-    getLDAPConfigAmbient
+  getHydraConfig
+  getLDAPConfig
+  getLDAPConfigAmbient
 );
 
 our %configGeneralOpts = (-UseApacheInclude => 1, -IncludeAgain => 1, -IncludeRelative => 1);
@@ -24,14 +24,16 @@ sub getHydraConfig {
 
     if ($ENV{"HYDRA_CONFIG"}) {
         $conf = $ENV{"HYDRA_CONFIG"};
-    } else {
+    }
+    else {
         require Hydra::Model::DB;
-        $conf = Hydra::Model::DB::getHydraPath() . "/hydra.conf"
-    };
+        $conf = Hydra::Model::DB::getHydraPath() . "/hydra.conf";
+    }
 
     if (-f $conf) {
         $hydraConfigCache = loadConfig($conf);
-    } else {
+    }
+    else {
         $hydraConfigCache = {};
     }
 
@@ -53,14 +55,18 @@ sub is_ldap_in_legacy_mode {
 
     if (defined $config->{"ldap"}) {
         if ($legacy_defined) {
-            die "The legacy environment variable HYDRA_LDAP_CONFIG is set, but config is also specified in hydra.conf. Please unset the environment variable.";
+            die
+"The legacy environment variable HYDRA_LDAP_CONFIG is set, but config is also specified in hydra.conf. Please unset the environment variable.";
         }
 
         return 0;
-    } elsif ($legacy_defined) {
-        warn "Hydra is configured to use LDAP via the HYDRA_LDAP_CONFIG, a deprecated method. Please see the docs about configuring LDAP in the hydra.conf.";
+    }
+    elsif ($legacy_defined) {
+        warn
+"Hydra is configured to use LDAP via the HYDRA_LDAP_CONFIG, a deprecated method. Please see the docs about configuring LDAP in the hydra.conf.";
         return 1;
-    } else {
+    }
+    else {
         return 0;
     }
 }
@@ -76,7 +82,8 @@ sub getLDAPConfig {
 
     if (is_ldap_in_legacy_mode($config, %env)) {
         $ldap_config = get_legacy_ldap_config($env{"HYDRA_LDAP_CONFIG"});
-    } else {
+    }
+    else {
         $ldap_config = $config->{"ldap"};
     }
 
@@ -89,13 +96,13 @@ sub get_legacy_ldap_config {
     my ($ldap_yaml_file) = @_;
 
     return {
-        config => LoadFile($ldap_yaml_file),
+        config       => LoadFile($ldap_yaml_file),
         role_mapping => {
-            "hydra_admin" => [ "admin" ],
-            "hydra_bump-to-front" => [ "bump-to-front" ],
-            "hydra_cancel-build" => [ "cancel-build" ],
-            "hydra_create-projects" => [ "create-projects" ],
-            "hydra_restart-jobs" => [ "restart-jobs" ],
+            "hydra_admin"           => ["admin"],
+            "hydra_bump-to-front"   => ["bump-to-front"],
+            "hydra_cancel-build"    => ["cancel-build"],
+            "hydra_create-projects" => ["create-projects"],
+            "hydra_restart-jobs"    => ["restart-jobs"],
         },
     };
 }
@@ -112,16 +119,17 @@ sub normalize_ldap_role_mappings {
 
         if (ref $input eq "ARRAY") {
             $mapping->{$group} = $input;
-        } elsif (ref $input eq "") {
-            $mapping->{$group} = [ $input ];
-        } else {
-            push @errors, "On group '$group': the value is of type ${\ref $input}. Only strings and lists are acceptable.";
-            $mapping->{$group} = [ ];
+        }
+        elsif (ref $input eq "") {
+            $mapping->{$group} = [$input];
+        }
+        else {
+            push @errors,
+              "On group '$group': the value is of type ${\ref $input}. Only strings and lists are acceptable.";
+            $mapping->{$group} = [];
         }
 
-        eval {
-            validate_roles($mapping->{$group});
-        };
+        eval { validate_roles($mapping->{$group}); };
         if ($@) {
             push @errors, "On group '$group': $@";
         }
@@ -154,13 +162,7 @@ sub validate_roles {
 }
 
 sub valid_roles {
-    return [
-        "admin",
-        "bump-to-front",
-        "cancel-build",
-        "create-projects",
-        "restart-jobs",
-    ];
+    return [ "admin", "bump-to-front", "cancel-build", "create-projects", "restart-jobs", ];
 }
 
 1;

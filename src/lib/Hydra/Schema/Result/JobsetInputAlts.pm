@@ -1,4 +1,5 @@
 use utf8;
+
 package Hydra::Schema::Result::JobsetInputAlts;
 
 # Created by DBIx::Class::Schema::Loader
@@ -71,18 +72,12 @@ __PACKAGE__->table("jobsetinputalts");
 =cut
 
 __PACKAGE__->add_columns(
-  "project",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
-  "jobset",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
-  "input",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
-  "altnr",
-  { data_type => "integer", is_nullable => 0 },
-  "value",
-  { data_type => "text", is_nullable => 1 },
-  "revision",
-  { data_type => "text", is_nullable => 1 },
+    "project",  { data_type => "text",    is_foreign_key => 1, is_nullable => 0 },
+    "jobset",   { data_type => "text",    is_foreign_key => 1, is_nullable => 0 },
+    "input",    { data_type => "text",    is_foreign_key => 1, is_nullable => 0 },
+    "altnr",    { data_type => "integer", is_nullable    => 0 },
+    "value",    { data_type => "text",    is_nullable    => 1 },
+    "revision", { data_type => "text",    is_nullable    => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -114,12 +109,11 @@ Related object: L<Hydra::Schema::Result::JobsetInputs>
 =cut
 
 __PACKAGE__->belongs_to(
-  "jobsetinput",
-  "Hydra::Schema::Result::JobsetInputs",
-  { jobset => "jobset", name => "input", project => "project" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
+    "jobsetinput",
+    "Hydra::Schema::Result::JobsetInputs",
+    { jobset        => "jobset", name      => "input",   project   => "project" },
+    { is_deferrable => 0,        on_delete => "CASCADE", on_update => "CASCADE" },
 );
-
 
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:7GE67QxkIj/ezwUX6c/a/A

@@ -7,7 +7,7 @@ sub new {
     my ($self, $event, $plugin_name) = @_;
 
     return bless {
-        "event" => $event,
+        "event"       => $event,
         "plugin_name" => $plugin_name,
     }, $self;
 }

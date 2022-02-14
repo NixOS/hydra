@@ -1,4 +1,5 @@
 use utf8;
+
 package Hydra::Schema::Result::JobsetEvals;
 
 # Created by DBIx::Class::Schema::Loader
@@ -107,37 +108,37 @@ __PACKAGE__->table("jobsetevals");
 =cut
 
 __PACKAGE__->add_columns(
-  "id",
-  {
-    data_type         => "integer",
-    is_auto_increment => 1,
-    is_nullable       => 0,
-    sequence          => "jobsetevals_id_seq",
-  },
-  "jobset_id",
-  { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
-  "evaluationerror_id",
-  { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
-  "timestamp",
-  { data_type => "integer", is_nullable => 0 },
-  "checkouttime",
-  { data_type => "integer", is_nullable => 0 },
-  "evaltime",
-  { data_type => "integer", is_nullable => 0 },
-  "hasnewbuilds",
-  { data_type => "integer", is_nullable => 0 },
-  "hash",
-  { data_type => "text", is_nullable => 0 },
-  "nrbuilds",
-  { data_type => "integer", is_nullable => 1 },
-  "nrsucceeded",
-  { data_type => "integer", is_nullable => 1 },
-  "flake",
-  { data_type => "text", is_nullable => 1 },
-  "nixexprinput",
-  { data_type => "text", is_nullable => 1 },
-  "nixexprpath",
-  { data_type => "text", is_nullable => 1 },
+    "id",
+    {
+        data_type         => "integer",
+        is_auto_increment => 1,
+        is_nullable       => 0,
+        sequence          => "jobsetevals_id_seq",
+    },
+    "jobset_id",
+    { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
+    "evaluationerror_id",
+    { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
+    "timestamp",
+    { data_type => "integer", is_nullable => 0 },
+    "checkouttime",
+    { data_type => "integer", is_nullable => 0 },
+    "evaltime",
+    { data_type => "integer", is_nullable => 0 },
+    "hasnewbuilds",
+    { data_type => "integer", is_nullable => 0 },
+    "hash",
+    { data_type => "text", is_nullable => 0 },
+    "nrbuilds",
+    { data_type => "integer", is_nullable => 1 },
+    "nrsucceeded",
+    { data_type => "integer", is_nullable => 1 },
+    "flake",
+    { data_type => "text", is_nullable => 1 },
+    "nixexprinput",
+    { data_type => "text", is_nullable => 1 },
+    "nixexprpath",
+    { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -163,15 +164,15 @@ Related object: L<Hydra::Schema::Result::EvaluationErrors>
 =cut
 
 __PACKAGE__->belongs_to(
-  "evaluationerror",
-  "Hydra::Schema::Result::EvaluationErrors",
-  { id => "evaluationerror_id" },
-  {
-    is_deferrable => 0,
-    join_type     => "LEFT",
-    on_delete     => "SET NULL",
-    on_update     => "NO ACTION",
-  },
+    "evaluationerror",
+    "Hydra::Schema::Result::EvaluationErrors",
+    { id => "evaluationerror_id" },
+    {
+        is_deferrable => 0,
+        join_type     => "LEFT",
+        on_delete     => "SET NULL",
+        on_update     => "NO ACTION",
+    },
 );
 
 =head2 jobset
@@ -183,10 +184,10 @@ Related object: L<Hydra::Schema::Result::Jobsets>
 =cut
 
 __PACKAGE__->belongs_to(
-  "jobset",
-  "Hydra::Schema::Result::Jobsets",
-  { id => "jobset_id" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+    "jobset",
+    "Hydra::Schema::Result::Jobsets",
+    { id            => "jobset_id" },
+    { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
 =head2 jobsetevalinputs
@@ -198,10 +199,9 @@ Related object: L<Hydra::Schema::Result::JobsetEvalInputs>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetevalinputs",
-  "Hydra::Schema::Result::JobsetEvalInputs",
-  { "foreign.eval" => "self.id" },
-  undef,
+    "jobsetevalinputs",
+    "Hydra::Schema::Result::JobsetEvalInputs",
+    { "foreign.eval" => "self.id" }, undef,
 );
 
 =head2 jobsetevalmembers
@@ -213,37 +213,25 @@ Related object: L<Hydra::Schema::Result::JobsetEvalMembers>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetevalmembers",
-  "Hydra::Schema::Result::JobsetEvalMembers",
-  { "foreign.eval" => "self.id" },
-  undef,
+    "jobsetevalmembers",
+    "Hydra::Schema::Result::JobsetEvalMembers",
+    { "foreign.eval" => "self.id" }, undef,
 );
-
 
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:5qvXXTBDdRzgTEmJz6xC/g
 
-__PACKAGE__->has_many(
-  "buildIds",
-  "Hydra::Schema::Result::JobsetEvalMembers",
-  { "foreign.eval" => "self.id" },
-);
+__PACKAGE__->has_many("buildIds", "Hydra::Schema::Result::JobsetEvalMembers", { "foreign.eval" => "self.id" },);
 
 __PACKAGE__->many_to_many(builds => 'buildIds', 'build');
 
 my %hint = (
-    columns => [
-        "timestamp",
-        "checkouttime",
-        "evaltime",
-        "hasnewbuilds",
-        "id",
-        "flake",
-    ],
+    columns   => [ "timestamp", "checkouttime", "evaltime", "hasnewbuilds", "id", "flake", ],
     relations => {
         "builds" => "id"
     },
     eager_relations => {
+
         # altnr? Does anyone care?
         jobsetevalinputs => "name"
     }

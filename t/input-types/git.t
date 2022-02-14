@@ -15,15 +15,15 @@ hydra_setup($db);
 
 # Tests the creation of a Hydra jobset using a git repo as input.
 testScmInput(
-  type => 'git',
-  expr => 'git-input.nix',
-  uri => 'git-repo',
-  update => 'jobs/git-update.sh',
+    type   => 'git',
+    expr   => 'git-input.nix',
+    uri    => 'git-repo',
+    update => 'jobs/git-update.sh',
 
-  # directories
-  datadir => $ctx{tmpdir},
-  testdir => $ctx{testdir},
-  jobsdir => $ctx{jobsdir},
+    # directories
+    datadir => $ctx{tmpdir},
+    testdir => $ctx{testdir},
+    jobsdir => $ctx{jobsdir},
 );
 
 done_testing;

@@ -126,14 +126,14 @@ sub new {
     my %plugins_by_name = map { ref $_ => $_ } @{$plugins};
 
     if (!defined($store_task)) {
-        $store_task = sub {};
+        $store_task = sub { };
     }
 
     my $obj = bless {
-        "db" => $db,
-        "prometheus" => $prometheus,
+        "db"              => $db,
+        "prometheus"      => $prometheus,
         "plugins_by_name" => \%plugins_by_name,
-        "store_task" => $store_task,
+        "store_task"      => $store_task,
     }, $self;
 }
 
@@ -156,7 +156,7 @@ L<Hydra::Event> The event, usually from L<Hydra::PostgresListener>.
 sub dispatch_event {
     my ($self, $event) = @_;
 
-    foreach my $plugin_name (keys %{$self->{"plugins_by_name"}}) {
+    foreach my $plugin_name (keys %{ $self->{"plugins_by_name"} }) {
         my $task = Hydra::Task->new($event, $plugin_name);
         $self->dispatch_task($task);
     }
@@ -180,11 +180,12 @@ L<Hydra::Task> The task, usually from L<Hydra::Shema::Result::TaskRetries>.
 =back
 
 =cut
+
 sub dispatch_task {
     my ($self, $task) = @_;
 
     my $channel_name = $task->{"event"}->{'channel_name'};
-    my $plugin_name = $task->{"plugin_name"};
+    my $plugin_name  = $task->{"plugin_name"};
     my $event_labels = $self->prom_labels_for_task($task);
 
     my $plugin = $self->{"plugins_by_name"}->{$plugin_name};
@@ -202,7 +203,7 @@ sub dispatch_task {
 
     $self->{"prometheus"}->inc("notify_plugin_executions", $event_labels);
     eval {
-        my $start_time = [gettimeofday()];
+        my $start_time = [ gettimeofday() ];
 
         $task->{"event"}->execute($self->{"db"}, $plugin);
 
@@ -235,6 +236,7 @@ L<Hydra::Task> The task to mark as successful.
 =back
 
 =cut
+
 sub success {
     my ($self, $task) = @_;
 
@@ -263,6 +265,7 @@ L<Hydra::Task> The task to mark as successful.
 =back
 
 =cut
+
 sub failure {
     my ($self, $task) = @_;
 
@@ -272,11 +275,13 @@ sub failure {
         if ($task->{"record"}->attempts > 100) {
             $self->{"prometheus"}->inc("notify_plugin_drop", $event_labels);
             $task->{"record"}->delete();
-        } else {
+        }
+        else {
             $self->{"prometheus"}->inc("notify_plugin_requeue", $event_labels);
             $task->{"record"}->requeue();
         }
-    } else {
+    }
+    else {
         $self->{"prometheus"}->inc("notify_plugin_requeue", $event_labels);
         $self->{"store_task"}($task);
     }
@@ -298,14 +303,15 @@ L<Hydra::Task> The task to return labels for.
 =back
 
 =cut
+
 sub prom_labels_for_task {
     my ($self, $task) = @_;
 
     my $channel_name = $task->{"event"}->{'channel_name'};
-    my $plugin_name = $task->{"plugin_name"};
+    my $plugin_name  = $task->{"plugin_name"};
     return {
         channel => $channel_name,
-        plugin => $plugin_name,
+        plugin  => $plugin_name,
     };
 }
 

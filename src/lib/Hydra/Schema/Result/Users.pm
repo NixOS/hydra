@@ -1,4 +1,5 @@
 use utf8;
+
 package Hydra::Schema::Result::Users;
 
 # Created by DBIx::Class::Schema::Loader
@@ -76,20 +77,13 @@ __PACKAGE__->table("users");
 =cut
 
 __PACKAGE__->add_columns(
-  "username",
-  { data_type => "text", is_nullable => 0 },
-  "fullname",
-  { data_type => "text", is_nullable => 1 },
-  "emailaddress",
-  { data_type => "text", is_nullable => 0 },
-  "password",
-  { data_type => "text", is_nullable => 0 },
-  "emailonerror",
-  { data_type => "integer", default_value => 0, is_nullable => 0 },
-  "type",
-  { data_type => "text", default_value => "hydra", is_nullable => 0 },
-  "publicdashboard",
-  { data_type => "boolean", default_value => \"false", is_nullable => 0 },
+    "username",        { data_type => "text",    is_nullable   => 0 },
+    "fullname",        { data_type => "text",    is_nullable   => 1 },
+    "emailaddress",    { data_type => "text",    is_nullable   => 0 },
+    "password",        { data_type => "text",    is_nullable   => 0 },
+    "emailonerror",    { data_type => "integer", default_value => 0,       is_nullable => 0 },
+    "type",            { data_type => "text",    default_value => "hydra", is_nullable => 0 },
+    "publicdashboard", { data_type => "boolean", default_value => \"false", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -114,12 +108,7 @@ Related object: L<Hydra::Schema::Result::NewsItems>
 
 =cut
 
-__PACKAGE__->has_many(
-  "newsitems",
-  "Hydra::Schema::Result::NewsItems",
-  { "foreign.author" => "self.username" },
-  undef,
-);
+__PACKAGE__->has_many("newsitems", "Hydra::Schema::Result::NewsItems", { "foreign.author" => "self.username" }, undef,);
 
 =head2 projectmembers
 
@@ -130,10 +119,9 @@ Related object: L<Hydra::Schema::Result::ProjectMembers>
 =cut
 
 __PACKAGE__->has_many(
-  "projectmembers",
-  "Hydra::Schema::Result::ProjectMembers",
-  { "foreign.username" => "self.username" },
-  undef,
+    "projectmembers",
+    "Hydra::Schema::Result::ProjectMembers",
+    { "foreign.username" => "self.username" }, undef,
 );
 
 =head2 projects_2s
@@ -144,12 +132,7 @@ Related object: L<Hydra::Schema::Result::Projects>
 
 =cut
 
-__PACKAGE__->has_many(
-  "projects_2s",
-  "Hydra::Schema::Result::Projects",
-  { "foreign.owner" => "self.username" },
-  undef,
-);
+__PACKAGE__->has_many("projects_2s", "Hydra::Schema::Result::Projects", { "foreign.owner" => "self.username" }, undef,);
 
 =head2 starredjobs
 
@@ -160,10 +143,9 @@ Related object: L<Hydra::Schema::Result::StarredJobs>
 =cut
 
 __PACKAGE__->has_many(
-  "starredjobs",
-  "Hydra::Schema::Result::StarredJobs",
-  { "foreign.username" => "self.username" },
-  undef,
+    "starredjobs",
+    "Hydra::Schema::Result::StarredJobs",
+    { "foreign.username" => "self.username" }, undef,
 );
 
 =head2 userroles
@@ -175,10 +157,9 @@ Related object: L<Hydra::Schema::Result::UserRoles>
 =cut
 
 __PACKAGE__->has_many(
-  "userroles",
-  "Hydra::Schema::Result::UserRoles",
-  { "foreign.username" => "self.username" },
-  undef,
+    "userroles",
+    "Hydra::Schema::Result::UserRoles",
+    { "foreign.username" => "self.username" }, undef,
 );
 
 =head2 projects
@@ -191,7 +172,6 @@ Composing rels: L</projectmembers> -> project
 
 __PACKAGE__->many_to_many("projects", "projectmembers", "project");
 
-
 # Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qePTzHYl/TjCSjZrU2g/cg
 
@@ -200,11 +180,7 @@ use Digest::SHA1 qw(sha1_hex);
 use String::Compare::ConstantTime;
 
 my %hint = (
-    columns => [
-        "fullname",
-        "emailaddress",
-        "username"
-    ],
+    columns   => [ "fullname", "emailaddress", "username" ],
     relations => {
         userroles => "role"
     }
@@ -218,11 +194,13 @@ sub _authenticator() {
     my $authenticator = Crypt::Passphrase->new(
         encoder    => 'Argon2',
         validators => [
-            (sub {
-                my ($password, $hash) = @_;
+            (
+                sub {
+                    my ($password, $hash) = @_;
 
-                return String::Compare::ConstantTime::equals($hash, sha1_hex($password));
-            })
+                    return String::Compare::ConstantTime::equals($hash, sha1_hex($password));
+                }
+            )
         ],
     );
 
@@ -239,32 +217,39 @@ sub check_password {
         }
 
         return 1;
-    } elsif ($authenticator->verify_password(sha1_hex($password), $self->password)) {
+    }
+    elsif ($authenticator->verify_password(sha1_hex($password), $self->password)) {
+
         # The user's database record has their old password as sha1, re-hashed as Argon2.
         # Store their password hashed only with Argon2.
         $self->setPassword($password);
 
         return 1;
-    } else {
+    }
+    else {
         return 0;
     }
 }
 
 sub setPassword {
-    my ($self, $password) = @_;;
+    my ($self, $password) = @_;
 
-    $self->update({
-        "password" => _authenticator()->hash_password($password),
-    });
+    $self->update(
+        {
+            "password" => _authenticator()->hash_password($password),
+        }
+    );
 }
 
 sub setPasswordHash {
-    my ($self, $passwordHash) = @_;;
+    my ($self, $passwordHash) = @_;
 
     if ($passwordHash =~ /^[a-f0-9]{40}$/) {
+
         # This is (probably) a sha1 password, re-hash it and we'll check for a hashed sha1 in Users.pm
         $self->setPassword($passwordHash);
-    } else {
+    }
+    else {
         $self->update({ password => $passwordHash });
     }
 }

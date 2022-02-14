@@ -26,11 +26,11 @@ my %compressors = ();
 $compressors{"none"} = "";
 
 if (defined($Nix::Config::bzip2)) {
-    $compressors{"bzip2"} = "| $Nix::Config::bzip2",
+    $compressors{"bzip2"} = "| $Nix::Config::bzip2",;
 }
 
 if (defined($Nix::Config::xz)) {
-    $compressors{"xz"} = "| $Nix::Config::xz",
+    $compressors{"xz"} = "| $Nix::Config::xz",;
 }
 
 my $lockfile = Hydra::Model::DB::getHydraPath . "/.hydra-s3backup.lock";
@@ -41,9 +41,9 @@ sub buildFinished {
     return unless $build->buildstatus == 0 or $build->buildstatus == 6;
 
     my $jobName = showJobName $build;
-    my $job = $build->job;
+    my $job     = $build->job;
 
-    my $cfg = $self->{config}->{s3backup};
+    my $cfg    = $self->{config}->{s3backup};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
     my @matching_configs = ();
@@ -53,7 +53,7 @@ sub buildFinished {
 
     return unless @matching_configs;
     unless (defined $client) {
-        $client = Net::Amazon::S3::Client->new( s3 => Net::Amazon::S3->new( retry => 1 ) );
+        $client = Net::Amazon::S3::Client->new(s3 => Net::Amazon::S3->new(retry => 1));
     }
 
     # !!! Maybe should do per-bucket locking?
@@ -66,24 +66,25 @@ sub buildFinished {
         push @needed_paths, $output->path;
     }
 
-    my %narinfos = ();
+    my %narinfos          = ();
     my %compression_types = ();
     foreach my $bucket_config (@matching_configs) {
-        my $compression_type =
-          exists $bucket_config->{compression_type} ? $bucket_config->{compression_type} : "bzip2";
+        my $compression_type = exists $bucket_config->{compression_type} ? $bucket_config->{compression_type} : "bzip2";
         die "Unsupported compression type $compression_type" unless exists $compressors{$compression_type};
         if (exists $compression_types{$compression_type}) {
-            push @{$compression_types{$compression_type}}, $bucket_config;
-        } else {
-            $compression_types{$compression_type} = [ $bucket_config ];
-            $narinfos{$compression_type} = [];
+            push @{ $compression_types{$compression_type} }, $bucket_config;
+        }
+        else {
+            $compression_types{$compression_type} = [$bucket_config];
+            $narinfos{$compression_type}          = [];
         }
     }
 
     my $build_id = $build->id;
-    my $tempdir = File::Temp->newdir("s3-backup-nars-$build_id" . "XXXXX", TMPDIR => 1);
+    my $tempdir  = File::Temp->newdir("s3-backup-nars-$build_id" . "XXXXX", TMPDIR => 1);
 
     my %seen = ();
+
     # Upload nars and build narinfos
     while (@needed_paths) {
         my $path = shift @needed_paths;
@@ -99,14 +100,15 @@ sub buildFinished {
             push @needed_paths, $reference;
         }
         foreach my $compression_type (keys %compression_types) {
-            my $configs = $compression_types{$compression_type};
+            my $configs            = $compression_types{$compression_type};
             my @incomplete_buckets = ();
+
             # Don't do any work if all the buckets have this path
             foreach my $bucket_config (@{$configs}) {
-                my $bucket = $client->bucket( name => $bucket_config->{name} );
+                my $bucket = $client->bucket(name => $bucket_config->{name});
                 my $prefix = exists $bucket_config->{prefix} ? $bucket_config->{prefix} : "";
                 push @incomplete_buckets, $bucket_config
-                  unless $bucket->object( key => $prefix . "$hash.narinfo" )->exists;
+                  unless $bucket->object(key => $prefix . "$hash.narinfo")->exists;
             }
             next unless @incomplete_buckets;
             my $compressor = $compressors{$compression_type};
@@ -114,9 +116,9 @@ sub buildFinished {
             my $digest = Digest::SHA->new(256);
             $digest->addfile("$tempdir/nar");
             my $file_hash = $digest->hexdigest;
-            my @stats = stat "$tempdir/nar" or die "Couldn't stat $tempdir/nar";
+            my @stats     = stat "$tempdir/nar" or die "Couldn't stat $tempdir/nar";
             my $file_size = $stats[7];
-            my $narinfo = "";
+            my $narinfo   = "";
             $narinfo .= "StorePath: $path\n";
             $narinfo .= "URL: $hash.nar\n";
             $narinfo .= "Compression: $compression_type\n";
@@ -125,18 +127,19 @@ sub buildFinished {
             $narinfo .= "NarHash: $narHash\n";
             $narinfo .= "NarSize: $narSize\n";
             $narinfo .= "References: " . join(" ", map { basename $_ } @{$refs}) . "\n";
+
             if (defined $deriver) {
                 $narinfo .= "Deriver: " . basename($deriver) . "\n";
                 if (defined $system) {
                     $narinfo .= "System: $system\n";
                 }
             }
-            push @{$narinfos{$compression_type}}, { hash => $hash, info => $narinfo };
+            push @{ $narinfos{$compression_type} }, { hash => $hash, info => $narinfo };
             foreach my $bucket_config (@incomplete_buckets) {
-                my $bucket = $client->bucket( name => $bucket_config->{name} );
-                my $prefix = exists $bucket_config->{prefix} ? $bucket_config->{prefix} : "";
+                my $bucket     = $client->bucket(name => $bucket_config->{name});
+                my $prefix     = exists $bucket_config->{prefix} ? $bucket_config->{prefix} : "";
                 my $nar_object = $bucket->object(
-                    key => $prefix . "$hash.nar",
+                    key          => $prefix . "$hash.nar",
                     content_type => "application/x-nix-archive"
                 );
                 $nar_object->put_filename("$tempdir/nar");
@@ -147,12 +150,12 @@ sub buildFinished {
     # Upload narinfos
     foreach my $compression_type (keys %narinfos) {
         my $infos = $narinfos{$compression_type};
-        foreach my $bucket_config (@{$compression_types{$compression_type}}) {
+        foreach my $bucket_config (@{ $compression_types{$compression_type} }) {
             foreach my $info (@{$infos}) {
-                my $bucket = $client->bucket( name => $bucket_config->{name} );
-                my $prefix = exists $bucket_config->{prefix} ? $bucket_config->{prefix} : "";
+                my $bucket         = $client->bucket(name => $bucket_config->{name});
+                my $prefix         = exists $bucket_config->{prefix} ? $bucket_config->{prefix} : "";
                 my $narinfo_object = $bucket->object(
-                    key => $prefix . $info->{hash} . ".narinfo",
+                    key          => $prefix . $info->{hash} . ".narinfo",
                     content_type => "text/x-nix-narinfo"
                 );
                 $narinfo_object->put($info->{info}) unless $narinfo_object->exists;
