@@ -6,6 +6,7 @@ use File::Path;
 use File::stat;
 use File::Basename;
 use Nix::Store;
+use Hydra::Config;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 use Hydra::Model::DB;

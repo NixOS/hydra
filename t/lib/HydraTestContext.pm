@@ -6,6 +6,7 @@ use File::Path qw(make_path);
 use File::Basename;
 use Cwd qw(abs_path getcwd);
 use CliRunners;
+use Hydra::Helper::Exec;
 
 # Set up the environment for running tests.
 #
@@ -16,6 +17,9 @@ use CliRunners;
 #  * use_external_destination_store: Boolean indicating whether hydra should
 #       use a destination store different from the evaluation store.
 #       True by default.
+# * before_init: a sub which is called after the database is up, but before
+#       hydra-init is executed. It receives the HydraTestContext object as
+#       its argument.
 #
 # This clears several environment variables and sets them to ephemeral
 # values: a temporary database, temporary Nix store, temporary Hydra
@@ -63,23 +67,27 @@ sub new {
         extra_initdb_args => "--locale C.UTF-8"
     );
     $ENV{'HYDRA_DBI'} = $pgsql->dsn;
-    system("hydra-init") == 0 or die;
 
-    my $self = {
+    my $self = bless {
         _db => undef,
         db_handle => $pgsql,
         tmpdir => $dir,
         nix_state_dir => "$dir/nix/var/nix",
         testdir => abs_path(dirname(__FILE__) . "/.."),
         jobsdir => abs_path(dirname(__FILE__) . "/../jobs")
-    };
+    }, $class;
 
-    return bless $self, $class;
+    if ($opts{'before_init'}) {
+        $opts{'before_init'}->($self);
+    }
+
+    expectOkay(5, ("hydra-init"));
+
+    return $self;
 }
 
 sub db {
     my ($self, $setup) = @_;
-
 
     if (!defined $self->{_db}) {
         require Hydra::Schema;

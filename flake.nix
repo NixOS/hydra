@@ -521,8 +521,8 @@
                 TextDiff
                 TextTable
                 UUID4Tiny
-                XMLSimple
                 YAML
+                XMLSimple
               ];
           };
 

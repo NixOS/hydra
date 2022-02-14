@@ -1,6 +1,8 @@
 use strict;
 use warnings;
 use Setup;
+use Hydra::Config;
+use Test2::V0;
 
 my %ctx = test_init(
     use_external_destination_store => 0,
@@ -17,10 +19,7 @@ write_file($ctx{'tmpdir'} . "/bar.conf", q|
   bar = baz
 |);
 
-require Hydra::Helper::Nix;
-use Test2::V0;
-
-is(Hydra::Helper::Nix::getHydraConfig(), {
+is(getHydraConfig(), {
     foo => { bar => "baz" }
 }, "Nested includes work.");
 
