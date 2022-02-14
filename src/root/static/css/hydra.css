@@ -361,4 +361,17 @@ td.step-status span.warn {
     div.modal-content {
         background-color: #1f1f1f;
     }
+
+    /*
+    Graphs
+    */
+    div.flot-tooltip {
+        border: solid 1px white;
+        background-color: #1f1f1f;
+        color: #fafafa !important;
+    }
+
+    div.flot-text {
+        color: #fafafa !important;
+    }
 }
