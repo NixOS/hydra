@@ -22,6 +22,7 @@
 #include "sync.hh"
 #include "nar-extractor.hh"
 #include "serve-protocol.hh"
+#include "serve-protocol-impl.hh"
 
 
 typedef unsigned int BuildID;
@@ -302,29 +303,9 @@ struct Machine
     }
 
     // A connection to a machine
-    struct Connection {
-        nix::FdSource from;
-        nix::FdSink to;
-        nix::ServeProto::Version remoteVersion;
-
+    struct Connection : nix::ServeProto::BasicClientConnection {
         // Backpointer to the machine
         ptr machine;
-
-        operator nix::ServeProto::ReadConn ()
-        {
-            return {
-                .from = from,
-                .version = remoteVersion,
-            };
-        }
-
-        operator nix::ServeProto::WriteConn ()
-        {
-            return {
-                .to = to,
-                .version = remoteVersion,
-            };
-        }
     };
 };
 
