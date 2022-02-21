@@ -509,9 +509,10 @@ int main(int argc, char * * argv)
                 done. */
             auto localStore = store.dynamic_pointer_cast<LocalFSStore>();
             if (gcRootsDir != "" && localStore) {
-                Path root = gcRootsDir + "/" + std::string(baseNameOf((std::string) job["drvPath"]));
+                auto drvPath = job["drvPath"].get<std::string>();
+                Path root = gcRootsDir + "/" + std::string(baseNameOf(drvPath));
                 if (!pathExists(root))
-                    localStore->addPermRoot(localStore->parseStorePath((std::string) job["drvPath"]), root);
+                    localStore->addPermRoot(localStore->parseStorePath(drvPath), root);
             }
 
             if (!brokenJobs.empty()) {
