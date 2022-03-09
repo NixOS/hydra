@@ -87,7 +87,7 @@ void State::parseMachines(const std::string & contents)
     }
 
     for (auto line : tokenizeString<Strings>(contents, "\n")) {
-        line = trim(string(line, 0, line.find('#')));
+        line = trim(std::string(line, 0, line.find('#')));
         auto tokens = tokenizeString<std::vector<std::string>>(line);
         if (tokens.size() < 3) continue;
         tokens.resize(8);
@@ -95,7 +95,7 @@ void State::parseMachines(const std::string & contents)
         auto machine = std::make_shared<Machine>();
         machine->sshName = tokens[0];
         machine->systemTypes = tokenizeString<StringSet>(tokens[1], ",");
-        machine->sshKey = tokens[2] == "-" ? string("") : tokens[2];
+        machine->sshKey = tokens[2] == "-" ? std::string("") : tokens[2];
         if (tokens[3] != "")
             machine->maxJobs = string2Int<decltype(machine->maxJobs)>(tokens[3]).value();
         else
@@ -149,7 +149,7 @@ void State::parseMachines(const std::string & contents)
 
 void State::monitorMachinesFile()
 {
-    string defaultMachinesFile = "/etc/nix/machines";
+    std::string defaultMachinesFile = "/etc/nix/machines";
     auto machinesFiles = tokenizeString<std::vector<Path>>(
         getEnv("NIX_REMOTE_SYSTEMS").value_or(pathExists(defaultMachinesFile) ? defaultMachinesFile : ""), ":");
 
@@ -191,7 +191,7 @@ void State::monitorMachinesFile()
 
         debug("reloading machines files");
 
-        string contents;
+        std::string contents;
         for (auto & machinesFile : machinesFiles) {
             try {
                 contents += readFile(machinesFile);
@@ -308,7 +308,7 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
 
 
 int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
-    Build::ptr build, const StorePath & drvPath, const string & outputName, const StorePath & storePath)
+    Build::ptr build, const StorePath & drvPath, const std::string & outputName, const StorePath & storePath)
 {
  restart:
     auto stepNr = allocBuildStep(txn, build->id);
@@ -683,14 +683,14 @@ void State::showStatus()
     auto conn(dbPool.get());
     receiver statusDumped(*conn, "status_dumped");
 
-    string status;
+    std::string status;
     bool barf = false;
 
     /* Get the last JSON status dump from the database. */
     {
         pqxx::work txn(*conn);
         auto res = txn.exec("select status from SystemStatus where what = 'queue-runner'");
-        if (res.size()) status = res[0][0].as<string>();
+        if (res.size()) status = res[0][0].as<std::string>();
     }
 
     if (status != "") {
@@ -710,7 +710,7 @@ void State::showStatus()
         {
             pqxx::work txn(*conn);
             auto res = txn.exec("select status from SystemStatus where what = 'queue-runner'");
-            if (res.size()) status = res[0][0].as<string>();
+            if (res.size()) status = res[0][0].as<std::string>();
         }
 
     }
