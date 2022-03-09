@@ -12,6 +12,7 @@
 #include "parsed-derivations.hh"
 #include "pathlocks.hh"
 #include "pool.hh"
+#include "build-result.hh"
 #include "store-api.hh"
 #include "sync.hh"
 #include "nar-extractor.hh"

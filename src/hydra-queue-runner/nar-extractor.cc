@@ -64,7 +64,7 @@ struct Extractor : ParseSink
         }
     }
 
-    void createSymlink(const Path & path, const string & target) override
+    void createSymlink(const Path & path, const std::string & target) override
     {
         members.insert_or_assign(prefix + path, NarMemberData { .type = FSAccessor::Type::tSymlink });
     }

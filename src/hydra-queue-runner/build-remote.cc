@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "build-result.hh"
 #include "serve-protocol.hh"
 #include "state.hh"
 #include "util.hh"
@@ -49,7 +50,7 @@ static Strings extraStoreArgs(std::string & machine)
 
 static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Child & child)
 {
-    string pgmName;
+    std::string pgmName;
     Pipe to, from;
     to.create();
     from.create();
@@ -81,7 +82,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
             if (machine->sshPublicHostKey != "") {
                 Path fileName = tmpDir + "/host-key";
                 auto p = machine->sshName.find("@");
-                string host = p != string::npos ? string(machine->sshName, p + 1) : machine->sshName;
+                std::string host = p != std::string::npos ? std::string(machine->sshName, p + 1) : machine->sshName;
                 writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
                 append(argv, {"-oUserKnownHostsFile=" + fileName});
             }
@@ -185,8 +186,8 @@ void State::buildRemote(ref<Store> destStore,
 {
     assert(BuildResult::TimedOut == 8);
 
-    string base(step->drvPath.to_string());
-    result.logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
+    std::string base(step->drvPath.to_string());
+    result.logFile = logDir + "/" + std::string(base, 0, 2) + "/" + std::string(base, 2);
     AutoDelete autoDelete(result.logFile, false);
 
     createDirs(dirOf(result.logFile));
@@ -249,7 +250,7 @@ void State::buildRemote(ref<Store> destStore,
 
         } catch (EndOfFile & e) {
             child.pid.wait();
-            string s = chomp(readFile(result.logFile));
+            std::string s = chomp(readFile(result.logFile));
             throw Error("cannot connect to ‘%1%’: %2%", machine->sshName, s);
         }
 
