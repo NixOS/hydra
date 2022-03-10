@@ -1,10 +1,13 @@
 {
   description = "A Nix-based continuous build system";
 
+  # FIXME: All the pinned versions of nix/nixpkgs have a broken foreman (yes,
+  # even 2.7.0's Nixpkgs pin).
+  inputs.newNixpkgs.url = "github:NixOS/nixpkgs/nixos-21.11";
   inputs.nixpkgs.follows = "nix/nixpkgs";
   inputs.nix.url = github:NixOS/nix/2.6.0;
 
-  outputs = { self, nixpkgs, nix }:
+  outputs = { self, newNixpkgs, nixpkgs, nix }:
     let
 
       version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 self.lastModifiedDate}.${self.shortRev or "DIRTY"}";
@@ -566,7 +569,9 @@
 
           checkInputs = [
             cacert
-            foreman
+            # FIXME: foreman is broken on all nix/nixpkgs pin, up to and
+            # including 2.7.0
+            newNixpkgs.legacyPackages.${final.system}.foreman
             glibcLocales
             netcat-openbsd
             openldap

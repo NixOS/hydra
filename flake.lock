@@ -16,6 +16,22 @@
         "type": "github"
       }
     },
+    "newNixpkgs": {
+      "locked": {
+        "lastModified": 1646588256,
+        "narHash": "sha256-ZHljmNlt19nSm0Mz8fx6QEhddKUkU4hhwFmfNmGn+EY=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "2ebb6c1e5ae402ba35cca5eec58385e5f1adea04",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-21.11",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nix": {
       "inputs": {
         "lowdown-src": "lowdown-src",
@@ -69,6 +85,7 @@
     },
     "root": {
       "inputs": {
+        "newNixpkgs": "newNixpkgs",
         "nix": "nix",
         "nixpkgs": [
           "nix",
