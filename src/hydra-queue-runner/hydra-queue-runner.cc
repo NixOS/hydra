@@ -7,7 +7,7 @@
 #include <fcntl.h>
 
 #include "state.hh"
-#include "build-result.hh"
+#include "hydra-build-result.hh"
 #include "store-api.hh"
 #include "remote-store.hh"
 

@@ -1,5 +1,5 @@
 #include "state.hh"
-#include "build-result.hh"
+#include "hydra-build-result.hh"
 #include "globals.hh"
 
 #include <cstring>
