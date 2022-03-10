@@ -6,6 +6,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <prometheus/exposer.h>
+#include <prometheus/registry.h>
+#include <prometheus/gauge.h>
+
 #include "state.hh"
 #include "build-result.hh"
 #include "store-api.hh"
@@ -853,6 +857,25 @@ int main(int argc, char * * argv)
 {
     return handleExceptions(argv[0], [&]() {
         initNix();
+
+        /* Export a simple "up" metric, to allow monitoring that we're
+           still alive. */
+        std::thread([&]() {
+            prometheus::Exposer exposer{"127.0.0.1:8080"};
+
+            // @note it's the users responsibility to keep the object alive
+            auto registry = std::make_shared<prometheus::Registry>();
+
+            auto& running = prometheus::BuildGauge()
+                .Name("hydra_queue_runner_running")
+                .Help("Whether the queue runner is currently running")
+                .Register(*registry);
+
+            exposer.RegisterCollectable(registry);
+            running.Add({}).Set(1);
+
+            while (true) { }
+        }).detach();
 
         signal(SIGINT, SIG_DFL);
         signal(SIGTERM, SIG_DFL);
