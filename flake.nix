@@ -3,7 +3,8 @@
 
   # FIXME: All the pinned versions of nix/nixpkgs have a broken foreman (yes,
   # even 2.7.0's Nixpkgs pin).
-  inputs.newNixpkgs.url = "github:NixOS/nixpkgs/nixos-21.11";
+  # FIXME: has updated prometheus-cpp: https://github.com/NixOS/nixpkgs/pull/163695
+  inputs.newNixpkgs.url = "github:NixOS/nixpkgs/9b095223a5dc9a6bce6ec54477f31194871eca8e";
   inputs.nixpkgs.follows = "nix/nixpkgs";
   inputs.nix.url = github:NixOS/nix/2.6.0;
 
@@ -40,6 +41,12 @@
 
       # A Nixpkgs overlay that provides a 'hydra' package.
       overlay = final: prev: {
+
+        # Overlay these packages to use dependencies from the Nixpkgs everything
+        # else uses, to side-step the version difference: glibc is 2.32 in the
+        # nix-pinned Nixpkgs, but 2.33 in the newNixpkgs commit.
+        civetweb = final.callPackage "${newNixpkgs}/pkgs/development/libraries/civetweb" { };
+        prometheus-cpp = final.callPackage "${newNixpkgs}/pkgs/development/libraries/prometheus-cpp" { };
 
         # Add LDAP dependencies that aren't currently found within nixpkgs.
         perlPackages = prev.perlPackages // {
