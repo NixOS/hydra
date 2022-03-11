@@ -7,6 +7,8 @@
 #include <memory>
 #include <queue>
 
+#include <prometheus/registry.h>
+
 #include "db.hh"
 
 #include "parsed-derivations.hh"
@@ -432,8 +434,12 @@ private:
        via gc_roots_dir. */
     nix::Path rootsDir;
 
+    std::shared_ptr<prometheus::Registry> registry;
+
+    uint16_t metricsPort;
+
 public:
-    State();
+    State(uint16_t metricsPort);
 
 private:
 

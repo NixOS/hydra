@@ -7,7 +7,6 @@
 #include <fcntl.h>
 
 #include <prometheus/exposer.h>
-#include <prometheus/registry.h>
 #include <prometheus/gauge.h>
 
 #include "state.hh"
@@ -41,7 +40,7 @@ std::string getEnvOrDie(const std::string & key)
 }
 
 
-State::State()
+State::State(uint16_t metricsPort)
     : config(std::make_unique<HydraConfig>())
     , maxUnsupportedTime(config->getIntOption("max_unsupported_time", 0))
     , dbPool(config->getIntOption("max_db_connections", 128))
@@ -49,6 +48,8 @@ State::State()
     , maxLogSize(config->getIntOption("max_log_size", 64ULL << 20))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
     , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
+    , registry(std::make_shared<prometheus::Registry>())
+    , metricsPort(metricsPort)
 {
     hydraData = getEnvOrDie("HYDRA_DATA");
 
@@ -758,6 +759,15 @@ void State::run(BuildID buildOne)
     if (!lock)
         throw Error("hydra-queue-runner is already running");
 
+    /* Set up simple exporter, to show that we're still alive. */
+    std::string metricsAddress{"127.0.0.1:" + std::to_string(metricsPort)};
+    prometheus::Exposer exposer{metricsAddress};
+    exposer.RegisterCollectable(registry);
+
+    std::cout << "Starting the Prometheus exporter, listening on "
+        << "http://" << metricsAddress << "/metrics"
+        << std::endl;
+
     Store::Params localParams;
     localParams["max-connections"] = "16";
     localParams["max-connection-age"] = "600";
@@ -858,25 +868,6 @@ int main(int argc, char * * argv)
     return handleExceptions(argv[0], [&]() {
         initNix();
 
-        /* Export a simple "up" metric, to allow monitoring that we're
-           still alive. */
-        std::thread([&]() {
-            prometheus::Exposer exposer{"127.0.0.1:8080"};
-
-            // @note it's the users responsibility to keep the object alive
-            auto registry = std::make_shared<prometheus::Registry>();
-
-            auto& running = prometheus::BuildGauge()
-                .Name("hydra_queue_runner_running")
-                .Help("Whether the queue runner is currently running")
-                .Register(*registry);
-
-            exposer.RegisterCollectable(registry);
-            running.Add({}).Set(1);
-
-            while (true) { }
-        }).detach();
-
         signal(SIGINT, SIG_DFL);
         signal(SIGTERM, SIG_DFL);
         signal(SIGHUP, SIG_DFL);
@@ -887,6 +878,7 @@ int main(int argc, char * * argv)
         bool unlock = false;
         bool status = false;
         BuildID buildOne = 0;
+        uint16_t metricsPort = 0;
 
         parseCmdLine(argc, argv, [&](Strings::iterator & arg, const Strings::iterator & end) {
             if (*arg == "--unlock")
@@ -898,6 +890,16 @@ int main(int argc, char * * argv)
                     buildOne = *b;
                 else
                     throw Error("‘--build-one’ requires a build ID");
+            } else if (*arg == "--port") {
+                if (auto p = string2Int<int>(getArg(*arg, arg, end))) {
+                    if (*p > std::numeric_limits<uint16_t>::max()) {
+                        throw Error("'--port' has a maximum of 65535");
+                    } else {
+                        metricsPort = *p;
+                    }
+                } else {
+                    throw Error("'--port' requires a numeric port (0 for a random, usable port; max 65535)");
+                }
             } else
                 return false;
             return true;
@@ -906,7 +908,7 @@ int main(int argc, char * * argv)
         settings.verboseBuild = true;
         settings.lockCPU = false;
 
-        State state;
+        State state{metricsPort};
         if (status)
             state.showStatus();
         else if (unlock)
