@@ -760,12 +760,13 @@ void State::run(BuildID buildOne)
         throw Error("hydra-queue-runner is already running");
 
     /* Set up simple exporter, to show that we're still alive. */
-    std::string metricsAddress{"127.0.0.1:" + std::to_string(metricsPort)};
-    prometheus::Exposer exposer{metricsAddress};
+    std::string metricsAddress{"127.0.0.1"};
+    prometheus::Exposer exposer{metricsAddress + ":" + std::to_string(metricsPort)};
+    auto exposerPort = exposer.GetListeningPorts().front();
     exposer.RegisterCollectable(registry);
 
     std::cout << "Starting the Prometheus exporter, listening on "
-        << "http://" << metricsAddress << "/metrics"
+        << "http://" << metricsAddress << ":" << exposerPort << "/metrics"
         << std::endl;
 
     Store::Params localParams;
