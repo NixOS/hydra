@@ -157,8 +157,7 @@ static void worker(
                 if (drv->querySystem() == "unknown")
                     throw EvalError("derivation must have a 'system' attribute");
 
-                auto localStore = state.store.dynamic_pointer_cast<LocalFSStore>();
-                auto drvPath = localStore->printStorePath(drv->requireDrvPath());
+                auto drvPath = state.store->printStorePath(drv->requireDrvPath());
 
                 nlohmann::json job;
 
@@ -202,6 +201,7 @@ static void worker(
                 /* Register the derivation as a GC root.  !!! This
                    registers roots for jobs that we may have already
                    done. */
+                auto localStore = state.store.dynamic_pointer_cast<LocalFSStore>();
                 if (gcRootsDir != "" && localStore) {
                     Path root = gcRootsDir + "/" + std::string(baseNameOf(drvPath));
                     if (!pathExists(root))
@@ -210,7 +210,7 @@ static void worker(
 
                 nlohmann::json out;
                 for (auto & j : outputs)
-                    out[j.first] = localStore->printStorePath(j.second);
+                    out[j.first] = state.store->printStorePath(j.second);
                 job["outputs"] = std::move(out);
 
                 reply["job"] = std::move(job);
