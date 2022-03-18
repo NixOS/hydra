@@ -61,7 +61,7 @@
             };
           };
 
-          FunctionParameters = final.buildPerlPackage {
+          FunctionParameters = final.perlPackages.buildPerlPackage {
             pname = "Function-Parameters";
             version = "2.001003";
             src = final.fetchurl {
@@ -75,7 +75,7 @@
             };
           };
 
-          CatalystPluginPrometheusTiny = final.buildPerlPackage {
+          CatalystPluginPrometheusTiny = final.perlPackages.buildPerlPackage {
             pname = "Catalyst-Plugin-PrometheusTiny";
             version = "0.005";
             src = final.fetchurl {
@@ -104,7 +104,7 @@
             };
           };
 
-          CryptPassphrase = final.buildPerlPackage {
+          CryptPassphrase = final.perlPackages.buildPerlPackage {
             pname = "Crypt-Passphrase";
             version = "0.003";
             src = final.fetchurl {
@@ -117,7 +117,7 @@
             };
           };
 
-          CryptPassphraseArgon2 = final.buildPerlPackage {
+          CryptPassphraseArgon2 = final.perlPackages.buildPerlPackage {
             pname = "Crypt-Passphrase-Argon2";
             version = "0.002";
             src = final.fetchurl {
@@ -131,7 +131,7 @@
             };
           };
 
-          DataRandom = final.buildPerlPackage {
+          DataRandom = final.perlPackages.buildPerlPackage {
             pname = "Data-Random";
             version = "0.13";
             src = final.fetchurl {
@@ -145,7 +145,7 @@
             };
           };
 
-          DirSelf = final.buildPerlPackage {
+          DirSelf = final.perlPackages.buildPerlPackage {
             pname = "Dir-Self";
             version = "0.11";
             src = final.fetchurl {
@@ -173,7 +173,7 @@
             };
           };
 
-          PrometheusTiny = final.buildPerlPackage {
+          PrometheusTiny = final.perlPackages.buildPerlPackage {
             pname = "Prometheus-Tiny";
             version = "0.007";
             src = final.fetchurl {
@@ -188,7 +188,7 @@
             };
           };
 
-          PrometheusTinyShared = final.buildPerlPackage {
+          PrometheusTinyShared = final.perlPackages.buildPerlPackage {
             pname = "Prometheus-Tiny-Shared";
             version = "0.023";
             src = final.fetchurl {
@@ -219,7 +219,7 @@
             };
           };
 
-          TieHashMethod = final.buildPerlPackage {
+          TieHashMethod = final.perlPackages.buildPerlPackage {
             pname = "Tie-Hash-Method";
             version = "0.02";
             src = final.fetchurl {
@@ -232,7 +232,7 @@
             };
           };
 
-          Test2Harness = final.buildPerlPackage {
+          Test2Harness = final.perlPackages.buildPerlPackage {
             pname = "Test2-Harness";
             version = "1.000042";
             src = final.fetchurl {
@@ -281,7 +281,7 @@
             };
           };
 
-          LongJump = final.buildPerlPackage {
+          LongJump = final.perlPackages.buildPerlPackage {
             pname = "Long-Jump";
             version = "0.000001";
             src = final.fetchurl {
@@ -295,7 +295,7 @@
             };
           };
 
-          gotofile = final.buildPerlPackage {
+          gotofile = final.perlPackages.buildPerlPackage {
             pname = "goto-file";
             version = "0.005";
             src = final.fetchurl {
@@ -425,7 +425,7 @@
             };
           };
 
-          StringCompareConstantTime = final.buildPerlPackage {
+          StringCompareConstantTime = final.perlPackages.buildPerlPackage {
             pname = "String-Compare-ConstantTime";
             version = "0.321";
             src = final.fetchurl {
@@ -438,7 +438,7 @@
             };
           };
 
-          UUID4Tiny = final.buildPerlPackage {
+          UUID4Tiny = final.perlPackages.buildPerlPackage {
             pname = "UUID4-Tiny";
             version = "0.002";
             src = final.fetchurl {
