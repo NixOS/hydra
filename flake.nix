@@ -3,8 +3,7 @@
 
   # FIXME: All the pinned versions of nix/nixpkgs have a broken foreman (yes,
   # even 2.7.0's Nixpkgs pin).
-  # FIXME: has updated prometheus-cpp: https://github.com/NixOS/nixpkgs/pull/163695
-  inputs.newNixpkgs.url = "github:NixOS/nixpkgs/9b095223a5dc9a6bce6ec54477f31194871eca8e";
+  inputs.newNixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
   inputs.nixpkgs.follows = "nix/nixpkgs";
   inputs.nix.url = github:NixOS/nix/2.6.0;
 
