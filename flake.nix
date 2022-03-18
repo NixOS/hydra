@@ -568,7 +568,7 @@
             cacert
             foreman
             glibcLocales
-            netcat-openbsd
+            libressl.nc
             openldap
             python3
           ];
