@@ -145,10 +145,47 @@ sub nix_state_dir {
 sub makeAndEvaluateJobset {
     my ($self, %opts) = @_;
 
-    my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeAndEValuateJobset.";
-    my $should_build = $opts{'build'} // 0;
+    my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeAndEvaluateJobset.";
     my $jobsdir = $opts{'jobsdir'} // $self->jobsdir;
+    my $should_build = $opts{'build'} // 0;
 
+    my $jobsetCtx = $self->makeJobset(
+        expression => $expression,
+        jobsdir => $jobsdir,
+    );
+    my $jobset = $jobsetCtx->{"jobset"};
+
+    evalSucceeds($jobset) or die "Evaluating jobs/$expression should exit with return code 0";
+
+    my $builds = {};
+
+    for my $build ($jobset->builds) {
+        if ($should_build) {
+            runBuild($build) or die "Build '".$build->job."' from jobs/$expression should exit with return code 0";
+            $build->discard_changes();
+        }
+
+        $builds->{$build->job} = $build;
+    }
+
+    return $builds;
+}
+
+# Create a jobset.
+#
+# In return, you get a hash of the user, project, and jobset records.
+#
+# This always uses an `expression` from the `jobsdir` directory.
+#
+# Hash Parameters:
+#
+#  * expression: The file in the jobsdir directory to evaluate
+#  * jobsdir: An alternative jobsdir to source the expression from
+sub makeJobset {
+    my ($self, %opts) = @_;
+
+    my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeJobset.";
+    my $jobsdir = $opts{'jobsdir'} // $self->jobsdir;
 
     # Create a new user for this test
     my $user = $self->db()->resultset('Users')->create({
@@ -174,22 +211,12 @@ sub makeAndEvaluateJobset {
     my $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
     $jobsetinput->jobsetinputalts->create({altnr => 0, value => $jobsdir});
 
-    evalSucceeds($jobset) or die "Evaluating jobs/$expression should exit with return code 0";
-
-    my $builds = {};
-
-    for my $build ($jobset->builds) {
-        if ($should_build) {
-            runBuild($build) or die "Build '".$build->job."' from jobs/$expression should exit with return code 0";
-            $build->discard_changes();
-        }
-
-        $builds->{$build->job} = $build;
-    }
-
-    return $builds;
+    return {
+        user => $user,
+        project => $project,
+        jobset => $jobset,
+    };
 }
-
 
 sub DESTROY
 {
