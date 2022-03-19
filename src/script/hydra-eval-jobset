@@ -801,7 +801,7 @@ sub checkJobsetWrapped {
                 next unless $job->{constituents};
 
                 if (defined $job->{error}) {
-                    die "aggregate job ‘$job->{jobName}’ failed with the error: $job->{error}";
+                    die "aggregate job ‘$job->{jobName}’ failed with the error: $job->{error}\n";
                 }
 
                 my $x = $drvPathToId{$job->{drvPath}} or

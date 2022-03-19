@@ -145,7 +145,7 @@ sub nix_state_dir {
 sub makeAndEvaluateJobset {
     my ($self, %opts) = @_;
 
-    my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeAndEvaluateJobset.";
+    my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeAndEvaluateJobset.\n";
     my $jobsdir = $opts{'jobsdir'} // $self->jobsdir;
     my $should_build = $opts{'build'} // 0;
 
@@ -155,13 +155,13 @@ sub makeAndEvaluateJobset {
     );
     my $jobset = $jobsetCtx->{"jobset"};
 
-    evalSucceeds($jobset) or die "Evaluating jobs/$expression should exit with return code 0";
+    evalSucceeds($jobset) or die "Evaluating jobs/$expression should exit with return code 0.\n";
 
     my $builds = {};
 
     for my $build ($jobset->builds) {
         if ($should_build) {
-            runBuild($build) or die "Build '".$build->job."' from jobs/$expression should exit with return code 0";
+            runBuild($build) or die "Build '".$build->job."' from jobs/$expression should exit with return code 0.\n";
             $build->discard_changes();
         }
 
@@ -184,7 +184,7 @@ sub makeAndEvaluateJobset {
 sub makeJobset {
     my ($self, %opts) = @_;
 
-    my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeJobset.";
+    my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeJobset.\n";
     my $jobsdir = $opts{'jobsdir'} // $self->jobsdir;
 
     # Create a new user for this test
@@ -227,7 +227,7 @@ sub DESTROY
 
 sub write_file {
     my ($path, $text) = @_;
-    open(my $fh, '>', $path) or die "Could not open file '$path' $!";
+    open(my $fh, '>', $path) or die "Could not open file '$path' $!\n.";
     print $fh $text || "";
     close $fh;
 }
