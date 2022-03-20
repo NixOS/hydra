@@ -39,10 +39,7 @@ sub keepBuild {
 
     $build->finished;
 
-    # After #1093 merges this can become $build->jobset;
-    # However, with ->jobset being a column on master
-    # it seems DBIX gets a bit confused.
-    my ($jobset) = $build->search_related('jobset')->first;
+    my ($jobset) = $build->jobset;
 
     print STDERR "  keeping ", ($build->finished ? "" : "scheduled "), "build ", $build->id, " (",
         $jobset->get_column('project'), ":", $jobset->get_column('name'), ":", $build->get_column('job'), "; ",
