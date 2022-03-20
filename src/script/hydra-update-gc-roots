@@ -37,8 +37,6 @@ sub keepBuild {
     return if defined $seenBuilds{$build->id};
     $seenBuilds{$build->id} = 1;
 
-    $build->finished;
-
     my ($jobset) = $build->jobset;
 
     print STDERR "  keeping ", ($build->finished ? "" : "scheduled "), "build ", $build->id, " (",
@@ -76,13 +74,29 @@ closedir $dir;
 
 # For scheduled builds, we register the derivation as a GC root.
 print STDERR "*** looking for scheduled builds\n";
-keepBuild($_, 0) foreach $db->resultset('Builds')->search({ finished => 0 }, { columns => [ @columns ] });
+keepBuild($_, 0) foreach $db->resultset('Builds')->search(
+    { finished => 0 },
+    {
+        columns => [ @columns ],
+        join      => 'jobset',
+        '+select' => ['jobset.project', 'jobset.name'],
+        '+as'     => ['jobset.project', 'jobset.name'],
+    }
+);
 
 
 # Keep all builds that have been marked as "keep".
 print STDERR "*** looking for kept builds\n";
 my @buildsToKeep = $db->resultset('Builds')->search(
-    { finished => 1, keep => 1 }, { order_by => ["jobset_id", "job", "id"], columns => [ @columns ] });
+    { finished => 1, keep => 1 },
+    {
+        order_by => ["jobset_id", "job", "id"],
+        columns => [ @columns ],
+        join      => 'jobset',
+        '+select' => ['jobset.project', 'jobset.name'],
+        '+as'     => ['jobset.project', 'jobset.name'],
+    }
+);
 keepBuild($_, 0) foreach @buildsToKeep;
 
 
