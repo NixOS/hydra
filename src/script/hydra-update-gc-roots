@@ -135,11 +135,11 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
         # Note: we also keep the derivations of failed builds so that
         # they can be restarted.
         keepBuild($_, 1) foreach $jobset->builds->search(
-            { id => { -in => $db->resultset('JobsetEvalMembers')->search({ eval => { -in => [@evals] } }, { select => "build" })->as_query }
+            { "me.id" => { -in => $db->resultset('JobsetEvalMembers')->search({ eval => { -in => [@evals] } }, { select => "build" })->as_query }
             , finished => 1
             },
             {
-                order_by => ["job", "id"],
+                order_by => ["job", "me.id"],
                 columns => [ @columns ],
                 join      => 'jobset',
                 '+select' => ['jobset.project', 'jobset.name'],
@@ -153,7 +153,7 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
         # Keep the most recently succeeded build of a current job. Oh
         # I really need to stop using DBIx::Class.
         keepBuild($_, 1) foreach $jobset->builds->search(
-            { id => { -in => $jobset->builds->search(
+            { "me.id" => { -in => $jobset->builds->search(
                 { finished => 1
                 , buildstatus => [0, 6]
                 , job => { -in => $jobset->builds->search(
@@ -162,11 +162,11 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
                                )->as_query }
                 },
                 { group_by => 'job'
-                , select => [ { max => 'id', -as => 'm' } ]
+                , select => [ { max => 'me.id', -as => 'm' } ]
                 })->as_query }
             },
             {
-                columns => [ @columns ]
+                columns => [ @columns ],
                 join      => 'jobset',
                 '+select' => ['jobset.project', 'jobset.name'],
                 '+as'     => ['jobset.project', 'jobset.name'],
