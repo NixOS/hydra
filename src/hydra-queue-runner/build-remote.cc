@@ -384,6 +384,44 @@ BuildResult performBuild(
     return result;
 }
 
+std::map<StorePath, ValidPathInfo> queryPathInfos(
+    Machine::Connection & conn,
+    Store & localStore,
+    StorePathSet & outputs,
+    size_t & totalNarSize
+)
+{
+
+    /* Get info about each output path. */
+    std::map<StorePath, ValidPathInfo> infos;
+    conn.to << cmdQueryPathInfos;
+    worker_proto::write(localStore, conn.to, outputs);
+    conn.to.flush();
+    while (true) {
+        auto storePathS = readString(conn.from);
+        if (storePathS == "") break;
+        auto deriver = readString(conn.from); // deriver
+        auto references = worker_proto::read(localStore, conn.from, Phantom<StorePathSet> {});
+        readLongLong(conn.from); // download size
+        auto narSize = readLongLong(conn.from);
+        auto narHash = Hash::parseAny(readString(conn.from), htSHA256);
+        auto ca = parseContentAddressOpt(readString(conn.from));
+        readStrings<StringSet>(conn.from); // sigs
+        ValidPathInfo info(localStore.parseStorePath(storePathS), narHash);
+        assert(outputs.count(info.path));
+        info.references = references;
+        info.narSize = narSize;
+        totalNarSize += info.narSize;
+        info.narHash = narHash;
+        info.ca = ca;
+        if (deriver != "")
+            info.deriver = localStore.parseStorePath(deriver);
+        infos.insert_or_assign(info.path, info);
+    }
+
+    return infos;
+}
+
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
     unsigned int maxSilentTime, unsigned int buildTimeout, unsigned int repeats,
@@ -521,33 +559,8 @@ void State::buildRemote(ref<Store> destStore,
                    outputs.insert(*i.second.second);
             }
 
-            /* Get info about each output path. */
-            std::map<StorePath, ValidPathInfo> infos;
             size_t totalNarSize = 0;
-            conn.to << cmdQueryPathInfos;
-            worker_proto::write(*localStore, conn.to, outputs);
-            conn.to.flush();
-            while (true) {
-                auto storePathS = readString(conn.from);
-                if (storePathS == "") break;
-                auto deriver = readString(conn.from); // deriver
-                auto references = worker_proto::read(*localStore, conn.from, Phantom<StorePathSet> {});
-                readLongLong(conn.from); // download size
-                auto narSize = readLongLong(conn.from);
-                auto narHash = Hash::parseAny(readString(conn.from), htSHA256);
-                auto ca = parseContentAddressOpt(readString(conn.from));
-                readStrings<StringSet>(conn.from); // sigs
-                ValidPathInfo info(localStore->parseStorePath(storePathS), narHash);
-                assert(outputs.count(info.path));
-                info.references = references;
-                info.narSize = narSize;
-                totalNarSize += info.narSize;
-                info.narHash = narHash;
-                info.ca = ca;
-                if (deriver != "")
-                    info.deriver = localStore->parseStorePath(deriver);
-                infos.insert_or_assign(info.path, info);
-            }
+            auto infos = queryPathInfos(conn, *localStore, outputs, totalNarSize);
 
             if (totalNarSize > maxOutputSize) {
                 result.stepStatus = bsNarSizeLimitExceeded;
