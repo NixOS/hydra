@@ -98,8 +98,10 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
        it). */
     BuildID buildId;
     std::optional<StorePath> buildDrvPath;
-    unsigned int maxSilentTime, buildTimeout;
-    unsigned int repeats = step->isDeterministic ? 1 : 0;
+    BuildOptions buildOptions;
+    buildOptions.repeats = step->isDeterministic ? 1 : 0;
+    buildOptions.maxLogSize = maxLogSize;
+    buildOptions.enforceDeterminism = step->isDeterministic;
 
     auto conn(dbPool.get());
 
@@ -134,18 +136,18 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             {
                 auto i = jobsetRepeats.find(std::make_pair(build2->projectName, build2->jobsetName));
                 if (i != jobsetRepeats.end())
-                    repeats = std::max(repeats, i->second);
+                    buildOptions.repeats = std::max(buildOptions.repeats, i->second);
             }
         }
         if (!build) build = *dependents.begin();
 
         buildId = build->id;
         buildDrvPath = build->drvPath;
-        maxSilentTime = build->maxSilentTime;
-        buildTimeout = build->buildTimeout;
+        buildOptions.maxSilentTime = build->maxSilentTime;
+        buildOptions.buildTimeout = build->buildTimeout;
 
         printInfo("performing step ‘%s’ %d times on ‘%s’ (needed by build %d and %d others)",
-            localStore->printStorePath(step->drvPath), repeats + 1, machine->sshName, buildId, (dependents.size() - 1));
+            localStore->printStorePath(step->drvPath), buildOptions.repeats + 1, machine->sshName, buildId, (dependents.size() - 1));
     }
 
     if (!buildOneDone)
@@ -206,7 +208,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(destStore, machine, step, maxSilentTime, buildTimeout, repeats, result, activeStep, updateStep, narMembers);
+            buildRemote(destStore, machine, step, buildOptions, result, activeStep, updateStep, narMembers);
         } catch (Error & e) {
             if (activeStep->state_.lock()->cancelled) {
                 printInfo("marking step %d of build %d as cancelled", stepNr, buildId);

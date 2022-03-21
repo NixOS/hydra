@@ -269,12 +269,6 @@ StorePathSet sendInputs(
     return inputs;
 }
 
-struct BuildOptions {
-    unsigned int maxSilentTime, buildTimeout, repeats;
-    size_t maxLogSize;
-    bool enforceDeterminism;
-};
-
 void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 {
     RemoteResult thisArrow;
@@ -337,7 +331,7 @@ BuildResult performBuild(
     Store & localStore,
     StorePath drvPath,
     const BasicDerivation & drv,
-    const BuildOptions & options,
+    const State::BuildOptions & options,
     counter & nrStepsBuilding
 )
 {
@@ -472,7 +466,7 @@ void copyPathsFromRemote(
 
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
-    unsigned int maxSilentTime, unsigned int buildTimeout, unsigned int repeats,
+    const BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
     std::function<void(StepState)> updateStep,
     NarMemberDatas & narMembers)
@@ -523,7 +517,7 @@ void State::buildRemote(ref<Store> destStore,
         });
 
         try {
-          handshake(conn, repeats);
+          handshake(conn, buildOptions.repeats);
         } catch (EndOfFile & e) {
             child.pid.wait();
             std::string s = chomp(readFile(result.logFile));
@@ -568,13 +562,7 @@ void State::buildRemote(ref<Store> destStore,
             *localStore,
             step->drvPath,
             BasicDerivation(*step->drv),
-            {
-              .maxSilentTime = maxSilentTime,
-              .buildTimeout = buildTimeout,
-              .repeats = repeats,
-              .maxLogSize = maxLogSize,
-              .enforceDeterminism = step->isDeterministic,
-            },
+            buildOptions,
             nrStepsBuilding
         );
 
