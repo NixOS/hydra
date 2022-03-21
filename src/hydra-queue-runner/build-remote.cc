@@ -422,6 +422,54 @@ std::map<StorePath, ValidPathInfo> queryPathInfos(
     return infos;
 }
 
+void copyPathFromRemote(
+    Machine::Connection & conn,
+    NarMemberDatas & narMembers,
+    Store & localStore,
+    Store & destStore,
+    const ValidPathInfo & info
+)
+{
+      /* Receive the NAR from the remote and add it to the
+          destination store. Meanwhile, extract all the info from the
+          NAR that getBuildOutput() needs. */
+      auto source2 = sinkToSource([&](Sink & sink)
+      {
+          /* Note: we should only send the command to dump the store
+              path to the remote if the NAR is actually going to get read
+              by the destination store, which won't happen if this path
+              is already valid on the destination store. Since this
+              lambda function only gets executed if someone tries to read
+              from source2, we will send the command from here rather
+              than outside the lambda. */
+          conn.to << cmdDumpStorePath << localStore.printStorePath(info.path);
+          conn.to.flush();
+
+          TeeSource tee(conn.from, sink);
+          extractNarData(tee, localStore.printStorePath(info.path), narMembers);
+      });
+
+      destStore.addToStore(info, *source2, NoRepair, NoCheckSigs);
+}
+
+void copyPathsFromRemote(
+    Machine::Connection & conn,
+    NarMemberDatas & narMembers,
+    Store & localStore,
+    Store & destStore,
+    const std::map<StorePath, ValidPathInfo> & infos
+)
+{
+      auto pathsSorted = reverseTopoSortPaths(infos);
+
+      for (auto & path : pathsSorted) {
+          auto & info = infos.find(path)->second;
+          copyPathFromRemote(conn, narMembers, localStore, destStore, info);
+      }
+
+}
+
+
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
     unsigned int maxSilentTime, unsigned int buildTimeout, unsigned int repeats,
@@ -571,33 +619,7 @@ void State::buildRemote(ref<Store> destStore,
             printMsg(lvlDebug, "copying outputs of ‘%s’ from ‘%s’ (%d bytes)",
                 localStore->printStorePath(step->drvPath), machine->sshName, totalNarSize);
 
-            auto pathsSorted = reverseTopoSortPaths(infos);
-
-            for (auto & path : pathsSorted) {
-                auto & info = infos.find(path)->second;
-
-                /* Receive the NAR from the remote and add it to the
-                   destination store. Meanwhile, extract all the info from the
-                   NAR that getBuildOutput() needs. */
-                auto source2 = sinkToSource([&](Sink & sink)
-                {
-                    /* Note: we should only send the command to dump the store
-                       path to the remote if the NAR is actually going to get read
-                       by the destination store, which won't happen if this path
-                       is already valid on the destination store. Since this
-                       lambda function only gets executed if someone tries to read
-                       from source2, we will send the command from here rather
-                       than outside the lambda. */
-                    conn.to << cmdDumpStorePath << localStore->printStorePath(path);
-                    conn.to.flush();
-
-                    TeeSource tee(conn.from, sink);
-                    extractNarData(tee, localStore->printStorePath(path), narMembers);
-                });
-
-                destStore->addToStore(info, *source2, NoRepair, NoCheckSigs);
-            }
-
+            copyPathsFromRemote(conn, narMembers, *localStore, *destStore, infos);
             auto now2 = std::chrono::steady_clock::now();
 
             result.overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
