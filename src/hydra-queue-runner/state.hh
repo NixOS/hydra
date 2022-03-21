@@ -290,6 +290,16 @@ struct Machine
     {
         return sshName == "localhost";
     }
+
+    // A connection to a machine
+    struct Connection {
+        nix::FdSink to;
+        nix::FdSource from;
+        unsigned int remoteVersion;
+
+        // Backpointer to the machine
+        ptr machine;
+    };
 };
 
 
