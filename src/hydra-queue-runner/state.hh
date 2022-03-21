@@ -72,6 +72,8 @@ struct RemoteResult
     {
         return stepStatus == bsCachedFailure ? bsFailed : stepStatus;
     }
+
+    void updateWithBuildResult(const nix::BuildResult &);
 };
 
 

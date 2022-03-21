@@ -269,6 +269,121 @@ StorePathSet sendInputs(
     return inputs;
 }
 
+struct BuildOptions {
+    unsigned int maxSilentTime, buildTimeout, repeats;
+    size_t maxLogSize;
+    bool enforceDeterminism;
+};
+
+void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
+{
+    RemoteResult thisArrow;
+
+    startTime = buildResult.startTime;
+    stopTime = buildResult.stopTime;
+    timesBuilt = buildResult.timesBuilt;
+    errorMsg = buildResult.errorMsg;
+    isNonDeterministic = buildResult.isNonDeterministic;
+
+    switch ((BuildResult::Status) buildResult.status) {
+        case BuildResult::Built:
+            stepStatus = bsSuccess;
+            break;
+        case BuildResult::Substituted:
+        case BuildResult::AlreadyValid:
+            stepStatus = bsSuccess;
+            isCached = true;
+            break;
+        case BuildResult::PermanentFailure:
+            stepStatus = bsFailed;
+            canCache = true;
+            errorMsg = "";
+            break;
+        case BuildResult::InputRejected:
+        case BuildResult::OutputRejected:
+            stepStatus = bsFailed;
+            canCache = true;
+            break;
+        case BuildResult::TransientFailure:
+            stepStatus = bsFailed;
+            canRetry = true;
+            errorMsg = "";
+            break;
+        case BuildResult::TimedOut:
+            stepStatus = bsTimedOut;
+            errorMsg = "";
+            break;
+        case BuildResult::MiscFailure:
+            stepStatus = bsAborted;
+            canRetry = true;
+            break;
+        case BuildResult::LogLimitExceeded:
+            stepStatus = bsLogLimitExceeded;
+            break;
+        case BuildResult::NotDeterministic:
+            stepStatus = bsNotDeterministic;
+            canRetry = false;
+            canCache = true;
+            break;
+        default:
+            stepStatus = bsAborted;
+            break;
+    }
+
+}
+
+BuildResult performBuild(
+    Machine::Connection & conn,
+    Store & localStore,
+    StorePath drvPath,
+    const BasicDerivation & drv,
+    const BuildOptions & options,
+    counter & nrStepsBuilding
+)
+{
+
+    BuildResult result;
+
+    conn.to << cmdBuildDerivation << localStore.printStorePath(drvPath);
+    writeDerivation(conn.to, localStore, drv);
+    conn.to << options.maxSilentTime << options.buildTimeout;
+    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 2)
+        conn.to << options.maxLogSize;
+    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 3) {
+        conn.to << options.repeats // == build-repeat
+          << options.enforceDeterminism;
+    }
+    conn.to.flush();
+
+    result.startTime = time(0);
+
+    {
+        MaintainCount<counter> mc(nrStepsBuilding);
+        result.status = (BuildResult::Status)readInt(conn.from);
+    }
+    result.stopTime = time(0);
+
+
+    result.errorMsg = readString(conn.from);
+    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 3) {
+        result.timesBuilt = readInt(conn.from);
+        result.isNonDeterministic = readInt(conn.from);
+        auto start = readInt(conn.from);
+        auto stop = readInt(conn.from);
+        if (start && start) {
+            /* Note: this represents the duration of a single
+                round, rather than all rounds. */
+            result.startTime = start;
+            result.stopTime = stop;
+        }
+    }
+    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 6) {
+        result.builtOutputs = worker_proto::read(localStore, conn.from, Phantom<DrvOutputs> {});
+    }
+
+    return result;
+}
+
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
     unsigned int maxSilentTime, unsigned int buildTimeout, unsigned int repeats,
@@ -362,85 +477,23 @@ void State::buildRemote(ref<Store> destStore,
 
         updateStep(ssBuilding);
 
-        conn.to << cmdBuildDerivation << localStore->printStorePath(step->drvPath);
-        writeDerivation(conn.to, *localStore, BasicDerivation(*step->drv));
-        conn.to << maxSilentTime << buildTimeout;
-        if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 2)
-            conn.to << maxLogSize;
-        if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 3) {
-            conn.to << repeats // == build-repeat
-               << step->isDeterministic; // == enforce-determinism
-        }
-        conn.to.flush();
+        BuildResult buildResult = performBuild(
+            conn,
+            *localStore,
+            step->drvPath,
+            BasicDerivation(*step->drv),
+            {
+              .maxSilentTime = maxSilentTime,
+              .buildTimeout = buildTimeout,
+              .repeats = repeats,
+              .maxLogSize = maxLogSize,
+              .enforceDeterminism = step->isDeterministic,
+            },
+            nrStepsBuilding
+        );
 
-        result.startTime = time(0);
-        int res;
-        {
-            MaintainCount<counter> mc(nrStepsBuilding);
-            res = readInt(conn.from);
-        }
-        result.stopTime = time(0);
+        result.updateWithBuildResult(buildResult);
 
-        result.errorMsg = readString(conn.from);
-        if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 3) {
-            result.timesBuilt = readInt(conn.from);
-            result.isNonDeterministic = readInt(conn.from);
-            auto start = readInt(conn.from);
-            auto stop = readInt(conn.from);
-            if (start && start) {
-                /* Note: this represents the duration of a single
-                    round, rather than all rounds. */
-                result.startTime = start;
-                result.stopTime = stop;
-            }
-        }
-        if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 6) {
-            worker_proto::read(*localStore, conn.from, Phantom<DrvOutputs> {});
-        }
-        switch ((BuildResult::Status) res) {
-            case BuildResult::Built:
-                result.stepStatus = bsSuccess;
-                break;
-            case BuildResult::Substituted:
-            case BuildResult::AlreadyValid:
-                result.stepStatus = bsSuccess;
-                result.isCached = true;
-                break;
-            case BuildResult::PermanentFailure:
-                result.stepStatus = bsFailed;
-                result.canCache = true;
-                result.errorMsg = "";
-                break;
-            case BuildResult::InputRejected:
-            case BuildResult::OutputRejected:
-                result.stepStatus = bsFailed;
-                result.canCache = true;
-                break;
-            case BuildResult::TransientFailure:
-                result.stepStatus = bsFailed;
-                result.canRetry = true;
-                result.errorMsg = "";
-                break;
-            case BuildResult::TimedOut:
-                result.stepStatus = bsTimedOut;
-                result.errorMsg = "";
-                break;
-            case BuildResult::MiscFailure:
-                result.stepStatus = bsAborted;
-                result.canRetry = true;
-                break;
-            case BuildResult::LogLimitExceeded:
-                result.stepStatus = bsLogLimitExceeded;
-                break;
-            case BuildResult::NotDeterministic:
-                result.stepStatus = bsNotDeterministic;
-                result.canRetry = false;
-                result.canCache = true;
-                break;
-            default:
-                result.stepStatus = bsAborted;
-                break;
-        }
         if (result.stepStatus != bsSuccess) return;
 
         result.errorMsg = "";
