@@ -175,6 +175,18 @@ StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> & paths
     return sorted;
 }
 
+std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const StorePath & drvPath)
+{
+    string base(drvPath.to_string());
+    auto logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
+
+    createDirs(dirOf(logFile));
+
+    AutoCloseFD logFD = open(logFile.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0666);
+    if (!logFD) throw SysError("creating log file ‘%s’", logFile);
+
+    return {std::move(logFile), std::move(logFD)};
+}
 
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
@@ -185,14 +197,9 @@ void State::buildRemote(ref<Store> destStore,
 {
     assert(BuildResult::TimedOut == 8);
 
-    string base(step->drvPath.to_string());
-    result.logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
-    AutoDelete autoDelete(result.logFile, false);
-
-    createDirs(dirOf(result.logFile));
-
-    AutoCloseFD logFD = open(result.logFile.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0666);
-    if (!logFD) throw SysError("creating log file ‘%s’", result.logFile);
+    auto [logFile, logFD] = openLogFile(logDir, step->drvPath);
+    AutoDelete logFileDel(logFile, false);
+    result.logFile = logFile;
 
     nix::Path tmpDir = createTempDir();
     AutoDelete tmpDirDel(tmpDir, true);
@@ -316,7 +323,7 @@ void State::buildRemote(ref<Store> destStore,
             result.overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
         }
 
-        autoDelete.cancel();
+        logFileDel.cancel();
 
         /* Truncate the log to get rid of messages about substitutions
            etc. on the remote system. */
