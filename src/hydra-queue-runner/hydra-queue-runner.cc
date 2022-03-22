@@ -7,7 +7,6 @@
 #include <fcntl.h>
 
 #include <prometheus/exposer.h>
-#include <prometheus/gauge.h>
 
 #include "state.hh"
 #include "build-result.hh"
