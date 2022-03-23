@@ -104,12 +104,12 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 }
 
 
-static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
+static void copyClosureTo(std::timed_mutex & sendMutex, Store & destStore,
     FdSource & from, FdSink & to, const StorePathSet & paths,
     bool useSubstitutes = false)
 {
     StorePathSet closure;
-    destStore->computeFSClosure(paths, closure);
+    destStore.computeFSClosure(paths, closure);
 
     /* Send the "query valid paths" command with the "lock" option
        enabled. This prevents a race where the remote host
@@ -117,16 +117,16 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
        the remote host to substitute missing paths. */
     // FIXME: substitute output pollutes our build log
     to << cmdQueryValidPaths << 1 << useSubstitutes;
-    worker_proto::write(*destStore, to, closure);
+    worker_proto::write(destStore, to, closure);
     to.flush();
 
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = worker_proto::read(*destStore, from, Phantom<StorePathSet> {});
+    auto present = worker_proto::read(destStore, from, Phantom<StorePathSet> {});
 
     if (present.size() == closure.size()) return;
 
-    auto sorted = destStore->topoSortPaths(closure);
+    auto sorted = destStore.topoSortPaths(closure);
 
     StorePathSet missing;
     for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
@@ -138,7 +138,7 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
         std::chrono::seconds(600));
 
     to << cmdImportPaths;
-    destStore->exportPaths(missing, to);
+    destStore.exportPaths(missing, to);
     to.flush();
 
     if (readInt(from) != 1)
@@ -308,7 +308,7 @@ void State::buildRemote(ref<Store> destStore,
                 destStore->computeFSClosure(inputs, closure);
                 copyPaths(*destStore, *localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
             } else {
-                copyClosureTo(machine->state->sendLock, destStore, from, to, inputs, true);
+                copyClosureTo(machine->state->sendLock, *destStore, from, to, inputs, true);
             }
 
             auto now2 = std::chrono::steady_clock::now();
