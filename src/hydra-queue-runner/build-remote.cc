@@ -203,7 +203,7 @@ void handshake(Machine::Connection & conn, unsigned int repeats)
         throw Error("machine ‘%1%’ does not support repeating a build; please upgrade it to Nix 1.12", conn.machine->sshName);
 }
 
-StorePathSet sendInputs(
+BasicDerivation sendInputs(
     State & state,
     Step & step,
     Store & localStore,
@@ -214,19 +214,13 @@ StorePathSet sendInputs(
     counter & nrStepsCopyingTo
 )
 {
-
-    StorePathSet inputs;
     BasicDerivation basicDrv(*step.drv);
-
-    for (auto & p : step.drv->inputSrcs)
-        inputs.insert(p);
 
     for (auto & input : step.drv->inputDrvs) {
         auto drv2 = localStore.readDerivation(input.first);
         for (auto & name : input.second) {
             if (auto i = get(drv2.outputs, name)) {
                 auto outPath = i->path(localStore, drv2.name, name);
-                inputs.insert(*outPath);
                 basicDrv.inputSrcs.insert(*outPath);
             }
         }
@@ -255,10 +249,10 @@ StorePathSet sendInputs(
         /* Copy the input closure. */
         if (conn.machine->isLocalhost()) {
             StorePathSet closure;
-            destStore.computeFSClosure(inputs, closure);
+            destStore.computeFSClosure(basicDrv.inputSrcs, closure);
             copyPaths(destStore, localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
         } else {
-            copyClosureTo(conn.machine->state->sendLock, destStore, conn.from, conn.to, inputs, true);
+            copyClosureTo(conn.machine->state->sendLock, destStore, conn.from, conn.to, basicDrv.inputSrcs, true);
         }
 
         auto now2 = std::chrono::steady_clock::now();
@@ -266,7 +260,7 @@ StorePathSet sendInputs(
         overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
     }
 
-    return inputs;
+    return basicDrv;
 }
 
 void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
@@ -535,8 +529,7 @@ void State::buildRemote(ref<Store> destStore,
            copy the immediate sources of the derivation and the required
            outputs of the input derivations. */
         updateStep(ssSendingInputs);
-
-        StorePathSet inputs = sendInputs(*this, *step, *localStore, *destStore, conn, result.overhead, nrStepsWaiting, nrStepsCopyingTo);
+        BasicDerivation resolvedDrv = sendInputs(*this, *step, *localStore, *destStore, conn, result.overhead, nrStepsWaiting, nrStepsCopyingTo);
 
         logFileDel.cancel();
 
@@ -561,7 +554,7 @@ void State::buildRemote(ref<Store> destStore,
             conn,
             *localStore,
             step->drvPath,
-            BasicDerivation(*step->drv),
+            resolvedDrv,
             buildOptions,
             nrStepsBuilding
         );
