@@ -233,9 +233,9 @@ StorePathSet sendInputs(
     }
 
     /* Ensure that the inputs exist in the destination store. This is
-        a no-op for regular stores, but for the binary cache store,
-        this will copy the inputs to the binary cache from the local
-        store. */
+       a no-op for regular stores, but for the binary cache store,
+       this will copy the inputs to the binary cache from the local
+       store. */
     if (localStore.getUri() != destStore.getUri()) {
         StorePathSet closure;
         localStore.computeFSClosure(step.drv->inputSrcs, closure);
