@@ -1,6 +1,11 @@
-[% WRAPPER layout.tt title=
+[% WRAPPER layout.tt
+  title=
     (build ? "Evaluations containing build $build.id" :
-     jobset ? "Evaluations of jobset $project.name:$jobset.name" :
+     jobset ? "Evaluations of jobset " _ makeNameTextForJobset(jobset) :
+     "Latest evaluations")
+  titleHTML =
+    (build ? "Evaluations containing build $build.id" :
+     jobset ? "Evaluations of jobset " _ linkToJobset(jobset) :
      "Latest evaluations") %]
 [% PROCESS common.tt %]
 

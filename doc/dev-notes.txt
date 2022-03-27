@@ -13,7 +13,7 @@
 * Creating a user:
 
   $ hydra-create-user root --email-address 'e.dolstra@tudelft.nl' \
-      --password-hash "$(echo -n foobar | sha1sum | cut -c1-40)"
+      --password-prompt
 
   (Replace "foobar" with the desired password.)
 

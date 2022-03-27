@@ -114,7 +114,7 @@ This can be done using the command `hydra-create-user`:
 
 ```console
 $ hydra-create-user alice --full-name 'Alice Q. User' \
-    --email-address 'alice@example.org' --password foobar --role admin
+    --email-address 'alice@example.org' --password-prompt --role admin
 ```
 
 Additional users can be created through the web interface.

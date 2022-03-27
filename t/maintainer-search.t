@@ -5,7 +5,7 @@ use Setup;
 use Data::Dumper;
 
 use HTTP::Request::Common;
-use JSON qw(decode_json);
+use JSON::MaybeXS;
 
 use Test2::V0;
 

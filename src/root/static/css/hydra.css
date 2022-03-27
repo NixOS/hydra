@@ -138,10 +138,240 @@ td.step-status span.warn {
 }
 
 .date {
-	cursor: help;
-	border-bottom: 1px dotted #999;
+    cursor: help;
+    border-bottom: 1px dotted #999;
 }
 
 .tab-content > .tab-pane {
     padding-top: 1.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+    /* Prevent some flickering */
+    html {
+        background-color: #1f1f1f;
+    }
+    body, div.popover {
+        background-color: #1f1f1f;
+        color: #fafafa !important;
+    }
+
+    /*
+    Navbar
+    */
+    nav.navbar {
+        background-color: #303030 !important;
+        border-bottom: solid 1px #404040;
+    }
+
+    nav.navbar a {
+        color: #fafafa !important;
+    }
+
+    .dropdown-menu {
+        background-color: #1f1f1f;
+    }
+
+    .dropdown-header {
+        color: #999999;
+        font-weight: 700;
+    }
+
+    .dropdown-menu .dropdown-item:hover,
+    .dropdown-menu .dropdown-item.active {
+        background-color: #2f2f30;
+        color: white;
+    }
+
+    .dropdown-menu .dropdown-item.active {
+        font-weight: 700;
+    }
+
+    /*
+    UI Elements
+    */
+    label.btn-secondary,
+    button.btn,
+    a.btn-secondary {
+        background-color: #333;
+        border: none;
+        box-shadow: inset 0 0 0 1px #525252;
+        cursor: pointer;
+    }
+
+    input,
+    select,
+    textarea {
+        color: white !important;
+        background-color: #404040 !important;
+        border-color: #c4c4c4;
+        box-shadow: inset 0 0 0 1px #4f4f4f;
+        border: none !important;
+    }
+
+    div.card.bg-light,
+    div.card,
+    pre {
+        background-color: #333333 !important;
+        color: white;
+    }
+
+    div.page-header {
+        color: white;
+        font-weight: 600;
+    }
+
+    div.dropdown.show > div.dropdown-menu a {
+        color: white;
+    }
+
+    span.muted {
+        color: #666666;
+    }
+
+    /*
+    Tables
+    */
+    table {
+        border: 1px solid #404040;
+        border-radius: 4px;
+    }
+
+    table.info-table, #tabs-summary table:nth-of-type(1) {
+        border: none;
+    }
+    /* Weird fix */
+    #tabs-summary table:nth-of-type(1) tr:hover a,
+    div.popover td:hover a, div.popover td:hover a tt {
+        text-decoration: none !important;
+    }
+
+    th,
+    td {
+        color: white;
+    }
+
+    thead tr th, table:not(.info-table) > tbody > tr > th {
+        background-color: #303030;
+        border-bottom: 1px solid #333 !important;
+        border-top: 1px solid #333;
+    }
+
+    table.clickable-rows tbody tr:hover {
+        background-color: #033464 !important;
+        border-top: 1px solid #0b5cad;
+        border-bottom: 1px solid #0b5cad;
+    }
+
+    tbody tr:hover a:not(.btn-secondary),
+    tbody tr:hover a > tt {
+        text-decoration: underline;
+    }
+
+    tbody td {
+        border-color: #404040 !important;
+    }
+
+    .table-striped tbody tr:nth-of-type(2n+1) {
+        background-color: initial;
+    }
+
+    /*
+    Tabs
+    */
+    ul.nav-tabs {
+        border-bottom: 1px solid #404040;
+    }
+
+    ul.nav-tabs > li.nav-item a {
+        padding: 8px;
+        font-size: 14px;
+        line-height: 28px;
+        color: #999;
+    }
+
+    ul.nav-tabs > li.nav-item a.active {
+        color: #fff !important;
+        border: none;
+        border-bottom: 2px solid #868686 !important;
+        background: transparent;
+        font-weight: 600;
+    }
+
+    ul.nav-tabs a {
+        border: none !important;
+        transition: background-color 100ms linear, color 100ms linear, border 100ms linear;
+        border-bottom: 2px solid transparent !important;
+    }
+
+    ul.nav-tabs li:not(.dropdown.show) a:hover {
+        color: #fff !important;
+        border-bottom: 2px solid #c4c4c4 !important;
+    }
+
+    ul.nav-tabs a.dropdown-item {
+        color: white !important;
+    }
+
+    /*
+    Pagination
+    */
+    ul.pagination {
+        border: none;
+    }
+
+    ul.pagination li.disabled a {
+        background-color: #1f1f1f;
+        border-color: #525252 !important;
+        color: #868686;
+    }
+
+    ul.pagination li.disabled:hover a {
+        background-color: initial !important;
+    }
+
+    ul.pagination li a {
+        color: rgb(250, 250, 250);
+        background-color: #1d1d1d !important;
+        border-color: #525252;
+        line-height: 1rem;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+
+    ul.pagination li:hover:not(.disabled) a {
+        background: #303030 !important;
+        box-shadow: inset 0 0 0 2px #868686,0 2px 2px 0 rgba(0,0,0,0.08);
+        border-color: #525252 !important;
+        color: rgb(250,250, 250);
+    }
+
+    /*
+    Popover
+    */
+    div.popover {
+        border: solid 1px white;
+    }
+
+    /*
+    Modal Dialogs
+    */
+    div.modal-content {
+        background-color: #1f1f1f;
+    }
+
+    /*
+    Graphs
+    */
+    div.flot-tooltip {
+        border: solid 1px white;
+        background-color: #1f1f1f;
+        color: #fafafa !important;
+    }
+
+    div.flot-text {
+        color: #fafafa !important;
+    }
 }

@@ -126,8 +126,8 @@ sub buildFinished {
 
         sendEmail(
             $self->{config}, $to, $subject, $body,
-            [ 'X-Hydra-Project'  => $topbuild->get_column('project'),
-            , 'X-Hydra-Jobset'   => $topbuild->get_column('jobset'),
+            [ 'X-Hydra-Project'  => $topbuild->jobset->get_column('project'),
+            , 'X-Hydra-Jobset'   => $topbuild->jobset->get_column('name'),
             , 'X-Hydra-Job'      => $topbuild->get_column('job'),
             , 'X-Hydra-System'   => $topbuild->system
             ]);

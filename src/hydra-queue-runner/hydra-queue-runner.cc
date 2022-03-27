@@ -158,6 +158,7 @@ void State::monitorMachinesFile()
             (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem.get())
             + " - " + std::to_string(settings.maxBuildJobs) + " 1 "
             + concatStringsSep(",", settings.systemFeatures.get()));
+        machinesReadyLock.unlock();
         return;
     }
 
@@ -203,9 +204,15 @@ void State::monitorMachinesFile()
         parseMachines(contents);
     };
 
+    auto firstParse = true;
+
     while (true) {
         try {
             readMachinesFiles();
+            if (firstParse) {
+                machinesReadyLock.unlock();
+                firstParse = false;
+            }
             // FIXME: use inotify.
             sleep(30);
         } catch (std::exception & e) {
@@ -321,7 +328,7 @@ int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t sto
 
     txn.exec_params0
         ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-         build->id, stepNr, outputName, 
+         build->id, stepNr, outputName,
          localStore->printStorePath(storePath));
 
     return stepNr;
@@ -770,6 +777,7 @@ void State::run(BuildID buildOne)
         dumpStatus(*conn);
     }
 
+    machinesReadyLock.lock();
     std::thread(&State::monitorMachinesFile, this).detach();
 
     std::thread(&State::queueMonitor, this).detach();

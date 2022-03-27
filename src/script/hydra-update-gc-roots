@@ -6,6 +6,7 @@ use File::Path;
 use File::stat;
 use File::Basename;
 use Nix::Store;
+use Hydra::Config;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 use Hydra::Model::DB;
@@ -25,7 +26,7 @@ sub addRoot {
 
 
 my @columns =
-    ( "id", "project", "jobset", "job", "system", "finished", "drvpath", "timestamp", "buildstatus"
+    ( "id", "jobset_id", "job", "system", "finished", "drvpath", "timestamp", "buildstatus"
     , { "outpaths" => \ "(select string_agg(path, ' ') from BuildOutputs where build = me.id)" }
     );
 
@@ -35,8 +36,11 @@ sub keepBuild {
     my ($build, $keepFailedDrvs) = @_;
     return if defined $seenBuilds{$build->id};
     $seenBuilds{$build->id} = 1;
+
+    my ($jobset) = $build->jobset;
+
     print STDERR "  keeping ", ($build->finished ? "" : "scheduled "), "build ", $build->id, " (",
-        $build->get_column('project'), ":", $build->get_column('jobset'), ":", $build->get_column('job'), "; ",
+        $jobset->get_column('project'), ":", $jobset->get_column('name'), ":", $build->get_column('job'), "; ",
         $build->system, "; ",
         strftime("%Y-%m-%d %H:%M:%S", localtime($build->timestamp)), ")\n";
     if (isLocalStore &&
@@ -70,13 +74,29 @@ closedir $dir;
 
 # For scheduled builds, we register the derivation as a GC root.
 print STDERR "*** looking for scheduled builds\n";
-keepBuild($_, 0) foreach $db->resultset('Builds')->search({ finished => 0 }, { columns => [ @columns ] });
+keepBuild($_, 0) foreach $db->resultset('Builds')->search(
+    { finished => 0 },
+    {
+        columns => [ @columns ],
+        join      => 'jobset',
+        '+select' => ['jobset.project', 'jobset.name'],
+        '+as'     => ['jobset.project', 'jobset.name'],
+    }
+);
 
 
 # Keep all builds that have been marked as "keep".
 print STDERR "*** looking for kept builds\n";
 my @buildsToKeep = $db->resultset('Builds')->search(
-    { finished => 1, keep => 1 }, { order_by => ["project", "jobset", "job", "id"], columns => [ @columns ] });
+    { finished => 1, keep => 1 },
+    {
+        order_by => ["jobset_id", "job", "id"],
+        columns => [ @columns ],
+        join      => 'jobset',
+        '+select' => ['jobset.project', 'jobset.name'],
+        '+as'     => ['jobset.project', 'jobset.name'],
+    }
+);
 keepBuild($_, 0) foreach @buildsToKeep;
 
 
@@ -115,10 +135,17 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
         # Note: we also keep the derivations of failed builds so that
         # they can be restarted.
         keepBuild($_, 1) foreach $jobset->builds->search(
-            { id => { -in => $db->resultset('JobsetEvalMembers')->search({ eval => { -in => [@evals] } }, { select => "build" })->as_query }
+            { "me.id" => { -in => $db->resultset('JobsetEvalMembers')->search({ eval => { -in => [@evals] } }, { select => "build" })->as_query }
             , finished => 1
             },
-            { order_by => ["job", "id"], columns => [ @columns ] });
+            {
+                order_by => ["job", "me.id"],
+                columns => [ @columns ],
+                join      => 'jobset',
+                '+select' => ['jobset.project', 'jobset.name'],
+                '+as'     => ['jobset.project', 'jobset.name'],
+            }
+        );
 
         print STDERR "*** looking for the most recent successful builds of current jobs in ",
             $project->name, ":", $jobset->name, "\n";
@@ -126,7 +153,7 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
         # Keep the most recently succeeded build of a current job. Oh
         # I really need to stop using DBIx::Class.
         keepBuild($_, 1) foreach $jobset->builds->search(
-            { id => { -in => $jobset->builds->search(
+            { "me.id" => { -in => $jobset->builds->search(
                 { finished => 1
                 , buildstatus => [0, 6]
                 , job => { -in => $jobset->builds->search(
@@ -135,10 +162,16 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
                                )->as_query }
                 },
                 { group_by => 'job'
-                , select => [ { max => 'id', -as => 'm' } ]
+                , select => [ { max => 'me.id', -as => 'm' } ]
                 })->as_query }
             },
-            { columns => [ @columns ] });
+            {
+                columns => [ @columns ],
+                join      => 'jobset',
+                '+select' => ['jobset.project', 'jobset.name'],
+                '+as'     => ['jobset.project', 'jobset.name'],
+            }
+        );
     }
 }
 

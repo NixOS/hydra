@@ -1,7 +1,8 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = github:NixOS/nixpkgs/release-21.05;
+  inputs.nixpkgs.follows = "nix/nixpkgs";
+  inputs.nix.url = github:NixOS/nix/2.6.0;
 
   outputs = { self, nixpkgs, nix }:
     let
@@ -16,7 +17,8 @@
       # NixOS configuration used for VM tests.
       hydraServer =
         { config, pkgs, ... }:
-        { imports = [ self.nixosModules.hydraTest ];
+        {
+          imports = [ self.nixosModules.hydraTest ];
 
           virtualisation.memorySize = 1024;
           virtualisation.writableStore = true;
@@ -26,11 +28,12 @@
           nix = {
             # Without this nix tries to fetch packages from the default
             # cache.nixos.org which is not reachable from this sandboxed NixOS test.
-            binaryCaches = [];
+            binaryCaches = [ ];
           };
         };
 
-    in rec {
+    in
+    rec {
 
       # A Nixpkgs overlay that provides a 'hydra' package.
       overlay = final: prev: {
@@ -39,10 +42,12 @@
         perlPackages = prev.perlPackages // {
           TestPostgreSQL = final.perlPackages.buildPerlModule {
             pname = "Test-PostgreSQL";
-            version = "1.27";
-            src = final.fetchurl {
-              url = "mirror://cpan/authors/id/T/TJ/TJC/Test-PostgreSQL-1.27.tar.gz";
-              sha256 = "b1bd231693100cc40905fb0ba3173173201621de9c8301f21c5b593b0a46f907";
+            version = "1.28-1";
+            src = final.fetchFromGitHub {
+              owner = "grahamc";
+              repo = "Test-postgresql";
+              rev = "release-1.28-1";
+              hash = "sha256-SFC1C3q3dbcBos18CYd/s0TIcfJW4g04ld0+XQXVToQ=";
             };
             buildInputs = with final.perlPackages; [ ModuleBuildTiny TestSharedFork pkgs.postgresql ];
             propagatedBuildInputs = with final.perlPackages; [ DBDPg DBI FileWhich FunctionParameters Moo TieHashMethod TryTiny TypeTiny ];
@@ -50,7 +55,7 @@
             makeMakerFlags = "POSTGRES_HOME=${final.postgresql}";
 
             meta = {
-              homepage = https://github.com/TJC/Test-postgresql;
+              homepage = "https://github.com/grahamc/Test-postgresql/releases/tag/release-1.28-1";
               description = "PostgreSQL runner for tests";
               license = with final.lib.licenses; [ artistic2 ];
             };
@@ -199,18 +204,33 @@
             };
           };
 
-          TieHashMethod = final.buildPerlPackage {
-              pname = "Tie-Hash-Method";
-              version = "0.02";
-              src = final.fetchurl {
-                url = "mirror://cpan/authors/id/Y/YV/YVES/Tie-Hash-Method-0.02.tar.gz";
-                sha256 = "d513fbb51413f7ca1e64a1bdce6194df7ec6076dea55066d67b950191eec32a9";
-              };
-              meta = {
-                description = "Tied hash with specific methods overriden by callbacks";
-                license = with final.lib.licenses; [ artistic1 ];
-              };
+          ReadonlyX = final.perlPackages.buildPerlModule {
+            pname = "ReadonlyX";
+            version = "1.04";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/S/SA/SANKO/ReadonlyX-1.04.tar.gz";
+              sha256 = "81bb97dba93ac6b5ccbce04a42c3590eb04557d75018773ee18d5a30fcf48188";
             };
+            buildInputs = with final.perlPackages; [ ModuleBuildTiny TestFatal ];
+            meta = {
+              homepage = "https://github.com/sanko/readonly";
+              description = "Faster facility for creating read-only scalars, arrays, hashes";
+              license = final.lib.licenses.artistic2;
+            };
+          };
+
+          TieHashMethod = final.buildPerlPackage {
+            pname = "Tie-Hash-Method";
+            version = "0.02";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/Y/YV/YVES/Tie-Hash-Method-0.02.tar.gz";
+              sha256 = "d513fbb51413f7ca1e64a1bdce6194df7ec6076dea55066d67b950191eec32a9";
+            };
+            meta = {
+              description = "Tied hash with specific methods overriden by callbacks";
+              license = with final.lib.licenses; [ artistic1 ];
+            };
+          };
 
           Test2Harness = final.buildPerlPackage {
             pname = "Test2-Harness";
@@ -311,7 +331,7 @@
               sha256 = "1mnnpkmj8kpb7qw50sm8h4sd8py37ssy2xi5hhxzr5whcx0cvhm8";
             };
             meta = {
-              description= "Active Directory Security Identifier manipulation";
+              description = "Active Directory Security Identifier manipulation";
               license = with final.lib.licenses; [ artistic2 ];
             };
           };
@@ -325,7 +345,7 @@
             };
             propagatedBuildInputs = with final.perlPackages; [ NetLDAP NetLDAPServer TestMore DataDump NetLDAPSID ];
             meta = {
-              description= "test Net::LDAP code";
+              description = "test Net::LDAP code";
               license = with final.lib.licenses; [ artistic1 ];
             };
           };
@@ -340,7 +360,7 @@
             propagatedBuildInputs = with final.perlPackages; [ NetLDAP CatalystPluginAuthentication ClassAccessorFast ];
             buildInputs = with final.perlPackages; [ TestMore TestMockObject TestException NetLDAPServerTest ];
             meta = {
-              description= "Authentication from an LDAP Directory";
+              description = "Authentication from an LDAP Directory";
               license = with final.lib.licenses; [ artistic1 ];
             };
           };
@@ -417,6 +437,20 @@
               license = with final.lib.licenses; [ artistic1 gpl1Plus ];
             };
           };
+
+          UUID4Tiny = final.buildPerlPackage {
+            pname = "UUID4-Tiny";
+            version = "0.002";
+            src = final.fetchurl {
+              url = "mirror://cpan/authors/id/C/CV/CVLIBRARY/UUID4-Tiny-0.002.tar.gz";
+              sha256 = "e7535b31e386d432dec7adde214348389e1d5cf753e7ed07f1ae04c4360840cf";
+            };
+            meta = {
+              description = "Cryptographically secure v4 UUIDs for Linux x64";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+
         };
 
         hydra = with final; let
@@ -429,7 +463,6 @@
                 CatalystAuthenticationStoreDBIxClass
                 CatalystAuthenticationStoreLDAP
                 CatalystDevel
-                CatalystDispatchTypeRegex
                 CatalystPluginAccessLog
                 CatalystPluginAuthorizationRoles
                 CatalystPluginCaptcha
@@ -460,9 +493,11 @@
                 git
                 IOCompress
                 IPCRun
+                IPCRun3
                 JSON
                 JSONMaybeXS
                 JSONXS
+                ListSomeUtils
                 LWP
                 LWPProtocolHttps
                 ModulePluggable
@@ -473,48 +508,94 @@
                 ParallelForkManager
                 PerlCriticCommunity
                 PrometheusTinyShared
-                Readonly
+                ReadonlyX
                 SetScalar
                 SQLSplitStatement
                 Starman
                 StringCompareConstantTime
                 SysHostnameLong
                 TermSizeAny
+                TermReadKey
                 Test2Harness
                 TestMore
                 TestPostgreSQL
                 TextDiff
                 TextTable
-                XMLSimple
+                UUID4Tiny
                 YAML
+                XMLSimple
               ];
           };
 
-        in stdenv.mkDerivation {
+        in
+        stdenv.mkDerivation {
 
           name = "hydra-${version}";
 
           src = self;
 
           buildInputs =
-            [ makeWrapper autoconf automake libtool unzip nukeReferences pkgconfig libpqxx
-              gitAndTools.topGit mercurial darcs subversion breezy openssl bzip2 libxslt
-              final.nix perlDeps perl mdbook pixz
+            [
+              makeWrapper
+              autoconf
+              automake
+              libtool
+              unzip
+              nukeReferences
+              pkgconfig
+              libpqxx
+              gitAndTools.topGit
+              mercurial
+              darcs
+              subversion
+              breezy
+              openssl
+              bzip2
+              libxslt
+              final.nix
+              perlDeps
+              perl
+              mdbook
+              pixz
               boost
-              postgresql_11
+              postgresql_13
               (if lib.versionAtLeast lib.version "20.03pre"
-               then nlohmann_json
-               else nlohmann_json.override { multipleHeaders = true; })
+              then nlohmann_json
+              else nlohmann_json.override { multipleHeaders = true; })
             ];
 
           checkInputs = [
-            foreman python3
+            cacert
+            foreman
+            glibcLocales
+            netcat-openbsd
+            openldap
+            python3
           ];
 
           hydraPath = lib.makeBinPath (
-            [ subversion openssh final.nix coreutils findutils pixz
-              gzip bzip2 lzma gnutar unzip git gitAndTools.topGit mercurial darcs gnused breezy
-            ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ] );
+            [
+              subversion
+              openssh
+              final.nix
+              coreutils
+              findutils
+              pixz
+              gzip
+              bzip2
+              lzma
+              gnutar
+              unzip
+              git
+              gitAndTools.topGit
+              mercurial
+              darcs
+              gnused
+              breezy
+            ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ]
+          );
+
+          OPENLDAP_ROOT = openldap;
 
           shellHook = ''
             pushd $(git rev-parse --show-toplevel) >/dev/null
@@ -572,14 +653,14 @@
         build.x86_64-linux = packages.x86_64-linux.hydra;
 
         manual =
-          pkgs.runCommand "hydra-manual-${version}" {}
-          ''
-            mkdir -p $out/share
-            cp -prvd ${pkgs.hydra}/share/doc $out/share/
+          pkgs.runCommand "hydra-manual-${version}" { }
+            ''
+              mkdir -p $out/share
+              cp -prvd ${pkgs.hydra}/share/doc $out/share/
 
-            mkdir $out/nix-support
-            echo "doc manual $out/share/doc/hydra" >> $out/nix-support/hydra-build-products
-          '';
+              mkdir $out/nix-support
+              echo "doc manual $out/share/doc/hydra" >> $out/nix-support/hydra-build-products
+            '';
 
         tests.install.x86_64-linux =
           with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
@@ -660,7 +741,7 @@
                   + "--data-urlencode 'q=SELECT * FROM hydra_build_status' | grep success"
               )
             '';
-        };
+          };
 
         tests.gitea.x86_64-linux =
           with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
@@ -678,7 +759,7 @@
                   hostName = "localhost";
                   systems = [ "x86_64-linux" ];
                 }];
-                binaryCaches = [];
+                binaryCaches = [ ];
               };
               services.gitea = {
                 enable = true;
@@ -691,296 +772,170 @@
               networking.firewall.allowedTCPPorts = [ 3000 ];
             };
             skipLint = true;
-            testScript = let
-              scripts.mktoken = pkgs.writeText "token.sql" ''
-                INSERT INTO access_token (id, uid, name, created_unix, updated_unix, token_hash, token_salt, token_last_eight) VALUES (1, 1, 'hydra', 1617107360, 1617107360, 'a930f319ca362d7b49a4040ac0af74521c3a3c3303a86f327b01994430672d33b6ec53e4ea774253208686c712495e12a486', 'XRjWE9YW0g', '31d3a9c7');
-              '';
-
-              scripts.git-setup = pkgs.writeShellScript "setup.sh" ''
-                set -x
-                mkdir -p /tmp/repo $HOME/.ssh
-                cat ${snakeoilKeypair.privkey} > $HOME/.ssh/privk
-                chmod 0400 $HOME/.ssh/privk
-                git -C /tmp/repo init
-                cp ${smallDrv} /tmp/repo/jobset.nix
-                git -C /tmp/repo add .
-                git config --global user.email test@localhost
-                git config --global user.name test
-                git -C /tmp/repo commit -m 'Initial import'
-                git -C /tmp/repo remote add origin gitea@machine:root/repo
-                GIT_SSH_COMMAND='ssh -i $HOME/.ssh/privk -o StrictHostKeyChecking=no' \
-                  git -C /tmp/repo push origin master
-                git -C /tmp/repo log >&2
-              '';
-
-              scripts.hydra-setup = pkgs.writeShellScript "hydra.sh" ''
-                set -x
-                su -l hydra -c "hydra-create-user root --email-address \
-                  'alice@example.org' --password foobar --role admin"
-
-                URL=http://localhost:3000
-                USERNAME="root"
-                PASSWORD="foobar"
-                PROJECT_NAME="trivial"
-                JOBSET_NAME="trivial"
-                mycurl() {
-                  curl --referer $URL -H "Accept: application/json" \
-                    -H "Content-Type: application/json" $@
-                }
-
-                cat >data.json <<EOF
-                { "username": "$USERNAME", "password": "$PASSWORD" }
-                EOF
-                mycurl -X POST -d '@data.json' $URL/login -c hydra-cookie.txt
-
-                cat >data.json <<EOF
-                {
-                  "displayname":"Trivial",
-                  "enabled":"1",
-                  "visible":"1"
-                }
-                EOF
-                mycurl --silent -X PUT $URL/project/$PROJECT_NAME \
-                  -d @data.json -b hydra-cookie.txt
-
-                cat >data.json <<EOF
-                {
-                  "description": "Trivial",
-                  "checkinterval": "60",
-                  "enabled": "1",
-                  "visible": "1",
-                  "keepnr": "1",
-                  "enableemail": true,
-                  "emailoverride": "hydra@localhost",
-                  "type": 0,
-                  "nixexprinput": "git",
-                  "nixexprpath": "jobset.nix",
-                  "inputs": {
-                    "git": {"value": "http://localhost:3001/root/repo.git", "type": "git"},
-                    "gitea_repo_name": {"value": "repo", "type": "string"},
-                    "gitea_repo_owner": {"value": "root", "type": "string"},
-                    "gitea_status_repo": {"value": "git", "type": "string"},
-                    "gitea_http_url": {"value": "http://localhost:3001", "type": "string"}
-                  }
-                }
-                EOF
-
-                mycurl --silent -X PUT $URL/jobset/$PROJECT_NAME/$JOBSET_NAME \
-                  -d @data.json -b hydra-cookie.txt
-              '';
-
-              api_token = "d7f16a3412e01a43a414535b16007c6931d3a9c7";
-
-              snakeoilKeypair = {
-                privkey = pkgs.writeText "privkey.snakeoil" ''
-                  -----BEGIN EC PRIVATE KEY-----
-                  MHcCAQEEIHQf/khLvYrQ8IOika5yqtWvI0oquHlpRLTZiJy5dRJmoAoGCCqGSM49
-                  AwEHoUQDQgAEKF0DYGbBwbj06tA3fd/+yP44cvmwmHBWXZCKbS+RQlAKvLXMWkpN
-                  r1lwMyJZoSGgBHoUahoYjTh9/sJL7XLJtA==
-                  -----END EC PRIVATE KEY-----
+            testScript =
+              let
+                scripts.mktoken = pkgs.writeText "token.sql" ''
+                  INSERT INTO access_token (id, uid, name, created_unix, updated_unix, token_hash, token_salt, token_last_eight) VALUES (1, 1, 'hydra', 1617107360, 1617107360, 'a930f319ca362d7b49a4040ac0af74521c3a3c3303a86f327b01994430672d33b6ec53e4ea774253208686c712495e12a486', 'XRjWE9YW0g', '31d3a9c7');
                 '';
 
-                pubkey = pkgs.lib.concatStrings [
-                  "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHA"
-                  "yNTYAAABBBChdA2BmwcG49OrQN33f/sj+OHL5sJhwVl2Qim0vkUJQCry1zFpKTa"
-                  "9ZcDMiWaEhoAR6FGoaGI04ff7CS+1yybQ= sakeoil"
-                ];
-              };
+                scripts.git-setup = pkgs.writeShellScript "setup.sh" ''
+                  set -x
+                  mkdir -p /tmp/repo $HOME/.ssh
+                  cat ${snakeoilKeypair.privkey} > $HOME/.ssh/privk
+                  chmod 0400 $HOME/.ssh/privk
+                  git -C /tmp/repo init
+                  cp ${smallDrv} /tmp/repo/jobset.nix
+                  git -C /tmp/repo add .
+                  git config --global user.email test@localhost
+                  git config --global user.name test
+                  git -C /tmp/repo commit -m 'Initial import'
+                  git -C /tmp/repo remote add origin gitea@machine:root/repo
+                  GIT_SSH_COMMAND='ssh -i $HOME/.ssh/privk -o StrictHostKeyChecking=no' \
+                    git -C /tmp/repo push origin master
+                  git -C /tmp/repo log >&2
+                '';
 
-              smallDrv = pkgs.writeText "jobset.nix" ''
-                { trivial = builtins.derivation {
-                    name = "trivial";
-                    system = "x86_64-linux";
-                    builder = "/bin/sh";
-                    allowSubstitutes = false;
-                    preferLocalBuild = true;
-                    args = ["-c" "echo success > $out; exit 0"];
-                  };
-                 }
-              '';
-            in ''
-              import json
+                scripts.hydra-setup = pkgs.writeShellScript "hydra.sh" ''
+                  set -x
+                  su -l hydra -c "hydra-create-user root --email-address \
+                    'alice@example.org' --password foobar --role admin"
 
-              machine.start()
-              machine.wait_for_unit("multi-user.target")
-              machine.wait_for_open_port(3000)
-              machine.wait_for_open_port(3001)
+                  URL=http://localhost:3000
+                  USERNAME="root"
+                  PASSWORD="foobar"
+                  PROJECT_NAME="trivial"
+                  JOBSET_NAME="trivial"
+                  mycurl() {
+                    curl --referer $URL -H "Accept: application/json" \
+                      -H "Content-Type: application/json" $@
+                  }
 
-              machine.succeed(
-                  "su -l gitea -c 'GITEA_WORK_DIR=/var/lib/gitea gitea admin user create "
-                  + "--username root --password root --email test@localhost'"
-              )
-              machine.succeed("su -l postgres -c 'psql gitea < ${scripts.mktoken}'")
+                  cat >data.json <<EOF
+                  { "username": "$USERNAME", "password": "$PASSWORD" }
+                  EOF
+                  mycurl -X POST -d '@data.json' $URL/login -c hydra-cookie.txt
 
-              machine.succeed(
-                  "curl --fail -X POST http://localhost:3001/api/v1/user/repos "
-                  + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
-                  + f"-H 'Authorization: token ${api_token}'"
-                  + ' -d \'{"auto_init":false, "description":"string", "license":"mit", "name":"repo", "private":false}\'''
-              )
+                  cat >data.json <<EOF
+                  {
+                    "displayname":"Trivial",
+                    "enabled":"1",
+                    "visible":"1"
+                  }
+                  EOF
+                  mycurl --silent -X PUT $URL/project/$PROJECT_NAME \
+                    -d @data.json -b hydra-cookie.txt
 
-              machine.succeed(
-                  "curl --fail -X POST http://localhost:3001/api/v1/user/keys "
-                  + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
-                  + f"-H 'Authorization: token ${api_token}'"
-                  + ' -d \'{"key":"${snakeoilKeypair.pubkey}","read_only":true,"title":"SSH"}\'''
-              )
+                  cat >data.json <<EOF
+                  {
+                    "description": "Trivial",
+                    "checkinterval": "60",
+                    "enabled": "1",
+                    "visible": "1",
+                    "keepnr": "1",
+                    "enableemail": true,
+                    "emailoverride": "hydra@localhost",
+                    "type": 0,
+                    "nixexprinput": "git",
+                    "nixexprpath": "jobset.nix",
+                    "inputs": {
+                      "git": {"value": "http://localhost:3001/root/repo.git", "type": "git"},
+                      "gitea_repo_name": {"value": "repo", "type": "string"},
+                      "gitea_repo_owner": {"value": "root", "type": "string"},
+                      "gitea_status_repo": {"value": "git", "type": "string"},
+                      "gitea_http_url": {"value": "http://localhost:3001", "type": "string"}
+                    }
+                  }
+                  EOF
 
-              machine.succeed(
-                  "${scripts.git-setup}"
-              )
+                  mycurl --silent -X PUT $URL/jobset/$PROJECT_NAME/$JOBSET_NAME \
+                    -d @data.json -b hydra-cookie.txt
+                '';
 
-              machine.succeed(
-                  "${scripts.hydra-setup}"
-              )
+                api_token = "d7f16a3412e01a43a414535b16007c6931d3a9c7";
 
-              machine.wait_until_succeeds(
-                  'curl -Lf -s http://localhost:3000/build/1 -H "Accept: application/json" '
-                  + '|  jq .buildstatus | xargs test 0 -eq'
-              )
-
-              data = machine.succeed(
-                  'curl -Lf -s "http://localhost:3001/api/v1/repos/root/repo/statuses/$(cd /tmp/repo && git show | head -n1 | awk "{print \\$2}")" '
-                  + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
-                  + f"-H 'Authorization: token ${api_token}'"
-              )
-
-              response = json.loads(data)
-
-              assert len(response) == 2, "Expected exactly two status updates for latest commit!"
-              assert response[0]['status'] == "success", "Expected latest status to be success!"
-              assert response[1]['status'] == "pending", "Expected first status to be pending!"
-
-              machine.shutdown()
-            '';
-          };
-
-        tests.ldap.x86_64-linux =
-          with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
-          makeTest {
-            machine = { pkgs, ... }: {
-              imports = [ hydraServer ];
-
-              services.openldap.enable = true;
-              services.openldap.settings.children = {
-                "olcDatabase={1}mdb".attrs = {
-                  objectClass = [ "olcDatabaseConfig" "olcMdbConfig" ];
-                  database = "{1}mdbg";
-                  olcSuffix = "dc=example";
-                  olcRootDN = "cn=root,dc=example";
-                  olcRootPW = "notapassword";
-                  olcDbDirectory = "/var/lib/openldap";
-                };
-              };
-
-              # userPassword generated via `slappasswd`
-              # The admin user has the password `password` and `user` has the password `foobar`.
-              services.openldap.declarativeContents."dc=example" = ''
-                dn: dc=example
-                dc: example
-                o: Root
-                objectClass: top
-                objectClass: dcObject
-                objectClass: organization
-
-                dn: ou=users,dc=example
-                ou: users
-                description: All users
-                objectClass: top
-                objectClass: organizationalUnit
-
-                dn: ou=groups,dc=example
-                ou: groups
-                description: All groups
-                objectClass: top
-                objectClass: organizationalUnit
-
-                dn: cn=hydra_admin,ou=groups,dc=example
-                cn: hydra_admin
-                description: Hydra Admin user group
-                objectClass: groupOfNames
-                member: cn=admin,ou=users,dc=example
-
-                dn: cn=user,ou=users,dc=example
-                objectClass: organizationalPerson
-                objectClass: inetOrgPerson
-                sn: user
-                cn: user
-                mail: user@example
-                userPassword: {SSHA}gLgBMb86/3wecoCp8gtORgIF2/qCRpqs
-
-                dn: cn=admin,ou=users,dc=example
-                objectClass: organizationalPerson
-                objectClass: inetOrgPerson
-                sn: admin
-                cn: admin
-                mail: admin@example
-                userPassword: {SSHA}BsgOQcRnoiULzwLrGmuzVGH6EC5Dkwmf
-              '';
-              systemd.services.hydra-server.environment.CATALYST_DEBUG = "1";
-              systemd.services.hydra-server.environment.HYDRA_LDAP_CONFIG = pkgs.writeText "config.yaml"
-                # example config based on https://metacpan.org/source/ILMARI/Catalyst-Authentication-Store-LDAP-1.016/README#L103
-                ''
-                  credential:
-                    class: Password
-                    password_field: password
-                    password_type: self_check
-                  store:
-                    class: LDAP
-                    ldap_server: localhost
-                    ldap_server_options.timeout: 30
-                    binddn: "cn=root,dc=example"
-                    bindpw: notapassword
-                    start_tls: 0
-                    start_tls_options:
-                      verify:  none
-                    user_basedn: "ou=users,dc=example"
-                    user_filter: "(&(objectClass=inetOrgPerson)(cn=%s))"
-                    user_scope: one
-                    user_field: cn
-                    user_search_options:
-                      deref: always
-                    use_roles: 1
-                    role_basedn: "ou=groups,dc=example"
-                    role_filter: "(&(objectClass=groupOfNames)(member=%s))"
-                    role_scope: one
-                    role_field: cn
-                    role_value: dn
-                    role_search_options:
-                      deref: always
+                snakeoilKeypair = {
+                  privkey = pkgs.writeText "privkey.snakeoil" ''
+                    -----BEGIN EC PRIVATE KEY-----
+                    MHcCAQEEIHQf/khLvYrQ8IOika5yqtWvI0oquHlpRLTZiJy5dRJmoAoGCCqGSM49
+                    AwEHoUQDQgAEKF0DYGbBwbj06tA3fd/+yP44cvmwmHBWXZCKbS+RQlAKvLXMWkpN
+                    r1lwMyJZoSGgBHoUahoYjTh9/sJL7XLJtA==
+                    -----END EC PRIVATE KEY-----
                   '';
-              networking.firewall.enable = false;
-            };
-            testScript = ''
-              import json
 
-              machine.wait_for_unit("openldap.service")
-              machine.wait_for_job("hydra-init")
-              machine.wait_for_open_port("3000")
-              response = machine.succeed(
-                  "curl --fail http://localhost:3000/login -H 'Accept: application/json' -H 'Referer: http://localhost:3000' --data 'username=user&password=foobar'"
-              )
+                  pubkey = pkgs.lib.concatStrings [
+                    "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHA"
+                    "yNTYAAABBBChdA2BmwcG49OrQN33f/sj+OHL5sJhwVl2Qim0vkUJQCry1zFpKTa"
+                    "9ZcDMiWaEhoAR6FGoaGI04ff7CS+1yybQ= sakeoil"
+                  ];
+                };
 
-              response_json = json.loads(response)
-              assert "user" == response_json["username"]
-              assert "user@example" == response_json["emailaddress"]
-              assert len(response_json["userroles"]) == 0
+                smallDrv = pkgs.writeText "jobset.nix" ''
+                  { trivial = builtins.derivation {
+                      name = "trivial";
+                      system = "x86_64-linux";
+                      builder = "/bin/sh";
+                      allowSubstitutes = false;
+                      preferLocalBuild = true;
+                      args = ["-c" "echo success > $out; exit 0"];
+                    };
+                   }
+                '';
+              in
+              ''
+                import json
 
-              # logging on with wrong credentials shouldn't work
-              machine.fail(
-                  "curl --fail http://localhost:3000/login -H 'Accept: application/json' -H 'Referer: http://localhost:3000' --data 'username=user&password=wrongpassword'"
-              )
+                machine.start()
+                machine.wait_for_unit("multi-user.target")
+                machine.wait_for_open_port(3000)
+                machine.wait_for_open_port(3001)
 
-              # the admin user should get the admin role from his group membership in `hydra_admin`
-              response = machine.succeed(
-                  "curl --fail http://localhost:3000/login -H 'Accept: application/json' -H 'Referer: http://localhost:3000' --data 'username=admin&password=password'"
-              )
+                machine.succeed(
+                    "su -l gitea -c 'GITEA_WORK_DIR=/var/lib/gitea gitea admin user create "
+                    + "--username root --password root --email test@localhost'"
+                )
+                machine.succeed("su -l postgres -c 'psql gitea < ${scripts.mktoken}'")
 
-              response_json = json.loads(response)
-              assert "admin" == response_json["username"]
-              assert "admin@example" == response_json["emailaddress"]
-              assert "admin" in response_json["userroles"]
-            '';
+                machine.succeed(
+                    "curl --fail -X POST http://localhost:3001/api/v1/user/repos "
+                    + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
+                    + f"-H 'Authorization: token ${api_token}'"
+                    + ' -d \'{"auto_init":false, "description":"string", "license":"mit", "name":"repo", "private":false}\'''
+                )
+
+                machine.succeed(
+                    "curl --fail -X POST http://localhost:3001/api/v1/user/keys "
+                    + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
+                    + f"-H 'Authorization: token ${api_token}'"
+                    + ' -d \'{"key":"${snakeoilKeypair.pubkey}","read_only":true,"title":"SSH"}\'''
+                )
+
+                machine.succeed(
+                    "${scripts.git-setup}"
+                )
+
+                machine.succeed(
+                    "${scripts.hydra-setup}"
+                )
+
+                machine.wait_until_succeeds(
+                    'curl -Lf -s http://localhost:3000/build/1 -H "Accept: application/json" '
+                    + '|  jq .buildstatus | xargs test 0 -eq'
+                )
+
+                data = machine.succeed(
+                    'curl -Lf -s "http://localhost:3001/api/v1/repos/root/repo/statuses/$(cd /tmp/repo && git show | head -n1 | awk "{print \\$2}")" '
+                    + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
+                    + f"-H 'Authorization: token ${api_token}'"
+                )
+
+                response = json.loads(data)
+
+                assert len(response) == 2, "Expected exactly two status updates for latest commit!"
+                assert response[0]['status'] == "success", "Expected latest status to be success!"
+                assert response[1]['status'] == "pending", "Expected first status to be pending!"
+
+                machine.shutdown()
+              '';
           };
 
         tests.validate-openapi = pkgs.runCommand "validate-openapi"
@@ -1049,9 +1004,11 @@
       nixosConfigurations.container = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules =
-          [ self.nixosModules.hydraTest
+          [
+            self.nixosModules.hydraTest
             self.nixosModules.hydraProxy
-            { system.configurationRevision = self.rev;
+            {
+              system.configurationRevision = self.rev;
 
               boot.isContainer = true;
               networking.useDHCP = false;

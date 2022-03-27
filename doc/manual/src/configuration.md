@@ -4,6 +4,13 @@ Configuration
 This chapter is a collection of configuration snippets for different
 scenarios.
 
+The configuration is parsed by `Config::General` which has [a pretty
+thorough documentation on their file format](https://metacpan.org/pod/Config::General#CONFIG-FILE-FORMAT).
+Hydra calls the parser with the following options:
+- `-UseApacheInclude => 1`
+- `-IncludeAgain => 1`
+- `-IncludeRelative => 1`
+
 Including files
 ---------------
 
@@ -98,47 +105,122 @@ in the hydra configuration file, as below:
 Using LDAP as authentication backend (optional)
 -----------------------------------------------
 
-Instead of using Hydra\'s built-in user management you can optionally
+Instead of using Hydra's built-in user management you can optionally
 use LDAP to manage roles and users.
 
-The `hydra-server` accepts the environment variable
-*HYDRA\_LDAP\_CONFIG*. The value of the variable should point to a valid
-YAML file containing the Catalyst LDAP configuration. The format of the
-configuration file is describe in the
-[*Catalyst::Authentication::Store::LDAP*
-documentation](https://metacpan.org/pod/Catalyst::Authentication::Store::LDAP#CONFIGURATION-OPTIONS).
-An example is given below.
+This is configured by defining the `<ldap>` block in the configuration file.
+In this block it's possible to configure the authentication plugin in the
+`<config>` block. All options are directly passed to `Catalyst::Authentication::Store::LDAP`.
+The documentation for the available settings can be found [here]
+(https://metacpan.org/pod/Catalyst::Authentication::Store::LDAP#CONFIGURATION-OPTIONS).
 
-Roles can be assigned to users based on their LDAP group membership
-(*use\_roles: 1* in the below example). For a user to have the role
-*admin* assigned to them they should be in the group *hydra\_admin*. In
-general any LDAP group of the form *hydra\_some\_role* (notice the
-*hydra\_* prefix) will work.
+Note that the bind password (if needed) should be supplied as an included file to
+prevent it from leaking to the Nix store.
 
-    credential:
-      class: Password
-      password_field: password
-      password_type: self_check
-    store:
-      class: LDAP
-      ldap_server: localhost
-      ldap_server_options.timeout: 30
-      binddn: "cn=root,dc=example"
-      bindpw: notapassword
-      start_tls: 0
-      start_tls_options
-        verify:  none
-      user_basedn: "ou=users,dc=example"
-      user_filter: "(&(objectClass=inetOrgPerson)(cn=%s))"
-      user_scope: one
-      user_field: cn
-      user_search_options:
-        deref: always
-      use_roles: 1
-      role_basedn: "ou=groups,dc=example"
-      role_filter: "(&(objectClass=groupOfNames)(member=%s))"
-      role_scope: one
-      role_field: cn
-      role_value: dn
-      role_search_options:
-        deref: always
+Roles can be assigned to users based on their LDAP group membership. For this
+to work *use\_roles = 1* needs to be defined for the authentication plugin.
+LDAP groups can then be mapped to Hydra roles using the `<role_mapping>` block.
+
+Example configuration:
+```
+<ldap>
+  <config>
+    <credential>
+      class = Password
+      password_field = password
+      password_type = self_check
+    </credential>
+    <store>
+      class = LDAP
+      ldap_server = localhost
+      <ldap_server_options>
+        timeout = 30
+      </ldap_server_options>
+      binddn = "cn=root,dc=example"
+      include ldap-password.conf
+      start_tls = 0
+      <start_tls_options>
+        verify = none
+      </start_tls_options>
+      user_basedn = "ou=users,dc=example"
+      user_filter = "(&(objectClass=inetOrgPerson)(cn=%s))"
+      user_scope = one
+      user_field = cn
+      <user_search_options>
+        deref = always
+      </user_search_options>
+      # Important for role mappings to work:
+      use_roles = 1
+      role_basedn = "ou=groups,dc=example"
+      role_filter = "(&(objectClass=groupOfNames)(member=%s))"
+      role_scope = one
+      role_field = cn
+      role_value = dn
+      <role_search_options>
+        deref = always
+      </role_search_options>
+  </config>
+  <role_mapping>
+    # Make all users in the hydra_admin group Hydra admins
+    hydra_admin = admin
+    # Allow all users in the dev group to restart jobs and cancel builds
+    dev = restart-jobs
+    dev = cancel-builds
+  </role_mapping>
+</ldap>
+```
+
+Then, place the password to your LDAP server in `/var/lib/hydra/ldap-password.conf`:
+
+```
+bindpw = the-ldap-password
+```
+
+### Debugging LDAP
+
+Set the `debug` parameter under `ldap.config.ldap_server_options.debug`:
+
+```
+<ldap>
+  <config>
+    <store>
+      <ldap_server_options>
+        debug = 2
+      </ldap_server_options>
+    </store>
+  </config>
+</ldap>
+```
+
+### Legacy LDAP Configuration
+
+Hydra used to load the LDAP configuration from a YAML file in the
+`HYDRA_LDAP_CONFIG` environment variable. This behavior is deperecated
+and will be removed.
+
+When Hydra uses the deprecated YAML file, Hydra applies the following
+default role mapping:
+
+```
+<ldap>
+  <role_mapping>
+    hydra_admin = admin
+    hydra_bump-to-front = bump-to-front
+    hydra_cancel-build = cancel-build
+    hydra_create-projects = create-projects
+    hydra_restart-jobs = restart-jobs
+  </role_mapping>
+</ldap>
+```
+
+Note that configuring both the LDAP parameters in the hydra.conf and via
+the environment variable is a fatal error.
+
+Embedding Extra HTML
+--------------------
+
+Embed an analytics widget or other HTML in the `<head>` of each HTML document via:
+
+```conf
+tracker = <script src="...">
+```

@@ -28,16 +28,16 @@ Once the Hydra service has been configured as above and activate you should alre
 ```
 $ su - hydra
 $ hydra-create-user <USER> --full-name '<NAME>' \
-    --email-address '<EMAIL>' --password <PASSWORD> --role admin
+    --email-address '<EMAIL>' --password-prompt --role admin
 ```
 
-Afterwards you should be able to log by clicking on "_Sign In_" on the top right of the web interface using the credentials specified by `hydra-crate-user`. Once you are logged in you can click "_Admin -> Create Project_" to configure your first project.
+Afterwards you should be able to log by clicking on "_Sign In_" on the top right of the web interface using the credentials specified by `hydra-create-user`. Once you are logged in you can click "_Admin -> Create Project_" to configure your first project.
 
 ### Creating A Simple Project And Jobset
-In order to evaluate and build anything you need to crate _projects_ that contain _jobsets_. Hydra supports imperative and declarative projects and many different configurations. The steps below will guide you through the required steps to creating a minimal imperative project configuration.
+In order to evaluate and build anything you need to create _projects_ that contain _jobsets_. Hydra supports imperative and declarative projects and many different configurations. The steps below will guide you through the required steps to creating a minimal imperative project configuration.
 
 #### Creating A Project
-Log in as adminstrator, click "_Admin_" and select "_Create project_". Fill the form as follows:
+Log in as administrator, click "_Admin_" and select "_Create project_". Fill the form as follows:
 
 - **Identifier**: `hello`
 - **Display name**: `hello`
@@ -53,7 +53,7 @@ After creating a project you are forwarded to the project page. Click "_Actions_
 - **Check interval**: 60
 - **Scheduling shares**: 1
 
-We have to add two inputs for this jobset. One for _nixpkgs_ and one for _hydra_ (which we are referrencing in the Nix expression above):
+We have to add two inputs for this jobset. One for _nixpkgs_ and one for _hydra_ (which we are referencing in the Nix expression above):
 
 - **Input name**: `nixpkgs`
 - **Type**: `Git checkout`

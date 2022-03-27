@@ -548,6 +548,17 @@ int main(int argc, char * * argv)
 
             job.erase("namedConstituents");
 
+            /* Register the derivation as a GC root.  !!! This
+                registers roots for jobs that we may have already
+                done. */
+            auto localStore = store.dynamic_pointer_cast<LocalFSStore>();
+            if (gcRootsDir != "" && localStore) {
+                auto drvPath = job["drvPath"].get<std::string>();
+                Path root = gcRootsDir + "/" + std::string(baseNameOf(drvPath));
+                if (!pathExists(root))
+                    localStore->addPermRoot(localStore->parseStorePath(drvPath), root);
+            }
+
             if (!brokenJobs.empty()) {
                 std::stringstream ss;
                 for (const auto& [jobName, error] : brokenJobs) {

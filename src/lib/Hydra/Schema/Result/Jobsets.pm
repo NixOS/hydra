@@ -257,7 +257,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 builds_jobset_ids
+=head2 builds
 
 Type: has_many
 
@@ -266,27 +266,9 @@ Related object: L<Hydra::Schema::Result::Builds>
 =cut
 
 __PACKAGE__->has_many(
-  "builds_jobset_ids",
+  "builds",
   "Hydra::Schema::Result::Builds",
   { "foreign.jobset_id" => "self.id" },
-  undef,
-);
-
-=head2 builds_project_jobsets
-
-Type: has_many
-
-Related object: L<Hydra::Schema::Result::Builds>
-
-=cut
-
-__PACKAGE__->has_many(
-  "builds_project_jobsets",
-  "Hydra::Schema::Result::Builds",
-  {
-    "foreign.jobset"  => "self.name",
-    "foreign.project" => "self.project",
-  },
   undef,
 );
 
@@ -372,10 +354,10 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:iI44C3BFTo6IsS1tBwWYsg
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-01-08 22:24:10
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:cQOnMitrWGMoJX6kZGNW+w
 
-use JSON;
+use JSON::MaybeXS;
 
 =head2 builds
 
@@ -423,8 +405,8 @@ sub as_json {
         "flake" => $self->get_column("flake") // "",
 
         # boolean_columns
-        "enableemail" => $self->get_column("enableemail") ? JSON::true : JSON::false,
-        "visible" => $self->get_column("hidden") ? JSON::false : JSON::true,
+        "enableemail" => $self->get_column("enableemail") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
+        "visible" => $self->get_column("hidden") ? JSON::MaybeXS::false : JSON::MaybeXS::true,
 
         "inputs" => { map { $_->name => $_ } $self->jobsetinputs }
     );

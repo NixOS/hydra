@@ -10,6 +10,7 @@
 #include "util.hh"
 #include "worker-protocol.hh"
 #include "finally.hh"
+#include "url.hh"
 
 using namespace nix;
 
@@ -26,6 +27,25 @@ static void append(Strings & dst, const Strings & src)
     dst.insert(dst.end(), src.begin(), src.end());
 }
 
+static Strings extraStoreArgs(std::string & machine)
+{
+    Strings result;
+    try {
+        auto parsed = parseURL(machine);
+        if (parsed.scheme != "ssh") {
+            throw SysError("Currently, only (legacy-)ssh stores are supported!");
+        }
+        machine = parsed.authority.value_or("");
+        auto remoteStore = parsed.query.find("remote-store");
+        if (remoteStore != parsed.query.end()) {
+            result = {"--store", shellEscape(remoteStore->second)};
+        }
+    } catch (BadURL &) {
+        // We just try to continue with `machine->sshName` here for backwards compat.
+    }
+
+    return result;
+}
 
 static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Child & child)
 {
@@ -54,7 +74,9 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
         }
         else {
             pgmName = "ssh";
-            argv = {"ssh", machine->sshName};
+            auto sshName = machine->sshName;
+            Strings extraArgs = extraStoreArgs(sshName);
+            argv = {"ssh", sshName};
             if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
             if (machine->sshPublicHostKey != "") {
                 Path fileName = tmpDir + "/host-key";
@@ -66,6 +88,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
             append(argv,
                 { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
                 , "--", "nix-store", "--serve", "--write" });
+            append(argv, extraArgs);
         }
 
         execvp(argv.front().c_str(), (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
@@ -81,13 +104,12 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 }
 
 
-static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
+static void copyClosureTo(std::timed_mutex & sendMutex, Store & destStore,
     FdSource & from, FdSink & to, const StorePathSet & paths,
     bool useSubstitutes = false)
 {
     StorePathSet closure;
-    for (auto & path : paths)
-        destStore->computeFSClosure(path, closure);
+    destStore.computeFSClosure(paths, closure);
 
     /* Send the "query valid paths" command with the "lock" option
        enabled. This prevents a race where the remote host
@@ -95,16 +117,16 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
        the remote host to substitute missing paths. */
     // FIXME: substitute output pollutes our build log
     to << cmdQueryValidPaths << 1 << useSubstitutes;
-    worker_proto::write(*destStore, to, closure);
+    worker_proto::write(destStore, to, closure);
     to.flush();
 
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = worker_proto::read(*destStore, from, Phantom<StorePathSet> {});
+    auto present = worker_proto::read(destStore, from, Phantom<StorePathSet> {});
 
     if (present.size() == closure.size()) return;
 
-    auto sorted = destStore->topoSortPaths(closure);
+    auto sorted = destStore.topoSortPaths(closure);
 
     StorePathSet missing;
     for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
@@ -116,7 +138,7 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
         std::chrono::seconds(600));
 
     to << cmdImportPaths;
-    destStore->exportPaths(missing, to);
+    destStore.exportPaths(missing, to);
     to.flush();
 
     if (readInt(from) != 1)
@@ -265,22 +287,29 @@ void State::buildRemote(ref<Store> destStore,
            this will copy the inputs to the binary cache from the local
            store. */
         if (localStore != std::shared_ptr<Store>(destStore)) {
-            StorePathSet closure;
-            localStore->computeFSClosure(step->drv->inputSrcs, closure);
-            copyPaths(*localStore, *destStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
+            copyClosure(*localStore, *destStore,
+                step->drv->inputSrcs,
+                NoRepair, NoCheckSigs, NoSubstitute);
         }
 
-        /* Copy the input closure. */
-        if (!machine->isLocalhost()) {
+        {
             auto mc1 = std::make_shared<MaintainCount<counter>>(nrStepsWaiting);
             mc1.reset();
             MaintainCount<counter> mc2(nrStepsCopyingTo);
+
             printMsg(lvlDebug, "sending closure of ‘%s’ to ‘%s’",
                 localStore->printStorePath(step->drvPath), machine->sshName);
 
             auto now1 = std::chrono::steady_clock::now();
 
-            copyClosureTo(machine->state->sendLock, destStore, from, to, inputs, true);
+            /* Copy the input closure. */
+            if (machine->isLocalhost()) {
+                StorePathSet closure;
+                destStore->computeFSClosure(inputs, closure);
+                copyPaths(*destStore, *localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
+            } else {
+                copyClosureTo(machine->state->sendLock, *destStore, from, to, inputs, true);
+            }
 
             auto now2 = std::chrono::steady_clock::now();
 

@@ -59,7 +59,7 @@ sub buildFinished {
 
         my $msg = "";
         $msg .= "<img src='$img'/> ";
-        $msg .= "Job <a href='$baseurl/job/${\$topbuild->get_column('project')}/${\$topbuild->get_column('jobset')}/${\$topbuild->get_column('job')}'>${\showJobName($topbuild)}</a>";
+        $msg .= "Job <a href='$baseurl/job/${\$topbuild->jobset->get_column('project')}/${\$topbuild->jobset->get_column('name')}/${\$topbuild->get_column('job')}'>${\showJobName($topbuild)}</a>";
         $msg .= " (and ${\scalar @deps} others)" if scalar @deps > 0;
         $msg .= ": <a href='$baseurl/build/${\$topbuild->id}'>" . showStatus($topbuild) . "</a>";
 

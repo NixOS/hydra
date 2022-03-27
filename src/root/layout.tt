@@ -81,7 +81,8 @@
 
       [% IF !hideHeader %]
         <div class="page-header">
-          [% IF c.user_exists && starUri; INCLUDE makeStar; " "; END; HTML.escape(title) %]
+          [% IF c.user_exists && starUri; INCLUDE makeStar; " "; END %]
+          [% IF titleHTML != ""; titleHTML; ELSE; HTML.escape(title); END %]
         </div>
       [% ELSE %]
         [% IF first %]<br />[% first = 0; END; %]

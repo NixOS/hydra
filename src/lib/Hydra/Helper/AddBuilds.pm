@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use utf8;
 use Encode;
-use JSON;
+use JSON::MaybeXS;
 use Nix::Store;
 use Nix::Config;
 use Hydra::Model::DB;
@@ -64,7 +64,8 @@ sub updateDeclarativeJobset {
     $db->txn_do(sub {
         my $jobset = $project->jobsets->update_or_create(\%update);
         $jobset->jobsetinputs->delete;
-        while ((my $name, my $data) = each %{$declSpec->{"inputs"}}) {
+        foreach my $name (keys %{$declSpec->{"inputs"}}) {
+            my $data = $declSpec->{"inputs"}->{$name};
             my $row = {
                 name => $name,
                 type => $data->{type}
@@ -84,7 +85,8 @@ sub handleDeclarativeJobsetJson {
             my @kept = keys %$declSpec;
             push @kept, ".jobsets";
             $project->jobsets->search({ name => { "not in" => \@kept } })->update({ enabled => 0, hidden => 1 });
-            while ((my $jobsetName, my $spec) = each %$declSpec) {
+            foreach my $jobsetName (keys %$declSpec) {
+                my $spec = $declSpec->{$jobsetName};
                 eval {
                     updateDeclarativeJobset($db, $project, $jobsetName, $spec);
                     1;

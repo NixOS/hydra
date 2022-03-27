@@ -74,7 +74,7 @@ $ nix-build release.nix -A build.x86_64-linux
 
 ### Connecting to the database
 
-Assuming you're running the the default configuration with `foreman start`,
+Assuming you're running the default configuration with `foreman start`,
 open an interactive session with Postgres via:
 
 ```console

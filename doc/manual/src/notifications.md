@@ -8,10 +8,29 @@ Notifications are passed from `hydra-queue-runner` to `hydra-notify` through Pos
 
 Note that the notification format is subject to change and should not be considered an API. Integrate with `hydra-notify` instead of listening directly.
 
+### `cached_build_finished`
+
+* **Payload:** Exactly two values, tab separated: The ID of the evaluation which contains the finished build, followed by the ID of the finished build.
+* **When:** Issued directly after an evaluation completes, when that evaluation includes this finished build.
+* **Delivery Semantics:** At most once per evaluation.
+
+
+### `cached_build_queued`
+
+* **Payload:** Exactly two values, tab separated: The ID of the evaluation which contains the finished build, followed by the ID of the queued build.
+* **When:** Issued directly after an evaluation completes, when that evaluation includes this queued build.
+* **Delivery Semantics:** At most once per evaluation.
+
+### `build_queued`
+
+* **Payload:** Exactly one value, the ID of the build.
+* **When:** Issued after the transaction inserting the build in to the database is committed. One notification is sent per new build.
+* **Delivery Semantics:** Ephemeral. `hydra-notify` must be running to react to this event. No record of this event is stored.
+
 ### `build_started`
 
 * **Payload:** Exactly one value, the ID of the build.
-* **When:** Issued directly before building happens, and only if the derivation's outputs cannot be subsituted.
+* **When:** Issued directly before building happens, and only if the derivation's outputs cannot be substituted.
 * **Delivery Semantics:** Ephemeral. `hydra-notify` must be running to react to this event. No record of this event is stored.
 
 ### `step_finished`
@@ -35,6 +54,30 @@ Note that the notification format is subject to change and should not be conside
 After processing, the row's `notificationspendingsince` column is set to null.
 
 It is possible for subsequent deliveries of the same `build_finished` data to imply different outcomes. For example, if the build fails, is restarted, and then succeeds. In this scenario the `build_finished` events will be delivered at least twice, once for the failure and then once for the success.
+
+### `eval_started`
+
+* **Payload:** Exactly two values, tab separated: an opaque trace ID representing this evaluation, and the ID of the jobset.
+* **When:** At the beginning of the evaluation phase for the jobset, before any work is done.
+* **Delivery Semantics:** Ephemeral. `hydra-notify` must be running to react to this event. No record of this event is stored.
+
+### `eval_added`
+
+* **Payload:** Exactly three values, tab separated: an opaque trace ID representing this evaluation, the ID of the jobset, and the ID of the JobsetEval record.
+* **When:** After the evaluator fetches inputs and completes the evaluation successfully.
+* **Delivery Semantics:** Ephemeral. `hydra-notify` must be running to react to this event. No record of this event is stored.
+
+### `eval_cached`
+
+* **Payload:** Exactly three values: an opaque trace ID representing this evaluation, the ID of the jobset, and the ID of the previous identical evaluation.
+* **When:** After the evaluator fetches inputs, if none of the inputs changed.
+* **Delivery Semantics:** Ephemeral. `hydra-notify` must be running to react to this event. No record of this event is stored.
+
+### `eval_failed`
+
+* **Payload:** Exactly two values: an opaque trace ID representing this evaluation, and the ID of the jobset.
+* **When:** After any fetching any input fails, or any other evaluation error occurs.
+* **Delivery Semantics:** Ephemeral. `hydra-notify` must be running to react to this event. No record of this event is stored.
 
 ## Development Notes
 

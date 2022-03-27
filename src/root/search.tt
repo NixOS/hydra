@@ -67,7 +67,7 @@
     <tbody>
       [% FOREACH j IN jobs %]
         <tr>
-          <td><span>[% INCLUDE renderFullJobName project=j.get_column('project') jobset=j.get_column('jobset') job=j.job inRow=1 %]</span></td>
+          <td><span>[% INCLUDE renderFullJobName project=j.jobset.get_column('project') jobset=j.jobset.get_column('name') job=j.job inRow=1 %]</span></td>
         </tr>
       [% END %]
     </tbody>

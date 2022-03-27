@@ -19,6 +19,8 @@
 
 typedef unsigned int BuildID;
 
+typedef unsigned int JobsetID;
+
 typedef std::chrono::time_point<std::chrono::system_clock> system_time;
 
 typedef std::atomic<unsigned long> counter;
@@ -123,6 +125,7 @@ struct Build
     BuildID id;
     nix::StorePath drvPath;
     std::map<std::string, nix::StorePath> outputs;
+    JobsetID jobsetId;
     std::string projectName, jobsetName, jobName;
     time_t timestamp;
     unsigned int maxSilentTime, buildTimeout;
@@ -339,6 +342,7 @@ private:
     nix::Pool<Connection> dbPool;
 
     /* The build machines. */
+    std::mutex machinesReadyLock;
     typedef std::map<std::string, Machine::ptr> Machines;
     nix::Sync<Machines> machines; // FIXME: use atomic_shared_ptr
 
@@ -489,7 +493,7 @@ private:
         bool & stepFinished);
 
     Jobset::ptr createJobset(pqxx::work & txn,
-        const std::string & projectName, const std::string & jobsetName);
+        const std::string & projectName, const std::string & jobsetName, const JobsetID);
 
     void processJobsetSharesChange(Connection & conn);
 

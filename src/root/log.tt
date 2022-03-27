@@ -1,4 +1,7 @@
-[% WRAPPER layout.tt title="Log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job $build.project.name:$build.jobset.name:$build.job.name" %]
+[% WRAPPER layout.tt
+  titleHTML="Log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ linkToJob(build.jobset, job)
+  title="Log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ makeNameTextForJob(build.jobset, job)
+%]
 [% PROCESS common.tt %]
 
 <p>

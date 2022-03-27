@@ -43,7 +43,7 @@ then
     NIX_STATE_DIR="$TMPDIR"
     export NIX_STATE_DIR
 fi
-if NIX_REMOTE=daemon PAGER=cat "$NIX_STORE_PROGRAM" --timeout 123 -q; then 
+if NIX_REMOTE=daemon PAGER=cat "$NIX_STORE_PROGRAM" --timeout 123 -q; then
     AC_MSG_RESULT([yes])
 else
     AC_MSG_RESULT([no])
@@ -54,6 +54,9 @@ PKG_CHECK_MODULES([NIX], [nix-main nix-expr nix-store])
 
 testPath="$(dirname $(type -p expr))"
 AC_SUBST(testPath)
+
+jobsPath="$(realpath ./t/jobs)"
+AC_SUBST(jobsPath)
 
 CXXFLAGS+=" -include nix/config.h"
 
@@ -72,6 +75,7 @@ AC_CONFIG_FILES([
   src/script/Makefile
   t/Makefile
   t/jobs/config.nix
+  t/jobs/declarative/project.json
 ])
 
 AC_CONFIG_COMMANDS([executable-scripts], [])
