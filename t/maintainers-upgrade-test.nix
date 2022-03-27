@@ -28,8 +28,8 @@ in simpleTest {
         src = pkgs.fetchFromGitHub {
           owner = "NixOS";
           repo = "hydra";
-          rev = "9ae676072c4b4516503b8e661a1261e5a9b4dc95";
-          sha256 = "sha256-kw6ogxYmSfB26lLpBF/hEP7uJbrjuWgw8L2OjrD5JiM=";
+          rev = "962bf3693907f7a334efbc29c8fafc4a7509d9cd";
+          sha256 = "sha256-bcI6QxDpbAmy0T8Kv13fzKE74FpLor1Q2BLT0M0zjpM=";
         };
       });
     };
