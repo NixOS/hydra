@@ -287,9 +287,9 @@ void State::buildRemote(ref<Store> destStore,
            this will copy the inputs to the binary cache from the local
            store. */
         if (localStore != std::shared_ptr<Store>(destStore)) {
-            copyClosure(*localStore, *destStore,
-                step->drv->inputSrcs,
-                NoRepair, NoCheckSigs, NoSubstitute);
+            StorePathSet closure;
+            localStore->computeFSClosure(step->drv->inputSrcs, closure);
+            copyPaths(*localStore, *destStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
         }
 
         {
