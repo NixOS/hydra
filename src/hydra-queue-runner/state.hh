@@ -439,7 +439,7 @@ private:
     std::shared_ptr<prometheus::Registry> registry;
 
 public:
-    State(uint16_t metricsPort);
+    State(std::optional<uint16_t> metricsPortOpt);
 
 private:
 

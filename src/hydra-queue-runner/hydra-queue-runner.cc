@@ -39,7 +39,7 @@ std::string getEnvOrDie(const std::string & key)
 }
 
 
-State::State(uint16_t metricsPort)
+State::State(std::optional<uint16_t> metricsPortOpt)
     : config(std::make_unique<HydraConfig>())
     , maxUnsupportedTime(config->getIntOption("max_unsupported_time", 0))
     , dbPool(config->getIntOption("max_db_connections", 128))
@@ -47,12 +47,16 @@ State::State(uint16_t metricsPort)
     , maxLogSize(config->getIntOption("max_log_size", 64ULL << 20))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
     , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
-    , metricsPort(config->getIntOption("queue_runner_metrics_port", metricsPort))
+    , metricsPort(config->getIntOption("queue_runner_metrics_port", 9099))
     , registry(std::make_shared<prometheus::Registry>())
 {
     hydraData = getEnvOrDie("HYDRA_DATA");
 
     logDir = canonPath(hydraData + "/build-logs");
+
+    if (metricsPortOpt.has_value()) {
+        metricsPort = metricsPortOpt.value();
+    }
 
     /* handle deprecated store specification */
     if (config->getStrOption("store_mode") != "")
@@ -880,7 +884,7 @@ int main(int argc, char * * argv)
         bool unlock = false;
         bool status = false;
         BuildID buildOne = 0;
-        uint16_t metricsPort = 0;
+        std::optional<uint16_t> metricsPortOpt = std::nullopt;
 
         parseCmdLine(argc, argv, [&](Strings::iterator & arg, const Strings::iterator & end) {
             if (*arg == "--unlock")
@@ -897,7 +901,7 @@ int main(int argc, char * * argv)
                     if (*p > std::numeric_limits<uint16_t>::max()) {
                         throw Error("'--port' has a maximum of 65535");
                     } else {
-                        metricsPort = *p;
+                        metricsPortOpt = *p;
                     }
                 } else {
                     throw Error("'--port' requires a numeric port (0 for a random, usable port; max 65535)");
@@ -910,7 +914,7 @@ int main(int argc, char * * argv)
         settings.verboseBuild = true;
         settings.lockCPU = false;
 
-        State state{metricsPort};
+        State state{metricsPortOpt};
         if (status)
             state.showStatus();
         else if (unlock)
