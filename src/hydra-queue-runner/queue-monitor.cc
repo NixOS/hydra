@@ -1,5 +1,5 @@
 #include "state.hh"
-#include "build-result.hh"
+#include "hydra-build-result.hh"
 #include "globals.hh"
 
 #include <cstring>
@@ -111,12 +111,12 @@ bool State::getQueuedBuilds(Connection & conn,
             if (builds_->count(id)) continue;
 
             auto build = std::make_shared<Build>(
-                localStore->parseStorePath(row["drvPath"].as<string>()));
+                localStore->parseStorePath(row["drvPath"].as<std::string>()));
             build->id = id;
             build->jobsetId = row["jobset_id"].as<JobsetID>();
-            build->projectName = row["project"].as<string>();
-            build->jobsetName = row["jobset"].as<string>();
-            build->jobName = row["job"].as<string>();
+            build->projectName = row["project"].as<std::string>();
+            build->jobsetName = row["jobset"].as<std::string>();
+            build->jobName = row["job"].as<std::string>();
             build->maxSilentTime = row["maxsilent"].as<int>();
             build->buildTimeout = row["timeout"].as<int>();
             build->timestamp = row["timestamp"].as<time_t>();
@@ -513,9 +513,9 @@ Step::ptr State::createStep(ref<Store> destStore,
                         // FIXME: should copy directly from substituter to destStore.
                     }
 
-                    StorePathSet closure;
-                    localStore->computeFSClosure({*path}, closure);
-                    copyPaths(*localStore, *destStore, closure, NoRepair, CheckSigs, NoSubstitute);
+                    copyClosure(*localStore, *destStore,
+                        StorePathSet { *path },
+                        NoRepair, CheckSigs, NoSubstitute);
 
                     time_t stopTime = time(0);
 
@@ -620,7 +620,7 @@ void State::processJobsetSharesChange(Connection & conn)
     auto res = txn.exec("select project, name, schedulingShares from Jobsets");
     for (auto const & row : res) {
         auto jobsets_(jobsets.lock());
-        auto i = jobsets_->find(std::make_pair(row["project"].as<string>(), row["name"].as<string>()));
+        auto i = jobsets_->find(std::make_pair(row["project"].as<std::string>(), row["name"].as<std::string>()));
         if (i == jobsets_->end()) continue;
         i->second->setShares(row["schedulingShares"].as<unsigned int>());
     }

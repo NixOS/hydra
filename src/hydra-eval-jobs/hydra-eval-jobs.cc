@@ -63,13 +63,13 @@ struct MyArgs : MixEvalArgs, MixCommonArgs
 
 static MyArgs myArgs;
 
-static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name, const string & subAttribute)
+static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const std::string & name, const std::string & subAttribute)
 {
     Strings res;
     std::function<void(Value & v)> rec;
 
     rec = [&](Value & v) {
-        state.forceValue(v);
+        state.forceValue(v, noPos);
         if (v.type() == nString)
             res.push_back(v.string.s);
         else if (v.isList())
@@ -78,7 +78,7 @@ static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const stri
         else if (v.type() == nAttrs) {
             auto a = v.attrs->find(state.symbols.create(subAttribute));
             if (a != v.attrs->end())
-                res.push_back(state.forceString(*a->value));
+                res.push_back(std::string(state.forceString(*a->value)));
         }
     };
 
@@ -113,7 +113,7 @@ static void worker(
         callFlake(state, lockedFlake, *vFlake);
 
         auto vOutputs = vFlake->attrs->get(state.symbols.create("outputs"))->value;
-        state.forceValue(*vOutputs);
+        state.forceValue(*vOutputs, noPos);
 
         auto aHydraJobs = vOutputs->attrs->get(state.symbols.create("hydraJobs"));
         if (!aHydraJobs)
@@ -157,7 +157,7 @@ static void worker(
                 if (drv->querySystem() == "unknown")
                     throw EvalError("derivation must have a 'system' attribute");
 
-                auto drvPath = drv->queryDrvPath();
+                auto drvPath = state.store->printStorePath(drv->requireDrvPath());
 
                 nlohmann::json job;
 
@@ -186,13 +186,13 @@ static void worker(
                     for (auto & i : context)
                         if (i.at(0) == '!') {
                             size_t index = i.find("!", 1);
-                            job["constituents"].push_back(string(i, index + 1));
+                            job["constituents"].push_back(std::string(i, index + 1));
                         }
 
                     state.forceList(*a->value, *a->pos);
                     for (unsigned int n = 0; n < a->value->listSize(); ++n) {
                         auto v = a->value->listElems()[n];
-                        state.forceValue(*v);
+                        state.forceValue(*v, noPos);
                         if (v->type() == nString)
                             job["namedConstituents"].push_back(state.forceStringNoCtx(*v));
                     }
@@ -210,7 +210,7 @@ static void worker(
 
                 nlohmann::json out;
                 for (auto & j : outputs)
-                    out[j.first] = j.second;
+                    out[j.first] = state.store->printStorePath(j.second);
                 job["outputs"] = std::move(out);
 
                 reply["job"] = std::move(job);

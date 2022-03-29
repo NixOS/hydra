@@ -1,4 +1,4 @@
-#include "build-result.hh"
+#include "hydra-build-result.hh"
 #include "store-api.hh"
 #include "util.hh"
 #include "fs-accessor.hh"
@@ -78,7 +78,7 @@ BuildOutput getBuildOutput(
             product.type = match[1];
             product.subtype = match[2];
             std::string s(match[3]);
-            product.path = s[0] == '"' ? string(s, 1, s.size() - 2) : s;
+            product.path = s[0] == '"' ? std::string(s, 1, s.size() - 2) : s;
             product.defaultPath = match[5];
 
             /* Ensure that the path exists and points into the Nix
