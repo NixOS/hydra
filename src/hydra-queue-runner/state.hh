@@ -434,9 +434,9 @@ private:
        via gc_roots_dir. */
     nix::Path rootsDir;
 
-    std::shared_ptr<prometheus::Registry> registry;
-
     uint16_t metricsPort;
+
+    std::shared_ptr<prometheus::Registry> registry;
 
 public:
     State(uint16_t metricsPort);
