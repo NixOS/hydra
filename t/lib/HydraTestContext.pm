@@ -51,6 +51,7 @@ sub new {
     $ENV{'HYDRA_CONFIG'} = "$dir/hydra.conf";
 
     my $hydra_config = $opts{'hydra_config'} || "";
+    $hydra_config = "queue_runner_metrics_port = 0\n" . $hydra_config;
     if ($opts{'use_external_destination_store'} // 1) {
         $hydra_config = "store_uri = file:$dir/nix/dest-store\n" . $hydra_config;
     }
