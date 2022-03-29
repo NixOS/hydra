@@ -758,7 +758,7 @@ void State::run(BuildID buildOne)
     if (!lock)
         throw Error("hydra-queue-runner is already running");
 
-    std::cout << "Starting the Prometheus exporter on port " << exposerPort << std::endl;
+    std::cout << "Starting the Prometheus exporter on port " << metricsPort << std::endl;
 
     /* Set up simple exporter, to show that we're still alive. */
     std::string metricsAddress{"127.0.0.1"};
