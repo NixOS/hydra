@@ -55,8 +55,30 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
     to.create();
     from.create();
 
-    child.pid = startProcess([&]() {
+    Strings argv;
+    if (machine->isLocalhost()) {
+        pgmName = "nix-store";
+        argv = {"nix-store", "--builders", "", "--serve", "--write"};
+    } else {
+        pgmName = "ssh";
+        auto sshName = machine->sshName;
+        Strings extraArgs = extraStoreArgs(sshName);
+        argv = {"ssh", sshName};
+        if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
+        if (machine->sshPublicHostKey != "") {
+            Path fileName = tmpDir + "/host-key";
+            auto p = machine->sshName.find("@");
+            std::string host = p != std::string::npos ? std::string(machine->sshName, p + 1) : machine->sshName;
+            writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
+            append(argv, {"-oUserKnownHostsFile=" + fileName});
+        }
+        append(argv,
+            { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
+            , "--", "nix-store", "--serve", "--write" });
+        append(argv, extraArgs);
+    }
 
+    child.pid = startProcess([&]() {
         restoreProcessContext();
 
         if (dup2(to.readSide.get(), STDIN_FILENO) == -1)
@@ -67,30 +89,6 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 
         if (dup2(stderrFD, STDERR_FILENO) == -1)
             throw SysError("cannot dup stderr");
-
-        Strings argv;
-        if (machine->isLocalhost()) {
-            pgmName = "nix-store";
-            argv = {"nix-store", "--builders", "", "--serve", "--write"};
-        }
-        else {
-            pgmName = "ssh";
-            auto sshName = machine->sshName;
-            Strings extraArgs = extraStoreArgs(sshName);
-            argv = {"ssh", sshName};
-            if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
-            if (machine->sshPublicHostKey != "") {
-                Path fileName = tmpDir + "/host-key";
-                auto p = machine->sshName.find("@");
-                std::string host = p != std::string::npos ? std::string(machine->sshName, p + 1) : machine->sshName;
-                writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
-                append(argv, {"-oUserKnownHostsFile=" + fileName});
-            }
-            append(argv,
-                { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
-                , "--", "nix-store", "--serve", "--write" });
-            append(argv, extraArgs);
-        }
 
         execvp(argv.front().c_str(), (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
 
