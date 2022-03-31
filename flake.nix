@@ -7,7 +7,7 @@
   outputs = { self, nixpkgs, nix }:
     let
 
-      version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 self.lastModifiedDate}.${self.shortRev or "DIRTY"}";
+      version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 (self.lastModifiedDate or "19700101")}.${self.shortRev or "DIRTY"}";
 
       pkgs = import nixpkgs {
         system = "x86_64-linux";
