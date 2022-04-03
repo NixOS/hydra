@@ -47,7 +47,7 @@ State::State(std::optional<uint16_t> metricsPortOpt)
     , maxLogSize(config->getIntOption("max_log_size", 64ULL << 20))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
     , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
-    , metricsPort(config->getIntOption("queue_runner_metrics_port", 9099))
+    , metricsPort(config->getIntOption("queue_runner_metrics_port", 9198))
     , registry(std::make_shared<prometheus::Registry>())
 {
     hydraData = getEnvOrDie("HYDRA_DATA");
