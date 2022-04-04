@@ -210,7 +210,9 @@ static void worker(
 
                 nlohmann::json out;
                 for (auto & j : outputs)
-                    out[j.first] = state.store->printStorePath(j.second);
+                    // FIXME: handle CA/impure builds.
+                    if (j.second)
+                        out[j.first] = state.store->printStorePath(*j.second);
                 job["outputs"] = std::move(out);
 
                 reply["job"] = std::move(job);
@@ -489,10 +491,14 @@ int main(int argc, char * * argv)
                     std::string drvName(drvPath.name());
                     assert(hasSuffix(drvName, drvExtension));
                     drvName.resize(drvName.size() - drvExtension.size());
-                    auto h = std::get<Hash>(hashDerivationModulo(*store, drv, true));
-                    auto outPath = store->makeOutputPath("out", h, drvName);
+
+                    auto hashModulo = hashDerivationModulo(*store, drv, true);
+                    if (hashModulo.kind != DrvHash::Kind::Regular) continue;
+                    auto h = hashModulo.hashes.find("out");
+                    if (h == hashModulo.hashes.end()) continue;
+                    auto outPath = store->makeOutputPath("out", h->second, drvName);
                     drv.env["out"] = store->printStorePath(outPath);
-                    drv.outputs.insert_or_assign("out", DerivationOutput { .output = DerivationOutputInputAddressed { .path = outPath } });
+                    drv.outputs.insert_or_assign("out", DerivationOutput::InputAddressed { .path = outPath });
                     auto newDrvPath = store->printStorePath(writeDerivation(*store, drv));
 
                     debug("rewrote aggregate derivation %s -> %s", store->printStorePath(drvPath), newDrvPath);
