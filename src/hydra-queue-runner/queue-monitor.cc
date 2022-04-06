@@ -82,6 +82,8 @@ struct PreviousFailure : public std::exception {
 bool State::getQueuedBuilds(Connection & conn,
     ref<Store> destStore, unsigned int & lastBuildId)
 {
+    call_ctr.Increment();
+
     printInfo("checking the queue for builds > %d...", lastBuildId);
 
     /* Grab the queued builds from the database, but don't process

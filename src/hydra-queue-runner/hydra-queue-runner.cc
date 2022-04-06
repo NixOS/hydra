@@ -49,7 +49,20 @@ State::State(std::optional<std::string> metricsAddrOpt)
     , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
     , metricsAddr(config->getStrOption("queue_runner_metrics_address", std::string{"127.0.0.1:9198"}))
     , registry(std::make_shared<prometheus::Registry>())
+    // , call_ctr_family(prometheus::BuildCounter().Name("queue_queued_builds_calls_total").Help("Number of times State::getQueuedBuilds() was called").Register(*registry))
+    // , call_ctr(call_ctr_family.Add({}))
 {
+    // call_ctr_family(prometheus::BuildCounter().Name("queue_queued_builds_calls_total").Help("Number of times State::getQueuedBuilds() was called").Register(*registry));
+    // call_ctr(call_ctr_family.Add({}));
+    auto& fam = prometheus::BuildCounter()
+        .Name("queue_queued_builds_calls_total")
+        .Help("Number of times State::getQueuedBuilds() was called")
+        .Register(*registry)
+        .Add({});
+
+    // call_ctr_family(fam);
+    // call_ctr(call_ctr_family.Add({}));
+
     hydraData = getEnvOrDie("HYDRA_DATA");
 
     logDir = canonPath(hydraData + "/build-logs");
@@ -57,6 +70,7 @@ State::State(std::optional<std::string> metricsAddrOpt)
     if (metricsAddrOpt.has_value()) {
         metricsAddr = metricsAddrOpt.value();
     }
+
 
     /* handle deprecated store specification */
     if (config->getStrOption("store_mode") != "")
@@ -767,6 +781,7 @@ void State::run(BuildID buildOne)
     /* Set up simple exporter, to show that we're still alive. */
     prometheus::Exposer promExposer{metricsAddr};
     auto exposerPort = promExposer.GetListeningPorts().front();
+
     promExposer.RegisterCollectable(registry);
 
     std::cout << "Started the Prometheus exporter, listening on "

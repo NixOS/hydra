@@ -7,6 +7,7 @@
 #include <memory>
 #include <queue>
 
+#include <prometheus/counter.h>
 #include <prometheus/registry.h>
 
 #include "db.hh"
@@ -434,9 +435,12 @@ private:
        via gc_roots_dir. */
     nix::Path rootsDir;
 
-    std::string metricsAddr;;
+    std::string metricsAddr;
 
     std::shared_ptr<prometheus::Registry> registry;
+
+    // prometheus::Family<prometheus::Counter>& call_ctr_family;
+    prometheus::Counter& call_ctr;
 
 public:
     State(std::optional<std::string> metricsAddrOpt);
