@@ -750,24 +750,6 @@ void State::unlock()
 }
 
 
-void State::runMetricsExporter()
-{
-    std::cout << "Starting the Prometheus exporter on port " << metricsPort << std::endl;
-
-    /* Set up simple exporter, to show that we're still alive. */
-    std::string metricsAddress{"127.0.0.1"};
-    prometheus::Exposer exposer{metricsAddress + ":" + std::to_string(metricsPort)};
-    auto exposerPort = exposer.GetListeningPorts().front();
-    exposer.RegisterCollectable(registry);
-
-    std::cout << "Started the Prometheus exporter, listening on "
-        << "http://" << metricsAddress << ":" << exposerPort << "/metrics"
-        << std::endl;
-
-    while (true) {};
-}
-
-
 void State::run(BuildID buildOne)
 {
     /* Can't be bothered to shut down cleanly. Goodbye! */
@@ -780,7 +762,17 @@ void State::run(BuildID buildOne)
     if (!lock)
         throw Error("hydra-queue-runner is already running");
 
-    std::thread(&State::runMetricsExporter, this).detach();
+    std::cout << "Starting the Prometheus exporter on port " << metricsPort << std::endl;
+
+    /* Set up simple exporter, to show that we're still alive. */
+    std::string metricsAddress{"127.0.0.1"}; // FIXME: configurable
+    prometheus::Exposer promExposer{metricsAddress + ":" + std::to_string(metricsPort)};
+    auto exposerPort = promExposer.GetListeningPorts().front();
+    promExposer.RegisterCollectable(registry);
+
+    std::cout << "Started the Prometheus exporter, listening on "
+        << "http://" << metricsAddress << ":" << exposerPort << "/metrics"
+        << std::endl;
 
     Store::Params localParams;
     localParams["max-connections"] = "16";
