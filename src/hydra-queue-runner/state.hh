@@ -437,10 +437,15 @@ private:
 
     std::string metricsAddr;
 
-    std::shared_ptr<prometheus::Registry> registry;
+    struct PromMetrics
+    {
+        std::shared_ptr<prometheus::Registry> registry;
 
-    prometheus::Family<prometheus::Counter>& call_ctr;
-    prometheus::Counter& queue_queued_builds_calls;
+        prometheus::Counter& queue_checks_started;
+
+        PromMetrics();
+    };
+    PromMetrics prom;
 
 public:
     State(std::optional<std::string> metricsAddrOpt);

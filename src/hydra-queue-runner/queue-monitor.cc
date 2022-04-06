@@ -82,7 +82,7 @@ struct PreviousFailure : public std::exception {
 bool State::getQueuedBuilds(Connection & conn,
     ref<Store> destStore, unsigned int & lastBuildId)
 {
-    queue_queued_builds_calls.Increment();
+    prom.queue_checks_started.Increment();
 
     printInfo("checking the queue for builds > %d...", lastBuildId);
 

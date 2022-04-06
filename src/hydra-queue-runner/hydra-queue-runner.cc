@@ -38,6 +38,18 @@ std::string getEnvOrDie(const std::string & key)
     return *value;
 }
 
+State::PromMetrics::PromMetrics()
+    : registry(std::make_shared<prometheus::Registry>())
+    , queue_checks_started(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_checks_started_total")
+            .Help("Number of times State::getQueuedBuilds() was started")
+            .Register(*registry)
+            .Add({})
+    )
+{
+
+}
 
 State::State(std::optional<std::string> metricsAddrOpt)
     : config(std::make_unique<HydraConfig>())
@@ -48,12 +60,6 @@ State::State(std::optional<std::string> metricsAddrOpt)
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
     , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
     , metricsAddr(config->getStrOption("queue_runner_metrics_address", std::string{"127.0.0.1:9198"}))
-    , registry(std::make_shared<prometheus::Registry>())
-    , call_ctr(prometheus::BuildCounter()
-                             .Name("queue_queued_builds_calls_total")
-                             .Help("Number of times State::getQueuedBuilds() was called")
-                             .Register(*registry))
-    , queue_queued_builds_calls(call_ctr.Add({})) // FIXME: add the proper arguments
 {
     hydraData = getEnvOrDie("HYDRA_DATA");
 
@@ -774,7 +780,7 @@ void State::run(BuildID buildOne)
     prometheus::Exposer promExposer{metricsAddr};
     auto exposerPort = promExposer.GetListeningPorts().front();
 
-    promExposer.RegisterCollectable(registry);
+    promExposer.RegisterCollectable(prom.registry);
 
     std::cout << "Started the Prometheus exporter, listening on "
         << metricsAddr << "/metrics (port " << exposerPort << ")"
