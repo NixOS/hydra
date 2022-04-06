@@ -434,12 +434,12 @@ private:
        via gc_roots_dir. */
     nix::Path rootsDir;
 
-    uint16_t metricsPort;
+    std::string metricsAddr;;
 
     std::shared_ptr<prometheus::Registry> registry;
 
 public:
-    State(std::optional<uint16_t> metricsPortOpt);
+    State(std::optional<std::string> metricsAddrOpt);
 
 private:
 

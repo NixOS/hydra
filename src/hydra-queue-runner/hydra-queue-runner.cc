@@ -39,7 +39,7 @@ std::string getEnvOrDie(const std::string & key)
 }
 
 
-State::State(std::optional<uint16_t> metricsPortOpt)
+State::State(std::optional<std::string> metricsAddrOpt)
     : config(std::make_unique<HydraConfig>())
     , maxUnsupportedTime(config->getIntOption("max_unsupported_time", 0))
     , dbPool(config->getIntOption("max_db_connections", 128))
@@ -47,15 +47,15 @@ State::State(std::optional<uint16_t> metricsPortOpt)
     , maxLogSize(config->getIntOption("max_log_size", 64ULL << 20))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
     , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
-    , metricsPort(config->getIntOption("queue_runner_metrics_port", 9198))
+    , metricsAddr(config->getStrOption("queue_runner_metrics_address", std::string{"127.0.0.1:9198"}))
     , registry(std::make_shared<prometheus::Registry>())
 {
     hydraData = getEnvOrDie("HYDRA_DATA");
 
     logDir = canonPath(hydraData + "/build-logs");
 
-    if (metricsPortOpt.has_value()) {
-        metricsPort = metricsPortOpt.value();
+    if (metricsAddrOpt.has_value()) {
+        metricsAddr = metricsAddrOpt.value();
     }
 
     /* handle deprecated store specification */
@@ -762,16 +762,15 @@ void State::run(BuildID buildOne)
     if (!lock)
         throw Error("hydra-queue-runner is already running");
 
-    std::cout << "Starting the Prometheus exporter on port " << metricsPort << std::endl;
+    std::cout << "Starting the Prometheus exporter on " << metricsAddr << std::endl;
 
     /* Set up simple exporter, to show that we're still alive. */
-    std::string metricsAddress{"127.0.0.1"}; // FIXME: configurable
-    prometheus::Exposer promExposer{metricsAddress + ":" + std::to_string(metricsPort)};
+    prometheus::Exposer promExposer{metricsAddr};
     auto exposerPort = promExposer.GetListeningPorts().front();
     promExposer.RegisterCollectable(registry);
 
     std::cout << "Started the Prometheus exporter, listening on "
-        << "http://" << metricsAddress << ":" << exposerPort << "/metrics"
+        << metricsAddr << "/metrics (port " << exposerPort << ")"
         << std::endl;
 
     Store::Params localParams;
@@ -884,7 +883,7 @@ int main(int argc, char * * argv)
         bool unlock = false;
         bool status = false;
         BuildID buildOne = 0;
-        std::optional<uint16_t> metricsPortOpt = std::nullopt;
+        std::optional<std::string> metricsAddrOpt = std::nullopt;
 
         parseCmdLine(argc, argv, [&](Strings::iterator & arg, const Strings::iterator & end) {
             if (*arg == "--unlock")
@@ -896,16 +895,8 @@ int main(int argc, char * * argv)
                     buildOne = *b;
                 else
                     throw Error("‘--build-one’ requires a build ID");
-            } else if (*arg == "--port") {
-                if (auto p = string2Int<int>(getArg(*arg, arg, end))) {
-                    if (*p > std::numeric_limits<uint16_t>::max()) {
-                        throw Error("'--port' has a maximum of 65535");
-                    } else {
-                        metricsPortOpt = *p;
-                    }
-                } else {
-                    throw Error("'--port' requires a numeric port (0 for a random, usable port; max 65535)");
-                }
+            } else if (*arg == "--prometheus-address") {
+                metricsAddrOpt = getArg(*arg, arg, end);
             } else
                 return false;
             return true;
@@ -914,7 +905,7 @@ int main(int argc, char * * argv)
         settings.verboseBuild = true;
         settings.lockCPU = false;
 
-        State state{metricsPortOpt};
+        State state{metricsAddrOpt};
         if (status)
             state.showStatus();
         else if (unlock)

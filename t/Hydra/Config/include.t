@@ -20,7 +20,7 @@ write_file($ctx{'tmpdir'} . "/bar.conf", q|
 |);
 
 is(getHydraConfig(), {
-    queue_runner_metrics_port => 0,
+    queue_runner_metrics_address => "127.0.0.1:0",
     foo => { bar => "baz" }
 }, "Nested includes work.");
 
