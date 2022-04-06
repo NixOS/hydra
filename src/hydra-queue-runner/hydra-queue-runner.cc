@@ -49,20 +49,12 @@ State::State(std::optional<std::string> metricsAddrOpt)
     , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
     , metricsAddr(config->getStrOption("queue_runner_metrics_address", std::string{"127.0.0.1:9198"}))
     , registry(std::make_shared<prometheus::Registry>())
-    // , call_ctr_family(prometheus::BuildCounter().Name("queue_queued_builds_calls_total").Help("Number of times State::getQueuedBuilds() was called").Register(*registry))
-    // , call_ctr(call_ctr_family.Add({}))
+    , call_ctr(prometheus::BuildCounter()
+                             .Name("queue_queued_builds_calls_total")
+                             .Help("Number of times State::getQueuedBuilds() was called")
+                             .Register(*registry))
+    , queue_queued_builds_calls(call_ctr.Add({})) // FIXME: add the proper arguments
 {
-    // call_ctr_family(prometheus::BuildCounter().Name("queue_queued_builds_calls_total").Help("Number of times State::getQueuedBuilds() was called").Register(*registry));
-    // call_ctr(call_ctr_family.Add({}));
-    auto& fam = prometheus::BuildCounter()
-        .Name("queue_queued_builds_calls_total")
-        .Help("Number of times State::getQueuedBuilds() was called")
-        .Register(*registry)
-        .Add({});
-
-    // call_ctr_family(fam);
-    // call_ctr(call_ctr_family.Add({}));
-
     hydraData = getEnvOrDie("HYDRA_DATA");
 
     logDir = canonPath(hydraData + "/build-logs");

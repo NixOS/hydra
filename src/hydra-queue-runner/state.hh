@@ -439,8 +439,8 @@ private:
 
     std::shared_ptr<prometheus::Registry> registry;
 
-    // prometheus::Family<prometheus::Counter>& call_ctr_family;
-    prometheus::Counter& call_ctr;
+    prometheus::Family<prometheus::Counter>& call_ctr;
+    prometheus::Counter& queue_queued_builds_calls;
 
 public:
     State(std::optional<std::string> metricsAddrOpt);
