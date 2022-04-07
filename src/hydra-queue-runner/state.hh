@@ -444,6 +444,7 @@ private:
 
         prometheus::Counter& queue_checks_started;
         prometheus::Counter& queue_build_loads;
+        prometheus::Counter& queue_steps_created;
         prometheus::Counter& queue_checks_early_exits;
         prometheus::Counter& queue_checks_finished;
         prometheus::Gauge& queue_max_id;

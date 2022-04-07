@@ -54,6 +54,13 @@ State::PromMetrics::PromMetrics()
             .Register(*registry)
             .Add({})
     )
+    , queue_steps_created(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_steps_created_total")
+            .Help("Number of steps created")
+            .Register(*registry)
+            .Add({})
+    )
     , queue_checks_early_exits(
         prometheus::BuildCounter()
             .Name("hydraqueuerunner_queue_checks_early_exits_total")

@@ -448,6 +448,8 @@ Step::ptr State::createStep(ref<Store> destStore,
 
     if (!isNew) return step;
 
+    prom.queue_steps_created.Increment();
+
     printMsg(lvlDebug, "considering derivation ‘%1%’", localStore->printStorePath(drvPath));
 
     /* Initialize the step. Note that the step may be visible in
