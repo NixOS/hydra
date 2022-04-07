@@ -109,7 +109,10 @@ bool State::getQueuedBuilds(Connection & conn,
             auto builds_(builds.lock());
             BuildID id = row["id"].as<BuildID>();
             if (buildOne && id != buildOne) continue;
-            if (id > newLastBuildId) newLastBuildId = id;
+            if (id > newLastBuildId) {
+                newLastBuildId = id;
+                prom.queue_max_id.Set(id);
+            }
             if (builds_->count(id)) continue;
 
             auto build = std::make_shared<Build>(
@@ -138,6 +141,7 @@ bool State::getQueuedBuilds(Connection & conn,
     std::set<StorePath> finishedDrvs;
 
     createBuild = [&](Build::ptr build) {
+        prom.queue_build_loads.Increment();
         printMsg(lvlTalkative, format("loading build %1% (%2%)") % build->id % build->fullJobName());
         nrAdded++;
         newBuildsByID.erase(build->id);
@@ -308,8 +312,13 @@ bool State::getQueuedBuilds(Connection & conn,
 
         /* Stop after a certain time to allow priority bumps to be
            processed. */
-        if (std::chrono::system_clock::now() > start + std::chrono::seconds(600)) break;
+        if (std::chrono::system_clock::now() > start + std::chrono::seconds(600)) {
+            prom.queue_checks_early_exits.Increment();
+            break;
+        } 
     }
+
+    prom.queue_checks_finished.Increment();
 
     lastBuildId = newBuildsByID.empty() ? newLastBuildId : newBuildsByID.begin()->first - 1;
     return newBuildsByID.empty();

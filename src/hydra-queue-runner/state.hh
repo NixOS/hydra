@@ -8,6 +8,7 @@
 #include <queue>
 
 #include <prometheus/counter.h>
+#include <prometheus/gauge.h>
 #include <prometheus/registry.h>
 
 #include "db.hh"
@@ -442,6 +443,10 @@ private:
         std::shared_ptr<prometheus::Registry> registry;
 
         prometheus::Counter& queue_checks_started;
+        prometheus::Counter& queue_build_loads;
+        prometheus::Counter& queue_checks_early_exits;
+        prometheus::Counter& queue_checks_finished;
+        prometheus::Gauge& queue_max_id;
 
         PromMetrics();
     };

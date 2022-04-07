@@ -47,6 +47,34 @@ State::PromMetrics::PromMetrics()
             .Register(*registry)
             .Add({})
     )
+    , queue_build_loads(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_build_loads_total")
+            .Help("Number of builds loaded")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_checks_early_exits(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_checks_early_exits_total")
+            .Help("Number of times State::getQueuedBuilds() yielded to potential bumps")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_checks_finished(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_checks_finished_total")
+            .Help("Number of times State::getQueuedBuilds() was completed")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_max_id(
+        prometheus::BuildGauge()
+            .Name("hydraqueuerunner_queue_max_build_id_info")
+            .Help("Maximum build record ID in the queue")
+            .Register(*registry)
+            .Add({})
+    )
 {
 
 }
