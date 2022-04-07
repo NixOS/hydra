@@ -112,10 +112,14 @@ as below. A port of `:0` will make the exposer choose a random, available port.
 
 ```conf
 queue_runner_metrics_address = 127.0.0.1:9198
+# or
+queue_runner_metrics_address = [::]:9198
 ```
 
 ```shell
 $ hydra-queue-runner --prometheus-address 127.0.0.1:9198
+# or
+$ hydra-queue-runner --prometheus-address [::]:9198
 ```
 
 Using LDAP as authentication backend (optional)
