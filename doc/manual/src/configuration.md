@@ -111,7 +111,7 @@ configurable through the hydra configuration file and a command line argument,
 as below. A port of `:0` will make the exposer choose a random, available port.
 
 ```conf
-queue_runner_exporter_address = 127.0.0.1:9198
+queue_runner_metrics_address = 127.0.0.1:9198
 ```
 
 ```shell
