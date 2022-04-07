@@ -1,10 +1,13 @@
 {
   description = "A Nix-based continuous build system";
 
+  # FIXME: All the pinned versions of nix/nixpkgs have a broken foreman (yes,
+  # even 2.7.0's Nixpkgs pin).
+  inputs.newNixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
   inputs.nixpkgs.follows = "nix/nixpkgs";
   #inputs.nix.url = github:NixOS/nix/2.7.0;
 
-  outputs = { self, nixpkgs, nix }:
+  outputs = { self, newNixpkgs, nixpkgs, nix }:
     let
 
       version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 (self.lastModifiedDate or "19700101")}.${self.shortRev or "DIRTY"}";
@@ -38,6 +41,12 @@
       # A Nixpkgs overlay that provides a 'hydra' package.
       overlay = final: prev: {
 
+        # Overlay these packages to use dependencies from the Nixpkgs everything
+        # else uses, to side-step the version difference: glibc is 2.32 in the
+        # nix-pinned Nixpkgs, but 2.33 in the newNixpkgs commit.
+        civetweb = final.callPackage "${newNixpkgs}/pkgs/development/libraries/civetweb" { };
+        prometheus-cpp = final.callPackage "${newNixpkgs}/pkgs/development/libraries/prometheus-cpp" { };
+
         # Add LDAP dependencies that aren't currently found within nixpkgs.
         perlPackages = prev.perlPackages // {
           TestPostgreSQL = final.perlPackages.buildPerlModule {
@@ -61,7 +70,7 @@
             };
           };
 
-          FunctionParameters = final.buildPerlPackage {
+          FunctionParameters = final.perlPackages.buildPerlPackage {
             pname = "Function-Parameters";
             version = "2.001003";
             src = final.fetchurl {
@@ -75,7 +84,7 @@
             };
           };
 
-          CatalystPluginPrometheusTiny = final.buildPerlPackage {
+          CatalystPluginPrometheusTiny = final.perlPackages.buildPerlPackage {
             pname = "Catalyst-Plugin-PrometheusTiny";
             version = "0.005";
             src = final.fetchurl {
@@ -104,7 +113,7 @@
             };
           };
 
-          CryptPassphrase = final.buildPerlPackage {
+          CryptPassphrase = final.perlPackages.buildPerlPackage {
             pname = "Crypt-Passphrase";
             version = "0.003";
             src = final.fetchurl {
@@ -117,7 +126,7 @@
             };
           };
 
-          CryptPassphraseArgon2 = final.buildPerlPackage {
+          CryptPassphraseArgon2 = final.perlPackages.buildPerlPackage {
             pname = "Crypt-Passphrase-Argon2";
             version = "0.002";
             src = final.fetchurl {
@@ -131,7 +140,7 @@
             };
           };
 
-          DataRandom = final.buildPerlPackage {
+          DataRandom = final.perlPackages.buildPerlPackage {
             pname = "Data-Random";
             version = "0.13";
             src = final.fetchurl {
@@ -145,7 +154,7 @@
             };
           };
 
-          DirSelf = final.buildPerlPackage {
+          DirSelf = final.perlPackages.buildPerlPackage {
             pname = "Dir-Self";
             version = "0.11";
             src = final.fetchurl {
@@ -173,7 +182,7 @@
             };
           };
 
-          PrometheusTiny = final.buildPerlPackage {
+          PrometheusTiny = final.perlPackages.buildPerlPackage {
             pname = "Prometheus-Tiny";
             version = "0.007";
             src = final.fetchurl {
@@ -188,7 +197,7 @@
             };
           };
 
-          PrometheusTinyShared = final.buildPerlPackage {
+          PrometheusTinyShared = final.perlPackages.buildPerlPackage {
             pname = "Prometheus-Tiny-Shared";
             version = "0.023";
             src = final.fetchurl {
@@ -219,7 +228,7 @@
             };
           };
 
-          TieHashMethod = final.buildPerlPackage {
+          TieHashMethod = final.perlPackages.buildPerlPackage {
             pname = "Tie-Hash-Method";
             version = "0.02";
             src = final.fetchurl {
@@ -232,7 +241,7 @@
             };
           };
 
-          Test2Harness = final.buildPerlPackage {
+          Test2Harness = final.perlPackages.buildPerlPackage {
             pname = "Test2-Harness";
             version = "1.000042";
             src = final.fetchurl {
@@ -281,7 +290,7 @@
             };
           };
 
-          LongJump = final.buildPerlPackage {
+          LongJump = final.perlPackages.buildPerlPackage {
             pname = "Long-Jump";
             version = "0.000001";
             src = final.fetchurl {
@@ -295,7 +304,7 @@
             };
           };
 
-          gotofile = final.buildPerlPackage {
+          gotofile = final.perlPackages.buildPerlPackage {
             pname = "goto-file";
             version = "0.005";
             src = final.fetchurl {
@@ -425,7 +434,7 @@
             };
           };
 
-          StringCompareConstantTime = final.buildPerlPackage {
+          StringCompareConstantTime = final.perlPackages.buildPerlPackage {
             pname = "String-Compare-ConstantTime";
             version = "0.321";
             src = final.fetchurl {
@@ -438,7 +447,7 @@
             };
           };
 
-          UUID4Tiny = final.buildPerlPackage {
+          UUID4Tiny = final.perlPackages.buildPerlPackage {
             pname = "UUID4-Tiny";
             version = "0.002";
             src = final.fetchurl {
@@ -562,13 +571,16 @@
               (if lib.versionAtLeast lib.version "20.03pre"
               then nlohmann_json
               else nlohmann_json.override { multipleHeaders = true; })
+              prometheus-cpp
             ];
 
           checkInputs = [
             cacert
-            foreman
+            # FIXME: foreman is broken on all nix/nixpkgs pin, up to and
+            # including 2.7.0
+            newNixpkgs.legacyPackages.${final.system}.foreman
             glibcLocales
-            netcat-openbsd
+            libressl.nc
             openldap
             python3
           ];
