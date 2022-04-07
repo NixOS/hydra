@@ -44,7 +44,14 @@
         # Overlay these packages to use dependencies from the Nixpkgs everything
         # else uses, to side-step the version difference: glibc is 2.32 in the
         # nix-pinned Nixpkgs, but 2.33 in the newNixpkgs commit.
-        civetweb = final.callPackage "${newNixpkgs}/pkgs/development/libraries/civetweb" { };
+        civetweb = (final.callPackage "${newNixpkgs}/pkgs/development/libraries/civetweb" { }).overrideAttrs
+          # Can be dropped once newNixpkgs points to a revision containing
+          # https://github.com/NixOS/nixpkgs/pull/167751
+          ({ cmakeFlags ? [ ], ... }: {
+            cmakeFlags = cmakeFlags ++ [
+              "-DCIVETWEB_ENABLE_IPV6=1"
+            ];
+          });
         prometheus-cpp = final.callPackage "${newNixpkgs}/pkgs/development/libraries/prometheus-cpp" { };
 
         # Add LDAP dependencies that aren't currently found within nixpkgs.
