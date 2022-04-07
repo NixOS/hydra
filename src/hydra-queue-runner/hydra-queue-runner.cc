@@ -104,7 +104,6 @@ State::State(std::optional<std::string> metricsAddrOpt)
         metricsAddr = metricsAddrOpt.value();
     }
 
-
     /* handle deprecated store specification */
     if (config->getStrOption("store_mode") != "")
         throw Error("store_mode in hydra.conf is deprecated, please use store_uri");
