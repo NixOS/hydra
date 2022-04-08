@@ -58,6 +58,7 @@ struct PromTimerExactlyOneExit
 
     PromTimerExactlyOneExit(prometheus::Histogram& default_metric)
         : histogram(default_metric)
+        , unsubmitted(true)
     {
     }
 
