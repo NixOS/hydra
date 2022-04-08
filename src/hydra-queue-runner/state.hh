@@ -9,6 +9,7 @@
 
 #include <prometheus/counter.h>
 #include <prometheus/gauge.h>
+#include <prometheus/histogram.h>
 #include <prometheus/registry.h>
 
 #include "db.hh"
@@ -444,7 +445,12 @@ private:
         std::shared_ptr<prometheus::Registry> registry;
 
         prometheus::Counter& queue_checks_started;
-        prometheus::Counter& queue_build_loads;
+        prometheus::Histogram& queue_build_fetch_time;
+        prometheus::Family<prometheus::Histogram>& queue_build_load_family;
+        prometheus::Histogram& queue_build_load_premature_gc;
+        prometheus::Histogram& queue_build_load_cached_failure;
+        prometheus::Histogram& queue_build_load_cached_success;
+        prometheus::Histogram& queue_build_load_added;
         prometheus::Counter& queue_steps_created;
         prometheus::Counter& queue_checks_early_exits;
         prometheus::Counter& queue_checks_finished;

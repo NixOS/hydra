@@ -95,6 +95,7 @@ bool State::getQueuedBuilds(Connection & conn,
     unsigned int newLastBuildId = lastBuildId;
 
     {
+        auto fetch_start = std::chrono::high_resolution_clock::now();
         pqxx::work txn(conn);
 
         auto res = txn.exec_params
@@ -133,6 +134,8 @@ bool State::getQueuedBuilds(Connection & conn,
             newBuildsByID[id] = build;
             newBuildsByPath.emplace(std::make_pair(build->drvPath, id));
         }
+
+        prom.queue_build_fetch_time.Observe(std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - fetch_start).count());
     }
 
     std::set<Step::ptr> newRunnable;
@@ -141,7 +144,7 @@ bool State::getQueuedBuilds(Connection & conn,
     std::set<StorePath> finishedDrvs;
 
     createBuild = [&](Build::ptr build) {
-        prom.queue_build_loads.Increment();
+        auto create_start = std::chrono::high_resolution_clock::now();
         printMsg(lvlTalkative, format("loading build %1% (%2%)") % build->id % build->fullJobName());
         nrAdded++;
         newBuildsByID.erase(build->id);
@@ -161,6 +164,7 @@ bool State::getQueuedBuilds(Connection & conn,
                 build->finishedInDB = true;
                 nrBuildsDone++;
             }
+            prom.queue_build_load_premature_gc.Observe(std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - create_start).count());
             return;
         }
 
@@ -218,6 +222,7 @@ bool State::getQueuedBuilds(Connection & conn,
                 nrBuildsDone++;
             }
 
+            prom.queue_build_load_cached_failure.Observe(std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - create_start).count());
             return;
         }
 
@@ -256,6 +261,7 @@ bool State::getQueuedBuilds(Connection & conn,
 
             build->finishedInDB = true;
 
+            prom.queue_build_load_cached_success.Observe(std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - create_start).count());
             return;
         }
 
@@ -273,6 +279,7 @@ bool State::getQueuedBuilds(Connection & conn,
 
         printMsg(lvlChatty, "added build %1% (top-level step %2%, %3% new steps)",
             build->id, localStore->printStorePath(step->drvPath), newSteps.size());
+        prom.queue_build_load_added.Observe(std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - create_start).count());
     };
 
     /* Now instantiate build steps for each new build. The builder
