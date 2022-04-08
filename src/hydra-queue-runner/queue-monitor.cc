@@ -142,7 +142,7 @@ bool State::getQueuedBuilds(Connection & conn,
     std::set<StorePath> finishedDrvs;
 
     createBuild = [&](Build::ptr build) {
-        auto timer = PromTimerManual();
+        auto timer = PromTimerExactlyOneExit(prom.queue_build_load_missed_exit);
         printMsg(lvlTalkative, format("loading build %1% (%2%)") % build->id % build->fullJobName());
         nrAdded++;
         newBuildsByID.erase(build->id);

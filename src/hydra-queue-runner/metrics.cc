@@ -22,6 +22,10 @@ PromMetrics::PromMetrics()
             .Help("How long it takes to load individual builds")
             .Register(*registry)
     )
+    , queue_build_load_missed_exit(
+        queue_build_load_family
+            .Add({{"disposition", "unknown-exit"}}, prometheus::Histogram::BucketBoundaries{0.05, 0.1, 0.25, 0.5, 1, 2.5})
+    )
     , queue_build_load_premature_gc(
         queue_build_load_family
             .Add({{"disposition", "premature-gc"}}, prometheus::Histogram::BucketBoundaries{0.05, 0.1, 0.25, 0.5, 1, 2.5})
