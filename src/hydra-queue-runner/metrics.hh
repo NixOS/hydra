@@ -35,6 +35,7 @@ struct PromTimer
     PromTimer(prometheus::Histogram& metric)
         : histogram(metric)
     {
+
     }
 
     ~PromTimer() {
