@@ -95,7 +95,7 @@ bool State::getQueuedBuilds(Connection & conn,
     unsigned int newLastBuildId = lastBuildId;
 
     {
-        auto timer = PromTimerManual();
+        auto timer = PromTimer(prom.queue_build_fetch_time);
         pqxx::work txn(conn);
 
         auto res = txn.exec_params
@@ -134,8 +134,6 @@ bool State::getQueuedBuilds(Connection & conn,
             newBuildsByID[id] = build;
             newBuildsByPath.emplace(std::make_pair(build->drvPath, id));
         }
-
-        timer.finish(prom.queue_build_fetch_time);
     }
 
     std::set<Step::ptr> newRunnable;

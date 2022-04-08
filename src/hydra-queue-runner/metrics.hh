@@ -22,6 +22,20 @@ public:
     }
 };
 
+struct PromTimer
+{
+    PromTimerManual timer;
+    prometheus::Histogram& histogram;
+
+    PromTimer(prometheus::Histogram& metric)
+        : histogram(metric)
+    {
+    }
+
+    ~PromTimer() {
+        timer.finish(histogram);
+    }
+};
 
 struct PromMetrics
 {
