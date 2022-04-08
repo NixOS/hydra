@@ -230,6 +230,22 @@ void getDependents(Step::ptr step, std::set<Build::ptr> & builds, std::set<Step:
 /* Call ‘visitor’ for a step and all its dependencies. */
 void visitDependencies(std::function<void(Step::ptr)> visitor, Step::ptr step);
 
+struct PromTimer
+{
+    std::chrono::time_point<std::chrono::high_resolution_clock> created;
+
+    PromTimer()
+        : created(std::chrono::high_resolution_clock::now())
+    {
+
+    }
+
+public:
+    void finish(prometheus::Histogram& histogram)
+    {
+        histogram.Observe(std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - created).count());
+    }
+};
 
 struct Machine
 {
