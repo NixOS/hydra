@@ -95,7 +95,7 @@ bool State::getQueuedBuilds(Connection & conn,
     unsigned int newLastBuildId = lastBuildId;
 
     {
-        auto timer = PromTimer();
+        auto timer = PromTimerManual();
         pqxx::work txn(conn);
 
         auto res = txn.exec_params
@@ -144,7 +144,7 @@ bool State::getQueuedBuilds(Connection & conn,
     std::set<StorePath> finishedDrvs;
 
     createBuild = [&](Build::ptr build) {
-        auto timer = PromTimer();
+        auto timer = PromTimerManual();
         printMsg(lvlTalkative, format("loading build %1% (%2%)") % build->id % build->fullJobName());
         nrAdded++;
         newBuildsByID.erase(build->id);
@@ -322,7 +322,7 @@ bool State::getQueuedBuilds(Connection & conn,
         if (std::chrono::system_clock::now() > start + std::chrono::seconds(600)) {
             prom.queue_checks_early_exits.Increment();
             break;
-        } 
+        }
     }
 
     prom.queue_checks_finished.Increment();

@@ -5,11 +5,11 @@
 #include <prometheus/histogram.h>
 #include <prometheus/registry.h>
 
-struct PromTimer
+struct PromTimerManual
 {
     std::chrono::time_point<std::chrono::high_resolution_clock> created;
 
-    PromTimer()
+    PromTimerManual()
         : created(std::chrono::high_resolution_clock::now())
     {
 
