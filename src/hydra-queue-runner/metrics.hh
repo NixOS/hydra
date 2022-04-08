@@ -64,8 +64,8 @@ struct PromTimerExactlyOneExit
     }
 
     ~PromTimerExactlyOneExit() {
-        if (histogram) {
-            finish(histogram->get());
+        if (unsubmitted) {
+            finish(histogram);
         }
     }
 
