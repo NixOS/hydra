@@ -60,6 +60,7 @@ struct PromTimerExactlyOneExit
         : histogram(default_metric)
         , unsubmitted(true)
     {
+
     }
 
     ~PromTimerExactlyOneExit() {
