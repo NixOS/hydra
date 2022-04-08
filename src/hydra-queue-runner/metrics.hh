@@ -74,8 +74,8 @@ public:
     {
         // Assert that we have not reported any metric yet,
         // as this timer should only be finish()'d once
-        assert(histogram.has_value());
-        histogram.reset();
+        assert(unsubmitted);
+        unsubmitted = false;
         timer.finish(metric);
     }
 };
