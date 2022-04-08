@@ -53,7 +53,8 @@ struct PromTimer
 struct PromTimerExactlyOneExit
 {
     PromTimerManual timer;
-    std::optional<std::reference_wrapper<prometheus::Histogram>> histogram;
+    prometheus::Histogram& histogram;
+    bool unsubmitted;
 
     PromTimerExactlyOneExit(prometheus::Histogram& default_metric)
         : histogram(default_metric)
