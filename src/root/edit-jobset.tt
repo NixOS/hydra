@@ -113,7 +113,13 @@
   <div class="form-group row show-on-flake">
     <label class="col-form-label col-sm-3" for="editjobsetflake">Flake URI</label>
     <div class="col-sm-9">
-      <input type="text" class="form-control" id="editjobsetflake" name="flake" [% HTML.attributes(value => jobset.flake) %]/>
+      <div class="input-group">
+        <input type="text" class="form-control" id="editjobsetflake" name="flake" [% HTML.attributes(value => jobset.flake) %]/>
+        <div class="input-group-append input-group-prepend">
+          <span class="input-group-text">custom attribute:</span>
+        </div>
+        <input type="text" class="form-control" name="flakeattr" [% HTML.attributes(value => jobset.flakeattr) %]/>
+      </div>
     </div>
   </div>
 

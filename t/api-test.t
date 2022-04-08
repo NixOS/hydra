@@ -141,6 +141,9 @@ subtest "delete project" => sub {
         my $jobset = request_json({ uri => '/jobset/sample2/default2', method => 'PUT', data => { type => "1", flake => "github:nixos/nix", enabled => "1", visible => "1", checkinterval => "0"} });
         is($jobset->code(), 201, "PUTting a new jobset creates it");
 
+        my $jobset = request_json({ uri => '/jobset/sample2/packages', method => 'PUT', data => { type => "1", flake => "github:nixos/nix", flakeattr => "packages", enabled => "1", visible => "1", checkinterval => "0"} });
+        is($jobset->code(), 201, "PUTting a new jobset creates it (custom flake attribute)");
+
         my $delete = request_json({ uri => "/project/sample2", method => "DELETE" });
         is($delete->code(), 200, "DELETEing a jobset with no evaluations and builds succeeds");
     };

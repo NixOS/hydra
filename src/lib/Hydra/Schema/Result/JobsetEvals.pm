@@ -94,6 +94,11 @@ __PACKAGE__->table("jobsetevals");
   data_type: 'text'
   is_nullable: 1
 
+=head2 flakeattr
+
+  data_type: 'text'
+  is_nullable: 1
+
 =head2 nixexprinput
 
   data_type: 'text'
@@ -133,6 +138,8 @@ __PACKAGE__->add_columns(
   "nrsucceeded",
   { data_type => "integer", is_nullable => 1 },
   "flake",
+  { data_type => "text", is_nullable => 1 },
+  "flakeattr",
   { data_type => "text", is_nullable => 1 },
   "nixexprinput",
   { data_type => "text", is_nullable => 1 },

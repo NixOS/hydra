@@ -88,11 +88,12 @@ create table Jobsets (
     startTime     integer, -- if jobset is currently running
     type          integer not null default 0, -- 0 == legacy, 1 == flake
     flake         text,
+    flakeattr     text,
     constraint jobsets_schedulingshares_nonzero_check check (schedulingShares > 0),
     constraint jobsets_type_known_check   check (type = 0 or type = 1),
     -- If the type is 0, then nixExprInput and nixExprPath should be non-null and other type-specific fields should be null
     -- Otherwise the check passes
-    constraint jobsets_legacy_paths_check check ((type = 0) = (nixExprInput is not null and nixExprPath is not null and flake is     null)),
+    constraint jobsets_legacy_paths_check check ((type = 0) = (nixExprInput is not null and nixExprPath is not null and flake is     null and flakeattr is null)),
     -- If the type is 1, then flake should be non-null and other type-specific fields should be null
     -- Otherwise the check passes
     constraint jobsets_flake_paths_check  check ((type = 1) = (nixExprInput is     null and nixExprPath is     null and flake is not null)),
@@ -471,6 +472,7 @@ create table JobsetEvals (
     nrSucceeded   integer, -- set lazily when all builds are finished
 
     flake         text, -- immutable flake reference
+    flakeattr     text, -- flake attribute evaluated
     nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
     nixExprPath   text, -- relative path of the Nix or Guix expression
 

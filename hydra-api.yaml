@@ -719,6 +719,10 @@ components:
           nullable: true
           description: the flake uri to evaluate
           type: string
+        flakeattr:
+          nullable: true
+          description: the flake attribute to evaluate
+          type: string
         inputs:
           description: inputs configured for this jobset
           type: object
@@ -776,6 +780,10 @@ components:
         flake:
           description: For flake jobsets, the immutable flake reference allowing you to reproduce this evaluation. Null otherwise.
           nullable: true
+          type: string
+        flakeattr:
+          nullable: true
+          description: For flake jobsets, the flake attribute to evaluate
           type: string
         builds:
           description: List of builds generated for this jobset evaluation.
@@ -1041,6 +1049,7 @@ components:
         checkinterval: 0
         project: foobar
         flake: ''
+        flakeattr: ''
         type: 0
         enabled: 1
         name: bar-jobset

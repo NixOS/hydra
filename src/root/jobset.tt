@@ -139,7 +139,8 @@
       <tr>
         <th>Flake URI:</th>
         <td>
-          <tt>[% HTML.escape(jobset.flake) %]</tt>
+          <tt>[% HTML.escape(jobset.flake) %]</tt> (custom attribute:
+          <tt>[% HTML.escape(jobset.flakeattr) %]</tt>)
         </td>
       </tr>
       [% END %]

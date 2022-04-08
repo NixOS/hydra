@@ -350,7 +350,7 @@ sub inputsToArgs {
 
 
 sub evalJobs {
-    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
+    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef, $flakeAttr) = @_;
 
     print STDERR "($jobsetName) Evaluating...\n";
 
@@ -361,6 +361,9 @@ sub evalJobs {
                 "--flake", $flakeRef,
                 "--gc-roots-dir", getGCRootsDir,
                 "--max-jobs", 1);
+        if (defined $flakeAttr && $flakeAttr ne "") {
+            push @cmd, "--flake-attribute", $flakeAttr;
+        }
     } else {
         my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
             or die "cannot find the input containing the job expression\n";
@@ -647,6 +650,7 @@ sub checkJobsetWrapped {
         $flakeRef = decode_json($json)->{'url'};
     }
 
+
     Net::Statsd::increment("hydra.evaluator.checkouts");
     my $checkoutStop = clock_gettime(CLOCK_MONOTONIC);
     Net::Statsd::timing("hydra.evaluator.checkout_time", int(($checkoutStop - $checkoutStart) * 1000));
@@ -683,7 +687,7 @@ sub checkJobsetWrapped {
 
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
-    my $jobs = evalJobs($project->name . ":" . $jobset->name, $inputInfo, $jobset->nixexprinput, $jobset->nixexprpath, $flakeRef);
+    my $jobs = evalJobs($project->name . ":" . $jobset->name, $inputInfo, $jobset->nixexprinput, $jobset->nixexprpath, $flakeRef, $jobset->flakeattr);
     my $evalStop = clock_gettime(CLOCK_MONOTONIC);
 
     if ($jobsetsJobset) {
@@ -770,6 +774,7 @@ sub checkJobsetWrapped {
         $ev->update({
             hasnewbuilds => $jobsetChanged ? 1 : 0,
             nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
+            , flakeattr => $jobset->flakeattr
         });
 
         $db->storage->dbh->do("notify eval_added, ?", undef,
