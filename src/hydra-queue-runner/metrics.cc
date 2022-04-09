@@ -54,6 +54,36 @@ PromMetrics::PromMetrics()
         queue_build_load_family
             .Add({{"disposition", "added"}}, prometheus::Histogram::BucketBoundaries{0.05, 0.1, 0.25, 0.5, 1, 2.5})
     )
+    , queue_step_create_family(
+        prometheus::BuildHistogram()
+            .Name("hydraqueuerunner_queue_steps_create_seconds")
+            .Help("How long it takes to create steps")
+            .Register(*registry)
+    )
+    , queue_step_create_missed_exit(
+        queue_build_load_family
+            .Add({{"result", "unknown-exit"}}, prometheus::Histogram::BucketBoundaries{0.05, 0.1, 0.25, 0.5, 1, 2.5})
+    )
+    , queue_step_create_finished(
+        queue_build_load_family
+            .Add({{"result", "cached-finished"}}, prometheus::Histogram::BucketBoundaries{0.05, 0.1, 0.25, 0.5, 1, 2.5})
+    )
+    , queue_step_create_reused(
+        queue_build_load_family
+            .Add({{"result", "reused"}}, prometheus::Histogram::BucketBoundaries{0.05, 0.1, 0.25, 0.5, 1, 2.5})
+    )
+    , queue_step_create_cached_failure(
+        queue_build_load_family
+            .Add({{"result", "cached-failure"}}, prometheus::Histogram::BucketBoundaries{0.05, 0.1, 0.25, 0.5, 1, 2.5})
+    )
+    , queue_step_create_valid(
+        queue_build_load_family
+            .Add({{"result", "uncached-finished"}}, prometheus::Histogram::BucketBoundaries{0.05, 0.1, 0.25, 0.5, 1, 2.5})
+    )
+    , queue_step_create_new(
+        queue_build_load_family
+            .Add({{"result", "new"}}, prometheus::Histogram::BucketBoundaries{0.05, 0.1, 0.25, 0.5, 1, 2.5})
+    )
     , queue_steps_created(
         prometheus::BuildCounter()
             .Name("hydraqueuerunner_queue_steps_created_total")

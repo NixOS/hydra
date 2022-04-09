@@ -410,7 +410,11 @@ Step::ptr State::createStep(ref<Store> destStore,
     Build::ptr referringBuild, Step::ptr referringStep, std::set<StorePath> & finishedDrvs,
     std::set<Step::ptr> & newSteps, std::set<Step::ptr> & newRunnable)
 {
-    if (finishedDrvs.find(drvPath) != finishedDrvs.end()) return 0;
+    auto timer = PromTimerExactlyOneExit(prom.queue_step_create_missed_exit);
+    if (finishedDrvs.find(drvPath) != finishedDrvs.end()) {
+        timer.finish(prom.queue_step_create_finished);
+        return 0;
+    }
 
     /* Check if the requested step already exists. If not, create a
        new step. In any case, make the step reachable from
@@ -452,7 +456,10 @@ Step::ptr State::createStep(ref<Store> destStore,
         steps_->insert_or_assign(drvPath, step);
     }
 
-    if (!isNew) return step;
+    if (!isNew) {
+        timer.finish(prom.queue_step_create_reused);
+        return step;
+    }
 
     prom.queue_steps_created.Increment();
 
@@ -483,8 +490,10 @@ Step::ptr State::createStep(ref<Store> destStore,
     }
 
     /* If this derivation failed previously, give up. */
-    if (checkCachedFailure(step, conn))
+    if (checkCachedFailure(step, conn)) {
+        timer.finish(prom.queue_step_create_cached_failure);
         throw PreviousFailure{step};
+    }
 
     /* Are all outputs valid? */
     bool valid = true;
@@ -560,6 +569,7 @@ Step::ptr State::createStep(ref<Store> destStore,
     // FIXME: check whether all outputs are in the binary cache.
     if (valid) {
         finishedDrvs.insert(drvPath);
+        timer.finish(prom.queue_step_create_valid);
         return 0;
     }
 
@@ -587,6 +597,7 @@ Step::ptr State::createStep(ref<Store> destStore,
 
     newSteps.insert(step);
 
+    timer.finish(prom.queue_step_create_new);
     return step;
 }
 

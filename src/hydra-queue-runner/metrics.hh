@@ -127,6 +127,13 @@ struct PromMetrics
     prometheus::Histogram& queue_build_load_cached_failure;
     prometheus::Histogram& queue_build_load_cached_success;
     prometheus::Histogram& queue_build_load_added;
+    prometheus::Family<prometheus::Histogram>& queue_step_create_family;
+    prometheus::Histogram& queue_step_create_missed_exit;
+    prometheus::Histogram& queue_step_create_finished;
+    prometheus::Histogram& queue_step_create_reused;
+    prometheus::Histogram& queue_step_create_cached_failure;
+    prometheus::Histogram& queue_step_create_valid;
+    prometheus::Histogram& queue_step_create_new;
     prometheus::Counter& queue_steps_created;
     prometheus::Counter& queue_checks_early_exits;
     prometheus::Counter& queue_checks_finished;
