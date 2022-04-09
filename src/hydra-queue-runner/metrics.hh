@@ -80,6 +80,38 @@ public:
     }
 };
 
+template<class T>
+class PromTimerSyncLock
+{
+    std::optional<PromTimer> blocked;
+    typename nix::Sync<T, std::mutex>::Lock contained;
+    PromTimer blocking;
+
+public:
+    PromTimerSyncLock(nix::Sync<T>& data, std::string location, prometheus::Family<prometheus::Histogram>& metric_family)
+        : blocked(
+            metric_family.Add(
+                {{"location", location}, {"status", "blocked"}},
+                prometheus::Histogram::BucketBoundaries{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+            ))
+        , contained(data.lock())
+        , blocking(
+            metric_family.Add(
+                {{"location", location}, {"status", "blocking"}},
+                prometheus::Histogram::BucketBoundaries{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+            ))
+    {
+        blocked.reset();
+    }
+
+    T * operator -> () { return contained.operator->(); }
+    T & operator * () { return contained.operator*(); }
+
+    ~PromTimerSyncLock() {
+    }
+
+};
+
 struct PromMetrics
 {
     std::shared_ptr<prometheus::Registry> registry;
