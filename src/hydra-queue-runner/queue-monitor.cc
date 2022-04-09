@@ -1,6 +1,7 @@
 #include "state.hh"
 #include "hydra-build-result.hh"
 #include "globals.hh"
+#include "metrics.hh"
 
 #include <cstring>
 
@@ -420,7 +421,7 @@ Step::ptr State::createStep(ref<Store> destStore,
     Step::ptr step;
     bool isNew = false;
     {
-        auto steps_(steps.lock());
+        auto steps_ = PromTimerSyncLock{steps, "createStep", prom.lock_steps_family};
 
         /* See if the step already exists in ‘steps’ and is not
            stale. */

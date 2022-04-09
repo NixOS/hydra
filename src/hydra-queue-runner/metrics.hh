@@ -5,6 +5,7 @@
 #include <prometheus/gauge.h>
 #include <prometheus/histogram.h>
 #include <prometheus/registry.h>
+#include "sync.hh"
 
 // Track the elapsed time of a code block, and manually submit the timing
 // data to a prometheus Histogram.
@@ -116,6 +117,8 @@ struct PromMetrics
 {
     std::shared_ptr<prometheus::Registry> registry;
 
+    prometheus::Family<prometheus::Histogram>& lock_steps_family;
+    prometheus::Family<prometheus::Histogram>& lock_step_family;
     prometheus::Counter& queue_checks_started;
     prometheus::Histogram& queue_build_fetch_time;
     prometheus::Family<prometheus::Histogram>& queue_build_load_family;

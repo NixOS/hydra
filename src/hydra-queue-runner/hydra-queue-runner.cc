@@ -508,7 +508,7 @@ void State::dumpStatus(Connection & conn)
             root.attr("nrQueuedBuilds", builds_->size());
         }
         {
-            auto steps_(steps.lock());
+            auto steps_ = PromTimerSyncLock{steps, "dumpStatus", prom.lock_steps_family};
             for (auto i = steps_->begin(); i != steps_->end(); )
                 if (i->second.lock()) ++i; else i = steps_->erase(i);
             root.attr("nrUnfinishedSteps", steps_->size());

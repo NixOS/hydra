@@ -2,6 +2,18 @@
 
 PromMetrics::PromMetrics()
     : registry(std::make_shared<prometheus::Registry>())
+    , lock_steps_family(
+        prometheus::BuildHistogram()
+            .Name("hydraqueuerunner_lock_steps_seconds")
+            .Help("How long spent in locks around 'steps'")
+            .Register(*registry)
+    )
+    , lock_step_family(
+        prometheus::BuildHistogram()
+            .Name("hydraqueuerunner_lock_step_seconds")
+            .Help("How long spent in locks around 'step'")
+            .Register(*registry)
+    )
     , queue_checks_started(
         prometheus::BuildCounter()
             .Name("hydraqueuerunner_queue_checks_started_total")

@@ -295,7 +295,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             /* Get the builds that have this one as the top-level. */
             std::vector<Build::ptr> direct;
             {
-                auto steps_(steps.lock());
+                auto steps_ = PromTimerSyncLock{steps, "doBuildStep", prom.lock_steps_family};
                 auto step_(step->state.lock());
 
                 for (auto & b_ : step_->builds) {
@@ -410,7 +410,7 @@ void State::failStep(
         /* Get the builds and steps that depend on this step. */
         std::set<Build::ptr> indirect;
         {
-            auto steps_(steps.lock());
+            auto steps_ = PromTimerSyncLock{steps, "failStep", prom.lock_steps_family};
             std::set<Step::ptr> steps;
             getDependents(step, indirect, steps);
 
