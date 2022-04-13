@@ -359,9 +359,10 @@ private:
     counter nrStepsStarted{0};
     counter nrStepsDone{0};
     counter nrStepsBuilding{0};
+    #if 0
     counter nrStepsCopyingTo{0};
     counter nrStepsCopyingFrom{0};
-    counter nrStepsWaiting{0};
+    #endif
     counter nrUnsupportedSteps{0};
     counter nrRetries{0};
     counter maxNrRetries{0};
@@ -370,8 +371,6 @@ private:
     counter nrQueueWakeups{0};
     counter nrDispatcherWakeups{0};
     counter dispatchTimeMs{0};
-    counter bytesSent{0};
-    counter bytesReceived{0};
     counter nrActiveDbUpdates{0};
 
     /* Specific build to do for --build-one (testing only). */

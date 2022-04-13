@@ -569,12 +569,11 @@ void State::dumpStatus(Connection & conn)
         }
         root.attr("nrActiveSteps", activeSteps_.lock()->size());
         root.attr("nrStepsBuilding", nrStepsBuilding);
+        #if 0
         root.attr("nrStepsCopyingTo", nrStepsCopyingTo);
         root.attr("nrStepsCopyingFrom", nrStepsCopyingFrom);
-        root.attr("nrStepsWaiting", nrStepsWaiting);
+        #endif
         root.attr("nrUnsupportedSteps", nrUnsupportedSteps);
-        root.attr("bytesSent", bytesSent);
-        root.attr("bytesReceived", bytesReceived);
         root.attr("nrBuildsRead", nrBuildsRead);
         root.attr("buildReadTimeMs", buildReadTimeMs);
         root.attr("buildReadTimeAvgMs", nrBuildsRead == 0 ? 0.0 : (float) buildReadTimeMs / nrBuildsRead);
