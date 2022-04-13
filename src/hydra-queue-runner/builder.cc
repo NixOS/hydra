@@ -214,7 +214,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                 result.canRetry = false;
             } else {
                 result.stepStatus = bsAborted;
-                result.errorMsg = e.msg();
+                result.errorMsg = filterANSIEscapes(e.msg(), true);
                 result.canRetry = true;
             }
         }
