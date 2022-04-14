@@ -25,7 +25,7 @@
 
 #include <nlohmann/json.hpp>
 
-void check_pid_status_quick(pid_t check_pid) {
+void check_pid_status_nonblocking(pid_t check_pid) {
     // Only check 'initialized' and known PID's
     if (check_pid <= 0) { return; }
 
@@ -333,8 +333,8 @@ int main(int argc, char * * argv)
         /* Start a handler thread per worker process. */
         auto handler = [&]()
         {
+            pid_t pid = -1;
             try {
-                pid_t pid = -1;
                 AutoCloseFD from, to;
 
                 while (true) {
@@ -436,6 +436,7 @@ int main(int argc, char * * argv)
                     }
                 }
             } catch (...) {
+                check_pid_status_nonblocking(pid);
                 auto state(state_.lock());
                 state->exc = std::current_exception();
                 wakeup.notify_all();
