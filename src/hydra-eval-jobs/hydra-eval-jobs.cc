@@ -25,6 +25,28 @@
 
 #include <nlohmann/json.hpp>
 
+void check_pid_status_quick(pid_t check_pid) {
+    // Only check 'initialized' and known PID's
+    if (check_pid <= 0) { return; }
+
+    int wstatus = 0;
+    pid_t pid = waitpid(check_pid, &wstatus, WNOHANG);
+    // -1 = failiure, WNOHANG: 0 = no change
+    if (pid <= 0) { return; }
+
+    std::cerr << "child process (" << pid << ") ";
+
+    if (WIFEXITED(wstatus)) {
+        std::cerr << "exited with status=" << WEXITSTATUS(wstatus) << std::endl;
+    } else if (WIFSIGNALED(wstatus)) {
+        std::cerr << "killed by signal=" << WTERMSIG(wstatus) << std::endl;
+    } else if (WIFSTOPPED(wstatus)) {
+        std::cerr << "stopped by signal=" << WSTOPSIG(wstatus) << std::endl;
+    } else if (WIFCONTINUED(wstatus)) {
+        std::cerr << "continued" << std::endl;
+    }
+}
+
 using namespace nix;
 
 static Path gcRootsDir;
