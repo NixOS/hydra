@@ -13,7 +13,7 @@ TESTS_ENVIRONMENT = \
   PGHOST=/tmp	\
   PERL5LIB="$(srcdir):$(abs_top_srcdir)/src/lib:$$PERL5LIB"	\
   PYTHONPATH= \
-  PATH=$(abs_top_srcdir)/src/hydra-evaluator:$(abs_top_srcdir)/src/script:$(abs_top_srcdir)/src/hydra-eval-jobs:$(abs_top_srcdir)/src/hydra-queue-runner:$$PATH \
+  PATH=$(abs_top_srcdir)/src/hydra-evaluator:$(abs_top_srcdir)/src/script:$(abs_top_srcdir)/src/hydra-eval-jobs:$(abs_top_srcdir)/src/hydra-queue-runner:$(abs_top_srcdir)/src/hydra-build-step:$$PATH \
   perl -w
 
 EXTRA_DIST = \
