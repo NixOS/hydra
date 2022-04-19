@@ -34,6 +34,7 @@ To configure a static declarative project, take the following steps:
         "checkinterval": 300,
         "schedulingshares": 100,
         "enableemail": false,
+        "enable_dynamic_run_command": false,
         "emailoverride": "",
         "keepnr": 3,
         "inputs": {
@@ -53,6 +54,7 @@ To configure a static declarative project, take the following steps:
         "checkinterval": 300,
         "schedulingshares": 100,
         "enableemail": false,
+        "enable_dynamic_run_command": false,
         "emailoverride": "",
         "keepnr": 3,
         "inputs": {
@@ -92,6 +94,7 @@ containing the configuration of the jobset, for example:
         "checkinterval": 300,
         "schedulingshares": 100,
         "enableemail": false,
+        "enable_dynamic_run_command": false,
         "emailoverride": "",
         "keepnr": 3,
         "inputs": {

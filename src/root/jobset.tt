@@ -160,6 +160,10 @@
         <th>Scheduling shares:</th>
         <td>[% jobset.schedulingshares %] [% IF totalShares %] ([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% totalShares %] shares)[% END %]</td>
       </tr>
+      <tr>
+        <th>Enable Dynamic RunCommand Hooks:</th>
+        <td>[% c.config.dynamicruncommand.enable ? project.enable_dynamic_run_command ? jobset.enable_dynamic_run_command ? "Yes" : "No (not enabled by jobset)" : "No (not enabled by project)" : "No (not enabled by server)" %]</td>
+      </tr>
       [% IF emailNotification %]
       <tr>
         <th>Enable email notification:</th>
