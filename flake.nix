@@ -624,7 +624,10 @@
             export HYDRA_HOME="$(pwd)/src/"
             mkdir -p .hydra-data
             export HYDRA_DATA="$(pwd)/.hydra-data"
-            export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
+            export LOGNAME="hydra-dev"
+            export PGPORT=64444
+            export PGHOST="localhost"
+            export HYDRA_DBI="dbi:Pg:dbname=hydra;host=$PGHOST;port=$PGPORT"
 
             popd >/dev/null
           '';
