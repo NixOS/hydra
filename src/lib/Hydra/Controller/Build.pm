@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Controller::API;
 use File::Basename;
 use File::stat;
 use Data::Dump qw(dump);
@@ -569,13 +570,52 @@ sub bump : Chained('buildChain') PathPart('bump') {
 }
 
 
+sub buildStepToHash {
+    my ($buildstep) = @_;
+    return {
+        build => $buildstep->get_column('build'),
+        busy => $buildstep->busy,
+        drvpath => $buildstep->drvpath,
+        errormsg => $buildstep->errormsg,
+        isnondeterministic => $buildstep->isnondeterministic,
+        machine => $buildstep->machine,
+        overhead => $buildstep->overhead,
+        # The propagatedfrom field will hold a Build type if it was propagated, we'd like to display that info, so we
+        # convert the that record to a hash here and inline it, we already have the data on hand and it saves clients a
+        # request to obtain the actual reason why something happened.
+        propagatedfrom => defined($buildstep->propagatedfrom) ? Hydra::Controller::API::buildToHash($buildstep->propagatedfrom) : undef,
+        starttime => $buildstep->starttime,
+        status => $buildstep->status,
+        stepnr => $buildstep->stepnr,
+        stoptime => $buildstep->stoptime,
+        system => $buildstep->system,
+        timesbuilt => $buildstep->timesbuilt,
+        type => $buildstep->type,
+        haserrormsg => defined($buildstep->errormsg) && $buildstep->errormsg ne "" ? JSON::MaybeXS::true : JSON::MaybeXS::false
+    };
+}
+
+
 sub get_info : Chained('buildChain') PathPart('api/get-info') Args(0) {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
+
+    # Since this is the detailed info of the build, lets start with populating it with
+    # the info we can obtain form the build.
+    $c->stash->{json} = Hydra::Controller::API::buildToHash($build);
+
+    # Provide the original get-info endpoint attributes.
     $c->stash->{json}->{buildId} = $build->id;
     $c->stash->{json}->{drvPath} = $build->drvpath;
     my $out = getMainOutput($build);
     $c->stash->{json}->{outPath} = $out->path if defined $out;
+
+    # Finally, provide information about all the buildsteps that made up this build.
+    my @buildsteps = $build->buildsteps->search({}, {order_by => "stepnr asc"});
+    my @buildsteplist;
+    push @buildsteplist, buildStepToHash($_) foreach @buildsteps;
+    $c->stash->{json}->{steps} = \@buildsteplist;
+
     $c->forward('View::JSON');
 }
 
