@@ -507,6 +507,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /build/{build-id}/api/get-info:
+    get:
+      summary: Retrieves info about this build id, providing information about the steps in it.
+      parameters:
+      - name: build-id
+        in: path
+        description: build identifier
+        required: true
+        schema:
+            type: integer
+      responses:
+        '200':
+          description: build
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildInfo'
+              examples:
+                build-success:
+                  $ref: '#/components/examples/build-get-info-success'
+        '404':
+          description: build couldn't be found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /build/{build-id}/constituents:
     get:
       summary: Retrieves a build's constituent jobs
@@ -673,7 +700,7 @@ components:
           nullable: true
           description: the path to the file to evaluate
           type: string
-        errormsg:
+        errormsg: &schema_errormsg
           nullable: true
           description: contains the stderr output of the nix-instantiate command
           type: string
@@ -813,7 +840,7 @@ components:
             checkinterval:
               description: interval in seconds at which to check the jobset inputs
               type: integer
-            haserrormsg:
+            haserrormsg: &schema_haserrormsg
               description: true if the evaluation had errors
               type: boolean
             nrscheduled:
@@ -896,18 +923,18 @@ components:
           description: The nix store path
           type: string
 
-    Build:
+    Build: 
       type: object
       properties:
         id:
           type: integer
-        starttime:
+        starttime: &schema_starttime
           description: time when build started
           type: integer
-        stoptime:
+        stoptime: &schema_stoptime
           description: time when build ended
           type: integer
-        timestamp:
+        timestamp: &schema_timestamp
           description: time when the build was first created
           type: integer
         jobsetevals:
@@ -915,47 +942,49 @@ components:
           type: array
           items:
             type: integer
-        finished:
+        finished: &schema_finished
           description: true when the build is finished
           type: boolean
-        nixname:
+        nixname: &schema_nixname
           description: name from the build's derivation
           type: string
-        buildstatus:
+        buildstatus: &schema_status
           nullable: true # should only be null if finished is false
           description: |
             Indicates the build status:</br>
             <ul>
              <li>0 : succeeded</li>
              <li>1 : failed</li>
-             <li>2 : dependency failed</li>
+             <li>2 : dependency failed (builds only)</li>
              <li>3 : aborted</li>
              <li>4 : canceled by the user</li>
-             <li>6 : failed with output</li>
+             <li>6 : failed with output (builds only)</li>
              <li>7 : timed out</li>
+             <li>8 : cached failure (steps only)</li>
              <li>9 : aborted</li>
              <li>10 : log size limit exceeded</li>
              <li>11 : output size limit exceeded</li>
+             <li>12 : not deterministic</li>
              <li>*  : failed</li>
             </ul>
             <strong>Note:</strong>buildstatus should only be `null` if `finished` is false.
           type: integer
-        jobset:
+        jobset: &schema_jobset
           description: jobset this build belongs to
           type: string
         priority:
           description: determines the priority with which this build will be executed (higher value means higher priority)
           type: integer
-        job:
+        job: &schema_job
           description: nix attribute from the nixexprpath
           type: string
-        drvpath:
+        drvpath: &schema_drvpath
           description: filename of the drv
           type: string
-        system:
+        system: &schema_system
           description: system this build was done for
           type: string
-        project:
+        project: &schema_project
           description: project this build belongs to
           type: string
         buildproducts:
@@ -986,6 +1015,99 @@ components:
             unit:
               type: string
               description: unit of the measured build metric
+    BuildInfo:
+      properties:
+        id:
+          description: The build id.
+          type: integer
+        buildId:
+          description: Same as id, exists for backwards compatibility.
+          type: integer
+        finished:
+          <<: *schema_finished
+        steps: 
+          description: List of steps that make up this build.
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              $ref: '#/components/schemas/BuildStep'
+        job:
+          <<: *schema_job
+        system:
+          <<: *schema_system
+        buildstatus:
+          <<: *schema_status
+        jobset:
+          <<: *schema_jobset
+        project:
+          <<: *schema_project
+        timestamp:
+          <<: *schema_timestamp
+        nixname:
+          <<: *schema_nixname
+        drvPath:
+          description: Same as drvpath, exists for backwards compatibility.
+          type: string
+        outPath:
+          description: The nix store path for the output of this build.
+          type: string
+
+    BuildStep:
+      type: object
+      properties:
+        stepnr:
+          description: The step number, this number can be used when retrieving logs for a particular step.
+          type: integer
+        starttime:
+          <<: *schema_starttime
+        stoptime:
+          <<: *schema_stoptime
+        status:
+          <<: *schema_status
+        system:
+          <<: *schema_system
+        propagatedfrom:
+          description: Null if the result was not propagated.
+          nullable: true
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Build'
+        errormsg:
+          <<: *schema_errormsg
+        haserrormsg:
+          <<: *schema_haserrormsg
+        machine:
+          description: Machine on which this step was executed.
+          type: string
+        busy:
+          description: |
+            Indicates the current stage this build step is in:</br>
+            <ul>
+             <li>0 : not being worked on (status populated)</li>
+             <li>1 : preparing</li>
+             <li>10 : connecting</li>
+             <li>20 : sending inputs</li>
+             <li>30 : building</li>
+             <li>40 : receiving outputs</li>
+             <li>50 : post processing</li>
+             <li>*  : unknown</li>
+            </ul>
+          type: integer
+        drvpath:
+          <<: *schema_drvpath
+        build:
+          description: Id of the build this step is a part of.
+          type: integer
+        timesbuilt:
+          nullable: true
+          type: integer
+        type:
+          nullable: true
+        overhead:
+          nullable: true
+        isnondeterministic:
+          nullable: true
 
   examples:
     projects-success:
@@ -1110,3 +1232,62 @@ components:
         project: example-hello
         starttime: 1588365711
         timestamp: 1588365711
+
+    build-get-info-success:
+      value:
+        id: 5
+        buildstatus: 2 # actually a failed build, to show the propagated error.
+        nixname: hello-2.10
+        finished: 1
+        timestamp: 1588365711
+        system: x86_64-linux
+        job: hello
+        jobset: hello
+        project: example-hello
+        steps:
+          -
+            timesbuilt: null
+            errormsg: null
+            haserrormsg: false
+            overhead: null
+            type: 0
+            drvpath: /nix/store/ab9zv2y5gm8hr6g318p0s6kaclwj4slr-hello-2.10.drv
+            build: 1
+            machine: localhost
+            busy: 1
+            status: 4
+            isnondeterministic: null
+            starttime: 1649950241
+            propagatedfrom: null
+            system: x86_64-linux
+            stepnr: 1
+            stoptime: 1649950294
+          - 
+            timesbuilt: null
+            errormsg: null
+            haserrormsg: false
+            overhead: null
+            type: 0
+            drvpath: /nix/store/hhl1dql437h1glbqv43629f1pmnlcfoo-package.drv
+            build: 1
+            machine: localhost
+            busy: 0
+            status: 8 # Cached failure, will have propagated result.
+            isnondeterministic: null
+            starttime: 1649950241
+            propagatedfrom: 
+                jobset: hello
+                nixname: hello
+                system: x86_64-linux
+                job: sdk.x86_64-linux
+                project: hello
+                id: 3 # since this is a build, this denotes the build id the propagation result came from.
+                timestamp: 1649456722
+                finished: 1
+
+            system: x86_64-linux
+            stepnr: 2
+            stoptime: 1649950294
+        buildId: 5
+        drvPath: /nix/store/ab9zv2y5gm8hr6g318p0s6kaclwj4slr-hello-2.10.drv
+        outPath: /nix/store/y26qxcq1gg2hrqpxdc58b2fghv2bhxjg-hello-2.10

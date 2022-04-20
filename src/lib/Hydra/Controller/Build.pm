@@ -580,7 +580,7 @@ sub buildStepToHash {
         isnondeterministic => $buildstep->isnondeterministic,
         machine => $buildstep->machine,
         overhead => $buildstep->overhead,
-        # The propagatedfrom field will hold a Build type if it was propagated, we'd like to display that info, so we
+        # The propagated from field will hold a Build type if it was propagated, we'd like to display that info, so we
         # convert the that record to a hash here and inline it, we already have the data on hand and it saves clients a
         # request to obtain the actual reason why something happened.
         propagatedfrom => defined($buildstep->propagatedfrom) ? Hydra::Controller::API::buildToHash($buildstep->propagatedfrom) : undef,
