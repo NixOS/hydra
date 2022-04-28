@@ -69,6 +69,7 @@ in
       package = mkOption {
         type = types.path;
         default = pkgs.hydra;
+        defaultText = literalExpression "pkgs.hydra";
         description = "The Hydra package.";
       };
 
@@ -171,6 +172,7 @@ in
       buildMachinesFiles = mkOption {
         type = types.listOf types.path;
         default = optional (config.nix.buildMachines != []) "/etc/nix/machines";
+        defaultText = literalExpression ''optional (config.nix.buildMachines != []) "/etc/nix/machines"'';
         example = [ "/etc/nix/machines" "/var/lib/hydra/provisioner/machines" ];
         description = "List of files containing build machines.";
       };

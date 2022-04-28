@@ -192,9 +192,11 @@ Writes InfluxDB events when a builds finished.
 - `influxdb.url`
 - `influxdb.db`
 
-## Run command
+## RunCommand
 
 Runs a shell command when the build is finished.
+
+See [The RunCommand Plugin](./RunCommand.md) for more information.
 
 ### Configuration options:
 

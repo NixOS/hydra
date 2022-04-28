@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "build-result.hh"
 #include "serve-protocol.hh"
 #include "state.hh"
 #include "util.hh"
@@ -49,13 +50,35 @@ static Strings extraStoreArgs(std::string & machine)
 
 static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Child & child)
 {
-    string pgmName;
+    std::string pgmName;
     Pipe to, from;
     to.create();
     from.create();
 
-    child.pid = startProcess([&]() {
+    Strings argv;
+    if (machine->isLocalhost()) {
+        pgmName = "nix-store";
+        argv = {"nix-store", "--builders", "", "--serve", "--write"};
+    } else {
+        pgmName = "ssh";
+        auto sshName = machine->sshName;
+        Strings extraArgs = extraStoreArgs(sshName);
+        argv = {"ssh", sshName};
+        if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
+        if (machine->sshPublicHostKey != "") {
+            Path fileName = tmpDir + "/host-key";
+            auto p = machine->sshName.find("@");
+            std::string host = p != std::string::npos ? std::string(machine->sshName, p + 1) : machine->sshName;
+            writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
+            append(argv, {"-oUserKnownHostsFile=" + fileName});
+        }
+        append(argv,
+            { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
+            , "--", "nix-store", "--serve", "--write" });
+        append(argv, extraArgs);
+    }
 
+    child.pid = startProcess([&]() {
         restoreProcessContext();
 
         if (dup2(to.readSide.get(), STDIN_FILENO) == -1)
@@ -66,30 +89,6 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 
         if (dup2(stderrFD, STDERR_FILENO) == -1)
             throw SysError("cannot dup stderr");
-
-        Strings argv;
-        if (machine->isLocalhost()) {
-            pgmName = "nix-store";
-            argv = {"nix-store", "--builders", "", "--serve", "--write"};
-        }
-        else {
-            pgmName = "ssh";
-            auto sshName = machine->sshName;
-            Strings extraArgs = extraStoreArgs(sshName);
-            argv = {"ssh", sshName};
-            if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
-            if (machine->sshPublicHostKey != "") {
-                Path fileName = tmpDir + "/host-key";
-                auto p = machine->sshName.find("@");
-                string host = p != string::npos ? string(machine->sshName, p + 1) : machine->sshName;
-                writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
-                append(argv, {"-oUserKnownHostsFile=" + fileName});
-            }
-            append(argv,
-                { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
-                , "--", "nix-store", "--serve", "--write" });
-            append(argv, extraArgs);
-        }
 
         execvp(argv.front().c_str(), (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
 
@@ -185,8 +184,8 @@ void State::buildRemote(ref<Store> destStore,
 {
     assert(BuildResult::TimedOut == 8);
 
-    string base(step->drvPath.to_string());
-    result.logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
+    std::string base(step->drvPath.to_string());
+    result.logFile = logDir + "/" + std::string(base, 0, 2) + "/" + std::string(base, 2);
     AutoDelete autoDelete(result.logFile, false);
 
     createDirs(dirOf(result.logFile));
@@ -249,7 +248,7 @@ void State::buildRemote(ref<Store> destStore,
 
         } catch (EndOfFile & e) {
             child.pid.wait();
-            string s = chomp(readFile(result.logFile));
+            std::string s = chomp(readFile(result.logFile));
             throw Error("cannot connect to ‘%1%’: %2%", machine->sshName, s);
         }
 

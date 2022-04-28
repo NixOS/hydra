@@ -49,6 +49,7 @@ create table Projects (
     declfile      text, -- File containing declarative jobset specification
     decltype      text, -- Type of the input containing declarative jobset specification
     declvalue     text, -- Value of the input containing declarative jobset specification
+    enable_dynamic_run_command boolean not null default false,
     foreign key   (owner) references Users(userName) on update cascade
 );
 
@@ -88,6 +89,7 @@ create table Jobsets (
     startTime     integer, -- if jobset is currently running
     type          integer not null default 0, -- 0 == legacy, 1 == flake
     flake         text,
+    enable_dynamic_run_command boolean not null default false,
     constraint jobsets_schedulingshares_nonzero_check check (schedulingShares > 0),
     constraint jobsets_type_known_check   check (type = 0 or type = 1),
     -- If the type is 0, then nixExprInput and nixExprPath should be non-null and other type-specific fields should be null

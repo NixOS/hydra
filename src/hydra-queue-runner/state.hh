@@ -7,11 +7,16 @@
 #include <memory>
 #include <queue>
 
+#include <prometheus/counter.h>
+#include <prometheus/gauge.h>
+#include <prometheus/registry.h>
+
 #include "db.hh"
 
 #include "parsed-derivations.hh"
 #include "pathlocks.hh"
 #include "pool.hh"
+#include "build-result.hh"
 #include "store-api.hh"
 #include "sync.hh"
 #include "nar-extractor.hh"
@@ -432,8 +437,25 @@ private:
        via gc_roots_dir. */
     nix::Path rootsDir;
 
+    std::string metricsAddr;
+
+    struct PromMetrics
+    {
+        std::shared_ptr<prometheus::Registry> registry;
+
+        prometheus::Counter& queue_checks_started;
+        prometheus::Counter& queue_build_loads;
+        prometheus::Counter& queue_steps_created;
+        prometheus::Counter& queue_checks_early_exits;
+        prometheus::Counter& queue_checks_finished;
+        prometheus::Gauge& queue_max_id;
+
+        PromMetrics();
+    };
+    PromMetrics prom;
+
 public:
-    State();
+    State(std::optional<std::string> metricsAddrOpt);
 
 private:
 
@@ -542,6 +564,8 @@ private:
     void dumpStatus(Connection & conn);
 
     void addRoot(const nix::StorePath & storePath);
+
+    void runMetricsExporter();
 
 public:
 
