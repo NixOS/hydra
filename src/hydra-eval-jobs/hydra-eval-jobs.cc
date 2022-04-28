@@ -69,7 +69,7 @@ static nlohmann::json retrieveMaintainers(EvalState &state, DrvInfo &drv)
     Value *v = drv.queryMeta("maintainers");
 
     if (v) {
-        state.forceValue(*v);
+        state.forceValue(*v, noPos);
         if (!v->isList()) {
             return rs; // FIXME throw an error here?
         }
