@@ -31,7 +31,7 @@ void check_pid_status_nonblocking(pid_t check_pid) {
 
     int wstatus = 0;
     pid_t pid = waitpid(check_pid, &wstatus, WNOHANG);
-    // -1 = failiure, WNOHANG: 0 = no change
+    // -1 = failure, WNOHANG: 0 = no change
     if (pid <= 0) { return; }
 
     std::cerr << "child process (" << pid << ") ";
