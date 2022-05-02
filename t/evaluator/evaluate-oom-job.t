@@ -21,6 +21,8 @@ eval {
 };
 if ($sd_res != 0) { skip_all("`systemd-run` returned non-zero when executing `true` (expected 0)"); }
 
+my $ctx = test_context();
+
 my ($res, $stdout, $stderr) = captureStdoutStderr(60, (
   "systemd-run",
     "--user",
@@ -31,11 +33,11 @@ my ($res, $stdout, $stderr) = captureStdoutStderr(60, (
   "--",
   "hydra-eval-jobs",
     "-I", "/dev/zero",
-    "-I", "./t/jobs",
-    "./t/jobs/oom.nix"
+    "-I", $ctx->jobsdir,
+    ($ctx->jobsdir . "/oom.nix")
 ));
 
-isnt($res, 0, "hydra-eval-jobs exits non-zero");
+isnt($res, 0, "`hydra-eval-jobs` exits non-zero");
 ok(utf8::decode($stderr), "Stderr output is UTF8-clean");
 like(
   $stderr,
