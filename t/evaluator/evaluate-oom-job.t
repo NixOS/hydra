@@ -4,8 +4,9 @@ use Setup;
 use Test2::V0;
 use Hydra::Helper::Exec;
 
+my $sd_res;
 eval {
-  captureStdoutStderr(3, (
+  ($sd_res) = captureStdoutStderr(3, (
     "systemd-run",
       "--user",
       "--collect",
@@ -16,8 +17,9 @@ eval {
     "true"
   ));
 } or do {
-  skip_all("systemd-run does not work in this environment");
+  skip_all("`systemd-run` failed when invoked in this environment");
 };
+if ($sd_res != 0) { skip_all("`systemd-run` returned non-zero when executing `true` (expected 0)"); }
 
 my ($res, $stdout, $stderr) = captureStdoutStderr(60, (
   "systemd-run",
