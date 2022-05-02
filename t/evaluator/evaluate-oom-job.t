@@ -4,6 +4,14 @@ use Setup;
 use Test2::V0;
 use Hydra::Helper::Exec;
 
+my ($systemdrRes) = captureStdoutStderr(3, (
+   "systemd-run", "--user", "--collect", "--scope", "--property", "MemoryMax=25M", "--",
+   "true"
+));
+
+skip_all("systemd-run does not work in this environment") if($systemdrRes != 0);
+
+
 my ($res, $stdout, $stderr) = captureStdoutStderr(60,
     (
        "systemd-run", "--user", "--collect", "--scope", "--property", "MemoryMax=25M", "--",
