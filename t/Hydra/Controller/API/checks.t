@@ -169,6 +169,7 @@ subtest "/api/push-github" => sub {
 
         my $req = POST '/api/push-github',
             "Content-Type" => "application/json",
+	    "X-GitHub-Event" => "push",
             "Content" => encode_json({
                 repository => {
                     owner => {
@@ -195,6 +196,7 @@ subtest "/api/push-github" => sub {
 
         my $req = POST '/api/push-github',
             "Content-Type" => "application/json",
+	    "X-GitHub-Event" => "push",
             "Content" => encode_json({
                 repository => {
                     owner => {
