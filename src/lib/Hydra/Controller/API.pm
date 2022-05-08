@@ -267,24 +267,56 @@ sub push : Chained('api') PathPart('push') Args(0) {
     );
 }
 
-sub push_github : Chained('api') PathPart('push-github') Args(0) {
+sub webhook_github : Chained('api') PathPart('webhook-github') Args(0) {
     my ($self, $c) = @_;
 
     $c->{stash}->{json}->{jobsetsTriggered} = [];
 
     my $in = $c->request->{data};
-    my $owner = $in->{repository}->{owner}->{name} or die;
-    my $repo = $in->{repository}->{name} or die;
-    print STDERR "got push from GitHub repository $owner/$repo\n";
 
-    triggerJobset($self, $c, $_, 0) foreach $c->model('DB::Jobsets')->search(
-        { 'project.enabled' => 1, 'me.enabled' => 1 },
-        { join => 'project'
-        , where => \ [ 'me.flake like ? or exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)', [ 'flake', "%github%$owner/$repo%"], [ 'value', "%github.com%$owner/$repo%" ] ]
-        });
+    # every GitHub webhook payload has the `repository` key and a `X-GitHub-Event` header
+    my $event = $c->req->header('X-GitHub-Event')  or die;
+    my $owner = $in->{repository}->{owner}->{name} or die;
+    my $repo  = $in->{repository}->{name}          or die;
+
+    print STDERR "got event '$event' from GitHub repository $owner/$repo\n";
+
+    # `jobsetsOfInputs type value` finds the jobsets that have an input of type `type` and of value LIKE `value`
+    my $jobsetsOfInputs = sub {
+	my ($type, $value) = @_;
+	$c->model('DB::Jobsets')->search(
+	    { 'jobsetinputs.type' => "githubpulls", 'project.enabled' => 1, 'me.enabled' => 1 },
+	    { join => ['project', {'jobsetinputs' => 'jobsetinputalts'}],
+	      where => \ [ ' LOWER( jobsetinputalts.value ) LIKE LOWER ( ? ) ', [ 'value', $value] ]
+	    })
+    };
+
+    # Different SQL queries according the kind of `$event` we are dealing with
+    my $actions = {
+        create       => sub {$jobsetsOfInputs->('github_refs', "$owner $repo %")},
+        delete       => sub {$jobsetsOfInputs->('github_refs', "$owner $repo %")},
+	pull_request => sub {$jobsetsOfInputs->('githubpulls', "$owner $repo")},
+	push => sub {
+	    $c->model('DB::Jobsets')->search(
+		{ 'project.enabled' => 1, 'me.enabled' => 1 },
+		{ join => 'project', where => \ [
+		      'me.flake like ? or exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)',
+		      [ 'flake', "%github%$owner/$repo%"],
+		      [ 'value', "%github.com%$owner/$repo%" ]
+		   ] })
+	}
+    };
+
+    triggerJobset($self, $c, $_, 0) foreach ($actions->{$event} // sub {
+	die "Cannot handle GitHub event [$event]";
+    })->();
+
     $c->response->body("");
 }
 
-
+sub push_github : Chained('api') PathPart('push-github') Args(0) {
+    print STDERR 'The endpoint [/api/push_github] is deprecated in favor of [/api/webhook_github]';
+    webhook_github @_
+}
 
 1;
