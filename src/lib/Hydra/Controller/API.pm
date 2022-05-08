@@ -9,9 +9,13 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::Controller::Project;
 use JSON::MaybeXS;
 use DateTime;
-use Digest::SHA qw(sha256_hex);
+use Digest::SHA qw(sha256 sha256_hex);
+use Digest::HMAC qw(hmac_hex);
+use String::Compare::ConstantTime;
+use File::Slurper qw(read_text);
 use Text::Diff;
 use IPC::Run qw(run);
+use List::Util 'first';
 
 
 sub api : Chained('/') PathPart('api') CaptureArgs(0) {
@@ -280,6 +284,25 @@ sub webhook_github : Chained('api') PathPart('webhook-github') Args(0) {
     my $repo  = $in->{repository}->{name}          or die;
 
     print STDERR "got event '$event' from GitHub repository $owner/$repo\n";
+
+    { # Verify X-Hub-Signature-256 if secret was defined in config
+	my $cfg = $c->config->{github_webhook};
+	my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();	
+	my $rule = first { $owner =~ /^$_->{owner}$/ && $repo =~ /^$_->{repo}$/ } @config;
+
+	if (defined $rule) {
+	    my $sig = $c->req->header('X-Hub-Signature-256');
+	    die "X-Hub-Signature-256 is missing, but a secret was defined for GitHub repository $owner/$repo"
+		unless defined $sig;
+	    my $body = read_text($c->req->body) or die;
+	    my $secret = $rule->{secret}        or die;
+	    my $digest = hmac_hex($body, $secret, \&sha256);
+	    die "Request body digest (${digest}) did not match X-Hub-Signature-256 (${sig})"
+		unless String::Compare::ConstantTime::equals($sig, "sha256=$digest");
+	} else {
+	    print STDERR "no secret given for webhook comming from GitHub repository $owner/$repo";
+	}
+    }
 
     # `jobsetsOfInputs type value` finds the jobsets that have an input of type `type` and of value LIKE `value`
     my $jobsetsOfInputs = sub {
