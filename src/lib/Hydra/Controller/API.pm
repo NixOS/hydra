@@ -279,9 +279,10 @@ sub webhook_github : Chained('api') PathPart('webhook-github') Args(0) {
     my $in = $c->request->{data};
 
     # every GitHub webhook payload has the `repository` key and a `X-GitHub-Event` header
-    my $event = $c->req->header('X-GitHub-Event')  or die;
-    my $owner = $in->{repository}->{owner}->{name} or die;
-    my $repo  = $in->{repository}->{name}          or die;
+    my $event = $c->req->header('X-GitHub-Event')        or die;
+    my $owner = (   $in->{repository}->{owner}->{name}
+		 // $in->{repository}->{owner}->{login}) or die;
+    my $repo  = $in->{repository}->{name}                or die;
 
     print STDERR "got event '$event' from GitHub repository $owner/$repo\n";
 
@@ -303,12 +304,12 @@ sub webhook_github : Chained('api') PathPart('webhook-github') Args(0) {
 	    print STDERR "no secret given for webhook comming from GitHub repository $owner/$repo";
 	}
     }
-
+    
     # `jobsetsOfInputs type value` finds the jobsets that have an input of type `type` and of value LIKE `value`
     my $jobsetsOfInputs = sub {
 	my ($type, $value) = @_;
 	$c->model('DB::Jobsets')->search(
-	    { 'jobsetinputs.type' => "githubpulls", 'project.enabled' => 1, 'me.enabled' => 1 },
+	    { 'jobsetinputs.type' => $type, 'project.enabled' => 1, 'me.enabled' => 1 },
 	    { join => ['project', {'jobsetinputs' => 'jobsetinputalts'}],
 	      where => \ [ ' LOWER( jobsetinputalts.value ) LIKE LOWER ( ? ) ', [ 'value', $value] ]
 	    })
