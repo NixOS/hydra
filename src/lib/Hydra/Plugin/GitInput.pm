@@ -261,7 +261,7 @@ sub getCommits {
 
     my $clonePath = getSCMCacheDir . "/git/" . sha256_hex($uri);
 
-    my $out = grab(cmd => ["git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], dir => $clonePath);
+    my $out = grab(cmd => ["git", "--git-dir=.git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], dir => $clonePath);
 
     my $res = [];
     foreach my $line (split /\n/, $out) {
