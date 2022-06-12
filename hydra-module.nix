@@ -409,6 +409,7 @@ in
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
         restartTriggers = [ hydraConf ];
+        path = [ pkgs.zstd ];
         environment = env // {
           PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-notify";
