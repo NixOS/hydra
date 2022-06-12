@@ -74,9 +74,9 @@ create table Jobsets (
     nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
     nixExprPath   text, -- relative path of the Nix or Guix expression
     errorMsg      text, -- used to signal the last evaluation error etc. for this jobset
-    errorTime     integer, -- timestamp associated with errorMsg
-    lastCheckedTime integer, -- last time the evaluator looked at this jobset
-    triggerTime   integer, -- set if we were triggered by a push event
+    errorTime     bigint, -- timestamp associated with errorMsg
+    lastCheckedTime bigint, -- last time the evaluator looked at this jobset
+    triggerTime   bigint, -- set if we were triggered by a push event
     enabled       integer not null default 1, -- 0 = disabled, 1 = enabled, 2 = one-shot, 3 = one-at-a-time
     enableEmail   integer not null default 1,
     hidden        integer not null default 0,
@@ -86,7 +86,7 @@ create table Jobsets (
     schedulingShares integer not null default 100,
     fetchErrorMsg text,
     forceEval     boolean,
-    startTime     integer, -- if jobset is currently running
+    startTime     bigint, -- if jobset is currently running
     type          integer not null default 0, -- 0 == legacy, 1 == flake
     flake         text,
     enable_dynamic_run_command boolean not null default false,
@@ -161,7 +161,7 @@ create table Builds (
 
     finished      integer not null, -- 0 = scheduled, 1 = finished
 
-    timestamp     integer not null, -- time this build was added
+    timestamp     bigint not null, -- time this build was added
 
     -- Info about the inputs.
     jobset_id     integer not null,
@@ -190,8 +190,8 @@ create table Builds (
     globalPriority integer not null default 0,
 
     -- FIXME: remove startTime?
-    startTime     integer, -- if busy/finished, time we started
-    stopTime      integer, -- if finished, time we finished
+    startTime     bigint, -- if busy/finished, time we started
+    stopTime      bigint, -- if finished, time we finished
 
     -- Information about finished builds.
     isCachedBuild integer, -- boolean
@@ -276,8 +276,8 @@ create table BuildSteps (
 
     errorMsg      text,
 
-    startTime     integer,
-    stopTime      integer,
+    startTime     bigint,
+    stopTime      bigint,
 
     machine       text not null default '',
     system        text,
@@ -362,7 +362,7 @@ create table BuildMetrics (
     project       text not null,
     jobset        text not null,
     job           text not null,
-    timestamp     integer not null,
+    timestamp     bigint not null,
 
     primary key   (build, name),
     foreign key   (build) references Builds(id) on delete cascade,
@@ -376,8 +376,8 @@ create table BuildMetrics (
 -- the timestamp when we first saw the path have these contents.
 create table CachedPathInputs (
     srcPath       text not null,
-    timestamp     integer not null, -- when we first saw this hash
-    lastSeen      integer not null, -- when we last saw this hash
+    timestamp     bigint not null, -- when we first saw this hash
+    lastSeen      bigint not null, -- when we last saw this hash
     sha256hash    text not null,
     storePath     text not null,
     primary key   (srcPath, sha256hash)
@@ -431,8 +431,8 @@ create table CachedHgInputs (
 create table CachedCVSInputs (
     uri           text not null,
     module        text not null,
-    timestamp     integer not null, -- when we first saw this hash
-    lastSeen      integer not null, -- when we last saw this hash
+    timestamp     bigint not null, -- when we first saw this hash
+    lastSeen      bigint not null, -- when we last saw this hash
     sha256hash    text not null,
     storePath     text not null,
     primary key   (uri, module, sha256hash)
@@ -441,7 +441,7 @@ create table CachedCVSInputs (
 create table EvaluationErrors (
     id            serial primary key not null,
     errorMsg      text,    -- error output from the evaluator
-    errorTime     integer  -- timestamp associated with errorMsg
+    errorTime     bigint   -- timestamp associated with errorMsg
 );
 
 create table JobsetEvals (
@@ -450,7 +450,7 @@ create table JobsetEvals (
 
     evaluationerror_id integer,
 
-    timestamp     integer not null, -- when this entry was added
+    timestamp     bigint not null, -- when this entry was added
     checkoutTime  integer not null, -- how long obtaining the inputs took (in seconds)
     evalTime      integer not null, -- how long evaluation took (in seconds)
 
@@ -520,7 +520,7 @@ create table UriRevMapper (
 create table NewsItems (
     id            serial primary key not null,
     contents      text not null,
-    createTime    integer not null,
+    createTime    bigint not null,
     author        text not null,
     foreign key   (author) references Users(userName) on delete cascade on update cascade
 );
@@ -577,8 +577,8 @@ create table RunCommandLogs (
     -- can we do this in a principled way? a build can be part of many evaluations
     -- but a "bug" of RunCommand, imho, is that it should probably run per evaluation?
     command         text not null,
-    start_time      integer,
-    end_time        integer,
+    start_time      bigint,
+    end_time        bigint,
     error_number    integer,
     exit_code       integer,
     signal          integer,
