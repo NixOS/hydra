@@ -5,7 +5,7 @@
   # even 2.7.0's Nixpkgs pin).
   inputs.newNixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
   inputs.nixpkgs.follows = "nix/nixpkgs";
-  #inputs.nix.url = github:NixOS/nix/2.7.0;
+  inputs.nix.url = github:NixOS/nix/2.9.1;
 
   outputs = { self, newNixpkgs, nixpkgs, nix }:
     let

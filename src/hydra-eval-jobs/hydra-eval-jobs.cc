@@ -197,21 +197,21 @@ static void worker(
 
                 /* If this is an aggregate, then get its constituents. */
                 auto a = v->attrs->get(state.symbols.create("_hydraAggregate"));
-                if (a && state.forceBool(*a->value, *a->pos)) {
+                if (a && state.forceBool(*a->value, a->pos)) {
                     auto a = v->attrs->get(state.symbols.create("constituents"));
                     if (!a)
                         throw EvalError("derivation must have a ‘constituents’ attribute");
 
 
                     PathSet context;
-                    state.coerceToString(*a->pos, *a->value, context, true, false);
+                    state.coerceToString(a->pos, *a->value, context, true, false);
                     for (auto & i : context)
                         if (i.at(0) == '!') {
                             size_t index = i.find("!", 1);
                             job["constituents"].push_back(std::string(i, index + 1));
                         }
 
-                    state.forceList(*a->value, *a->pos);
+                    state.forceList(*a->value, a->pos);
                     for (unsigned int n = 0; n < a->value->listSize(); ++n) {
                         auto v = a->value->listElems()[n];
                         state.forceValue(*v, noPos);
@@ -243,8 +243,8 @@ static void worker(
             else if (v->type() == nAttrs) {
                 auto attrs = nlohmann::json::array();
                 StringSet ss;
-                for (auto & i : v->attrs->lexicographicOrder()) {
-                    std::string name(i->name);
+                for (auto & i : v->attrs->lexicographicOrder(state.symbols)) {
+                    std::string name(state.symbols[i->name]);
                     if (name.find('.') != std::string::npos || name.find(' ') != std::string::npos) {
                         printError("skipping job with illegal name '%s'", name);
                         continue;
