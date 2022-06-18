@@ -285,6 +285,22 @@ sub push_github : Chained('api') PathPart('push-github') Args(0) {
     $c->response->body("");
 }
 
+sub push_gitea : Chained('api') PathPart('push-gitea') Args(0) {
+    my ($self, $c) = @_;
+
+    $c->{stash}->{json}->{jobsetsTriggered} = [];
+
+    my $in = $c->request->{data};
+    my $url = $in->{repository}->{clone_url} or die;
+    print STDERR "got push from Gitea repository $url\n";
+
+    triggerJobset($self, $c, $_, 0) foreach $c->model('DB::Jobsets')->search(
+        { 'project.enabled' => 1, 'me.enabled' => 1 },
+        { join => 'project'
+        , where => \ [ 'me.flake like ? or exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)', [ 'flake', "%$url%"], [ 'value', "%$url%" ] ]
+        });
+    $c->response->body("");
+}
 
 
 1;
