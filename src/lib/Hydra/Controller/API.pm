@@ -281,58 +281,58 @@ sub webhook_github : Chained('api') PathPart('webhook-github') Args(0) {
     # every GitHub webhook payload has the `repository` key and a `X-GitHub-Event` header
     my $event = $c->req->header('X-GitHub-Event')        or die;
     my $owner = (   $in->{repository}->{owner}->{name}
-		 // $in->{repository}->{owner}->{login}) or die;
+                 // $in->{repository}->{owner}->{login}) or die;
     my $repo  = $in->{repository}->{name}                or die;
 
     print STDERR "got event '$event' from GitHub repository $owner/$repo\n";
 
     { # Verify X-Hub-Signature-256 if secret was defined in config
-	my $cfg = $c->config->{github_webhook};
-	my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();	
-	my $rule = first { $owner =~ /^$_->{owner}$/ && $repo =~ /^$_->{repo}$/ } @config;
+        my $cfg = $c->config->{github_webhook};
+        my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
+        my $rule = first { $owner =~ /^$_->{owner}$/ && $repo =~ /^$_->{repo}$/ } @config;
 
-	if (defined $rule) {
-	    my $sig = $c->req->header('X-Hub-Signature-256');
-	    die "X-Hub-Signature-256 is missing, but a secret was defined for GitHub repository $owner/$repo"
-		unless defined $sig;
-	    my $body = read_text($c->req->body) or die;
-	    my $secret = $rule->{secret}        or die;
-	    my $digest = hmac_hex($body, $secret, \&sha256);
-	    die "Request body digest (${digest}) did not match X-Hub-Signature-256 (${sig})"
-		unless String::Compare::ConstantTime::equals($sig, "sha256=$digest");
-	} else {
-	    print STDERR "no secret given for webhook comming from GitHub repository $owner/$repo";
-	}
+        if (defined $rule) {
+            my $sig = $c->req->header('X-Hub-Signature-256');
+            die "X-Hub-Signature-256 is missing, but a secret was defined for GitHub repository $owner/$repo"
+                unless defined $sig;
+            my $body = read_text($c->req->body) or die;
+            my $secret = $rule->{secret}        or die;
+            my $digest = hmac_hex($body, $secret, \&sha256);
+            die "Request body digest (${digest}) did not match X-Hub-Signature-256 (${sig})"
+                unless String::Compare::ConstantTime::equals($sig, "sha256=$digest");
+        } else {
+            print STDERR "no secret given for webhook comming from GitHub repository $owner/$repo";
+        }
     }
-    
+
     # `jobsetsOfInputs type value` finds the jobsets that have an input of type `type` and of value LIKE `value`
     my $jobsetsOfInputs = sub {
-	my ($type, $value) = @_;
-	$c->model('DB::Jobsets')->search(
-	    { 'jobsetinputs.type' => $type, 'project.enabled' => 1, 'me.enabled' => 1 },
-	    { join => ['project', {'jobsetinputs' => 'jobsetinputalts'}],
-	      where => \ [ ' LOWER( jobsetinputalts.value ) LIKE LOWER ( ? ) ', [ 'value', $value] ]
-	    })
+        my ($type, $value) = @_;
+        $c->model('DB::Jobsets')->search(
+            { 'jobsetinputs.type' => $type, 'project.enabled' => 1, 'me.enabled' => 1 },
+            { join => ['project', {'jobsetinputs' => 'jobsetinputalts'}],
+              where => \ [ ' LOWER( jobsetinputalts.value ) LIKE LOWER ( ? ) ', [ 'value', $value] ]
+            })
     };
 
     # Different SQL queries according the kind of `$event` we are dealing with
     my $actions = {
         create       => sub {$jobsetsOfInputs->('github_refs', "$owner $repo %")},
         delete       => sub {$jobsetsOfInputs->('github_refs', "$owner $repo %")},
-	pull_request => sub {$jobsetsOfInputs->('githubpulls', "$owner $repo")},
-	push => sub {
-	    $c->model('DB::Jobsets')->search(
-		{ 'project.enabled' => 1, 'me.enabled' => 1 },
-		{ join => 'project', where => \ [
-		      'me.flake like ? or exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)',
-		      [ 'flake', "%github%$owner/$repo%"],
-		      [ 'value', "%github.com%$owner/$repo%" ]
-		   ] })
-	}
+        pull_request => sub {$jobsetsOfInputs->('githubpulls', "$owner $repo")},
+        push => sub {
+            $c->model('DB::Jobsets')->search(
+                { 'project.enabled' => 1, 'me.enabled' => 1 },
+                { join => 'project', where => \ [
+                      'me.flake like ? or exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)',
+                      [ 'flake', "%github%$owner/$repo%"],
+                      [ 'value', "%github.com%$owner/$repo%" ]
+                   ] })
+        }
     };
 
     triggerJobset($self, $c, $_, 0) foreach ($actions->{$event} // sub {
-	die "Cannot handle GitHub event [$event]";
+        die "Cannot handle GitHub event [$event]";
     })->();
 
     $c->response->body("");
