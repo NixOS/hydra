@@ -174,7 +174,7 @@ static void worker(
 
             if (auto drv = getDerivation(state, *v, false)) {
 
-                DrvInfo::Outputs outputs = drv->queryOutputs();
+                DrvInfo::Outputs outputs = drv->queryOutputs(!settings.isExperimentalFeatureEnabled(Xp::CaDerivations));
 
                 if (drv->querySystem() == "unknown")
                     throw EvalError("derivation must have a 'system' attribute");
