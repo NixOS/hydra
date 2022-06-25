@@ -363,7 +363,7 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
       // Update the corresponding `BuildStepOutputs` row to add the output path
       auto res = txn.exec_params1("select drvPath from BuildSteps where build = $1 and stepnr = $2", buildId, stepNr);
       assert(res.size());
-      StorePath drvPath = localStore->parseStorePath(res[0].as<string>());
+      StorePath drvPath = localStore->parseStorePath(res[0].as<std::string>());
       // If we've finished building, all the paths should be known
       for (auto& [name, output] : localStore->queryDerivationOutputMap(drvPath))
         txn.exec_params0
