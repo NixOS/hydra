@@ -39,6 +39,8 @@ use Hydra::Helper::Exec;
 sub new {
     my ($class, %opts) = @_;
 
+    my $deststoredir;
+
     my $dir = File::Temp->newdir();
 
     $ENV{'HYDRA_DATA'} = "$dir/hydra-data";
@@ -53,6 +55,7 @@ sub new {
     my $hydra_config = $opts{'hydra_config'} || "";
     $hydra_config = "queue_runner_metrics_address = 127.0.0.1:0\n" . $hydra_config;
     if ($opts{'use_external_destination_store'} // 1) {
+        $deststoredir = "$dir/nix/dest-store";
         $hydra_config = "store_uri = file:$dir/nix/dest-store\n" . $hydra_config;
     }
 
@@ -75,8 +78,9 @@ sub new {
         tmpdir => $dir,
         nix_state_dir => "$dir/nix/var/nix",
         testdir => abs_path(dirname(__FILE__) . "/.."),
-        jobsdir => abs_path(dirname(__FILE__) . "/../jobs")
-    }, $class;
+        jobsdir => abs_path(dirname(__FILE__) . "/../jobs"),
+        deststoredir => $deststoredir,
+    };
 
     if ($opts{'before_init'}) {
         $opts{'before_init'}->($self);

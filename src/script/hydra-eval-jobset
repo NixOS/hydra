@@ -444,7 +444,7 @@ sub checkBuild {
                 # the eval), but they give a factor 1000 speedup on
                 # the Nixpkgs jobset with PostgreSQL.
                 { jobset_id => $jobset->get_column('id'), job => $jobName,
-                  name => $firstOutputName, path => $firstOutputPath },
+                  name => $firstOutputName, drvPath => $drvPath },
                 { rows => 1, columns => ['id', 'finished'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
                 #print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";

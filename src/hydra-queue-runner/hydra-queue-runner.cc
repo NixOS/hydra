@@ -318,10 +318,10 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
 
     if (r.affected_rows() == 0) goto restart;
 
-    for (auto & [name, output] : step->drv->outputs)
-        txn.exec_params0
-            ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-            buildId, stepNr, name, localStore->printStorePath(*output.path(*localStore, step->drv->name, name)));
+    for (auto& [name, output] : localStore->queryPartialDerivationOutputMap(step->drvPath))
+      txn.exec_params0
+          ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
+            buildId, stepNr, name, output ? localStore->printStorePath(*output) : "");
 
     if (status == bsBusy)
         txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));
@@ -358,6 +358,18 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
     assert(result.logFile.find('\t') == std::string::npos);
     txn.exec(fmt("notify step_finished, '%d\t%d\t%s'",
             buildId, stepNr, result.logFile));
+
+    if (result.stepStatus == bsSuccess) {
+      // Update the corresponding `BuildStepOutputs` row to add the output path
+      auto res = txn.exec_params1("select drvPath from BuildSteps where build = $1 and stepnr = $2", buildId, stepNr);
+      assert(res.size());
+      StorePath drvPath = localStore->parseStorePath(res[0].as<string>());
+      // If we've finished building, all the paths should be known
+      for (auto& [name, output] : localStore->queryDerivationOutputMap(drvPath))
+        txn.exec_params0
+            ("update BuildStepOutputs set path = $4 where build = $1 and stepnr = $2 and name = $3",
+              buildId, stepNr, name, localStore->printStorePath(output));
+    }
 }
 
 
@@ -462,6 +474,15 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
          res.closureSize,
          res.releaseName != "" ? std::make_optional(res.releaseName) : std::nullopt,
          isCachedBuild ? 1 : 0);
+
+    for (auto & [outputName, outputPath] : res.outputs) {
+      txn.exec_params0
+        ("update BuildOutputs set path = $3 where build = $1 and name = $2",
+         build->id,
+         outputName,
+         localStore->printStorePath(outputPath)
+        );
+    }
 
     txn.exec_params0("delete from BuildProducts where build = $1", build->id);
 

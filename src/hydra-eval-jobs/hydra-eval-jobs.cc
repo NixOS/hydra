@@ -231,12 +231,13 @@ static void worker(
                 }
 
                 nlohmann::json out;
-                for (auto & j : outputs)
-                    // FIXME: handle CA/impure builds.
-                    if (j.second)
-                        out[j.first] = state.store->printStorePath(*j.second);
+                if (settings.isExperimentalFeatureEnabled(Xp::CaDerivations))
+                    for (auto & j : outputs)
+                        out[j.first] = "";
+                else
+                    for (auto & j : outputs)
+                                out[j.first] = state.store->printStorePath(*j.second);
                 job["outputs"] = std::move(out);
-
                 reply["job"] = std::move(job);
             }
 

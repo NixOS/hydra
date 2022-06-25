@@ -399,3 +399,10 @@ analogous:
   | `String value` | `gitea_status_repo` | *Name of the `Git checkout` input* |
   | `String value` | `gitea_http_url`    | *Public URL of `gitea`*, optional  |
 
+Content-addressed derivations
+-----------------------------
+
+Hydra can to a certain extent use the [`ca-derivations` experimental Nix feature](https://github.com/NixOS/rfcs/pull/62).
+To use it, make sure that the Nix version you use is at least as recent as the one used in hydra's flake.
+
+Be warned that this support is still highly experimental, and anything beyond the basic functionality might be broken at that point.

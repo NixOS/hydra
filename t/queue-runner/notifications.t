@@ -8,7 +8,7 @@ my $binarycachedir = File::Temp->newdir();
 
 my $ctx = test_context(
     nix_config => qq|
-    experimental-features = nix-command
+    experimental-features = nix-command ca-derivations
     substituters = file://${binarycachedir}?trusted=1
     |,
     hydra_config => q|
