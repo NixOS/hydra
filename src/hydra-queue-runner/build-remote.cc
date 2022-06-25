@@ -185,7 +185,7 @@ BasicDerivation inlineInputDerivations(Store & store, Derivation & drv, const St
 {
     BasicDerivation ret;
     auto outputHashes = staticOutputHashes(store, drv);
-    if (!derivationHasKnownOutputPaths(drv.type())) {
+    if (!drv.type().hasKnownOutputPaths()) {
         auto maybeBasicDrv = drv.tryResolve(store);
         if (!maybeBasicDrv)
             throw Error(
@@ -222,7 +222,7 @@ DrvOutputs getBuiltOutputs(Store & store, const int remoteVersion, FdSource & fr
     } else {
         // If the remote is too old to handle CA derivations, we can’t get this
         // far anyways
-        assert(derivationHasKnownOutputPaths(drv.type()));
+        assert(drv.type().hasKnownOutputPaths());
         DerivationOutputsAndOptPaths drvOutputs
             = drv.outputsAndOptPaths(store);
         auto outputHashes = staticOutputHashes(store, drv);
@@ -354,10 +354,10 @@ void State::buildRemote(ref<Store> destStore,
             /* Copy the input closure. */
             if (machine->isLocalhost()) {
                 StorePathSet closure;
-                destStore->computeFSClosure(inputs, closure);
+                destStore->computeFSClosure(step->drv->inputSrcs, closure);
                 copyPaths(*destStore, *localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
             } else {
-                copyClosureTo(machine->state->sendLock, *destStore, from, to, inputs, true);
+                copyClosureTo(machine->state->sendLock, *destStore, from, to, step->drv->inputSrcs, true);
             }
 
             auto now2 = std::chrono::steady_clock::now();
