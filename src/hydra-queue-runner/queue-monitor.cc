@@ -510,7 +510,6 @@ Step::ptr State::createStep(ref<Store> destStore,
                 maybePath = localStore->queryRealisation(i)->outPath;
                 avail++;
             } else if (useSubstitutes && maybePath) {
-                // TODO: Make work with CA derivations
                 SubstitutablePathInfos infos;
                 localStore->querySubstitutablePathInfos({{*maybePath, {}}}, infos);
                 if (infos.size() == 1)
