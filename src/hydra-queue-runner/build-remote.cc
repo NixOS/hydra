@@ -354,7 +354,7 @@ void State::buildRemote(ref<Store> destStore,
             /* Copy the input closure. */
             if (machine->isLocalhost()) {
                 StorePathSet closure;
-                destStore->computeFSClosure(step->drv->inputSrcs, closure);
+                destStore->computeFSClosure(basicDrv.inputSrcs, closure);
                 copyPaths(*destStore, *localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
             } else {
                 copyClosureTo(machine->state->sendLock, *destStore, from, to, step->drv->inputSrcs, true);
