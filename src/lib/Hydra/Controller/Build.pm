@@ -234,7 +234,7 @@ sub serveFile {
     elsif ($ls->{type} eq "regular") {
 
         $c->stash->{'plain'} = { data => grab(cmd => ["nix", "--experimental-features", "nix-command",
-                                                      "cat-store", "--store", getStoreUri(), "$path"]) };
+                                                      "store", "cat", "--store", getStoreUri(), "$path"]) };
 
         # Detect MIME type. Borrowed from Catalyst::Plugin::Static::Simple.
         my $type = "text/plain";
@@ -366,7 +366,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 
     # FIXME: don't use shell invocations below.
 
-    # FIXME: use nix cat-store
+    # FIXME: use nix store cat
 
     my $res;
 
