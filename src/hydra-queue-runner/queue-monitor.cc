@@ -545,7 +545,7 @@ Step::ptr State::createStep(ref<Store> destStore,
                         {
                             auto mc = startDbUpdate();
                             pqxx::work txn(conn);
-                            createSubstitutionStep(txn, startTime, stopTime, build, drvPath, "out", *path);
+                            createSubstitutionStep(txn, startTime, stopTime, build, drvPath, *(step->drv), "out", *path);
                             txn.commit();
                         }
 

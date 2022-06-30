@@ -320,8 +320,8 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
 
     for (auto& [name, output] : localStore->queryPartialDerivationOutputMap(step->drvPath))
       txn.exec_params0
-          ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-            buildId, stepNr, name, output ? localStore->printStorePath(*output) : "");
+          ("insert into BuildStepOutputs (build, stepnr, name, path, contentAddressed) values ($1, $2, $3, $4, $5)",
+            buildId, stepNr, name, output ? localStore->printStorePath(*output) : "", step->drv->type().isCA());
 
     if (status == bsBusy)
         txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));
@@ -374,7 +374,7 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
 
 
 int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
-    Build::ptr build, const StorePath & drvPath, const std::string & outputName, const StorePath & storePath)
+    Build::ptr build, const StorePath & drvPath, const nix::Derivation drv, const std::string & outputName, const StorePath & storePath)
 {
  restart:
     auto stepNr = allocBuildStep(txn, build->id);
@@ -393,9 +393,10 @@ int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t sto
     if (r.affected_rows() == 0) goto restart;
 
     txn.exec_params0
-        ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
+        ("insert into BuildStepOutputs (build, stepnr, name, path, contentAddressed) values ($1, $2, $3, $4, $5)",
          build->id, stepNr, outputName,
-         localStore->printStorePath(storePath));
+         localStore->printStorePath(storePath),
+         drv.type().isCA());
 
     return stepNr;
 }
