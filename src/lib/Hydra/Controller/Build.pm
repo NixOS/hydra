@@ -114,6 +114,18 @@ sub build_GET {
 
     $c->stash->{steps} = [$build->buildsteps->search({}, {order_by => "stepnr desc"})];
 
+    $c->stash->{contentAddressed} = 0;
+    # Hydra marks single outputs as CA but currently in Nix only derivations
+    # can be CA (and *all* their outputs are CA).
+    # So the next check (which assumes that if a step's output is CA then
+    # all the other outptus and the whole derivation are CA) is safe.
+    foreach my $step (@{$c->stash->{steps}}) {
+        if ($step->buildstepoutputs->search({contentaddressed => 1})->count > 0) {
+            $c->stash->{contentAddressed} = 1;
+            last;
+        }
+    }
+
     $c->stash->{binaryCachePublicUri} = $c->config->{binary_cache_public_uri};
 }
 

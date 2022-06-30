@@ -20,8 +20,13 @@ END;
 %]
 
 [% BLOCK renderOutputs %]
-  [% start=1; FOREACH output IN outputs %]
-    [% IF !start %],<br/>[% END; start=0; output.path %]
+  [% start=1; FOREACH output IN step.buildstepoutputs %]
+    [% IF !start %],<br/>[% END; start=0; %]
+    [% IF step.status != 0 && output.contentaddressed %]
+      [% output.name %]
+    [% ELSE %]
+      [% output.path %]
+    [% END %]
   [% END %]
 [% END %]
 
@@ -40,9 +45,9 @@ END;
             <td>[% step.stepnr %]</td>
             <td>
               [% IF step.type == 0 %]
-                Build of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
+                Build of <tt>[% INCLUDE renderOutputs step=step %]</tt>
               [% ELSE %]
-                Substitution of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
+                Substitution of <tt>[% INCLUDE renderOutputs step=step %]</tt>
               [% END %]
             </td>
             <td>
@@ -381,10 +386,12 @@ END;
         <th>Derivation store path:</th>
         <td><tt>[% build.drvpath %]</tt></td>
       </tr>
-      <tr>
-        <th>Output store paths:</th>
-        <td><tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt></td>
-      </tr>
+        [% IF !contentAddressed || step.status == 0 %]
+        <tr>
+          <th>Output store paths:</th>
+          <td><tt>[% INCLUDE renderOutputs step=step %]</tt></td>
+        </tr>
+        [% END %]
       [% chartsURL = c.uri_for('/job' build.project.name build.jobset.name build.job) _ "#tabs-charts" %]
       [% IF build.finished && build.closuresize %]
         <tr>
