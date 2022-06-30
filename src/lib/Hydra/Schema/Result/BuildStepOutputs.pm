@@ -55,6 +55,11 @@ __PACKAGE__->table("buildstepoutputs");
 =head2 path
 
   data_type: 'text'
+  is_nullable: 1
+
+=head2 contentaddressed
+
+  data_type: 'boolean'
   is_nullable: 0
 
 =cut
@@ -67,7 +72,9 @@ __PACKAGE__->add_columns(
   "name",
   { data_type => "text", is_nullable => 0 },
   "path",
-  { data_type => "text", is_nullable => 0 },
+  { data_type => "text", is_nullable => 1 },
+  "contentaddressed",
+  { data_type => "boolean", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -119,8 +126,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:gxp8rOjpRVen4YbIjomHTw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-06-30 12:02:32
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Bad70CRTt7zb2GGuRoQ++Q
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
