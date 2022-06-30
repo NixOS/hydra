@@ -29,6 +29,53 @@ sub toGiteaState {
     }
 }
 
+sub url_from_jobsetevalinputs {
+    my ($eval) = @_;
+    my $giteastatusInput = $eval->jobsetevalinputs->find({ name => "gitea_status_repo" });
+    return undef unless defined $giteastatusInput && defined $giteastatusInput->value;
+    my $i = $eval->jobsetevalinputs->find({ name => $giteastatusInput->value, altnr => 0 });
+    return undef unless defined $i;
+    my $gitea_url = $eval->jobsetevalinputs->find({ name => "gitea_http_url" });
+
+    my $repoOwner = $eval->jobsetevalinputs->find({ name => "gitea_repo_owner" })->value;
+    my $repoName = $eval->jobsetevalinputs->find({ name => "gitea_repo_name" })->value;
+
+    my $rev = $i->revision;
+    my $domain = URI->new($i->uri)->host;
+    my $host;
+    unless (defined $gitea_url) {
+        $host = "https://$domain";
+    } else {
+        $host = $gitea_url->value;
+    }
+
+    return ("$host/api/v1/repos/$repoOwner/$repoName/statuses/$rev", $repoOwner);
+}
+sub is_gitea {
+    my ($ua, $hostname) = @_;
+    my $req = HTTP::Request->new('GET', "https://$hostname/api/swagger");
+    my $res = $ua->request($req);
+    return 0 unless $res->is_success;
+    return index($res->as_string(), "Gitea") != -1;
+}
+
+sub try_gitea_from_repo_url {
+    my ($ua, $url) = @_;
+    if ($url =~ m!git\+https://([^/]+)/([^/]+)/([^/]+)\?.*rev=([[:xdigit:]]{40})$!) {
+        return ("https://$1/api/v1/repos/$2/$3/statuses/$4", $2) if is_gitea($ua, $1);
+    }
+    return undef;
+}
+
+sub try_gitea {
+    my ($ua, $eval) = @_;
+    if (defined $eval->flake) {
+        return try_gitea_from_repo_url($ua, $eval->flake);
+    }
+    return undef;
+}
+
+
 sub common {
     my ($self, $topbuild, $dependents, $status) = @_;
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
@@ -52,26 +99,12 @@ sub common {
             });
 
         while (my $eval = $evals->next) {
-            my $giteastatusInput = $eval->jobsetevalinputs->find({ name => "gitea_status_repo" });
-            next unless defined $giteastatusInput && defined $giteastatusInput->value;
-            my $i = $eval->jobsetevalinputs->find({ name => $giteastatusInput->value, altnr => 0 });
-            next unless defined $i;
-            my $gitea_url = $eval->jobsetevalinputs->find({ name => "gitea_http_url" });
-
-            my $repoOwner = $eval->jobsetevalinputs->find({ name => "gitea_repo_owner" })->value;
-            my $repoName = $eval->jobsetevalinputs->find({ name => "gitea_repo_name" })->value;
-            my $accessToken = $self->{config}->{gitea_authorization}->{$repoOwner};
-
-            my $rev = $i->revision;
-            my $domain = URI->new($i->uri)->host;
-            my $host;
-            unless (defined $gitea_url) {
-                $host = "https://$domain";
-            } else {
-                $host = $gitea_url->value;
+            my ($url, $repoOwner) = url_from_jobsetevalinputs($eval);
+            if (! defined $url) {
+                ($url, $repoOwner) = try_gitea($ua, $eval);
             }
-
-            my $url = "$host/api/v1/repos/$repoOwner/$repoName/statuses/$rev";
+            next unless defined $url;
+            my $accessToken = $self->{config}->{gitea_authorization}->{$repoOwner};
 
             print STDERR "GiteaStatus POSTing $state to $url\n";
             my $req = HTTP::Request->new('POST', $url);
