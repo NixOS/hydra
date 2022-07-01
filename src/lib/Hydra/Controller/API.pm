@@ -292,6 +292,7 @@ sub push_gitea : Chained('api') PathPart('push-gitea') Args(0) {
 
     my $in = $c->request->{data};
     my $url = $in->{repository}->{clone_url} or die;
+    $url =~ s/.git$//;
     print STDERR "got push from Gitea repository $url\n";
 
     triggerJobset($self, $c, $_, 0) foreach $c->model('DB::Jobsets')->search(
