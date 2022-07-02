@@ -386,6 +386,16 @@ END;
         <th>Derivation store path:</th>
         <td><tt>[% build.drvpath %]</tt></td>
       </tr>
+      <tr>
+        <th>Content addressed:</th>
+        <td><tt>
+        [% IF contentAddressed %]
+          Yes
+        [% ELSE %]
+          No
+        [% END %]
+        </tt></td>
+      </tr>
         [% IF !contentAddressed || step.status == 0 %]
         <tr>
           <th>Output store paths:</th>
