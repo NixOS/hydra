@@ -364,6 +364,7 @@ void State::buildRemote(ref<Store> destStore,
                 copyPaths(*destStore, *localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
             } else {
                 copyClosureTo(machine->state->sendLock, *destStore, from, to, step->drv->inputSrcs, true);
+                copyClosureTo(machine->state->sendLock, *destStore, from, to, basicDrv.inputSrcs, true);
             }
 
             auto now2 = std::chrono::steady_clock::now();
@@ -534,26 +535,27 @@ void State::buildRemote(ref<Store> destStore,
             for (auto & path : pathsSorted) {
                 auto & info = infos.find(path)->second;
 
-                /* Receive the NAR from the remote and add it to the
-                   destination store. Meanwhile, extract all the info from the
-                   NAR that getBuildOutput() needs. */
-                auto source2 = sinkToSource([&](Sink & sink)
-                {
-                    /* Note: we should only send the command to dump the store
-                       path to the remote if the NAR is actually going to get read
-                       by the destination store, which won't happen if this path
-                       is already valid on the destination store. Since this
-                       lambda function only gets executed if someone tries to read
-                       from source2, we will send the command from here rather
-                       than outside the lambda. */
-                    to << ServeProto::Command::DumpStorePath << localStore->printStorePath(path);
-                    to.flush();
+                for (auto & store : {&*destStore, &*localStore}) {
+                  /* Receive the NAR from the remote and add it to the
+                     destination store. Meanwhile, extract all the info from the
+                     NAR that getBuildOutput() needs. */
+                  auto source2 = sinkToSource([&](Sink & sink)
+                  {
+                      /* Note: we should only send the command to dump the store
+                         path to the remote if the NAR is actually going to get read
+                         by the destination store, which won't happen if this path
+                         is already valid on the destination store. Since this
+                         lambda function only gets executed if someone tries to read
+                         from source2, we will send the command from here rather
+                         than outside the lambda. */
+                      to << ServeProto::Command::DumpStorePath << localStore->printStorePath(path);
+                      to.flush();
 
-                    TeeSource tee(from, sink);
-                    extractNarData(tee, localStore->printStorePath(path), narMembers);
-                });
-
-                destStore->addToStore(info, *source2, NoRepair, NoCheckSigs);
+                      TeeSource tee(from, sink);
+                      extractNarData(tee, localStore->printStorePath(path), narMembers);
+                  });
+                  store->addToStore(info, *source2, NoRepair, NoCheckSigs);
+                }
             }
 
             auto now2 = std::chrono::steady_clock::now();
