@@ -166,6 +166,16 @@ body {
     line-height: 1.5;
 }
 
+a.squiggle:hover {
+    background-image: url("data:image/svg+xml;charset=utf8,%3Csvg id='squiggle-link' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' xmlns:ev='http://www.w3.org/2001/xml-events' viewBox='0 0 10 18'%3E%3Cstyle type='text/css'%3E.squiggle{animation:shift .5s linear infinite;}@keyframes shift {from {transform:translateX(-10px);}to {transform:translateX(0);}}%3C/style%3E%3Cpath fill='none' stroke='%230056b3' stroke-width='0.65' class='squiggle' d='M0,17.5 c 2.5,0,2.5,-1.5,5,-1.5 s 2.5,1.5,5,1.5 c 2.5,0,2.5,-1.5,5,-1.5 s 2.5,1.5,5,1.5' /%3E%3C/svg%3E");
+    background-position: 0 100%;
+    background-size: auto 24px;
+    background-repeat: repeat;
+    text-decoration: none;
+    border-bottom: none;
+    padding-bottom: 1px;
+}
+
 @media (prefers-color-scheme: dark) {
     /* Prevent some flickering */
     html {
