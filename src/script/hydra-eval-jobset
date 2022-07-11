@@ -619,7 +619,7 @@ sub checkJobsetWrapped {
             } else {
                 # Update the jobset with the spec's inputs, and the continue
                 # evaluating the .jobsets jobset.
-                updateDeclarativeJobset($db, $project, ".jobsets", $declSpec);
+                updateDeclarativeJobset($config, $db, $project, ".jobsets", $declSpec);
                 $jobset->discard_changes;
                 $inputInfo->{"declInput"} = [ $declInput ];
                 $inputInfo->{"projectName"} = [ fetchInput($plugins, $db, $project, $jobset, "projectName", "string", $project->name, 0) ];

@@ -537,7 +537,7 @@ sub getStoreUri {
 sub readNixFile {
     my ($path) = @_;
     return grab(cmd => ["nix", "--experimental-features", "nix-command",
-                        "cat-store", "--store", getStoreUri(), "$path"]);
+                        "store", "cat", "--store", getStoreUri(), "$path"]);
 }
 
 

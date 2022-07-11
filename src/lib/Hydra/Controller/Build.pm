@@ -38,6 +38,17 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     $c->stash->{jobset} = $c->stash->{build}->jobset;
     $c->stash->{job} = $c->stash->{build}->job;
     $c->stash->{runcommandlogs} = [$c->stash->{build}->runcommandlogs->search({}, {order_by => ["id DESC"]})];
+
+    $c->stash->{runcommandlogProblem} = undef;
+    if ($c->stash->{job} =~ qr/^runCommandHook\..*/) {
+        if (!$c->config->{dynamicruncommand}->{enable}) {
+            $c->stash->{runcommandlogProblem} = "disabled-server";
+        } elsif (!$c->stash->{project}->enable_dynamic_run_command) {
+            $c->stash->{runcommandlogProblem} = "disabled-project";
+        } elsif (!$c->stash->{jobset}->enable_dynamic_run_command) {
+            $c->stash->{runcommandlogProblem} = "disabled-jobset";
+        }
+    }
 }
 
 
@@ -223,7 +234,7 @@ sub serveFile {
     elsif ($ls->{type} eq "regular") {
 
         $c->stash->{'plain'} = { data => grab(cmd => ["nix", "--experimental-features", "nix-command",
-                                                      "cat-store", "--store", getStoreUri(), "$path"]) };
+                                                      "store", "cat", "--store", getStoreUri(), "$path"]) };
 
         # Detect MIME type. Borrowed from Catalyst::Plugin::Static::Simple.
         my $type = "text/plain";
@@ -355,7 +366,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 
     # FIXME: don't use shell invocations below.
 
-    # FIXME: use nix cat-store
+    # FIXME: use nix store cat
 
     my $res;
 

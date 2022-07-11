@@ -102,6 +102,26 @@ in the hydra configuration file, as below:
 </hydra_notify>
 ```
 
+hydra-queue-runner's Prometheus service
+---------------------------------------
+
+hydra-queue-runner supports running a Prometheus webserver for metrics. The
+exporter's address defaults to exposing on `127.0.0.1:9198`, but is also
+configurable through the hydra configuration file and a command line argument,
+as below. A port of `:0` will make the exposer choose a random, available port.
+
+```conf
+queue_runner_metrics_address = 127.0.0.1:9198
+# or
+queue_runner_metrics_address = [::]:9198
+```
+
+```shell
+$ hydra-queue-runner --prometheus-address 127.0.0.1:9198
+# or
+$ hydra-queue-runner --prometheus-address [::]:9198
+```
+
 Using LDAP as authentication backend (optional)
 -----------------------------------------------
 

@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "build-result.hh"
 #include "serve-protocol.hh"
 #include "state.hh"
 #include "util.hh"
@@ -49,13 +50,35 @@ static Strings extraStoreArgs(std::string & machine)
 
 static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Child & child)
 {
-    string pgmName;
+    std::string pgmName;
     Pipe to, from;
     to.create();
     from.create();
 
-    child.pid = startProcess([&]() {
+    Strings argv;
+    if (machine->isLocalhost()) {
+        pgmName = "nix-store";
+        argv = {"nix-store", "--builders", "", "--serve", "--write"};
+    } else {
+        pgmName = "ssh";
+        auto sshName = machine->sshName;
+        Strings extraArgs = extraStoreArgs(sshName);
+        argv = {"ssh", sshName};
+        if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
+        if (machine->sshPublicHostKey != "") {
+            Path fileName = tmpDir + "/host-key";
+            auto p = machine->sshName.find("@");
+            std::string host = p != std::string::npos ? std::string(machine->sshName, p + 1) : machine->sshName;
+            writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
+            append(argv, {"-oUserKnownHostsFile=" + fileName});
+        }
+        append(argv,
+            { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
+            , "--", "nix-store", "--serve", "--write" });
+        append(argv, extraArgs);
+    }
 
+    child.pid = startProcess([&]() {
         restoreProcessContext();
 
         if (dup2(to.readSide.get(), STDIN_FILENO) == -1)
@@ -66,30 +89,6 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 
         if (dup2(stderrFD, STDERR_FILENO) == -1)
             throw SysError("cannot dup stderr");
-
-        Strings argv;
-        if (machine->isLocalhost()) {
-            pgmName = "nix-store";
-            argv = {"nix-store", "--builders", "", "--serve", "--write"};
-        }
-        else {
-            pgmName = "ssh";
-            auto sshName = machine->sshName;
-            Strings extraArgs = extraStoreArgs(sshName);
-            argv = {"ssh", sshName};
-            if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
-            if (machine->sshPublicHostKey != "") {
-                Path fileName = tmpDir + "/host-key";
-                auto p = machine->sshName.find("@");
-                string host = p != string::npos ? string(machine->sshName, p + 1) : machine->sshName;
-                writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
-                append(argv, {"-oUserKnownHostsFile=" + fileName});
-            }
-            append(argv,
-                { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
-                , "--", "nix-store", "--serve", "--write" });
-            append(argv, extraArgs);
-        }
 
         execvp(argv.front().c_str(), (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
 
@@ -104,12 +103,12 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 }
 
 
-static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
+static void copyClosureTo(std::timed_mutex & sendMutex, Store & destStore,
     FdSource & from, FdSink & to, const StorePathSet & paths,
     bool useSubstitutes = false)
 {
     StorePathSet closure;
-    destStore->computeFSClosure(paths, closure);
+    destStore.computeFSClosure(paths, closure);
 
     /* Send the "query valid paths" command with the "lock" option
        enabled. This prevents a race where the remote host
@@ -117,16 +116,16 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
        the remote host to substitute missing paths. */
     // FIXME: substitute output pollutes our build log
     to << cmdQueryValidPaths << 1 << useSubstitutes;
-    worker_proto::write(*destStore, to, closure);
+    worker_proto::write(destStore, to, closure);
     to.flush();
 
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = worker_proto::read(*destStore, from, Phantom<StorePathSet> {});
+    auto present = worker_proto::read(destStore, from, Phantom<StorePathSet> {});
 
     if (present.size() == closure.size()) return;
 
-    auto sorted = destStore->topoSortPaths(closure);
+    auto sorted = destStore.topoSortPaths(closure);
 
     StorePathSet missing;
     for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
@@ -138,7 +137,7 @@ static void copyClosureTo(std::timed_mutex & sendMutex, ref<Store> destStore,
         std::chrono::seconds(600));
 
     to << cmdImportPaths;
-    destStore->exportPaths(missing, to);
+    destStore.exportPaths(missing, to);
     to.flush();
 
     if (readInt(from) != 1)
@@ -185,8 +184,8 @@ void State::buildRemote(ref<Store> destStore,
 {
     assert(BuildResult::TimedOut == 8);
 
-    string base(step->drvPath.to_string());
-    result.logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
+    std::string base(step->drvPath.to_string());
+    result.logFile = logDir + "/" + std::string(base, 0, 2) + "/" + std::string(base, 2);
     AutoDelete autoDelete(result.logFile, false);
 
     createDirs(dirOf(result.logFile));
@@ -249,7 +248,7 @@ void State::buildRemote(ref<Store> destStore,
 
         } catch (EndOfFile & e) {
             child.pid.wait();
-            string s = chomp(readFile(result.logFile));
+            std::string s = chomp(readFile(result.logFile));
             throw Error("cannot connect to ‘%1%’: %2%", machine->sshName, s);
         }
 
@@ -287,9 +286,9 @@ void State::buildRemote(ref<Store> destStore,
            this will copy the inputs to the binary cache from the local
            store. */
         if (localStore != std::shared_ptr<Store>(destStore)) {
-            StorePathSet closure;
-            localStore->computeFSClosure(step->drv->inputSrcs, closure);
-            copyPaths(*localStore, *destStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
+            copyClosure(*localStore, *destStore,
+                step->drv->inputSrcs,
+                NoRepair, NoCheckSigs, NoSubstitute);
         }
 
         {
@@ -308,7 +307,7 @@ void State::buildRemote(ref<Store> destStore,
                 destStore->computeFSClosure(inputs, closure);
                 copyPaths(*destStore, *localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
             } else {
-                copyClosureTo(machine->state->sendLock, destStore, from, to, inputs, true);
+                copyClosureTo(machine->state->sendLock, *destStore, from, to, inputs, true);
             }
 
             auto now2 = std::chrono::steady_clock::now();
