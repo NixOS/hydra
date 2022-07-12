@@ -11,7 +11,7 @@
 
       pkgs = import nixpkgs {
         system = "x86_64-linux";
-        overlays = [ self.overlay nix.overlays.default ];
+        overlays = [ self.overlays.default nix.overlays.default ];
       };
 
       # NixOS configuration used for VM tests.
@@ -36,7 +36,7 @@
     rec {
 
       # A Nixpkgs overlay that provides a 'hydra' package.
-      overlay = final: prev: {
+      overlays.default = final: prev: {
 
         # Add LDAP dependencies that aren't currently found within nixpkgs.
         perlPackages = prev.perlPackages // {
@@ -547,11 +547,11 @@
       checks.x86_64-linux.validate-openapi = hydraJobs.tests.validate-openapi;
 
       packages.x86_64-linux.hydra = pkgs.hydra;
-      defaultPackage.x86_64-linux = pkgs.hydra;
+      packages.x86_64-linux.default = pkgs.hydra;
 
       nixosModules.hydra = {
         imports = [ ./hydra-module.nix ];
-        nixpkgs.overlays = [ self.overlay nix.overlays.default ];
+        nixpkgs.overlays = [ self.overlays.default nix.overlays.default ];
       };
 
       nixosModules.hydraTest = {
