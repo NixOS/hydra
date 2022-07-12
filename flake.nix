@@ -5,7 +5,7 @@
   # even 2.7.0's Nixpkgs pin).
   inputs.newNixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
   inputs.nixpkgs.follows = "nix/nixpkgs";
-  inputs.nix.url = "github:NixOS/nix/2.9.1";
+  inputs.nix.url = "github:NixOS/nix/2.10.0";
 
   outputs = { self, newNixpkgs, nixpkgs, nix }:
     let
@@ -14,7 +14,7 @@
 
       pkgs = import nixpkgs {
         system = "x86_64-linux";
-        overlays = [ self.overlay nix.overlay ];
+        overlays = [ self.overlay nix.overlays.default ];
       };
 
       # NixOS configuration used for VM tests.
@@ -332,7 +332,7 @@
               url = "mirror://cpan/authors/id/A/AA/AAR/Net-LDAP-Server-0.43.tar.gz";
               sha256 = "0qmh3cri3fpccmwz6bhwp78yskrb3qmalzvqn0a23hqbsfs4qv6x";
             };
-            propagatedBuildInputs = with final.perlPackages; [ NetLDAP ConvertASN1 ];
+            propagatedBuildInputs = with final.perlPackages; [ perlldap ConvertASN1 ];
             meta = {
               description = "LDAP server side protocol handling";
               license = with final.lib.licenses; [ artistic1 ];
@@ -359,7 +359,7 @@
               url = "mirror://cpan/authors/id/K/KA/KARMAN/Net-LDAP-Server-Test-0.22.tar.gz";
               sha256 = "13idip7jky92v4adw60jn2gcc3zf339gsdqlnc9nnvqzbxxp285i";
             };
-            propagatedBuildInputs = with final.perlPackages; [ NetLDAP NetLDAPServer TestMore DataDump NetLDAPSID ];
+            propagatedBuildInputs = with final.perlPackages; [ perlldap NetLDAPServer DataDump NetLDAPSID ];
             meta = {
               description = "test Net::LDAP code";
               license = with final.lib.licenses; [ artistic1 ];
@@ -373,8 +373,8 @@
               url = "mirror://cpan/authors/id/I/IL/ILMARI/Catalyst-Authentication-Store-LDAP-1.016.tar.gz";
               sha256 = "0cm399vxqqf05cjgs1j5v3sk4qc6nmws5nfhf52qvpbwc4m82mq8";
             };
-            propagatedBuildInputs = with final.perlPackages; [ NetLDAP CatalystPluginAuthentication ClassAccessorFast ];
-            buildInputs = with final.perlPackages; [ TestMore TestMockObject TestException NetLDAPServerTest ];
+            propagatedBuildInputs = with final.perlPackages; [ perlldap CatalystPluginAuthentication ClassAccessor ];
+            buildInputs = with final.perlPackages; [ TestMockObject TestException NetLDAPServerTest ];
             meta = {
               description = "Authentication from an LDAP Directory";
               license = with final.lib.licenses; [ artistic1 ];
@@ -486,7 +486,6 @@
                 CatalystPluginSessionStateCookie
                 CatalystPluginSessionStoreFastMmap
                 CatalystPluginStackTrace
-                CatalystPluginUnicodeEncoding
                 CatalystTraitForRequestProxyBase
                 CatalystViewDownload
                 CatalystViewJSON
@@ -533,7 +532,6 @@
                 TermSizeAny
                 TermReadKey
                 Test2Harness
-                TestMore
                 TestPostgreSQL
                 TextDiff
                 TextTable
@@ -558,9 +556,9 @@
               libtool
               unzip
               nukeReferences
-              pkgconfig
+              pkg-config
               libpqxx
-              gitAndTools.topGit
+              top-git
               mercurial
               darcs
               subversion
@@ -585,7 +583,7 @@
             cacert
             # FIXME: foreman is broken on all nix/nixpkgs pin, up to and
             # including 2.7.0
-            newNixpkgs.legacyPackages.${final.system}.foreman
+            newNixpkgs.legacyPackages.${final.stdenv.system}.foreman
             glibcLocales
             libressl.nc
             openldap
@@ -602,11 +600,11 @@
               pixz
               gzip
               bzip2
-              lzma
+              xz
               gnutar
               unzip
               git
-              gitAndTools.topGit
+              top-git
               mercurial
               darcs
               gnused
@@ -661,7 +659,7 @@
 
           dontStrip = true;
 
-          meta.description = "Build of Hydra on ${system}";
+          meta.description = "Build of Hydra on ${final.stdenv.system}";
           passthru = { inherit perlDeps; inherit (final) nix; };
         };
       };
@@ -966,7 +964,7 @@
 
       nixosModules.hydra = {
         imports = [ ./hydra-module.nix ];
-        nixpkgs.overlays = [ self.overlay nix.overlay ];
+        nixpkgs.overlays = [ self.overlay nix.overlays.default ];
       };
 
       nixosModules.hydraTest = {
