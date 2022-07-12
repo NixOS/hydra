@@ -16,22 +16,6 @@
         "type": "github"
       }
     },
-    "newNixpkgs": {
-      "locked": {
-        "lastModified": 1657425264,
-        "narHash": "sha256-3aHvoI2e8vJKw3hvnHECaBpSsL5mxVsVtaLCnTdNcH8=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "de5b3dd17034e6106e75746e81618e5bd408de8a",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixos-unstable-small",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     "nix": {
       "inputs": {
         "lowdown-src": "lowdown-src",
@@ -87,7 +71,6 @@
     },
     "root": {
       "inputs": {
-        "newNixpkgs": "newNixpkgs",
         "nix": "nix",
         "nixpkgs": [
           "nix",
