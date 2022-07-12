@@ -681,7 +681,7 @@
         tests.install.x86_64-linux =
           with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
           simpleTest {
-            machine = hydraServer;
+            nodes.machine = hydraServer;
             testScript =
               ''
                 machine.wait_for_job("hydra-init")
@@ -696,7 +696,7 @@
         tests.notifications.x86_64-linux =
           with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
           simpleTest {
-            machine = { pkgs, ... }: {
+            nodes.machine = { pkgs, ... }: {
               imports = [ hydraServer ];
               services.hydra-dev.extraConfig = ''
                 <influxdb>
@@ -753,7 +753,7 @@
         tests.gitea.x86_64-linux =
           with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
           makeTest {
-            machine = { pkgs, ... }: {
+            nodes.machine = { pkgs, ... }: {
               imports = [ hydraServer ];
               services.hydra-dev.extraConfig = ''
                 <gitea_authorization>
