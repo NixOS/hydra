@@ -4,6 +4,6 @@
 
 <div class="dep-tree">
   <ul class="tree">
-    [% INCLUDE renderNode node=buildTimeGraph %]
+    [% INCLUDE renderNode node=buildTimeGraph isRoot=1 %]
   </ul>
 </div>

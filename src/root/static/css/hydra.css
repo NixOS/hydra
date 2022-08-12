@@ -33,6 +33,11 @@ span:target > span.dep-tree-line {
     font-weight: bold;
 }
 
+span.dep-tree-buttons {
+    font-style: italic;
+    padding-left: 10px;
+}
+
 span.disabled-project, span.disabled-jobset, span.disabled-job {
     text-decoration: line-through;
 }
