@@ -569,7 +569,7 @@ sub bump : Chained('buildChain') PathPart('bump') {
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
 }
 
-
+# This function is reused in the unit test.
 sub buildStepToHash {
     my ($buildstep) = @_;
     return {
