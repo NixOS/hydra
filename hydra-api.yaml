@@ -1023,8 +1023,7 @@ components:
         buildId:
           description: Same as id, exists for backwards compatibility.
           type: integer
-        finished:
-          <<: *schema_finished
+        finished: *schema_finished
         steps: 
           description: List of steps that make up this build.
           type: array
@@ -1032,20 +1031,13 @@ components:
             type: object
             additionalProperties:
               $ref: '#/components/schemas/BuildStep'
-        job:
-          <<: *schema_job
-        system:
-          <<: *schema_system
-        buildstatus:
-          <<: *schema_status
-        jobset:
-          <<: *schema_jobset
-        project:
-          <<: *schema_project
-        timestamp:
-          <<: *schema_timestamp
-        nixname:
-          <<: *schema_nixname
+        job: *schema_job
+        system: *schema_system
+        buildstatus: *schema_status
+        jobset: *schema_jobset
+        project: *schema_project
+        timestamp: *schema_timestamp
+        nixname: *schema_nixname
         drvPath:
           description: Same as drvpath, exists for backwards compatibility.
           type: string
@@ -1059,24 +1051,18 @@ components:
         stepnr:
           description: The step number, this number can be used when retrieving logs for a particular step.
           type: integer
-        starttime:
-          <<: *schema_starttime
-        stoptime:
-          <<: *schema_stoptime
-        status:
-          <<: *schema_status
-        system:
-          <<: *schema_system
+        starttime: *schema_starttime
+        stoptime: *schema_stoptime
+        status: *schema_status
+        system: *schema_system
         propagatedfrom:
           description: Null if the result was not propagated.
           nullable: true
           type: object
           additionalProperties:
             $ref: '#/components/schemas/Build'
-        errormsg:
-          <<: *schema_errormsg
-        haserrormsg:
-          <<: *schema_haserrormsg
+        errormsg: *schema_errormsg
+        haserrormsg: *schema_haserrormsg
         machine:
           description: Machine on which this step was executed.
           type: string
@@ -1094,8 +1080,7 @@ components:
              <li>*  : unknown</li>
             </ul>
           type: integer
-        drvpath:
-          <<: *schema_drvpath
+        drvpath: *schema_drvpath
         build:
           description: Id of the build this step is a part of.
           type: integer
