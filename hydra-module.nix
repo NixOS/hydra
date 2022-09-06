@@ -228,8 +228,12 @@ in
         useDefaultShell = true;
       };
 
-    nix.trustedUsers = [ "hydra-queue-runner" ];
-
+    nix.settings = {
+      trusted-users = [ "hydra-queue-runner" ];
+      gc-keep-outputs = true;
+      gc-keep-derivations = true;
+    };
+    
     services.hydra-dev.extraConfig =
       ''
         using_frontend_proxy = 1
@@ -255,11 +259,6 @@ in
     environment.systemPackages = [ cfg.package ];
 
     environment.variables = hydraEnv;
-
-    nix.extraOptions = ''
-      gc-keep-outputs = true
-      gc-keep-derivations = true
-    '';
 
     systemd.services.hydra-init =
       { wantedBy = [ "multi-user.target" ];

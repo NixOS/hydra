@@ -1,5 +1,5 @@
 div.skip-topbar {
-    padding-top: 40px;
+    padding-top: 20px;
     margin-bottom: 1.5em;
 }
 
@@ -144,6 +144,26 @@ td.step-status span.warn {
 
 .tab-content > .tab-pane {
     padding-top: 1.5rem;
+}
+
+.container {
+    max-width: 80%;
+}
+
+.tab-content {
+    margin-right: 0 !important;
+}
+
+body {
+    line-height: 1;
+}
+
+.navbar-nav {
+    line-height: 1.5;
+}
+
+.dropdown-item {
+    line-height: 1.5;
 }
 
 @media (prefers-color-scheme: dark) {

@@ -91,6 +91,7 @@
                 DigestSHA1
                 EmailMIME
                 EmailSender
+                FileLibMagic
                 FileSlurper
                 FileWhich
                 final.nix.perl-bindings
