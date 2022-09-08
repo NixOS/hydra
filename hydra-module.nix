@@ -267,7 +267,7 @@ in
         environment = env // {
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-init";
         };
-        path = [ pkgs.utillinux ];
+        path = [ pkgs.util-linux ];
         preStart = ''
           ln -sf ${hydraConf} ${baseDir}/hydra.conf
 
