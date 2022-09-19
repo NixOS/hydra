@@ -530,7 +530,11 @@ BLOCK makeLazyTab %]
     <center><span class="spinner-border spinner-border-sm"/></center>
   </div>
   <script>
-    $(function() { makeLazyTab("[% tabName %]", "[% uri %]"); });
+    [% IF callback.defined %]
+    $(function() { makeLazyTab("[% tabName %]", "[% uri %]", [% callback %] ); });
+    [% ELSE %]
+    $(function() { makeLazyTab("[% tabName %]", "[% uri %]", null ); });
+    [% END %]
   </script>
 [% END;
 

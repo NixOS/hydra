@@ -25,6 +25,28 @@
 
 #include <nlohmann/json.hpp>
 
+void check_pid_status_nonblocking(pid_t check_pid) {
+    // Only check 'initialized' and known PID's
+    if (check_pid <= 0) { return; }
+
+    int wstatus = 0;
+    pid_t pid = waitpid(check_pid, &wstatus, WNOHANG);
+    // -1 = failure, WNOHANG: 0 = no change
+    if (pid <= 0) { return; }
+
+    std::cerr << "child process (" << pid << ") ";
+
+    if (WIFEXITED(wstatus)) {
+        std::cerr << "exited with status=" << WEXITSTATUS(wstatus) << std::endl;
+    } else if (WIFSIGNALED(wstatus)) {
+        std::cerr << "killed by signal=" << WTERMSIG(wstatus) << std::endl;
+    } else if (WIFSTOPPED(wstatus)) {
+        std::cerr << "stopped by signal=" << WSTOPSIG(wstatus) << std::endl;
+    } else if (WIFCONTINUED(wstatus)) {
+        std::cerr << "continued" << std::endl;
+    }
+}
+
 using namespace nix;
 
 static Path gcRootsDir;
@@ -219,21 +241,21 @@ static void worker(
 
                 /* If this is an aggregate, then get its constituents. */
                 auto a = v->attrs->get(state.symbols.create("_hydraAggregate"));
-                if (a && state.forceBool(*a->value, *a->pos)) {
+                if (a && state.forceBool(*a->value, a->pos)) {
                     auto a = v->attrs->get(state.symbols.create("constituents"));
                     if (!a)
                         throw EvalError("derivation must have a ‘constituents’ attribute");
 
 
                     PathSet context;
-                    state.coerceToString(*a->pos, *a->value, context, true, false);
+                    state.coerceToString(a->pos, *a->value, context, true, false);
                     for (auto & i : context)
                         if (i.at(0) == '!') {
                             size_t index = i.find("!", 1);
                             job["constituents"].push_back(std::string(i, index + 1));
                         }
 
-                    state.forceList(*a->value, *a->pos);
+                    state.forceList(*a->value, a->pos);
                     for (unsigned int n = 0; n < a->value->listSize(); ++n) {
                         auto v = a->value->listElems()[n];
                         state.forceValue(*v, noPos);
@@ -265,8 +287,8 @@ static void worker(
             else if (v->type() == nAttrs) {
                 auto attrs = nlohmann::json::array();
                 StringSet ss;
-                for (auto & i : v->attrs->lexicographicOrder()) {
-                    std::string name(i->name);
+                for (auto & i : v->attrs->lexicographicOrder(state.symbols)) {
+                    std::string name(state.symbols[i->name]);
                     if (name.find('.') != std::string::npos || name.find(' ') != std::string::npos) {
                         printError("skipping job with illegal name '%s'", name);
                         continue;
@@ -355,8 +377,8 @@ int main(int argc, char * * argv)
         /* Start a handler thread per worker process. */
         auto handler = [&]()
         {
+            pid_t pid = -1;
             try {
-                pid_t pid = -1;
                 AutoCloseFD from, to;
 
                 while (true) {
@@ -458,6 +480,7 @@ int main(int argc, char * * argv)
                     }
                 }
             } catch (...) {
+                check_pid_status_nonblocking(pid);
                 auto state(state_.lock());
                 state->exc = std::current_exception();
                 wakeup.notify_all();

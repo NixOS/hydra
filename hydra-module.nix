@@ -228,8 +228,12 @@ in
         useDefaultShell = true;
       };
 
-    nix.trustedUsers = [ "hydra-queue-runner" ];
-
+    nix.settings = {
+      trusted-users = [ "hydra-queue-runner" ];
+      gc-keep-outputs = true;
+      gc-keep-derivations = true;
+    };
+    
     services.hydra-dev.extraConfig =
       ''
         using_frontend_proxy = 1
@@ -256,11 +260,6 @@ in
 
     environment.variables = hydraEnv;
 
-    nix.extraOptions = ''
-      gc-keep-outputs = true
-      gc-keep-derivations = true
-    '';
-
     systemd.services.hydra-init =
       { wantedBy = [ "multi-user.target" ];
         requires = optional haveLocalDB "postgresql.service";
@@ -268,7 +267,7 @@ in
         environment = env // {
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-init";
         };
-        path = [ pkgs.utillinux ];
+        path = [ pkgs.util-linux ];
         preStart = ''
           ln -sf ${hydraConf} ${baseDir}/hydra.conf
 
