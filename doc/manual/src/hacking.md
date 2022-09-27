@@ -92,7 +92,7 @@ On NixOS:
 
 ```nix
 {
-  nix.trustedUsers = [ "YOURUSER" ];
+  nix.settings.trusted-users = [ "YOURUSER" ];
 }
 ```
 
