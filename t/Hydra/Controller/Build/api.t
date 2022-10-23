@@ -68,6 +68,7 @@ subtest "validating the JSON representation of a build" => sub {
         id => $aggregateBuild->id,
         job => "aggregate",
         jobsetevals => [ $aggregateBuild->jobsetevals->first->id ],
+        maintainers => [  ],
         nixname => "aggregate",
         priority => 100,
         releasename => undef,

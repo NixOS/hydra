@@ -211,6 +211,7 @@
             mkdir -p .hydra-data
             export HYDRA_DATA="$(pwd)/.hydra-data"
             export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
+            export HYDRA_DEBUG=1
 
             popd >/dev/null
           '';
@@ -279,6 +280,15 @@
                 machine.wait_for_open_port("3000")
                 machine.succeed("curl --fail http://localhost:3000/")
               '';
+            };
+
+        tests.maintainer-upgrade.x86_64-linux =
+          with import (nixpkgs + "/nixos/lib/testing-python.nix") { system = "x86_64-linux"; };
+          import ./t/maintainers-upgrade-test.nix {
+            inherit nixpkgs pkgs simpleTest;
+            inherit (pkgs) lib;
+            module = self.nixosModules.hydra;
+            package = pkgs.hydra;
           };
 
         tests.notifications.x86_64-linux =

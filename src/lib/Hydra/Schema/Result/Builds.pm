@@ -93,11 +93,6 @@ __PACKAGE__->table("builds");
   data_type: 'text'
   is_nullable: 1
 
-=head2 maintainers
-
-  data_type: 'text'
-  is_nullable: 1
-
 =head2 maxsilent
 
   data_type: 'integer'
@@ -209,8 +204,6 @@ __PACKAGE__->add_columns(
   "license",
   { data_type => "text", is_nullable => 1 },
   "homepage",
-  { data_type => "text", is_nullable => 1 },
-  "maintainers",
   { data_type => "text", is_nullable => 1 },
   "maxsilent",
   { data_type => "integer", default_value => 3600, is_nullable => 1 },
@@ -363,6 +356,21 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 buildsbymaintainers
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Result::Buildsbymaintainer>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildsbymaintainers",
+  "Hydra::Schema::Result::Buildsbymaintainer",
+  { "foreign.build_id" => "self.id" },
+  undef,
+);
+
 =head2 buildstepoutputs
 
 Type: has_many
@@ -496,9 +504,19 @@ __PACKAGE__->many_to_many(
   "constituent",
 );
 
+=head2 maintainers
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-01-10 09:43:38
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DQF8KRinnf0imJOP+lvH9Q
+Type: many_to_many
+
+Composing rels: L</buildsbymaintainers> -> maintainer
+
+=cut
+
+__PACKAGE__->many_to_many("maintainers", "buildsbymaintainers", "maintainer");
+
+
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-03-27 19:11:01
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:hLgO4zpcIJYQQjZ5gI8zpg
 
 __PACKAGE__->has_many(
   "dependents",
@@ -589,6 +607,7 @@ sub as_json {
     releasename => $self->get_column('releasename'),
     drvpath => $self->get_column('drvpath'),
     jobsetevals => [ map { $_->id } $self->jobsetevals ],
+    maintainers => [ map { $_->email } $self->maintainers ],
     buildoutputs => { map { $_->name  => $_ } $self->buildoutputs },
     buildproducts => { map { $_->productnr => $_ } $self->buildproducts },
     buildmetrics => { map { $_->name => $_ } $self->buildmetrics },

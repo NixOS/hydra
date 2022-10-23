@@ -78,6 +78,10 @@ sub build_GET {
 
     $c->stash->{template} = 'build.tt';
     $c->stash->{isLocalStore} = isLocalStore();
+    $c->stash->{maintainer} = sub {
+        my $m = shift;
+        return $m->github_handle // $m->email;
+    };
     $c->stash->{available} =
         $c->stash->{isLocalStore}
         ? all { isValidPath($_->path) } $build->buildoutputs->all

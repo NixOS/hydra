@@ -22,6 +22,47 @@ sub evalChain : Chained('/') PathPart('eval') CaptureArgs(1) {
 }
 
 
+sub build_filter_for_search {
+    my ($filter, $field) = @_;
+
+    if ($filter ne "") {
+        if ($field eq "maintainer") {
+            # To search for maintainers of a build, the following relation has to be
+            # resolved:
+            #
+            #                   <build_id>                       <maintainer_id>
+            #       JobsetEval ------------> Buildsbymaintainer -----------------> Maintainer
+            #
+            # In the `maintainer`-table, the query for a Maintainer will be matched
+            # against both a maintainer's email and github handle.
+            return (
+                {
+                    -or => {
+                        "maintainer.github_handle" => { ilike => "%" . $filter . "%" },
+                        "maintainer.email" => { ilike => "%" . $filter . "%" }
+                    }
+                },
+                {
+                    columns => [@buildListColumns],
+                    join => { 'buildsbymaintainers' => 'maintainer' }
+                }
+            );
+        } else {
+            # FIXME allow to search for arbitrary fields from jobset evals.
+            # Most other columns of a JobsetEval entity should be queryable with
+            # a simple `LIKE %<query>%`.
+            return (
+                {"job" => { ilike => "%" . $filter . "%" }},
+                { columns => [@buildListColumns] }
+            );
+        }
+    }
+
+    # If no filter (search by name / search by maintainer) is specified,
+    # no additional criteria is needed for DBIx.
+    return ({}, {columns => [@buildListColumns]});
+}
+
 sub view :Chained('evalChain') :PathPart('') :Args(0) :ActionClass('REST') { }
 
 sub view_GET {
@@ -32,7 +73,9 @@ sub view_GET {
     my $eval = $c->stash->{eval};
 
     $c->stash->{filter} = $c->request->params->{filter} // "";
-    my $filter = $c->stash->{filter} eq "" ? {} : { job => { ilike => "%" . $c->stash->{filter} . "%" } };
+    $c->stash->{field} = $c->request->params->{field} // "name";
+
+    my ($filter, $extra) = build_filter_for_search($c->stash->{filter}, $c->stash->{field});
 
     my $compare = $c->req->params->{compare};
     my $eval2;
@@ -40,7 +83,7 @@ sub view_GET {
     # Allow comparing this evaluation against the previous evaluation
     # (default), an arbitrary evaluation, or the latest completed
     # evaluation of another jobset.
-    if (defined $compare) {
+    if (defined $compare && $compare ne "") {
         if ($compare =~ /^\d+$/) {
             $eval2 = $c->model('DB::JobsetEvals')->find($compare)
                 or notFound($c, "Evaluation $compare doesn't exist.");
@@ -64,8 +107,8 @@ sub view_GET {
 
     $c->stash->{otherEval} = $eval2 if defined $eval2;
 
-    my @builds = $eval->builds->search($filter, { columns => [@buildListColumns] });
-    my @builds2 = defined $eval2 ? $eval2->builds->search($filter, { columns => [@buildListColumns] }) : ();
+    my @builds = $eval->builds->search($filter, $extra);
+    my @builds2 = defined $eval2 ? $eval2->builds->search($filter, $extra) : ();
 
     my $diff = buildDiff([@builds], [@builds2]);
     $c->stash->{stillSucceed} = $diff->{stillSucceed};
@@ -79,6 +122,11 @@ sub view_GET {
     $c->stash->{failed} = $diff->{failed};
 
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
+
+    $c->stash->{maintainer} = sub {
+        my $m = shift;
+        return $m->github_handle // $m->email;
+    };
 
     $self->status_ok(
         $c,

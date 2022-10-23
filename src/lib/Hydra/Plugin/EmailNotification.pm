@@ -69,13 +69,19 @@ sub buildFinished {
             next if defined $prevBuild && ($build->buildstatus == $prevBuild->buildstatus);
         }
 
-        my $to = $build->jobset->emailoverride ne "" ? $build->jobset->emailoverride : $build->maintainers;
+        if ($build->jobset->emailoverride ne "") {
+            my $to = $build->jobset->emailoverride;
+            foreach my $address (split ",", ($to // "")) {
+                $address = trim $address;
 
-        foreach my $address (split ",", ($to // "")) {
-            $address = trim $address;
-
-            $addresses{$address} //= { builds => [] };
-            push @{$addresses{$address}->{builds}}, $build;
+                $addresses{$address} //= { builds => [] };
+                push @{$addresses{$address}->{builds}}, $build;
+            }
+        } else {
+            foreach my $m ($build->maintainers) {
+                $addresses{$m->email} //= { builds => [] };
+                push @{$addresses{$m->email}->{builds}}, $build;
+            }
         }
     }
 

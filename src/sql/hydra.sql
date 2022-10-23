@@ -175,7 +175,6 @@ create table Builds (
 
     license       text, -- meta.license
     homepage      text, -- meta.homepage
-    maintainers   text, -- meta.maintainers (concatenated, comma-separated)
     maxsilent     integer default 3600, -- meta.maxsilent
     timeout       integer default 36000, -- meta.timeout
 
@@ -227,6 +226,21 @@ create table Builds (
     foreign key (jobset_id) references Jobsets(id) on delete cascade
 );
 
+create table Maintainers (
+    id            serial primary key not null,
+
+    email         text not null unique,
+    github_handle text null
+);
+
+create table BuildsByMaintainers (
+    maintainer_id   integer not null,
+    build_id        integer not null,
+
+    primary key (maintainer_id, build_id),
+    foreign key (maintainer_id) references Maintainers(id),
+    foreign key (build_id) references Builds(id)
+);
 
 create function notifyBuildsDeleted() returns trigger as 'begin notify builds_deleted; return null; end;' language plpgsql;
 create trigger BuildsDeleted after delete on Builds execute procedure notifyBuildsDeleted();
