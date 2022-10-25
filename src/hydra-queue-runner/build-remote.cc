@@ -27,6 +27,8 @@ static void append(Strings & dst, const Strings & src)
     dst.insert(dst.end(), src.begin(), src.end());
 }
 
+namespace nix::build_remote {
+
 static Strings extraStoreArgs(std::string & machine)
 {
     Strings result;
@@ -263,63 +265,6 @@ BasicDerivation sendInputs(
     return basicDrv;
 }
 
-void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
-{
-    RemoteResult thisArrow;
-
-    startTime = buildResult.startTime;
-    stopTime = buildResult.stopTime;
-    timesBuilt = buildResult.timesBuilt;
-    errorMsg = buildResult.errorMsg;
-    isNonDeterministic = buildResult.isNonDeterministic;
-
-    switch ((BuildResult::Status) buildResult.status) {
-        case BuildResult::Built:
-            stepStatus = bsSuccess;
-            break;
-        case BuildResult::Substituted:
-        case BuildResult::AlreadyValid:
-            stepStatus = bsSuccess;
-            isCached = true;
-            break;
-        case BuildResult::PermanentFailure:
-            stepStatus = bsFailed;
-            canCache = true;
-            errorMsg = "";
-            break;
-        case BuildResult::InputRejected:
-        case BuildResult::OutputRejected:
-            stepStatus = bsFailed;
-            canCache = true;
-            break;
-        case BuildResult::TransientFailure:
-            stepStatus = bsFailed;
-            canRetry = true;
-            errorMsg = "";
-            break;
-        case BuildResult::TimedOut:
-            stepStatus = bsTimedOut;
-            errorMsg = "";
-            break;
-        case BuildResult::MiscFailure:
-            stepStatus = bsAborted;
-            canRetry = true;
-            break;
-        case BuildResult::LogLimitExceeded:
-            stepStatus = bsLogLimitExceeded;
-            break;
-        case BuildResult::NotDeterministic:
-            stepStatus = bsNotDeterministic;
-            canRetry = false;
-            canCache = true;
-            break;
-        default:
-            stepStatus = bsAborted;
-            break;
-    }
-
-}
-
 BuildResult performBuild(
     Machine::Connection & conn,
     Store & localStore,
@@ -457,6 +402,67 @@ void copyPathsFromRemote(
 
 }
 
+}
+
+/* using namespace nix::build_remote; */
+
+void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
+{
+    RemoteResult thisArrow;
+
+    startTime = buildResult.startTime;
+    stopTime = buildResult.stopTime;
+    timesBuilt = buildResult.timesBuilt;
+    errorMsg = buildResult.errorMsg;
+    isNonDeterministic = buildResult.isNonDeterministic;
+
+    switch ((BuildResult::Status) buildResult.status) {
+        case BuildResult::Built:
+            stepStatus = bsSuccess;
+            break;
+        case BuildResult::Substituted:
+        case BuildResult::AlreadyValid:
+            stepStatus = bsSuccess;
+            isCached = true;
+            break;
+        case BuildResult::PermanentFailure:
+            stepStatus = bsFailed;
+            canCache = true;
+            errorMsg = "";
+            break;
+        case BuildResult::InputRejected:
+        case BuildResult::OutputRejected:
+            stepStatus = bsFailed;
+            canCache = true;
+            break;
+        case BuildResult::TransientFailure:
+            stepStatus = bsFailed;
+            canRetry = true;
+            errorMsg = "";
+            break;
+        case BuildResult::TimedOut:
+            stepStatus = bsTimedOut;
+            errorMsg = "";
+            break;
+        case BuildResult::MiscFailure:
+            stepStatus = bsAborted;
+            canRetry = true;
+            break;
+        case BuildResult::LogLimitExceeded:
+            stepStatus = bsLogLimitExceeded;
+            break;
+        case BuildResult::NotDeterministic:
+            stepStatus = bsNotDeterministic;
+            canRetry = false;
+            canCache = true;
+            break;
+        default:
+            stepStatus = bsAborted;
+            break;
+    }
+
+}
+
 
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
@@ -467,7 +473,7 @@ void State::buildRemote(ref<Store> destStore,
 {
     assert(BuildResult::TimedOut == 8);
 
-    auto [logFile, logFD] = openLogFile(logDir, step->drvPath);
+    auto [logFile, logFD] = build_remote::openLogFile(logDir, step->drvPath);
     AutoDelete logFileDel(logFile, false);
     result.logFile = logFile;
 
@@ -480,7 +486,7 @@ void State::buildRemote(ref<Store> destStore,
 
         // FIXME: rewrite to use Store.
         Child child;
-        openConnection(machine, tmpDir, logFD.get(), child);
+        build_remote::openConnection(machine, tmpDir, logFD.get(), child);
 
         {
             auto activeStepState(activeStep->state_.lock());
@@ -511,7 +517,7 @@ void State::buildRemote(ref<Store> destStore,
         });
 
         try {
-          handshake(conn, buildOptions.repeats);
+          build_remote::handshake(conn, buildOptions.repeats);
         } catch (EndOfFile & e) {
             child.pid.wait();
             std::string s = chomp(readFile(result.logFile));
@@ -529,7 +535,7 @@ void State::buildRemote(ref<Store> destStore,
            copy the immediate sources of the derivation and the required
            outputs of the input derivations. */
         updateStep(ssSendingInputs);
-        BasicDerivation resolvedDrv = sendInputs(*this, *step, *localStore, *destStore, conn, result.overhead, nrStepsWaiting, nrStepsCopyingTo);
+        BasicDerivation resolvedDrv = build_remote::sendInputs(*this, *step, *localStore, *destStore, conn, result.overhead, nrStepsWaiting, nrStepsCopyingTo);
 
         logFileDel.cancel();
 
@@ -550,7 +556,7 @@ void State::buildRemote(ref<Store> destStore,
 
         updateStep(ssBuilding);
 
-        BuildResult buildResult = performBuild(
+        BuildResult buildResult = build_remote::performBuild(
             conn,
             *localStore,
             step->drvPath,
@@ -589,7 +595,7 @@ void State::buildRemote(ref<Store> destStore,
             }
 
             size_t totalNarSize = 0;
-            auto infos = queryPathInfos(conn, *localStore, outputs, totalNarSize);
+            auto infos = build_remote::queryPathInfos(conn, *localStore, outputs, totalNarSize);
 
             if (totalNarSize > maxOutputSize) {
                 result.stepStatus = bsNarSizeLimitExceeded;
@@ -600,7 +606,7 @@ void State::buildRemote(ref<Store> destStore,
             printMsg(lvlDebug, "copying outputs of ‘%s’ from ‘%s’ (%d bytes)",
                 localStore->printStorePath(step->drvPath), machine->sshName, totalNarSize);
 
-            copyPathsFromRemote(conn, narMembers, *localStore, *destStore, infos);
+            build_remote::copyPathsFromRemote(conn, narMembers, *localStore, *destStore, infos);
             auto now2 = std::chrono::steady_clock::now();
 
             result.overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
