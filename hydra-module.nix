@@ -228,8 +228,12 @@ in
         useDefaultShell = true;
       };
 
-    nix.trustedUsers = [ "hydra-queue-runner" ];
-
+    nix.settings = {
+      trusted-users = [ "hydra-queue-runner" ];
+      gc-keep-outputs = true;
+      gc-keep-derivations = true;
+    };
+    
     services.hydra-dev.extraConfig =
       ''
         using_frontend_proxy = 1
@@ -256,11 +260,6 @@ in
 
     environment.variables = hydraEnv;
 
-    nix.extraOptions = ''
-      gc-keep-outputs = true
-      gc-keep-derivations = true
-    '';
-
     systemd.services.hydra-init =
       { wantedBy = [ "multi-user.target" ];
         requires = optional haveLocalDB "postgresql.service";
@@ -268,17 +267,17 @@ in
         environment = env // {
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-init";
         };
-        path = [ pkgs.utillinux ];
+        path = [ pkgs.util-linux ];
         preStart = ''
           ln -sf ${hydraConf} ${baseDir}/hydra.conf
 
           mkdir -m 0700 -p ${baseDir}/www
-          chown hydra-www.hydra ${baseDir}/www
+          chown hydra-www:hydra ${baseDir}/www
 
           mkdir -m 0700 -p ${baseDir}/queue-runner
           mkdir -m 0750 -p ${baseDir}/build-logs
           mkdir -m 0750 -p ${baseDir}/runcommand-logs
-          chown hydra-queue-runner.hydra \
+          chown hydra-queue-runner:hydra \
             ${baseDir}/queue-runner \
             ${baseDir}/build-logs \
             ${baseDir}/runcommand-logs
@@ -309,7 +308,7 @@ in
             rmdir /nix/var/nix/gcroots/per-user/hydra-www/hydra-roots
           fi
 
-          chown hydra.hydra ${cfg.gcRootsDir}
+          chown hydra:hydra ${cfg.gcRootsDir}
           chmod 2775 ${cfg.gcRootsDir}
         '';
         serviceConfig.ExecStart = "${cfg.package}/bin/hydra-init";

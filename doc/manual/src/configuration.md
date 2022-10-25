@@ -185,7 +185,7 @@ Example configuration:
     hydra_admin = admin
     # Allow all users in the dev group to restart jobs and cancel builds
     dev = restart-jobs
-    dev = cancel-builds
+    dev = cancel-build
   </role_mapping>
 </ldap>
 ```

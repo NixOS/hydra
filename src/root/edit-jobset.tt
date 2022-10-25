@@ -158,6 +158,21 @@
   </div>
 
   <div class="form-group row">
+    <label class="col-sm-3" for="editjobsetenable_dynamic_run_command">Enable Dynamic RunCommand Hooks</label>
+    <div class="col-sm-9">
+      <input type="checkbox" id="editjobsetenable_dynamic_run_command" name="enable_dynamic_run_command"
+        [% IF !c.config.dynamicruncommand.enable %]
+          title="The server has not enabled dynamic RunCommands" disabled
+        [% ELSIF !project.enable_dynamic_run_command %]
+          title="The parent project has not enabled dynamic RunCommands" disabled
+        [% ELSIF jobset.enable_dynamic_run_command %]
+          checked
+        [% END %]
+      />
+    </div>
+  </div>
+
+  <div class="form-group row">
     <label class="col-sm-3" for="editjobsetenableemail">Email notification</label>
     <div class="col-sm-9">
       <input type="checkbox" id="editjobsetenableemail" name="enableemail" [% IF jobset.enableemail %]checked[% END %] [% IF !emailNotification %]disabled[% END %]/>
