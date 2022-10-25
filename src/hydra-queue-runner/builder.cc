@@ -1,7 +1,7 @@
 #include <cmath>
 
 #include "state.hh"
-#include "build-result.hh"
+#include "hydra-build-result.hh"
 #include "finally.hh"
 #include "binary-cache-store.hh"
 

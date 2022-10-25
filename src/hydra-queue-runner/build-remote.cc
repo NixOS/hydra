@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "build-result.hh"
 #include "serve-protocol.hh"
 #include "state.hh"
 #include "util.hh"
@@ -51,13 +52,35 @@ static Strings extraStoreArgs(std::string & machine)
 
 static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Child & child)
 {
-    string pgmName;
+    std::string pgmName;
     Pipe to, from;
     to.create();
     from.create();
 
-    child.pid = startProcess([&]() {
+    Strings argv;
+    if (machine->isLocalhost()) {
+        pgmName = "nix-store";
+        argv = {"nix-store", "--builders", "", "--serve", "--write"};
+    } else {
+        pgmName = "ssh";
+        auto sshName = machine->sshName;
+        Strings extraArgs = extraStoreArgs(sshName);
+        argv = {"ssh", sshName};
+        if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
+        if (machine->sshPublicHostKey != "") {
+            Path fileName = tmpDir + "/host-key";
+            auto p = machine->sshName.find("@");
+            std::string host = p != std::string::npos ? std::string(machine->sshName, p + 1) : machine->sshName;
+            writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
+            append(argv, {"-oUserKnownHostsFile=" + fileName});
+        }
+        append(argv,
+            { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
+            , "--", "nix-store", "--serve", "--write" });
+        append(argv, extraArgs);
+    }
 
+    child.pid = startProcess([&]() {
         restoreProcessContext();
 
         if (dup2(to.readSide.get(), STDIN_FILENO) == -1)
@@ -68,30 +91,6 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 
         if (dup2(stderrFD, STDERR_FILENO) == -1)
             throw SysError("cannot dup stderr");
-
-        Strings argv;
-        if (machine->isLocalhost()) {
-            pgmName = "nix-store";
-            argv = {"nix-store", "--builders", "", "--serve", "--write"};
-        }
-        else {
-            pgmName = "ssh";
-            auto sshName = machine->sshName;
-            Strings extraArgs = extraStoreArgs(sshName);
-            argv = {"ssh", sshName};
-            if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
-            if (machine->sshPublicHostKey != "") {
-                Path fileName = tmpDir + "/host-key";
-                auto p = machine->sshName.find("@");
-                string host = p != string::npos ? string(machine->sshName, p + 1) : machine->sshName;
-                writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
-                append(argv, {"-oUserKnownHostsFile=" + fileName});
-            }
-            append(argv,
-                { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
-                , "--", "nix-store", "--serve", "--write" });
-            append(argv, extraArgs);
-        }
 
         execvp(argv.front().c_str(), (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
 
@@ -179,7 +178,7 @@ StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> & paths
 
 std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const StorePath & drvPath)
 {
-    string base(drvPath.to_string());
+    std::string base(drvPath.to_string());
     auto logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
 
     createDirs(dirOf(logFile));
@@ -192,7 +191,7 @@ std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const Store
 
 void handshake(Machine::Connection & conn, unsigned int repeats)
 {
-    conn.to << SERVE_MAGIC_1 << 0x204;
+    conn.to << SERVE_MAGIC_1 << 0x206;
     conn.to.flush();
 
     unsigned int magic = readInt(conn.from);
@@ -232,10 +231,10 @@ BasicDerivation sendInputs(
        a no-op for regular stores, but for the binary cache store,
        this will copy the inputs to the binary cache from the local
        store. */
-    if (localStore.getUri() != destStore.getUri()) {
-        StorePathSet closure;
-        localStore.computeFSClosure(step.drv->inputSrcs, closure);
-        copyPaths(localStore, destStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
+    if (localStore != destStore) {
+        copyClosure(localStore, destStore,
+            step.drv->inputSrcs,
+            NoRepair, NoCheckSigs, NoSubstitute);
     }
 
     {

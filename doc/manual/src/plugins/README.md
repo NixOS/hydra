@@ -172,17 +172,6 @@ Sets Gitlab CI status.
 
 - `gitlab_authorization.<projectId>`
 
-## HipChat notification
-
-Sends hipchat chat notifications when a build finish.
-
-### Configuration options
-
-- `hipchat.[].jobs`
-- `hipchat.[].builds`
-- `hipchat.[].token`
-- `hipchat.[].notify`
-
 ## InfluxDB notification
 
 Writes InfluxDB events when a builds finished.
@@ -192,9 +181,11 @@ Writes InfluxDB events when a builds finished.
 - `influxdb.url`
 - `influxdb.db`
 
-## Run command
+## RunCommand
 
 Runs a shell command when the build is finished.
+
+See [The RunCommand Plugin](./RunCommand.md) for more information.
 
 ### Configuration options:
 

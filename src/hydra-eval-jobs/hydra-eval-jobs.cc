@@ -25,6 +25,28 @@
 
 #include <nlohmann/json.hpp>
 
+void check_pid_status_nonblocking(pid_t check_pid) {
+    // Only check 'initialized' and known PID's
+    if (check_pid <= 0) { return; }
+
+    int wstatus = 0;
+    pid_t pid = waitpid(check_pid, &wstatus, WNOHANG);
+    // -1 = failure, WNOHANG: 0 = no change
+    if (pid <= 0) { return; }
+
+    std::cerr << "child process (" << pid << ") ";
+
+    if (WIFEXITED(wstatus)) {
+        std::cerr << "exited with status=" << WEXITSTATUS(wstatus) << std::endl;
+    } else if (WIFSIGNALED(wstatus)) {
+        std::cerr << "killed by signal=" << WTERMSIG(wstatus) << std::endl;
+    } else if (WIFSTOPPED(wstatus)) {
+        std::cerr << "stopped by signal=" << WSTOPSIG(wstatus) << std::endl;
+    } else if (WIFCONTINUED(wstatus)) {
+        std::cerr << "continued" << std::endl;
+    }
+}
+
 using namespace nix;
 
 static Path gcRootsDir;
@@ -63,13 +85,13 @@ struct MyArgs : MixEvalArgs, MixCommonArgs
 
 static MyArgs myArgs;
 
-static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const string & name, const string & subAttribute)
+static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const std::string & name, const std::string & subAttribute)
 {
     Strings res;
     std::function<void(Value & v)> rec;
 
     rec = [&](Value & v) {
-        state.forceValue(v);
+        state.forceValue(v, noPos);
         if (v.type() == nString)
             res.push_back(v.string.s);
         else if (v.isList())
@@ -78,7 +100,7 @@ static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const stri
         else if (v.type() == nAttrs) {
             auto a = v.attrs->find(state.symbols.create(subAttribute));
             if (a != v.attrs->end())
-                res.push_back(state.forceString(*a->value));
+                res.push_back(std::string(state.forceString(*a->value)));
         }
     };
 
@@ -113,7 +135,7 @@ static void worker(
         callFlake(state, lockedFlake, *vFlake);
 
         auto vOutputs = vFlake->attrs->get(state.symbols.create("outputs"))->value;
-        state.forceValue(*vOutputs);
+        state.forceValue(*vOutputs, noPos);
 
         auto aHydraJobs = vOutputs->attrs->get(state.symbols.create("hydraJobs"));
         if (!aHydraJobs)
@@ -157,7 +179,7 @@ static void worker(
                 if (drv->querySystem() == "unknown")
                     throw EvalError("derivation must have a 'system' attribute");
 
-                auto drvPath = drv->queryDrvPath();
+                auto drvPath = state.store->printStorePath(drv->requireDrvPath());
 
                 nlohmann::json job;
 
@@ -175,24 +197,24 @@ static void worker(
 
                 /* If this is an aggregate, then get its constituents. */
                 auto a = v->attrs->get(state.symbols.create("_hydraAggregate"));
-                if (a && state.forceBool(*a->value, *a->pos)) {
+                if (a && state.forceBool(*a->value, a->pos)) {
                     auto a = v->attrs->get(state.symbols.create("constituents"));
                     if (!a)
                         throw EvalError("derivation must have a ‘constituents’ attribute");
 
 
                     PathSet context;
-                    state.coerceToString(*a->pos, *a->value, context, true, false);
+                    state.coerceToString(a->pos, *a->value, context, true, false);
                     for (auto & i : context)
                         if (i.at(0) == '!') {
                             size_t index = i.find("!", 1);
-                            job["constituents"].push_back(string(i, index + 1));
+                            job["constituents"].push_back(std::string(i, index + 1));
                         }
 
-                    state.forceList(*a->value, *a->pos);
+                    state.forceList(*a->value, a->pos);
                     for (unsigned int n = 0; n < a->value->listSize(); ++n) {
                         auto v = a->value->listElems()[n];
-                        state.forceValue(*v);
+                        state.forceValue(*v, noPos);
                         if (v->type() == nString)
                             job["namedConstituents"].push_back(state.forceStringNoCtx(*v));
                     }
@@ -210,7 +232,9 @@ static void worker(
 
                 nlohmann::json out;
                 for (auto & j : outputs)
-                    out[j.first] = j.second;
+                    // FIXME: handle CA/impure builds.
+                    if (j.second)
+                        out[j.first] = state.store->printStorePath(*j.second);
                 job["outputs"] = std::move(out);
 
                 reply["job"] = std::move(job);
@@ -219,8 +243,8 @@ static void worker(
             else if (v->type() == nAttrs) {
                 auto attrs = nlohmann::json::array();
                 StringSet ss;
-                for (auto & i : v->attrs->lexicographicOrder()) {
-                    std::string name(i->name);
+                for (auto & i : v->attrs->lexicographicOrder(state.symbols)) {
+                    std::string name(state.symbols[i->name]);
                     if (name.find('.') != std::string::npos || name.find(' ') != std::string::npos) {
                         printError("skipping job with illegal name '%s'", name);
                         continue;
@@ -309,8 +333,8 @@ int main(int argc, char * * argv)
         /* Start a handler thread per worker process. */
         auto handler = [&]()
         {
+            pid_t pid = -1;
             try {
-                pid_t pid = -1;
                 AutoCloseFD from, to;
 
                 while (true) {
@@ -412,6 +436,7 @@ int main(int argc, char * * argv)
                     }
                 }
             } catch (...) {
+                check_pid_status_nonblocking(pid);
                 auto state(state_.lock());
                 state->exc = std::current_exception();
                 wakeup.notify_all();
@@ -489,10 +514,14 @@ int main(int argc, char * * argv)
                     std::string drvName(drvPath.name());
                     assert(hasSuffix(drvName, drvExtension));
                     drvName.resize(drvName.size() - drvExtension.size());
-                    auto h = std::get<Hash>(hashDerivationModulo(*store, drv, true));
-                    auto outPath = store->makeOutputPath("out", h, drvName);
+
+                    auto hashModulo = hashDerivationModulo(*store, drv, true);
+                    if (hashModulo.kind != DrvHash::Kind::Regular) continue;
+                    auto h = hashModulo.hashes.find("out");
+                    if (h == hashModulo.hashes.end()) continue;
+                    auto outPath = store->makeOutputPath("out", h->second, drvName);
                     drv.env["out"] = store->printStorePath(outPath);
-                    drv.outputs.insert_or_assign("out", DerivationOutput { .output = DerivationOutputInputAddressed { .path = outPath } });
+                    drv.outputs.insert_or_assign("out", DerivationOutput::InputAddressed { .path = outPath });
                     auto newDrvPath = store->printStorePath(writeDerivation(*store, drv));
 
                     debug("rewrote aggregate derivation %s -> %s", store->printStorePath(drvPath), newDrvPath);

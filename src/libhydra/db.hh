@@ -18,7 +18,7 @@ struct Connection : pqxx::connection
         std::string upper_prefix = "DBI:Pg:";
 
         if (hasPrefix(s, lower_prefix) || hasPrefix(s, upper_prefix)) {
-            return concatStringsSep(" ", tokenizeString<Strings>(string(s, lower_prefix.size()), ";"));
+            return concatStringsSep(" ", tokenizeString<Strings>(std::string(s, lower_prefix.size()), ";"));
         }
 
         throw Error("$HYDRA_DBI does not denote a PostgreSQL database");
