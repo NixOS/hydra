@@ -366,6 +366,9 @@ struct Evaluator
                     printInfo("received jobset event");
                 }
 
+            } catch (pqxx::broken_connection & e) {
+                printError("Database connection broken: %s", e.what());
+                std::_Exit(1);
             } catch (std::exception & e) {
                 printError("exception in database monitor thread: %s", e.what());
                 sleep(30);
@@ -473,6 +476,9 @@ struct Evaluator
         while (true) {
             try {
                 loop();
+            } catch (pqxx::broken_connection & e) {
+                printError("Database connection broken: %s", e.what());
+                std::_Exit(1);
             } catch (std::exception & e) {
                 printError("exception in main loop: %s", e.what());
                 sleep(30);
