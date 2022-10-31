@@ -306,7 +306,9 @@ int main(int argc, char * * argv)
 
         /* Prevent access to paths outside of the Nix search path and
            to the environment. */
-        evalSettings.restrictEval = true;
+        if (!myArgs.flake) {
+            evalSettings.restrictEval = true;
+        }
 
         /* When building a flake, use pure evaluation (no access to
            'getEnv', 'currentSystem' etc. */
