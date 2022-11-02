@@ -153,7 +153,7 @@ bool State::getQueuedBuilds(Connection & conn,
                 auto mc = startDbUpdate();
                 pqxx::work txn(conn);
                 txn.exec_params0
-                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0",
+                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3::bigint, stopTime = $3::bigint where id = $1 and finished = 0",
                      build->id,
                      (int) bsAborted,
                      time(0));
@@ -207,7 +207,7 @@ bool State::getQueuedBuilds(Connection & conn,
 
                 createBuildStep(txn, 0, build->id, ex.step, "", bsCachedFailure, "", propagatedFrom);
                 txn.exec_params
-                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $3, isCachedBuild = 1, notificationPendingSince = $3 "
+                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3::bigint, stopTime = $3::bigint, isCachedBuild = 1, notificationPendingSince = $3 "
                      "where id = $1 and finished = 0",
                      build->id,
                      (int) (ex.step->drvPath == build->drvPath ? bsFailed : bsDepFailed),
