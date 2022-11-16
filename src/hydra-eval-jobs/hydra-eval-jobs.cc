@@ -129,7 +129,7 @@ static void worker(
             LockFlags {
                 .updateLockFile = false,
                 .useRegistries = false,
-                .allowMutable = false,
+                .allowUnlocked = false,
             });
 
         callFlake(state, lockedFlake, *vFlake);
