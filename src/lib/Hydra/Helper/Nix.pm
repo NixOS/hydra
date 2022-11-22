@@ -184,7 +184,7 @@ sub findLog {
         unless ($c->user_exists) {
             my $existsForGuest = $c->model('DB::BuildSteps')->search(
                 {"me.drvpath" => $drvPath, "project.private" => 0},
-                {join => {build => "project"}}
+                {join => {build => {"jobset" => "project"}}}
             );
             if ($existsForGuest == 0) {
                 notFound($c, "Resource not found");
