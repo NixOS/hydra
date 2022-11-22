@@ -14,7 +14,6 @@ use Data::Dumper;
 
 my $CONFIG_SECTION = "git-input";
 
-
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
     $inputTypes->{'git'} = 'Git checkout';
@@ -118,7 +117,8 @@ sub fetchInput {
                             $jobset->get_column('name'),
                             $name);
     # give preference to the options from the input value
-    while (my ($opt_name, $opt_value) = each %{$options}) {
+    foreach my $opt_name (keys %{$options}) {
+        my $opt_value = $options->{$opt_name};
         if ($opt_value =~ /^[+-]?\d+\z/) {
             $opt_value = int($opt_value);
         }
@@ -261,7 +261,7 @@ sub getCommits {
 
     my $clonePath = getSCMCacheDir . "/git/" . sha256_hex($uri);
 
-    my $out = grab(cmd => ["git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], dir => $clonePath);
+    my $out = grab(cmd => ["git", "--git-dir=.git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], dir => $clonePath);
 
     my $res = [];
     foreach my $line (split /\n/, $out) {

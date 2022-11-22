@@ -7,11 +7,12 @@ use base 'Hydra::Base::Controller::REST';
 use File::Slurper qw(read_text);
 use Crypt::RandPasswd;
 use Digest::SHA1 qw(sha1_hex);
+use Hydra::Config qw(getLDAPConfigAmbient);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
 use LWP::UserAgent;
-use JSON;
+use JSON::MaybeXS;
 use HTML::Entities;
 use Encode qw(decode);
 
@@ -56,10 +57,10 @@ sub logout_POST {
 
 sub doLDAPLogin {
     my ($self, $c, $username) = @_;
-
     my $user = $c->find_user({ username => $username });
     my $LDAPUser = $c->find_user({ username => $username }, 'ldap');
-    my @LDAPRoles = grep { (substr $_, 0, 5) eq "hydra" } $LDAPUser->roles;
+    my @LDAPRoles = $LDAPUser->roles;
+    my $role_mapping = getLDAPConfigAmbient()->{"role_mapping"};
 
     if (!$user) {
         $c->model('DB::Users')->create(
@@ -79,8 +80,13 @@ sub doLDAPLogin {
         });
     }
     $user->userroles->delete;
-    if (@LDAPRoles) {
-        $user->userroles->create({ role => (substr $_, 6) }) for @LDAPRoles;
+    foreach my $ldap_role (@LDAPRoles) {
+        if (defined($role_mapping->{$ldap_role})) {
+            my $roles = $role_mapping->{$ldap_role};
+            for my $mapped_role (@$roles) {
+                $user->userroles->create({ role => $mapped_role });
+            }
+        }
     }
     $c->set_authenticated($user);
 }

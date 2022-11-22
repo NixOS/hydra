@@ -5,7 +5,6 @@ use warnings;
 use Exporter;
 use File::Path;
 use File::Basename;
-use Config::General;
 use Hydra::Config;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
@@ -13,47 +12,41 @@ use Nix::Store;
 use Encode;
 use Sys::Hostname::Long;
 use IPC::Run;
+use UUID4::Tiny qw(is_uuid4_string);
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getHydraHome getHydraConfig getBaseUrl
-    getSCMCacheDir getStatsdConfig
-    registerRoot getGCRootsDir gcRootFor
-    jobsetOverview jobsetOverview_
-    getDrvLogPath findLog
-    getMainOutput
+    cancelBuilds
+    constructRunCommandLogPath
+    findLog
+    gcRootFor
+    getBaseUrl
+    getDrvLogPath
     getEvals getMachines
-    pathIsInsidePrefix
-    captureStdoutStderr run grab
-    getTotalShares
+    getGCRootsDir
+    getHydraConfig
+    getHydraHome
+    getMainOutput
+    getSCMCacheDir
+    getStatsdConfig
     getStoreUri
-    readNixFile
+    getTotalShares
+    grab
     isLocalStore
-    cancelBuilds restartBuilds);
+    jobsetOverview
+    jobsetOverview_
+    pathIsInsidePrefix
+    readNixFile
+    registerRoot
+    restartBuilds
+    run
+    );
 
 
 sub getHydraHome {
     my $dir = $ENV{"HYDRA_HOME"} or die "The HYDRA_HOME directory does not exist!\n";
     return $dir;
 }
-
-
-my $hydraConfig;
-
-sub getHydraConfig {
-    return $hydraConfig if defined $hydraConfig;
-    my $conf = $ENV{"HYDRA_CONFIG"} || (Hydra::Model::DB::getHydraPath . "/hydra.conf");
-    my %opts = (%Hydra::Config::configGeneralOpts, -ConfigFile => $conf);
-    if (-f $conf) {
-        my %h = Config::General->new(%opts)->getall;
-
-        $hydraConfig = \%h;
-    } else {
-        $hydraConfig = {};
-    }
-    return $hydraConfig;
-}
-
 
 # Return hash of statsd configuration of the following shape:
 # (
@@ -423,7 +416,7 @@ sub pathIsInsidePrefix {
 
         # ‘..’ should not take us outside of the prefix.
         if ($c eq "..") {
-            return if length($cur) <= length($prefix);
+            return undef if length($cur) <= length($prefix);
             $cur =~ s/\/[^\/]*$// or die; # remove last component
             next;
         }
@@ -442,25 +435,7 @@ sub pathIsInsidePrefix {
 }
 
 
-sub captureStdoutStderr {
-    my ($timeout, @cmd) = @_;
-    my $stdin = "";
-    my $stdout;
-    my $stderr;
 
-    eval {
-        local $SIG{ALRM} = sub { die "timeout\n" }; # NB: \n required
-        alarm $timeout;
-        IPC::Run::run(\@cmd, \$stdin, \$stdout, \$stderr);
-        alarm 0;
-        1;
-    } or do {
-        die unless $@ eq "timeout\n"; # propagate unexpected errors
-        return (-1, $stdout, ($stderr // "") . "timeout\n");
-    };
-
-    return ($?, $stdout, $stderr);
-}
 
 
 sub run {
@@ -589,14 +564,28 @@ sub getStoreUri {
 sub readNixFile {
     my ($path) = @_;
     return grab(cmd => ["nix", "--experimental-features", "nix-command",
-                        "cat-store", "--store", getStoreUri(), "$path"]);
+                        "store", "cat", "--store", getStoreUri(), "$path"]);
 }
 
 
 sub isLocalStore {
     my $uri = getStoreUri();
-    return $uri =~ "^(local|daemon|auto)";
+    return $uri =~ "^(local|daemon|auto|file)";
 }
 
+
+sub constructRunCommandLogPath {
+    my ($runlog) = @_;
+    my $uuid = $runlog->uuid;
+
+    if (!is_uuid4_string($uuid)) {
+        die "UUID was invalid."
+    }
+
+    my $hydra_path = Hydra::Model::DB::getHydraPath;
+    my $bucket = substr($uuid, 0, 2);
+
+    return "$hydra_path/runcommand-logs/$bucket/$uuid";
+}
 
 1;

@@ -1,5 +1,5 @@
 #include "state.hh"
-#include "build-result.hh"
+#include "hydra-build-result.hh"
 #include "globals.hh"
 
 #include <cstring>
@@ -82,6 +82,8 @@ struct PreviousFailure : public std::exception {
 bool State::getQueuedBuilds(Connection & conn,
     ref<Store> destStore, unsigned int & lastBuildId)
 {
+    prom.queue_checks_started.Increment();
+
     printInfo("checking the queue for builds > %d...", lastBuildId);
 
     /* Grab the queued builds from the database, but don't process
@@ -96,29 +98,36 @@ bool State::getQueuedBuilds(Connection & conn,
         pqxx::work txn(conn);
 
         auto res = txn.exec_params
-            ("select id, project, jobset, job, drvPath, maxsilent, timeout, timestamp, globalPriority, priority from Builds "
-             "where id > $1 and finished = 0 order by globalPriority desc, id",
+            ("select builds.id, builds.jobset_id, jobsets.project as project, "
+             "jobsets.name as jobset, job, drvPath, maxsilent, timeout, timestamp, "
+             "globalPriority, priority from Builds "
+             "inner join jobsets on builds.jobset_id = jobsets.id "
+             "where builds.id > $1 and finished = 0 order by globalPriority desc, builds.id",
             lastBuildId);
 
         for (auto const & row : res) {
             auto builds_(builds.lock());
             BuildID id = row["id"].as<BuildID>();
             if (buildOne && id != buildOne) continue;
-            if (id > newLastBuildId) newLastBuildId = id;
+            if (id > newLastBuildId) {
+                newLastBuildId = id;
+                prom.queue_max_id.Set(id);
+            }
             if (builds_->count(id)) continue;
 
             auto build = std::make_shared<Build>(
-                localStore->parseStorePath(row["drvPath"].as<string>()));
+                localStore->parseStorePath(row["drvPath"].as<std::string>()));
             build->id = id;
-            build->projectName = row["project"].as<string>();
-            build->jobsetName = row["jobset"].as<string>();
-            build->jobName = row["job"].as<string>();
+            build->jobsetId = row["jobset_id"].as<JobsetID>();
+            build->projectName = row["project"].as<std::string>();
+            build->jobsetName = row["jobset"].as<std::string>();
+            build->jobName = row["job"].as<std::string>();
             build->maxSilentTime = row["maxsilent"].as<int>();
             build->buildTimeout = row["timeout"].as<int>();
             build->timestamp = row["timestamp"].as<time_t>();
             build->globalPriority = row["globalPriority"].as<int>();
             build->localPriority = row["priority"].as<int>();
-            build->jobset = createJobset(txn, build->projectName, build->jobsetName);
+            build->jobset = createJobset(txn, build->projectName, build->jobsetName, build->jobsetId);
 
             newIDs.push_back(id);
             newBuildsByID[id] = build;
@@ -132,6 +141,7 @@ bool State::getQueuedBuilds(Connection & conn,
     std::set<StorePath> finishedDrvs;
 
     createBuild = [&](Build::ptr build) {
+        prom.queue_build_loads.Increment();
         printMsg(lvlTalkative, format("loading build %1% (%2%)") % build->id % build->fullJobName());
         nrAdded++;
         newBuildsByID.erase(build->id);
@@ -302,8 +312,13 @@ bool State::getQueuedBuilds(Connection & conn,
 
         /* Stop after a certain time to allow priority bumps to be
            processed. */
-        if (std::chrono::system_clock::now() > start + std::chrono::seconds(600)) break;
+        if (std::chrono::system_clock::now() > start + std::chrono::seconds(600)) {
+            prom.queue_checks_early_exits.Increment();
+            break;
+        } 
     }
+
+    prom.queue_checks_finished.Increment();
 
     lastBuildId = newBuildsByID.empty() ? newLastBuildId : newBuildsByID.begin()->first - 1;
     return newBuildsByID.empty();
@@ -433,6 +448,8 @@ Step::ptr State::createStep(ref<Store> destStore,
 
     if (!isNew) return step;
 
+    prom.queue_steps_created.Increment();
+
     printMsg(lvlDebug, "considering derivation ‘%1%’", localStore->printStorePath(drvPath));
 
     /* Initialize the step. Note that the step may be visible in
@@ -443,7 +460,7 @@ Step::ptr State::createStep(ref<Store> destStore,
     step->parsedDrv = std::make_unique<ParsedDerivation>(drvPath, *step->drv);
 
     step->preferLocalBuild = step->parsedDrv->willBuildLocally(*localStore);
-    step->isDeterministic = get(step->drv->env, "isDetermistic").value_or("0") == "1";
+    step->isDeterministic = getOr(step->drv->env, "isDetermistic", "0") == "1";
 
     step->systemType = step->drv->platform;
     {
@@ -509,9 +526,9 @@ Step::ptr State::createStep(ref<Store> destStore,
                         // FIXME: should copy directly from substituter to destStore.
                     }
 
-                    StorePathSet closure;
-                    localStore->computeFSClosure({*path}, closure);
-                    copyPaths(*localStore, *destStore, closure, NoRepair, CheckSigs, NoSubstitute);
+                    copyClosure(*localStore, *destStore,
+                        StorePathSet { *path },
+                        NoRepair, CheckSigs, NoSubstitute);
 
                     time_t stopTime = time(0);
 
@@ -569,7 +586,7 @@ Step::ptr State::createStep(ref<Store> destStore,
 
 
 Jobset::ptr State::createJobset(pqxx::work & txn,
-    const std::string & projectName, const std::string & jobsetName)
+    const std::string & projectName, const std::string & jobsetName, const JobsetID jobsetID)
 {
     auto p = std::make_pair(projectName, jobsetName);
 
@@ -580,9 +597,8 @@ Jobset::ptr State::createJobset(pqxx::work & txn,
     }
 
     auto res = txn.exec_params1
-        ("select schedulingShares from Jobsets where project = $1 and name = $2",
-         projectName,
-         jobsetName);
+        ("select schedulingShares from Jobsets where id = $1",
+         jobsetID);
     if (res.empty()) throw Error("missing jobset - can't happen");
 
     auto shares = res["schedulingShares"].as<unsigned int>();
@@ -593,10 +609,9 @@ Jobset::ptr State::createJobset(pqxx::work & txn,
     /* Load the build steps from the last 24 hours. */
     auto res2 = txn.exec_params
         ("select s.startTime, s.stopTime from BuildSteps s join Builds b on build = id "
-         "where s.startTime is not null and s.stopTime > $1 and project = $2 and jobset = $3",
+         "where s.startTime is not null and s.stopTime > $1 and jobset_id = $2",
          time(0) - Jobset::schedulingWindow * 10,
-         projectName,
-         jobsetName);
+         jobsetID);
     for (auto const & row : res2) {
         time_t startTime = row["startTime"].as<time_t>();
         time_t stopTime = row["stopTime"].as<time_t>();
@@ -618,7 +633,7 @@ void State::processJobsetSharesChange(Connection & conn)
     auto res = txn.exec("select project, name, schedulingShares from Jobsets");
     for (auto const & row : res) {
         auto jobsets_(jobsets.lock());
-        auto i = jobsets_->find(std::make_pair(row["project"].as<string>(), row["name"].as<string>()));
+        auto i = jobsets_->find(std::make_pair(row["project"].as<std::string>(), row["name"].as<std::string>()));
         if (i == jobsets_->end()) continue;
         i->second->setShares(row["schedulingShares"].as<unsigned int>());
     }

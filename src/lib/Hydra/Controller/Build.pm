@@ -7,15 +7,16 @@ use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use File::Basename;
+use File::LibMagic;
 use File::stat;
 use Data::Dump qw(dump);
 use Nix::Store;
 use Nix::Config;
-use List::MoreUtils qw(all);
+use List::SomeUtils qw(all);
 use Encode;
-use MIME::Types;
 use JSON::PP;
 
+use feature 'state';
 
 sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     my ($self, $c, $id) = @_;
@@ -39,6 +40,19 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     $c->stash->{job} = $c->stash->{build}->job;
 
     checkProjectVisibleForGuest($c, $c->stash->{project});
+
+    $c->stash->{runcommandlogs} = [$c->stash->{build}->runcommandlogs->search({}, {order_by => ["id DESC"]})];
+
+    $c->stash->{runcommandlogProblem} = undef;
+    if ($c->stash->{job} =~ qr/^runCommandHook\..*/) {
+        if (!$c->config->{dynamicruncommand}->{enable}) {
+            $c->stash->{runcommandlogProblem} = "disabled-server";
+        } elsif (!$c->stash->{project}->enable_dynamic_run_command) {
+            $c->stash->{runcommandlogProblem} = "disabled-project";
+        } elsif (!$c->stash->{jobset}->enable_dynamic_run_command) {
+            $c->stash->{runcommandlogProblem} = "disabled-jobset";
+        }
+    }
 }
 
 
@@ -127,22 +141,34 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
 
     $c->stash->{step} = $step;
 
-    showLog($c, $mode, $step->busy == 0, $step->drvpath);
+    my $drvPath = $step->drvpath;
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
+    showLog($c, $mode, $log_uri);
 }
 
 
 sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
-    showLog($c, $mode, $c->stash->{build}->finished,
-            $c->stash->{build}->drvpath);
+
+    my $drvPath = $c->stash->{build}->drvpath;
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
+    showLog($c, $mode, $log_uri);
+}
+
+
+sub view_runcommandlog : Chained('buildChain') PathPart('runcommandlog') {
+    my ($self, $c, $uuid, $mode) = @_;
+
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("runcommandlog"), $uuid);
+    showLog($c, $mode, $log_uri);
+    $c->stash->{template} = 'runcommand-log.tt';
+    $c->stash->{runcommandlog} = $c->stash->{build}->runcommandlogs->find({ uuid => $uuid });
 }
 
 
 sub showLog {
-    my ($c, $mode, $finished, $drvPath) = @_;
+    my ($c, $mode, $log_uri) = @_;
     $mode //= "pretty";
-
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
 
     if ($mode eq "pretty") {
         $c->stash->{log_uri} = $log_uri;
@@ -212,16 +238,12 @@ sub serveFile {
     elsif ($ls->{type} eq "regular") {
 
         $c->stash->{'plain'} = { data => grab(cmd => ["nix", "--experimental-features", "nix-command",
-                                                      "cat-store", "--store", getStoreUri(), "$path"]) };
+                                                      "store", "cat", "--store", getStoreUri(), "$path"]) };
 
-        # Detect MIME type. Borrowed from Catalyst::Plugin::Static::Simple.
-        my $type = "text/plain";
-        if ($path =~ /.*\.(\S{1,})$/xms) {
-            my $ext = $1;
-            my $mimeTypes = MIME::Types->new(only_complete => 1);
-            my $t = $mimeTypes->mimeTypeOf($ext);
-            $type = ref $t ? $t->type : $t if $t;
-        }
+        # Detect MIME type.
+        state $magic = File::LibMagic->new(follow_symlinks => 1);
+        my $info = $magic->info_from_filename($path);
+        my $type = $info->{mime_with_encoding};
         $c->response->content_type($type);
         $c->forward('Hydra::View::Plain');
     }
@@ -266,29 +288,7 @@ sub download : Chained('buildChain') PathPart {
     my $path = $product->path;
     $path .= "/" . join("/", @path) if scalar @path > 0;
 
-    if (isLocalStore) {
-
-        notFound($c, "File '" . $product->path . "' does not exist.") unless -e $product->path;
-
-        # Make sure the file is in the Nix store.
-        $path = checkPath($self, $c, $path);
-
-        # If this is a directory but no "/" is attached, then redirect.
-        if (-d $path && substr($c->request->uri, -1) ne "/") {
-            return $c->res->redirect($c->request->uri . "/");
-        }
-
-        $path = "$path/index.html" if -d $path && -e "$path/index.html";
-
-        notFound($c, "File '$path' does not exist.") if !-e $path;
-
-        notFound($c, "Path '$path' is a directory.") if -d $path;
-
-        $c->serve_static_file($path);
-
-    } else {
-        serveFile($c, $path);
-    }
+    serveFile($c, $path);
 
     $c->response->headers->last_modified($c->stash->{build}->stoptime);
 }
@@ -344,7 +344,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 
     # FIXME: don't use shell invocations below.
 
-    # FIXME: use nix cat-store
+    # FIXME: use nix store cat
 
     my $res;
 

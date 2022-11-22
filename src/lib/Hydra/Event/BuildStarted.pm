@@ -25,6 +25,11 @@ sub new {
     }, $self;
 }
 
+sub interestedIn {
+    my ($self, $plugin) = @_;
+    return int(defined($plugin->can('buildStarted')));
+}
+
 sub load {
     my ($self, $db) = @_;
 

@@ -1,8 +1,8 @@
 [% WRAPPER layout.tt title=
     (create ? "Creating jobset in project $project.name" :
-     createFromEval ? "Creating jobset from evaluation $eval.id of $project.name:$jobset.name" :
-     cloneJobset ? "Cloning jobset $project.name:$jobset.name" :
-     "Editing jobset $project.name:$jobset.name") %]
+     createFromEval ? "Creating jobset from evaluation $eval.id of " _ makeNameTextForJobset(jobset) :
+     cloneJobset ? "Cloning jobset " _ makeNameTextForJobset(jobset) :
+     "Editing jobset " _ makeNameTextForJobset(jobset)) %]
 [% PROCESS common.tt %]
 [% USE format %]
 
@@ -154,6 +154,21 @@
     </label>
     <div class="col-sm-9">
       <input type="number" class="form-control" id="editjobschedulingshares" name="schedulingshares" [% HTML.attributes(value => jobset.schedulingshares) %]/>
+    </div>
+  </div>
+
+  <div class="form-group row">
+    <label class="col-sm-3" for="editjobsetenable_dynamic_run_command">Enable Dynamic RunCommand Hooks</label>
+    <div class="col-sm-9">
+      <input type="checkbox" id="editjobsetenable_dynamic_run_command" name="enable_dynamic_run_command"
+        [% IF !c.config.dynamicruncommand.enable %]
+          title="The server has not enabled dynamic RunCommands" disabled
+        [% ELSIF !project.enable_dynamic_run_command %]
+          title="The parent project has not enabled dynamic RunCommands" disabled
+        [% ELSIF jobset.enable_dynamic_run_command %]
+          checked
+        [% END %]
+      />
     </div>
   </div>
 

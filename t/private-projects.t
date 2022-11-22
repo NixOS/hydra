@@ -4,7 +4,7 @@ use Setup;
 use Test2::V0;
 use HTTP::Request::Common;
 use HTML::TreeBuilder::XPath;
-use JSON;
+use JSON::MaybeXS;
 
 my %ctx = test_init(
     use_external_destination_store => 0

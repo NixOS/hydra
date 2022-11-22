@@ -32,7 +32,7 @@ sub all : Chained('get_builds') PathPart {
     my $criteria = { finished => 1 };
 
     unless ($c->user_exists) {
-        $extra->{join} = ["project"];
+        $extra->{join} = {"jobset" => "project"};
         $criteria->{"project.private"} = 0;
     }
 
@@ -53,7 +53,7 @@ sub nix : Chained('get_builds') PathPart('channel/latest') CaptureArgs(0) {
         ->search_literal("exists (select 1 from buildproducts where build = me.id and type = 'nix-build')")
         ->search({"project.private" => {-in => $private}},
                     { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
-                     , join => ["buildoutputs", "project"]
+                     , join => ["buildoutputs", {"jobset" => "project"}]
                      , order_by => ["me.id", "buildoutputs.name"]
                      , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
 }

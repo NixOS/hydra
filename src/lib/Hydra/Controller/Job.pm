@@ -71,7 +71,7 @@ sub prometheus : Chained('job') PathPart('prometheus') Args(0) {
 
     my $lastBuild = $c->stash->{jobset}->builds->find(
         { job => $c->stash->{job}, finished => 1 },
-        { order_by => 'id DESC', rows => 1, columns => [@buildListColumns] }
+        { order_by => 'id DESC', rows => 1, columns => ["stoptime", "buildstatus", "closuresize", "size"] }
     );
 
     $prometheus->new_counter(
@@ -93,6 +93,26 @@ sub prometheus : Chained('job') PathPart('prometheus') Args(0) {
         $c->stash->{jobset}->name,
         $c->stash->{job},
     )->inc($lastBuild->buildstatus > 0);
+
+    $prometheus->new_gauge(
+        name => "hydra_build_closure_size",
+        help => "Closure size of the last job's build in bytes",
+        labels => [ "project", "jobset", "job" ]
+    )->labels(
+        $c->stash->{project}->name,
+        $c->stash->{jobset}->name,
+        $c->stash->{job},
+    )->inc($lastBuild->closuresize);
+
+    $prometheus->new_gauge(
+        name => "hydra_build_output_size",
+        help => "Output size of the last job's build in bytes",
+        labels => [ "project", "jobset", "job" ]
+    )->labels(
+        $c->stash->{project}->name,
+        $c->stash->{jobset}->name,
+        $c->stash->{job},
+    )->inc($lastBuild->size);
 
     $c->stash->{'plain'} = { data => $prometheus->render };
     $c->forward('Hydra::View::Plain');

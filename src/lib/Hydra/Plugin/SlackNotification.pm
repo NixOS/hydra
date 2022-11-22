@@ -6,7 +6,7 @@ use parent 'Hydra::Plugin';
 use HTTP::Request;
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
-use JSON;
+use JSON::MaybeXS;
 
 =head1 NAME
 
@@ -140,7 +140,7 @@ sub buildFinished {
             "danger";
 
         my $text = "";
-        $text .= "Job <$baseurl/job/${\$topbuild->get_column('project')}/${\$topbuild->get_column('jobset')}/${\$topbuild->get_column('job')}|${\showJobName($topbuild)}>";
+        $text .= "Job <$baseurl/job/${\$topbuild->jobset->get_column('project')}/${\$topbuild->jobset->get_column('name')}/${\$topbuild->get_column('job')}|${\showJobName($topbuild)}>";
         $text .= " (and ${\scalar @deps} others)" if scalar @deps > 0;
         $text .= ": <$baseurl/build/${\$topbuild->id}|" . showStatus($topbuild) . ">". " in " . renderDuration($topbuild);
 

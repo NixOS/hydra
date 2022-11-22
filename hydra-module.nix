@@ -26,7 +26,7 @@ let
     } // hydraEnv // cfg.extraEnv;
 
   serverEnv = env //
-    { HYDRA_TRACKER = cfg.tracker;
+    {
       COLUMNS = "80";
       PGPASSFILE = "${baseDir}/pgpass-www"; # grrr
       XDG_CACHE_HOME = "${baseDir}/www/.cache";
@@ -69,6 +69,7 @@ in
       package = mkOption {
         type = types.path;
         default = pkgs.hydra;
+        defaultText = literalExpression "pkgs.hydra";
         description = "The Hydra package.";
       };
 
@@ -171,6 +172,7 @@ in
       buildMachinesFiles = mkOption {
         type = types.listOf types.path;
         default = optional (config.nix.buildMachines != []) "/etc/nix/machines";
+        defaultText = literalExpression ''optional (config.nix.buildMachines != []) "/etc/nix/machines"'';
         example = [ "/etc/nix/machines" "/var/lib/hydra/provisioner/machines" ];
         description = "List of files containing build machines.";
       };
@@ -226,8 +228,12 @@ in
         useDefaultShell = true;
       };
 
-    nix.trustedUsers = [ "hydra-queue-runner" ];
-
+    nix.settings = {
+      trusted-users = [ "hydra-queue-runner" ];
+      gc-keep-outputs = true;
+      gc-keep-derivations = true;
+    };
+    
     services.hydra-dev.extraConfig =
       ''
         using_frontend_proxy = 1
@@ -240,16 +246,19 @@ in
         ''}
         gc_roots_dir = ${cfg.gcRootsDir}
         use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
+
+        ${optionalString (cfg.tracker != null) (let
+            indentedTrackerData = lib.concatMapStringsSep "\n" (line: "    ${line}") (lib.splitString "\n" cfg.tracker);
+          in ''
+          tracker = <<TRACKER
+          ${indentedTrackerData}
+            TRACKER
+        '')}
       '';
 
     environment.systemPackages = [ cfg.package ];
 
     environment.variables = hydraEnv;
-
-    nix.extraOptions = ''
-      gc-keep-outputs = true
-      gc-keep-derivations = true
-    '';
 
     systemd.services.hydra-init =
       { wantedBy = [ "multi-user.target" ];
@@ -258,16 +267,20 @@ in
         environment = env // {
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-init";
         };
-        path = [ pkgs.utillinux ];
+        path = [ pkgs.util-linux ];
         preStart = ''
           ln -sf ${hydraConf} ${baseDir}/hydra.conf
 
           mkdir -m 0700 -p ${baseDir}/www
-          chown hydra-www.hydra ${baseDir}/www
+          chown hydra-www:hydra ${baseDir}/www
 
           mkdir -m 0700 -p ${baseDir}/queue-runner
           mkdir -m 0750 -p ${baseDir}/build-logs
-          chown hydra-queue-runner.hydra ${baseDir}/queue-runner ${baseDir}/build-logs
+          mkdir -m 0750 -p ${baseDir}/runcommand-logs
+          chown hydra-queue-runner:hydra \
+            ${baseDir}/queue-runner \
+            ${baseDir}/build-logs \
+            ${baseDir}/runcommand-logs
 
           ${optionalString haveLocalDB ''
             if ! [ -e ${baseDir}/.db-created ]; then
@@ -295,7 +308,7 @@ in
             rmdir /nix/var/nix/gcroots/per-user/hydra-www/hydra-roots
           fi
 
-          chown hydra.hydra ${cfg.gcRootsDir}
+          chown hydra:hydra ${cfg.gcRootsDir}
           chmod 2775 ${cfg.gcRootsDir}
         '';
         serviceConfig.ExecStart = "${cfg.package}/bin/hydra-init";
@@ -424,12 +437,12 @@ in
                 if [ $(systemctl is-active $service) == active ]; then
                   echo "stopping $service due to lack of free space..."
                   systemctl stop $service
-                  date > /var/lib/hydra/.$service-stopped-minspace
+                  date > ${baseDir}/.$service-stopped-minspace
                 fi
               else
                 if [ $spaceleft -gt $(( ($minFreeGB + 10) * 1024**3)) -a \
-                     -r /var/lib/hydra/.$service-stopped-minspace ] ; then
-                  rm /var/lib/hydra/.$service-stopped-minspace
+                     -r ${baseDir}/.$service-stopped-minspace ] ; then
+                  rm ${baseDir}/.$service-stopped-minspace
                   echo "restarting $service due to newly available free space..."
                   systemctl start $service
                 fi
@@ -448,7 +461,7 @@ in
       { path = [ pkgs.bzip2 ];
         script =
           ''
-            find /var/lib/hydra/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v -f
+            find ${baseDir}/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v -f
           '';
         startAt = "Sun 01:45";
       };

@@ -155,6 +155,12 @@ __PACKAGE__->table("jobsets");
   data_type: 'text'
   is_nullable: 1
 
+=head2 enable_dynamic_run_command
+
+  data_type: 'boolean'
+  default_value: false
+  is_nullable: 0
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -207,6 +213,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "flake",
   { data_type => "text", is_nullable => 1 },
+  "enable_dynamic_run_command",
+  { data_type => "boolean", default_value => \"false", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -257,7 +265,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 builds_jobset_ids
+=head2 builds
 
 Type: has_many
 
@@ -266,27 +274,9 @@ Related object: L<Hydra::Schema::Result::Builds>
 =cut
 
 __PACKAGE__->has_many(
-  "builds_jobset_ids",
+  "builds",
   "Hydra::Schema::Result::Builds",
   { "foreign.jobset_id" => "self.id" },
-  undef,
-);
-
-=head2 builds_project_jobsets
-
-Type: has_many
-
-Related object: L<Hydra::Schema::Result::Builds>
-
-=cut
-
-__PACKAGE__->has_many(
-  "builds_project_jobsets",
-  "Hydra::Schema::Result::Builds",
-  {
-    "foreign.jobset"  => "self.name",
-    "foreign.project" => "self.project",
-  },
   undef,
 );
 
@@ -372,10 +362,10 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:iI44C3BFTo6IsS1tBwWYsg
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-01-24 14:17:33
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:7wPE5ebeVTkenMCWG9Sgcg
 
-use JSON;
+use JSON::MaybeXS;
 
 =head2 builds
 
@@ -395,6 +385,13 @@ __PACKAGE__->has_many(
 __PACKAGE__->add_column(
     "+id" => { retrieve_on_insert => 1 }
 );
+
+sub supportsDynamicRunCommand {
+  my ($self) = @_;
+
+  return $self->get_column('enable_dynamic_run_command') == 1
+    && $self->project->supportsDynamicRunCommand();
+}
 
 sub as_json {
     my $self = shift;
@@ -423,8 +420,9 @@ sub as_json {
         "flake" => $self->get_column("flake") // "",
 
         # boolean_columns
-        "enableemail" => $self->get_column("enableemail") ? JSON::true : JSON::false,
-        "visible" => $self->get_column("hidden") ? JSON::false : JSON::true,
+        "enableemail" => $self->get_column("enableemail") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
+        "enable_dynamic_run_command" => $self->get_column("enable_dynamic_run_command") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
+        "visible" => $self->get_column("hidden") ? JSON::MaybeXS::false : JSON::MaybeXS::true,
 
         "inputs" => { map { $_->name => $_ } $self->jobsetinputs }
     );

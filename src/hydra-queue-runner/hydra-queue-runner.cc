@@ -6,8 +6,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <prometheus/exposer.h>
+
 #include "state.hh"
-#include "build-result.hh"
+#include "hydra-build-result.hh"
 #include "store-api.hh"
 #include "remote-store.hh"
 
@@ -36,8 +38,55 @@ std::string getEnvOrDie(const std::string & key)
     return *value;
 }
 
+State::PromMetrics::PromMetrics()
+    : registry(std::make_shared<prometheus::Registry>())
+    , queue_checks_started(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_checks_started_total")
+            .Help("Number of times State::getQueuedBuilds() was started")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_build_loads(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_build_loads_total")
+            .Help("Number of builds loaded")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_steps_created(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_steps_created_total")
+            .Help("Number of steps created")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_checks_early_exits(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_checks_early_exits_total")
+            .Help("Number of times State::getQueuedBuilds() yielded to potential bumps")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_checks_finished(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_checks_finished_total")
+            .Help("Number of times State::getQueuedBuilds() was completed")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_max_id(
+        prometheus::BuildGauge()
+            .Name("hydraqueuerunner_queue_max_build_id_info")
+            .Help("Maximum build record ID in the queue")
+            .Register(*registry)
+            .Add({})
+    )
+{
 
-State::State()
+}
+
+State::State(std::optional<std::string> metricsAddrOpt)
     : config(std::make_unique<HydraConfig>())
     , maxUnsupportedTime(config->getIntOption("max_unsupported_time", 0))
     , dbPool(config->getIntOption("max_db_connections", 128))
@@ -45,10 +94,15 @@ State::State()
     , maxLogSize(config->getIntOption("max_log_size", 64ULL << 20))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
     , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
+    , metricsAddr(config->getStrOption("queue_runner_metrics_address", std::string{"127.0.0.1:9198"}))
 {
     hydraData = getEnvOrDie("HYDRA_DATA");
 
     logDir = canonPath(hydraData + "/build-logs");
+
+    if (metricsAddrOpt.has_value()) {
+        metricsAddr = metricsAddrOpt.value();
+    }
 
     /* handle deprecated store specification */
     if (config->getStrOption("store_mode") != "")
@@ -87,7 +141,7 @@ void State::parseMachines(const std::string & contents)
     }
 
     for (auto line : tokenizeString<Strings>(contents, "\n")) {
-        line = trim(string(line, 0, line.find('#')));
+        line = trim(std::string(line, 0, line.find('#')));
         auto tokens = tokenizeString<std::vector<std::string>>(line);
         if (tokens.size() < 3) continue;
         tokens.resize(8);
@@ -95,7 +149,7 @@ void State::parseMachines(const std::string & contents)
         auto machine = std::make_shared<Machine>();
         machine->sshName = tokens[0];
         machine->systemTypes = tokenizeString<StringSet>(tokens[1], ",");
-        machine->sshKey = tokens[2] == "-" ? string("") : tokens[2];
+        machine->sshKey = tokens[2] == "-" ? std::string("") : tokens[2];
         if (tokens[3] != "")
             machine->maxJobs = string2Int<decltype(machine->maxJobs)>(tokens[3]).value();
         else
@@ -149,7 +203,7 @@ void State::parseMachines(const std::string & contents)
 
 void State::monitorMachinesFile()
 {
-    string defaultMachinesFile = "/etc/nix/machines";
+    std::string defaultMachinesFile = "/etc/nix/machines";
     auto machinesFiles = tokenizeString<std::vector<Path>>(
         getEnv("NIX_REMOTE_SYSTEMS").value_or(pathExists(defaultMachinesFile) ? defaultMachinesFile : ""), ":");
 
@@ -158,6 +212,7 @@ void State::monitorMachinesFile()
             (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem.get())
             + " - " + std::to_string(settings.maxBuildJobs) + " 1 "
             + concatStringsSep(",", settings.systemFeatures.get()));
+        machinesReadyLock.unlock();
         return;
     }
 
@@ -190,7 +245,7 @@ void State::monitorMachinesFile()
 
         debug("reloading machines files");
 
-        string contents;
+        std::string contents;
         for (auto & machinesFile : machinesFiles) {
             try {
                 contents += readFile(machinesFile);
@@ -203,9 +258,15 @@ void State::monitorMachinesFile()
         parseMachines(contents);
     };
 
+    auto firstParse = true;
+
     while (true) {
         try {
             readMachinesFiles();
+            if (firstParse) {
+                machinesReadyLock.unlock();
+                firstParse = false;
+            }
             // FIXME: use inotify.
             sleep(30);
         } catch (std::exception & e) {
@@ -301,7 +362,7 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
 
 
 int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
-    Build::ptr build, const StorePath & drvPath, const string & outputName, const StorePath & storePath)
+    Build::ptr build, const StorePath & drvPath, const std::string & outputName, const StorePath & storePath)
 {
  restart:
     auto stepNr = allocBuildStep(txn, build->id);
@@ -321,7 +382,7 @@ int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t sto
 
     txn.exec_params0
         ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-         build->id, stepNr, outputName, 
+         build->id, stepNr, outputName,
          localStore->printStorePath(storePath));
 
     return stepNr;
@@ -676,14 +737,14 @@ void State::showStatus()
     auto conn(dbPool.get());
     receiver statusDumped(*conn, "status_dumped");
 
-    string status;
+    std::string status;
     bool barf = false;
 
     /* Get the last JSON status dump from the database. */
     {
         pqxx::work txn(*conn);
         auto res = txn.exec("select status from SystemStatus where what = 'queue-runner'");
-        if (res.size()) status = res[0][0].as<string>();
+        if (res.size()) status = res[0][0].as<std::string>();
     }
 
     if (status != "") {
@@ -703,7 +764,7 @@ void State::showStatus()
         {
             pqxx::work txn(*conn);
             auto res = txn.exec("select status from SystemStatus where what = 'queue-runner'");
-            if (res.size()) status = res[0][0].as<string>();
+            if (res.size()) status = res[0][0].as<std::string>();
         }
 
     }
@@ -747,6 +808,18 @@ void State::run(BuildID buildOne)
     if (!lock)
         throw Error("hydra-queue-runner is already running");
 
+    std::cout << "Starting the Prometheus exporter on " << metricsAddr << std::endl;
+
+    /* Set up simple exporter, to show that we're still alive. */
+    prometheus::Exposer promExposer{metricsAddr};
+    auto exposerPort = promExposer.GetListeningPorts().front();
+
+    promExposer.RegisterCollectable(prom.registry);
+
+    std::cout << "Started the Prometheus exporter, listening on "
+        << metricsAddr << "/metrics (port " << exposerPort << ")"
+        << std::endl;
+
     Store::Params localParams;
     localParams["max-connections"] = "16";
     localParams["max-connection-age"] = "600";
@@ -770,6 +843,7 @@ void State::run(BuildID buildOne)
         dumpStatus(*conn);
     }
 
+    machinesReadyLock.lock();
     std::thread(&State::monitorMachinesFile, this).detach();
 
     std::thread(&State::queueMonitor, this).detach();
@@ -856,6 +930,7 @@ int main(int argc, char * * argv)
         bool unlock = false;
         bool status = false;
         BuildID buildOne = 0;
+        std::optional<std::string> metricsAddrOpt = std::nullopt;
 
         parseCmdLine(argc, argv, [&](Strings::iterator & arg, const Strings::iterator & end) {
             if (*arg == "--unlock")
@@ -867,6 +942,8 @@ int main(int argc, char * * argv)
                     buildOne = *b;
                 else
                     throw Error("‘--build-one’ requires a build ID");
+            } else if (*arg == "--prometheus-address") {
+                metricsAddrOpt = getArg(*arg, arg, end);
             } else
                 return false;
             return true;
@@ -875,7 +952,7 @@ int main(int argc, char * * argv)
         settings.verboseBuild = true;
         settings.lockCPU = false;
 
-        State state;
+        State state{metricsAddrOpt};
         if (status)
             state.showStatus();
         else if (unlock)

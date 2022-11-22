@@ -52,18 +52,6 @@ __PACKAGE__->table("builds");
   data_type: 'integer'
   is_nullable: 0
 
-=head2 project
-
-  data_type: 'text'
-  is_foreign_key: 1
-  is_nullable: 0
-
-=head2 jobset
-
-  data_type: 'text'
-  is_foreign_key: 1
-  is_nullable: 0
-
 =head2 jobset_id
 
   data_type: 'integer'
@@ -206,10 +194,6 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 0 },
   "timestamp",
   { data_type => "integer", is_nullable => 0 },
-  "project",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
-  "jobset",
-  { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
   "jobset_id",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "job",
@@ -439,21 +423,6 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
-=head2 jobset_project_jobset
-
-Type: belongs_to
-
-Related object: L<Hydra::Schema::Result::Jobsets>
-
-=cut
-
-__PACKAGE__->belongs_to(
-  "jobset_project_jobset",
-  "Hydra::Schema::Result::Jobsets",
-  { name => "jobset", project => "project" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
-);
-
 =head2 jobsetevalinputs
 
 Type: has_many
@@ -484,19 +453,19 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 project
+=head2 runcommandlogs
 
-Type: belongs_to
+Type: has_many
 
-Related object: L<Hydra::Schema::Result::Projects>
+Related object: L<Hydra::Schema::Result::RunCommandLogs>
 
 =cut
 
-__PACKAGE__->belongs_to(
-  "project",
-  "Hydra::Schema::Result::Projects",
-  { name => "project" },
-  { is_deferrable => 0, on_delete => "NO ACTION", on_update => "CASCADE" },
+__PACKAGE__->has_many(
+  "runcommandlogs",
+  "Hydra::Schema::Result::RunCommandLogs",
+  { "foreign.build_id" => "self.id" },
+  undef,
 );
 
 =head2 aggregates
@@ -528,8 +497,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:WHdSVHhQykmUz0tR/TExVg
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-01-10 09:43:38
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DQF8KRinnf0imJOP+lvH9Q
 
 __PACKAGE__->has_many(
   "dependents",
@@ -569,7 +538,7 @@ sub makeSource {
 sub makeQueries {
     my ($name, $constraint) = @_;
 
-    my $activeJobs = "(select distinct project, jobset, job, system from Builds where isCurrent = 1 $constraint)";
+    my $activeJobs = "(select distinct jobset_id, job, system from Builds where isCurrent = 1 $constraint)";
 
     makeSource(
         "LatestSucceeded$name",
@@ -579,7 +548,7 @@ sub makeQueries {
             (select
                (select max(b.id) from builds b
                 where
-                  project = activeJobs.project and jobset = activeJobs.jobset
+                  jobset_id = activeJobs.jobset_id
                   and job = activeJobs.job and system = activeJobs.system
                   and finished = 1 and buildstatus = 0
                ) as id
@@ -591,41 +560,46 @@ QUERY
 }
 
 makeQueries('', "");
-makeQueries('ForProject', "and project = ?");
+makeQueries('ForProject', "and jobset_id in (select id from jobsets j where j.project = ?)");
 makeQueries('ForJobset', "and jobset_id = ?");
 makeQueries('ForJob', "and jobset_id = ? and job = ?");
 makeQueries('ForJobName', "and jobset_id = (select id from jobsets j where j.name = ?) and job = ?");
 
+sub as_json {
+  my ($self) = @_;
 
-my %hint = (
-    columns => [
-        'id',
-        'finished',
-        'timestamp',
-        'starttime',
-        'stoptime',
-        'project',
-        'jobset',
-        'job',
-        'nixname',
-        'system',
-        'priority',
-        'buildstatus',
-        'releasename',
-        'drvpath',
-    ],
-    relations => {
-        jobsetevals => 'id'
-    },
-    eager_relations => {
-        buildoutputs => 'name',
-        buildproducts => 'productnr',
-        buildmetrics => 'name',
-    }
-);
+  # After #1093 merges this can become $self->jobset;
+  # However, with ->jobset being a column on master
+  # it seems DBIX gets a it confused.
+  my ($jobset) = $self->search_related('jobset')->first;
 
-sub json_hint {
-    return \%hint;
+  my $json = {
+    id => $self->get_column('id'),
+    finished => $self->get_column('finished'),
+    timestamp => $self->get_column('timestamp'),
+    starttime => $self->get_column('starttime'),
+    stoptime => $self->get_column('stoptime'),
+    project => $jobset->get_column('project'),
+    jobset => $jobset->name,
+    job => $self->get_column('job'),
+    nixname => $self->get_column('nixname'),
+    system => $self->get_column('system'),
+    priority => $self->get_column('priority'),
+    buildstatus => $self->get_column('buildstatus'),
+    releasename => $self->get_column('releasename'),
+    drvpath => $self->get_column('drvpath'),
+    jobsetevals => [ map { $_->id } $self->jobsetevals ],
+    buildoutputs => { map { $_->name  => $_ } $self->buildoutputs },
+    buildproducts => { map { $_->productnr => $_ } $self->buildproducts },
+    buildmetrics => { map { $_->name => $_ } $self->buildmetrics },
+  };
+
+  return $json;
+}
+
+sub project {
+  my ($self) = @_;
+  return $self->jobset->project;
 }
 
 1;

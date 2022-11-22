@@ -94,6 +94,12 @@ __PACKAGE__->table("projects");
   data_type: 'text'
   is_nullable: 1
 
+=head2 enable_dynamic_run_command
+
+  data_type: 'boolean'
+  default_value: false
+  is_nullable: 0
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -119,6 +125,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "declvalue",
   { data_type => "text", is_nullable => 1 },
+  "enable_dynamic_run_command",
+  { data_type => "boolean", default_value => \"false", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -146,21 +154,6 @@ Related object: L<Hydra::Schema::Result::BuildMetrics>
 __PACKAGE__->has_many(
   "buildmetrics",
   "Hydra::Schema::Result::BuildMetrics",
-  { "foreign.project" => "self.name" },
-  undef,
-);
-
-=head2 builds
-
-Type: has_many
-
-Related object: L<Hydra::Schema::Result::Builds>
-
-=cut
-
-__PACKAGE__->has_many(
-  "builds",
-  "Hydra::Schema::Result::Builds",
   { "foreign.project" => "self.name" },
   undef,
 );
@@ -251,10 +244,21 @@ Composing rels: L</projectmembers> -> username
 __PACKAGE__->many_to_many("usernames", "projectmembers", "username");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-29 20:52:46
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zh+ccEbTfH0WypoHW+FPSw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-11-22 12:51:02
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ppyLpFU2fZASFANhD7vUgg
 
-use JSON;
+use JSON::MaybeXS;
+
+sub builds {
+  my ($self) = @_;
+  return $self->jobsets->related_resultset('builds');
+};
+
+sub supportsDynamicRunCommand {
+  my ($self) = @_;
+
+  return $self->get_column('enable_dynamic_run_command') == 1;
+}
 
 sub as_json {
     my $self = shift;
@@ -268,9 +272,10 @@ sub as_json {
         "owner" => $self->get_column("owner") // "",
 
         # boolean_columns
-        "enabled" => $self->get_column("enabled") ? JSON::true : JSON::false,
-        "hidden" => $self->get_column("hidden") ? JSON::true : JSON::false,
-        "private" => $self->get_column("private") ? JSON::true : JSON::false,
+        "enabled" => $self->get_column("enabled") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
+        "enable_dynamic_run_command" => $self->get_column("enable_dynamic_run_command") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
+        "hidden" => $self->get_column("hidden") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
+        "private" => $self->get_column("private") ? JSON::MaybeXS::true : JSON::MaybeXS::false,
 
         "jobsets" => [ map { $_->name } $self->jobsets ]
     );

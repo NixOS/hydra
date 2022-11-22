@@ -80,8 +80,8 @@ sub project_DELETE {
     requireProjectOwner($c, $c->stash->{project});
 
     $c->model('DB')->schema->txn_do(sub {
-        $c->stash->{project}->jobsets->delete;
         $c->stash->{project}->builds->delete;
+        $c->stash->{project}->jobsets->delete;
         $c->stash->{project}->delete;
     });
 
@@ -151,6 +151,11 @@ sub updateProject {
     my $displayName = trim $c->stash->{params}->{displayname};
     error($c, "You must specify a display name.") if $displayName eq "";
 
+    my $enable_dynamic_run_command = defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
+    if ($enable_dynamic_run_command && !$c->config->{dynamicruncommand}->{enable}) {
+        badRequest($c, "Dynamic RunCommand is not enabled by the server.");
+    }
+
     $project->update(
         { name => $projectName
         , displayname => $displayName
@@ -160,11 +165,14 @@ sub updateProject {
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , private => defined $c->stash->{params}->{private} ? 1 : 0
         , owner => $owner
+        , enable_dynamic_run_command => $enable_dynamic_run_command
         , declfile => trim($c->stash->{params}->{declarative}->{file})
         , decltype => trim($c->stash->{params}->{declarative}->{type})
         , declvalue => trim($c->stash->{params}->{declarative}->{value})
         });
     if (length($project->declfile)) {
+        # This logic also exists in the DeclarativeJobets tests.
+        # TODO: refactor and deduplicate.
         $project->jobsets->update_or_create(
             { name=> ".jobsets"
             , nixexprinput => ""

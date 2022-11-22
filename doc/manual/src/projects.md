@@ -393,13 +393,18 @@ This section describes how it can be implemented for `gitea`, but the approach f
 analogous:
 
 * [Obtain an API token for your user](https://docs.gitea.io/en-us/api-usage/#authentication)
-* Add it to your `hydra.conf` like this:
+* Add it to a file which only users in the hydra group can read like this: see [including files](configuration.md#including-files) for more information
+  ```
+  <gitea_authorization>
+    your_username=your_token
+  </gitea_authorization>
+  ```
+
+* Include the file in your `hydra.conf` like this:
   ``` nix
   {
     services.hydra-dev.extraConfig = ''
-      <gitea_authorization>
-      your_username=your_token
-      </gitea_authorization>
+      Include /path/to/secret/file
     '';
   }
   ```

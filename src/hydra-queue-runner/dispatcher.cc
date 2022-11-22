@@ -31,8 +31,10 @@ void State::makeRunnable(Step::ptr step)
 
 void State::dispatcher()
 {
-    while (true) {
+    printMsg(lvlDebug, "Waiting for the machines parsing to have completed at least once");
+    machinesReadyLock.lock();
 
+    while (true) {
         try {
             printMsg(lvlDebug, "dispatcher woken up");
             nrDispatcherWakeups++;

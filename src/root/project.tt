@@ -92,6 +92,10 @@
         <th>Enabled:</th>
         <td>[% project.enabled ? "Yes" : "No" %]</td>
       </tr>
+      <tr>
+        <th>Enable Dynamic RunCommand Hooks:</th>
+        <td>[% c.config.dynamicruncommand.enable ? project.enable_dynamic_run_command ? "Yes" : "No (not enabled by project)" : "No (not enabled by server)" %]</td>
+      </tr>
     </table>
   </div>
 

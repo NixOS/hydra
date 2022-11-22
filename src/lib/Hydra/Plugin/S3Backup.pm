@@ -98,7 +98,8 @@ sub buildFinished {
         foreach my $reference (@{$refs}) {
             push @needed_paths, $reference;
         }
-        while (my ($compression_type, $configs) = each %compression_types) {
+        foreach my $compression_type (keys %compression_types) {
+            my $configs = $compression_types{$compression_type};
             my @incomplete_buckets = ();
             # Don't do any work if all the buckets have this path
             foreach my $bucket_config (@{$configs}) {
@@ -144,7 +145,8 @@ sub buildFinished {
     }
 
     # Upload narinfos
-    while (my ($compression_type, $infos) = each %narinfos) {
+    foreach my $compression_type (keys %narinfos) {
+        my $infos = $narinfos{$compression_type};
         foreach my $bucket_config (@{$compression_types{$compression_type}}) {
             foreach my $info (@{$infos}) {
                 my $bucket = $client->bucket( name => $bucket_config->{name} );

@@ -5,6 +5,7 @@ use warnings;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 use Hydra::Model::DB;
+use Term::ReadKey;
 use Getopt::Long qw(:config gnu_getopt);
 
 sub showHelp {
@@ -14,8 +15,9 @@ Usage: hydra-create-user NAME
   [--type hydra|google|github]
   [--full-name FULLNAME]
   [--email-address EMAIL-ADDRESS]
-  [--password PASSWORD]
+  [--password-prompt]
   [--password-hash HASH]
+  [--password PASSWORD (dangerous)]
   [--wipe-roles]
   [--role ROLE]...
 
@@ -25,27 +27,47 @@ exists, roles are added to the existing roles unless --wipe-roles is
 specified.  If --rename-from is given, the specified account is
 renamed.
 
-* PASSWORD HASH
-The password hash should be an Argon2id hash, which can be generated
-via:
+* Specifying Passwords
+
+** Interactively
+
+Pass `--password-prompt` to collect the password on stdin.
+
+The password will be hashed with Argon2id when stored.
+
+Example:
+
+  $ hydra-create-user alice --password-prompt --role admin
+
+** Specifying a Hash
+
+You can generate a password hash and provide the hash as well. This
+is useful so a user can send the administrator their password pre-hashed,
+allowing the user to get their preferred password without exposing it
+to the administrator.
+
+Hydra uses Argon2id hashes, which can be generated like so:
 
     $ nix-shell -p libargon2
-    [nix-shell]$ argon2 "$(LC_ALL=C tr -dc '[:alnum:]' < /dev/urandom | head -c16)" -id -t 3 -k 262144 -p 1 -l 16 -e
+    [nix-shell]$ tr -d \\\\n | argon2 "$(LC_ALL=C tr -dc '[:alnum:]' < /dev/urandom | head -c16)" -id -t 3 -k 262144 -p 1 -l 16 -e
     foobar
     Ctrl^D
     $argon2id$v=19$m=262144,t=3,p=1$NFU1QXJRNnc4V1BhQ0NJQg$6GHqjqv5cNDDwZqrqUD0zQ
 
-SHA1 is also accepted, but SHA1 support is deprecated and the user's
-password will be upgraded to Argon2id on first login.
-
-
-Examples:
-
-Create a user with an argon2 password:
+Example:
 
   $ hydra-create-user alice --password-hash '$argon2id$v=19$m=262144,t=3,p=1$NFU1QXJRNnc4V1BhQ0NJQg$6GHqjqv5cNDDwZqrqUD0zQ' --role admin
 
-Create a user with a password insecurely provided on the commandline:
+SHA1 is also accepted, but SHA1 support is deprecated and the user's
+password will be upgraded to Argon2id on first login.
+
+** Specifying a plain-text password as an argument (dangerous)
+
+This option is dangerous and should not be used: it exposes passwords to
+other users on the system. This option only exists for backwards
+compatibility.
+
+Example:
 
   $ hydra-create-user alice --password foobar --role admin
 
@@ -53,7 +75,7 @@ Create a user with a password insecurely provided on the commandline:
     exit 0;
 }
 
-my ($renameFrom, $type, $fullName, $emailAddress, $password, $passwordHash);
+my ($renameFrom, $type, $fullName, $emailAddress, $password, $passwordHash, $passwordPrompt);
 my $wipeRoles = 0;
 my @roles;
 
@@ -62,6 +84,7 @@ GetOptions("rename-from=s" => \$renameFrom,
            "full-name=s" => \$fullName,
            "email-address=s" => \$emailAddress,
            "password=s" => \$password,
+           "password-prompt" => \$passwordPrompt,
            "password-hash=s" => \$passwordHash,
            "wipe-roles" => \$wipeRoles,
            "role=s" => \@roles,
@@ -70,6 +93,11 @@ GetOptions("rename-from=s" => \$renameFrom,
 
 die "$0: one user name required\n" if scalar @ARGV != 1;
 my $userName = $ARGV[0];
+
+my $chosenPasswordOptions = grep { defined($_) }  ($passwordPrompt, $passwordHash, $password);
+if ($chosenPasswordOptions > 1) {
+    die "$0: please specify only one of --password-prompt or --password-hash. See --help for more information.\n";
+}
 
 die "$0: type must be `hydra', `google' or `github'\n"
     if defined $type && $type ne "hydra" && $type ne "google" && $type ne "github";
@@ -103,16 +131,42 @@ $db->txn_do(sub {
             if defined $password;
         die "$0: Google and GitHub accounts do not have a password.\n"
             if defined $passwordHash;
+        die "$0: Google and GitHub accounts do not have a password.\n"
+            if defined $passwordPrompt;
         $user->update({ emailaddress => $userName, password => "!" });
     } else {
         $user->update({ emailaddress => $emailAddress }) if defined $emailAddress;
 
-        if (defined $password && !(defined $passwordHash)) {
+        if (defined $password) {
+            # !!! TODO: Remove support for plaintext passwords in 2023.
+            print STDERR "Submitting plaintext passwords as arguments is deprecated and will be removed. See --help for alternatives.\n";
             $user->setPassword($password);
         }
 
         if (defined $passwordHash) {
             $user->setPasswordHash($passwordHash);
+        }
+
+        if (defined $passwordPrompt) {
+            ReadMode 2;
+            print STDERR "Password: ";
+            my $password = <STDIN> // "";
+            chomp $password;
+
+            print STDERR "\nPassword Confirmation: ";
+            my $passwordConfirm = <STDIN> // "";
+            chomp $passwordConfirm;
+            ReadMode 0;
+
+            print STDERR "\n";
+
+            if ($password ne $passwordConfirm) {
+                die "Passwords don't match."
+            } elsif ($password eq "") {
+                die "Password cannot be empty."
+            }
+
+            $user->setPassword($password);
         }
     }
 

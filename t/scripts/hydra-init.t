@@ -2,6 +2,7 @@ use feature 'unicode_strings';
 use strict;
 use warnings;
 use Setup;
+use Hydra::Helper::Exec;
 
 my %ctx = test_init();
 

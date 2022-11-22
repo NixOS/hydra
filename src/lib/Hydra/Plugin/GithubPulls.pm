@@ -5,7 +5,7 @@ use warnings;
 use parent 'Hydra::Plugin';
 use HTTP::Request;
 use LWP::UserAgent;
-use JSON;
+use JSON::MaybeXS;
 use Hydra::Helper::CatalystUtils;
 use File::Temp;
 use POSIX qw(strftime);
@@ -30,7 +30,7 @@ sub _iterate {
         $pulls->{$pull->{number}} = $pull;
     }
     # TODO Make Link header parsing more robust!!!
-    my @links = split ',', $res->header("Link");
+    my @links = split ',', ($res->header("Link") // "");
     my $next = "";
     foreach my $link (@links) {
         my ($url, $rel) = split ";", $link;

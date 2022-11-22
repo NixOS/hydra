@@ -6,18 +6,26 @@
 #include <map>
 #include <memory>
 #include <queue>
+#include <regex>
+
+#include <prometheus/counter.h>
+#include <prometheus/gauge.h>
+#include <prometheus/registry.h>
 
 #include "db.hh"
 
 #include "parsed-derivations.hh"
 #include "pathlocks.hh"
 #include "pool.hh"
+#include "build-result.hh"
 #include "store-api.hh"
 #include "sync.hh"
 #include "nar-extractor.hh"
 
 
 typedef unsigned int BuildID;
+
+typedef unsigned int JobsetID;
 
 typedef std::chrono::time_point<std::chrono::system_clock> system_time;
 
@@ -123,6 +131,7 @@ struct Build
     BuildID id;
     nix::StorePath drvPath;
     std::map<std::string, nix::StorePath> outputs;
+    JobsetID jobsetId;
     std::string projectName, jobsetName, jobName;
     time_t timestamp;
     unsigned int maxSilentTime, buildTimeout;
@@ -285,7 +294,8 @@ struct Machine
 
     bool isLocalhost()
     {
-        return sshName == "localhost";
+        std::regex r("^(ssh://|ssh-ng://)?localhost$");
+        return std::regex_search(sshName, r);
     }
 };
 
@@ -339,6 +349,7 @@ private:
     nix::Pool<Connection> dbPool;
 
     /* The build machines. */
+    std::mutex machinesReadyLock;
     typedef std::map<std::string, Machine::ptr> Machines;
     nix::Sync<Machines> machines; // FIXME: use atomic_shared_ptr
 
@@ -428,8 +439,25 @@ private:
        via gc_roots_dir. */
     nix::Path rootsDir;
 
+    std::string metricsAddr;
+
+    struct PromMetrics
+    {
+        std::shared_ptr<prometheus::Registry> registry;
+
+        prometheus::Counter& queue_checks_started;
+        prometheus::Counter& queue_build_loads;
+        prometheus::Counter& queue_steps_created;
+        prometheus::Counter& queue_checks_early_exits;
+        prometheus::Counter& queue_checks_finished;
+        prometheus::Gauge& queue_max_id;
+
+        PromMetrics();
+    };
+    PromMetrics prom;
+
 public:
-    State();
+    State(std::optional<std::string> metricsAddrOpt);
 
 private:
 
@@ -489,7 +517,7 @@ private:
         bool & stepFinished);
 
     Jobset::ptr createJobset(pqxx::work & txn,
-        const std::string & projectName, const std::string & jobsetName);
+        const std::string & projectName, const std::string & jobsetName, const JobsetID);
 
     void processJobsetSharesChange(Connection & conn);
 
@@ -538,6 +566,8 @@ private:
     void dumpStatus(Connection & conn);
 
     void addRoot(const nix::StorePath & storePath);
+
+    void runMetricsExporter();
 
 public:
 

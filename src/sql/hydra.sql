@@ -50,6 +50,7 @@ create table Projects (
     declfile      text, -- File containing declarative jobset specification
     decltype      text, -- Type of the input containing declarative jobset specification
     declvalue     text, -- Value of the input containing declarative jobset specification
+    enable_dynamic_run_command boolean not null default false,
     foreign key   (owner) references Users(userName) on update cascade
 );
 
@@ -89,6 +90,7 @@ create table Jobsets (
     startTime     integer, -- if jobset is currently running
     type          integer not null default 0, -- 0 == legacy, 1 == flake
     flake         text,
+    enable_dynamic_run_command boolean not null default false,
     constraint jobsets_schedulingshares_nonzero_check check (schedulingShares > 0),
     constraint jobsets_type_known_check   check (type = 0 or type = 1),
     -- If the type is 0, then nixExprInput and nixExprPath should be non-null and other type-specific fields should be null
@@ -163,8 +165,6 @@ create table Builds (
     timestamp     integer not null, -- time this build was added
 
     -- Info about the inputs.
-    project       text not null,
-    jobset        text not null,
     jobset_id     integer not null,
     job           text not null,
 
@@ -225,9 +225,7 @@ create table Builds (
     check (finished = 0 or (stoptime is not null and stoptime != 0)),
     check (finished = 0 or (starttime is not null and starttime != 0)),
 
-    foreign key (jobset_id) references Jobsets(id) on delete cascade,
-    foreign key (project) references Projects(name) on update cascade,
-    foreign key (project, jobset) references Jobsets(project, name) on update cascade
+    foreign key (jobset_id) references Jobsets(id) on delete cascade
 );
 
 
@@ -563,6 +561,59 @@ create table TaskRetries (
 );
 create index IndexTaskRetriesOrdered on TaskRetries(retry_at asc);
 
+
+-- Records of RunCommand executions
+--
+-- The intended flow is:
+--
+-- 1. Create a RunCommandLogs entry when the task is "queued" to run
+-- 2. Update the start_time when it begins
+-- 3. Update the end_time and exit_code when it completes
+create table RunCommandLogs (
+    id            serial primary key not null,
+    uuid          uuid not null,
+    job_matcher   text not null,
+    build_id      integer not null,
+    -- TODO: evaluation_id integer not null,
+    -- can we do this in a principled way? a build can be part of many evaluations
+    -- but a "bug" of RunCommand, imho, is that it should probably run per evaluation?
+    command         text not null,
+    start_time      integer,
+    end_time        integer,
+    error_number    integer,
+    exit_code       integer,
+    signal          integer,
+    core_dumped     boolean,
+
+    foreign key (build_id) references Builds(id) on delete cascade,
+    -- foreign key (evaluation_id) references Builds(id) on delete cascade,
+
+
+    constraint RunCommandLogs_not_started_no_exit_time_no_code check (
+        -- If start time is null, then end_time, exit_code, signal, and core_dumped should be null.
+        -- A logical implication operator would be nice :).
+        (start_time is not null) or (
+            end_time is null
+            and error_number is null
+            and exit_code is null
+            and signal is null
+            and core_dumped is null
+        )
+    ),
+    constraint RunCommandLogs_end_time_has_start_time check (
+        -- If end time is not null, then end_time, exit_code, and core_dumped should not be null
+        (end_time is null) or (start_time is not null)
+    ),
+    -- The uuid should be actually unique.
+    constraint RunCommandLogs_uuid_unique unique(uuid)
+
+    -- Note: if exit_code is not null then signal and core_dumped must be null.
+    -- Similarly, if signal is not null then exit_code must be null and
+    -- core_dumped must not be null. However, these semantics are tricky
+    -- to encode as constraints and probably provide limited actual value.
+);
+create index IndexRunCommandLogsOnBuildID on RunCommandLogs(build_id);
+
 -- The output paths that have permanently failed.
 create table FailedPaths (
     path text primary key not null
@@ -624,16 +675,11 @@ create index IndexBuildStepsOnStopTime on BuildSteps(stopTime desc) where startT
 create index IndexBuildStepOutputsOnPath on BuildStepOutputs(path);
 create index IndexBuildsOnFinished on Builds(finished) where finished = 0;
 create index IndexBuildsOnIsCurrent on Builds(isCurrent) where isCurrent = 1;
-create index IndexBuildsOnJobsetIsCurrent on Builds(project, jobset, isCurrent) where isCurrent = 1;
-create index IndexBuildsOnJobIsCurrent on Builds(project, jobset, job, isCurrent) where isCurrent = 1;
 create index IndexBuildsJobsetIdCurrentUnfinished on Builds(jobset_id) where isCurrent = 1 and finished = 0;
 create index IndexBuildsJobsetIdCurrentFinishedStatus on Builds(jobset_id, buildstatus) where isCurrent = 1 and finished = 1;
 create index IndexBuildsJobsetIdCurrent on Builds(jobset_id) where isCurrent = 1;
-create index IndexBuildsOnJobset on Builds(project, jobset);
-create index IndexBuildsOnProject on Builds(project);
 create index IndexBuildsOnTimestamp on Builds(timestamp);
 create index IndexBuildsOnFinishedStopTime on Builds(finished, stoptime DESC);
-create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
 create index IndexBuildsOnJobsetIdFinishedId on Builds(jobset_id, job, finished, id DESC);
 create index IndexFinishedSuccessfulBuilds on Builds(jobset_id, job, finished, buildstatus, id DESC) where buildstatus = 0 and finished = 1;
 create index IndexBuildsOnDrvPath on Builds(drvPath);

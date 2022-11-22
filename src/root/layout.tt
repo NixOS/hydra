@@ -81,7 +81,8 @@
 
       [% IF !hideHeader %]
         <div class="page-header">
-          [% IF c.user_exists && starUri; INCLUDE makeStar; " "; END; HTML.escape(title) %]
+          [% IF c.user_exists && starUri; INCLUDE makeStar; " "; END %]
+          [% IF titleHTML != ""; titleHTML; ELSE; HTML.escape(title); END %]
         </div>
       [% ELSE %]
         [% IF first %]<br />[% first = 0; END; %]
@@ -92,7 +93,7 @@
       <footer class="navbar">
         <hr />
         <small>
-          <em><a href="http://nixos.org/hydra" target="_blank">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
+          <em><a href="http://nixos.org/hydra" target="_blank" class="squiggle">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
           [% IF c.user_exists %]
           You are signed in as <tt>[% HTML.escape(c.user.username) %]</tt>
             [%- IF c.user.type == 'google' %] via Google[% END %].

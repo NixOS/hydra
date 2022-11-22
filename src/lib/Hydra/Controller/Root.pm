@@ -11,10 +11,13 @@ use Nix::Store;
 use Nix::Config;
 use Encode;
 use File::Basename;
-use JSON;
+use JSON::MaybeXS;
 use List::Util qw[min max];
-use List::MoreUtils qw{any};
+use List::SomeUtils qw{any};
 use Net::Prometheus;
+use Types::Standard qw/StrMatch/;
+
+use constant NARINFO_REGEX => qr{^([a-z0-9]{32})\.narinfo$};
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -46,7 +49,7 @@ sub begin :Private {
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
     $c->stash->{logo} = defined $c->config->{hydra_logo} ? "/logo" : "";
-    $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"};
+    $c->stash->{tracker} = defined $c->config->{tracker} ? $c->config->{tracker} : "";
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
 
@@ -128,7 +131,7 @@ sub queue_GET {
     };
     unless ($c->user_exists) {
         $criteria->{"project.private"} = 0;
-        $extra->{join} = ["project"];
+        $extra->{join} = {"jobset" => "project"};
     }
     $c->stash->{template} = 'queue.tt';
     $c->stash->{flashMsg} //= $c->flash->{buildMsg};
@@ -152,8 +155,9 @@ sub queue_summary :Local :Path('queue-summary') :Args(0) {
     }
 
     $c->stash->{queued} = dbh($c)->selectall_arrayref(
-        "select project, jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from Builds " .
-        "$extra finished = 0 group by project, jobset order by queued desc",
+        "select jobsets.project as project, jobsets.name as jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from Builds " .
+        "join Jobsets jobsets on jobsets.id = builds.jobset_id " .
+        "$extra finished = 0 group by jobsets.project, jobsets.name order by queued desc",
         { Slice => {} });
 
     $c->stash->{systems} = dbh($c)->selectall_arrayref(
@@ -167,10 +171,10 @@ sub status :Local :Args(0) :ActionClass('REST') { }
 sub status_GET {
     my ($self, $c) = @_;
     my $criteria = { "buildsteps.busy" => { '!=', 0 } };
-    my @join = ("buildsteps");
+    my $join = ["buildsteps"];
     unless ($c->user_exists) {
         $criteria->{"project.private"} = 0;
-        push @join, "project";
+        push @{$join}, {"jobset" => "project"};
     }
 
     $self->status_ok(
@@ -178,7 +182,7 @@ sub status_GET {
         entity => [$c->model('DB::Builds')->search(
             $criteria,
             { order_by => ["globalpriority DESC", "id"],
-              join => @join,
+              join => $join,
               columns => [@buildListColumns]
             })]
     );
@@ -191,7 +195,7 @@ sub queue_runner_status_GET {
     my ($self, $c) = @_;
 
     #my $status = from_json($c->model('DB::SystemStatus')->find('queue-runner')->status);
-    my $status = from_json(`hydra-queue-runner --status`);
+    my $status = decode_json(`hydra-queue-runner --status`);
     if ($?) { $status->{status} = "unknown"; }
     my $json = JSON->new->pretty()->canonical();
 
@@ -222,13 +226,15 @@ sub machines :Local Args(0) {
 
     my $extra = "where";
     unless ($c->user_exists) {
-        $extra = "inner join Projects p on p.name = b.project where p.private = 0 and ";
+        $extra = "inner join Projects p on p.name = jobsets.project where p.private = 0 and ";
     }
 
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = dbh($c)->selectall_arrayref(
-        "select build, stepnr, s.system as system, s.drvpath as drvpath, machine, s.starttime as starttime, project, jobset, job, s.busy as busy " .
-        "from BuildSteps s join Builds b on s.build = b.id " .
+        "select build, stepnr, s.system as system, s.drvpath as drvpath, machine, s.starttime as starttime, jobsets.project as project, jobsets.name as jobset, job, s.busy as busy " .
+        "from BuildSteps s " .
+        "join Builds b on s.build = b.id " .
+        "join Jobsets jobsets on jobsets.id = b.jobset_id " .
         "$extra busy != 0 order by machine, stepnr",
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
@@ -380,17 +386,17 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
 }
 
 
-sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
-    my ($self, $c) = @_;
+sub narinfo :Path :Args(StrMatch[NARINFO_REGEX]) {
+    my ($self, $c, $narinfo) = @_;
 
     if (!isLocalStore) {
         notFound($c, "There is no binary cache here.");
     }
 
     else {
-        my $hash = $c->req->captures->[0];
+        my ($hash) = $narinfo =~ NARINFO_REGEX;
 
-        die if length($hash) != 32;
+        die("Hash length was not 32") if length($hash) != 32;
         my $path = queryPathFromHashPart($hash);
 
         if (!$path) {
@@ -457,7 +463,7 @@ sub steps :Local Args(0) {
 
     unless ($c->user_exists) {
         $criteria->{"project.private"} = 0;
-        $extra->{join} = {"build" => "project"};
+        $extra->{join} = [{"build" => {"jobset" => "project"}}];
     }
 
     $c->stash->{page} = $page;
@@ -523,7 +529,7 @@ sub search :Local Args(0) {
             $projectCriteria->{private} = 0;
             $jobsetCriteria->{"project.private"} = 0;
             $buildCriteria->{"project.private"} = 0;
-            push @{$buildSearchExtra->{join}}, "project";
+            push @{$buildSearchExtra->{join}}, {"jobset" => "project"};
             $outCriteria->{"project.private"} = 0;
             $drvCriteria->{"project.private"} = 0;
         }
@@ -538,8 +544,10 @@ sub search :Local Args(0) {
 
         $c->stash->{jobs} = [ $c->model('DB::Builds')->search(
             $buildCriteria,
-            { order_by => ["project", "jobset", "job"], join => ["project", "jobset"]
-            , rows => $c->stash->{limit} + 1
+            {
+                order_by => ["jobset.project", "jobset.name", "job"],
+                join => { "jobset" => "project" },
+                rows => $c->stash->{limit} + 1
             } )
         ];
 
@@ -591,6 +599,25 @@ sub log :Local :Args(1) {
         $c->res->redirect($logPrefix . "log/" . basename($drvPath));
     } else {
         notFound($c, "The build log of $drvPath is not available.");
+    }
+}
+
+sub runcommandlog :Local :Args(1) {
+    my ($self, $c, $uuid) = @_;
+
+    my $tail = $c->request->params->{"tail"};
+
+    die if defined $tail && $tail !~ /^[0-9]+$/;
+
+    my $runlog = $c->model('DB')->resultset('RunCommandLogs')->find({ uuid => $uuid })
+        or notFound($c, "The RunCommand log is not available.");
+
+    my $logFile = constructRunCommandLogPath($runlog);
+    if (-f $logFile) {
+        serveLogFile($c, $logFile, $tail);
+        return;
+    } else {
+        notFound($c, "The RunCommand log is not available.");
     }
 }
 
