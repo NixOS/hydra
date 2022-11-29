@@ -272,6 +272,7 @@
         tests.install = forEachSystem (system:
           with import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
           simpleTest {
+            name = "hydra-install";
             nodes.machine = hydraServer;
             testScript =
               ''
@@ -288,6 +289,7 @@
           let pkgs = pkgsBySystem.${system}; in
           with import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
           simpleTest {
+            name = "hydra-notifications";
             nodes.machine = { pkgs, ... }: {
               imports = [ hydraServer ];
               services.hydra-dev.extraConfig = ''
@@ -346,6 +348,7 @@
           let pkgs = pkgsBySystem.${system}; in
           with import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
           makeTest {
+            name = "hydra-gitea";
             nodes.machine = { pkgs, ... }: {
               imports = [ hydraServer ];
               services.hydra-dev.extraConfig = ''
