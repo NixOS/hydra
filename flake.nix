@@ -280,7 +280,7 @@
                 machine.wait_for_job("hydra-server")
                 machine.wait_for_job("hydra-evaluator")
                 machine.wait_for_job("hydra-queue-runner")
-                machine.wait_for_open_port("3000")
+                machine.wait_for_open_port(3000)
                 machine.succeed("curl --fail http://localhost:3000/")
               '';
           });
@@ -317,7 +317,7 @@
 
               # Wait until InfluxDB can receive web requests
               machine.wait_for_job("influxdb")
-              machine.wait_for_open_port("8086")
+              machine.wait_for_open_port(8086)
 
               # Create an InfluxDB database where hydra will write to
               machine.succeed(
@@ -327,7 +327,7 @@
 
               # Wait until hydra-server can receive HTTP requests
               machine.wait_for_job("hydra-server")
-              machine.wait_for_open_port("3000")
+              machine.wait_for_open_port(3000)
 
               # Setup the project and jobset
               machine.succeed(
