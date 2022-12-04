@@ -131,8 +131,8 @@ use LDAP to manage roles and users.
 This is configured by defining the `<ldap>` block in the configuration file.
 In this block it's possible to configure the authentication plugin in the
 `<config>` block. All options are directly passed to `Catalyst::Authentication::Store::LDAP`.
-The documentation for the available settings can be found [here]
-(https://metacpan.org/pod/Catalyst::Authentication::Store::LDAP#CONFIGURATION-OPTIONS).
+The documentation for the available settings can be found
+[here](https://metacpan.org/pod/Catalyst::Authentication::Store::LDAP#CONFIGURATION-OPTIONS).
 
 Note that the bind password (if needed) should be supplied as an included file to
 prevent it from leaking to the Nix store.
