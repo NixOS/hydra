@@ -179,6 +179,7 @@ Example configuration:
       <role_search_options>
         deref = always
       </role_search_options>
+    </store>
   </config>
   <role_mapping>
     # Make all users in the hydra_admin group Hydra admins
