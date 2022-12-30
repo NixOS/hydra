@@ -1,4 +1,9 @@
-[% WRAPPER layout.tt title="Project $project.name" %]
+[% IF project.private %]
+[% lock =  ' &#128274;' %]
+[% ELSE %]
+[% lock = '' %]
+[% END %]
+[% WRAPPER layout.tt titleHTML="Project $project.name$lock" %]
 [% PROCESS common.tt %]
 
 <ul class="nav nav-tabs">
