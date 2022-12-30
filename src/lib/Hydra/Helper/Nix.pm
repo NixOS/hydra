@@ -200,7 +200,7 @@ sub findLog {
     my $join = ["buildstepoutputs"];
     my $criteria = { path => { -in => [@outPaths] } };
     unless ($c->user_exists) {
-        push @{$join}, {"build" => "project"};
+        push @{$join}, {"build" => {jobset => "project"}};
         $criteria->{"project.private"} = 0;
     }
 
