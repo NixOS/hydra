@@ -3,7 +3,7 @@
 [% ELSE %]
 [% lock = '' %]
 [% END %]
-[% WRAPPER layout.tt titleHTML="Project $project.name$lock" %]
+[% WRAPPER layout.tt titleHTML="Project $project.name$lock" title="Project $project.name" %]
 [% PROCESS common.tt %]
 
 <ul class="nav nav-tabs">
