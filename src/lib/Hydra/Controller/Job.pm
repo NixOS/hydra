@@ -27,6 +27,8 @@ sub job : Chained('/') PathPart('job') CaptureArgs(3) {
 
     $c->stash->{job} = $jobName;
     $c->stash->{project} = $c->stash->{jobset}->project;
+
+    checkProjectVisibleForGuest($c, $c->stash->{project});
 }
 
 sub shield :Chained('job') PathPart('shield') Args(0) {

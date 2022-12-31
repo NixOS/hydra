@@ -54,7 +54,7 @@
   <tbody>
     [% FOREACH p IN projects %]
     <tr class="project [% IF !p.enabled %]disabled-project[% END %]">
-      <td><span class="[% IF !p.enabled %]disabled-project[% END %] [%+ IF p.hidden %]hidden-project[% END %]">[% INCLUDE renderProjectName project=p.name inRow=1 %]</span></td>
+      <td>[% IF p.private %]&#128274;[% END %] <span class="[% IF !p.enabled %]disabled-project[% END %] [%+ IF p.hidden %]hidden-project[% END %]">[% INCLUDE renderProjectName project=p.name inRow=1 %]</span></td>
       <td>[% HTML.escape(p.displayname) %]</td>
       <td>[% WRAPPER maybeLink uri=p.homepage %][% HTML.escape(p.description) %][% END %]</td>
     </tr>

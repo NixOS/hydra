@@ -312,6 +312,21 @@ Declarative Projects
 
 see this [chapter](./plugins/declarative-projects.md)
 
+Private Projects
+----------------
+
+By checking the `Private` checkbox in the project creation form, a project
+and everything related to it (jobsets, evals, builds, etc.) can only be accessed
+if a user is authenticated. Otherwise, a 404 will be returned by the API and Web
+UI. This is the main difference to "hidden" projects where everything can
+be obtained if the URLs are known.
+
+Please note that the store paths that are realized in evaluations that belong to
+private projects aren't protected! It is assumed that the hashes are unknown
+and thus inaccessible. For a real protection of the binary cache it's recommended
+to either use `nix.sshServe` instead or to protect the routes `/nar/*` and `*.narinfo`
+with a reverse proxy.
+
 Email Notifications
 -------------------
 

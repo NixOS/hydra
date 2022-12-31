@@ -3,12 +3,15 @@ package Hydra::Controller::Channel;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::REST';
+use Hydra::Helper::CatalystUtils;
 
 
 sub channel : Chained('/') PathPart('channel/custom') CaptureArgs(3) {
     my ($self, $c, $projectName, $jobsetName, $channelName) = @_;
 
     $c->stash->{project} = $c->model('DB::Projects')->find($projectName);
+
+    checkProjectVisibleForGuest($c, $c->stash->{project});
 
     notFound($c, "Project $projectName doesn't exist.")
         if !$c->stash->{project};

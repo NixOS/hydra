@@ -1,5 +1,3 @@
-
-
 -- Records of RunCommand executions
 --
 -- The intended flow is:

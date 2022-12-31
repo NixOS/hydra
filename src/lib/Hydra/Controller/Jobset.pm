@@ -17,6 +17,8 @@ sub jobsetChain :Chained('/') :PathPart('jobset') :CaptureArgs(2) {
 
     $c->stash->{project} = $project;
 
+    checkProjectVisibleForGuest($c, $c->stash->{project});
+
     $c->stash->{jobset} = $project->jobsets->find({ name => $jobsetName });
 
     if (!$c->stash->{jobset} && !($c->action->name eq "jobset" and $c->request->method eq "PUT")) {
