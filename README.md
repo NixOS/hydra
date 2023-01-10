@@ -57,7 +57,7 @@ We have to add two inputs for this jobset. One for _nixpkgs_ and one for _hydra_
 
 - **Input name**: `nixpkgs`
 - **Type**: `Git checkout`
-- **Value**: `https://github.com/nixos/nixpkgs-channels nixos-20.03`
+- **Value**: `https://github.com/nixos/nixpkgs-channels nixos-22.11`
 
 - **Input name**: `hydra`
 - **Type**: `Git checkout`
