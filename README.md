@@ -48,7 +48,7 @@ Click "_Create project_".
 #### Creating A Jobset
 After creating a project you are forwarded to the project page. Click "_Actions_" and choose "_Create jobset_". Change **Type** to Legacy for the example below. Fill the form with the following values:
 
-- **Identifier**: `hello`
+- **Identifier**: `hello-project`
 - **Nix expression**: `examples/hello.nix` in `hydra`
 - **Check interval**: 60
 - **Scheduling shares**: 1
