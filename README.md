@@ -39,7 +39,7 @@ In order to evaluate and build anything you need to create _projects_ that conta
 #### Creating A Project
 Log in as administrator, click "_Admin_" and select "_Create project_". Fill the form as follows:
 
-- **Identifier**: `hello`
+- **Identifier**: `hello-project`
 - **Display name**: `hello`
 - **Description**: `hello project`
 
