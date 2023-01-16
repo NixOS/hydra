@@ -46,7 +46,7 @@ Log in as administrator, click "_Admin_" and select "_Create project_". Fill the
 Click "_Create project_".
 
 #### Creating A Jobset
-After creating a project you are forwarded to the project page. Click "_Actions_" and choose "_Create jobset_". Fill the form with the following values:
+After creating a project you are forwarded to the project page. Click "_Actions_" and choose "_Create jobset_". Change **Type** to Legacy for the example below. Fill the form with the following values:
 
 - **Identifier**: `hello`
 - **Nix expression**: `examples/hello.nix` in `hydra`
