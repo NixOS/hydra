@@ -1,5 +1,5 @@
 #
-# jobset example file. This file canbe referenced as Nix expression
+# jobset example file. This file can be referenced as Nix expression
 # in a jobset configuration along with inputs for nixpkgs and the
 # repository containing this file.
 #
