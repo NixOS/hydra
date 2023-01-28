@@ -535,67 +535,65 @@ std::shared_ptr<PathLocks> State::acquireGlobalLock()
 
 void State::dumpStatus(Connection & conn)
 {
-    auto root = json::object();
+    time_t now = time(0);
+    json statusJson = {
+        {"status", "up"},
+        {"time", time(0)},
+        {"uptime", now - startedAt},
+        {"pid", getpid()},
+
+        {"nrQueuedBuilds", builds.lock()->size()},
+        {"nrActiveSteps", activeSteps_.lock()->size()},
+        {"nrStepsBuilding", nrStepsBuilding.load()},
+        {"nrStepsCopyingTo", nrStepsCopyingTo.load()},
+        {"nrStepsCopyingFrom", nrStepsCopyingFrom.load()},
+        {"nrStepsWaiting", nrStepsWaiting.load()},
+        {"nrUnsupportedSteps", nrUnsupportedSteps.load()},
+        {"bytesSent", bytesSent.load()},
+        {"bytesReceived", bytesReceived.load()},
+        {"nrBuildsRead", nrBuildsRead.load()},
+        {"buildReadTimeMs", buildReadTimeMs.load()},
+        {"buildReadTimeAvgMs", nrBuildsRead == 0 ? 0.0 : (float) buildReadTimeMs / nrBuildsRead},
+        {"nrBuildsDone", nrBuildsDone.load()},
+        {"nrStepsStarted", nrStepsStarted.load()},
+        {"nrStepsDone", nrStepsDone.load()},
+        {"nrRetries", nrRetries.load()},
+        {"maxNrRetries", maxNrRetries.load()},
+        {"nrQueueWakeups", nrQueueWakeups.load()},
+        {"nrDispatcherWakeups", nrDispatcherWakeups.load()},
+        {"dispatchTimeMs", dispatchTimeMs.load()},
+        {"dispatchTimeAvgMs", nrDispatcherWakeups == 0 ? 0.0 : (float) dispatchTimeMs / nrDispatcherWakeups},
+        {"nrDbConnections", dbPool.count()},
+        {"nrActiveDbUpdates", nrActiveDbUpdates.load()},
+    };
     {
-        time_t now = time(0);
-        root["status"] = "up";
-        root["time"] = time(0);
-        root["uptime"] = now - startedAt;
-        root["pid"] = getpid();
-        {
-            auto builds_(builds.lock());
-            root["nrQueuedBuilds"] = builds_->size();
-        }
         {
             auto steps_(steps.lock());
             for (auto i = steps_->begin(); i != steps_->end(); )
                 if (i->second.lock()) ++i; else i = steps_->erase(i);
-            root["nrUnfinishedSteps"] = steps_->size();
+            statusJson["nrUnfinishedSteps"] = steps_->size();
         }
         {
             auto runnable_(runnable.lock());
             for (auto i = runnable_->begin(); i != runnable_->end(); )
                 if (i->lock()) ++i; else i = runnable_->erase(i);
-            root["nrRunnableSteps"] = runnable_->size();
+            statusJson["nrRunnableSteps"] = runnable_->size();
         }
-        root["nrActiveSteps"] = activeSteps_.lock()->size();
-        root["nrStepsBuilding"] = nrStepsBuilding.load();
-        root["nrStepsCopyingTo"] = nrStepsCopyingTo.load();
-        root["nrStepsCopyingFrom"] = nrStepsCopyingFrom.load();
-        root["nrStepsWaiting"] = nrStepsWaiting.load();
-        root["nrUnsupportedSteps"] = nrUnsupportedSteps.load();
-        root["bytesSent"] = bytesSent.load();
-        root["bytesReceived"] = bytesReceived.load();
-        root["nrBuildsRead"] = nrBuildsRead.load();
-        root["buildReadTimeMs"] = buildReadTimeMs.load();
-        root["buildReadTimeAvgMs"] = nrBuildsRead == 0 ? 0.0 : (float) buildReadTimeMs / nrBuildsRead;
-        root["nrBuildsDone"] = nrBuildsDone.load();
-        root["nrStepsStarted"] = nrStepsStarted.load();
-        root["nrStepsDone"] = nrStepsDone.load();
-        root["nrRetries"] = nrRetries.load();
-        root["maxNrRetries"] = maxNrRetries.load();
         if (nrStepsDone) {
-            root["totalStepTime"] = totalStepTime.load();
-            root["totalStepBuildTime"] = totalStepBuildTime.load();
-            root["avgStepTime"] = (float) totalStepTime / nrStepsDone;
-            root["avgStepBuildTime"] = (float) totalStepBuildTime / nrStepsDone;
+            statusJson["totalStepTime"] = totalStepTime.load();
+            statusJson["totalStepBuildTime"] = totalStepBuildTime.load();
+            statusJson["avgStepTime"] = (float) totalStepTime / nrStepsDone;
+            statusJson["avgStepBuildTime"] = (float) totalStepBuildTime / nrStepsDone;
         }
-        root["nrQueueWakeups"] = nrQueueWakeups.load();
-        root["nrDispatcherWakeups"] = nrDispatcherWakeups.load();
-        root["dispatchTimeMs"] = dispatchTimeMs.load();
-        root["dispatchTimeAvgMs"] = nrDispatcherWakeups == 0 ? 0.0 : (float) dispatchTimeMs / nrDispatcherWakeups;
-        root["nrDbConnections"] = dbPool.count();
-        root["nrActiveDbUpdates"] = nrActiveDbUpdates.load();
 
         {
-            auto nested = root["machines"];
             auto machines_(machines.lock());
             for (auto & i : *machines_) {
                 auto & m(i.second);
                 auto & s(m->state);
                 auto info(m->state->connectInfo.lock());
 
-                auto machine = nested[m->sshName] = {
+                json machine = {
                     {"enabled",  m->enabled},
                     {"systemTypes", m->systemTypes},
                     {"supportedFeatures", m->supportedFeatures},
@@ -615,11 +613,12 @@ void State::dumpStatus(Connection & conn)
                     machine["avgStepTime"] = (float) s->totalStepTime / s->nrStepsDone;
                     machine["avgStepBuildTime"] = (float) s->totalStepBuildTime / s->nrStepsDone;
                 }
+                statusJson["machines"][m->sshName] = machine;
             }
         }
 
         {
-            auto jobsets_json = root["jobsets"];
+            auto jobsets_json = statusJson["jobsets"] = json::object();
             auto jobsets_(jobsets.lock());
             for (auto & jobset : *jobsets_) {
                 jobsets_json[jobset.first.first + ":" + jobset.first.second] = {
@@ -630,7 +629,7 @@ void State::dumpStatus(Connection & conn)
         }
 
         {
-            auto machineTypesJson = root["machineTypes"];
+            auto machineTypesJson = statusJson["machineTypes"] = json::object();
             auto machineTypes_(machineTypes.lock());
             for (auto & i : *machineTypes_) {
                 auto machineTypeJson = machineTypesJson[i.first] = {
@@ -648,7 +647,7 @@ void State::dumpStatus(Connection & conn)
         auto store = getDestStore();
 
         auto & stats = store->getStats();
-        root["store"] = {
+        statusJson["store"] = {
             {"narInfoRead", stats.narInfoRead.load()},
             {"narInfoReadAverted", stats.narInfoReadAverted.load()},
             {"narInfoMissing", stats.narInfoMissing.load()},
@@ -675,7 +674,7 @@ void State::dumpStatus(Connection & conn)
         auto s3Store = dynamic_cast<S3BinaryCacheStore *>(&*store);
         if (s3Store) {
             auto & s3Stats = s3Store->getS3Stats();
-            auto jsonS3 = root["s3"] = {
+            auto jsonS3 = statusJson["s3"] = {
                 {"put", s3Stats.put.load()},
                 {"putBytes", s3Stats.putBytes.load()},
                 {"putTimeMs", s3Stats.putTimeMs.load()},
@@ -704,7 +703,7 @@ void State::dumpStatus(Connection & conn)
         pqxx::work txn(conn);
         // FIXME: use PostgreSQL 9.5 upsert.
         txn.exec("delete from SystemStatus where what = 'queue-runner'");
-        txn.exec_params0("insert into SystemStatus values ('queue-runner', $1)", root.dump());
+        txn.exec_params0("insert into SystemStatus values ('queue-runner', $1)", statusJson.dump());
         txn.exec("notify status_dumped");
         txn.commit();
     }
