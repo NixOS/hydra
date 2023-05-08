@@ -245,7 +245,7 @@ static void worker(
                 StringSet ss;
                 for (auto & i : v->attrs->lexicographicOrder(state.symbols)) {
                     std::string name(state.symbols[i->name]);
-                    if (name.find('.') != std::string::npos || name.find(' ') != std::string::npos) {
+                    if (name.find(' ') != std::string::npos) {
                         printError("skipping job with illegal name '%s'", name);
                         continue;
                     }
@@ -416,7 +416,11 @@ int main(int argc, char * * argv)
 
                     if (response.find("attrs") != response.end()) {
                         for (auto & i : response["attrs"]) {
-                            auto s = (attrPath.empty() ? "" : attrPath + ".") + (std::string) i;
+                            std::string path = i;
+                            if (path.find(".") != std::string::npos){
+                                path = "\"" + path  + "\"";
+                            }
+                            auto s = (attrPath.empty() ? "" : attrPath + ".") + (std::string) path;
                             newAttrs.insert(s);
                         }
                     }
