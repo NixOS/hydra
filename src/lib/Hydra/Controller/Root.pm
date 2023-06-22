@@ -498,6 +498,24 @@ sub search :Local Args(0) {
     });
 }
 
+# for a given store path basename, redirect to the first build of that store
+# path
+sub build_redirect :Path('build-redirect') :Args(1) {
+    my ($self, $c, $basename, @rest) = @_;
+
+    notFound($c, "You need to specify a /nix/store package path in the URL.") unless defined $basename;
+
+    my $storePath = "/nix/store/$basename";
+
+    # the lowest build ID will be the first build
+    my $build = $c->model('DB::BuildOutputs')->search(path => $storePath)->get_column('build')->min_rs->single->build;
+
+    notFound($c, "There is no successful build for /nix/store path `$storePath' to redirect to.") unless $build;
+
+    $c->res->redirect($c->uri_for($c->controller('Build')->action_for("build"),
+[$build->id], @rest));
+}
+
 sub serveLogFile {
     my ($c, $logPath, $tail) = @_;
     $c->stash->{logPath} = $logPath;
