@@ -1,8 +1,9 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.follows = "nix/nixpkgs";
-  inputs.nix.url = "github:nixos/nix/2.13.3";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.05";
+  inputs.nix.url = "github:NixOS/nix/2.16.1";
+  inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs = { self, nixpkgs, nix }:
     let
