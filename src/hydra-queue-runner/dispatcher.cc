@@ -52,7 +52,7 @@ void State::dispatcher()
             {
                 auto dispatcherWakeup_(dispatcherWakeup.lock());
                 if (!*dispatcherWakeup_) {
-                    printMsg(lvlDebug, format("dispatcher sleeping for %1%s") %
+                    debug("dispatcher sleeping for %1%s",
                         std::chrono::duration_cast<std::chrono::seconds>(sleepUntil - std::chrono::system_clock::now()).count());
                     dispatcherWakeup_.wait_until(dispatcherWakeupCV, sleepUntil);
                 }
@@ -60,7 +60,7 @@ void State::dispatcher()
             }
 
         } catch (std::exception & e) {
-            printMsg(lvlError, format("dispatcher: %1%") % e.what());
+            printError("dispatcher: %s", e.what());
             sleep(1);
         }
 
@@ -80,8 +80,8 @@ system_time State::doDispatch()
             jobset.second->pruneSteps();
             auto s2 = jobset.second->shareUsed();
             if (s1 != s2)
-                printMsg(lvlDebug, format("pruned scheduling window of ‘%1%:%2%’ from %3% to %4%")
-                    % jobset.first.first % jobset.first.second % s1 % s2);
+                debug("pruned scheduling window of ‘%1%:%2%’ from %3% to %4%",
+                    jobset.first.first, jobset.first.second, s1, s2);
         }
     }
 

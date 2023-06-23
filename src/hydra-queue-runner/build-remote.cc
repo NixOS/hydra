@@ -116,12 +116,12 @@ static void copyClosureTo(std::timed_mutex & sendMutex, Store & destStore,
        the remote host to substitute missing paths. */
     // FIXME: substitute output pollutes our build log
     to << cmdQueryValidPaths << 1 << useSubstitutes;
-    worker_proto::write(destStore, to, closure);
+    workerProtoWrite(destStore, to, closure);
     to.flush();
 
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = worker_proto::read(destStore, from, Phantom<StorePathSet> {});
+    auto present = WorkerProto<StorePathSet>::read(destStore, from);
 
     if (present.size() == closure.size()) return;
 
@@ -367,7 +367,7 @@ void State::buildRemote(ref<Store> destStore,
             }
         }
         if (GET_PROTOCOL_MINOR(remoteVersion) >= 6) {
-            worker_proto::read(*localStore, from, Phantom<DrvOutputs> {});
+            WorkerProto<DrvOutputs>::read(*localStore, from);
         }
         switch ((BuildResult::Status) res) {
             case BuildResult::Built:
@@ -444,17 +444,17 @@ void State::buildRemote(ref<Store> destStore,
             std::map<StorePath, ValidPathInfo> infos;
             size_t totalNarSize = 0;
             to << cmdQueryPathInfos;
-            worker_proto::write(*localStore, to, outputs);
+            workerProtoWrite(*localStore, to, outputs);
             to.flush();
             while (true) {
                 auto storePathS = readString(from);
                 if (storePathS == "") break;
                 auto deriver = readString(from); // deriver
-                auto references = worker_proto::read(*localStore, from, Phantom<StorePathSet> {});
+                auto references = WorkerProto<StorePathSet>::read(*localStore, from);
                 readLongLong(from); // download size
                 auto narSize = readLongLong(from);
                 auto narHash = Hash::parseAny(readString(from), htSHA256);
-                auto ca = parseContentAddressOpt(readString(from));
+                auto ca = ContentAddress::parseOpt(readString(from));
                 readStrings<StringSet>(from); // sigs
                 ValidPathInfo info(localStore->parseStorePath(storePathS), narHash);
                 assert(outputs.count(info.path));

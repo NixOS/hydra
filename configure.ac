@@ -10,8 +10,6 @@ AC_PROG_LN_S
 AC_PROG_LIBTOOL
 AC_PROG_CXX
 
-CXXFLAGS+=" -std=c++17"
-
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 
 AC_ARG_WITH([docbook-xsl],

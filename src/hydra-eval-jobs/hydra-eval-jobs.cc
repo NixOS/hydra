@@ -25,7 +25,8 @@
 
 #include <nlohmann/json.hpp>
 
-void check_pid_status_nonblocking(pid_t check_pid) {
+void check_pid_status_nonblocking(pid_t check_pid)
+{
     // Only check 'initialized' and known PID's
     if (check_pid <= 0) { return; }
 
@@ -100,7 +101,7 @@ static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const std:
         else if (v.type() == nAttrs) {
             auto a = v.attrs->find(state.symbols.create(subAttribute));
             if (a != v.attrs->end())
-                res.push_back(std::string(state.forceString(*a->value)));
+                res.push_back(std::string(state.forceString(*a->value, a->pos, "while evaluating meta attributes")));
         }
     };
 
@@ -197,26 +198,30 @@ static void worker(
 
                 /* If this is an aggregate, then get its constituents. */
                 auto a = v->attrs->get(state.symbols.create("_hydraAggregate"));
-                if (a && state.forceBool(*a->value, a->pos)) {
+                if (a && state.forceBool(*a->value, a->pos, "while evaluating the `_hydraAggregate` attribute")) {
                     auto a = v->attrs->get(state.symbols.create("constituents"));
                     if (!a)
                         throw EvalError("derivation must have a ‘constituents’ attribute");
 
+                    NixStringContext context;
+                    state.coerceToString(a->pos, *a->value, context, "while evaluating the `constituents` attribute", true, false);
+                    for (auto & c : context)
+                        std::visit(overloaded {
+                            [&](const NixStringContextElem::Built & b) {
+                                job["constituents"].push_back(state.store->printStorePath(b.drvPath));
+                            },
+                            [&](const NixStringContextElem::Opaque & o) {
+                            },
+                            [&](const NixStringContextElem::DrvDeep & d) {
+                            },
+                        }, c.raw());
 
-                    PathSet context;
-                    state.coerceToString(a->pos, *a->value, context, true, false);
-                    for (auto & i : context)
-                        if (i.at(0) == '!') {
-                            size_t index = i.find("!", 1);
-                            job["constituents"].push_back(std::string(i, index + 1));
-                        }
-
-                    state.forceList(*a->value, a->pos);
+                    state.forceList(*a->value, a->pos, "while evaluating the `constituents` attribute");
                     for (unsigned int n = 0; n < a->value->listSize(); ++n) {
                         auto v = a->value->listElems()[n];
                         state.forceValue(*v, noPos);
                         if (v->type() == nString)
-                            job["namedConstituents"].push_back(state.forceStringNoCtx(*v));
+                            job["namedConstituents"].push_back(v->str());
                     }
                 }
 
