@@ -618,7 +618,7 @@ void State::dumpStatus(Connection & conn)
         }
 
         {
-            auto jobsets_json = statusJson["jobsets"] = json::object();
+            auto jobsets_json = json::object();
             auto jobsets_(jobsets.lock());
             for (auto & jobset : *jobsets_) {
                 jobsets_json[jobset.first.first + ":" + jobset.first.second] = {
@@ -626,10 +626,11 @@ void State::dumpStatus(Connection & conn)
                     {"seconds", jobset.second->getSeconds()},
                 };
             }
+            statusJson["jobsets"] = jobsets_json;
         }
 
         {
-            auto machineTypesJson = statusJson["machineTypes"] = json::object();
+            auto machineTypesJson = json::object();
             auto machineTypes_(machineTypes.lock());
             for (auto & i : *machineTypes_) {
                 auto machineTypeJson = machineTypesJson[i.first] = {
@@ -642,6 +643,7 @@ void State::dumpStatus(Connection & conn)
                 if (i.second.running == 0)
                     machineTypeJson["lastActive"] = std::chrono::system_clock::to_time_t(i.second.lastActive);
             }
+            statusJson["machineTypes"] = machineTypesJson;
         }
 
         auto store = getDestStore();
