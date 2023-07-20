@@ -574,6 +574,131 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobsetEvalBuilds'
 
+  /jobset/{project-id}/{jobset-id}/latest-eval:
+    get:
+      summary: Redirects to the latest finished evaluation for a jobset
+      parameters:
+      - name: project-id
+        in: path
+        description: project identifier
+        required: true
+        schema:
+          type: string
+      - name: jobset-id
+        in: path
+        description: jobset identifier
+        required: true
+        schema:
+          type: string
+      responses:
+        '302':
+          description: the evaluation to redirect to
+          headers:
+            Location:
+              example: /eval/1?name={jobset-id}
+              schema:
+                type: string
+
+  /job/{project-id}/{jobset-id}/{job-id}/latest:
+    get:
+      summary: Redirects to the latest succesful build for a job
+      parameters:
+      - name: project-id
+        in: path
+        description: project identifier
+        required: true
+        schema:
+          type: string
+      - name: jobset-id
+        in: path
+        description: jobset identifier
+        required: true
+        schema:
+          type: string
+      - name: job-id
+        in: path
+        description: job identifier
+        required: true
+        schema:
+          type: string
+      responses:
+        '302':
+          description: the build to redirect to
+          headers:
+            Location:
+              example: /build/1
+              schema:
+                type: string
+
+  /job/{project-id}/{jobset-id}/{job-id}/latest-for/{system}:
+    get:
+      summary: Redirects to the latest succesful build for a job
+      parameters:
+      - name: project-id
+        in: path
+        description: project identifier
+        required: true
+        schema:
+          type: string
+      - name: jobset-id
+        in: path
+        description: jobset identifier
+        required: true
+        schema:
+          type: string
+      - name: job-id
+        in: path
+        description: job identifier
+        required: true
+        schema:
+          type: string
+      - name: system
+        in: path
+        description: system
+        required: true
+        schema:
+          type: string
+        example: x86_64-linux
+      responses:
+        '302':
+          description: the build to redirect to
+          headers:
+            Location:
+              example: /build/1
+              schema:
+                type: string
+
+  /job/{project-id}/{jobset-id}/{job-id}/latest-finished:
+    get:
+      summary: Redirects to the latest succesful build for a job from a finished evaluation
+      parameters:
+      - name: project-id
+        in: path
+        description: project identifier
+        required: true
+        schema:
+          type: string
+      - name: jobset-id
+        in: path
+        description: jobset identifier
+        required: true
+        schema:
+          type: string
+      - name: job-id
+        in: path
+        description: job identifier
+        required: true
+        schema:
+          type: string
+      responses:
+        '302':
+          description: the build to redirect to
+          headers:
+            Location:
+              example: /build/1
+              schema:
+                type: string
+
 components:
   schemas:
 
