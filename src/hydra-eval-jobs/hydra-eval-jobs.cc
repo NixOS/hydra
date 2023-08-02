@@ -175,7 +175,7 @@ static void worker(
 
             if (auto drv = getDerivation(state, *v, false)) {
 
-                DrvInfo::Outputs outputs = drv->queryOutputs(!settings.isExperimentalFeatureEnabled(Xp::CaDerivations));
+                DrvInfo::Outputs outputs = drv->queryOutputs(!experimentalFeatureSettings.isEnabled(Xp::CaDerivations));
 
                 if (drv->querySystem() == "unknown")
                     throw EvalError("derivation must have a 'system' attribute");
@@ -236,7 +236,7 @@ static void worker(
                 }
 
                 nlohmann::json out;
-                if (settings.isExperimentalFeatureEnabled(Xp::CaDerivations))
+                if (experimentalFeatureSettings.isEnabled(Xp::CaDerivations))
                     for (auto & j : outputs)
                         out[j.first] = "";
                 else

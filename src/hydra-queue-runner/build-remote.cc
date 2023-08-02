@@ -217,12 +217,12 @@ BasicDerivation inlineInputDerivations(Store & store, Derivation & drv, const St
  * Get the newly built outputs, either from the remote if it supports it, or by
  * introspecting the derivation if the remote is too old
  */
-DrvOutputs getBuiltOutputs(Store & store, const int remoteVersion, FdSource & from, Derivation & drv)
+DrvOutputs getBuiltOutputs(Store & store, const int remoteVersion, WorkerProto::ReadConn & from, Derivation & drv)
 {
     DrvOutputs builtOutputs;
     if (GET_PROTOCOL_MINOR(remoteVersion) >= 6) {
         builtOutputs
-            = worker_proto::read(store, from, Phantom<DrvOutputs> {});
+            = WorkerProto::Serialise<DrvOutputs>::read(store, from);
     } else {
         // If the remote is too old to handle CA derivations, we can’t get this
         // far anyways
@@ -479,7 +479,7 @@ void State::buildRemote(ref<Store> destStore,
             result.logFile = "";
         }
 
-        auto builtOutputs = getBuiltOutputs(*localStore, remoteVersion, from, *step->drv);
+        auto builtOutputs = getBuiltOutputs(*localStore, remoteVersion, rconn, *step->drv);
         StorePathSet outputs;
         for (auto & [_, realisation] : builtOutputs)
             outputs.insert(realisation.outPath);
@@ -562,7 +562,7 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         /* Register the outputs of the newly built drv */
-        if (settings.isExperimentalFeatureEnabled(Xp::CaDerivations)) {
+        if (experimentalFeatureSettings.isEnabled(Xp::CaDerivations)) {
           auto outputHashes = staticOutputHashes(*localStore, *step->drv);
           for (auto & [outputId, realisation] : builtOutputs) {
               // Register the resolved drv output
