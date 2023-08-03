@@ -870,7 +870,7 @@ components:
           description: Size of the produced file
           type: integer
         defaultpath:
-          description: This is a Git/Mercurial commit hash or a Subversion revision number
+          description: if path is a directory, the default file relative to path to be served
           type: string
         'type':
           description: Types of build product (user defined)
