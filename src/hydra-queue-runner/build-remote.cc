@@ -11,6 +11,7 @@
 #include "state.hh"
 #include "util.hh"
 #include "worker-protocol.hh"
+#include "worker-protocol-impl.hh"
 #include "finally.hh"
 #include "url.hh"
 
