@@ -373,7 +373,7 @@ void State::buildRemote(ref<Store> destStore,
             }
         }
         if (GET_PROTOCOL_MINOR(remoteVersion) >= 6) {
-          WorkerProto::Serialise<DrvOutputs>::read(*localStore, rconn);
+            WorkerProto::Serialise<DrvOutputs>::read(*localStore, rconn);
         }
         switch ((BuildResult::Status) res) {
             case BuildResult::Built:
