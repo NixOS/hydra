@@ -551,6 +551,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobsetEval'
 
+  /eval/{eval-id}/builds:
+    get:
+      summary: Retrieves all builds belonging to an evaluation identified by eval id
+      parameters:
+        - name: eval-id
+          in: path
+          description: eval identifier
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: builds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobsetEvalBuilds'
+
 components:
   schemas:
 
@@ -795,6 +813,13 @@ components:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/JobsetEvalInput'
+
+    JobsetEvalBuilds:
+      type: array
+      items:
+        type: object
+        additionalProperties:
+          $ref: '#/components/schemas/Build'
 
     JobsetOverview:
       type: array
