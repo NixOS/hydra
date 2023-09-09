@@ -533,13 +533,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /eval/{build-id}:
+  /eval/{eval-id}:
     get:
-      summary: Retrieves evaluations identified by build id
+      summary: Retrieves evaluations identified by eval id
       parameters:
-        - name: build-id
+        - name: eval-id
           in: path
-          description: build identifier
+          description: eval identifier
           required: true
           schema:
             type: integer
