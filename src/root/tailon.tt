@@ -1,0 +1,15 @@
+[% WRAPPER layout.tt title="Tailon of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job $build.project.name:$build.jobset.name:$build.job.name" %]
+[% PROCESS common.tt %]
+
+<p>
+  Below is the tailon log of the build log of derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
+  [% IF step && step.machine %]
+    It is being built on <tt>[% step.machine %]</tt>.
+  [% END %]
+  The <a href="[% step ? c.uri_for('/build' build.id 'nixlog' step.stepnr)
+  : c.uri_for('/build' build.id 'log') %]">full log</a> is also available.
+</p>
+
+<iframe src="/tailon/[% tailon_socket %]" width="100%" style="height:50em;"/>
+
+[% END %]
