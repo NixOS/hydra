@@ -296,7 +296,7 @@ int main(int argc, char * * argv)
 
         auto config = std::make_unique<HydraConfig>();
 
-        auto nrWorkers = config->getIntOption("evaluator_workers", 1);
+        auto nrWorkers = config->getIntOption("evaluator_workers", 50);
         maxMemorySize = config->getIntOption("evaluator_max_memory_size", 4096);
 
         initNix();
