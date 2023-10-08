@@ -177,15 +177,14 @@ static void worker(
 
                 DrvInfo::Outputs outputs = drv->queryOutputs();
 
-                if (drv->querySystem() == "unknown")
-                    throw EvalError("derivation must have a 'system' attribute");
+                auto drvContent = state.store->readDerivation(drv->requireDrvPath());
 
                 auto drvPath = state.store->printStorePath(drv->requireDrvPath());
 
                 nlohmann::json job;
 
                 job["nixName"] = drv->queryName();
-                job["system"] =drv->querySystem();
+                job["system"] = drvContent.platform;
                 job["drvPath"] = drvPath;
                 job["description"] = drv->queryMetaString("description");
                 job["license"] = queryMetaStrings(state, *drv, "license", "shortName");
