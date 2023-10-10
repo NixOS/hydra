@@ -355,6 +355,7 @@ struct Evaluator
                 receiver jobsetsAdded(*conn, "jobsets_added");
                 receiver jobsetsDeleted(*conn, "jobsets_deleted");
                 receiver jobsetsChanged(*conn, "jobset_scheduling_changed");
+                receiver kill(*conn, "kill_evaluator");
 
                 while (true) {
                     /* Note: we read/notify before
@@ -363,6 +364,10 @@ struct Evaluator
                     readJobsets();
                     maybeDoWork.notify_one();
                     conn->await_notification();
+                    if (kill.get()) {
+                        printMsg(lvlError, "got notification: kys");
+                        exit(1);
+                    }
                     printInfo("received jobset event");
                 }
 
