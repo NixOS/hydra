@@ -16,7 +16,10 @@ sub process {
 
     my $tail = int($c->stash->{tail} // "0");
 
-    if ($logPath =~ /\.bz2$/) {
+    if ($logPath =~ /\.zstd$/) {
+        my $doTail = $tail ? "| tail -n '$tail'" : "";
+        open($fh, "-|", "zstd -dc < '$logPath' $doTail") or die;
+    } elsif ($logPath =~ /\.bz2$/) {
         my $doTail = $tail ? "| tail -n '$tail'" : "";
         open($fh, "-|", "bzip2 -dc < '$logPath' $doTail") or die;
     } else {
