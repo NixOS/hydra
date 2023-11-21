@@ -315,7 +315,7 @@ bool State::getQueuedBuilds(Connection & conn,
         if (std::chrono::system_clock::now() > start + std::chrono::seconds(600)) {
             prom.queue_checks_early_exits.Increment();
             break;
-        } 
+        }
     }
 
     prom.queue_checks_finished.Increment();
@@ -561,7 +561,7 @@ Step::ptr State::createStep(ref<Store> destStore,
     printMsg(lvlDebug, "creating build step ‘%1%’", localStore->printStorePath(drvPath));
 
     /* Create steps for the dependencies. */
-    for (auto & i : step->drv->inputDrvs) {
+    for (auto & i : step->drv->inputDrvs.map) {
         auto dep = createStep(destStore, conn, build, i.first, 0, step, finishedDrvs, newSteps, newRunnable);
         if (dep) {
             auto step_(step->state.lock());

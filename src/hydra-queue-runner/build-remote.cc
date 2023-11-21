@@ -276,9 +276,9 @@ void State::buildRemote(ref<Store> destStore,
         for (auto & p : step->drv->inputSrcs)
             inputs.insert(p);
 
-        for (auto & input : step->drv->inputDrvs) {
-            auto drv2 = localStore->readDerivation(input.first);
-            for (auto & name : input.second) {
+        for (auto & [drvPath, node] : step->drv->inputDrvs.map) {
+            auto drv2 = localStore->readDerivation(drvPath);
+            for (auto & name : node.value) {
                 if (auto i = get(drv2.outputs, name)) {
                     auto outPath = i->path(*localStore, drv2.name, name);
                     inputs.insert(*outPath);
