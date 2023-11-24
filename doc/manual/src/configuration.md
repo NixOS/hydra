@@ -63,7 +63,7 @@ following:
         .. other configuration ..
         location /hydra/ {
 
-            proxy_pass     http://127.0.0.1:3000;
+            proxy_pass     http://127.0.0.1:3000/;
             proxy_redirect http://127.0.0.1:3000 https://example.com/hydra;
 
             proxy_set_header  Host              $host;
@@ -73,6 +73,8 @@ following:
             proxy_set_header  X-Request-Base    /hydra;
         }
     }
+
+Note that the trailing slash at the end of proxy_pass is significant and must not be omitted!
 
 Statsd Configuration
 --------------------
