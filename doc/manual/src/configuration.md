@@ -51,10 +51,12 @@ base_uri example.com
 `base_uri` should be your hydra servers proxied URL. If you are using
 Hydra nixos module then setting `hydraURL` option should be enough.
 
-If you want to serve Hydra with a prefix path, for example
-[http://example.com/hydra]() then you need to configure your reverse
-proxy to pass `X-Request-Base` to hydra, with prefix path as value. For
-example if you are using nginx, then use configuration similar to
+You also need to configure your reverse proxy to pass `X-Request-Base`
+to hydra, with the same value as `base_uri`.
+This also covers the case of serving Hydra with a prefix path,
+as in [http://example.com/hydra]().
+
+For example if you are using nginx, then use configuration similar to
 following:
 
     server {
