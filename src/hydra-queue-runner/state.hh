@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <queue>
+#include <regex>
 
 #include <prometheus/counter.h>
 #include <prometheus/gauge.h>
@@ -293,7 +294,8 @@ struct Machine
 
     bool isLocalhost()
     {
-        return sshName == "localhost";
+        std::regex r("^(ssh://|ssh-ng://)?localhost$");
+        return std::regex_search(sshName, r);
     }
 };
 

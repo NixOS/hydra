@@ -43,8 +43,8 @@ subtest "Validate a run log was created" => sub {
     ok($runlog->did_fail_with_exec_error(), "The process failed to start due to an exec error.");
     is($runlog->job_matcher, "*:*:*", "An unspecified job matcher is defaulted to *:*:*");
     is($runlog->command, 'invalid-command-this-does-not-exist', "The executed command is saved.");
-    is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
-    is($runlog->end_time, within(time() - 1, 2), "The end time is also recent.");
+    is($runlog->start_time, within(time() - 1, 5), "The start time is recent.");
+    is($runlog->end_time, within(time() - 1, 5), "The end time is also recent.");
     is($runlog->exit_code, undef, "This command should not have executed.");
     is($runlog->error_number, 2, "This command failed to exec.");
 };

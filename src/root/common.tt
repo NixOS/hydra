@@ -374,7 +374,7 @@ BLOCK renderInputDiff; %]
               [% ELSIF bi1.uri == bi2.uri && bi1.revision != bi2.revision %]
                 [% IF bi1.type == "git" %]
                   <tr><td>
-                    <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision.substr(0, 6) _ ' to ' _ bi2.revision.substr(0, 6)) %]</tt>
+                    <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision.substr(0, 8) _ ' to ' _ bi2.revision.substr(0, 8)) %]</tt>
                   </td></tr>
                 [% ELSE %]
                   <tr><td>
@@ -520,7 +520,11 @@ BLOCK makeLazyTab %]
     <center><span class="spinner-border spinner-border-sm"/></center>
   </div>
   <script>
-    $(function() { makeLazyTab("[% tabName %]", "[% uri %]"); });
+    [% IF callback.defined %]
+    $(function() { makeLazyTab("[% tabName %]", "[% uri %]", [% callback %] ); });
+    [% ELSE %]
+    $(function() { makeLazyTab("[% tabName %]", "[% uri %]", null ); });
+    [% END %]
   </script>
 [% END;
 

@@ -216,7 +216,7 @@ sub json_hint {
 
 sub _authenticator() {
     my $authenticator = Crypt::Passphrase->new(
-        encoder    => 'Argon2',
+        encoder    => { module => 'Argon2', output_size => 16 },
         validators => [
             (sub {
                 my ($password, $hash) = @_;

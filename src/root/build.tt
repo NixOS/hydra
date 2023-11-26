@@ -498,11 +498,11 @@ END;
 [% END %]
 
   [% IF drvAvailable %]
-    [% INCLUDE makeLazyTab tabName="tabs-build-deps" uri=c.uri_for('/build' build.id 'build-deps') %]
+    [% INCLUDE makeLazyTab tabName="tabs-build-deps" uri=c.uri_for('/build' build.id 'build-deps') callback="makeTreeCollapsible" %]
   [% END %]
 
   [% IF available %]
-    [% INCLUDE makeLazyTab tabName="tabs-runtime-deps" uri=c.uri_for('/build' build.id 'runtime-deps') %]
+    [% INCLUDE makeLazyTab tabName="tabs-runtime-deps" uri=c.uri_for('/build' build.id 'runtime-deps') callback="makeTreeCollapsible" %]
   [% END %]
 
   <div id="tabs-runcommandlogs" class="tab-pane">

@@ -6,10 +6,12 @@
 #include <fcntl.h>
 
 #include "build-result.hh"
+#include "path.hh"
 #include "serve-protocol.hh"
 #include "state.hh"
 #include "util.hh"
 #include "worker-protocol.hh"
+#include "worker-protocol-impl.hh"
 #include "finally.hh"
 #include "url.hh"
 
@@ -110,18 +112,20 @@ static void copyClosureTo(std::timed_mutex & sendMutex, Store & destStore,
     StorePathSet closure;
     destStore.computeFSClosure(paths, closure);
 
+    WorkerProto::WriteConn wconn { .to = to };
+    WorkerProto::ReadConn rconn { .from = from };
     /* Send the "query valid paths" command with the "lock" option
        enabled. This prevents a race where the remote host
        garbage-collect paths that are already there. Optionally, ask
        the remote host to substitute missing paths. */
     // FIXME: substitute output pollutes our build log
-    to << cmdQueryValidPaths << 1 << useSubstitutes;
-    worker_proto::write(destStore, to, closure);
+    to << ServeProto::Command::QueryValidPaths << 1 << useSubstitutes;
+    WorkerProto::write(destStore, wconn, closure);
     to.flush();
 
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = worker_proto::read(destStore, from, Phantom<StorePathSet> {});
+    auto present = WorkerProto::Serialise<StorePathSet>::read(destStore, rconn);
 
     if (present.size() == closure.size()) return;
 
@@ -136,7 +140,7 @@ static void copyClosureTo(std::timed_mutex & sendMutex, Store & destStore,
     std::unique_lock<std::timed_mutex> sendLock(sendMutex,
         std::chrono::seconds(600));
 
-    to << cmdImportPaths;
+    to << ServeProto::Command::ImportPaths;
     destStore.exportPaths(missing, to);
     to.flush();
 
@@ -288,7 +292,9 @@ void State::buildRemote(ref<Store> destStore,
         });
 
         FdSource from(child.from.get());
+        WorkerProto::ReadConn rconn { .from = from };
         FdSink to(child.to.get());
+        WorkerProto::WriteConn wconn { .to = to };
 
         Finally updateStats([&]() {
             bytesReceived += from.read;
@@ -299,7 +305,7 @@ void State::buildRemote(ref<Store> destStore,
         unsigned int remoteVersion;
 
         try {
-            to << SERVE_MAGIC_1 << 0x205;
+            to << SERVE_MAGIC_1 << 0x206;
             to.flush();
 
             unsigned int magic = readInt(from);
@@ -384,7 +390,7 @@ void State::buildRemote(ref<Store> destStore,
 
         updateStep(ssBuilding);
 
-        to << cmdBuildDerivation << localStore->printStorePath(step->drvPath);
+        to << ServeProto::Command::BuildDerivation << localStore->printStorePath(step->drvPath);
         writeDerivation(to, *localStore, basicDrv);
         to << maxSilentTime << buildTimeout;
         if (GET_PROTOCOL_MINOR(remoteVersion) >= 2)
@@ -489,18 +495,18 @@ void State::buildRemote(ref<Store> destStore,
             /* Get info about each output path. */
             std::map<StorePath, ValidPathInfo> infos;
             size_t totalNarSize = 0;
-            to << cmdQueryPathInfos;
-            worker_proto::write(*localStore, to, outputs);
+            to << ServeProto::Command::QueryPathInfos;
+            WorkerProto::write(*localStore, wconn, outputs);
             to.flush();
             while (true) {
                 auto storePathS = readString(from);
                 if (storePathS == "") break;
                 auto deriver = readString(from); // deriver
-                auto references = worker_proto::read(*localStore, from, Phantom<StorePathSet> {});
+                auto references = WorkerProto::Serialise<StorePathSet>::read(*localStore, rconn);
                 readLongLong(from); // download size
                 auto narSize = readLongLong(from);
                 auto narHash = Hash::parseAny(readString(from), htSHA256);
-                auto ca = parseContentAddressOpt(readString(from));
+                auto ca = ContentAddress::parseOpt(readString(from));
                 readStrings<StringSet>(from); // sigs
                 ValidPathInfo info(localStore->parseStorePath(storePathS), narHash);
                 assert(outputs.count(info.path));
@@ -540,7 +546,7 @@ void State::buildRemote(ref<Store> destStore,
                        lambda function only gets executed if someone tries to read
                        from source2, we will send the command from here rather
                        than outside the lambda. */
-                    to << cmdDumpStorePath << localStore->printStorePath(path);
+                    to << ServeProto::Command::DumpStorePath << localStore->printStorePath(path);
                     to.flush();
 
                     TeeSource tee(from, sink);

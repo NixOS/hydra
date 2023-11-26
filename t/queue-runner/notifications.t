@@ -33,9 +33,6 @@ my $ctx = test_context(
 # the build locally.
 
 subtest "Pre-build the job, upload to the cache, and then delete locally" => sub {
-    my $scratchlogdir = File::Temp->newdir();
-    $ENV{'NIX_LOG_DIR'} = "$scratchlogdir";
-
     my $outlink = $ctx->tmpdir . "/basic-canbesubstituted";
     is(system('nix-build', $ctx->jobsdir . '/notifications.nix', '-A', 'canbesubstituted', '--out-link', $outlink), 0, "Building notifications.nix succeeded");
     is(system('nix', 'copy', '--to', "file://${binarycachedir}", $outlink), 0, "Copying the closure to the binary cache succeeded");
@@ -46,6 +43,7 @@ subtest "Pre-build the job, upload to the cache, and then delete locally" => sub
     is(system('nix', 'log', $outpath), 0, "Reading the output's log succeeds");
     is(system('nix-store', '--delete', $outpath), 0, "Deleting the notifications.nix output succeeded");
     is(system("nix-collect-garbage"), 0, "Delete all the system's garbage");
+    File::Path::rmtree($ctx->{nix_log_dir});
 };
 
 subtest "Ensure substituting the job works, but reading the log fails" => sub {

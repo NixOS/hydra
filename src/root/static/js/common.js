@@ -1,10 +1,9 @@
-$(document).ready(function() {
-
+function makeTreeCollapsible(tab) {
     /*** Tree toggles in logfiles. ***/
 
     /* Set the appearance of the toggle depending on whether the
        corresponding subtree is initially shown or hidden. */
-    $(".tree-toggle").map(function() {
+    tab.find(".tree-toggle").map(function() {
         if ($(this).siblings("ul:hidden").length == 0) {
             $(this).text("-");
         } else {
@@ -13,7 +12,7 @@ $(document).ready(function() {
     });
 
     /* When a toggle is clicked, show or hide the subtree. */
-    $(".tree-toggle").click(function() {
+    tab.find(".tree-toggle").click(function() {
         if ($(this).siblings("ul:hidden").length != 0) {
             $(this).siblings("ul").show();
             $(this).text("-");
@@ -24,21 +23,23 @@ $(document).ready(function() {
     });
 
     /* Implementation of the expand all link. */
-    $(".tree-expand-all").click(function() {
-        $(".tree-toggle", $(this).parent().siblings(".tree")).map(function() {
+    tab.find(".tree-expand-all").click(function() {
+        tab.find(".tree-toggle", $(this).parent().siblings(".tree")).map(function() {
             $(this).siblings("ul").show();
             $(this).text("-");
         });
     });
 
     /* Implementation of the collapse all link. */
-    $(".tree-collapse-all").click(function() {
-        $(".tree-toggle", $(this).parent().siblings(".tree")).map(function() {
+    tab.find(".tree-collapse-all").click(function() {
+        tab.find(".tree-toggle", $(this).parent().siblings(".tree")).map(function() {
             $(this).siblings("ul").hide();
             $(this).text("+");
         });
     });
+}
 
+$(document).ready(function() {
     $("table.clickable-rows").click(function(event) {
         if ($(event.target).closest("a").length) return;
         link = $(event.target).parents("tr").find("a.row-link");
@@ -132,7 +133,7 @@ $(document).ready(function() {
 
 var tabsLoaded = {};
 
-function makeLazyTab(tabName, uri) {
+function makeLazyTab(tabName, uri, callback) {
     $('.nav-tabs').bind('show.bs.tab', function(e) {
         var pattern = /#.+/gi;
         var id = e.target.toString().match(pattern)[0];
@@ -140,11 +141,15 @@ function makeLazyTab(tabName, uri) {
           tabsLoaded[id] = 1;
           $('#' + tabName).load(uri, function(response, status, xhr) {
             var lazy = xhr.getResponseHeader("X-Hydra-Lazy") === "Yes";
+            var tab = $('#' + tabName);
             if (status == "error" && !lazy) {
-              $('#' + tabName).html("<div class='alert alert-error'>Error loading tab: " + xhr.status + " " + xhr.statusText + "</div>");
+              tab.html("<div class='alert alert-error'>Error loading tab: " + xhr.status + " " + xhr.statusText + "</div>");
             }
             else {
-              $('#' + tabName).html(response);
+              tab.html(response);
+              if (callback) {
+                callback(tab);
+              }
             }
           });
         }

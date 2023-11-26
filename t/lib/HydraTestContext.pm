@@ -56,16 +56,19 @@ sub new {
     $hydra_config = "queue_runner_metrics_address = 127.0.0.1:0\n" . $hydra_config;
     if ($opts{'use_external_destination_store'} // 1) {
         $deststoredir = "$dir/nix/dest-store";
-        $hydra_config = "store_uri = file:$dir/nix/dest-store\n" . $hydra_config;
+        $hydra_config = "store_uri = file://$dir/nix/dest-store\n" . $hydra_config;
     }
 
     write_file($ENV{'HYDRA_CONFIG'}, $hydra_config);
 
-    $ENV{'NIX_LOG_DIR'} = "$dir/nix/var/log/nix";
+    my $nix_store_dir = "$dir/nix/store";
+    my $nix_state_dir = "$dir/nix/var/nix";
+    my $nix_log_dir = "$dir/nix/var/log/nix";
+
     $ENV{'NIX_REMOTE_SYSTEMS'} = '';
-    $ENV{'NIX_REMOTE'} = '';
-    $ENV{'NIX_STATE_DIR'} = "$dir/nix/var/nix";
-    $ENV{'NIX_STORE_DIR'} = "$dir/nix/store";
+    $ENV{'NIX_REMOTE'} = "local?store=$nix_store_dir&state=$nix_state_dir&log=$nix_log_dir";
+    $ENV{'NIX_STATE_DIR'} = $nix_state_dir; # FIXME: remove
+    $ENV{'NIX_STORE_DIR'} = $nix_store_dir; # FIXME: remove
 
     my $pgsql = Test::PostgreSQL->new(
         extra_initdb_args => "--locale C.UTF-8"
@@ -76,7 +79,8 @@ sub new {
         _db => undef,
         db_handle => $pgsql,
         tmpdir => $dir,
-        nix_state_dir => "$dir/nix/var/nix",
+        nix_state_dir => $nix_state_dir,
+        nix_log_dir => $nix_log_dir,
         testdir => abs_path(dirname(__FILE__) . "/.."),
         jobsdir => abs_path(dirname(__FILE__) . "/../jobs"),
         deststoredir => $deststoredir,
