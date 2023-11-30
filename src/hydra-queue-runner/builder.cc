@@ -325,7 +325,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                 pqxx::work txn(*conn);
 
                 for (auto & b : direct) {
-                    printMsg(lvlInfo, format("marking build %1% as succeeded") % b->id);
+                    printInfo("marking build %1% as succeeded", b->id);
                     markSucceededBuild(txn, b, res, buildId != b->id || result.isCached,
                         result.startTime, result.stopTime);
                 }
@@ -453,7 +453,7 @@ void State::failStep(
             /* Mark all builds that depend on this derivation as failed. */
             for (auto & build : indirect) {
                 if (build->finishedInDB) continue;
-                printMsg(lvlError, format("marking build %1% as failed") % build->id);
+                printError("marking build %1% as failed", build->id);
                 txn.exec_params0
                     ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0",
                      build->id,

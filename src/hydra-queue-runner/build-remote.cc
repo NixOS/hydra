@@ -6,10 +6,12 @@
 #include <fcntl.h>
 
 #include "build-result.hh"
+#include "path.hh"
 #include "serve-protocol.hh"
 #include "state.hh"
 #include "util.hh"
 #include "worker-protocol.hh"
+#include "worker-protocol-impl.hh"
 #include "finally.hh"
 #include "url.hh"
 
@@ -112,18 +114,20 @@ static void copyClosureTo(std::timed_mutex & sendMutex, Store & destStore,
     StorePathSet closure;
     destStore.computeFSClosure(paths, closure);
 
+    WorkerProto::WriteConn wconn { .to = to };
+    WorkerProto::ReadConn rconn { .from = from };
     /* Send the "query valid paths" command with the "lock" option
        enabled. This prevents a race where the remote host
        garbage-collect paths that are already there. Optionally, ask
        the remote host to substitute missing paths. */
     // FIXME: substitute output pollutes our build log
-    to << cmdQueryValidPaths << 1 << useSubstitutes;
-    worker_proto::write(destStore, to, closure);
+    to << ServeProto::Command::QueryValidPaths << 1 << useSubstitutes;
+    WorkerProto::write(destStore, wconn, closure);
     to.flush();
 
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = worker_proto::read(destStore, from, Phantom<StorePathSet> {});
+    auto present = WorkerProto::Serialise<StorePathSet>::read(destStore, rconn);
 
     if (present.size() == closure.size()) return;
 
@@ -138,7 +142,7 @@ static void copyClosureTo(std::timed_mutex & sendMutex, Store & destStore,
     std::unique_lock<std::timed_mutex> sendLock(sendMutex,
         std::chrono::seconds(600));
 
-    to << cmdImportPaths;
+    to << ServeProto::Command::ImportPaths;
     destStore.exportPaths(missing, to);
     to.flush();
 
@@ -179,7 +183,7 @@ StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> & paths
 std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const StorePath & drvPath)
 {
     std::string base(drvPath.to_string());
-    auto logFile = logDir + "/" + string(base, 0, 2) + "/" + string(base, 2);
+    auto logFile = logDir + "/" + std::string(base, 0, 2) + "/" + std::string(base, 2);
 
     createDirs(dirOf(logFile));
 
@@ -231,7 +235,7 @@ BasicDerivation sendInputs(
        a no-op for regular stores, but for the binary cache store,
        this will copy the inputs to the binary cache from the local
        store. */
-    if (localStore != destStore) {
+    if (&localStore != &destStore) {
         copyClosure(localStore, destStore,
             step.drv->inputSrcs,
             NoRepair, NoCheckSigs, NoSubstitute);
@@ -276,14 +280,15 @@ BuildResult performBuild(
 
     BuildResult result;
 
-    conn.to << cmdBuildDerivation << localStore.printStorePath(drvPath);
+    conn.to << ServeProto::Command::BuildDerivation << localStore.printStorePath(drvPath);
     writeDerivation(conn.to, localStore, drv);
     conn.to << options.maxSilentTime << options.buildTimeout;
     if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 2)
         conn.to << options.maxLogSize;
     if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 3) {
-        conn.to << options.repeats // == build-repeat
-          << options.enforceDeterminism;
+        conn.to
+            << options.repeats // == build-repeat
+            << options.enforceDeterminism;
     }
     conn.to.flush();
 
@@ -310,7 +315,7 @@ BuildResult performBuild(
         }
     }
     if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 6) {
-        result.builtOutputs = worker_proto::read(localStore, conn.from, Phantom<DrvOutputs> {});
+        WorkerProto::Serialise<DrvOutputs>::read(localStore, conn);
     }
 
     return result;
@@ -326,18 +331,18 @@ std::map<StorePath, ValidPathInfo> queryPathInfos(
 
     /* Get info about each output path. */
     std::map<StorePath, ValidPathInfo> infos;
-    conn.to << cmdQueryPathInfos;
-    worker_proto::write(localStore, conn.to, outputs);
+    conn.to << ServeProto::Command::QueryPathInfos;
+    WorkerProto::write(localStore, conn, outputs);
     conn.to.flush();
     while (true) {
         auto storePathS = readString(conn.from);
         if (storePathS == "") break;
         auto deriver = readString(conn.from); // deriver
-        auto references = worker_proto::read(localStore, conn.from, Phantom<StorePathSet> {});
+        auto references = WorkerProto::Serialise<StorePathSet>::read(localStore, conn);
         readLongLong(conn.from); // download size
         auto narSize = readLongLong(conn.from);
         auto narHash = Hash::parseAny(readString(conn.from), htSHA256);
-        auto ca = parseContentAddressOpt(readString(conn.from));
+        auto ca = ContentAddress::parseOpt(readString(conn.from));
         readStrings<StringSet>(conn.from); // sigs
         ValidPathInfo info(localStore.parseStorePath(storePathS), narHash);
         assert(outputs.count(info.path));
@@ -374,7 +379,7 @@ void copyPathFromRemote(
               lambda function only gets executed if someone tries to read
               from source2, we will send the command from here rather
               than outside the lambda. */
-          conn.to << cmdDumpStorePath << localStore.printStorePath(info.path);
+          conn.to << ServeProto::Command::DumpStorePath << localStore.printStorePath(info.path);
           conn.to.flush();
 
           TeeSource tee(conn.from, sink);
