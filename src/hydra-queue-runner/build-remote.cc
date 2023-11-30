@@ -152,7 +152,7 @@ static void copyClosureTo(
 
 
 // FIXME: use Store::topoSortPaths().
-StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> & paths)
+static StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> & paths)
 {
     StorePaths sorted;
     StorePathSet visited;
@@ -180,7 +180,7 @@ StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> & paths
     return sorted;
 }
 
-std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const StorePath & drvPath)
+static std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const StorePath & drvPath)
 {
     std::string base(drvPath.to_string());
     auto logFile = logDir + "/" + std::string(base, 0, 2) + "/" + std::string(base, 2);
@@ -193,7 +193,7 @@ std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const Store
     return {std::move(logFile), std::move(logFD)};
 }
 
-void handshake(Machine::Connection & conn, unsigned int repeats)
+static void handshake(Machine::Connection & conn, unsigned int repeats)
 {
     conn.to << SERVE_MAGIC_1 << 0x206;
     conn.to.flush();
@@ -208,7 +208,7 @@ void handshake(Machine::Connection & conn, unsigned int repeats)
         throw Error("machine ‘%1%’ does not support repeating a build; please upgrade it to Nix 1.12", conn.machine->sshName);
 }
 
-BasicDerivation sendInputs(
+static BasicDerivation sendInputs(
     State & state,
     Step & step,
     Store & localStore,
@@ -268,7 +268,7 @@ BasicDerivation sendInputs(
     return basicDrv;
 }
 
-BuildResult performBuild(
+static BuildResult performBuild(
     Machine::Connection & conn,
     Store & localStore,
     StorePath drvPath,
@@ -321,7 +321,7 @@ BuildResult performBuild(
     return result;
 }
 
-std::map<StorePath, ValidPathInfo> queryPathInfos(
+static std::map<StorePath, ValidPathInfo> queryPathInfos(
     Machine::Connection & conn,
     Store & localStore,
     StorePathSet & outputs,
@@ -359,7 +359,7 @@ std::map<StorePath, ValidPathInfo> queryPathInfos(
     return infos;
 }
 
-void copyPathFromRemote(
+static void copyPathFromRemote(
     Machine::Connection & conn,
     NarMemberDatas & narMembers,
     Store & localStore,
@@ -389,7 +389,7 @@ void copyPathFromRemote(
       destStore.addToStore(info, *source2, NoRepair, NoCheckSigs);
 }
 
-void copyPathsFromRemote(
+static void copyPathsFromRemote(
     Machine::Connection & conn,
     NarMemberDatas & narMembers,
     Store & localStore,
