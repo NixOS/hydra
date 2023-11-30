@@ -221,7 +221,7 @@ static BasicDerivation sendInputs(
 {
     BasicDerivation basicDrv(*step.drv);
 
-    for (auto & input : step.drv->inputDrvs) {
+    for (const auto & input : step.drv->inputDrvs) {
         auto drv2 = localStore.readDerivation(input.first);
         for (auto & name : input.second) {
             if (auto i = get(drv2.outputs, name)) {
