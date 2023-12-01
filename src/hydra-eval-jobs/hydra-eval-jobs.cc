@@ -7,6 +7,7 @@
 #include "store-api.hh"
 #include "eval.hh"
 #include "eval-inline.hh"
+#include "eval-settings.hh"
 #include "util.hh"
 #include "get-drvs.hh"
 #include "globals.hh"
@@ -208,13 +209,13 @@ static void worker(
                     for (auto & c : context)
                         std::visit(overloaded {
                             [&](const NixStringContextElem::Built & b) {
-                                job["constituents"].push_back(state.store->printStorePath(b.drvPath));
+                                job["constituents"].push_back(b.drvPath->to_string(*state.store));
                             },
                             [&](const NixStringContextElem::Opaque & o) {
                             },
                             [&](const NixStringContextElem::DrvDeep & d) {
                             },
-                        }, c.raw());
+                        }, c.raw);
 
                     state.forceList(*a->value, a->pos, "while evaluating the `constituents` attribute");
                     for (unsigned int n = 0; n < a->value->listSize(); ++n) {
@@ -516,7 +517,7 @@ int main(int argc, char * * argv)
                     auto drvPath2 = store->parseStorePath((std::string) (*job2)["drvPath"]);
                     auto drv2 = store->readDerivation(drvPath2);
                     job["constituents"].push_back(store->printStorePath(drvPath2));
-                    drv.inputDrvs[drvPath2] = {drv2.outputs.begin()->first};
+                    drv.inputDrvs.map[drvPath2].value = {drv2.outputs.begin()->first};
                 }
 
                 if (brokenJobs.empty()) {
