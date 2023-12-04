@@ -78,6 +78,8 @@ struct RemoteResult
     {
         return stepStatus == bsCachedFailure ? bsFailed : stepStatus;
     }
+
+    void updateWithBuildResult(const nix::BuildResult &);
 };
 
 
@@ -458,6 +460,12 @@ private:
 public:
     State(std::optional<std::string> metricsAddrOpt);
 
+    struct BuildOptions {
+        unsigned int maxSilentTime, buildTimeout, repeats;
+        size_t maxLogSize;
+        bool enforceDeterminism;
+    };
+
 private:
 
     nix::MaintainCount<counter> startDbUpdate();
@@ -542,8 +550,7 @@ private:
 
     void buildRemote(nix::ref<nix::Store> destStore,
         Machine::ptr machine, Step::ptr step,
-        unsigned int maxSilentTime, unsigned int buildTimeout,
-        unsigned int repeats,
+        const BuildOptions & buildOptions,
         RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
         std::function<void(StepState)> updateStep,
         NarMemberDatas & narMembers);

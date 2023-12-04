@@ -22,19 +22,93 @@ static std::string machineToStoreUrl(Machine::ptr machine)
     return "ssh://" + machine->sshName;
 }
 
+namespace nix::build_remote {
+
+static Path createLogFileDir(const std::string & logDir, const StorePath & drvPath)
+{
+    std::string base(drvPath.to_string());
+    auto logFile = logDir + "/" + std::string(base, 0, 2) + "/" + std::string(base, 2);
+
+    createDirs(dirOf(logFile));
+
+    return logFile;
+}
+
+}
+
+/* using namespace nix::build_remote; */
+
+void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
+{
+    RemoteResult thisArrow;
+
+    // FIXME: make RemoteResult inherit BuildResult.
+    timesBuilt = buildResult.timesBuilt;
+    errorMsg = buildResult.errorMsg;
+    isNonDeterministic = buildResult.isNonDeterministic;
+    if (buildResult.startTime && buildResult.stopTime) {
+        startTime = buildResult.startTime;
+        stopTime = buildResult.stopTime;
+    }
+
+    switch ((BuildResult::Status) buildResult.status) {
+        case BuildResult::Built:
+            stepStatus = bsSuccess;
+            break;
+        case BuildResult::Substituted:
+        case BuildResult::AlreadyValid:
+            stepStatus = bsSuccess;
+            isCached = true;
+            break;
+        case BuildResult::PermanentFailure:
+            stepStatus = bsFailed;
+            canCache = true;
+            errorMsg = "";
+            break;
+        case BuildResult::InputRejected:
+        case BuildResult::OutputRejected:
+            stepStatus = bsFailed;
+            canCache = true;
+            break;
+        case BuildResult::TransientFailure:
+            stepStatus = bsFailed;
+            canRetry = true;
+            errorMsg = "";
+            break;
+        case BuildResult::TimedOut:
+            stepStatus = bsTimedOut;
+            errorMsg = "";
+            break;
+        case BuildResult::MiscFailure:
+            stepStatus = bsAborted;
+            canRetry = true;
+            break;
+        case BuildResult::LogLimitExceeded:
+            stepStatus = bsLogLimitExceeded;
+            break;
+        case BuildResult::NotDeterministic:
+            stepStatus = bsNotDeterministic;
+            canRetry = false;
+            canCache = true;
+            break;
+        default:
+            stepStatus = bsAborted;
+            break;
+    }
+
+}
+
+
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
-    unsigned int maxSilentTime, unsigned int buildTimeout, unsigned int repeats,
+    const BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
     std::function<void(StepState)> updateStep,
     NarMemberDatas & narMembers)
 {
     assert(BuildResult::TimedOut == 8);
 
-    std::string base(step->drvPath.to_string());
-    result.logFile = logDir + "/" + std::string(base, 0, 2) + "/" + std::string(base, 2);
-
-    createDirs(dirOf(result.logFile));
+    result.logFile = build_remote::createLogFileDir(logDir, step->drvPath);
 
     try {
 
@@ -48,11 +122,11 @@ void State::buildRemote(ref<Store> destStore,
             "--store", destStore->getUri(),
             "--eval-store", localStore->getUri(),
             "--build-store", buildStoreUrl,
-            "--max-silent-time", std::to_string(maxSilentTime),
-            "--timeout", std::to_string(buildTimeout),
-            "--max-build-log-size", std::to_string(maxLogSize),
+            "--max-silent-time", std::to_string(buildOptions.maxSilentTime),
+            "--timeout", std::to_string(buildOptions.buildTimeout),
+            "--max-build-log-size", std::to_string(buildOptions.maxLogSize),
             "--max-output-size", std::to_string(maxOutputSize),
-            "--repeat", std::to_string(repeats),
+            "--repeat", std::to_string(buildOptions.repeats),
             "--log-file", result.logFile,
             // FIXME: step->isDeterministic
         };
@@ -111,59 +185,8 @@ void State::buildRemote(ref<Store> destStore,
         auto totalNarSize = readNum<uint64_t>(rconn.from);
         auto buildResult = WorkerProto::Serialise<BuildResult>::read(*localStore, rconn);
 
-        // FIXME: make RemoteResult inherit BuildResult.
-        result.errorMsg = buildResult.errorMsg;
-        result.timesBuilt = buildResult.timesBuilt;
-        result.isNonDeterministic = buildResult.isNonDeterministic;
-        if (buildResult.startTime && buildResult.stopTime) {
-            result.startTime = buildResult.startTime;
-            result.stopTime = buildResult.stopTime;
-        }
 
-        switch (buildResult.status) {
-            case BuildResult::Built:
-                result.stepStatus = bsSuccess;
-                break;
-            case BuildResult::Substituted:
-            case BuildResult::AlreadyValid:
-                result.stepStatus = bsSuccess;
-                result.isCached = true;
-                break;
-            case BuildResult::PermanentFailure:
-                result.stepStatus = bsFailed;
-                result.canCache = true;
-                result.errorMsg = "";
-                break;
-            case BuildResult::InputRejected:
-            case BuildResult::OutputRejected:
-                result.stepStatus = bsFailed;
-                result.canCache = true;
-                break;
-            case BuildResult::TransientFailure:
-                result.stepStatus = bsFailed;
-                result.canRetry = true;
-                result.errorMsg = "";
-                break;
-            case BuildResult::TimedOut:
-                result.stepStatus = bsTimedOut;
-                result.errorMsg = "";
-                break;
-            case BuildResult::MiscFailure:
-                result.stepStatus = bsAborted;
-                result.canRetry = true;
-                break;
-            case BuildResult::LogLimitExceeded:
-                result.stepStatus = bsLogLimitExceeded;
-                break;
-            case BuildResult::NotDeterministic:
-                result.stepStatus = bsNotDeterministic;
-                result.canRetry = false;
-                result.canCache = true;
-                break;
-            default:
-                result.stepStatus = bsAborted;
-                break;
-        }
+        result.updateWithBuildResult(buildResult);
 
         if (result.stepStatus != bsSuccess) return;
 
