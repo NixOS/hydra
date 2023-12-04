@@ -313,9 +313,9 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
     if (r.affected_rows() == 0) goto restart;
 
     for (auto & [name, output] : localStore->queryPartialDerivationOutputMap(step->drvPath))
-      txn.exec_params0
-          ("insert into BuildStepOutputs (build, stepnr, name, path, contentAddressed) values ($1, $2, $3, $4, $5)",
-            buildId, stepNr, name, output ? localStore->printStorePath(*output) : "", step->drv->type().isCA());
+        txn.exec_params0
+            ("insert into BuildStepOutputs (build, stepnr, name, path, contentAddressed) values ($1, $2, $3, $4, $5)",
+              buildId, stepNr, name, output ? localStore->printStorePath(*output) : "", step->drv->type().isCA());
 
     if (status == bsBusy)
         txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));
