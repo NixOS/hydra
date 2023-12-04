@@ -13,7 +13,7 @@ void State::queueMonitor()
         try {
             queueMonitorLoop();
         } catch (std::exception & e) {
-            printMsg(lvlError, format("queue monitor: %1%") % e.what());
+            printError("queue monitor: %s", e.what());
             sleep(10); // probably a DB problem, so don't retry right away
         }
     }
@@ -142,13 +142,13 @@ bool State::getQueuedBuilds(Connection & conn,
 
     createBuild = [&](Build::ptr build) {
         prom.queue_build_loads.Increment();
-        printMsg(lvlTalkative, format("loading build %1% (%2%)") % build->id % build->fullJobName());
+        printMsg(lvlTalkative, "loading build %1% (%2%)", build->id, build->fullJobName());
         nrAdded++;
         newBuildsByID.erase(build->id);
 
         if (!localStore->isValidPath(build->drvPath)) {
             /* Derivation has been GC'ed prematurely. */
-            printMsg(lvlError, format("aborting GC'ed build %1%") % build->id);
+            printError("aborting GC'ed build %1%", build->id);
             if (!build->finishedInDB) {
                 auto mc = startDbUpdate();
                 pqxx::work txn(conn);
@@ -302,7 +302,7 @@ bool State::getQueuedBuilds(Connection & conn,
 
         /* Add the new runnable build steps to ‘runnable’ and wake up
            the builder threads. */
-        printMsg(lvlChatty, format("got %1% new runnable steps from %2% new builds") % newRunnable.size() % nrAdded);
+        printMsg(lvlChatty, "got %1% new runnable steps from %2% new builds", newRunnable.size(), nrAdded);
         for (auto & r : newRunnable)
             makeRunnable(r);
 
@@ -315,7 +315,7 @@ bool State::getQueuedBuilds(Connection & conn,
         if (std::chrono::system_clock::now() > start + std::chrono::seconds(600)) {
             prom.queue_checks_early_exits.Increment();
             break;
-        } 
+        }
     }
 
     prom.queue_checks_finished.Increment();
@@ -358,13 +358,13 @@ void State::processQueueChange(Connection & conn)
         for (auto i = builds_->begin(); i != builds_->end(); ) {
             auto b = currentIds.find(i->first);
             if (b == currentIds.end()) {
-                printMsg(lvlInfo, format("discarding cancelled build %1%") % i->first);
+                printInfo("discarding cancelled build %1%", i->first);
                 i = builds_->erase(i);
                 // FIXME: ideally we would interrupt active build steps here.
                 continue;
             }
             if (i->second->globalPriority < b->second) {
-                printMsg(lvlInfo, format("priority of build %1% increased") % i->first);
+                printInfo("priority of build %1% increased", i->first);
                 i->second->globalPriority = b->second;
                 i->second->propagatePriorities();
             }
@@ -561,7 +561,7 @@ Step::ptr State::createStep(ref<Store> destStore,
     printMsg(lvlDebug, "creating build step ‘%1%’", localStore->printStorePath(drvPath));
 
     /* Create steps for the dependencies. */
-    for (auto & i : step->drv->inputDrvs) {
+    for (auto & i : step->drv->inputDrvs.map) {
         auto dep = createStep(destStore, conn, build, i.first, 0, step, finishedDrvs, newSteps, newRunnable);
         if (dep) {
             auto step_(step->state.lock());
@@ -654,7 +654,7 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
         if (r.empty()) continue;
         BuildID id = r[0][0].as<BuildID>();
 
-        printMsg(lvlInfo, format("reusing build %d") % id);
+        printInfo("reusing build %d", id);
 
         BuildOutput res;
         res.failed = r[0][1].as<int>() == bsFailedWithOutput;

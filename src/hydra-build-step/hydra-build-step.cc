@@ -14,6 +14,7 @@
    The build log is written to the path indicated by --log-file.
 */
 
+#include "util.hh"
 #include "shared.hh"
 #include "common-eval-args.hh"
 #include "store-api.hh"
@@ -37,7 +38,7 @@ void mainWrapped(std::list<std::string> args)
 {
     verbosity = lvlError;
 
-    struct MyArgs : MixEvalArgs, MixCommonArgs
+    struct MyArgs : MixEvalArgs, MixCommonArgs, RootArgs
     {
         Path drvPath;
         std::optional<std::string> buildStoreUrl;
@@ -89,8 +90,8 @@ void mainWrapped(std::list<std::string> args)
                 throw SysError("creating log file '%s'", logPath);
         }
 
-        void log(Verbosity lvl, const FormatOrString & fs) override
-        { prev.log(lvl, fs); }
+        void log(Verbosity lvl, std::string_view s) override
+        { prev.log(lvl, s); }
 
         void logEI(const ErrorInfo & ei) override
         { prev.logEI(ei); }
@@ -124,9 +125,9 @@ void mainWrapped(std::list<std::string> args)
     for (auto & p : drv.inputSrcs)
         inputs.insert(p);
 
-    for (auto & input : drv.inputDrvs) {
-        auto drv2 = evalStore->readDerivation(input.first);
-        for (auto & name : input.second) {
+    for (auto & [drvPath, node] : drv.inputDrvs.map) {
+        auto drv2 = evalStore->readDerivation(drvPath);
+        for (auto & name : node.value) {
             if (auto i = get(drv2.outputs, name)) {
                 auto outPath = i->path(*evalStore, drv2.name, name);
                 inputs.insert(*outPath);
@@ -193,10 +194,14 @@ void mainWrapped(std::list<std::string> args)
         }
     }
 
-    FdSink stdout(STDOUT_FILENO);
-    stdout << overhead;
-    stdout << totalNarSize;
-    worker_proto::write(*evalStore, stdout, buildResult);
+    FdSink to { STDOUT_FILENO };
+    WorkerProto::WriteConn wconn {
+        .to = to,
+        // Hardcode latest version because we are deploying hydra
+        // itself atomically
+        .version = PROTOCOL_VERSION,
+    };
+    WorkerProto::write(*evalStore, wconn, buildResult);
 }
 
 int main(int argc, char * * argv)

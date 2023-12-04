@@ -82,7 +82,7 @@
       function onGoogleSignIn(googleUser) {
         requestJSON({
           url: "[% c.uri_for('/google-login') %]",
-          data: "id_token=" + googleUser.getAuthResponse().id_token,
+          data: "id_token=" + googleUser.credential,
           type: 'POST',
           success: function(data) {
             window.location.reload();
@@ -91,9 +91,6 @@
         return false;
         };
 
-      $("#google-signin").click(function() {
-        $(".g-signin2:first-child > div").click();
-      });
     </script>
   [% END %]
 

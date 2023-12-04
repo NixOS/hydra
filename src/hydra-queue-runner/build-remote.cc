@@ -1,5 +1,8 @@
 #include "build-result.hh"
+#include "serve-protocol.hh"
 #include "state.hh"
+#include "current-process.hh"
+#include "processes.hh"
 #include "util.hh"
 #include "finally.hh"
 #include "url.hh"
@@ -56,7 +59,7 @@ void State::buildRemote(ref<Store> destStore,
 
         // FIXME: set pid for cancellation
 
-        auto [status, stdout] = [&]() {
+        auto [status, childStdout] = [&]() {
             MaintainCount<counter> mc(nrStepsBuilding);
             return runProgram({
                 .program = "hydra-build-step",
@@ -96,11 +99,17 @@ void State::buildRemote(ref<Store> destStore,
             info->consecutiveFailures = 0;
         }
 
+        StringSource from { childStdout };
         /* Read the BuildResult from the child. */
-        StringSource source(stdout);
-        result.overhead += readNum<uint64_t>(source);
-        auto totalNarSize = readNum<uint64_t>(source);
-        auto buildResult = worker_proto::read(*localStore, source, Phantom<BuildResult> {});
+        WorkerProto::ReadConn rconn {
+            .from = from,
+            // Hardcode latest version because we are deploying hydra
+            // itself atomically
+            .version = PROTOCOL_VERSION,
+        };
+        result.overhead += readNum<uint64_t>(rconn.from);
+        auto totalNarSize = readNum<uint64_t>(rconn.from);
+        auto buildResult = WorkerProto::Serialise<BuildResult>::read(*localStore, rconn);
 
         // FIXME: make RemoteResult inherit BuildResult.
         result.errorMsg = buildResult.errorMsg;
