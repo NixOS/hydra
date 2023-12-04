@@ -21,7 +21,7 @@
 #include "store-api.hh"
 #include "sync.hh"
 #include "nar-extractor.hh"
-#include "worker-protocol.hh"
+#include "serve-protocol.hh"
 
 
 typedef unsigned int BuildID;
@@ -310,12 +310,12 @@ struct Machine
         // Backpointer to the machine
         ptr machine;
 
-        operator nix::WorkerProto::ReadConn ()
+        operator nix::ServeProto::ReadConn ()
         {
             return { .from = from };
         }
 
-        operator nix::WorkerProto::WriteConn ()
+        operator nix::ServeProto::WriteConn ()
         {
             return { .to = to };
         }

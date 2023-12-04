@@ -10,8 +10,8 @@
 #include "serve-protocol.hh"
 #include "state.hh"
 #include "util.hh"
-#include "worker-protocol.hh"
-#include "worker-protocol-impl.hh"
+#include "serve-protocol.hh"
+#include "serve-protocol-impl.hh"
 #include "finally.hh"
 #include "url.hh"
 
@@ -122,12 +122,12 @@ static void copyClosureTo(
        the remote host to substitute missing paths. */
     // FIXME: substitute output pollutes our build log
     conn.to << ServeProto::Command::QueryValidPaths << 1 << useSubstitutes;
-    WorkerProto::write(destStore, conn, closure);
+    ServeProto::write(destStore, conn, closure);
     conn.to.flush();
 
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = WorkerProto::Serialise<StorePathSet>::read(destStore, conn);
+    auto present = ServeProto::Serialise<StorePathSet>::read(destStore, conn);
 
     if (present.size() == closure.size()) return;
 
@@ -315,7 +315,7 @@ static BuildResult performBuild(
         }
     }
     if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 6) {
-        WorkerProto::Serialise<DrvOutputs>::read(localStore, conn);
+        ServeProto::Serialise<DrvOutputs>::read(localStore, conn);
     }
 
     return result;
@@ -332,13 +332,13 @@ static std::map<StorePath, ValidPathInfo> queryPathInfos(
     /* Get info about each output path. */
     std::map<StorePath, ValidPathInfo> infos;
     conn.to << ServeProto::Command::QueryPathInfos;
-    WorkerProto::write(localStore, conn, outputs);
+    ServeProto::write(localStore, conn, outputs);
     conn.to.flush();
     while (true) {
         auto storePathS = readString(conn.from);
         if (storePathS == "") break;
         auto deriver = readString(conn.from); // deriver
-        auto references = WorkerProto::Serialise<StorePathSet>::read(localStore, conn);
+        auto references = ServeProto::Serialise<StorePathSet>::read(localStore, conn);
         readLongLong(conn.from); // download size
         auto narSize = readLongLong(conn.from);
         auto narHash = Hash::parseAny(readString(conn.from), htSHA256);
