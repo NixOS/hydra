@@ -9,6 +9,8 @@
 #include "path.hh"
 #include "serve-protocol.hh"
 #include "state.hh"
+#include "current-process.hh"
+#include "processes.hh"
 #include "util.hh"
 #include "serve-protocol.hh"
 #include "serve-protocol-impl.hh"
@@ -221,9 +223,9 @@ static BasicDerivation sendInputs(
 {
     BasicDerivation basicDrv(*step.drv);
 
-    for (const auto & input : step.drv->inputDrvs) {
-        auto drv2 = localStore.readDerivation(input.first);
-        for (auto & name : input.second) {
+    for (auto & [drvPath, node] : step.drv->inputDrvs.map) {
+        auto drv2 = localStore.readDerivation(drvPath);
+        for (auto & name : node.value) {
             if (auto i = get(drv2.outputs, name)) {
                 auto outPath = i->path(localStore, drv2.name, name);
                 basicDrv.inputSrcs.insert(*outPath);

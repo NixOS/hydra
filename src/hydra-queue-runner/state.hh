@@ -305,19 +305,25 @@ struct Machine
     struct Connection {
         nix::FdSink to;
         nix::FdSource from;
-        unsigned int remoteVersion;
+        nix::ServeProto::Version remoteVersion;
 
         // Backpointer to the machine
         ptr machine;
 
         operator nix::ServeProto::ReadConn ()
         {
-            return { .from = from };
+            return {
+                .from = from,
+                .version = remoteVersion,
+            };
         }
 
         operator nix::ServeProto::WriteConn ()
         {
-            return { .to = to };
+            return {
+                .to = to,
+                .version = remoteVersion,
+            };
         }
     };
 };

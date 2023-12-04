@@ -1,13 +1,13 @@
 #pragma once
 
-#include "fs-accessor.hh"
+#include "source-accessor.hh"
 #include "types.hh"
 #include "serialise.hh"
 #include "hash.hh"
 
 struct NarMemberData
 {
-    nix::FSAccessor::Type type;
+    nix::SourceAccessor::Type type;
     std::optional<uint64_t> fileSize;
     std::optional<std::string> contents;
     std::optional<nix::Hash> sha256;

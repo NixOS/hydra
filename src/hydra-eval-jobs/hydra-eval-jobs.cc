@@ -7,6 +7,9 @@
 #include "store-api.hh"
 #include "eval.hh"
 #include "eval-inline.hh"
+#include "eval-settings.hh"
+#include "signals.hh"
+#include "terminal.hh"
 #include "util.hh"
 #include "get-drvs.hh"
 #include "globals.hh"
@@ -53,7 +56,7 @@ using namespace nix;
 static Path gcRootsDir;
 static size_t maxMemorySize;
 
-struct MyArgs : MixEvalArgs, MixCommonArgs
+struct MyArgs : MixEvalArgs, MixCommonArgs, RootArgs
 {
     Path releaseExpr;
     bool flake = false;
@@ -94,7 +97,7 @@ static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const std:
     rec = [&](Value & v) {
         state.forceValue(v, noPos);
         if (v.type() == nString)
-            res.push_back(v.string.s);
+            res.emplace_back(v.string_view());
         else if (v.isList())
             for (unsigned int n = 0; n < v.listSize(); ++n)
                 rec(*v.listElems()[n]);
@@ -208,20 +211,20 @@ static void worker(
                     for (auto & c : context)
                         std::visit(overloaded {
                             [&](const NixStringContextElem::Built & b) {
-                                job["constituents"].push_back(state.store->printStorePath(b.drvPath));
+                                job["constituents"].push_back(b.drvPath->to_string(*state.store));
                             },
                             [&](const NixStringContextElem::Opaque & o) {
                             },
                             [&](const NixStringContextElem::DrvDeep & d) {
                             },
-                        }, c.raw());
+                        }, c.raw);
 
                     state.forceList(*a->value, a->pos, "while evaluating the `constituents` attribute");
                     for (unsigned int n = 0; n < a->value->listSize(); ++n) {
                         auto v = a->value->listElems()[n];
                         state.forceValue(*v, noPos);
                         if (v->type() == nString)
-                            job["namedConstituents"].push_back(v->str());
+                            job["namedConstituents"].push_back(v->string_view());
                     }
                 }
 
@@ -516,7 +519,7 @@ int main(int argc, char * * argv)
                     auto drvPath2 = store->parseStorePath((std::string) (*job2)["drvPath"]);
                     auto drv2 = store->readDerivation(drvPath2);
                     job["constituents"].push_back(store->printStorePath(drvPath2));
-                    drv.inputDrvs[drvPath2] = {drv2.outputs.begin()->first};
+                    drv.inputDrvs.map[drvPath2].value = {drv2.outputs.begin()->first};
                 }
 
                 if (brokenJobs.empty()) {
