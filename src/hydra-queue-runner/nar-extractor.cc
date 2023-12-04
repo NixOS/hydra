@@ -24,13 +24,13 @@ struct Extractor : ParseSink
 
     void createDirectory(const Path & path) override
     {
-        members.insert_or_assign(prefix + path, NarMemberData { .type = FSAccessor::Type::tDirectory });
+        members.insert_or_assign(prefix + path, NarMemberData { .type = SourceAccessor::Type::tDirectory });
     }
 
     void createRegularFile(const Path & path) override
     {
         curMember = &members.insert_or_assign(prefix + path, NarMemberData {
-            .type = FSAccessor::Type::tRegular,
+            .type = SourceAccessor::Type::tRegular,
             .fileSize = 0,
             .contents = filesToKeep.count(path) ? std::optional("") : std::nullopt,
         }).first->second;
@@ -66,8 +66,14 @@ struct Extractor : ParseSink
 
     void createSymlink(const Path & path, const std::string & target) override
     {
-        members.insert_or_assign(prefix + path, NarMemberData { .type = FSAccessor::Type::tSymlink });
+        members.insert_or_assign(prefix + path, NarMemberData { .type = SourceAccessor::Type::tSymlink });
     }
+
+    void isExecutable() override
+    { }
+
+    void closeRegularFile() override
+    { }
 };
 
 

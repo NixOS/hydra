@@ -9,9 +9,11 @@
 #include "path.hh"
 #include "serve-protocol.hh"
 #include "state.hh"
+#include "current-process.hh"
+#include "processes.hh"
 #include "util.hh"
-#include "worker-protocol.hh"
-#include "worker-protocol-impl.hh"
+#include "serve-protocol.hh"
+#include "serve-protocol-impl.hh"
 #include "finally.hh"
 #include "url.hh"
 
@@ -106,26 +108,32 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
 
 
 static void copyClosureTo(std::timed_mutex & sendMutex, Store & destStore,
-    FdSource & from, FdSink & to, const StorePathSet & paths,
+    FdSource & from, FdSink & to, ServeProto::Version remoteVersion, const StorePathSet & paths,
     bool useSubstitutes = false)
 {
     StorePathSet closure;
     destStore.computeFSClosure(paths, closure);
 
-    WorkerProto::WriteConn wconn { .to = to };
-    WorkerProto::ReadConn rconn { .from = from };
+    ServeProto::WriteConn wconn {
+        .to = to,
+        .version = remoteVersion,
+    };
+    ServeProto::ReadConn rconn {
+        .from = from,
+        .version = remoteVersion,
+    };
     /* Send the "query valid paths" command with the "lock" option
        enabled. This prevents a race where the remote host
        garbage-collect paths that are already there. Optionally, ask
        the remote host to substitute missing paths. */
     // FIXME: substitute output pollutes our build log
     to << ServeProto::Command::QueryValidPaths << 1 << useSubstitutes;
-    WorkerProto::write(destStore, wconn, closure);
+    ServeProto::write(destStore, wconn, closure);
     to.flush();
 
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = WorkerProto::Serialise<StorePathSet>::read(destStore, rconn);
+    auto present = ServeProto::Serialise<StorePathSet>::read(destStore, rconn);
 
     if (present.size() == closure.size()) return;
 
@@ -201,10 +209,10 @@ BasicDerivation inlineInputDerivations(Store & store, Derivation & drv, const St
         // If the derivation is a real `InputAddressed` derivation, we must
         // resolve it manually to keep the original output paths
         ret = BasicDerivation(drv);
-        for (auto & input : drv.inputDrvs) {
-            auto drv2 = store.readDerivation(input.first);
+        for (auto & [drvPath, node] : drv.inputDrvs.map) {
+            auto drv2 = store.readDerivation(drvPath);
             auto drv2Outputs = drv2.outputsAndOptPaths(store);
-            for (auto & name : input.second) {
+            for (auto & name : node.value) {
                 auto inputPath = drv2Outputs.at(name);
                 ret.inputSrcs.insert(*inputPath.second);
             }
@@ -217,12 +225,12 @@ BasicDerivation inlineInputDerivations(Store & store, Derivation & drv, const St
  * Get the newly built outputs, either from the remote if it supports it, or by
  * introspecting the derivation if the remote is too old
  */
-DrvOutputs getBuiltOutputs(Store & store, const int remoteVersion, WorkerProto::ReadConn & from, Derivation & drv)
+DrvOutputs getBuiltOutputs(Store & store, const int remoteVersion, ServeProto::ReadConn & from, Derivation & drv)
 {
     DrvOutputs builtOutputs;
     if (GET_PROTOCOL_MINOR(remoteVersion) >= 6) {
         builtOutputs
-            = WorkerProto::Serialise<DrvOutputs>::read(store, from);
+            = ServeProto::Serialise<DrvOutputs>::read(store, from);
     } else {
         // If the remote is too old to handle CA derivations, we can’t get this
         // far anyways
@@ -292,9 +300,7 @@ void State::buildRemote(ref<Store> destStore,
         });
 
         FdSource from(child.from.get());
-        WorkerProto::ReadConn rconn { .from = from };
         FdSink to(child.to.get());
-        WorkerProto::WriteConn wconn { .to = to };
 
         Finally updateStats([&]() {
             bytesReceived += from.read;
@@ -302,7 +308,7 @@ void State::buildRemote(ref<Store> destStore,
         });
 
         /* Handshake. */
-        unsigned int remoteVersion;
+        ServeProto::Version remoteVersion;
 
         try {
             to << SERVE_MAGIC_1 << 0x206;
@@ -322,6 +328,15 @@ void State::buildRemote(ref<Store> destStore,
             std::string s = chomp(readFile(result.logFile));
             throw Error("cannot connect to ‘%1%’: %2%", machine->sshName, s);
         }
+
+        ServeProto::ReadConn rconn {
+            .from = from,
+            .version = remoteVersion,
+        };
+        ServeProto::WriteConn wconn {
+            .to = to,
+            .version = remoteVersion,
+        };
 
         {
             auto info(machine->state->connectInfo.lock());
@@ -363,8 +378,8 @@ void State::buildRemote(ref<Store> destStore,
                 destStore->computeFSClosure(basicDrv.inputSrcs, closure);
                 copyPaths(*destStore, *localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
             } else {
-                copyClosureTo(machine->state->sendLock, *destStore, from, to, step->drv->inputSrcs, true);
-                copyClosureTo(machine->state->sendLock, *destStore, from, to, basicDrv.inputSrcs, true);
+                copyClosureTo(machine->state->sendLock, *destStore, from, to, remoteVersion, step->drv->inputSrcs, true);
+                copyClosureTo(machine->state->sendLock, *destStore, from, to, remoteVersion, basicDrv.inputSrcs, true);
             }
 
             auto now2 = std::chrono::steady_clock::now();
@@ -497,13 +512,13 @@ void State::buildRemote(ref<Store> destStore,
             std::map<StorePath, ValidPathInfo> infos;
             size_t totalNarSize = 0;
             to << ServeProto::Command::QueryPathInfos;
-            WorkerProto::write(*localStore, wconn, outputs);
+            ServeProto::write(*localStore, wconn, outputs);
             to.flush();
             while (true) {
                 auto storePathS = readString(from);
                 if (storePathS == "") break;
                 auto deriver = readString(from); // deriver
-                auto references = WorkerProto::Serialise<StorePathSet>::read(*localStore, rconn);
+                auto references = ServeProto::Serialise<StorePathSet>::read(*localStore, rconn);
                 readLongLong(from); // download size
                 auto narSize = readLongLong(from);
                 auto narHash = Hash::parseAny(readString(from), htSHA256);
