@@ -195,6 +195,12 @@ static std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, cons
     return {std::move(logFile), std::move(logFD)};
 }
 
+/**
+ * @param conn is not fully initialized; it is this functions job to set
+ * the `remoteVersion` field after the handshake is completed.
+ * Therefore, no `ServeProto::Serialize` functions can be used until
+ * that field is set.
+ */
 static void handshake(Machine::Connection & conn, unsigned int repeats)
 {
     conn.to << SERVE_MAGIC_1 << 0x206;
@@ -204,6 +210,7 @@ static void handshake(Machine::Connection & conn, unsigned int repeats)
     if (magic != SERVE_MAGIC_2)
         throw Error("protocol mismatch with ‘nix-store --serve’ on ‘%1%’", conn.machine->sshName);
     conn.remoteVersion = readInt(conn.from);
+    // Now `conn` is initialized.
     if (GET_PROTOCOL_MAJOR(conn.remoteVersion) != 0x200)
         throw Error("unsupported ‘nix-store --serve’ protocol version on ‘%1%’", conn.machine->sshName);
     if (GET_PROTOCOL_MINOR(conn.remoteVersion) < 3 && repeats > 0)
@@ -512,10 +519,11 @@ void State::buildRemote(ref<Store> destStore,
                process. Meh. */
         });
 
-        Machine::Connection conn;
-        conn.from = child.from.get();
-        conn.to = child.to.get();
-        conn.machine = machine;
+        Machine::Connection conn {
+            .from = child.from.get(),
+            .to = child.to.get(),
+            .machine = machine,
+        };
 
         Finally updateStats([&]() {
             bytesReceived += conn.from.read;

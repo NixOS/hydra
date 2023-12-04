@@ -303,8 +303,8 @@ struct Machine
 
     // A connection to a machine
     struct Connection {
-        nix::FdSink to;
         nix::FdSource from;
+        nix::FdSink to;
         nix::ServeProto::Version remoteVersion;
 
         // Backpointer to the machine
