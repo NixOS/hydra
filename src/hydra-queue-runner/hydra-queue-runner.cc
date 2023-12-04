@@ -312,7 +312,7 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
 
     if (r.affected_rows() == 0) goto restart;
 
-    for (auto& [name, output] : localStore->queryPartialDerivationOutputMap(step->drvPath))
+    for (auto & [name, output] : localStore->queryPartialDerivationOutputMap(step->drvPath))
       txn.exec_params0
           ("insert into BuildStepOutputs (build, stepnr, name, path, contentAddressed) values ($1, $2, $3, $4, $5)",
             buildId, stepNr, name, output ? localStore->printStorePath(*output) : "", step->drv->type().isCA());
@@ -359,7 +359,7 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
         assert(res.size());
         StorePath drvPath = localStore->parseStorePath(res[0].as<std::string>());
         // If we've finished building, all the paths should be known
-        for (auto& [name, output] : localStore->queryDerivationOutputMap(drvPath))
+        for (auto & [name, output] : localStore->queryDerivationOutputMap(drvPath))
             txn.exec_params0
                 ("update BuildStepOutputs set path = $4 where build = $1 and stepnr = $2 and name = $3",
                   buildId, stepNr, name, localStore->printStorePath(output));
