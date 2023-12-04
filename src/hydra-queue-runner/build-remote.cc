@@ -265,16 +265,6 @@ static BasicDerivation sendInputs(
 {
     BasicDerivation basicDrv = inlineInputDerivations(localStore, *step.drv, step.drvPath);
 
-    for (const auto & [drvPath, node] : step.drv->inputDrvs.map) {
-        auto drv2 = localStore.readDerivation(drvPath);
-        for (auto & name : node.value) {
-            if (auto i = get(drv2.outputs, name)) {
-                auto outPath = i->path(localStore, drv2.name, name);
-                basicDrv.inputSrcs.insert(*outPath);
-            }
-        }
-    }
-
     /* Ensure that the inputs exist in the destination store. This is
        a no-op for regular stores, but for the binary cache store,
        this will copy the inputs to the binary cache from the local
