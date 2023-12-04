@@ -421,8 +421,6 @@ static void copyPathsFromRemote(
 
 void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 {
-    RemoteResult thisArrow;
-
     startTime = buildResult.startTime;
     stopTime = buildResult.stopTime;
     timesBuilt = buildResult.timesBuilt;
