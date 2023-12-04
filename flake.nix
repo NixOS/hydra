@@ -61,10 +61,11 @@
 
         };
 
-        hydra = with final; let
-          perlDeps = buildEnv {
+        hydra = let
+          inherit (final) lib stdenv;
+          perlDeps = final.buildEnv {
             name = "hydra-perl-deps";
-            paths = with perlPackages; lib.closePropagation
+            paths = with final.perlPackages; lib.closePropagation
               [
                 AuthenSASL
                 CatalystActionREST
@@ -98,7 +99,7 @@
                 FileSlurper
                 FileWhich
                 final.nix.perl-bindings
-                git
+                final.git
                 IOCompress
                 IPCRun
                 IPCRun3
@@ -141,15 +142,20 @@
 
           src = self;
 
-          buildInputs =
-            [
+          nativeBuildInputs =
+            with final.buildPackages; [
               makeWrapper
-              autoconf
+              autoreconfHook
               automake
               libtool
-              unzip
               nukeReferences
               pkg-config
+              mdbook
+            ];
+
+          buildInputs =
+            with final; [
+              unzip
               libpqxx
               top-git
               mercurial
@@ -162,7 +168,6 @@
               final.nix
               perlDeps
               perl
-              mdbook
               pixz
               boost
               postgresql_13
@@ -172,7 +177,7 @@
               prometheus-cpp
             ];
 
-          checkInputs = [
+          checkInputs = with final; [
             cacert
             foreman
             glibcLocales
@@ -181,7 +186,7 @@
             python3
           ];
 
-          hydraPath = lib.makeBinPath (
+          hydraPath = with final; lib.makeBinPath (
             [
               subversion
               openssh
@@ -203,7 +208,7 @@
             ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ]
           );
 
-          OPENLDAP_ROOT = openldap;
+          OPENLDAP_ROOT = final.openldap;
 
           shellHook = ''
             pushd $(git rev-parse --show-toplevel) >/dev/null
@@ -217,8 +222,6 @@
 
             popd >/dev/null
           '';
-
-          preConfigure = "autoreconf -vfi";
 
           NIX_LDFLAGS = [ "-lpthread" ];
 
