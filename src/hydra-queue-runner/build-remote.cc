@@ -192,7 +192,6 @@ static StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> 
 BasicDerivation inlineInputDerivations(Store & store, Derivation & drv, const StorePath & drvPath)
 {
     BasicDerivation ret;
-    auto outputHashes = staticOutputHashes(store, drv);
     if (!drv.type().hasKnownOutputPaths()) {
         auto maybeBasicDrv = drv.tryResolve(store);
         if (!maybeBasicDrv)
