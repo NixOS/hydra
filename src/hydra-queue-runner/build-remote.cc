@@ -676,19 +676,19 @@ void State::buildRemote(ref<Store> destStore,
 
         /* Register the outputs of the newly built drv */
         if (experimentalFeatureSettings.isEnabled(Xp::CaDerivations)) {
-          auto outputHashes = staticOutputHashes(*localStore, *step->drv);
-          for (auto & [outputName, realisation] : buildResult.builtOutputs) {
-              // Register the resolved drv output
-              localStore->registerDrvOutput(realisation);
-              destStore->registerDrvOutput(realisation);
+            auto outputHashes = staticOutputHashes(*localStore, *step->drv);
+            for (auto & [outputName, realisation] : buildResult.builtOutputs) {
+                // Register the resolved drv output
+                localStore->registerDrvOutput(realisation);
+                destStore->registerDrvOutput(realisation);
 
-              // Also register the unresolved one
-              auto unresolvedRealisation = realisation;
-              unresolvedRealisation.signatures.clear();
-              unresolvedRealisation.id.drvHash = outputHashes.at(outputName);
-              localStore->registerDrvOutput(unresolvedRealisation);
-              destStore->registerDrvOutput(unresolvedRealisation);
-          }
+                // Also register the unresolved one
+                auto unresolvedRealisation = realisation;
+                unresolvedRealisation.signatures.clear();
+                unresolvedRealisation.id.drvHash = outputHashes.at(outputName);
+                localStore->registerDrvOutput(unresolvedRealisation);
+                destStore->registerDrvOutput(unresolvedRealisation);
+            }
         }
 
         /* Shut down the connection. */

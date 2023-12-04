@@ -107,7 +107,7 @@ BuildOutput getBuildOutput(
     /* If no build products were explicitly declared, then add all
        outputs as a product of type "nix-build". */
     if (!explicitProducts) {
-        for (auto& [name, output] : derivationOutputs) {
+        for (auto & [name, output] : derivationOutputs) {
             BuildProduct product;
             product.path = store->printStorePath(output);
             product.type = "nix-build";

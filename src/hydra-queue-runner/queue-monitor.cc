@@ -238,7 +238,7 @@ bool State::getQueuedBuilds(Connection & conn,
             BuildOutput res = getBuildOutputCached(conn, destStore, build->drvPath);
 
             for (auto & i : localStore->queryDerivationOutputMap(build->drvPath))
-                  addRoot(i.second);
+                addRoot(i.second);
 
             {
             auto mc = startDbUpdate();
@@ -481,21 +481,20 @@ Step::ptr State::createStep(ref<Store> destStore,
     auto outputHashes = staticOutputHashes(*localStore, *(step->drv));
     bool valid = true;
     std::map<DrvOutput, std::optional<StorePath>> missing;
-    for (auto &[outputName, maybeOutputPath] :
-         step->drv->outputsAndOptPaths(*destStore)) {
-      auto outputHash = outputHashes.at(outputName);
-      if (maybeOutputPath.second) {
-        if (!destStore->isValidPath(*maybeOutputPath.second)) {
-          valid = false;
-          missing.insert({{outputHash, outputName}, maybeOutputPath.second});
+    for (auto &[outputName, maybeOutputPath] : step->drv->outputsAndOptPaths(*destStore)) {
+        auto outputHash = outputHashes.at(outputName);
+        if (maybeOutputPath.second) {
+            if (!destStore->isValidPath(*maybeOutputPath.second)) {
+                valid = false;
+                missing.insert({{outputHash, outputName}, maybeOutputPath.second});
+            }
+        } else {
+            experimentalFeatureSettings.require(Xp::CaDerivations);
+            if (!destStore->queryRealisation(DrvOutput{outputHash, outputName})) {
+                valid = false;
+                missing.insert({{outputHash, outputName}, std::nullopt});
+            }
         }
-      } else {
-        experimentalFeatureSettings.require(Xp::CaDerivations);
-        if (!destStore->queryRealisation(DrvOutput{outputHash, outputName})) {
-          valid = false;
-          missing.insert({{outputHash, outputName}, std::nullopt});
-        }
-      }
     }
 
     /* Try to copy the missing paths from the local store or from

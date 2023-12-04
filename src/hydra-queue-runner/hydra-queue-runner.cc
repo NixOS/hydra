@@ -354,15 +354,15 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
             buildId, stepNr, result.logFile));
 
     if (result.stepStatus == bsSuccess) {
-      // Update the corresponding `BuildStepOutputs` row to add the output path
-      auto res = txn.exec_params1("select drvPath from BuildSteps where build = $1 and stepnr = $2", buildId, stepNr);
-      assert(res.size());
-      StorePath drvPath = localStore->parseStorePath(res[0].as<std::string>());
-      // If we've finished building, all the paths should be known
-      for (auto& [name, output] : localStore->queryDerivationOutputMap(drvPath))
-        txn.exec_params0
-            ("update BuildStepOutputs set path = $4 where build = $1 and stepnr = $2 and name = $3",
-              buildId, stepNr, name, localStore->printStorePath(output));
+        // Update the corresponding `BuildStepOutputs` row to add the output path
+        auto res = txn.exec_params1("select drvPath from BuildSteps where build = $1 and stepnr = $2", buildId, stepNr);
+        assert(res.size());
+        StorePath drvPath = localStore->parseStorePath(res[0].as<std::string>());
+        // If we've finished building, all the paths should be known
+        for (auto& [name, output] : localStore->queryDerivationOutputMap(drvPath))
+            txn.exec_params0
+                ("update BuildStepOutputs set path = $4 where build = $1 and stepnr = $2 and name = $3",
+                  buildId, stepNr, name, localStore->printStorePath(output));
     }
 }
 
@@ -471,12 +471,12 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
          isCachedBuild ? 1 : 0);
 
     for (auto & [outputName, outputPath] : res.outputs) {
-      txn.exec_params0
-        ("update BuildOutputs set path = $3 where build = $1 and name = $2",
-         build->id,
-         outputName,
-         localStore->printStorePath(outputPath)
-        );
+        txn.exec_params0
+            ("update BuildOutputs set path = $3 where build = $1 and name = $2",
+             build->id,
+             outputName,
+             localStore->printStorePath(outputPath)
+            );
     }
 
     txn.exec_params0("delete from BuildProducts where build = $1", build->id);
