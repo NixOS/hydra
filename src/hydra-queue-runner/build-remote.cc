@@ -536,6 +536,7 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 
 }
 
+
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
     const BuildOptions & buildOptions,
