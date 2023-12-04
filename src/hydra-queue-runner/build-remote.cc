@@ -40,8 +40,6 @@ static Path createLogFileDir(const std::string & logDir, const StorePath & drvPa
 
 void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 {
-    RemoteResult thisArrow;
-
     // FIXME: make RemoteResult inherit BuildResult.
     timesBuilt = buildResult.timesBuilt;
     errorMsg = buildResult.errorMsg;
