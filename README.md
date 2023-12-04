@@ -80,7 +80,7 @@ $ nix-build
 You can use the provided shell.nix to get a working development environment:
 ```
 $ nix-shell
-$ ./bootstrap
+$ autoreconfPhase
 $ configurePhase # NOTE: not ./configure
 $ make
 ```
