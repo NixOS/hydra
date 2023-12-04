@@ -21,6 +21,7 @@
 #include "store-api.hh"
 #include "sync.hh"
 #include "nar-extractor.hh"
+#include "serve-protocol.hh"
 
 
 typedef unsigned int BuildID;
@@ -78,6 +79,8 @@ struct RemoteResult
     {
         return stepStatus == bsCachedFailure ? bsFailed : stepStatus;
     }
+
+    void updateWithBuildResult(const nix::BuildResult &);
 };
 
 
@@ -297,6 +300,32 @@ struct Machine
         std::regex r("^(ssh://|ssh-ng://)?localhost$");
         return std::regex_search(sshName, r);
     }
+
+    // A connection to a machine
+    struct Connection {
+        nix::FdSource from;
+        nix::FdSink to;
+        nix::ServeProto::Version remoteVersion;
+
+        // Backpointer to the machine
+        ptr machine;
+
+        operator nix::ServeProto::ReadConn ()
+        {
+            return {
+                .from = from,
+                .version = remoteVersion,
+            };
+        }
+
+        operator nix::ServeProto::WriteConn ()
+        {
+            return {
+                .to = to,
+                .version = remoteVersion,
+            };
+        }
+    };
 };
 
 
@@ -459,6 +488,12 @@ private:
 public:
     State(std::optional<std::string> metricsAddrOpt);
 
+    struct BuildOptions {
+        unsigned int maxSilentTime, buildTimeout, repeats;
+        size_t maxLogSize;
+        bool enforceDeterminism;
+    };
+
 private:
 
     nix::MaintainCount<counter> startDbUpdate();
@@ -543,8 +578,7 @@ private:
 
     void buildRemote(nix::ref<nix::Store> destStore,
         Machine::ptr machine, Step::ptr step,
-        unsigned int maxSilentTime, unsigned int buildTimeout,
-        unsigned int repeats,
+        const BuildOptions & buildOptions,
         RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
         std::function<void(StepState)> updateStep,
         NarMemberDatas & narMembers);
