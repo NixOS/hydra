@@ -192,15 +192,14 @@ bool State::getQueuedBuilds(Connection & conn,
                 if (!res[0].is_null()) propagatedFrom = res[0].as<BuildID>();
 
                 if (!propagatedFrom) {
-                    for (auto & i : ex.step->drv->outputsAndOptPaths(*localStore)) {
-                        if (i.second.second) {
-                            auto res = txn.exec_params
-                                ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1",
-                                 localStore->printStorePath(*i.second.second));
-                            if (!res[0][0].is_null()) {
-                                propagatedFrom = res[0][0].as<BuildID>();
-                                break;
-                            }
+                    for (auto & i : localStore->queryPartialDerivationOutputMap(ex.step->drvPath)) {
+                          auto res = txn.exec_params
+                              ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where drvPath = $1 and name = $2 and startTime != 0 and stopTime != 0 and status = 1",
+                                localStore->printStorePath(ex.step->drvPath),
+                                i.first);
+                          if (!res[0][0].is_null()) {
+                              propagatedFrom = res[0][0].as<BuildID>();
+                              break;
                         }
                     }
                 }
@@ -236,12 +235,10 @@ bool State::getQueuedBuilds(Connection & conn,
         /* If we didn't get a step, it means the step's outputs are
            all valid. So we mark this as a finished, cached build. */
         if (!step) {
-            auto drv = localStore->readDerivation(build->drvPath);
-            BuildOutput res = getBuildOutputCached(conn, destStore, drv);
+            BuildOutput res = getBuildOutputCached(conn, destStore, build->drvPath);
 
-            for (auto & i : drv.outputsAndOptPaths(*localStore))
-                if (i.second.second)
-                    addRoot(*i.second.second);
+            for (auto & i : localStore->queryDerivationOutputMap(build->drvPath))
+                addRoot(i.second);
 
             {
             auto mc = startDbUpdate();
@@ -481,26 +478,39 @@ Step::ptr State::createStep(ref<Store> destStore,
         throw PreviousFailure{step};
 
     /* Are all outputs valid? */
+    auto outputHashes = staticOutputHashes(*localStore, *(step->drv));
     bool valid = true;
-    DerivationOutputs missing;
-    for (auto & i : step->drv->outputs)
-        if (!destStore->isValidPath(*i.second.path(*localStore, step->drv->name, i.first))) {
-            valid = false;
-            missing.insert_or_assign(i.first, i.second);
+    std::map<DrvOutput, std::optional<StorePath>> missing;
+    for (auto &[outputName, maybeOutputPath] : step->drv->outputsAndOptPaths(*destStore)) {
+        auto outputHash = outputHashes.at(outputName);
+        if (maybeOutputPath.second) {
+            if (!destStore->isValidPath(*maybeOutputPath.second)) {
+                valid = false;
+                missing.insert({{outputHash, outputName}, maybeOutputPath.second});
+            }
+        } else {
+            experimentalFeatureSettings.require(Xp::CaDerivations);
+            if (!destStore->queryRealisation(DrvOutput{outputHash, outputName})) {
+                valid = false;
+                missing.insert({{outputHash, outputName}, std::nullopt});
+            }
         }
+    }
 
     /* Try to copy the missing paths from the local store or from
        substitutes. */
     if (!missing.empty()) {
 
         size_t avail = 0;
-        for (auto & i : missing) {
-            auto path = i.second.path(*localStore, step->drv->name, i.first);
-            if (/* localStore != destStore && */ localStore->isValidPath(*path))
+        for (auto & [i, maybePath] : missing) {
+            if ((maybePath && localStore->isValidPath(*maybePath)))
                 avail++;
-            else if (useSubstitutes) {
+            else if (experimentalFeatureSettings.isEnabled(Xp::CaDerivations) && localStore->queryRealisation(i)) {
+                maybePath = localStore->queryRealisation(i)->outPath;
+                avail++;
+            } else if (useSubstitutes && maybePath) {
                 SubstitutablePathInfos infos;
-                localStore->querySubstitutablePathInfos({{*path, {}}}, infos);
+                localStore->querySubstitutablePathInfos({{*maybePath, {}}}, infos);
                 if (infos.size() == 1)
                     avail++;
             }
@@ -508,44 +518,44 @@ Step::ptr State::createStep(ref<Store> destStore,
 
         if (missing.size() == avail) {
             valid = true;
-            for (auto & i : missing) {
-                auto path = i.second.path(*localStore, step->drv->name, i.first);
+            for (auto & [i, path] : missing) {
+                if (path) {
+                    try {
+                        time_t startTime = time(0);
 
-                try {
-                    time_t startTime = time(0);
+                        if (localStore->isValidPath(*path))
+                            printInfo("copying output ‘%1%’ of ‘%2%’ from local store",
+                                localStore->printStorePath(*path),
+                                localStore->printStorePath(drvPath));
+                        else {
+                            printInfo("substituting output ‘%1%’ of ‘%2%’",
+                                localStore->printStorePath(*path),
+                                localStore->printStorePath(drvPath));
+                            localStore->ensurePath(*path);
+                            // FIXME: should copy directly from substituter to destStore.
+                        }
 
-                    if (localStore->isValidPath(*path))
-                        printInfo("copying output ‘%1%’ of ‘%2%’ from local store",
+                        StorePathSet closure;
+                        localStore->computeFSClosure({*path}, closure);
+                        copyPaths(*localStore, *destStore, closure, NoRepair, CheckSigs, NoSubstitute);
+
+                        time_t stopTime = time(0);
+
+                        {
+                            auto mc = startDbUpdate();
+                            pqxx::work txn(conn);
+                            createSubstitutionStep(txn, startTime, stopTime, build, drvPath, *(step->drv), "out", *path);
+                            txn.commit();
+                        }
+
+                    } catch (Error & e) {
+                        printError("while copying/substituting output ‘%s’ of ‘%s’: %s",
                             localStore->printStorePath(*path),
-                            localStore->printStorePath(drvPath));
-                    else {
-                        printInfo("substituting output ‘%1%’ of ‘%2%’",
-                            localStore->printStorePath(*path),
-                            localStore->printStorePath(drvPath));
-                        localStore->ensurePath(*path);
-                        // FIXME: should copy directly from substituter to destStore.
+                            localStore->printStorePath(drvPath),
+                            e.what());
+                        valid = false;
+                        break;
                     }
-
-                    copyClosure(*localStore, *destStore,
-                        StorePathSet { *path },
-                        NoRepair, CheckSigs, NoSubstitute);
-
-                    time_t stopTime = time(0);
-
-                    {
-                        auto mc = startDbUpdate();
-                        pqxx::work txn(conn);
-                        createSubstitutionStep(txn, startTime, stopTime, build, drvPath, "out", *path);
-                        txn.commit();
-                    }
-
-                } catch (Error & e) {
-                    printError("while copying/substituting output ‘%s’ of ‘%s’: %s",
-                        localStore->printStorePath(*path),
-                        localStore->printStorePath(drvPath),
-                        e.what());
-                    valid = false;
-                    break;
                 }
             }
         }
@@ -640,17 +650,20 @@ void State::processJobsetSharesChange(Connection & conn)
 }
 
 
-BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> destStore, const nix::Derivation & drv)
+BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> destStore, const nix::StorePath & drvPath)
 {
+
+    auto derivationOutputs = localStore->queryDerivationOutputMap(drvPath);
+
     {
     pqxx::work txn(conn);
 
-    for (auto & [name, output] : drv.outputsAndOptPaths(*localStore)) {
+    for (auto & [name, output] : derivationOutputs) {
         auto r = txn.exec_params
             ("select id, buildStatus, releaseName, closureSize, size from Builds b "
              "join BuildOutputs o on b.id = o.build "
              "where finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1",
-             localStore->printStorePath(*output.second));
+             localStore->printStorePath(output));
         if (r.empty()) continue;
         BuildID id = r[0][0].as<BuildID>();
 
@@ -704,5 +717,5 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
     }
 
     NarMemberDatas narMembers;
-    return getBuildOutput(destStore, narMembers, drv);
+    return getBuildOutput(destStore, narMembers, derivationOutputs);
 }

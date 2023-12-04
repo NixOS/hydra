@@ -182,6 +182,41 @@ static StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> 
     return sorted;
 }
 
+/**
+ * Replace the input derivations by their output paths to send a minimal closure
+ * to the builder.
+ *
+ * If we can afford it, resolve it, so that the newly generated derivation still
+ * has some sensible output paths.
+ */
+BasicDerivation inlineInputDerivations(Store & store, Derivation & drv, const StorePath & drvPath)
+{
+    BasicDerivation ret;
+    auto outputHashes = staticOutputHashes(store, drv);
+    if (!drv.type().hasKnownOutputPaths()) {
+        auto maybeBasicDrv = drv.tryResolve(store);
+        if (!maybeBasicDrv)
+            throw Error(
+                "the derivation '%s' can’t be resolved. It’s probably "
+                "missing some outputs",
+                store.printStorePath(drvPath));
+        ret = *maybeBasicDrv;
+    } else {
+        // If the derivation is a real `InputAddressed` derivation, we must
+        // resolve it manually to keep the original output paths
+        ret = BasicDerivation(drv);
+        for (auto & [drvPath, node] : drv.inputDrvs.map) {
+            auto drv2 = store.readDerivation(drvPath);
+            auto drv2Outputs = drv2.outputsAndOptPaths(store);
+            for (auto & name : node.value) {
+                auto inputPath = drv2Outputs.at(name);
+                ret.inputSrcs.insert(*inputPath.second);
+            }
+        }
+    }
+    return ret;
+}
+
 static std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const StorePath & drvPath)
 {
     std::string base(drvPath.to_string());
@@ -228,17 +263,7 @@ static BasicDerivation sendInputs(
     counter & nrStepsCopyingTo
 )
 {
-    BasicDerivation basicDrv(*step.drv);
-
-    for (const auto & [drvPath, node] : step.drv->inputDrvs.map) {
-        auto drv2 = localStore.readDerivation(drvPath);
-        for (auto & name : node.value) {
-            if (auto i = get(drv2.outputs, name)) {
-                auto outPath = i->path(localStore, drv2.name, name);
-                basicDrv.inputSrcs.insert(*outPath);
-            }
-        }
-    }
+    BasicDerivation basicDrv = inlineInputDerivations(localStore, *step.drv, step.drvPath);
 
     /* Ensure that the inputs exist in the destination store. This is
        a no-op for regular stores, but for the binary cache store,
@@ -323,8 +348,33 @@ static BuildResult performBuild(
             result.stopTime = stop;
         }
     }
+
+    // Get the newly built outputs, either from the remote if it
+    // supports it, or by introspecting the derivation if the remote is
+    // too old.
     if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 6) {
-        ServeProto::Serialise<DrvOutputs>::read(localStore, conn);
+        auto builtOutputs = ServeProto::Serialise<DrvOutputs>::read(localStore, conn);
+        for (auto && [output, realisation] : builtOutputs)
+            result.builtOutputs.insert_or_assign(
+                std::move(output.outputName),
+                std::move(realisation));
+    } else {
+        // If the remote is too old to handle CA derivations, we can’t get this
+        // far anyways
+        assert(drv.type().hasKnownOutputPaths());
+        DerivationOutputsAndOptPaths drvOutputs = drv.outputsAndOptPaths(localStore);
+        auto outputHashes = staticOutputHashes(localStore, drv);
+        for (auto & [outputName, output] : drvOutputs) {
+            auto outputPath = output.second;
+            // We’ve just asserted that the output paths of the derivation
+            // were known
+            assert(outputPath);
+            auto outputHash = outputHashes.at(outputName);
+            auto drvOutput = DrvOutput { outputHash, outputName };
+            result.builtOutputs.insert_or_assign(
+                std::move(outputName),
+                Realisation { drvOutput, *outputPath });
+        }
     }
 
     return result;
@@ -376,6 +426,7 @@ static void copyPathFromRemote(
     const ValidPathInfo & info
 )
 {
+    for (auto * store : {&destStore, &localStore}) {
       /* Receive the NAR from the remote and add it to the
           destination store. Meanwhile, extract all the info from the
           NAR that getBuildOutput() needs. */
@@ -395,7 +446,8 @@ static void copyPathFromRemote(
           extractNarData(tee, localStore.printStorePath(info.path), narMembers);
       });
 
-      destStore.addToStore(info, *source2, NoRepair, NoCheckSigs);
+      store->addToStore(info, *source2, NoRepair, NoCheckSigs);
+    }
 }
 
 static void copyPathsFromRemote(
@@ -592,6 +644,10 @@ void State::buildRemote(ref<Store> destStore,
             result.logFile = "";
         }
 
+        StorePathSet outputs;
+        for (auto & [_, realisation] : buildResult.builtOutputs)
+            outputs.insert(realisation.outPath);
+
         /* Copy the output paths. */
         if (!machine->isLocalhost() || localStore != std::shared_ptr<Store>(destStore)) {
             updateStep(ssReceivingOutputs);
@@ -599,12 +655,6 @@ void State::buildRemote(ref<Store> destStore,
             MaintainCount<counter> mc(nrStepsCopyingFrom);
 
             auto now1 = std::chrono::steady_clock::now();
-
-            StorePathSet outputs;
-            for (auto & i : step->drv->outputsAndOptPaths(*localStore)) {
-                if (i.second.second)
-                   outputs.insert(*i.second.second);
-            }
 
             size_t totalNarSize = 0;
             auto infos = build_remote::queryPathInfos(conn, *localStore, outputs, totalNarSize);
@@ -622,6 +672,23 @@ void State::buildRemote(ref<Store> destStore,
             auto now2 = std::chrono::steady_clock::now();
 
             result.overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
+        }
+
+        /* Register the outputs of the newly built drv */
+        if (experimentalFeatureSettings.isEnabled(Xp::CaDerivations)) {
+            auto outputHashes = staticOutputHashes(*localStore, *step->drv);
+            for (auto & [outputName, realisation] : buildResult.builtOutputs) {
+                // Register the resolved drv output
+                localStore->registerDrvOutput(realisation);
+                destStore->registerDrvOutput(realisation);
+
+                // Also register the unresolved one
+                auto unresolvedRealisation = realisation;
+                unresolvedRealisation.signatures.clear();
+                unresolvedRealisation.id.drvHash = outputHashes.at(outputName);
+                localStore->registerDrvOutput(unresolvedRealisation);
+                destStore->registerDrvOutput(unresolvedRealisation);
+            }
         }
 
         /* Shut down the connection. */
