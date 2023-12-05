@@ -243,11 +243,16 @@ static void worker(
                 }
 
                 nlohmann::json out;
-                for (auto & [outputName, optOutputPath] : outputs)
-                    if (optOutputPath)
+                for (auto & [outputName, optOutputPath] : outputs) {
+                    if (optOutputPath) {
                         out[outputName] = state.store->printStorePath(*optOutputPath);
-                    else
+                    } else {
+                        // See the `queryOutputs` call above; we should
+                        // not encounter missing output paths otherwise.
+                        assert(experimentalFeatureSettings.isEnabled(Xp::CaDerivations));
                         out[outputName] = "";
+                    }
+                }
                 job["outputs"] = std::move(out);
                 reply["job"] = std::move(job);
             }
