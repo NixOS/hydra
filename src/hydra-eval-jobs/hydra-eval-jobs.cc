@@ -250,6 +250,10 @@ static void worker(
                         // See the `queryOutputs` call above; we should
                         // not encounter missing output paths otherwise.
                         assert(experimentalFeatureSettings.isEnabled(Xp::CaDerivations));
+                        // TODO it would be better to set `null` than an
+                        // empty string here, to force the consumer of
+                        // this JSON to more explicitly handle this
+                        // case.
                         out[outputName] = "";
                     }
                 }
