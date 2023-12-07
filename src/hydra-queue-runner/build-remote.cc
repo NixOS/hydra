@@ -113,7 +113,7 @@ static void copyClosureTo(
     Machine::Connection & conn,
     Store & destStore,
     const StorePathSet & paths,
-    bool useSubstitutes = false)
+    SubstituteFlag useSubstitutes = NoSubstitute)
 {
     StorePathSet closure;
     destStore.computeFSClosure(paths, closure);
@@ -290,7 +290,7 @@ static BasicDerivation sendInputs(
             destStore.computeFSClosure(basicDrv.inputSrcs, closure);
             copyPaths(destStore, localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
         } else {
-            copyClosureTo(conn, destStore, basicDrv.inputSrcs, true);
+            copyClosureTo(conn, destStore, basicDrv.inputSrcs, Substitute);
         }
 
         auto now2 = std::chrono::steady_clock::now();
