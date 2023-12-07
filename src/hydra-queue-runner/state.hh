@@ -459,7 +459,7 @@ private:
 
     /* How often the build steps of a jobset should be repeated in
        order to detect non-determinism. */
-    std::map<std::pair<std::string, std::string>, unsigned int> jobsetRepeats;
+    std::map<std::pair<std::string, std::string>, size_t> jobsetRepeats;
 
     bool uploadLogsToBinaryCache;
 
@@ -487,12 +487,6 @@ private:
 
 public:
     State(std::optional<std::string> metricsAddrOpt);
-
-    struct BuildOptions {
-        unsigned int maxSilentTime, buildTimeout, repeats;
-        size_t maxLogSize;
-        bool enforceDeterminism;
-    };
 
 private:
 
@@ -578,7 +572,7 @@ private:
 
     void buildRemote(nix::ref<nix::Store> destStore,
         Machine::ptr machine, Step::ptr step,
-        const BuildOptions & buildOptions,
+        const nix::ServeProto::BuildOptions & buildOptions,
         RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
         std::function<void(StepState)> updateStep,
         NarMemberDatas & narMembers);
