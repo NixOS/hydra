@@ -154,7 +154,7 @@ static void copyClosureTo(
 
 
 // FIXME: use Store::topoSortPaths().
-static StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> & paths)
+static StorePaths reverseTopoSortPaths(const std::map<StorePath, UnkeyedValidPathInfo> & paths)
 {
     StorePaths sorted;
     StorePathSet visited;
@@ -322,7 +322,7 @@ static BuildResult performBuild(
     return result;
 }
 
-static std::map<StorePath, ValidPathInfo> queryPathInfos(
+static std::map<StorePath, UnkeyedValidPathInfo> queryPathInfos(
     Machine::Connection & conn,
     Store & localStore,
     StorePathSet & outputs,
@@ -331,7 +331,7 @@ static std::map<StorePath, ValidPathInfo> queryPathInfos(
 {
 
     /* Get info about each output path. */
-    std::map<StorePath, ValidPathInfo> infos;
+    std::map<StorePath, UnkeyedValidPathInfo> infos;
     conn.to << ServeProto::Command::QueryPathInfos;
     ServeProto::write(localStore, conn, outputs);
     conn.to.flush();
@@ -395,14 +395,16 @@ static void copyPathsFromRemote(
     NarMemberDatas & narMembers,
     Store & localStore,
     Store & destStore,
-    const std::map<StorePath, ValidPathInfo> & infos
+    const std::map<StorePath, UnkeyedValidPathInfo> & infos
 )
 {
       auto pathsSorted = reverseTopoSortPaths(infos);
 
       for (auto & path : pathsSorted) {
           auto & info = infos.find(path)->second;
-          copyPathFromRemote(conn, narMembers, localStore, destStore, info);
+          copyPathFromRemote(
+              conn, narMembers, localStore, destStore,
+              ValidPathInfo { path, info });
       }
 
 }
