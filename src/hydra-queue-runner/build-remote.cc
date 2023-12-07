@@ -338,23 +338,10 @@ static std::map<StorePath, UnkeyedValidPathInfo> queryPathInfos(
     while (true) {
         auto storePathS = readString(conn.from);
         if (storePathS == "") break;
-        auto deriver = readString(conn.from); // deriver
-        auto references = ServeProto::Serialise<StorePathSet>::read(localStore, conn);
-        readLongLong(conn.from); // download size
-        auto narSize = readLongLong(conn.from);
-        auto narHash = Hash::parseAny(readString(conn.from), HashAlgorithm::SHA256);
-        auto ca = ContentAddress::parseOpt(readString(conn.from));
-        readStrings<StringSet>(conn.from); // sigs
-        ValidPathInfo info(localStore.parseStorePath(storePathS), narHash);
-        assert(outputs.count(info.path));
-        info.references = references;
-        info.narSize = narSize;
-        totalNarSize += info.narSize;
-        info.narHash = narHash;
-        info.ca = ca;
-        if (deriver != "")
-            info.deriver = localStore.parseStorePath(deriver);
-        infos.insert_or_assign(info.path, info);
+
+        auto storePath = localStore.parseStorePath(storePathS);
+        auto info = ServeProto::Serialise<UnkeyedValidPathInfo>::read(localStore, conn);
+        infos.insert_or_assign(storePath, info);
     }
 
     return infos;
