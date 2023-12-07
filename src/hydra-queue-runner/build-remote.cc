@@ -425,6 +425,20 @@ static void copyPathFromRemote(
     const ValidPathInfo & info
 )
 {
+    // Why both stores? @thufschmitt says:
+    //
+    // > I think it's an easy (and terribly inefficient 😬) way of
+    // making sure that `localStore.queryRealisations` will succeed
+    // (which we IIRC we need later to get back some metadata about the
+    // path to put it in the db).
+    // >
+    // > To be honest, we shouldn't do that but instead carry the needed
+    // metadata in memory until the point where we need it (but that can
+    // come later once we're confident that this is at least correct)
+    //
+    // TODO make the above change to avoid copying excess data back and
+    // forth.
+    for (auto * store : {&destStore, &localStore}) {
       /* Receive the NAR from the remote and add it to the
           destination store. Meanwhile, extract all the info from the
           NAR that getBuildOutput() needs. */
@@ -444,7 +458,8 @@ static void copyPathFromRemote(
           extractNarData(tee, localStore.printStorePath(info.path), narMembers);
       });
 
-      destStore.addToStore(info, *source2, NoRepair, NoCheckSigs);
+      store->addToStore(info, *source2, NoRepair, NoCheckSigs);
+    }
 }
 
 static void copyPathsFromRemote(
