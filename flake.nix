@@ -2,7 +2,7 @@
   description = "A Nix-based continuous build system";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.05";
-  inputs.nix.url = "github:NixOS/nix/2.19.2";
+  inputs.nix.url = "github:NixOS/nix";
   inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs = { self, nixpkgs, nix }:

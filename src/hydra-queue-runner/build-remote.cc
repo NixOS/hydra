@@ -350,7 +350,7 @@ static std::map<StorePath, ValidPathInfo> queryPathInfos(
         auto references = ServeProto::Serialise<StorePathSet>::read(localStore, conn);
         readLongLong(conn.from); // download size
         auto narSize = readLongLong(conn.from);
-        auto narHash = Hash::parseAny(readString(conn.from), htSHA256);
+        auto narHash = Hash::parseAny(readString(conn.from), HashAlgorithm::SHA256);
         auto ca = ContentAddress::parseOpt(readString(conn.from));
         readStrings<StringSet>(conn.from); // sigs
         ValidPathInfo info(localStore.parseStorePath(storePathS), narHash);

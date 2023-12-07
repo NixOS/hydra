@@ -42,7 +42,7 @@ struct Extractor : ParseSink
     void preallocateContents(uint64_t size) override
     {
         expectedSize = size;
-        hashSink = std::make_unique<HashSink>(htSHA256);
+        hashSink = std::make_unique<HashSink>(HashAlgorithm::SHA256);
     }
 
     void receiveContents(std::string_view data) override
