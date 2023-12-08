@@ -39,7 +39,7 @@ use Hydra::Helper::Exec;
 sub new {
     my ($class, %opts) = @_;
 
-    # Cleanup will be managed by yath. By the default it ill be cleaned
+    # Cleanup will be managed by yath. By the default it will be cleaned
     # up, but can be kept to aid in debugging test failures.
     my $dir = File::Temp->newdir(CLEANUP => 0);
 
