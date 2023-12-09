@@ -341,7 +341,7 @@ static std::map<StorePath, UnkeyedValidPathInfo> queryPathInfos(
 
         auto storePath = localStore.parseStorePath(storePathS);
         auto info = ServeProto::Serialise<UnkeyedValidPathInfo>::read(localStore, conn);
-        infos.insert_or_assign(storePath, info);
+        infos.insert_or_assign(std::move(storePath), std::move(info));
     }
 
     return infos;
