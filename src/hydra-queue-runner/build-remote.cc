@@ -293,14 +293,7 @@ static BuildResult performBuild(
 {
     conn.to << ServeProto::Command::BuildDerivation << localStore.printStorePath(drvPath);
     writeDerivation(conn.to, localStore, drv);
-    conn.to << options.maxSilentTime << options.buildTimeout;
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 2)
-        conn.to << options.maxLogSize;
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 3) {
-        conn.to
-            << options.nrRepeats
-            << options.enforceDeterminism;
-    }
+    ServeProto::write(localStore, conn, options);
     conn.to.flush();
 
     BuildResult result;
