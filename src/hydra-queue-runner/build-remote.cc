@@ -286,9 +286,6 @@ static BuildResult performBuild(
     counter & nrStepsBuilding
 )
 {
-
-    BuildResult result;
-
     conn.to << ServeProto::Command::BuildDerivation << localStore.printStorePath(drvPath);
     writeDerivation(conn.to, localStore, drv);
     conn.to << options.maxSilentTime << options.buildTimeout;
@@ -301,30 +298,25 @@ static BuildResult performBuild(
     }
     conn.to.flush();
 
-    result.startTime = time(0);
+    BuildResult result;
 
+    time_t startTime, stopTime;
+
+    startTime = time(0);
     {
         MaintainCount<counter> mc(nrStepsBuilding);
-        result.status = (BuildResult::Status)readInt(conn.from);
+        result = ServeProto::Serialise<BuildResult>::read(localStore, conn);
     }
-    result.stopTime = time(0);
+    stopTime = time(0);
 
-
-    result.errorMsg = readString(conn.from);
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 3) {
-        result.timesBuilt = readInt(conn.from);
-        result.isNonDeterministic = readInt(conn.from);
-        auto start = readInt(conn.from);
-        auto stop = readInt(conn.from);
-        if (start && start) {
-            /* Note: this represents the duration of a single
-                round, rather than all rounds. */
-            result.startTime = start;
-            result.stopTime = stop;
-        }
-    }
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 6) {
-        ServeProto::Serialise<DrvOutputs>::read(localStore, conn);
+    if (!result.startTime) {
+        // If the builder gave `startTime = 0`, use our measurements
+        // instead of the builder's.
+        //
+        // Note: this represents the duration of a single round, rather
+        // than all rounds.
+        result.startTime = startTime;
+        result.stopTime = stopTime;
     }
 
     return result;
