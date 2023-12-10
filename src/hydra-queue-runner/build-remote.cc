@@ -154,7 +154,7 @@ static void copyClosureTo(
 
 
 // FIXME: use Store::topoSortPaths().
-static StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> & paths)
+static StorePaths reverseTopoSortPaths(const std::map<StorePath, UnkeyedValidPathInfo> & paths)
 {
     StorePaths sorted;
     StorePathSet visited;
@@ -322,7 +322,7 @@ static BuildResult performBuild(
     return result;
 }
 
-static std::map<StorePath, ValidPathInfo> queryPathInfos(
+static std::map<StorePath, UnkeyedValidPathInfo> queryPathInfos(
     Machine::Connection & conn,
     Store & localStore,
     StorePathSet & outputs,
@@ -331,30 +331,17 @@ static std::map<StorePath, ValidPathInfo> queryPathInfos(
 {
 
     /* Get info about each output path. */
-    std::map<StorePath, ValidPathInfo> infos;
+    std::map<StorePath, UnkeyedValidPathInfo> infos;
     conn.to << ServeProto::Command::QueryPathInfos;
     ServeProto::write(localStore, conn, outputs);
     conn.to.flush();
     while (true) {
         auto storePathS = readString(conn.from);
         if (storePathS == "") break;
-        auto deriver = readString(conn.from); // deriver
-        auto references = ServeProto::Serialise<StorePathSet>::read(localStore, conn);
-        readLongLong(conn.from); // download size
-        auto narSize = readLongLong(conn.from);
-        auto narHash = Hash::parseAny(readString(conn.from), HashAlgorithm::SHA256);
-        auto ca = ContentAddress::parseOpt(readString(conn.from));
-        readStrings<StringSet>(conn.from); // sigs
-        ValidPathInfo info(localStore.parseStorePath(storePathS), narHash);
-        assert(outputs.count(info.path));
-        info.references = references;
-        info.narSize = narSize;
-        totalNarSize += info.narSize;
-        info.narHash = narHash;
-        info.ca = ca;
-        if (deriver != "")
-            info.deriver = localStore.parseStorePath(deriver);
-        infos.insert_or_assign(info.path, info);
+
+        auto storePath = localStore.parseStorePath(storePathS);
+        auto info = ServeProto::Serialise<UnkeyedValidPathInfo>::read(localStore, conn);
+        infos.insert_or_assign(std::move(storePath), std::move(info));
     }
 
     return infos;
@@ -395,14 +382,16 @@ static void copyPathsFromRemote(
     NarMemberDatas & narMembers,
     Store & localStore,
     Store & destStore,
-    const std::map<StorePath, ValidPathInfo> & infos
+    const std::map<StorePath, UnkeyedValidPathInfo> & infos
 )
 {
       auto pathsSorted = reverseTopoSortPaths(infos);
 
       for (auto & path : pathsSorted) {
           auto & info = infos.find(path)->second;
-          copyPathFromRemote(conn, narMembers, localStore, destStore, info);
+          copyPathFromRemote(
+              conn, narMembers, localStore, destStore,
+              ValidPathInfo { path, info });
       }
 
 }
