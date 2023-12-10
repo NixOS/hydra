@@ -277,9 +277,12 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         assert(stepNr);
 
-        for (auto & i : localStore->queryPartialDerivationOutputMap(step->drvPath)) {
-            if (i.second)
-               addRoot(*i.second);
+        for (auto & [outputName, optOutputPath] : localStore->queryPartialDerivationOutputMap(step->drvPath)) {
+            if (!optOutputPath)
+                throw Error(
+                    "Missing output %s for derivation %d which was supposed to have succeeded",
+                    outputName, localStore->printStorePath(step->drvPath));
+            addRoot(*optOutputPath);
         }
 
         /* Register success in the database for all Build objects that
