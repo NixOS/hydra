@@ -192,11 +192,11 @@ bool State::getQueuedBuilds(Connection & conn,
                 if (!res[0].is_null()) propagatedFrom = res[0].as<BuildID>();
 
                 if (!propagatedFrom) {
-                    for (auto & i : localStore->queryPartialDerivationOutputMap(ex.step->drvPath)) {
+                    for (auto & [outputName, _] : localStore->queryPartialDerivationOutputMap(ex.step->drvPath)) {
                           auto res = txn.exec_params
                               ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where drvPath = $1 and name = $2 and startTime != 0 and stopTime != 0 and status = 1",
                                 localStore->printStorePath(ex.step->drvPath),
-                                i.first);
+                                outputName);
                           if (!res[0][0].is_null()) {
                               propagatedFrom = res[0][0].as<BuildID>();
                               break;
