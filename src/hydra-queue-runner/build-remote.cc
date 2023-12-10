@@ -310,9 +310,6 @@ static BuildResult performBuild(
     counter & nrStepsBuilding
 )
 {
-
-    BuildResult result;
-
     conn.to << ServeProto::Command::BuildDerivation << localStore.printStorePath(drvPath);
     writeDerivation(conn.to, localStore, drv);
     conn.to << options.maxSilentTime << options.buildTimeout;
@@ -325,39 +322,31 @@ static BuildResult performBuild(
     }
     conn.to.flush();
 
-    result.startTime = time(0);
+    BuildResult result;
 
+    time_t startTime, stopTime;
+
+    startTime = time(0);
     {
         MaintainCount<counter> mc(nrStepsBuilding);
-        result.status = (BuildResult::Status)readInt(conn.from);
+        result = ServeProto::Serialise<BuildResult>::read(localStore, conn);
     }
-    result.stopTime = time(0);
+    stopTime = time(0);
 
-
-    result.errorMsg = readString(conn.from);
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 3) {
-        result.timesBuilt = readInt(conn.from);
-        result.isNonDeterministic = readInt(conn.from);
-        auto start = readInt(conn.from);
-        auto stop = readInt(conn.from);
-        if (start && start) {
-            /* Note: this represents the duration of a single
-                round, rather than all rounds. */
-            result.startTime = start;
-            result.stopTime = stop;
-        }
+    if (!result.startTime) {
+        // If the builder gave `startTime = 0`, use our measurements
+        // instead of the builder's.
+        //
+        // Note: this represents the duration of a single round, rather
+        // than all rounds.
+        result.startTime = startTime;
+        result.stopTime = stopTime;
     }
 
-    // Get the newly built outputs, either from the remote if it
-    // supports it, or by introspecting the derivation if the remote is
-    // too old.
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 6) {
-        auto builtOutputs = ServeProto::Serialise<DrvOutputs>::read(localStore, conn);
-        for (auto && [output, realisation] : builtOutputs)
-            result.builtOutputs.insert_or_assign(
-                std::move(output.outputName),
-                std::move(realisation));
-    } else {
+    // If the protocol was too old to give us `builtOutputs`, initialize
+    // it manually by introspecting the derivation.
+    if (GET_PROTOCOL_MINOR(conn.remoteVersion) < 6)
+    {
         // If the remote is too old to handle CA derivations, we can’t get this
         // far anyways
         assert(drv.type().hasKnownOutputPaths());

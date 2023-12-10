@@ -41,7 +41,9 @@ sub new {
 
     my $deststoredir;
 
-    my $dir = File::Temp->newdir();
+    # Cleanup will be managed by yath. By the default it will be cleaned
+    # up, but can be kept to aid in debugging test failures.
+    my $dir = File::Temp->newdir(CLEANUP => 0);
 
     $ENV{'HYDRA_DATA'} = "$dir/hydra-data";
     mkdir $ENV{'HYDRA_DATA'};
