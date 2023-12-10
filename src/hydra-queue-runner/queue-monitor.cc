@@ -192,7 +192,7 @@ bool State::getQueuedBuilds(Connection & conn,
                 if (!res[0].is_null()) propagatedFrom = res[0].as<BuildID>();
 
                 if (!propagatedFrom) {
-                    for (auto & [outputName, _] : localStore->queryPartialDerivationOutputMap(ex.step->drvPath)) {
+                    for (auto & [outputName, _] : destStore->queryPartialDerivationOutputMap(ex.step->drvPath, &*localStore)) {
                           auto res = txn.exec_params
                               ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where drvPath = $1 and name = $2 and startTime != 0 and stopTime != 0 and status = 1",
                                 localStore->printStorePath(ex.step->drvPath),
@@ -237,7 +237,7 @@ bool State::getQueuedBuilds(Connection & conn,
         if (!step) {
             BuildOutput res = getBuildOutputCached(conn, destStore, build->drvPath);
 
-            for (auto & i : localStore->queryDerivationOutputMap(build->drvPath))
+            for (auto & i : destStore->queryDerivationOutputMap(build->drvPath, &*localStore))
                 addRoot(i.second);
 
             {
@@ -481,20 +481,12 @@ Step::ptr State::createStep(ref<Store> destStore,
     auto outputHashes = staticOutputHashes(*localStore, *(step->drv));
     bool valid = true;
     std::map<DrvOutput, std::optional<StorePath>> missing;
-    for (auto &[outputName, maybeOutputPath] : step->drv->outputsAndOptPaths(*destStore)) {
+    for (auto & [outputName, maybeOutputPath] : destStore->queryPartialDerivationOutputMap(drvPath, &*localStore)) {
         auto outputHash = outputHashes.at(outputName);
-        if (maybeOutputPath.second) {
-            if (!destStore->isValidPath(*maybeOutputPath.second)) {
-                valid = false;
-                missing.insert({{outputHash, outputName}, maybeOutputPath.second});
-            }
-        } else {
-            experimentalFeatureSettings.require(Xp::CaDerivations);
-            if (!destStore->queryRealisation(DrvOutput{outputHash, outputName})) {
-                valid = false;
-                missing.insert({{outputHash, outputName}, std::nullopt});
-            }
-        }
+        if (maybeOutputPath && destStore->isValidPath(*maybeOutputPath))
+            continue;
+        valid = false;
+        missing.insert({{outputHash, outputName}, maybeOutputPath});
     }
 
     /* Try to copy the missing paths from the local store or from

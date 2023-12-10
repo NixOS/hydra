@@ -236,7 +236,7 @@ static BasicDerivation sendInputs(
        to do that, however, but we would not use it here.)
      */
     BasicDerivation basicDrv = ({
-        auto maybeBasicDrv = step.drv->tryResolve(localStore);
+        auto maybeBasicDrv = step.drv->tryResolve(destStore, &localStore);
         if (!maybeBasicDrv)
             throw Error(
                 "the derivation '%s' can’t be resolved. It’s probably "
@@ -332,6 +332,8 @@ static BuildResult performBuild(
         // far anyways
         assert(drv.type().hasKnownOutputPaths());
         DerivationOutputsAndOptPaths drvOutputs = drv.outputsAndOptPaths(localStore);
+        // Since this a `BasicDerivation`, `staticOutputHashes` will not
+        // do any real work.
         auto outputHashes = staticOutputHashes(localStore, drv);
         for (auto & [outputName, output] : drvOutputs) {
             auto outputPath = output.second;
