@@ -282,7 +282,7 @@ static BuildResult performBuild(
     Store & localStore,
     StorePath drvPath,
     const BasicDerivation & drv,
-    const State::BuildOptions & options,
+    const ServeProto::BuildOptions & options,
     counter & nrStepsBuilding
 )
 {
@@ -293,7 +293,7 @@ static BuildResult performBuild(
         conn.to << options.maxLogSize;
     if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 3) {
         conn.to
-            << options.repeats // == build-repeat
+            << options.nrRepeats
             << options.enforceDeterminism;
     }
     conn.to.flush();
@@ -458,7 +458,7 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 
 void State::buildRemote(ref<Store> destStore,
     Machine::ptr machine, Step::ptr step,
-    const BuildOptions & buildOptions,
+    const ServeProto::BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
     std::function<void(StepState)> updateStep,
     NarMemberDatas & narMembers)
@@ -510,7 +510,7 @@ void State::buildRemote(ref<Store> destStore,
         });
 
         try {
-          build_remote::handshake(conn, buildOptions.repeats);
+          build_remote::handshake(conn, buildOptions.nrRepeats);
         } catch (EndOfFile & e) {
             child.pid.wait();
             std::string s = chomp(readFile(result.logFile));
