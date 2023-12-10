@@ -18,10 +18,17 @@ rec {
       builder = ./succeed-with-failed.sh;
     };
 
+  caDependingOnCA =
+    cfg.mkContentAddressedDerivation {
+      name = "ca-depending-on-ca";
+      builder = ./dir-with-file-builder.sh;
+      FOO = empty_dir;
+    };
+
   nonCaDependingOnCA =
     cfg.mkDerivation {
       name = "non-ca-depending-on-ca";
-      builder = ./empty-dir-builder.sh;
+      builder = ./dir-with-file-builder.sh;
       FOO = empty_dir;
     };
 }

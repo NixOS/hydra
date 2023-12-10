@@ -27,7 +27,7 @@ my $project = $db->resultset('Projects')->create({name => "tests", displayname =
 my $jobset = createBaseJobset("content-addressed", "content-addressed.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset), "Evaluating jobs/content-addressed.nix should exit with return code 0");
-is(nrQueuedBuildsForJobset($jobset), 4, "Evaluating jobs/content-addressed.nix should result in 4 builds");
+is(nrQueuedBuildsForJobset($jobset), 5, "Evaluating jobs/content-addressed.nix should result in 4 builds");
 
 for my $build (queuedBuildsForJobset($jobset)) {
     ok(runBuild($build), "Build '".$build->job."' from jobs/content-addressed.nix should exit with code 0");
