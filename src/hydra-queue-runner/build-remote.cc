@@ -341,6 +341,7 @@ static std::map<StorePath, UnkeyedValidPathInfo> queryPathInfos(
 
         auto storePath = localStore.parseStorePath(storePathS);
         auto info = ServeProto::Serialise<UnkeyedValidPathInfo>::read(localStore, conn);
+        totalNarSize += info.narSize;
         infos.insert_or_assign(std::move(storePath), std::move(info));
     }
 
