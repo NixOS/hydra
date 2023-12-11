@@ -658,8 +658,7 @@ void State::processJobsetSharesChange(Connection & conn)
 
 BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> destStore, const nix::StorePath & drvPath)
 {
-
-    auto derivationOutputs = localStore->queryDerivationOutputMap(drvPath);
+    auto derivationOutputs = destStore->queryDerivationOutputMap(drvPath, &*localStore);
 
     {
     pqxx::work txn(conn);
