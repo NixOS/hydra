@@ -192,11 +192,12 @@ bool State::getQueuedBuilds(Connection & conn,
                 if (!res[0].is_null()) propagatedFrom = res[0].as<BuildID>();
 
                 if (!propagatedFrom) {
-                    for (auto & [outputName, _] : destStore->queryPartialDerivationOutputMap(ex.step->drvPath, &*localStore)) {
+                    for (auto & [outputName, optOutputPath] : destStore->queryPartialDerivationOutputMap(ex.step->drvPath, &*localStore)) {
+                          // ca-derivations not actually supported yet
+                          assert(optOutputPath);
                           auto res = txn.exec_params
-                              ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where drvPath = $1 and name = $2 and startTime != 0 and stopTime != 0 and status = 1",
-                                localStore->printStorePath(ex.step->drvPath),
-                                outputName);
+                              ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1",
+                               localStore->printStorePath(*optOutputPath));
                           if (!res[0][0].is_null()) {
                               propagatedFrom = res[0][0].as<BuildID>();
                               break;
