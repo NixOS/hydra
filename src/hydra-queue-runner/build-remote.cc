@@ -203,7 +203,9 @@ static std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, cons
  */
 static void handshake(Machine::Connection & conn, unsigned int repeats)
 {
-    conn.to << SERVE_MAGIC_1 << 0x206;
+    constexpr ServeProto::Version our_version = 0x206;
+
+    conn.to << SERVE_MAGIC_1 << our_version;
     conn.to.flush();
 
     unsigned int magic = readInt(conn.from);
@@ -215,6 +217,9 @@ static void handshake(Machine::Connection & conn, unsigned int repeats)
         throw Error("unsupported ‘nix-store --serve’ protocol version on ‘%1%’", conn.machine->sshName);
     if (GET_PROTOCOL_MINOR(conn.remoteVersion) < 3 && repeats > 0)
         throw Error("machine ‘%1%’ does not support repeating a build; please upgrade it to Nix 1.12", conn.machine->sshName);
+
+    // Do not attempt to speak a newer version of the protocol
+    conn.remoteVersion = std::min(conn.remoteVersion, our_version);
 }
 
 static BasicDerivation sendInputs(
@@ -288,14 +293,7 @@ static BuildResult performBuild(
 {
     conn.to << ServeProto::Command::BuildDerivation << localStore.printStorePath(drvPath);
     writeDerivation(conn.to, localStore, drv);
-    conn.to << options.maxSilentTime << options.buildTimeout;
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 2)
-        conn.to << options.maxLogSize;
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 3) {
-        conn.to
-            << options.nrRepeats
-            << options.enforceDeterminism;
-    }
+    ServeProto::write(localStore, conn, options);
     conn.to.flush();
 
     BuildResult result;
