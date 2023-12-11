@@ -182,40 +182,6 @@ static StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> 
     return sorted;
 }
 
-/**
- * Replace the input derivations by their output paths to send a minimal closure
- * to the builder.
- *
- * If we can afford it, resolve it, so that the newly generated derivation still
- * has some sensible output paths.
- */
-BasicDerivation inlineInputDerivations(Store & store, Derivation & drv, const StorePath & drvPath)
-{
-    BasicDerivation ret;
-    if (!drv.type().hasKnownOutputPaths()) {
-        auto maybeBasicDrv = drv.tryResolve(store);
-        if (!maybeBasicDrv)
-            throw Error(
-                "the derivation '%s' can’t be resolved. It’s probably "
-                "missing some outputs",
-                store.printStorePath(drvPath));
-        ret = *maybeBasicDrv;
-    } else {
-        // If the derivation is a real `InputAddressed` derivation, we must
-        // resolve it manually to keep the original output paths
-        ret = BasicDerivation(drv);
-        for (auto & [drvPath, node] : drv.inputDrvs.map) {
-            auto drv2 = store.readDerivation(drvPath);
-            auto drv2Outputs = drv2.outputsAndOptPaths(store);
-            for (auto & name : node.value) {
-                auto inputPath = drv2Outputs.at(name);
-                ret.inputSrcs.insert(*inputPath.second);
-            }
-        }
-    }
-    return ret;
-}
-
 static std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const StorePath & drvPath)
 {
     std::string base(drvPath.to_string());
@@ -262,7 +228,22 @@ static BasicDerivation sendInputs(
     counter & nrStepsCopyingTo
 )
 {
-    BasicDerivation basicDrv = inlineInputDerivations(localStore, *step.drv, step.drvPath);
+    /* Replace the input derivations by their output paths to send a
+       minimal closure to the builder.
+
+       `tryResolve` currently does *not* rewrite input addresses, so it
+       is safe to do this in all cases. (It should probably have a mode
+       to do that, however, but we would not use it here.)
+     */
+    BasicDerivation basicDrv = ({
+        auto maybeBasicDrv = step.drv->tryResolve(destStore, &localStore);
+        if (!maybeBasicDrv)
+            throw Error(
+                "the derivation '%s' can’t be resolved. It’s probably "
+                "missing some outputs",
+                localStore.printStorePath(step.drvPath));
+        *maybeBasicDrv;
+    });
 
     /* Ensure that the inputs exist in the destination store. This is
        a no-op for regular stores, but for the binary cache store,
@@ -351,6 +332,8 @@ static BuildResult performBuild(
         // far anyways
         assert(drv.type().hasKnownOutputPaths());
         DerivationOutputsAndOptPaths drvOutputs = drv.outputsAndOptPaths(localStore);
+        // Since this a `BasicDerivation`, `staticOutputHashes` will not
+        // do any real work.
         auto outputHashes = staticOutputHashes(localStore, drv);
         for (auto & [outputName, output] : drvOutputs) {
             auto outputPath = output.second;
@@ -665,14 +648,12 @@ void State::buildRemote(ref<Store> destStore,
             auto outputHashes = staticOutputHashes(*localStore, *step->drv);
             for (auto & [outputName, realisation] : buildResult.builtOutputs) {
                 // Register the resolved drv output
-                localStore->registerDrvOutput(realisation);
                 destStore->registerDrvOutput(realisation);
 
                 // Also register the unresolved one
                 auto unresolvedRealisation = realisation;
                 unresolvedRealisation.signatures.clear();
                 unresolvedRealisation.id.drvHash = outputHashes.at(outputName);
-                localStore->registerDrvOutput(unresolvedRealisation);
                 destStore->registerDrvOutput(unresolvedRealisation);
             }
         }

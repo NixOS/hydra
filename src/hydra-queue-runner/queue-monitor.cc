@@ -192,11 +192,11 @@ bool State::getQueuedBuilds(Connection & conn,
                 if (!res[0].is_null()) propagatedFrom = res[0].as<BuildID>();
 
                 if (!propagatedFrom) {
-                    for (auto & i : localStore->queryPartialDerivationOutputMap(ex.step->drvPath)) {
+                    for (auto & [outputName, _] : destStore->queryPartialDerivationOutputMap(ex.step->drvPath, &*localStore)) {
                           auto res = txn.exec_params
                               ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where drvPath = $1 and name = $2 and startTime != 0 and stopTime != 0 and status = 1",
                                 localStore->printStorePath(ex.step->drvPath),
-                                i.first);
+                                outputName);
                           if (!res[0][0].is_null()) {
                               propagatedFrom = res[0][0].as<BuildID>();
                               break;
@@ -237,7 +237,7 @@ bool State::getQueuedBuilds(Connection & conn,
         if (!step) {
             BuildOutput res = getBuildOutputCached(conn, destStore, build->drvPath);
 
-            for (auto & i : localStore->queryDerivationOutputMap(build->drvPath))
+            for (auto & i : destStore->queryDerivationOutputMap(build->drvPath, &*localStore))
                 addRoot(i.second);
 
             {
@@ -481,20 +481,12 @@ Step::ptr State::createStep(ref<Store> destStore,
     auto outputHashes = staticOutputHashes(*localStore, *(step->drv));
     bool valid = true;
     std::map<DrvOutput, std::optional<StorePath>> missing;
-    for (auto &[outputName, maybeOutputPath] : step->drv->outputsAndOptPaths(*destStore)) {
+    for (auto & [outputName, maybeOutputPath] : destStore->queryPartialDerivationOutputMap(drvPath, &*localStore)) {
         auto outputHash = outputHashes.at(outputName);
-        if (maybeOutputPath.second) {
-            if (!destStore->isValidPath(*maybeOutputPath.second)) {
-                valid = false;
-                missing.insert({{outputHash, outputName}, maybeOutputPath.second});
-            }
-        } else {
-            experimentalFeatureSettings.require(Xp::CaDerivations);
-            if (!destStore->queryRealisation(DrvOutput{outputHash, outputName})) {
-                valid = false;
-                missing.insert({{outputHash, outputName}, std::nullopt});
-            }
-        }
+        if (maybeOutputPath && destStore->isValidPath(*maybeOutputPath))
+            continue;
+        valid = false;
+        missing.insert({{outputHash, outputName}, maybeOutputPath});
     }
 
     /* Try to copy the missing paths from the local store or from
@@ -503,14 +495,24 @@ Step::ptr State::createStep(ref<Store> destStore,
 
         size_t avail = 0;
         for (auto & [i, maybePath] : missing) {
-            if ((maybePath && localStore->isValidPath(*maybePath)))
+            // If we don't know the output path from the destination
+            // store, see if the local store can tell us.
+            if (/* localStore != destStore && */ !maybePath && experimentalFeatureSettings.isEnabled(Xp::CaDerivations))
+                if (auto maybeRealisation = localStore->queryRealisation(i))
+                    maybePath = maybeRealisation->outPath;
+
+            if (!maybePath) {
+                // No hope of getting the store object if we don't know
+                // the path.
+                continue;
+            }
+            auto & path = *maybePath;
+
+            if (/* localStore != destStore && */ localStore->isValidPath(path))
                 avail++;
-            else if (experimentalFeatureSettings.isEnabled(Xp::CaDerivations) && localStore->queryRealisation(i)) {
-                maybePath = localStore->queryRealisation(i)->outPath;
-                avail++;
-            } else if (useSubstitutes && maybePath) {
+            else if (useSubstitutes) {
                 SubstitutablePathInfos infos;
-                localStore->querySubstitutablePathInfos({{*maybePath, {}}}, infos);
+                localStore->querySubstitutablePathInfos({{path, {}}}, infos);
                 if (infos.size() == 1)
                     avail++;
             }
@@ -518,44 +520,47 @@ Step::ptr State::createStep(ref<Store> destStore,
 
         if (missing.size() == avail) {
             valid = true;
-            for (auto & [i, path] : missing) {
-                if (path) {
-                    try {
-                        time_t startTime = time(0);
+            for (auto & [i, maybePath] : missing) {
+                // If we found everything, then we should know the path
+                // to every missing store object now.
+                assert(maybePath);
+                auto & path = *maybePath;
 
-                        if (localStore->isValidPath(*path))
-                            printInfo("copying output ‘%1%’ of ‘%2%’ from local store",
-                                localStore->printStorePath(*path),
-                                localStore->printStorePath(drvPath));
-                        else {
-                            printInfo("substituting output ‘%1%’ of ‘%2%’",
-                                localStore->printStorePath(*path),
-                                localStore->printStorePath(drvPath));
-                            localStore->ensurePath(*path);
-                            // FIXME: should copy directly from substituter to destStore.
-                        }
+                try {
+                    time_t startTime = time(0);
 
-                        copyClosure(*localStore, *destStore,
-                            StorePathSet { *path },
-                            NoRepair, CheckSigs, NoSubstitute);
-
-                        time_t stopTime = time(0);
-
-                        {
-                            auto mc = startDbUpdate();
-                            pqxx::work txn(conn);
-                            createSubstitutionStep(txn, startTime, stopTime, build, drvPath, *(step->drv), "out", *path);
-                            txn.commit();
-                        }
-
-                    } catch (Error & e) {
-                        printError("while copying/substituting output ‘%s’ of ‘%s’: %s",
-                            localStore->printStorePath(*path),
-                            localStore->printStorePath(drvPath),
-                            e.what());
-                        valid = false;
-                        break;
+                    if (localStore->isValidPath(path))
+                        printInfo("copying output ‘%1%’ of ‘%2%’ from local store",
+                            localStore->printStorePath(path),
+                            localStore->printStorePath(drvPath));
+                    else {
+                        printInfo("substituting output ‘%1%’ of ‘%2%’",
+                            localStore->printStorePath(path),
+                            localStore->printStorePath(drvPath));
+                        localStore->ensurePath(path);
+                        // FIXME: should copy directly from substituter to destStore.
                     }
+
+                    copyClosure(*localStore, *destStore,
+                        StorePathSet { path },
+                        NoRepair, CheckSigs, NoSubstitute);
+
+                    time_t stopTime = time(0);
+
+                    {
+                        auto mc = startDbUpdate();
+                        pqxx::work txn(conn);
+                        createSubstitutionStep(txn, startTime, stopTime, build, drvPath, *(step->drv), "out", path);
+                        txn.commit();
+                    }
+
+                } catch (Error & e) {
+                    printError("while copying/substituting output ‘%s’ of ‘%s’: %s",
+                        localStore->printStorePath(path),
+                        localStore->printStorePath(drvPath),
+                        e.what());
+                    valid = false;
+                    break;
                 }
             }
         }
