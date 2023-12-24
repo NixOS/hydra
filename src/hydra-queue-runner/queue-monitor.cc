@@ -495,12 +495,14 @@ Step::ptr State::createStep(ref<Store> destStore,
 
         size_t avail = 0;
         for (auto & i : missing) {
-            auto path = i.second.path(*localStore, step->drv->name, i.first);
-            if (/* localStore != destStore && */ localStore->isValidPath(*path))
+            auto pathOpt = i.second.path(*localStore, step->drv->name, i.first);
+            assert(pathOpt); // CA derivations not yet supported
+            auto & path = *pathOpt;
+            if (/* localStore != destStore && */ localStore->isValidPath(path))
                 avail++;
             else if (useSubstitutes) {
                 SubstitutablePathInfos infos;
-                localStore->querySubstitutablePathInfos({{*path, {}}}, infos);
+                localStore->querySubstitutablePathInfos({{path, {}}}, infos);
                 if (infos.size() == 1)
                     avail++;
             }
@@ -509,25 +511,27 @@ Step::ptr State::createStep(ref<Store> destStore,
         if (missing.size() == avail) {
             valid = true;
             for (auto & i : missing) {
-                auto path = i.second.path(*localStore, step->drv->name, i.first);
+                auto pathOpt = i.second.path(*localStore, step->drv->name, i.first);
+                assert(pathOpt); // CA derivations not yet supported
+                auto & path = *pathOpt;
 
                 try {
                     time_t startTime = time(0);
 
-                    if (localStore->isValidPath(*path))
+                    if (localStore->isValidPath(path))
                         printInfo("copying output ‘%1%’ of ‘%2%’ from local store",
-                            localStore->printStorePath(*path),
+                            localStore->printStorePath(path),
                             localStore->printStorePath(drvPath));
                     else {
                         printInfo("substituting output ‘%1%’ of ‘%2%’",
-                            localStore->printStorePath(*path),
+                            localStore->printStorePath(path),
                             localStore->printStorePath(drvPath));
-                        localStore->ensurePath(*path);
+                        localStore->ensurePath(path);
                         // FIXME: should copy directly from substituter to destStore.
                     }
 
                     copyClosure(*localStore, *destStore,
-                        StorePathSet { *path },
+                        StorePathSet { path },
                         NoRepair, CheckSigs, NoSubstitute);
 
                     time_t stopTime = time(0);
@@ -535,13 +539,13 @@ Step::ptr State::createStep(ref<Store> destStore,
                     {
                         auto mc = startDbUpdate();
                         pqxx::work txn(conn);
-                        createSubstitutionStep(txn, startTime, stopTime, build, drvPath, "out", *path);
+                        createSubstitutionStep(txn, startTime, stopTime, build, drvPath, "out", path);
                         txn.commit();
                     }
 
                 } catch (Error & e) {
                     printError("while copying/substituting output ‘%s’ of ‘%s’: %s",
-                        localStore->printStorePath(*path),
+                        localStore->printStorePath(path),
                         localStore->printStorePath(drvPath),
                         e.what());
                     valid = false;
