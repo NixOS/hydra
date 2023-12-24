@@ -74,6 +74,30 @@ following:
         }
     }
 
+Populating a Cache
+------------------
+
+A common use for Hydra is to pre-build and cache derivations which
+take a long time to build. While it is possible to direcly access the
+Hydra server's store over SSH, a more scalable option is to upload
+built derivations to a remote store like an [S3-compatible object
+store](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html#s3-binary-cache-store). Setting
+the `store_uri` parameter will cause Hydra to sign and upload
+derivations as they are built:
+
+```
+store_uri = s3://cache-bucket-name?compression=zstd&parallel-compression=true&write-nar-listing=1&ls-compression=br&log-compression=br&secret-key=/path/to/cache/private/key
+```
+
+This example uses [Zstandard](https://github.com/facebook/zstd)
+compression on derivations to reduce CPU usage on the server, but
+[Brotli](https://brotli.org/) compression for derivation listings and
+build logs because it has better browser support.
+
+See [`nix help
+stores`](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html)
+for a description of the store URI format.
+
 Statsd Configuration
 --------------------
 

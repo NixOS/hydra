@@ -495,19 +495,19 @@ Step::ptr State::createStep(ref<Store> destStore,
     if (!missing.empty()) {
 
         size_t avail = 0;
-        for (auto & [i, maybePath] : missing) {
+        for (auto & [i, pathOpt] : missing) {
             // If we don't know the output path from the destination
             // store, see if the local store can tell us.
-            if (/* localStore != destStore && */ !maybePath && experimentalFeatureSettings.isEnabled(Xp::CaDerivations))
+            if (/* localStore != destStore && */ !pathOpt && experimentalFeatureSettings.isEnabled(Xp::CaDerivations))
                 if (auto maybeRealisation = localStore->queryRealisation(i))
-                    maybePath = maybeRealisation->outPath;
+                    pathOpt = maybeRealisation->outPath;
 
-            if (!maybePath) {
+            if (!pathOpt) {
                 // No hope of getting the store object if we don't know
                 // the path.
                 continue;
             }
-            auto & path = *maybePath;
+            auto & path = *pathOpt;
 
             if (/* localStore != destStore && */ localStore->isValidPath(path))
                 avail++;
@@ -521,11 +521,11 @@ Step::ptr State::createStep(ref<Store> destStore,
 
         if (missing.size() == avail) {
             valid = true;
-            for (auto & [i, maybePath] : missing) {
+            for (auto & [i, pathOpt] : missing) {
                 // If we found everything, then we should know the path
                 // to every missing store object now.
-                assert(maybePath);
-                auto & path = *maybePath;
+                assert(pathOpt);
+                auto & path = *pathOpt;
 
                 try {
                     time_t startTime = time(0);
