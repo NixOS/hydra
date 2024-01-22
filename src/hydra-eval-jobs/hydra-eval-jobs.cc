@@ -89,7 +89,7 @@ struct MyArgs : MixEvalArgs, MixCommonArgs, RootArgs
 
 static MyArgs myArgs;
 
-static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const std::string & name, const std::string & subAttribute)
+static std::string queryMetaStrings(EvalState & state, PackageInfo & drv, const std::string & name, const std::string & subAttribute)
 {
     Strings res;
     std::function<void(Value & v)> rec;
@@ -178,7 +178,7 @@ static void worker(
 
             if (auto drv = getDerivation(state, *v, false)) {
 
-                DrvInfo::Outputs outputs = drv->queryOutputs();
+                PackageInfo::Outputs outputs = drv->queryOutputs();
 
                 if (drv->querySystem() == "unknown")
                     throw EvalError("derivation must have a 'system' attribute");
