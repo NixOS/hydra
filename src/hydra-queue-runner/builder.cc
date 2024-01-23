@@ -400,7 +400,7 @@ void State::failStep(
     Step::ptr step,
     BuildID buildId,
     const RemoteResult & result,
-    Machine::ptr machine,
+    ::Machine::ptr machine,
     bool & stepFinished)
 {
     /* Register failure in the database for all Build objects that

@@ -199,7 +199,7 @@ system_time State::doDispatch()
            filter out temporarily disabled machines. */
         struct MachineInfo
         {
-            Machine::ptr machine;
+            ::Machine::ptr machine;
             unsigned long currentJobs;
         };
         std::vector<MachineInfo> machinesSorted;
@@ -435,7 +435,7 @@ void Jobset::pruneSteps()
 }
 
 
-State::MachineReservation::MachineReservation(State & state, Step::ptr step, Machine::ptr machine)
+State::MachineReservation::MachineReservation(State & state, Step::ptr step, ::Machine::ptr machine)
     : state(state), step(step), machine(machine)
 {
     machine->state->currentJobs++;

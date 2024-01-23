@@ -140,7 +140,7 @@ void State::parseMachines(const std::string & contents)
         if (tokens.size() < 3) continue;
         tokens.resize(8);
 
-        auto machine = std::make_shared<Machine>();
+        auto machine = std::make_shared<::Machine>();
         machine->sshName = tokens[0];
         machine->systemTypes = tokenizeString<StringSet>(tokens[1], ",");
         machine->sshKey = tokens[2] == "-" ? std::string("") : tokens[2];
@@ -166,7 +166,7 @@ void State::parseMachines(const std::string & contents)
         else
             printMsg(lvlChatty, "updating machine ‘%1%’", machine->sshName);
         machine->state = i == oldMachines.end()
-            ? std::make_shared<Machine::State>()
+            ? std::make_shared<::Machine::State>()
             : i->second->state;
         newMachines[machine->sshName] = machine;
     }
@@ -175,9 +175,9 @@ void State::parseMachines(const std::string & contents)
         if (newMachines.find(m.first) == newMachines.end()) {
             if (m.second->enabled)
                 printInfo("removing machine ‘%1%’", m.first);
-            /* Add a disabled Machine object to make sure stats are
+            /* Add a disabled ::Machine object to make sure stats are
                maintained. */
-            auto machine = std::make_shared<Machine>(*(m.second));
+            auto machine = std::make_shared<::Machine>(*(m.second));
             machine->enabled = false;
             newMachines[m.first] = machine;
         }
