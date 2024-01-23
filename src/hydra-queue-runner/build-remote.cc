@@ -143,7 +143,7 @@ void State::buildRemote(ref<Store> destStore,
         {
             auto activeStepState(activeStep->state_.lock());
             if (activeStepState->cancelled) throw Error("step cancelled");
-            activeStepState->pid = child.pid;
+            activeStepState->pid = child.sshPid;
         }
 
         Finally clearPid([&]() {
