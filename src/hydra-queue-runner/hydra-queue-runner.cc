@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <optional>
+#include <type_traits>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -140,23 +141,43 @@ void State::parseMachines(const std::string & contents)
         if (tokens.size() < 3) continue;
         tokens.resize(8);
 
-        auto machine = std::make_shared<::Machine>();
-        machine->sshName = tokens[0];
-        machine->systemTypes = tokenizeString<StringSet>(tokens[1], ",");
-        machine->sshKey = tokens[2] == "-" ? std::string("") : tokens[2];
-        if (tokens[3] != "")
-            machine->maxJobs = string2Int<decltype(machine->maxJobs)>(tokens[3]).value();
-        else
-            machine->maxJobs = 1;
-        machine->speedFactor = atof(tokens[4].c_str());
         if (tokens[5] == "-") tokens[5] = "";
-        machine->supportedFeatures = tokenizeString<StringSet>(tokens[5], ",");
+        auto supportedFeatures = tokenizeString<StringSet>(tokens[5], ",");
+
         if (tokens[6] == "-") tokens[6] = "";
-        machine->mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
-        for (auto & f : machine->mandatoryFeatures)
-            machine->supportedFeatures.insert(f);
-        if (tokens[7] != "" && tokens[7] != "-")
-            machine->sshPublicHostKey = base64Decode(tokens[7]);
+        auto mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
+
+        for (auto & f : mandatoryFeatures)
+            supportedFeatures.insert(f);
+
+        using MaxJobs = std::remove_const<decltype(nix::Machine::maxJobs)>::type;
+
+        auto machine = std::make_shared<::Machine>(nix::Machine {
+            // `storeUri`, not yet used
+            "",
+            // `systemTypes`, not yet used
+            {},
+            // `sshKey`
+            tokens[2] == "-" ? "" : tokens[2],
+            // `maxJobs`
+            tokens[3] != ""
+                ? string2Int<MaxJobs>(tokens[3]).value()
+                : 1,
+            // `speedFactor`, not yet used
+            1,
+            // `supportedFeatures`
+            std::move(supportedFeatures),
+            // `mandatoryFeatures`
+            std::move(mandatoryFeatures),
+            // `sshPublicHostKey`
+            tokens[7] != "" && tokens[7] != "-"
+                ? base64Decode(tokens[7])
+                : "",
+        });
+
+        machine->sshName = tokens[0];
+        machine->systemTypesSet = tokenizeString<StringSet>(tokens[1], ",");
+        machine->speedFactorFloat = atof(tokens[4].c_str());
 
         /* Re-use the State object of the previous machine with the
            same name. */
@@ -596,7 +617,7 @@ void State::dumpStatus(Connection & conn)
 
                 json machine = {
                     {"enabled",  m->enabled},
-                    {"systemTypes", m->systemTypes},
+                    {"systemTypes", m->systemTypesSet},
                     {"supportedFeatures", m->supportedFeatures},
                     {"mandatoryFeatures", m->mandatoryFeatures},
                     {"nrStepsDone", s->nrStepsDone.load()},
