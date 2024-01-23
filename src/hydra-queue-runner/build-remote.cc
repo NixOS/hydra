@@ -21,12 +21,6 @@
 
 using namespace nix;
 
-
-static void append(Strings & dst, const Strings & src)
-{
-    dst.insert(dst.end(), src.begin(), src.end());
-}
-
 namespace nix::build_remote {
 
 static Strings extraStoreArgs(std::string & machine)
@@ -49,58 +43,20 @@ static Strings extraStoreArgs(std::string & machine)
     return result;
 }
 
-static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, SSHMaster::Connection & child)
+static std::unique_ptr<SSHMaster::Connection> openConnection(
+    Machine::ptr machine, SSHMaster & master)
 {
-    std::string pgmName;
-    Pipe to, from;
-    to.create();
-    from.create();
-
-    Strings argv;
+    Strings command = {"nix-store", "--serve", "--write"};
     if (machine->isLocalhost()) {
-        pgmName = "nix-store";
-        argv = {"nix-store", "--builders", "", "--serve", "--write"};
+        command.push_back("--builders");
+        command.push_back("");
     } else {
-        pgmName = "ssh";
-        auto sshName = machine->sshName;
-        Strings extraArgs = extraStoreArgs(sshName);
-        argv = {"ssh", sshName};
-        if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
-        if (machine->sshPublicHostKey != "") {
-            Path fileName = tmpDir + "/host-key";
-            auto p = machine->sshName.find("@");
-            std::string host = p != std::string::npos ? std::string(machine->sshName, p + 1) : machine->sshName;
-            writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
-            append(argv, {"-oUserKnownHostsFile=" + fileName});
-        }
-        append(argv,
-            { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
-            , "--", "nix-store", "--serve", "--write" });
-        append(argv, extraArgs);
+        command.splice(command.end(), extraStoreArgs(machine->sshName));
     }
 
-    child.sshPid = startProcess([&]() {
-        restoreProcessContext();
-
-        if (dup2(to.readSide.get(), STDIN_FILENO) == -1)
-            throw SysError("cannot dup input pipe to stdin");
-
-        if (dup2(from.writeSide.get(), STDOUT_FILENO) == -1)
-            throw SysError("cannot dup output pipe to stdout");
-
-        if (dup2(stderrFD, STDERR_FILENO) == -1)
-            throw SysError("cannot dup stderr");
-
-        execvp(argv.front().c_str(), (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
-
-        throw SysError("cannot start %s", pgmName);
+    return master.startCommand(std::move(command), {
+        "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
     });
-
-    to.readSide = -1;
-    from.writeSide = -1;
-
-    child.in = to.writeSide.release();
-    child.out = from.readSide.release();
 }
 
 
@@ -430,21 +386,26 @@ void State::buildRemote(ref<Store> destStore,
     AutoDelete logFileDel(logFile, false);
     result.logFile = logFile;
 
-    nix::Path tmpDir = createTempDir();
-    AutoDelete tmpDirDel(tmpDir, true);
-
     try {
 
         updateStep(ssConnecting);
 
+        SSHMaster master {
+            machine->sshName,
+            machine->sshKey,
+            machine->sshPublicHostKey,
+            false, // no SSH master yet
+            false, // no compression yet
+            logFD.get(),
+        };
+
         // FIXME: rewrite to use Store.
-        SSHMaster::Connection child;
-        build_remote::openConnection(machine, tmpDir, logFD.get(), child);
+        auto child = build_remote::openConnection(machine, master);
 
         {
             auto activeStepState(activeStep->state_.lock());
             if (activeStepState->cancelled) throw Error("step cancelled");
-            activeStepState->pid = child.sshPid;
+            activeStepState->pid = child->sshPid;
         }
 
         Finally clearPid([&]() {
@@ -461,8 +422,8 @@ void State::buildRemote(ref<Store> destStore,
 
         Machine::Connection conn {
             {
-                .to = child.in.get(),
-                .from = child.out.get(),
+                .to = child->in.get(),
+                .from = child->out.get(),
                 /* Handshake. */
                 .remoteVersion = 0xdadbeef, // FIXME avoid dummy initialize
             },
@@ -483,7 +444,7 @@ void State::buildRemote(ref<Store> destStore,
                 our_version,
                 machine->sshName);
         } catch (EndOfFile & e) {
-            child.sshPid.wait();
+            child->sshPid.wait();
             std::string s = chomp(readFile(result.logFile));
             throw Error("cannot connect to ‘%1%’: %2%", machine->sshName, s);
         }
@@ -583,8 +544,8 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         /* Shut down the connection. */
-        child.in = -1;
-        child.sshPid.wait();
+        child->in = -1;
+        child->sshPid.wait();
 
     } catch (Error & e) {
         /* Disable this machine until a certain period of time has
