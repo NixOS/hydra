@@ -22,6 +22,7 @@
 #include "sync.hh"
 #include "nar-extractor.hh"
 #include "serve-protocol.hh"
+#include "machines.hh"
 
 
 typedef unsigned int BuildID;
@@ -234,17 +235,21 @@ void getDependents(Step::ptr step, std::set<Build::ptr> & builds, std::set<Step:
 void visitDependencies(std::function<void(Step::ptr)> visitor, Step::ptr step);
 
 
-struct Machine
+struct Machine : nix::Machine
 {
     typedef std::shared_ptr<Machine> ptr;
 
-    bool enabled{true};
+    /* TODO Get rid of: `nix::Machine::storeUri` is normalized in a way
+       we are not yet used to, but once we are, we don't need this. */
+    std::string sshName;
 
-    std::string sshName, sshKey;
-    std::set<std::string> systemTypes, supportedFeatures, mandatoryFeatures;
-    unsigned int maxJobs = 1;
-    float speedFactor = 1.0;
-    std::string sshPublicHostKey;
+    /* TODO Get rid once `nix::Machine::systemTypes` is a set not
+       vector. */
+    std::set<std::string> systemTypesSet;
+
+    /* TODO Get rid once `nix::Machine::systemTypes` is a `float` not
+       an `int`. */
+    float speedFactorFloat = 1.0;
 
     struct State {
         typedef std::shared_ptr<State> ptr;
@@ -272,7 +277,7 @@ struct Machine
     {
         /* Check that this machine is of the type required by the
            step. */
-        if (!systemTypes.count(step->drv->platform == "builtin" ? nix::settings.thisSystem : step->drv->platform))
+        if (!systemTypesSet.count(step->drv->platform == "builtin" ? nix::settings.thisSystem : step->drv->platform))
             return false;
 
         /* Check that the step requires all mandatory features of this

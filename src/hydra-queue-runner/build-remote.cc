@@ -48,7 +48,7 @@ static Strings extraStoreArgs(std::string & machine)
     return result;
 }
 
-static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, SSHMaster::Connection & child)
+static void openConnection(::Machine::ptr machine, Path tmpDir, int stderrFD, SSHMaster::Connection & child)
 {
     std::string pgmName;
     Pipe to, from;
@@ -104,7 +104,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, SSHM
 
 
 static void copyClosureTo(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     Store & destStore,
     const StorePathSet & paths,
     SubstituteFlag useSubstitutes = NoSubstitute)
@@ -195,7 +195,7 @@ static std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, cons
  * Therefore, no `ServeProto::Serialize` functions can be used until
  * that field is set.
  */
-static void handshake(Machine::Connection & conn, unsigned int repeats)
+static void handshake(::Machine::Connection & conn, unsigned int repeats)
 {
     conn.to << SERVE_MAGIC_1 << 0x206;
     conn.to.flush();
@@ -216,7 +216,7 @@ static BasicDerivation sendInputs(
     Step & step,
     Store & localStore,
     Store & destStore,
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     unsigned int & overhead,
     counter & nrStepsWaiting,
     counter & nrStepsCopyingTo
@@ -272,7 +272,7 @@ static BasicDerivation sendInputs(
 }
 
 static BuildResult performBuild(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     Store & localStore,
     StorePath drvPath,
     const BasicDerivation & drv,
@@ -317,7 +317,7 @@ static BuildResult performBuild(
 }
 
 static std::map<StorePath, ValidPathInfo> queryPathInfos(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     Store & localStore,
     StorePathSet & outputs,
     size_t & totalNarSize
@@ -355,7 +355,7 @@ static std::map<StorePath, ValidPathInfo> queryPathInfos(
 }
 
 static void copyPathFromRemote(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     NarMemberDatas & narMembers,
     Store & localStore,
     Store & destStore,
@@ -385,7 +385,7 @@ static void copyPathFromRemote(
 }
 
 static void copyPathsFromRemote(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     NarMemberDatas & narMembers,
     Store & localStore,
     Store & destStore,
@@ -462,7 +462,7 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 
 
 void State::buildRemote(ref<Store> destStore,
-    Machine::ptr machine, Step::ptr step,
+    ::Machine::ptr machine, Step::ptr step,
     const BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
     std::function<void(StepState)> updateStep,
@@ -503,7 +503,7 @@ void State::buildRemote(ref<Store> destStore,
                process. Meh. */
         });
 
-        Machine::Connection conn {
+        ::Machine::Connection conn {
             .from = child.out.get(),
             .to = child.in.get(),
             .machine = machine,
