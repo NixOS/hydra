@@ -199,7 +199,7 @@ system_time State::doDispatch()
            filter out temporarily disabled machines. */
         struct MachineInfo
         {
-            Machine::ptr machine;
+            ::Machine::ptr machine;
             unsigned long currentJobs;
         };
         std::vector<MachineInfo> machinesSorted;
@@ -231,11 +231,11 @@ system_time State::doDispatch()
         sort(machinesSorted.begin(), machinesSorted.end(),
             [](const MachineInfo & a, const MachineInfo & b) -> bool
             {
-                float ta = std::round(a.currentJobs / a.machine->speedFactor);
-                float tb = std::round(b.currentJobs / b.machine->speedFactor);
+                float ta = std::round(a.currentJobs / a.machine->speedFactorFloat);
+                float tb = std::round(b.currentJobs / b.machine->speedFactorFloat);
                 return
                     ta != tb ? ta < tb :
-                    a.machine->speedFactor != b.machine->speedFactor ? a.machine->speedFactor > b.machine->speedFactor :
+                    a.machine->speedFactorFloat != b.machine->speedFactorFloat ? a.machine->speedFactorFloat > b.machine->speedFactorFloat :
                     a.currentJobs > b.currentJobs;
             });
 
@@ -435,7 +435,7 @@ void Jobset::pruneSteps()
 }
 
 
-State::MachineReservation::MachineReservation(State & state, Step::ptr step, Machine::ptr machine)
+State::MachineReservation::MachineReservation(State & state, Step::ptr step, ::Machine::ptr machine)
     : state(state), step(step), machine(machine)
 {
     machine->state->currentJobs++;

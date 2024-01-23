@@ -44,7 +44,7 @@ static Strings extraStoreArgs(std::string & machine)
 }
 
 static std::unique_ptr<SSHMaster::Connection> openConnection(
-    Machine::ptr machine, SSHMaster & master)
+    ::Machine::ptr machine, SSHMaster & master)
 {
     Strings command = {"nix-store", "--serve", "--write"};
     if (machine->isLocalhost()) {
@@ -61,7 +61,7 @@ static std::unique_ptr<SSHMaster::Connection> openConnection(
 
 
 static void copyClosureTo(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     Store & destStore,
     const StorePathSet & paths,
     SubstituteFlag useSubstitutes = NoSubstitute)
@@ -148,7 +148,7 @@ static BasicDerivation sendInputs(
     Step & step,
     Store & localStore,
     Store & destStore,
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     unsigned int & overhead,
     counter & nrStepsWaiting,
     counter & nrStepsCopyingTo
@@ -204,7 +204,7 @@ static BasicDerivation sendInputs(
 }
 
 static BuildResult performBuild(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     Store & localStore,
     StorePath drvPath,
     const BasicDerivation & drv,
@@ -239,7 +239,7 @@ static BuildResult performBuild(
 }
 
 static std::map<StorePath, UnkeyedValidPathInfo> queryPathInfos(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     Store & localStore,
     StorePathSet & outputs,
     size_t & totalNarSize
@@ -265,7 +265,7 @@ static std::map<StorePath, UnkeyedValidPathInfo> queryPathInfos(
 }
 
 static void copyPathFromRemote(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     NarMemberDatas & narMembers,
     Store & localStore,
     Store & destStore,
@@ -295,7 +295,7 @@ static void copyPathFromRemote(
 }
 
 static void copyPathsFromRemote(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     NarMemberDatas & narMembers,
     Store & localStore,
     Store & destStore,
@@ -374,7 +374,7 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 
 
 void State::buildRemote(ref<Store> destStore,
-    Machine::ptr machine, Step::ptr step,
+    ::Machine::ptr machine, Step::ptr step,
     const ServeProto::BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
     std::function<void(StepState)> updateStep,
@@ -420,7 +420,7 @@ void State::buildRemote(ref<Store> destStore,
                process. Meh. */
         });
 
-        Machine::Connection conn {
+        ::Machine::Connection conn {
             {
                 .to = child->in.get(),
                 .from = child->out.get(),
