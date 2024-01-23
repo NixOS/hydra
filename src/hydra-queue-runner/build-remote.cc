@@ -15,17 +15,11 @@
 #include "util.hh"
 #include "serve-protocol.hh"
 #include "serve-protocol-impl.hh"
+#include "ssh.hh"
 #include "finally.hh"
 #include "url.hh"
 
 using namespace nix;
-
-
-struct Child
-{
-    Pid pid;
-    AutoCloseFD to, from;
-};
 
 
 static void append(Strings & dst, const Strings & src)
@@ -55,7 +49,7 @@ static Strings extraStoreArgs(std::string & machine)
     return result;
 }
 
-static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Child & child)
+static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, SSHMaster::Connection & child)
 {
     std::string pgmName;
     Pipe to, from;
@@ -85,7 +79,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
         append(argv, extraArgs);
     }
 
-    child.pid = startProcess([&]() {
+    child.sshPid = startProcess([&]() {
         restoreProcessContext();
 
         if (dup2(to.readSide.get(), STDIN_FILENO) == -1)
@@ -105,8 +99,8 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
     to.readSide = -1;
     from.writeSide = -1;
 
-    child.to = to.writeSide.release();
-    child.from = from.readSide.release();
+    child.in = to.writeSide.release();
+    child.out = from.readSide.release();
 }
 
 
@@ -444,13 +438,13 @@ void State::buildRemote(ref<Store> destStore,
         updateStep(ssConnecting);
 
         // FIXME: rewrite to use Store.
-        Child child;
+        SSHMaster::Connection child;
         build_remote::openConnection(machine, tmpDir, logFD.get(), child);
 
         {
             auto activeStepState(activeStep->state_.lock());
             if (activeStepState->cancelled) throw Error("step cancelled");
-            activeStepState->pid = child.pid;
+            activeStepState->pid = child.sshPid;
         }
 
         Finally clearPid([&]() {
@@ -467,8 +461,8 @@ void State::buildRemote(ref<Store> destStore,
 
         Machine::Connection conn {
             {
-                .to = child.to.get(),
-                .from = child.from.get(),
+                .to = child.in.get(),
+                .from = child.out.get(),
                 /* Handshake. */
                 .remoteVersion = 0xdadbeef, // FIXME avoid dummy initialize
             },
@@ -489,7 +483,7 @@ void State::buildRemote(ref<Store> destStore,
                 our_version,
                 machine->sshName);
         } catch (EndOfFile & e) {
-            child.pid.wait();
+            child.sshPid.wait();
             std::string s = chomp(readFile(result.logFile));
             throw Error("cannot connect to ‘%1%’: %2%", machine->sshName, s);
         }
@@ -589,8 +583,8 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         /* Shut down the connection. */
-        child.to = -1;
-        child.pid.wait();
+        child.in = -1;
+        child.sshPid.wait();
 
     } catch (Error & e) {
         /* Disable this machine until a certain period of time has
