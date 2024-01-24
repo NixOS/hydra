@@ -14,17 +14,11 @@
 #include "util.hh"
 #include "serve-protocol.hh"
 #include "serve-protocol-impl.hh"
+#include "ssh.hh"
 #include "finally.hh"
 #include "url.hh"
 
 using namespace nix;
-
-
-struct Child
-{
-    Pid pid;
-    AutoCloseFD to, from;
-};
 
 
 static void append(Strings & dst, const Strings & src)
@@ -54,7 +48,7 @@ static Strings extraStoreArgs(std::string & machine)
     return result;
 }
 
-static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Child & child)
+static void openConnection(::Machine::ptr machine, Path tmpDir, int stderrFD, SSHMaster::Connection & child)
 {
     std::string pgmName;
     Pipe to, from;
@@ -84,7 +78,7 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
         append(argv, extraArgs);
     }
 
-    child.pid = startProcess([&]() {
+    child.sshPid = startProcess([&]() {
         restoreProcessContext();
 
         if (dup2(to.readSide.get(), STDIN_FILENO) == -1)
@@ -104,13 +98,13 @@ static void openConnection(Machine::ptr machine, Path tmpDir, int stderrFD, Chil
     to.readSide = -1;
     from.writeSide = -1;
 
-    child.to = to.writeSide.release();
-    child.from = from.readSide.release();
+    child.in = to.writeSide.release();
+    child.out = from.readSide.release();
 }
 
 
 static void copyClosureTo(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     Store & destStore,
     const StorePathSet & paths,
     SubstituteFlag useSubstitutes = NoSubstitute)
@@ -201,7 +195,7 @@ static std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, cons
  * Therefore, no `ServeProto::Serialize` functions can be used until
  * that field is set.
  */
-static void handshake(Machine::Connection & conn, unsigned int repeats)
+static void handshake(::Machine::Connection & conn, unsigned int repeats)
 {
     conn.to << SERVE_MAGIC_1 << 0x206;
     conn.to.flush();
@@ -222,7 +216,7 @@ static BasicDerivation sendInputs(
     Step & step,
     Store & localStore,
     Store & destStore,
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     unsigned int & overhead,
     counter & nrStepsWaiting,
     counter & nrStepsCopyingTo
@@ -283,7 +277,7 @@ static BasicDerivation sendInputs(
 }
 
 static BuildResult performBuild(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     Store & localStore,
     StorePath drvPath,
     const BasicDerivation & drv,
@@ -352,7 +346,7 @@ static BuildResult performBuild(
 }
 
 static std::map<StorePath, ValidPathInfo> queryPathInfos(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     Store & localStore,
     StorePathSet & outputs,
     size_t & totalNarSize
@@ -390,7 +384,7 @@ static std::map<StorePath, ValidPathInfo> queryPathInfos(
 }
 
 static void copyPathFromRemote(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     NarMemberDatas & narMembers,
     Store & localStore,
     Store & destStore,
@@ -420,7 +414,7 @@ static void copyPathFromRemote(
 }
 
 static void copyPathsFromRemote(
-    Machine::Connection & conn,
+    ::Machine::Connection & conn,
     NarMemberDatas & narMembers,
     Store & localStore,
     Store & destStore,
@@ -497,7 +491,7 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 
 
 void State::buildRemote(ref<Store> destStore,
-    Machine::ptr machine, Step::ptr step,
+    ::Machine::ptr machine, Step::ptr step,
     const BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
     std::function<void(StepState)> updateStep,
@@ -517,13 +511,13 @@ void State::buildRemote(ref<Store> destStore,
         updateStep(ssConnecting);
 
         // FIXME: rewrite to use Store.
-        Child child;
+        SSHMaster::Connection child;
         build_remote::openConnection(machine, tmpDir, logFD.get(), child);
 
         {
             auto activeStepState(activeStep->state_.lock());
             if (activeStepState->cancelled) throw Error("step cancelled");
-            activeStepState->pid = child.pid;
+            activeStepState->pid = child.sshPid;
         }
 
         Finally clearPid([&]() {
@@ -538,9 +532,9 @@ void State::buildRemote(ref<Store> destStore,
                process. Meh. */
         });
 
-        Machine::Connection conn {
-            .from = child.from.get(),
-            .to = child.to.get(),
+        ::Machine::Connection conn {
+            .from = child.out.get(),
+            .to = child.in.get(),
             .machine = machine,
         };
 
@@ -552,7 +546,7 @@ void State::buildRemote(ref<Store> destStore,
         try {
           build_remote::handshake(conn, buildOptions.repeats);
         } catch (EndOfFile & e) {
-            child.pid.wait();
+            child.sshPid.wait();
             std::string s = chomp(readFile(result.logFile));
             throw Error("cannot connect to ‘%1%’: %2%", machine->sshName, s);
         }
@@ -659,8 +653,8 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         /* Shut down the connection. */
-        child.to = -1;
-        child.pid.wait();
+        child.in = -1;
+        child.sshPid.wait();
 
     } catch (Error & e) {
         /* Disable this machine until a certain period of time has
