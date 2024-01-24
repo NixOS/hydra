@@ -192,15 +192,15 @@ bool State::getQueuedBuilds(Connection & conn,
                 if (!res[0].is_null()) propagatedFrom = res[0].as<BuildID>();
 
                 if (!propagatedFrom) {
-                    for (auto & i : ex.step->drv->outputsAndOptPaths(*localStore)) {
-                        if (i.second.second) {
-                            auto res = txn.exec_params
-                                ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1",
-                                 localStore->printStorePath(*i.second.second));
-                            if (!res[0][0].is_null()) {
-                                propagatedFrom = res[0][0].as<BuildID>();
-                                break;
-                            }
+                    for (auto & [outputName, optOutputPath] : destStore->queryPartialDerivationOutputMap(ex.step->drvPath, &*localStore)) {
+                          // ca-derivations not actually supported yet
+                          assert(optOutputPath);
+                          auto res = txn.exec_params
+                              ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1",
+                               localStore->printStorePath(*optOutputPath));
+                          if (!res[0][0].is_null()) {
+                              propagatedFrom = res[0][0].as<BuildID>();
+                              break;
                         }
                     }
                 }
@@ -236,12 +236,10 @@ bool State::getQueuedBuilds(Connection & conn,
         /* If we didn't get a step, it means the step's outputs are
            all valid. So we mark this as a finished, cached build. */
         if (!step) {
-            auto drv = localStore->readDerivation(build->drvPath);
-            BuildOutput res = getBuildOutputCached(conn, destStore, drv);
+            BuildOutput res = getBuildOutputCached(conn, destStore, build->drvPath);
 
-            for (auto & i : drv.outputsAndOptPaths(*localStore))
-                if (i.second.second)
-                    addRoot(*i.second.second);
+            for (auto & i : destStore->queryDerivationOutputMap(build->drvPath, &*localStore))
+                addRoot(i.second);
 
             {
             auto mc = startDbUpdate();
@@ -481,23 +479,36 @@ Step::ptr State::createStep(ref<Store> destStore,
         throw PreviousFailure{step};
 
     /* Are all outputs valid? */
+    auto outputHashes = staticOutputHashes(*localStore, *(step->drv));
     bool valid = true;
-    DerivationOutputs missing;
-    for (auto & i : step->drv->outputs)
-        if (!destStore->isValidPath(*i.second.path(*localStore, step->drv->name, i.first))) {
-            valid = false;
-            missing.insert_or_assign(i.first, i.second);
-        }
+    std::map<DrvOutput, std::optional<StorePath>> missing;
+    for (auto & [outputName, maybeOutputPath] : destStore->queryPartialDerivationOutputMap(drvPath, &*localStore)) {
+        auto outputHash = outputHashes.at(outputName);
+        if (maybeOutputPath && destStore->isValidPath(*maybeOutputPath))
+            continue;
+        valid = false;
+        missing.insert({{outputHash, outputName}, maybeOutputPath});
+    }
 
     /* Try to copy the missing paths from the local store or from
        substitutes. */
     if (!missing.empty()) {
 
         size_t avail = 0;
-        for (auto & i : missing) {
-            auto pathOpt = i.second.path(*localStore, step->drv->name, i.first);
-            assert(pathOpt); // CA derivations not yet supported
+        for (auto & [i, pathOpt] : missing) {
+            // If we don't know the output path from the destination
+            // store, see if the local store can tell us.
+            if (/* localStore != destStore && */ !pathOpt && experimentalFeatureSettings.isEnabled(Xp::CaDerivations))
+                if (auto maybeRealisation = localStore->queryRealisation(i))
+                    pathOpt = maybeRealisation->outPath;
+
+            if (!pathOpt) {
+                // No hope of getting the store object if we don't know
+                // the path.
+                continue;
+            }
             auto & path = *pathOpt;
+
             if (/* localStore != destStore && */ localStore->isValidPath(path))
                 avail++;
             else if (useSubstitutes) {
@@ -510,9 +521,10 @@ Step::ptr State::createStep(ref<Store> destStore,
 
         if (missing.size() == avail) {
             valid = true;
-            for (auto & i : missing) {
-                auto pathOpt = i.second.path(*localStore, step->drv->name, i.first);
-                assert(pathOpt); // CA derivations not yet supported
+            for (auto & [i, pathOpt] : missing) {
+                // If we found everything, then we should know the path
+                // to every missing store object now.
+                assert(pathOpt);
                 auto & path = *pathOpt;
 
                 try {
@@ -539,7 +551,7 @@ Step::ptr State::createStep(ref<Store> destStore,
                     {
                         auto mc = startDbUpdate();
                         pqxx::work txn(conn);
-                        createSubstitutionStep(txn, startTime, stopTime, build, drvPath, "out", path);
+                        createSubstitutionStep(txn, startTime, stopTime, build, drvPath, *(step->drv), "out", path);
                         txn.commit();
                     }
 
@@ -644,17 +656,19 @@ void State::processJobsetSharesChange(Connection & conn)
 }
 
 
-BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> destStore, const nix::Derivation & drv)
+BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> destStore, const nix::StorePath & drvPath)
 {
+    auto derivationOutputs = destStore->queryDerivationOutputMap(drvPath, &*localStore);
+
     {
     pqxx::work txn(conn);
 
-    for (auto & [name, output] : drv.outputsAndOptPaths(*localStore)) {
+    for (auto & [name, output] : derivationOutputs) {
         auto r = txn.exec_params
             ("select id, buildStatus, releaseName, closureSize, size from Builds b "
              "join BuildOutputs o on b.id = o.build "
              "where finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1",
-             localStore->printStorePath(*output.second));
+             localStore->printStorePath(output));
         if (r.empty()) continue;
         BuildID id = r[0][0].as<BuildID>();
 
@@ -708,5 +722,5 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
     }
 
     NarMemberDatas narMembers;
-    return getBuildOutput(destStore, narMembers, drv);
+    return getBuildOutput(destStore, narMembers, derivationOutputs);
 }

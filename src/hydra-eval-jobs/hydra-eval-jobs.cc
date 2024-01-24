@@ -178,7 +178,11 @@ static void worker(
 
             if (auto drv = getDerivation(state, *v, false)) {
 
-                PackageInfo::Outputs outputs = drv->queryOutputs();
+                // CA derivations do not have static output paths, so we
+                // have to defensively not query output paths in case we
+                // encounter one.
+                PackageInfo::Outputs outputs = drv->queryOutputs(
+                    !experimentalFeatureSettings.isEnabled(Xp::CaDerivations));
 
                 if (drv->querySystem() == "unknown")
                     throw EvalError("derivation must have a 'system' attribute");
@@ -239,12 +243,21 @@ static void worker(
                 }
 
                 nlohmann::json out;
-                for (auto & j : outputs)
-                    // FIXME: handle CA/impure builds.
-                    if (j.second)
-                        out[j.first] = state.store->printStorePath(*j.second);
+                for (auto & [outputName, optOutputPath] : outputs) {
+                    if (optOutputPath) {
+                        out[outputName] = state.store->printStorePath(*optOutputPath);
+                    } else {
+                        // See the `queryOutputs` call above; we should
+                        // not encounter missing output paths otherwise.
+                        assert(experimentalFeatureSettings.isEnabled(Xp::CaDerivations));
+                        // TODO it would be better to set `null` than an
+                        // empty string here, to force the consumer of
+                        // this JSON to more explicitly handle this
+                        // case.
+                        out[outputName] = "";
+                    }
+                }
                 job["outputs"] = std::move(out);
-
                 reply["job"] = std::move(job);
             }
 

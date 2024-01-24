@@ -226,7 +226,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         if (result.stepStatus == bsSuccess) {
             updateStep(ssPostProcessing);
-            res = getBuildOutput(destStore, narMembers, *step->drv);
+            res = getBuildOutput(destStore, narMembers, destStore->queryDerivationOutputMap(step->drvPath, &*localStore));
         }
     }
 
@@ -280,9 +280,12 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         assert(stepNr);
 
-        for (auto & i : step->drv->outputsAndOptPaths(*localStore)) {
-            if (i.second.second)
-               addRoot(*i.second.second);
+        for (auto & [outputName, optOutputPath] : destStore->queryPartialDerivationOutputMap(step->drvPath, &*localStore)) {
+            if (!optOutputPath)
+                throw Error(
+                    "Missing output %s for derivation %d which was supposed to have succeeded",
+                    outputName, localStore->printStorePath(step->drvPath));
+            addRoot(*optOutputPath);
         }
 
         /* Register success in the database for all Build objects that

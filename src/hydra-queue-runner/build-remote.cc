@@ -154,17 +154,22 @@ static BasicDerivation sendInputs(
     counter & nrStepsCopyingTo
 )
 {
-    BasicDerivation basicDrv(*step.drv);
+    /* Replace the input derivations by their output paths to send a
+       minimal closure to the builder.
 
-    for (const auto & [drvPath, node] : step.drv->inputDrvs.map) {
-        auto drv2 = localStore.readDerivation(drvPath);
-        for (auto & name : node.value) {
-            if (auto i = get(drv2.outputs, name)) {
-                auto outPath = i->path(localStore, drv2.name, name);
-                basicDrv.inputSrcs.insert(*outPath);
-            }
-        }
-    }
+       `tryResolve` currently does *not* rewrite input addresses, so it
+       is safe to do this in all cases. (It should probably have a mode
+       to do that, however, but we would not use it here.)
+     */
+    BasicDerivation basicDrv = ({
+        auto maybeBasicDrv = step.drv->tryResolve(destStore, &localStore);
+        if (!maybeBasicDrv)
+            throw Error(
+                "the derivation '%s' can’t be resolved. It’s probably "
+                "missing some outputs",
+                localStore.printStorePath(step.drvPath));
+        *maybeBasicDrv;
+    });
 
     /* Ensure that the inputs exist in the destination store. This is
        a no-op for regular stores, but for the binary cache store,
@@ -233,6 +238,30 @@ static BuildResult performBuild(
         // than all rounds.
         result.startTime = startTime;
         result.stopTime = stopTime;
+    }
+
+    // If the protocol was too old to give us `builtOutputs`, initialize
+    // it manually by introspecting the derivation.
+    if (GET_PROTOCOL_MINOR(conn.remoteVersion) < 6)
+    {
+        // If the remote is too old to handle CA derivations, we can’t get this
+        // far anyways
+        assert(drv.type().hasKnownOutputPaths());
+        DerivationOutputsAndOptPaths drvOutputs = drv.outputsAndOptPaths(localStore);
+        // Since this a `BasicDerivation`, `staticOutputHashes` will not
+        // do any real work.
+        auto outputHashes = staticOutputHashes(localStore, drv);
+        for (auto & [outputName, output] : drvOutputs) {
+            auto outputPath = output.second;
+            // We’ve just asserted that the output paths of the derivation
+            // were known
+            assert(outputPath);
+            auto outputHash = outputHashes.at(outputName);
+            auto drvOutput = DrvOutput { outputHash, outputName };
+            result.builtOutputs.insert_or_assign(
+                std::move(outputName),
+                Realisation { drvOutput, *outputPath });
+        }
     }
 
     return result;
@@ -511,6 +540,10 @@ void State::buildRemote(ref<Store> destStore,
             result.logFile = "";
         }
 
+        StorePathSet outputs;
+        for (auto & [_, realisation] : buildResult.builtOutputs)
+            outputs.insert(realisation.outPath);
+
         /* Copy the output paths. */
         if (!machine->isLocalhost() || localStore != std::shared_ptr<Store>(destStore)) {
             updateStep(ssReceivingOutputs);
@@ -518,12 +551,6 @@ void State::buildRemote(ref<Store> destStore,
             MaintainCount<counter> mc(nrStepsCopyingFrom);
 
             auto now1 = std::chrono::steady_clock::now();
-
-            StorePathSet outputs;
-            for (auto & i : step->drv->outputsAndOptPaths(*localStore)) {
-                if (i.second.second)
-                   outputs.insert(*i.second.second);
-            }
 
             size_t totalNarSize = 0;
             auto infos = build_remote::queryPathInfos(conn, *localStore, outputs, totalNarSize);
@@ -541,6 +568,21 @@ void State::buildRemote(ref<Store> destStore,
             auto now2 = std::chrono::steady_clock::now();
 
             result.overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
+        }
+
+        /* Register the outputs of the newly built drv */
+        if (experimentalFeatureSettings.isEnabled(Xp::CaDerivations)) {
+            auto outputHashes = staticOutputHashes(*localStore, *step->drv);
+            for (auto & [outputName, realisation] : buildResult.builtOutputs) {
+                // Register the resolved drv output
+                destStore->registerDrvOutput(realisation);
+
+                // Also register the unresolved one
+                auto unresolvedRealisation = realisation;
+                unresolvedRealisation.signatures.clear();
+                unresolvedRealisation.id.drvHash = outputHashes.at(outputName);
+                destStore->registerDrvOutput(unresolvedRealisation);
+            }
         }
 
         /* Shut down the connection. */
