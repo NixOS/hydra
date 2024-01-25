@@ -146,8 +146,6 @@
             with final.buildPackages; [
               makeWrapper
               autoreconfHook
-              automake
-              libtool
               nukeReferences
               pkg-config
               mdbook
