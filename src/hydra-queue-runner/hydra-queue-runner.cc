@@ -15,7 +15,6 @@
 #include "state.hh"
 #include "hydra-build-result.hh"
 #include "store-api.hh"
-#include "local-store.hh"
 #include "remote-store.hh"
 
 #include "globals.hh"
@@ -227,7 +226,7 @@ void State::monitorMachinesFile()
         parseMachines("localhost " +
             (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem.get())
             + " - " + std::to_string(settings.maxBuildJobs) + " 1 "
-            + concatStringsSep(",", (LocalStoreConfig { {} }).getDefaultSystemFeatures()));
+            + concatStringsSep(",", StoreConfig::getDefaultSystemFeatures()));
         machinesReadyLock.unlock();
         return;
     }
