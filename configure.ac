@@ -53,9 +53,6 @@ PKG_CHECK_MODULES([NIX], [nix-main nix-expr nix-store])
 testPath="$(dirname $(type -p expr))"
 AC_SUBST(testPath)
 
-jobsPath="$(realpath ./t/jobs)"
-AC_SUBST(jobsPath)
-
 CXXFLAGS+=" -include nix/config.h"
 
 AC_CONFIG_FILES([
@@ -71,10 +68,21 @@ AC_CONFIG_FILES([
   src/lib/Makefile
   src/root/Makefile
   src/script/Makefile
-  t/Makefile
-  t/jobs/config.nix
-  t/jobs/declarative/project.json
 ])
+
+# Tests might be filtered out
+AM_CONDITIONAL([CAN_DO_CHECK], [test -f "$srcdir/t/api-test.t"])
+AM_COND_IF(
+  [CAN_DO_CHECK],
+  [
+    jobsPath="$(realpath ./t/jobs)"
+    AC_SUBST(jobsPath)
+    AC_CONFIG_FILES([
+      t/Makefile
+      t/jobs/config.nix
+      t/jobs/declarative/project.json
+    ])
+  ])
 
 AC_CONFIG_COMMANDS([executable-scripts], [])
 
