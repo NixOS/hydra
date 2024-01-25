@@ -5,16 +5,21 @@
   inputs.nix.url = "github:NixOS/nix";
   inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
 
-  outputs = { self, nixpkgs, nix }:
-    let
-      version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 (self.lastModifiedDate or "19700101")}.${self.shortRev or "DIRTY"}";
+  # TODO get rid of this once https://github.com/NixOS/nix/pull/9546 is
+  # mered and we upgrade or Nix, so the main `nixpkgs` input is at least
+  # 23.11 and has `lib.fileset`.
+  inputs.nixpkgs-for-fileset.url = "github:NixOS/nixpkgs/nixos-23.11";
 
+  outputs = { self, nixpkgs, nix, nixpkgs-for-fileset }:
+    let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
 
+      overlayList = [ self.overlays.default nix.overlays.default ];
+
       pkgsBySystem = forEachSystem (system: import nixpkgs {
         inherit system;
-        overlays = [ self.overlays.default nix.overlays.default ];
+        overlays = overlayList;
       });
 
       # NixOS configuration used for VM tests.
@@ -61,200 +66,9 @@
 
         };
 
-        hydra = let
-          inherit (final) lib stdenv;
-          perlDeps = final.buildEnv {
-            name = "hydra-perl-deps";
-            paths = with final.perlPackages; lib.closePropagation
-              [
-                AuthenSASL
-                CatalystActionREST
-                CatalystAuthenticationStoreDBIxClass
-                CatalystAuthenticationStoreLDAP
-                CatalystDevel
-                CatalystPluginAccessLog
-                CatalystPluginAuthorizationRoles
-                CatalystPluginCaptcha
-                CatalystPluginPrometheusTiny
-                CatalystPluginSessionStateCookie
-                CatalystPluginSessionStoreFastMmap
-                CatalystPluginStackTrace
-                CatalystTraitForRequestProxyBase
-                CatalystViewDownload
-                CatalystViewJSON
-                CatalystViewTT
-                CatalystXRoleApplicator
-                CatalystXScriptServerStarman
-                CryptPassphrase
-                CryptPassphraseArgon2
-                CryptRandPasswd
-                DataDump
-                DateTime
-                DBDPg
-                DBDSQLite
-                DigestSHA1
-                EmailMIME
-                EmailSender
-                FileLibMagic
-                FileSlurper
-                FileWhich
-                final.nix.perl-bindings
-                final.git
-                IOCompress
-                IPCRun
-                IPCRun3
-                JSON
-                JSONMaybeXS
-                JSONXS
-                ListSomeUtils
-                LWP
-                LWPProtocolHttps
-                ModulePluggable
-                NetAmazonS3
-                NetPrometheus
-                NetStatsd
-                PadWalker
-                ParallelForkManager
-                PerlCriticCommunity
-                PrometheusTinyShared
-                ReadonlyX
-                SetScalar
-                SQLSplitStatement
-                Starman
-                StringCompareConstantTime
-                SysHostnameLong
-                TermSizeAny
-                TermReadKey
-                Test2Harness
-                TestPostgreSQL
-                TextDiff
-                TextTable
-                UUID4Tiny
-                YAML
-                XMLSimple
-              ];
-          };
-
-        in
-        stdenv.mkDerivation {
-
-          name = "hydra-${version}";
-
-          src = self;
-
-          nativeBuildInputs =
-            with final.buildPackages; [
-              makeWrapper
-              autoreconfHook
-              automake
-              libtool
-              nukeReferences
-              pkg-config
-              mdbook
-            ];
-
-          buildInputs =
-            with final; [
-              unzip
-              libpqxx
-              top-git
-              mercurial
-              darcs
-              subversion
-              breezy
-              openssl
-              bzip2
-              libxslt
-              final.nix
-              perlDeps
-              perl
-              pixz
-              boost
-              postgresql_13
-              (if lib.versionAtLeast lib.version "20.03pre"
-              then nlohmann_json
-              else nlohmann_json.override { multipleHeaders = true; })
-              prometheus-cpp
-            ];
-
-          checkInputs = with final; [
-            cacert
-            foreman
-            glibcLocales
-            libressl.nc
-            openldap
-            python3
-          ];
-
-          hydraPath = with final; lib.makeBinPath (
-            [
-              subversion
-              openssh
-              final.nix
-              coreutils
-              findutils
-              pixz
-              gzip
-              bzip2
-              xz
-              gnutar
-              unzip
-              git
-              top-git
-              mercurial
-              darcs
-              gnused
-              breezy
-            ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ]
-          );
-
-          OPENLDAP_ROOT = final.openldap;
-
-          shellHook = ''
-            pushd $(git rev-parse --show-toplevel) >/dev/null
-
-            PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
-            PERL5LIB=$(pwd)/src/lib:$PERL5LIB
-            export HYDRA_HOME="$(pwd)/src/"
-            mkdir -p .hydra-data
-            export HYDRA_DATA="$(pwd)/.hydra-data"
-            export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
-
-            popd >/dev/null
-          '';
-
-          NIX_LDFLAGS = [ "-lpthread" ];
-
-          enableParallelBuilding = true;
-
-          doCheck = true;
-
-          preCheck = ''
-            patchShebangs .
-            export LOGNAME=''${LOGNAME:-foo}
-            # set $HOME for bzr so it can create its trace file
-            export HOME=$(mktemp -d)
-          '';
-
-          postInstall = ''
-            mkdir -p $out/nix-support
-
-            for i in $out/bin/*; do
-                read -n 4 chars < $i
-                if [[ $chars =~ ELF ]]; then continue; fi
-                wrapProgram $i \
-                    --prefix PERL5LIB ':' $out/libexec/hydra/lib:$PERL5LIB \
-                    --prefix PATH ':' $out/bin:$hydraPath \
-                    --set HYDRA_RELEASE ${version} \
-                    --set HYDRA_HOME $out/libexec/hydra \
-                    --set NIX_RELEASE ${final.nix.name or "unknown"}
-            done
-          '';
-
-          dontStrip = true;
-
-          meta.description = "Build of Hydra on ${final.stdenv.system}";
-          passthru = { inherit perlDeps; inherit (final) nix; };
+        hydra = final.callPackage ./package.nix {
+          inherit (nixpkgs-for-fileset.lib) fileset;
+          rawSrc = self;
         };
       };
 
@@ -262,9 +76,15 @@
 
         build = forEachSystem (system: packages.${system}.hydra);
 
+        buildNoTests = forEachSystem (system:
+          packages.${system}.hydra.overrideAttrs (_: {
+            doCheck = false;
+          })
+        );
+
         manual = forEachSystem (system:
           let pkgs = pkgsBySystem.${system}; in
-          pkgs.runCommand "hydra-manual-${version}" { }
+          pkgs.runCommand "hydra-manual-${pkgs.hydra.version}" { }
             ''
               mkdir -p $out/share
               cp -prvd ${pkgs.hydra}/share/doc $out/share/
@@ -568,50 +388,8 @@
         default = pkgsBySystem.${system}.hydra;
       });
 
-      nixosModules.hydra = {
-        imports = [ ./hydra-module.nix ];
-        nixpkgs.overlays = [ self.overlays.default nix.overlays.default ];
-      };
-
-      nixosModules.hydraTest = { pkgs, ... }: {
-        imports = [ self.nixosModules.hydra ];
-
-        services.hydra-dev.enable = true;
-        services.hydra-dev.hydraURL = "http://hydra.example.org";
-        services.hydra-dev.notificationSender = "admin@hydra.example.org";
-
-        systemd.services.hydra-send-stats.enable = false;
-
-        services.postgresql.enable = true;
-        services.postgresql.package = pkgs.postgresql_11;
-
-        # The following is to work around the following error from hydra-server:
-        #   [error] Caught exception in engine "Cannot determine local time zone"
-        time.timeZone = "UTC";
-
-        nix.extraOptions = ''
-          allowed-uris = https://github.com/
-        '';
-      };
-
-      nixosModules.hydraProxy = {
-        services.httpd = {
-          enable = true;
-          adminAddr = "hydra-admin@example.org";
-          extraConfig = ''
-            <Proxy *>
-              Order deny,allow
-              Allow from all
-            </Proxy>
-
-            ProxyRequests     Off
-            ProxyPreserveHost On
-            ProxyPass         /apache-errors !
-            ErrorDocument 503 /apache-errors/503.html
-            ProxyPass         /       http://127.0.0.1:3000/ retry=5 disablereuse=on
-            ProxyPassReverse  /       http://127.0.0.1:3000/
-          '';
-        };
+      nixosModules = import ./nixos-modules {
+        overlays = overlayList;
       };
 
       nixosConfigurations.container = nixpkgs.lib.nixosSystem {

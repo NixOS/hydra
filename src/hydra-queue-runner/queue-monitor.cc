@@ -462,10 +462,7 @@ Step::ptr State::createStep(ref<Store> destStore,
 
     step->systemType = step->drv->platform;
     {
-        auto i = step->drv->env.find("requiredSystemFeatures");
-        StringSet features;
-        if (i != step->drv->env.end())
-            features = step->requiredSystemFeatures = tokenizeString<std::set<std::string>>(i->second);
+        StringSet features = step->requiredSystemFeatures = step->parsedDrv->getRequiredSystemFeatures();
         if (step->preferLocalBuild)
             features.insert("local");
         if (!features.empty()) {

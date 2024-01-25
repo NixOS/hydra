@@ -224,7 +224,7 @@ void State::monitorMachinesFile()
         parseMachines("localhost " +
             (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem.get())
             + " - " + std::to_string(settings.maxBuildJobs) + " 1 "
-            + concatStringsSep(",", settings.systemFeatures.get()));
+            + concatStringsSep(",", StoreConfig::getDefaultSystemFeatures()));
         machinesReadyLock.unlock();
         return;
     }
