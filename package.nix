@@ -144,9 +144,12 @@ stdenv.mkDerivation (finalAttrs: {
       ./src
       ./doc
       ./hydra-module.nix
-      # TODO only when `doCheck`
-      ./t
+      # These are always needed to appease Automake
+      ./t/Makefile.am
+      ./t/jobs/config.nix.in
+      ./t/jobs/declarative/project.json.in
     ] ++ lib.optionals finalAttrs.doCheck [
+      ./t
       ./.perlcriticrc
       ./.yath.rc
     ]);

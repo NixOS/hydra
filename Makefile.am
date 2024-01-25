@@ -1,4 +1,8 @@
-SUBDIRS = src t doc
+SUBDIRS = src doc
+if CAN_DO_CHECK
+  SUBDIRS += t
+endif
+
 BOOTCLEAN_SUBDIRS = $(SUBDIRS)
 DIST_SUBDIRS      = $(SUBDIRS)
 EXTRA_DIST        = hydra-module.nix
