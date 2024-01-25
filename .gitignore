@@ -38,6 +38,7 @@ t/jobs/declarative/project.json
 hydra-config.h
 hydra-config.h.in
 result
+result-*
 outputs
 config
 stamp-h1

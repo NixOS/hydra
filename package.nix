@@ -143,7 +143,7 @@ stdenv.mkDerivation (finalAttrs: {
       ./Makefile.am
       ./src
       ./doc
-      ./hydra-module.nix
+      ./nixos-modules/hydra.nix
       # These are always needed to appease Automake
       ./t/Makefile.am
       ./t/jobs/config.nix.in
