@@ -143,6 +143,10 @@
         <a class="dropdown-item" href="/github-redirect?after=[% c.req.path %]">Sign in with GitHub</a>
         <div class="dropdown-divider"></div>
       [% END %]
+      [% IF c.config.enable_oidc_login %]
+        <a class="dropdown-item" href="/oidc-redirect?after=[% c.req.path %]">Sign in with OIDC</a>
+        <div class="dropdown-divider"></div>
+      [% END %]
       <a class="dropdown-item" href="#hydra-signin" data-toggle="modal">Sign in with a Hydra account</a>
     [% END %]
   [% END %]
