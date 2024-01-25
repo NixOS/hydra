@@ -244,14 +244,6 @@ struct Machine : nix::Machine
        we are not yet used to, but once we are, we don't need this. */
     std::string sshName;
 
-    /* TODO Get rid once `nix::Machine::systemTypes` is a set not
-       vector. */
-    std::set<std::string> systemTypesSet;
-
-    /* TODO Get rid once `nix::Machine::systemTypes` is a `float` not
-       an `int`. */
-    float speedFactorFloat = 1.0;
-
     struct State {
         typedef std::shared_ptr<State> ptr;
         counter currentJobs{0};
@@ -278,7 +270,7 @@ struct Machine : nix::Machine
     {
         /* Check that this machine is of the type required by the
            step. */
-        if (!systemTypesSet.count(step->drv->platform == "builtin" ? nix::settings.thisSystem : step->drv->platform))
+        if (!systemTypes.count(step->drv->platform == "builtin" ? nix::settings.thisSystem : step->drv->platform))
             return false;
 
         /* Check that the step requires all mandatory features of this
