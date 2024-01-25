@@ -57,8 +57,11 @@
 let
   perlDeps = buildEnv {
     name = "hydra-perl-deps";
-    paths = with perlPackages; lib.closePropagation
-      [
+    paths = lib.closePropagation
+      ([
+        nix.perl-bindings
+        git
+      ] ++ (with perlPackages; [
         AuthenSASL
         CatalystActionREST
         CatalystAuthenticationStoreDBIxClass
@@ -90,10 +93,6 @@ let
         FileLibMagic
         FileSlurper
         FileWhich
-        # Not Perl
-        nix.perl-bindings
-        git
-        # Perl again
         IOCompress
         IPCRun
         IPCRun3
@@ -126,7 +125,7 @@ let
         UUID4Tiny
         YAML
         XMLSimple
-      ];
+      ]));
   };
 
   version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 (rawSrc.lastModifiedDate or "19700101")}.${rawSrc.shortRev or "DIRTY"}";
