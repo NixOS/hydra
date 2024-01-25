@@ -10,7 +10,7 @@
   # 23.11 and has `lib.fileset`.
   inputs.nixpkgs-for-fileset.url = "github:NixOS/nixpkgs/nixos-23.11";
 
-  outputs = { self, nixpkgs, nix }:
+  outputs = { self, nixpkgs, nix, nixpkgs-for-fileset }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
@@ -65,7 +65,8 @@
         };
 
         hydra = final.callPackage ./package.nix {
-          src = self;
+          inherit (nixpkgs-for-fileset.lib) fileset;
+          rawSrc = self;
         };
       };
 

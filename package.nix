@@ -1,7 +1,8 @@
 { stdenv
 , lib
+, fileset
 
-, src
+, rawSrc
 
 , buildEnv
 
@@ -128,13 +129,28 @@ let
       ];
   };
 
-  version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 (src.lastModifiedDate or "19700101")}.${src.shortRev or "DIRTY"}";
+  version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 (rawSrc.lastModifiedDate or "19700101")}.${rawSrc.shortRev or "DIRTY"}";
 in
-stdenv.mkDerivation {
+stdenv.mkDerivation (finalAttrs: {
   pname = "hydra";
   inherit version;
 
-  inherit src;
+  src = fileset.toSource {
+    root = ./.;
+    fileset = fileset.unions ([
+      ./version.txt
+      ./configure.ac
+      ./Makefile.am
+      ./src
+      ./doc
+      ./hydra-module.nix
+      # TODO only when `doCheck`
+      ./t
+    ] ++ lib.optionals finalAttrs.doCheck [
+      ./.perlcriticrc
+      ./.yath.rc
+    ]);
+  };
 
   strictDeps = true;
 
@@ -251,4 +267,4 @@ stdenv.mkDerivation {
 
   meta.description = "Build of Hydra on ${stdenv.system}";
   passthru = { inherit perlDeps nix; };
-}
+})
