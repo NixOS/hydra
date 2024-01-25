@@ -5,6 +5,11 @@
   inputs.nix.url = "github:NixOS/nix/2.19-maintenance";
   inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
 
+  # TODO get rid of this once https://github.com/NixOS/nix/pull/9546 is
+  # mered and we upgrade or Nix, so the main `nixpkgs` input is at least
+  # 23.11 and has `lib.fileset`.
+  inputs.nixpkgs-for-fileset.url = "github:NixOS/nixpkgs/nixos-23.11";
+
   outputs = { self, nixpkgs, nix }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
