@@ -68,6 +68,12 @@
 
         build = forEachSystem (system: packages.${system}.hydra);
 
+        buildNoTests = forEachSystem (system:
+          packages.${system}.hydra.overrideAttrs (_: {
+            doCheck = false;
+          })
+        );
+
         manual = forEachSystem (system:
           let pkgs = pkgsBySystem.${system}; in
           pkgs.runCommand "hydra-manual-${pkgs.hydra.version}" { }

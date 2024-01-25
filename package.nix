@@ -136,33 +136,42 @@ stdenv.mkDerivation {
 
   inherit src;
 
+  strictDeps = true;
+
   nativeBuildInputs = [
     makeWrapper
     autoreconfHook
     nukeReferences
     pkg-config
     mdbook
+    nix
+    perlDeps
+    perl
+    unzip
   ];
 
   buildInputs = [
-    unzip
     libpqxx
-    top-git
-    mercurial
-    darcs
-    subversion
-    breezy
     openssl
-    bzip2
     libxslt
     nix
     perlDeps
     perl
-    pixz
     boost
-    postgresql_13
     nlohmann_json
     prometheus-cpp
+  ];
+
+  nativeCheckInputs = [
+    bzip2
+    darcs
+    top-git
+    mercurial
+    subversion
+    breezy
+    openldap
+    postgresql_13
+    pixz
   ];
 
   checkInputs = [
@@ -170,7 +179,6 @@ stdenv.mkDerivation {
     foreman
     glibcLocales
     libressl.nc
-    openldap
     python3
   ];
 
