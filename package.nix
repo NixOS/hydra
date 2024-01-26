@@ -183,6 +183,7 @@ stdenv.mkDerivation (finalAttrs: {
   nativeCheckInputs = [
     bzip2
     darcs
+    foreman
     top-git
     mercurial
     subversion
@@ -194,7 +195,6 @@ stdenv.mkDerivation (finalAttrs: {
 
   checkInputs = [
     cacert
-    foreman
     glibcLocales
     libressl.nc
     python3
