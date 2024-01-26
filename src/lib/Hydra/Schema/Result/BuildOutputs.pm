@@ -49,7 +49,7 @@ __PACKAGE__->table("buildoutputs");
 =head2 path
 
   data_type: 'text'
-  is_nullable: 0
+  is_nullable: 1
 
 =cut
 
@@ -59,7 +59,7 @@ __PACKAGE__->add_columns(
   "name",
   { data_type => "text", is_nullable => 0 },
   "path",
-  { data_type => "text", is_nullable => 0 },
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -94,8 +94,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:gU+kZ6A0ISKpaXGRGve8mg
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-06-30 12:02:32
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Jsabm3YTcI7YvCuNdKP5Ng
 
 my %hint = (
     columns => [

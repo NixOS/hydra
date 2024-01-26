@@ -247,7 +247,7 @@ create trigger BuildBumped after update on Builds for each row
 create table BuildOutputs (
     build         integer not null,
     name          text not null,
-    path          text not null,
+    path          text,
     primary key   (build, name),
     foreign key   (build) references Builds(id) on delete cascade
 );
@@ -303,7 +303,7 @@ create table BuildStepOutputs (
     build         integer not null,
     stepnr        integer not null,
     name          text not null,
-    path          text not null,
+    path          text,
     primary key   (build, stepnr, name),
     foreign key   (build) references Builds(id) on delete cascade,
     foreign key   (build, stepnr) references BuildSteps(build, stepnr) on delete cascade
