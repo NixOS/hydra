@@ -18,6 +18,8 @@ use Net::Prometheus;
 use Types::Standard qw/StrMatch/;
 
 use constant NARINFO_REGEX => qr{^([a-z0-9]{32})\.narinfo$};
+# e.g.: https://hydra.example.com/realisations/sha256:a62128132508a3a32eef651d6467695944763602f226ac630543e947d9feb140!out.doi
+use constant REALISATIONS_REGEX => qr{^(sha256:[a-z0-9]{64}![a-z]+)\.doi$};
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -350,6 +352,33 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
             # static binary cache http://nixos.org/binary-cache).
             "Priority: 100\n";
         setCacheHeaders($c, 24 * 60 * 60);
+        $c->forward('Hydra::View::Plain');
+    }
+}
+
+
+sub realisations :Path('realisations') :Args(StrMatch[REALISATIONS_REGEX]) {
+    my ($self, $c, $realisation) = @_;
+
+    if (!isLocalStore) {
+        notFound($c, "There is no binary cache here.");
+    }
+
+    else {
+        my ($rawDrvOutput) = $realisation =~ REALISATIONS_REGEX;
+        my $rawRealisation = queryRawRealisation($rawDrvOutput);
+
+        if (!$rawRealisation) {
+            $c->response->status(404);
+            $c->response->content_type('text/plain');
+            $c->stash->{plain}->{data} = "does not exist\n";
+            $c->forward('Hydra::View::Plain');
+            setCacheHeaders($c, 60 * 60);
+            return;
+        }
+
+        $c->response->content_type('text/plain');
+        $c->stash->{plain}->{data} = $rawRealisation;
         $c->forward('Hydra::View::Plain');
     }
 }
