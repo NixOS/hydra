@@ -76,7 +76,8 @@ sub isValidPathNixCLI {
     my $pid = fork();
     if (!$pid) {
         open STDERR, ">", "/dev/null";
-        exec "nix", "path-info", $path, "--store", getStoreUri();
+        open STDOUT, ">", "/dev/null";
+        exec "nix", "path-info", $path, "--store", getStoreUri(), "--option", "experimental-features", "nix-command";
     }
     waitpid $pid, 0;
     return $? == 0;
