@@ -87,7 +87,7 @@ sub build_GET {
     $c->stash->{drvAvailable} = isValidPath $build->drvpath;
 
     if ($build->finished && $build->iscachedbuild) {
-        my $path = ($build->buildoutputs)[0]->path or "";
+        my $path = ($build->buildoutputs)[0]->path or undef;
         my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path);
         if (defined $cachedBuildStep) {
             $c->stash->{cachedBuild} = $cachedBuildStep->build;

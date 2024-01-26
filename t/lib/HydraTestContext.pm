@@ -86,7 +86,7 @@ sub new {
         testdir => abs_path(dirname(__FILE__) . "/.."),
         jobsdir => abs_path(dirname(__FILE__) . "/../jobs"),
         deststoredir => $deststoredir,
-    };
+    }, $class;
 
     if ($opts{'before_init'}) {
         $opts{'before_init'}->($self);
