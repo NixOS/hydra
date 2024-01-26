@@ -336,7 +336,10 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
     for (auto & [name, output] : getDestStore()->queryPartialDerivationOutputMap(step->drvPath, &*localStore))
         txn.exec_params0
             ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-            buildId, stepNr, name, output ? localStore->printStorePath(*output) : "");
+            buildId, stepNr, name,
+            output
+                ? std::optional { localStore->printStorePath(*output)}
+                : std::nullopt);
 
     if (status == bsBusy)
         txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));

@@ -193,14 +193,18 @@ bool State::getQueuedBuilds(Connection & conn,
 
                 if (!propagatedFrom) {
                     for (auto & [outputName, optOutputPath] : destStore->queryPartialDerivationOutputMap(ex.step->drvPath, &*localStore)) {
-                          // ca-derivations not actually supported yet
-                          assert(optOutputPath);
-                          auto res = txn.exec_params
-                              ("select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where path = $1 and startTime != 0 and stopTime != 0 and status = 1",
-                               localStore->printStorePath(*optOutputPath));
-                          if (!res[0][0].is_null()) {
-                              propagatedFrom = res[0][0].as<BuildID>();
-                              break;
+                        constexpr std::string_view common = "select max(s.build) from BuildSteps s join BuildStepOutputs o on s.build = o.build where startTime != 0 and stopTime != 0 and status = 1";
+                        auto res = optOutputPath
+                            ? txn.exec_params(
+                                std::string { common } + " and path = $1",
+                                localStore->printStorePath(*optOutputPath))
+                            : txn.exec_params(
+                                std::string { common } + " and drvPath = $1 and name = $2",
+                                localStore->printStorePath(ex.step->drvPath),
+                                outputName);
+                        if (!res[0][0].is_null()) {
+                            propagatedFrom = res[0][0].as<BuildID>();
+                            break;
                         }
                     }
                 }

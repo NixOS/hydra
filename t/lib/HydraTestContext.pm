@@ -39,6 +39,8 @@ use Hydra::Helper::Exec;
 sub new {
     my ($class, %opts) = @_;
 
+    my $deststoredir;
+
     # Cleanup will be managed by yath. By the default it will be cleaned
     # up, but can be kept to aid in debugging test failures.
     my $dir = File::Temp->newdir(CLEANUP => 0);
@@ -55,6 +57,7 @@ sub new {
     my $hydra_config = $opts{'hydra_config'} || "";
     $hydra_config = "queue_runner_metrics_address = 127.0.0.1:0\n" . $hydra_config;
     if ($opts{'use_external_destination_store'} // 1) {
+        $deststoredir = "$dir/nix/dest-store";
         $hydra_config = "store_uri = file://$dir/nix/dest-store\n" . $hydra_config;
     }
 
@@ -81,7 +84,8 @@ sub new {
         nix_state_dir => $nix_state_dir,
         nix_log_dir => $nix_log_dir,
         testdir => abs_path(dirname(__FILE__) . "/.."),
-        jobsdir => abs_path(dirname(__FILE__) . "/../jobs")
+        jobsdir => abs_path(dirname(__FILE__) . "/../jobs"),
+        deststoredir => $deststoredir,
     }, $class;
 
     if ($opts{'before_init'}) {
