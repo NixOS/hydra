@@ -22,6 +22,7 @@
 #include "sync.hh"
 #include "nar-extractor.hh"
 #include "serve-protocol.hh"
+#include "serve-protocol-impl.hh"
 #include "machines.hh"
 
 
@@ -243,14 +244,6 @@ struct Machine : nix::Machine
        we are not yet used to, but once we are, we don't need this. */
     std::string sshName;
 
-    /* TODO Get rid once `nix::Machine::systemTypes` is a set not
-       vector. */
-    std::set<std::string> systemTypesSet;
-
-    /* TODO Get rid once `nix::Machine::systemTypes` is a `float` not
-       an `int`. */
-    float speedFactorFloat = 1.0;
-
     struct State {
         typedef std::shared_ptr<State> ptr;
         counter currentJobs{0};
@@ -277,7 +270,7 @@ struct Machine : nix::Machine
     {
         /* Check that this machine is of the type required by the
            step. */
-        if (!systemTypesSet.count(step->drv->platform == "builtin" ? nix::settings.thisSystem : step->drv->platform))
+        if (!systemTypes.count(step->drv->platform == "builtin" ? nix::settings.thisSystem : step->drv->platform))
             return false;
 
         /* Check that the step requires all mandatory features of this
@@ -307,29 +300,9 @@ struct Machine : nix::Machine
     }
 
     // A connection to a machine
-    struct Connection {
-        nix::FdSource from;
-        nix::FdSink to;
-        nix::ServeProto::Version remoteVersion;
-
+    struct Connection : nix::ServeProto::BasicClientConnection {
         // Backpointer to the machine
         ptr machine;
-
-        operator nix::ServeProto::ReadConn ()
-        {
-            return {
-                .from = from,
-                .version = remoteVersion,
-            };
-        }
-
-        operator nix::ServeProto::WriteConn ()
-        {
-            return {
-                .to = to,
-                .version = remoteVersion,
-            };
-        }
     };
 };
 
@@ -464,7 +437,7 @@ private:
 
     /* How often the build steps of a jobset should be repeated in
        order to detect non-determinism. */
-    std::map<std::pair<std::string, std::string>, unsigned int> jobsetRepeats;
+    std::map<std::pair<std::string, std::string>, size_t> jobsetRepeats;
 
     bool uploadLogsToBinaryCache;
 
@@ -492,12 +465,6 @@ private:
 
 public:
     State(std::optional<std::string> metricsAddrOpt);
-
-    struct BuildOptions {
-        unsigned int maxSilentTime, buildTimeout, repeats;
-        size_t maxLogSize;
-        bool enforceDeterminism;
-    };
 
 private:
 
@@ -583,7 +550,7 @@ private:
 
     void buildRemote(nix::ref<nix::Store> destStore,
         Machine::ptr machine, Step::ptr step,
-        const BuildOptions & buildOptions,
+        const nix::ServeProto::BuildOptions & buildOptions,
         RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
         std::function<void(StepState)> updateStep,
         NarMemberDatas & narMembers);

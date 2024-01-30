@@ -1,8 +1,8 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.05";
-  inputs.nix.url = "github:NixOS/nix/2.19-maintenance";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.05-small";
+  inputs.nix.url = "github:NixOS/nix/2.20-maintenance";
   inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
 
   # TODO get rid of this once https://github.com/NixOS/nix/pull/9546 is
