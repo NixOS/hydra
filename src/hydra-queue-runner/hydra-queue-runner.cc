@@ -155,16 +155,16 @@ void State::parseMachines(const std::string & contents)
         auto machine = std::make_shared<::Machine>(nix::Machine {
             // `storeUri`, not yet used
             "",
-            // `systemTypes`, not yet used
-            {},
+            // `systemTypes`
+            tokenizeString<StringSet>(tokens[1], ","),
             // `sshKey`
             tokens[2] == "-" ? "" : tokens[2],
             // `maxJobs`
             tokens[3] != ""
                 ? string2Int<MaxJobs>(tokens[3]).value()
                 : 1,
-            // `speedFactor`, not yet used
-            1,
+            // `speedFactor`
+            atof(tokens[4].c_str()),
             // `supportedFeatures`
             std::move(supportedFeatures),
             // `mandatoryFeatures`
@@ -176,8 +176,6 @@ void State::parseMachines(const std::string & contents)
         });
 
         machine->sshName = tokens[0];
-        machine->systemTypesSet = tokenizeString<StringSet>(tokens[1], ",");
-        machine->speedFactorFloat = atof(tokens[4].c_str());
 
         /* Re-use the State object of the previous machine with the
            same name. */
@@ -641,7 +639,7 @@ void State::dumpStatus(Connection & conn)
 
                 json machine = {
                     {"enabled",  m->enabled},
-                    {"systemTypes", m->systemTypesSet},
+                    {"systemTypes", m->systemTypes},
                     {"supportedFeatures", m->supportedFeatures},
                     {"mandatoryFeatures", m->mandatoryFeatures},
                     {"nrStepsDone", s->nrStepsDone.load()},
