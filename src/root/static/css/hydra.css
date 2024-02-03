@@ -186,7 +186,7 @@ a.squiggle:hover {
     html {
         background-color: #1f1f1f;
     }
-    body, div.popover {
+    body, div.popover, div.popover-body {
         background-color: #1f1f1f;
         color: #fafafa !important;
     }
