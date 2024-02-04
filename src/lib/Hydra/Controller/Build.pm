@@ -79,9 +79,7 @@ sub build_GET {
     # XXX: If the derivation is content-addressed then this will always return
     # false because `$_->path` will be empty
     $c->stash->{available} =
-        $c->stash->{isLocalStore}
-        ? all { $_->path && $BINARY_CACHE_STORE->isValidPath($_->path) } $build->buildoutputs->all
-        : 1;
+        all { $_->path && $BINARY_CACHE_STORE->isValidPath($_->path) } $build->buildoutputs->all;
     $c->stash->{drvAvailable} = $MACHINE_LOCAL_STORE->isValidPath($build->drvpath);
 
     if ($build->finished && $build->iscachedbuild) {
