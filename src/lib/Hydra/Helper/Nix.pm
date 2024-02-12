@@ -1,5 +1,7 @@
 package Hydra::Helper::Nix;
 
+use feature 'state';
+
 use strict;
 use warnings;
 use Exporter;
@@ -40,10 +42,18 @@ our @EXPORT = qw(
     registerRoot
     restartBuilds
     run
-    $MACHINE_LOCAL_STORE
+    machineLocalStore
+    binaryCacheStore
     );
 
-our $MACHINE_LOCAL_STORE = Nix::Store->new();
+sub machineLocalStore {
+    return Nix::Store->new();
+}
+sub binaryCacheStore {
+    state $binaryCache; # Stores with a custom URL aren't cached by the perl bindings.
+    $binaryCache = Nix::Store->new(getStoreUri()) if not $binaryCache;
+    return $binaryCache;
+}
 
 
 sub getHydraHome {
@@ -497,7 +507,7 @@ sub restartBuilds {
     $builds = $builds->search({ finished => 1 });
 
     foreach my $build ($builds->search({}, { columns => ["drvpath"] })) {
-        next if !$MACHINE_LOCAL_STORE->isValidPath($build->drvpath);
+        next if !machineLocalStore()->isValidPath($build->drvpath);
         registerRoot $build->drvpath;
     }
 

@@ -67,9 +67,9 @@ sub fetchInput {
     (my $cachedInput) = $self->{db}->resultset('CachedHgInputs')->search(
         {uri => $uri, branch => $branch, revision => $revision});
 
-    $MACHINE_LOCAL_STORE->addTempRoot($cachedInput->storepath) if defined $cachedInput;
+    machineLocalStore()->addTempRoot($cachedInput->storepath) if defined $cachedInput;
 
-    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && machineLocalStore()->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
     } else {
@@ -84,7 +84,7 @@ sub fetchInput {
         ($sha256, $storePath) = split ' ', $stdout;
 
         # FIXME: time window between nix-prefetch-hg and addTempRoot.
-        $MACHINE_LOCAL_STORE->addTempRoot($storePath);
+        machineLocalStore()->addTempRoot($storePath);
 
         $self->{db}->txn_do(sub {
             $self->{db}->resultset('CachedHgInputs')->update_or_create(
