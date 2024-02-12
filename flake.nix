@@ -180,13 +180,9 @@
                 root=d7f16a3412e01a43a414535b16007c6931d3a9c7
                 </gitea_authorization>
               '';
+              nixpkgs.config.permittedInsecurePackages = [ "gitea-1.19.4" ];
               nix = {
-                distributedBuilds = true;
-                buildMachines = [{
-                  hostName = "localhost";
-                  systems = [ system ];
-                }];
-                binaryCaches = [ ];
+                settings.substituters = [ ];
               };
               services.gitea = {
                 enable = true;
@@ -202,7 +198,7 @@
             testScript =
               let
                 scripts.mktoken = pkgs.writeText "token.sql" ''
-                  INSERT INTO access_token (id, uid, name, created_unix, updated_unix, token_hash, token_salt, token_last_eight) VALUES (1, 1, 'hydra', 1617107360, 1617107360, 'a930f319ca362d7b49a4040ac0af74521c3a3c3303a86f327b01994430672d33b6ec53e4ea774253208686c712495e12a486', 'XRjWE9YW0g', '31d3a9c7');
+                  INSERT INTO access_token (id, uid, name, created_unix, updated_unix, token_hash, token_salt, token_last_eight, scope) VALUES (1, 1, 'hydra', 1617107360, 1617107360, 'a930f319ca362d7b49a4040ac0af74521c3a3c3303a86f327b01994430672d33b6ec53e4ea774253208686c712495e12a486', 'XRjWE9YW0g', '31d3a9c7', 'all');
                 '';
 
                 scripts.git-setup = pkgs.writeShellScript "setup.sh" ''
@@ -357,9 +353,10 @@
 
                 response = json.loads(data)
 
-                assert len(response) == 2, "Expected exactly two status updates for latest commit!"
-                assert response[0]['status'] == "success", "Expected latest status to be success!"
-                assert response[1]['status'] == "pending", "Expected first status to be pending!"
+                assert len(response) == 3, "Expected exactly three status updates for latest commit (queued, started, finished)!"
+                assert response[0]['status'] == "success", "Expected finished status to be success!"
+                assert response[1]['status'] == "pending", "Expected started status to be pending!"
+                assert response[2]['status'] == "pending", "Expected queued status to be pending!"
 
                 machine.shutdown()
               '';
