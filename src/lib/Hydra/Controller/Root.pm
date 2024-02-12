@@ -395,7 +395,7 @@ sub narinfo :Path :Args(StrMatch[NARINFO_REGEX]) {
         my ($hash) = $narinfo =~ NARINFO_REGEX;
 
         die("Hash length was not 32") if length($hash) != 32;
-        my $path = $MACHINE_LOCAL_STORE->queryPathFromHashPart($hash);
+        my $path = $BINARY_CACHE_STORE->queryPathFromHashPart($hash);
 
         if (!$path) {
             $c->response->status(404);

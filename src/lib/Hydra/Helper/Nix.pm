@@ -41,9 +41,11 @@ our @EXPORT = qw(
     restartBuilds
     run
     $MACHINE_LOCAL_STORE
+    $BINARY_CACHE_STORE
     );
 
 our $MACHINE_LOCAL_STORE = Nix::Store->new();
+our $BINARY_CACHE_STORE = Nix::Store->new(getStoreUri());
 
 
 sub getHydraHome {
