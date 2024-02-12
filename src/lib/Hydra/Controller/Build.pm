@@ -405,7 +405,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 
 
 sub getDependencyGraph {
-    my ($self, $c, $runtime, $done, $path) = @_;
+    my ($self, $store, $c, $runtime, $done, $path) = @_;
     my $node = $$done{$path};
 
     if (!defined $node) {
@@ -421,7 +421,7 @@ sub getDependencyGraph {
             };
         $$done{$path} = $node;
         my @refs;
-        foreach my $ref (binaryCacheStore()->queryReferences($path)) {
+        foreach my $ref ($store->queryReferences($path)) {
             next if $ref eq $path;
             next unless $runtime || $ref =~ /\.drv$/;
             getDependencyGraph($self, $c, $runtime, $done, $ref);
@@ -429,7 +429,7 @@ sub getDependencyGraph {
         }
         # Show in reverse topological order to flatten the graph.
         # Should probably do a proper BFS.
-        my @sorted = reverse binaryCacheStore()->topoSortPaths(@refs);
+        my @sorted = reverse $store->topoSortPaths(@refs);
         $node->{refs} = [map { $$done{$_} } @sorted];
     }
 
@@ -444,7 +444,7 @@ sub build_deps : Chained('buildChain') PathPart('build-deps') {
 
     error($c, "Derivation no longer available.") unless machineLocalStore()->isValidPath($drvPath);
 
-    $c->stash->{buildTimeGraph} = getDependencyGraph($self, $c, 0, {}, $drvPath);
+    $c->stash->{buildTimeGraph} = getDependencyGraph($self, binaryCacheStore(), $c, 0, {}, $drvPath);
 
     $c->stash->{template} = 'build-deps.tt';
 }
