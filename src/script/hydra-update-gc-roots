@@ -46,7 +46,7 @@ sub keepBuild {
         $build->finished && ($build->buildstatus == 0 || $build->buildstatus == 6))
     {
         foreach my $path (split / /, $build->get_column('outpaths')) {
-            if ($MACHINE_LOCAL_STORE->isValidPath($path)) {
+            if (machineLocalStore()->isValidPath($path)) {
                 addRoot $path;
             } else {
                 print STDERR "    warning: output ", $path, " has disappeared\n" if $build->finished;
@@ -54,7 +54,7 @@ sub keepBuild {
         }
     }
     if (!$build->finished || ($keepFailedDrvs && $build->buildstatus != 0)) {
-        if ($MACHINE_LOCAL_STORE->isValidPath($build->drvpath)) {
+        if (machineLocalStore()->isValidPath($build->drvpath)) {
             addRoot $build->drvpath;
         } else {
             print STDERR "    warning: derivation ", $build->drvpath, " has disappeared\n";

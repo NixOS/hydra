@@ -29,7 +29,7 @@ sub getChannelData {
         my $outputs = {};
         foreach my $output (@outputs) {
             my $outPath = $output->get_column("outpath");
-            next if $checkValidity && !$BINARY_CACHE_STORE->isValidPath($outPath);
+            next if $checkValidity && !binaryCacheStore()->isValidPath($outPath);
             $outputs->{$output->get_column("outname")} = $outPath;
             push @storePaths, $outPath;
             # Put the system type in the manifest (for top-level

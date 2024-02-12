@@ -16,7 +16,7 @@ sub process {
 
     $c->response->content_type('text/x-nix-narinfo'); # !!! check MIME type
 
-    my ($deriver, $narHash, $time, $narSize, $refs) = $MACHINE_LOCAL_STORE->queryPathInfo($storePath, 1);
+    my ($deriver, $narHash, $time, $narSize, $refs) = machineLocalStore()->queryPathInfo($storePath, 1);
 
     my $info;
     $info .= "StorePath: $storePath\n";
@@ -27,8 +27,8 @@ sub process {
     $info .= "References: " . join(" ", map { basename $_ } @{$refs}) . "\n";
     if (defined $deriver) {
         $info .= "Deriver: " . basename $deriver . "\n";
-        if ($MACHINE_LOCAL_STORE->isValidPath($deriver)) {
-            my $drv = $MACHINE_LOCAL_STORE->derivationFromPath($deriver);
+        if (machineLocalStore()->isValidPath($deriver)) {
+            my $drv = machineLocalStore()->derivationFromPath($deriver);
             $info .= "System: $drv->{platform}\n";
         }
     }

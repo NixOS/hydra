@@ -79,8 +79,8 @@ sub build_GET {
     # XXX: If the derivation is content-addressed then this will always return
     # false because `$_->path` will be empty
     $c->stash->{available} =
-        all { $_->path && $BINARY_CACHE_STORE->isValidPath($_->path) } $build->buildoutputs->all;
-    $c->stash->{drvAvailable} = $MACHINE_LOCAL_STORE->isValidPath($build->drvpath);
+        all { $_->path && binaryCacheStore()->isValidPath($_->path) } $build->buildoutputs->all;
+    $c->stash->{drvAvailable} = machineLocalStore()->isValidPath($build->drvpath);
 
     if ($build->finished && $build->iscachedbuild) {
         my $path = ($build->buildoutputs)[0]->path or undef;
@@ -304,7 +304,7 @@ sub output : Chained('buildChain') PathPart Args(1) {
     error($c, "This build is not finished yet.") unless $build->finished;
     my $output = $build->buildoutputs->find({name => $outputName});
     notFound($c, "This build has no output named ‘$outputName’") unless defined $output;
-    gone($c, "Output is no longer available.") unless $BINARY_CACHE_STORE->isValidPath($output->path);
+    gone($c, "Output is no longer available.") unless binaryCacheStore()->isValidPath($output->path);
 
     $c->response->header('Content-Disposition', "attachment; filename=\"build-${\$build->id}-${\$outputName}.nar.bz2\"");
     $c->stash->{current_view} = 'NixNAR';
@@ -421,7 +421,7 @@ sub getDependencyGraph {
             };
         $$done{$path} = $node;
         my @refs;
-        foreach my $ref ($BINARY_CACHE_STORE->queryReferences($path)) {
+        foreach my $ref (binaryCacheStore()->queryReferences($path)) {
             next if $ref eq $path;
             next unless $runtime || $ref =~ /\.drv$/;
             getDependencyGraph($self, $c, $runtime, $done, $ref);
@@ -429,7 +429,7 @@ sub getDependencyGraph {
         }
         # Show in reverse topological order to flatten the graph.
         # Should probably do a proper BFS.
-        my @sorted = reverse $BINARY_CACHE_STORE->topoSortPaths(@refs);
+        my @sorted = reverse binaryCacheStore()->topoSortPaths(@refs);
         $node->{refs} = [map { $$done{$_} } @sorted];
     }
 
@@ -442,7 +442,7 @@ sub build_deps : Chained('buildChain') PathPart('build-deps') {
     my $build = $c->stash->{build};
     my $drvPath = $build->drvpath;
 
-    error($c, "Derivation no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($drvPath);
+    error($c, "Derivation no longer available.") unless machineLocalStore()->isValidPath($drvPath);
 
     $c->stash->{buildTimeGraph} = getDependencyGraph($self, $c, 0, {}, $drvPath);
 
@@ -457,7 +457,7 @@ sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
 
     requireLocalStore($c);
 
-    error($c, "Build outputs no longer available.") unless all { $BINARY_CACHE_STORE->isValidPath($_) } @outPaths;
+    error($c, "Build outputs no longer available.") unless all { binaryCacheStore()->isValidPath($_) } @outPaths;
 
     my $done = {};
     $c->stash->{runtimeGraph} = [ map { getDependencyGraph($self, $c, 1, $done, $_) } @outPaths ];
@@ -477,7 +477,7 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
     if (isLocalStore) {
         foreach my $out ($build->buildoutputs) {
             notFound($c, "Path " . $out->path . " is no longer available.")
-                unless $BINARY_CACHE_STORE->isValidPath($out->path);
+                unless binaryCacheStore()->isValidPath($out->path);
         }
     }
 
