@@ -38,7 +38,7 @@ class JobsetId {
     friend bool operator!= (const JobsetId & lhs, const JobsetName & rhs);
 
     std::string display() const {
-        return str(format("%1%:%2% (jobset#%3%)") % project % jobset % id);
+        return boost::str(boost::format("%1%:%2% (jobset#%3%)") % project % jobset % id);
     }
 };
 bool operator==(const JobsetId & lhs, const JobsetId & rhs)

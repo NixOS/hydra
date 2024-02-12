@@ -294,7 +294,7 @@ bool State::getQueuedBuilds(Connection & conn,
         try {
             createBuild(build);
         } catch (Error & e) {
-            e.addTrace({}, hintfmt("while loading build %d: ", build->id));
+            e.addTrace({}, HintFmt("while loading build %d: ", build->id));
             throw;
         }
 
