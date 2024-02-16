@@ -119,8 +119,7 @@
 
   [% IF jobset.errormsg || jobset.fetcherrormsg %]
     <div id="tabs-errors" class="tab-pane">
-      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(jobset.errortime || jobset.lastcheckedtime) %].</p>
-      <div class="card bg-light"><div class="card-body"><pre>[% HTML.escape(jobset.fetcherrormsg || jobset.errormsg) %]</pre></div></div>
+      <iframe src="[% c.uri_for('/jobset' project.name jobset.name "errors") %]" loading="lazy" frameBorder="0" width="100%"></iframe>
     </div>
   [% END %]
 

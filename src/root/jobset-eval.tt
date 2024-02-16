@@ -108,13 +108,6 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 
 <div class="tab-content">
 
-  [% IF eval.evaluationerror.errormsg %]
-    <div id="tabs-errors" class="tab-pane">
-      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.evaluationerror.errortime || eval.timestamp) %].</p>
-      <div class="card bg-light"><div class="card-body"><pre>[% HTML.escape(eval.evaluationerror.errormsg) %]</pre></div></div>
-    </div>
-  [% END %]
-
   <div id="tabs-aborted" class="tab-pane">
     [% INCLUDE renderSome builds=aborted tabname="#tabs-aborted" %]
   </div>
@@ -174,8 +167,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 
   [% IF eval.evaluationerror.errormsg %]
     <div id="tabs-errors" class="tab-pane">
-      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.evaluationerror.errortime || eval.timestamp) %].</p>
-      <div class="card bg-light"><div class="card-body"><pre>[% HTML.escape(eval.evaluationerror.errormsg) %]</pre></div></div>
+      <iframe src="[% c.uri_for(c.controller('JobsetEval').action_for('errors'), [eval.id], params) %]" loading="lazy" frameBorder="0" width="100%"></iframe>
     </div>
   [% END %]
 </div>

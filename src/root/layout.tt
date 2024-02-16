@@ -10,31 +10,7 @@
 
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-
-    <script type="text/javascript" src="[% c.uri_for("/static/js/jquery/jquery-3.4.1.min.js") %]"></script>
-    <script type="text/javascript" src="[% c.uri_for("/static/js/jquery/jquery-ui-1.10.4.min.js") %]"></script>
-    <script type="text/javascript" src="[% c.uri_for("/static/js/moment/moment-2.24.0.min.js") %]"></script>
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <link href="[% c.uri_for("/static/fontawesome/css/all.css") %]" rel="stylesheet" />
-    <script type="text/javascript" src="[% c.uri_for("/static/js/popper.min.js") %]"></script>
-    <script type="text/javascript" src="[% c.uri_for("/static/bootstrap/js/bootstrap.min.js") %]"></script>
-    <link href="[% c.uri_for("/static/bootstrap/css/bootstrap.min.css") %]" rel="stylesheet" />
-
-    <!-- hydra.css may need to be moved to before boostrap to make the @media rule work. -->
-    <link rel="stylesheet" href="[% c.uri_for("/static/css/hydra.css") %]" type="text/css" />
-    <link rel="stylesheet" href="[% c.uri_for("/static/css/rotated-th.css") %]" type="text/css" />
-
-    <style>
-      .popover { max-width: 40%; }
-    </style>
-
-    <script type="text/javascript" src="[% c.uri_for("/static/js/bootbox.min.js") %]"></script>
-
-    <link rel="stylesheet" href="[% c.uri_for("/static/css/tree.css") %]" type="text/css" />
-
-    <script type="text/javascript" src="[% c.uri_for("/static/js/common.js") %]"></script>
+    [% INCLUDE style.tt %]
 
     [% IF c.config.enable_google_login %]
       <meta name="google-signin-client_id" content="[% c.config.google_client_id %]">
