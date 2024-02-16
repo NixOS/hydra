@@ -1,0 +1,26 @@
+[% PROCESS common.tt %]
+<!DOCTYPE html>
+
+<html lang="en">
+
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    [% INCLUDE style.tt %]
+  </head>
+
+  <body>
+
+    <div class="tab-content tab-pane">
+        <div id="tabs-errors" class="">
+          [% IF jobset %]
+              <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(jobset.errortime || jobset.lastcheckedtime) %].</p>
+              <div class="card bg-light"><div class="card-body"><pre>[% HTML.escape(jobset.fetcherrormsg || jobset.errormsg) %]</pre></div></div>
+          [% ELSIF eval %]
+              <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.evaluationerror.errortime || eval.timestamp) %].</p>
+              <div class="card bg-light"><div class="card-body"><pre>[% HTML.escape(eval.evaluationerror.errormsg) %]</pre></div></div>
+          [% END %]
+        </div>
+    </div>
+  </body>
+</html>
