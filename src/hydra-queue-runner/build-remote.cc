@@ -54,9 +54,20 @@ static std::unique_ptr<SSHMaster::Connection> openConnection(
         command.splice(command.end(), extraStoreArgs(machine->sshName));
     }
 
-    return master.startCommand(std::move(command), {
+    auto ret = master.startCommand(std::move(command), {
         "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
     });
+
+    // XXX: determine the actual max value we can use from /proc.
+
+    // FIXME: Should this be upstreamed into `startCommand` in Nix?
+
+    int pipesize = 1024 * 1024;
+
+    fcntl(ret->in.get(), F_SETPIPE_SZ, &pipesize);
+    fcntl(ret->out.get(), F_SETPIPE_SZ, &pipesize);
+
+    return ret;
 }
 
 
