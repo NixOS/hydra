@@ -100,6 +100,11 @@ static void openConnection(::Machine::ptr machine, Path tmpDir, int stderrFD, SS
 
     child.in = to.writeSide.release();
     child.out = from.readSide.release();
+
+    // XXX: determine the actual max value we can use from /proc.
+    int pipesize = 1024 * 1024;
+    fcntl(child.in.get(), F_SETPIPE_SZ, &pipesize);
+    fcntl(child.out.get(), F_SETPIPE_SZ, &pipesize);
 }
 
 
