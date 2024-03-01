@@ -15,6 +15,7 @@ use Nix::Config;
 use List::SomeUtils qw(all);
 use Encode;
 use JSON::PP;
+use WWW::Form::UrlEncoded::PP qw();
 
 use feature 'state';
 
@@ -141,7 +142,7 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
     $c->stash->{step} = $step;
 
     my $drvPath = $step->drvpath;
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
     showLog($c, $mode, $log_uri);
 }
 
@@ -150,7 +151,7 @@ sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
 
     my $drvPath = $c->stash->{build}->drvpath;
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
     showLog($c, $mode, $log_uri);
 }
 
