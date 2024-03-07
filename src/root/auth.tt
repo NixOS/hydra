@@ -33,7 +33,7 @@
   <div id="hydra-signin" class="modal hide fade" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
-        <form>
+        <form id="signin-form">
           <div class="modal-body">
             <div class="form-group">
               <label for="username" class="col-form-label">User name</label>
@@ -45,7 +45,7 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button id="do-signin" type="button" class="btn btn-primary">Sign in</button>
+            <button type="submit" class="btn btn-primary">Sign in</button>
             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
           </div>
         </form>
@@ -57,10 +57,11 @@
 
     function finishSignOut() { }
 
-    $("#do-signin").click(function() {
+    $("#signin-form").submit(function(e) {
+      e.preventDefault();
       requestJSON({
         url: "[% c.uri_for('/login') %]",
-        data: $(this).parents("form").serialize(),
+        data: $(this).serialize(),
         type: 'POST',
         success: function(data) {
           window.location.reload();
