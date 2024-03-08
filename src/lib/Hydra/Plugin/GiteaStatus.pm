@@ -88,10 +88,6 @@ sub buildQueued {
     common(@_, [], 0);
 }
 
-sub buildStarted {
-    common(@_, [], 1);
-}
-
 sub buildFinished {
     common(@_, 2);
 }

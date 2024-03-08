@@ -353,10 +353,9 @@
 
                 response = json.loads(data)
 
-                assert len(response) == 3, "Expected exactly three status updates for latest commit (queued, started, finished)!"
+                assert len(response) == 2, "Expected exactly three status updates for latest commit (queued, finished)!"
                 assert response[0]['status'] == "success", "Expected finished status to be success!"
-                assert response[1]['status'] == "pending", "Expected started status to be pending!"
-                assert response[2]['status'] == "pending", "Expected queued status to be pending!"
+                assert response[1]['status'] == "pending", "Expected queued status to be pending!"
 
                 machine.shutdown()
               '';
