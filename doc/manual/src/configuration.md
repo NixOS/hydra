@@ -98,6 +98,28 @@ See [`nix help
 stores`](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html)
 for a description of the store URI format.
 
+Queue Runner configuration
+--------------------------
+
+These configuration options are understood by the Hydra Queue Runner.
+
+- `max_unsupported_time` (default `0`) How long to keep unsupported builds in the queue before failing them
+- `max_db_connections` (default `128`) Size of the database connection pool
+- `max_output_size` (default `2<<30`) Maximum size of a build result output before failing the build (only works for remote builds)
+- `max_log_size` (default `64<<20`) Maximum log size for remote builds
+- `store_uri` (default empty) If set to a non-empty string, the store is used for the Hydra
+- `upload_logs_to_binary_cache` (default `false`) Whether to upload logs of finished builds to the store
+- `gc_roots_dir` (default `/nix/var/nix/gcroots/per-user/hydra/hydra-roots`) Directory for Hydra gcroots
+- `use-substitutes` (default `false`) Whether or not to try to substitute builds results from the configured substituters before building
+- `use_substitutes_on_remote_builders` (default `true`) Whether or not to try to substitute builds inputs from the configured substituters on the build machines when copying build inputs
+- `xxx-jobset-repeats` (default empty) Configuration of automated rebuilds for determinism checks. Takes colon-separated values of `project:jobset:repeat` (for example `nixos:trunk-combined:2`)
+
+Deprecated options
+- `store_mode`
+- `binary_cache_dir`
+- `binary_cache_s3_bucket`
+- `binary_cache_secret_key_file`
+
 Statsd Configuration
 --------------------
 

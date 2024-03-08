@@ -197,7 +197,7 @@ static BasicDerivation sendInputs(
             destStore.computeFSClosure(basicDrv.inputSrcs, closure);
             copyPaths(destStore, localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
         } else {
-            copyClosureTo(conn, destStore, basicDrv.inputSrcs, Substitute);
+            copyClosureTo(conn, destStore, basicDrv.inputSrcs, state.useSubstitutesOnRemoteBuilders ? Substitute : NoSubstitute);
         }
 
         auto now2 = std::chrono::steady_clock::now();
