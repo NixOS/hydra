@@ -928,10 +928,17 @@ void State::run(BuildID buildOne)
     while (true) {
         try {
             auto conn(dbPool.get());
-            receiver dumpStatus_(*conn, "dump_status");
-            while (true) {
-                conn->await_notification();
-                dumpStatus(*conn);
+            try {
+                receiver dumpStatus_(*conn, "dump_status");
+                while (true) {
+                    conn->await_notification();
+                    dumpStatus(*conn);
+                }
+            } catch (pqxx::broken_connection & connEx) {
+                printMsg(lvlError, "main thread: %s", connEx.what());
+                printMsg(lvlError, "main thread: Reconnecting in 10s");
+                conn.markBad();
+                sleep(10);
             }
         } catch (std::exception & e) {
             printMsg(lvlError, "main thread: %s", e.what());
