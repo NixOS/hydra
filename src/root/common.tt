@@ -91,6 +91,15 @@ BLOCK renderDuration;
   duration % 60 %]s[%
 END;
 
+BLOCK renderDrvInfo;
+  drvname = step.drvpath
+    .substr(11) # strip `/nix/store/`
+    .split('-').slice(1).join("-") # strip hash part
+    .substr(0, -4); # strip `.drv`
+  IF step.type == 0; action = "Build"; ELSE; action = "Substitution"; END;
+  IF drvname; %]<em> ([% action %] of [% drvname %])</em>[% END;
+END;
+
 
 BLOCK renderBuildListHeader %]
   <table class="table table-striped table-condensed clickable-rows">
@@ -131,7 +140,12 @@ BLOCK renderBuildListBody;
       [% END %]
       <td><a class="row-link" href="[% link %]">[% build.id %]</a></td>
       [% IF !hideJobName %]
-        <td><a href="[%link%]">[% IF !hideJobsetName %][%build.jobset.get_column("project")%]:[%build.jobset.get_column("name")%]:[% END %][%build.get_column("job")%]</td>
+        <td>
+          <a href="[%link%]">[% IF !hideJobsetName %][%build.jobset.get_column("project")%]:[%build.jobset.get_column("name")%]:[% END %][%build.get_column("job")%]</a>
+          [% IF showStepName %]
+            [% INCLUDE renderDrvInfo step=build.buildsteps %]
+          [% END %]
+        </td>
       [% END %]
       <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; INCLUDE renderRelativeDate timestamp=(showSchedulingInfo ? build.timestamp : build.stoptime); ELSE; "-"; END %]</td>
       <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
