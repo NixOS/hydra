@@ -96,8 +96,10 @@ BLOCK renderDrvInfo;
     .substr(11) # strip `/nix/store/`
     .split('-').slice(1).join("-") # strip hash part
     .substr(0, -4); # strip `.drv`
-  IF step.type == 0; action = "Build"; ELSE; action = "Substitution"; END;
-  IF drvname; %]<em> ([% action %] of [% drvname %])</em>[% END;
+  IF drvname != releasename;
+    IF step.type == 0; action = "Build"; ELSE; action = "Substitution"; END;
+    IF drvname; %]<em> ([% action %] of [% drvname %])</em>[% END;
+  END;
 END;
 
 
@@ -143,7 +145,7 @@ BLOCK renderBuildListBody;
         <td>
           <a href="[%link%]">[% IF !hideJobsetName %][%build.jobset.get_column("project")%]:[%build.jobset.get_column("name")%]:[% END %][%build.get_column("job")%]</a>
           [% IF showStepName %]
-            [% INCLUDE renderDrvInfo step=build.buildsteps %]
+            [% INCLUDE renderDrvInfo step=build.buildsteps releasename=build.nixname %]
           [% END %]
         </td>
       [% END %]
