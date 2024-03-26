@@ -65,7 +65,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% END %]
 
   [% IF aborted.size > 0 %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-aborted" data-toggle="tab"><span class="text-warning">Aborted Jobs ([% aborted.size %])</span></a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-aborted" data-toggle="tab"><span class="text-warning">Aborted / Timed out Jobs ([% aborted.size %])</span></a></li>
   [% END %]
   [% IF nowFail.size > 0 %]
     <li class="nav-item"><a class="nav-link" href="#tabs-now-fail" data-toggle="tab"><span class="text-warning">Newly Failing Jobs ([% nowFail.size %])</span></a></li>
