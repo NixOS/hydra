@@ -11,6 +11,8 @@ createdb -h $(pwd)/.hydra-data/postgres -p 64444 hydra
 #     FATAL:  database "USERNAME" does not exist
 createdb -h $(pwd)/.hydra-data/postgres -p 64444 "$(whoami)" || true
 
+psql -h localhost -p 64444 <<<"alter system set log_statement='all'; select pg_reload_conf();"
+
 hydra-init
 hydra-create-user alice --password foobar --role admin
 
