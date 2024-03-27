@@ -645,10 +645,16 @@ sub checkJobsetWrapped {
     if (defined $flakeRef) {
         (my $res, my $json, my $stderr) = captureStdoutStderr(
             600, "nix", "flake", "metadata", "--refresh", "--json", "--", $flakeRef);
+
         die "'nix flake metadata' returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
             . ":\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
             if $res;
-        $flakeRef = decode_json($json)->{'url'};
+        my $decoded = decode_json($json);
+        my $url = $decoded->{'url'};   # Doesn't have the &submodules=1, so add it back if needed
+        if ($decoded->{'resolved'}->{'submodules'}) {
+            $url = $url . "&submodules=1";
+        }
+        $flakeRef = $url;
     }
 
     Net::Statsd::increment("hydra.evaluator.checkouts");
