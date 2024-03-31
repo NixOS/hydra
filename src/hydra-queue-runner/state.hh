@@ -498,7 +498,7 @@ private:
 
     void queueMonitor();
 
-    void queueMonitorLoop();
+    void queueMonitorLoop(Connection & conn);
 
     /* Check the queue for new builds. */
     bool getQueuedBuilds(Connection & conn,
