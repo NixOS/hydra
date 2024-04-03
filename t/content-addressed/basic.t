@@ -55,6 +55,8 @@ for my $build (queuedBuildsForJobset($jobset)) {
 
 }
 
+# XXX: deststoredir is undefined: Use of uninitialized value $ctx{"deststoredir"} in concatenation (.) or string at t/content-addressed/basic.t line 58.
+# XXX: This test seems to not do what it seems to be doing. See documentation: https://metacpan.org/pod/Test2::V0#isnt($got,-$do_not_want,-$name)
 isnt(<$ctx{deststoredir}/realisations/*>, "", "The destination store should have the realisations of the built derivations registered");
 
 done_testing;
