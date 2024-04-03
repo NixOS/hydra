@@ -187,6 +187,10 @@ sub findLog {
 
     return undef if scalar @outPaths == 0;
 
+    # Filter out any NULLs. Content-addressed derivations
+    # that haven't built yet or failed to build may have a NULL outPath.
+    @outPaths = grep {defined} @outPaths;
+
     my @steps = $c->model('DB::BuildSteps')->search(
         { path => { -in => [@outPaths] } },
         { select => ["drvpath"]
