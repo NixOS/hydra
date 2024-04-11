@@ -69,6 +69,8 @@ END;
                   <strong>Sending inputs</strong>
                 [% ELSIF step.busy == 30 %]
                   <strong>Building</strong>
+                [% ELSIF step.busy == 35 %]
+                  <strong>Waiting to receive outputs</strong>
                 [% ELSIF step.busy == 40 %]
                   <strong>Receiving outputs</strong>
                 [% ELSIF step.busy == 50 %]
