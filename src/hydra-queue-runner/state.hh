@@ -6,6 +6,8 @@
 #include <map>
 #include <memory>
 #include <queue>
+#include <regex>
+#include <semaphore>
 
 #include <prometheus/counter.h>
 #include <prometheus/gauge.h>
@@ -58,6 +60,7 @@ typedef enum {
     ssConnecting = 10,
     ssSendingInputs = 20,
     ssBuilding = 30,
+    ssWaitingForLocalSlot = 35,
     ssReceivingOutputs = 40,
     ssPostProcessing = 50,
 } StepState;
@@ -352,6 +355,10 @@ private:
     std::mutex machinesReadyLock;
     typedef std::map<nix::StoreReference::Variant, Machine::ptr> Machines;
     nix::Sync<Machines> machines; // FIXME: use atomic_shared_ptr
+
+    /* Throttler for CPU-bound local work. */
+    static constexpr unsigned int maxSupportedLocalWorkers = 1024;
+    std::counting_semaphore<maxSupportedLocalWorkers> localWorkThrottler;
 
     /* Various stats. */
     time_t startedAt;
