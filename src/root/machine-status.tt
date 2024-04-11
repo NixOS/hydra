@@ -6,7 +6,6 @@
   <thead>
     <tr>
       <th>Job</th>
-      <th>System</th>
       <th>Build</th>
       <th>Step</th>
       <th>What</th>
@@ -41,7 +40,6 @@
           [% idle = 0 %]
           <tr>
             <td><tt>[% INCLUDE renderFullJobName project=step.project jobset=step.jobset job=step.job %]</tt></td>
-            <td><tt>[% step.system %]</tt></td>
             <td><a href="[% c.uri_for('/build' step.build) %]">[% step.build %]</a></td>
             <td>[% IF step.busy >= 30 %]<a class="row-link" href="[% c.uri_for('/build' step.build 'nixlog' step.stepnr 'tail') %]">[% step.stepnr %]</a>[% ELSE; step.stepnr; END %]</td>
             <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
