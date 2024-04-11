@@ -10,6 +10,7 @@
       <th>Build</th>
       <th>Step</th>
       <th>What</th>
+      <th>Status</th>
       <th>Since</th>
     </tr>
   </thead>
@@ -44,6 +45,7 @@
             <td><a href="[% c.uri_for('/build' step.build) %]">[% step.build %]</a></td>
             <td>[% IF step.busy >= 30 %]<a class="row-link" href="[% c.uri_for('/build' step.build 'nixlog' step.stepnr 'tail') %]">[% step.stepnr %]</a>[% ELSE; step.stepnr; END %]</td>
             <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
+            <td>[% INCLUDE renderBusyStatus %]</td>
             <td style="width: 10em">[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
           </tr>
         [% END %]
