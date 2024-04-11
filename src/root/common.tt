@@ -245,6 +245,27 @@ BLOCK renderBuildStatusIcon;
 END;
 
 
+BLOCK renderBusyStatus;
+  IF step.busy == 1 %]
+    <strong>Preparing</strong>
+  [% ELSIF step.busy == 10 %]
+    <strong>Connecting</strong>
+  [% ELSIF step.busy == 20 %]
+    <strong>Sending inputs</strong>
+  [% ELSIF step.busy == 30 %]
+    <strong>Building</strong>
+  [% ELSIF step.busy == 35 %]
+    <strong>Waiting to receive outputs</strong>
+  [% ELSIF step.busy == 40 %]
+    <strong>Receiving outputs</strong>
+  [% ELSIF step.busy == 50 %]
+    <strong>Post-processing</strong>
+  [% ELSE %]
+    <strong>Unknown state</strong>
+  [% END;
+END;
+
+
 BLOCK renderStatus;
   IF build.finished;
     buildstatus = build.buildstatus;
