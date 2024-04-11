@@ -494,6 +494,16 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 
 }
 
+/* Utility guard object to auto-release a semaphore on destruction. */
+template <typename T>
+class SemaphoreReleaser {
+public:
+    SemaphoreReleaser(T* s) : sem(s) {}
+    ~SemaphoreReleaser() { sem->release(); }
+
+private:
+    T* sem;
+};
 
 void State::buildRemote(ref<Store> destStore,
     ::Machine::ptr machine, Step::ptr step,
@@ -611,6 +621,14 @@ void State::buildRemote(ref<Store> destStore,
             unlink(result.logFile.c_str());
             result.logFile = "";
         }
+
+        /* Throttle CPU-bound work. Opportunistically skip updating the current
+         * step, since this requires a DB roundtrip. */
+        if (!localWorkThrottler.try_acquire()) {
+            updateStep(ssWaitingForLocalSlot);
+            localWorkThrottler.acquire();
+        }
+        SemaphoreReleaser releaser(&localWorkThrottler);
 
         StorePathSet outputs;
         for (auto & [_, realisation] : buildResult.builtOutputs)
