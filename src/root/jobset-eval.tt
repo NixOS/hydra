@@ -90,7 +90,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% END %]
   <li class="nav-item"><a class="nav-link" href="#tabs-inputs" data-toggle="tab">Inputs</a></li>
 
-  [% IF eval.evaluationerror.errormsg %]
+  [% IF eval.evaluationerror.has_error %]
     <li class="nav-item"><a class="nav-link" href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation Errors</span></a></li>
   [% END %]
 </ul>
@@ -165,7 +165,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
     [% END %]
   </div>
 
-  [% IF eval.evaluationerror.errormsg %]
+  [% IF eval.evaluationerror.has_error %]
     <div id="tabs-errors" class="tab-pane">
       <iframe src="[% c.uri_for(c.controller('JobsetEval').action_for('errors'), [eval.id], params) %]" loading="lazy" frameBorder="0" width="100%"></iframe>
     </div>

@@ -386,6 +386,8 @@ __PACKAGE__->add_column(
     "+id" => { retrieve_on_insert => 1 }
 );
 
+__PACKAGE__->mk_group_accessors('column' => 'has_error');
+
 sub supportsDynamicRunCommand {
   my ($self) = @_;
 

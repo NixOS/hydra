@@ -14,7 +14,7 @@ our @EXPORT = qw(
 sub evalSucceeds {
     my ($jobset) = @_;
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
-    $jobset->discard_changes;  # refresh from DB
+    $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if ($res) {
         chomp $stdout; chomp $stderr;
         utf8::decode($stdout) or die "Invalid unicode in stdout.";
@@ -29,7 +29,7 @@ sub evalSucceeds {
 sub evalFails {
     my ($jobset) = @_;
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
-    $jobset->discard_changes;  # refresh from DB
+    $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if (!$res) {
         chomp $stdout; chomp $stderr;
         utf8::decode($stdout) or die "Invalid unicode in stdout.";

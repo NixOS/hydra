@@ -93,6 +93,7 @@ let
         DateTime
         DBDPg
         DBDSQLite
+        DBIxClassHelpers
         DigestSHA1
         EmailMIME
         EmailSender

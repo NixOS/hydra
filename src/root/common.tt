@@ -513,7 +513,7 @@ BLOCK renderEvals %]
             ELSE %]
              -
             [% END %]
-            [% IF eval.evaluationerror.errormsg %]
+            [% IF eval.evaluationerror.has_error %]
               <span class="badge badge-warning">Eval Errors</span>
             [% END %]
           </td>
@@ -639,7 +639,7 @@ BLOCK renderJobsetOverview %]
         <td>[% HTML.escape(j.description) %]</td>
         <td>[% IF j.lastcheckedtime;
                  INCLUDE renderDateTime timestamp = j.lastcheckedtime;
-                 IF j.errormsg || j.fetcherrormsg; %]&nbsp;<span class = 'badge badge-warning'>Error</span>[% END;
+                 IF j.has_error || j.fetcherrormsg; %]&nbsp;<span class = 'badge badge-warning'>Error</span>[% END;
                  ELSE; "-";
                END %]</td>
         [% IF j.get_column('nrtotal') > 0 %]

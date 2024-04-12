@@ -371,6 +371,12 @@ sub errors_GET {
 
     $c->stash->{template} = 'eval-error.tt';
 
+    my $jobsetName = $c->stash->{params}->{name};
+    $c->stash->{jobset} = $c->stash->{project}->jobsets->find(
+        { name => $jobsetName },
+        { '+columns' => { 'errormsg' => 'errormsg' } }
+    );
+
     $self->status_ok($c, entity => $c->stash->{jobset});
 }
 
