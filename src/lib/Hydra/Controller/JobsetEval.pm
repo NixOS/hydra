@@ -93,6 +93,8 @@ sub errors_GET {
 
     $c->stash->{template} = 'eval-error.tt';
 
+    $c->stash->{eval} = $c->model('DB::JobsetEvals')->find($c->stash->{eval}->id, { prefetch => 'evaluationerror' });
+
     $self->status_ok($c, entity => $c->stash->{eval});
 }
 
