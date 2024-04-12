@@ -13,7 +13,7 @@ my $constituentBuildA = $builds->{"constituentA"};
 my $constituentBuildB = $builds->{"constituentB"};
 
 my $eval = $constituentBuildA->jobsetevals->first();
-is($eval->evaluationerror->errormsg, "");
+is($eval->evaluationerror->has_error, 0);
 
 subtest "Verifying the direct aggregate" => sub {
     my $aggBuild = $builds->{"direct_aggregate"};

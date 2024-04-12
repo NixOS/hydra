@@ -286,8 +286,7 @@ sub getEvals {
 
     my @evals = $evals_result_set->search(
         { hasnewbuilds => 1 },
-        { order_by => "$me.id DESC", rows => $rows, offset => $offset
-        , prefetch => { evaluationerror => [ ] } });
+        { order_by => "$me.id DESC", rows => $rows, offset => $offset });
     my @res = ();
     my $cache = {};
 

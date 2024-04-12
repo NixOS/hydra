@@ -22,7 +22,7 @@ like(
     "The stderr record includes a relevant error message"
 );
 
-$jobset->discard_changes;  # refresh from DB
+$jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
 like(
     $jobset->errormsg,
     qr/aggregate job ‘mixed_aggregate’ failed with the error: constituentA: does not exist/,
