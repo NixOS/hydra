@@ -40,7 +40,10 @@ our @EXPORT = qw(
     registerRoot
     restartBuilds
     run
+    $MACHINE_LOCAL_STORE
     );
+
+our $MACHINE_LOCAL_STORE = Nix::Store->new();
 
 
 sub getHydraHome {
@@ -494,7 +497,7 @@ sub restartBuilds {
     $builds = $builds->search({ finished => 1 });
 
     foreach my $build ($builds->search({}, { columns => ["drvpath"] })) {
-        next if !isValidPath($build->drvpath);
+        next if !$MACHINE_LOCAL_STORE->isValidPath($build->drvpath);
         registerRoot $build->drvpath;
     }
 

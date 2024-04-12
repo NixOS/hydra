@@ -7,7 +7,6 @@ use Digest::SHA qw(sha256_hex);
 use File::Path;
 use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
-use Nix::Store;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -58,7 +57,7 @@ sub fetchInput {
         {uri => $uri, revision => $revision},
         {rows => 1});
 
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
         $revision = $cachedInput->revision;
@@ -75,8 +74,8 @@ sub fetchInput {
         die "darcs changes --count failed" if $? != 0;
 
         system "rm", "-rf", "$tmpDir/export/_darcs";
-        $storePath = addToStore("$tmpDir/export", 1, "sha256");
-        $sha256 = queryPathHash($storePath);
+        $storePath = $MACHINE_LOCAL_STORE->addToStore("$tmpDir/export", 1, "sha256");
+        $sha256 = $MACHINE_LOCAL_STORE->queryPathHash($storePath);
         $sha256 =~ s/sha256://;
 
         $self->{db}->txn_do(sub {

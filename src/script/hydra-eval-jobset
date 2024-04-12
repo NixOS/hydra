@@ -85,14 +85,14 @@ sub attrsToSQL {
 # Fetch a store path from 'eval_substituter' if not already present.
 sub getPath {
     my ($path) = @_;
-    return 1 if isValidPath($path);
+    return 1 if $MACHINE_LOCAL_STORE->isValidPath($path);
 
     my $substituter = $config->{eval_substituter};
 
     system("nix", "--experimental-features", "nix-command", "copy", "--from", $substituter, "--", $path)
         if defined $substituter;
 
-    return isValidPath($path);
+    return $MACHINE_LOCAL_STORE->isValidPath($path);
 }
 
 
@@ -143,7 +143,7 @@ sub fetchInputBuild {
         , version => $version
         , outputName => $mainOutput->name
         };
-    if (isValidPath($prevBuild->drvpath)) {
+    if ($MACHINE_LOCAL_STORE->isValidPath($prevBuild->drvpath)) {
         $result->{drvPath} = $prevBuild->drvpath;
     }
 
@@ -233,7 +233,7 @@ sub fetchInputEval {
         my $out = $build->buildoutputs->find({ name => "out" });
         next unless defined $out;
         # FIXME: Should we fail if the path is not valid?
-        next unless isValidPath($out->path);
+        next unless $MACHINE_LOCAL_STORE->isValidPath($out->path);
         $jobs->{$build->get_column('job')} = $out->path;
     }
 

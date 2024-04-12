@@ -7,7 +7,6 @@ use Digest::SHA qw(sha256_hex);
 use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use IPC::Run;
-use Nix::Store;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -45,7 +44,7 @@ sub fetchInput {
     (my $cachedInput) = $self->{db}->resultset('CachedSubversionInputs')->search(
         {uri => $uri, revision => $revision});
 
-    addTempRoot($cachedInput->storepath) if defined $cachedInput;
+    $MACHINE_LOCAL_STORE->addTempRoot($cachedInput->storepath) if defined $cachedInput;
 
     if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
@@ -62,16 +61,16 @@ sub fetchInput {
         die "error checking out Subversion repo at `$uri':\n$stderr" if $res;
 
         if ($type eq "svn-checkout") {
-            $storePath = addToStore($wcPath, 1, "sha256");
+            $storePath = $MACHINE_LOCAL_STORE->addToStore($wcPath, 1, "sha256");
         } else {
             # Hm, if the Nix Perl bindings supported filters in
             # addToStore(), then we wouldn't need to make a copy here.
             my $tmpDir = File::Temp->newdir("hydra-svn-export.XXXXXX", CLEANUP => 1, TMPDIR => 1) or die;
             (system "svn", "export", $wcPath, "$tmpDir/source", "--quiet") == 0 or die "svn export failed";
-            $storePath = addToStore("$tmpDir/source", 1, "sha256");
+            $storePath = $MACHINE_LOCAL_STORE->addToStore("$tmpDir/source", 1, "sha256");
         }
 
-        $sha256 = queryPathHash($storePath); $sha256 =~ s/sha256://;
+        $sha256 = $MACHINE_LOCAL_STORE->queryPathHash($storePath); $sha256 =~ s/sha256://;
 
         $self->{db}->txn_do(sub {
             $self->{db}->resultset('CachedSubversionInputs')->update_or_create(
