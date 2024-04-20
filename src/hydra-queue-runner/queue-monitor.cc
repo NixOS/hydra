@@ -37,15 +37,13 @@ void State::queueMonitorLoop(Connection & conn)
 
     auto destStore = getDestStore();
 
-    unsigned int lastBuildId = 0;
-
     bool quit = false;
     while (!quit) {
         auto t_before_work = std::chrono::steady_clock::now();
 
         localStore->clearPathInfoCache();
 
-        bool done = getQueuedBuilds(conn, destStore, lastBuildId);
+        bool done = getQueuedBuilds(conn, destStore);
 
         if (buildOne && buildOneDone) quit = true;
 
@@ -63,12 +61,10 @@ void State::queueMonitorLoop(Connection & conn)
             conn.get_notifs();
 
         if (auto lowestId = buildsAdded.get()) {
-            lastBuildId = std::min(lastBuildId, static_cast<unsigned>(std::stoul(*lowestId) - 1));
             printMsg(lvlTalkative, "got notification: new builds added to the queue");
         }
         if (buildsRestarted.get()) {
             printMsg(lvlTalkative, "got notification: builds restarted");
-            lastBuildId = 0; // check all builds
         }
         if (buildsCancelled.get() || buildsDeleted.get() || buildsBumped.get()) {
             printMsg(lvlTalkative, "got notification: builds cancelled or bumped");
@@ -95,19 +91,17 @@ struct PreviousFailure : public std::exception {
 
 
 bool State::getQueuedBuilds(Connection & conn,
-    ref<Store> destStore, unsigned int & lastBuildId)
+    ref<Store> destStore)
 {
     prom.queue_checks_started.Increment();
 
-    printInfo("checking the queue for builds > %d...", lastBuildId);
+    printInfo("checking the queue for builds...");
 
     /* Grab the queued builds from the database, but don't process
        them yet (since we don't want a long-running transaction). */
     std::vector<BuildID> newIDs;
     std::map<BuildID, Build::ptr> newBuildsByID;
     std::multimap<StorePath, BuildID> newBuildsByPath;
-
-    unsigned int newLastBuildId = lastBuildId;
 
     {
         pqxx::work txn(conn);
@@ -117,17 +111,12 @@ bool State::getQueuedBuilds(Connection & conn,
              "jobsets.name as jobset, job, drvPath, maxsilent, timeout, timestamp, "
              "globalPriority, priority from Builds "
              "inner join jobsets on builds.jobset_id = jobsets.id "
-             "where builds.id > $1 and finished = 0 order by globalPriority desc, builds.id",
-            lastBuildId);
+             "where finished = 0 order by globalPriority desc, builds.id");
 
         for (auto const & row : res) {
             auto builds_(builds.lock());
             BuildID id = row["id"].as<BuildID>();
             if (buildOne && id != buildOne) continue;
-            if (id > newLastBuildId) {
-                newLastBuildId = id;
-                prom.queue_max_id.Set(id);
-            }
             if (builds_->count(id)) continue;
 
             auto build = std::make_shared<Build>(
@@ -336,8 +325,6 @@ bool State::getQueuedBuilds(Connection & conn,
     }
 
     prom.queue_checks_finished.Increment();
-
-    lastBuildId = newBuildsByID.empty() ? newLastBuildId : newBuildsByID.begin()->first - 1;
     return newBuildsByID.empty();
 }
 
