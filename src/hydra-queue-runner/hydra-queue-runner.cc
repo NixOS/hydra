@@ -77,6 +77,34 @@ State::PromMetrics::PromMetrics()
             .Register(*registry)
             .Add({})
     )
+    , dispatcher_time_spent_running(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_dispatcher_time_spent_running")
+            .Help("Time (in micros) spent running the dispatcher")
+            .Register(*registry)
+            .Add({})
+    )
+    , dispatcher_time_spent_waiting(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_dispatcher_time_spent_waiting")
+            .Help("Time (in micros) spent waiting for the dispatcher to obtain work")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_monitor_time_spent_running(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_monitor_time_spent_running")
+            .Help("Time (in micros) spent running the queue monitor")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_monitor_time_spent_waiting(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_monitor_time_spent_waiting")
+            .Help("Time (in micros) spent waiting for the queue monitor to obtain work")
+            .Register(*registry)
+            .Add({})
+    )
 {
 
 }
