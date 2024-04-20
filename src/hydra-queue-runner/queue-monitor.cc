@@ -41,11 +41,18 @@ void State::queueMonitorLoop(Connection & conn)
 
     bool quit = false;
     while (!quit) {
+        auto t_before_work = std::chrono::steady_clock::now();
+
         localStore->clearPathInfoCache();
 
         bool done = getQueuedBuilds(conn, destStore, lastBuildId);
 
         if (buildOne && buildOneDone) quit = true;
+
+        auto t_after_work = std::chrono::steady_clock::now();
+
+        prom.queue_monitor_time_spent_running.Increment(
+            std::chrono::duration_cast<std::chrono::microseconds>(t_after_work - t_before_work).count());
 
         /* Sleep until we get notification from the database about an
            event. */
@@ -71,6 +78,10 @@ void State::queueMonitorLoop(Connection & conn)
             printMsg(lvlTalkative, "got notification: jobset shares changed");
             processJobsetSharesChange(conn);
         }
+
+        auto t_after_sleep = std::chrono::steady_clock::now();
+        prom.queue_monitor_time_spent_waiting.Increment(
+            std::chrono::duration_cast<std::chrono::microseconds>(t_after_sleep - t_after_work).count());
     }
 
     exit(0);
