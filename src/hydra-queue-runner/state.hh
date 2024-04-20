@@ -400,7 +400,6 @@ private:
 
     struct MachineReservation
     {
-        typedef std::shared_ptr<MachineReservation> ptr;
         State & state;
         Step::ptr step;
         Machine::ptr machine;
@@ -550,16 +549,17 @@ private:
 
     void abortUnsupported();
 
-    void builder(MachineReservation::ptr reservation);
+    void builder(std::unique_ptr<MachineReservation> reservation);
 
     /* Perform the given build step. Return true if the step is to be
        retried. */
     enum StepResult { sDone, sRetry, sMaybeCancelled };
     StepResult doBuildStep(nix::ref<nix::Store> destStore,
-        MachineReservation::ptr reservation,
+        std::unique_ptr<MachineReservation> reservation,
         std::shared_ptr<ActiveStep> activeStep);
 
     void buildRemote(nix::ref<nix::Store> destStore,
+        std::unique_ptr<MachineReservation> reservation,
         Machine::ptr machine, Step::ptr step,
         const nix::ServeProto::BuildOptions & buildOptions,
         RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
