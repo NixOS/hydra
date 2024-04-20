@@ -521,6 +521,12 @@ private:
     BuildOutput getBuildOutputCached(Connection & conn, nix::ref<nix::Store> destStore,
         const nix::StorePath & drvPath);
 
+    /* Returns paths missing from the remote store. Paths are processed in
+     * parallel to work around the possible latency of remote stores. */
+    std::map<nix::DrvOutput, std::optional<nix::StorePath>> getMissingRemotePaths(
+        nix::ref<nix::Store> destStore,
+        const std::map<nix::DrvOutput, std::optional<nix::StorePath>> & paths);
+
     Step::ptr createStep(nix::ref<nix::Store> store,
         Connection & conn, Build::ptr build, const nix::StorePath & drvPath,
         Build::ptr referringBuild, Step::ptr referringStep, std::set<nix::StorePath> & finishedDrvs,
