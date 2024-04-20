@@ -2,6 +2,7 @@
 #include "hydra-build-result.hh"
 #include <nix/store/globals.hh>
 #include <nix/store/parsed-derivations.hh>
+#include <nix/util/thread-pool.hh>
 
 #include <cstring>
 
@@ -404,6 +405,34 @@ void State::processQueueChange(Connection & conn)
 }
 
 
+std::map<DrvOutput, std::optional<StorePath>> State::getMissingRemotePaths(
+    ref<Store> destStore,
+    const std::map<DrvOutput, std::optional<StorePath>> & paths)
+{
+    Sync<std::map<DrvOutput, std::optional<StorePath>>> missing_;
+    ThreadPool tp;
+
+    for (auto & [output, maybeOutputPath] : paths) {
+        if (!maybeOutputPath) {
+            auto missing(missing_.lock());
+            missing->insert({output, maybeOutputPath});
+        } else {
+            tp.enqueue([&] {
+                if (!destStore->isValidPath(*maybeOutputPath)) {
+                    auto missing(missing_.lock());
+                    missing->insert({output, maybeOutputPath});
+                }
+            });
+        }
+    }
+
+    tp.process();
+
+    auto missing(missing_.lock());
+    return *missing;
+}
+
+
 Step::ptr State::createStep(ref<Store> destStore,
     Connection & conn, Build::ptr build, const StorePath & drvPath,
     Build::ptr referringBuild, Step::ptr referringStep, std::set<StorePath> & finishedDrvs,
@@ -487,15 +516,14 @@ Step::ptr State::createStep(ref<Store> destStore,
 
     /* Are all outputs valid? */
     auto outputHashes = staticOutputHashes(*localStore, *(step->drv));
-    bool valid = true;
-    std::map<DrvOutput, std::optional<StorePath>> missing;
+    std::map<DrvOutput, std::optional<StorePath>> paths;
     for (auto & [outputName, maybeOutputPath] : destStore->queryPartialDerivationOutputMap(drvPath, &*localStore)) {
         auto outputHash = outputHashes.at(outputName);
-        if (maybeOutputPath && destStore->isValidPath(*maybeOutputPath))
-            continue;
-        valid = false;
-        missing.insert({{outputHash, outputName}, maybeOutputPath});
+        paths.insert({{outputHash, outputName}, maybeOutputPath});
     }
+
+    auto missing = getMissingRemotePaths(destStore, paths);
+    bool valid = missing.empty();
 
     /* Try to copy the missing paths from the local store or from
        substitutes. */
