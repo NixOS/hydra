@@ -594,10 +594,11 @@ private:
        retried. */
     enum StepResult { sDone, sRetry, sMaybeCancelled };
     StepResult doBuildStep(nix::ref<nix::Store> destStore,
-        MachineReservation::ptr reservation,
+        MachineReservation::ptr & reservation,
         std::shared_ptr<ActiveStep> activeStep);
 
     void buildRemote(nix::ref<nix::Store> destStore,
+        MachineReservation::ptr & reservation,
         Machine::ptr machine, Step::ptr step,
         const BuildOptions & buildOptions,
         RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
