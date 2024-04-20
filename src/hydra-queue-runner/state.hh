@@ -464,6 +464,12 @@ private:
         prometheus::Counter& queue_monitor_time_spent_running;
         prometheus::Counter& queue_monitor_time_spent_waiting;
 
+        prometheus::Counter& dispatcher_time_spent_running;
+        prometheus::Counter& dispatcher_time_spent_waiting;
+
+        prometheus::Counter& queue_monitor_time_spent_running;
+        prometheus::Counter& queue_monitor_time_spent_waiting;
+
         PromMetrics();
     };
     PromMetrics prom;
