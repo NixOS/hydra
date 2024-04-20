@@ -101,7 +101,7 @@ bool State::getQueuedBuilds(Connection & conn,
     /* Grab the queued builds from the database, but don't process
        them yet (since we don't want a long-running transaction). */
     std::vector<BuildID> newIDs;
-    std::map<BuildID, Build::ptr> newBuildsByID;
+    std::unordered_map<BuildID, Build::ptr> newBuildsByID;
     std::multimap<StorePath, BuildID> newBuildsByPath;
 
     {
@@ -112,7 +112,7 @@ bool State::getQueuedBuilds(Connection & conn,
              "jobsets.name as jobset, job, drvPath, maxsilent, timeout, timestamp, "
              "globalPriority, priority from Builds "
              "inner join jobsets on builds.jobset_id = jobsets.id "
-             "where finished = 0 order by globalPriority desc, builds.id");
+             "where finished = 0 order by globalPriority desc, random()");
 
         for (auto const & row : res) {
             auto builds_(builds.lock());
