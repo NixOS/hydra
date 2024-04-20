@@ -70,13 +70,6 @@ State::PromMetrics::PromMetrics()
             .Register(*registry)
             .Add({})
     )
-    , queue_max_id(
-        prometheus::BuildGauge()
-            .Name("hydraqueuerunner_queue_max_build_id_info")
-            .Help("Maximum build record ID in the queue")
-            .Register(*registry)
-            .Add({})
-    )
     , dispatcher_time_spent_running(
         prometheus::BuildCounter()
             .Name("hydraqueuerunner_dispatcher_time_spent_running")

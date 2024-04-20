@@ -464,7 +464,6 @@ private:
         prometheus::Counter& queue_steps_created;
         prometheus::Counter& queue_checks_early_exits;
         prometheus::Counter& queue_checks_finished;
-        prometheus::Gauge& queue_max_id;
 
         prometheus::Counter& dispatcher_time_spent_running;
         prometheus::Counter& dispatcher_time_spent_waiting;
@@ -514,8 +513,7 @@ private:
     void queueMonitorLoop(Connection & conn);
 
     /* Check the queue for new builds. */
-    bool getQueuedBuilds(Connection & conn,
-        nix::ref<nix::Store> destStore, unsigned int & lastBuildId);
+    bool getQueuedBuilds(Connection & conn, nix::ref<nix::Store> destStore);
 
     /* Handle cancellation, deletion and priority bumps. */
     void processQueueChange(Connection & conn);
