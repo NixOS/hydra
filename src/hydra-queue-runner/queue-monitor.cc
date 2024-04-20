@@ -318,7 +318,7 @@ bool State::getQueuedBuilds(Connection & conn,
 
         /* Stop after a certain time to allow priority bumps to be
            processed. */
-        if (std::chrono::system_clock::now() > start + std::chrono::seconds(600)) {
+        if (std::chrono::system_clock::now() > start + std::chrono::seconds(60)) {
             prom.queue_checks_early_exits.Increment();
             break;
         }
