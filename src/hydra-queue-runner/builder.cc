@@ -46,10 +46,12 @@ void State::builder(MachineReservation::ptr reservation)
         }
     }
 
-    /* Release the machine and wake up the dispatcher. */
-    assert(reservation.unique());
-    reservation = 0;
-    wakeDispatcher();
+    /* If the machine hasn't been released yet, release and wake up the dispatcher. */
+    if (reservation) {
+        assert(reservation.unique());
+        reservation = 0;
+        wakeDispatcher();
+    }
 
     /* If there was a temporary failure, retry the step after an
        exponentially increasing interval. */
@@ -72,11 +74,11 @@ void State::builder(MachineReservation::ptr reservation)
 
 
 State::StepResult State::doBuildStep(nix::ref<Store> destStore,
-    MachineReservation::ptr reservation,
+    MachineReservation::ptr & reservation,
     std::shared_ptr<ActiveStep> activeStep)
 {
-    auto & step(reservation->step);
-    auto & machine(reservation->machine);
+    auto step(reservation->step);
+    auto machine(reservation->machine);
 
     {
         auto step_(step->state.lock());
@@ -211,7 +213,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(destStore, machine, step, buildOptions, result, activeStep, updateStep, narMembers);
+            buildRemote(destStore, reservation, machine, step, buildOptions, result, activeStep, updateStep, narMembers);
         } catch (Error & e) {
             if (activeStep->state_.lock()->cancelled) {
                 printInfo("marking step %d of build %d as cancelled", stepNr, buildId);

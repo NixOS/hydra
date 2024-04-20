@@ -424,6 +424,7 @@ private:
 };
 
 void State::buildRemote(ref<Store> destStore,
+    MachineReservation::ptr & reservation,
     ::Machine::ptr machine, Step::ptr step,
     const ServeProto::BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
@@ -568,6 +569,15 @@ void State::buildRemote(ref<Store> destStore,
             localWorkThrottler.acquire();
         }
         SemaphoreReleaser releaser(&localWorkThrottler);
+
+        /* Once we've started copying outputs, release the machine reservation
+         * so further builds can happen. We do not release the machine earlier
+         * to avoid situations where the queue runner is bottlenecked on
+         * copying outputs and we end up building too many things that we
+         * haven't been able to allow copy slots for. */
+        assert(reservation.unique());
+        reservation = 0;
+        wakeDispatcher();
 
         StorePathSet outputs;
         for (auto & [_, realisation] : buildResult.builtOutputs)
