@@ -133,6 +133,8 @@ system_time State::doDispatch()
            comparator is a partial ordering (see MachineInfo). */
         int highestGlobalPriority;
         int highestLocalPriority;
+        size_t numRequiredSystemFeatures;
+        size_t numRevDeps;
         BuildID lowestBuildID;
 
         StepInfo(Step::ptr step, Step::State & step_) : step(step)
@@ -141,6 +143,8 @@ system_time State::doDispatch()
                 lowestShareUsed = std::min(lowestShareUsed, jobset->shareUsed());
             highestGlobalPriority = step_.highestGlobalPriority;
             highestLocalPriority = step_.highestLocalPriority;
+            numRequiredSystemFeatures = step->requiredSystemFeatures.size();
+            numRevDeps = step_.rdeps.size();
             lowestBuildID = step_.lowestBuildID;
         }
     };
@@ -193,6 +197,8 @@ system_time State::doDispatch()
                 a.highestGlobalPriority != b.highestGlobalPriority ? a.highestGlobalPriority > b.highestGlobalPriority :
                 a.lowestShareUsed != b.lowestShareUsed ? a.lowestShareUsed < b.lowestShareUsed :
                 a.highestLocalPriority != b.highestLocalPriority ? a.highestLocalPriority > b.highestLocalPriority :
+                a.numRequiredSystemFeatures != b.numRequiredSystemFeatures ? a.numRequiredSystemFeatures > b.numRequiredSystemFeatures :
+                a.numRevDeps != b.numRevDeps ? a.numRevDeps > b.numRevDeps :
                 a.lowestBuildID < b.lowestBuildID;
         });
 
