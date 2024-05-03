@@ -68,7 +68,7 @@ in
 
       package = mkOption {
         type = types.path;
-        default = pkgs.hydra;
+        default = pkgs.hydra_unstable;
         defaultText = literalExpression "pkgs.hydra";
         description = "The Hydra package.";
       };
@@ -233,7 +233,7 @@ in
       gc-keep-outputs = true;
       gc-keep-derivations = true;
     };
-    
+
     services.hydra-dev.extraConfig =
       ''
         using_frontend_proxy = 1

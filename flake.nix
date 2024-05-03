@@ -76,7 +76,7 @@
         modules =
           [
             self.nixosModules.hydra
-            self.nixosModules.overlayNixpkgsForThisHyydra
+            self.nixosModules.overlayNixpkgsForThisHydra
             self.nixosModules.hydraTest
             self.nixosModules.hydraProxy
             {
