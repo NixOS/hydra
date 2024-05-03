@@ -1,16 +1,11 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.05";
-  inputs.nix.url = "github:NixOS/nix/2.19-maintenance";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11-small";
+  inputs.nix.url = "github:NixOS/nix/2.22-maintenance";
   inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
 
-  # TODO get rid of this once https://github.com/NixOS/nix/pull/9546 is
-  # mered and we upgrade or Nix, so the main `nixpkgs` input is at least
-  # 23.11 and has `lib.fileset`.
-  inputs.nixpkgs-for-fileset.url = "github:NixOS/nixpkgs/nixos-23.11";
-
-  outputs = { self, nixpkgs, nix, nixpkgs-for-fileset }:
+  outputs = { self, nixpkgs, nix }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
@@ -67,7 +62,7 @@
         };
 
         hydra = final.callPackage ./package.nix {
-          inherit (nixpkgs-for-fileset.lib) fileset;
+          inherit (nixpkgs.lib) fileset;
           rawSrc = self;
         };
       };
@@ -180,13 +175,9 @@
                 root=d7f16a3412e01a43a414535b16007c6931d3a9c7
                 </gitea_authorization>
               '';
+              nixpkgs.config.permittedInsecurePackages = [ "gitea-1.19.4" ];
               nix = {
-                distributedBuilds = true;
-                buildMachines = [{
-                  hostName = "localhost";
-                  systems = [ system ];
-                }];
-                binaryCaches = [ ];
+                settings.substituters = [ ];
               };
               services.gitea = {
                 enable = true;
@@ -202,7 +193,7 @@
             testScript =
               let
                 scripts.mktoken = pkgs.writeText "token.sql" ''
-                  INSERT INTO access_token (id, uid, name, created_unix, updated_unix, token_hash, token_salt, token_last_eight) VALUES (1, 1, 'hydra', 1617107360, 1617107360, 'a930f319ca362d7b49a4040ac0af74521c3a3c3303a86f327b01994430672d33b6ec53e4ea774253208686c712495e12a486', 'XRjWE9YW0g', '31d3a9c7');
+                  INSERT INTO access_token (id, uid, name, created_unix, updated_unix, token_hash, token_salt, token_last_eight, scope) VALUES (1, 1, 'hydra', 1617107360, 1617107360, 'a930f319ca362d7b49a4040ac0af74521c3a3c3303a86f327b01994430672d33b6ec53e4ea774253208686c712495e12a486', 'XRjWE9YW0g', '31d3a9c7', 'all');
                 '';
 
                 scripts.git-setup = pkgs.writeShellScript "setup.sh" ''
@@ -357,9 +348,9 @@
 
                 response = json.loads(data)
 
-                assert len(response) == 2, "Expected exactly two status updates for latest commit!"
-                assert response[0]['status'] == "success", "Expected latest status to be success!"
-                assert response[1]['status'] == "pending", "Expected first status to be pending!"
+                assert len(response) == 2, "Expected exactly three status updates for latest commit (queued, finished)!"
+                assert response[0]['status'] == "success", "Expected finished status to be success!"
+                assert response[1]['status'] == "pending", "Expected queued status to be pending!"
 
                 machine.shutdown()
               '';

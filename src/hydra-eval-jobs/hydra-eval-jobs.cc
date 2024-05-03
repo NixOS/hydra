@@ -89,7 +89,7 @@ struct MyArgs : MixEvalArgs, MixCommonArgs, RootArgs
 
 static MyArgs myArgs;
 
-static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const std::string & name, const std::string & subAttribute)
+static std::string queryMetaStrings(EvalState & state, PackageInfo & drv, const std::string & name, const std::string & subAttribute)
 {
     Strings res;
     std::function<void(Value & v)> rec;
@@ -102,8 +102,8 @@ static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const std:
             for (unsigned int n = 0; n < v.listSize(); ++n)
                 rec(*v.listElems()[n]);
         else if (v.type() == nAttrs) {
-            auto a = v.attrs->find(state.symbols.create(subAttribute));
-            if (a != v.attrs->end())
+            auto a = v.attrs()->find(state.symbols.create(subAttribute));
+            if (a != v.attrs()->end())
                 res.push_back(std::string(state.forceString(*a->value, a->pos, "while evaluating meta attributes")));
         }
     };
@@ -138,12 +138,12 @@ static void worker(
 
         callFlake(state, lockedFlake, *vFlake);
 
-        auto vOutputs = vFlake->attrs->get(state.symbols.create("outputs"))->value;
+        auto vOutputs = vFlake->attrs()->get(state.symbols.create("outputs"))->value;
         state.forceValue(*vOutputs, noPos);
 
-        auto aHydraJobs = vOutputs->attrs->get(state.symbols.create("hydraJobs"));
+        auto aHydraJobs = vOutputs->attrs()->get(state.symbols.create("hydraJobs"));
         if (!aHydraJobs)
-            aHydraJobs = vOutputs->attrs->get(state.symbols.create("checks"));
+            aHydraJobs = vOutputs->attrs()->get(state.symbols.create("checks"));
         if (!aHydraJobs)
             throw Error("flake '%s' does not provide any Hydra jobs or checks", flakeRef);
 
@@ -181,11 +181,11 @@ static void worker(
                 // CA derivations do not have static output paths, so we
                 // have to defensively not query output paths in case we
                 // encounter one.
-                DrvInfo::Outputs outputs = drv->queryOutputs(
+                PackageInfo::Outputs outputs = drv->queryOutputs(
                     !experimentalFeatureSettings.isEnabled(Xp::CaDerivations));
 
                 if (drv->querySystem() == "unknown")
-                    throw EvalError("derivation must have a 'system' attribute");
+                    state.error<EvalError>("derivation must have a 'system' attribute").debugThrow();
 
                 auto drvPath = state.store->printStorePath(drv->requireDrvPath());
 
@@ -204,11 +204,11 @@ static void worker(
                 job["isChannel"] = drv->queryMetaBool("isHydraChannel", false);
 
                 /* If this is an aggregate, then get its constituents. */
-                auto a = v->attrs->get(state.symbols.create("_hydraAggregate"));
+                auto a = v->attrs()->get(state.symbols.create("_hydraAggregate"));
                 if (a && state.forceBool(*a->value, a->pos, "while evaluating the `_hydraAggregate` attribute")) {
-                    auto a = v->attrs->get(state.symbols.create("constituents"));
+                    auto a = v->attrs()->get(state.symbols.create("constituents"));
                     if (!a)
-                        throw EvalError("derivation must have a ‘constituents’ attribute");
+                        state.error<EvalError>("derivation must have a ‘constituents’ attribute").debugThrow();
 
                     NixStringContext context;
                     state.coerceToString(a->pos, *a->value, context, "while evaluating the `constituents` attribute", true, false);
@@ -260,7 +260,7 @@ static void worker(
             else if (v->type() == nAttrs) {
                 auto attrs = nlohmann::json::array();
                 StringSet ss;
-                for (auto & i : v->attrs->lexicographicOrder(state.symbols)) {
+                for (auto & i : v->attrs()->lexicographicOrder(state.symbols)) {
                     std::string name(state.symbols[i->name]);
                     if (name.find(' ') != std::string::npos) {
                         printError("skipping job with illegal name '%s'", name);
@@ -274,7 +274,7 @@ static void worker(
             else if (v->type() == nNull)
                 ;
 
-            else throw TypeError("attribute '%s' is %s, which is not supported", attrPath, showType(*v));
+            else state.error<TypeError>("attribute '%s' is %s, which is not supported", attrPath, showType(*v)).debugThrow();
 
         } catch (EvalError & e) {
             auto msg = e.msg();
@@ -368,7 +368,7 @@ int main(int argc, char * * argv)
                             ]()
                             {
                                 try {
-                                    EvalState state(myArgs.searchPath, openStore());
+                                    EvalState state(myArgs.lookupPath, openStore());
                                     Bindings & autoArgs = *myArgs.getAutoArgs(state);
                                     worker(state, autoArgs, *to, *from);
                                 } catch (Error & e) {

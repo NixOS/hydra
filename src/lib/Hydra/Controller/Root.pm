@@ -16,6 +16,7 @@ use List::Util qw[min max];
 use List::SomeUtils qw{any};
 use Net::Prometheus;
 use Types::Standard qw/StrMatch/;
+use WWW::Form::UrlEncoded::PP qw();
 
 use constant NARINFO_REGEX => qr{^([a-z0-9]{32})\.narinfo$};
 # e.g.: https://hydra.example.com/realisations/sha256:a62128132508a3a32eef651d6467695944763602f226ac630543e947d9feb140!out.doi
@@ -395,7 +396,7 @@ sub narinfo :Path :Args(StrMatch[NARINFO_REGEX]) {
         my ($hash) = $narinfo =~ NARINFO_REGEX;
 
         die("Hash length was not 32") if length($hash) != 32;
-        my $path = queryPathFromHashPart($hash);
+        my $path = $MACHINE_LOCAL_STORE->queryPathFromHashPart($hash);
 
         if (!$path) {
             $c->response->status(404);
@@ -553,7 +554,7 @@ sub log :Local :Args(1) {
     my $logPrefix = $c->config->{log_prefix};
 
     if (defined $logPrefix) {
-        $c->res->redirect($logPrefix . "log/" . basename($drvPath));
+        $c->res->redirect($logPrefix . "log/" . WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath)));
     } else {
         notFound($c, "The build log of $drvPath is not available.");
     }

@@ -8,6 +8,7 @@
 #include "build-result.hh"
 #include "path.hh"
 #include "serve-protocol.hh"
+#include "serve-protocol-impl.hh"
 #include "state.hh"
 #include "current-process.hh"
 #include "processes.hh"
@@ -19,12 +20,6 @@
 #include "url.hh"
 
 using namespace nix;
-
-
-static void append(Strings & dst, const Strings & src)
-{
-    dst.insert(dst.end(), src.begin(), src.end());
-}
 
 namespace nix::build_remote {
 
@@ -48,58 +43,20 @@ static Strings extraStoreArgs(std::string & machine)
     return result;
 }
 
-static void openConnection(::Machine::ptr machine, Path tmpDir, int stderrFD, SSHMaster::Connection & child)
+static std::unique_ptr<SSHMaster::Connection> openConnection(
+    ::Machine::ptr machine, SSHMaster & master)
 {
-    std::string pgmName;
-    Pipe to, from;
-    to.create();
-    from.create();
-
-    Strings argv;
+    Strings command = {"nix-store", "--serve", "--write"};
     if (machine->isLocalhost()) {
-        pgmName = "nix-store";
-        argv = {"nix-store", "--builders", "", "--serve", "--write"};
+        command.push_back("--builders");
+        command.push_back("");
     } else {
-        pgmName = "ssh";
-        auto sshName = machine->sshName;
-        Strings extraArgs = extraStoreArgs(sshName);
-        argv = {"ssh", sshName};
-        if (machine->sshKey != "") append(argv, {"-i", machine->sshKey});
-        if (machine->sshPublicHostKey != "") {
-            Path fileName = tmpDir + "/host-key";
-            auto p = machine->sshName.find("@");
-            std::string host = p != std::string::npos ? std::string(machine->sshName, p + 1) : machine->sshName;
-            writeFile(fileName, host + " " + machine->sshPublicHostKey + "\n");
-            append(argv, {"-oUserKnownHostsFile=" + fileName});
-        }
-        append(argv,
-            { "-x", "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
-            , "--", "nix-store", "--serve", "--write" });
-        append(argv, extraArgs);
+        command.splice(command.end(), extraStoreArgs(machine->sshName));
     }
 
-    child.sshPid = startProcess([&]() {
-        restoreProcessContext();
-
-        if (dup2(to.readSide.get(), STDIN_FILENO) == -1)
-            throw SysError("cannot dup input pipe to stdin");
-
-        if (dup2(from.writeSide.get(), STDOUT_FILENO) == -1)
-            throw SysError("cannot dup output pipe to stdout");
-
-        if (dup2(stderrFD, STDERR_FILENO) == -1)
-            throw SysError("cannot dup stderr");
-
-        execvp(argv.front().c_str(), (char * *) stringsToCharPtrs(argv).data()); // FIXME: remove cast
-
-        throw SysError("cannot start %s", pgmName);
+    return master.startCommand(std::move(command), {
+        "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
     });
-
-    to.readSide = -1;
-    from.writeSide = -1;
-
-    child.in = to.writeSide.release();
-    child.out = from.readSide.release();
 }
 
 
@@ -117,13 +74,10 @@ static void copyClosureTo(
        garbage-collect paths that are already there. Optionally, ask
        the remote host to substitute missing paths. */
     // FIXME: substitute output pollutes our build log
-    conn.to << ServeProto::Command::QueryValidPaths << 1 << useSubstitutes;
-    ServeProto::write(destStore, conn, closure);
-    conn.to.flush();
-
     /* Get back the set of paths that are already valid on the remote
        host. */
-    auto present = ServeProto::Serialise<StorePathSet>::read(destStore, conn);
+    auto present = conn.queryValidPaths(
+        destStore, true, closure, useSubstitutes);
 
     if (present.size() == closure.size()) return;
 
@@ -148,7 +102,7 @@ static void copyClosureTo(
 
 
 // FIXME: use Store::topoSortPaths().
-static StorePaths reverseTopoSortPaths(const std::map<StorePath, ValidPathInfo> & paths)
+static StorePaths reverseTopoSortPaths(const std::map<StorePath, UnkeyedValidPathInfo> & paths)
 {
     StorePaths sorted;
     StorePathSet visited;
@@ -187,28 +141,6 @@ static std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, cons
     if (!logFD) throw SysError("creating log file ‘%s’", logFile);
 
     return {std::move(logFile), std::move(logFD)};
-}
-
-/**
- * @param conn is not fully initialized; it is this functions job to set
- * the `remoteVersion` field after the handshake is completed.
- * Therefore, no `ServeProto::Serialize` functions can be used until
- * that field is set.
- */
-static void handshake(::Machine::Connection & conn, unsigned int repeats)
-{
-    conn.to << SERVE_MAGIC_1 << 0x206;
-    conn.to.flush();
-
-    unsigned int magic = readInt(conn.from);
-    if (magic != SERVE_MAGIC_2)
-        throw Error("protocol mismatch with ‘nix-store --serve’ on ‘%1%’", conn.machine->sshName);
-    conn.remoteVersion = readInt(conn.from);
-    // Now `conn` is initialized.
-    if (GET_PROTOCOL_MAJOR(conn.remoteVersion) != 0x200)
-        throw Error("unsupported ‘nix-store --serve’ protocol version on ‘%1%’", conn.machine->sshName);
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) < 3 && repeats > 0)
-        throw Error("machine ‘%1%’ does not support repeating a build; please upgrade it to Nix 1.12", conn.machine->sshName);
 }
 
 static BasicDerivation sendInputs(
@@ -281,21 +213,11 @@ static BuildResult performBuild(
     Store & localStore,
     StorePath drvPath,
     const BasicDerivation & drv,
-    const State::BuildOptions & options,
+    const ServeProto::BuildOptions & options,
     counter & nrStepsBuilding
 )
 {
-    conn.to << ServeProto::Command::BuildDerivation << localStore.printStorePath(drvPath);
-    writeDerivation(conn.to, localStore, drv);
-    conn.to << options.maxSilentTime << options.buildTimeout;
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 2)
-        conn.to << options.maxLogSize;
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) >= 3) {
-        conn.to
-            << options.repeats // == build-repeat
-            << options.enforceDeterminism;
-    }
-    conn.to.flush();
+    conn.putBuildDerivationRequest(localStore, drvPath, drv, options);
 
     BuildResult result;
 
@@ -345,7 +267,7 @@ static BuildResult performBuild(
     return result;
 }
 
-static std::map<StorePath, ValidPathInfo> queryPathInfos(
+static std::map<StorePath, UnkeyedValidPathInfo> queryPathInfos(
     ::Machine::Connection & conn,
     Store & localStore,
     StorePathSet & outputs,
@@ -354,30 +276,18 @@ static std::map<StorePath, ValidPathInfo> queryPathInfos(
 {
 
     /* Get info about each output path. */
-    std::map<StorePath, ValidPathInfo> infos;
+    std::map<StorePath, UnkeyedValidPathInfo> infos;
     conn.to << ServeProto::Command::QueryPathInfos;
     ServeProto::write(localStore, conn, outputs);
     conn.to.flush();
     while (true) {
         auto storePathS = readString(conn.from);
         if (storePathS == "") break;
-        auto deriver = readString(conn.from); // deriver
-        auto references = ServeProto::Serialise<StorePathSet>::read(localStore, conn);
-        readLongLong(conn.from); // download size
-        auto narSize = readLongLong(conn.from);
-        auto narHash = Hash::parseAny(readString(conn.from), htSHA256);
-        auto ca = ContentAddress::parseOpt(readString(conn.from));
-        readStrings<StringSet>(conn.from); // sigs
-        ValidPathInfo info(localStore.parseStorePath(storePathS), narHash);
-        assert(outputs.count(info.path));
-        info.references = references;
-        info.narSize = narSize;
+
+        auto storePath = localStore.parseStorePath(storePathS);
+        auto info = ServeProto::Serialise<UnkeyedValidPathInfo>::read(localStore, conn);
         totalNarSize += info.narSize;
-        info.narHash = narHash;
-        info.ca = ca;
-        if (deriver != "")
-            info.deriver = localStore.parseStorePath(deriver);
-        infos.insert_or_assign(info.path, info);
+        infos.insert_or_assign(std::move(storePath), std::move(info));
     }
 
     return infos;
@@ -418,14 +328,16 @@ static void copyPathsFromRemote(
     NarMemberDatas & narMembers,
     Store & localStore,
     Store & destStore,
-    const std::map<StorePath, ValidPathInfo> & infos
+    const std::map<StorePath, UnkeyedValidPathInfo> & infos
 )
 {
       auto pathsSorted = reverseTopoSortPaths(infos);
 
       for (auto & path : pathsSorted) {
           auto & info = infos.find(path)->second;
-          copyPathFromRemote(conn, narMembers, localStore, destStore, info);
+          copyPathFromRemote(
+              conn, narMembers, localStore, destStore,
+              ValidPathInfo { path, info });
       }
 
 }
@@ -492,7 +404,7 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 
 void State::buildRemote(ref<Store> destStore,
     ::Machine::ptr machine, Step::ptr step,
-    const BuildOptions & buildOptions,
+    const ServeProto::BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
     std::function<void(StepState)> updateStep,
     NarMemberDatas & narMembers)
@@ -503,21 +415,26 @@ void State::buildRemote(ref<Store> destStore,
     AutoDelete logFileDel(logFile, false);
     result.logFile = logFile;
 
-    nix::Path tmpDir = createTempDir();
-    AutoDelete tmpDirDel(tmpDir, true);
-
     try {
 
         updateStep(ssConnecting);
 
+        SSHMaster master {
+            machine->sshName,
+            machine->sshKey,
+            machine->sshPublicHostKey,
+            false, // no SSH master yet
+            false, // no compression yet
+            logFD.get(),
+        };
+
         // FIXME: rewrite to use Store.
-        SSHMaster::Connection child;
-        build_remote::openConnection(machine, tmpDir, logFD.get(), child);
+        auto child = build_remote::openConnection(machine, master);
 
         {
             auto activeStepState(activeStep->state_.lock());
             if (activeStepState->cancelled) throw Error("step cancelled");
-            activeStepState->pid = child.sshPid;
+            activeStepState->pid = child->sshPid;
         }
 
         Finally clearPid([&]() {
@@ -533,9 +450,13 @@ void State::buildRemote(ref<Store> destStore,
         });
 
         ::Machine::Connection conn {
-            .from = child.out.get(),
-            .to = child.in.get(),
-            .machine = machine,
+            {
+                .to = child->in.get(),
+                .from = child->out.get(),
+                /* Handshake. */
+                .remoteVersion = 0xdadbeef, // FIXME avoid dummy initialize
+            },
+            /*.machine =*/ machine,
         };
 
         Finally updateStats([&]() {
@@ -543,13 +464,25 @@ void State::buildRemote(ref<Store> destStore,
             bytesSent += conn.to.written;
         });
 
+        constexpr ServeProto::Version our_version = 0x206;
+
         try {
-          build_remote::handshake(conn, buildOptions.repeats);
+            conn.remoteVersion = decltype(conn)::handshake(
+                conn.to,
+                conn.from,
+                our_version,
+                machine->sshName);
         } catch (EndOfFile & e) {
-            child.sshPid.wait();
+            child->sshPid.wait();
             std::string s = chomp(readFile(result.logFile));
             throw Error("cannot connect to ‘%1%’: %2%", machine->sshName, s);
         }
+
+        // Do not attempt to speak a newer version of the protocol.
+        //
+        // Per https://github.com/NixOS/nix/issues/9584 should be handled as
+        // part of `handshake` in upstream nix.
+        conn.remoteVersion = std::min(conn.remoteVersion, our_version);
 
         {
             auto info(machine->state->connectInfo.lock());
@@ -653,8 +586,8 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         /* Shut down the connection. */
-        child.in = -1;
-        child.sshPid.wait();
+        child->in = -1;
+        child->sshPid.wait();
 
     } catch (Error & e) {
         /* Disable this machine until a certain period of time has

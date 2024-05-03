@@ -40,7 +40,10 @@ our @EXPORT = qw(
     registerRoot
     restartBuilds
     run
+    $MACHINE_LOCAL_STORE
     );
+
+our $MACHINE_LOCAL_STORE = Nix::Store->new();
 
 
 sub getHydraHome {
@@ -186,6 +189,10 @@ sub findLog {
     }
 
     return undef if scalar @outPaths == 0;
+
+    # Filter out any NULLs. Content-addressed derivations
+    # that haven't built yet or failed to build may have a NULL outPath.
+    @outPaths = grep {defined} @outPaths;
 
     my @steps = $c->model('DB::BuildSteps')->search(
         { path => { -in => [@outPaths] } },
@@ -494,7 +501,7 @@ sub restartBuilds {
     $builds = $builds->search({ finished => 1 });
 
     foreach my $build ($builds->search({}, { columns => ["drvpath"] })) {
-        next if !isValidPath($build->drvpath);
+        next if !$MACHINE_LOCAL_STORE->isValidPath($build->drvpath);
         registerRoot $build->drvpath;
     }
 

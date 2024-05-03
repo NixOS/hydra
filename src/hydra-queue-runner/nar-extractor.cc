@@ -6,7 +6,46 @@
 
 using namespace nix;
 
-struct Extractor : ParseSink
+
+struct NarMemberConstructor : CreateRegularFileSink
+{
+    NarMemberData & curMember;
+
+    HashSink hashSink = HashSink { HashAlgorithm::SHA256 };
+
+    std::optional<uint64_t> expectedSize;
+
+    NarMemberConstructor(NarMemberData & curMember)
+        : curMember(curMember)
+    { }
+
+    void isExecutable() override
+    {
+    }
+
+    void preallocateContents(uint64_t size) override
+    {
+        expectedSize = size;
+    }
+
+    void operator () (std::string_view data) override
+    {
+        assert(expectedSize);
+        *curMember.fileSize += data.size();
+        hashSink(data);
+        if (curMember.contents) {
+            curMember.contents->append(data);
+        }
+        assert(curMember.fileSize <= expectedSize);
+        if (curMember.fileSize == expectedSize) {
+            auto [hash, len] = hashSink.finish();
+            assert(curMember.fileSize == len);
+            curMember.sha256 = hash;
+        }
+    }
+};
+
+struct Extractor : FileSystemObjectSink
 {
     std::unordered_set<Path> filesToKeep {
         "/nix-support/hydra-build-products",
@@ -15,7 +54,6 @@ struct Extractor : ParseSink
     };
 
     NarMemberDatas & members;
-    NarMemberData * curMember = nullptr;
     Path prefix;
 
     Extractor(NarMemberDatas & members, const Path & prefix)
@@ -27,53 +65,22 @@ struct Extractor : ParseSink
         members.insert_or_assign(prefix + path, NarMemberData { .type = SourceAccessor::Type::tDirectory });
     }
 
-    void createRegularFile(const Path & path) override
+    void createRegularFile(const Path & path, std::function<void(CreateRegularFileSink &)> func) override
     {
-        curMember = &members.insert_or_assign(prefix + path, NarMemberData {
-            .type = SourceAccessor::Type::tRegular,
-            .fileSize = 0,
-            .contents = filesToKeep.count(path) ? std::optional("") : std::nullopt,
-        }).first->second;
-    }
-
-    std::optional<uint64_t> expectedSize;
-    std::unique_ptr<HashSink> hashSink;
-
-    void preallocateContents(uint64_t size) override
-    {
-        expectedSize = size;
-        hashSink = std::make_unique<HashSink>(htSHA256);
-    }
-
-    void receiveContents(std::string_view data) override
-    {
-        assert(expectedSize);
-        assert(curMember);
-        assert(hashSink);
-        *curMember->fileSize += data.size();
-        (*hashSink)(data);
-        if (curMember->contents) {
-            curMember->contents->append(data);
-        }
-        assert(curMember->fileSize <= expectedSize);
-        if (curMember->fileSize == expectedSize) {
-            auto [hash, len] = hashSink->finish();
-            assert(curMember->fileSize == len);
-            curMember->sha256 = hash;
-            hashSink.reset();
-        }
+        NarMemberConstructor nmc {
+            members.insert_or_assign(prefix + path, NarMemberData {
+                .type = SourceAccessor::Type::tRegular,
+                .fileSize = 0,
+                .contents = filesToKeep.count(path) ? std::optional("") : std::nullopt,
+            }).first->second,
+        };
+        func(nmc);
     }
 
     void createSymlink(const Path & path, const std::string & target) override
     {
         members.insert_or_assign(prefix + path, NarMemberData { .type = SourceAccessor::Type::tSymlink });
     }
-
-    void isExecutable() override
-    { }
-
-    void closeRegularFile() override
-    { }
 };
 
 

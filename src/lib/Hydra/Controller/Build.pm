@@ -10,11 +10,10 @@ use File::Basename;
 use File::LibMagic;
 use File::stat;
 use Data::Dump qw(dump);
-use Nix::Store;
-use Nix::Config;
 use List::SomeUtils qw(all);
 use Encode;
 use JSON::PP;
+use WWW::Form::UrlEncoded::PP qw();
 
 use feature 'state';
 
@@ -82,9 +81,9 @@ sub build_GET {
     # false because `$_->path` will be empty
     $c->stash->{available} =
         $c->stash->{isLocalStore}
-        ? all { $_->path && isValidPath($_->path) } $build->buildoutputs->all
+        ? all { $_->path && $MACHINE_LOCAL_STORE->isValidPath($_->path) } $build->buildoutputs->all
         : 1;
-    $c->stash->{drvAvailable} = isValidPath $build->drvpath;
+    $c->stash->{drvAvailable} = $MACHINE_LOCAL_STORE->isValidPath($build->drvpath);
 
     if ($build->finished && $build->iscachedbuild) {
         my $path = ($build->buildoutputs)[0]->path or undef;
@@ -153,7 +152,7 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
     $c->stash->{step} = $step;
 
     my $drvPath = $step->drvpath;
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
     showLog($c, $mode, $log_uri);
 }
 
@@ -162,7 +161,7 @@ sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
 
     my $drvPath = $c->stash->{build}->drvpath;
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
     showLog($c, $mode, $log_uri);
 }
 
@@ -247,6 +246,9 @@ sub serveFile {
     }
 
     elsif ($ls->{type} eq "regular") {
+        # Have the hosted data considered its own origin to avoid being a giant
+        # XSS hole.
+        $c->response->header('Content-Security-Policy' => 'sandbox allow-scripts');
 
         $c->stash->{'plain'} = { data => grab(cmd => ["nix", "--experimental-features", "nix-command",
                                                       "store", "cat", "--store", getStoreUri(), "$path"]) };
@@ -320,7 +322,7 @@ sub output : Chained('buildChain') PathPart Args(1) {
     error($c, "This build is not finished yet.") unless $build->finished;
     my $output = $build->buildoutputs->find({name => $outputName});
     notFound($c, "This build has no output named ‘$outputName’") unless defined $output;
-    gone($c, "Output is no longer available.") unless isValidPath $output->path;
+    gone($c, "Output is no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($output->path);
 
     $c->response->header('Content-Disposition', "attachment; filename=\"build-${\$build->id}-${\$outputName}.nar.bz2\"");
     $c->stash->{current_view} = 'NixNAR';
@@ -437,7 +439,7 @@ sub getDependencyGraph {
             };
         $$done{$path} = $node;
         my @refs;
-        foreach my $ref (queryReferences($path)) {
+        foreach my $ref ($MACHINE_LOCAL_STORE->queryReferences($path)) {
             next if $ref eq $path;
             next unless $runtime || $ref =~ /\.drv$/;
             getDependencyGraph($self, $c, $runtime, $done, $ref);
@@ -445,7 +447,7 @@ sub getDependencyGraph {
         }
         # Show in reverse topological order to flatten the graph.
         # Should probably do a proper BFS.
-        my @sorted = reverse topoSortPaths(@refs);
+        my @sorted = reverse $MACHINE_LOCAL_STORE->topoSortPaths(@refs);
         $node->{refs} = [map { $$done{$_} } @sorted];
     }
 
@@ -458,7 +460,7 @@ sub build_deps : Chained('buildChain') PathPart('build-deps') {
     my $build = $c->stash->{build};
     my $drvPath = $build->drvpath;
 
-    error($c, "Derivation no longer available.") unless isValidPath $drvPath;
+    error($c, "Derivation no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($drvPath);
 
     $c->stash->{buildTimeGraph} = getDependencyGraph($self, $c, 0, {}, $drvPath);
 
@@ -473,7 +475,7 @@ sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
 
     requireLocalStore($c);
 
-    error($c, "Build outputs no longer available.") unless all { isValidPath($_) } @outPaths;
+    error($c, "Build outputs no longer available.") unless all { $MACHINE_LOCAL_STORE->isValidPath($_) } @outPaths;
 
     my $done = {};
     $c->stash->{runtimeGraph} = [ map { getDependencyGraph($self, $c, 1, $done, $_) } @outPaths ];
@@ -493,7 +495,7 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
     if (isLocalStore) {
         foreach my $out ($build->buildoutputs) {
             notFound($c, "Path " . $out->path . " is no longer available.")
-                unless isValidPath($out->path);
+                unless $MACHINE_LOCAL_STORE->isValidPath($out->path);
         }
     }
 

@@ -98,10 +98,13 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
        it). */
     BuildID buildId;
     std::optional<StorePath> buildDrvPath;
-    BuildOptions buildOptions;
-    buildOptions.repeats = step->isDeterministic ? 1 : 0;
-    buildOptions.maxLogSize = maxLogSize;
-    buildOptions.enforceDeterminism = step->isDeterministic;
+    // Other fields set below
+    nix::ServeProto::BuildOptions buildOptions {
+        .maxLogSize = maxLogSize,
+        .nrRepeats = step->isDeterministic ? 1u : 0u,
+        .enforceDeterminism = step->isDeterministic,
+        .keepFailed = false,
+    };
 
     auto conn(dbPool.get());
 
@@ -136,7 +139,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
             {
                 auto i = jobsetRepeats.find(std::make_pair(build2->projectName, build2->jobsetName));
                 if (i != jobsetRepeats.end())
-                    buildOptions.repeats = std::max(buildOptions.repeats, i->second);
+                    buildOptions.nrRepeats = std::max(buildOptions.nrRepeats, i->second);
             }
         }
         if (!build) build = *dependents.begin();
@@ -147,7 +150,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         buildOptions.buildTimeout = build->buildTimeout;
 
         printInfo("performing step ‘%s’ %d times on ‘%s’ (needed by build %d and %d others)",
-            localStore->printStorePath(step->drvPath), buildOptions.repeats + 1, machine->sshName, buildId, (dependents.size() - 1));
+            localStore->printStorePath(step->drvPath), buildOptions.nrRepeats + 1, machine->sshName, buildId, (dependents.size() - 1));
     }
 
     if (!buildOneDone)
