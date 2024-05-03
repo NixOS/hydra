@@ -367,7 +367,7 @@ sub realisations :Path('realisations') :Args(StrMatch[REALISATIONS_REGEX]) {
 
     else {
         my ($rawDrvOutput) = $realisation =~ REALISATIONS_REGEX;
-        my $rawRealisation = queryRawRealisation($rawDrvOutput);
+        my $rawRealisation = $MACHINE_LOCAL_STORE->queryRawRealisation($rawDrvOutput);
 
         if (!$rawRealisation) {
             $c->response->status(404);
