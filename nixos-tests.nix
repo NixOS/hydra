@@ -7,7 +7,7 @@ let
     {
       imports = [
         nixosModules.hydra
-        nixosModules.overlayNixpkgsForThisHyydra
+        nixosModules.overlayNixpkgsForThisHydra
         nixosModules.hydraTest
       ];
 
