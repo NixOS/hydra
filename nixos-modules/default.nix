@@ -3,8 +3,9 @@
 {
   hydra = import ./hydra.nix;
 
-  overlayNixpkgsForThisHyydra = {
+  overlayNixpkgsForThisHydra = { pkgs, ... }: {
     nixpkgs = { inherit overlays; };
+    services.hydra.package = pkgs.hydra;
   };
 
   hydraTest = { pkgs, ... }: {
