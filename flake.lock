@@ -80,11 +80,11 @@
         "pre-commit-hooks": "pre-commit-hooks"
       },
       "locked": {
-        "lastModified": 1714701944,
-        "narHash": "sha256-trTxWfGElp0rkjquqG5I5RYVoxo8foCflxJFUtHwnOQ=",
+        "lastModified": 1715180119,
+        "narHash": "sha256-6tdv6d0lzpS+EeUTRZ15vS0YdcSpkmRBrJ5ABHC0QiU=",
         "owner": "NixOS",
         "repo": "nix",
-        "rev": "00ca2b05b8fbbef09be5d1e4820857605d4c31b6",
+        "rev": "0930058189f350a3729cd5aef2ffc8dae2ad436e",
         "type": "github"
       },
       "original": {
