@@ -140,7 +140,7 @@ You can also interface with Hydra through a JSON API. The API is defined in [hyd
 ## Additional Resources
 
 - [Hydra User's Guide](https://nixos.org/hydra/manual/)
-- [Hydra on the NixOS Wiki](https://nixos.wiki/wiki/Hydra)
+- [Hydra on the NixOS Wiki](https://wiki.nixos.org/wiki/Hydra)
 - [hydra-cli](https://github.com/nlewo/hydra-cli)
 - [Peter Simons - Hydra: Setting up your own build farm (NixOS)](https://www.youtube.com/watch?v=RXV0Y5Bn-QQ)
 
