@@ -267,32 +267,6 @@ static BuildResult performBuild(
     return result;
 }
 
-static std::map<StorePath, UnkeyedValidPathInfo> queryPathInfos(
-    ::Machine::Connection & conn,
-    Store & localStore,
-    StorePathSet & outputs,
-    size_t & totalNarSize
-)
-{
-
-    /* Get info about each output path. */
-    std::map<StorePath, UnkeyedValidPathInfo> infos;
-    conn.to << ServeProto::Command::QueryPathInfos;
-    ServeProto::write(localStore, conn, outputs);
-    conn.to.flush();
-    while (true) {
-        auto storePathS = readString(conn.from);
-        if (storePathS == "") break;
-
-        auto storePath = localStore.parseStorePath(storePathS);
-        auto info = ServeProto::Serialise<UnkeyedValidPathInfo>::read(localStore, conn);
-        totalNarSize += info.narSize;
-        infos.insert_or_assign(std::move(storePath), std::move(info));
-    }
-
-    return infos;
-}
-
 static void copyPathFromRemote(
     ::Machine::Connection & conn,
     NarMemberDatas & narMembers,
@@ -478,12 +452,6 @@ void State::buildRemote(ref<Store> destStore,
             throw Error("cannot connect to ‘%1%’: %2%", machine->sshName, s);
         }
 
-        // Do not attempt to speak a newer version of the protocol.
-        //
-        // Per https://github.com/NixOS/nix/issues/9584 should be handled as
-        // part of `handshake` in upstream nix.
-        conn.remoteVersion = std::min(conn.remoteVersion, our_version);
-
         {
             auto info(machine->state->connectInfo.lock());
             info->consecutiveFailures = 0;
@@ -552,8 +520,10 @@ void State::buildRemote(ref<Store> destStore,
 
             auto now1 = std::chrono::steady_clock::now();
 
+            auto infos = conn.queryPathInfos(*localStore, outputs);
+
             size_t totalNarSize = 0;
-            auto infos = build_remote::queryPathInfos(conn, *localStore, outputs, totalNarSize);
+            for (auto & [_, info] : infos) totalNarSize += info.narSize;
 
             if (totalNarSize > maxOutputSize) {
                 result.stepStatus = bsNarSizeLimitExceeded;
