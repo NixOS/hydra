@@ -89,7 +89,7 @@ struct MyArgs : MixEvalArgs, MixCommonArgs, RootArgs
 
 static MyArgs myArgs;
 
-static std::string queryMetaStrings(EvalState & state, DrvInfo & drv, const std::string & name, const std::string & subAttribute)
+static std::string queryMetaStrings(EvalState & state, PackageInfo & drv, const std::string & name, const std::string & subAttribute)
 {
     Strings res;
     std::function<void(Value & v)> rec;
@@ -181,7 +181,7 @@ static void worker(
                 // CA derivations do not have static output paths, so we
                 // have to defensively not query output paths in case we
                 // encounter one.
-                DrvInfo::Outputs outputs = drv->queryOutputs(
+                PackageInfo::Outputs outputs = drv->queryOutputs(
                     !experimentalFeatureSettings.isEnabled(Xp::CaDerivations));
 
                 if (drv->querySystem() == "unknown")
