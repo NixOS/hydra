@@ -153,8 +153,8 @@ void State::parseMachines(const std::string & contents)
         using MaxJobs = std::remove_const<decltype(nix::Machine::maxJobs)>::type;
 
         auto machine = std::make_shared<::Machine>(nix::Machine {
-            // `storeUri`, not yet used
-            "",
+            // `storeUri`
+            tokens[0],
             // `systemTypes`
             tokenizeString<StringSet>(tokens[1], ","),
             // `sshKey`
@@ -175,25 +175,23 @@ void State::parseMachines(const std::string & contents)
                 : "",
         });
 
-        machine->sshName = tokens[0];
-
         /* Re-use the State object of the previous machine with the
            same name. */
-        auto i = oldMachines.find(machine->sshName);
+        auto i = oldMachines.find(machine->storeUri.variant);
         if (i == oldMachines.end())
-            printMsg(lvlChatty, "adding new machine ‘%1%’", machine->sshName);
+            printMsg(lvlChatty, "adding new machine ‘%1%’", machine->storeUri.render());
         else
-            printMsg(lvlChatty, "updating machine ‘%1%’", machine->sshName);
+            printMsg(lvlChatty, "updating machine ‘%1%’", machine->storeUri.render());
         machine->state = i == oldMachines.end()
             ? std::make_shared<::Machine::State>()
             : i->second->state;
-        newMachines[machine->sshName] = machine;
+        newMachines[machine->storeUri.variant] = machine;
     }
 
     for (auto & m : oldMachines)
         if (newMachines.find(m.first) == newMachines.end()) {
             if (m.second->enabled)
-                printInfo("removing machine ‘%1%’", m.first);
+                printInfo("removing machine ‘%1%’", m.second->storeUri.render());
             /* Add a disabled ::Machine object to make sure stats are
                maintained. */
             auto machine = std::make_shared<::Machine>(*(m.second));
@@ -657,7 +655,7 @@ void State::dumpStatus(Connection & conn)
                     machine["avgStepTime"] = (float) s->totalStepTime / s->nrStepsDone;
                     machine["avgStepBuildTime"] = (float) s->totalStepBuildTime / s->nrStepsDone;
                 }
-                statusJson["machines"][m->sshName] = machine;
+                statusJson["machines"][m->storeUri.render()] = machine;
             }
         }
 

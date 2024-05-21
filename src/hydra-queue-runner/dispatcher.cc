@@ -255,7 +255,7 @@ system_time State::doDispatch()
                 /* Can this machine do this step? */
                 if (!mi.machine->supportsStep(step)) {
                     debug("machine '%s' does not support step '%s' (system type '%s')",
-                        mi.machine->sshName, localStore->printStorePath(step->drvPath), step->drv->platform);
+                        mi.machine->storeUri.render(), localStore->printStorePath(step->drvPath), step->drv->platform);
                     continue;
                 }
 
