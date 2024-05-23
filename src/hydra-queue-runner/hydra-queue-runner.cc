@@ -135,45 +135,8 @@ void State::parseMachines(const std::string & contents)
         oldMachines = *machines_;
     }
 
-    for (auto line : tokenizeString<Strings>(contents, "\n")) {
-        line = trim(std::string(line, 0, line.find('#')));
-        auto tokens = tokenizeString<std::vector<std::string>>(line);
-        if (tokens.size() < 3) continue;
-        tokens.resize(8);
-
-        if (tokens[5] == "-") tokens[5] = "";
-        auto supportedFeatures = tokenizeString<StringSet>(tokens[5], ",");
-
-        if (tokens[6] == "-") tokens[6] = "";
-        auto mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
-
-        for (auto & f : mandatoryFeatures)
-            supportedFeatures.insert(f);
-
-        using MaxJobs = std::remove_const<decltype(nix::Machine::maxJobs)>::type;
-
-        auto machine = std::make_shared<::Machine>(nix::Machine {
-            // `storeUri`
-            tokens[0],
-            // `systemTypes`
-            tokenizeString<StringSet>(tokens[1], ","),
-            // `sshKey`
-            tokens[2] == "-" ? "" : tokens[2],
-            // `maxJobs`
-            tokens[3] != ""
-                ? string2Int<MaxJobs>(tokens[3]).value()
-                : 1,
-            // `speedFactor`
-            atof(tokens[4].c_str()),
-            // `supportedFeatures`
-            std::move(supportedFeatures),
-            // `mandatoryFeatures`
-            std::move(mandatoryFeatures),
-            // `sshPublicHostKey`
-            tokens[7] != "" && tokens[7] != "-"
-                ? base64Decode(tokens[7])
-                : "",
-        });
+    for (auto && machine_ : nix::Machine::parseConfig({}, contents)) {
+        auto machine = std::make_shared<::Machine>(std::move(machine_));
 
         /* Re-use the State object of the previous machine with the
            same name. */
