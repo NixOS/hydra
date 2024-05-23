@@ -7,6 +7,7 @@
 
 #include "build-result.hh"
 #include "path.hh"
+#include "legacy-ssh-store.hh"
 #include "serve-protocol.hh"
 #include "serve-protocol-impl.hh"
 #include "state.hh"
@@ -403,19 +404,22 @@ void State::buildRemote(ref<Store> destStore,
 
         updateStep(ssConnecting);
 
-        auto * pSpecified = std::get_if<StoreReference::Specified>(&machine->storeUri.variant);
+        auto storeRef = machine->completeStoreReference();
+
+        auto * pSpecified = std::get_if<StoreReference::Specified>(&storeRef.variant);
         if (!pSpecified || pSpecified->scheme != "ssh") {
             throw Error("Currently, only (legacy-)ssh stores are supported!");
         }
 
-        SSHMaster master {
+        LegacySSHStoreConfig storeConfig {
+            pSpecified->scheme,
             pSpecified->authority,
-            machine->sshKey,
-            machine->sshPublicHostKey,
-            false, // no SSH master yet
-            false, // no compression yet
-            logFD.get(),
+            storeRef.params
         };
+
+        auto master = storeConfig.createSSHMaster(
+            false, // no SSH master yet
+            logFD.get());
 
         // FIXME: rewrite to use Store.
         auto child = build_remote::openConnection(machine, master);
