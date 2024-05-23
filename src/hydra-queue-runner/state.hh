@@ -6,7 +6,6 @@
 #include <map>
 #include <memory>
 #include <queue>
-#include <regex>
 
 #include <prometheus/counter.h>
 #include <prometheus/gauge.h>
@@ -240,10 +239,6 @@ struct Machine : nix::Machine
 {
     typedef std::shared_ptr<Machine> ptr;
 
-    /* TODO Get rid of: `nix::Machine::storeUri` is normalized in a way
-       we are not yet used to, but once we are, we don't need this. */
-    std::string sshName;
-
     struct State {
         typedef std::shared_ptr<State> ptr;
         counter currentJobs{0};
@@ -293,11 +288,7 @@ struct Machine : nix::Machine
         return true;
     }
 
-    bool isLocalhost()
-    {
-        std::regex r("^(ssh://|ssh-ng://)?localhost$");
-        return std::regex_search(sshName, r);
-    }
+    bool isLocalhost() const;
 
     // A connection to a machine
     struct Connection : nix::ServeProto::BasicClientConnection {
@@ -357,7 +348,7 @@ private:
 
     /* The build machines. */
     std::mutex machinesReadyLock;
-    typedef std::map<std::string, Machine::ptr> Machines;
+    typedef std::map<nix::StoreReference::Variant, Machine::ptr> Machines;
     nix::Sync<Machines> machines; // FIXME: use atomic_shared_ptr
 
     /* Various stats. */
