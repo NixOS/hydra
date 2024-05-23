@@ -563,7 +563,7 @@ makeQueries('', "");
 makeQueries('ForProject', "and jobset_id in (select id from jobsets j where j.project = ?)");
 makeQueries('ForJobset', "and jobset_id = ?");
 makeQueries('ForJob', "and jobset_id = ? and job = ?");
-makeQueries('ForJobName', "and jobset_id = (select id from jobsets j where j.name = ?) and job = ?");
+makeQueries('ForJobName', "and jobset_id = (select id from jobsets j where j.project = ? and j.name = ?) and job = ?");
 
 sub as_json {
   my ($self) = @_;
