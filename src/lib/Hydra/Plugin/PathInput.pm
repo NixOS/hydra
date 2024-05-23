@@ -5,7 +5,6 @@ use warnings;
 use parent 'Hydra::Plugin';
 use POSIX qw(strftime);
 use Hydra::Helper::Nix;
-use Nix::Store;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -30,7 +29,7 @@ sub fetchInput {
         {srcpath => $uri, lastseen => {">", $timestamp - $timeout}},
         {rows => 1, order_by => "lastseen DESC"});
 
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
         $timestamp = $cachedInput->timestamp;
@@ -46,7 +45,7 @@ sub fetchInput {
         }
         chomp $storePath;
 
-        $sha256 = (queryPathInfo($storePath, 0))[1] or die;
+        $sha256 = ($MACHINE_LOCAL_STORE->queryPathInfo($storePath, 0))[1] or die;
 
         ($cachedInput) = $self->{db}->resultset('CachedPathInputs')->search(
             {srcpath => $uri, sha256hash => $sha256});

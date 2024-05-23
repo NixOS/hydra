@@ -27,13 +27,13 @@ my $project = $db->resultset('Projects')->create({name => "tests", displayname =
 my $jobset = createBaseJobset("content-addressed", "content-addressed.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset), "Evaluating jobs/content-addressed.nix should exit with return code 0");
-is(nrQueuedBuildsForJobset($jobset), 5, "Evaluating jobs/content-addressed.nix should result in 4 builds");
+is(nrQueuedBuildsForJobset($jobset), 6, "Evaluating jobs/content-addressed.nix should result in 6 builds");
 
 for my $build (queuedBuildsForJobset($jobset)) {
     ok(runBuild($build), "Build '".$build->job."' from jobs/content-addressed.nix should exit with code 0");
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build '".$build->job."' from jobs/content-addressed.nix should be finished.");
-    my $expected = $build->job eq "fails" ? 1 : $build->job =~ /with_failed/ ? 6 : 0;
+    my $expected = $build->job eq "fails" ? 1 : $build->job =~ /with_failed/ ? 6 : $build->job =~ /FailingCA/ ? 2 : 0;
     is($newbuild->buildstatus, $expected, "Build '".$build->job."' from jobs/content-addressed.nix should have buildstatus $expected.");
 
     my $response = request("/build/".$build->id);
@@ -55,6 +55,8 @@ for my $build (queuedBuildsForJobset($jobset)) {
 
 }
 
+# XXX: deststoredir is undefined: Use of uninitialized value $ctx{"deststoredir"} in concatenation (.) or string at t/content-addressed/basic.t line 58.
+# XXX: This test seems to not do what it seems to be doing. See documentation: https://metacpan.org/pod/Test2::V0#isnt($got,-$do_not_want,-$name)
 isnt(<$ctx{deststoredir}/realisations/*>, "", "The destination store should have the realisations of the built derivations registered");
 
 done_testing;
