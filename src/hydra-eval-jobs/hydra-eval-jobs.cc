@@ -310,6 +310,7 @@ int main(int argc, char * * argv)
 
         auto nrWorkers = config->getIntOption("evaluator_workers", 1);
         maxMemorySize = config->getIntOption("evaluator_max_memory_size", 4096);
+        auto restrictEval = config->getBoolOption("evaluator_restrict_eval", true);
 
         initNix();
         initGC();
@@ -323,7 +324,7 @@ int main(int argc, char * * argv)
 
         /* Prevent access to paths outside of the Nix search path and
            to the environment. */
-        evalSettings.restrictEval = true;
+        evalSettings.restrictEval = restrictEval;
 
         /* When building a flake, use pure evaluation (no access to
            'getEnv', 'currentSystem' etc. */
