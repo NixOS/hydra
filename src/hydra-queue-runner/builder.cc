@@ -37,11 +37,12 @@ void State::builder(MachineReservation::ptr reservation)
 
         try {
             auto destStore = getDestStore();
+            // Might release the reservation.
             res = doBuildStep(destStore, reservation, activeStep);
         } catch (std::exception & e) {
             printMsg(lvlError, "uncaught exception building ‘%s’ on ‘%s’: %s",
-                localStore->printStorePath(reservation->step->drvPath),
-                reservation->machine->sshName,
+                localStore->printStorePath(activeStep->step->drvPath),
+                reservation ? reservation->machine->sshName : std::string("(no machine)"),
                 e.what());
         }
     }
