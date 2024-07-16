@@ -50,6 +50,7 @@
 , xz
 , gnutar
 , gnused
+, nix-eval-jobs
 
 , rpm
 , dpkg
@@ -190,6 +191,7 @@ stdenv.mkDerivation (finalAttrs: {
     openldap
     postgresql_13
     pixz
+    nix-eval-jobs
   ];
 
   checkInputs = [
@@ -218,6 +220,7 @@ stdenv.mkDerivation (finalAttrs: {
       darcs
       gnused
       breezy
+      nix-eval-jobs
     ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ]
   );
 

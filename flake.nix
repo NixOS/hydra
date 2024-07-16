@@ -21,7 +21,7 @@
   # hide nix-eval-jobs dev tooling from our lock file
   inputs.nix-eval-jobs.inputs.nix-github-actions.follows = "";
 
-  outputs = { self, nixpkgs, nix, ... }:
+  outputs = { self, nixpkgs, nix, nix-eval-jobs, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
@@ -32,6 +32,7 @@
       overlays.default = final: prev: {
         hydra = final.callPackage ./package.nix {
           inherit (nixpkgs.lib) fileset;
+          nix-eval-jobs = nix-eval-jobs.packages.${final.system}.default;
           rawSrc = self;
           nix-perl-bindings = final.nixComponents.nix-perl-bindings;
         };
@@ -75,6 +76,7 @@
       packages = forEachSystem (system: {
         hydra = nixpkgs.legacyPackages.${system}.callPackage ./package.nix {
           inherit (nixpkgs.lib) fileset;
+          nix-eval-jobs = nix-eval-jobs.packages.${system}.default;
           rawSrc = self;
           nix = nix.packages.${system}.nix;
           nix-perl-bindings = nix.hydraJobs.perlBindings.${system};
