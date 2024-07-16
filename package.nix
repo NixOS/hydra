@@ -235,7 +235,7 @@ stdenv.mkDerivation (finalAttrs: {
   shellHook = ''
     pushd $(git rev-parse --show-toplevel) >/dev/null
 
-    PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
+    PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-queue-runner:$PATH
     PERL5LIB=$(pwd)/src/lib:$PERL5LIB
     export HYDRA_HOME="$(pwd)/src/"
     mkdir -p .hydra-data
