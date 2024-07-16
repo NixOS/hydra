@@ -8,12 +8,18 @@
   inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
   inputs.nix.inputs.libgit2.follows = "libgit2";
 
+  inputs.nix-eval-jobs.url = "github:nix-community/nix-eval-jobs/release-2.24";
+  inputs.nix-eval-jobs.inputs.nixpkgs.follows = "nixpkgs";
+
   # hide nix dev tooling from our lock file
   inputs.nix.inputs.flake-parts.follows = "";
   inputs.nix.inputs.git-hooks-nix.follows = "";
   inputs.nix.inputs.nixpkgs-regression.follows = "";
   inputs.nix.inputs.nixpkgs-23-11.follows = "";
   inputs.nix.inputs.flake-compat.follows = "";
+
+  # hide nix-eval-jobs dev tooling from our lock file
+  inputs.nix-eval-jobs.inputs.nix-github-actions.follows = "";
 
   outputs = { self, nixpkgs, nix, ... }:
     let
