@@ -76,7 +76,9 @@ sub view_GET {
     $c->stash->{removed} = $diff->{removed};
     $c->stash->{unfinished} = $diff->{unfinished};
     $c->stash->{aborted} = $diff->{aborted};
-    $c->stash->{failed} = $diff->{failed};
+    $c->stash->{totalAborted} = $diff->{totalAborted};
+    $c->stash->{totalFailed} = $diff->{totalFailed};
+    $c->stash->{totalQueued} = $diff->{totalQueued};
 
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
 
