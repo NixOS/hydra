@@ -63,6 +63,7 @@ if (defined($promCfg)) {
             host => $promCfg->{"listen_address"},
             port => $promCfg->{"port"},
             timeout => 1,
+            ipv6 => 1,
         );
 
         $server->run($prom->psgi);
