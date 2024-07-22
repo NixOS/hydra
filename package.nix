@@ -13,7 +13,8 @@
 , git
 
 , makeWrapper
-, autoreconfHook
+, meson
+, ninja
 , nukeReferences
 , pkg-config
 , mdbook
@@ -91,6 +92,7 @@ let
         DigestSHA1
         EmailMIME
         EmailSender
+        FileCopyRecursive
         FileLibMagic
         FileSlurper
         FileWhich
@@ -138,28 +140,24 @@ stdenv.mkDerivation (finalAttrs: {
   src = fileset.toSource {
     root = ./.;
     fileset = fileset.unions ([
-      ./version.txt
-      ./configure.ac
-      ./Makefile.am
-      ./src
       ./doc
-      ./nixos-modules/hydra.nix
-      # These are always needed to appease Automake
-      ./t/Makefile.am
-      ./t/jobs/config.nix.in
-      ./t/jobs/declarative/project.json.in
-    ] ++ lib.optionals finalAttrs.doCheck [
+      ./meson.build
+      ./nixos-modules
+      ./src
       ./t
+      ./version.txt
       ./.perlcriticrc
-      ./.yath.rc
     ]);
   };
+
+  outputs = [ "out" "doc" ];
 
   strictDeps = true;
 
   nativeBuildInputs = [
     makeWrapper
-    autoreconfHook
+    meson
+    ninja
     nukeReferences
     pkg-config
     mdbook
@@ -225,6 +223,12 @@ stdenv.mkDerivation (finalAttrs: {
 
   OPENLDAP_ROOT = openldap;
 
+  mesonBuildType = "release";
+
+  postPatch = ''
+    patchShebangs .
+  '';
+
   shellHook = ''
     pushd $(git rev-parse --show-toplevel) >/dev/null
 
@@ -238,14 +242,11 @@ stdenv.mkDerivation (finalAttrs: {
     popd >/dev/null
   '';
 
-  NIX_LDFLAGS = [ "-lpthread" ];
-
-  enableParallelBuilding = true;
-
   doCheck = true;
 
+  mesonCheckFlags = [ "--verbose" ];
+
   preCheck = ''
-    patchShebangs .
     export LOGNAME=''${LOGNAME:-foo}
     # set $HOME for bzr so it can create its trace file
     export HOME=$(mktemp -d)
