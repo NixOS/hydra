@@ -30,6 +30,8 @@ foreman:
 $ foreman start
 ```
 
+The Hydra interface will be available on port 63333, with an admin user named "alice" with password "foobar"
+
 You can run just the Hydra web server in your source tree as follows:
 
 ```console
