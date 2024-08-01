@@ -188,7 +188,9 @@ sub store_paths : Chained('evalChain') PathPart('store-paths') Args(0) {
 # Return full info about all the builds in this evaluation.
 sub all_builds : Chained('evalChain') PathPart('builds') Args(0) {
     my ($self, $c) = @_;
-    my @builds = $c->stash->{eval}->builds;
+    my @builds = $c->stash->{eval}->builds
+        ->search({},
+                 { prefetch => ['jobset', 'buildoutputs', 'buildproducts', 'buildmetrics'] });
     $self->status_ok(
         $c,
         entity => [@builds],
