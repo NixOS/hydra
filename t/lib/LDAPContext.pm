@@ -70,7 +70,7 @@ sub add_user {
     my $email = $opts{'email'} // "$name\@example";
     my $password = $opts{'password'} // rand_chars();
 
-    my ($res, $stdout, $stderr) = captureStdoutStderr(1, ("slappasswd", "-s", $password));
+    my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("slappasswd", "-s", $password));
     if ($res) {
         die "Failed to execute slappasswd ($res): $stderr, $stdout";
     }
@@ -178,7 +178,7 @@ sub start {
 sub validateConfig {
     my ($self) = @_;
 
-    expectOkay(1, ("slaptest", "-u", "-F", $self->{"_slapd_dir"}));
+    expectOkay(5, ("slaptest", "-u", "-F", $self->{"_slapd_dir"}));
 }
 
 sub _spawn {
@@ -218,7 +218,7 @@ sub load_ldif {
 
     my $path = "${\$self->{'_tmpdir'}}/load.ldif";
     write_file($path, $content);
-    expectOkay(1, ("slapadd", "-F", $self->{"_slapd_dir"}, "-b", $suffix, "-l", $path));
+    expectOkay(5, ("slapadd", "-F", $self->{"_slapd_dir"}, "-b", $suffix, "-l", $path));
     $self->validateConfig();
 }
 

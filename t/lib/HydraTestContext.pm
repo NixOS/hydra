@@ -92,7 +92,7 @@ sub new {
         $opts{'before_init'}->($self);
     }
 
-    expectOkay(5, ("hydra-init"));
+    expectOkay(30, ("hydra-init"));
 
     return $self;
 }

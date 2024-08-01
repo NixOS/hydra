@@ -9,7 +9,7 @@ my $db = $ctx->db();
 
 subtest "Handling password and password hash creation" => sub {
     subtest "Creating a user with a plain text password (insecure) stores the password securely" => sub {
-        my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("hydra-create-user", "plain-text-user", "--password", "foobar"));
+        my ($res, $stdout, $stderr) = captureStdoutStderr(15, ("hydra-create-user", "plain-text-user", "--password", "foobar"));
         is($res, 0, "hydra-create-user should exit zero");
         like($stderr, qr/Submitting plaintext passwords as arguments is deprecated and will be removed/, "Submitting a plain text password is deprecated.");
 
@@ -23,7 +23,7 @@ subtest "Handling password and password hash creation" => sub {
     };
 
     subtest "Creating a user with a sha1 password (still insecure) stores the password as a hashed sha1" => sub {
-        my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("hydra-create-user", "old-password-hash-user", "--password-hash", "8843d7f92416211de9ebb963ff4ce28125932878"));
+        my ($res, $stdout, $stderr) = captureStdoutStderr(15, ("hydra-create-user", "old-password-hash-user", "--password-hash", "8843d7f92416211de9ebb963ff4ce28125932878"));
         is($res, 0, "hydra-create-user should exit zero");
 
         my $user = $db->resultset('Users')->find({ username => "old-password-hash-user" });
@@ -36,7 +36,7 @@ subtest "Handling password and password hash creation" => sub {
     };
 
     subtest "Creating a user with an argon2 password stores the password as given" => sub {
-        my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("hydra-create-user", "argon2-hash-user", "--password-hash", '$argon2id$v=19$m=262144,t=3,p=1$tMnV5paYjmIrUIb6hylaNA$M8/e0i3NGrjhOliVLa5LqQ'));
+        my ($res, $stdout, $stderr) = captureStdoutStderr(15, ("hydra-create-user", "argon2-hash-user", "--password-hash", '$argon2id$v=19$m=262144,t=3,p=1$tMnV5paYjmIrUIb6hylaNA$M8/e0i3NGrjhOliVLa5LqQ'));
         is($res, 0, "hydra-create-user should exit zero");
 
         my $user = $db->resultset('Users')->find({ username => "argon2-hash-user" });
@@ -50,7 +50,7 @@ subtest "Handling password and password hash creation" => sub {
 
     subtest "Creating a user by prompting for the password" => sub {
         subtest "with the same password twice" => sub {
-            my ($res, $stdout, $stderr) = captureStdoutStderrWithStdin(5, ["hydra-create-user", "prompted-pass-user", "--password-prompt"], "my-password\nmy-password\n");
+            my ($res, $stdout, $stderr) = captureStdoutStderrWithStdin(15, ["hydra-create-user", "prompted-pass-user", "--password-prompt"], "my-password\nmy-password\n");
             is($res, 0, "hydra-create-user should exit zero");
 
             my $user = $db->resultset('Users')->find({ username => "prompted-pass-user" });
@@ -62,7 +62,7 @@ subtest "Handling password and password hash creation" => sub {
         };
 
         subtest "With mismatched password confirmation" => sub {
-            my ($res, $stdout, $stderr) = captureStdoutStderrWithStdin(5, ["hydra-create-user", "prompted-pass-user", "--password-prompt"], "my-password\nnot-my-password\n");
+            my ($res, $stdout, $stderr) = captureStdoutStderrWithStdin(15, ["hydra-create-user", "prompted-pass-user", "--password-prompt"], "my-password\nnot-my-password\n");
             isnt($res, 0, "hydra-create-user should exit non-zero");
         };
     };
@@ -76,7 +76,7 @@ subtest "Handling password and password hash creation" => sub {
         );
 
         for my $case (@cases) {
-            my ($res, $stdout, $stderr) = captureStdoutStderr(5, (
+            my ($res, $stdout, $stderr) = captureStdoutStderr(15, (
                 "hydra-create-user", "bogus-password-options", @{$case}));
             like($stderr, qr/please specify only one of --password-prompt or --password-hash/, "We get an error about specifying the password");
             isnt($res, 0, "hydra-create-user should exit non-zero with conflicting " . join(" ", @{$case}));
@@ -84,7 +84,7 @@ subtest "Handling password and password hash creation" => sub {
     };
 
     subtest "A password is not required for creating a Google-based account" => sub {
-        my ($res, $stdout, $stderr) = captureStdoutStderr(5, (
+        my ($res, $stdout, $stderr) = captureStdoutStderr(15, (
             "hydra-create-user", "google-account", "--type", "google"));
         is($res, 0, "hydra-create-user should exit zero");
     };

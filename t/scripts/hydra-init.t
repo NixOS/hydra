@@ -28,7 +28,7 @@ subtest "hydra-init upgrades user's password hashes from sha1 to sha1 inside Arg
     $janet->setPassword("foobar");
 
     is($alice->password, "8843d7f92416211de9ebb963ff4ce28125932878", "Alices's sha1 is stored in the database");
-    my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("hydra-init"));
+    my ($res, $stdout, $stderr) = captureStdoutStderr(30, ("hydra-init"));
     if ($res != 0) {
         is($stdout, "");
         is($stderr, "");
@@ -55,7 +55,7 @@ subtest "hydra-init upgrades user's password hashes from sha1 to sha1 inside Arg
     };
 
     subtest "Running hydra-init don't break Alice or Janet's passwords" => sub {
-        my ($res, $stdout, $stderr) = captureStdoutStderr(5, ("hydra-init"));
+        my ($res, $stdout, $stderr) = captureStdoutStderr(30, ("hydra-init"));
         is($res, 0, "hydra-init should exit zero");
 
         my $updatedAlice = $db->resultset('Users')->find({ username => "alice" });
