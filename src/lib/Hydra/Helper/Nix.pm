@@ -36,6 +36,7 @@ our @EXPORT = qw(
     jobsetOverview
     jobsetOverview_
     pathIsInsidePrefix
+    readIntoSocket
     readNixFile
     registerRoot
     restartBuilds
@@ -417,6 +418,17 @@ sub pathIsInsidePrefix {
     return $cur;
 }
 
+sub readIntoSocket{
+    my (%args) = @_;
+    my $sock;
+
+    eval {
+        my $x= join(" ", @{$args{cmd}});
+        open($sock, "-|", $x) or die q(failed to open socket from command:\n $x);
+    };
+
+    return $sock;
+}
 
 
 
