@@ -129,6 +129,12 @@ $(document).ready(function() {
             el.addClass("is-local");
         }
     });
+
+    [...document.getElementsByTagName("iframe")].forEach((element) => {
+        element.contentWindow.addEventListener("DOMContentLoaded", (_) => {
+            element.style.height = element.contentWindow.document.body.scrollHeight + 'px';
+        })
+    })
 });
 
 var tabsLoaded = {};
