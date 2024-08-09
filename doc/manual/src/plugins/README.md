@@ -42,13 +42,21 @@ Sets CircleCI status.
 
 ## Compress build logs
 
-Compresses build logs after a build with bzip2.
+Compresses build logs after a build with bzip2 or zstd.
 
 ### Configuration options
 
 - `compress_build_logs`
 
 Enable log compression
+
+- `compress_build_logs_compression`
+
+Which compression format to use. Valid values are bzip2 (default) and zstd.
+
+- `compress_build_logs_silent`
+
+Whether to compress logs silently.
 
 ### Example
 
