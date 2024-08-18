@@ -423,8 +423,7 @@ sub readIntoSocket{
     my $sock;
 
     eval {
-        my $x= join(" ", @{$args{cmd}});
-        open($sock, "-|", $x) or die q(failed to open socket from command:\n $x);
+        open($sock, "-|", @{$args{cmd}}) or die q(failed to open socket from command:\n $x);
     };
 
     return $sock;
