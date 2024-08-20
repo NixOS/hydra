@@ -5,6 +5,26 @@ use warnings;
 use base qw/Catalyst::View/;
 use Hydra::Helper::CatalystUtils;
 
+sub tail {
+    my ($filehandle, $n) = @_;
+    my @lines;
+    my $line_count = 0;
+
+    while (my $line = <$filehandle>) {
+        $lines[$line_count % $n] = $line;
+        $line_count++;
+    }
+
+    my $start = $line_count > $n ? $line_count % $n : 0;
+    my $end = $line_count > $n ? $n : $line_count;
+
+    my $result = "";
+    for my $i (0 .. $end - 1) {
+        $result .= $lines[($start + $i) % $n];
+    }
+    return $result;
+}
+
 sub process {
     my ($self, $c) = @_;
 
@@ -12,28 +32,28 @@ sub process {
 
     $c->response->content_type('text/plain; charset=utf-8');
 
-    my $fh = IO::Handle->new();
+    my $logFh = IO::Handle->new();
 
-    my $tail = int($c->stash->{tail} // "0");
+    my $tailLines = int($c->stash->{tail} // "0");
 
     if ($logPath =~ /\.zst$/) {
-        my $doTail = $tail ? "| tail -n '$tail'" : "";
-        open($fh, "-|", "zstd -dc < '$logPath' $doTail") or die;
+        open($logFh, "-|", "zstd", "-dc", $logPath) or die;
     } elsif ($logPath =~ /\.bz2$/) {
-        my $doTail = $tail ? "| tail -n '$tail'" : "";
-        open($fh, "-|", "bzip2 -dc < '$logPath' $doTail") or die;
+        open($logFh, "-|", "bzip2", "-dc", $logPath) or die;
     } else {
-        if ($tail) {
-            open($fh, "-|", "tail -n '$tail' '$logPath'") or die;
-        } else {
-            open($fh, "<", $logPath) or die;
-        }
+        open($logFh, "<", $logPath) or die;
     }
-    binmode($fh);
 
     setCacheHeaders($c, 365 * 24 * 60 * 60) if $c->stash->{finished};
 
-    $c->response->body($fh);
+    if ($tailLines > 0) {
+      my $logEnd = tail($logFh, $tailLines);
+      $c->response->body($logEnd);
+      return 1;
+    }
+
+    binmode($logFh);
+    $c->response->body($logFh);
 
     return 1;
 }
