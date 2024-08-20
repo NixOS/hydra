@@ -115,7 +115,7 @@ subtest "evaluation" => sub {
         my $build = decode_json(request_json({ uri => "/build/" . $evals->[0]->{builds}->[0] })->content());
         is($build->{job}, "job", "The build's job name is job");
         is($build->{finished}, 0, "The build isn't finished yet");
-        ok($build->{buildoutputs}->{out}->{path} =~ /\/nix\/store\/[a-zA-Z0-9]{32}-job$/, "The build's outpath is in the Nix store and named 'job'");
+        like($build->{buildoutputs}->{out}->{path}, qr/\/nix\/store\/[a-zA-Z0-9]{32}-job$/, "The build's outpath is in the Nix store and named 'job'");
 
         subtest "search" => sub {
             my $search_project = decode_json(request_json({ uri => "/search/?query=sample" })->content());
