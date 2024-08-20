@@ -15,6 +15,12 @@ and dependencies can be found:
 $ nix-shell
 ```
 
+of when flakes are enabled:
+
+```console
+$ nix develop
+```
+
 To build Hydra, you should then do:
 
 ```console
