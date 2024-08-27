@@ -109,7 +109,7 @@ subtest "/api/push" => sub {
         my $jobsetName = $jobset->name;
         is($jobset->forceeval, undef, "The existing jobset is not set to be forced to eval");
 
-        my $response = request(GET "/api/push?jobsets=$projectName:$jobsetName&force=1");
+        my $response = request(POST "/api/push?jobsets=$projectName:$jobsetName&force=1");
         ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
 
         my $data = is_json($response);
@@ -128,7 +128,7 @@ subtest "/api/push" => sub {
 
         print STDERR $repo;
 
-        my $response = request(GET "/api/push?repos=$repo&force=1");
+        my $response = request(POST "/api/push?repos=$repo&force=1");
         ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
 
         my $data = is_json($response);
