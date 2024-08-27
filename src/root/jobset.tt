@@ -205,6 +205,7 @@
         if (!c) return;
         requestJSON({
           url: "[% HTML.escape(c.uri_for('/api/push', { jobsets = project.name _ ':' _ jobset.name, force = "1" })) %]",
+          type: 'POST',
           success: function(data) {
             bootbox.alert("The jobset has been scheduled for evaluation.");
           }

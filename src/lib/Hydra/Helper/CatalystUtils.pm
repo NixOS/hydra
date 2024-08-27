@@ -272,7 +272,7 @@ sub requireAdmin {
 
 sub requirePost {
     my ($c) = @_;
-    error($c, "Request must be POSTed.") if $c->request->method ne "POST";
+    error($c, "Request must be POSTed.", 405) if $c->request->method ne "POST";
 }
 
 

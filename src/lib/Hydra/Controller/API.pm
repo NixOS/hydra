@@ -239,6 +239,8 @@ sub triggerJobset {
 sub push : Chained('api') PathPart('push') Args(0) {
     my ($self, $c) = @_;
 
+    requirePost($c);
+
     $c->{stash}->{json}->{jobsetsTriggered} = [];
 
     my $force = exists $c->request->query_params->{force};
