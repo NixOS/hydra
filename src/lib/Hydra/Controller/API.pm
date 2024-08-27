@@ -248,19 +248,24 @@ sub push : Chained('api') PathPart('push') Args(0) {
     foreach my $s (@jobsets) {
         my ($p, $j) = parseJobsetName($s);
         my $jobset = $c->model('DB::Jobsets')->find($p, $j);
+        requireEvalJobsetPrivileges($c, $jobset->project);
         next unless defined $jobset && ($force || ($jobset->project->enabled && $jobset->enabled));
         triggerJobset($self, $c, $jobset, $force);
     }
 
     my @repos = split /,/, ($c->request->query_params->{repos} // "");
     foreach my $r (@repos) {
-        triggerJobset($self, $c, $_, $force) foreach $c->model('DB::Jobsets')->search(
+        my @jobsets = $c->model('DB::Jobsets')->search(
             { 'project.enabled' => 1, 'me.enabled' => 1 },
             {
                 join => 'project',
                 where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ],
                 order_by => 'me.id DESC'
             });
+        foreach my $jobset (@jobsets) {
+            requireEvalJobsetPrivileges($c, $jobset->project);
+            triggerJobset($self, $c, $jobset, $force)
+        }
     }
 
     $self->status_ok(

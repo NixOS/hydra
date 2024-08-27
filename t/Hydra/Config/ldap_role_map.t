@@ -57,6 +57,7 @@ subtest "getLDAPConfig" => sub {
                             "hydra_cancel-build" => [ "cancel-build" ],
                             "hydra_create-projects" => [ "create-projects" ],
                             "hydra_restart-jobs" => [ "restart-jobs" ],
+                            "hydra_eval-jobset" => [ "eval-jobset" ],
                         }
                     },
                     "The empty file and set env var make legacy mode active."
@@ -177,6 +178,7 @@ subtest "get_legacy_ldap_config" => sub {
                 "hydra_cancel-build" => [ "cancel-build" ],
                 "hydra_create-projects" => [ "create-projects" ],
                 "hydra_restart-jobs" => [ "restart-jobs" ],
+                "hydra_eval-jobset" => [ "eval-jobset" ],
             }
         },
         "Legacy, default role maps are applied."

@@ -91,6 +91,7 @@
           [% INCLUDE roleoption mutable=mutable role="restart-jobs" %]
           [% INCLUDE roleoption mutable=mutable role="bump-to-front" %]
           [% INCLUDE roleoption mutable=mutable role="cancel-build" %]
+          [% INCLUDE roleoption mutable=mutable role="eval-jobset" %]
         </p>
       </div>
     </div>
