@@ -38,7 +38,12 @@ sub process {
     # Optionally, sign the NAR info file we just created.
     my $secretKeyFile = $c->config->{binary_cache_secret_key_file};
     if (defined $secretKeyFile) {
-        my $secretKey = readFile $secretKeyFile;
+        my $secretKey = "";
+        open my $fh, '<', $secretKeyFile or die "Could not open file '$secretKeyFile' $!";
+        while (my $line = <$fh>) {
+            $secretKey .= $line;
+        }
+        close $fh;
         my $fingerprint = fingerprintPath($storePath, $narHash, $narSize, $refs);
         my $sig = signString($secretKey, $fingerprint);
         $info .= "Sig: $sig\n";
