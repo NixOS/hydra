@@ -46,7 +46,7 @@ sub fetchInput {
 
     $MACHINE_LOCAL_STORE->addTempRoot($cachedInput->storepath) if defined $cachedInput;
 
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
     } else {
