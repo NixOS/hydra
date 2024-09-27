@@ -161,7 +161,7 @@ sub status_GET {
             { "buildsteps.busy" => { '!=', 0 } },
             { order_by => ["globalpriority DESC", "id"],
               join => "buildsteps",
-              columns => [@buildListColumns]
+              columns => [@buildListColumns, 'buildsteps.drvpath', 'buildsteps.type']
             })]
     );
 }
