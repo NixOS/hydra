@@ -565,6 +565,7 @@ void State::buildRemote(ref<Store> destStore,
         /* Throttle CPU-bound work. Opportunistically skip updating the current
          * step, since this requires a DB roundtrip. */
         if (!localWorkThrottler.try_acquire()) {
+            MaintainCount<counter> mc(nrStepsWaitingForDownloadSlot);
             updateStep(ssWaitingForLocalSlot);
             localWorkThrottler.acquire();
         }
