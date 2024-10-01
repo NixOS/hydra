@@ -369,6 +369,7 @@ private:
     counter nrStepsDone{0};
     counter nrStepsBuilding{0};
     counter nrStepsCopyingTo{0};
+    counter nrStepsWaitingForDownloadSlot{0};
     counter nrStepsCopyingFrom{0};
     counter nrStepsWaiting{0};
     counter nrUnsupportedSteps{0};
