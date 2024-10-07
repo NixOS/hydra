@@ -54,7 +54,15 @@ struct Extractor : FileSystemObjectSink
     };
 
     NarMemberDatas & members;
-    Path prefix;
+    std::filesystem::path prefix;
+
+    Path toKey(const CanonPath & path)
+    {
+        std::filesystem::path p = prefix;
+        // Conditional to avoid trailing slash
+        if (!path.isRoot()) p /= path.rel();
+        return p;
+    }
 
     Extractor(NarMemberDatas & members, const Path & prefix)
         : members(members), prefix(prefix)
@@ -62,13 +70,13 @@ struct Extractor : FileSystemObjectSink
 
     void createDirectory(const CanonPath & path) override
     {
-        members.insert_or_assign(prefix + path.abs(), NarMemberData { .type = SourceAccessor::Type::tDirectory });
+        members.insert_or_assign(toKey(path), NarMemberData { .type = SourceAccessor::Type::tDirectory });
     }
 
     void createRegularFile(const CanonPath & path, std::function<void(CreateRegularFileSink &)> func) override
     {
         NarMemberConstructor nmc {
-            members.insert_or_assign(prefix + path.abs(), NarMemberData {
+            members.insert_or_assign(toKey(path), NarMemberData {
                 .type = SourceAccessor::Type::tRegular,
                 .fileSize = 0,
                 .contents = filesToKeep.count(path.abs()) ? std::optional("") : std::nullopt,
@@ -79,7 +87,7 @@ struct Extractor : FileSystemObjectSink
 
     void createSymlink(const CanonPath & path, const std::string & target) override
     {
-        members.insert_or_assign(prefix + path.abs(), NarMemberData { .type = SourceAccessor::Type::tSymlink });
+        members.insert_or_assign(toKey(path), NarMemberData { .type = SourceAccessor::Type::tSymlink });
     }
 };
 
