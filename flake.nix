@@ -1,8 +1,8 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11-small";
-  inputs.nix.url = "github:NixOS/nix/2.23-maintenance";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05-small";
+  inputs.nix.url = "github:NixOS/nix/2.24-maintenance";
   inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs = { self, nixpkgs, nix }:
@@ -25,6 +25,7 @@
         hydra = final.callPackage ./package.nix {
           inherit (nixpkgs.lib) fileset;
           rawSrc = self;
+          nix-perl-bindings = final.nixComponents.nix-perl-bindings;
         };
       };
 

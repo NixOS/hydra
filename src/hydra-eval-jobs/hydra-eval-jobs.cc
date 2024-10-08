@@ -6,6 +6,7 @@
 #include "shared.hh"
 #include "store-api.hh"
 #include "eval.hh"
+#include "eval-gc.hh"
 #include "eval-inline.hh"
 #include "eval-settings.hh"
 #include "signals.hh"
@@ -125,11 +126,14 @@ static void worker(
     if (myArgs.flake) {
         using namespace flake;
 
-        auto flakeRef = parseFlakeRef(myArgs.releaseExpr);
+        auto [flakeRef, fragment, outputSpec] = parseFlakeRefWithFragmentAndExtendedOutputsSpec(fetchSettings, myArgs.releaseExpr, absPath("."));
 
         auto vFlake = state.allocValue();
 
-        auto lockedFlake = lockFlake(state, flakeRef,
+        auto lockedFlake = lockFlake(
+                flakeSettings,
+                state,
+                flakeRef,
             LockFlags {
                 .updateLockFile = false,
                 .useRegistries = false,
@@ -368,7 +372,11 @@ int main(int argc, char * * argv)
                             ]()
                             {
                                 try {
-                                    EvalState state(myArgs.lookupPath, openStore());
+                                    auto evalStore = myArgs.evalStoreUrl
+                                             ? openStore(*myArgs.evalStoreUrl)
+                                             : openStore();
+                                    EvalState state(myArgs.lookupPath,
+                                            evalStore, fetchSettings, evalSettings);
                                     Bindings & autoArgs = *myArgs.getAutoArgs(state);
                                     worker(state, autoArgs, *to, *from);
                                 } catch (Error & e) {

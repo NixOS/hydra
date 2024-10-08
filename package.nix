@@ -9,6 +9,7 @@
 , perlPackages
 
 , nix
+, nix-perl-bindings
 , git
 
 , makeWrapper
@@ -59,7 +60,7 @@ let
     name = "hydra-perl-deps";
     paths = lib.closePropagation
       ([
-        nix.perl-bindings
+        nix-perl-bindings
         git
       ] ++ (with perlPackages; [
         AuthenSASL

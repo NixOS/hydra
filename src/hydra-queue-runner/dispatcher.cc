@@ -2,6 +2,7 @@
 #include <cmath>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "state.hh"
 
