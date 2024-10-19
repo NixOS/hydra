@@ -2,10 +2,20 @@
   description = "A Nix-based continuous build system";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05-small";
+
+  inputs.libgit2 = { url = "github:libgit2/libgit2/v1.8.1"; flake = false; };
   inputs.nix.url = "github:NixOS/nix/2.24-maintenance";
   inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
+  inputs.nix.inputs.libgit2.follows = "libgit2";
 
-  outputs = { self, nixpkgs, nix }:
+  # hide nix dev tooling from our lock file
+  inputs.nix.inputs.flake-parts.follows = "";
+  inputs.nix.inputs.git-hooks-nix.follows = "";
+  inputs.nix.inputs.nixpkgs-regression.follows = "";
+  inputs.nix.inputs.nixpkgs-23-11.follows = "";
+  inputs.nix.inputs.flake-compat.follows = "";
+
+  outputs = { self, nixpkgs, nix, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
