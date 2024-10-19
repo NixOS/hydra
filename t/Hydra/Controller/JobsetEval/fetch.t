@@ -35,6 +35,10 @@ subtest "Fetching the eval's overview" => sub {
     is($fetch->code, 200, "channel page is 200");
 };
 
+subtest "Fetching the eval's overview" => sub {
+    my $fetch = request(GET '/eval/' . $eval->id, '/errors');
+    is($fetch->code, 200, "errors page is 200");
+};
 
 
 done_testing;
