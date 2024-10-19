@@ -1,13 +1,12 @@
-{ forEachSystem, nixpkgs, pkgsBySystem, nixosModules }:
+{ forEachSystem, nixpkgs, nixosModules }:
 
 let
   # NixOS configuration used for VM tests.
   hydraServer =
-    { config, pkgs, ... }:
+    { pkgs, ... }:
     {
       imports = [
         nixosModules.hydra
-        nixosModules.overlayNixpkgsForThisHydra
         nixosModules.hydraTest
       ];
 
@@ -44,11 +43,10 @@ in
     });
 
   notifications = forEachSystem (system:
-    let pkgs = pkgsBySystem.${system}; in
     with import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
     simpleTest {
       name = "hydra-notifications";
-      nodes.machine = { pkgs, ... }: {
+      nodes.machine = {
         imports = [ hydraServer ];
         services.hydra-dev.extraConfig = ''
           <influxdb>
@@ -89,7 +87,7 @@ in
 
         # Setup the project and jobset
         machine.succeed(
-            "su - hydra -c 'perl -I ${pkgs.hydra.perlDeps}/lib/perl5/site_perl ${./t/setup-notifications-jobset.pl}' >&2"
+            "su - hydra -c 'perl -I ${config.services.hydra-dev.package.perlDeps}/lib/perl5/site_perl ${./t/setup-notifications-jobset.pl}' >&2"
         )
 
         # Wait until hydra has build the job and
@@ -103,7 +101,7 @@ in
     });
 
   gitea = forEachSystem (system:
-    let pkgs = pkgsBySystem.${system}; in
+    let pkgs = nixpkgs.legacyPackages.${system}; in
     with import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
     makeTest {
       name = "hydra-gitea";
@@ -298,7 +296,7 @@ in
     });
 
   validate-openapi = forEachSystem (system:
-    let pkgs = pkgsBySystem.${system}; in
+    let pkgs = nixpkgs.legacyPackages.${system}; in
     pkgs.runCommand "validate-openapi"
     { buildInputs = [ pkgs.openapi-generator-cli ]; }
     ''

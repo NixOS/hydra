@@ -9,14 +9,6 @@
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
-
-      overlayList = [ self.overlays.default nix.overlays.default ];
-
-      pkgsBySystem = forEachSystem (system: import nixpkgs {
-        inherit system;
-        overlays = overlayList;
-      });
-
     in
     rec {
 
@@ -30,7 +22,6 @@
       };
 
       hydraJobs = {
-
         build = forEachSystem (system: packages.${system}.hydra);
 
         buildNoTests = forEachSystem (system:
@@ -39,19 +30,21 @@
           })
         );
 
-        manual = forEachSystem (system:
-          let pkgs = pkgsBySystem.${system}; in
-          pkgs.runCommand "hydra-manual-${pkgs.hydra.version}" { }
+        manual = forEachSystem (system: let
+          pkgs = nixpkgs.legacyPackages.${system};
+          hydra = self.packages.${pkgs.hostPlatform.system}.hydra;
+        in
+          pkgs.runCommand "hydra-manual-${hydra.version}" { }
             ''
               mkdir -p $out/share
-              cp -prvd ${pkgs.hydra}/share/doc $out/share/
+              cp -prvd ${hydra}/share/doc $out/share/
 
               mkdir $out/nix-support
               echo "doc manual $out/share/doc/hydra" >> $out/nix-support/hydra-build-products
             '');
 
         tests = import ./nixos-tests.nix {
-          inherit forEachSystem nixpkgs pkgsBySystem nixosModules;
+          inherit forEachSystem nixpkgs nixosModules;
         };
 
         container = nixosConfigurations.container.config.system.build.toplevel;
@@ -64,12 +57,17 @@
       });
 
       packages = forEachSystem (system: {
-        hydra = pkgsBySystem.${system}.hydra;
-        default = pkgsBySystem.${system}.hydra;
+        hydra = nixpkgs.legacyPackages.${system}.callPackage ./package.nix {
+          inherit (nixpkgs.lib) fileset;
+          rawSrc = self;
+          nix = nix.packages.${system}.nix;
+          nix-perl-bindings = nix.hydraJobs.perlBindings.${system};
+        };
+        default = self.packages.${system}.hydra;
       });
 
       nixosModules = import ./nixos-modules {
-        overlays = overlayList;
+        inherit self;
       };
 
       nixosConfigurations.container = nixpkgs.lib.nixosSystem {
@@ -77,7 +75,6 @@
         modules =
           [
             self.nixosModules.hydra
-            self.nixosModules.overlayNixpkgsForThisHydra
             self.nixosModules.hydraTest
             self.nixosModules.hydraProxy
             {
