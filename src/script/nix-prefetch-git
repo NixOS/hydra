@@ -78,7 +78,7 @@ fi
 
 init_remote(){
     local url=$1;
-    git init;
+    git init --initial-branch=trunk;
     git remote add origin $url;
 }
 
