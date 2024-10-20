@@ -1,11 +1,10 @@
-{ overlays }:
+{ self }:
 
 {
-  hydra = import ./hydra.nix;
-
-  overlayNixpkgsForThisHydra = { pkgs, ... }: {
-    nixpkgs = { inherit overlays; };
-    services.hydra.package = pkgs.hydra;
+  hydra = { pkgs, lib,... }: {
+    _file = ./default.nix;
+    imports = [ ./hydra.nix ];
+    services.hydra-dev.package = lib.mkDefault self.packages.${pkgs.hostPlatform.system}.hydra;
   };
 
   hydraTest = { pkgs, ... }: {
