@@ -171,7 +171,7 @@ void State::parseMachines(const std::string & contents)
             std::move(mandatoryFeatures),
             // `sshPublicHostKey`
             tokens[7] != "" && tokens[7] != "-"
-                ? base64Decode(tokens[7])
+                ? tokens[7]
                 : "",
         });
 
