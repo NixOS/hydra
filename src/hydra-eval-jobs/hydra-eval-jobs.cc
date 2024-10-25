@@ -162,6 +162,9 @@ static void worker(
     auto vRoot = state.allocValue();
     state.autoCallFunction(autoArgs, vTop, *vRoot);
 
+    size_t prev = 0;
+    auto start = std::chrono::steady_clock::now();
+
     while (true) {
         /* Wait for the master to send us a job name. */
         writeLine(to.get(), "next");
@@ -300,8 +303,17 @@ static void worker(
 
         /* If our RSS exceeds the maximum, exit. The master will
            start a new process. */
+
+        auto end = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(start - end).count();
         struct rusage r;
         getrusage(RUSAGE_SELF, &r);
+        size_t delta = (size_t)r.ru_maxrss - prev; // KiB
+        if (delta > maxMemorySize * 1024 * 0.5 || (duration > 1))
+          printError("evaluating job '%s' increased memory usage by %d MiB", attrPath,
+                     (r.ru_maxrss - prev)/1024);
+
+        prev = r.ru_maxrss;
         if ((size_t) r.ru_maxrss > maxMemorySize * 1024) break;
     }
 
