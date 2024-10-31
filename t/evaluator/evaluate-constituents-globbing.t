@@ -1,0 +1,58 @@
+use strict;
+use warnings;
+use Setup;
+use Test2::V0;
+use Hydra::Helper::Exec;
+use Data::Dumper;
+
+my $ctx = test_context();
+
+my $jobsetCtx = $ctx->makeJobset(
+    expression => 'constituents-glob.nix',
+);
+my $jobset = $jobsetCtx->{"jobset"};
+
+my ($res, $stdout, $stderr) = captureStdoutStderr(60,
+    ("hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name)
+);
+
+subtest "non_match_aggregate failed" => sub {
+    ok(utf8::decode($stderr), "Stderr output is UTF8-clean");
+    like(
+        $stderr,
+        qr/warning: aggregate job 'non_match_aggregate' references constituent glob pattern 'tests\.\*' with no matches/,
+        "The stderr record includes a relevant error message"
+    );
+
+    $jobset->discard_changes;  # refresh from DB
+    like(
+        $jobset->errormsg,
+        qr/tests\.\*: constituent glob pattern had no matches/,
+        "The jobset records a relevant error message"
+    );
+};
+
+my $builds = {};
+for my $build ($jobset->builds) {
+    $builds->{$build->job} = $build;
+}
+
+subtest "basic globbing works" => sub {
+    ok(defined $builds->{"ok_aggregate"}, "'ok_aggregate' is part of the jobset evaluation");
+    my @constituents = $builds->{"ok_aggregate"}->constituents->all;
+    is(2, scalar @constituents, "'ok_aggregate' has two constituents");
+
+    my @sortedConstituentNames = sort (map { $_->nixname } @constituents);
+
+    is($sortedConstituentNames[0], "empty-dir-A", "first constituent of 'ok_aggregate' is 'empty-dir-A'");
+    is($sortedConstituentNames[1], "empty-dir-B", "second constituent of 'ok_aggregate' is 'empty-dir-B'");
+};
+
+#subtest "transitivity is OK" => sub {
+    #ok(defined $builds->{"indirect_aggregate"}, "'indirect_aggregate' is part of the jobset evaluation");
+    #my @constituents = $builds->{"indirect_aggregate"}->constituents->all;
+    #is(1, scalar @constituents, "'indirect_aggregate' has one constituent");
+    #is($constituents[0]->nixname, "direct_aggregate", "'indirect_aggregate' has 'direct_aggregate' as single constituent");
+#};
+
+done_testing;
