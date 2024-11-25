@@ -4,6 +4,8 @@ use warnings;
 package HydraTestContext;
 use File::Path qw(make_path);
 use File::Basename;
+use File::Copy::Recursive qw(rcopy);
+use File::Which qw(which);
 use Cwd qw(abs_path getcwd);
 use CliRunners;
 use Hydra::Helper::Exec;
@@ -77,6 +79,13 @@ sub new {
     );
     $ENV{'HYDRA_DBI'} = $pgsql->dsn;
 
+    my $jobsdir = "$dir/jobs";
+    rcopy(abs_path(dirname(__FILE__) . "/../jobs"), $jobsdir);
+
+    my $coreutils_path = dirname(which 'install');
+    replace_variable_in_file($jobsdir . "/config.nix", '@testPath@', $coreutils_path);
+    replace_variable_in_file($jobsdir . "/declarative/project.json", '@jobsPath@', $jobsdir);
+
     my $self = bless {
         _db => undef,
         db_handle => $pgsql,
@@ -84,7 +93,7 @@ sub new {
         nix_state_dir => $nix_state_dir,
         nix_log_dir => $nix_log_dir,
         testdir => abs_path(dirname(__FILE__) . "/.."),
-        jobsdir => abs_path(dirname(__FILE__) . "/../jobs"),
+        jobsdir => $jobsdir,
         deststoredir => $deststoredir,
     }, $class;
 
@@ -241,6 +250,18 @@ sub write_file {
     open(my $fh, '>', $path) or die "Could not open file '$path' $!\n.";
     print $fh $text || "";
     close $fh;
+}
+
+sub replace_variable_in_file {
+    my ($fn, $var, $val) = @_;
+
+    open (my $input, '<', "$fn.in") or die $!;
+    open (my $output, '>', $fn) or die $!;
+
+    while (my $line = <$input>) {
+        $line =~ s/$var/$val/g;
+        print $output $line;
+    }
 }
 
 sub rand_chars {

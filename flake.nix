@@ -47,7 +47,7 @@
           pkgs.runCommand "hydra-manual-${hydra.version}" { }
             ''
               mkdir -p $out/share
-              cp -prvd ${hydra}/share/doc $out/share/
+              cp -prvd ${hydra.doc}/share/doc $out/share/
 
               mkdir $out/nix-support
               echo "doc manual $out/share/doc/hydra" >> $out/nix-support/hydra-build-products
