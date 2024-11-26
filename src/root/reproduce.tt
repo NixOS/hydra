@@ -7,7 +7,7 @@ main() {
 
 set -e
 
-tmpDir=${TMPDIR:-/tmp}/build-[% build.id +%]
+tmpDir=$(realpath "${TMPDIR:-/tmp}")/build-[% build.id +%]
 declare -a args extraArgs
 
 
