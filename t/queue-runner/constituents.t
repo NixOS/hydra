@@ -22,11 +22,11 @@ is(nrQueuedBuildsForJobset($jobset), 0, "Evaluating jobs/broken-constituent.nix 
 
 like(
     $jobset->errormsg,
-    qr/^does-not-exist: does not exist$/m,
+    qr/^"does-not-exist": does not exist$/m,
     "Evaluating jobs/broken-constituent.nix should log an error for does-not-exist");
 like(
     $jobset->errormsg,
-    qr/^does-not-evaluate: error: assertion 'false' failed$/m,
+    qr/^"does-not-evaluate": "error: assertion 'false' failed/m,
     "Evaluating jobs/broken-constituent.nix should log an error for does-not-evaluate");
 
 done_testing;

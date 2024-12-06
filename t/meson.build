@@ -27,7 +27,6 @@ testenv.prepend('PERL5LIB',
   separator: ':'
 )
 testenv.prepend('PATH',
-  fs.parent(hydra_eval_jobs.full_path()),
   fs.parent(hydra_evaluator.full_path()),
   fs.parent(hydra_queue_runner.full_path()),
   meson.project_source_root() / 'src/script',
