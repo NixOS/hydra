@@ -19,9 +19,11 @@
 , pkg-config
 , mdbook
 
+, runtimeShellPackage
 , unzip
 , libpqxx
 , top-git
+, git-lfs
 , mercurial
 , darcs
 , subversion
@@ -184,6 +186,7 @@ stdenv.mkDerivation (finalAttrs: {
     darcs
     foreman
     top-git
+    git-lfs
     mercurial
     subversion
     breezy
@@ -214,6 +217,8 @@ stdenv.mkDerivation (finalAttrs: {
       unzip
       git
       top-git
+      git-lfs
+      runtimeShellPackage # For Git LFS: https://github.com/git-lfs/git-lfs/discussions/5196#discussioncomment-4221187
       mercurial
       darcs
       gnused
