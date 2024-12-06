@@ -237,6 +237,7 @@ sub serveFile {
         # Have the hosted data considered its own origin to avoid being a giant
         # XSS hole.
         $c->response->header('Content-Security-Policy' => 'sandbox allow-scripts');
+        $c->response->header('Access-Control-Allow-Origin', '*');
 
         $c->stash->{'plain'} = { data => grab(cmd => ["nix", "--experimental-features", "nix-command",
                                                       "store", "cat", "--store", getStoreUri(), "$path"]) };
