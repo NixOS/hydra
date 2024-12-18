@@ -145,10 +145,18 @@ in
             git -C /tmp/repo add .
             git config --global user.email test@localhost
             git config --global user.name test
+
+            # Create initial commit
             git -C /tmp/repo commit -m 'Initial import'
             git -C /tmp/repo remote add origin gitea@machine:root/repo
-            GIT_SSH_COMMAND='ssh -i $HOME/.ssh/privk -o StrictHostKeyChecking=no' \
-              git -C /tmp/repo push origin master
+            export GIT_SSH_COMMAND='ssh -i $HOME/.ssh/privk -o StrictHostKeyChecking=no'
+            git -C /tmp/repo push origin master
+            git -C /tmp/repo log >&2
+
+            # Create PR branch
+            git -C /tmp/repo checkout -b pr
+            git -C /tmp/repo commit --allow-empty -m 'Additional change'
+            git -C /tmp/repo push origin pr
             git -C /tmp/repo log >&2
           '';
 
@@ -185,7 +193,7 @@ in
             cat >data.json <<EOF
             {
               "description": "Trivial",
-              "checkinterval": "60",
+              "checkinterval": "20",
               "enabled": "1",
               "visible": "1",
               "keepnr": "1",
@@ -199,7 +207,12 @@ in
                 "gitea_repo_name": {"value": "repo", "type": "string"},
                 "gitea_repo_owner": {"value": "root", "type": "string"},
                 "gitea_status_repo": {"value": "git", "type": "string"},
-                "gitea_http_url": {"value": "http://localhost:3001", "type": "string"}
+                "gitea_http_url": {"value": "http://localhost:3001", "type": "string"},
+                "pulls": {
+                  "type": "giteapulls",
+                  "value": "localhost:3001 root repo http",
+                  "emailresponsible": false
+                }
               }
             }
             EOF
@@ -227,15 +240,31 @@ in
           };
 
           smallDrv = pkgs.writeText "jobset.nix" ''
-            { trivial = builtins.derivation {
-                name = "trivial";
-                system = "${system}";
-                builder = "/bin/sh";
-                allowSubstitutes = false;
-                preferLocalBuild = true;
-                args = ["-c" "echo success > $out; exit 0"];
+            { pulls, ... }:
+
+            let
+              genDrv = name: builtins.derivation {
+                 inherit name;
+                 system = "${system}";
+                 builder = "/bin/sh";
+                 allowSubstitutes = false;
+                 preferLocalBuild = true;
+                 args = ["-c" "echo success > $out; exit 0"];
               };
-             }
+
+              prs = builtins.fromJSON (builtins.readFile pulls);
+              prJobNames = map (n: "pr-''${n}") (builtins.attrNames prs);
+              prJobset = builtins.listToAttrs (
+                map (
+                  name: {
+                    inherit name;
+                    value = genDrv name;
+                  }
+                ) prJobNames
+              );
+            in {
+              trivial = genDrv "trivial";
+            } // prJobset
           '';
         in
         ''
@@ -279,17 +308,33 @@ in
               + '|  jq .buildstatus | xargs test 0 -eq'
           )
 
+          machine.sleep(3)
+
           data = machine.succeed(
-              'curl -Lf -s "http://localhost:3001/api/v1/repos/root/repo/statuses/$(cd /tmp/repo && git show | head -n1 | awk "{print \\$2}")" '
+              'curl -Lf -s "http://localhost:3001/api/v1/repos/root/repo/statuses/$(cd /tmp/repo && git show master | head -n1 | awk "{print \\$2}")?sort=leastindex" '
               + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
               + f"-H 'Authorization: token ${api_token}'"
           )
 
           response = json.loads(data)
 
-          assert len(response) == 2, "Expected exactly three status updates for latest commit (queued, finished)!"
+          assert len(response) == 2, "Expected exactly two status updates for latest commit (queued, finished)!"
           assert response[0]['status'] == "success", "Expected finished status to be success!"
           assert response[1]['status'] == "pending", "Expected queued status to be pending!"
+
+          # giteapulls test
+
+          machine.succeed(
+              "curl --fail -X POST http://localhost:3001/api/v1/repos/root/repo/pulls "
+              + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
+              + f"-H 'Authorization: token ${api_token}'"
+              + ' -d \'{"title":"Test PR", "base":"master", "head": "pr"}\'''
+          )
+
+          machine.wait_until_succeeds(
+              'curl -Lf -s http://localhost:3000/build/2 -H "Accept: application/json" '
+              + '|  jq .buildstatus | xargs test 0 -eq'
+          )
 
           machine.shutdown()
         '';
