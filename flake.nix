@@ -1,14 +1,14 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05-small";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11-small";
 
   inputs.libgit2 = { url = "github:libgit2/libgit2/v1.8.1"; flake = false; };
   inputs.nix.url = "github:NixOS/nix/2.24-maintenance";
   inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
   inputs.nix.inputs.libgit2.follows = "libgit2";
 
-  inputs.nix-eval-jobs.url = "github:nix-community/nix-eval-jobs/release-2.24";
+  inputs.nix-eval-jobs.url = "github:flyingcircusio/nix-eval-jobs/constituent-globs";
   inputs.nix-eval-jobs.inputs.nixpkgs.follows = "nixpkgs";
 
   # hide nix dev tooling from our lock file
