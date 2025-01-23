@@ -27,14 +27,14 @@ removed or had an evaluation error.</div>
 <div id="generic-tabs" class="tab-content">
 
   <div id="tabs-status" class="tab-pane active">
+    [% IF queuedBuilds.size != 0 %]
+      <h3>Queued builds</h3>
+      [% INCLUDE renderBuildList builds=queuedBuilds showSchedulingInfo=1 hideResultInfo=1 %]
+    [% END %]
     [% IF lastBuilds.size != 0 %]
       <h3>Latest builds</h3>
       [% INCLUDE renderBuildList builds=lastBuilds
           linkToAll=c.uri_for('/job' project.name jobset.name job 'all') %]
-    [% END %]
-    [% IF queuedBuilds.size != 0 %]
-      <h3>Queued builds</h3>
-      [% INCLUDE renderBuildList builds=queuedBuilds showSchedulingInfo=1 hideResultInfo=1 %]
     [% END %]
   </div>
 
