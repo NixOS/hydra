@@ -1,12 +1,15 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05-small";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11-small";
 
   inputs.libgit2 = { url = "github:libgit2/libgit2/v1.8.1"; flake = false; };
   inputs.nix.url = "github:NixOS/nix/2.24-maintenance";
   inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
   inputs.nix.inputs.libgit2.follows = "libgit2";
+
+  inputs.nix-eval-jobs.url = "github:flyingcircusio/nix-eval-jobs/constituent-globs";
+  inputs.nix-eval-jobs.inputs.nixpkgs.follows = "nixpkgs";
 
   # hide nix dev tooling from our lock file
   inputs.nix.inputs.flake-parts.follows = "";
@@ -15,7 +18,10 @@
   inputs.nix.inputs.nixpkgs-23-11.follows = "";
   inputs.nix.inputs.flake-compat.follows = "";
 
-  outputs = { self, nixpkgs, nix, ... }:
+  # hide nix-eval-jobs dev tooling from our lock file
+  inputs.nix-eval-jobs.inputs.nix-github-actions.follows = "";
+
+  outputs = { self, nixpkgs, nix, nix-eval-jobs, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
@@ -26,6 +32,7 @@
       overlays.default = final: prev: {
         hydra = final.callPackage ./package.nix {
           inherit (nixpkgs.lib) fileset;
+          nix-eval-jobs = nix-eval-jobs.packages.${final.system}.default;
           rawSrc = self;
           nix-perl-bindings = final.nixComponents.nix-perl-bindings;
         };
@@ -69,6 +76,7 @@
       packages = forEachSystem (system: {
         hydra = nixpkgs.legacyPackages.${system}.callPackage ./package.nix {
           inherit (nixpkgs.lib) fileset;
+          nix-eval-jobs = nix-eval-jobs.packages.${system}.default;
           rawSrc = self;
           nix = nix.packages.${system}.nix;
           nix-perl-bindings = nix.hydraJobs.perlBindings.${system};
