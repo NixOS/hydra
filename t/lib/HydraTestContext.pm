@@ -172,7 +172,6 @@ sub makeAndEvaluateJobset {
     }
 
     my $jobsdir = $opts{'jobsdir'} // $self->jobsdir;
-    my $should_build = $opts{'build'} // 0;
 
     my %args = (
         jobsdir => $jobsdir,
@@ -184,11 +183,27 @@ sub makeAndEvaluateJobset {
         $args{flake} = $flake;
     }
     my $jobsetCtx = $self->makeJobset(%args);
-    my $jobset = $jobsetCtx->{"jobset"};
+
+    return $self->evaluateJobset(
+        jobset => $jobsetCtx->{"jobset"},
+        expression => $expression,
+        flake => $flake,
+        build => $opts{"build"} // 0,
+    )
+}
+
+sub evaluateJobset {
+    my ($self, %opts) = @_;
+
+    my $jobset = $opts{'jobset'};
+
+    my $expression = $opts{'expression'} // $opts{'flake'};
 
     evalSucceeds($jobset) or die "Evaluating jobs/$expression should exit with return code 0.\n";
 
     my $builds = {};
+
+    my $should_build = $opts{'build'};
 
     for my $build ($jobset->builds) {
         if ($should_build) {
