@@ -416,9 +416,16 @@ sub evalJobs {
             }
 
             if (defined $out && $out ne '') {
-                my $job = decode_json($out);
+                my $job;
+                try {
+                    $job = decode_json($out);
+                } catch {
+                    warn "nix-eval-jobs sent invalid JSON.\n  parse error: $_\n  invalid json: $out\n";
+                };
                 undef $out;
-                return $job;
+                if (defined $job) {
+                    return $job;
+                }
             }
         }
     };
