@@ -35,6 +35,7 @@ sub noLoginNeeded {
 
   return $whitelisted ||
          $c->request->path eq "api/push-github" ||
+         $c->request->path eq "api/push-gitea" ||
          $c->request->path eq "google-login" ||
          $c->request->path eq "github-redirect" ||
          $c->request->path eq "github-login" ||
@@ -50,6 +51,7 @@ sub begin :Private {
     $c->stash->{curUri} = $c->request->uri;
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
+    $c->stash->{nixEvalJobsVersion} = $ENV{"NIX_EVAL_JOBS_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
     $c->stash->{logo} = defined $c->config->{hydra_logo} ? "/logo" : "";
     $c->stash->{tracker} = defined $c->config->{tracker} ? $c->config->{tracker} : "";
@@ -80,7 +82,7 @@ sub begin :Private {
     $_->supportedInputTypes($c->stash->{inputTypes}) foreach @{$c->hydra_plugins};
 
     # XSRF protection: require POST requests to have the same origin.
-    if ($c->req->method eq "POST" && $c->req->path ne "api/push-github") {
+    if ($c->req->method eq "POST" && $c->req->path ne "api/push-github" && $c->req->path ne "api/push-gitea") {
         my $referer = $c->req->header('Referer');
         $referer //= $c->req->header('Origin');
         my $base = $c->req->base;
@@ -329,7 +331,7 @@ sub nar :Local :Args(1) {
     else {
         $path = $Nix::Config::storeDir . "/$path";
 
-        gone($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
+        gone($c, "Path " . $path . " is no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($path);
 
         $c->stash->{current_view} = 'NixNAR';
         $c->stash->{storePath} = $path;
@@ -367,7 +369,7 @@ sub realisations :Path('realisations') :Args(StrMatch[REALISATIONS_REGEX]) {
 
     else {
         my ($rawDrvOutput) = $realisation =~ REALISATIONS_REGEX;
-        my $rawRealisation = queryRawRealisation($rawDrvOutput);
+        my $rawRealisation = $MACHINE_LOCAL_STORE->queryRawRealisation($rawDrvOutput);
 
         if (!$rawRealisation) {
             $c->response->status(404);

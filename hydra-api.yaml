@@ -70,7 +70,7 @@ paths:
                   $ref: '#/components/examples/projects-success'
 
   /api/push:
-    put:
+    post:
       summary: trigger jobsets
       parameters:
         - in: query

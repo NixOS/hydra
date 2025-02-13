@@ -208,7 +208,8 @@ Example configuration:
   <role_mapping>
     # Make all users in the hydra_admin group Hydra admins
     hydra_admin = admin
-    # Allow all users in the dev group to restart jobs and cancel builds
+    # Allow all users in the dev group to eval jobsets, restart jobs and cancel builds
+    dev = eval-jobset
     dev = restart-jobs
     dev = cancel-build
   </role_mapping>
