@@ -39,16 +39,16 @@ In order to evaluate and build anything you need to create _projects_ that conta
 #### Creating A Project
 Log in as administrator, click "_Admin_" and select "_Create project_". Fill the form as follows:
 
-- **Identifier**: `hello`
+- **Identifier**: `hello-project`
 - **Display name**: `hello`
 - **Description**: `hello project`
 
 Click "_Create project_".
 
 #### Creating A Jobset
-After creating a project you are forwarded to the project page. Click "_Actions_" and choose "_Create jobset_". Fill the form with the following values:
+After creating a project you are forwarded to the project page. Click "_Actions_" and choose "_Create jobset_". Change **Type** to Legacy for the example below. Fill the form with the following values:
 
-- **Identifier**: `hello`
+- **Identifier**: `hello-project`
 - **Nix expression**: `examples/hello.nix` in `hydra`
 - **Check interval**: 60
 - **Scheduling shares**: 1
@@ -57,7 +57,7 @@ We have to add two inputs for this jobset. One for _nixpkgs_ and one for _hydra_
 
 - **Input name**: `nixpkgs`
 - **Type**: `Git checkout`
-- **Value**: `https://github.com/nixos/nixpkgs-channels nixos-20.03`
+- **Value**: `https://github.com/NixOS/nixpkgs nixos-24.05`
 
 - **Input name**: `hydra`
 - **Type**: `Git checkout`

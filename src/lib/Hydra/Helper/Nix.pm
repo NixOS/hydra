@@ -174,6 +174,9 @@ sub getDrvLogPath {
     for ($fn . $bucketed, $fn . $bucketed . ".bz2") {
         return $_ if -f $_;
     }
+    for ($fn . $bucketed, $fn . $bucketed . ".zst") {
+        return $_ if -f $_;
+    }
     return undef;
 }
 

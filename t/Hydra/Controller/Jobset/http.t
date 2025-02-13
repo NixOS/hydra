@@ -186,7 +186,7 @@ subtest 'Update jobset "job" to have an invalid input type' => sub {
       })
   );
   ok(!$jobsetupdate->is_success);
-  ok($jobsetupdate->content =~ m/Invalid input type.*valid types:/);
+  like($jobsetupdate->content, qr/Invalid input type.*valid types:/);
 };
 
 

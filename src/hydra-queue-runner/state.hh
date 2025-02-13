@@ -22,6 +22,7 @@
 #include "nar-extractor.hh"
 #include "serve-protocol.hh"
 #include "serve-protocol-impl.hh"
+#include "serve-protocol-connection.hh"
 #include "machines.hh"
 
 

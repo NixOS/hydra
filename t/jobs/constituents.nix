@@ -5,6 +5,8 @@ rec {
     builder = ./empty-dir-builder.sh;
   };
 
+  constituentA_alias = constituentA;
+
   constituentB = mkDerivation {
     name = "empty-dir-B";
     builder = ./empty-dir-builder.sh;
@@ -32,7 +34,7 @@ rec {
     name = "mixed_aggregate";
     _hydraAggregate = true;
     constituents = [
-      "constituentA"
+      "constituentA_alias"
       constituentB
     ];
     builder = ./empty-dir-builder.sh;

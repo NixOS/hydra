@@ -9,10 +9,12 @@
 , perlPackages
 
 , nix
+, nix-perl-bindings
 , git
 
 , makeWrapper
-, autoreconfHook
+, meson
+, ninja
 , nukeReferences
 , pkg-config
 , mdbook
@@ -48,6 +50,7 @@
 , xz
 , gnutar
 , gnused
+, nix-eval-jobs
 
 , rpm
 , dpkg
@@ -59,7 +62,7 @@ let
     name = "hydra-perl-deps";
     paths = lib.closePropagation
       ([
-        nix.perl-bindings
+        nix-perl-bindings
         git
       ] ++ (with perlPackages; [
         AuthenSASL
@@ -90,6 +93,7 @@ let
         DigestSHA1
         EmailMIME
         EmailSender
+        FileCopyRecursive
         FileLibMagic
         FileSlurper
         FileWhich
@@ -137,28 +141,24 @@ stdenv.mkDerivation (finalAttrs: {
   src = fileset.toSource {
     root = ./.;
     fileset = fileset.unions ([
-      ./version.txt
-      ./configure.ac
-      ./Makefile.am
-      ./src
       ./doc
-      ./nixos-modules/hydra.nix
-      # These are always needed to appease Automake
-      ./t/Makefile.am
-      ./t/jobs/config.nix.in
-      ./t/jobs/declarative/project.json.in
-    ] ++ lib.optionals finalAttrs.doCheck [
+      ./meson.build
+      ./nixos-modules
+      ./src
       ./t
+      ./version.txt
       ./.perlcriticrc
-      ./.yath.rc
     ]);
   };
+
+  outputs = [ "out" "doc" ];
 
   strictDeps = true;
 
   nativeBuildInputs = [
     makeWrapper
-    autoreconfHook
+    meson
+    ninja
     nukeReferences
     pkg-config
     mdbook
@@ -191,6 +191,7 @@ stdenv.mkDerivation (finalAttrs: {
     openldap
     postgresql_13
     pixz
+    nix-eval-jobs
   ];
 
   checkInputs = [
@@ -219,15 +220,22 @@ stdenv.mkDerivation (finalAttrs: {
       darcs
       gnused
       breezy
+      nix-eval-jobs
     ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ]
   );
 
   OPENLDAP_ROOT = openldap;
 
+  mesonBuildType = "release";
+
+  postPatch = ''
+    patchShebangs .
+  '';
+
   shellHook = ''
     pushd $(git rev-parse --show-toplevel) >/dev/null
 
-    PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
+    PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-queue-runner:$PATH
     PERL5LIB=$(pwd)/src/lib:$PERL5LIB
     export HYDRA_HOME="$(pwd)/src/"
     mkdir -p .hydra-data
@@ -237,14 +245,11 @@ stdenv.mkDerivation (finalAttrs: {
     popd >/dev/null
   '';
 
-  NIX_LDFLAGS = [ "-lpthread" ];
-
-  enableParallelBuilding = true;
-
   doCheck = true;
 
+  mesonCheckFlags = [ "--verbose" ];
+
   preCheck = ''
-    patchShebangs .
     export LOGNAME=''${LOGNAME:-foo}
     # set $HOME for bzr so it can create its trace file
     export HOME=$(mktemp -d)
@@ -261,7 +266,8 @@ stdenv.mkDerivation (finalAttrs: {
             --prefix PATH ':' $out/bin:$hydraPath \
             --set HYDRA_RELEASE ${version} \
             --set HYDRA_HOME $out/libexec/hydra \
-            --set NIX_RELEASE ${nix.name or "unknown"}
+            --set NIX_RELEASE ${nix.name or "unknown"} \
+            --set NIX_EVAL_JOBS_RELEASE ${nix-eval-jobs.name or "unknown"}
     done
   '';
 

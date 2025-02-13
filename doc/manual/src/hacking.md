@@ -15,12 +15,18 @@ and dependencies can be found:
 $ nix-shell
 ```
 
+of when flakes are enabled:
+
+```console
+$ nix develop
+```
+
 To build Hydra, you should then do:
 
 ```console
 [nix-shell]$ autoreconfPhase
 [nix-shell]$ configurePhase
-[nix-shell]$ make
+[nix-shell]$ make -j$(nproc)
 ```
 
 You start a local database, the webserver, and other components with
@@ -29,6 +35,8 @@ foreman:
 ```console
 $ foreman start
 ```
+
+The Hydra interface will be available on port 63333, with an admin user named "alice" with password "foobar"
 
 You can run just the Hydra web server in your source tree as follows:
 
