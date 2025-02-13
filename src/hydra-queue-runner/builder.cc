@@ -41,7 +41,7 @@ void State::builder(MachineReservation::ptr reservation)
         } catch (std::exception & e) {
             printMsg(lvlError, "uncaught exception building ‘%s’ on ‘%s’: %s",
                 localStore->printStorePath(reservation->step->drvPath),
-                reservation->machine->sshName,
+                reservation->machine->storeUri.render(),
                 e.what());
         }
     }
@@ -150,7 +150,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         buildOptions.buildTimeout = build->buildTimeout;
 
         printInfo("performing step ‘%s’ %d times on ‘%s’ (needed by build %d and %d others)",
-            localStore->printStorePath(step->drvPath), buildOptions.nrRepeats + 1, machine->sshName, buildId, (dependents.size() - 1));
+            localStore->printStorePath(step->drvPath), buildOptions.nrRepeats + 1, machine->storeUri.render(), buildId, (dependents.size() - 1));
     }
 
     if (!buildOneDone)
@@ -196,7 +196,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         {
             auto mc = startDbUpdate();
             pqxx::work txn(*conn);
-            stepNr = createBuildStep(txn, result.startTime, buildId, step, machine->sshName, bsBusy);
+            stepNr = createBuildStep(txn, result.startTime, buildId, step, machine->storeUri.render(), bsBusy);
             txn.commit();
         }
 
@@ -253,7 +253,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     /* Finish the step in the database. */
     if (stepNr) {
         pqxx::work txn(*conn);
-        finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
+        finishBuildStep(txn, result, buildId, stepNr, machine->storeUri.render());
         txn.commit();
     }
 
@@ -261,7 +261,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
        issue). Retry a number of times. */
     if (result.canRetry) {
         printMsg(lvlError, "possibly transient failure building ‘%s’ on ‘%s’: %s",
-            localStore->printStorePath(step->drvPath), machine->sshName, result.errorMsg);
+            localStore->printStorePath(step->drvPath), machine->storeUri.render(), result.errorMsg);
         assert(stepNr);
         bool retry;
         {
@@ -452,7 +452,7 @@ void State::failStep(
                     build->finishedInDB)
                     continue;
                 createBuildStep(txn,
-                    0, build->id, step, machine ? machine->sshName : "",
+                    0, build->id, step, machine ? machine->storeUri.render() : "",
                     result.stepStatus, result.errorMsg, buildId == build->id ? 0 : buildId);
             }
 
