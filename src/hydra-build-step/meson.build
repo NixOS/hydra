@@ -8,6 +8,7 @@ hydra_build_step = executable('hydra-build-step',
   dependencies: [
     libhydra_dep,
     nix_dep,
+    dependency('nix-cmd', required: true)
   ],
   install: true,
 )

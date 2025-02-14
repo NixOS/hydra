@@ -8,22 +8,22 @@ project('hydra', 'cpp',
   ],
 )
 
+nix_util_dep = dependency('nix-util', required: true)
 nix_store_dep = dependency('nix-store', required: true)
 nix_main_dep = dependency('nix-main', required: true)
-nix_expr_dep = dependency('nix-expr', required: true)
-nix_flake_dep = dependency('nix-flake', required: true)
-nix_cmd_dep = dependency('nix-cmd', required: true)
 
 # Nix need extra flags not provided in its pkg-config files.
 nix_dep = declare_dependency(
   dependencies: [
+    nix_util_dep,
     nix_store_dep,
     nix_main_dep,
-    nix_expr_dep,
-    nix_flake_dep,
-    nix_cmd_dep,
   ],
-  compile_args: ['-include', 'nix/config.h'],
+  compile_args: [
+    '-include', 'nix/config-util.hh',
+    '-include', 'nix/config-store.hh',
+    '-include', 'nix/config-main.hh',
+  ],
 )
 
 pqxx_dep = dependency('libpqxx', required: true)

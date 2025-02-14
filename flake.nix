@@ -1,17 +1,11 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05-small";
-
-  inputs.libgit2 = {
-    url = "github:libgit2/libgit2/v1.8.1";
-    flake = false;
-  };
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11-small";
 
   inputs.nix = {
-    url = "github:NixOS/nix/2.25-maintenance";
+    url = "github:NixOS/nix/2.26-maintenance";
     inputs.nixpkgs.follows = "nixpkgs";
-    inputs.libgit2.follows = "libgit2";
 
     # hide nix dev tooling from our lock file
     inputs.flake-parts.follows = "";
@@ -87,7 +81,13 @@
           inherit (nixpkgs.lib) fileset;
           inherit (self.packages.${system}) nix-eval-jobs;
           rawSrc = self;
-          nix = nix.packages.${system}.nix;
+          inherit (nix.packages.${system})
+            nix-util
+            nix-store
+            nix-main
+            nix-cmd
+            nix-cli
+            ;
           nix-perl-bindings = nix.hydraJobs.perlBindings.${system};
         };
         default = self.packages.${system}.hydra;
