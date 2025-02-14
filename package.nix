@@ -8,7 +8,10 @@
 
 , perlPackages
 
-, nix
+, nix-util
+, nix-store
+, nix-main
+, nix-cli
 , nix-perl-bindings
 , git
 
@@ -162,7 +165,7 @@ stdenv.mkDerivation (finalAttrs: {
     nukeReferences
     pkg-config
     mdbook
-    nix
+    nix-cli
     perlDeps
     perl
     unzip
@@ -172,7 +175,9 @@ stdenv.mkDerivation (finalAttrs: {
     libpqxx
     openssl
     libxslt
-    nix
+    nix-util
+    nix-store
+    nix-main
     perlDeps
     perl
     boost
@@ -199,13 +204,14 @@ stdenv.mkDerivation (finalAttrs: {
     glibcLocales
     libressl.nc
     python3
+    nix-cli
   ];
 
   hydraPath = lib.makeBinPath (
     [
       subversion
       openssh
-      nix
+      nix-cli
       coreutils
       findutils
       pixz
@@ -266,7 +272,7 @@ stdenv.mkDerivation (finalAttrs: {
             --prefix PATH ':' $out/bin:$hydraPath \
             --set HYDRA_RELEASE ${version} \
             --set HYDRA_HOME $out/libexec/hydra \
-            --set NIX_RELEASE ${nix.name or "unknown"} \
+            --set NIX_RELEASE ${nix-cli.name or "unknown"} \
             --set NIX_EVAL_JOBS_RELEASE ${nix-eval-jobs.name or "unknown"}
     done
   '';
@@ -274,5 +280,5 @@ stdenv.mkDerivation (finalAttrs: {
   dontStrip = true;
 
   meta.description = "Build of Hydra on ${stdenv.system}";
-  passthru = { inherit perlDeps nix; };
+  passthru = { inherit perlDeps; };
 })
