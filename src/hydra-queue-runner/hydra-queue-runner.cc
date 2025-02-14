@@ -164,7 +164,7 @@ void State::parseMachines(const std::string & contents)
                 ? string2Int<MaxJobs>(tokens[3]).value()
                 : 1,
             // `speedFactor`
-            atof(tokens[4].c_str()),
+            std::stof(tokens[4].c_str()),
             // `supportedFeatures`
             std::move(supportedFeatures),
             // `mandatoryFeatures`

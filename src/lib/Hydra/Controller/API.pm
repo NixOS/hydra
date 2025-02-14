@@ -239,6 +239,8 @@ sub triggerJobset {
 sub push : Chained('api') PathPart('push') Args(0) {
     my ($self, $c) = @_;
 
+    requirePost($c);
+
     $c->{stash}->{json}->{jobsetsTriggered} = [];
 
     my $force = exists $c->request->query_params->{force};
@@ -246,19 +248,24 @@ sub push : Chained('api') PathPart('push') Args(0) {
     foreach my $s (@jobsets) {
         my ($p, $j) = parseJobsetName($s);
         my $jobset = $c->model('DB::Jobsets')->find($p, $j);
+        requireEvalJobsetPrivileges($c, $jobset->project);
         next unless defined $jobset && ($force || ($jobset->project->enabled && $jobset->enabled));
         triggerJobset($self, $c, $jobset, $force);
     }
 
     my @repos = split /,/, ($c->request->query_params->{repos} // "");
     foreach my $r (@repos) {
-        triggerJobset($self, $c, $_, $force) foreach $c->model('DB::Jobsets')->search(
+        my @jobsets = $c->model('DB::Jobsets')->search(
             { 'project.enabled' => 1, 'me.enabled' => 1 },
             {
                 join => 'project',
                 where => \ [ 'exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value = ?)', [ 'value', $r ] ],
                 order_by => 'me.id DESC'
             });
+        foreach my $jobset (@jobsets) {
+            requireEvalJobsetPrivileges($c, $jobset->project);
+            triggerJobset($self, $c, $jobset, $force)
+        }
     }
 
     $self->status_ok(
@@ -285,6 +292,23 @@ sub push_github : Chained('api') PathPart('push-github') Args(0) {
     $c->response->body("");
 }
 
+sub push_gitea : Chained('api') PathPart('push-gitea') Args(0) {
+    my ($self, $c) = @_;
+
+    $c->{stash}->{json}->{jobsetsTriggered} = [];
+
+    my $in = $c->request->{data};
+    my $url = $in->{repository}->{clone_url} or die;
+    $url =~ s/.git$//;
+    print STDERR "got push from Gitea repository $url\n";
+
+    triggerJobset($self, $c, $_, 0) foreach $c->model('DB::Jobsets')->search(
+        { 'project.enabled' => 1, 'me.enabled' => 1 },
+        { join => 'project'
+        , where => \ [ 'me.flake like ? or exists (select 1 from JobsetInputAlts where project = me.project and jobset = me.name and value like ?)', [ 'flake', "%$url%"], [ 'value', "%$url%" ] ]
+        });
+    $c->response->body("");
+}
 
 
 1;

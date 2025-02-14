@@ -1,14 +1,14 @@
 { overlays }:
 
-rec {
-  hydra = {
-    imports = [ ./hydra.nix ];
+{
+  hydra = import ./hydra.nix;
+
+  overlayNixpkgsForThisHydra = { pkgs, ... }: {
     nixpkgs = { inherit overlays; };
+    services.hydra.package = pkgs.hydra;
   };
 
   hydraTest = { pkgs, ... }: {
-    imports = [ hydra ];
-
     services.hydra-dev.enable = true;
     services.hydra-dev.hydraURL = "http://hydra.example.org";
     services.hydra-dev.notificationSender = "admin@hydra.example.org";
@@ -16,7 +16,7 @@ rec {
     systemd.services.hydra-send-stats.enable = false;
 
     services.postgresql.enable = true;
-    services.postgresql.package = pkgs.postgresql_11;
+    services.postgresql.package = pkgs.postgresql_12;
 
     # The following is to work around the following error from hydra-server:
     #   [error] Caught exception in engine "Cannot determine local time zone"

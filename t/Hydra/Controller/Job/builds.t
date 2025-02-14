@@ -54,13 +54,14 @@ subtest "/job/PROJECT/JOBSET/JOB/shield" => sub {
 
 subtest "/job/PROJECT/JOBSET/JOB/prometheus" => sub {
     my $response = request(GET '/job/' . $project->name . '/' . $jobset->name . '/' . $build->job . '/prometheus');
-    ok($response->is_success, "The page showing the job's prometheus data returns 200.");
-    my $metrics = $response->content;
 
-    ok($metrics =~ m/hydra_job_failed\{.*\} 0/);
-    ok($metrics =~ m/hydra_job_completion_time\{.*\} [\d]+/);
-    ok($metrics =~ m/hydra_build_closure_size\{.*\} 96/);
-    ok($metrics =~ m/hydra_build_output_size\{.*\} 96/);
+    ok($response->is_success, "The page showing the job's prometheus data returns 200.");
+
+    my $metrics = $response->content;
+    like($metrics, qr/hydra_job_failed\{.*\} 0/);
+    like($metrics, qr/hydra_job_completion_time\{.*\} [\d]+/);
+    like($metrics, qr/hydra_build_closure_size\{.*\} 96/);
+    like($metrics, qr/hydra_build_output_size\{.*\} 96/);
 };
 
 done_testing;

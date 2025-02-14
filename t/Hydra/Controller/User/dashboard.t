@@ -24,7 +24,7 @@ my $cookie = $login->header("set-cookie");
 my $my_jobs = request(GET '/dashboard/alice/my-jobs-tab', Accept => 'application/json', Cookie => $cookie);
 ok($my_jobs->is_success);
 my $content = $my_jobs->content();
-ok($content =~ /empty_dir/);
+like($content, qr/empty_dir/);
 ok(!($content =~ /fails/));
 ok(!($content =~ /succeed_with_failed/));
 done_testing;
