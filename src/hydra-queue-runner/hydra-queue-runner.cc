@@ -135,65 +135,26 @@ void State::parseMachines(const std::string & contents)
         oldMachines = *machines_;
     }
 
-    for (auto line : tokenizeString<Strings>(contents, "\n")) {
-        line = trim(std::string(line, 0, line.find('#')));
-        auto tokens = tokenizeString<std::vector<std::string>>(line);
-        if (tokens.size() < 3) continue;
-        tokens.resize(8);
-
-        if (tokens[5] == "-") tokens[5] = "";
-        auto supportedFeatures = tokenizeString<StringSet>(tokens[5], ",");
-
-        if (tokens[6] == "-") tokens[6] = "";
-        auto mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
-
-        for (auto & f : mandatoryFeatures)
-            supportedFeatures.insert(f);
-
-        using MaxJobs = std::remove_const<decltype(nix::Machine::maxJobs)>::type;
-
-        auto machine = std::make_shared<::Machine>(nix::Machine {
-            // `storeUri`, not yet used
-            "",
-            // `systemTypes`
-            tokenizeString<StringSet>(tokens[1], ","),
-            // `sshKey`
-            tokens[2] == "-" ? "" : tokens[2],
-            // `maxJobs`
-            tokens[3] != ""
-                ? string2Int<MaxJobs>(tokens[3]).value()
-                : 1,
-            // `speedFactor`
-            std::stof(tokens[4].c_str()),
-            // `supportedFeatures`
-            std::move(supportedFeatures),
-            // `mandatoryFeatures`
-            std::move(mandatoryFeatures),
-            // `sshPublicHostKey`
-            tokens[7] != "" && tokens[7] != "-"
-                ? tokens[7]
-                : "",
-        });
-
-        machine->sshName = tokens[0];
+    for (auto && machine_ : nix::Machine::parseConfig({}, contents)) {
+        auto machine = std::make_shared<::Machine>(std::move(machine_));
 
         /* Re-use the State object of the previous machine with the
            same name. */
-        auto i = oldMachines.find(machine->sshName);
+        auto i = oldMachines.find(machine->storeUri.variant);
         if (i == oldMachines.end())
-            printMsg(lvlChatty, "adding new machine ‘%1%’", machine->sshName);
+            printMsg(lvlChatty, "adding new machine ‘%1%’", machine->storeUri.render());
         else
-            printMsg(lvlChatty, "updating machine ‘%1%’", machine->sshName);
+            printMsg(lvlChatty, "updating machine ‘%1%’", machine->storeUri.render());
         machine->state = i == oldMachines.end()
             ? std::make_shared<::Machine::State>()
             : i->second->state;
-        newMachines[machine->sshName] = machine;
+        newMachines[machine->storeUri.variant] = machine;
     }
 
     for (auto & m : oldMachines)
         if (newMachines.find(m.first) == newMachines.end()) {
             if (m.second->enabled)
-                printInfo("removing machine ‘%1%’", m.first);
+                printInfo("removing machine ‘%1%’", m.second->storeUri.render());
             /* Add a disabled ::Machine object to make sure stats are
                maintained. */
             auto machine = std::make_shared<::Machine>(*(m.second));
@@ -656,7 +617,7 @@ void State::dumpStatus(Connection & conn)
                     machine["avgStepTime"] = (float) s->totalStepTime / s->nrStepsDone;
                     machine["avgStepBuildTime"] = (float) s->totalStepBuildTime / s->nrStepsDone;
                 }
-                statusJson["machines"][m->sshName] = machine;
+                statusJson["machines"][m->storeUri.render()] = machine;
             }
         }
 

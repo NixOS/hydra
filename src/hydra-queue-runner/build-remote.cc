@@ -11,18 +11,6 @@
 
 using namespace nix;
 
-static std::string machineToStoreUrl(::Machine::ptr machine)
-{
-    if (machine->sshName == "localhost")
-        return "auto";
-
-    // FIXME: remove this, rely on Machine::Machine(), Machine::openStore().
-
-    // SSH flags: "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
-
-    return "ssh://" + machine->sshName;
-}
-
 namespace nix::build_remote {
 
 static Path createLogFileDir(const std::string & logDir, const StorePath & drvPath)
@@ -114,7 +102,7 @@ void State::buildRemote(ref<Store> destStore,
         updateStep(ssBuilding);
         result.startTime = time(0);
 
-        auto buildStoreUrl = machineToStoreUrl(machine);
+        auto buildStoreUrl = machine->completeStoreReference().render();
 
         Strings args = {
             localStore->printStorePath(step->drvPath),
@@ -202,7 +190,7 @@ void State::buildRemote(ref<Store> destStore,
            get a build log. */
         if (result.isCached) {
             printMsg(lvlInfo, "outputs of ‘%s’ substituted or already valid on ‘%s’",
-                localStore->printStorePath(step->drvPath), machine->sshName);
+                localStore->printStorePath(step->drvPath), machine->storeUri.render());
             unlink(result.logFile.c_str());
             result.logFile = "";
         }
@@ -219,7 +207,7 @@ void State::buildRemote(ref<Store> destStore,
             info->consecutiveFailures = std::min(info->consecutiveFailures + 1, (unsigned int) 4);
             info->lastFailure = now;
             int delta = retryInterval * std::pow(retryBackoff, info->consecutiveFailures - 1) + (rand() % 30);
-            printMsg(lvlInfo, "will disable machine ‘%1%’ for %2%s", machine->sshName, delta);
+            printMsg(lvlInfo, "will disable machine ‘%1%’ for %2%s", machine->storeUri.render(), delta);
             info->disabledUntil = now + std::chrono::seconds(delta);
         }
         throw;

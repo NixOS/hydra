@@ -68,8 +68,6 @@ in
 
       package = mkOption {
         type = types.path;
-        default = pkgs.hydra_unstable;
-        defaultText = literalExpression "pkgs.hydra";
         description = "The Hydra package.";
       };
 
@@ -340,6 +338,7 @@ in
     systemd.services.hydra-queue-runner =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
+        wants = [ "network-online.target" ];
         after = [ "hydra-init.service" "network.target" "network-online.target" ];
         path = [ cfg.package pkgs.nettools pkgs.openssh pkgs.bzip2 config.nix.package ];
         restartTriggers = [ hydraConf ];

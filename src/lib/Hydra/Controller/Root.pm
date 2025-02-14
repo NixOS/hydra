@@ -51,6 +51,7 @@ sub begin :Private {
     $c->stash->{curUri} = $c->request->uri;
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
+    $c->stash->{nixEvalJobsVersion} = $ENV{"NIX_EVAL_JOBS_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
     $c->stash->{logo} = defined $c->config->{hydra_logo} ? "/logo" : "";
     $c->stash->{tracker} = defined $c->config->{tracker} ? $c->config->{tracker} : "";

@@ -14,6 +14,7 @@ use Nix::Config;
 use Nix::Store;
 use Hydra::Model::DB;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Nix;
 
 sub isEnabled {
     my ($self) = @_;
