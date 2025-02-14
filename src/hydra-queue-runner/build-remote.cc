@@ -7,7 +7,7 @@
 
 #include "build-result.hh"
 #include "path.hh"
-#include "legacy-ssh-store.hh"
+#include "ssh-store.hh"
 #include "serve-protocol.hh"
 #include "state.hh"
 #include "current-process.hh"
@@ -119,11 +119,10 @@ static BuildResult performBuild(
     Store & localStore,
     StorePath drvPath,
     const BasicDerivation & drv,
-    const ServeProto::BuildOptions & options,
     counter & nrStepsBuilding
 )
 {
-    auto kont = conn.store->buildDerivationAsync(drvPath, drv, options);
+    auto kont = conn.store->buildDerivationAsync(drvPath, drv, bmNormal);
 
     BuildResult result;
 
@@ -238,7 +237,6 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 
 void State::buildRemote(ref<Store> destStore,
     ::Machine::ptr machine, Step::ptr step,
-    const ServeProto::BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
     std::function<void(StepState)> updateStep,
     NarMemberDatas & narMembers)
@@ -258,23 +256,26 @@ void State::buildRemote(ref<Store> destStore,
             .machine = machine,
             .store = [&]{
                 auto * pSpecified = std::get_if<StoreReference::Specified>(&machine->storeUri.variant);
-                if (!pSpecified || pSpecified->scheme != "ssh") {
-                    throw Error("Currently, only (legacy-)ssh stores are supported!");
+                if (!pSpecified || pSpecified->scheme != "ssh-ng") {
+                    throw Error("Currently, only ssh-ng:// stores are supported!");
                 }
 
-                auto remoteStore = machine->openStore().dynamic_pointer_cast<LegacySSHStore>();
+                auto remoteStore = machine->openStore().dynamic_pointer_cast<RemoteStore>();
+                auto remoteStoreConfig = std::dynamic_pointer_cast<SSHStoreConfig>(remoteStore);
                 assert(remoteStore);
 
                 if (machine->isLocalhost()) {
-                    auto rp_new = remoteStore->remoteProgram.get();
+                    auto rp_new = remoteStoreConfig->remoteProgram.get();
                     rp_new.push_back("--builders");
                     rp_new.push_back("");
-                    const_cast<nix::Setting<Strings> &>(remoteStore->remoteProgram).assign(rp_new);
+                    const_cast<nix::Setting<Strings> &>(remoteStoreConfig->remoteProgram).assign(rp_new);
                 }
-                remoteStore->extraSshArgs = {
+                remoteStoreConfig->extraSshArgs = {
                     "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
                 };
-                const_cast<nix::Setting<int> &>(remoteStore->logFD).assign(logFD.get());
+
+                // TODO logging
+                //const_cast<nix::Setting<int> &>(remoteStore->logFD).assign(logFD.get());
 
                 return nix::ref{remoteStore};
             }(),
@@ -283,12 +284,10 @@ void State::buildRemote(ref<Store> destStore,
         {
             auto activeStepState(activeStep->state_.lock());
             if (activeStepState->cancelled) throw Error("step cancelled");
-            activeStepState->pid = conn.store->getConnectionPid();
         }
 
         Finally clearPid([&]() {
             auto activeStepState(activeStep->state_.lock());
-            activeStepState->pid = -1;
 
             /* FIXME: there is a slight race here with step
                cancellation in State::processQueueChange(), which
@@ -299,9 +298,10 @@ void State::buildRemote(ref<Store> destStore,
         });
 
         Finally updateStats([&]() {
-            auto stats = conn.store->getConnectionStats();
-            bytesReceived += stats.bytesReceived;
-            bytesSent += stats.bytesSent;
+            // TODO
+            //auto stats = conn.store->getConnectionStats();
+            //bytesReceived += stats.bytesReceived;
+            //bytesSent += stats.bytesSent;
         });
 
         {
@@ -341,7 +341,6 @@ void State::buildRemote(ref<Store> destStore,
             *localStore,
             step->drvPath,
             resolvedDrv,
-            buildOptions,
             nrStepsBuilding
         );
 

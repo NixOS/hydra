@@ -13,16 +13,16 @@
         "nixpkgs-regression": []
       },
       "locked": {
-        "lastModified": 1739570697,
-        "narHash": "sha256-n5kdS1C24tlJxDV6Wm1iBlyvGk+p0gMXRcWVCAipYLs=",
+        "lastModified": 1739571938,
+        "narHash": "sha256-NlaLAed/xei6RWpU2HIIbDjILRC4l1NIfGeyrn7ALQs=",
         "owner": "NixOS",
         "repo": "nix",
-        "rev": "5eade4825221d3284fc6555cb20de2c7aa171d72",
+        "rev": "ffc649d2eabdd3e678b5bcc211dd59fd06debf3e",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "legacy-ssh-extensions-for-hydra",
+        "ref": "ssh-ng-extensions-for-hydra",
         "repo": "nix",
         "type": "github"
       }

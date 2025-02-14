@@ -4,7 +4,7 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11-small";
 
   inputs.nix = {
-    url = "github:NixOS/nix/legacy-ssh-extensions-for-hydra";
+    url = "github:NixOS/nix/ssh-ng-extensions-for-hydra";
     inputs.nixpkgs.follows = "nixpkgs";
 
     # hide nix dev tooling from our lock file

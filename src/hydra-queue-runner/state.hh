@@ -20,7 +20,7 @@
 #include "store-api.hh"
 #include "sync.hh"
 #include "nar-extractor.hh"
-#include "legacy-ssh-store.hh"
+#include "ssh-store.hh"
 #include "machines.hh"
 
 
@@ -294,12 +294,12 @@ struct Machine : nix::Machine
         // Backpointer to the machine
         ptr machine;
         // Opened store
-        nix::ref<nix::LegacySSHStore> store;
+        nix::ref<nix::RemoteStore> store;
     };
 };
 
 
-class HydraConfig;
+struct HydraConfig;
 
 
 class State
@@ -542,7 +542,6 @@ private:
 
     void buildRemote(nix::ref<nix::Store> destStore,
         Machine::ptr machine, Step::ptr step,
-        const nix::ServeProto::BuildOptions & buildOptions,
         RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
         std::function<void(StepState)> updateStep,
         NarMemberDatas & narMembers);
