@@ -81,7 +81,12 @@
           inherit (nixpkgs.lib) fileset;
           inherit (self.packages.${system}) nix-eval-jobs;
           rawSrc = self;
-          nix = nix.packages.${system}.nix;
+          inherit (nix.packages.${system})
+            nix-util
+            nix-store
+            nix-main
+            nix-cli
+            ;
           nix-perl-bindings = nix.hydraJobs.perlBindings.${system};
         };
         default = self.packages.${system}.hydra;
