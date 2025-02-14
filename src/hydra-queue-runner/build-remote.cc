@@ -36,42 +36,6 @@ bool ::Machine::isLocalhost() const
 
 namespace nix::build_remote {
 
-static void copyClosureTo(
-    ::Machine::Connection & conn,
-    Store & destStore,
-    const StorePathSet & paths,
-    SubstituteFlag useSubstitutes = NoSubstitute)
-{
-    StorePathSet closure;
-    destStore.computeFSClosure(paths, closure);
-
-    /* Send the "query valid paths" command with the "lock" option
-       enabled. This prevents a race where the remote host
-       garbage-collect paths that are already there. Optionally, ask
-       the remote host to substitute missing paths. */
-    // FIXME: substitute output pollutes our build log
-    /* Get back the set of paths that are already valid on the remote
-       host. */
-    auto present = conn.store->queryValidPaths(
-        closure, true, useSubstitutes);
-
-    if (present.size() == closure.size()) return;
-
-    auto sorted = destStore.topoSortPaths(closure);
-
-    StorePathSet missing;
-    for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
-        if (!present.count(*i)) missing.insert(*i);
-
-    printMsg(lvlDebug, "sending %d missing paths", missing.size());
-
-    std::unique_lock<std::timed_mutex> sendLock(conn.machine->state->sendLock,
-        std::chrono::seconds(600));
-
-    conn.store->addMultipleToStoreLegacy(destStore, missing);
-}
-
-
 // FIXME: use Store::topoSortPaths().
 static StorePaths reverseTopoSortPaths(const std::map<StorePath, UnkeyedValidPathInfo> & paths)
 {
@@ -163,13 +127,13 @@ static BasicDerivation sendInputs(
         auto now1 = std::chrono::steady_clock::now();
 
         /* Copy the input closure. */
-        if (conn.machine->isLocalhost()) {
-            StorePathSet closure;
-            destStore.computeFSClosure(basicDrv.inputSrcs, closure);
-            copyPaths(destStore, localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
-        } else {
-            copyClosureTo(conn, destStore, basicDrv.inputSrcs, Substitute);
-        }
+        copyClosure(
+            destStore,
+            conn.machine->isLocalhost() ? localStore : *conn.store,
+            basicDrv.inputSrcs,
+            NoRepair,
+            NoCheckSigs,
+            Substitute);
 
         auto now2 = std::chrono::steady_clock::now();
 
