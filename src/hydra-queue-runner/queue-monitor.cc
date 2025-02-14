@@ -10,8 +10,14 @@ using namespace nix;
 void State::queueMonitor()
 {
     while (true) {
+        auto conn(dbPool.get());
         try {
-            queueMonitorLoop();
+            queueMonitorLoop(*conn);
+        } catch (pqxx::broken_connection & e) {
+            printMsg(lvlError, "queue monitor: %s", e.what());
+            printMsg(lvlError, "queue monitor: Reconnecting in 10s");
+            conn.markBad();
+            sleep(10);
         } catch (std::exception & e) {
             printError("queue monitor: %s", e.what());
             sleep(10); // probably a DB problem, so don't retry right away
@@ -20,16 +26,14 @@ void State::queueMonitor()
 }
 
 
-void State::queueMonitorLoop()
+void State::queueMonitorLoop(Connection & conn)
 {
-    auto conn(dbPool.get());
-
-    receiver buildsAdded(*conn, "builds_added");
-    receiver buildsRestarted(*conn, "builds_restarted");
-    receiver buildsCancelled(*conn, "builds_cancelled");
-    receiver buildsDeleted(*conn, "builds_deleted");
-    receiver buildsBumped(*conn, "builds_bumped");
-    receiver jobsetSharesChanged(*conn, "jobset_shares_changed");
+    receiver buildsAdded(conn, "builds_added");
+    receiver buildsRestarted(conn, "builds_restarted");
+    receiver buildsCancelled(conn, "builds_cancelled");
+    receiver buildsDeleted(conn, "builds_deleted");
+    receiver buildsBumped(conn, "builds_bumped");
+    receiver jobsetSharesChanged(conn, "jobset_shares_changed");
 
     auto destStore = getDestStore();
 
@@ -39,17 +43,17 @@ void State::queueMonitorLoop()
     while (!quit) {
         localStore->clearPathInfoCache();
 
-        bool done = getQueuedBuilds(*conn, destStore, lastBuildId);
+        bool done = getQueuedBuilds(conn, destStore, lastBuildId);
 
         if (buildOne && buildOneDone) quit = true;
 
         /* Sleep until we get notification from the database about an
            event. */
         if (done && !quit) {
-            conn->await_notification();
+            conn.await_notification();
             nrQueueWakeups++;
         } else
-            conn->get_notifs();
+            conn.get_notifs();
 
         if (auto lowestId = buildsAdded.get()) {
             lastBuildId = std::min(lastBuildId, static_cast<unsigned>(std::stoul(*lowestId) - 1));
@@ -61,11 +65,11 @@ void State::queueMonitorLoop()
         }
         if (buildsCancelled.get() || buildsDeleted.get() || buildsBumped.get()) {
             printMsg(lvlTalkative, "got notification: builds cancelled or bumped");
-            processQueueChange(*conn);
+            processQueueChange(conn);
         }
         if (jobsetSharesChanged.get()) {
             printMsg(lvlTalkative, "got notification: jobset shares changed");
-            processJobsetSharesChange(*conn);
+            processJobsetSharesChange(conn);
         }
     }
 
@@ -696,7 +700,7 @@ BuildOutput State::getBuildOutputCached(Connection & conn, nix::ref<nix::Store> 
                 product.fileSize = row[2].as<off_t>();
             }
             if (!row[3].is_null())
-                product.sha256hash = Hash::parseAny(row[3].as<std::string>(), htSHA256);
+                product.sha256hash = Hash::parseAny(row[3].as<std::string>(), HashAlgorithm::SHA256);
             if (!row[4].is_null())
                 product.path = row[4].as<std::string>();
             product.name = row[5].as<std::string>();

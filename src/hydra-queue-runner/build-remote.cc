@@ -1,5 +1,6 @@
 #include "build-result.hh"
 #include "serve-protocol.hh"
+#include "serve-protocol-impl.hh"
 #include "state.hh"
 #include "current-process.hh"
 #include "processes.hh"
@@ -99,7 +100,7 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 
 void State::buildRemote(ref<Store> destStore,
     ::Machine::ptr machine, Step::ptr step,
-    const BuildOptions & buildOptions,
+    const ServeProto::BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
     std::function<void(StepState)> updateStep,
     NarMemberDatas & narMembers)
@@ -124,7 +125,7 @@ void State::buildRemote(ref<Store> destStore,
             "--timeout", std::to_string(buildOptions.buildTimeout),
             "--max-build-log-size", std::to_string(buildOptions.maxLogSize),
             "--max-output-size", std::to_string(maxOutputSize),
-            "--repeat", std::to_string(buildOptions.repeats),
+            "--repeat", std::to_string(buildOptions.nrRepeats),
             "--log-file", result.logFile,
             // FIXME: step->isDeterministic
         };
@@ -143,7 +144,7 @@ void State::buildRemote(ref<Store> destStore,
         {
             auto activeStepState(activeStep->state_.lock());
             if (activeStepState->cancelled) throw Error("step cancelled");
-            activeStepState->pid = child.sshPid;
+            activeStepState->pid = child->sshPid;
         }
 
         Finally clearPid([&]() {
