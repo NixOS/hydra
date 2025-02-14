@@ -3,23 +3,35 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05-small";
 
-  inputs.libgit2 = { url = "github:libgit2/libgit2/v1.8.1"; flake = false; };
-  inputs.nix.url = "github:NixOS/nix/2.24-maintenance";
-  inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
-  inputs.nix.inputs.libgit2.follows = "libgit2";
+  inputs.libgit2 = {
+    url = "github:libgit2/libgit2/v1.8.1";
+    flake = false;
+  };
 
-  inputs.nix-eval-jobs.url = "github:nix-community/nix-eval-jobs/release-2.24";
-  inputs.nix-eval-jobs.inputs.nixpkgs.follows = "nixpkgs";
+  inputs.nix = {
+    url = "github:NixOS/nix/2.25-maintenance";
+    inputs.nixpkgs.follows = "nixpkgs";
+    inputs.libgit2.follows = "libgit2";
 
-  # hide nix dev tooling from our lock file
-  inputs.nix.inputs.flake-parts.follows = "";
-  inputs.nix.inputs.git-hooks-nix.follows = "";
-  inputs.nix.inputs.nixpkgs-regression.follows = "";
-  inputs.nix.inputs.nixpkgs-23-11.follows = "";
-  inputs.nix.inputs.flake-compat.follows = "";
+    # hide nix dev tooling from our lock file
+    inputs.flake-parts.follows = "";
+    inputs.git-hooks-nix.follows = "";
+    inputs.nixpkgs-regression.follows = "";
+    inputs.nixpkgs-23-11.follows = "";
+    inputs.flake-compat.follows = "";
+  };
 
-  # hide nix-eval-jobs dev tooling from our lock file
-  inputs.nix-eval-jobs.inputs.nix-github-actions.follows = "";
+  inputs.nix-eval-jobs = {
+    url = "github:nix-community/nix-eval-jobs";
+    # We want to control the deps precisely
+    flake = false;
+
+    # Hide nix-eval-jobs dev tooling from our lock file.
+    #
+    # TODO why is this needed with `flake = false`?
+    inputs.nixpkgs.follows = "nixpkgs";
+    inputs.nix-github-actions.follows = "";
+  };
 
   outputs = { self, nixpkgs, nix, nix-eval-jobs, ... }:
     let
@@ -30,9 +42,9 @@
 
       # A Nixpkgs overlay that provides a 'hydra' package.
       overlays.default = final: prev: {
+        nix-eval-jobs = final.callPackage nix-eval-jobs {};
         hydra = final.callPackage ./package.nix {
           inherit (nixpkgs.lib) fileset;
-          nix-eval-jobs = nix-eval-jobs.packages.${final.system}.default;
           rawSrc = self;
           nix-perl-bindings = final.nixComponents.nix-perl-bindings;
         };
@@ -74,9 +86,12 @@
       });
 
       packages = forEachSystem (system: {
+        nix-eval-jobs = nixpkgs.legacyPackages.${system}.callPackage nix-eval-jobs {
+          nix = nix.packages.${system}.nix;
+        };
         hydra = nixpkgs.legacyPackages.${system}.callPackage ./package.nix {
           inherit (nixpkgs.lib) fileset;
-          nix-eval-jobs = nix-eval-jobs.packages.${system}.default;
+          inherit (self.packages.${system}) nix-eval-jobs;
           rawSrc = self;
           nix = nix.packages.${system}.nix;
           nix-perl-bindings = nix.hydraJobs.perlBindings.${system};
