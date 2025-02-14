@@ -25,12 +25,6 @@
     url = "github:nix-community/nix-eval-jobs";
     # We want to control the deps precisely
     flake = false;
-
-    # Hide nix-eval-jobs dev tooling from our lock file.
-    #
-    # TODO why is this needed with `flake = false`?
-    inputs.nixpkgs.follows = "nixpkgs";
-    inputs.nix-github-actions.follows = "";
   };
 
   outputs = { self, nixpkgs, nix, nix-eval-jobs, ... }:
