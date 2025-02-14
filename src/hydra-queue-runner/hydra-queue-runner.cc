@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <optional>
+#include <type_traits>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -140,23 +141,43 @@ void State::parseMachines(const std::string & contents)
         if (tokens.size() < 3) continue;
         tokens.resize(8);
 
-        auto machine = std::make_shared<Machine>();
-        machine->sshName = tokens[0];
-        machine->systemTypes = tokenizeString<StringSet>(tokens[1], ",");
-        machine->sshKey = tokens[2] == "-" ? std::string("") : tokens[2];
-        if (tokens[3] != "")
-            machine->maxJobs = string2Int<decltype(machine->maxJobs)>(tokens[3]).value();
-        else
-            machine->maxJobs = 1;
-        machine->speedFactor = atof(tokens[4].c_str());
         if (tokens[5] == "-") tokens[5] = "";
-        machine->supportedFeatures = tokenizeString<StringSet>(tokens[5], ",");
+        auto supportedFeatures = tokenizeString<StringSet>(tokens[5], ",");
+
         if (tokens[6] == "-") tokens[6] = "";
-        machine->mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
-        for (auto & f : machine->mandatoryFeatures)
-            machine->supportedFeatures.insert(f);
-        if (tokens[7] != "" && tokens[7] != "-")
-            machine->sshPublicHostKey = base64Decode(tokens[7]);
+        auto mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
+
+        for (auto & f : mandatoryFeatures)
+            supportedFeatures.insert(f);
+
+        using MaxJobs = std::remove_const<decltype(nix::Machine::maxJobs)>::type;
+
+        auto machine = std::make_shared<::Machine>(nix::Machine {
+            // `storeUri`, not yet used
+            "",
+            // `systemTypes`, not yet used
+            {},
+            // `sshKey`
+            tokens[2] == "-" ? "" : tokens[2],
+            // `maxJobs`
+            tokens[3] != ""
+                ? string2Int<MaxJobs>(tokens[3]).value()
+                : 1,
+            // `speedFactor`, not yet used
+            1,
+            // `supportedFeatures`
+            std::move(supportedFeatures),
+            // `mandatoryFeatures`
+            std::move(mandatoryFeatures),
+            // `sshPublicHostKey`
+            tokens[7] != "" && tokens[7] != "-"
+                ? base64Decode(tokens[7])
+                : "",
+        });
+
+        machine->sshName = tokens[0];
+        machine->systemTypesSet = tokenizeString<StringSet>(tokens[1], ",");
+        machine->speedFactorFloat = atof(tokens[4].c_str());
 
         /* Re-use the State object of the previous machine with the
            same name. */
@@ -166,7 +187,7 @@ void State::parseMachines(const std::string & contents)
         else
             printMsg(lvlChatty, "updating machine ‘%1%’", machine->sshName);
         machine->state = i == oldMachines.end()
-            ? std::make_shared<Machine::State>()
+            ? std::make_shared<::Machine::State>()
             : i->second->state;
         newMachines[machine->sshName] = machine;
     }
@@ -175,9 +196,9 @@ void State::parseMachines(const std::string & contents)
         if (newMachines.find(m.first) == newMachines.end()) {
             if (m.second->enabled)
                 printInfo("removing machine ‘%1%’", m.first);
-            /* Add a disabled Machine object to make sure stats are
+            /* Add a disabled ::Machine object to make sure stats are
                maintained. */
-            auto machine = std::make_shared<Machine>(*(m.second));
+            auto machine = std::make_shared<::Machine>(*(m.second));
             machine->enabled = false;
             newMachines[m.first] = machine;
         }
@@ -205,7 +226,7 @@ void State::monitorMachinesFile()
         parseMachines("localhost " +
             (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem.get())
             + " - " + std::to_string(settings.maxBuildJobs) + " 1 "
-            + concatStringsSep(",", settings.systemFeatures.get()));
+            + concatStringsSep(",", StoreConfig::getDefaultSystemFeatures()));
         machinesReadyLock.unlock();
         return;
     }
@@ -312,10 +333,13 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
 
     if (r.affected_rows() == 0) goto restart;
 
-    for (auto & [name, output] : step->drv->outputs)
+    for (auto & [name, output] : getDestStore()->queryPartialDerivationOutputMap(step->drvPath, &*localStore))
         txn.exec_params0
             ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-            buildId, stepNr, name, localStore->printStorePath(*output.path(*localStore, step->drv->name, name)));
+            buildId, stepNr, name,
+            output
+                ? std::optional { localStore->printStorePath(*output)}
+                : std::nullopt);
 
     if (status == bsBusy)
         txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));
@@ -352,11 +376,23 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
     assert(result.logFile.find('\t') == std::string::npos);
     txn.exec(fmt("notify step_finished, '%d\t%d\t%s'",
             buildId, stepNr, result.logFile));
+
+    if (result.stepStatus == bsSuccess) {
+        // Update the corresponding `BuildStepOutputs` row to add the output path
+        auto res = txn.exec_params1("select drvPath from BuildSteps where build = $1 and stepnr = $2", buildId, stepNr);
+        assert(res.size());
+        StorePath drvPath = localStore->parseStorePath(res[0].as<std::string>());
+        // If we've finished building, all the paths should be known
+        for (auto & [name, output] : getDestStore()->queryDerivationOutputMap(drvPath, &*localStore))
+            txn.exec_params0
+                ("update BuildStepOutputs set path = $4 where build = $1 and stepnr = $2 and name = $3",
+                  buildId, stepNr, name, localStore->printStorePath(output));
+    }
 }
 
 
 int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
-    Build::ptr build, const StorePath & drvPath, const std::string & outputName, const StorePath & storePath)
+    Build::ptr build, const StorePath & drvPath, const nix::Derivation drv, const std::string & outputName, const StorePath & storePath)
 {
  restart:
     auto stepNr = allocBuildStep(txn, build->id);
@@ -456,6 +492,15 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
          res.closureSize,
          res.releaseName != "" ? std::make_optional(res.releaseName) : std::nullopt,
          isCachedBuild ? 1 : 0);
+
+    for (auto & [outputName, outputPath] : res.outputs) {
+        txn.exec_params0
+            ("update BuildOutputs set path = $3 where build = $1 and name = $2",
+             build->id,
+             outputName,
+             localStore->printStorePath(outputPath)
+            );
+    }
 
     txn.exec_params0("delete from BuildProducts where build = $1", build->id);
 
@@ -595,7 +640,7 @@ void State::dumpStatus(Connection & conn)
 
                 json machine = {
                     {"enabled",  m->enabled},
-                    {"systemTypes", m->systemTypes},
+                    {"systemTypes", m->systemTypesSet},
                     {"supportedFeatures", m->supportedFeatures},
                     {"mandatoryFeatures", m->mandatoryFeatures},
                     {"nrStepsDone", s->nrStepsDone.load()},

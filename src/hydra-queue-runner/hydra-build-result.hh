@@ -36,10 +36,12 @@ struct BuildOutput
 
     std::list<BuildProduct> products;
 
+    std::map<std::string, nix::StorePath> outputs;
+
     std::map<std::string, BuildMetric> metrics;
 };
 
 BuildOutput getBuildOutput(
     nix::ref<nix::Store> store,
     NarMemberDatas & narMembers,
-    const nix::Derivation & drv);
+    const nix::OutputPathMap derivationOutputs);

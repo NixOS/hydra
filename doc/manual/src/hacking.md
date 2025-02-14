@@ -18,7 +18,7 @@ $ nix-shell
 To build Hydra, you should then do:
 
 ```console
-[nix-shell]$ ./bootstrap
+[nix-shell]$ autoreconfPhase
 [nix-shell]$ configurePhase
 [nix-shell]$ make
 ```

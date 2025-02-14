@@ -10,7 +10,7 @@
 
 using namespace nix;
 
-static std::string machineToStoreUrl(Machine::ptr machine)
+static std::string machineToStoreUrl(::Machine::ptr machine)
 {
     if (machine->sshName == "localhost")
         return "auto";
@@ -98,7 +98,7 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 
 
 void State::buildRemote(ref<Store> destStore,
-    Machine::ptr machine, Step::ptr step,
+    ::Machine::ptr machine, Step::ptr step,
     const BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
     std::function<void(StepState)> updateStep,
