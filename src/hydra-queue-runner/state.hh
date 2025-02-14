@@ -21,8 +21,8 @@
 #include "store-api.hh"
 #include "sync.hh"
 #include "nar-extractor.hh"
-#include "machines.hh"
 #include "serve-protocol.hh"
+#include "machines.hh"
 
 
 typedef unsigned int BuildID;
