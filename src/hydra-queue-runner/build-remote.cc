@@ -36,35 +36,6 @@ bool ::Machine::isLocalhost() const
 
 namespace nix::build_remote {
 
-// FIXME: use Store::topoSortPaths().
-static StorePaths reverseTopoSortPaths(const std::map<StorePath, UnkeyedValidPathInfo> & paths)
-{
-    StorePaths sorted;
-    StorePathSet visited;
-
-    std::function<void(const StorePath & path)> dfsVisit;
-
-    dfsVisit = [&](const StorePath & path) {
-        if (!visited.insert(path).second) return;
-
-        auto info = paths.find(path);
-        auto references = info == paths.end() ? StorePathSet() : info->second.references;
-
-        for (auto & i : references)
-            /* Don't traverse into paths that don't exist.  That can
-               happen due to substitutes for non-existent paths. */
-            if (i != path && paths.count(i))
-                dfsVisit(i);
-
-        sorted.push_back(path);
-    };
-
-    for (auto & i : paths)
-        dfsVisit(i.first);
-
-    return sorted;
-}
-
 static std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const StorePath & drvPath)
 {
     std::string base(drvPath.to_string());
@@ -203,54 +174,6 @@ static BuildResult performBuild(
     }
 
     return result;
-}
-
-static void copyPathFromRemote(
-    ::Machine::Connection & conn,
-    NarMemberDatas & narMembers,
-    Store & localStore,
-    Store & destStore,
-    const ValidPathInfo & info
-)
-{
-    /* Receive the NAR from the remote and add it to the
-        destination store. Meanwhile, extract all the info from the
-        NAR that getBuildOutput() needs. */
-    auto source2 = sinkToSource([&](Sink & sink)
-    {
-        /* Note: we should only send the command to dump the store
-            path to the remote if the NAR is actually going to get read
-            by the destination store, which won't happen if this path
-            is already valid on the destination store. Since this
-            lambda function only gets executed if someone tries to read
-            from source2, we will send the command from here rather
-            than outside the lambda. */
-        conn.store->narFromPath(info.path, [&](Source & source) {
-            TeeSource tee{source, sink};
-            extractNarData(tee, conn.store->printStorePath(info.path), narMembers);
-        });
-    });
-
-    destStore.addToStore(info, *source2, NoRepair, NoCheckSigs);
-}
-
-static void copyPathsFromRemote(
-    ::Machine::Connection & conn,
-    NarMemberDatas & narMembers,
-    Store & localStore,
-    Store & destStore,
-    const std::map<StorePath, UnkeyedValidPathInfo> & infos
-)
-{
-      auto pathsSorted = reverseTopoSortPaths(infos);
-
-      for (auto & path : pathsSorted) {
-          auto & info = infos.find(path)->second;
-          copyPathFromRemote(
-              conn, narMembers, localStore, destStore,
-              ValidPathInfo { path, info });
-      }
-
 }
 
 }
@@ -449,21 +372,12 @@ void State::buildRemote(ref<Store> destStore,
 
             auto now1 = std::chrono::steady_clock::now();
 
-            auto infos = conn.store->queryPathInfosUncached(outputs);
-
-            size_t totalNarSize = 0;
-            for (auto & [_, info] : infos) totalNarSize += info.narSize;
-
-            if (totalNarSize > maxOutputSize) {
-                result.stepStatus = bsNarSizeLimitExceeded;
-                return;
-            }
-
             /* Copy each path. */
-            printMsg(lvlDebug, "copying outputs of ‘%s’ from ‘%s’ (%d bytes)",
-                localStore->printStorePath(step->drvPath), machine->storeUri.render(), totalNarSize);
+            printMsg(lvlDebug, "copying outputs of ‘%s’ from ‘%s’",
+                localStore->printStorePath(step->drvPath), machine->storeUri.render());
 
-            build_remote::copyPathsFromRemote(conn, narMembers, *localStore, *destStore, infos);
+            copyClosure(*conn.store, *destStore, outputs);
+
             auto now2 = std::chrono::steady_clock::now();
 
             result.overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
