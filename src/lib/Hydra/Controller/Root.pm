@@ -329,7 +329,7 @@ sub nar :Local :Args(1) {
     else {
         $path = $Nix::Config::storeDir . "/$path";
 
-        gone($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
+        gone($c, "Path " . $path . " is no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($path);
 
         $c->stash->{current_view} = 'NixNAR';
         $c->stash->{storePath} = $path;
@@ -396,7 +396,7 @@ sub narinfo :Path :Args(StrMatch[NARINFO_REGEX]) {
         my ($hash) = $narinfo =~ NARINFO_REGEX;
 
         die("Hash length was not 32") if length($hash) != 32;
-        my $path = queryPathFromHashPart($hash);
+        my $path = $MACHINE_LOCAL_STORE->queryPathFromHashPart($hash);
 
         if (!$path) {
             $c->response->status(404);

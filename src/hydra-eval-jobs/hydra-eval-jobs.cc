@@ -185,7 +185,7 @@ static void worker(
                     !experimentalFeatureSettings.isEnabled(Xp::CaDerivations));
 
                 if (drv->querySystem() == "unknown")
-                    throw EvalError("derivation must have a 'system' attribute");
+                    state.error<EvalError>("derivation must have a 'system' attribute").debugThrow();
 
                 auto drvPath = state.store->printStorePath(drv->requireDrvPath());
 
@@ -208,7 +208,7 @@ static void worker(
                 if (a && state.forceBool(*a->value, a->pos, "while evaluating the `_hydraAggregate` attribute")) {
                     auto a = v->attrs->get(state.symbols.create("constituents"));
                     if (!a)
-                        throw EvalError("derivation must have a ‘constituents’ attribute");
+                        state.error<EvalError>("derivation must have a ‘constituents’ attribute").debugThrow();
 
                     NixStringContext context;
                     state.coerceToString(a->pos, *a->value, context, "while evaluating the `constituents` attribute", true, false);
@@ -274,7 +274,7 @@ static void worker(
             else if (v->type() == nNull)
                 ;
 
-            else throw TypeError("attribute '%s' is %s, which is not supported", attrPath, showType(*v));
+            else state.error<TypeError>("attribute '%s' is %s, which is not supported", attrPath, showType(*v)).debugThrow();
 
         } catch (EvalError & e) {
             auto msg = e.msg();
