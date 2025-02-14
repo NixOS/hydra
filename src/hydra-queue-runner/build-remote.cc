@@ -1,3 +1,5 @@
+#include <math.h>
+
 #include "build-result.hh"
 #include "serve-protocol.hh"
 #include "serve-protocol-impl.hh"

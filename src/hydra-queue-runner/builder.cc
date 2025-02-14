@@ -179,7 +179,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                     unlink(result.logFile.c_str());
                 }
             } catch (...) {
-                ignoreException();
+                ignoreExceptionInDestructor();
             }
         }
     });
