@@ -4,7 +4,7 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11-small";
 
   inputs.nix = {
-    url = "github:NixOS/nix/2.26-maintenance";
+    url = "github:NixOS/nix/legacy-ssh-extensions-for-hydra";
     inputs.nixpkgs.follows = "nixpkgs";
 
     # hide nix dev tooling from our lock file
@@ -13,10 +13,11 @@
     inputs.nixpkgs-regression.follows = "";
     inputs.nixpkgs-23-11.follows = "";
     inputs.flake-compat.follows = "";
+    inputs.nixfmt.follows = "";
   };
 
   inputs.nix-eval-jobs = {
-    url = "github:nix-community/nix-eval-jobs";
+    url = "github:Ericson2314/nix-eval-jobs/nix-2.27";
     # We want to control the deps precisely
     flake = false;
   };

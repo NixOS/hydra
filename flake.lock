@@ -5,6 +5,7 @@
         "flake-compat": [],
         "flake-parts": [],
         "git-hooks-nix": [],
+        "nixfmt": [],
         "nixpkgs": [
           "nixpkgs"
         ],
@@ -12,16 +13,16 @@
         "nixpkgs-regression": []
       },
       "locked": {
-        "lastModified": 1739393420,
-        "narHash": "sha256-jGFuyYKJjJZsBRoi7ZcaVKt1OYxusz/ld1HA7VD2w/0=",
+        "lastModified": 1739570697,
+        "narHash": "sha256-n5kdS1C24tlJxDV6Wm1iBlyvGk+p0gMXRcWVCAipYLs=",
         "owner": "NixOS",
         "repo": "nix",
-        "rev": "970942f45836172fda410a638853382952189eb9",
+        "rev": "5eade4825221d3284fc6555cb20de2c7aa171d72",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "2.26-maintenance",
+        "ref": "legacy-ssh-extensions-for-hydra",
         "repo": "nix",
         "type": "github"
       }
@@ -29,15 +30,16 @@
     "nix-eval-jobs": {
       "flake": false,
       "locked": {
-        "lastModified": 1739500569,
-        "narHash": "sha256-3wIReAqdTALv39gkWXLMZQvHyBOc3yPkWT2ZsItxedY=",
-        "owner": "nix-community",
+        "lastModified": 1739499741,
+        "narHash": "sha256-dNMJY6+G3PwE8lIAhwetPJdA2DxCEKRXPY/EtHmdDh4=",
+        "owner": "Ericson2314",
         "repo": "nix-eval-jobs",
-        "rev": "4b392b284877d203ae262e16af269f702df036bc",
+        "rev": "de345eb4518d952c2d86261b270f2c31edecd3de",
         "type": "github"
       },
       "original": {
-        "owner": "nix-community",
+        "owner": "Ericson2314",
+        "ref": "nix-2.27",
         "repo": "nix-eval-jobs",
         "type": "github"
       }
