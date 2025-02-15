@@ -182,7 +182,7 @@ void State::monitorMachinesFile()
         getEnv("NIX_REMOTE_SYSTEMS").value_or(pathExists(defaultMachinesFile) ? defaultMachinesFile : ""), ":");
 
     if (machinesFiles.empty()) {
-        parseMachines("localhost " +
+        parseMachines("ssh-ng://localhost " +
             (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem.get())
             + " - " + std::to_string(settings.maxBuildJobs) + " 1 "
             + concatStringsSep(",", StoreConfig::getDefaultSystemFeatures()));
