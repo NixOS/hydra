@@ -37,7 +37,16 @@ sub buildDiff {
 
     my $n = 0;
     foreach my $build (@{$builds}) {
-        my $aborted = $build->finished != 0 && ($build->buildstatus == 3 || $build->buildstatus == 4);
+        my $aborted = $build->finished != 0 && (
+            # aborted
+            $build->buildstatus == 3
+            # cancelled
+            || $build->buildstatus == 4
+            # timeout
+            || $build->buildstatus == 7
+            # log limit exceeded
+            || $build->buildstatus == 10
+        );
         my $d;
         my $found = 0;
         while ($n < scalar(@{$builds2})) {
