@@ -1,5 +1,6 @@
 # Native code
 subdir('libhydra')
+subdir('hydra-build-step')
 subdir('hydra-evaluator')
 subdir('hydra-queue-runner')
 

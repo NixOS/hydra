@@ -3,6 +3,7 @@
 #include "state.hh"
 #include "hydra-build-result.hh"
 #include "finally.hh"
+#include "terminal.hh"
 #include "binary-cache-store.hh"
 
 using namespace nix;
@@ -219,7 +220,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                 result.canRetry = false;
             } else {
                 result.stepStatus = bsAborted;
-                result.errorMsg = e.msg();
+                result.errorMsg = filterANSIEscapes(e.msg(), true);
                 result.canRetry = true;
             }
         }

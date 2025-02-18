@@ -1,292 +1,27 @@
-#include <algorithm>
-#include <cmath>
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+#include <math.h>
 
 #include "build-result.hh"
-#include "path.hh"
-#include "legacy-ssh-store.hh"
 #include "serve-protocol.hh"
 #include "state.hh"
 #include "current-process.hh"
 #include "processes.hh"
 #include "util.hh"
-#include "ssh.hh"
 #include "finally.hh"
 #include "url.hh"
+#include "worker-protocol.hh"
 
 using namespace nix;
 
-bool ::Machine::isLocalhost() const
-{
-    return storeUri.params.empty() && std::visit(overloaded {
-        [](const StoreReference::Auto &) {
-            return true;
-        },
-        [](const StoreReference::Specified & s) {
-            return
-               (s.scheme == "local" || s.scheme == "unix") ||
-               ((s.scheme == "ssh" || s.scheme == "ssh-ng") &&
-                s.authority == "localhost");
-        },
-    }, storeUri.variant);
-}
-
 namespace nix::build_remote {
 
-static void copyClosureTo(
-    ::Machine::Connection & conn,
-    Store & destStore,
-    const StorePathSet & paths,
-    SubstituteFlag useSubstitutes = NoSubstitute)
-{
-    StorePathSet closure;
-    destStore.computeFSClosure(paths, closure);
-
-    /* Send the "query valid paths" command with the "lock" option
-       enabled. This prevents a race where the remote host
-       garbage-collect paths that are already there. Optionally, ask
-       the remote host to substitute missing paths. */
-    // FIXME: substitute output pollutes our build log
-    /* Get back the set of paths that are already valid on the remote
-       host. */
-    auto present = conn.store->queryValidPaths(
-        closure, true, useSubstitutes);
-
-    if (present.size() == closure.size()) return;
-
-    auto sorted = destStore.topoSortPaths(closure);
-
-    StorePathSet missing;
-    for (auto i = sorted.rbegin(); i != sorted.rend(); ++i)
-        if (!present.count(*i)) missing.insert(*i);
-
-    printMsg(lvlDebug, "sending %d missing paths", missing.size());
-
-    std::unique_lock<std::timed_mutex> sendLock(conn.machine->state->sendLock,
-        std::chrono::seconds(600));
-
-    conn.store->addMultipleToStoreLegacy(destStore, missing);
-}
-
-
-// FIXME: use Store::topoSortPaths().
-static StorePaths reverseTopoSortPaths(const std::map<StorePath, UnkeyedValidPathInfo> & paths)
-{
-    StorePaths sorted;
-    StorePathSet visited;
-
-    std::function<void(const StorePath & path)> dfsVisit;
-
-    dfsVisit = [&](const StorePath & path) {
-        if (!visited.insert(path).second) return;
-
-        auto info = paths.find(path);
-        auto references = info == paths.end() ? StorePathSet() : info->second.references;
-
-        for (auto & i : references)
-            /* Don't traverse into paths that don't exist.  That can
-               happen due to substitutes for non-existent paths. */
-            if (i != path && paths.count(i))
-                dfsVisit(i);
-
-        sorted.push_back(path);
-    };
-
-    for (auto & i : paths)
-        dfsVisit(i.first);
-
-    return sorted;
-}
-
-static std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const StorePath & drvPath)
+static Path createLogFileDir(const std::string & logDir, const StorePath & drvPath)
 {
     std::string base(drvPath.to_string());
     auto logFile = logDir + "/" + std::string(base, 0, 2) + "/" + std::string(base, 2);
 
     createDirs(dirOf(logFile));
 
-    AutoCloseFD logFD = open(logFile.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0666);
-    if (!logFD) throw SysError("creating log file ‘%s’", logFile);
-
-    return {std::move(logFile), std::move(logFD)};
-}
-
-static BasicDerivation sendInputs(
-    State & state,
-    Step & step,
-    Store & localStore,
-    Store & destStore,
-    ::Machine::Connection & conn,
-    unsigned int & overhead,
-    counter & nrStepsWaiting,
-    counter & nrStepsCopyingTo
-)
-{
-    /* Replace the input derivations by their output paths to send a
-       minimal closure to the builder.
-
-       `tryResolve` currently does *not* rewrite input addresses, so it
-       is safe to do this in all cases. (It should probably have a mode
-       to do that, however, but we would not use it here.)
-     */
-    BasicDerivation basicDrv = ({
-        auto maybeBasicDrv = step.drv->tryResolve(destStore, &localStore);
-        if (!maybeBasicDrv)
-            throw Error(
-                "the derivation '%s' can’t be resolved. It’s probably "
-                "missing some outputs",
-                localStore.printStorePath(step.drvPath));
-        *maybeBasicDrv;
-    });
-
-    /* Ensure that the inputs exist in the destination store. This is
-       a no-op for regular stores, but for the binary cache store,
-       this will copy the inputs to the binary cache from the local
-       store. */
-    if (&localStore != &destStore) {
-        copyClosure(localStore, destStore,
-            step.drv->inputSrcs,
-            NoRepair, NoCheckSigs, NoSubstitute);
-    }
-
-    {
-        auto mc1 = std::make_shared<MaintainCount<counter>>(nrStepsWaiting);
-        mc1.reset();
-        MaintainCount<counter> mc2(nrStepsCopyingTo);
-
-        printMsg(lvlDebug, "sending closure of ‘%s’ to ‘%s’",
-            localStore.printStorePath(step.drvPath), conn.machine->storeUri.render());
-
-        auto now1 = std::chrono::steady_clock::now();
-
-        /* Copy the input closure. */
-        if (conn.machine->isLocalhost()) {
-            StorePathSet closure;
-            destStore.computeFSClosure(basicDrv.inputSrcs, closure);
-            copyPaths(destStore, localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
-        } else {
-            copyClosureTo(conn, destStore, basicDrv.inputSrcs, Substitute);
-        }
-
-        auto now2 = std::chrono::steady_clock::now();
-
-        overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
-    }
-
-    return basicDrv;
-}
-
-static BuildResult performBuild(
-    ::Machine::Connection & conn,
-    Store & localStore,
-    StorePath drvPath,
-    const BasicDerivation & drv,
-    const ServeProto::BuildOptions & options,
-    counter & nrStepsBuilding
-)
-{
-    auto kont = conn.store->buildDerivationAsync(drvPath, drv, options);
-
-    BuildResult result;
-
-    time_t startTime, stopTime;
-
-    startTime = time(0);
-    {
-        MaintainCount<counter> mc(nrStepsBuilding);
-        result = kont();
-        // Without proper call-once functions, we need to manually
-        // delete after calling.
-        kont = {};
-    }
-    stopTime = time(0);
-
-    if (!result.startTime) {
-        // If the builder gave `startTime = 0`, use our measurements
-        // instead of the builder's.
-        //
-        // Note: this represents the duration of a single round, rather
-        // than all rounds.
-        result.startTime = startTime;
-        result.stopTime = stopTime;
-    }
-
-    // If the protocol was too old to give us `builtOutputs`, initialize
-    // it manually by introspecting the derivation.
-    if (GET_PROTOCOL_MINOR(conn.store->getProtocol()) < 6)
-    {
-        // If the remote is too old to handle CA derivations, we can’t get this
-        // far anyways
-        assert(drv.type().hasKnownOutputPaths());
-        DerivationOutputsAndOptPaths drvOutputs = drv.outputsAndOptPaths(localStore);
-        // Since this a `BasicDerivation`, `staticOutputHashes` will not
-        // do any real work.
-        auto outputHashes = staticOutputHashes(localStore, drv);
-        for (auto & [outputName, output] : drvOutputs) {
-            auto outputPath = output.second;
-            // We’ve just asserted that the output paths of the derivation
-            // were known
-            assert(outputPath);
-            auto outputHash = outputHashes.at(outputName);
-            auto drvOutput = DrvOutput { outputHash, outputName };
-            result.builtOutputs.insert_or_assign(
-                std::move(outputName),
-                Realisation { drvOutput, *outputPath });
-        }
-    }
-
-    return result;
-}
-
-static void copyPathFromRemote(
-    ::Machine::Connection & conn,
-    NarMemberDatas & narMembers,
-    Store & localStore,
-    Store & destStore,
-    const ValidPathInfo & info
-)
-{
-    /* Receive the NAR from the remote and add it to the
-        destination store. Meanwhile, extract all the info from the
-        NAR that getBuildOutput() needs. */
-    auto source2 = sinkToSource([&](Sink & sink)
-    {
-        /* Note: we should only send the command to dump the store
-            path to the remote if the NAR is actually going to get read
-            by the destination store, which won't happen if this path
-            is already valid on the destination store. Since this
-            lambda function only gets executed if someone tries to read
-            from source2, we will send the command from here rather
-            than outside the lambda. */
-        conn.store->narFromPath(info.path, [&](Source & source) {
-            TeeSource tee{source, sink};
-            extractNarData(tee, conn.store->printStorePath(info.path), narMembers);
-        });
-    });
-
-    destStore.addToStore(info, *source2, NoRepair, NoCheckSigs);
-}
-
-static void copyPathsFromRemote(
-    ::Machine::Connection & conn,
-    NarMemberDatas & narMembers,
-    Store & localStore,
-    Store & destStore,
-    const std::map<StorePath, UnkeyedValidPathInfo> & infos
-)
-{
-      auto pathsSorted = reverseTopoSortPaths(infos);
-
-      for (auto & path : pathsSorted) {
-          auto & info = infos.find(path)->second;
-          copyPathFromRemote(
-              conn, narMembers, localStore, destStore,
-              ValidPathInfo { path, info });
-      }
-
+    return logFile;
 }
 
 }
@@ -295,11 +30,14 @@ static void copyPathsFromRemote(
 
 void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 {
-    startTime = buildResult.startTime;
-    stopTime = buildResult.stopTime;
+    // FIXME: make RemoteResult inherit BuildResult.
     timesBuilt = buildResult.timesBuilt;
     errorMsg = buildResult.errorMsg;
     isNonDeterministic = buildResult.isNonDeterministic;
+    if (buildResult.startTime && buildResult.stopTime) {
+        startTime = buildResult.startTime;
+        stopTime = buildResult.stopTime;
+    }
 
     switch ((BuildResult::Status) buildResult.status) {
         case BuildResult::Built:
@@ -358,43 +96,40 @@ void State::buildRemote(ref<Store> destStore,
 {
     assert(BuildResult::TimedOut == 8);
 
-    auto [logFile, logFD] = build_remote::openLogFile(logDir, step->drvPath);
-    AutoDelete logFileDel(logFile, false);
-    result.logFile = logFile;
+    result.logFile = build_remote::createLogFileDir(logDir, step->drvPath);
 
     try {
 
-        updateStep(ssConnecting);
+        updateStep(ssBuilding);
+        result.startTime = time(0);
 
-        // FIXME: rewrite to use Store.
-        ::Machine::Connection conn {
-            .machine = machine,
-            .store = [&]{
-                auto * pSpecified = std::get_if<StoreReference::Specified>(&machine->storeUri.variant);
-                if (!pSpecified || pSpecified->scheme != "ssh") {
-                    throw Error("Currently, only (legacy-)ssh stores are supported!");
-                }
+        auto buildStoreUrl = machine->completeStoreReference().render();
 
-                auto remoteStore = machine->openStore().dynamic_pointer_cast<LegacySSHStore>();
-                assert(remoteStore);
-
-                remoteStore->connPipeSize = 1024 * 1024;
-
-                if (machine->isLocalhost()) {
-                    auto rp_new = remoteStore->remoteProgram.get();
-                    rp_new.push_back("--builders");
-                    rp_new.push_back("");
-                    const_cast<nix::Setting<Strings> &>(remoteStore->remoteProgram).assign(rp_new);
-                }
-                remoteStore->extraSshArgs = {
-                    "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
-                };
-                const_cast<nix::Setting<int> &>(remoteStore->logFD).assign(logFD.get());
-
-                return nix::ref{remoteStore};
-            }(),
+        Strings args = {
+            localStore->printStorePath(step->drvPath),
+            "--store", destStore->getUri(),
+            "--eval-store", localStore->getUri(),
+            "--build-store", buildStoreUrl,
+            "--max-silent-time", std::to_string(buildOptions.maxSilentTime),
+            "--timeout", std::to_string(buildOptions.buildTimeout),
+            "--max-build-log-size", std::to_string(buildOptions.maxLogSize),
+            "--max-output-size", std::to_string(maxOutputSize),
+            "--repeat", std::to_string(buildOptions.nrRepeats),
+            "--log-file", result.logFile,
+            // FIXME: step->isDeterministic
         };
 
+        // FIXME: set pid for cancellation
+
+        auto [status, childStdout] = [&]() {
+            MaintainCount<counter> mc(nrStepsBuilding);
+            return runProgram({
+                .program = "hydra-build-step",
+                .args = std::move(args),
+            });
+        }();
+
+        #if 0
         {
             auto activeStepState(activeStep->state_.lock());
             if (activeStepState->cancelled) throw Error("step cancelled");
@@ -412,59 +147,45 @@ void State::buildRemote(ref<Store> destStore,
                possibility that we end up killing another
                process. Meh. */
         });
+        #endif
 
-        Finally updateStats([&]() {
-            auto stats = conn.store->getConnectionStats();
-            bytesReceived += stats.bytesReceived;
-            bytesSent += stats.bytesSent;
-        });
+        result.stopTime = time(0);
 
+        if (!statusOk(status))
+            throw ExecError(status, fmt("hydra-build-step %s with output:\n%s", statusToString(status), stdout));
+
+        /* The build was executed successfully, so clear the failure
+           count for this machine. */
         {
             auto info(machine->state->connectInfo.lock());
             info->consecutiveFailures = 0;
         }
 
-        /* Gather the inputs. If the remote side is Nix <= 1.9, we have to
-           copy the entire closure of ‘drvPath’, as well as the required
-           outputs of the input derivations. On Nix > 1.9, we only need to
-           copy the immediate sources of the derivation and the required
-           outputs of the input derivations. */
-        updateStep(ssSendingInputs);
-        BasicDerivation resolvedDrv = build_remote::sendInputs(*this, *step, *localStore, *destStore, conn, result.overhead, nrStepsWaiting, nrStepsCopyingTo);
+        StringSource from { childStdout };
+        /* Read the BuildResult from the child. */
+        WorkerProto::ReadConn rconn {
+            .from = from,
+            // Hardcode latest version because we are deploying hydra
+            // itself atomically
+            .version = PROTOCOL_VERSION,
+        };
+        result.overhead += readNum<uint64_t>(rconn.from);
+        auto totalNarSize = readNum<uint64_t>(rconn.from);
+        auto buildResult = WorkerProto::Serialise<BuildResult>::read(*localStore, rconn);
 
-        logFileDel.cancel();
-
-        /* Truncate the log to get rid of messages about substitutions
-            etc. on the remote system. */
-        if (lseek(logFD.get(), SEEK_SET, 0) != 0)
-            throw SysError("seeking to the start of log file ‘%s’", result.logFile);
-
-        if (ftruncate(logFD.get(), 0) == -1)
-            throw SysError("truncating log file ‘%s’", result.logFile);
-
-        logFD = -1;
-
-        /* Do the build. */
-        printMsg(lvlDebug, "building ‘%s’ on ‘%s’",
-            localStore->printStorePath(step->drvPath),
-            machine->storeUri.render());
-
-        updateStep(ssBuilding);
-
-        BuildResult buildResult = build_remote::performBuild(
-            conn,
-            *localStore,
-            step->drvPath,
-            resolvedDrv,
-            buildOptions,
-            nrStepsBuilding
-        );
 
         result.updateWithBuildResult(buildResult);
 
         if (result.stepStatus != bsSuccess) return;
 
         result.errorMsg = "";
+
+        /* If the NAR size limit was exceeded, then hydra-build-step
+           will not have copied the output paths. */
+        if (totalNarSize > maxOutputSize) {
+            result.stepStatus = bsNarSizeLimitExceeded;
+            return;
+        }
 
         /* If the path was substituted or already valid, then we didn't
            get a build log. */
@@ -474,59 +195,6 @@ void State::buildRemote(ref<Store> destStore,
             unlink(result.logFile.c_str());
             result.logFile = "";
         }
-
-        StorePathSet outputs;
-        for (auto & [_, realisation] : buildResult.builtOutputs)
-            outputs.insert(realisation.outPath);
-
-        /* Copy the output paths. */
-        if (!machine->isLocalhost() || localStore != std::shared_ptr<Store>(destStore)) {
-            updateStep(ssReceivingOutputs);
-
-            MaintainCount<counter> mc(nrStepsCopyingFrom);
-
-            auto now1 = std::chrono::steady_clock::now();
-
-            auto infos = conn.store->queryPathInfosUncached(outputs);
-
-            size_t totalNarSize = 0;
-            for (auto & [_, info] : infos) totalNarSize += info.narSize;
-
-            if (totalNarSize > maxOutputSize) {
-                result.stepStatus = bsNarSizeLimitExceeded;
-                return;
-            }
-
-            /* Copy each path. */
-            printMsg(lvlDebug, "copying outputs of ‘%s’ from ‘%s’ (%d bytes)",
-                localStore->printStorePath(step->drvPath), machine->storeUri.render(), totalNarSize);
-
-            build_remote::copyPathsFromRemote(conn, narMembers, *localStore, *destStore, infos);
-            auto now2 = std::chrono::steady_clock::now();
-
-            result.overhead += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
-        }
-
-        /* Register the outputs of the newly built drv */
-        if (experimentalFeatureSettings.isEnabled(Xp::CaDerivations)) {
-            auto outputHashes = staticOutputHashes(*localStore, *step->drv);
-            for (auto & [outputName, realisation] : buildResult.builtOutputs) {
-                // Register the resolved drv output
-                destStore->registerDrvOutput(realisation);
-
-                // Also register the unresolved one
-                auto unresolvedRealisation = realisation;
-                unresolvedRealisation.signatures.clear();
-                unresolvedRealisation.id.drvHash = outputHashes.at(outputName);
-                destStore->registerDrvOutput(unresolvedRealisation);
-            }
-        }
-
-        /* Shut down the connection done by RAII.
-
-           Only difference is kill() instead of wait() (i.e. send signal
-           then wait())
-         */
 
     } catch (Error & e) {
         /* Disable this machine until a certain period of time has

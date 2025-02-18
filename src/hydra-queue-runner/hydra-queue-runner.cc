@@ -550,12 +550,11 @@ void State::dumpStatus(Connection & conn)
         {"nrQueuedBuilds", builds.lock()->size()},
         {"nrActiveSteps", activeSteps_.lock()->size()},
         {"nrStepsBuilding", nrStepsBuilding.load()},
+        #if 0
         {"nrStepsCopyingTo", nrStepsCopyingTo.load()},
         {"nrStepsCopyingFrom", nrStepsCopyingFrom.load()},
-        {"nrStepsWaiting", nrStepsWaiting.load()},
+        #endif
         {"nrUnsupportedSteps", nrUnsupportedSteps.load()},
-        {"bytesSent", bytesSent.load()},
-        {"bytesReceived", bytesReceived.load()},
         {"nrBuildsRead", nrBuildsRead.load()},
         {"buildReadTimeMs", buildReadTimeMs.load()},
         {"buildReadTimeAvgMs", nrBuildsRead == 0 ? 0.0 : (float) buildReadTimeMs / nrBuildsRead},

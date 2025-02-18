@@ -20,7 +20,7 @@
 #include "store-api.hh"
 #include "sync.hh"
 #include "nar-extractor.hh"
-#include "legacy-ssh-store.hh"
+#include "serve-protocol.hh"
 #include "machines.hh"
 
 
@@ -288,14 +288,6 @@ struct Machine : nix::Machine
     }
 
     bool isLocalhost() const;
-
-    // A connection to a machine
-    struct Connection {
-        // Backpointer to the machine
-        ptr machine;
-        // Opened store
-        nix::ref<nix::LegacySSHStore> store;
-    };
 };
 
 
@@ -360,9 +352,10 @@ private:
     counter nrStepsStarted{0};
     counter nrStepsDone{0};
     counter nrStepsBuilding{0};
+    #if 0
     counter nrStepsCopyingTo{0};
     counter nrStepsCopyingFrom{0};
-    counter nrStepsWaiting{0};
+    #endif
     counter nrUnsupportedSteps{0};
     counter nrRetries{0};
     counter maxNrRetries{0};
@@ -371,8 +364,6 @@ private:
     counter nrQueueWakeups{0};
     counter nrDispatcherWakeups{0};
     counter dispatchTimeMs{0};
-    counter bytesSent{0};
-    counter bytesReceived{0};
     counter nrActiveDbUpdates{0};
 
     /* Specific build to do for --build-one (testing only). */

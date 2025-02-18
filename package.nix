@@ -11,6 +11,7 @@
 , nix-util
 , nix-store
 , nix-main
+, nix-cmd
 , nix-cli
 , nix-perl-bindings
 , git
@@ -178,6 +179,7 @@ stdenv.mkDerivation (finalAttrs: {
     nix-util
     nix-store
     nix-main
+    nix-cmd
     perlDeps
     perl
     boost

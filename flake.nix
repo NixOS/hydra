@@ -85,6 +85,7 @@
             nix-util
             nix-store
             nix-main
+            nix-cmd
             nix-cli
             ;
           nix-perl-bindings = nix.hydraJobs.perlBindings.${system};
