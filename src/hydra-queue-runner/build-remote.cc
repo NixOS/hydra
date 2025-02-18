@@ -2,7 +2,6 @@
 
 #include "build-result.hh"
 #include "serve-protocol.hh"
-#include "serve-protocol-impl.hh"
 #include "state.hh"
 #include "current-process.hh"
 #include "processes.hh"
@@ -134,7 +133,7 @@ void State::buildRemote(ref<Store> destStore,
         {
             auto activeStepState(activeStep->state_.lock());
             if (activeStepState->cancelled) throw Error("step cancelled");
-            activeStepState->pid = child->sshPid;
+            activeStepState->pid = conn.store->getConnectionPid();
         }
 
         Finally clearPid([&]() {
