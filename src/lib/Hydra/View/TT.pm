@@ -6,6 +6,7 @@ use base 'Catalyst::View::TT';
 use Template::Plugin::HTML;
 use Hydra::Helper::Nix;
 use Time::Seconds;
+use Digest::SHA qw(sha1_hex);
 
 __PACKAGE__->config(
     TEMPLATE_EXTENSION => '.tt',
@@ -25,7 +26,13 @@ __PACKAGE__->config(
     makeNameTextForJobset
     relativeDuration
     stripSSHUser
+    metricDivId
     /]);
+
+sub metricDivId {
+    my ($self, $c, $text) = @_;
+    return "metric-" . sha1_hex($text);
+}
 
 sub buildLogExists {
     my ($self, $c, $build) = @_;
