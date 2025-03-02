@@ -165,19 +165,45 @@ sub nix_state_dir {
 sub makeAndEvaluateJobset {
     my ($self, %opts) = @_;
 
-    my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeAndEvaluateJobset.\n";
-    my $jobsdir = $opts{'jobsdir'} // $self->jobsdir;
-    my $should_build = $opts{'build'} // 0;
+    my $expression = $opts{'expression'};
+    my $flake = $opts{'flake'};
+    if (not $expression and not $flake) {
+        die "One of 'expression' or 'flake' must be passed to makeEvaluateJobset.\n";
+    }
 
-    my $jobsetCtx = $self->makeJobset(
-        expression => $expression,
+    my $jobsdir = $opts{'jobsdir'} // $self->jobsdir;
+
+    my %args = (
         jobsdir => $jobsdir,
     );
-    my $jobset = $jobsetCtx->{"jobset"};
+    if ($expression) {
+        $args{expression} = $expression;
+    }
+    if ($flake) {
+        $args{flake} = $flake;
+    }
+    my $jobsetCtx = $self->makeJobset(%args);
+
+    return $self->evaluateJobset(
+        jobset => $jobsetCtx->{"jobset"},
+        expression => $expression,
+        flake => $flake,
+        build => $opts{"build"} // 0,
+    )
+}
+
+sub evaluateJobset {
+    my ($self, %opts) = @_;
+
+    my $jobset = $opts{'jobset'};
+
+    my $expression = $opts{'expression'} // $opts{'flake'};
 
     evalSucceeds($jobset) or die "Evaluating jobs/$expression should exit with return code 0.\n";
 
     my $builds = {};
+
+    my $should_build = $opts{'build'};
 
     for my $build ($jobset->builds) {
         if ($should_build) {
@@ -195,7 +221,7 @@ sub makeAndEvaluateJobset {
 #
 # In return, you get a hash of the user, project, and jobset records.
 #
-# This always uses an `expression` from the `jobsdir` directory.
+# This always uses an `expression` or `flake` from the `jobsdir` directory.
 #
 # Hash Parameters:
 #
@@ -204,7 +230,12 @@ sub makeAndEvaluateJobset {
 sub makeJobset {
     my ($self, %opts) = @_;
 
-    my $expression = $opts{'expression'} || die "Mandatory 'expression' option not passed to makeJobset.\n";
+    my $expression = $opts{'expression'};
+    my $flake = $opts{'flake'};
+    if (not $expression and not $flake) {
+        die "One of 'expression' or 'flake' must be passed to makeJobset.\n";
+    }
+
     my $jobsdir = $opts{'jobsdir'} // $self->jobsdir;
 
     # Create a new user for this test
@@ -222,12 +253,20 @@ sub makeJobset {
     });
 
     # Create a new jobset for this test and set up the inputs
-    my $jobset = $project->jobsets->create({
+    my %args = (
         name => rand_chars(),
-        nixexprinput => "jobs",
-        nixexprpath => $expression,
         emailoverride => ""
-    });
+    );
+    if ($expression) {
+        $args{type} = 0;
+        $args{nixexprinput} = "jobs";
+        $args{nixexprpath} = $expression;
+    }
+    if ($flake) {
+        $args{type} = 1;
+        $args{flake} = $flake;
+    }
+    my $jobset = $project->jobsets->create(\%args);
     my $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
     $jobsetinput->jobsetinputalts->create({altnr => 0, value => $jobsdir});
 

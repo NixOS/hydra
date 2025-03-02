@@ -1,21 +1,27 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05-small";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11-small";
 
-  inputs.libgit2 = { url = "github:libgit2/libgit2/v1.8.1"; flake = false; };
-  inputs.nix.url = "github:NixOS/nix/2.24-maintenance";
-  inputs.nix.inputs.nixpkgs.follows = "nixpkgs";
-  inputs.nix.inputs.libgit2.follows = "libgit2";
+  inputs.nix = {
+    url = "github:NixOS/nix/2.26-maintenance";
+    inputs.nixpkgs.follows = "nixpkgs";
 
-  # hide nix dev tooling from our lock file
-  inputs.nix.inputs.flake-parts.follows = "";
-  inputs.nix.inputs.git-hooks-nix.follows = "";
-  inputs.nix.inputs.nixpkgs-regression.follows = "";
-  inputs.nix.inputs.nixpkgs-23-11.follows = "";
-  inputs.nix.inputs.flake-compat.follows = "";
+    # hide nix dev tooling from our lock file
+    inputs.flake-parts.follows = "";
+    inputs.git-hooks-nix.follows = "";
+    inputs.nixpkgs-regression.follows = "";
+    inputs.nixpkgs-23-11.follows = "";
+    inputs.flake-compat.follows = "";
+  };
 
-  outputs = { self, nixpkgs, nix, ... }:
+  inputs.nix-eval-jobs = {
+    url = "github:nix-community/nix-eval-jobs";
+    # We want to control the deps precisely
+    flake = false;
+  };
+
+  outputs = { self, nixpkgs, nix, nix-eval-jobs, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
@@ -24,6 +30,7 @@
 
       # A Nixpkgs overlay that provides a 'hydra' package.
       overlays.default = final: prev: {
+        nix-eval-jobs = final.callPackage nix-eval-jobs {};
         hydra = final.callPackage ./package.nix {
           inherit (nixpkgs.lib) fileset;
           rawSrc = self;
@@ -67,10 +74,19 @@
       });
 
       packages = forEachSystem (system: {
+        nix-eval-jobs = nixpkgs.legacyPackages.${system}.callPackage nix-eval-jobs {
+          nix = nix.packages.${system}.nix;
+        };
         hydra = nixpkgs.legacyPackages.${system}.callPackage ./package.nix {
           inherit (nixpkgs.lib) fileset;
+          inherit (self.packages.${system}) nix-eval-jobs;
           rawSrc = self;
-          nix = nix.packages.${system}.nix;
+          inherit (nix.packages.${system})
+            nix-util
+            nix-store
+            nix-main
+            nix-cli
+            ;
           nix-perl-bindings = nix.hydraJobs.perlBindings.${system};
         };
         default = self.packages.${system}.hydra;

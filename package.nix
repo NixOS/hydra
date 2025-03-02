@@ -8,7 +8,10 @@
 
 , perlPackages
 
-, nix
+, nix-util
+, nix-store
+, nix-main
+, nix-cli
 , nix-perl-bindings
 , git
 
@@ -50,6 +53,7 @@
 , xz
 , gnutar
 , gnused
+, nix-eval-jobs
 
 , rpm
 , dpkg
@@ -161,7 +165,7 @@ stdenv.mkDerivation (finalAttrs: {
     nukeReferences
     pkg-config
     mdbook
-    nix
+    nix-cli
     perlDeps
     perl
     unzip
@@ -171,7 +175,9 @@ stdenv.mkDerivation (finalAttrs: {
     libpqxx
     openssl
     libxslt
-    nix
+    nix-util
+    nix-store
+    nix-main
     perlDeps
     perl
     boost
@@ -190,6 +196,7 @@ stdenv.mkDerivation (finalAttrs: {
     openldap
     postgresql_13
     pixz
+    nix-eval-jobs
   ];
 
   checkInputs = [
@@ -197,13 +204,14 @@ stdenv.mkDerivation (finalAttrs: {
     glibcLocales
     libressl.nc
     python3
+    nix-cli
   ];
 
   hydraPath = lib.makeBinPath (
     [
       subversion
       openssh
-      nix
+      nix-cli
       coreutils
       findutils
       pixz
@@ -218,6 +226,7 @@ stdenv.mkDerivation (finalAttrs: {
       darcs
       gnused
       breezy
+      nix-eval-jobs
     ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ]
   );
 
@@ -232,7 +241,7 @@ stdenv.mkDerivation (finalAttrs: {
   shellHook = ''
     pushd $(git rev-parse --show-toplevel) >/dev/null
 
-    PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
+    PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-queue-runner:$PATH
     PERL5LIB=$(pwd)/src/lib:$PERL5LIB
     export HYDRA_HOME="$(pwd)/src/"
     mkdir -p .hydra-data
@@ -263,12 +272,13 @@ stdenv.mkDerivation (finalAttrs: {
             --prefix PATH ':' $out/bin:$hydraPath \
             --set HYDRA_RELEASE ${version} \
             --set HYDRA_HOME $out/libexec/hydra \
-            --set NIX_RELEASE ${nix.name or "unknown"}
+            --set NIX_RELEASE ${nix-cli.name or "unknown"} \
+            --set NIX_EVAL_JOBS_RELEASE ${nix-eval-jobs.name or "unknown"}
     done
   '';
 
   dontStrip = true;
 
   meta.description = "Build of Hydra on ${stdenv.system}";
-  passthru = { inherit perlDeps nix; };
+  passthru = { inherit perlDeps; };
 })
