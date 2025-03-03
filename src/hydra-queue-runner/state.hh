@@ -20,7 +20,9 @@
 #include "store-api.hh"
 #include "sync.hh"
 #include "nar-extractor.hh"
-#include "legacy-ssh-store.hh"
+#include "serve-protocol.hh"
+#include "serve-protocol-impl.hh"
+#include "serve-protocol-connection.hh"
 #include "machines.hh"
 
 
@@ -290,11 +292,9 @@ struct Machine : nix::Machine
     bool isLocalhost() const;
 
     // A connection to a machine
-    struct Connection {
+    struct Connection : nix::ServeProto::BasicClientConnection {
         // Backpointer to the machine
         ptr machine;
-        // Opened store
-        nix::ref<nix::LegacySSHStore> store;
     };
 };
 
