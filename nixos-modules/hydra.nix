@@ -468,7 +468,7 @@ in
             elif [[ $compression == zstd ]]; then
               compression="zstd --rm"
             fi
-            find ${baseDir}/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r "$compression" --force --quiet
+            find ${baseDir}/build-logs -ignore_readdir_race -type f -name "*.drv" -mtime +3 -size +0c | xargs -r "$compression" --force --quiet
           '';
         startAt = "Sun 01:45";
       };
