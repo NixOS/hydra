@@ -18,8 +18,7 @@
 
     <h3>Metric: <a [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job 'metric' metric.name)) %]><tt>[%HTML.escape(metric.name)%]</tt></a></h3>
 
-    [% id = "metric-" _ metric.name;
-       id = id.replace('\.', '_');
+    [% id = metricDivId(metric.name);
        INCLUDE createChart dataUrl=c.uri_for('/job' project.name jobset.name job 'metric' metric.name); %]
 
   [% END %]
