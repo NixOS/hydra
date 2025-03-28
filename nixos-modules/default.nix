@@ -15,7 +15,6 @@
     systemd.services.hydra-send-stats.enable = false;
 
     services.postgresql.enable = true;
-    services.postgresql.package = pkgs.postgresql_12;
 
     # The following is to work around the following error from hydra-server:
     #   [error] Caught exception in engine "Cannot determine local time zone"
