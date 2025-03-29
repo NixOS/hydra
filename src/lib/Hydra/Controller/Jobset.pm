@@ -364,6 +364,21 @@ sub evals_GET {
     );
 }
 
+sub errors :Chained('jobsetChain') :PathPart('errors') :Args(0) :ActionClass('REST') { }
+
+sub errors_GET {
+    my ($self, $c) = @_;
+
+    $c->stash->{template} = 'eval-error.tt';
+
+    my $jobsetName = $c->stash->{params}->{name};
+    $c->stash->{jobset} = $c->stash->{project}->jobsets->find(
+        { name => $jobsetName },
+        { '+columns' => { 'errormsg' => 'errormsg' } }
+    );
+
+    $self->status_ok($c, entity => $c->stash->{jobset});
+}
 
 # Redirect to the latest finished evaluation of this jobset.
 sub latest_eval : Chained('jobsetChain') PathPart('latest-eval') {

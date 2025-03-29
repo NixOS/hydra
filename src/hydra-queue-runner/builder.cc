@@ -37,19 +37,22 @@ void State::builder(MachineReservation::ptr reservation)
 
         try {
             auto destStore = getDestStore();
+            // Might release the reservation.
             res = doBuildStep(destStore, reservation, activeStep);
         } catch (std::exception & e) {
             printMsg(lvlError, "uncaught exception building ‘%s’ on ‘%s’: %s",
-                localStore->printStorePath(reservation->step->drvPath),
-                reservation->machine->storeUri.render(),
+                localStore->printStorePath(activeStep->step->drvPath),
+                reservation ? reservation->machine->storeUri.render() : std::string("(no machine)"),
                 e.what());
         }
     }
 
-    /* Release the machine and wake up the dispatcher. */
-    assert(reservation.unique());
-    reservation = 0;
-    wakeDispatcher();
+    /* If the machine hasn't been released yet, release and wake up the dispatcher. */
+    if (reservation) {
+        assert(reservation.unique());
+        reservation = 0;
+        wakeDispatcher();
+    }
 
     /* If there was a temporary failure, retry the step after an
        exponentially increasing interval. */
@@ -72,11 +75,11 @@ void State::builder(MachineReservation::ptr reservation)
 
 
 State::StepResult State::doBuildStep(nix::ref<Store> destStore,
-    MachineReservation::ptr reservation,
+    MachineReservation::ptr & reservation,
     std::shared_ptr<ActiveStep> activeStep)
 {
-    auto & step(reservation->step);
-    auto & machine(reservation->machine);
+    auto step(reservation->step);
+    auto machine(reservation->machine);
 
     {
         auto step_(step->state.lock());
@@ -211,7 +214,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(destStore, machine, step, buildOptions, result, activeStep, updateStep, narMembers);
+            buildRemote(destStore, reservation, machine, step, buildOptions, result, activeStep, updateStep, narMembers);
         } catch (Error & e) {
             if (activeStep->state_.lock()->cancelled) {
                 printInfo("marking step %d of build %d as cancelled", stepNr, buildId);

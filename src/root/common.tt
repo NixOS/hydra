@@ -91,6 +91,17 @@ BLOCK renderDuration;
   duration % 60 %]s[%
 END;
 
+BLOCK renderDrvInfo;
+  drvname = step.drvpath
+    .substr(11) # strip `/nix/store/`
+    .split('-').slice(1).join("-") # strip hash part
+    .substr(0, -4); # strip `.drv`
+  IF drvname != releasename;
+    IF step.type == 0; action = "Build"; ELSE; action = "Substitution"; END;
+    IF drvname; %]<em> ([% action %] of [% drvname %])</em>[% END;
+  END;
+END;
+
 
 BLOCK renderBuildListHeader %]
   <table class="table table-striped table-condensed clickable-rows">
@@ -131,7 +142,12 @@ BLOCK renderBuildListBody;
       [% END %]
       <td><a class="row-link" href="[% link %]">[% build.id %]</a></td>
       [% IF !hideJobName %]
-        <td><a href="[%link%]">[% IF !hideJobsetName %][%build.jobset.get_column("project")%]:[%build.jobset.get_column("name")%]:[% END %][%build.get_column("job")%]</td>
+        <td>
+          <a href="[%link%]">[% IF !hideJobsetName %][%build.jobset.get_column("project")%]:[%build.jobset.get_column("name")%]:[% END %][%build.get_column("job")%]</a>
+          [% IF showStepName %]
+            [% INCLUDE renderDrvInfo step=build.buildsteps releasename=build.nixname %]
+          [% END %]
+        </td>
       [% END %]
       <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; INCLUDE renderRelativeDate timestamp=(showSchedulingInfo ? build.timestamp : build.stoptime); ELSE; "-"; END %]</td>
       <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
@@ -241,6 +257,27 @@ BLOCK renderBuildStatusIcon;
     [% END;
   ELSE %]
     <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="[% size %]" width="[% size %]" title="Queued" alt="Queued" class="build-status" />
+  [% END;
+END;
+
+
+BLOCK renderBusyStatus;
+  IF step.busy == 1 %]
+    <strong>Preparing</strong>
+  [% ELSIF step.busy == 10 %]
+    <strong>Connecting</strong>
+  [% ELSIF step.busy == 20 %]
+    <strong>Sending inputs</strong>
+  [% ELSIF step.busy == 30 %]
+    <strong>Building</strong>
+  [% ELSIF step.busy == 35 %]
+    <strong>Waiting to receive outputs</strong>
+  [% ELSIF step.busy == 40 %]
+    <strong>Receiving outputs</strong>
+  [% ELSIF step.busy == 50 %]
+    <strong>Post-processing</strong>
+  [% ELSE %]
+    <strong>Unknown state</strong>
   [% END;
 END;
 
@@ -476,7 +513,7 @@ BLOCK renderEvals %]
             ELSE %]
              -
             [% END %]
-            [% IF eval.evaluationerror.errormsg %]
+            [% IF eval.evaluationerror.has_error %]
               <span class="badge badge-warning">Eval Errors</span>
             [% END %]
           </td>
@@ -602,7 +639,7 @@ BLOCK renderJobsetOverview %]
         <td>[% HTML.escape(j.description) %]</td>
         <td>[% IF j.lastcheckedtime;
                  INCLUDE renderDateTime timestamp = j.lastcheckedtime;
-                 IF j.errormsg || j.fetcherrormsg; %]&nbsp;<span class = 'badge badge-warning'>Error</span>[% END;
+                 IF j.has_error || j.fetcherrormsg; %]&nbsp;<span class = 'badge badge-warning'>Error</span>[% END;
                  ELSE; "-";
                END %]</td>
         [% IF j.get_column('nrtotal') > 0 %]

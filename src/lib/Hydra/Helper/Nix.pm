@@ -36,6 +36,7 @@ our @EXPORT = qw(
     jobsetOverview
     jobsetOverview_
     pathIsInsidePrefix
+    readIntoSocket
     readNixFile
     registerRoot
     restartBuilds
@@ -296,8 +297,7 @@ sub getEvals {
 
     my @evals = $evals_result_set->search(
         { hasnewbuilds => 1 },
-        { order_by => "$me.id DESC", rows => $rows, offset => $offset
-        , prefetch => { evaluationerror => [ ] } });
+        { order_by => "$me.id DESC", rows => $rows, offset => $offset });
     my @res = ();
     my $cache = {};
 
@@ -417,6 +417,16 @@ sub pathIsInsidePrefix {
     return $cur;
 }
 
+sub readIntoSocket{
+    my (%args) = @_;
+    my $sock;
+
+    eval {
+        open($sock, "-|", @{$args{cmd}}) or die q(failed to open socket from command:\n $x);
+    };
+
+    return $sock;
+}
 
 
 
