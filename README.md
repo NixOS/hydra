@@ -72,17 +72,16 @@ Make sure **State** at the top of the page is set to "_Enabled_" and click on "_
 You can build Hydra via `nix-build` using the provided [default.nix](./default.nix):
 
 ```
-$ nix-build
+$ nix build
 ```
 
 ### Development Environment
 
 You can use the provided shell.nix to get a working development environment:
 ```
-$ nix-shell
-$ autoreconfPhase
-$ configurePhase # NOTE: not ./configure
-$ make
+$ nix develop
+$ mesonConfigurePhase
+$ ninja
 ```
 
 ### Executing Hydra During Development
@@ -91,9 +90,9 @@ When working on new features or bug fixes you need to be able to run Hydra from 
 can be done using [foreman](https://github.com/ddollar/foreman):
 
 ```
-$ nix-shell
+$ nix develop
 $ # hack hack
-$ make
+$ ninja -C build
 $ foreman start
 ```
 
@@ -115,22 +114,24 @@ Start by following the steps in [Development Environment](#development-environme
 Then, you can run the tests and the perlcritic linter together with:
 
 ```console
-$ nix-shell
-$ make check
+$ nix develop
+$ ninja -C build test
 ```
 
 You can run a single test with:
 
 ```
-$ nix-shell
-$ yath test ./t/foo/bar.t
+$ nix develop
+$ cd build
+$ meson test --test-args=../t/Hydra/Event.t testsuite
 ```
 
 And you can run just perlcritic with:
 
 ```
-$ nix-shell
-$ make perlcritic
+$ nix develop
+$ cd build
+$ meson test perlcritic
 ```
 
 ### JSON API
