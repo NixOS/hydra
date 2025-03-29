@@ -773,6 +773,9 @@ sub checkJobsetWrapped {
     my $jobsetChanged = 0;
     my %buildMap;
 
+    my @jobs;
+    push @jobs, $_ while defined($_ = $jobsIter->());
+
     $db->txn_do(sub {
         my $prevEval = getPrevJobsetEval($db, $jobset, 1);
 
@@ -796,7 +799,7 @@ sub checkJobsetWrapped {
 
         my @jobsWithConstituents;
 
-        while (defined(my $job = $jobsIter->())) {
+        foreach my $job (@jobs) {
             if ($jobsetsJobset) {
                 die "The .jobsets jobset must only have a single job named 'jobsets'"
                     unless $job->{attr} eq "jobsets";
