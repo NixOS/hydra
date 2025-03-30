@@ -86,6 +86,15 @@ sub view_GET {
     );
 }
 
+sub errors :Chained('evalChain') :PathPart('errors') :Args(0) :ActionClass('REST') { }
+
+sub errors_GET {
+    my ($self, $c) = @_;
+
+    $c->stash->{template} = 'eval-error.tt';
+
+    $self->status_ok($c, entity => $c->stash->{eval});
+}
 
 sub create_jobset : Chained('evalChain') PathPart('create-jobset') Args(0) {
     my ($self, $c) = @_;
