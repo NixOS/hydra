@@ -3,6 +3,7 @@
 /src/sql/hydra-postgresql.sql
 /src/sql/hydra-sqlite.sql
 /src/sql/tmp.sqlite
+.hydra-data
 result
 result-*
 outputs
