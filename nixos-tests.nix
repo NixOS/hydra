@@ -99,6 +99,9 @@ in
     });
 
   gitea = forEachSystem (system:
+    let
+      pkgs = nixpkgs.legacyPackages.${system};
+    in
     (import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; }).makeTest {
       name = "hydra-gitea";
       nodes.machine = { pkgs, ... }: {
@@ -125,7 +128,7 @@ in
         networking.firewall.allowedTCPPorts = [ 3000 ];
       };
       skipLint = true;
-      testScript = { pkgs, ...  }:
+      testScript =
         let
           scripts.mktoken = pkgs.writeText "token.sql" ''
             INSERT INTO access_token (id, uid, name, created_unix, updated_unix, token_hash, token_salt, token_last_eight, scope) VALUES (1, 1, 'hydra', 1617107360, 1617107360, 'a930f319ca362d7b49a4040ac0af74521c3a3c3303a86f327b01994430672d33b6ec53e4ea774253208686c712495e12a486', 'XRjWE9YW0g', '31d3a9c7', 'all');
