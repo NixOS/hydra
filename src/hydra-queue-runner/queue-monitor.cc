@@ -1,6 +1,7 @@
 #include "state.hh"
 #include "hydra-build-result.hh"
 #include "globals.hh"
+#include "parsed-derivations.hh"
 
 #include <cstring>
 
@@ -463,14 +464,17 @@ Step::ptr State::createStep(ref<Store> destStore,
        it's not runnable yet, and other threads won't make it
        runnable while step->created == false. */
     step->drv = std::make_unique<Derivation>(localStore->readDerivation(drvPath));
-    step->parsedDrv = std::make_unique<ParsedDerivation>(drvPath, *step->drv);
+    {
+        auto parsedDrv = ParsedDerivation{drvPath, *step->drv};
+        step->drvOptions = std::make_unique<DerivationOptions>(DerivationOptions::fromParsedDerivation(parsedDrv));
+    }
 
-    step->preferLocalBuild = step->parsedDrv->willBuildLocally(*localStore);
+    step->preferLocalBuild = step->drvOptions->willBuildLocally(*localStore, *step->drv);
     step->isDeterministic = getOr(step->drv->env, "isDetermistic", "0") == "1";
 
     step->systemType = step->drv->platform;
     {
-        StringSet features = step->requiredSystemFeatures = step->parsedDrv->getRequiredSystemFeatures();
+        StringSet features = step->requiredSystemFeatures = step->drvOptions->getRequiredSystemFeatures(*step->drv);
         if (step->preferLocalBuild)
             features.insert("local");
         if (!features.empty()) {

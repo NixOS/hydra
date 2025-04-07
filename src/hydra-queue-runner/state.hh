@@ -13,7 +13,8 @@
 
 #include "db.hh"
 
-#include "parsed-derivations.hh"
+#include "derivations.hh"
+#include "derivation-options.hh"
 #include "pathlocks.hh"
 #include "pool.hh"
 #include "build-result.hh"
@@ -167,7 +168,7 @@ struct Step
 
     nix::StorePath drvPath;
     std::unique_ptr<nix::Derivation> drv;
-    std::unique_ptr<nix::ParsedDerivation> parsedDrv;
+    std::unique_ptr<nix::DerivationOptions> drvOptions;
     std::set<std::string> requiredSystemFeatures;
     bool preferLocalBuild;
     bool isDeterministic;
