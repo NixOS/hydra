@@ -573,6 +573,7 @@ void State::dumpStatus(Connection & conn)
         {"nrActiveSteps", activeSteps_.lock()->size()},
         {"nrStepsBuilding", nrStepsBuilding.load()},
         {"nrStepsCopyingTo", nrStepsCopyingTo.load()},
+        {"nrStepsWaitingForDownloadSlot", nrStepsWaitingForDownloadSlot.load()},
         {"nrStepsCopyingFrom", nrStepsCopyingFrom.load()},
         {"nrStepsWaiting", nrStepsWaiting.load()},
         {"nrUnsupportedSteps", nrUnsupportedSteps.load()},
