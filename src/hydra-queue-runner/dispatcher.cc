@@ -40,13 +40,15 @@ void State::dispatcher()
             printMsg(lvlDebug, "dispatcher woken up");
             nrDispatcherWakeups++;
 
-            auto now1 = std::chrono::steady_clock::now();
+            auto t_before_work = std::chrono::steady_clock::now();
 
             auto sleepUntil = doDispatch();
 
-            auto now2 = std::chrono::steady_clock::now();
+            auto t_after_work = std::chrono::steady_clock::now();
 
-            dispatchTimeMs += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
+            prom.dispatcher_time_spent_running.Increment(
+                std::chrono::duration_cast<std::chrono::microseconds>(t_after_work - t_before_work).count());
+            dispatchTimeMs += std::chrono::duration_cast<std::chrono::milliseconds>(t_after_work - t_before_work).count();
 
             /* Sleep until we're woken up (either because a runnable build
                is added, or because a build finishes). */
@@ -59,6 +61,10 @@ void State::dispatcher()
                 }
                 *dispatcherWakeup_ = false;
             }
+
+            auto t_after_sleep = std::chrono::steady_clock::now();
+            prom.dispatcher_time_spent_waiting.Increment(
+                std::chrono::duration_cast<std::chrono::microseconds>(t_after_sleep - t_after_work).count());
 
         } catch (std::exception & e) {
             printError("dispatcher: %s", e.what());
