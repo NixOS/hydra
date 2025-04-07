@@ -12,16 +12,16 @@
         "nixpkgs-regression": []
       },
       "locked": {
-        "lastModified": 1739899400,
-        "narHash": "sha256-q/RgA4bB7zWai4oPySq9mch7qH14IEeom2P64SXdqHs=",
+        "lastModified": 1744029599,
+        "narHash": "sha256-u6RhBWQ1XohTZ4Ub5ml1PTcaxQgtqFNng6Sohy1rojw=",
         "owner": "NixOS",
         "repo": "nix",
-        "rev": "e310c19a1aeb1ce1ed4d41d5ab2d02db596e0918",
+        "rev": "d0f98c76f962147610489e84c10033ca92e9c532",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "2.26-maintenance",
+        "ref": "2.27-maintenance",
         "repo": "nix",
         "type": "github"
       }
@@ -29,15 +29,16 @@
     "nix-eval-jobs": {
       "flake": false,
       "locked": {
-        "lastModified": 1743008255,
-        "narHash": "sha256-Lo4KFBNcY8tmBuCmEr2XV0IUZtxXHmbXPNLkov/QSU0=",
+        "lastModified": 1744009874,
+        "narHash": "sha256-PypQspB7h7EENe4RQQUQj2Ay8J1+O49AKNO9JbAU4Ek=",
         "owner": "nix-community",
         "repo": "nix-eval-jobs",
-        "rev": "f7418fc1fa45b96d37baa95ff3c016dd5be3876b",
+        "rev": "62f9c9e8d00d2ff6ab27a6197ab459a8e0808e59",
         "type": "github"
       },
       "original": {
         "owner": "nix-community",
+        "ref": "v2.27.0",
         "repo": "nix-eval-jobs",
         "type": "github"
       }

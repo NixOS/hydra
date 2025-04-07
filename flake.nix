@@ -4,7 +4,7 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11-small";
 
   inputs.nix = {
-    url = "github:NixOS/nix/2.26-maintenance";
+    url = "github:NixOS/nix/2.27-maintenance";
     inputs.nixpkgs.follows = "nixpkgs";
 
     # hide nix dev tooling from our lock file
@@ -16,7 +16,7 @@
   };
 
   inputs.nix-eval-jobs = {
-    url = "github:nix-community/nix-eval-jobs";
+    url = "github:nix-community/nix-eval-jobs/v2.27.0";
     # We want to control the deps precisely
     flake = false;
   };
