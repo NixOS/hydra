@@ -5,20 +5,20 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "build-result.hh"
-#include "path.hh"
-#include "legacy-ssh-store.hh"
-#include "serve-protocol.hh"
-#include "serve-protocol-impl.hh"
+#include <nix/store/build-result.hh>
+#include <nix/store/path.hh>
+#include <nix/store/legacy-ssh-store.hh>
+#include <nix/store/serve-protocol.hh>
+#include <nix/store/serve-protocol-impl.hh>
 #include "state.hh"
-#include "current-process.hh"
-#include "processes.hh"
-#include "util.hh"
-#include "serve-protocol.hh"
-#include "serve-protocol-impl.hh"
-#include "ssh.hh"
-#include "finally.hh"
-#include "url.hh"
+#include <nix/util/current-process.hh>
+#include <nix/util/processes.hh>
+#include <nix/util/util.hh>
+#include <nix/store/serve-protocol.hh>
+#include <nix/store/serve-protocol-impl.hh>
+#include <nix/store/ssh.hh>
+#include <nix/util/finally.hh>
+#include <nix/util/url.hh>
 
 using namespace nix;
 

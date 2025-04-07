@@ -8,11 +8,7 @@
 
 , perlPackages
 
-, nix-util
-, nix-store
-, nix-main
-, nix-cli
-, nix-perl-bindings
+, nixComponents
 , git
 
 , makeWrapper
@@ -65,7 +61,7 @@ let
     name = "hydra-perl-deps";
     paths = lib.closePropagation
       ([
-        nix-perl-bindings
+        nixComponents.nix-perl-bindings
         git
       ] ++ (with perlPackages; [
         AuthenSASL
@@ -165,7 +161,7 @@ stdenv.mkDerivation (finalAttrs: {
     nukeReferences
     pkg-config
     mdbook
-    nix-cli
+    nixComponents.nix-cli
     perlDeps
     perl
     unzip
@@ -175,9 +171,9 @@ stdenv.mkDerivation (finalAttrs: {
     libpqxx
     openssl
     libxslt
-    nix-util
-    nix-store
-    nix-main
+    nixComponents.nix-util
+    nixComponents.nix-store
+    nixComponents.nix-main
     perlDeps
     perl
     boost
@@ -204,14 +200,14 @@ stdenv.mkDerivation (finalAttrs: {
     glibcLocales
     libressl.nc
     python3
-    nix-cli
+    nixComponents.nix-cli
   ];
 
   hydraPath = lib.makeBinPath (
     [
       subversion
       openssh
-      nix-cli
+      nixComponents.nix-cli
       coreutils
       findutils
       pixz
@@ -272,7 +268,7 @@ stdenv.mkDerivation (finalAttrs: {
             --prefix PATH ':' $out/bin:$hydraPath \
             --set HYDRA_RELEASE ${version} \
             --set HYDRA_HOME $out/libexec/hydra \
-            --set NIX_RELEASE ${nix-cli.name or "unknown"} \
+            --set NIX_RELEASE ${nixComponents.nix-cli.name or "unknown"} \
             --set NIX_EVAL_JOBS_RELEASE ${nix-eval-jobs.name or "unknown"}
     done
   '';

@@ -1,8 +1,8 @@
 #include "db.hh"
 #include "hydra-config.hh"
-#include "pool.hh"
-#include "shared.hh"
-#include "signals.hh"
+#include <nix/util/pool.hh>
+#include <nix/main/shared.hh>
+#include <nix/util/signals.hh>
 
 #include <algorithm>
 #include <thread>

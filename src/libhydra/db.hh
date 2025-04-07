@@ -2,8 +2,8 @@
 
 #include <pqxx/pqxx>
 
-#include "environment-variables.hh"
-#include "util.hh"
+#include <nix/util/environment-variables.hh>
+#include <nix/util/util.hh>
 
 
 struct Connection : pqxx::connection

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "source-accessor.hh"
-#include "types.hh"
-#include "serialise.hh"
-#include "hash.hh"
+#include <nix/util/source-accessor.hh>
+#include <nix/util/types.hh>
+#include <nix/util/serialise.hh>
+#include <nix/util/hash.hh>
 
 struct NarMemberData
 {

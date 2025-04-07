@@ -1,7 +1,7 @@
 #include "hydra-build-result.hh"
-#include "store-api.hh"
-#include "util.hh"
-#include "source-accessor.hh"
+#include <nix/store/store-api.hh>
+#include <nix/util/util.hh>
+#include <nix/util/source-accessor.hh>
 
 #include <regex>
 

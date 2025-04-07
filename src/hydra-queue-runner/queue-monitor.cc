@@ -1,7 +1,7 @@
 #include "state.hh"
 #include "hydra-build-result.hh"
-#include "globals.hh"
-#include "parsed-derivations.hh"
+#include <nix/store/globals.hh>
+#include <nix/store/parsed-derivations.hh>
 
 #include <cstring>
 

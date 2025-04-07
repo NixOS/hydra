@@ -1,6 +1,6 @@
 #include "nar-extractor.hh"
 
-#include "archive.hh"
+#include <nix/util/archive.hh>
 
 #include <unordered_set>
 

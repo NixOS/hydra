@@ -13,18 +13,18 @@
 
 #include "db.hh"
 
-#include "derivations.hh"
-#include "derivation-options.hh"
-#include "pathlocks.hh"
-#include "pool.hh"
-#include "build-result.hh"
-#include "store-api.hh"
-#include "sync.hh"
+#include <nix/store/derivations.hh>
+#include <nix/store/derivation-options.hh>
+#include <nix/store/pathlocks.hh>
+#include <nix/util/pool.hh>
+#include <nix/store/build-result.hh>
+#include <nix/store/store-api.hh>
+#include <nix/util/sync.hh>
 #include "nar-extractor.hh"
-#include "serve-protocol.hh"
-#include "serve-protocol-impl.hh"
-#include "serve-protocol-connection.hh"
-#include "machines.hh"
+#include <nix/store/serve-protocol.hh>
+#include <nix/store/serve-protocol-impl.hh>
+#include <nix/store/serve-protocol-connection.hh>
+#include <nix/store/machines.hh>
 
 
 typedef unsigned int BuildID;
