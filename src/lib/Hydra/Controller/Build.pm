@@ -238,7 +238,7 @@ sub serveFile {
         # XSS hole.
         $c->response->header('Content-Security-Policy' => 'sandbox allow-scripts');
 
-        $c->stash->{'plain'} = { data => grab(cmd => ["nix", "--experimental-features", "nix-command",
+        $c->stash->{'plain'} = { data => readIntoSocket(cmd => ["nix", "--experimental-features", "nix-command",
                                                       "store", "cat", "--store", getStoreUri(), "$path"]) };
 
         # Detect MIME type.

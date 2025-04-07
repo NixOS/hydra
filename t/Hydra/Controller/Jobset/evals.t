@@ -32,4 +32,9 @@ subtest "/jobset/PROJECT/JOBSET/evals" => sub {
     ok($jobsetevals->is_success, "The page showing the jobset evals returns 200.");
 };
 
+subtest "/jobset/PROJECT/JOBSET/errors" => sub {
+    my $jobsetevals = request(GET '/jobset/' . $project->name . '/' . $jobset->name . '/errors');
+    ok($jobsetevals->is_success, "The page showing the jobset eval errors returns 200.");
+};
+
 done_testing;
