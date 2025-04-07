@@ -288,7 +288,7 @@ system_time State::doDispatch()
                 /* Make a slot reservation and start a thread to
                    do the build. */
                 auto builderThread = std::thread(&State::builder, this,
-                    std::make_shared<MachineReservation>(*this, step, mi.machine));
+                    std::make_unique<MachineReservation>(*this, step, mi.machine));
                 builderThread.detach(); // FIXME?
 
                 keepGoing = true;

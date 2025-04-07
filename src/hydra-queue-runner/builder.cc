@@ -16,7 +16,7 @@ void setThreadName(const std::string & name)
 }
 
 
-void State::builder(MachineReservation::ptr reservation)
+void State::builder(std::unique_ptr<MachineReservation> reservation)
 {
     setThreadName("bld~" + std::string(reservation->step->drvPath.to_string()));
 
@@ -35,21 +35,19 @@ void State::builder(MachineReservation::ptr reservation)
             activeSteps_.lock()->erase(activeStep);
         });
 
+        std::string machine = reservation->machine->storeUri.render();
+
         try {
             auto destStore = getDestStore();
-            res = doBuildStep(destStore, reservation, activeStep);
+            // Might release the reservation.
+            res = doBuildStep(destStore, std::move(reservation), activeStep);
         } catch (std::exception & e) {
             printMsg(lvlError, "uncaught exception building ‘%s’ on ‘%s’: %s",
-                localStore->printStorePath(reservation->step->drvPath),
-                reservation->machine->storeUri.render(),
+                localStore->printStorePath(activeStep->step->drvPath),
+                machine,
                 e.what());
         }
     }
-
-    /* Release the machine and wake up the dispatcher. */
-    assert(reservation.unique());
-    reservation = 0;
-    wakeDispatcher();
 
     /* If there was a temporary failure, retry the step after an
        exponentially increasing interval. */
@@ -72,11 +70,11 @@ void State::builder(MachineReservation::ptr reservation)
 
 
 State::StepResult State::doBuildStep(nix::ref<Store> destStore,
-    MachineReservation::ptr reservation,
+    std::unique_ptr<MachineReservation> reservation,
     std::shared_ptr<ActiveStep> activeStep)
 {
-    auto & step(reservation->step);
-    auto & machine(reservation->machine);
+    auto step(reservation->step);
+    auto machine(reservation->machine);
 
     {
         auto step_(step->state.lock());
@@ -211,7 +209,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(destStore, machine, step, buildOptions, result, activeStep, updateStep, narMembers);
+            buildRemote(destStore, std::move(reservation), machine, step, buildOptions, result, activeStep, updateStep, narMembers);
         } catch (Error & e) {
             if (activeStep->state_.lock()->cancelled) {
                 printInfo("marking step %d of build %d as cancelled", stepNr, buildId);
