@@ -61,8 +61,8 @@ subtest "* selects all except current aggregate" => sub {
 
         $jobset->discard_changes;  # refresh from DB
         is(
-            $jobset->errormsg,
-            "",
+            $jobset->has_error,
+            0,
             "eval-errors non-empty"
         );
     };
@@ -101,7 +101,7 @@ subtest "trivial cycle check" => sub {
 
     ok(utf8::decode($stderr), "Stderr output is UTF8-clean");
 
-    $jobset->discard_changes;  # refresh from DB
+    $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     like(
         $jobset->errormsg,
         qr/Dependency cycle: indirect_aggregate <-> ok_aggregate/,
@@ -123,7 +123,7 @@ subtest "cycle check with globbing" => sub {
 
     ok(utf8::decode($stderr), "Stderr output is UTF8-clean");
 
-    $jobset->discard_changes;  # refresh from DB
+    $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     like(
         $jobset->errormsg,
         qr/aggregate job ‘indirect_aggregate’ failed with the error: Dependency cycle: indirect_aggregate <-> packages.constituentA/,
