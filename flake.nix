@@ -34,7 +34,6 @@
         hydra = final.callPackage ./package.nix {
           inherit (nixpkgs.lib) fileset;
           rawSrc = self;
-          nix-perl-bindings = final.nixComponents.nix-perl-bindings;
         };
       };
 
@@ -73,21 +72,29 @@
         validate-openapi = hydraJobs.tests.validate-openapi.${system};
       });
 
-      packages = forEachSystem (system: {
-        nix-eval-jobs = nixpkgs.legacyPackages.${system}.callPackage nix-eval-jobs {
-          nix = nix.packages.${system}.nix;
-        };
-        hydra = nixpkgs.legacyPackages.${system}.callPackage ./package.nix {
-          inherit (nixpkgs.lib) fileset;
-          inherit (self.packages.${system}) nix-eval-jobs;
-          rawSrc = self;
+      packages = forEachSystem (system: let
+        nixComponents = {
           inherit (nix.packages.${system})
             nix-util
             nix-store
+            nix-expr
+            nix-fetchers
+            nix-flake
             nix-main
+            nix-cmd
             nix-cli
+            nix-perl-bindings
             ;
-          nix-perl-bindings = nix.hydraJobs.perlBindings.${system};
+        };
+      in {
+        nix-eval-jobs = nixpkgs.legacyPackages.${system}.callPackage nix-eval-jobs {
+          inherit nixComponents;
+        };
+        hydra = nixpkgs.legacyPackages.${system}.callPackage ./package.nix {
+          inherit (nixpkgs.lib) fileset;
+          inherit nixComponents;
+          inherit (self.packages.${system}) nix-eval-jobs;
+          rawSrc = self;
         };
         default = self.packages.${system}.hydra;
       });
