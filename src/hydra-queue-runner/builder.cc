@@ -2,8 +2,8 @@
 
 #include "state.hh"
 #include "hydra-build-result.hh"
-#include "finally.hh"
-#include "binary-cache-store.hh"
+#include <nix/util/finally.hh>
+#include <nix/store/binary-cache-store.hh>
 
 using namespace nix;
 

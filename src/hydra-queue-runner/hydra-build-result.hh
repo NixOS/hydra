@@ -2,9 +2,9 @@
 
 #include <memory>
 
-#include "hash.hh"
-#include "derivations.hh"
-#include "store-api.hh"
+#include <nix/util/hash.hh>
+#include <nix/store/derivations.hh>
+#include <nix/store/store-api.hh>
 #include "nar-extractor.hh"
 
 struct BuildProduct
