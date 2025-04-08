@@ -615,6 +615,7 @@ void State::dumpStatus(Connection & conn)
         }
 
         {
+            auto machines_json = json::object();
             auto machines_(machines.lock());
             for (auto & i : *machines_) {
                 auto & m(i.second);
@@ -641,8 +642,9 @@ void State::dumpStatus(Connection & conn)
                     machine["avgStepTime"] = (float) s->totalStepTime / s->nrStepsDone;
                     machine["avgStepBuildTime"] = (float) s->totalStepBuildTime / s->nrStepsDone;
                 }
-                statusJson["machines"][m->storeUri.render()] = machine;
+                machines_json[m->storeUri.render()] = machine;
             }
+            statusJson["machines"] = machines_json;
         }
 
         {
