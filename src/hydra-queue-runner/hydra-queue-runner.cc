@@ -703,6 +703,7 @@ void State::dumpStatus(Connection & conn)
             : 0.0},
         };
 
+#if NIX_WITH_S3_SUPPORT
         auto s3Store = dynamic_cast<S3BinaryCacheStore *>(&*store);
         if (s3Store) {
             auto & s3Stats = s3Store->getS3Stats();
@@ -728,6 +729,7 @@ void State::dumpStatus(Connection & conn)
                         + s3Stats.getBytes / (1024.0 * 1024.0 * 1024.0) * 0.09},
             };
         }
+#endif
     }
 
     {
