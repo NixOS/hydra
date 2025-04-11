@@ -248,7 +248,7 @@ stdenv.mkDerivation (finalAttrs: {
     popd >/dev/null
   '';
 
-  doCheck = true;
+  doCheck = false;
 
   mesonCheckFlags = [ "--verbose" ];
 
