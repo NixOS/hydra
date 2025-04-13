@@ -17,7 +17,7 @@
     [% name = m.key ? stripSSHUser(m.key) : "localhost" %]
     <thead>
       <tr>
-        <th colspan="6">
+        <th colspan="7">
           <tt [% IF m.value.disabled %]style="text-decoration: line-through;"[% END %]>[% INCLUDE renderMachineName machine=m.key %]</tt>
           [% IF m.value.systemTypes %]
             <span class="muted" style="font-weight: normal;">
