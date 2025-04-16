@@ -32,7 +32,12 @@ sub buildDiff {
         removed => [],
         unfinished => [],
         aborted => [],
-        failed => [],
+
+        # These summary counters cut across the categories to determine whether
+        # actions such as "Restart all failed" or "Bump queue" are available.
+        totalAborted => 0,
+        totalFailed => 0,
+        totalQueued => 0,
     };
 
     my $n = 0;
@@ -80,8 +85,15 @@ sub buildDiff {
         } else {
             push @{$ret->{new}}, $build if !$found;
         }
-        if (defined $build->buildstatus && $build->buildstatus != 0) {
-            push @{$ret->{failed}}, $build;
+
+        if ($build->finished != 0 && $build->buildstatus != 0) {
+            if ($aborted) {
+                ++$ret->{totalAborted};
+            } else {
+                ++$ret->{totalFailed};
+            }
+        } elsif ($build->finished == 0) {
+            ++$ret->{totalQueued};
         }
     }
 

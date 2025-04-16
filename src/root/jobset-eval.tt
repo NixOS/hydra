@@ -48,16 +48,16 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
       <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#">Actions</a>
       <div class="dropdown-menu">
         <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('create_jobset'), [eval.id]) %]">Create a jobset from this evaluation</a>
-        [% IF unfinished.size > 0 %]
+        [% IF totalQueued > 0 %]
           <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('cancel'), [eval.id]) %]">Cancel all scheduled builds</a>
         [% END %]
-        [% IF aborted.size > 0 || stillFail.size > 0 || nowFail.size > 0 || failed.size > 0 %]
+        [% IF totalFailed > 0 %]
           <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('restart_failed'), [eval.id]) %]">Restart all failed builds</a>
         [% END %]
-        [% IF aborted.size > 0 %]
+        [% IF totalAborted > 0 %]
           <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('restart_aborted'), [eval.id]) %]">Restart all aborted builds</a>
         [% END %]
-        [% IF unfinished.size > 0 %]
+        [% IF totalQueued > 0 %]
           <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('bump'), [eval.id]) %]">Bump builds to front of queue</a>
         [% END %]
       </div>
