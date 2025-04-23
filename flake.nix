@@ -5,14 +5,8 @@
 
   inputs.nix = {
     url = "github:NixOS/nix/2.28-maintenance";
-    inputs.nixpkgs.follows = "nixpkgs";
-
-    # hide nix dev tooling from our lock file
-    inputs.flake-parts.follows = "";
-    inputs.git-hooks-nix.follows = "";
-    inputs.nixpkgs-regression.follows = "";
-    inputs.nixpkgs-23-11.follows = "";
-    inputs.flake-compat.follows = "";
+    # We want to control the deps precisely
+    flake = false;
   };
 
   inputs.nix-eval-jobs = {
@@ -30,10 +24,27 @@
 
       # A Nixpkgs overlay that provides a 'hydra' package.
       overlays.default = final: prev: {
-        nix-eval-jobs = final.callPackage nix-eval-jobs {};
+        nixDependenciesForHydra = final.lib.makeScope final.newScope
+          (import (nix + "/packaging/dependencies.nix") {
+            pkgs = final;
+            inherit (final) stdenv;
+            inputs = {};
+          });
+        nixComponentsForHydra = final.lib.makeScope final.nixDependenciesForHydra.newScope
+          (import (nix + "packaging/components.nix") {
+            officialRelease = true;
+            inherit (final) lib;
+            pkgs = final;
+            src = nix;
+            maintainers = [ ];
+          });
+        nix-eval-jobs = final.callPackage nix-eval-jobs {
+          nixComponents = final.nixComponentsForHydra;
+        };
         hydra = final.callPackage ./package.nix {
-          inherit (nixpkgs.lib) fileset;
+          inherit (final.lib) fileset;
           rawSrc = self;
+          nixComponents = final.nixComponentsForHydra;
         };
       };
 
@@ -73,24 +84,26 @@
       });
 
       packages = forEachSystem (system: let
-        nixComponents = {
-          inherit (nix.packages.${system})
-            nix-util
-            nix-store
-            nix-expr
-            nix-fetchers
-            nix-flake
-            nix-main
-            nix-cmd
-            nix-cli
-            nix-perl-bindings
-            ;
-        };
+        inherit (nixpkgs) lib;
+        pkgs = nixpkgs.legacyPackages.${system};
+        nixDependencies = lib.makeScope pkgs.newScope
+          (import (nix + "/packaging/dependencies.nix") {
+            inherit pkgs;
+            inherit (pkgs) stdenv;
+            inputs = {};
+          });
+        nixComponents = lib.makeScope nixDependencies.newScope
+          (import (nix + "/packaging/components.nix") {
+            officialRelease = true;
+            inherit lib pkgs;
+            src = nix;
+            maintainers = [ ];
+          });
       in {
-        nix-eval-jobs = nixpkgs.legacyPackages.${system}.callPackage nix-eval-jobs {
+        nix-eval-jobs = pkgs.callPackage nix-eval-jobs {
           inherit nixComponents;
         };
-        hydra = nixpkgs.legacyPackages.${system}.callPackage ./package.nix {
+        hydra = pkgs.callPackage ./package.nix {
           inherit (nixpkgs.lib) fileset;
           inherit nixComponents;
           inherit (self.packages.${system}) nix-eval-jobs;

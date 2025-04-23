@@ -1,16 +1,7 @@
 {
   "nodes": {
     "nix": {
-      "inputs": {
-        "flake-compat": [],
-        "flake-parts": [],
-        "git-hooks-nix": [],
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "nixpkgs-23-11": [],
-        "nixpkgs-regression": []
-      },
+      "flake": false,
       "locked": {
         "lastModified": 1745420957,
         "narHash": "sha256-ZbB3IH9OlJvo14GlQZbYHzJojf/HCDT38GzYTod8DaU=",
