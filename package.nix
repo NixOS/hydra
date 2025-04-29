@@ -277,5 +277,8 @@ stdenv.mkDerivation (finalAttrs: {
   dontStrip = true;
 
   meta.description = "Build of Hydra on ${stdenv.system}";
-  passthru = { inherit perlDeps; };
+  passthru = {
+    inherit perlDeps;
+    nix = nixComponents.nix-cli;
+  };
 })
