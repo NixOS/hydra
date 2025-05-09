@@ -31,7 +31,7 @@
             inputs = {};
           });
         nixComponentsForHydra = final.lib.makeScope final.nixDependenciesForHydra.newScope
-          (import (nix + "packaging/components.nix") {
+          (import (nix + "/packaging/components.nix") {
             officialRelease = true;
             inherit (final) lib;
             pkgs = final;
