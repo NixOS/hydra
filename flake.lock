@@ -3,16 +3,16 @@
     "nix": {
       "flake": false,
       "locked": {
-        "lastModified": 1745420957,
-        "narHash": "sha256-ZbB3IH9OlJvo14GlQZbYHzJojf/HCDT38GzYTod8DaU=",
+        "lastModified": 1747267175,
+        "narHash": "sha256-NW1BB3Fip6tv/hxdCcaUGSkcGFes2HOEnaM26q90Lfg=",
         "owner": "NixOS",
         "repo": "nix",
-        "rev": "70921714cb3b5e6041b7413459541838651079f3",
+        "rev": "4dcf21a2f6acd34b8f0494bd5afe1c8c626f79af",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "2.28-maintenance",
+        "ref": "2.29-maintenance",
         "repo": "nix",
         "type": "github"
       }
@@ -20,26 +20,27 @@
     "nix-eval-jobs": {
       "flake": false,
       "locked": {
-        "lastModified": 1744370057,
-        "narHash": "sha256-n220U5pjzCtTtOJtbga4Xr/PyllowKw9anSevgCqJEw=",
-        "owner": "nix-community",
+        "lastModified": 1747283155,
+        "narHash": "sha256-BFCB/gW98oe1zLNWHo6wfFBcXcCDgt1TetfeLGCfO9o=",
+        "owner": "Ericson2314",
         "repo": "nix-eval-jobs",
-        "rev": "1260c6599d22dfd8c25fea6893c3d031996b20e1",
+        "rev": "50312d9958066ba6df1b18fd06e4c661bcdabbaa",
         "type": "github"
       },
       "original": {
-        "owner": "nix-community",
+        "owner": "Ericson2314",
+        "ref": "nix-2.29",
         "repo": "nix-eval-jobs",
         "type": "github"
       }
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1745408698,
-        "narHash": "sha256-JT1wMjLIypWJA0N2V27WpUw8feDmTok4Dwkb0oYXDS4=",
+        "lastModified": 1747187171,
+        "narHash": "sha256-heMv6zpxnLYhdcMtUxSn8PWaDLKlJCvQwhbarTNrXYI=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "eea3403f7ca9f9942098f4f2756adab4ec924b2b",
+        "rev": "97bd66213bef339d11520ee2e84e3907394b16c7",
         "type": "github"
       },
       "original": {

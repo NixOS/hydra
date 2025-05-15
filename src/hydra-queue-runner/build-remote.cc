@@ -50,7 +50,7 @@ static std::unique_ptr<SSHMaster::Connection> openConnection(
         auto remoteStore = machine->storeUri.params.find("remote-store");
         if (remoteStore != machine->storeUri.params.end()) {
             command.push_back("--store");
-            command.push_back(shellEscape(remoteStore->second));
+            command.push_back(escapeShellArgAlways(remoteStore->second));
         }
     }
 
