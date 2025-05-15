@@ -14,7 +14,7 @@
 #include <nix/util/signals.hh>
 #include "state.hh"
 #include "hydra-build-result.hh"
-#include <nix/store/store-api.hh>
+#include <nix/store/store-open.hh>
 #include <nix/store/remote-store.hh>
 
 #include <nix/store/globals.hh>
@@ -832,7 +832,7 @@ void State::run(BuildID buildOne)
         << metricsAddr << "/metrics (port " << exposerPort << ")"
         << std::endl;
 
-    Store::Params localParams;
+    Store::Config::Params localParams;
     localParams["max-connections"] = "16";
     localParams["max-connection-age"] = "600";
     localStore = openStore(getEnv("NIX_REMOTE").value_or(""), localParams);
