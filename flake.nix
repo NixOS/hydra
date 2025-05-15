@@ -10,7 +10,7 @@
   };
 
   inputs.nix-eval-jobs = {
-    url = "github:nix-community/nix-eval-jobs";
+    url = "github:Ericson2314/nix-eval-jobs/nix-2.29";
     # We want to control the deps precisely
     flake = false;
   };
