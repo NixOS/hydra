@@ -1,0 +1,76 @@
+commit 1b4b7da3b5ca079f7c2f7b549710060de6b9b698
+Author: Janne Heß <janne@hess.ooo>
+Date:   Sun Feb 13 18:53:14 2022 +0100
+
+    Make the use of substitutes on builders configurable
+
+diff --git a/doc/manual/src/configuration.md b/doc/manual/src/configuration.md
+index 4954040c..5c1d061a 100644
+--- a/doc/manual/src/configuration.md
++++ b/doc/manual/src/configuration.md
+@@ -98,6 +98,28 @@ See [`nix help
+ stores`](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html)
+ for a description of the store URI format.
+ 
++Queue Runner configuration
++--------------------------
++
++These configuration options are understood by the Hydra Queue Runner.
++
++- `max_unsupported_time` (default `0`) How long to keep unsupported builds in the queue before failing them
++- `max_db_connections` (default `128`) Size of the database connection pool
++- `max_output_size` (default `2<<30`) Maximum size of a build result output before failing the build (only works for remote builds)
++- `max_log_size` (default `64<<20`) Maximum log size for remote builds
++- `store_uri` (default empty) If set to a non-empty string, the store is used for the Hydra
++- `upload_logs_to_binary_cache` (default `false`) Whether to upload logs of finished builds to the store
++- `gc_roots_dir` (default `/nix/var/nix/gcroots/per-user/hydra/hydra-roots`) Directory for Hydra gcroots
++- `use-substitutes` (default `false`) Whether or not to try to substitute builds results from the configured substituters before building
++- `use_substitutes_on_remote_builders` (default `true`) Whether or not to try to substitute builds inputs from the configured substituters on the build machines when copying build inputs
++- `xxx-jobset-repeats` (default empty) Configuration of automated rebuilds for determinism checks. Takes colon-separated values of `project:jobset:repeat` (for example `nixos:trunk-combined:2`)
++
++Deprecated options
++- `store_mode`
++- `binary_cache_dir`
++- `binary_cache_s3_bucket`
++- `binary_cache_secret_key_file`
++
+ Statsd Configuration
+ --------------------
+ 
+diff --git a/src/hydra-queue-runner/build-remote.cc b/src/hydra-queue-runner/build-remote.cc
+index ad510e1b..30b88e09 100644
+--- a/src/hydra-queue-runner/build-remote.cc
++++ b/src/hydra-queue-runner/build-remote.cc
+@@ -197,7 +197,7 @@ static BasicDerivation sendInputs(
+             destStore.computeFSClosure(basicDrv.inputSrcs, closure);
+             copyPaths(destStore, localStore, closure, NoRepair, NoCheckSigs, NoSubstitute);
+         } else {
+-            copyClosureTo(conn, destStore, basicDrv.inputSrcs, Substitute);
++            copyClosureTo(conn, destStore, basicDrv.inputSrcs, state->useSubstitutesOnRemoteBuilders ? Substitute : NoSubstitute);
+         }
+ 
+         auto now2 = std::chrono::steady_clock::now();
+diff --git a/src/hydra-queue-runner/hydra-queue-runner.cc b/src/hydra-queue-runner/hydra-queue-runner.cc
+index 0ee710cb..1a0dc84e 100644
+--- a/src/hydra-queue-runner/hydra-queue-runner.cc
++++ b/src/hydra-queue-runner/hydra-queue-runner.cc
+@@ -853,6 +853,7 @@ void State::run(BuildID buildOne)
+     _destStore = storeUri == "" ? localStore : openStore(storeUri);
+ 
+     useSubstitutes = config->getBoolOption("use-substitutes", false);
++    useSubstitutesOnRemoteBuilders = config->getBoolOption("use_substitutes_on_remote_builders", true);
+ 
+     // FIXME: hacky mechanism for configuring determinism checks.
+     for (auto & s : tokenizeString<Strings>(config->getStrOption("xxx-jobset-repeats"))) {
+diff --git a/src/hydra-queue-runner/state.hh b/src/hydra-queue-runner/state.hh
+index cda238ae..c9695d9d 100644
+--- a/src/hydra-queue-runner/state.hh
++++ b/src/hydra-queue-runner/state.hh
+@@ -465,6 +465,7 @@ private:
+ 
+ public:
+     State(std::optional<std::string> metricsAddrOpt);
++    bool useSubstitutesOnRemoteBuilders = true;
+ 
+ private:
+ 
