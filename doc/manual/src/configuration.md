@@ -63,8 +63,7 @@ following:
         .. other configuration ..
         location /hydra/ {
 
-            proxy_pass     http://127.0.0.1:3000;
-            proxy_redirect http://127.0.0.1:3000 https://example.com/hydra;
+            proxy_pass http://127.0.0.1:3000/;
 
             proxy_set_header  Host              $host;
             proxy_set_header  X-Real-IP         $remote_addr;
@@ -73,6 +72,9 @@ following:
             proxy_set_header  X-Request-Base    /hydra;
         }
     }
+
+Note the trailing slash on the `proxy_pass` directive, which causes nginx to
+strip off the `/hydra/` part of the URL before passing it to hydra.
 
 Populating a Cache
 ------------------
