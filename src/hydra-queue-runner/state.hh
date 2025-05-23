@@ -172,7 +172,7 @@ struct Step
     nix::StorePath drvPath;
     std::unique_ptr<nix::Derivation> drv;
     std::unique_ptr<nix::DerivationOptions> drvOptions;
-    std::set<std::string> requiredSystemFeatures;
+    nix::StringSet requiredSystemFeatures;
     bool preferLocalBuild;
     bool isDeterministic;
     std::string systemType; // concatenation of drv.platform and requiredSystemFeatures
