@@ -568,19 +568,14 @@ makeQueries('ForJobName', "and jobset_id = (select id from jobsets j where j.nam
 sub as_json {
   my ($self) = @_;
 
-  # After #1093 merges this can become $self->jobset;
-  # However, with ->jobset being a column on master
-  # it seems DBIX gets a it confused.
-  my ($jobset) = $self->search_related('jobset')->first;
-
   my $json = {
     id => $self->get_column('id'),
     finished => $self->get_column('finished'),
     timestamp => $self->get_column('timestamp'),
     starttime => $self->get_column('starttime'),
     stoptime => $self->get_column('stoptime'),
-    project => $jobset->get_column('project'),
-    jobset => $jobset->name,
+    project => $self->jobset->get_column('project'),
+    jobset => $self->jobset->get_column('name'),
     job => $self->get_column('job'),
     nixname => $self->get_column('nixname'),
     system => $self->get_column('system'),
@@ -588,7 +583,6 @@ sub as_json {
     buildstatus => $self->get_column('buildstatus'),
     releasename => $self->get_column('releasename'),
     drvpath => $self->get_column('drvpath'),
-    jobsetevals => [ map { $_->id } $self->jobsetevals ],
     buildoutputs => { map { $_->name  => $_ } $self->buildoutputs },
     buildproducts => { map { $_->productnr => $_ } $self->buildproducts },
     buildmetrics => { map { $_->name => $_ } $self->buildmetrics },
