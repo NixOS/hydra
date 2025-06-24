@@ -1,0 +1,28 @@
+name: "Update Flakes"
+on:
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+jobs:
+  update-flakes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+    - uses: actions/checkout@v3
+    - uses: cachix/install-nix-action@v31
+    - name: Update flake inputs
+      run: nix flake update
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v5
+      with:
+        commit-message: "flake.lock: Update"
+        title: "Update flake inputs"
+        body: |
+          Automated flake input updates.
+          
+          This PR was automatically created by the update-flakes workflow.
+        branch: update-flakes
+        delete-branch: true
