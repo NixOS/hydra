@@ -340,7 +340,7 @@ in
         requires = [ "hydra-init.service" ];
         wants = [ "network-online.target" ];
         after = [ "hydra-init.service" "network.target" "network-online.target" ];
-        path = [ cfg.package pkgs.nettools pkgs.openssh pkgs.bzip2 config.nix.package ];
+        path = [ cfg.package pkgs.hostname-debian pkgs.openssh pkgs.bzip2 config.nix.package ];
         restartTriggers = [ hydraConf ];
         environment = env // {
           PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
@@ -364,7 +364,7 @@ in
         requires = [ "hydra-init.service" ];
         restartTriggers = [ hydraConf ];
         after = [ "hydra-init.service" "network.target" ];
-        path = with pkgs; [ nettools cfg.package jq ];
+        path = with pkgs; [ hostname-debian cfg.package jq ];
         environment = env // {
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-evaluator";
         };
