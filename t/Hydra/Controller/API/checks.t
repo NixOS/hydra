@@ -22,8 +22,23 @@ sub is_json {
 }
 
 my $ctx = test_context();
-
 Catalyst::Test->import('Hydra');
+
+# Create a user to log in to
+my $user = $ctx->db->resultset('Users')->create({ username => 'alice', emailaddress => 'alice@example.com', password => '!' });
+$user->setPassword('foobar');
+$user->userroles->update_or_create({ role => 'admin' });
+
+# Login and save cookie for future requests
+my $req = request(POST '/login',
+    Referer => 'http://localhost/',
+    Content => {
+        username => 'alice',
+        password => 'foobar'
+    }
+);
+is($req->code, 302, "The login redirects");
+my $cookie = $req->header("set-cookie");
 
 my $finishedBuilds = $ctx->makeAndEvaluateJobset(
     expression => "one-job.nix",
@@ -109,7 +124,10 @@ subtest "/api/push" => sub {
         my $jobsetName = $jobset->name;
         is($jobset->forceeval, undef, "The existing jobset is not set to be forced to eval");
 
-        my $response = request(GET "/api/push?jobsets=$projectName:$jobsetName&force=1");
+        my $response = request(POST "/api/push?jobsets=$projectName:$jobsetName&force=1",
+            Cookie => $cookie,
+            Referer => 'http://localhost/',
+        );
         ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
 
         my $data = is_json($response);
@@ -128,7 +146,10 @@ subtest "/api/push" => sub {
 
         print STDERR $repo;
 
-        my $response = request(GET "/api/push?repos=$repo&force=1");
+        my $response = request(POST "/api/push?repos=$repo&force=1",
+            Cookie => $cookie,
+            Referer => 'http://localhost/',
+        );
         ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
 
         my $data = is_json($response);

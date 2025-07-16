@@ -4,6 +4,8 @@ with import ./config.nix;
     mkDerivation {
       name = "empty-dir";
       builder = ./empty-dir-builder.sh;
+      meta.maintainers = [ "alice@invalid.org" ];
+      meta.outPath = "${placeholder "out"}";
     };
 
   fails =

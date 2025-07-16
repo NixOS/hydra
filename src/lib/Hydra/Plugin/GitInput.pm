@@ -186,9 +186,9 @@ sub fetchInput {
         {uri => $uri, branch => $branch, revision => $revision, isdeepclone => defined($deepClone) ? 1 : 0},
         {rows => 1});
 
-    addTempRoot($cachedInput->storepath) if defined $cachedInput;
+    $MACHINE_LOCAL_STORE->addTempRoot($cachedInput->storepath) if defined $cachedInput;
 
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
         $revision = $cachedInput->revision;
@@ -217,7 +217,7 @@ sub fetchInput {
         ($sha256, $storePath) = split ' ', grab(cmd => ["nix-prefetch-git", $clonePath, $revision], chomp => 1);
 
         # FIXME: time window between nix-prefetch-git and addTempRoot.
-        addTempRoot($storePath);
+        $MACHINE_LOCAL_STORE->addTempRoot($storePath);
 
         $self->{db}->txn_do(sub {
             $self->{db}->resultset('CachedGitInputs')->update_or_create(
@@ -261,7 +261,7 @@ sub getCommits {
 
     my $clonePath = getSCMCacheDir . "/git/" . sha256_hex($uri);
 
-    my $out = grab(cmd => ["git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], dir => $clonePath);
+    my $out = grab(cmd => ["git", "--git-dir=.git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], dir => $clonePath);
 
     my $res = [];
     foreach my $line (split /\n/, $out) {

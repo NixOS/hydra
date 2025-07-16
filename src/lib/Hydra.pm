@@ -6,6 +6,7 @@ use parent 'Catalyst';
 use Moose;
 use Hydra::Plugin;
 use Hydra::Model::DB;
+use Hydra::Config qw(getLDAPConfigAmbient);
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
                 Static::Simple
@@ -19,7 +20,6 @@ use Catalyst qw/ConfigLoader
                 PrometheusTiny/,
                 '-Log=warn,fatal,error';
 use CatalystX::RoleApplicator;
-use YAML qw(LoadFile);
 use Path::Class 'file';
 
 our $VERSION = '0.01';
@@ -43,9 +43,7 @@ __PACKAGE__->config(
                 role_field => "role",
             },
         },
-        ldap => $ENV{'HYDRA_LDAP_CONFIG'} ? LoadFile(
-            file($ENV{'HYDRA_LDAP_CONFIG'})
-        ) : undef
+        ldap => getLDAPConfigAmbient()->{'config'}
     },
     'Plugin::ConfigLoader' => {
         driver => {

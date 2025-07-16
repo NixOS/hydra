@@ -49,6 +49,7 @@ create table Projects (
     declfile      text, -- File containing declarative jobset specification
     decltype      text, -- Type of the input containing declarative jobset specification
     declvalue     text, -- Value of the input containing declarative jobset specification
+    enable_dynamic_run_command boolean not null default false,
     foreign key   (owner) references Users(userName) on update cascade
 );
 
@@ -88,6 +89,7 @@ create table Jobsets (
     startTime     integer, -- if jobset is currently running
     type          integer not null default 0, -- 0 == legacy, 1 == flake
     flake         text,
+    enable_dynamic_run_command boolean not null default false,
     constraint jobsets_schedulingshares_nonzero_check check (schedulingShares > 0),
     constraint jobsets_type_known_check   check (type = 0 or type = 1),
     -- If the type is 0, then nixExprInput and nixExprPath should be non-null and other type-specific fields should be null
@@ -245,7 +247,7 @@ create trigger BuildBumped after update on Builds for each row
 create table BuildOutputs (
     build         integer not null,
     name          text not null,
-    path          text not null,
+    path          text,
     primary key   (build, name),
     foreign key   (build) references Builds(id) on delete cascade
 );
@@ -301,7 +303,7 @@ create table BuildStepOutputs (
     build         integer not null,
     stepnr        integer not null,
     name          text not null,
-    path          text not null,
+    path          text,
     primary key   (build, stepnr, name),
     foreign key   (build) references Builds(id) on delete cascade,
     foreign key   (build, stepnr) references BuildSteps(build, stepnr) on delete cascade

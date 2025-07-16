@@ -7,6 +7,7 @@
 - [Hydra jobs](./jobs.md)
 - [Plugins](./plugins/README.md)
   - [Declarative Projects](./plugins/declarative-projects.md)
+  - [RunCommand](./plugins/RunCommand.md)
 - [Using the external API](api.md)
 - [Webhooks](webhooks.md)
 - [Monitoring Hydra](./monitoring/README.md)

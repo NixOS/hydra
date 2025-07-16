@@ -6,6 +6,7 @@ use utf8;
 use Getopt::Long;
 use Time::HiRes qw( gettimeofday tv_interval );
 use HTTP::Server::PSGI;
+use Hydra::Config;
 use Hydra::Event;
 use Hydra::Event::BuildFinished;
 use Hydra::Helper::AddBuilds;

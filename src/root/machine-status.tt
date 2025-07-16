@@ -6,10 +6,10 @@
   <thead>
     <tr>
       <th>Job</th>
-      <th>System</th>
       <th>Build</th>
       <th>Step</th>
       <th>What</th>
+      <th>Status</th>
       <th>Since</th>
     </tr>
   </thead>
@@ -17,7 +17,7 @@
     [% name = m.key ? stripSSHUser(m.key) : "localhost" %]
     <thead>
       <tr>
-        <th colspan="6">
+        <th colspan="7">
           <tt [% IF m.value.disabled %]style="text-decoration: line-through;"[% END %]>[% INCLUDE renderMachineName machine=m.key %]</tt>
           [% IF m.value.systemTypes %]
             <span class="muted" style="font-weight: normal;">
@@ -40,10 +40,10 @@
           [% idle = 0 %]
           <tr>
             <td><tt>[% INCLUDE renderFullJobName project=step.project jobset=step.jobset job=step.job %]</tt></td>
-            <td><tt>[% step.system %]</tt></td>
             <td><a href="[% c.uri_for('/build' step.build) %]">[% step.build %]</a></td>
             <td>[% IF step.busy >= 30 %]<a class="row-link" href="[% c.uri_for('/build' step.build 'nixlog' step.stepnr 'tail') %]">[% step.stepnr %]</a>[% ELSE; step.stepnr; END %]</td>
             <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
+            <td>[% INCLUDE renderBusyStatus %]</td>
             <td style="width: 10em">[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
           </tr>
         [% END %]

@@ -3,7 +3,6 @@ use warnings;
 use File::Basename;
 use Hydra::Model::DB;
 use Hydra::Helper::Nix;
-use Nix::Store;
 use Cwd;
 
 my $db = Hydra::Model::DB->new;

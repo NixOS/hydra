@@ -48,16 +48,16 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
       <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#">Actions</a>
       <div class="dropdown-menu">
         <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('create_jobset'), [eval.id]) %]">Create a jobset from this evaluation</a>
-        [% IF unfinished.size > 0 %]
+        [% IF totalQueued > 0 %]
           <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('cancel'), [eval.id]) %]">Cancel all scheduled builds</a>
         [% END %]
-        [% IF aborted.size > 0 || stillFail.size > 0 || nowFail.size > 0 || failed.size > 0 %]
+        [% IF totalFailed > 0 %]
           <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('restart_failed'), [eval.id]) %]">Restart all failed builds</a>
         [% END %]
-        [% IF aborted.size > 0 %]
+        [% IF totalAborted > 0 %]
           <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('restart_aborted'), [eval.id]) %]">Restart all aborted builds</a>
         [% END %]
-        [% IF unfinished.size > 0 %]
+        [% IF totalQueued > 0 %]
           <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('bump'), [eval.id]) %]">Bump builds to front of queue</a>
         [% END %]
       </div>
@@ -65,7 +65,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% END %]
 
   [% IF aborted.size > 0 %]
-    <li class="nav-item"><a class="nav-link" href="#tabs-aborted" data-toggle="tab"><span class="text-warning">Aborted Jobs ([% aborted.size %])</span></a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-aborted" data-toggle="tab"><span class="text-warning">Aborted / Timed out Jobs ([% aborted.size %])</span></a></li>
   [% END %]
   [% IF nowFail.size > 0 %]
     <li class="nav-item"><a class="nav-link" href="#tabs-now-fail" data-toggle="tab"><span class="text-warning">Newly Failing Jobs ([% nowFail.size %])</span></a></li>
@@ -90,7 +90,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% END %]
   <li class="nav-item"><a class="nav-link" href="#tabs-inputs" data-toggle="tab">Inputs</a></li>
 
-  [% IF eval.evaluationerror.errormsg %]
+  [% IF eval.evaluationerror.has_error %]
     <li class="nav-item"><a class="nav-link" href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation Errors</span></a></li>
   [% END %]
 </ul>
@@ -107,13 +107,6 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
 [% END %]
 
 <div class="tab-content">
-
-  [% IF eval.evaluationerror.errormsg %]
-    <div id="tabs-errors" class="tab-pane">
-      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.evaluationerror.errortime || eval.timestamp) %].</p>
-      <div class="card bg-light"><div class="card-body"><pre>[% HTML.escape(eval.evaluationerror.errormsg) %]</pre></div></div>
-    </div>
-  [% END %]
 
   <div id="tabs-aborted" class="tab-pane">
     [% INCLUDE renderSome builds=aborted tabname="#tabs-aborted" %]
@@ -172,10 +165,9 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
     [% END %]
   </div>
 
-  [% IF eval.evaluationerror.errormsg %]
+  [% IF eval.evaluationerror.has_error %]
     <div id="tabs-errors" class="tab-pane">
-      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(eval.evaluationerror.errortime || eval.timestamp) %].</p>
-      <div class="card bg-light"><div class="card-body"><pre>[% HTML.escape(eval.evaluationerror.errormsg) %]</pre></div></div>
+      <iframe src="[% c.uri_for(c.controller('JobsetEval').action_for('errors'), [eval.id], params) %]" loading="lazy" frameBorder="0" width="100%"></iframe>
     </div>
   [% END %]
 </div>

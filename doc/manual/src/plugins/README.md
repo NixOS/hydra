@@ -42,13 +42,21 @@ Sets CircleCI status.
 
 ## Compress build logs
 
-Compresses build logs after a build with bzip2.
+Compresses build logs after a build with bzip2 or zstd.
 
 ### Configuration options
 
 - `compress_build_logs`
 
 Enable log compression
+
+- `compress_build_logs_compression`
+
+Which compression format to use. Valid values are bzip2 (default) and zstd.
+
+- `compress_build_logs_silent`
+
+Whether to compress logs silently.
 
 ### Example
 
@@ -172,17 +180,6 @@ Sets Gitlab CI status.
 
 - `gitlab_authorization.<projectId>`
 
-## HipChat notification
-
-Sends hipchat chat notifications when a build finish.
-
-### Configuration options
-
-- `hipchat.[].jobs`
-- `hipchat.[].builds`
-- `hipchat.[].token`
-- `hipchat.[].notify`
-
 ## InfluxDB notification
 
 Writes InfluxDB events when a builds finished.
@@ -192,9 +189,11 @@ Writes InfluxDB events when a builds finished.
 - `influxdb.url`
 - `influxdb.db`
 
-## Run command
+## RunCommand
 
 Runs a shell command when the build is finished.
+
+See [The RunCommand Plugin](./RunCommand.md) for more information.
 
 ### Configuration options:
 

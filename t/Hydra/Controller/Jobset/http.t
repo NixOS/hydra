@@ -73,6 +73,7 @@ subtest 'Read newly-created jobset "job"' => sub {
      emailoverride => "",
      enabled => 2,
      enableemail => JSON::MaybeXS::false,
+     enable_dynamic_run_command => JSON::MaybeXS::false,
      errortime => undef,
      errormsg => "",
      fetcherrormsg => "",
@@ -131,6 +132,7 @@ subtest 'Update jobset "job" to legacy type' => sub {
     emailoverride => "",
     enabled => 3,
     enableemail => JSON::MaybeXS::false,
+    enable_dynamic_run_command => JSON::MaybeXS::false,
     errortime => undef,
     errormsg => "",
     fetcherrormsg => "",
@@ -184,7 +186,7 @@ subtest 'Update jobset "job" to have an invalid input type' => sub {
       })
   );
   ok(!$jobsetupdate->is_success);
-  ok($jobsetupdate->content =~ m/Invalid input type.*valid types:/);
+  like($jobsetupdate->content, qr/Invalid input type.*valid types:/);
 };
 
 

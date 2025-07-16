@@ -12,7 +12,74 @@ use Try::Tiny;
 
 sub isEnabled {
     my ($self) = @_;
-    return defined $self->{config}->{runcommand};
+
+    return areStaticCommandsEnabled($self->{config}) || areDynamicCommandsEnabled($self->{config});
+}
+
+sub areStaticCommandsEnabled {
+    my ($config) = @_;
+
+    if (defined $config->{runcommand}) {
+        return 1;
+    }
+
+    return 0;
+}
+
+sub areDynamicCommandsEnabled {
+    my ($config) = @_;
+
+    if ((defined $config->{dynamicruncommand})
+        && $config->{dynamicruncommand}->{enable}) {
+        return 1;
+    }
+
+    return 0;
+}
+
+sub isBuildEligibleForDynamicRunCommand {
+    my ($build) = @_;
+
+    if ($build->get_column("buildstatus") != 0) {
+        return 0;
+    }
+
+    if ($build->get_column("job") =~ "^runCommandHook\..+") {
+        my $out = $build->buildoutputs->find({name => "out"});
+        if (!defined $out) {
+            warn "DynamicRunCommand hook on " . $build->job . " (" . $build->id . ") rejected: no output named 'out'.";
+            return 0;
+        }
+
+        my $path = $out->path;
+        if (-l $path) {
+            $path = readlink($path);
+        }
+
+        if (! -e $path) {
+            warn "DynamicRunCommand hook on " . $build->job . " (" . $build->id . ") rejected: The 'out' output doesn't exist locally. This is a bug.";
+            return 0;
+        }
+
+        if (! -x $path) {
+            warn "DynamicRunCommand hook on " . $build->job . " (" . $build->id . ") rejected: The 'out' output is not executable.";
+            return 0;
+        }
+
+        if (! -f $path) {
+            warn "DynamicRunCommand hook on " . $build->job . " (" . $build->id . ") rejected: The 'out' output is not a regular file or symlink.";
+            return 0;
+        }
+
+        if (! $build->jobset->supportsDynamicRunCommand()) {
+            warn "DynamicRunCommand hook on " . $build->job . " (" . $build->id . ") rejected: The project or jobset don't have dynamic runcommand enabled.";
+            return 0;
+        }
+
+        return 1;
+    }
+
+    return 0;
 }
 
 sub configSectionMatches {
@@ -43,10 +110,11 @@ sub eventMatches {
 }
 
 sub fanoutToCommands {
-    my ($config, $event, $project, $jobset, $job) = @_;
+    my ($config, $event, $build) = @_;
 
     my @commands;
 
+    # Calculate all the statically defined commands to execute
     my $cfg = $config->{runcommand};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
@@ -55,9 +123,10 @@ sub fanoutToCommands {
         next unless eventMatches($conf, $event);
         next unless configSectionMatches(
             $matcher,
-            $project,
-            $jobset,
-            $job);
+            $build->jobset->get_column('project'),
+            $build->jobset->get_column('name'),
+            $build->get_column('job')
+        );
 
         if (!defined($conf->{command})) {
             warn "<runcommand> section for '$matcher' lacks a 'command' option";
@@ -68,6 +137,18 @@ sub fanoutToCommands {
             matcher => $matcher,
             command => $conf->{command},
         })
+    }
+
+    # Calculate all dynamically defined commands to execute
+    if (areDynamicCommandsEnabled($config)) {
+        if (isBuildEligibleForDynamicRunCommand($build)) {
+            my $job = $build->get_column('job');
+            my $out = $build->buildoutputs->find({name => "out"});
+            push(@commands, {
+                matcher => "DynamicRunCommand($job)",
+                command => $out->path
+            })
+        }
     }
 
     return \@commands;
@@ -138,9 +219,7 @@ sub buildFinished {
     my $commandsToRun = fanoutToCommands(
         $self->{config},
         $event,
-        $build->project->get_column('name'),
-        $build->jobset->get_column('name'),
-        $build->get_column('job')
+        $build
     );
 
     if (@$commandsToRun == 0) {

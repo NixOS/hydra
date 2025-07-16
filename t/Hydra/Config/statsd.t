@@ -1,6 +1,7 @@
 use strict;
 use warnings;
 use Setup;
+use Hydra::Config;
 
 my %ctx = test_init(hydra_config => q|
 <statsd>
@@ -12,7 +13,7 @@ my %ctx = test_init(hydra_config => q|
 require Hydra::Helper::Nix;
 use Test2::V0;
 
-is(Hydra::Helper::Nix::getStatsdConfig(Hydra::Helper::Nix::getHydraConfig()), {
+is(Hydra::Helper::Nix::getStatsdConfig(getHydraConfig()), {
     'host' => "foo.bar",
     'port' => 18125
 }, "Reading specific configuration from the hydra.conf works");

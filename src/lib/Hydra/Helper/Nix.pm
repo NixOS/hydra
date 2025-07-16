@@ -5,7 +5,6 @@ use warnings;
 use Exporter;
 use File::Path;
 use File::Basename;
-use Config::General;
 use Hydra::Config;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
@@ -37,35 +36,21 @@ our @EXPORT = qw(
     jobsetOverview
     jobsetOverview_
     pathIsInsidePrefix
+    readIntoSocket
     readNixFile
     registerRoot
     restartBuilds
     run
+    $MACHINE_LOCAL_STORE
     );
+
+our $MACHINE_LOCAL_STORE = Nix::Store->new();
 
 
 sub getHydraHome {
     my $dir = $ENV{"HYDRA_HOME"} or die "The HYDRA_HOME directory does not exist!\n";
     return $dir;
 }
-
-
-my $hydraConfig;
-
-sub getHydraConfig {
-    return $hydraConfig if defined $hydraConfig;
-    my $conf = $ENV{"HYDRA_CONFIG"} || (Hydra::Model::DB::getHydraPath . "/hydra.conf");
-    my %opts = (%Hydra::Config::configGeneralOpts, -ConfigFile => $conf);
-    if (-f $conf) {
-        my %h = Config::General->new(%opts)->getall;
-
-        $hydraConfig = \%h;
-    } else {
-        $hydraConfig = {};
-    }
-    return $hydraConfig;
-}
-
 
 # Return hash of statsd configuration of the following shape:
 # (
@@ -190,6 +175,9 @@ sub getDrvLogPath {
     for ($fn . $bucketed, $fn . $bucketed . ".bz2") {
         return $_ if -f $_;
     }
+    for ($fn . $bucketed, $fn . $bucketed . ".zst") {
+        return $_ if -f $_;
+    }
     return undef;
 }
 
@@ -205,6 +193,10 @@ sub findLog {
     }
 
     return undef if scalar @outPaths == 0;
+
+    # Filter out any NULLs. Content-addressed derivations
+    # that haven't built yet or failed to build may have a NULL outPath.
+    @outPaths = grep {defined} @outPaths;
 
     my @steps = $c->model('DB::BuildSteps')->search(
         { path => { -in => [@outPaths] } },
@@ -305,8 +297,7 @@ sub getEvals {
 
     my @evals = $evals_result_set->search(
         { hasnewbuilds => 1 },
-        { order_by => "$me.id DESC", rows => $rows, offset => $offset
-        , prefetch => { evaluationerror => [ ] } });
+        { order_by => "$me.id DESC", rows => $rows, offset => $offset });
     my @res = ();
     my $cache = {};
 
@@ -426,6 +417,16 @@ sub pathIsInsidePrefix {
     return $cur;
 }
 
+sub readIntoSocket{
+    my (%args) = @_;
+    my $sock;
+
+    eval {
+        open($sock, "-|", @{$args{cmd}}) or die q(failed to open socket from command:\n $x);
+    };
+
+    return $sock;
+}
 
 
 
@@ -513,7 +514,7 @@ sub restartBuilds {
     $builds = $builds->search({ finished => 1 });
 
     foreach my $build ($builds->search({}, { columns => ["drvpath"] })) {
-        next if !isValidPath($build->drvpath);
+        next if !$MACHINE_LOCAL_STORE->isValidPath($build->drvpath);
         registerRoot $build->drvpath;
     }
 
@@ -556,7 +557,7 @@ sub getStoreUri {
 sub readNixFile {
     my ($path) = @_;
     return grab(cmd => ["nix", "--experimental-features", "nix-command",
-                        "cat-store", "--store", getStoreUri(), "$path"]);
+                        "store", "cat", "--store", getStoreUri(), "$path"]);
 }
 
 

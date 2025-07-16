@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use utf8;
+use Hydra::Config;
 use Hydra::Helper::Nix;
 use Net::Statsd;
 use File::Slurper qw(read_text);

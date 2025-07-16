@@ -39,16 +39,16 @@ In order to evaluate and build anything you need to create _projects_ that conta
 #### Creating A Project
 Log in as administrator, click "_Admin_" and select "_Create project_". Fill the form as follows:
 
-- **Identifier**: `hello`
+- **Identifier**: `hello-project`
 - **Display name**: `hello`
 - **Description**: `hello project`
 
 Click "_Create project_".
 
 #### Creating A Jobset
-After creating a project you are forwarded to the project page. Click "_Actions_" and choose "_Create jobset_". Fill the form with the following values:
+After creating a project you are forwarded to the project page. Click "_Actions_" and choose "_Create jobset_". Change **Type** to Legacy for the example below. Fill the form with the following values:
 
-- **Identifier**: `hello`
+- **Identifier**: `hello-project`
 - **Nix expression**: `examples/hello.nix` in `hydra`
 - **Check interval**: 60
 - **Scheduling shares**: 1
@@ -57,7 +57,7 @@ We have to add two inputs for this jobset. One for _nixpkgs_ and one for _hydra_
 
 - **Input name**: `nixpkgs`
 - **Type**: `Git checkout`
-- **Value**: `https://github.com/nixos/nixpkgs-channels nixos-20.03`
+- **Value**: `https://github.com/NixOS/nixpkgs nixos-24.05`
 
 - **Input name**: `hydra`
 - **Type**: `Git checkout`
@@ -72,17 +72,16 @@ Make sure **State** at the top of the page is set to "_Enabled_" and click on "_
 You can build Hydra via `nix-build` using the provided [default.nix](./default.nix):
 
 ```
-$ nix-build
+$ nix build
 ```
 
 ### Development Environment
 
 You can use the provided shell.nix to get a working development environment:
 ```
-$ nix-shell
-$ ./bootstrap
-$ configurePhase # NOTE: not ./configure
-$ make
+$ nix develop
+$ mesonConfigurePhase
+$ ninja
 ```
 
 ### Executing Hydra During Development
@@ -91,9 +90,9 @@ When working on new features or bug fixes you need to be able to run Hydra from 
 can be done using [foreman](https://github.com/ddollar/foreman):
 
 ```
-$ nix-shell
+$ nix develop
 $ # hack hack
-$ make
+$ ninja -C build
 $ foreman start
 ```
 
@@ -115,22 +114,24 @@ Start by following the steps in [Development Environment](#development-environme
 Then, you can run the tests and the perlcritic linter together with:
 
 ```console
-$ nix-shell
-$ make check
+$ nix develop
+$ ninja -C build test
 ```
 
 You can run a single test with:
 
 ```
-$ nix-shell
-$ yath test ./t/foo/bar.t
+$ nix develop
+$ cd build
+$ meson test --test-args=../t/Hydra/Event.t testsuite
 ```
 
 And you can run just perlcritic with:
 
 ```
-$ nix-shell
-$ make perlcritic
+$ nix develop
+$ cd build
+$ meson test perlcritic
 ```
 
 ### JSON API
@@ -140,7 +141,7 @@ You can also interface with Hydra through a JSON API. The API is defined in [hyd
 ## Additional Resources
 
 - [Hydra User's Guide](https://nixos.org/hydra/manual/)
-- [Hydra on the NixOS Wiki](https://nixos.wiki/wiki/Hydra)
+- [Hydra on the NixOS Wiki](https://wiki.nixos.org/wiki/Hydra)
 - [hydra-cli](https://github.com/nlewo/hydra-cli)
 - [Peter Simons - Hydra: Setting up your own build farm (NixOS)](https://www.youtube.com/watch?v=RXV0Y5Bn-QQ)
 

@@ -70,7 +70,7 @@ paths:
                   $ref: '#/components/examples/projects-success'
 
   /api/push:
-    put:
+    post:
       summary: trigger jobsets
       parameters:
         - in: query
@@ -177,6 +177,9 @@ paths:
                   type: string
                 enabled:
                   description: when set to true the project gets scheduled for evaluation
+                  type: boolean
+                enable_dynamic_run_command:
+                  description: when true the project's jobsets support executing dynamically defined RunCommand hooks. Requires the server and project's configuration to also enable dynamic RunCommand.
                   type: boolean
                 visible:
                   description: when set to true the project is displayed in the web interface
@@ -530,13 +533,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /eval/{build-id}:
+  /eval/{eval-id}:
     get:
-      summary: Retrieves evaluations identified by build id
+      summary: Retrieves evaluations identified by eval id
       parameters:
-        - name: build-id
+        - name: eval-id
           in: path
-          description: build identifier
+          description: eval identifier
           required: true
           schema:
             type: integer
@@ -547,6 +550,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobsetEval'
+
+  /eval/{eval-id}/builds:
+    get:
+      summary: Retrieves all builds belonging to an evaluation identified by eval id
+      parameters:
+        - name: eval-id
+          in: path
+          description: eval identifier
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: builds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobsetEvalBuilds'
 
 components:
   schemas:
@@ -606,6 +627,9 @@ components:
           type: boolean
         enabled:
           description: when set to true the project gets scheduled for evaluation
+          type: boolean
+        enable_dynamic_run_command:
+          description: when true the project's jobsets support executing dynamically defined RunCommand hooks. Requires the server and project's configuration to also enable dynamic RunCommand.
           type: boolean
         declarative:
           description: declarative input configured for this project
@@ -688,6 +712,9 @@ components:
           type: integer
         enableemail:
           description: when true the jobset sends emails when previously-successful builds fail
+          type: boolean
+        enable_dynamic_run_command:
+          description: when true the jobset supports executing dynamically defined RunCommand hooks. Requires the server and project's configuration to also enable dynamic RunCommand.
           type: boolean
         visible:
           description: when true the jobset is visible in the web frontend
@@ -787,6 +814,13 @@ components:
           additionalProperties:
             $ref: '#/components/schemas/JobsetEvalInput'
 
+    JobsetEvalBuilds:
+      type: array
+      items:
+        type: object
+        additionalProperties:
+          $ref: '#/components/schemas/Build'
+
     JobsetOverview:
       type: array
       items:
@@ -861,7 +895,7 @@ components:
           description: Size of the produced file
           type: integer
         defaultpath:
-          description: This is a Git/Mercurial commit hash or a Subversion revision number
+          description: if path is a directory, the default file relative to path to be served
           type: string
         'type':
           description: Types of build product (user defined)

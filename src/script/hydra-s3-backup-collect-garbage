@@ -9,6 +9,7 @@ use Net::Amazon::S3;
 use Net::Amazon::S3::Client;
 use Nix::Config;
 use Nix::Store;
+use Hydra::Config;
 use Hydra::Model::DB;
 use Hydra::Helper::Nix;
 

@@ -1,7 +1,8 @@
 #include "db.hh"
 #include "hydra-config.hh"
-#include "pool.hh"
-#include "shared.hh"
+#include <nix/util/pool.hh>
+#include <nix/main/shared.hh>
+#include <nix/util/signals.hh>
 
 #include <algorithm>
 #include <thread>
@@ -37,7 +38,7 @@ class JobsetId {
     friend bool operator!= (const JobsetId & lhs, const JobsetName & rhs);
 
     std::string display() const {
-        return str(format("%1%:%2% (jobset#%3%)") % project % jobset % id);
+        return boost::str(boost::format("%1%:%2% (jobset#%3%)") % project % jobset % id);
     }
 };
 bool operator==(const JobsetId & lhs, const JobsetId & rhs)
@@ -366,6 +367,9 @@ struct Evaluator
                     printInfo("received jobset event");
                 }
 
+            } catch (pqxx::broken_connection & e) {
+                printError("Database connection broken: %s", e.what());
+                std::_Exit(1);
             } catch (std::exception & e) {
                 printError("exception in database monitor thread: %s", e.what());
                 sleep(30);
@@ -473,6 +477,9 @@ struct Evaluator
         while (true) {
             try {
                 loop();
+            } catch (pqxx::broken_connection & e) {
+                printError("Database connection broken: %s", e.what());
+                std::_Exit(1);
             } catch (std::exception & e) {
                 printError("exception in main loop: %s", e.what());
                 sleep(30);
