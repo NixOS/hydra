@@ -11,7 +11,8 @@
   [% ELSE %]
   is
   [% END %]
-  the build log of derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
+  the build log (<a href="[% step ? c.uri_for('/build' build.id 'nixlog' step.stepnr, 'raw')
+  : c.uri_for('/build' build.id 'log', 'raw') %]">raw</a>) of derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
   [% IF step && step.machine %]
     It was built on <tt>[% step.machine %]</tt>.
   [% END %]
