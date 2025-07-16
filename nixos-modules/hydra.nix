@@ -68,8 +68,6 @@ in
 
       package = mkOption {
         type = types.path;
-        default = pkgs.hydra;
-        defaultText = literalExpression "pkgs.hydra";
         description = "The Hydra package.";
       };
 
@@ -228,7 +226,11 @@ in
         useDefaultShell = true;
       };
 
-    nix.trustedUsers = [ "hydra-queue-runner" ];
+    nix.settings = {
+      trusted-users = [ "hydra-queue-runner" ];
+      keep-outputs = true;
+      keep-derivations = true;
+    };
 
     services.hydra-dev.extraConfig =
       ''
@@ -256,11 +258,6 @@ in
 
     environment.variables = hydraEnv;
 
-    nix.extraOptions = ''
-      gc-keep-outputs = true
-      gc-keep-derivations = true
-    '';
-
     systemd.services.hydra-init =
       { wantedBy = [ "multi-user.target" ];
         requires = optional haveLocalDB "postgresql.service";
@@ -268,17 +265,17 @@ in
         environment = env // {
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-init";
         };
-        path = [ pkgs.utillinux ];
+        path = [ pkgs.util-linux ];
         preStart = ''
           ln -sf ${hydraConf} ${baseDir}/hydra.conf
 
           mkdir -m 0700 -p ${baseDir}/www
-          chown hydra-www.hydra ${baseDir}/www
+          chown hydra-www:hydra ${baseDir}/www
 
           mkdir -m 0700 -p ${baseDir}/queue-runner
           mkdir -m 0750 -p ${baseDir}/build-logs
           mkdir -m 0750 -p ${baseDir}/runcommand-logs
-          chown hydra-queue-runner.hydra \
+          chown hydra-queue-runner:hydra \
             ${baseDir}/queue-runner \
             ${baseDir}/build-logs \
             ${baseDir}/runcommand-logs
@@ -309,7 +306,7 @@ in
             rmdir /nix/var/nix/gcroots/per-user/hydra-www/hydra-roots
           fi
 
-          chown hydra.hydra ${cfg.gcRootsDir}
+          chown hydra:hydra ${cfg.gcRootsDir}
           chmod 2775 ${cfg.gcRootsDir}
         '';
         serviceConfig.ExecStart = "${cfg.package}/bin/hydra-init";
@@ -341,8 +338,9 @@ in
     systemd.services.hydra-queue-runner =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
-        after = [ "hydra-init.service" "network.target" ];
-        path = [ cfg.package pkgs.nettools pkgs.openssh pkgs.bzip2 config.nix.package ];
+        wants = [ "network-online.target" ];
+        after = [ "hydra-init.service" "network.target" "network-online.target" ];
+        path = [ cfg.package pkgs.hostname-debian pkgs.openssh pkgs.bzip2 config.nix.package ];
         restartTriggers = [ hydraConf ];
         environment = env // {
           PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
@@ -366,7 +364,7 @@ in
         requires = [ "hydra-init.service" ];
         restartTriggers = [ hydraConf ];
         after = [ "hydra-init.service" "network.target" ];
-        path = with pkgs; [ nettools cfg.package jq ];
+        path = with pkgs; [ hostname-debian cfg.package jq ];
         environment = env // {
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-evaluator";
         };
@@ -409,6 +407,7 @@ in
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
         restartTriggers = [ hydraConf ];
+        path = [ pkgs.zstd ];
         environment = env // {
           PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-notify";
@@ -459,10 +458,17 @@ in
     # logs automatically after a step finishes, but this doesn't work
     # if the queue runner is stopped prematurely.
     systemd.services.hydra-compress-logs =
-      { path = [ pkgs.bzip2 ];
+      { path = [ pkgs.bzip2 pkgs.zstd ];
         script =
           ''
-            find ${baseDir}/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v -f
+            set -eou pipefail
+            compression=$(sed -nr 's/compress_build_logs_compression = ()/\1/p' ${baseDir}/hydra.conf)
+            if [[ $compression == "" ]]; then
+              compression="bzip2"
+            elif [[ $compression == zstd ]]; then
+              compression="zstd --rm"
+            fi
+            find ${baseDir}/build-logs -ignore_readdir_race -type f -name "*.drv" -mtime +3 -size +0c | xargs -r "$compression" --force --quiet
           '';
         startAt = "Sun 01:45";
       };

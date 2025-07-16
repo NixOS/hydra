@@ -7,15 +7,15 @@ use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use File::Basename;
+use File::LibMagic;
 use File::stat;
 use Data::Dump qw(dump);
-use Nix::Store;
-use Nix::Config;
 use List::SomeUtils qw(all);
 use Encode;
-use MIME::Types;
 use JSON::PP;
+use WWW::Form::UrlEncoded::PP qw();
 
+use feature 'state';
 
 sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     my ($self, $c, $id) = @_;
@@ -77,14 +77,16 @@ sub build_GET {
 
     $c->stash->{template} = 'build.tt';
     $c->stash->{isLocalStore} = isLocalStore();
+    # XXX: If the derivation is content-addressed then this will always return
+    # false because `$_->path` will be empty
     $c->stash->{available} =
         $c->stash->{isLocalStore}
-        ? all { isValidPath($_->path) } $build->buildoutputs->all
+        ? all { $_->path && $MACHINE_LOCAL_STORE->isValidPath($_->path) } $build->buildoutputs->all
         : 1;
-    $c->stash->{drvAvailable} = isValidPath $build->drvpath;
+    $c->stash->{drvAvailable} = $MACHINE_LOCAL_STORE->isValidPath($build->drvpath);
 
     if ($build->finished && $build->iscachedbuild) {
-        my $path = ($build->buildoutputs)[0]->path or die;
+        my $path = ($build->buildoutputs)[0]->path or undef;
         my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path);
         if (defined $cachedBuildStep) {
             $c->stash->{cachedBuild} = $cachedBuildStep->build;
@@ -138,7 +140,7 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
     $c->stash->{step} = $step;
 
     my $drvPath = $step->drvpath;
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
     showLog($c, $mode, $log_uri);
 }
 
@@ -147,7 +149,7 @@ sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
 
     my $drvPath = $c->stash->{build}->drvpath;
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
     showLog($c, $mode, $log_uri);
 }
 
@@ -232,17 +234,24 @@ sub serveFile {
     }
 
     elsif ($ls->{type} eq "regular") {
+        # Have the hosted data considered its own origin to avoid being a giant
+        # XSS hole.
+        $c->response->header('Content-Security-Policy' => 'sandbox allow-scripts');
 
-        $c->stash->{'plain'} = { data => grab(cmd => ["nix", "--experimental-features", "nix-command",
-                                                      "cat-store", "--store", getStoreUri(), "$path"]) };
+        $c->stash->{'plain'} = { data => readIntoSocket(cmd => ["nix", "--experimental-features", "nix-command",
+                                                      "store", "cat", "--store", getStoreUri(), "$path"]) };
 
-        # Detect MIME type. Borrowed from Catalyst::Plugin::Static::Simple.
+        # Detect MIME type.
         my $type = "text/plain";
         if ($path =~ /.*\.(\S{1,})$/xms) {
             my $ext = $1;
             my $mimeTypes = MIME::Types->new(only_complete => 1);
             my $t = $mimeTypes->mimeTypeOf($ext);
             $type = ref $t ? $t->type : $t if $t;
+        } else {
+            state $magic = File::LibMagic->new(follow_symlinks => 1);
+            my $info = $magic->info_from_filename($path);
+            $type = $info->{mime_with_encoding};
         }
         $c->response->content_type($type);
         $c->forward('Hydra::View::Plain');
@@ -288,29 +297,7 @@ sub download : Chained('buildChain') PathPart {
     my $path = $product->path;
     $path .= "/" . join("/", @path) if scalar @path > 0;
 
-    if (isLocalStore) {
-
-        notFound($c, "File '" . $product->path . "' does not exist.") unless -e $product->path;
-
-        # Make sure the file is in the Nix store.
-        $path = checkPath($self, $c, $path);
-
-        # If this is a directory but no "/" is attached, then redirect.
-        if (-d $path && substr($c->request->uri, -1) ne "/") {
-            return $c->res->redirect($c->request->uri . "/");
-        }
-
-        $path = "$path/index.html" if -d $path && -e "$path/index.html";
-
-        notFound($c, "File '$path' does not exist.") if !-e $path;
-
-        notFound($c, "Path '$path' is a directory.") if -d $path;
-
-        $c->serve_static_file($path);
-
-    } else {
-        serveFile($c, $path);
-    }
+    serveFile($c, $path);
 
     $c->response->headers->last_modified($c->stash->{build}->stoptime);
 }
@@ -323,7 +310,7 @@ sub output : Chained('buildChain') PathPart Args(1) {
     error($c, "This build is not finished yet.") unless $build->finished;
     my $output = $build->buildoutputs->find({name => $outputName});
     notFound($c, "This build has no output named ‘$outputName’") unless defined $output;
-    gone($c, "Output is no longer available.") unless isValidPath $output->path;
+    gone($c, "Output is no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($output->path);
 
     $c->response->header('Content-Disposition', "attachment; filename=\"build-${\$build->id}-${\$outputName}.nar.bz2\"");
     $c->stash->{current_view} = 'NixNAR';
@@ -366,7 +353,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 
     # FIXME: don't use shell invocations below.
 
-    # FIXME: use nix cat-store
+    # FIXME: use nix store cat
 
     my $res;
 
@@ -440,7 +427,7 @@ sub getDependencyGraph {
             };
         $$done{$path} = $node;
         my @refs;
-        foreach my $ref (queryReferences($path)) {
+        foreach my $ref ($MACHINE_LOCAL_STORE->queryReferences($path)) {
             next if $ref eq $path;
             next unless $runtime || $ref =~ /\.drv$/;
             getDependencyGraph($self, $c, $runtime, $done, $ref);
@@ -448,7 +435,7 @@ sub getDependencyGraph {
         }
         # Show in reverse topological order to flatten the graph.
         # Should probably do a proper BFS.
-        my @sorted = reverse topoSortPaths(@refs);
+        my @sorted = reverse $MACHINE_LOCAL_STORE->topoSortPaths(@refs);
         $node->{refs} = [map { $$done{$_} } @sorted];
     }
 
@@ -461,7 +448,7 @@ sub build_deps : Chained('buildChain') PathPart('build-deps') {
     my $build = $c->stash->{build};
     my $drvPath = $build->drvpath;
 
-    error($c, "Derivation no longer available.") unless isValidPath $drvPath;
+    error($c, "Derivation no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($drvPath);
 
     $c->stash->{buildTimeGraph} = getDependencyGraph($self, $c, 0, {}, $drvPath);
 
@@ -476,7 +463,7 @@ sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
 
     requireLocalStore($c);
 
-    error($c, "Build outputs no longer available.") unless all { isValidPath($_) } @outPaths;
+    error($c, "Build outputs no longer available.") unless all { $MACHINE_LOCAL_STORE->isValidPath($_) } @outPaths;
 
     my $done = {};
     $c->stash->{runtimeGraph} = [ map { getDependencyGraph($self, $c, 1, $done, $_) } @outPaths ];
@@ -496,7 +483,7 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
     if (isLocalStore) {
         foreach my $out ($build->buildoutputs) {
             notFound($c, "Path " . $out->path . " is no longer available.")
-                unless isValidPath($out->path);
+                unless $MACHINE_LOCAL_STORE->isValidPath($out->path);
         }
     }
 

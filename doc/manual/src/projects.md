@@ -378,13 +378,18 @@ This section describes how it can be implemented for `gitea`, but the approach f
 analogous:
 
 * [Obtain an API token for your user](https://docs.gitea.io/en-us/api-usage/#authentication)
-* Add it to your `hydra.conf` like this:
+* Add it to a file which only users in the hydra group can read like this: see [including files](configuration.md#including-files) for more information
+  ```
+  <gitea_authorization>
+    your_username=your_token
+  </gitea_authorization>
+  ```
+
+* Include the file in your `hydra.conf` like this:
   ``` nix
   {
     services.hydra-dev.extraConfig = ''
-      <gitea_authorization>
-      your_username=your_token
-      </gitea_authorization>
+      Include /path/to/secret/file
     '';
   }
   ```
@@ -399,3 +404,10 @@ analogous:
   | `String value` | `gitea_status_repo` | *Name of the `Git checkout` input* |
   | `String value` | `gitea_http_url`    | *Public URL of `gitea`*, optional  |
 
+Content-addressed derivations
+-----------------------------
+
+Hydra can to a certain extent use the [`ca-derivations` experimental Nix feature](https://github.com/NixOS/rfcs/pull/62).
+To use it, make sure that the Nix version you use is at least as recent as the one used in hydra's flake.
+
+Be warned that this support is still highly experimental, and anything beyond the basic functionality might be broken at that point.

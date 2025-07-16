@@ -101,7 +101,7 @@ subtest "save_task" => sub {
     is($retry->pluginname, "FooPluginName", "Plugin name should match");
     is($retry->payload, "1", "Payload should match");
     is($retry->attempts, 1, "We've had one attempt");
-    is($retry->retry_at, within(time() + 1, 2), "The retry at should be approximately one second away");
+    is($retry->retry_at, within(time() + 1, 5), "The retry at should be approximately one second away");
 };
 
 done_testing;

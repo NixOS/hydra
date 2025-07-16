@@ -463,7 +463,7 @@ sub my_jobs_tab :Chained('dashboard_base') :PathPart('my-jobs-tab') :Args(0) {
         , "jobset.enabled" => 1
         },
         { order_by => ["project", "jobset", "job"]
-        , join => ["project", "jobset"]
+        , join => {"jobset" => "project"}
         })];
 }
 

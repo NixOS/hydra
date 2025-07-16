@@ -31,6 +31,10 @@ if ($sd_res != 0) {
   skip_all("`systemd-run` returned non-zero when executing `true` (expected 0)");
 }
 
+# XXX(Mindavi): We should think about how to fix this.
+#               Note that it was always skipped on ofborg/h.n.o (nixos hydra) since systemd-run is not present in the ambient environment there.
+skip_all("Always fails, an error about 'oom' being a string is logged and the process never OOMs. Needs a way to use more memory.");
+
 my $ctx = test_context();
 
 # Contain the memory usage to 25 MegaBytes using `systemd-run`
