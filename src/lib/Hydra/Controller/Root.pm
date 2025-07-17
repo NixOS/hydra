@@ -189,8 +189,10 @@ sub machines :Local Args(0) {
     my ($self, $c) = @_;
     my $machines = getMachines;
 
-    # Add entry for localhost.
-    $machines->{''} //= {};
+    # Add entry for localhost. The implicit addition is not needed with queue runner v2
+    if (not $c->config->{'queue_runner_endpoint'}) {
+        $machines->{''} //= {};
+    }
     delete $machines->{'localhost'};
 
     my $status = $c->model('DB::SystemStatus')->find("queue-runner");
