@@ -1,0 +1,24 @@
+# top-most EditorConfig file
+root = true
+
+# Unix-style newlines with a newline ending every file
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{cc,hh,hpp,pl,pm,sh,t}]
+indent_style = space
+intend_size = 4
+
+[Makefile]
+indent_style = tab
+
+[*.nix]
+indent_style = space
+indent_size = 2
+
+# Match diffs, avoid to trim trailing whitespace
+[*.{diff,patch}]
+trim_trailing_whitespace = false

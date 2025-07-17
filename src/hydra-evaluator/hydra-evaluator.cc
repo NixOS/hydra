@@ -1,7 +1,8 @@
 #include "db.hh"
 #include "hydra-config.hh"
-#include "pool.hh"
-#include "shared.hh"
+#include <nix/util/pool.hh>
+#include <nix/main/shared.hh>
+#include <nix/util/signals.hh>
 
 #include <algorithm>
 #include <thread>
@@ -37,7 +38,7 @@ class JobsetId {
     friend bool operator!= (const JobsetId & lhs, const JobsetName & rhs);
 
     std::string display() const {
-        return str(format("%1%:%2% (jobset#%3%)") % project % jobset % id);
+        return boost::str(boost::format("%1%:%2% (jobset#%3%)") % project % jobset % id);
     }
 };
 bool operator==(const JobsetId & lhs, const JobsetId & rhs)
@@ -233,12 +234,12 @@ struct Evaluator
             pqxx::work txn(*conn);
 
             if (jobset.evaluation_style == EvaluationStyle::ONE_AT_A_TIME) {
-                auto evaluation_res = txn.parameterized
+                auto evaluation_res = txn.exec_params
                     ("select id from JobsetEvals "
                      "where jobset_id = $1 "
-                     "order by id desc limit 1")
-                  (jobset.name.id)
-                  .exec();
+                     "order by id desc limit 1"
+                    ,jobset.name.id
+                    );
 
                 if (evaluation_res.empty()) {
                     // First evaluation, so allow scheduling.
@@ -249,15 +250,15 @@ struct Evaluator
 
                 auto evaluation_id = evaluation_res[0][0].as<int>();
 
-                auto unfinished_build_res = txn.parameterized
+                auto unfinished_build_res = txn.exec_params
                     ("select id from Builds "
                      "join JobsetEvalMembers "
                      "    on (JobsetEvalMembers.build = Builds.id) "
                      "where JobsetEvalMembers.eval = $1 "
                      "  and builds.finished = 0 "
-                     " limit 1")
-                  (evaluation_id)
-                  .exec();
+                     " limit 1"
+                    ,evaluation_id
+                    );
 
                 // If the previous evaluation has no unfinished builds
                 // schedule!
@@ -366,6 +367,9 @@ struct Evaluator
                     printInfo("received jobset event");
                 }
 
+            } catch (pqxx::broken_connection & e) {
+                printError("Database connection broken: %s", e.what());
+                std::_Exit(1);
             } catch (std::exception & e) {
                 printError("exception in database monitor thread: %s", e.what());
                 sleep(30);
@@ -473,6 +477,9 @@ struct Evaluator
         while (true) {
             try {
                 loop();
+            } catch (pqxx::broken_connection & e) {
+                printError("Database connection broken: %s", e.what());
+                std::_Exit(1);
             } catch (std::exception & e) {
                 printError("exception in main loop: %s", e.what());
                 sleep(30);

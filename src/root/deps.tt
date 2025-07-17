@@ -19,9 +19,16 @@
           <tt>[% node.name %]</tt> (<em>no info</em>)
         [% END %]
       </span></span>
+      [% IF isRoot %]
+      <span class="dep-tree-buttons">
+        (<a href="#" class="tree-collapse-all">collapse all</a>
+        &ndash;
+        <a href="#" class="tree-expand-all">expand all</a>)
+      </span>
+      [% END %]
       [% IF node.refs.size > 0 %]
         <ul class="subtree">
-          [% FOREACH ref IN node.refs; INCLUDE renderNode node=ref; END %]
+          [% FOREACH ref IN node.refs; INCLUDE renderNode node=ref isRoot=0; END %]
         </ul>
       [% END %]
     [% END %]

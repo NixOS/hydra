@@ -1,10 +1,11 @@
 package Hydra::Plugin::BitBucketPulls;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use HTTP::Request;
 use LWP::UserAgent;
-use JSON;
+use JSON::MaybeXS;
 use Hydra::Helper::CatalystUtils;
 use File::Temp;
 use POSIX qw(strftime);

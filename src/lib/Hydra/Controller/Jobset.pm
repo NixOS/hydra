@@ -41,7 +41,7 @@ sub jobset_GET {
 
     $c->stash->{template} = 'jobset.tt';
 
-    $c->stash->{evals} = getEvals($self, $c, scalar $c->stash->{jobset}->jobsetevals, 0, 10);
+    $c->stash->{evals} = getEvals($c, scalar $c->stash->{jobset}->jobsetevals, 0, 10);
 
     $c->stash->{latestEval} = $c->stash->{jobset}->jobsetevals->search({ hasnewbuilds => 1 }, { rows => 1, order_by => ["id desc"] })->single;
 
@@ -213,6 +213,22 @@ sub checkInputValue {
 }
 
 
+sub knownInputTypes {
+    my ($c) = @_;
+
+    my @keys = keys %{$c->stash->{inputTypes}};
+    my $types = "";
+    my $counter = 0;
+
+    foreach my $key (@keys) {
+        $types = $types . "and ‘$key’" if ++$counter == scalar(@keys);
+        $types = $types . "‘$key’, " if $counter != scalar(@keys);
+    }
+
+    return $types;
+}
+
+
 sub updateJobset {
     my ($c, $jobset) = @_;
 
@@ -223,7 +239,7 @@ sub updateJobset {
     error($c, "Cannot rename jobset to ‘$jobsetName’ since that identifier is already taken.")
         if $jobsetName ne $oldName && defined $c->stash->{project}->jobsets->find({ name => $jobsetName });
 
-    my $type = int($c->stash->{params}->{"type"}) // 0;
+    my $type = int($c->stash->{params}->{"type"} // 0);
 
     my ($nixExprPath, $nixExprInput);
     my $flake;
@@ -231,7 +247,7 @@ sub updateJobset {
     if ($type == 0) {
         ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
     } elsif ($type == 1) {
-        $flake = trim($c->stash->{params}->{"flakeref"});
+        $flake = trim($c->stash->{params}->{"flake"});
         error($c, "Invalid flake URI ‘$flake’.") if $flake !~ /^[a-zA-Z]/;
     } else {
         error($c, "Invalid jobset type.");
@@ -245,6 +261,14 @@ sub updateJobset {
 
     my $checkinterval = int(trim($c->stash->{params}->{checkinterval}));
 
+    my $enable_dynamic_run_command = defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
+    if ($enable_dynamic_run_command
+        && !($c->config->{dynamicruncommand}->{enable}
+            && $jobset->project->enable_dynamic_run_command))
+    {
+        badRequest($c, "Dynamic RunCommand is not enabled by the server or the parent project.");
+    }
+
     $jobset->update(
         { name => $jobsetName
         , description => trim($c->stash->{params}->{"description"})
@@ -252,9 +276,10 @@ sub updateJobset {
         , nixexprinput => $nixExprInput
         , enabled => $enabled
         , enableemail => defined $c->stash->{params}->{enableemail} ? 1 : 0
+        , enable_dynamic_run_command => $enable_dynamic_run_command
         , emailoverride => trim($c->stash->{params}->{emailoverride}) || ""
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
-        , keepnr => int(trim($c->stash->{params}->{keepnr}))
+        , keepnr => int(trim($c->stash->{params}->{keepnr} // "0"))
         , checkinterval => $checkinterval
         , triggertime => ($enabled && $checkinterval > 0) ? $jobset->triggertime // time() : undef
         , schedulingshares => $shares
@@ -275,9 +300,10 @@ sub updateJobset {
             my $type = $inputData->{type};
             my $value = $inputData->{value};
             my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
+            my $types = knownInputTypes($c);
 
-            error($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
-            error($c, "Invalid input type ‘$type’.") unless defined $c->stash->{inputTypes}->{$type};
+            badRequest($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
+            badRequest($c, "Invalid input type ‘$type’; valid types: $types.") unless defined $c->stash->{inputTypes}->{$type};
 
             my $input = $jobset->jobsetinputs->create(
                 { name => $name,
@@ -320,7 +346,7 @@ sub evals_GET {
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
     my $offset = ($page - 1) * $resultsPerPage;
-    $c->stash->{evals} = getEvals($self, $c, $evals, $offset, $resultsPerPage);
+    $c->stash->{evals} = getEvals($c, $evals, $offset, $resultsPerPage);
     my %entity = (
         evals => [ map { $_->{eval} } @{$c->stash->{evals}} ],
         first => "?page=1",
@@ -338,6 +364,21 @@ sub evals_GET {
     );
 }
 
+sub errors :Chained('jobsetChain') :PathPart('errors') :Args(0) :ActionClass('REST') { }
+
+sub errors_GET {
+    my ($self, $c) = @_;
+
+    $c->stash->{template} = 'eval-error.tt';
+
+    my $jobsetName = $c->stash->{params}->{name};
+    $c->stash->{jobset} = $c->stash->{project}->jobsets->find(
+        { name => $jobsetName },
+        { '+columns' => { 'errormsg' => 'errormsg' } }
+    );
+
+    $self->status_ok($c, entity => $c->stash->{jobset});
+}
 
 # Redirect to the latest finished evaluation of this jobset.
 sub latest_eval : Chained('jobsetChain') PathPart('latest-eval') {

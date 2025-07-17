@@ -1,4 +1,6 @@
-[% WRAPPER layout.tt title="Jobset $project.name:$jobset.name" %]
+[% WRAPPER layout.tt
+  titleHTML=makeNameLinksForJobset(jobset)
+  title=makeNameTextForJobset(jobset) %]
 [% PROCESS common.tt %]
 [% USE format %]
 
@@ -43,12 +45,9 @@
 
 <ul class="nav nav-tabs">
   [% IF c.user_exists %]
-    <li class="dropdown">
-      <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-        Actions
-        <b class="caret"></b>
-      </a>
-      <ul class="dropdown-menu">
+    <li class="nav-item dropdown">
+      <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#">Actions</a>
+      <div class="dropdown-menu">
         [% UNLESS project.declfile %]
         [% INCLUDE menuItem title="Edit configuration" icon="icon-edit" uri=c.uri_for(c.controller('Jobset').action_for('edit'), c.req.captures) %]
         <!--
@@ -57,18 +56,18 @@
         [% INCLUDE menuItem title="Clone this jobset" uri=c.uri_for(c.controller('Jobset').action_for('edit'), c.req.captures, { cloneJobset => 1 }) %]
         [% END %]
         [% INCLUDE menuItem title="Evaluate this jobset" uri="javascript:confirmEvaluateJobset()" %]
-      </ul>
+      </div>
     </li>
   [% END %]
 
-  <li class="active"><a href="#tabs-evaluations" data-toggle="tab">Evaluations</a></li>
-  [% IF jobset.errormsg || jobset.fetcherrormsg %]
-    <li><a href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation errors</span></a></li>
+  <li class="nav-item"><a class="nav-link active" href="#tabs-evaluations" data-toggle="tab">Evaluations</a></li>
+  [% IF jobset.has_error || jobset.fetcherrormsg %]
+    <li class="nav-item"><a class="nav-link" href="#tabs-errors" data-toggle="tab"><span class="text-warning">Evaluation Errors</span></a></li>
   [% END %]
-  <li><a href="#tabs-jobs" data-toggle="tab">Jobs</a></li>
-  <li><a href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
-  <li><a href="#tabs-links" data-toggle="tab">Links</a></li>
-  <li><a href="#tabs-channels" data-toggle="tab">Channels</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-jobs" data-toggle="tab">Jobs</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-configuration" data-toggle="tab">Configuration</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-links" data-toggle="tab">Links</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-channels" data-toggle="tab">Channels</a></li>
 </ul>
 
 <div id="generic-tabs" class="tab-content">
@@ -80,7 +79,7 @@
         <th>Last checked:</th>
         <td>
           [% IF jobset.lastcheckedtime %]
-            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %], [% IF jobset.errormsg || jobset.fetcherrormsg %]<em class="text-warning">with errors!</em>[% ELSE %]<em>no errors</em>[% END %]
+            [% INCLUDE renderDateTime timestamp = jobset.lastcheckedtime %], [% IF jobset.has_error || jobset.fetcherrormsg %]<em class="text-warning">with errors!</em>[% ELSE %]<em>no errors</em>[% END %]
           [% ELSE %]
             <em>never</em>
           [% END %]
@@ -91,6 +90,7 @@
         <td>
           [% IF latestEval %]
             [% INCLUDE renderDateTime timestamp = latestEval.timestamp %]
+            (took [% relativeDuration (latestEval.checkouttime + latestEval.evaltime) %])
           [% ELSE %]
             <em>never</em>
           [% END %]
@@ -117,10 +117,9 @@
 
   </div>
 
-  [% IF jobset.errormsg || jobset.fetcherrormsg %]
+  [% IF jobset.has_error || jobset.fetcherrormsg %]
     <div id="tabs-errors" class="tab-pane">
-      <p>Errors occurred at [% INCLUDE renderDateTime timestamp=(jobset.errortime || jobset.lastcheckedtime) %].</p>
-      <pre class="alert alert-error">[% HTML.escape(jobset.fetcherrormsg || jobset.errormsg) %]</pre>
+      <iframe src="[% c.uri_for('/jobset' project.name jobset.name "errors") %]" loading="lazy" frameBorder="0" width="100%"></iframe>
     </div>
   [% END %]
 
@@ -159,6 +158,10 @@
       <tr>
         <th>Scheduling shares:</th>
         <td>[% jobset.schedulingshares %] [% IF totalShares %] ([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% totalShares %] shares)[% END %]</td>
+      </tr>
+      <tr>
+        <th>Enable Dynamic RunCommand Hooks:</th>
+        <td>[% c.config.dynamicruncommand.enable ? project.enable_dynamic_run_command ? jobset.enable_dynamic_run_command ? "Yes" : "No (not enabled by jobset)" : "No (not enabled by project)" : "No (not enabled by server)" %]</td>
       </tr>
       [% IF emailNotification %]
       <tr>
@@ -201,6 +204,7 @@
         if (!c) return;
         requestJSON({
           url: "[% HTML.escape(c.uri_for('/api/push', { jobsets = project.name _ ':' _ jobset.name, force = "1" })) %]",
+          type: 'POST',
           success: function(data) {
             bootbox.alert("The jobset has been scheduled for evaluation.");
           }

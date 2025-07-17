@@ -1,0 +1,14 @@
+rec {
+  path = "@testPath@";
+
+  mkDerivation = args:
+    derivation ({
+      system = builtins.currentSystem;
+      PATH = path;
+    } // args);
+  mkContentAddressedDerivation = args: mkDerivation ({
+    __contentAddressed = true;
+    outputHashMode = "recursive";
+    outputHashAlgo = "sha256";
+  } // args);
+}

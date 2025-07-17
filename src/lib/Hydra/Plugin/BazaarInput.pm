@@ -1,11 +1,12 @@
 package Hydra::Plugin::BazaarInput;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use Digest::SHA qw(sha256_hex);
 use File::Path;
+use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
-use Nix::Store;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -36,9 +37,9 @@ sub fetchInput {
     (my $cachedInput) = $self->{db}->resultset('CachedBazaarInputs')->search(
         {uri => $uri, revision => $revision});
 
-    addTempRoot($cachedInput->storepath) if defined $cachedInput;
+    $MACHINE_LOCAL_STORE->addTempRoot($cachedInput->storepath) if defined $cachedInput;
 
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
     } else {
@@ -56,7 +57,7 @@ sub fetchInput {
         ($sha256, $storePath) = split ' ', $stdout;
 
         # FIXME: time window between nix-prefetch-bzr and addTempRoot.
-        addTempRoot($storePath);
+        $MACHINE_LOCAL_STORE->addTempRoot($storePath);
 
         $self->{db}->txn_do(sub {
             $self->{db}->resultset('CachedBazaarInputs')->create(

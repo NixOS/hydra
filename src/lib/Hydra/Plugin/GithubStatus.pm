@@ -1,9 +1,10 @@
 package Hydra::Plugin::GithubStatus;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use HTTP::Request;
-use JSON;
+use JSON::MaybeXS;
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
 use List::Util qw(max);
@@ -25,49 +26,49 @@ sub toGithubState {
 }
 
 sub common {
-    my ($self, $build, $dependents, $finished) = @_;
+    my ($self, $topbuild, $dependents, $finished, $cachedEval) = @_;
     my $cfg = $self->{config}->{githubstatus};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
 
     # Find matching configs
-    foreach my $b ($build, @{$dependents}) {
-        my $jobName = showJobName $b;
-        my $evals = $build->jobsetevals;
+    foreach my $build ($topbuild, @{$dependents}) {
+        my $jobName = showJobName $build;
+        my $evals = $topbuild->jobsetevals;
         my $ua = LWP::UserAgent->new();
 
         foreach my $conf (@config) {
             next unless $jobName =~ /^$conf->{jobs}$/;
             # Don't send out "pending" status updates if the build is already finished
-            next if !$finished && $b->finished == 1;
+            next if !$finished && $build->finished == 1;
 
-            my $contextTrailer = $conf->{excludeBuildFromContext} ? "" : (":" . $b->id);
+            my $contextTrailer = $conf->{excludeBuildFromContext} ? "" : (":" . $build->id);
             my $github_job_name = $jobName =~ s/-pr-\d+//r;
             my $extendedContext = $conf->{context} // "continuous-integration/hydra:" . $jobName . $contextTrailer;
             my $shortContext = $conf->{context} // "ci/hydra:" . $github_job_name . $contextTrailer;
             my $context = $conf->{useShortContext} ? $shortContext : $extendedContext;
             my $body = encode_json(
                 {
-                    state => $finished ? toGithubState($b->buildstatus) : "pending",
-                    target_url => "$baseurl/build/" . $b->id,
-                    description => $conf->{description} // "Hydra build #" . $b->id . " of $jobName",
+                    state => $finished ? toGithubState($build->buildstatus) : "pending",
+                    target_url => "$baseurl/build/" . $build->id,
+                    description => $conf->{description} // "Hydra build #" . $build->id . " of $jobName",
                     context => $context
                 });
             my $inputs_cfg = $conf->{inputs};
             my @inputs = defined $inputs_cfg ? ref $inputs_cfg eq "ARRAY" ? @$inputs_cfg : ($inputs_cfg) : ();
             my %seen = map { $_ => {} } @inputs;
             while (my $eval = $evals->next) {
-                foreach my $input (@inputs) {
-                    my $i = $eval->jobsetevalinputs->find({ name => $input, altnr => 0 });
-                    next unless defined $i;
-                    my $uri = $i->uri;
-                    my $rev = $i->revision;
-                    my $key = $uri . "-" . $rev;
-                    next if exists $seen{$input}->{$key};
+                if (defined($cachedEval) && $cachedEval->id != $eval->id) {
+                    next;
+                }
+
+                my $sendStatus = sub {
+                    my ($input, $owner, $repo, $rev) = @_;
+
+                    my $key = $owner . "-" . $repo . "-" . $rev;
+                    return if exists $seen{$input}->{$key};
                     $seen{$input}->{$key} = 1;
-                    $uri =~ m![:/]([^/]+)/([^/]+?)(?:.git)?$!;
-                    my $owner = $1;
-                    my $repo = $2;
+
                     my $url = "https://api.github.com/repos/$owner/$repo/statuses/$rev";
                     my $req = HTTP::Request->new('POST', $url);
                     $req->header('Content-Type' => 'application/json');
@@ -91,6 +92,28 @@ sub common {
                     } else {
                       print STDERR "GithubStatus ratelimit $limitRemaining/$limit, resets in $diff\n";
                     }
+                };
+
+                if (defined $eval->flake) {
+                    my $fl = $eval->flake;
+                    print STDERR "Flake is $fl\n";
+                    if ($eval->flake =~ m!github:([^/]+)/([^/]+)/([[:xdigit:]]{40})$! or $eval->flake =~ m!git\+ssh://git\@github.com/([^/]+)/([^/]+)\?.*rev=([[:xdigit:]]{40})$!) {
+                        $sendStatus->("src", $1, $2, $3);
+                    } else {
+                        print STDERR "Can't parse flake, skipping GitHub status update\n";
+                    }
+                } else {
+                    foreach my $input (@inputs) {
+                        my $i = $eval->jobsetevalinputs->find({ name => $input, altnr => 0 });
+                        if (! defined $i) {
+                            print STDERR "Evaluation $eval doesn't have input $input\n";
+                        }
+                        next unless defined $i;
+                        my $uri = $i->uri;
+                        my $rev = $i->revision;
+                        $uri =~ m![:/]([^/]+)/([^/]+?)(?:.git)?$!;
+                        $sendStatus->($input, $1, $2, $rev);
+                    }
                 }
             }
         }
@@ -107,6 +130,16 @@ sub buildStarted {
 
 sub buildFinished {
     common(@_, 1);
+}
+
+sub cachedBuildQueued {
+    my ($self, $evaluation, $build) = @_;
+    common($self, $build, [], 0, $evaluation);
+}
+
+sub cachedBuildFinished {
+    my ($self, $evaluation, $build) = @_;
+    common($self, $build, [], 1, $evaluation);
 }
 
 1;

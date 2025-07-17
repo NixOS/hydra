@@ -1,6 +1,7 @@
 package Hydra::Model::DB;
 
 use strict;
+use warnings;
 use base 'Catalyst::Model::DBIC::Schema';
 
 sub getHydraPath {

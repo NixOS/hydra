@@ -2,6 +2,7 @@
 #include <cmath>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "state.hh"
 
@@ -31,34 +32,42 @@ void State::makeRunnable(Step::ptr step)
 
 void State::dispatcher()
 {
-    while (true) {
+    printMsg(lvlDebug, "Waiting for the machines parsing to have completed at least once");
+    machinesReadyLock.lock();
 
+    while (true) {
         try {
             printMsg(lvlDebug, "dispatcher woken up");
             nrDispatcherWakeups++;
 
-            auto now1 = std::chrono::steady_clock::now();
+            auto t_before_work = std::chrono::steady_clock::now();
 
             auto sleepUntil = doDispatch();
 
-            auto now2 = std::chrono::steady_clock::now();
+            auto t_after_work = std::chrono::steady_clock::now();
 
-            dispatchTimeMs += std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
+            prom.dispatcher_time_spent_running.Increment(
+                std::chrono::duration_cast<std::chrono::microseconds>(t_after_work - t_before_work).count());
+            dispatchTimeMs += std::chrono::duration_cast<std::chrono::milliseconds>(t_after_work - t_before_work).count();
 
             /* Sleep until we're woken up (either because a runnable build
                is added, or because a build finishes). */
             {
                 auto dispatcherWakeup_(dispatcherWakeup.lock());
                 if (!*dispatcherWakeup_) {
-                    printMsg(lvlDebug, format("dispatcher sleeping for %1%s") %
+                    debug("dispatcher sleeping for %1%s",
                         std::chrono::duration_cast<std::chrono::seconds>(sleepUntil - std::chrono::system_clock::now()).count());
                     dispatcherWakeup_.wait_until(dispatcherWakeupCV, sleepUntil);
                 }
                 *dispatcherWakeup_ = false;
             }
 
+            auto t_after_sleep = std::chrono::steady_clock::now();
+            prom.dispatcher_time_spent_waiting.Increment(
+                std::chrono::duration_cast<std::chrono::microseconds>(t_after_sleep - t_after_work).count());
+
         } catch (std::exception & e) {
-            printMsg(lvlError, format("dispatcher: %1%") % e.what());
+            printError("dispatcher: %s", e.what());
             sleep(1);
         }
 
@@ -78,17 +87,124 @@ system_time State::doDispatch()
             jobset.second->pruneSteps();
             auto s2 = jobset.second->shareUsed();
             if (s1 != s2)
-                printMsg(lvlDebug, format("pruned scheduling window of ‘%1%:%2%’ from %3% to %4%")
-                    % jobset.first.first % jobset.first.second % s1 % s2);
+                debug("pruned scheduling window of ‘%1%:%2%’ from %3% to %4%",
+                    jobset.first.first, jobset.first.second, s1, s2);
         }
     }
+
+    system_time now = std::chrono::system_clock::now();
 
     /* Start steps until we're out of steps or slots. */
     auto sleepUntil = system_time::max();
     bool keepGoing;
 
+    /* Sort the runnable steps by priority. Priority is establised
+       as follows (in order of precedence):
+
+       - The global priority of the builds that depend on the
+         step. This allows admins to bump a build to the front of
+         the queue.
+
+       - The lowest used scheduling share of the jobsets depending
+         on the step.
+
+       - The local priority of the build, as set via the build's
+         meta.schedulingPriority field. Note that this is not
+         quite correct: the local priority should only be used to
+         establish priority between builds in the same jobset, but
+         here it's used between steps in different jobsets if they
+         happen to have the same lowest used scheduling share. But
+         that's not very likely.
+
+       - The lowest ID of the builds depending on the step;
+         i.e. older builds take priority over new ones.
+
+       FIXME: O(n lg n); obviously, it would be better to keep a
+       runnable queue sorted by priority. */
+    struct StepInfo
+    {
+        Step::ptr step;
+        bool alreadyScheduled = false;
+
+        /* The lowest share used of any jobset depending on this
+           step. */
+        double lowestShareUsed = 1e9;
+
+        /* Info copied from step->state to ensure that the
+           comparator is a partial ordering (see MachineInfo). */
+        int highestGlobalPriority;
+        int highestLocalPriority;
+        size_t numRequiredSystemFeatures;
+        size_t numRevDeps;
+        BuildID lowestBuildID;
+
+        StepInfo(Step::ptr step, Step::State & step_) : step(step)
+        {
+            for (auto & jobset : step_.jobsets)
+                lowestShareUsed = std::min(lowestShareUsed, jobset->shareUsed());
+            highestGlobalPriority = step_.highestGlobalPriority;
+            highestLocalPriority = step_.highestLocalPriority;
+            numRequiredSystemFeatures = step->requiredSystemFeatures.size();
+            numRevDeps = step_.rdeps.size();
+            lowestBuildID = step_.lowestBuildID;
+        }
+    };
+
+    std::vector<StepInfo> runnableSorted;
+
+    struct RunnablePerType
+    {
+        unsigned int count{0};
+        std::chrono::seconds waitTime{0};
+    };
+
+    std::unordered_map<std::string, RunnablePerType> runnablePerType;
+
+    {
+        auto runnable_(runnable.lock());
+        runnableSorted.reserve(runnable_->size());
+        for (auto i = runnable_->begin(); i != runnable_->end(); ) {
+            auto step = i->lock();
+
+            /* Remove dead steps. */
+            if (!step) {
+                i = runnable_->erase(i);
+                continue;
+            }
+
+            ++i;
+
+            auto & r = runnablePerType[step->systemType];
+            r.count++;
+
+            /* Skip previously failed steps that aren't ready
+               to be retried. */
+            auto step_(step->state.lock());
+            r.waitTime += std::chrono::duration_cast<std::chrono::seconds>(now - step_->runnableSince);
+            if (step_->tries > 0 && step_->after > now) {
+                if (step_->after < sleepUntil)
+                    sleepUntil = step_->after;
+                continue;
+            }
+
+            runnableSorted.emplace_back(step, *step_);
+        }
+    }
+
+    sort(runnableSorted.begin(), runnableSorted.end(),
+        [](const StepInfo & a, const StepInfo & b)
+        {
+            return
+                a.highestGlobalPriority != b.highestGlobalPriority ? a.highestGlobalPriority > b.highestGlobalPriority :
+                a.lowestShareUsed != b.lowestShareUsed ? a.lowestShareUsed < b.lowestShareUsed :
+                a.highestLocalPriority != b.highestLocalPriority ? a.highestLocalPriority > b.highestLocalPriority :
+                a.numRequiredSystemFeatures != b.numRequiredSystemFeatures ? a.numRequiredSystemFeatures > b.numRequiredSystemFeatures :
+                a.numRevDeps != b.numRevDeps ? a.numRevDeps > b.numRevDeps :
+                a.lowestBuildID < b.lowestBuildID;
+        });
+
     do {
-        system_time now = std::chrono::system_clock::now();
+        now = std::chrono::system_clock::now();
 
         /* Copy the currentJobs field of each machine. This is
            necessary to ensure that the sort comparator below is
@@ -96,7 +212,7 @@ system_time State::doDispatch()
            filter out temporarily disabled machines. */
         struct MachineInfo
         {
-            Machine::ptr machine;
+            ::Machine::ptr machine;
             unsigned long currentJobs;
         };
         std::vector<MachineInfo> machinesSorted;
@@ -136,104 +252,6 @@ system_time State::doDispatch()
                     a.currentJobs > b.currentJobs;
             });
 
-        /* Sort the runnable steps by priority. Priority is establised
-           as follows (in order of precedence):
-
-           - The global priority of the builds that depend on the
-             step. This allows admins to bump a build to the front of
-             the queue.
-
-           - The lowest used scheduling share of the jobsets depending
-             on the step.
-
-           - The local priority of the build, as set via the build's
-             meta.schedulingPriority field. Note that this is not
-             quite correct: the local priority should only be used to
-             establish priority between builds in the same jobset, but
-             here it's used between steps in different jobsets if they
-             happen to have the same lowest used scheduling share. But
-             that's not very likely.
-
-           - The lowest ID of the builds depending on the step;
-             i.e. older builds take priority over new ones.
-
-           FIXME: O(n lg n); obviously, it would be better to keep a
-           runnable queue sorted by priority. */
-        struct StepInfo
-        {
-            Step::ptr step;
-
-            /* The lowest share used of any jobset depending on this
-               step. */
-            double lowestShareUsed = 1e9;
-
-            /* Info copied from step->state to ensure that the
-               comparator is a partial ordering (see MachineInfo). */
-            int highestGlobalPriority;
-            int highestLocalPriority;
-            BuildID lowestBuildID;
-
-            StepInfo(Step::ptr step, Step::State & step_) : step(step)
-            {
-                for (auto & jobset : step_.jobsets)
-                    lowestShareUsed = std::min(lowestShareUsed, jobset->shareUsed());
-                highestGlobalPriority = step_.highestGlobalPriority;
-                highestLocalPriority = step_.highestLocalPriority;
-                lowestBuildID = step_.lowestBuildID;
-            }
-        };
-
-        std::vector<StepInfo> runnableSorted;
-
-        struct RunnablePerType
-        {
-            unsigned int count{0};
-            std::chrono::seconds waitTime{0};
-        };
-
-        std::unordered_map<std::string, RunnablePerType> runnablePerType;
-
-        {
-            auto runnable_(runnable.lock());
-            runnableSorted.reserve(runnable_->size());
-            for (auto i = runnable_->begin(); i != runnable_->end(); ) {
-                auto step = i->lock();
-
-                /* Remove dead steps. */
-                if (!step) {
-                    i = runnable_->erase(i);
-                    continue;
-                }
-
-                ++i;
-
-                auto & r = runnablePerType[step->systemType];
-                r.count++;
-
-                /* Skip previously failed steps that aren't ready
-                   to be retried. */
-                auto step_(step->state.lock());
-                r.waitTime += std::chrono::duration_cast<std::chrono::seconds>(now - step_->runnableSince);
-                if (step_->tries > 0 && step_->after > now) {
-                    if (step_->after < sleepUntil)
-                        sleepUntil = step_->after;
-                    continue;
-                }
-
-                runnableSorted.emplace_back(step, *step_);
-            }
-        }
-
-        sort(runnableSorted.begin(), runnableSorted.end(),
-            [](const StepInfo & a, const StepInfo & b)
-            {
-                return
-                    a.highestGlobalPriority != b.highestGlobalPriority ? a.highestGlobalPriority > b.highestGlobalPriority :
-                    a.lowestShareUsed != b.lowestShareUsed ? a.lowestShareUsed < b.lowestShareUsed :
-                    a.highestLocalPriority != b.highestLocalPriority ? a.highestLocalPriority > b.highestLocalPriority :
-                    a.lowestBuildID < b.lowestBuildID;
-            });
-
         /* Find a machine with a free slot and find a step to run
            on it. Once we find such a pair, we restart the outer
            loop because the machine sorting will have changed. */
@@ -243,12 +261,14 @@ system_time State::doDispatch()
             if (mi.machine->state->currentJobs >= mi.machine->maxJobs) continue;
 
             for (auto & stepInfo : runnableSorted) {
+                if (stepInfo.alreadyScheduled) continue;
+
                 auto & step(stepInfo.step);
 
                 /* Can this machine do this step? */
                 if (!mi.machine->supportsStep(step)) {
                     debug("machine '%s' does not support step '%s' (system type '%s')",
-                        mi.machine->sshName, localStore->printStorePath(step->drvPath), step->drv->platform);
+                        mi.machine->storeUri.render(), localStore->printStorePath(step->drvPath), step->drv->platform);
                     continue;
                 }
 
@@ -269,10 +289,12 @@ system_time State::doDispatch()
                     r.count--;
                 }
 
+                stepInfo.alreadyScheduled = true;
+
                 /* Make a slot reservation and start a thread to
                    do the build. */
                 auto builderThread = std::thread(&State::builder, this,
-                    std::make_shared<MachineReservation>(*this, step, mi.machine));
+                    std::make_unique<MachineReservation>(*this, step, mi.machine));
                 builderThread.detach(); // FIXME?
 
                 keepGoing = true;
@@ -374,7 +396,6 @@ void State::abortUnsupported()
             if (!build) build = *dependents.begin();
 
             bool stepFinished = false;
-            bool quit = false;
 
             failStep(
                 *conn, step, build->id,
@@ -385,9 +406,9 @@ void State::abortUnsupported()
                     .startTime = now2,
                     .stopTime = now2,
                 },
-                nullptr, stepFinished, quit);
+                nullptr, stepFinished);
 
-            if (quit) exit(1);
+            if (buildOneDone) exit(1);
         }
     }
 
@@ -427,7 +448,7 @@ void Jobset::pruneSteps()
 }
 
 
-State::MachineReservation::MachineReservation(State & state, Step::ptr step, Machine::ptr machine)
+State::MachineReservation::MachineReservation(State & state, Step::ptr step, ::Machine::ptr machine)
     : state(state), step(step), machine(machine)
 {
     machine->state->currentJobs++;

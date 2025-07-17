@@ -1,61 +1,59 @@
 {
   "nodes": {
-    "lowdown-src": {
+    "nix": {
       "flake": false,
       "locked": {
-        "lastModified": 1598695561,
-        "narHash": "sha256-gyH/5j+h/nWw0W8AcR2WKvNBUsiQ7QuxqSJNXAwV+8E=",
-        "owner": "kristapsdz",
-        "repo": "lowdown",
-        "rev": "1705b4a26fbf065d9574dce47a94e8c7c79e052f",
+        "lastModified": 1750777360,
+        "narHash": "sha256-nDWFxwhT+fQNgi4rrr55EKjpxDyVKSl1KaNmSXtYj40=",
+        "owner": "NixOS",
+        "repo": "nix",
+        "rev": "7bb200199705eddd53cb34660a76567c6f1295d9",
         "type": "github"
       },
       "original": {
-        "owner": "kristapsdz",
-        "repo": "lowdown",
+        "owner": "NixOS",
+        "ref": "2.29-maintenance",
+        "repo": "nix",
         "type": "github"
       }
     },
-    "nix": {
-      "inputs": {
-        "lowdown-src": "lowdown-src",
-        "nixpkgs": "nixpkgs"
-      },
+    "nix-eval-jobs": {
+      "flake": false,
       "locked": {
-        "lastModified": 1609520816,
-        "narHash": "sha256-IGO7tfJXsv9u2wpW76VCzOsHYapRZqH9pHGVsoffPrI=",
-        "owner": "NixOS",
-        "repo": "nix",
-        "rev": "8a2ce0f455da32bc20978e68c0aad9efb4560abc",
+        "lastModified": 1748680938,
+        "narHash": "sha256-TQk6pEMD0mFw7jZXpg7+2qNKGbAluMQgc55OMgEO8bM=",
+        "owner": "nix-community",
+        "repo": "nix-eval-jobs",
+        "rev": "974a4af3d4a8fd242d8d0e2608da4be87a62b83f",
         "type": "github"
       },
       "original": {
-        "id": "nix",
-        "type": "indirect"
+        "owner": "nix-community",
+        "repo": "nix-eval-jobs",
+        "type": "github"
       }
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1602702596,
-        "narHash": "sha256-fqJ4UgOb4ZUnCDIapDb4gCrtAah5Rnr2/At3IzMitig=",
+        "lastModified": 1750736827,
+        "narHash": "sha256-UcNP7BR41xMTe0sfHBH8R79+HdCw0OwkC/ZKrQEuMeo=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "ad0d20345219790533ebe06571f82ed6b034db31",
+        "rev": "b4a30b08433ad7b6e1dfba0833fb0fe69d43dfec",
         "type": "github"
       },
       "original": {
-        "id": "nixpkgs",
-        "ref": "nixos-20.09-small",
-        "type": "indirect"
+        "owner": "NixOS",
+        "ref": "nixos-25.05-small",
+        "repo": "nixpkgs",
+        "type": "github"
       }
     },
     "root": {
       "inputs": {
         "nix": "nix",
-        "nixpkgs": [
-          "nix",
-          "nixpkgs"
-        ]
+        "nix-eval-jobs": "nix-eval-jobs",
+        "nixpkgs": "nixpkgs"
       }
     }
   },

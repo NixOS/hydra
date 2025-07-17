@@ -80,7 +80,7 @@ BLOCK renderFullJobName %]
 
 
 BLOCK renderFullJobNameOfBuild;
-  INCLUDE renderFullJobName project=build.get_column("project") jobset = build.get_column("jobset") job = build.get_column("job");
+  INCLUDE renderFullJobName project=build.jobset.get_column("project") jobset = build.jobset.get_column("name") job = build.get_column("job");
 END;
 
 
@@ -89,6 +89,17 @@ BLOCK renderDuration;
   IF duration >= 60 * 60; duration div (60 * 60) % 24 %]h&nbsp;[% END;
   IF duration >= 60; duration div 60 % 60 %]m&nbsp;[% END;
   duration % 60 %]s[%
+END;
+
+BLOCK renderDrvInfo;
+  drvname = step.drvpath
+    .substr(11) # strip `/nix/store/`
+    .split('-').slice(1).join("-") # strip hash part
+    .substr(0, -4); # strip `.drv`
+  IF drvname != releasename;
+    IF step.type == 0; action = "Build"; ELSE; action = "Substitution"; END;
+    IF drvname; %]<em> ([% action %] of [% drvname %])</em>[% END;
+  END;
 END;
 
 
@@ -127,11 +138,16 @@ BLOCK renderBuildListBody;
         </td>
       [% END %]
       [% IF showSchedulingInfo %]
-        <td>[% IF busy %]<span class="label label-success">Started</span>[% ELSE %]<span class="label">Queued</span>[% END %]</td>
+        <td>[% IF busy %]<span class="badge badge-success">Started</span>[% ELSE %]<span class="badge badge-secondary">Queued</span>[% END %]</td>
       [% END %]
       <td><a class="row-link" href="[% link %]">[% build.id %]</a></td>
       [% IF !hideJobName %]
-        <td><a href="[%link%]">[% IF !hideJobsetName %][%build.get_column("project")%]:[%build.get_column("jobset")%]:[% END %][%build.get_column("job")%]</td>
+        <td>
+          <a href="[%link%]">[% IF !hideJobsetName %][%build.jobset.get_column("project")%]:[%build.jobset.get_column("name")%]:[% END %][%build.get_column("job")%]</a>
+          [% IF showStepName %]
+            [% INCLUDE renderDrvInfo step=build.buildsteps releasename=build.nixname %]
+          [% END %]
+        </td>
       [% END %]
       <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; INCLUDE renderRelativeDate timestamp=(showSchedulingInfo ? build.timestamp : build.stoptime); ELSE; "-"; END %]</td>
       <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
@@ -182,7 +198,7 @@ BLOCK renderSelection;
         [% END %]
       </div>
     [% ELSE %]
-      <select style='width: 15em;' [% HTML.attributes(id => param, name => param) %]>
+      <select class="custom-select" [% HTML.attributes(id => param, name => param) %]>
         [% FOREACH name IN options.keys.sort %]
           <option [% IF name == curValue; "selected='selected'"; END; " "; HTML.attributes(value => name) %]>[% options.$name %]</option>
         [% END %]
@@ -241,6 +257,27 @@ BLOCK renderBuildStatusIcon;
     [% END;
   ELSE %]
     <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="[% size %]" width="[% size %]" title="Queued" alt="Queued" class="build-status" />
+  [% END;
+END;
+
+
+BLOCK renderBusyStatus;
+  IF step.busy == 1 %]
+    <strong>Preparing</strong>
+  [% ELSIF step.busy == 10 %]
+    <strong>Connecting</strong>
+  [% ELSIF step.busy == 20 %]
+    <strong>Sending inputs</strong>
+  [% ELSIF step.busy == 30 %]
+    <strong>Building</strong>
+  [% ELSIF step.busy == 35 %]
+    <strong>Waiting to receive outputs</strong>
+  [% ELSIF step.busy == 40 %]
+    <strong>Receiving outputs</strong>
+  [% ELSIF step.busy == 50 %]
+    <strong>Post-processing</strong>
+  [% ELSE %]
+    <strong>Unknown state</strong>
   [% END;
 END;
 
@@ -374,7 +411,7 @@ BLOCK renderInputDiff; %]
               [% ELSIF bi1.uri == bi2.uri && bi1.revision != bi2.revision %]
                 [% IF bi1.type == "git" %]
                   <tr><td>
-                    <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision.substr(0, 6) _ ' to ' _ bi2.revision.substr(0, 6)) %]</tt>
+                    <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision.substr(0, 12) _ ' to ' _ bi2.revision.substr(0, 12)) %]</tt>
                   </td></tr>
                 [% ELSE %]
                   <tr><td>
@@ -405,11 +442,11 @@ BLOCK renderInputDiff; %]
 
 
 BLOCK renderPager %]
-  <ul class="pager">
-    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page=1" %]">« First</a></li>
-    <li [% IF page == 1 %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page - 1) %]">‹ Previous</a></li>
-    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (page + 1) %]">Next ›</a></li>
-    <li [% IF page * resultsPerPage >= total %]class="disabled"[% END %]><a href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last »</a></li>
+  <ul class="pagination">
+    <li class="page-item[% IF page == 1 %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page=1" %]">&laquo; First</a></li>
+    <li class="page-item[% IF page == 1 %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page="; (page - 1) %]">&lsaquo; Previous</a></li>
+    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page="; (page + 1) %]">Next &rsaquo;</a></li>
+    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last &raquo;</a></li>
   </ul>
 [% END;
 
@@ -439,10 +476,7 @@ BLOCK renderEvals %]
         [% END %]
         <th rowspan="2" style="width: 10em">Date</th>
         <th rowspan="2">Input changes</th>
-        <th colspan="3">Jobs</th>
-        <th rowspan="2">
-            <img src="[% c.uri_for("/static/images/delta.svg") %]" height="12" width="12" title="Delta" alt="Delta" class="build-status" />
-        </th>
+        <th colspan="4">Jobs</th>
       </tr>
       <tr>
         <th style="width: 2em">
@@ -453,6 +487,9 @@ BLOCK renderEvals %]
         </th>
         <th style="width: 2em">
             <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="12" width="12" title="Queued" alt="Queued" class="build-status" />
+        </th>
+        <th style="width: 2em">
+            <img src="[% c.uri_for("/static/images/delta.svg") %]" height="12" width="12" title="Delta" alt="Delta" class="build-status" />
         </th>
       </tr>
     </thead>
@@ -476,34 +513,34 @@ BLOCK renderEvals %]
             ELSE %]
              -
             [% END %]
-            [% IF eval.evaluationerror.errormsg %]
-              <span class="label label-warning">Eval Errors</span>
+            [% IF eval.evaluationerror.has_error %]
+              <span class="badge badge-warning">Eval Errors</span>
             [% END %]
           </td>
           <td align='right' class="nowrap">
-            <span class="label label-success">[% e.nrSucceeded %]</span>
+            <span class="badge badge-success">[% e.nrSucceeded %]</span>
           </td>
           <td align="right" class="nowrap">
             [% IF e.nrFailed > 0 %]
-            <span class="label label-important">[% e.nrFailed %]</span>
+            <span class="badge badge-danger">[% e.nrFailed %]</span>
             [% END %]
           </td>
           <td align="right" class="nowrap">
             [% IF e.nrScheduled > 0 %]
-            <span class="label">[% e.nrScheduled %]</span>
+            <span class="badge badge-secondary">[% e.nrScheduled %]</span>
             [% END %]
           </td>
           <td align='right' class="nowrap">
             [% IF e.diff > 0 %]
-              <span class='label label-success'><strong>+[% e.diff %]</strong></span>
+              <span class='badge badge-success'><strong>+[% e.diff %]</strong></span>
             [% ELSIF e.diff < 0 && e.nrScheduled == 0 %]
-              <span class='label label-important'><strong>[% e.diff %]</strong></span>
+              <span class='badge badge-danger'><strong>[% e.diff %]</strong></span>
             [% END %]
           </td>
         </tr>
       [% END;
       IF linkToAll %]
-        <tr><td class="centered" colspan="5"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+        <tr><td class="centered" colspan="7"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
       [% END %]
     </tbody>
   </table>
@@ -517,25 +554,39 @@ BLOCK renderLogLinks %]
 
 BLOCK makeLazyTab %]
   <div id="[% tabName %]" class="tab-pane">
-    <center><img src="[% c.uri_for("/static/images/ajax-loader.gif") %]" alt="Loading..." /></center>
+    <center><span class="spinner-border spinner-border-sm"/></center>
   </div>
   <script>
-    $(function() { makeLazyTab("[% tabName %]", "[% uri %]"); });
+    [% IF callback.defined %]
+    $(function() { makeLazyTab("[% tabName %]", "[% uri %]", [% callback %] ); });
+    [% ELSE %]
+    $(function() { makeLazyTab("[% tabName %]", "[% uri %]", null ); });
+    [% END %]
   </script>
 [% END;
 
 
 BLOCK makePopover %]
-  <div class="btn hydra-popover [% classes %]" data-toggle="popover" data-html="true" [% HTML.attributes('data-content' => content, 'data-placement' => placement || 'bottom') %]>
+  <button type="button" class="btn hydra-popover [% classes %]" data-toggle="popover" data-html="true" [% HTML.attributes('data-content' => content, 'data-placement' => placement || 'bottom') %]>
     [% title %]
-  </div>
+  </button>
 [% END;
 
 
 BLOCK menuItem %]
-  <li class="[% IF "${root}${curUri}" == uri %]active[% END %]" [% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>
-    <a [% HTML.attributes(href => uri) %] [%+ IF modal %]data-toggle="modal"[% END %]>
-      [% IF icon %]<i class="[% icon %] icon-black"></i> [%+ END %]
+  <a class="dropdown-item[% IF "${root}${curUri}" == uri %] active[% END %]"
+    [% HTML.attributes(href => uri) %] [%+ IF modal %]data-toggle="modal"[% END %]
+    [% IF confirmmsg %]onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>
+    [% IF icon %]<i class="[% icon %] icon-black"></i> [%+ END %]
+    [% title %]
+  </a>
+[% END;
+
+
+BLOCK navItem %]
+  <li class="nav-item">
+    <a class="nav-link[% IF "${root}${curUri}" == uri %] active[% END %]"
+      [% HTML.attributes(href => uri) %]>
       [% title %]
     </a>
   </li>
@@ -588,35 +639,35 @@ BLOCK renderJobsetOverview %]
         <td>[% HTML.escape(j.description) %]</td>
         <td>[% IF j.lastcheckedtime;
                  INCLUDE renderDateTime timestamp = j.lastcheckedtime;
-                 IF j.errormsg || j.fetcherrormsg; %]&nbsp;<span class = 'label label-warning'>Error</span>[% END;
+                 IF j.has_error || j.fetcherrormsg; %]&nbsp;<span class = 'badge badge-warning'>Error</span>[% END;
                  ELSE; "-";
                END %]</td>
         [% IF j.get_column('nrtotal') > 0 %]
           [% successrate = ( j.get_column('nrsucceeded') / j.get_column('nrtotal') )*100 %]
           [% IF j.get_column('nrscheduled') > 0 %]
-            [% class = 'label' %]
+            [% class = 'badge badge-secondary' %]
           [% ELSIF successrate < 25 %]
-            [% class = 'label label-important' %]
+            [% class = 'badge badge-danger' %]
           [% ELSIF successrate < 75 %]
-            [% class = 'label label-warning' %]
+            [% class = 'badge badge-warning' %]
           [% ELSIF successrate <= 100 %]
-            [% class = 'label label-success' %]
+            [% class = 'badge badge-success' %]
           [% END %]
         [% END %]
         <td><span class="[% class %]">[% successrate FILTER format('%d') %]%</span></td>
         <td>
           [% IF j.get_column('nrsucceeded') > 0 %]
-            <span class="label label-success">[% j.get_column('nrsucceeded') %]</span>
+            <span class="badge badge-success">[% j.get_column('nrsucceeded') %]</span>
           [% END %]
         </td>
         <td>
           [% IF j.get_column('nrfailed') > 0 %]
-            <span class="label label-important">[% j.get_column('nrfailed') %]</span>
+            <span class="badge badge-danger">[% j.get_column('nrfailed') %]</span>
           [% END %]
         </td>
         <td>
           [% IF j.get_column('nrscheduled') > 0 %]
-            <span class="label label">[% j.get_column('nrscheduled') %]</span>
+            <span class="badge badge-secondary">[% j.get_column('nrscheduled') %]</span>
           [% END %]
         </td>
       </tr>

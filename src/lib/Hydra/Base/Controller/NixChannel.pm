@@ -3,8 +3,7 @@ package Hydra::Base::Controller::NixChannel;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::REST';
-use List::MoreUtils qw(any);
-use Nix::Store;
+use List::SomeUtils qw(any);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 
@@ -30,7 +29,7 @@ sub getChannelData {
         my $outputs = {};
         foreach my $output (@outputs) {
             my $outPath = $output->get_column("outpath");
-            next if $checkValidity && !isValidPath($outPath);
+            next if $checkValidity && !$MACHINE_LOCAL_STORE->isValidPath($outPath);
             $outputs->{$output->get_column("outname")} = $outPath;
             push @storePaths, $outPath;
             # Put the system type in the manifest (for top-level

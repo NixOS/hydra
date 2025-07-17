@@ -4,14 +4,15 @@ use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::REST';
-use File::Slurp;
+use File::Slurper qw(read_text);
 use Crypt::RandPasswd;
 use Digest::SHA1 qw(sha1_hex);
+use Hydra::Config qw(getLDAPConfigAmbient);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
 use LWP::UserAgent;
-use JSON;
+use JSON::MaybeXS;
 use HTML::Entities;
 use Encode qw(decode);
 
@@ -27,8 +28,8 @@ sub login_POST {
     my $username = $c->stash->{params}->{username} // "";
     my $password = $c->stash->{params}->{password} // "";
 
-    error($c, "You must specify a user name.") if $username eq "";
-    error($c, "You must specify a password.") if $password eq "";
+    badRequest($c, "You must specify a user name.") if $username eq "";
+    badRequest($c, "You must specify a password.") if $password eq "";
 
     if ($c->get_auth_realm('ldap') && $c->authenticate({username => $username, password => $password}, 'ldap')) {
         doLDAPLogin($self, $c, $username);
@@ -37,7 +38,11 @@ sub login_POST {
         accessDenied($c, "Bad username or password.")
     }
 
-    currentUser_GET($self, $c);
+    $self->status_found(
+        $c,
+        location => $c->uri_for("current-user"),
+        entity => $c->model("DB::Users")->find($c->user->username)
+    );
 }
 
 
@@ -52,10 +57,10 @@ sub logout_POST {
 
 sub doLDAPLogin {
     my ($self, $c, $username) = @_;
-
     my $user = $c->find_user({ username => $username });
     my $LDAPUser = $c->find_user({ username => $username }, 'ldap');
-    my @LDAPRoles = grep { (substr $_, 0, 5) eq "hydra" } $LDAPUser->roles;
+    my @LDAPRoles = $LDAPUser->roles;
+    my $role_mapping = getLDAPConfigAmbient()->{"role_mapping"};
 
     if (!$user) {
         $c->model('DB::Users')->create(
@@ -75,8 +80,13 @@ sub doLDAPLogin {
         });
     }
     $user->userroles->delete;
-    if (@LDAPRoles) {
-        $user->userroles->create({ role => (substr $_, 6) }) for @LDAPRoles;
+    foreach my $ldap_role (@LDAPRoles) {
+        if (defined($role_mapping->{$ldap_role})) {
+            my $roles = $role_mapping->{$ldap_role};
+            for my $mapped_role (@$roles) {
+                $user->userroles->create({ role => $mapped_role });
+            }
+        }
     }
     $c->set_authenticated($user);
 }
@@ -139,7 +149,7 @@ sub google_login :Path('/google-login') Args(0) {
 
     error($c, "Logging in via Google is not enabled.") unless $c->config->{enable_google_login};
 
-    my $ua = new LWP::UserAgent;
+    my $ua = LWP::UserAgent->new();
     my $response = $ua->post(
         'https://www.googleapis.com/oauth2/v3/tokeninfo',
         { id_token => ($c->stash->{params}->{id_token} // die "No token."),
@@ -161,13 +171,13 @@ sub github_login :Path('/github-login') Args(0) {
     my $client_id = $c->config->{github_client_id} or die "github_client_id not configured.";
     my $client_secret = $c->config->{github_client_secret} // do {
         my $client_secret_file = $c->config->{github_client_secret_file} or die "github_client_secret nor github_client_secret_file is configured.";
-        my $client_secret = read_file($client_secret_file);
+        my $client_secret = read_text($client_secret_file);
         $client_secret =~ s/\s+//;
         $client_secret;
     };
     die "No github secret configured" unless $client_secret;
 
-    my $ua = new LWP::UserAgent;
+    my $ua = LWP::UserAgent->new();
     my $response = $ua->post(
         'https://github.com/login/oauth/access_token',
         {
@@ -226,12 +236,6 @@ sub captcha :Local Args(0) {
 sub isValidPassword {
     my ($password) = @_;
     return length($password) >= 6;
-}
-
-
-sub setPassword {
-    my ($user, $password) = @_;
-    $user->update({ password => sha1_hex($password) });
 }
 
 
@@ -294,7 +298,7 @@ sub updatePreferences {
         error($c, "The passwords you specified did not match.")
             if $password ne trim $c->stash->{params}->{password2};
 
-        setPassword($user, $password);
+        $user->setPassword($password);
     }
 
     my $emailAddress = trim($c->stash->{params}->{emailaddress} // "");
@@ -394,7 +398,7 @@ sub reset_password :Chained('user') :PathPart('reset-password') :Args(0) {
         unless $user->emailaddress;
 
     my $password = Crypt::RandPasswd->word(8,10);
-    setPassword($user, $password);
+    $user->setPassword($password);
     sendEmail(
         $c->config,
         $user->emailaddress,
@@ -459,7 +463,7 @@ sub my_jobs_tab :Chained('dashboard_base') :PathPart('my-jobs-tab') :Args(0) {
         , "jobset.enabled" => 1
         },
         { order_by => ["project", "jobset", "job"]
-        , join => ["project", "jobset"]
+        , join => {"jobset" => "project"}
         })];
 }
 

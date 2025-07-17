@@ -1,6 +1,7 @@
 package Hydra::Plugin::S3Backup;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use File::Temp;
 use File::Basename;
@@ -13,6 +14,7 @@ use Nix::Config;
 use Nix::Store;
 use Hydra::Model::DB;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Nix;
 
 sub isEnabled {
     my ($self) = @_;
@@ -20,11 +22,18 @@ sub isEnabled {
 }
 
 my $client;
-my %compressors = (
-    xz => "| $Nix::Config::xz",
-    bzip2 => "| $Nix::Config::bzip2",
-    none => ""
-);
+my %compressors = ();
+
+$compressors{"none"} = "";
+
+if (defined($Nix::Config::bzip2)) {
+    $compressors{"bzip2"} = "| $Nix::Config::bzip2",
+}
+
+if (defined($Nix::Config::xz)) {
+    $compressors{"xz"} = "| $Nix::Config::xz",
+}
+
 my $lockfile = Hydra::Model::DB::getHydraPath . "/.hydra-s3backup.lock";
 
 sub buildFinished {
@@ -84,13 +93,14 @@ sub buildFinished {
         my $hash = substr basename($path), 0, 32;
         my ($deriver, $narHash, $time, $narSize, $refs) = queryPathInfo($path, 0);
         my $system;
-        if (defined $deriver and isValidPath($deriver)) {
+        if (defined $deriver and $MACHINE_LOCAL_STORE->isValidPath($deriver)) {
             $system = derivationFromPath($deriver)->{platform};
         }
         foreach my $reference (@{$refs}) {
             push @needed_paths, $reference;
         }
-        while (my ($compression_type, $configs) = each %compression_types) {
+        foreach my $compression_type (keys %compression_types) {
+            my $configs = $compression_types{$compression_type};
             my @incomplete_buckets = ();
             # Don't do any work if all the buckets have this path
             foreach my $bucket_config (@{$configs}) {
@@ -136,7 +146,8 @@ sub buildFinished {
     }
 
     # Upload narinfos
-    while (my ($compression_type, $infos) = each %narinfos) {
+    foreach my $compression_type (keys %narinfos) {
+        my $infos = $narinfos{$compression_type};
         foreach my $bucket_config (@{$compression_types{$compression_type}}) {
             foreach my $info (@{$infos}) {
                 my $bucket = $client->bucket( name => $bucket_config->{name} );

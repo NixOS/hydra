@@ -2,19 +2,20 @@ package Hydra::Helper::CatalystUtils;
 
 use utf8;
 use strict;
+use warnings;
 use Exporter;
-use Readonly;
+use ReadonlyX;
 use Nix::Store;
-use Hydra::Helper::Nix;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     getBuild getPreviousBuild getNextBuild getPreviousSuccessfulBuild
     searchBuildsAndEvalsForJobset
-    error notFound gone accessDenied
+    error notFound gone accessDenied badRequest
     forceLogin requireUser requireProjectOwner requireRestartPrivileges requireAdmin requirePost isAdmin isProjectOwner
     requireBumpPrivileges
     requireCancelBuildPrivileges
+    requireEvalJobsetPrivileges
     trim
     getLatestFinishedEval getFirstEval
     paramToList
@@ -33,8 +34,7 @@ our @EXPORT = qw(
 
 
 # Columns from the Builds table needed to render build lists.
-Readonly our @buildListColumns => ('id', 'finished', 'timestamp', 'stoptime', 'project', 'jobset', 'job', 'nixname', 'system', 'buildstatus', 'releasename');
-
+Readonly::Array our @buildListColumns => ('id', 'finished', 'timestamp', 'stoptime', 'jobset_id', 'job', 'nixname', 'system', 'buildstatus', 'releasename');
 
 sub getBuild {
     my ($c, $id) = @_;
@@ -64,8 +64,7 @@ sub getNextBuild {
     (my $nextBuild) = $c->model('DB::Builds')->search(
       { finished => 1
       , system => $build->system
-      , project => $build->get_column('project')
-      , jobset => $build->get_column('jobset')
+      , jobset_id => $build->get_column('jobset_id')
       , job => $build->get_column('job')
       , 'me.id' =>  { '>' => $build->id }
       }, {rows => 1, order_by => "me.id ASC"});
@@ -81,8 +80,7 @@ sub getPreviousSuccessfulBuild {
     (my $prevBuild) = $c->model('DB::Builds')->search(
       { finished => 1
       , system => $build->system
-      , project => $build->get_column('project')
-      , jobset => $build->get_column('jobset')
+      , jobset_id => $build->get_column('jobset_id')
       , job => $build->get_column('job')
       , buildstatus => 0
       , 'me.id' =>  { '<' => $build->id }
@@ -111,14 +109,14 @@ sub searchBuildsAndEvalsForJobset {
             { columns => ['id', 'job', 'finished', 'buildstatus'] }
         );
 
-        foreach my $b (@allBuilds) {
-            my $jobName = $b->get_column('job');
+        foreach my $build (@allBuilds) {
+            my $jobName = $build->get_column('job');
 
             $evals->{$eval->id}->{timestamp} = $eval->timestamp;
             $evals->{$eval->id}->{builds}->{$jobName} = {
-                id => $b->id,
-                finished => $b->finished,
-                buildstatus => $b->buildstatus
+                id => $build->id,
+                finished => $build->finished,
+                buildstatus => $build->buildstatus
             };
             $builds{$jobName} = 1;
             $nrBuilds++;
@@ -155,6 +153,10 @@ sub accessDenied {
     error($c, $msg, 403);
 }
 
+sub badRequest {
+    my ($c, $msg) = @_;
+    error($c, $msg, 400);
+}
 
 sub backToReferer {
     my ($c) = @_;
@@ -183,6 +185,27 @@ sub isProjectOwner {
         (isAdmin($c) ||
          $c->user->username eq $project->owner->username ||
          defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
+}
+
+sub hasEvalJobsetRole {
+    my ($c) = @_;
+    return $c->user_exists && $c->check_user_roles("eval-jobset");
+}
+
+sub mayEvalJobset {
+    my ($c, $project) = @_;
+    return
+        $c->user_exists &&
+        (isAdmin($c) ||
+         hasEvalJobsetRole($c) ||
+         isProjectOwner($c, $project));
+}
+
+sub requireEvalJobsetPrivileges {
+    my ($c, $project) = @_;
+    requireUser($c);
+    accessDenied($c, "Only the project members, administrators, and accounts with eval-jobset privileges can perform this operation.")
+        unless mayEvalJobset($c, $project);
 }
 
 sub hasCancelBuildRole {
@@ -271,12 +294,12 @@ sub requireAdmin {
 
 sub requirePost {
     my ($c) = @_;
-    error($c, "Request must be POSTed.") if $c->request->method ne "POST";
+    error($c, "Request must be POSTed.", 405) if $c->request->method ne "POST";
 }
 
 
 sub trim {
-    my $s = shift;
+    my $s = shift // "";
     $s =~ s/^\s+|\s+$//g;
     return $s;
 }
@@ -314,16 +337,16 @@ sub paramToList {
 
 
 # Security checking of filenames.
-Readonly our $pathCompRE    => "(?:[A-Za-z0-9-\+\._\$][A-Za-z0-9-\+\._\$:]*)";
-Readonly our $relPathRE     => "(?:$pathCompRE(?:/$pathCompRE)*)";
-Readonly our $relNameRE     => "(?:[A-Za-z0-9-_][A-Za-z0-9-\._]*)";
-Readonly our $attrNameRE    => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
-Readonly our $projectNameRE => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
-Readonly our $jobsetNameRE  => "(?:[A-Za-z_][A-Za-z0-9-_\.]*)";
-Readonly our $jobNameRE     => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
-Readonly our $systemRE      => "(?:[a-z0-9_]+-[a-z0-9_]+)";
-Readonly our $userNameRE    => "(?:[a-z][a-z0-9_\.]*)";
-Readonly our $inputNameRE   => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
+Readonly::Scalar our $pathCompRE    => "(?:[A-Za-z0-9-\+\._\$][A-Za-z0-9-\+\._\$:]*)";
+Readonly::Scalar our $relPathRE     => "(?:$pathCompRE(?:/$pathCompRE)*)";
+Readonly::Scalar our $relNameRE     => "(?:[A-Za-z0-9-_][A-Za-z0-9-\._]*)";
+Readonly::Scalar our $attrNameRE    => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
+Readonly::Scalar our $projectNameRE => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
+Readonly::Scalar our $jobsetNameRE  => "(?:[A-Za-z_][A-Za-z0-9-_\.]*)";
+Readonly::Scalar our $jobNameRE     => "(?:$attrNameRE(?:\\.$attrNameRE)*)";
+Readonly::Scalar our $systemRE      => "(?:[a-z0-9_]+-[a-z0-9_]+)";
+Readonly::Scalar our $userNameRE    => "(?:[a-z][a-z0-9_\.]*)";
+Readonly::Scalar our $inputNameRE   => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
 
 
 sub parseJobsetName {
@@ -335,7 +358,8 @@ sub parseJobsetName {
 
 sub showJobName {
     my ($build) = @_;
-    return $build->get_column('project') . ":" . $build->get_column('jobset') . ":" . $build->get_column('job');
+    my $jobset = $build->jobset;
+    return $jobset->get_column('project') . ":" . $jobset->get_column('name') . ":" . $build->get_column('job');
 }
 
 
@@ -411,6 +435,7 @@ sub approxTableSize {
 
 sub requireLocalStore {
     my ($c) = @_;
+    require Hydra::Helper::Nix;
     notFound($c, "Nix channels are not supported by this Hydra server.") if !Hydra::Helper::Nix::isLocalStore();
 }
 

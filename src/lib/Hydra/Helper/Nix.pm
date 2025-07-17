@@ -1,33 +1,50 @@
 package Hydra::Helper::Nix;
 
 use strict;
+use warnings;
 use Exporter;
 use File::Path;
 use File::Basename;
-use Config::General;
+use Hydra::Config;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
 use Nix::Store;
 use Encode;
 use Sys::Hostname::Long;
 use IPC::Run;
+use UUID4::Tiny qw(is_uuid4_string);
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    getHydraHome getHydraConfig getBaseUrl
-    getSCMCacheDir
-    registerRoot getGCRootsDir gcRootFor
-    jobsetOverview jobsetOverview_
-    getDrvLogPath findLog
-    getMainOutput
+    cancelBuilds
+    constructRunCommandLogPath
+    findLog
+    gcRootFor
+    getBaseUrl
+    getDrvLogPath
     getEvals getMachines
-    pathIsInsidePrefix
-    captureStdoutStderr run grab
-    getTotalShares
+    getGCRootsDir
+    getHydraConfig
+    getHydraHome
+    getMainOutput
+    getSCMCacheDir
+    getStatsdConfig
     getStoreUri
-    readNixFile
+    getTotalShares
+    grab
     isLocalStore
-    cancelBuilds restartBuilds);
+    jobsetOverview
+    jobsetOverview_
+    pathIsInsidePrefix
+    readIntoSocket
+    readNixFile
+    registerRoot
+    restartBuilds
+    run
+    $MACHINE_LOCAL_STORE
+    );
+
+our $MACHINE_LOCAL_STORE = Nix::Store->new();
 
 
 sub getHydraHome {
@@ -35,23 +52,56 @@ sub getHydraHome {
     return $dir;
 }
 
+# Return hash of statsd configuration of the following shape:
+# (
+#   host => string,
+#   port => digit
+# )
+sub getStatsdConfig {
+    my ($config) = @_;
+    my $cfg = $config->{statsd};
+    my %statsd = defined $cfg ? ref $cfg eq "HASH" ? %$cfg : ($cfg) : ();
 
-my $hydraConfig;
-
-sub getHydraConfig {
-    return $hydraConfig if defined $hydraConfig;
-    my $conf = $ENV{"HYDRA_CONFIG"} || (Hydra::Model::DB::getHydraPath . "/hydra.conf");
-    if (-f $conf) {
-        my %h = new Config::General( -ConfigFile => $conf
-                                   , -UseApacheInclude => 1
-                                   , -IncludeAgain => 1
-                                   )->getall;
-
-        $hydraConfig = \%h;
-    } else {
-        $hydraConfig = {};
+    return {
+        "host" => $statsd{'host'}  // 'localhost',
+        "port" => $statsd{'port'}  // 8125,
     }
-    return $hydraConfig;
+}
+
+sub getHydraNotifyPrometheusConfig {
+    my ($config) = @_;
+    my $cfg = $config->{hydra_notify};
+
+    if (!defined($cfg)) {
+        return undef;
+    }
+
+    if (ref $cfg ne "HASH") {
+        print STDERR "Error reading Hydra's configuration file: hydra_notify should be a block.\n";
+        return undef;
+    }
+
+    my $promcfg = $cfg->{prometheus};
+    if (!defined($promcfg)) {
+        return undef;
+    }
+
+    if (ref $promcfg ne "HASH") {
+        print STDERR "Error reading Hydra's configuration file: hydra_notify.prometheus should be a block.\n";
+        return undef;
+    }
+
+    if (defined($promcfg->{"listen_address"}) && defined($promcfg->{"port"})) {
+        return {
+            "listen_address" => $promcfg->{'listen_address'},
+            "port" => $promcfg->{'port'},
+        };
+    } else {
+        print STDERR "Error reading Hydra's configuration file: hydra_notify.prometheus should include listen_address and port.\n";
+        return undef;
+    }
+
+    return undef;
 }
 
 
@@ -88,20 +138,20 @@ sub registerRoot {
     my ($path) = @_;
     my $link = gcRootFor $path;
     return if -e $link;
-    open ROOT, ">$link" or die "cannot create GC root `$link' to `$path'";
-    close ROOT;
+    open(my $root, ">", $link) or die "cannot create GC root `$link' to `$path'";
+    close $root;
 }
 
 
 sub jobsetOverview_ {
     my ($c, $jobsets) = @_;
     return $jobsets->search({},
-        { order_by => "name"
+        { order_by => ["hidden ASC", "enabled DESC", "name"]
         , "+select" =>
-          [ "(select count(*) from Builds as a where a.finished = 0 and me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus <> 0 and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where a.finished = 1 and me.project = a.project and me.name = a.jobset and buildstatus = 0 and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where me.project = a.project and me.name = a.jobset and a.isCurrent = 1)"
+          [ "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 0 and a.isCurrent = 1)"
+          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 1 and buildstatus <> 0 and a.isCurrent = 1)"
+          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 1 and buildstatus = 0 and a.isCurrent = 1)"
+          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.isCurrent = 1)"
           ]
         , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]
         });
@@ -125,6 +175,9 @@ sub getDrvLogPath {
     for ($fn . $bucketed, $fn . $bucketed . ".bz2") {
         return $_ if -f $_;
     }
+    for ($fn . $bucketed, $fn . $bucketed . ".zst") {
+        return $_ if -f $_;
+    }
     return undef;
 }
 
@@ -140,6 +193,10 @@ sub findLog {
     }
 
     return undef if scalar @outPaths == 0;
+
+    # Filter out any NULLs. Content-addressed derivations
+    # that haven't built yet or failed to build may have a NULL outPath.
+    @outPaths = grep {defined} @outPaths;
 
     my @steps = $c->model('DB::BuildSteps')->search(
         { path => { -in => [@outPaths] } },
@@ -206,13 +263,41 @@ sub getEvalInfo {
 }
 
 
-sub getEvals {
-    my ($self, $c, $evals, $offset, $rows) = @_;
+=head2 getEvals
 
-    my @evals = $evals->search(
+This method returns a list of evaluations with details about what changed,
+intended to be used with `eval.tt`.
+
+Arguments:
+
+=over 4
+
+=item C<$c>
+L<Hydra> - the entire application.
+
+=item C<$evals_result_set>
+
+A L<DBIx::Class::ResultSet> for the result class of L<Hydra::Model::DB::JobsetEvals>
+
+=item C<$offset>
+
+Integer offset when selecting evaluations
+
+=item C<$rows>
+
+Integer rows to fetch
+
+=back
+
+=cut
+sub getEvals {
+    my ($c, $evals_result_set, $offset, $rows) = @_;
+
+    my $me = $evals_result_set->current_source_alias;
+
+    my @evals = $evals_result_set->search(
         { hasnewbuilds => 1 },
-        { order_by => "me.id DESC", rows => $rows, offset => $offset
-        , prefetch => { evaluationerror => [  ] } });
+        { order_by => "$me.id DESC", rows => $rows, offset => $offset });
     my @res = ();
     my $cache = {};
 
@@ -224,7 +309,8 @@ sub getEvals {
             { order_by => "id DESC", rows => 1 });
 
         my $curInfo = getEvalInfo($cache, $curEval);
-        my $prevInfo = getEvalInfo($cache, $prevEval) if defined $prevEval;
+        my $prevInfo;
+        $prevInfo = getEvalInfo($cache, $prevEval) if defined $prevEval;
 
         # Compute what inputs changed between each eval.
         my @changedInputs;
@@ -259,13 +345,21 @@ sub getMachines {
 
     for my $machinesFile (@machinesFiles) {
         next unless -e $machinesFile;
-        open CONF, "<$machinesFile" or die;
-        while (<CONF>) {
-            chomp;
-            s/\#.*$//g;
-            next if /^\s*$/;
-            my @tokens = split /\s/, $_;
+        open(my $conf, "<", $machinesFile) or die;
+        while (my $line = <$conf>) {
+            chomp($line);
+            $line =~ s/\#.*$//g;
+            next if $line =~ /^\s*$/;
+            my @tokens = split /\s+/, $line;
+
+            if (!defined($tokens[5]) || $tokens[5] eq "-") {
+                $tokens[5] = "";
+            }
             my @supportedFeatures = split(/,/, $tokens[5] || "");
+
+            if (!defined($tokens[6]) || $tokens[6] eq "-") {
+                $tokens[6] = "";
+            }
             my @mandatoryFeatures = split(/,/, $tokens[6] || "");
             $machines{$tokens[0]} =
                 { systemTypes => [ split(/,/, $tokens[1]) ]
@@ -276,7 +370,7 @@ sub getMachines {
                 , mandatoryFeatures => [ @mandatoryFeatures ]
                 };
         }
-        close CONF;
+        close $conf;
     }
 
     return \%machines;
@@ -305,7 +399,7 @@ sub pathIsInsidePrefix {
 
         # ‘..’ should not take us outside of the prefix.
         if ($c eq "..") {
-            return if length($cur) <= length($prefix);
+            return undef if length($cur) <= length($prefix);
             $cur =~ s/\/[^\/]*$// or die; # remove last component
             next;
         }
@@ -323,26 +417,18 @@ sub pathIsInsidePrefix {
     return $cur;
 }
 
-
-sub captureStdoutStderr {
-    my ($timeout, @cmd) = @_;
-    my $stdin = "";
-    my $stdout;
-    my $stderr;
+sub readIntoSocket{
+    my (%args) = @_;
+    my $sock;
 
     eval {
-        local $SIG{ALRM} = sub { die "timeout\n" }; # NB: \n required
-        alarm $timeout;
-        IPC::Run::run(\@cmd, \$stdin, \$stdout, \$stderr);
-        alarm 0;
-        1;
-    } or do {
-        die unless $@ eq "timeout\n"; # propagate unexpected errors
-        return (-1, $stdout, ($stderr // "") . "timeout\n");
+        open($sock, "-|", @{$args{cmd}}) or die q(failed to open socket from command:\n $x);
     };
 
-    return ($?, $stdout, $stderr);
+    return $sock;
 }
+
+
 
 
 sub run {
@@ -405,7 +491,7 @@ sub getTotalShares {
 }
 
 
-sub cancelBuilds($$) {
+sub cancelBuilds {
     my ($db, $builds) = @_;
     return $db->txn_do(sub {
         $builds = $builds->search({ finished => 0 });
@@ -422,13 +508,13 @@ sub cancelBuilds($$) {
 }
 
 
-sub restartBuilds($$) {
+sub restartBuilds {
     my ($db, $builds) = @_;
 
     $builds = $builds->search({ finished => 1 });
 
     foreach my $build ($builds->search({}, { columns => ["drvpath"] })) {
-        next if !isValidPath($build->drvpath);
+        next if !$MACHINE_LOCAL_STORE->isValidPath($build->drvpath);
         registerRoot $build->drvpath;
     }
 
@@ -471,14 +557,28 @@ sub getStoreUri {
 sub readNixFile {
     my ($path) = @_;
     return grab(cmd => ["nix", "--experimental-features", "nix-command",
-                        "cat-store", "--store", getStoreUri(), "$path"]);
+                        "store", "cat", "--store", getStoreUri(), "$path"]);
 }
 
 
 sub isLocalStore {
     my $uri = getStoreUri();
-    return $uri =~ "^(local|daemon|auto)";
+    return $uri =~ "^(local|daemon|auto|file)";
 }
 
+
+sub constructRunCommandLogPath {
+    my ($runlog) = @_;
+    my $uuid = $runlog->uuid;
+
+    if (!is_uuid4_string($uuid)) {
+        die "UUID was invalid."
+    }
+
+    my $hydra_path = Hydra::Model::DB::getHydraPath;
+    my $bucket = substr($uuid, 0, 2);
+
+    return "$hydra_path/runcommand-logs/$bucket/$uuid";
+}
 
 1;

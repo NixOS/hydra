@@ -1,0 +1,49 @@
+[% WRAPPER layout.tt
+  titleHTML="RunCommand log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ linkToJob(build.jobset, job)
+  title="RunCommand log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ makeNameTextForJob(build.jobset, job)
+%]
+[% PROCESS common.tt %]
+
+<p>
+  Below
+  [% IF tail %]
+  are the last lines of
+  [% ELSE %]
+  is
+  [% END %]
+  the output of a RunCommand execution of the command <tt>[% HTML.escape(runcommandlog.command) %]</tt>
+  on <a href="[% c.uri_for('/build', build.id) %]">Build [% build.id %]</a>.
+  [% IF tail %]
+  The <a href="[% c.uri_for('/build', build.id, 'runcommandlog', runcommandlog.uuid) %]">full log</a> is also available.
+  [% END %]
+</p>
+
+<div class="card bg-light"><div class="card-body"><pre class="log" id="contents">
+<em>Loading...</em>
+</pre></div></div>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+    requestPlainFile({
+      url: "[% HTML.escape(log_uri) %]",
+      dataType: "text",
+      type: 'GET',
+      success: function (log_data) {
+
+        [% IF tail %]
+        /* The server may give us a full log (e.g. if the log is in
+           S3). So extract the last lines. */
+        log_data = log_data.split("\n").slice(-[%tail%]).join("\n");
+        [% END %]
+
+        $("#contents").text(log_data);
+      },
+      error: function () {
+        bootbox.alert("The RunCommand log file is not available.");
+        $("#contents").text("(Unavailable)");
+      }
+    });
+  });
+</script>
+
+[% END %]

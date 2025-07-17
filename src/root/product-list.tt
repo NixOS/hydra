@@ -54,11 +54,11 @@
               </a>
             </td>
             <td>
-             [% WRAPPER makePopover title="Help" classes="btn-mini" %]
+             [% WRAPPER makePopover title="Help" classes="btn-secondary btn-sm" %]
                <p>If you have Nix installed on your machine, this failed build output and
                all its dependencies can be unpacked into your local Nix store by doing:</p>
 
-               <pre><span class="shell-prompt">$ </span>curl [% uri %] | gunzip | nix-store --import</pre>
+               <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>curl [% uri %] | gunzip | nix-store --import</code></div></div>
 
                <p>The build output can then be found in the path <tt>[% product.path %]</tt>.</p>
              [% END %]
@@ -77,14 +77,14 @@
               <tt>[% HTML.escape(build.nixname) %]</tt>
             </td>
             <td>
-              [% WRAPPER makePopover title="Help" classes="btn-mini"
+              [% WRAPPER makePopover title="Help" classes="btn-secondary btn-sm"
               %] <p>You can install this package using the Nix package
               manager from the command-line:</p>
 
-                <pre><span class="shell-prompt">$ </span>nix-env -i [%HTML.escape(product.path)%][% IF binaryCachePublicUri %] --option binary-caches [% HTML.escape(binaryCachePublicUri) %][% END %]</pre>
+                <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>nix-env -i [%HTML.escape(product.path)%][% IF binaryCachePublicUri %] --option binary-caches [% HTML.escape(binaryCachePublicUri) %][% END %]</code></div></div>
               [% END %]
               [% IF localStore %]
-                <a class="btn btn-mini" href="[% contents %]">Contents</a>
+                <a class="btn btn-secondary btn-sm" href="[% contents %]">Contents</a>
               [% END %]
             </td>
           </tr>
@@ -105,21 +105,21 @@
               </a>
             </td>
             <td>
-              [% WRAPPER makePopover title="Help" classes="btn-mini" %]
+              [% WRAPPER makePopover title="Help" classes="btn-secondary btn-sm" %]
                 <p>If you have Nix installed on your machine, this build and
                 all its dependencies can be unpacked into your local Nix
                 store by doing:</p>
 
-                <pre><span class="shell-prompt">$ </span>gunzip &lt; [% filename %] | nix-store --import</pre>
+                <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>gunzip &lt; [% filename %] | nix-store --import</code></div></div>
 
                 <p>or to download and unpack in one command:</p>
 
-                <pre><span class="shell-prompt">$ </span>curl [% uri %] | gunzip | nix-store --import</pre>
+                <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>curl [% uri %] | gunzip | nix-store --import</code></div></div>
 
                 <p>The package can then be found in the path <tt>[%
                 product.path %]</tt>.  You’ll probably also want to do</p>
 
-                <pre><span class="shell-prompt">$ </span>nix-env -i [% product.path %]</pre>
+                <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>nix-env -i [% product.path %]</code></div></div>
 
                 <p>to actually install the package in your Nix user environment.</p>
 
@@ -187,7 +187,7 @@
           </a>
         </td>
         <td>
-          [% WRAPPER makePopover title="Details" classes="btn-mini" %]
+          [% WRAPPER makePopover title="Details" classes="btn-secondary btn-sm" %]
             <table class="info-table">
               [% INCLUDE renderProductLinks %]
               <tr><th>File size:</th><td>[% product.filesize %] bytes ([% mibs(product.filesize / (1024 * 1024)) %] MiB)</td></tr>
@@ -196,7 +196,7 @@
             </table>
           [% END %]
           [% IF localStore %]
-            <a class="btn btn-mini" href="[% contents %]">Contents</a>
+            <a class="btn btn-secondary btn-sm" href="[% contents %]">Contents</a>
           [% END %]
         </td>
       </tr>
@@ -254,7 +254,7 @@
         </a>
         </td>
         <td>
-          [% WRAPPER makePopover title="Details" classes="btn-mini" %]
+          [% WRAPPER makePopover title="Details" classes="btn-secondary btn-sm" %]
             <table class="info-table">
               [% INCLUDE renderProductLinks %]
             </table>

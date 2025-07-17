@@ -40,7 +40,7 @@
 </script>
 
 <p>The following projects are hosted on this server:
-<label id="show-disabled" class="btn btn-small pull-right" data-toggle="button">Show disabled projects</label>
+<label id="show-disabled" class="btn btn-secondary btn-sm float-right" data-toggle="button">Show disabled projects</label>
 </p>
 
 <table class="table table-condensed table-striped clickable-rows">

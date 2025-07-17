@@ -1,32 +1,29 @@
 #include <iostream>
 #include <thread>
 #include <optional>
+#include <type_traits>
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "state.hh"
-#include "build-result.hh"
-#include "store-api.hh"
-#include "remote-store.hh"
+#include <prometheus/exposer.h>
 
-#include "globals.hh"
+#include <nlohmann/json.hpp>
+
+#include <nix/util/signals.hh>
+#include "state.hh"
+#include "hydra-build-result.hh"
+#include <nix/store/store-open.hh>
+#include <nix/store/remote-store.hh>
+
+#include <nix/store/globals.hh>
 #include "hydra-config.hh"
-#include "json.hh"
-#include "s3-binary-cache-store.hh"
-#include "shared.hh"
+#include <nix/store/s3-binary-cache-store.hh>
+#include <nix/main/shared.hh>
 
 using namespace nix;
-
-
-namespace nix {
-
-template<> void toJSON<std::atomic<long>>(std::ostream & str, const std::atomic<long> & n) { str << n; }
-template<> void toJSON<std::atomic<uint64_t>>(std::ostream & str, const std::atomic<uint64_t> & n) { str << n; }
-template<> void toJSON<double>(std::ostream & str, const double & n) { str << n; }
-
-}
+using nlohmann::json;
 
 
 std::string getEnvOrDie(const std::string & key)
@@ -36,19 +33,93 @@ std::string getEnvOrDie(const std::string & key)
     return *value;
 }
 
+State::PromMetrics::PromMetrics()
+    : registry(std::make_shared<prometheus::Registry>())
+    , queue_checks_started(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_checks_started_total")
+            .Help("Number of times State::getQueuedBuilds() was started")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_build_loads(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_build_loads_total")
+            .Help("Number of builds loaded")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_steps_created(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_steps_created_total")
+            .Help("Number of steps created")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_checks_early_exits(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_checks_early_exits_total")
+            .Help("Number of times State::getQueuedBuilds() yielded to potential bumps")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_checks_finished(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_checks_finished_total")
+            .Help("Number of times State::getQueuedBuilds() was completed")
+            .Register(*registry)
+            .Add({})
+    )
+    , dispatcher_time_spent_running(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_dispatcher_time_spent_running")
+            .Help("Time (in micros) spent running the dispatcher")
+            .Register(*registry)
+            .Add({})
+    )
+    , dispatcher_time_spent_waiting(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_dispatcher_time_spent_waiting")
+            .Help("Time (in micros) spent waiting for the dispatcher to obtain work")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_monitor_time_spent_running(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_monitor_time_spent_running")
+            .Help("Time (in micros) spent running the queue monitor")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_monitor_time_spent_waiting(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_monitor_time_spent_waiting")
+            .Help("Time (in micros) spent waiting for the queue monitor to obtain work")
+            .Register(*registry)
+            .Add({})
+    )
+{
 
-State::State()
+}
+
+State::State(std::optional<std::string> metricsAddrOpt)
     : config(std::make_unique<HydraConfig>())
     , maxUnsupportedTime(config->getIntOption("max_unsupported_time", 0))
     , dbPool(config->getIntOption("max_db_connections", 128))
+    , localWorkThrottler(config->getIntOption("max_local_worker_threads", std::min(maxSupportedLocalWorkers, std::max(4u, std::thread::hardware_concurrency()) - 2)))
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
     , maxLogSize(config->getIntOption("max_log_size", 64ULL << 20))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
     , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
+    , metricsAddr(config->getStrOption("queue_runner_metrics_address", std::string{"127.0.0.1:9198"}))
 {
     hydraData = getEnvOrDie("HYDRA_DATA");
 
     logDir = canonPath(hydraData + "/build-logs");
+
+    if (metricsAddrOpt.has_value()) {
+        metricsAddr = metricsAddrOpt.value();
+    }
 
     /* handle deprecated store specification */
     if (config->getStrOption("store_mode") != "")
@@ -86,50 +157,29 @@ void State::parseMachines(const std::string & contents)
         oldMachines = *machines_;
     }
 
-    for (auto line : tokenizeString<Strings>(contents, "\n")) {
-        line = trim(string(line, 0, line.find('#')));
-        auto tokens = tokenizeString<std::vector<std::string>>(line);
-        if (tokens.size() < 3) continue;
-        tokens.resize(8);
-
-        auto machine = std::make_shared<Machine>();
-        machine->sshName = tokens[0];
-        machine->systemTypes = tokenizeString<StringSet>(tokens[1], ",");
-        machine->sshKey = tokens[2] == "-" ? string("") : tokens[2];
-        if (tokens[3] != "")
-            string2Int(tokens[3], machine->maxJobs);
-        else
-            machine->maxJobs = 1;
-        machine->speedFactor = atof(tokens[4].c_str());
-        if (tokens[5] == "-") tokens[5] = "";
-        machine->supportedFeatures = tokenizeString<StringSet>(tokens[5], ",");
-        if (tokens[6] == "-") tokens[6] = "";
-        machine->mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
-        for (auto & f : machine->mandatoryFeatures)
-            machine->supportedFeatures.insert(f);
-        if (tokens[7] != "" && tokens[7] != "-")
-            machine->sshPublicHostKey = base64Decode(tokens[7]);
+    for (auto && machine_ : nix::Machine::parseConfig({}, contents)) {
+        auto machine = std::make_shared<::Machine>(std::move(machine_));
 
         /* Re-use the State object of the previous machine with the
            same name. */
-        auto i = oldMachines.find(machine->sshName);
+        auto i = oldMachines.find(machine->storeUri.variant);
         if (i == oldMachines.end())
-            printMsg(lvlChatty, format("adding new machine ‘%1%’") % machine->sshName);
+            printMsg(lvlChatty, "adding new machine ‘%1%’", machine->storeUri.render());
         else
-            printMsg(lvlChatty, format("updating machine ‘%1%’") % machine->sshName);
+            printMsg(lvlChatty, "updating machine ‘%1%’", machine->storeUri.render());
         machine->state = i == oldMachines.end()
-            ? std::make_shared<Machine::State>()
+            ? std::make_shared<::Machine::State>()
             : i->second->state;
-        newMachines[machine->sshName] = machine;
+        newMachines[machine->storeUri.variant] = machine;
     }
 
     for (auto & m : oldMachines)
         if (newMachines.find(m.first) == newMachines.end()) {
             if (m.second->enabled)
-                printMsg(lvlInfo, format("removing machine ‘%1%’") % m.first);
-            /* Add a disabled Machine object to make sure stats are
+                printInfo("removing machine ‘%1%’", m.second->storeUri.render());
+            /* Add a disabled ::Machine object to make sure stats are
                maintained. */
-            auto machine = std::make_shared<Machine>(*(m.second));
+            auto machine = std::make_shared<::Machine>(*(m.second));
             machine->enabled = false;
             newMachines[m.first] = machine;
         }
@@ -149,14 +199,16 @@ void State::parseMachines(const std::string & contents)
 
 void State::monitorMachinesFile()
 {
-    string defaultMachinesFile = "/etc/nix/machines";
+    std::string defaultMachinesFile = "/etc/nix/machines";
     auto machinesFiles = tokenizeString<std::vector<Path>>(
         getEnv("NIX_REMOTE_SYSTEMS").value_or(pathExists(defaultMachinesFile) ? defaultMachinesFile : ""), ":");
 
     if (machinesFiles.empty()) {
         parseMachines("localhost " +
             (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem.get())
-            + " - " + std::to_string(settings.maxBuildJobs) + " 1");
+            + " - " + std::to_string(settings.maxBuildJobs) + " 1 "
+            + concatStringsSep(",", StoreConfig::getDefaultSystemFeatures()));
+        machinesReadyLock.unlock();
         return;
     }
 
@@ -189,7 +241,7 @@ void State::monitorMachinesFile()
 
         debug("reloading machines files");
 
-        string contents;
+        std::string contents;
         for (auto & machinesFile : machinesFiles) {
             try {
                 contents += readFile(machinesFile);
@@ -202,9 +254,15 @@ void State::monitorMachinesFile()
         parseMachines(contents);
     };
 
+    auto firstParse = true;
+
     while (true) {
         try {
             readMachinesFiles();
+            if (firstParse) {
+                machinesReadyLock.unlock();
+                firstParse = false;
+            }
             // FIXME: use inotify.
             sleep(30);
         } catch (std::exception & e) {
@@ -256,10 +314,13 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
 
     if (r.affected_rows() == 0) goto restart;
 
-    for (auto & [name, output] : step->drv->outputs)
+    for (auto & [name, output] : getDestStore()->queryPartialDerivationOutputMap(step->drvPath, &*localStore))
         txn.exec_params0
             ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-            buildId, stepNr, name, localStore->printStorePath(*output.path(*localStore, step->drv->name, name)));
+            buildId, stepNr, name,
+            output
+                ? std::optional { localStore->printStorePath(*output)}
+                : std::nullopt);
 
     if (status == bsBusy)
         txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));
@@ -296,11 +357,23 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
     assert(result.logFile.find('\t') == std::string::npos);
     txn.exec(fmt("notify step_finished, '%d\t%d\t%s'",
             buildId, stepNr, result.logFile));
+
+    if (result.stepStatus == bsSuccess) {
+        // Update the corresponding `BuildStepOutputs` row to add the output path
+        auto res = txn.exec_params1("select drvPath from BuildSteps where build = $1 and stepnr = $2", buildId, stepNr);
+        assert(res.size());
+        StorePath drvPath = localStore->parseStorePath(res[0].as<std::string>());
+        // If we've finished building, all the paths should be known
+        for (auto & [name, output] : getDestStore()->queryDerivationOutputMap(drvPath, &*localStore))
+            txn.exec_params0
+                ("update BuildStepOutputs set path = $4 where build = $1 and stepnr = $2 and name = $3",
+                  buildId, stepNr, name, localStore->printStorePath(output));
+    }
 }
 
 
 int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
-    Build::ptr build, const StorePath & drvPath, const string & outputName, const StorePath & storePath)
+    Build::ptr build, const StorePath & drvPath, const nix::Derivation drv, const std::string & outputName, const StorePath & storePath)
 {
  restart:
     auto stepNr = allocBuildStep(txn, build->id);
@@ -320,7 +393,7 @@ int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t sto
 
     txn.exec_params0
         ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-         build->id, stepNr, outputName, 
+         build->id, stepNr, outputName,
          localStore->printStorePath(storePath));
 
     return stepNr;
@@ -401,6 +474,15 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
          res.releaseName != "" ? std::make_optional(res.releaseName) : std::nullopt,
          isCachedBuild ? 1 : 0);
 
+    for (auto & [outputName, outputPath] : res.outputs) {
+        txn.exec_params0
+            ("update BuildOutputs set path = $3 where build = $1 and name = $2",
+             build->id,
+             outputName,
+             localStore->printStorePath(outputPath)
+            );
+    }
+
     txn.exec_params0("delete from BuildProducts where build = $1", build->id);
 
     unsigned int productNr = 1;
@@ -412,7 +494,7 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
              product.type,
              product.subtype,
              product.fileSize ? std::make_optional(*product.fileSize) : std::nullopt,
-             product.sha256hash ? std::make_optional(product.sha256hash->to_string(Base16, false)) : std::nullopt,
+             product.sha256hash ? std::make_optional(product.sha256hash->to_string(HashFormat::Base16, false)) : std::nullopt,
              product.path,
              product.name,
              product.defaultPath);
@@ -480,182 +562,174 @@ std::shared_ptr<PathLocks> State::acquireGlobalLock()
 
 void State::dumpStatus(Connection & conn)
 {
-    std::ostringstream out;
+    time_t now = time(0);
+    json statusJson = {
+        {"status", "up"},
+        {"time", time(0)},
+        {"uptime", now - startedAt},
+        {"pid", getpid()},
 
+        {"nrQueuedBuilds", builds.lock()->size()},
+        {"nrActiveSteps", activeSteps_.lock()->size()},
+        {"nrStepsBuilding", nrStepsBuilding.load()},
+        {"nrStepsCopyingTo", nrStepsCopyingTo.load()},
+        {"nrStepsWaitingForDownloadSlot", nrStepsWaitingForDownloadSlot.load()},
+        {"nrStepsCopyingFrom", nrStepsCopyingFrom.load()},
+        {"nrStepsWaiting", nrStepsWaiting.load()},
+        {"nrUnsupportedSteps", nrUnsupportedSteps.load()},
+        {"bytesSent", bytesSent.load()},
+        {"bytesReceived", bytesReceived.load()},
+        {"nrBuildsRead", nrBuildsRead.load()},
+        {"buildReadTimeMs", buildReadTimeMs.load()},
+        {"buildReadTimeAvgMs", nrBuildsRead == 0 ? 0.0 : (float) buildReadTimeMs / nrBuildsRead},
+        {"nrBuildsDone", nrBuildsDone.load()},
+        {"nrStepsStarted", nrStepsStarted.load()},
+        {"nrStepsDone", nrStepsDone.load()},
+        {"nrRetries", nrRetries.load()},
+        {"maxNrRetries", maxNrRetries.load()},
+        {"nrQueueWakeups", nrQueueWakeups.load()},
+        {"nrDispatcherWakeups", nrDispatcherWakeups.load()},
+        {"dispatchTimeMs", dispatchTimeMs.load()},
+        {"dispatchTimeAvgMs", nrDispatcherWakeups == 0 ? 0.0 : (float) dispatchTimeMs / nrDispatcherWakeups},
+        {"nrDbConnections", dbPool.count()},
+        {"nrActiveDbUpdates", nrActiveDbUpdates.load()},
+    };
     {
-        JSONObject root(out);
-        time_t now = time(0);
-        root.attr("status", "up");
-        root.attr("time", time(0));
-        root.attr("uptime", now - startedAt);
-        root.attr("pid", getpid());
-        {
-            auto builds_(builds.lock());
-            root.attr("nrQueuedBuilds", builds_->size());
-        }
         {
             auto steps_(steps.lock());
             for (auto i = steps_->begin(); i != steps_->end(); )
                 if (i->second.lock()) ++i; else i = steps_->erase(i);
-            root.attr("nrUnfinishedSteps", steps_->size());
+            statusJson["nrUnfinishedSteps"] = steps_->size();
         }
         {
             auto runnable_(runnable.lock());
             for (auto i = runnable_->begin(); i != runnable_->end(); )
                 if (i->lock()) ++i; else i = runnable_->erase(i);
-            root.attr("nrRunnableSteps", runnable_->size());
+            statusJson["nrRunnableSteps"] = runnable_->size();
         }
-        root.attr("nrActiveSteps", activeSteps_.lock()->size());
-        root.attr("nrStepsBuilding", nrStepsBuilding);
-        root.attr("nrStepsCopyingTo", nrStepsCopyingTo);
-        root.attr("nrStepsCopyingFrom", nrStepsCopyingFrom);
-        root.attr("nrStepsWaiting", nrStepsWaiting);
-        root.attr("nrUnsupportedSteps", nrUnsupportedSteps);
-        root.attr("bytesSent", bytesSent);
-        root.attr("bytesReceived", bytesReceived);
-        root.attr("nrBuildsRead", nrBuildsRead);
-        root.attr("buildReadTimeMs", buildReadTimeMs);
-        root.attr("buildReadTimeAvgMs", nrBuildsRead == 0 ? 0.0 : (float) buildReadTimeMs / nrBuildsRead);
-        root.attr("nrBuildsDone", nrBuildsDone);
-        root.attr("nrStepsStarted", nrStepsStarted);
-        root.attr("nrStepsDone", nrStepsDone);
-        root.attr("nrRetries", nrRetries);
-        root.attr("maxNrRetries", maxNrRetries);
         if (nrStepsDone) {
-            root.attr("totalStepTime", totalStepTime);
-            root.attr("totalStepBuildTime", totalStepBuildTime);
-            root.attr("avgStepTime", (float) totalStepTime / nrStepsDone);
-            root.attr("avgStepBuildTime", (float) totalStepBuildTime / nrStepsDone);
+            statusJson["totalStepTime"] = totalStepTime.load();
+            statusJson["totalStepBuildTime"] = totalStepBuildTime.load();
+            statusJson["avgStepTime"] = (float) totalStepTime / nrStepsDone;
+            statusJson["avgStepBuildTime"] = (float) totalStepBuildTime / nrStepsDone;
         }
-        root.attr("nrQueueWakeups", nrQueueWakeups);
-        root.attr("nrDispatcherWakeups", nrDispatcherWakeups);
-        root.attr("dispatchTimeMs", dispatchTimeMs);
-        root.attr("dispatchTimeAvgMs", nrDispatcherWakeups == 0 ? 0.0 : (float) dispatchTimeMs / nrDispatcherWakeups);
-        root.attr("nrDbConnections", dbPool.count());
-        root.attr("nrActiveDbUpdates", nrActiveDbUpdates);
 
         {
-            auto nested = root.object("machines");
+            auto machines_json = json::object();
             auto machines_(machines.lock());
             for (auto & i : *machines_) {
                 auto & m(i.second);
                 auto & s(m->state);
-                auto nested2 = nested.object(m->sshName);
-                nested2.attr("enabled", m->enabled);
-
-                {
-                    auto list = nested2.list("systemTypes");
-                    for (auto & s : m->systemTypes)
-                        list.elem(s);
-                }
-
-                {
-                    auto list = nested2.list("supportedFeatures");
-                    for (auto & s : m->supportedFeatures)
-                        list.elem(s);
-                }
-
-                {
-                    auto list = nested2.list("mandatoryFeatures");
-                    for (auto & s : m->mandatoryFeatures)
-                        list.elem(s);
-                }
-
-                nested2.attr("currentJobs", s->currentJobs);
-                if (s->currentJobs == 0)
-                    nested2.attr("idleSince", s->idleSince);
-                nested2.attr("nrStepsDone", s->nrStepsDone);
-                if (m->state->nrStepsDone) {
-                    nested2.attr("totalStepTime", s->totalStepTime);
-                    nested2.attr("totalStepBuildTime", s->totalStepBuildTime);
-                    nested2.attr("avgStepTime", (float) s->totalStepTime / s->nrStepsDone);
-                    nested2.attr("avgStepBuildTime", (float) s->totalStepBuildTime / s->nrStepsDone);
-                }
-
                 auto info(m->state->connectInfo.lock());
-                nested2.attr("disabledUntil", std::chrono::system_clock::to_time_t(info->disabledUntil));
-                nested2.attr("lastFailure", std::chrono::system_clock::to_time_t(info->lastFailure));
-                nested2.attr("consecutiveFailures", info->consecutiveFailures);
 
+                json machine = {
+                    {"enabled",  m->enabled},
+                    {"systemTypes", m->systemTypes},
+                    {"supportedFeatures", m->supportedFeatures},
+                    {"mandatoryFeatures", m->mandatoryFeatures},
+                    {"nrStepsDone", s->nrStepsDone.load()},
+                    {"currentJobs", s->currentJobs.load()},
+                    {"disabledUntil", std::chrono::system_clock::to_time_t(info->disabledUntil)},
+                    {"lastFailure", std::chrono::system_clock::to_time_t(info->lastFailure)},
+                    {"consecutiveFailures", info->consecutiveFailures},
+                };
+
+                if (s->currentJobs == 0)
+                    machine["idleSince"] = s->idleSince.load();
+                if (m->state->nrStepsDone) {
+                    machine["totalStepTime"] = s->totalStepTime.load();
+                    machine["totalStepBuildTime"] = s->totalStepBuildTime.load();
+                    machine["avgStepTime"] = (float) s->totalStepTime / s->nrStepsDone;
+                    machine["avgStepBuildTime"] = (float) s->totalStepBuildTime / s->nrStepsDone;
+                }
+                machines_json[m->storeUri.render()] = machine;
             }
+            statusJson["machines"] = machines_json;
         }
 
         {
-            auto nested = root.object("jobsets");
+            auto jobsets_json = json::object();
             auto jobsets_(jobsets.lock());
             for (auto & jobset : *jobsets_) {
-                auto nested2 = nested.object(jobset.first.first + ":" + jobset.first.second);
-                nested2.attr("shareUsed", jobset.second->shareUsed());
-                nested2.attr("seconds", jobset.second->getSeconds());
+                jobsets_json[jobset.first.first + ":" + jobset.first.second] = {
+                    {"shareUsed", jobset.second->shareUsed()},
+                    {"seconds", jobset.second->getSeconds()},
+                };
             }
+            statusJson["jobsets"] = jobsets_json;
         }
 
         {
-            auto nested = root.object("machineTypes");
+            auto machineTypesJson = json::object();
             auto machineTypes_(machineTypes.lock());
             for (auto & i : *machineTypes_) {
-                auto nested2 = nested.object(i.first);
-                nested2.attr("runnable", i.second.runnable);
-                nested2.attr("running", i.second.running);
+                auto machineTypeJson = machineTypesJson[i.first] = {
+                    {"runnable", i.second.runnable},
+                    {"running", i.second.running},
+                };
                 if (i.second.runnable > 0)
-                    nested2.attr("waitTime", i.second.waitTime.count() +
-                        i.second.runnable * (time(0) - lastDispatcherCheck));
+                    machineTypeJson["waitTime"] = i.second.waitTime.count() +
+                        i.second.runnable * (time(0) - lastDispatcherCheck);
                 if (i.second.running == 0)
-                    nested2.attr("lastActive", std::chrono::system_clock::to_time_t(i.second.lastActive));
+                    machineTypeJson["lastActive"] = std::chrono::system_clock::to_time_t(i.second.lastActive);
             }
+            statusJson["machineTypes"] = machineTypesJson;
         }
 
         auto store = getDestStore();
 
-        auto nested = root.object("store");
-
         auto & stats = store->getStats();
-        nested.attr("narInfoRead", stats.narInfoRead);
-        nested.attr("narInfoReadAverted", stats.narInfoReadAverted);
-        nested.attr("narInfoMissing", stats.narInfoMissing);
-        nested.attr("narInfoWrite", stats.narInfoWrite);
-        nested.attr("narInfoCacheSize", stats.pathInfoCacheSize);
-        nested.attr("narRead", stats.narRead);
-        nested.attr("narReadBytes", stats.narReadBytes);
-        nested.attr("narReadCompressedBytes", stats.narReadCompressedBytes);
-        nested.attr("narWrite", stats.narWrite);
-        nested.attr("narWriteAverted", stats.narWriteAverted);
-        nested.attr("narWriteBytes", stats.narWriteBytes);
-        nested.attr("narWriteCompressedBytes", stats.narWriteCompressedBytes);
-        nested.attr("narWriteCompressionTimeMs", stats.narWriteCompressionTimeMs);
-        nested.attr("narCompressionSavings",
-            stats.narWriteBytes
-            ? 1.0 - (double) stats.narWriteCompressedBytes / stats.narWriteBytes
-            : 0.0);
-        nested.attr("narCompressionSpeed", // MiB/s
+        statusJson["store"] = {
+            {"narInfoRead", stats.narInfoRead.load()},
+            {"narInfoReadAverted", stats.narInfoReadAverted.load()},
+            {"narInfoMissing", stats.narInfoMissing.load()},
+            {"narInfoWrite", stats.narInfoWrite.load()},
+            {"narInfoCacheSize", stats.pathInfoCacheSize.load()},
+            {"narRead", stats.narRead.load()},
+            {"narReadBytes", stats.narReadBytes.load()},
+            {"narReadCompressedBytes", stats.narReadCompressedBytes.load()},
+            {"narWrite", stats.narWrite.load()},
+            {"narWriteAverted", stats.narWriteAverted.load()},
+            {"narWriteBytes", stats.narWriteBytes.load()},
+            {"narWriteCompressedBytes", stats.narWriteCompressedBytes.load()},
+            {"narWriteCompressionTimeMs", stats.narWriteCompressionTimeMs.load()},
+            {"narCompressionSavings",
+             stats.narWriteBytes
+             ? 1.0 - (double) stats.narWriteCompressedBytes / stats.narWriteBytes
+             : 0.0},
+            {"narCompressionSpeed", // MiB/s
             stats.narWriteCompressionTimeMs
             ? (double) stats.narWriteBytes / stats.narWriteCompressionTimeMs * 1000.0 / (1024.0 * 1024.0)
-            : 0.0);
+            : 0.0},
+        };
 
+#if NIX_WITH_S3_SUPPORT
         auto s3Store = dynamic_cast<S3BinaryCacheStore *>(&*store);
         if (s3Store) {
-            auto nested2 = nested.object("s3");
             auto & s3Stats = s3Store->getS3Stats();
-            nested2.attr("put", s3Stats.put);
-            nested2.attr("putBytes", s3Stats.putBytes);
-            nested2.attr("putTimeMs", s3Stats.putTimeMs);
-            nested2.attr("putSpeed",
-                s3Stats.putTimeMs
-                ? (double) s3Stats.putBytes / s3Stats.putTimeMs * 1000.0 / (1024.0 * 1024.0)
-                : 0.0);
-            nested2.attr("get", s3Stats.get);
-            nested2.attr("getBytes", s3Stats.getBytes);
-            nested2.attr("getTimeMs", s3Stats.getTimeMs);
-            nested2.attr("getSpeed",
-                s3Stats.getTimeMs
-                ? (double) s3Stats.getBytes / s3Stats.getTimeMs * 1000.0 / (1024.0 * 1024.0)
-                : 0.0);
-            nested2.attr("head", s3Stats.head);
-            nested2.attr("costDollarApprox",
-                (s3Stats.get + s3Stats.head) / 10000.0 * 0.004
-                + s3Stats.put / 1000.0 * 0.005 +
-                + s3Stats.getBytes / (1024.0 * 1024.0 * 1024.0) * 0.09);
+            auto jsonS3 = statusJson["s3"] = {
+                {"put", s3Stats.put.load()},
+                {"putBytes", s3Stats.putBytes.load()},
+                {"putTimeMs", s3Stats.putTimeMs.load()},
+                {"putSpeed",
+                 s3Stats.putTimeMs
+                 ? (double) s3Stats.putBytes / s3Stats.putTimeMs * 1000.0 / (1024.0 * 1024.0)
+                 : 0.0},
+                {"get", s3Stats.get.load()},
+                {"getBytes", s3Stats.getBytes.load()},
+                {"getTimeMs", s3Stats.getTimeMs.load()},
+                {"getSpeed",
+                 s3Stats.getTimeMs
+                 ? (double) s3Stats.getBytes / s3Stats.getTimeMs * 1000.0 / (1024.0 * 1024.0)
+                 : 0.0},
+                {"head", s3Stats.head.load()},
+                {"costDollarApprox",
+                        (s3Stats.get + s3Stats.head) / 10000.0 * 0.004
+                        + s3Stats.put / 1000.0 * 0.005 +
+                        + s3Stats.getBytes / (1024.0 * 1024.0 * 1024.0) * 0.09},
+            };
         }
+#endif
     }
 
     {
@@ -663,7 +737,7 @@ void State::dumpStatus(Connection & conn)
         pqxx::work txn(conn);
         // FIXME: use PostgreSQL 9.5 upsert.
         txn.exec("delete from SystemStatus where what = 'queue-runner'");
-        txn.exec_params0("insert into SystemStatus values ('queue-runner', $1)", out.str());
+        txn.exec_params0("insert into SystemStatus values ('queue-runner', $1)", statusJson.dump());
         txn.exec("notify status_dumped");
         txn.commit();
     }
@@ -675,14 +749,14 @@ void State::showStatus()
     auto conn(dbPool.get());
     receiver statusDumped(*conn, "status_dumped");
 
-    string status;
+    std::string status;
     bool barf = false;
 
     /* Get the last JSON status dump from the database. */
     {
         pqxx::work txn(*conn);
         auto res = txn.exec("select status from SystemStatus where what = 'queue-runner'");
-        if (res.size()) status = res[0][0].as<string>();
+        if (res.size()) status = res[0][0].as<std::string>();
     }
 
     if (status != "") {
@@ -702,7 +776,7 @@ void State::showStatus()
         {
             pqxx::work txn(*conn);
             auto res = txn.exec("select status from SystemStatus where what = 'queue-runner'");
-            if (res.size()) status = res[0][0].as<string>();
+            if (res.size()) status = res[0][0].as<std::string>();
         }
 
     }
@@ -746,7 +820,19 @@ void State::run(BuildID buildOne)
     if (!lock)
         throw Error("hydra-queue-runner is already running");
 
-    Store::Params localParams;
+    std::cout << "Starting the Prometheus exporter on " << metricsAddr << std::endl;
+
+    /* Set up simple exporter, to show that we're still alive. */
+    prometheus::Exposer promExposer{metricsAddr};
+    auto exposerPort = promExposer.GetListeningPorts().front();
+
+    promExposer.RegisterCollectable(prom.registry);
+
+    std::cout << "Started the Prometheus exporter, listening on "
+        << metricsAddr << "/metrics (port " << exposerPort << ")"
+        << std::endl;
+
+    Store::Config::Params localParams;
     localParams["max-connections"] = "16";
     localParams["max-connection-age"] = "600";
     localStore = openStore(getEnv("NIX_REMOTE").value_or(""), localParams);
@@ -769,6 +855,7 @@ void State::run(BuildID buildOne)
         dumpStatus(*conn);
     }
 
+    machinesReadyLock.lock();
     std::thread(&State::monitorMachinesFile, this).detach();
 
     std::thread(&State::queueMonitor, this).detach();
@@ -827,10 +914,17 @@ void State::run(BuildID buildOne)
     while (true) {
         try {
             auto conn(dbPool.get());
-            receiver dumpStatus_(*conn, "dump_status");
-            while (true) {
-                conn->await_notification();
-                dumpStatus(*conn);
+            try {
+                receiver dumpStatus_(*conn, "dump_status");
+                while (true) {
+                    conn->await_notification();
+                    dumpStatus(*conn);
+                }
+            } catch (pqxx::broken_connection & connEx) {
+                printMsg(lvlError, "main thread: %s", connEx.what());
+                printMsg(lvlError, "main thread: Reconnecting in 10s");
+                conn.markBad();
+                sleep(10);
             }
         } catch (std::exception & e) {
             printMsg(lvlError, "main thread: %s", e.what());
@@ -855,6 +949,7 @@ int main(int argc, char * * argv)
         bool unlock = false;
         bool status = false;
         BuildID buildOne = 0;
+        std::optional<std::string> metricsAddrOpt = std::nullopt;
 
         parseCmdLine(argc, argv, [&](Strings::iterator & arg, const Strings::iterator & end) {
             if (*arg == "--unlock")
@@ -862,17 +957,20 @@ int main(int argc, char * * argv)
             else if (*arg == "--status")
                 status = true;
             else if (*arg == "--build-one") {
-                if (!string2Int<BuildID>(getArg(*arg, arg, end), buildOne))
+                if (auto b = string2Int<BuildID>(getArg(*arg, arg, end)))
+                    buildOne = *b;
+                else
                     throw Error("‘--build-one’ requires a build ID");
+            } else if (*arg == "--prometheus-address") {
+                metricsAddrOpt = getArg(*arg, arg, end);
             } else
                 return false;
             return true;
         });
 
         settings.verboseBuild = true;
-        settings.lockCPU = false;
 
-        State state;
+        State state{metricsAddrOpt};
         if (status)
             state.showStatus();
         else if (unlock)

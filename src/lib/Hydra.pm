@@ -6,9 +6,9 @@ use parent 'Catalyst';
 use Moose;
 use Hydra::Plugin;
 use Hydra::Model::DB;
+use Hydra::Config qw(getLDAPConfigAmbient);
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
-                Unicode::Encoding
                 Static::Simple
                 StackTrace
                 Authentication
@@ -16,10 +16,10 @@ use Catalyst qw/ConfigLoader
                 Session
                 Session::Store::FastMmap
                 Session::State::Cookie
-                Captcha/,
+                Captcha
+                PrometheusTiny/,
                 '-Log=warn,fatal,error';
 use CatalystX::RoleApplicator;
-use YAML qw(LoadFile);
 use Path::Class 'file';
 
 our $VERSION = '0.01';
@@ -27,27 +27,31 @@ our $VERSION = '0.01';
 __PACKAGE__->config(
     name => 'Hydra',
     default_view => "TT",
-    authentication => {
+    'Plugin::Authentication' => {
         default_realm => "dbic",
-        realms => {
-            dbic => {
-                credential => {
-                    class => "Password",
-                    password_field => "password",
-                    password_type => "hashed",
-                    password_hash_type => "SHA-1",
-                },
-                store => {
-                    class => "DBIx::Class",
-                    user_class => "DB::Users",
-                    role_relation => "userroles",
-                    role_field => "role",
-                },
+
+        dbic => {
+            credential => {
+                class => "Password",
+                password_field => "password",
+                password_type => "self_check",
             },
-            ldap => $ENV{'HYDRA_LDAP_CONFIG'} ? LoadFile(
-                file($ENV{'HYDRA_LDAP_CONFIG'})
-            ) : undef
+            store => {
+                class => "DBIx::Class",
+                user_class => "DB::Users",
+                role_relation => "userroles",
+                role_field => "role",
+            },
         },
+        ldap => getLDAPConfigAmbient()->{'config'}
+    },
+    'Plugin::ConfigLoader' => {
+        driver => {
+            'General' => \%Hydra::Config::configGeneralOpts
+        }
+    },
+    'Plugin::PrometheusTiny' => {
+        include_action_labels => 1,
     },
     'Plugin::Static::Simple' => {
         send_etag => 1,
