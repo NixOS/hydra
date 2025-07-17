@@ -1,5 +1,7 @@
 #!/bin/sh
 
+export PATH=$(pwd)/src/script:$PATH
+
 # wait for postgresql to listen
 while ! pg_isready -h $(pwd)/.hydra-data/postgres -p 64444; do sleep 1; done
 

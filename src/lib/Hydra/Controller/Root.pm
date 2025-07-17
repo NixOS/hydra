@@ -57,6 +57,7 @@ sub begin :Private {
     $c->stash->{tracker} = defined $c->config->{tracker} ? $c->config->{tracker} : "";
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
+    $c->stash->{localStore} = isLocalStore;
 
     $c->stash->{isPrivateHydra} = $c->config->{private} // "0" ne "0";
 
@@ -188,8 +189,10 @@ sub machines :Local Args(0) {
     my ($self, $c) = @_;
     my $machines = getMachines;
 
-    # Add entry for localhost.
-    $machines->{''} //= {};
+    # Add entry for localhost. The implicit addition is not needed with queue runner v2
+    if (not $c->config->{'queue_runner_endpoint'}) {
+        $machines->{''} //= {};
+    }
     delete $machines->{'localhost'};
 
     my $status = $c->model('DB::SystemStatus')->find("queue-runner");

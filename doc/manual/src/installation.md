@@ -48,7 +48,7 @@ Getting Nix
 If your server runs NixOS you are all set to continue with installation
 of Hydra. Otherwise you first need to install Nix. The latest stable
 version can be found one [the Nix web
-site](http://nixos.org/nix/download.html), along with a manual, which
+site](https://nixos.org/download/), along with a manual, which
 includes installation instructions.
 
 Installation

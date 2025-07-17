@@ -12,6 +12,8 @@ use Nix::Store;
 use Encode;
 use Sys::Hostname::Long;
 use IPC::Run;
+use LWP::UserAgent;
+use JSON::MaybeXS;
 use UUID4::Tiny qw(is_uuid4_string);
 
 our @ISA = qw(Exporter);
@@ -340,37 +342,60 @@ sub getEvals {
 
 sub getMachines {
     my %machines = ();
+    my $config = getHydraConfig();
 
-    my @machinesFiles = split /:/, ($ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix/machines");
+    if ($config->{'queue_runner_endpoint'}) {
+        my $ua = LWP::UserAgent->new();
+        my $resp = $ua->get($config->{'queue_runner_endpoint'} . "/status/machines");
+        if (not $resp->is_success) {
+            print STDERR "Unable to ask queue runner for machines\n";
+            return \%machines;
+        }
 
-    for my $machinesFile (@machinesFiles) {
-        next unless -e $machinesFile;
-        open(my $conf, "<", $machinesFile) or die;
-        while (my $line = <$conf>) {
-            chomp($line);
-            $line =~ s/\#.*$//g;
-            next if $line =~ /^\s*$/;
-            my @tokens = split /\s+/, $line;
+        my $data = decode_json($resp->decoded_content) or return \%machines;
+        my $machinesData = $data->{machines};
 
-            if (!defined($tokens[5]) || $tokens[5] eq "-") {
-                $tokens[5] = "";
-            }
-            my @supportedFeatures = split(/,/, $tokens[5] || "");
-
-            if (!defined($tokens[6]) || $tokens[6] eq "-") {
-                $tokens[6] = "";
-            }
-            my @mandatoryFeatures = split(/,/, $tokens[6] || "");
-            $machines{$tokens[0]} =
-                { systemTypes => [ split(/,/, $tokens[1]) ]
-                , sshKeys => $tokens[2]
-                , maxJobs => int($tokens[3])
-                , speedFactor => 1.0 * (defined $tokens[4] ? int($tokens[4]) : 1)
-                , supportedFeatures => [ @supportedFeatures, @mandatoryFeatures ]
-                , mandatoryFeatures => [ @mandatoryFeatures ]
+        foreach my $machineName (keys %$machinesData) {
+            my $machine = %$machinesData{$machineName};
+            $machines{$machineName} =
+                { systemTypes => $machine->{systems}
+                , maxJobs => $machine->{maxJobs}
+                , speedFactor => $machine->{speedFactor}
+                , supportedFeatures => [ @{$machine->{supportedFeatures}}, @{$machine->{mandatoryFeatures}} ]
+                , mandatoryFeatures => [ @{$machine->{mandatoryFeatures}} ]
                 };
         }
-        close $conf;
+    } else {
+        my @machinesFiles = split /:/, ($ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix/machines");
+
+        for my $machinesFile (@machinesFiles) {
+            next unless -e $machinesFile;
+            open(my $conf, "<", $machinesFile) or die;
+            while (my $line = <$conf>) {
+                chomp($line);
+                $line =~ s/\#.*$//g;
+                next if $line =~ /^\s*$/;
+                my @tokens = split /\s+/, $line;
+
+                if (!defined($tokens[5]) || $tokens[5] eq "-") {
+                    $tokens[5] = "";
+                }
+                my @supportedFeatures = split(/,/, $tokens[5] || "");
+
+                if (!defined($tokens[6]) || $tokens[6] eq "-") {
+                    $tokens[6] = "";
+                }
+                my @mandatoryFeatures = split(/,/, $tokens[6] || "");
+                $machines{$tokens[0]} =
+                    { systemTypes => [ split(/,/, $tokens[1]) ]
+                    , maxJobs => int($tokens[3])
+                    , speedFactor => 1.0 * (defined $tokens[4] ? int($tokens[4]) : 1)
+                    , supportedFeatures => [ @supportedFeatures, @mandatoryFeatures ]
+                    , mandatoryFeatures => [ @mandatoryFeatures ]
+                    };
+            }
+            close $conf;
+        }
     }
 
     return \%machines;

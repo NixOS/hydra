@@ -340,7 +340,7 @@ in
         requires = [ "hydra-init.service" ];
         wants = [ "network-online.target" ];
         after = [ "hydra-init.service" "network.target" "network-online.target" ];
-        path = [ cfg.package pkgs.nettools pkgs.openssh pkgs.bzip2 config.nix.package ];
+        path = [ cfg.package pkgs.hostname-debian pkgs.openssh pkgs.bzip2 config.nix.package ];
         restartTriggers = [ hydraConf ];
         environment = env // {
           PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
@@ -364,7 +364,7 @@ in
         requires = [ "hydra-init.service" ];
         restartTriggers = [ hydraConf ];
         after = [ "hydra-init.service" "network.target" ];
-        path = with pkgs; [ nettools cfg.package jq ];
+        path = with pkgs; [ hostname-debian cfg.package jq ];
         environment = env // {
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-evaluator";
         };
@@ -463,12 +463,12 @@ in
           ''
             set -eou pipefail
             compression=$(sed -nr 's/compress_build_logs_compression = ()/\1/p' ${baseDir}/hydra.conf)
-            if [[ $compression == "" ]]; then
-              compression="bzip2"
+            if [[ $compression == "" || $compression == bzip2 ]]; then
+              compressionCmd=(bzip2)
             elif [[ $compression == zstd ]]; then
-              compression="zstd --rm"
+              compressionCmd=(zstd --rm)
             fi
-            find ${baseDir}/build-logs -ignore_readdir_race -type f -name "*.drv" -mtime +3 -size +0c | xargs -r "$compression" --force --quiet
+            find ${baseDir}/build-logs -ignore_readdir_race -type f -name "*.drv" -mtime +3 -size +0c -print0 | xargs -0 -r "''${compressionCmd[@]}" --force --quiet
           '';
         startAt = "Sun 01:45";
       };
