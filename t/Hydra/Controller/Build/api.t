@@ -102,4 +102,47 @@ subtest "accessing the constituents API" => sub {
     is($buildB->{job}, "b");
 };
 
+subtest "accessing the get-info API" => sub {
+    my $url = $build_url . "/api/get-info";
+
+    my $build_info = request(GET $url,
+        Accept => 'application/json',
+    );
+
+    ok($build_info->is_success, "Getting the build info");
+
+    my $data;
+    my $valid_json = lives { $data = decode_json($build_info->content); };
+    ok($valid_json, "We get back valid JSON.");
+    if (!$valid_json) {
+        use Data::Dumper;
+        print STDERR Dumper $build_info->content;
+    }
+
+    # Query the build steps from the aggregate build and create the expected list of results.
+    my @buildsteps = $aggregateBuild->buildsteps->search({}, {order_by => "stepnr asc"});
+    my @buildsteplist;
+    push @buildsteplist, Hydra::Controller::Build::buildStepToHash($_) foreach @buildsteps;
+
+    # Create the expected output with the build step information in it.
+    my $expected = {
+        project => "tests",
+        jobset => "aggregate",
+        outPath => $aggregateBuild->buildoutputs->find({ name => "out" })->path,
+        buildstatus => 0,
+        drvPath => $aggregateBuild->drvpath,
+        buildId => $aggregateBuild->id,
+        priority => undef,
+        finished => 1,
+        id => $aggregateBuild->id,
+        job => "aggregate",
+        nixname => "aggregate",
+        timestamp => $aggregateBuild->timestamp,
+        system => $aggregateBuild->system,
+        steps => \@buildsteplist,
+    };
+
+    is($data, $expected, "The build's info JSON matches our API.");
+};
+
 done_testing;
