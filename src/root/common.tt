@@ -685,6 +685,14 @@ BLOCK includeFlot %]
 [% END;
 
 
+BLOCK renderYesNo %]
+[% IF value %]
+<span class="text-success">Yes</span>
+[% ELSE %]
+<span class="text-danger">No</span>
+[% END %]
+[% END;
+
 BLOCK createChart %]
 
   <div id="[%id%]-chart" style="width: 1000px; height: 400px;"></div>

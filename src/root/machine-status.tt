@@ -19,10 +19,53 @@
       <tr>
         <th colspan="7">
           <tt [% IF m.value.disabled %]style="text-decoration: line-through;"[% END %]>[% INCLUDE renderMachineName machine=m.key %]</tt>
-          [% IF m.value.systemTypes %]
+          [% IF m.value.primarySystemType %]
             <span class="muted" style="font-weight: normal;">
-              ([% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system %]</tt>[% END %])
+              (<tt>[% m.value.primarySystemType %]</tt>)
             </span>
+            &nbsp;
+            [% WRAPPER makePopover title="Details" classes="btn-secondary btn-sm" %]
+              <ul class="list-unstyled">
+                <li><b>System types:&nbsp;</b>[% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system %]</tt>[% END %]</li>
+                <li><b>Supported Features:&nbsp;</b>[% comma=0; FOREACH feat IN m.value.supportedFeatures %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% feat %]</tt>[% END %]</li>
+                <li><b>Mandatory Features:&nbsp;</b>[% comma=0; FOREACH feat IN m.value.mandatoryFeatures %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% feat %]</tt>[% END %]</li>
+                <li><b>Capacity:&nbsp;</b>[% INCLUDE renderYesNo value=m.value.hasCapacity %]&nbsp;<b>Static:&nbsp;</b>[% INCLUDE renderYesNo value=m.value.hasStaticCapacity %]&nbsp;<b>Dynamic:&nbsp;</b>[% INCLUDE renderYesNo value=m.value.hasDynamicCapacity %]</li>
+                <li><b>Score:&nbsp;</b>[% m.value.score %]</li>
+                <li><b>Load:&nbsp;</b><tt>[% m.value.stats.load1 %]</tt>&nbsp;&nbsp;<tt>[% m.value.stats.load5 %]</tt>&nbsp;&nbsp;<tt>[% m.value.stats.load15 %]</tt></li>
+                <li><b>Memory:&nbsp;</b><tt>[% mibs(m.value.stats.memUsage / (1024 * 1024)) %] MiB</tt> bytes of <tt>[% mibs(m.value.memTotal / (1024 * 1024)) %] MiB</tt> bytes used</li>
+                [% pressure = m.value.stats.pressure %]
+                [% IF pressure %]
+                    <li><b>Pressure:&nbsp;</b>
+                        <table class="pressureTable">
+                            [% IF pressure.cpuSome %]
+                                <tr><td><b>Some CPU:</b></td><td><tt>[% pressure.cpuSome.avg10 %]%</tt></td><td><td><tt>[% pressure.cpuSome.avg60 %]%</tt></td><td><td><tt>[% pressure.cpuSome.avg300 %]%</tt></td><td>
+                            [% END %]
+                            [% IF pressure.ioSome %]
+                                <tr><td><b>Some IO:</b></td><td><tt>[% pressure.ioSome.avg10 %]%</tt></td><td><td><tt>[% pressure.ioSome.avg60 %]%</tt></td><td><td><tt>[% pressure.ioSome.avg300 %]%</tt></td><td>
+                            [% END %]
+                            [% IF pressure.ioFull %]
+                                <tr><td><b>Full IO:</b></td><td><tt>[% pressure.ioFull.avg10 %]%</tt></td><td><td><tt>[% pressure.ioFull.avg60 %]%</tt></td><td><td><tt>[% pressure.ioFull.avg300 %]%</tt></td><td>
+                            [% END %]
+                            [% IF pressure.irqFull %]
+                                <tr><td><b>Full IRQ:</b></td><td><tt>[% pressure.irqFull.avg10 %]%</tt></td><td><td><tt>[% pressure.irqFull.avg60 %]%</tt></td><td><td><tt>[% pressure.irqFull.avg300 %]%</tt></td><td>
+                            [% END %]
+                            [% IF pressure.memSome %]
+                                <tr><td><b>Some Memory:</b></td><td><tt>[% pressure.memSome.avg10 %]%</tt></td><td><td><tt>[% pressure.memSome.avg60 %]%</tt></td><td><td><tt>[% pressure.memSome.avg300 %]%</tt></td><td>
+                            [% END %]
+                            [% IF pressure.memFull %]
+                                <tr><td><b>Full Memory:</b></td><td><tt>[% pressure.memFull.avg10 %]%</tt></td><td><td><tt>[% pressure.memFull.avg60 %]%</tt></td><td><td><tt>[% pressure.memFull.avg300 %]%</tt></td><td>
+                            [% END %]
+                        </table>
+                    </li>
+                [% END %]
+              </ul>
+            [% END %]
+          [% ELSE %]
+            [% IF m.value.systemTypes %]
+              <span class="muted" style="font-weight: normal;">
+                ([% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system %]</tt>[% END %])
+              </span>
+            [% END %]
           [% END %]
           [% IF m.value.nrStepsDone %]
             <span class="muted" style="font-weight: normal;">
