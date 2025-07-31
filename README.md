@@ -100,7 +100,7 @@ Have a look at the [Procfile](./Procfile) if you want to see how the processes a
 conflicts with services that might be running on your host, hydra and postgress are started on custom ports:
 
 - hydra-server: 63333 with the username "alice" and the password "foobar"
-- postgresql: 64444
+- postgresql: 64444, can be connected to using `psql -p 64444 -h localhost hydra`
 
 Note that this is only ever meant as an ad-hoc way of executing Hydra during development. Please make use of the
 NixOS module for actually running Hydra in production.
