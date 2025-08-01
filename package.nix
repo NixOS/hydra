@@ -110,6 +110,7 @@ let
         NetAmazonS3
         NetPrometheus
         NetStatsd
+        NumberBytesHuman
         PadWalker
         ParallelForkManager
         PerlCriticCommunity

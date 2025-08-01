@@ -9,6 +9,7 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::View::TT;
 use Nix::Store;
 use Nix::Config;
+use Number::Bytes::Human qw(format_bytes);
 use Encode;
 use File::Basename;
 use JSON::MaybeXS;
@@ -215,6 +216,19 @@ sub machines :Local Args(0) {
         "where busy != 0 order by machine, stepnr",
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
+    $c->stash->{human_bytes} = sub {
+        my ($bytes) = @_;
+        return format_bytes($bytes, si => 1);
+    };
+    $c->stash->{pretty_load} = sub {
+        my ($load) = @_;
+        return sprintf('%.2f', $load);
+    };
+    $c->stash->{pretty_percent} = sub {
+        my ($percent) = @_;
+        my $ret = sprintf('%.2f', $percent);
+        return ('&nbsp;' x (6 - length($ret))) . $ret;
+    };
     $self->status_ok($c, entity => $c->stash->{machines});
 }
 
