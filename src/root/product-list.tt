@@ -81,7 +81,7 @@
               %] <p>You can install this package using the Nix package
               manager from the command-line:</p>
 
-                <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>nix-env -i [%HTML.escape(product.path)%][% IF binaryCachePublicUri %] --option binary-caches [% HTML.escape(binaryCachePublicUri) %][% END %]</code></div></div>
+                <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>nix-env -i [% HTML.escape(product.path) %][% IF binaryCachePublicUri %] --option binary-caches [% HTML.escape(binaryCachePublicUri) %][% END %]</code></div></div>
               [% END %]
               [% IF localStore %]
                 <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => contents) %]>Contents</a>
