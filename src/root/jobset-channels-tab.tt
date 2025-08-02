@@ -22,7 +22,7 @@
     <tbody>
       [% FOREACH chan IN channels-%]
         <tr>
-          <th><span><a [% HTML.attributes(href => c.uri_for('/channel/custom' project.name jobset.name chan)) %]>[% chan %]</a></span></th>
+          <th><span><a [% HTML.attributes(href => c.uri_for('/channel/custom' project.name jobset.name chan)) %]>[% HTML.escape(chan) %]</a></span></th>
           [% FOREACH eval IN evalIds %]
             <td>[% r = evals.$eval.builds.$chan; IF r.id %]<a [% HTML.attributes(href => c.uri_for('/build' r.id)) %]>[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
           [% END %]

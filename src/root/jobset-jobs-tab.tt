@@ -41,7 +41,7 @@
 [% ELSE %]
 
   [% IF nrJobs > jobs.size %]
-    <div class="alert alert-info">Showing the first [% jobs.size %] jobs.  <a href="javascript:setFilter('filter=%')">Show all [% nrJobs %] jobs...</a></div>
+    <div class="alert alert-info">Showing the first [% HTML.escape(jobs.size) %] jobs.  <a href="javascript:setFilter('filter=%')">Show all [% HTML.escape(nrJobs) %] jobs...</a></div>
   [% END %]
 
   [% evalIds = evals.keys.nsort.reverse %]

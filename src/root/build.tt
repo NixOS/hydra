@@ -86,7 +86,7 @@ END;
               [% ELSIF step.status == 11 %]
                 <span class="error">Output limit exceeded</span>
               [% ELSIF step.status == 12 %]
-                <span class="error">Non-determinism detected</span> [% IF step.timesbuilt %] after [% step.timesbuilt %] times[% END %]
+                <span class="error">Non-determinism detected</span> [% IF step.timesbuilt %] after [% HTML.escape(step.timesbuilt) %] times[% END %]
               [% ELSIF step.errormsg %]
                 <span class="error">Failed</span>: <em>[% HTML.escape(step.errormsg) %]</em>
               [% ELSE %]
@@ -507,14 +507,14 @@ END;
             <div>
               [% IF not runcommandlog.is_running() %]
                 [% IF runcommandlog.did_fail_with_signal() %]
-                  Exit signal: [% runcommandlog.signal %]
+                  Exit signal: [% runcommandlog.signal | html %]
                   [% IF runcommandlog.core_dumped %]
                     (Core Dumped)
                   [% END %]
                 [% ELSIF runcommandlog.did_fail_with_exec_error() %]
-                  Exec error: [% runcommandlog.error_number %]
+                  Exec error: [% runcommandlog.error_number | html %]
                 [% ELSIF not runcommandlog.did_succeed() %]
-                  Exit code: [% runcommandlog.exit_code %]
+                  Exit code: [% runcommandlog.exit_code | html %]
                 [% END %]
               [% END %]
             </div>

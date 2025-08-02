@@ -10,7 +10,7 @@
 [% PROCESS common.tt %]
 
 <p>Showing evaluations [% (page - 1) * resultsPerPage + 1 %] - [%
-(page - 1) * resultsPerPage + evals.size %] out of [% total %].</p>
+(page - 1) * resultsPerPage + evals.size %] out of [% HTML.escape(total) %].</p>
 
 [% INCLUDE renderEvals %]
 

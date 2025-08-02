@@ -46,7 +46,7 @@ removed or had an evaluation error.</div>
       its success or failure is determined entirely by the result of
       building its <em>constituent jobs</em>. The table below shows
       the status of each constituent job for the [%
-      aggregates.keys.size %] most recent builds of the
+      HTML.escape(aggregates.keys.size) %] most recent builds of the
       aggregate.</div>
 
       [% aggs = aggregates.keys.nsort.reverse %]
