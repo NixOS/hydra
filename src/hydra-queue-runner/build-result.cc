@@ -147,7 +147,11 @@ BuildOutput getBuildOutput(
                 continue;
             BuildMetric metric;
             metric.name = fields[0];
-            metric.value = atof(fields[1].c_str()); // FIXME
+            try {
+                metric.value = std::stod(fields[1]);
+            } catch (...) {
+                continue; // skip this metric
+            }
             metric.unit = fields.size() >= 3 ? fields[2] : "";
             if (!std::regex_match(metric.unit, std::regex("[a-zA-Z0-9._%-]+")))
                 metric.unit = "";
