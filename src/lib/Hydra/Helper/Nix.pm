@@ -363,6 +363,14 @@ sub getMachines {
                 , speedFactor => $machine->{speedFactor}
                 , supportedFeatures => [ @{$machine->{supportedFeatures}}, @{$machine->{mandatoryFeatures}} ]
                 , mandatoryFeatures => [ @{$machine->{mandatoryFeatures}} ]
+                # New fields for the machine status
+                , primarySystemType => $machine->{systems}[0]
+                , hasCapacity => $machine->{hasCapacity}
+                , hasDynamicCapacity => $machine->{hasDynamicCapacity}
+                , hasStaticCapacity => $machine->{hasStaticCapacity}
+                , score => $machine->{score}
+                , stats => $machine->{stats}
+                , memTotal => $machine->{totalMem}
                 };
         }
     } else {

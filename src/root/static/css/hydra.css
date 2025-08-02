@@ -181,6 +181,14 @@ a.squiggle:hover {
     padding-bottom: 1px;
 }
 
+table.pressureTable {
+    margin-left: 2em;
+}
+
+table.pressureTable td {
+    padding: 0 .4em;
+}
+
 @media (prefers-color-scheme: dark) {
     /* Prevent some flickering */
     html {
