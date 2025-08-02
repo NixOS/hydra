@@ -30,8 +30,6 @@ eval.checkouttime %]s and evaluation took [% eval.evaltime %]s.</p>
 project=otherEval.jobset.project.name jobset=otherEval.jobset.name %] evaluation <a href="[%
 c.uri_for(c.controller('JobsetEval').action_for('view'),
 [otherEval.id]) %]">[% otherEval.id %]</a>.</p>
-[% ELSE %]
-<div class="alert alert-danger">Couldn't find an evaluation to compare to.</div>
 [% END %]
 
 <form>
