@@ -143,7 +143,7 @@ BLOCK renderBuildListBody;
       <td><a class="row-link" [% HTML.attributes(href => link) %]>[% build.id %]</a></td>
       [% IF !hideJobName %]
         <td>
-          <a [% HTML.attributes(href => link) %]>[% IF !hideJobsetName %][%build.jobset.get_column("project")%]:[%build.jobset.get_column("name")%]:[% END %][%build.get_column("job")%]</a>
+          <a [% HTML.attributes(href => link) %]>[% IF !hideJobsetName %][% build.jobset.get_column("project") %]:[% build.jobset.get_column("name") %]:[% END %][% build.get_column("job") %]</a>
           [% IF showStepName %]
             [% INCLUDE renderDrvInfo step=build.buildsteps releasename=build.nixname %]
           [% END %]
@@ -695,12 +695,12 @@ BLOCK renderYesNo %]
 
 BLOCK createChart %]
 
-  <div id="[%id%]-chart" style="width: 1000px; height: 400px;"></div>
-  <div id="[%id%]-overview" style="margin-top: 20px; margin-left: 50px; margin-right: 50px; width: 900px; height: 100px"></div>
+  <div id="[% id %]-chart" style="width: 1000px; height: 400px;"></div>
+  <div id="[% id %]-overview" style="margin-top: 20px; margin-left: 50px; margin-right: 50px; width: 900px; height: 100px"></div>
 
   <script type="text/javascript">
     $(function() {
-      showChart("[%id%]", "[%dataUrl%]", "[%yaxis%]");
+      showChart("[% id %]", "[% dataUrl %]", "[% yaxis %]");
     });
   </script>
 

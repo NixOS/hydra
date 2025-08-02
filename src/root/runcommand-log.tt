@@ -33,7 +33,7 @@
         [% IF tail %]
         /* The server may give us a full log (e.g. if the log is in
            S3). So extract the last lines. */
-        log_data = log_data.split("\n").slice(-[%tail%]).join("\n");
+        log_data = log_data.split("\n").slice(-[% tail %]).join("\n");
         [% END %]
 
         $("#contents").text(log_data);
