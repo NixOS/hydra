@@ -143,8 +143,10 @@ BuildOutput getBuildOutput(
         for (auto & line : tokenizeString<Strings>(file->second.contents.value(), "\n")) {
             auto fields = tokenizeString<std::vector<std::string>>(line);
             if (fields.size() < 2) continue;
+            if (!std::regex_match(fields[0], std::regex("[a-zA-Z0-9._-]+")))
+                continue;
             BuildMetric metric;
-            metric.name = fields[0]; // FIXME: validate
+            metric.name = fields[0];
             metric.value = atof(fields[1].c_str()); // FIXME
             metric.unit = fields.size() >= 3 ? fields[2] : "";
             res.metrics[metric.name] = metric;
