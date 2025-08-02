@@ -16,8 +16,8 @@
     It was built on <tt>[% step.machine %]</tt>.
   [% END %]
   [% IF tail %]
-  The <a href="[% step ? c.uri_for('/build' build.id 'nixlog' step.stepnr)
-  : c.uri_for('/build' build.id 'log') %]">full log</a> is also available.
+  The <a [% HTML.attributes(href => step ? c.uri_for('/build' build.id 'nixlog' step.stepnr)
+  : c.uri_for('/build' build.id 'log')) %]>full log</a> is also available.
   [% END %]
 </p>
 

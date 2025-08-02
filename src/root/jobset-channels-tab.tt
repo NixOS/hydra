@@ -14,7 +14,7 @@
         [% FOREACH eval IN evalIds %]
           <th class="rotate-45">
             <div><span>
-              <a href="[% c.uri_for('/eval' eval) %]">[% INCLUDE renderRelativeDate timestamp=evals.$eval.timestamp %]</a>
+              <a [% HTML.attributes(href => c.uri_for('/eval' eval)) %]>[% INCLUDE renderRelativeDate timestamp=evals.$eval.timestamp %]</a>
             </span></div></th>
         [% END %]
       </tr>
@@ -22,9 +22,9 @@
     <tbody>
       [% FOREACH chan IN channels-%]
         <tr>
-          <th><span><a href="[% c.uri_for('/channel/custom' project.name jobset.name chan) %]">[% chan %]</a></span></th>
+          <th><span><a [% HTML.attributes(href => c.uri_for('/channel/custom' project.name jobset.name chan)) %]>[% chan %]</a></span></th>
           [% FOREACH eval IN evalIds %]
-            <td>[% r = evals.$eval.builds.$chan; IF r.id %]<a href="[% c.uri_for('/build' r.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
+            <td>[% r = evals.$eval.builds.$chan; IF r.id %]<a [% HTML.attributes(href => c.uri_for('/build' r.id)) %]>[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
           [% END %]
         </tr>
       [% END %]
