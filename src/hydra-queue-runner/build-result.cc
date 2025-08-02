@@ -93,6 +93,8 @@ BuildOutput getBuildOutput(
             if (file == narMembers.end()) continue;
 
             product.name = product.path == store->printStorePath(output) ? "" : baseNameOf(product.path);
+            if (!std::regex_match(product.name, std::regex("[a-zA-Z0-9.@:_ -]*")))
+                product.name = "";
 
             if (file->second.type == SourceAccessor::Type::tRegular) {
                 product.isRegular = true;
