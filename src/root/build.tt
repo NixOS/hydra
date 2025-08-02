@@ -112,16 +112,16 @@ END;
       [% IF c.user_exists %]
         [% IF available %]
           [% IF build.keep %]
-            <a class="dropdown-item" href="[% c.uri_for('/build' build.id 'keep' 0) %]">Unkeep</a>
+            <a class="dropdown-item" [% HTML.attributes(href => c.uri_for('/build' build.id 'keep' 0)) %]>Unkeep</a>
           [% ELSE %]
-            <a class="dropdown-item" href="[% c.uri_for('/build' build.id 'keep' 1) %]">Keep</a>
+            <a class="dropdown-item" [% HTML.attributes(href => c.uri_for('/build' build.id 'keep' 1)) %]>Keep</a>
           [% END %]
         [% END %]
         [% IF build.finished %]
-          <a class="dropdown-item" href="[% c.uri_for('/build' build.id 'restart') %]">Restart</a>
+          <a class="dropdown-item" [% HTML.attributes(href => c.uri_for('/build' build.id 'restart')) %]>Restart</a>
         [% ELSE %]
-          <a class="dropdown-item" href="[% c.uri_for('/build' build.id 'cancel') %]">Cancel</a>
-          <a class="dropdown-item" href="[% c.uri_for('/build' build.id 'bump') %]">Bump up</a>
+          <a class="dropdown-item" [% HTML.attributes(href => c.uri_for('/build' build.id 'cancel')) %]>Cancel</a>
+          <a class="dropdown-item" [% HTML.attributes(href => c.uri_for('/build' build.id 'bump')) %]>Bump up</a>
         [% END %]
       [% END %]
     </div>
@@ -197,8 +197,8 @@ END;
               <tr>
                 <th>Part of:</th>
                 <td>
-                  <a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">evaluation [% HTML.escape(eval.id) %]</a>
-                  [% IF nrEvals > 1 +%] (and <a href="[% c.uri_for('/build' build.id 'evals') %]">[% nrEvals - 1 %] others</a>)[% END %]
+                  <a [% HTML.attributes(href => c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id])) %]>evaluation [% HTML.escape(eval.id) %]</a>
+                  [% IF nrEvals > 1 +%] (and <a [% HTML.attributes(href => c.uri_for('/build' build.id 'evals')) %]>[% nrEvals - 1 %] others</a>)[% END %]
                 </td>
               </tr>
             [% END %]
@@ -226,9 +226,9 @@ END;
                 <th>Logfile:</th>
                 <td>
                   [% actualLog = cachedBuildStep ? c.uri_for('/build' cachedBuild.id 'nixlog' cachedBuildStep.stepnr) : c.uri_for('/build' build.id 'log') %]
-                  <a class="btn btn-secondary btn-sm" href="[%actualLog%]">pretty</a>
-                  <a class="btn btn-secondary btn-sm" href="[%actualLog%]/raw">raw</a>
-                  <a class="btn btn-secondary btn-sm" href="[%actualLog%]/tail">tail</a>
+                  <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => actualLog) %]>pretty</a>
+                  <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => actualLog _ "/raw") %]>raw</a>
+                  <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => actualLog _ "/tail") %]>tail</a>
                 </td>
               </tr>
             [% END %]
@@ -376,14 +376,14 @@ END;
         <tr>
           <th>Closure size:</th>
           <td>[% mibs(build.closuresize / (1024 * 1024)) %] MiB
-            (<a href="[%chartsURL%]">history</a>)</td>
+            (<a [% HTML.attributes(href => chartsURL) %]>history</a>)</td>
         </tr>
       [% END %]
       [% IF build.finished && build.closuresize %]
         <tr>
           <th>Output size:</th>
           <td>[% mibs(build.size / (1024 * 1024)) %] MiB
-            (<a href="[%chartsURL%]">history</a>)</td>
+            (<a [% HTML.attributes(href => chartsURL) %]>history</a>)</td>
         </tr>
       [% END %]
       [% IF build.finished && build.buildproducts %]
@@ -532,9 +532,9 @@ END;
                 [% IF runcommandlog.uuid != undef %]
                   [% runLog = c.uri_for('/build', build.id, 'runcommandlog', runcommandlog.uuid) %]
                   <div>
-                    <a class="btn btn-secondary btn-sm" href="[% runLog %]">pretty</a>
-                    <a class="btn btn-secondary btn-sm" href="[% runLog %]/raw">raw</a>
-                    <a class="btn btn-secondary btn-sm" href="[% runLog %]/tail">tail</a>
+                    <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => runLog) %]>pretty</a>
+                    <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => runLog) %]/raw">raw</a>
+                    <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => runLog) %]/tail">tail</a>
                   </div>
                 [% END %]
               </div>

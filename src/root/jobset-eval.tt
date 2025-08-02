@@ -27,9 +27,9 @@ eval.checkouttime %]s and evaluation took [% eval.evaltime %]s.</p>
 
 [% IF otherEval %]
 <p>Comparisons are relative to [% INCLUDE renderFullJobsetName
-project=otherEval.jobset.project.name jobset=otherEval.jobset.name %] evaluation <a href="[%
-c.uri_for(c.controller('JobsetEval').action_for('view'),
-[otherEval.id]) %]">[% otherEval.id %]</a>.</p>
+project=otherEval.jobset.project.name jobset=otherEval.jobset.name %] evaluation <a [%
+HTML.attributes(href => c.uri_for(c.controller('JobsetEval').action_for('view'),
+[otherEval.id])) %]>[% otherEval.id %]</a>.</p>
 [% END %]
 
 <form>
@@ -45,18 +45,18 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
     <li class="nav-item dropdown">
       <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#">Actions</a>
       <div class="dropdown-menu">
-        <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('create_jobset'), [eval.id]) %]">Create a jobset from this evaluation</a>
+        <a class="dropdown-item" [% HTML.attributes(href => c.uri_for(c.controller('JobsetEval').action_for('create_jobset'), [eval.id])) %]>Create a jobset from this evaluation</a>
         [% IF totalQueued > 0 %]
-          <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('cancel'), [eval.id]) %]">Cancel all scheduled builds</a>
+          <a class="dropdown-item" [% HTML.attributes(href => c.uri_for(c.controller('JobsetEval').action_for('cancel'), [eval.id])) %]>Cancel all scheduled builds</a>
         [% END %]
         [% IF totalFailed > 0 %]
-          <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('restart_failed'), [eval.id]) %]">Restart all failed builds</a>
+          <a class="dropdown-item" [% HTML.attributes(href => c.uri_for(c.controller('JobsetEval').action_for('restart_failed'), [eval.id])) %]>Restart all failed builds</a>
         [% END %]
         [% IF totalAborted > 0 %]
-          <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('restart_aborted'), [eval.id]) %]">Restart all aborted builds</a>
+          <a class="dropdown-item" [% HTML.attributes(href => c.uri_for(c.controller('JobsetEval').action_for('restart_aborted'), [eval.id])) %]>Restart all aborted builds</a>
         [% END %]
         [% IF totalQueued > 0 %]
-          <a class="dropdown-item" href="[% c.uri_for(c.controller('JobsetEval').action_for('bump'), [eval.id]) %]">Bump builds to front of queue</a>
+          <a class="dropdown-item" [% HTML.attributes(href => c.uri_for(c.controller('JobsetEval').action_for('bump'), [eval.id])) %]>Bump builds to front of queue</a>
         [% END %]
       </div>
     </li>
@@ -99,7 +99,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% INCLUDE renderBuildListBody builds=builds.slice(0, (size > max ? max : size) - 1)
        hideProjectName=1 hideJobsetName=1 busy=0 %]
   [% IF size > max; params = c.req.params; params.full = 1 %]
-  <tr><td class="centered" colspan="6"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %][% tabname %]"><em>([% size - max %] more builds omitted)</em></a></td></tr>
+  <tr><td class="centered" colspan="6"><a [% HTML.attributes(href => c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) _ tabname) %]><em>([% size - max %] more builds omitted)</em></a></td></tr>
   [% END %]
   [% INCLUDE renderBuildListFooter %]
 [% END %]
@@ -136,7 +136,7 @@ c.uri_for(c.controller('JobsetEval').action_for('view'),
           </tr>
         [% END %]
         [% IF size > max; params = c.req.params; params.full = 1 %]
-          <tr><td class="centered" colspan="2"><a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) %]#tabs-removed"><em>([% size - max %] more jobs omitted)</em></a></td></tr>
+          <tr><td class="centered" colspan="2"><a [% HTML.attributes(c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id], params) _ "#tabs-removed") %]><em>([% size - max %] more jobs omitted)</em></a></td></tr>
         [% END %]
       </tbody>
     </table>

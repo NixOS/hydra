@@ -188,7 +188,7 @@
 
   <div id="tabs-links" class="tab-pane">
     <ul>
-      <li><a href="[% c.uri_for(c.controller('Jobset').action_for('latest_eval'), c.req.captures) %]">Latest finished evaluation</a></li>
+      <li><a [% HTML.attributes(href => c.uri_for(c.controller('Jobset').action_for('latest_eval'), c.req.captures)) %]>Latest finished evaluation</a></li>
     </ul>
   </div>
 

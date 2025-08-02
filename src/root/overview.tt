@@ -65,7 +65,7 @@
 [% ELSE %]
 
   <div class="alert alert-warning">Hydra has no projects yet. Please
-  <a href="[% c.uri_for(c.controller('Project').action_for('create')) %]">create a project</a>.</div>
+  <a [% HTML.attributes(href => c.uri_for(c.controller('Project').action_for('create'))) %]>create a project</a>.</div>
 
 [% END %]
 
