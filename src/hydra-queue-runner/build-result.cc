@@ -149,6 +149,8 @@ BuildOutput getBuildOutput(
             metric.name = fields[0];
             metric.value = atof(fields[1].c_str()); // FIXME
             metric.unit = fields.size() >= 3 ? fields[2] : "";
+            if (!std::regex_match(metric.unit, std::regex("[a-zA-Z0-9._%-]+")))
+                metric.unit = "";
             res.metrics[metric.name] = metric;
         }
     }
