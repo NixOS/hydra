@@ -201,9 +201,11 @@ sub machines :Local Args(0) {
         my $ms = decode_json($status->status)->{"machines"};
         foreach my $name (keys %{$ms}) {
             $name = "" if $name eq "localhost";
-            $machines->{$name} //= {disabled => 1};
-            $machines->{$name}->{nrStepsDone} = $ms->{$name}->{nrStepsDone};
-            $machines->{$name}->{avgStepBuildTime} = $ms->{$name}->{avgStepBuildTime} // 0;
+            my $outName = $name;
+            $outName = "" if $name eq "ssh://localhost";
+            $machines->{$outName} //= {disabled => 1};
+            $machines->{$outName}->{nrStepsDone} = $ms->{$name}->{nrStepsDone};
+            $machines->{$outName}->{avgStepBuildTime} = $ms->{$name}->{avgStepBuildTime} // 0;
         }
     }
 
