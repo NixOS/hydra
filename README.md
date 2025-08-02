@@ -84,6 +84,8 @@ $ mesonConfigurePhase
 $ ninja
 ```
 
+The development environment can also automatically be established using [nix-direnv](https://github.com/nix-community/nix-direnv).
+
 ### Executing Hydra During Development
 
 When working on new features or bug fixes you need to be able to run Hydra from your working copy. This

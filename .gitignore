@@ -1,4 +1,5 @@
 *~
+/.direnv/
 .test_info.*
 /src/sql/hydra-postgresql.sql
 /src/sql/hydra-sqlite.sql
