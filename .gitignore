@@ -1,5 +1,9 @@
 *~
+/.direnv/
 .test_info.*
+/src/root/static/bootstrap
+/src/root/static/fontawesome
+/src/root/static/js/flot
 /src/sql/hydra-postgresql.sql
 /src/sql/hydra-sqlite.sql
 /src/sql/tmp.sqlite

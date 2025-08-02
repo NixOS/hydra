@@ -80,9 +80,14 @@ $ nix build
 You can use the provided shell.nix to get a working development environment:
 ```
 $ nix develop
-$ mesonConfigurePhase
-$ ninja
+$ ln -svf ../../../build/src/bootstrap src/root/static/bootstrap
+$ ln -svf ../../../build/src/fontawesome src/root/static/fontawesome
+$ ln -svf ../../../../build/src/flot src/root/static/js/flot
+$ meson setup build
+$ ninja -C build
 ```
+
+The development environment can also automatically be established using [nix-direnv](https://github.com/nix-community/nix-direnv).
 
 ### Executing Hydra During Development
 
