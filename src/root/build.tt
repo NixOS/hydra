@@ -37,7 +37,7 @@ END;
              seen.${step.drvpath} = 1;
              log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
           <tr>
-            <td>[% step.stepnr %]</td>
+            <td>[% HTML.escape(step.stepnr) %]</td>
             <td>
               [% IF step.type == 0 %]
                 Build of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
@@ -151,7 +151,7 @@ END;
           <table class="info-table">
             <tr>
               <th>Build ID:</th>
-              <td>[% build.id %]</td>
+              <td>[% HTML.escape(build.id) %]</td>
             </tr>
             <tr>
               <th>Status:</th>
@@ -168,9 +168,9 @@ END;
                      END;
                 %];
                   [%+ IF nrFinished == nrConstituents && nrFailedConstituents == 0 %]
-                    all [% nrConstituents %] constituent builds succeeded
+                    all [% HTML.escape(nrConstituents) %] constituent builds succeeded
                   [% ELSE %]
-                    [% nrFailedConstituents %] out of [% nrConstituents %] constituent builds failed
+                    [% HTML.escape(nrFailedConstituents) %] out of [% HTML.escape(nrConstituents) %] constituent builds failed
                     [% IF nrFinished < nrConstituents %]
                       ([% nrConstituents - nrFinished %] still pending)
                     [% END %]
@@ -180,24 +180,24 @@ END;
             </tr>
             <tr>
               <th>System:</th>
-              <td><tt>[% build.system %]</tt></td>
+              <td><tt>[% build.system | html %]</tt></td>
             </tr>
             [% IF build.releasename %]
               <tr>
                 <th>Release name:</th>
-                <td><tt>[% HTML.escape(build.releasename) %]</tt></td>
+                <td><tt>[% build.releasename | html %]</tt></td>
               </tr>
             [% ELSE %]
               <tr>
                 <th>Nix name:</th>
-                <td><tt>[% build.nixname %]</tt></td>
+                <td><tt>[% build.nixname | html %]</tt></td>
               </tr>
             [% END %]
             [% IF eval %]
               <tr>
                 <th>Part of:</th>
                 <td>
-                  <a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">evaluation [% eval.id %]</a>
+                  <a href="[% c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]">evaluation [% HTML.escape(eval.id) %]</a>
                   [% IF nrEvals > 1 +%] (and <a href="[% c.uri_for('/build' build.id 'evals') %]">[% nrEvals - 1 %] others</a>)[% END %]
                 </td>
               </tr>
@@ -336,12 +336,12 @@ END;
       [% IF eval.nixexprinput %]
         <tr>
           <th>Nix expression:</th>
-          <td>file <tt>[% HTML.escape(eval.nixexprpath) %]</tt> in input <tt>[% HTML.escape(eval.nixexprinput) %]</tt></td>
+          <td>file <tt>[% eval.nixexprpath | html %]</tt> in input <tt>[% eval.nixexprinput | html %]</tt></td>
         </tr>
       [% END %]
       <tr>
         <th>Nix name:</th>
-        <td><tt>[% build.nixname %]</tt></td>
+        <td><tt>[% build.nixname | html %]</tt></td>
       </tr>
       <tr>
         <th>Short description:</th>
@@ -361,11 +361,11 @@ END;
       </tr>
       <tr>
         <th>System:</th>
-        <td><tt>[% build.system %]</tt></td>
+        <td><tt>[% build.system | html %]</tt></td>
       </tr>
       <tr>
         <th>Derivation store path:</th>
-        <td><tt>[% build.drvpath %]</tt></td>
+        <td><tt>[% build.drvpath | html %]</tt></td>
       </tr>
       <tr>
         <th>Output store paths:</th>
@@ -412,9 +412,9 @@ END;
         <tbody>
           [% FOREACH metric IN build.buildmetrics %]
             <tr>
-              <td><tt><a class="row-link" [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job 'metric' metric.name)) %]">[%HTML.escape(metric.name)%]</a></tt></td>
-              <td style="text-align: right">[%metric.value%]</td>
-              <td>[%metric.unit%]</td>
+              <td><tt><a class="row-link" [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job 'metric' metric.name)) %]">[%metric.name | html%]</a></tt></td>
+              <td style="text-align: right">[%HTML.escape(metric.value)%]</td>
+              <td>[% HTML.escape(metric.unit) %]</td>
             </tr>
           [% END %]
         </tbody>
@@ -456,8 +456,8 @@ END;
           [% FOREACH input IN build.dependents %]
             <tr>
               <td>[% INCLUDE renderFullBuildLink build=input.build %]</td>
-              <td><tt>[% input.name %]</tt></td>
-              <td><tt>[% input.build.system %]</tt></td>
+              <td><tt>[% input.name | html %]</tt></td>
+              <td><tt>[% input.build.system | html %]</tt></td>
               <td>[% INCLUDE renderDateTime timestamp = input.build.timestamp %]</td>
             </tr>
           [% END %]
@@ -484,7 +484,7 @@ END;
         [% ELSIF runcommandlogProblem == "disabled-jobset" %]
           This jobset does not enable Dynamic RunCommand support.
         [% ELSE %]
-          Dynamic RunCommand is not enabled: [% runcommandlogProblem %].
+          Dynamic RunCommand is not enabled: [% HTML.escape(runcommandlogProblem) %].
         [% END %]
       </div>
     [% END %]
@@ -503,7 +503,7 @@ END;
           </div>
 
           <div class="d-flex flex-column mr-auto align-self-center">
-            <div><tt>[% runcommandlog.command | html%]</tt></div>
+            <div><tt>[% runcommandlog.command | html %]</tt></div>
             <div>
               [% IF not runcommandlog.is_running() %]
                 [% IF runcommandlog.did_fail_with_signal() %]
