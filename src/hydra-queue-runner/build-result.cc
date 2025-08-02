@@ -51,8 +51,8 @@ BuildOutput getBuildOutput(
         "[[:space:]]+"
         "([a-zA-Z0-9_-]+)" // subtype (e.g. "readme")
         "[[:space:]]+"
-        "(\"[^\"]+\"|[^[:space:]\"]+)" // path (may be quoted)
-        "([[:space:]]+([^[:space:]]+))?" // entry point
+        "(\"[^\"]+\"|[^[:space:]<>\"]+)" // path (may be quoted)
+        "([[:space:]]+([^[:space:]<>]+))?" // entry point
         , std::regex::extended);
 
     for (auto & output : outputs) {
