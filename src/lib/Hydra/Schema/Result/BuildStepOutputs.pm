@@ -57,6 +57,11 @@ __PACKAGE__->table("buildstepoutputs");
   data_type: 'text'
   is_nullable: 1
 
+=head2 contentaddressed
+
+  data_type: 'boolean'
+  is_nullable: 0
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -68,6 +73,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "path",
   { data_type => "text", is_nullable => 1 },
+  "contentaddressed",
+  { data_type => "boolean", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY

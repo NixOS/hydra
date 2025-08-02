@@ -300,13 +300,14 @@ create table BuildSteps (
 
 
 create table BuildStepOutputs (
-    build         integer not null,
-    stepnr        integer not null,
-    name          text not null,
-    path          text,
-    primary key   (build, stepnr, name),
-    foreign key   (build) references Builds(id) on delete cascade,
-    foreign key   (build, stepnr) references BuildSteps(build, stepnr) on delete cascade
+    build               integer not null,
+    stepnr              integer not null,
+    name                text not null,
+    path                text,
+    contentAddressed    boolean not null,
+    primary key         (build, stepnr, name),
+    foreign key         (build) references Builds(id) on delete cascade,
+    foreign key         (build, stepnr) references BuildSteps(build, stepnr) on delete cascade
 );
 
 
