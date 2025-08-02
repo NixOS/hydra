@@ -81,6 +81,8 @@ You can use the provided shell.nix to get a working development environment:
 ```
 $ nix develop
 $ ln -svf ../../../build/src/bootstrap src/root/static/bootstrap
+$ ln -svf ../../../build/src/fontawesome src/root/static/fontawesome
+$ ln -svf ../../../../build/src/flot src/root/static/js/flot
 $ meson setup build
 $ ninja -C build
 ```

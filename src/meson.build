@@ -57,20 +57,12 @@ fontawesome = custom_target(
   command: ['unzip', '-u', '-d', '@OUTDIR@', '@INPUT@'],
 )
 custom_target(
-  'name-fontawesome-css',
+  'name-fontawesome',
   input: fontawesome,
-  output: 'css',
-  command: ['cp', '-r', '@INPUT@/css', '@OUTPUT@'],
+  output: 'fontawesome',
+  command: ['cp', '-r', '@INPUT@' , '@OUTPUT@'],
   install: true,
-  install_dir: hydra_libexecdir_static / 'fontawesome',
-)
-custom_target(
-  'name-fontawesome-webfonts',
-  input: fontawesome,
-  output: 'webfonts',
-  command: ['cp', '-r', '@INPUT@/webfonts', '@OUTPUT@'],
-  install: true,
-  install_dir: hydra_libexecdir_static / 'fontawesome',
+  install_dir: hydra_libexecdir_static,
 )
 
 # Scripts
