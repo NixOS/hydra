@@ -13,5 +13,6 @@ jobs:
       with:
         fetch-depth: 0
     - uses: cachix/install-nix-action@v31
+    - uses: DeterminateSystems/magic-nix-cache-action@main
     #- run: nix flake check
     - run: nix-build -A checks.x86_64-linux.build -A checks.x86_64-linux.validate-openapi
