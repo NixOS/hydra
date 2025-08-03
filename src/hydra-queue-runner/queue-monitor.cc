@@ -5,6 +5,7 @@
 #include <nix/util/thread-pool.hh>
 
 #include <cstring>
+#include <signal.h>
 
 using namespace nix;
 
