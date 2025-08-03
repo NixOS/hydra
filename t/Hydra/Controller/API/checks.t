@@ -6,6 +6,7 @@ use Catalyst::Test ();
 use HTTP::Request;
 use HTTP::Request::Common;
 use JSON::MaybeXS qw(decode_json encode_json);
+use Digest::SHA qw(hmac_sha256_hex);
 
 sub is_json {
     my ($response, $message) = @_;
@@ -21,7 +22,13 @@ sub is_json {
     return $data;
 }
 
-my $ctx = test_context();
+my $ctx = test_context(hydra_config => qq|
+    <webhooks>
+        <github>
+            secret = test
+        </github>
+    </webhooks>
+|);
 Catalyst::Test->import('Hydra');
 
 # Create a user to log in to
@@ -188,16 +195,20 @@ subtest "/api/push-github" => sub {
         my $jobsetinput = $jobset->jobsetinputs->create({name => "src", type => "git"});
         $jobsetinput->jobsetinputalts->create({altnr => 0, value => "https://github.com/OWNER/LEGACY-REPO.git"});
 
+        my $payload = encode_json({
+            repository => {
+                owner => {
+                    name => "OWNER",
+                },
+                name => "LEGACY-REPO",
+            }
+        });
+        my $signature = "sha256=" . hmac_sha256_hex($payload, 'test');
+
         my $req = POST '/api/push-github',
             "Content-Type" => "application/json",
-            "Content" => encode_json({
-                repository => {
-                    owner => {
-                        name => "OWNER",
-                    },
-                    name => "LEGACY-REPO",
-                }
-            });
+            "X-Hub-Signature-256" => $signature,
+            "Content" => $payload;
 
         my $response = request($req);
         ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
@@ -214,16 +225,20 @@ subtest "/api/push-github" => sub {
             emailoverride => ""
         });
 
+        my $payload = encode_json({
+            repository => {
+                owner => {
+                    name => "OWNER",
+                },
+                name => "FLAKE-REPO",
+            }
+        });
+        my $signature = "sha256=" . hmac_sha256_hex($payload, 'test');
+
         my $req = POST '/api/push-github',
             "Content-Type" => "application/json",
-            "Content" => encode_json({
-                repository => {
-                    owner => {
-                        name => "OWNER",
-                    },
-                    name => "FLAKE-REPO",
-                }
-            });
+            "X-Hub-Signature-256" => $signature,
+            "Content" => $payload;
 
         my $response = request($req);
         ok($response->is_success, "The API enpdoint for triggering jobsets returns 200.");
