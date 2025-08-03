@@ -46,6 +46,16 @@ $ meson test
 $ YATH_JOB_COUNT=$NIX_BUILD_CORES meson test
 ```
 
+To run individual tests:
+
+```console
+# Run a specific test file
+$ PERL5LIB=t/lib:$PERL5LIB perl t/test.pl t/Hydra/Controller/API/checks.t
+
+# Run all tests in a directory
+$ PERL5LIB=t/lib:$PERL5LIB perl t/test.pl t/Hydra/Controller/API/
+```
+
 **Warning**: Currently, the tests can fail
 if run with high parallelism [due to an issue in
 `Test::PostgreSQL`](https://github.com/TJC/Test-postgresql/issues/40)
