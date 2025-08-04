@@ -458,13 +458,12 @@ void State::failStep(
             for (auto & build : indirect) {
                 if (build->finishedInDB) continue;
                 printError("marking build %1% as failed", build->id);
-                txn.exec_params0
-                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0",
-                     build->id,
+                txn.exec("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0",
+                     pqxx::params{build->id,
                      (int) (build->drvPath != step->drvPath && result.buildStatus() == bsFailed ? bsDepFailed : result.buildStatus()),
                      result.startTime,
                      result.stopTime,
-                     result.stepStatus == bsCachedFailure ? 1 : 0);
+                     result.stepStatus == bsCachedFailure ? 1 : 0}).no_rows();
                 nrBuildsDone++;
             }
 
@@ -473,7 +472,7 @@ void State::failStep(
             if (result.stepStatus != bsCachedFailure && result.canCache)
                 for (auto & i : step->drv->outputsAndOptPaths(*localStore))
                     if (i.second.second)
-                       txn.exec_params0("insert into FailedPaths values ($1)", localStore->printStorePath(*i.second.second));
+                       txn.exec("insert into FailedPaths values ($1)", pqxx::params{localStore->printStorePath(*i.second.second)}).no_rows();
 
             txn.commit();
         }

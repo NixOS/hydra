@@ -396,9 +396,14 @@ sub evalJobs {
         print STDERR "evaluator: @escaped\n";
     }
 
+    # Unset NIX_PATH for nix-eval-jobs to ensure reproducible evaluations
+    my %env = %ENV;
+    delete $env{'NIX_PATH'};
+
     my $evalProc = IPC::Run::start \@cmd,
             '>', IPC::Run::new_chunker, \my $out,
-            '2>', \my $err;
+            '2>', \my $err,
+            init => sub { %ENV = %env; };
 
     return sub {
         while (1) {
