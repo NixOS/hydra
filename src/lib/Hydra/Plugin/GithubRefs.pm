@@ -10,6 +10,7 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Nix;
 use File::Temp;
 use POSIX qw(strftime);
+use IPC::Run qw(run);
 
 =head1 NAME
 
@@ -115,7 +116,7 @@ sub fetchInput {
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
     print $fh encode_json \%refs;
     close $fh;
-    system("jq -S . < $filename > $tempdir/github-refs-sorted.json");
+    run(["jq", "-S", "."], '<', $filename, '>', "$tempdir/github-refs-sorted.json") or die "jq command failed: $?";
     my $storePath = addToStore("$tempdir/github-refs-sorted.json");
     my $timestamp = time;
     return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };

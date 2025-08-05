@@ -50,7 +50,7 @@ my $pid;
 if (!defined($pid = fork())) {
     die "Cannot fork(): $!";
 } elsif ($pid == 0) {
-    exec("python3 $ctx{jobsdir}/server.py $filename");
+    exec("python3", "$ctx{jobsdir}/server.py", $filename);
 } else {
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build should be finished.");
