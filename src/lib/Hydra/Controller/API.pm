@@ -14,6 +14,7 @@ use Text::Diff;
 use IPC::Run qw(run);
 use Digest::SHA qw(hmac_sha256_hex);
 use String::Compare::ConstantTime qw(equals);
+use IPC::Run3;
 
 
 sub api : Chained('/') PathPart('api') CaptureArgs(0) {
@@ -218,8 +219,13 @@ sub scmdiff : Path('/api/scmdiff') Args(0) {
     } elsif ($type eq "git") {
         my $clonePath = getSCMCacheDir . "/git/" . sha256_hex($uri);
         die if ! -d $clonePath;
-        $diff .= `(cd $clonePath; git --git-dir .git log $rev1..$rev2)`;
-        $diff .= `(cd $clonePath; git --git-dir .git diff $rev1..$rev2)`;
+        my ($stdout1, $stderr1);
+        run3(['git', '-C', $clonePath, 'log', "$rev1..$rev2"], \undef, \$stdout1, \$stderr1);
+        $diff .= $stdout1 if $? == 0;
+
+        my ($stdout2, $stderr2);
+        run3(['git', '-C', $clonePath, 'diff', "$rev1..$rev2"], \undef, \$stdout2, \$stderr2);
+        $diff .= $stdout2 if $? == 0;
     }
 
     $c->stash->{'plain'} = { data => (scalar $diff) || " " };
