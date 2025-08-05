@@ -5,6 +5,7 @@ use warnings;
 use parent 'Hydra::Plugin';
 use POSIX qw(strftime);
 use Hydra::Helper::Nix;
+use IPC::Run3;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -37,11 +38,16 @@ sub fetchInput {
 
         print STDERR "copying input ", $name, " from $uri\n";
         if ( $uri =~ /^\// ) {
-            $storePath = `nix-store --add "$uri"`
-                or die "cannot copy path $uri to the Nix store.\n";
+            $storePath = addToStore($uri);
         } else {
-            $storePath = `PRINT_PATH=1 nix-prefetch-url "$uri" | tail -n 1`
-                or die "cannot fetch $uri to the Nix store.\n";
+            # Run nix-prefetch-url with PRINT_PATH=1
+            my ($stdout, $stderr);
+            local $ENV{PRINT_PATH} = 1;
+            run3(['nix-prefetch-url', $uri], \undef, \$stdout, \$stderr);
+            die "cannot fetch $uri to the Nix store: $stderr\n" if $? != 0;
+            # Get the last line (which is the store path)
+            my @output_lines = split /\n/, $stdout;
+            $storePath = $output_lines[-1] if @output_lines;
         }
         chomp $storePath;
 

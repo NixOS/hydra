@@ -7,6 +7,7 @@ use Digest::SHA qw(sha256_hex);
 use File::Path;
 use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
+use IPC::Run3;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -70,8 +71,11 @@ sub fetchInput {
         (system "darcs", "get", "--lazy", $clonePath, "$tmpDir/export", "--quiet",
                 "--to-match", "hash $revision") == 0
             or die "darcs export failed";
-        $revCount = `darcs changes --count --repodir $tmpDir/export`; chomp $revCount;
-        die "darcs changes --count failed" if $? != 0;
+        my ($stdout, $stderr);
+        run3(['darcs', 'changes', '--count', '--repodir', "$tmpDir/export"], \undef, \$stdout, \$stderr);
+        die "darcs changes --count failed: $stderr\n" if $? != 0;
+        $revCount = $stdout;
+        chomp $revCount;
 
         system "rm", "-rf", "$tmpDir/export/_darcs";
         $storePath = $MACHINE_LOCAL_STORE->addToStore("$tmpDir/export", 1, "sha256");

@@ -9,6 +9,7 @@ use Net::Statsd;
 use File::Slurper qw(read_text);
 use JSON::MaybeXS;
 use Getopt::Long qw(:config gnu_getopt);
+use IPC::Run3;
 
 STDERR->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
@@ -25,10 +26,11 @@ sub gauge {
 }
 
 sub sendQueueRunnerStats {
-    my $s = `hydra-queue-runner --status`;
-    die "cannot get queue runner stats\n" if $? != 0;
+    my ($stdout, $stderr);
+    run3(['hydra-queue-runner', '--status'], \undef, \$stdout, \$stderr);
+    die "cannot get queue runner stats: $stderr\n" if $? != 0;
 
-    my $json = decode_json($s) or die "cannot decode queue runner status";
+    my $json = decode_json($stdout) or die "cannot decode queue runner status";
 
     gauge("hydra.queue.up", $json->{status} eq "up" ? 1 : 0);
 

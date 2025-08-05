@@ -12,12 +12,14 @@ use Nix::Store;
 use Encode;
 use Sys::Hostname::Long;
 use IPC::Run;
+use IPC::Run3;
 use LWP::UserAgent;
 use JSON::MaybeXS;
 use UUID4::Tiny qw(is_uuid4_string);
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
+    addToStore
     cancelBuilds
     constructRunCommandLogPath
     findLog
@@ -612,6 +614,16 @@ sub constructRunCommandLogPath {
     my $bucket = substr($uuid, 0, 2);
 
     return "$hydra_path/runcommand-logs/$bucket/$uuid";
+}
+
+
+sub addToStore {
+    my ($path) = @_;
+
+    my ($stdout, $stderr);
+    run3(['nix-store', '--add', $path], \undef, \$stdout, \$stderr);
+    die "cannot add path $path to the Nix store: $stderr\n" if $? != 0;
+    return trim($stdout);
 }
 
 1;
