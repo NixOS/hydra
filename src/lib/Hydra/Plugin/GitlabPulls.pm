@@ -21,6 +21,7 @@ use HTTP::Request;
 use LWP::UserAgent;
 use JSON::MaybeXS;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Nix;
 use File::Temp;
 use POSIX qw(strftime);
 
@@ -86,9 +87,7 @@ sub fetchInput {
     print $fh encode_json \%pulls;
     close $fh;
     system("jq -S . < $filename > $tempdir/gitlab-pulls-sorted.json");
-    my $storePath = trim(`nix-store --add "$tempdir/gitlab-pulls-sorted.json"`
-        or die "cannot copy path $filename to the Nix store.\n");
-    chomp $storePath;
+    my $storePath = addToStore("$tempdir/gitlab-pulls-sorted.json");
     my $timestamp = time;
     return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };
 }
