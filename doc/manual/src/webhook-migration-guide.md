@@ -27,8 +27,8 @@ cat > /var/lib/hydra/secrets/webhook-secrets.conf <<EOF
 EOF
 
 # Set secure permissions
-chmod 0600 /var/lib/hydra/secrets/webhook-secrets.conf
-chown hydra-www:hydra /var/lib/hydra/secrets/webhook-secrets.conf
+chmod 0440 /var/lib/hydra/secrets/webhook-secrets.conf
+chown hydra:hydra /var/lib/hydra/secrets/webhook-secrets.conf
 ```
 
 **Important**: Save the generated secrets to configure them in GitHub/Gitea later. You can view them with:
