@@ -10,6 +10,7 @@
   - [RunCommand](./plugins/RunCommand.md)
 - [Using the external API](api.md)
 - [Webhooks](webhooks.md)
+  - [Webhook Authentication Migration Guide](webhook-migration-guide.md)
 - [Monitoring Hydra](./monitoring/README.md)
 
 ## Developer's Guide

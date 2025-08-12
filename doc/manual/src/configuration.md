@@ -266,6 +266,40 @@ default role mapping:
 Note that configuring both the LDAP parameters in the hydra.conf and via
 the environment variable is a fatal error.
 
+Webhook Authentication
+---------------------
+
+Hydra supports authenticating webhook requests from GitHub and Gitea to prevent unauthorized job evaluations.
+Webhook secrets should be stored in separate files outside the Nix store for security using Config::General's include mechanism.
+
+In your main `hydra.conf`:
+```apache
+<webhooks>
+  Include /var/lib/hydra/secrets/webhook-secrets.conf
+</webhooks>
+```
+
+Then create `/var/lib/hydra/secrets/webhook-secrets.conf` with your actual secrets:
+```apache
+<github>
+  secret = your-github-webhook-secret
+</github>
+<gitea>
+  secret = your-gitea-webhook-secret
+</gitea>
+```
+
+For multiple secrets (useful for rotation or multiple environments), use an array:
+```apache
+<github>
+  secret = your-github-webhook-secret-prod
+  secret = your-github-webhook-secret-staging
+</github>
+```
+
+**Important**: The secrets file should have restricted permissions (e.g., 0600) to prevent unauthorized access.
+See the [Webhooks documentation](webhooks.md) for detailed setup instructions.
+
 Embedding Extra HTML
 --------------------
 
