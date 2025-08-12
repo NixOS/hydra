@@ -1,6 +1,6 @@
 [% BLOCK makeSubMenu %]
   <li class="nav-item dropdown" [% IF id; HTML.attributes(id => id); END %] >
-    <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">[% title %]<b class="caret"></b></a>
+    <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">[% HTML.escape(title) %]<b class="caret"></b></a>
     <div class="dropdown-menu[% IF align == 'right' %] dropdown-menu-right[% END %]">
       [% content %]
     </div>
@@ -143,7 +143,7 @@
         <div class="dropdown-divider"></div>
       [% END %]
       [% IF c.config.github_client_id %]
-        <a class="dropdown-item" href="/github-redirect?after=[% c.req.path %]">Sign in with GitHub</a>
+        <a class="dropdown-item" href="/github-redirect?after=[% c.req.path | uri %]">Sign in with GitHub</a>
         <div class="dropdown-divider"></div>
       [% END %]
       <a class="dropdown-item" href="#hydra-signin" data-toggle="modal">Sign in with a Hydra account</a>

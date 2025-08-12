@@ -17,7 +17,7 @@
       disabled="disabled"
     [% END %]
     [% HTML.attributes(id => "role-${role}", value => role) %] />
-  <label [% HTML.attributes(for => "role-${role}") %]> [% role %]</label><br />
+  <label [% HTML.attributes(for => "role-${role}") %]> [% HTML.escape(role) %]</label><br />
   [% END %]
 
 <form>
