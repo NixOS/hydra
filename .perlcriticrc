@@ -2,3 +2,9 @@ theme = community
 
 # 5 is the least complainy, 1 is the most complainy
 severity = 1
+
+# Disallow backticks - use IPC::Run3 instead for better security
+include = InputOutput::ProhibitBacktickOperators
+
+# Prohibit shell-invoking system() and exec() - use list form or IPC::Run3 instead
+include = Hydra::ProhibitShellInvokingSystemCalls
