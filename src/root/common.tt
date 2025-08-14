@@ -444,9 +444,9 @@ BLOCK renderInputDiff; %]
 BLOCK renderPager %]
   <ul class="pagination">
     <li class="page-item[% IF page == 1 %] disabled[% END %]"><a class="page-link" [% HTML.attributes(href => "$baseUri?page=1") %]>&laquo; First</a></li>
-    <li class="page-item[% IF page == 1 %] disabled[% END %]"><a class="page-link" [% HTML.attributes(href => "$baseUri?page="); (page - 1) %]>&lsaquo; Previous</a></li>
-    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" [% HTML.attributes(href => "$baseUri?page="); (page + 1) %]>Next &rsaquo;</a></li>
-    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" [% HTML.attributes("$baseUri?page="); (total - 1) div resultsPerPage + 1 %]>Last &raquo;</a></li>
+    <li class="page-item[% IF page == 1 %] disabled[% END %]"><a class="page-link" [% HTML.attributes(href => "$baseUri?page=" _ (page - 1)) %]>&lsaquo; Previous</a></li>
+    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" [% HTML.attributes(href => "$baseUri?page=" _ (page + 1)) %]>Next &rsaquo;</a></li>
+    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" [% HTML.attributes(href => "$baseUri?page=" _ ((total - 1) div resultsPerPage + 1)) %]>Last &raquo;</a></li>
   </ul>
 [% END;
 
@@ -700,7 +700,7 @@ BLOCK createChart %]
 
   <script type="text/javascript">
     $(function() {
-      showChart("[% HTML.escape(id) %]", "[% dataUrl | uri %]", "[% yaxis %]");
+      showChart("[% HTML.escape(id) %]", "[% dataUrl %]", "[% yaxis %]");
     });
   </script>
 
