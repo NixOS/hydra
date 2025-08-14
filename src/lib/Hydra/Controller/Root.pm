@@ -13,6 +13,7 @@ use Number::Bytes::Human qw(format_bytes);
 use Encode;
 use File::Basename;
 use JSON::MaybeXS;
+use HTML::Entities;
 use List::Util qw[min max];
 use List::SomeUtils qw{any};
 use Net::Prometheus;
@@ -229,7 +230,7 @@ sub machines :Local Args(0) {
     $c->stash->{pretty_percent} = sub {
         my ($percent) = @_;
         my $ret = sprintf('%.2f', $percent);
-        return ('&nbsp;' x (6 - length($ret))) . $ret;
+        return ('&nbsp;' x (6 - length($ret))) . encode_entities($ret);
     };
     $self->status_ok($c, entity => $c->stash->{machines});
 }

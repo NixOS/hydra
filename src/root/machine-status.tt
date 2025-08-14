@@ -36,7 +36,7 @@
                 [% pressure = m.value.stats.pressure %]
                 [% MACRO render_pressure(title, pressure) BLOCK %]
                     [% IF pressure %]
-                        <tr><td><b>[% HTML.escape(title) %]:</b></td><td><tt>[% pretty_percent(pressure.avg10) | html %]%</tt></td><td><td><tt>[% pretty_percent(pressure.avg60) | html %]%</tt></td><td><td><tt>[% pretty_percent(pressure.avg300) | html %]%</tt></td><td>
+                        <tr><td><b>[% HTML.escape(title) %]:</b></td><td><tt>[% pretty_percent(pressure.avg10) %]%</tt></td><td><td><tt>[% pretty_percent(pressure.avg60) %]%</tt></td><td><td><tt>[% pretty_percent(pressure.avg300) %]%</tt></td><td>
                     [% END %]
                 [% END %]
                 [% IF pressure %]
