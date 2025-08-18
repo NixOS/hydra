@@ -32,7 +32,9 @@ sub buildToHash {
         system => $build->system,
         nixname => $build->nixname,
         finished => $build->finished,
-        timestamp => $build->timestamp
+        timestamp => $build->timestamp,
+        buildstatus => undef,
+        priority => undef
     };
 
     if($build->finished) {
