@@ -78,6 +78,11 @@ paths:
           description: project and jobset formatted as "<project>:<jobset>" to evaluate
           schema:
             type: string
+        - in: query
+          name: force
+          description: when set to true the jobset gets evaluated even when it did not change
+          schema:
+            type: boolean
       responses:
         '200':
           description: jobset trigger response
