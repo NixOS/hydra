@@ -21,8 +21,10 @@ use HTTP::Request;
 use LWP::UserAgent;
 use JSON::MaybeXS;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Nix;
 use File::Temp;
 use POSIX qw(strftime);
+use IPC::Run qw(run);
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -85,10 +87,8 @@ sub fetchInput {
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
     print $fh encode_json \%pulls;
     close $fh;
-    system("jq -S . < $filename > $tempdir/gitlab-pulls-sorted.json");
-    my $storePath = trim(`nix-store --add "$tempdir/gitlab-pulls-sorted.json"`
-        or die "cannot copy path $filename to the Nix store.\n");
-    chomp $storePath;
+    run(["jq", "-S", "."], '<', $filename, '>', "$tempdir/gitlab-pulls-sorted.json") or die "jq command failed: $?";
+    my $storePath = addToStore("$tempdir/gitlab-pulls-sorted.json");
     my $timestamp = time;
     return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };
 }

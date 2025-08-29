@@ -14,6 +14,7 @@ use Encode;
 use File::Basename;
 use JSON::MaybeXS;
 use HTML::Entities;
+use IPC::Run3;
 use List::Util qw[min max];
 use List::SomeUtils qw{any};
 use Net::Prometheus;
@@ -177,8 +178,14 @@ sub queue_runner_status_GET {
     my ($self, $c) = @_;
 
     #my $status = from_json($c->model('DB::SystemStatus')->find('queue-runner')->status);
-    my $status = decode_json(`hydra-queue-runner --status`);
-    if ($?) { $status->{status} = "unknown"; }
+    my ($stdout, $stderr);
+    run3(['hydra-queue-runner', '--status'], \undef, \$stdout, \$stderr);
+    my $status;
+    if ($? != 0) {
+        $status = { status => "unknown" };
+    } else {
+        $status = decode_json($stdout);
+    }
     my $json = JSON->new->pretty()->canonical();
 
     $c->stash->{template} = 'queue-runner-status.tt';
