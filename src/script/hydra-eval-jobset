@@ -366,7 +366,13 @@ sub evalJobs {
             "or flake.checks " .
             "or (throw \"flake '$flakeRef' does not provide any Hydra jobs or checks\")";
 
-        @cmd = ("nix-eval-jobs", "--expr", $nix_expr);
+        @cmd = ("nix-eval-jobs",
+                # Disable the eval cache to prevent SQLite database contention.
+                # Since Hydra typically evaluates each revision only once,
+                # parallel workers would compete for database locks without
+                # providing any benefit from caching.
+                "--option", "eval-cache", "false",
+                "--expr", $nix_expr);
     } else {
         my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
             or die "cannot find the input containing the job expression\n";
