@@ -23,7 +23,7 @@ Running Hydra is currently only supported on NixOS. The [hydra module](https://g
 }
 ```
 ### Creating An Admin User
-Once the Hydra service has been configured as above and activate you should already be able to access the UI interface at the specified URL. However some actions require an admin user which has to be created first:
+Once the Hydra service has been configured as above and activated, you should already be able to access the UI interface at the specified URL. However some actions require an admin user which has to be created first:
 
 ```
 $ su - hydra
