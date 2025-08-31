@@ -1,0 +1,9 @@
+[workspace]
+
+resolver = "2"
+members = ["builder", "queue-runner", "crates/*"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
