@@ -1,0 +1,44 @@
+[package]
+name = "binary-cache"
+version = "0.1.0"
+edition = "2024"
+license = "LGPL-2.1-only"
+rust-version.workspace = true
+
+[dependencies]
+tracing.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+url.workspace = true
+
+object_store = { workspace = true, features = ["aws"] }
+reqwest.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-stream = { workspace = true, features = ["io-util"] }
+tokio-util = { workspace = true, features = ["io", "io-util"] }
+fs-err = { workspace = true, features = ["tokio"] }
+futures.workspace = true
+async-compression = { workspace = true, features = [
+  "tokio",
+  "xz",
+  "xz-parallel",
+  "bzip2",
+  "brotli",
+  "zstd",
+] }
+backon.workspace = true
+sha2.workspace = true
+secrecy.workspace = true
+configparser.workspace = true
+smallvec.workspace = true
+foldhash.workspace = true
+hashbrown.workspace = true
+moka.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+nix-utils = { path = "../nix-utils" }
+
+[dev-dependencies]
+hydra-tracing = { path = "../tracing" }
+tempfile = "3.23.0"

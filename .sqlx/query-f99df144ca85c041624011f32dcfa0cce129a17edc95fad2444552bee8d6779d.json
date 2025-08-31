@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n              INSERT INTO buildsteps (\n                build,\n                stepnr,\n                type,\n                drvPath,\n                busy,\n                startTime,\n                stopTime,\n                system,\n                status,\n                propagatedFrom,\n                errorMsg,\n                machine\n              ) VALUES (\n                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12\n              )\n              ON CONFLICT DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f99df144ca85c041624011f32dcfa0cce129a17edc95fad2444552bee8d6779d"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n              INSERT INTO failedpaths (\n                path\n              ) VALUES (\n                $1\n              )\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a6cedfa152e75af251a255584fca2d67fdd2bf0bb258f4320da7c00bdf3c7680"
+}

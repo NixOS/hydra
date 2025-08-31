@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO builds (\n              finished,\n              timestamp,\n              jobset_id,\n              job,\n              nixname,\n              drvpath,\n              system,\n              maxsilent,\n              timeout,\n              ischannel,\n              iscurrent,\n              priority,\n              globalpriority,\n              keep\n            ) VALUES (\n              0,\n              EXTRACT(EPOCH FROM NOW())::INT4,\n              $1,\n              'debug',\n              'debug',\n              $2,\n              $3,\n              7200,\n              36000,\n              0,\n              0,\n              100,\n              0,\n            0);",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "84173580db29e288f8e83dbae7ab5636bdcab6b0243168dde7cb7f81d7129fac"
+}

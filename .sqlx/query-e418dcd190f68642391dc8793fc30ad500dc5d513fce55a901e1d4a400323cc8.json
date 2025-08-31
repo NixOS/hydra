@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n              id, buildStatus, releaseName, closureSize, size\n            FROM builds b\n            JOIN buildoutputs o on b.id = o.build\n            WHERE finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "buildstatus",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "releasename",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "closuresize",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "size",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "e418dcd190f68642391dc8793fc30ad500dc5d513fce55a901e1d4a400323cc8"
+}
