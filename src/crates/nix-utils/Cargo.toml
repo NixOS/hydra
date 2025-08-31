@@ -1,0 +1,29 @@
+[package]
+name = "nix-utils"
+version = "0.1.0"
+edition = "2024"
+license = "LGPL-2.1-only"
+rust-version.workspace = true
+
+[dependencies]
+tracing.workspace = true
+serde = { workspace = true, features = ["derive"] }
+thiserror.workspace = true
+anyhow.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-stream = { workspace = true, features = ["io-util"] }
+tokio-util = { workspace = true, features = ["io", "io-util"] }
+fs-err = { workspace = true, features = ["tokio"] }
+futures.workspace = true
+hashbrown.workspace = true
+url.workspace = true
+bytes.workspace = true
+smallvec.workspace = true
+
+cxx.workspace = true
+
+nix-diff.workspace = true
+
+[build-dependencies]
+cxx-build.workspace = true
+pkg-config.workspace = true

@@ -1,0 +1,68 @@
+[package]
+name = "queue-runner"
+version.workspace = true
+edition = "2024"
+license = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+tracing.workspace = true
+sd-notify.workspace = true
+
+toml.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+secrecy = { workspace = true, features = ["serde"] }
+smallvec = { workspace = true, features = ["serde"] }
+hashbrown = { workspace = true, features = ["serde"] }
+arc-swap.workspace = true
+parking_lot.workspace = true
+
+thiserror.workspace = true
+anyhow.workspace = true
+backon.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
+uuid = { workspace = true, features = ["v4", "serde"] }
+atomic_float.workspace = true
+fs-err = { workspace = true, features = ["tokio"] }
+
+tokio = { workspace = true, features = ["full"] }
+futures.workspace = true
+futures-util.workspace = true
+byte-unit.workspace = true
+
+tokio-stream.workspace = true
+prost.workspace = true
+tonic = { workspace = true, features = ["zstd", "tls-webpki-roots"] }
+tonic-health.workspace = true
+tonic-reflection.workspace = true
+tonic-prost.workspace = true
+listenfd.workspace = true
+h2.workspace = true
+
+hyper = { workspace = true, features = ["full"] }
+tower = { workspace = true, features = ["util"] }
+tower-http = { workspace = true, features = ["trace"] }
+http-body-util.workspace = true
+hyper-util.workspace = true
+bytes.workspace = true
+jiff.workspace = true
+prometheus = { workspace = true, features = ["process"] }
+procfs.workspace = true
+
+db = { path = "../crates/db" }
+nix-utils = { path = "../crates/nix-utils" }
+binary-cache = { path = "../crates/binary-cache" }
+shared = { path = "../crates/shared" }
+hydra-tracing = { path = "../crates/tracing", features = ["tonic"] }
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator.workspace = true
+
+[build-dependencies]
+tonic-prost-build.workspace = true
+sha2.workspace = true
+fs-err = { workspace = true }
+
+[features]
+otel = ["hydra-tracing/otel"]

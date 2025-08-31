@@ -1,0 +1,1 @@
+option('otel', type: 'feature', value: 'disabled', description: 'Enable OpenTelemetry support for Rust components')

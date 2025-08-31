@@ -43,13 +43,11 @@ sub evalFails {
 
 sub runBuild {
     my ($build) = @_;
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-queue-runner", "-vvvv", "--build-one", $build->id));
-    if ($res) {
-        utf8::decode($stdout) or die "Invalid unicode in stdout.";
-        utf8::decode($stderr) or die "Invalid unicode in stderr.";
-        print STDERR "Queue runner stdout: $stdout\n" if $stdout ne "";
-        print STDERR "Queue runner stderr: $stderr\n" if $stderr ne "";
-    }
+    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("queue-runner-build-one.sh", $build->id));
+    utf8::decode($stdout) or die "Invalid unicode in stdout.";
+    utf8::decode($stderr) or die "Invalid unicode in stderr.";
+    print STDERR "Queue runner stdout: $stdout\n" if $stdout ne "";
+    print STDERR "Queue runner stderr: $stderr\n" if $stderr ne "";
     return !$res;
 }
 

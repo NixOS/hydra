@@ -20,6 +20,9 @@ prom_cpp_pull_dep = dependency('prometheus-cpp-pull', required: true)
 mdbook = find_program('mdbook', native: true)
 perl = find_program('perl', native: true)
 
+cargo = find_program('cargo', native: true, required: true)
+rustc = find_program('rustc', native: true, required: true)
+
 subdir('doc/manual')
 subdir('nixos-modules')
 subdir('src')
