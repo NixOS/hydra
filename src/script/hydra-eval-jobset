@@ -358,13 +358,24 @@ sub evalJobs {
     my @cmd;
 
     if (defined $flakeRef) {
-        my $nix_expr =
-            "let " .
-            "flake = builtins.getFlake (toString \"$flakeRef\"); " .
-            "in " .
-            "flake.hydraJobs " .
-            "or flake.checks " .
-            "or (throw \"flake '$flakeRef' does not provide any Hydra jobs or checks\")";
+        my $nix_expr;
+        my ($ref, $attr) = split '#', $flakeRef, 2;
+        if (defined $attr) {
+            $nix_expr =
+                "let " .
+                "flake = builtins.getFlake (toString \"$ref\"); " .
+                "in " .
+                "flake.${attr} " .
+                "or (throw \"flake '$ref' does not provide attribute '$attr'\")";
+        } else {
+            $nix_expr =
+                "let " .
+                "flake = builtins.getFlake (toString \"$flakeRef\"); " .
+                "in " .
+                "flake.hydraJobs " .
+                "or flake.checks " .
+                "or (throw \"flake '$flakeRef' does not provide any Hydra jobs or checks\")";
+        }
 
         @cmd = ("nix-eval-jobs",
                 # Disable the eval cache to prevent SQLite database contention.
@@ -713,12 +724,13 @@ sub checkJobsetWrapped {
 
     my $flakeRef = $jobset->flake;
     if (defined $flakeRef) {
+        my ($ref, $attr) = split '#', $flakeRef, 2;
         (my $res, my $json, my $stderr) = captureStdoutStderr(
-            600, "nix", "flake", "metadata", "--refresh", "--json", "--", $flakeRef);
+            600, "nix", "flake", "metadata", "--refresh", "--json", "--", $ref);
         die "'nix flake metadata' returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
             . ":\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
             if $res;
-        $flakeRef = decode_json($json)->{'url'};
+        $ref = decode_json($json)->{'url'};
     }
 
     Net::Statsd::increment("hydra.evaluator.checkouts");
