@@ -377,8 +377,11 @@ sub evalJobs {
         my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
             or die "cannot find the input containing the job expression\n";
 
+        my $evalRestricted = (($config->{evaluator_restrict_eval} // 1) ne 0) ? "true" : "false";
+
+
         @cmd = ("nix-eval-jobs",
-                "--option", "restrict-eval", "true",
+                "--option", "restrict-eval", $evalRestricted,
                 "<" . $nixExprInputName . "/" . $nixExprPath . ">",
                 inputsToArgs($inputInfo));
     }
