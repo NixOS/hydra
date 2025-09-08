@@ -2,8 +2,8 @@
 
 #include "state.hh"
 #include "hydra-build-result.hh"
-#include "finally.hh"
-#include "binary-cache-store.hh"
+#include <nix/util/finally.hh>
+#include <nix/store/binary-cache-store.hh>
 
 using namespace nix;
 
@@ -16,7 +16,7 @@ void setThreadName(const std::string & name)
 }
 
 
-void State::builder(MachineReservation::ptr reservation)
+void State::builder(std::unique_ptr<MachineReservation> reservation)
 {
     setThreadName("bld~" + std::string(reservation->step->drvPath.to_string()));
 
@@ -35,21 +35,19 @@ void State::builder(MachineReservation::ptr reservation)
             activeSteps_.lock()->erase(activeStep);
         });
 
+        std::string machine = reservation->machine->storeUri.render();
+
         try {
             auto destStore = getDestStore();
-            res = doBuildStep(destStore, reservation, activeStep);
+            // Might release the reservation.
+            res = doBuildStep(destStore, std::move(reservation), activeStep);
         } catch (std::exception & e) {
             printMsg(lvlError, "uncaught exception building ‘%s’ on ‘%s’: %s",
-                localStore->printStorePath(reservation->step->drvPath),
-                reservation->machine->sshName,
+                localStore->printStorePath(activeStep->step->drvPath),
+                machine,
                 e.what());
         }
     }
-
-    /* Release the machine and wake up the dispatcher. */
-    assert(reservation.unique());
-    reservation = 0;
-    wakeDispatcher();
 
     /* If there was a temporary failure, retry the step after an
        exponentially increasing interval. */
@@ -72,11 +70,11 @@ void State::builder(MachineReservation::ptr reservation)
 
 
 State::StepResult State::doBuildStep(nix::ref<Store> destStore,
-    MachineReservation::ptr reservation,
+    std::unique_ptr<MachineReservation> reservation,
     std::shared_ptr<ActiveStep> activeStep)
 {
-    auto & step(reservation->step);
-    auto & machine(reservation->machine);
+    auto step(reservation->step);
+    auto machine(reservation->machine);
 
     {
         auto step_(step->state.lock());
@@ -150,7 +148,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         buildOptions.buildTimeout = build->buildTimeout;
 
         printInfo("performing step ‘%s’ %d times on ‘%s’ (needed by build %d and %d others)",
-            localStore->printStorePath(step->drvPath), buildOptions.nrRepeats + 1, machine->sshName, buildId, (dependents.size() - 1));
+            localStore->printStorePath(step->drvPath), buildOptions.nrRepeats + 1, machine->storeUri.render(), buildId, (dependents.size() - 1));
     }
 
     if (!buildOneDone)
@@ -178,7 +176,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
                     unlink(result.logFile.c_str());
                 }
             } catch (...) {
-                ignoreException();
+                ignoreExceptionInDestructor();
             }
         }
     });
@@ -196,7 +194,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
         {
             auto mc = startDbUpdate();
             pqxx::work txn(*conn);
-            stepNr = createBuildStep(txn, result.startTime, buildId, step, machine->sshName, bsBusy);
+            stepNr = createBuildStep(txn, result.startTime, buildId, step, machine->storeUri.render(), bsBusy);
             txn.commit();
         }
 
@@ -211,7 +209,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
 
         try {
             /* FIXME: referring builds may have conflicting timeouts. */
-            buildRemote(destStore, machine, step, buildOptions, result, activeStep, updateStep, narMembers);
+            buildRemote(destStore, std::move(reservation), machine, step, buildOptions, result, activeStep, updateStep, narMembers);
         } catch (Error & e) {
             if (activeStep->state_.lock()->cancelled) {
                 printInfo("marking step %d of build %d as cancelled", stepNr, buildId);
@@ -253,7 +251,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
     /* Finish the step in the database. */
     if (stepNr) {
         pqxx::work txn(*conn);
-        finishBuildStep(txn, result, buildId, stepNr, machine->sshName);
+        finishBuildStep(txn, result, buildId, stepNr, machine->storeUri.render());
         txn.commit();
     }
 
@@ -261,7 +259,7 @@ State::StepResult State::doBuildStep(nix::ref<Store> destStore,
        issue). Retry a number of times. */
     if (result.canRetry) {
         printMsg(lvlError, "possibly transient failure building ‘%s’ on ‘%s’: %s",
-            localStore->printStorePath(step->drvPath), machine->sshName, result.errorMsg);
+            localStore->printStorePath(step->drvPath), machine->storeUri.render(), result.errorMsg);
         assert(stepNr);
         bool retry;
         {
@@ -452,7 +450,7 @@ void State::failStep(
                     build->finishedInDB)
                     continue;
                 createBuildStep(txn,
-                    0, build->id, step, machine ? machine->sshName : "",
+                    0, build->id, step, machine ? machine->storeUri.render() : "",
                     result.stepStatus, result.errorMsg, buildId == build->id ? 0 : buildId);
             }
 
@@ -460,13 +458,12 @@ void State::failStep(
             for (auto & build : indirect) {
                 if (build->finishedInDB) continue;
                 printError("marking build %1% as failed", build->id);
-                txn.exec_params0
-                    ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0",
-                     build->id,
+                txn.exec("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, isCachedBuild = $5, notificationPendingSince = $4 where id = $1 and finished = 0",
+                     pqxx::params{build->id,
                      (int) (build->drvPath != step->drvPath && result.buildStatus() == bsFailed ? bsDepFailed : result.buildStatus()),
                      result.startTime,
                      result.stopTime,
-                     result.stepStatus == bsCachedFailure ? 1 : 0);
+                     result.stepStatus == bsCachedFailure ? 1 : 0}).no_rows();
                 nrBuildsDone++;
             }
 
@@ -475,7 +472,7 @@ void State::failStep(
             if (result.stepStatus != bsCachedFailure && result.canCache)
                 for (auto & i : step->drv->outputsAndOptPaths(*localStore))
                     if (i.second.second)
-                       txn.exec_params0("insert into FailedPaths values ($1)", localStore->printStorePath(*i.second.second));
+                       txn.exec("insert into FailedPaths values ($1)", pqxx::params{localStore->printStorePath(*i.second.second)}).no_rows();
 
             txn.commit();
         }

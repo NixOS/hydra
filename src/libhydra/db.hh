@@ -2,8 +2,8 @@
 
 #include <pqxx/pqxx>
 
-#include "environment-variables.hh"
-#include "util.hh"
+#include <nix/util/environment-variables.hh>
+#include <nix/util/util.hh>
 
 
 struct Connection : pqxx::connection
@@ -27,19 +27,20 @@ struct Connection : pqxx::connection
 };
 
 
-class receiver : public pqxx::notification_receiver
+class receiver
 {
     std::optional<std::string> status;
+    pqxx::connection & conn;
 
 public:
 
     receiver(pqxx::connection_base & c, const std::string & channel)
-        : pqxx::notification_receiver(c, channel) { }
-
-    void operator() (const std::string & payload, int pid) override
+        : conn(static_cast<pqxx::connection &>(c))
     {
-        status = payload;
-    };
+        conn.listen(channel, [this](pqxx::notification n) {
+            status = std::string(n.payload);
+        });
+    }
 
     std::optional<std::string> get() {
         auto s = status;

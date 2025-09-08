@@ -7,6 +7,8 @@ use File::Temp;
 use File::Basename;
 use Fcntl;
 use IO::File;
+use IPC::Run qw(run);
+use IPC::Run3;
 use Net::Amazon::S3;
 use Net::Amazon::S3::Client;
 use Digest::SHA;
@@ -14,6 +16,7 @@ use Nix::Config;
 use Nix::Store;
 use Hydra::Model::DB;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Nix;
 
 sub isEnabled {
     my ($self) = @_;
@@ -26,11 +29,11 @@ my %compressors = ();
 $compressors{"none"} = "";
 
 if (defined($Nix::Config::bzip2)) {
-    $compressors{"bzip2"} = "| $Nix::Config::bzip2",
+    $compressors{"bzip2"} = "$Nix::Config::bzip2",
 }
 
 if (defined($Nix::Config::xz)) {
-    $compressors{"xz"} = "| $Nix::Config::xz",
+    $compressors{"xz"} = "$Nix::Config::xz",
 }
 
 my $lockfile = Hydra::Model::DB::getHydraPath . "/.hydra-s3backup.lock";
@@ -92,7 +95,7 @@ sub buildFinished {
         my $hash = substr basename($path), 0, 32;
         my ($deriver, $narHash, $time, $narSize, $refs) = queryPathInfo($path, 0);
         my $system;
-        if (defined $deriver and isValidPath($deriver)) {
+        if (defined $deriver and $MACHINE_LOCAL_STORE->isValidPath($deriver)) {
             $system = derivationFromPath($deriver)->{platform};
         }
         foreach my $reference (@{$refs}) {
@@ -110,7 +113,16 @@ sub buildFinished {
             }
             next unless @incomplete_buckets;
             my $compressor = $compressors{$compression_type};
-            system("$Nix::Config::binDir/nix-store --dump $path $compressor > $tempdir/nar") == 0 or die;
+            if ($compressor eq "") {
+                # No compression - use IPC::Run3 to redirect stdout to file
+                run3(["$Nix::Config::binDir/nix-store", "--dump", $path],
+                     \undef, "$tempdir/nar", \undef) or die "nix-store --dump failed: $!";
+            } else {
+                # With compression - use IPC::Run to pipe nix-store output to compressor
+                my $dump_cmd = ["$Nix::Config::binDir/nix-store", "--dump", $path];
+                my $compress_cmd = [$compressor];
+                run($dump_cmd, '|', $compress_cmd, '>', "$tempdir/nar") or die "Pipeline failed: $?";
+            }
             my $digest = Digest::SHA->new(256);
             $digest->addfile("$tempdir/nar");
             my $file_hash = $digest->hexdigest;

@@ -13,6 +13,8 @@ use Data::Dump qw(dump);
 use List::SomeUtils qw(all);
 use Encode;
 use JSON::PP;
+use IPC::Run qw(run);
+use IPC::Run3;
 use WWW::Form::UrlEncoded::PP qw();
 
 use feature 'state';
@@ -238,7 +240,7 @@ sub serveFile {
         # XSS hole.
         $c->response->header('Content-Security-Policy' => 'sandbox allow-scripts');
 
-        $c->stash->{'plain'} = { data => grab(cmd => ["nix", "--experimental-features", "nix-command",
+        $c->stash->{'plain'} = { data => readIntoSocket(cmd => ["nix", "--experimental-features", "nix-command",
                                                       "store", "cat", "--store", getStoreUri(), "$path"]) };
 
         # Detect MIME type.
@@ -348,19 +350,21 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 
     notFound($c, "Product $path has disappeared.") unless -e $path;
 
-    # Sanitize $path to prevent shell injection attacks.
-    $path =~ /^\/[\/[A-Za-z0-9_\-\.=+:]+$/ or die "Filename contains illegal characters.\n";
-
-    # FIXME: don't use shell invocations below.
-
     # FIXME: use nix store cat
 
     my $res;
 
     if ($product->type eq "nix-build" && -d $path) {
         # FIXME: use nix ls-store -R --json
-        $res = `cd '$path' && find . -print0 | xargs -0 ls -ld --`;
-        error($c, "`ls -lR' error: $?") if $? != 0;
+        # We need to use a pipe between find and xargs, so we'll use IPC::Run
+        my $error;
+        # Run find with absolute path and post-process to get relative paths
+        my $success = run(['find', $path, '-print0'], '|', ['xargs', '-0', 'ls', '-ld', '--'], \$res, \$error);
+        error($c, "`find $path -print0 | xargs -0 ls -ld --' error: $error") unless $success;
+
+        # Strip the base path to show relative paths
+        my $escaped_path = quotemeta($path);
+        $res =~ s/^(.*\s)$escaped_path(\/|$)/$1.$2/mg;
 
         #my $baseuri = $c->uri_for('/build', $c->stash->{build}->id, 'download', $product->productnr);
         #$baseuri .= "/".$product->name if $product->name;
@@ -368,34 +372,59 @@ sub contents : Chained('buildChain') PathPart Args(1) {
     }
 
     elsif ($path =~ /\.rpm$/) {
-        $res = `rpm --query --info --package '$path'`;
-        error($c, "RPM error: $?") if $? != 0;
+        my ($stdout1, $stderr1);
+        run3(['rpm', '--query', '--info', '--package', $path], \undef, \$stdout1, \$stderr1);
+        error($c, "RPM error: $stderr1") if $? != 0;
+        $res = $stdout1;
+
         $res .= "===\n";
-        $res .= `rpm --query --list --verbose --package '$path'`;
-        error($c, "RPM error: $?") if $? != 0;
+
+        my ($stdout2, $stderr2);
+        run3(['rpm', '--query', '--list', '--verbose', '--package', $path], \undef, \$stdout2, \$stderr2);
+        error($c, "RPM error: $stderr2") if $? != 0;
+        $res .= $stdout2;
     }
 
     elsif ($path =~ /\.deb$/) {
-        $res = `dpkg-deb --info '$path'`;
-        error($c, "`dpkg-deb' error: $?") if $? != 0;
+        my ($stdout1, $stderr1);
+        run3(['dpkg-deb', '--info', $path], \undef, \$stdout1, \$stderr1);
+        error($c, "`dpkg-deb' error: $stderr1") if $? != 0;
+        $res = $stdout1;
+
         $res .= "===\n";
-        $res .= `dpkg-deb --contents '$path'`;
-        error($c, "`dpkg-deb' error: $?") if $? != 0;
+
+        my ($stdout2, $stderr2);
+        run3(['dpkg-deb', '--contents', $path], \undef, \$stdout2, \$stderr2);
+        error($c, "`dpkg-deb' error: $stderr2") if $? != 0;
+        $res .= $stdout2;
     }
 
     elsif ($path =~ /\.(tar(\.gz|\.bz2|\.xz|\.lzma)?|tgz)$/ ) {
-        $res = `tar tvfa '$path'`;
-        error($c, "`tar' error: $?") if $? != 0;
+        my ($stdout, $stderr);
+        run3(['tar', 'tvfa', $path], \undef, \$stdout, \$stderr);
+        error($c, "`tar' error: $stderr") if $? != 0;
+        $res = $stdout;
     }
 
     elsif ($path =~ /\.(zip|jar)$/ ) {
-        $res = `unzip -v '$path'`;
-        error($c, "`unzip' error: $?") if $? != 0;
+        my ($stdout, $stderr);
+        run3(['unzip', '-v', $path], \undef, \$stdout, \$stderr);
+        error($c, "`unzip' error: $stderr") if $? != 0;
+        $res = $stdout;
     }
 
     elsif ($path =~ /\.iso$/ ) {
-        $res = `isoinfo -d -i '$path' && isoinfo -l -R -i '$path'`;
-        error($c, "`isoinfo' error: $?") if $? != 0;
+        # Run first isoinfo command
+        my ($stdout1, $stderr1);
+        run3(['isoinfo', '-d', '-i', $path], \undef, \$stdout1, \$stderr1);
+        error($c, "`isoinfo' error: $stderr1") if $? != 0;
+        $res = $stdout1;
+
+        # Run second isoinfo command
+        my ($stdout2, $stderr2);
+        run3(['isoinfo', '-l', '-R', '-i', $path], \undef, \$stdout2, \$stderr2);
+        error($c, "`isoinfo' error: $stderr2") if $? != 0;
+        $res .= $stdout2;
     }
 
     else {

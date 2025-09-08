@@ -5,43 +5,39 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "build-result.hh"
-#include "path.hh"
-#include "serve-protocol.hh"
-#include "serve-protocol-impl.hh"
+#include <nix/store/build-result.hh>
+#include <nix/store/path.hh>
+#include <nix/store/legacy-ssh-store.hh>
+#include <nix/store/serve-protocol.hh>
+#include <nix/store/serve-protocol-impl.hh>
 #include "state.hh"
-#include "current-process.hh"
-#include "processes.hh"
-#include "util.hh"
-#include "serve-protocol.hh"
-#include "serve-protocol-impl.hh"
-#include "ssh.hh"
-#include "finally.hh"
-#include "url.hh"
+#include <nix/util/current-process.hh>
+#include <nix/util/processes.hh>
+#include <nix/util/util.hh>
+#include <nix/store/serve-protocol.hh>
+#include <nix/store/serve-protocol-impl.hh>
+#include <nix/store/ssh.hh>
+#include <nix/util/finally.hh>
+#include <nix/util/url.hh>
 
 using namespace nix;
 
-namespace nix::build_remote {
-
-static Strings extraStoreArgs(std::string & machine)
+bool ::Machine::isLocalhost() const
 {
-    Strings result;
-    try {
-        auto parsed = parseURL(machine);
-        if (parsed.scheme != "ssh") {
-            throw SysError("Currently, only (legacy-)ssh stores are supported!");
-        }
-        machine = parsed.authority.value_or("");
-        auto remoteStore = parsed.query.find("remote-store");
-        if (remoteStore != parsed.query.end()) {
-            result = {"--store", shellEscape(remoteStore->second)};
-        }
-    } catch (BadURL &) {
-        // We just try to continue with `machine->sshName` here for backwards compat.
-    }
-
-    return result;
+    return storeUri.params.empty() && std::visit(overloaded {
+        [](const StoreReference::Auto &) {
+            return true;
+        },
+        [](const StoreReference::Specified & s) {
+            return
+               (s.scheme == "local" || s.scheme == "unix") ||
+               ((s.scheme == "ssh" || s.scheme == "ssh-ng") &&
+                s.authority == "localhost");
+        },
+    }, storeUri.variant);
 }
+
+namespace nix::build_remote {
 
 static std::unique_ptr<SSHMaster::Connection> openConnection(
     ::Machine::ptr machine, SSHMaster & master)
@@ -51,12 +47,27 @@ static std::unique_ptr<SSHMaster::Connection> openConnection(
         command.push_back("--builders");
         command.push_back("");
     } else {
-        command.splice(command.end(), extraStoreArgs(machine->sshName));
+        auto remoteStore = machine->storeUri.params.find("remote-store");
+        if (remoteStore != machine->storeUri.params.end()) {
+            command.push_back("--store");
+            command.push_back(escapeShellArgAlways(remoteStore->second));
+        }
     }
 
-    return master.startCommand(std::move(command), {
+    auto ret = master.startCommand(std::move(command), {
         "-a", "-oBatchMode=yes", "-oConnectTimeout=60", "-oTCPKeepAlive=yes"
     });
+
+    // XXX: determine the actual max value we can use from /proc.
+
+    // FIXME: Should this be upstreamed into `startCommand` in Nix?
+
+    int pipesize = 1024 * 1024;
+
+    fcntl(ret->in.get(), F_SETPIPE_SZ, &pipesize);
+    fcntl(ret->out.get(), F_SETPIPE_SZ, &pipesize);
+
+    return ret;
 }
 
 
@@ -187,7 +198,7 @@ static BasicDerivation sendInputs(
         MaintainCount<counter> mc2(nrStepsCopyingTo);
 
         printMsg(lvlDebug, "sending closure of ‘%s’ to ‘%s’",
-            localStore.printStorePath(step.drvPath), conn.machine->sshName);
+            localStore.printStorePath(step.drvPath), conn.machine->storeUri.render());
 
         auto now1 = std::chrono::steady_clock::now();
 
@@ -265,32 +276,6 @@ static BuildResult performBuild(
     }
 
     return result;
-}
-
-static std::map<StorePath, UnkeyedValidPathInfo> queryPathInfos(
-    ::Machine::Connection & conn,
-    Store & localStore,
-    StorePathSet & outputs,
-    size_t & totalNarSize
-)
-{
-
-    /* Get info about each output path. */
-    std::map<StorePath, UnkeyedValidPathInfo> infos;
-    conn.to << ServeProto::Command::QueryPathInfos;
-    ServeProto::write(localStore, conn, outputs);
-    conn.to.flush();
-    while (true) {
-        auto storePathS = readString(conn.from);
-        if (storePathS == "") break;
-
-        auto storePath = localStore.parseStorePath(storePathS);
-        auto info = ServeProto::Serialise<UnkeyedValidPathInfo>::read(localStore, conn);
-        totalNarSize += info.narSize;
-        infos.insert_or_assign(std::move(storePath), std::move(info));
-    }
-
-    return infos;
 }
 
 static void copyPathFromRemote(
@@ -401,8 +386,19 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
 
 }
 
+/* Utility guard object to auto-release a semaphore on destruction. */
+template <typename T>
+class SemaphoreReleaser {
+public:
+    SemaphoreReleaser(T* s) : sem(s) {}
+    ~SemaphoreReleaser() { sem->release(); }
+
+private:
+    T* sem;
+};
 
 void State::buildRemote(ref<Store> destStore,
+    std::unique_ptr<MachineReservation> reservation,
     ::Machine::ptr machine, Step::ptr step,
     const ServeProto::BuildOptions & buildOptions,
     RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
@@ -419,14 +415,22 @@ void State::buildRemote(ref<Store> destStore,
 
         updateStep(ssConnecting);
 
-        SSHMaster master {
-            machine->sshName,
-            machine->sshKey,
-            machine->sshPublicHostKey,
-            false, // no SSH master yet
-            false, // no compression yet
-            logFD.get(),
+        auto storeRef = machine->completeStoreReference();
+
+        auto * pSpecified = std::get_if<StoreReference::Specified>(&storeRef.variant);
+        if (!pSpecified || pSpecified->scheme != "ssh") {
+            throw Error("Currently, only (legacy-)ssh stores are supported!");
+        }
+
+        LegacySSHStoreConfig storeConfig {
+            pSpecified->scheme,
+            pSpecified->authority,
+            storeRef.params
         };
+
+        auto master = storeConfig.createSSHMaster(
+            false, // no SSH master yet
+            logFD.get());
 
         // FIXME: rewrite to use Store.
         auto child = build_remote::openConnection(machine, master);
@@ -471,18 +475,12 @@ void State::buildRemote(ref<Store> destStore,
                 conn.to,
                 conn.from,
                 our_version,
-                machine->sshName);
+                machine->storeUri.render());
         } catch (EndOfFile & e) {
             child->sshPid.wait();
             std::string s = chomp(readFile(result.logFile));
-            throw Error("cannot connect to ‘%1%’: %2%", machine->sshName, s);
+            throw Error("cannot connect to ‘%1%’: %2%", machine->storeUri.render(), s);
         }
-
-        // Do not attempt to speak a newer version of the protocol.
-        //
-        // Per https://github.com/NixOS/nix/issues/9584 should be handled as
-        // part of `handshake` in upstream nix.
-        conn.remoteVersion = std::min(conn.remoteVersion, our_version);
 
         {
             auto info(machine->state->connectInfo.lock());
@@ -512,7 +510,7 @@ void State::buildRemote(ref<Store> destStore,
         /* Do the build. */
         printMsg(lvlDebug, "building ‘%s’ on ‘%s’",
             localStore->printStorePath(step->drvPath),
-            machine->sshName);
+            machine->storeUri.render());
 
         updateStep(ssBuilding);
 
@@ -535,10 +533,27 @@ void State::buildRemote(ref<Store> destStore,
            get a build log. */
         if (result.isCached) {
             printMsg(lvlInfo, "outputs of ‘%s’ substituted or already valid on ‘%s’",
-                localStore->printStorePath(step->drvPath), machine->sshName);
+                localStore->printStorePath(step->drvPath), machine->storeUri.render());
             unlink(result.logFile.c_str());
             result.logFile = "";
         }
+
+        /* Throttle CPU-bound work. Opportunistically skip updating the current
+         * step, since this requires a DB roundtrip. */
+        if (!localWorkThrottler.try_acquire()) {
+            MaintainCount<counter> mc(nrStepsWaitingForDownloadSlot);
+            updateStep(ssWaitingForLocalSlot);
+            localWorkThrottler.acquire();
+        }
+        SemaphoreReleaser releaser(&localWorkThrottler);
+
+        /* Once we've started copying outputs, release the machine reservation
+         * so further builds can happen. We do not release the machine earlier
+         * to avoid situations where the queue runner is bottlenecked on
+         * copying outputs and we end up building too many things that we
+         * haven't been able to allow copy slots for. */
+        reservation.reset();
+        wakeDispatcher();
 
         StorePathSet outputs;
         for (auto & [_, realisation] : buildResult.builtOutputs)
@@ -552,8 +567,10 @@ void State::buildRemote(ref<Store> destStore,
 
             auto now1 = std::chrono::steady_clock::now();
 
+            auto infos = conn.queryPathInfos(*localStore, outputs);
+
             size_t totalNarSize = 0;
-            auto infos = build_remote::queryPathInfos(conn, *localStore, outputs, totalNarSize);
+            for (auto & [_, info] : infos) totalNarSize += info.narSize;
 
             if (totalNarSize > maxOutputSize) {
                 result.stepStatus = bsNarSizeLimitExceeded;
@@ -562,7 +579,7 @@ void State::buildRemote(ref<Store> destStore,
 
             /* Copy each path. */
             printMsg(lvlDebug, "copying outputs of ‘%s’ from ‘%s’ (%d bytes)",
-                localStore->printStorePath(step->drvPath), machine->sshName, totalNarSize);
+                localStore->printStorePath(step->drvPath), machine->storeUri.render(), totalNarSize);
 
             build_remote::copyPathsFromRemote(conn, narMembers, *localStore, *destStore, infos);
             auto now2 = std::chrono::steady_clock::now();
@@ -601,7 +618,7 @@ void State::buildRemote(ref<Store> destStore,
             info->consecutiveFailures = std::min(info->consecutiveFailures + 1, (unsigned int) 4);
             info->lastFailure = now;
             int delta = retryInterval * std::pow(retryBackoff, info->consecutiveFailures - 1) + (rand() % 30);
-            printMsg(lvlInfo, "will disable machine ‘%1%’ for %2%s", machine->sshName, delta);
+            printMsg(lvlInfo, "will disable machine ‘%1%’ for %2%s", machine->storeUri.render(), delta);
             info->disabledUntil = now + std::chrono::seconds(delta);
         }
         throw;

@@ -12,10 +12,14 @@ use Nix::Store;
 use Encode;
 use Sys::Hostname::Long;
 use IPC::Run;
+use IPC::Run3;
+use LWP::UserAgent;
+use JSON::MaybeXS;
 use UUID4::Tiny qw(is_uuid4_string);
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
+    addToStore
     cancelBuilds
     constructRunCommandLogPath
     findLog
@@ -36,6 +40,7 @@ our @EXPORT = qw(
     jobsetOverview
     jobsetOverview_
     pathIsInsidePrefix
+    readIntoSocket
     readNixFile
     registerRoot
     restartBuilds
@@ -174,6 +179,9 @@ sub getDrvLogPath {
     for ($fn . $bucketed, $fn . $bucketed . ".bz2") {
         return $_ if -f $_;
     }
+    for ($fn . $bucketed, $fn . $bucketed . ".zst") {
+        return $_ if -f $_;
+    }
     return undef;
 }
 
@@ -293,8 +301,7 @@ sub getEvals {
 
     my @evals = $evals_result_set->search(
         { hasnewbuilds => 1 },
-        { order_by => "$me.id DESC", rows => $rows, offset => $offset
-        , prefetch => { evaluationerror => [ ] } });
+        { order_by => "$me.id DESC", rows => $rows, offset => $offset });
     my @res = ();
     my $cache = {};
 
@@ -337,37 +344,68 @@ sub getEvals {
 
 sub getMachines {
     my %machines = ();
+    my $config = getHydraConfig();
 
-    my @machinesFiles = split /:/, ($ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix/machines");
+    if ($config->{'queue_runner_endpoint'}) {
+        my $ua = LWP::UserAgent->new();
+        my $resp = $ua->get($config->{'queue_runner_endpoint'} . "/status/machines");
+        if (not $resp->is_success) {
+            print STDERR "Unable to ask queue runner for machines\n";
+            return \%machines;
+        }
 
-    for my $machinesFile (@machinesFiles) {
-        next unless -e $machinesFile;
-        open(my $conf, "<", $machinesFile) or die;
-        while (my $line = <$conf>) {
-            chomp($line);
-            $line =~ s/\#.*$//g;
-            next if $line =~ /^\s*$/;
-            my @tokens = split /\s+/, $line;
+        my $data = decode_json($resp->decoded_content) or return \%machines;
+        my $machinesData = $data->{machines};
 
-            if (!defined($tokens[5]) || $tokens[5] eq "-") {
-                $tokens[5] = "";
-            }
-            my @supportedFeatures = split(/,/, $tokens[5] || "");
-
-            if (!defined($tokens[6]) || $tokens[6] eq "-") {
-                $tokens[6] = "";
-            }
-            my @mandatoryFeatures = split(/,/, $tokens[6] || "");
-            $machines{$tokens[0]} =
-                { systemTypes => [ split(/,/, $tokens[1]) ]
-                , sshKeys => $tokens[2]
-                , maxJobs => int($tokens[3])
-                , speedFactor => 1.0 * (defined $tokens[4] ? int($tokens[4]) : 1)
-                , supportedFeatures => [ @supportedFeatures, @mandatoryFeatures ]
-                , mandatoryFeatures => [ @mandatoryFeatures ]
+        foreach my $machineName (keys %$machinesData) {
+            my $machine = %$machinesData{$machineName};
+            $machines{$machineName} =
+                { systemTypes => $machine->{systems}
+                , maxJobs => $machine->{maxJobs}
+                , speedFactor => $machine->{speedFactor}
+                , supportedFeatures => [ @{$machine->{supportedFeatures}}, @{$machine->{mandatoryFeatures}} ]
+                , mandatoryFeatures => [ @{$machine->{mandatoryFeatures}} ]
+                # New fields for the machine status
+                , primarySystemType => $machine->{systems}[0]
+                , hasCapacity => $machine->{hasCapacity}
+                , hasDynamicCapacity => $machine->{hasDynamicCapacity}
+                , hasStaticCapacity => $machine->{hasStaticCapacity}
+                , score => $machine->{score}
+                , stats => $machine->{stats}
+                , memTotal => $machine->{totalMem}
                 };
         }
-        close $conf;
+    } else {
+        my @machinesFiles = split /:/, ($ENV{"NIX_REMOTE_SYSTEMS"} || "/etc/nix/machines");
+
+        for my $machinesFile (@machinesFiles) {
+            next unless -e $machinesFile;
+            open(my $conf, "<", $machinesFile) or die;
+            while (my $line = <$conf>) {
+                chomp($line);
+                $line =~ s/\#.*$//g;
+                next if $line =~ /^\s*$/;
+                my @tokens = split /\s+/, $line;
+
+                if (!defined($tokens[5]) || $tokens[5] eq "-") {
+                    $tokens[5] = "";
+                }
+                my @supportedFeatures = split(/,/, $tokens[5] || "");
+
+                if (!defined($tokens[6]) || $tokens[6] eq "-") {
+                    $tokens[6] = "";
+                }
+                my @mandatoryFeatures = split(/,/, $tokens[6] || "");
+                $machines{$tokens[0]} =
+                    { systemTypes => [ split(/,/, $tokens[1]) ]
+                    , maxJobs => int($tokens[3])
+                    , speedFactor => 1.0 * (defined $tokens[4] ? int($tokens[4]) : 1)
+                    , supportedFeatures => [ @supportedFeatures, @mandatoryFeatures ]
+                    , mandatoryFeatures => [ @mandatoryFeatures ]
+                    };
+            }
+            close $conf;
+        }
     }
 
     return \%machines;
@@ -414,6 +452,16 @@ sub pathIsInsidePrefix {
     return $cur;
 }
 
+sub readIntoSocket{
+    my (%args) = @_;
+    my $sock;
+
+    eval {
+        open($sock, "-|", @{$args{cmd}}) or die q(failed to open socket from command:\n $x);
+    };
+
+    return $sock;
+}
 
 
 
@@ -566,6 +614,16 @@ sub constructRunCommandLogPath {
     my $bucket = substr($uuid, 0, 2);
 
     return "$hydra_path/runcommand-logs/$bucket/$uuid";
+}
+
+
+sub addToStore {
+    my ($path) = @_;
+
+    my ($stdout, $stderr);
+    run3(['nix-store', '--add', $path], \undef, \$stdout, \$stderr);
+    die "cannot add path $path to the Nix store: $stderr\n" if $? != 0;
+    return trim($stdout);
 }
 
 1;

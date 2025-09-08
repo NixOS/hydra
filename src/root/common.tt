@@ -55,17 +55,17 @@ BLOCK renderRelativeDate %]
 [% END;
 
 BLOCK renderProjectName %]
-<a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/project' project) %]"><tt>[% project %]</tt></a>
+<a [% IF inRow %]class="row-link"[% END %] [% HTML.attributes(href => c.uri_for('/project' project)) %]><tt>[% project | html %]</tt></a>
 [% END;
 
 
 BLOCK renderJobsetName %]
-<a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/jobset' project jobset) %]"><tt>[% jobset %]</tt></a>
+<a [% IF inRow %]class="row-link"[% END %] [% HTML.attributes(href => c.uri_for('/jobset' project jobset)) %]><tt>[% jobset | html %]</tt></a>
 [% END;
 
 
 BLOCK renderJobName %]
-<a [% IF inRow %]class="row-link"[% END %] href="[% c.uri_for('/job' project jobset job) %]">[% job %]</a>
+<a [% IF inRow %]class="row-link"[% END %] [% HTML.attributes(href => c.uri_for('/job' project jobset job)) %]>[% job | html %]</a>
 [% END;
 
 
@@ -89,6 +89,17 @@ BLOCK renderDuration;
   IF duration >= 60 * 60; duration div (60 * 60) % 24 %]h&nbsp;[% END;
   IF duration >= 60; duration div 60 % 60 %]m&nbsp;[% END;
   duration % 60 %]s[%
+END;
+
+BLOCK renderDrvInfo;
+  drvname = step.drvpath
+    .substr(11) # strip `/nix/store/`
+    .split('-').slice(1).join("-") # strip hash part
+    .substr(0, -4); # strip `.drv`
+  IF drvname != releasename;
+    IF step.type == 0; action = "Build"; ELSE; action = "Substitution"; END;
+    IF drvname; %]<em> ([% HTML.escape(action) %] of [% HTML.escape(drvname) %])</em>[% END;
+  END;
 END;
 
 
@@ -129,20 +140,25 @@ BLOCK renderBuildListBody;
       [% IF showSchedulingInfo %]
         <td>[% IF busy %]<span class="badge badge-success">Started</span>[% ELSE %]<span class="badge badge-secondary">Queued</span>[% END %]</td>
       [% END %]
-      <td><a class="row-link" href="[% link %]">[% build.id %]</a></td>
+      <td><a class="row-link" [% HTML.attributes(href => link) %]>[% HTML.escape(build.id) %]</a></td>
       [% IF !hideJobName %]
-        <td><a href="[%link%]">[% IF !hideJobsetName %][%build.jobset.get_column("project")%]:[%build.jobset.get_column("name")%]:[% END %][%build.get_column("job")%]</td>
+        <td>
+          <a [% HTML.attributes(href => link) %]>[% IF !hideJobsetName %][% HTML.escape(build.jobset.get_column("project")) %]:[% HTML.escape(build.jobset.get_column("name")) %]:[% END %][% HTML.escape(build.get_column("job")) %]</a>
+          [% IF showStepName %]
+            [% INCLUDE renderDrvInfo step=build.buildsteps releasename=build.nixname %]
+          [% END %]
+        </td>
       [% END %]
       <td class="nowrap">[% t = showSchedulingInfo ? build.timestamp : build.stoptime; IF t; INCLUDE renderRelativeDate timestamp=(showSchedulingInfo ? build.timestamp : build.stoptime); ELSE; "-"; END %]</td>
-      <td>[% !showSchedulingInfo and build.get_column('releasename') ? build.get_column('releasename') : build.nixname %]</td>
-      <td class="nowrap"><tt>[% build.system %]</tt></td>
+      <td>[% !showSchedulingInfo and build.get_column('releasename') ? HTML.escape(build.get_column('releasename')) : HTML.escape(build.nixname) %]</td>
+      <td class="nowrap"><tt>[% build.system | html %]</tt></td>
       [% IF showDescription %]
-        <td>[% build.description %]</td>
+        <td>[% HTML.escape(build.description) %]</td>
       [% END %]
     </tr>
   [% END;
   IF linkToAll %]
-    <tr><td class="centered" colspan="5"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+    <tr><td class="centered" colspan="5"><a [% HTML.attributes(href => linkToAll) %]><em>More...</em></a></td></tr>
   [% END;
 END;
 
@@ -160,11 +176,11 @@ BLOCK renderBuildList;
 END;
 
 
-BLOCK renderLink %]<a href="[% uri %]">[% title %]</a>[% END;
+BLOCK renderLink %]<a [% HTML.attributes(href => uri) %]>[% HTML.escape(title) %]</a>[% END;
 
 
 BLOCK maybeLink;
-  IF uri %]<a [% HTML.attributes(href => uri, class => class); IF confirmmsg +%] onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% content %]</a>[% ELSE; content; END;
+  IF uri %]<a [% HTML.attributes(href => uri, class => class); IF confirmmsg +%] onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% HTML.escape(content) %]</a>[% ELSE; HTML.escape(content); END;
 END;
 
 
@@ -176,7 +192,7 @@ BLOCK renderSelection;
           <label class="radio inline">
             <input type="radio" [% HTML.attributes(id => param, name => param, value => name) %]
               [% IF name == curValue; "checked='1'"; END %]>
-              [% options.$name %]
+              [% HTML.escape(options.$name) %]
             </input>
           </label>
         [% END %]
@@ -184,7 +200,7 @@ BLOCK renderSelection;
     [% ELSE %]
       <select class="custom-select" [% HTML.attributes(id => param, name => param) %]>
         [% FOREACH name IN options.keys.sort %]
-          <option [% IF name == curValue; "selected='selected'"; END; " "; HTML.attributes(value => name) %]>[% options.$name %]</option>
+          <option [% IF name == curValue; "selected='selected'"; END; " "; HTML.attributes(value => name) %]>[% HTML.escape(options.$name) %]</option>
         [% END %]
       </select>
     [% END;
@@ -200,12 +216,12 @@ BLOCK editString; %]
 
 
 BLOCK renderFullBuildLink;
-  INCLUDE renderFullJobNameOfBuild build=build %] <a href="[% c.uri_for('/build' build.id) %]">build [% build.id %]</a>[%
+  INCLUDE renderFullJobNameOfBuild build=build %] <a [% HTML.attributes(href => c.uri_for('/build' build.id)) %]>build [% HTML.escape(build.id) %]</a>[%
 END;
 
 
 BLOCK renderBuildIdLink; %]
-<a href="[% c.uri_for('/build' id) %]">build [% id %]</a>
+<a [% HTML.attributes(href => c.uri_for('/build' id)) %]>build [% HTML.escape(id) %]</a>
 [% END;
 
 
@@ -241,6 +257,27 @@ BLOCK renderBuildStatusIcon;
     [% END;
   ELSE %]
     <img src="[% c.uri_for("/static/images/emojione-question-2754.svg") %]" height="[% size %]" width="[% size %]" title="Queued" alt="Queued" class="build-status" />
+  [% END;
+END;
+
+
+BLOCK renderBusyStatus;
+  IF step.busy == 1 %]
+    <strong>Preparing</strong>
+  [% ELSIF step.busy == 10 %]
+    <strong>Connecting</strong>
+  [% ELSIF step.busy == 20 %]
+    <strong>Sending inputs</strong>
+  [% ELSIF step.busy == 30 %]
+    <strong>Building</strong>
+  [% ELSIF step.busy == 35 %]
+    <strong>Waiting to receive outputs</strong>
+  [% ELSIF step.busy == 40 %]
+    <strong>Receiving outputs</strong>
+  [% ELSIF step.busy == 50 %]
+    <strong>Post-processing</strong>
+  [% ELSE %]
+    <strong>Unknown state</strong>
   [% END;
 END;
 
@@ -283,7 +320,7 @@ END;
 
 BLOCK renderShortInputValue;
   IF input.type == "build" || input.type == "sysbuild" %]
-    <a href="[% c.uri_for('/build' input.dependency.id) %]">[% input.dependency.id %]</a>
+    <a [% HTML.attributes(href => c.uri_for('/build' input.dependency.id)) %]>[% HTML.escape(input.dependency.id) %]</a>
   [% ELSIF input.type == "string" %]
     <tt>"[% HTML.escape(input.value) %]"</tt>
   [% ELSIF input.type == "nix" || input.type == "boolean" %]
@@ -301,7 +338,7 @@ BLOCK renderDiffUri;
     url = bi1.uri;
     path = url.replace(base, '');
     IF url.match(base) %]
-      <a target="_blank" href="[% m.uri.replace('_path_', path).replace('_1_', bi1.revision).replace('_2_', bi2.revision) %]">[% contents %]</a>
+      <a target="_blank" [% HTML.attributes(href => m.uri.replace('_path_', path).replace('_1_', bi1.revision).replace('_2_', bi2.revision)) %]>[% HTML.escape(contents) %]</a>
       [% nouri = 0;
     END;
   END;
@@ -310,13 +347,13 @@ BLOCK renderDiffUri;
     url = res.0;
     branch = res.1;
     IF bi1.type == "hg" || bi1.type == "git" %]
-      <a target="_blank" href="[% HTML.escape(c.uri_for('/api/scmdiff', {
+      <a target="_blank" [% HTML.attributes(href => c.uri_for('/api/scmdiff', {
         uri = url,
         rev1 = bi1.revision,
         rev2 = bi2.revision,
         type = bi1.type,
         branch = branch
-      })) %]">[% contents %]</a>
+      })) %]>[% HTML.escape(contents) %]</a>
     [% ELSE;
       contents;
     END;
@@ -332,8 +369,8 @@ BLOCK renderInputs; %]
     <tbody>
       [% FOREACH input IN inputs %]
         <tr>
-          <td><tt>[% input.name %]</tt></td>
-          <td>[% type = input.type; inputTypes.$type %]</td>
+          <td><tt>[% input.name | html %]</tt></td>
+          <td>[% type = input.type; HTML.escape(inputTypes.$type) %]</td>
           <td>
             [% IF input.type == "build" || input.type == "sysbuild" %]
               [% INCLUDE renderFullBuildLink build=input.dependency %]
@@ -346,7 +383,7 @@ BLOCK renderInputs; %]
             [% END %]
           </td>
           <td>[% IF input.revision %][% HTML.escape(input.revision) %][% END %]</td>
-          <td><tt>[% input.path %]</tt></td>
+          <td><tt>[% input.path | html %]</tt></td>
         </tr>
       [% END %]
     </tbody>
@@ -370,33 +407,33 @@ BLOCK renderInputDiff; %]
           IF bi1.name == bi2.name;
             IF bi1.type == bi2.type;
               IF bi1.value != bi2.value || bi1.uri != bi2.uri %]
-                <tr><td><b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %]</tt> to <tt>[% INCLUDE renderShortInputValue input=bi2 %]</tt></td></tr>
+                <tr><td><b>[% HTML.escape(bi1.name) %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %]</tt> to <tt>[% INCLUDE renderShortInputValue input=bi2 %]</tt></td></tr>
               [% ELSIF bi1.uri == bi2.uri && bi1.revision != bi2.revision %]
                 [% IF bi1.type == "git" %]
                   <tr><td>
-                    <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision.substr(0, 8) _ ' to ' _ bi2.revision.substr(0, 8)) %]</tt>
+                    <b>[% HTML.escape(bi1.name) %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision.substr(0, 12) _ ' to ' _ bi2.revision.substr(0, 12)) %]</tt>
                   </td></tr>
                 [% ELSE %]
                   <tr><td>
-                    <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision _ ' to ' _ bi2.revision) %]</tt>
+                    <b>[% HTML.escape(bi1.name) %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision _ ' to ' _ bi2.revision) %]</tt>
                   </td></tr>
                 [% END %]
               [% ELSIF bi1.dependency.id != bi2.dependency.id || bi1.path != bi2.path %]
                 <tr><td>
-                  <b>[% bi1.name %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %]</tt> to <tt>[% INCLUDE renderShortInputValue input=bi2 %]</tt>
+                  <b>[% HTML.escape(bi1.name) %]</b></td><td><tt>[% INCLUDE renderShortInputValue input=bi1 %]</tt> to <tt>[% INCLUDE renderShortInputValue input=bi2 %]</tt>
                   <br/>
                   <br/>
                   [% INCLUDE renderInputDiff inputs1=bi1.dependency.inputs inputs2=bi2.dependency.inputs nestedDiff=1 nestLevel=nestLevel+1 %]
                 </td></tr>
               [% END %]
             [% ELSE %]
-              <tr><td><b>[% bi1.name %]</b></td><td>Changed input type from '[% type = bi1.type; inputTypes.$type %]' to '[% type = bi2.type; inputTypes.$type %]'</td></tr>
+              <tr><td><b>[% HTML.escape(bi1.name) %]</b></td><td>Changed input type from '[% type = bi1.type; HTML.escape(inputTypes.$type) %]' to '[% type = bi2.type; HTML.escape(inputTypes.$type) %]'</td></tr>
             [% END;
             deletedInput = 0;
           END;
         END;
         IF deletedInput == 1 %]
-          <tr><td><b>[% bi1.name %]</b></td><td>Input not present in this build.</td></tr>
+          <tr><td><b>[% HTML.escape(bi1.name) %]</b></td><td>Input not present in this build.</td></tr>
         [% END;
       END;
     END %]
@@ -406,10 +443,10 @@ BLOCK renderInputDiff; %]
 
 BLOCK renderPager %]
   <ul class="pagination">
-    <li class="page-item[% IF page == 1 %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page=1" %]">&laquo; First</a></li>
-    <li class="page-item[% IF page == 1 %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page="; (page - 1) %]">&lsaquo; Previous</a></li>
-    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page="; (page + 1) %]">Next &rsaquo;</a></li>
-    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" href="[% "$baseUri?page="; (total - 1) div resultsPerPage + 1 %]">Last &raquo;</a></li>
+    <li class="page-item[% IF page == 1 %] disabled[% END %]"><a class="page-link" [% HTML.attributes(href => "$baseUri?page=1") %]>&laquo; First</a></li>
+    <li class="page-item[% IF page == 1 %] disabled[% END %]"><a class="page-link" [% HTML.attributes(href => "$baseUri?page=" _ (page - 1)) %]>&lsaquo; Previous</a></li>
+    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" [% HTML.attributes(href => "$baseUri?page=" _ (page + 1)) %]>Next &rsaquo;</a></li>
+    <li class="page-item[% IF page * resultsPerPage >= total %] disabled[% END %]"><a class="page-link" [% HTML.attributes(href => "$baseUri?page=" _ ((total - 1) div resultsPerPage + 1)) %]>Last &raquo;</a></li>
   </ul>
 [% END;
 
@@ -418,13 +455,13 @@ BLOCK renderShortEvalInput;
   IF input.type == "svn" || input.type == "svn-checkout" || input.type == "bzr" || input.type == "bzr-checkout" %]
     r[% input.revision %]
   [% ELSIF input.type == "git" %]
-    <tt>[% input.revision.substr(0, 7) %]</tt>
+    <tt>[% input.revision.substr(0, 7) | html %]</tt>
   [% ELSIF input.type == "hg" %]
-    <tt>[% input.revision.substr(0, 12) %]</tt>
+    <tt>[% input.revision.substr(0, 12) | html %]</tt>
   [% ELSIF input.type == "build" || input.type == "sysbuild" %]
-    <a href="[% c.uri_for('/build' input.get_column('dependency')) %]">[% input.get_column('dependency') %]</a>
+    <a [% HTML.attributes(href => c.uri_for('/build' input.get_column('dependency'))) %]>[% HTML.escape(input.get_column('dependency')) %]</a>
   [% ELSE %]
-    <tt>[% input.revision %]</tt>
+    <tt>[% input.revision | html %]</tt>
   [% END;
 END;
 
@@ -461,7 +498,7 @@ BLOCK renderEvals %]
         eval = e.eval;
         link = c.uri_for(c.controller('JobsetEval').action_for('view'), [eval.id]) %]
         <tr>
-          <td><a class="row-link" href="[% link %]">[% eval.id %]</a></td>
+          <td><a class="row-link" [% HTML.attributes(href => link) %]>[% HTML.escape(eval.id) %]</a></td>
           [% IF !jobset && !build %]
             <td>[% INCLUDE renderFullJobsetName project=eval.jobset.project.name jobset=eval.jobset.name %]</td>
           [% END %]
@@ -470,40 +507,40 @@ BLOCK renderEvals %]
             [% IF e.changedInputs.size > 0;
               sep='';
               FOREACH input IN e.changedInputs;
-                sep; %] [% input.name %] → [% INCLUDE renderShortEvalInput input=input;
+                sep; %] [% HTML.escape(input.name) %] → [% INCLUDE renderShortEvalInput input=input;
                 sep=', ';
               END;
             ELSE %]
              -
             [% END %]
-            [% IF eval.evaluationerror.errormsg %]
+            [% IF eval.evaluationerror.has_error %]
               <span class="badge badge-warning">Eval Errors</span>
             [% END %]
           </td>
           <td align='right' class="nowrap">
-            <span class="badge badge-success">[% e.nrSucceeded %]</span>
+            <span class="badge badge-success">[% HTML.escape(e.nrSucceeded) %]</span>
           </td>
           <td align="right" class="nowrap">
             [% IF e.nrFailed > 0 %]
-            <span class="badge badge-danger">[% e.nrFailed %]</span>
+            <span class="badge badge-danger">[% HTML.escape(e.nrFailed) %]</span>
             [% END %]
           </td>
           <td align="right" class="nowrap">
             [% IF e.nrScheduled > 0 %]
-            <span class="badge badge-secondary">[% e.nrScheduled %]</span>
+            <span class="badge badge-secondary">[% HTML.escape(e.nrScheduled) %]</span>
             [% END %]
           </td>
           <td align='right' class="nowrap">
             [% IF e.diff > 0 %]
-              <span class='badge badge-success'><strong>+[% e.diff %]</strong></span>
+              <span class='badge badge-success'><strong>+[% HTML.escape(e.diff) %]</strong></span>
             [% ELSIF e.diff < 0 && e.nrScheduled == 0 %]
-              <span class='badge badge-danger'><strong>[% e.diff %]</strong></span>
+              <span class='badge badge-danger'><strong>[% HTML.escape(e.diff) %]</strong></span>
             [% END %]
           </td>
         </tr>
       [% END;
       IF linkToAll %]
-        <tr><td class="centered" colspan="7"><a href="[% linkToAll %]"><em>More...</em></a></td></tr>
+        <tr><td class="centered" colspan="7"><a [% HTML.attributes(href => linkToAll) %]><em>More...</em></a></td></tr>
       [% END %]
     </tbody>
   </table>
@@ -511,19 +548,19 @@ BLOCK renderEvals %]
 
 
 BLOCK renderLogLinks %]
-(<a [% IF inRow %]class="row-link"[% END %] href="[% url %]">log</a>, <a href="[% "$url/raw" %]">raw</a>, <a href="[% "$url/tail" %]">tail</a>)
+(<a [% IF inRow %]class="row-link"[% END %] [% HTML.attributes(href => url) %]>log</a>, <a [% HTML.attributes(href => "$url/raw") %]>raw</a>, <a [% HTML.attributes(href => "$url/tail") %]>tail</a>)
 [% END;
 
 
 BLOCK makeLazyTab %]
-  <div id="[% tabName %]" class="tab-pane">
+  <div [% HTML.attributes(id => tabName) %] class="tab-pane">
     <center><span class="spinner-border spinner-border-sm"/></center>
   </div>
   <script>
     [% IF callback.defined %]
-    $(function() { makeLazyTab("[% tabName %]", "[% uri %]", [% callback %] ); });
+    $(function() { makeLazyTab("[% HTML.escape(tabName) %]", "[% uri %]", [% callback %] ); });
     [% ELSE %]
-    $(function() { makeLazyTab("[% tabName %]", "[% uri %]", null ); });
+    $(function() { makeLazyTab("[% HTML.escape(tabName) %]", "[% uri %]", null ); });
     [% END %]
   </script>
 [% END;
@@ -550,7 +587,7 @@ BLOCK navItem %]
   <li class="nav-item">
     <a class="nav-link[% IF "${root}${curUri}" == uri %] active[% END %]"
       [% HTML.attributes(href => uri) %]>
-      [% title %]
+      [% HTML.escape(title) %]
     </a>
   </li>
 [% END;
@@ -602,7 +639,7 @@ BLOCK renderJobsetOverview %]
         <td>[% HTML.escape(j.description) %]</td>
         <td>[% IF j.lastcheckedtime;
                  INCLUDE renderDateTime timestamp = j.lastcheckedtime;
-                 IF j.errormsg || j.fetcherrormsg; %]&nbsp;<span class = 'badge badge-warning'>Error</span>[% END;
+                 IF j.has_error || j.fetcherrormsg; %]&nbsp;<span class = 'badge badge-warning'>Error</span>[% END;
                  ELSE; "-";
                END %]</td>
         [% IF j.get_column('nrtotal') > 0 %]
@@ -620,17 +657,17 @@ BLOCK renderJobsetOverview %]
         <td><span class="[% class %]">[% successrate FILTER format('%d') %]%</span></td>
         <td>
           [% IF j.get_column('nrsucceeded') > 0 %]
-            <span class="badge badge-success">[% j.get_column('nrsucceeded') %]</span>
+            <span class="badge badge-success">[% HTML.escape(j.get_column('nrsucceeded')) %]</span>
           [% END %]
         </td>
         <td>
           [% IF j.get_column('nrfailed') > 0 %]
-            <span class="badge badge-danger">[% j.get_column('nrfailed') %]</span>
+            <span class="badge badge-danger">[% HTML.escape(j.get_column('nrfailed')) %]</span>
           [% END %]
         </td>
         <td>
           [% IF j.get_column('nrscheduled') > 0 %]
-            <span class="badge badge-secondary">[% j.get_column('nrscheduled') %]</span>
+            <span class="badge badge-secondary">[% HTML.escape(j.get_column('nrscheduled')) %]</span>
           [% END %]
         </td>
       </tr>
@@ -648,14 +685,22 @@ BLOCK includeFlot %]
 [% END;
 
 
+BLOCK renderYesNo %]
+[% IF value %]
+<span class="text-success">Yes</span>
+[% ELSE %]
+<span class="text-danger">No</span>
+[% END %]
+[% END;
+
 BLOCK createChart %]
 
-  <div id="[%id%]-chart" style="width: 1000px; height: 400px;"></div>
-  <div id="[%id%]-overview" style="margin-top: 20px; margin-left: 50px; margin-right: 50px; width: 900px; height: 100px"></div>
+  <div id="[% id %]-chart" style="width: 1000px; height: 400px;"></div>
+  <div id="[% id %]-overview" style="margin-top: 20px; margin-left: 50px; margin-right: 50px; width: 900px; height: 100px"></div>
 
   <script type="text/javascript">
     $(function() {
-      showChart("[%id%]", "[%dataUrl%]", "[%yaxis%]");
+      showChart("[% HTML.escape(id) %]", "[% dataUrl %]", "[% yaxis %]");
     });
   </script>
 

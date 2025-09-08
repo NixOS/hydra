@@ -1,8 +1,8 @@
 #include "db.hh"
 #include "hydra-config.hh"
-#include "pool.hh"
-#include "shared.hh"
-#include "signals.hh"
+#include <nix/util/pool.hh>
+#include <nix/main/shared.hh>
+#include <nix/util/signals.hh>
 
 #include <algorithm>
 #include <thread>
@@ -180,10 +180,8 @@ struct Evaluator
         {
             auto conn(dbPool.get());
             pqxx::work txn(*conn);
-            txn.exec_params0
-                ("update Jobsets set startTime = $1 where id = $2",
-                 now,
-                 jobset.name.id);
+            txn.exec("update Jobsets set startTime = $1 where id = $2",
+                 pqxx::params{now, jobset.name.id}).no_rows();
             txn.commit();
         }
 
@@ -234,7 +232,7 @@ struct Evaluator
             pqxx::work txn(*conn);
 
             if (jobset.evaluation_style == EvaluationStyle::ONE_AT_A_TIME) {
-                auto evaluation_res = txn.exec_params
+                auto evaluation_res = txn.exec
                     ("select id from JobsetEvals "
                      "where jobset_id = $1 "
                      "order by id desc limit 1"
@@ -250,7 +248,7 @@ struct Evaluator
 
                 auto evaluation_id = evaluation_res[0][0].as<int>();
 
-                auto unfinished_build_res = txn.exec_params
+                auto unfinished_build_res = txn.exec
                     ("select id from Builds "
                      "join JobsetEvalMembers "
                      "    on (JobsetEvalMembers.build = Builds.id) "
@@ -420,21 +418,18 @@ struct Evaluator
                             /* Clear the trigger time to prevent this
                                jobset from getting stuck in an endless
                                failing eval loop. */
-                            txn.exec_params0
+                            txn.exec
                                 ("update Jobsets set triggerTime = null where id = $1 and startTime is not null and triggerTime <= startTime",
-                                 jobset.name.id);
+                                 jobset.name.id).no_rows();
 
                             /* Clear the start time. */
-                            txn.exec_params0
+                            txn.exec
                                 ("update Jobsets set startTime = null where id = $1",
-                                 jobset.name.id);
+                                 jobset.name.id).no_rows();
 
                             if (!WIFEXITED(status) || WEXITSTATUS(status) > 1) {
-                                txn.exec_params0
-                                    ("update Jobsets set errorMsg = $1, lastCheckedTime = $2, errorTime = $2, fetchErrorMsg = null where id = $3",
-                                     fmt("evaluation %s", statusToString(status)),
-                                     now,
-                                     jobset.name.id);
+                                txn.exec("update Jobsets set errorMsg = $1, lastCheckedTime = $2, errorTime = $2, fetchErrorMsg = null where id = $3",
+                                     pqxx::params{fmt("evaluation %s", statusToString(status)), now, jobset.name.id}).no_rows();
                             }
 
                             txn.commit();
@@ -459,7 +454,7 @@ struct Evaluator
     {
         auto conn(dbPool.get());
         pqxx::work txn(*conn);
-        txn.exec("update Jobsets set startTime = null");
+        txn.exec("update Jobsets set startTime = null").no_rows();
         txn.commit();
     }
 

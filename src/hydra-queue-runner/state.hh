@@ -7,6 +7,7 @@
 #include <memory>
 #include <queue>
 #include <regex>
+#include <semaphore>
 
 #include <prometheus/counter.h>
 #include <prometheus/gauge.h>
@@ -14,16 +15,18 @@
 
 #include "db.hh"
 
-#include "parsed-derivations.hh"
-#include "pathlocks.hh"
-#include "pool.hh"
-#include "build-result.hh"
-#include "store-api.hh"
-#include "sync.hh"
+#include <nix/store/derivations.hh>
+#include <nix/store/derivation-options.hh>
+#include <nix/store/pathlocks.hh>
+#include <nix/util/pool.hh>
+#include <nix/store/build-result.hh>
+#include <nix/store/store-api.hh>
+#include <nix/util/sync.hh>
 #include "nar-extractor.hh"
-#include "serve-protocol.hh"
-#include "serve-protocol-impl.hh"
-#include "machines.hh"
+#include <nix/store/serve-protocol.hh>
+#include <nix/store/serve-protocol-impl.hh>
+#include <nix/store/serve-protocol-connection.hh>
+#include <nix/store/machines.hh>
 
 
 typedef unsigned int BuildID;
@@ -57,6 +60,7 @@ typedef enum {
     ssConnecting = 10,
     ssSendingInputs = 20,
     ssBuilding = 30,
+    ssWaitingForLocalSlot = 35,
     ssReceivingOutputs = 40,
     ssPostProcessing = 50,
 } StepState;
@@ -167,8 +171,8 @@ struct Step
 
     nix::StorePath drvPath;
     std::unique_ptr<nix::Derivation> drv;
-    std::unique_ptr<nix::ParsedDerivation> parsedDrv;
-    std::set<std::string> requiredSystemFeatures;
+    std::unique_ptr<nix::DerivationOptions> drvOptions;
+    nix::StringSet requiredSystemFeatures;
     bool preferLocalBuild;
     bool isDeterministic;
     std::string systemType; // concatenation of drv.platform and requiredSystemFeatures
@@ -240,10 +244,6 @@ struct Machine : nix::Machine
 {
     typedef std::shared_ptr<Machine> ptr;
 
-    /* TODO Get rid of: `nix::Machine::storeUri` is normalized in a way
-       we are not yet used to, but once we are, we don't need this. */
-    std::string sshName;
-
     struct State {
         typedef std::shared_ptr<State> ptr;
         counter currentJobs{0};
@@ -293,11 +293,7 @@ struct Machine : nix::Machine
         return true;
     }
 
-    bool isLocalhost()
-    {
-        std::regex r("^(ssh://|ssh-ng://)?localhost$");
-        return std::regex_search(sshName, r);
-    }
+    bool isLocalhost() const;
 
     // A connection to a machine
     struct Connection : nix::ServeProto::BasicClientConnection {
@@ -357,8 +353,12 @@ private:
 
     /* The build machines. */
     std::mutex machinesReadyLock;
-    typedef std::map<std::string, Machine::ptr> Machines;
+    typedef std::map<nix::StoreReference::Variant, Machine::ptr> Machines;
     nix::Sync<Machines> machines; // FIXME: use atomic_shared_ptr
+
+    /* Throttler for CPU-bound local work. */
+    static constexpr unsigned int maxSupportedLocalWorkers = 1024;
+    std::counting_semaphore<maxSupportedLocalWorkers> localWorkThrottler;
 
     /* Various stats. */
     time_t startedAt;
@@ -369,6 +369,7 @@ private:
     counter nrStepsDone{0};
     counter nrStepsBuilding{0};
     counter nrStepsCopyingTo{0};
+    counter nrStepsWaitingForDownloadSlot{0};
     counter nrStepsCopyingFrom{0};
     counter nrStepsWaiting{0};
     counter nrUnsupportedSteps{0};
@@ -399,7 +400,6 @@ private:
 
     struct MachineReservation
     {
-        typedef std::shared_ptr<MachineReservation> ptr;
         State & state;
         Step::ptr step;
         Machine::ptr machine;
@@ -457,7 +457,12 @@ private:
         prometheus::Counter& queue_steps_created;
         prometheus::Counter& queue_checks_early_exits;
         prometheus::Counter& queue_checks_finished;
-        prometheus::Gauge& queue_max_id;
+
+        prometheus::Counter& dispatcher_time_spent_running;
+        prometheus::Counter& dispatcher_time_spent_waiting;
+
+        prometheus::Counter& queue_monitor_time_spent_running;
+        prometheus::Counter& queue_monitor_time_spent_waiting;
 
         PromMetrics();
     };
@@ -501,14 +506,19 @@ private:
     void queueMonitorLoop(Connection & conn);
 
     /* Check the queue for new builds. */
-    bool getQueuedBuilds(Connection & conn,
-        nix::ref<nix::Store> destStore, unsigned int & lastBuildId);
+    bool getQueuedBuilds(Connection & conn, nix::ref<nix::Store> destStore);
 
     /* Handle cancellation, deletion and priority bumps. */
     void processQueueChange(Connection & conn);
 
     BuildOutput getBuildOutputCached(Connection & conn, nix::ref<nix::Store> destStore,
         const nix::StorePath & drvPath);
+
+    /* Returns paths missing from the remote store. Paths are processed in
+     * parallel to work around the possible latency of remote stores. */
+    std::map<nix::DrvOutput, std::optional<nix::StorePath>> getMissingRemotePaths(
+        nix::ref<nix::Store> destStore,
+        const std::map<nix::DrvOutput, std::optional<nix::StorePath>> & paths);
 
     Step::ptr createStep(nix::ref<nix::Store> store,
         Connection & conn, Build::ptr build, const nix::StorePath & drvPath,
@@ -539,16 +549,17 @@ private:
 
     void abortUnsupported();
 
-    void builder(MachineReservation::ptr reservation);
+    void builder(std::unique_ptr<MachineReservation> reservation);
 
     /* Perform the given build step. Return true if the step is to be
        retried. */
     enum StepResult { sDone, sRetry, sMaybeCancelled };
     StepResult doBuildStep(nix::ref<nix::Store> destStore,
-        MachineReservation::ptr reservation,
+        std::unique_ptr<MachineReservation> reservation,
         std::shared_ptr<ActiveStep> activeStep);
 
     void buildRemote(nix::ref<nix::Store> destStore,
+        std::unique_ptr<MachineReservation> reservation,
         Machine::ptr machine, Step::ptr step,
         const nix::ServeProto::BuildOptions & buildOptions,
         RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,

@@ -12,23 +12,25 @@ To enter a shell in which all environment variables (such as `PERL5LIB`)
 and dependencies can be found:
 
 ```console
-$ nix-shell
+$ nix develop
 ```
 
 To build Hydra, you should then do:
 
 ```console
-[nix-shell]$ autoreconfPhase
-[nix-shell]$ configurePhase
-[nix-shell]$ make
+$ mesonConfigurePhase
+$ ninja
 ```
 
 You start a local database, the webserver, and other components with
 foreman:
 
 ```console
+$ ninja -C build
 $ foreman start
 ```
+
+The Hydra interface will be available on port 63333, with an admin user named "alice" with password "foobar"
 
 You can run just the Hydra web server in your source tree as follows:
 
@@ -39,17 +41,20 @@ $ ./src/script/hydra-server
 You can run Hydra's test suite with the following:
 
 ```console
-[nix-shell]$ make check
-[nix-shell]$ # to run as many tests as you have cores:
-[nix-shell]$ make check YATH_JOB_COUNT=$NIX_BUILD_CORES
-[nix-shell]$ # or run yath directly:
-[nix-shell]$ yath test
-[nix-shell]$ # to run as many tests as you have cores:
-[nix-shell]$ yath test -j $NIX_BUILD_CORES
+$ meson test
+# to run as many tests as you have cores:
+$ YATH_JOB_COUNT=$NIX_BUILD_CORES meson test
 ```
 
-When using `yath` instead of `make check`, ensure you have run `make`
-in the root of the repository at least once.
+To run individual tests:
+
+```console
+# Run a specific test file
+$ PERL5LIB=t/lib:$PERL5LIB perl t/test.pl t/Hydra/Controller/API/checks.t
+
+# Run all tests in a directory
+$ PERL5LIB=t/lib:$PERL5LIB perl t/test.pl t/Hydra/Controller/API/
+```
 
 **Warning**: Currently, the tests can fail
 if run with high parallelism [due to an issue in
@@ -67,7 +72,7 @@ will reload the page every time you save.
 To build Hydra and its dependencies:
 
 ```console
-$ nix-build release.nix -A build.x86_64-linux
+$ nix build .#packages.x86_64-linux.default
 ```
 
 ## Development Tasks

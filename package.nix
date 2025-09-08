@@ -8,11 +8,12 @@
 
 , perlPackages
 
-, nix
+, nixComponents
 , git
 
 , makeWrapper
-, autoreconfHook
+, meson
+, ninja
 , nukeReferences
 , pkg-config
 , mdbook
@@ -48,6 +49,7 @@
 , xz
 , gnutar
 , gnused
+, nix-eval-jobs
 
 , rpm
 , dpkg
@@ -59,7 +61,7 @@ let
     name = "hydra-perl-deps";
     paths = lib.closePropagation
       ([
-        nix.perl-bindings
+        nixComponents.nix-perl-bindings
         git
       ] ++ (with perlPackages; [
         AuthenSASL
@@ -87,9 +89,11 @@ let
         DateTime
         DBDPg
         DBDSQLite
+        DBIxClassHelpers
         DigestSHA1
         EmailMIME
         EmailSender
+        FileCopyRecursive
         FileLibMagic
         FileSlurper
         FileWhich
@@ -106,6 +110,7 @@ let
         NetAmazonS3
         NetPrometheus
         NetStatsd
+        NumberBytesHuman
         PadWalker
         ParallelForkManager
         PerlCriticCommunity
@@ -137,32 +142,28 @@ stdenv.mkDerivation (finalAttrs: {
   src = fileset.toSource {
     root = ./.;
     fileset = fileset.unions ([
-      ./version.txt
-      ./configure.ac
-      ./Makefile.am
-      ./src
       ./doc
-      ./nixos-modules/hydra.nix
-      # These are always needed to appease Automake
-      ./t/Makefile.am
-      ./t/jobs/config.nix.in
-      ./t/jobs/declarative/project.json.in
-    ] ++ lib.optionals finalAttrs.doCheck [
+      ./meson.build
+      ./nixos-modules
+      ./src
       ./t
+      ./version.txt
       ./.perlcriticrc
-      ./.yath.rc
     ]);
   };
+
+  outputs = [ "out" "doc" ];
 
   strictDeps = true;
 
   nativeBuildInputs = [
     makeWrapper
-    autoreconfHook
+    meson
+    ninja
     nukeReferences
     pkg-config
     mdbook
-    nix
+    nixComponents.nix-cli
     perlDeps
     perl
     unzip
@@ -172,7 +173,9 @@ stdenv.mkDerivation (finalAttrs: {
     libpqxx
     openssl
     libxslt
-    nix
+    nixComponents.nix-util
+    nixComponents.nix-store
+    nixComponents.nix-main
     perlDeps
     perl
     boost
@@ -191,6 +194,7 @@ stdenv.mkDerivation (finalAttrs: {
     openldap
     postgresql_13
     pixz
+    nix-eval-jobs
   ];
 
   checkInputs = [
@@ -198,13 +202,14 @@ stdenv.mkDerivation (finalAttrs: {
     glibcLocales
     libressl.nc
     python3
+    nixComponents.nix-cli
   ];
 
   hydraPath = lib.makeBinPath (
     [
       subversion
       openssh
-      nix
+      nixComponents.nix-cli
       coreutils
       findutils
       pixz
@@ -219,15 +224,22 @@ stdenv.mkDerivation (finalAttrs: {
       darcs
       gnused
       breezy
+      nix-eval-jobs
     ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ]
   );
 
   OPENLDAP_ROOT = openldap;
 
+  mesonBuildType = "release";
+
+  postPatch = ''
+    patchShebangs .
+  '';
+
   shellHook = ''
     pushd $(git rev-parse --show-toplevel) >/dev/null
 
-    PATH=$(pwd)/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/src/hydra-eval-jobs:$(pwd)/src/hydra-queue-runner:$PATH
+    PATH=$(pwd)/build/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/build/src/hydra-queue-runner:$PATH
     PERL5LIB=$(pwd)/src/lib:$PERL5LIB
     export HYDRA_HOME="$(pwd)/src/"
     mkdir -p .hydra-data
@@ -237,14 +249,11 @@ stdenv.mkDerivation (finalAttrs: {
     popd >/dev/null
   '';
 
-  NIX_LDFLAGS = [ "-lpthread" ];
-
-  enableParallelBuilding = true;
-
   doCheck = true;
 
+  mesonCheckFlags = [ "--verbose" ];
+
   preCheck = ''
-    patchShebangs .
     export LOGNAME=''${LOGNAME:-foo}
     # set $HOME for bzr so it can create its trace file
     export HOME=$(mktemp -d)
@@ -261,12 +270,16 @@ stdenv.mkDerivation (finalAttrs: {
             --prefix PATH ':' $out/bin:$hydraPath \
             --set HYDRA_RELEASE ${version} \
             --set HYDRA_HOME $out/libexec/hydra \
-            --set NIX_RELEASE ${nix.name or "unknown"}
+            --set NIX_RELEASE ${nixComponents.nix-cli.name or "unknown"} \
+            --set NIX_EVAL_JOBS_RELEASE ${nix-eval-jobs.name or "unknown"}
     done
   '';
 
   dontStrip = true;
 
   meta.description = "Build of Hydra on ${stdenv.system}";
-  passthru = { inherit perlDeps nix; };
+  passthru = {
+    inherit perlDeps;
+    nix = nixComponents.nix-cli;
+  };
 })
