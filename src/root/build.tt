@@ -339,6 +339,12 @@ END;
           <td>file <tt>[% eval.nixexprpath | html %]</tt> in input <tt>[% eval.nixexprinput | html %]</tt></td>
         </tr>
       [% END %]
+      [% IF eval.flake %]
+        <tr>
+          <th>Flake Ref:</th>
+          <td>[% HTML.escape(eval.flake) %]#hydraJobs.[% HTML.escape(job) %]</td>
+        </tr>
+      [% END %]
       <tr>
         <th>Nix name:</th>
         <td><tt>[% build.nixname | html %]</tt></td>
