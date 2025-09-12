@@ -32,7 +32,7 @@ sub fetchInput {
     my $stdout = ""; my $stderr = ""; my $res;
     if (! -d $clonePath) {
         # Clone the repository.
-        $res = run(timeout => 600,
+        $res = runCommand(timeout => 600,
                    cmd => ["darcs", "get", "--lazy", $uri, $clonePath],
                    dir => $ENV{"TMPDIR"});
         die "Error getting darcs repo at `$uri':\n$stderr" if $res->{status};
