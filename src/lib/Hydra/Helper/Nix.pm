@@ -44,7 +44,7 @@ our @EXPORT = qw(
     readNixFile
     registerRoot
     restartBuilds
-    run
+    runCommand
     $MACHINE_LOCAL_STORE
     );
 
@@ -466,7 +466,7 @@ sub readIntoSocket{
 
 
 
-sub run {
+sub runCommand {
     my (%args) = @_;
     my $res = { stdout => "", stderr => "" };
     my $stdin = "";
@@ -506,7 +506,7 @@ sub run {
 
 sub grab {
     my (%args) = @_;
-    my $res = run(%args, grabStderr => 0);
+    my $res = runCommand(%args, grabStderr => 0);
     if ($res->{status}) {
         my $msgloc = "(in an indeterminate location)";
         if (defined $args{dir}) {

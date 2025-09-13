@@ -212,7 +212,7 @@ sub checkPath {
 sub serveFile {
     my ($c, $path) = @_;
 
-    my $res = run(cmd => ["nix", "--experimental-features", "nix-command",
+    my $res = runCommand(cmd => ["nix", "--experimental-features", "nix-command",
                           "ls-store", "--store", getStoreUri(), "--json", "$path"]);
 
     if ($res->{status}) {
