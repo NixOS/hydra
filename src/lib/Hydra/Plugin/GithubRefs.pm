@@ -10,7 +10,6 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Nix;
 use File::Temp;
 use POSIX qw(strftime);
-use IPC::Run qw(run);
 
 =head1 NAME
 
@@ -112,12 +111,11 @@ sub fetchInput {
     my $ua = LWP::UserAgent->new();
     _iterate("$githubEndpoint/repos/$owner/$repo/git/matching-refs/$type/$prefix?per_page=100", $auth, \%refs, $ua);
     my $tempdir = File::Temp->newdir("github-refs" . "XXXXX", TMPDIR => 1);
-    my $filename = "$tempdir/github-refs.json";
+    my $filename = "$tempdir/github-refs-sorted.json";
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
-    print $fh encode_json \%refs;
+    print $fh JSON::MaybeXS->new(canonical => 1, pretty => 1)->encode(\%refs);
     close $fh;
-    run(["jq", "-S", "."], '<', $filename, '>', "$tempdir/github-refs-sorted.json") or die "jq command failed: $?";
-    my $storePath = addToStore("$tempdir/github-refs-sorted.json");
+    my $storePath = addToStore($filename);
     my $timestamp = time;
     return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };
 }

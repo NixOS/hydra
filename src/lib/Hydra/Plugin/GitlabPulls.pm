@@ -24,7 +24,6 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Nix;
 use File::Temp;
 use POSIX qw(strftime);
-use IPC::Run qw(run);
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -83,12 +82,11 @@ sub fetchInput {
     _iterate($url, $baseUrl, \%pulls, $ua, $target_repo_url);
 
     my $tempdir = File::Temp->newdir("gitlab-pulls" . "XXXXX", TMPDIR => 1);
-    my $filename = "$tempdir/gitlab-pulls.json";
+    my $filename = "$tempdir/gitlab-pulls-sorted.json";
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
-    print $fh encode_json \%pulls;
+    print $fh JSON::MaybeXS->new(canonical => 1, pretty => 1)->encode(\%pulls);
     close $fh;
-    run(["jq", "-S", "."], '<', $filename, '>', "$tempdir/gitlab-pulls-sorted.json") or die "jq command failed: $?";
-    my $storePath = addToStore("$tempdir/gitlab-pulls-sorted.json");
+    my $storePath = addToStore($filename);
     my $timestamp = time;
     return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };
 }
