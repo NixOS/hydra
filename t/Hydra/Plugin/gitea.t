@@ -58,24 +58,23 @@ if (!defined($pid = fork())) {
     ok(sendNotifications(), "Sent notifications");
 
     kill('INT', $pid);
+    waitpid($pid, 0);
 }
 
 # We expect $ctx{jobsdir}/server.py to create the file at $filename, but the time it
 # takes to do so is non-deterministic. We need to give it _some_ time to hopefully
 # settle -- but not too much that it drastically slows things down.
 for my $i (1..10) {
-    if (! -f $filename) {
-       diag("$filename does not yet exist");
-       sleep(1);
-    }
+    last if -f $filename;
+    diag("$filename does not yet exist");
+    sleep(1);
 }
 
 open(my $fh, "<", $filename) or die ("Can't open(): $!\n");
-my $i = 0;
-my $uri = <$fh>;
+my $request_uri = <$fh>;
 my $data = <$fh>;
 
-ok(index($uri, "gitea/api/v1/repos/root/foo/statuses") != -1, "Correct URL");
+ok(index($request_uri, "gitea/api/v1/repos/root/foo/statuses") != -1, "Correct URL");
 
 my $json = JSON->new;
 my $content;
