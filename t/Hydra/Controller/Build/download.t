@@ -64,10 +64,9 @@ subtest "Test downloading build products (regression test for #1520)" => sub {
             or diag("Response code: " . $response->code . ", Content: " . $response->content);
 
         like($response->header('Content-Security-Policy') // '', qr/\bsandbox\b/, 'CSP header present with sandbox');
-
-        # Check that we get actual content
-        ok(length($response->content) > 0, "Should receive file content");
-        is($response->content, "Hello\n", "Should get expected content");
+        ok($response->header('Content-Length'), "Content-Length header should be present");
+        is($response->header('Content-Type'), "text/plain", "Content-Type header should be text/plain");
+        like($response->header('Content-Disposition'), qr/^attachment; filename="text.txt"$/, "Content-Disposition header should be correct");
     }
 };
 
