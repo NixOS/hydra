@@ -1,0 +1,3 @@
+[% PROCESS "common.tt" %]
+[% PROCESS "build.tt" %]
+[% INCLUDE renderBuildSteps type="All" %]

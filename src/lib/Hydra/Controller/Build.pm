@@ -484,6 +484,21 @@ sub build_deps : Chained('buildChain') PathPart('build-deps') {
     $c->stash->{template} = 'build-deps.tt';
 }
 
+sub build_steps : Chained('buildChain') PathPart('build-steps') {
+    my ($self, $c) = @_;
+    $c->stash->{steps} = [$c->stash->{build}->buildsteps->search({}, {order_by => "stepnr desc"})];
+    $c->stash->{template} = 'build-steps.tt';
+    $c->stash->{seen} = {};
+}
+
+sub runcommand_logs : Chained('buildChain') PathPart('runcommand-logs') {
+    my ($self, $c) = @_;
+    $c->stash->{runcommandlogs} = [$c->stash->{build}->runcommandlogs->search({}, {order_by => ["id DESC"]})];
+    $c->stash->{runcommandlogProblem} = undef;
+    # We don't need to re-check if dynamic run command is enabled, because the tab wouldn't be visible in the first place.
+    $c->stash->{template} = 'runcommand-logs.tt';
+}
+
 
 sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
     my ($self, $c) = @_;
