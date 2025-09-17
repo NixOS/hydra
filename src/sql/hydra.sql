@@ -707,6 +707,20 @@ create index IndexJobsetIdEvals on JobsetEvals(jobset_id) where hasNewBuilds = 1
 
 create index IndexBuildsOnNotificationPendingSince on Builds(notificationPendingSince) where notificationPendingSince is not null;
 
+-- For finding builds in a jobset.
+create index IndexBuildsOnJobsetIdAndJob on Builds(jobset_id, job);
+
+-- For finding all steps for a build.
+create index IndexBuildStepsOnBuild on BuildSteps(build);
+
+-- For finding all outputs for a build step.
+create index IndexBuildStepOutputsOnBuildAndStep on BuildStepOutputs(build, stepnr);
+
+-- Index foreign keys to improve join performance
+create index BuildsJobsetIdFk ON Builds(jobset_id);
+create index BuildstepsBuildFk ON BuildSteps(build);
+create index BuildstepoutputsBuildstepFk ON BuildStepOutputs(buildstep);
+
 -- The pg_trgm extension has to be created by a superuser. The NixOS
 -- module creates this extension in the systemd prestart script. We
 -- then ensure the extension has been created before creating the
@@ -724,16 +738,3 @@ exception when others then
     raise warning 'The pg_trgm index on builds.drvpath has been skipped (slower complex queries on builds.drvpath)';
 end$$;
 
--- For finding builds in a jobset.
-create index IndexBuildsOnJobsetIdAndJob on Builds(jobset_id, job);
-
--- For finding all steps for a build.
-create index IndexBuildStepsOnBuild on BuildSteps(build);
-
--- For finding all outputs for a build step.
-create index IndexBuildStepOutputsOnBuildAndStep on BuildStepOutputs(build, stepnr);
-
--- Index foreign keys to improve join performance
-create index BuildsJobsetIdFk ON Builds(jobset_id);
-create index BuildstepsBuildFk ON BuildSteps(build);
-create index BuildstepoutputsBuildstepFk ON BuildStepOutputs(buildstep);
