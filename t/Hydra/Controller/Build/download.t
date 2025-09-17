@@ -61,7 +61,7 @@ subtest "Test downloading build products (regression test for #1520)" => sub {
         # The key test: should not return 500 error with "Can't use string ("1") as a HASH ref"
         isnt($response->code, 500, "Download should not return 500 error (regression test for #1520)");
         is($response->code, 200, "Download should succeed with 200")
-            or diag("Response code: " . $response->code . ", Content: " . $response->content);
+            or diag("Response code: " . $response->code);
 
         like($response->header('Content-Security-Policy') // '', qr/\bsandbox\b/, 'CSP header present with sandbox');
         ok($response->header('Content-Length'), "Content-Length header should be present");
