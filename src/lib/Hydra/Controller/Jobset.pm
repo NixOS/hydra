@@ -287,6 +287,10 @@ sub updateJobset {
         , flake => $flake
         });
 
+    if ($jobsetName ne $oldName) {
+        $jobset->builds->update({ jobset => $jobsetName });
+    }
+
     $jobset->project->jobsetrenames->search({ from_ => $jobsetName })->delete;
     $jobset->project->jobsetrenames->create({ from_ => $oldName, to_ => $jobsetName })
         if $oldName ne ".tmp" && $jobsetName ne $oldName;

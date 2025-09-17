@@ -154,6 +154,8 @@ sub updateProject {
         badRequest($c, "Dynamic RunCommand is not enabled by the server.");
     }
 
+    my $oldName = $project->name;
+
     $project->update(
         { name => $projectName
         , displayname => $displayName
@@ -167,6 +169,11 @@ sub updateProject {
         , decltype => trim($c->stash->{params}->{declarative}->{type})
         , declvalue => trim($c->stash->{params}->{declarative}->{value})
         });
+
+    if ($projectName ne $oldName) {
+        $c->model('DB::Builds')->search({ project => $oldName })->update({ project => $projectName });
+    }
+
     if (length($project->declfile)) {
         # This logic also exists in the DeclarativeJobets tests.
         # TODO: refactor and deduplicate.

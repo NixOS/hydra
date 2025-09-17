@@ -553,6 +553,8 @@ sub checkBuild {
         $build = $jobset->builds->create(
             { timestamp => $time
             , jobset_id => $jobset->id
+            , project => $jobset->project->name
+            , jobset => $jobset->name
             , job => $jobName
             , description => getMeta($buildInfo->{meta}->{description}, undef)
             , license => getMetaConcatStrings($buildInfo->{meta}->{license}, "shortName")

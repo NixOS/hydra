@@ -1,5 +1,9 @@
-alter table Builds add column globalPriority integer not null default 0;
+UPDATE Builds
+SET
+  project = j.project,
+  jobset = j.name
+FROM Jobsets j
+WHERE Builds.jobset_id = j.id;
 
-create function notifyBuildBumped() returns trigger as 'begin notify builds_bumped; return null; end;' language plpgsql;
-create trigger BuildBumped after update on Builds for each row
-  when (old.globalPriority != new.globalPriority) execute procedure notifyBuildBumped();
+ALTER TABLE Builds ALTER COLUMN project SET NOT NULL;
+ALTER TABLE Builds ALTER COLUMN jobset SET NOT NULL;

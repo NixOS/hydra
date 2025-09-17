@@ -159,6 +159,10 @@ create table JobsetInputAlts (
 create table Builds (
     id            serial primary key not null,
 
+    -- Denormalisation for performance.
+    project       text,
+    jobset        text,
+
     finished      integer not null, -- 0 = scheduled, 1 = finished
 
     timestamp     integer not null, -- time this build was added
@@ -718,4 +722,13 @@ exception when others then
     raise warning 'Can not create extension pg_trgm: %', SQLERRM;
     raise warning 'HINT: Temporary provide superuser role to your Hydra Postgresql user and run the script src/sql/upgrade-57.sql';
     raise warning 'The pg_trgm index on builds.drvpath has been skipped (slower complex queries on builds.drvpath)';
-end$$;
+end$;
+
+-- For finding builds in a jobset.
+create index IndexBuildsOnJobsetIdAndJob on Builds(jobset_id, job);
+
+-- For finding all steps for a build.
+create index IndexBuildStepsOnBuild on BuildSteps(build);
+
+-- For finding all outputs for a build step.
+create index IndexBuildStepOutputsOnBuildAndStep on BuildStepOutputs(build, stepnr);
