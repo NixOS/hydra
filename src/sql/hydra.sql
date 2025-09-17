@@ -719,7 +719,7 @@ create index IndexBuildStepOutputsOnBuildAndStep on BuildStepOutputs(build, step
 -- Index foreign keys to improve join performance
 create index BuildsJobsetIdFk ON Builds(jobset_id);
 create index BuildstepsBuildFk ON BuildSteps(build);
-create index BuildstepoutputsBuildstepFk ON BuildStepOutputs(buildstep);
+create index BuildstepoutputsBuildstepFk ON BuildStepOutputs(build, stepnr);
 
 -- The pg_trgm extension has to be created by a superuser. The NixOS
 -- module creates this extension in the systemd prestart script. We
