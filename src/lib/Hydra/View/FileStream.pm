@@ -39,9 +39,13 @@ sub process {
         $c->res->headers->header( 'Content-Disposition' => "attachment; filename=\"$filename\"" );
     }
 
-    # Open the file and set the filehandle as the response body for streaming
+    # Read the file content into a scalar and set it as the response body
+    my $content;
     if ( open my $fh, '<:raw', $file_path ) {
-        $c->res->body($fh);
+        local $/; # Enable slurp mode
+        $content = <$fh>;
+        close $fh;
+        $c->res->body($content);
     }
     else {
         $c->log->error("Could not open file: $!");
