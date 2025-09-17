@@ -240,23 +240,8 @@ sub serveFile {
         # XSS hole.
         $c->response->header('Content-Security-Policy' => 'sandbox allow-scripts');
 
-        $c->stash->{'plain'} = { data => readIntoSocket(cmd => ["nix", "--experimental-features", "nix-command",
-                                                      "store", "cat", "--store", getStoreUri(), "$path"]) };
-
-        # Detect MIME type.
-        my $type = "text/plain";
-        if ($path =~ /.*\.(\S{1,})$/xms) {
-            my $ext = $1;
-            state $mimeTypes = MIME::Types->new(only_complete => 1);
-            my $t = $mimeTypes->mimeTypeOf($ext);
-            $type = ref $t ? $t->type : $t if $t;
-        } else {
-            state $magic = File::LibMagic->new(follow_symlinks => 1);
-            my $info = $magic->info_from_filename($path);
-            $type = $info->{mime_with_encoding};
-        }
-        $c->response->content_type($type);
-        $c->forward('Hydra::View::Plain');
+        $c->stash->{file_path} = $path;
+        $c->forward('View::FileStream');
     }
 
     else {
