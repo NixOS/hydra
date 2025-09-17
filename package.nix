@@ -94,6 +94,7 @@ let
         EmailMIME
         EmailSender
         FileCopyRecursive
+        FileType
         FileLibMagic
         FileSlurper
         FileWhich
