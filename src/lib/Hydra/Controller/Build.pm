@@ -240,14 +240,11 @@ sub serveFile {
         # XSS hole.
         $c->response->header('Content-Security-Policy' => 'sandbox allow-scripts');
 
-        $c->stash->{'plain'} = { data => readIntoSocket(cmd => ["nix", "--experimental-features", "nix-command",
-                                                      "store", "cat", "--store", getStoreUri(), "$path"]) };
-
         # Detect MIME type.
         my $type = "text/plain";
         if ($path =~ /.*\.(\S{1,})$/xms) {
             my $ext = $1;
-            my $mimeTypes = MIME::Types->new(only_complete => 1);
+            state $mimeTypes = MIME::Types->new(only_complete => 1);
             my $t = $mimeTypes->mimeTypeOf($ext);
             $type = ref $t ? $t->type : $t if $t;
         } else {
@@ -256,7 +253,12 @@ sub serveFile {
             $type = $info->{mime_with_encoding};
         }
         $c->response->content_type($type);
-        $c->forward('Hydra::View::Plain');
+
+        $c->res->finalize;
+        my @cmd = ("nix", "--experimental-features", "nix-command", "store", "cat", "--store", getStoreUri(), "$path");
+        my $ok = run \@cmd, '>', $c->res->output;
+        error($c, "Failed to stream file ‘$path’") unless $ok;
+        $c->detach;
     }
 
     else {
