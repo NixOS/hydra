@@ -732,3 +732,8 @@ create index IndexBuildStepsOnBuild on BuildSteps(build);
 
 -- For finding all outputs for a build step.
 create index IndexBuildStepOutputsOnBuildAndStep on BuildStepOutputs(build, stepnr);
+
+-- Index foreign keys to improve join performance
+create index BuildsJobsetIdFk ON Builds(jobset_id);
+create index BuildstepsBuildFk ON BuildSteps(build);
+create index BuildstepoutputsBuildstepFk ON BuildStepOutputs(buildstep);
