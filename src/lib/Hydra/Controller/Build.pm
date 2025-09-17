@@ -439,54 +439,89 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 }
 
 
-sub getDependencyGraph {
-    my ($self, $c, $runtime, $done, $path) = @_;
-    my $node = $$done{$path};
+sub prefetchDependencyData {
+    my ($self, $c, $runtime, $root_paths) = @_; 
+
+    return {} if !@$root_paths;
+
+    my $out;
+    my @cmd = ("nix-store", "-qR", @$root_paths);
+    my $ok = run(\@cmd, \undef, \$out, \my $err);
+    error($c, "Failed to query dependencies: $err") unless $ok;
+    my @paths = split /\n/, $out;
+    chomp @paths;
+
+    my %buildSteps;
+    if ($runtime) {
+        my %candidates;
+        my $rs = $c->model('DB::BuildSteps')->search_rs(
+            { 'buildstepoutputs.path' => { -in => \@paths }, busy => 0 },
+            { join => 'buildstepoutputs',
+              '+select' => [ 'buildstepoutputs.path' ],
+              '+as' => [ 'outpath' ],
+              order_by => [{- asc => 'buildstepoutputs.path'}, {- asc => 'me.status'}, {- asc => 'me.stoptime'}]
+            }
+        );
+        while (my $step = $rs->next) {
+            my $path = $step->get_column('outpath');
+            $candidates{$path} = $step if !defined $candidates{$path};
+        }
+        %buildSteps = %candidates;
+    } else {
+        my %candidates;
+        my $rs = $c->model('DB::BuildSteps')->search_rs(
+            { drvpath => { -in => \@paths }, busy => 0 },
+            { order_by => [{- asc => 'drvpath'}, {- asc => 'status'}, {- asc => 'stoptime'}] }
+        );
+        while (my $step = $rs->next) {
+            $candidates{$step->drvpath} = $step if !defined $candidates{$step->drvpath};
+        }
+        %buildSteps = %candidates;
+    }
+
+    return \%buildSteps;
+}
+
+
+sub buildGraphFromData {
+    my ($self, $c, $runtime, $done, $buildSteps, $path) = @_; 
+    my $node = $done{$path};
 
     if (!defined $node) {
         $path =~ /\/[a-z0-9]+-(.*)$/;
         my $name = $1 // $path;
         $name =~ s/\.drv$//;
-        $node =
-            { path => $path
-            , name => $name
-            , buildStep => $runtime
-                ? findBuildStepByOutPath($self, $c, $path)
-                : findBuildStepByDrvPath($self, $c, $path)
-            };
-        $$done{$path} = $node;
-        my @refs;
-        foreach my $ref ($MACHINE_LOCAL_STORE->queryReferences($path)) {
-            next if $ref eq $path;
-            next unless $runtime || $ref =~ /\.drv$/;
-            getDependencyGraph($self, $c, $runtime, $done, $ref);
-            push @refs, $ref;
+        $node = { path => $path, name => $name, buildStep => $buildSteps{$path} };
+        $done{$path} = $node;
+        my @refs = grep { $_ ne $path && ($runtime || /\.drv$/) } $MACHINE_LOCAL_STORE->queryReferences($path);
+        foreach my $ref (@refs) {
+            buildGraphFromData($self, $c, $runtime, $done, $buildSteps, $ref);
         }
-        # Show in reverse topological order to flatten the graph.
-        # Should probably do a proper BFS.
         my @sorted = reverse $MACHINE_LOCAL_STORE->topoSortPaths(@refs);
-        $node->{refs} = [map { $$done{$_} } @sorted];
+        $node->{refs} = [map { $done{$_} } @sorted];
     }
-
     return $node;
 }
 
 
 sub build_deps : Chained('buildChain') PathPart('build-deps') {
-    my ($self, $c) = @_;
+    my ($self, $c) = @_; 
     my $build = $c->stash->{build};
     my $drvPath = $build->drvpath;
 
     error($c, "Derivation no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($drvPath);
 
-    $c->stash->{buildTimeGraph} = getDependencyGraph($self, $c, 0, {}, $drvPath);
+    my @paths = ($drvPath);
+    my $data = prefetchDependencyData($self, $c, 0, \@paths);
+    my $done = {};
+    $c->stash->{buildTimeGraph} = buildGraphFromData($self, $c, 0, $done, $data, $drvPath);
 
     $c->stash->{template} = 'build-deps.tt';
 }
 
 
 sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
-    my ($self, $c) = @_;
+    my ($self, $c) = @_; 
     my $build = $c->stash->{build};
     my @outPaths = map { $_->path } $build->buildoutputs->all;
 
@@ -494,8 +529,9 @@ sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
 
     error($c, "Build outputs no longer available.") unless all { $MACHINE_LOCAL_STORE->isValidPath($_) } @outPaths;
 
+    my $data = prefetchDependencyData($self, $c, 1, \@outPaths);
     my $done = {};
-    $c->stash->{runtimeGraph} = [ map { getDependencyGraph($self, $c, 1, $done, $_) } @outPaths ];
+    $c->stash->{runtimeGraph} = [ map { buildGraphFromData($self, $c, 1, $done, $data, $_) } @outPaths ];
 
     $c->stash->{template} = 'runtime-deps.tt';
 }
