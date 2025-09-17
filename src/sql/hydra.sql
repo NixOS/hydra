@@ -722,7 +722,7 @@ exception when others then
     raise warning 'Can not create extension pg_trgm: %', SQLERRM;
     raise warning 'HINT: Temporary provide superuser role to your Hydra Postgresql user and run the script src/sql/upgrade-57.sql';
     raise warning 'The pg_trgm index on builds.drvpath has been skipped (slower complex queries on builds.drvpath)';
-end$;
+end$$;
 
 -- For finding builds in a jobset.
 create index IndexBuildsOnJobsetIdAndJob on Builds(jobset_id, job);
