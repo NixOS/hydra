@@ -485,20 +485,20 @@ sub prefetchDependencyData {
 
 sub buildGraphFromData {
     my ($self, $c, $runtime, $done, $buildSteps, $path) = @_; 
-    my $node = $done{$path};
+    my $node = $done->{$path};
 
     if (!defined $node) {
         $path =~ /\/[a-z0-9]+-(.*)$/;
         my $name = $1 // $path;
         $name =~ s/\.drv$//;
-        $node = { path => $path, name => $name, buildStep => $buildSteps{$path} };
-        $done{$path} = $node;
+        $node = { path => $path, name => $name, buildStep => $buildSteps->{$path} };
+        $done->{$path} = $node;
         my @refs = grep { $_ ne $path && ($runtime || /\.drv$/) } $MACHINE_LOCAL_STORE->queryReferences($path);
         foreach my $ref (@refs) {
             buildGraphFromData($self, $c, $runtime, $done, $buildSteps, $ref);
         }
         my @sorted = reverse $MACHINE_LOCAL_STORE->topoSortPaths(@refs);
-        $node->{refs} = [map { $done{$_} } @sorted];
+        $node->{refs} = [map { $done->{$_} } @sorted];
     }
     return $node;
 }
