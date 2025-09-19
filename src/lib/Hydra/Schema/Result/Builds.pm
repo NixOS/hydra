@@ -175,6 +175,16 @@ __PACKAGE__->table("builds");
   default_value: 0
   is_nullable: 0
 
+=head2 project
+
+  data_type: 'text'
+  is_nullable: 0
+
+=head2 jobset
+
+  data_type: 'text'
+  is_nullable: 0
+
 =head2 notificationpendingsince
 
   data_type: 'integer'
@@ -240,6 +250,10 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "keep",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
+  "project",
+  { data_type => "text", is_nullable => 0 },
+  "jobset",
+  { data_type => "text", is_nullable => 0 },
   "notificationpendingsince",
   { data_type => "integer", is_nullable => 1 },
 );
