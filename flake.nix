@@ -4,13 +4,13 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05-small";
 
   inputs.nix = {
-    url = "github:NixOS/nix/2.29-maintenance";
+    url = "github:NixOS/nix/2.31-maintenance";
     # We want to control the deps precisely
     flake = false;
   };
 
   inputs.nix-eval-jobs = {
-    url = "github:nix-community/nix-eval-jobs";
+    url = "github:nix-community/nix-eval-jobs/v2.31.0";
     # We want to control the deps precisely
     flake = false;
   };
