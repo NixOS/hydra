@@ -1,0 +1,50 @@
+[package]
+name = "builder"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0"
+
+[dependencies]
+log = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.18", features = [
+  "registry",
+  "env-filter",
+] }
+tracing-log = "0.2.0"
+
+sd-notify = "0.4.5"
+
+anyhow = "1.0.98"
+thiserror = "2.0"
+clap = { version = "4", features = ["derive"] }
+uuid = { version = "1.16", features = ["v4"] }
+ahash = "0.8.11"
+parking_lot = "0.12.4"
+
+tokio = { version = "1.34", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+prost = "0.14"
+tonic = { version = "0.14", features = ["zstd", "tls-ring"] }
+tonic-prost = "0.14"
+tower = "0.5.2"
+hyper-util = "0.1.10"
+async-stream = "0.3"
+
+gethostname = "1"
+procfs-core = "0.18"
+nix = { version = "0.30.0", default-features = false, features = ["fs"] }
+os_pipe = "1.2"
+
+nix-utils = { path = "../crates/nix-utils" }
+shared = { path = "../crates/shared" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+sysinfo = "0.36.0"
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = "0.6"
+
+[build-dependencies]
+tonic-prost-build = "0.14"

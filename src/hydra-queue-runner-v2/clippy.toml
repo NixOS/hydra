@@ -1,0 +1,4 @@
+ignore-interior-mutability = [
+  "bytes::Bytes",
+  "queue_runner::build::Step",
+]

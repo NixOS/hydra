@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT drvPath FROM BuildSteps WHERE build = $1 AND stepnr = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "drvpath",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "049c2b15e5806241473754264be493889dfa874d73dfe257a2b8554b6543acaf"
+}
