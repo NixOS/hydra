@@ -1,30 +1,12 @@
 [% IF c.user_exists  %]
 
-  [% IF c.user.type == 'google' %]
-    <script src="https://apis.google.com/js/platform.js" async="1" defer="1"></script>
-  [% END %]
-
   <script>
-    function finishSignOut() {
+    function signOut() {
       $.post("[% c.uri_for('/logout') %]")
         .done(function(data) {
           window.location.reload();
         })
         .fail(function() { bootbox.alert("Server request failed!"); });
-    }
-
-    function signOut() {
-      [% IF c.user.type == 'google' %]
-        gapi.load('auth2', function() {
-          gapi.auth2.init();
-          var auth2 = gapi.auth2.getAuthInstance();
-          auth2.then(function () {
-            auth2.signOut().then(finishSignOut, finishSignOut);
-          });
-        });
-      [% ELSE %]
-        finishSignOut();
-      [% END %]
     }
   </script>
 
