@@ -488,10 +488,11 @@ Step::ptr State::createStep(ref<Store> destStore,
        runnable while step->created == false. */
     step->drv = std::make_unique<Derivation>(localStore->readDerivation(drvPath));
     {
-        auto parsedOpt = StructuredAttrs::tryParse(step->drv->env);
         try {
             step->drvOptions = std::make_unique<DerivationOptions>(
-                DerivationOptions::fromStructuredAttrs(step->drv->env, parsedOpt ? &*parsedOpt : nullptr));
+                DerivationOptions::fromStructuredAttrs(
+                    step->drv->env,
+                    step->drv->structuredAttrs ? &*step->drv->structuredAttrs : nullptr));
         } catch (Error & e) {
             e.addTrace({}, "while parsing derivation '%s'", localStore->printStorePath(drvPath));
             throw;

@@ -27,6 +27,7 @@
 #include <nix/store/serve-protocol-impl.hh>
 #include <nix/store/serve-protocol-connection.hh>
 #include <nix/store/machines.hh>
+#include <nix/store/globals.hh>
 
 
 typedef unsigned int BuildID;
