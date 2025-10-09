@@ -17,7 +17,8 @@ my $ctx = test_context(
 );
 
 sub checkFlake {
-    my ($flake) = @_;
+    my ($input) = @_;
+    my ($flake, $attr) = split '#', $input, 2;
 
     cp($ctx->jobsdir . "/basic.nix", $ctx->jobsdir . "/" . $flake);
     cp($ctx->jobsdir . "/config.nix", $ctx->jobsdir . "/" . $flake);
@@ -30,7 +31,7 @@ sub checkFlake {
     chmod 0755, $ctx->jobsdir . "/" . $flake . "/succeed-with-failed.sh";
 
     my $builds = $ctx->makeAndEvaluateJobset(
-        flake => 'path:' . $ctx->jobsdir . "/" . $flake,
+        flake => 'path:' . $ctx->jobsdir . "/" . $input,
         build => 1
     );
 
@@ -62,6 +63,14 @@ subtest "Flake using `checks`" => sub {
 
 subtest "Flake using `hydraJobs`" => sub {
     checkFlake 'flake-hydraJobs'
+};
+
+subtest "Flake using explict `hydraJobs`" => sub {
+    checkFlake 'flake-hydraJobs#hydraJobs'
+};
+
+subtest "Flake using explict `attr`" => sub {
+    checkFlake 'flake-attr#attr'
 };
 
 done_testing;
