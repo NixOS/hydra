@@ -14,6 +14,7 @@
 #include <nix/util/current-process.hh>
 #include <nix/util/processes.hh>
 #include <nix/util/util.hh>
+#include <nix/store/export-import.hh>
 #include <nix/store/serve-protocol.hh>
 #include <nix/store/serve-protocol-impl.hh>
 #include <nix/store/ssh.hh>
@@ -104,7 +105,7 @@ static void copyClosureTo(
         std::chrono::seconds(600));
 
     conn.importPaths(destStore, [&](Sink & sink) {
-        destStore.exportPaths(missing, sink);
+        exportPaths(destStore, missing, sink);
     });
 
     if (readInt(conn.from) != 1)
@@ -262,16 +263,18 @@ static BuildResult performBuild(
         // Since this a `BasicDerivation`, `staticOutputHashes` will not
         // do any real work.
         auto outputHashes = staticOutputHashes(localStore, drv);
-        for (auto & [outputName, output] : drvOutputs) {
-            auto outputPath = output.second;
-            // We’ve just asserted that the output paths of the derivation
-            // were known
-            assert(outputPath);
-            auto outputHash = outputHashes.at(outputName);
-            auto drvOutput = DrvOutput { outputHash, outputName };
-            result.builtOutputs.insert_or_assign(
-                std::move(outputName),
-                Realisation { drvOutput, *outputPath });
+        if (auto * successP = result.tryGetSuccess()) {
+            for (auto & [outputName, output] : drvOutputs) {
+                auto outputPath = output.second;
+                // We’ve just asserted that the output paths of the derivation
+                // were known
+                assert(outputPath);
+                auto outputHash = outputHashes.at(outputName);
+                auto drvOutput = DrvOutput { outputHash, outputName };
+                successP->builtOutputs.insert_or_assign(
+                    std::move(outputName),
+                    Realisation { drvOutput, *outputPath });
+            }
         }
     }
 
@@ -335,54 +338,68 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
     startTime = buildResult.startTime;
     stopTime = buildResult.stopTime;
     timesBuilt = buildResult.timesBuilt;
-    errorMsg = buildResult.errorMsg;
-    isNonDeterministic = buildResult.isNonDeterministic;
 
-    switch ((BuildResult::Status) buildResult.status) {
-        case BuildResult::Built:
+    std::visit(overloaded{
+        [&](const BuildResult::Success & success) {
             stepStatus = bsSuccess;
-            break;
-        case BuildResult::Substituted:
-        case BuildResult::AlreadyValid:
-            stepStatus = bsSuccess;
-            isCached = true;
-            break;
-        case BuildResult::PermanentFailure:
-            stepStatus = bsFailed;
-            canCache = true;
-            errorMsg = "";
-            break;
-        case BuildResult::InputRejected:
-        case BuildResult::OutputRejected:
-            stepStatus = bsFailed;
-            canCache = true;
-            break;
-        case BuildResult::TransientFailure:
-            stepStatus = bsFailed;
-            canRetry = true;
-            errorMsg = "";
-            break;
-        case BuildResult::TimedOut:
-            stepStatus = bsTimedOut;
-            errorMsg = "";
-            break;
-        case BuildResult::MiscFailure:
-            stepStatus = bsAborted;
-            canRetry = true;
-            break;
-        case BuildResult::LogLimitExceeded:
-            stepStatus = bsLogLimitExceeded;
-            break;
-        case BuildResult::NotDeterministic:
-            stepStatus = bsNotDeterministic;
-            canRetry = false;
-            canCache = true;
-            break;
-        default:
-            stepStatus = bsAborted;
-            break;
-    }
-
+            switch (success.status) {
+                case BuildResult::Success::Built:
+                    break;
+                case BuildResult::Success::Substituted:
+                case BuildResult::Success::AlreadyValid:
+                case BuildResult::Success::ResolvesToAlreadyValid:
+                    isCached = true;
+                    break;
+                default:
+                    assert(false);
+            }
+        },
+        [&](const BuildResult::Failure & failure) {
+            errorMsg = failure.errorMsg;
+            isNonDeterministic = failure.isNonDeterministic;
+            switch (failure.status) {
+                case BuildResult::Failure::PermanentFailure:
+                    stepStatus = bsFailed;
+                    canCache = true;
+                    errorMsg = "";
+                    break;
+                case BuildResult::Failure::InputRejected:
+                case BuildResult::Failure::OutputRejected:
+                    stepStatus = bsFailed;
+                    canCache = true;
+                    break;
+                case BuildResult::Failure::TransientFailure:
+                    stepStatus = bsFailed;
+                    canRetry = true;
+                    errorMsg = "";
+                    break;
+                case BuildResult::Failure::TimedOut:
+                    stepStatus = bsTimedOut;
+                    errorMsg = "";
+                    break;
+                case BuildResult::Failure::MiscFailure:
+                    stepStatus = bsAborted;
+                    canRetry = true;
+                    break;
+                case BuildResult::Failure::LogLimitExceeded:
+                    stepStatus = bsLogLimitExceeded;
+                    break;
+                case BuildResult::Failure::NotDeterministic:
+                    stepStatus = bsNotDeterministic;
+                    canRetry = false;
+                    canCache = true;
+                    break;
+                case BuildResult::Failure::CachedFailure:
+                case BuildResult::Failure::DependencyFailed:
+                case BuildResult::Failure::NoSubstituters:
+                case BuildResult::Failure::HashMismatch:
+                    stepStatus = bsAborted;
+                    break;
+                default:
+                    assert(false);
+            }
+        },
+    }, buildResult.inner);
 }
 
 /* Utility guard object to auto-release a semaphore on destruction. */
@@ -404,7 +421,7 @@ void State::buildRemote(ref<Store> destStore,
     std::function<void(StepState)> updateStep,
     NarMemberDatas & narMembers)
 {
-    assert(BuildResult::TimedOut == 8);
+    assert(BuildResult::Failure::TimedOut == 8);
 
     auto [logFile, logFD] = build_remote::openLogFile(logDir, step->drvPath);
     AutoDelete logFileDel(logFile, false);
@@ -513,7 +530,7 @@ void State::buildRemote(ref<Store> destStore,
 
         updateStep(ssBuilding);
 
-        BuildResult buildResult = build_remote::performBuild(
+        auto buildResult = build_remote::performBuild(
             conn,
             *localStore,
             step->drvPath,
@@ -555,8 +572,9 @@ void State::buildRemote(ref<Store> destStore,
         wakeDispatcher();
 
         StorePathSet outputs;
-        for (auto & [_, realisation] : buildResult.builtOutputs)
-            outputs.insert(realisation.outPath);
+        if (auto * successP = buildResult.tryGetSuccess())
+            for (auto & [_, realisation] : successP->builtOutputs)
+                outputs.insert(realisation.outPath);
 
         /* Copy the output paths. */
         if (!machine->isLocalhost() || localStore != std::shared_ptr<Store>(destStore)) {
@@ -589,15 +607,17 @@ void State::buildRemote(ref<Store> destStore,
         /* Register the outputs of the newly built drv */
         if (experimentalFeatureSettings.isEnabled(Xp::CaDerivations)) {
             auto outputHashes = staticOutputHashes(*localStore, *step->drv);
-            for (auto & [outputName, realisation] : buildResult.builtOutputs) {
-                // Register the resolved drv output
-                destStore->registerDrvOutput(realisation);
+            if (auto * successP = buildResult.tryGetSuccess()) {
+                for (auto & [outputName, realisation] : successP->builtOutputs) {
+                    // Register the resolved drv output
+                    destStore->registerDrvOutput(realisation);
 
-                // Also register the unresolved one
-                auto unresolvedRealisation = realisation;
-                unresolvedRealisation.signatures.clear();
-                unresolvedRealisation.id.drvHash = outputHashes.at(outputName);
-                destStore->registerDrvOutput(unresolvedRealisation);
+                    // Also register the unresolved one
+                    auto unresolvedRealisation = realisation;
+                    unresolvedRealisation.signatures.clear();
+                    unresolvedRealisation.id.drvHash = outputHashes.at(outputName);
+                    destStore->registerDrvOutput(unresolvedRealisation);
+                }
             }
         }
 
