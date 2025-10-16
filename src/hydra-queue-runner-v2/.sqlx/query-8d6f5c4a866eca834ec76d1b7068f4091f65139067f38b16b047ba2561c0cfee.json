@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE builds SET\n              finished = 1,\n              buildStatus = $2,\n              startTime = $3,\n              stopTime = $3,\n              isCachedBuild = 1,\n              notificationPendingSince = $3\n            WHERE\n              id = $1 AND finished = 0",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8d6f5c4a866eca834ec76d1b7068f4091f65139067f38b16b047ba2561c0cfee"
+}
