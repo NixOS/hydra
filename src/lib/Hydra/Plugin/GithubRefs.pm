@@ -18,9 +18,8 @@ tags) from GitHub following a certain naming scheme
 
 =head1 DESCRIPTION
 
-This plugin reads the list of branches or tags using GitHub's REST API. The name
-of the reference must follow a particular prefix. This list is stored in the
-nix-store and used as an input to declarative jobsets.
+This plugin reads the list of branches or tags using GitHub's REST API. This
+list is stored in the nix-store and used as an input to declarative jobsets.
 
 =head1 CONFIGURATION
 
@@ -34,7 +33,7 @@ The declarative project C<spec.json> file must contains an input such as
 
    "pulls": {
      "type": "github_refs",
-     "value": "[owner] [repo] heads|tags - [prefix]",
+     "value": "[owner] [repo] [type] - [prefix]",
      "emailresponsible": false
    }
 
@@ -42,12 +41,11 @@ In the above snippet, C<[owner]> is the repository owner and C<[repo]> is the
 repository name. Also note a literal C<->, which is placed there for the future
 use.
 
-C<heads|tags> denotes that one of these two is allowed, that is, the third
-position should hold either the C<heads> or the C<tags> keyword. In case of the former, the plugin
-will fetch all branches, while in case of the latter, it will fetch the tags.
+C<[type]> is the type of ref to list. Typical values are "heads", "tags", and
+"pull". "." will include all types.
 
 C<prefix> denotes the prefix the reference name must start with, in order to be
-included.
+included. "." will include all references.
 
 For example, C<"value": "nixos hydra heads - release/"> refers to
 L<https://github.com/nixos/hydra> repository, and will fetch all branches that
@@ -102,8 +100,6 @@ sub fetchInput {
     return undef if $input_type ne "github_refs";
 
     my ($owner, $repo, $type, $fut, $prefix) = split ' ', $value;
-    die "type field is neither 'heads' nor 'tags', but '$type'"
-        unless $type eq 'heads' or $type eq 'tags';
 
     my $auth = $self->{config}->{github_authorization}->{$owner};
     my $githubEndpoint = $self->{config}->{github_endpoint} // "https://api.github.com";
