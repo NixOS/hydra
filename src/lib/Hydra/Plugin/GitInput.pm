@@ -126,6 +126,13 @@ sub fetchInput {
         _printIfDebug "'$name': override '$opt_name' with input value: $opt_value\n";
     }
 
+    # Set desired umask
+    my $old_umask;
+    if (defined($cfg->{umask})) {
+        $old_umask = umask();
+        umask($cfg->{umask});
+    }
+
     # Clone or update a branch of the repository into our SCM cache.
     my $cacheDir = getSCMCacheDir . "/git";
     mkpath($cacheDir);
@@ -238,6 +245,10 @@ sub fetchInput {
     my $revCount = grab(cmd => ["git", "rev-list", "--count", "$revision"], dir => $clonePath, chomp => 1);
     my $gitTag = grab(cmd => ["git", "describe", "--always", "$revision"], dir => $clonePath, chomp => 1);
     my $shortRev = grab(cmd => ["git", "rev-parse", "--short", "$revision"], dir => $clonePath, chomp => 1);
+
+    if (defined($old_umask)) {
+        umask($old_umask);
+    }
 
     return
         { uri => $uri
