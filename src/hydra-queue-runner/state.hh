@@ -471,6 +471,7 @@ private:
 
 public:
     State(std::optional<std::string> metricsAddrOpt);
+    bool useSubstitutesOnRemoteBuilders = true;
 
 private:
 
