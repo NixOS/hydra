@@ -104,9 +104,9 @@ static void copyClosureTo(
     std::unique_lock<std::timed_mutex> sendLock(conn.machine->state->sendLock,
         std::chrono::seconds(600));
 
-    conn.importPaths(destStore, [&](Sink & sink) {
-        exportPaths(destStore, missing, sink);
-    });
+    conn.to << ServeProto::Command::ImportPaths;
+    exportPaths(destStore, missing, conn.to);
+    conn.to.flush();
 
     if (readInt(conn.from) != 1)
         throw Error("remote machine failed to import closure");
@@ -301,10 +301,11 @@ static void copyPathFromRemote(
               lambda function only gets executed if someone tries to read
               from source2, we will send the command from here rather
               than outside the lambda. */
-          conn.narFromPath(localStore, info.path, [&](Source & source) {
-              TeeSource tee(source, sink);
-              extractNarData(tee, localStore.printStorePath(info.path), narMembers);
-          });
+          conn.to << ServeProto::Command::DumpStorePath << localStore.printStorePath(info.path);
+          conn.to.flush();
+
+          TeeSource tee(conn.from, sink);
+          extractNarData(tee, localStore.printStorePath(info.path), narMembers);
       });
 
       destStore.addToStore(info, *source2, NoRepair, NoCheckSigs);
