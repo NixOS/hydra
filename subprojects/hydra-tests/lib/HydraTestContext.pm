@@ -104,10 +104,12 @@ sub new {
     my $coreutils_path = dirname(which 'install');
     my $nix_bin_dir = dirname(which 'nix');
     my $bash_path = which 'bash';
+    chomp(my $system = `nix --extra-experimental-features nix-command config show system`);
     replace_variable_in_file($jobsdir . "/config.nix",
         '@testPath@' => $coreutils_path,
         '@nixBinDir@' => $nix_bin_dir,
-        '@bash@' => $bash_path);
+        '@bash@' => $bash_path,
+        '@system@' => $system);
     replace_variable_in_file($jobsdir . "/declarative/project.json",
         '@jobsPath@' => $jobsdir);
 
