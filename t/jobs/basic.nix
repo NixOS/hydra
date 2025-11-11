@@ -1,4 +1,6 @@
-with import ./config.nix;
+{ system ? builtins.currentSystem }:
+
+with import ./config.nix { inherit system; };
 {
   empty_dir =
     mkDerivation {

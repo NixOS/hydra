@@ -1,9 +1,11 @@
+{ system ? builtins.currentSystem }:
+
 rec {
   path = "@testPath@";
 
   mkDerivation = args:
     derivation ({
-      system = builtins.currentSystem;
+      inherit system;
       PATH = path;
     } // args);
   mkContentAddressedDerivation = args: mkDerivation ({
