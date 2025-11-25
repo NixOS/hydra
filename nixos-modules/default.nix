@@ -4,7 +4,7 @@
   hydra = { pkgs, lib,... }: {
     _file = ./default.nix;
     imports = [ ./hydra.nix ];
-    services.hydra-dev.package = lib.mkDefault self.packages.${pkgs.hostPlatform.system}.hydra;
+    services.hydra-dev.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.hydra;
   };
 
   hydraTest = { pkgs, ... }: {
