@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n              name, unit, value\n            FROM buildmetrics\n            WHERE build = $1;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "unit",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "value",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "83b10946d5b6a044491b73af2c8add459c04deb6b69e755840ff43e859fcd7a9"
+}

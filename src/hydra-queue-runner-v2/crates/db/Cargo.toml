@@ -1,0 +1,26 @@
+[package]
+name = "db"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0"
+
+[dependencies]
+tracing = "0.1"
+anyhow = "1.0.98"
+futures = "0.3"
+ahash = "0.8.11"
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4.38", default-features = false, features = [
+  "clock",
+  "std",
+  "serde",
+] }
+
+sqlx = { version = "0.8", features = [
+  "runtime-tokio",
+  "tls-native-tls",
+  "postgres",
+  "chrono",
+] }

@@ -1,0 +1,214 @@
+syntax = "proto3";
+
+package runner.v1;
+
+option java_multiple_files = true;
+option java_outer_classname = "RunnerProto";
+option java_package = "io.grpc.hydra.runner";
+
+service RunnerService {
+  rpc OpenTunnel(stream BuilderRequest) returns (stream RunnerRequest) {}
+  rpc BuildLog(stream LogChunk) returns (Empty) {}
+  rpc BuildResult(stream NarData) returns (Empty) {}
+  rpc BuildStepUpdate(StepUpdate) returns (Empty) {}
+  rpc CompleteBuild(BuildResultInfo) returns (Empty) {}
+  rpc FetchDrvRequisites(FetchRequisitesRequest) returns (DrvRequisitesMessage) {}
+  rpc StreamFile(StorePath) returns (stream NarData) {}
+  rpc StreamFiles(StorePaths) returns (stream NarData) {}
+}
+
+message Empty {}
+
+message BuilderRequest {
+  oneof message {
+    JoinMessage join = 1;
+    PingMessage ping = 2;
+  }
+}
+
+message JoinMessage {
+  string machine_id = 1;
+  repeated string systems = 2;
+  string hostname = 3;
+  uint32 cpu_count = 4;
+  float bogomips = 5;
+  float speed_factor = 6;
+  uint32 max_jobs = 7;
+  float tmp_avail_threshold = 8;
+  float store_avail_threshold = 9;
+  float load1_threshold = 10;
+  float cpu_psi_threshold = 11;
+  float mem_psi_threshold = 12;
+  optional float io_psi_threshold = 13;
+  uint64 total_mem = 14;
+  repeated string supported_features = 15;
+  repeated string mandatory_features = 16;
+  bool cgroups = 17;
+}
+
+message Pressure {
+  float avg10 = 1;
+  float avg60 = 2;
+  float avg300 = 3;
+  uint64 total = 4;
+}
+
+message PressureState {
+  Pressure cpu_some = 1;
+  Pressure mem_some = 2;
+  Pressure mem_full = 3;
+  Pressure io_some = 4;
+  Pressure io_full = 5;
+  Pressure irq_full = 6;
+}
+
+message PingMessage {
+  string machine_id = 1;
+  float load1 = 2;
+  float load5 = 3;
+  float load15 = 4;
+  uint64 mem_usage = 5;
+  optional PressureState pressure = 6;
+  double tmp_free_percent = 7;
+  double store_free_percent = 8;
+}
+
+message SimplePingMessage {
+  string message = 1;
+}
+
+message RunnerRequest {
+  oneof message {
+    JoinResponse join = 1;
+    SimplePingMessage ping = 2;
+    BuildMessage build = 3;
+    AbortMessage abort = 4;
+  }
+}
+
+message JoinResponse {
+  string machine_id = 1;
+  uint32 max_concurrent_downloads = 2;
+}
+
+message BuildMessage {
+  string drv = 1;
+  optional string resolved_drv = 2;
+  uint64 max_log_size = 3;
+  int32 max_silent_time = 4;
+  int32 build_timeout = 5;
+  // bool is_deterministic = 5;
+  // bool enforce_determinism = 6;
+}
+
+message DrvRequisitesMessage {
+  repeated string requisites = 1;
+}
+
+message AbortMessage {
+  string drv = 1;
+}
+
+message LogChunk {
+  string drv = 1;
+  bytes data = 2;
+}
+
+message FetchRequisitesRequest {
+  string path = 1;
+  bool include_outputs = 2;
+}
+
+message StorePath {
+  string path = 1;
+}
+
+message StorePaths {
+  repeated string paths = 1;
+}
+
+message NarData {
+  bytes chunk = 1;
+}
+
+message OutputNameOnly {
+  string name = 1;
+}
+
+message OutputWithPath {
+  string name = 1;
+  string path = 2;
+  uint64 closure_size = 3;
+  uint64 nar_size = 4;
+  string nar_hash = 5;
+}
+
+message Output {
+  oneof output {
+    OutputNameOnly nameonly = 1;
+    OutputWithPath withpath = 2;
+  }
+}
+
+message BuildMetric {
+  string path = 1;
+  string name = 2;
+  optional string unit = 3;
+  double value = 4;
+}
+
+message BuildProduct {
+  string path = 1;
+  string default_path = 2;
+
+  string type = 3;
+  string subtype = 4;
+  string name = 5;
+
+  bool is_regular = 6;
+
+  optional string sha256hash = 7;
+  optional uint64 file_size = 8;
+}
+
+message NixSupport {
+  bool failed = 1;
+  optional string hydra_release_name = 2;
+  repeated BuildMetric metrics = 3;
+  repeated BuildProduct products = 4;
+}
+
+enum StepStatus {
+  Preparing = 0;
+  Connecting = 1;
+  SeningInputs = 2;
+  Building = 3;
+  WaitingForLocalSlot = 4;
+  ReceivingOutputs = 5;
+  PostProcessing = 6;
+}
+
+message StepUpdate {
+  string machine_id = 1;
+  string drv = 2;
+  StepStatus step_status = 3;
+}
+
+enum BuildResultState {
+  BuildFailure = 0;
+  Success = 1;
+  PreparingFailure = 2;
+  ImportFailure = 3;
+  UploadFailure = 4;
+  PostProcessingFailure = 5;
+}
+
+message BuildResultInfo {
+  string machine_id = 1;
+  string drv = 2;
+  uint64 import_time_ms = 3;
+  uint64 build_time_ms = 4;
+  BuildResultState result_state = 5;
+  NixSupport nix_support = 6;
+  repeated Output outputs = 7;
+}
