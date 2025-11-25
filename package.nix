@@ -31,7 +31,7 @@
 , perl
 , pixz
 , boost
-, postgresql_13
+, postgresql_17
 , nlohmann_json
 , prometheus-cpp
 
@@ -192,7 +192,7 @@ stdenv.mkDerivation (finalAttrs: {
     subversion
     breezy
     openldap
-    postgresql_13
+    postgresql_17
     pixz
     nix-eval-jobs
   ];
