@@ -1,7 +1,7 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05-small";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11-small";
 
   inputs.nix = {
     url = "github:NixOS/nix/2.32-maintenance";
@@ -59,7 +59,7 @@
 
         manual = forEachSystem (system: let
           pkgs = nixpkgs.legacyPackages.${system};
-          hydra = self.packages.${pkgs.hostPlatform.system}.hydra;
+          hydra = self.packages.${pkgs.stdenv.hostPlatform.system}.hydra;
         in
           pkgs.runCommand "hydra-manual-${hydra.version}" { }
             ''
