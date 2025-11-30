@@ -210,6 +210,7 @@ create table Builds (
     --  10 = log limit exceeded
     --  11 = NAR size limit exceeded
     --  12 = build or step was not deterministic
+    --  13 = fod hash missmatch
     buildStatus   integer,
 
     size          bigint,
@@ -220,6 +221,8 @@ create table Builds (
     keep          integer not null default 0, -- true means never garbage-collect the build output
 
     notificationPendingSince integer,
+
+    fodCheck boolean not null default false,
 
     check (finished = 0 or (stoptime is not null and stoptime != 0)),
     check (finished = 0 or (starttime is not null and starttime != 0)),
@@ -248,6 +251,8 @@ create table BuildOutputs (
     build         integer not null,
     name          text not null,
     path          text,
+    expectedHash  text,
+    actualHash    text,
     primary key   (build, name),
     foreign key   (build) references Builds(id) on delete cascade
 );
@@ -304,6 +309,8 @@ create table BuildStepOutputs (
     stepnr        integer not null,
     name          text not null,
     path          text,
+    expectedHash  text,
+    actualHash    text,
     primary key   (build, stepnr, name),
     foreign key   (build) references Builds(id) on delete cascade,
     foreign key   (build, stepnr) references BuildSteps(build, stepnr) on delete cascade
