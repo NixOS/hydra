@@ -517,7 +517,7 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
     }
 
     $c->stash->{channelBuilds} = $c->model('DB::Builds')->search(
-        { id => $build->id },
+        { id => $build->id, fodcheck => 0 },
         { join => ["buildoutputs"]
         , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
 }

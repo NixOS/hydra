@@ -538,7 +538,7 @@ sub makeSource {
 sub makeQueries {
     my ($name, $constraint) = @_;
 
-    my $activeJobs = "(select distinct jobset_id, job, system from Builds where isCurrent = 1 $constraint)";
+    my $activeJobs = "(select distinct jobset_id, job, system from Builds where isCurrent = 1 and fodcheck = false $constraint)";
 
     makeSource(
         "LatestSucceeded$name",

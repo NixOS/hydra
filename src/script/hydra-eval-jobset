@@ -497,7 +497,7 @@ sub checkBuild {
                 # the eval), but they give a factor 1000 speedup on
                 # the Nixpkgs jobset with PostgreSQL.
                 { jobset_id => $jobset->get_column('id'), job => $jobName,
-                  name => $firstOutputName, %$pathOrDrvConstraint },
+                  name => $firstOutputName, fodcheck => 0, %$pathOrDrvConstraint },
                 { rows => 1, columns => ['id', 'finished'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
                 #print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
@@ -794,7 +794,7 @@ sub checkJobsetWrapped {
         # Clear the "current" flag on all builds.  Since we're in a
         # transaction this will only become visible after the new
         # current builds have been added.
-        $jobset->builds->search({iscurrent => 1})->update({iscurrent => 0});
+        $jobset->builds->search({iscurrent => 1, fodcheck => 0})->update({iscurrent => 0});
 
         my $ev = $jobset->jobsetevals->create(
             { hash => $argsHash

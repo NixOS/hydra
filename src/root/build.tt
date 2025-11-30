@@ -87,6 +87,8 @@ END;
                 <span class="error">Output limit exceeded</span>
               [% ELSIF step.status == 12 %]
                 <span class="error">Non-determinism detected</span> [% IF step.timesbuilt %] after [% HTML.escape(step.timesbuilt) %] times[% END %]
+              [% ELSIF step.status == 13 %]
+                <span class="error">Hash mismatch</span>
               [% ELSIF step.errormsg %]
                 <span class="error">Failed</span>: <em>[% HTML.escape(step.errormsg) %]</em>
               [% ELSE %]
