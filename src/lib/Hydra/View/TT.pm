@@ -82,7 +82,7 @@ sub stripSSHUser {
 # evaluation.
 sub jobExists {
     my ($self, $c, $jobset, $jobName) = @_;
-    return defined $jobset->builds->search({ job => $jobName, iscurrent => 1 })->single;
+    return defined $jobset->builds->search({ job => $jobName, iscurrent => 1, fodchecker => 0 })->single;
 }
 
 =head2 linkToProject

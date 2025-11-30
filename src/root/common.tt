@@ -306,6 +306,8 @@ BLOCK renderStatus;
       <span class="error">Output limit exceeded</span>
     [% ELSIF buildstatus == 12 %]
       <span class="error">Non-deterministic build</span>
+    [% ELSIF buildstatus == 13 %]
+      <span class="error">Hash mismatch</span>
     [% ELSE %]
       <span class="error">Aborted</span>
       (Hydra failure; see <a href="#nix-error">below</a>)

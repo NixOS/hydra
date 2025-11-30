@@ -37,6 +37,9 @@
     [% INCLUDE menuItem
        uri = c.uri_for(c.controller('Root').action_for('queue_runner_status'))
        title = "Queue Runner Status" %]
+    [% INCLUDE menuItem
+       uri = c.uri_for(c.controller('Root').action_for('fod_hash_mismatch'))
+       title = "FOD Hash Mismatches" %]
   [% END %]
 
   [% IF project %]
