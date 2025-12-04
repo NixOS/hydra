@@ -9,8 +9,8 @@
 [% INCLUDE includeFlot %]
 
 [% IF !jobExists(jobset, job) %]
-<div class="alert alert-warning">This job is not a member of the <a
-[% HTML.attributes(href => c.uri_for('/jobset' project.name jobset.name
+<div class="alert alert-warning">This job is not a member of the
+<a [% HTML.attributes(href => c.uri_for('/jobset' project.name jobset.name
 'evals')) %]>latest evaluation</a> of its jobset. This means it was
 removed or had an evaluation error.</div>
 [% END %]
