@@ -56,7 +56,7 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     my $job = $c->request->params->{job};
     my $system = $c->request->params->{system};
 
-    my $filter = {finished => 1};
+    my $filter = {finished => 1, fodcheck => 0};
     $filter->{"jobset.project"} = $project if ! $project eq "";
     $filter->{"jobset.name"} = $jobset if ! $jobset eq "";
     $filter->{job} = $job if !$job eq "";
@@ -127,7 +127,7 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
     my $nr = $c->request->params->{nr};
     error($c, "Parameter not defined!") if !defined $nr;
 
-    my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["priority DESC", "id"]});
+    my @builds = $c->model('DB::Builds')->search({finished => 0, fodcheck => 0}, {rows => $nr, order_by => ["priority DESC", "id"]});
 
     my @list;
     push @list, buildToHash($_) foreach @builds;
@@ -141,7 +141,7 @@ sub queue : Chained('api') PathPart('queue') Args(0) {
 
 sub nrqueue : Chained('api') PathPart('nrqueue') Args(0) {
     my ($self, $c) = @_;
-    my $nrQueuedBuilds = $c->model('DB::Builds')->search({finished => 0})->count();
+    my $nrQueuedBuilds = $c->model('DB::Builds')->search({finished => 0, fodcheck => 0})->count();
     $c->stash->{'plain'} = {
         data => "$nrQueuedBuilds"
     };
@@ -162,7 +162,7 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     my $job = $c->request->params->{job};
     my $system = $c->request->params->{system};
 
-    my $filter = {finished => 1};
+    my $filter = {finished => 1, fodcheck => 0};
     $filter->{"jobset.project"} = $project if ! $project eq "";
     $filter->{"jobset.name"} = $jobset if ! $jobset eq "";
     $filter->{job} = $job if !$job eq "";

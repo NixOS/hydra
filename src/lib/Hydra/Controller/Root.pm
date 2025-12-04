@@ -71,7 +71,7 @@ sub begin :Private {
     if (scalar(@args) == 0 || $args[0] ne "static") {
         $c->stash->{nrRunningBuilds} = dbh($c)->selectrow_array(
             "select count(distinct build) from buildsteps where busy != 0");
-        $c->stash->{nrQueuedBuilds} = $c->model('DB::Builds')->search({ finished => 0 })->count();
+        $c->stash->{nrQueuedBuilds} = $c->model('DB::Builds')->search({ finished => 0, fodcheck => 0 })->count();
     }
 
     # Gather the supported input types.
@@ -132,7 +132,7 @@ sub queue_GET {
     $self->status_ok(
         $c,
         entity => [$c->model('DB::Builds')->search(
-            { finished => 0 },
+            { finished => 0, fodcheck => 0 },
             { order_by => ["globalpriority desc", "id"],
             , columns => [@buildListColumns]
             })]
@@ -147,11 +147,11 @@ sub queue_summary :Local :Path('queue-summary') :Args(0) {
     $c->stash->{queued} = dbh($c)->selectall_arrayref(
         "select jobsets.project as project, jobsets.name as jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from Builds " .
         "join Jobsets jobsets on jobsets.id = builds.jobset_id " .
-        "where finished = 0 group by jobsets.project, jobsets.name order by queued desc",
+        "where finished = 0 and fodcheck = false group by jobsets.project, jobsets.name order by queued desc",
         { Slice => {} });
 
     $c->stash->{systems} = dbh($c)->selectall_arrayref(
-        "select system, count(*) as c from Builds where finished = 0 group by system order by c desc",
+        "select system, count(*) as c from Builds where finished = 0 and fodcheck = false group by system order by c desc",
         { Slice => {} });
 }
 
@@ -163,7 +163,7 @@ sub status_GET {
     $self->status_ok(
         $c,
         entity => [$c->model('DB::Builds')->search(
-            { "buildsteps.busy" => { '!=', 0 } },
+            { "buildsteps.busy" => { '!=', 0 }, fodcheck => 0 },
             { order_by => ["globalpriority DESC", "id"],
               join => "buildsteps",
               columns => [@buildListColumns, 'buildsteps.drvpath', 'buildsteps.type']
@@ -283,6 +283,18 @@ sub prometheus :Local Args(0) {
 
     $c->stash->{'plain'} = { data => $client->render };
     $c->forward('Hydra::View::Plain');
+}
+
+
+sub fod_hash_mismatch :Local :Path('fod-hash-mismatch') :Args(0) {
+    my ($self, $c) = @_;
+    $c->stash->{template} = 'fod-hash-mismatch.tt';
+
+    $c->stash->{fod_mismatches} = dbh($c)->selectall_arrayref(
+        "select builds.id, builds.drvpath, builds.buildstatus, buildoutputs.expectedhash, buildoutputs.actualhash " .
+        "from builds inner join buildoutputs on builds.id = buildoutputs.build " .
+        "where builds.buildstatus = 13 and builds.fodcheck = true",
+        { Slice => {} });
 }
 
 
@@ -524,28 +536,28 @@ sub search :Local Args(0) {
             },
             { order_by => ["project", "name"], join => ["project"] } ) ];
 
-        $c->stash->{jobs} = [ $c->model('DB::Builds')->search(
+$c->stash->{jobs} = [ $c->model('DB::Builds')->search(
             { "job" => { ilike => "%$query%" }
             , "project.hidden" => 0
             , "jobset.hidden" => 0
             , iscurrent => 1
+            , fodcheck => 0
             },
             {
                 order_by => ["jobset.project", "jobset.name", "job"],
                 join => { "jobset" => "project" },
                 rows => $c->stash->{limit} + 1
-            } )
-        ];
+            } ) ];
 
         # Perform build search in separate queries to prevent seq scan on buildoutputs table.
         $c->stash->{builds} = [ $c->model('DB::Builds')->search(
-            { "buildoutputs.path" => { ilike => "%$query%" } },
+            { "buildoutputs.path" => { ilike => "%$query%" }, fodcheck => 0 },
             { order_by => ["id desc"], join => ["buildoutputs"]
             , rows => $c->stash->{limit}
             } ) ];
 
         $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
-            { "drvpath" => { ilike => "%$query%" } },
+            { "drvpath" => { ilike => "%$query%" }, fodcheck => 0 },
             { order_by => ["id desc"]
             , rows => $c->stash->{limit}
             } ) ];

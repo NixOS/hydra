@@ -122,7 +122,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
     $c->stash->{template} = 'job.tt';
 
     $c->stash->{lastBuilds} =
-        [ $c->stash->{jobset}->builds->search({ job => $c->stash->{job}, finished => 1 },
+        [ $c->stash->{jobset}->builds->search({ job => $c->stash->{job}, finished => 1, fodcheck => 0 },
             { order_by => 'id DESC', rows => 10, columns => [@buildListColumns] }) ];
 
     $c->stash->{queuedBuilds} = [
@@ -133,7 +133,7 @@ sub overview : Chained('job') PathPart('') Args(0) {
 
     # If this is an aggregate job, then get its constituents.
     my @constituents = $c->model('DB::Builds')->search(
-        { aggregate => { -in => $c->stash->{jobset}->builds->search({ job => $c->stash->{job} }, { columns => ["id"], order_by => "id desc", rows => 15 })->as_query } },
+        { aggregate => { -in => $c->stash->{jobset}->builds->search({ job => $c->stash->{job}, fodcheck => 0 }, { columns => ["id"], order_by => "id desc", rows => 15 })->as_query }, fodcheck => 0 },
         { join => 'aggregateconstituents_constituents',
           columns => ['id', 'job', 'finished', 'buildstatus'],
           +select => ['aggregateconstituents_constituents.aggregate'],
@@ -220,7 +220,7 @@ sub metric : Chained('job') PathPart('metric') Args(1) {
 # Hydra::Base::Controller::ListBuilds needs this.
 sub get_builds : Chained('job') PathPart('') CaptureArgs(0) {
     my ($self, $c) = @_;
-    $c->stash->{allBuilds} = $c->stash->{jobset}->builds->search({ job => $c->stash->{job} });
+    $c->stash->{allBuilds} = $c->stash->{jobset}->builds->search({ job => $c->stash->{job}, fodcheck => 0 });
     $c->stash->{latestSucceeded} = $c->model('DB')->resultset('LatestSucceededForJob')
         ->search({}, {bind => [$c->stash->{jobset}->id, $c->stash->{job}]});
     $c->stash->{channelBaseName} =

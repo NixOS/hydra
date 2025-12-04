@@ -114,7 +114,7 @@ sub create_jobset : Chained('evalChain') PathPart('create-jobset') Args(0) {
 sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
     my ($self, $c) = @_;
     requireCancelBuildPrivileges($c, $c->stash->{project});
-    my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->builds->search_rs({}));
+    my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->builds->search_rs({fodcheck => 0}));
     $c->flash->{successMsg} = "$n builds have been cancelled.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
 }
@@ -123,7 +123,7 @@ sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
 sub restart {
     my ($self, $c, $condition) = @_;
     requireRestartPrivileges($c, $c->stash->{project});
-    my $builds = $c->stash->{eval}->builds->search_rs({ finished => 1, buildstatus => $condition });
+    my $builds = $c->stash->{eval}->builds->search_rs({ finished => 1, buildstatus => $condition, fodcheck => 0 });
     my $n = restartBuilds($c->model('DB')->schema, $builds);
     $c->flash->{successMsg} = "$n builds have been restarted.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));

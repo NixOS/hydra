@@ -20,11 +20,11 @@ sub all : Chained('get_builds') PathPart {
 
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
-    $c->stash->{total} = $c->stash->{allBuilds}->search({finished => 1})->count
+    $c->stash->{total} = $c->stash->{allBuilds}->search({finished => 1, fodcheck => 0})->count
         unless defined $c->stash->{total};
 
     $c->stash->{builds} = [ $c->stash->{allBuilds}->search(
-        { finished => 1 },
+        { finished => 1, fodcheck => 0 },
         { order_by => "stoptime DESC"
         , columns => [@buildListColumns]
         , rows => $resultsPerPage
@@ -50,7 +50,7 @@ sub latest : Chained('get_builds') PathPart('latest') {
     my ($self, $c, @rest) = @_;
 
     my $latest = $c->stash->{allBuilds}->find(
-        { finished => 1, buildstatus => 0 }, { order_by => ["id DESC"], rows => 1 });
+        { finished => 1, buildstatus => 0, fodcheck => 0 }, { order_by => ["id DESC"], rows => 1 });
 
     notFound($c, "There is no successful build to redirect to.") unless defined $latest;
 
@@ -65,7 +65,7 @@ sub latest_for : Chained('get_builds') PathPart('latest-for') {
     notFound($c, "You need to specify a platform type in the URL.") unless defined $system;
 
     my $latest = $c->stash->{allBuilds}->find(
-        { finished => 1, buildstatus => 0, system => $system }, { order_by => ["id DESC"], rows => 1 });
+        { finished => 1, buildstatus => 0, system => $system, fodcheck => 0 }, { order_by => ["id DESC"], rows => 1 });
 
     notFound($c, "There is no successful build for platform `$system' to redirect to.") unless defined $latest;
 
@@ -79,10 +79,10 @@ sub latest_finished : Chained('get_builds') PathPart('latest-finished') {
     my ($self, $c, @rest) = @_;
 
     my $latest = $c->stash->{allBuilds}->find(
-        { finished => 1, buildstatus => 0 },
+        { finished => 1, buildstatus => 0, fodcheck => 0 },
         { order_by => ["id DESC"], rows => 1, join => ["jobsetevalmembers"]
         , where => \
-            "not exists (select 1 from jobsetevalmembers m2 join builds b2 on jobsetevalmembers.eval = m2.eval and m2.build = b2.id and b2.finished = 0)"
+            "not exists (select 1 from jobsetevalmembers m2 join builds b2 on jobsetevalmembers.eval = m2.eval and m2.build = b2.id and b2.finished = 0 and b2.fodcheck = false)"
         });
 
     notFound($c, "There is no successful build to redirect to.") unless defined $latest;

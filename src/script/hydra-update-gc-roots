@@ -120,7 +120,7 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
 
         # Get the unfinished evals.
         push @evals, $_->get_column("eval") foreach $jobset->builds->search(
-            { finished => 0 },
+            { finished => 0, fodcheck => 0 },
             { join => "jobsetevalmembers", select => "jobsetevalmembers.eval", as => "eval", distinct => 1 });
 
         # Get the N most recent finished evals.
@@ -135,7 +135,7 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
         # they can be restarted.
         keepBuild($_, 1) foreach $jobset->builds->search(
             { "me.id" => { -in => $db->resultset('JobsetEvalMembers')->search({ eval => { -in => [@evals] } }, { select => "build" })->as_query }
-            , finished => 1
+            , finished => 1, fodcheck => 0
             },
             {
                 order_by => ["job", "me.id"],
@@ -154,6 +154,7 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
         keepBuild($_, 1) foreach $jobset->builds->search(
             { "me.id" => { -in => $jobset->builds->search(
                 { finished => 1
+                , fodcheck => 0
                 , buildstatus => [0, 6]
                 , job => { -in => $jobset->builds->search(
                                 { eval => { -in => [@evals] } },

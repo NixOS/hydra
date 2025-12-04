@@ -53,6 +53,7 @@ sub getPreviousBuild {
       , 'me.id' =>  { '<' => $build->id }
       , job => $build->job
       , -not => { buildstatus => { -in => [4, 3]} }
+      , fodcheck => 0
       }, { rows => 1, order_by => "me.id DESC" })->single;
 }
 
@@ -67,6 +68,7 @@ sub getNextBuild {
       , jobset_id => $build->get_column('jobset_id')
       , job => $build->get_column('job')
       , 'me.id' =>  { '>' => $build->id }
+      , fodcheck => 0
       }, {rows => 1, order_by => "me.id ASC"});
 
     return $nextBuild;
@@ -84,6 +86,7 @@ sub getPreviousSuccessfulBuild {
       , job => $build->get_column('job')
       , buildstatus => 0
       , 'me.id' =>  { '<' => $build->id }
+      , fodcheck => 0
       }, {rows => 1, order_by => "me.id DESC"});
 
     return $prevBuild;
@@ -105,7 +108,7 @@ sub searchBuildsAndEvalsForJobset {
 
     foreach my $eval (@evals) {
         my @allBuilds = $eval->builds->search(
-            $condition,
+            { %$condition, fodcheck => 0 },
             { columns => ['id', 'job', 'finished', 'buildstatus'] }
         );
 
@@ -310,7 +313,7 @@ sub getLatestFinishedEval {
     my ($eval) = $jobset->jobsetevals->search(
         { hasnewbuilds => 1 },
         { order_by => "id DESC", rows => 1
-        , where => \ "not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0)"
+        , where => \ "not exists (select 1 from JobsetEvalMembers m join Builds b on m.build = b.id where m.eval = me.id and b.finished = 0 and b.fodcheck = false)"
         });
     return $eval;
 }

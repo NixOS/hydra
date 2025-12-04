@@ -461,6 +461,7 @@ sub my_jobs_tab :Chained('dashboard_base') :PathPart('my-jobs-tab') :Args(0) {
         , maintainers => { ilike => "%" . $c->stash->{user}->emailaddress . "%" }
         , "project.enabled" => 1
         , "jobset.enabled" => 1
+        , fodcheck => 0
         },
         { order_by => ["project", "jobset", "job"]
         , join => {"jobset" => "project"}
