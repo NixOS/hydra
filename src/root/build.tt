@@ -568,7 +568,7 @@ END;
           running the following command:</p>
 
 <div class="card bg-light"><div class="card-body p-2"><code>
-<span class="shell-prompt"># </span>nix build [% HTML.escape(eval.flake) %]#hydraJobs.[% HTML.escape(job) %]
+<span class="shell-prompt"># </span>nix build '[% HTML.escape(eval.flake) %]#hydraJobs.[% HTML.escape(job) %]'
 </code></div></div>
 
         [% ELSE %]
