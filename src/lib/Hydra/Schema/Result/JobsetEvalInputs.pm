@@ -66,6 +66,11 @@ __PACKAGE__->table("jobsetevalinputs");
   data_type: 'text'
   is_nullable: 1
 
+=head2 shortRevLength
+
+  data_type: 'number'
+  is_nullable: 1
+
 =head2 value
 
   data_type: 'text'
@@ -102,6 +107,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "revision",
   { data_type => "text", is_nullable => 1 },
+  "shortRevLength",
+  { data_type => "integer", is_nullable => 1 },
   "value",
   { data_type => "text", is_nullable => 1 },
   "dependency",
@@ -190,7 +197,15 @@ sub frontend_revision() {
     if ($type eq 'svn' or $type eq 'svn-checkout' or $type eq 'bzr' or $type eq 'bzr-checkout') {
         return 'r' . $self->get_column('revision');
     } elsif ($type eq 'git') {
-        return substr($self->get_column('revision'), 0, 12);
+        # Find the longest revision length of this URI
+        my $schema = $self->result_source->schema;
+        my $maxLength = $schema
+            ->resultset('JobsetEvalInputs')
+            ->search({ uri => $self->get_column('uri')})
+            ->get_column('shortRevLength')
+            ->max;
+        # Fall back to a fixed value if there was no value
+        return substr($self->get_column('revision'), 0, $maxLength || 12);
     } elsif ($type eq 'bzr') {
         return substr($self->get_column('revision'), 0, 12);
     } else {
