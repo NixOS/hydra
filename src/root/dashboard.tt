@@ -2,9 +2,9 @@
 [% PROCESS common.tt %]
 
 <ul class="nav nav-tabs">
-  <li class="active"><a href="#tabs-starred-jobs" data-toggle="tab">Starred jobs</a></li>
-  <li><a href="#tabs-my-jobs" data-toggle="tab">My jobs</a></li>
-  <li><a href="#tabs-my-jobsets" data-toggle="tab">My jobsets</a></li>
+  <li class="nav-item"><a class="nav-link active" href="#tabs-starred-jobs" data-toggle="tab">Starred Jobs</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-my-jobs" data-toggle="tab">My Jobs</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-my-jobsets" data-toggle="tab">My Jobsets</a></li>
 </ul>
 
 <div id="generic-tabs" class="tab-content">
@@ -24,7 +24,7 @@
             <tr>
               <td><span class="[% IF !jobExists(j.job.jobset j.job.job) %]disabled-job[% END %]">[% INCLUDE renderFullJobName project=j.job.get_column('project') jobset=j.job.get_column('jobset') job=j.job.job %]</span></td>
               [% FOREACH b IN j.builds %]
-                <td><a href="[% c.uri_for('/build' b.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=b %]</a></td>
+                <td><a [% HTML.attributes(href => c.uri_for('/build' b.id)) %]>[% INCLUDE renderBuildStatusIcon size=16 build=b %]</a></td>
               [% END %]
             </tr>
           [% END %]

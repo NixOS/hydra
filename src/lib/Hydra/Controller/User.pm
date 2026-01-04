@@ -4,14 +4,17 @@ use utf8;
 use strict;
 use warnings;
 use base 'Hydra::Base::Controller::REST';
+use File::Slurper qw(read_text);
 use Crypt::RandPasswd;
 use Digest::SHA1 qw(sha1_hex);
+use Hydra::Config qw(getLDAPConfigAmbient);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
 use LWP::UserAgent;
-use JSON;
+use JSON::MaybeXS;
 use HTML::Entities;
+use Encode qw(decode);
 
 
 __PACKAGE__->config->{namespace} = '';
@@ -25,13 +28,21 @@ sub login_POST {
     my $username = $c->stash->{params}->{username} // "";
     my $password = $c->stash->{params}->{password} // "";
 
-    error($c, "You must specify a user name.") if $username eq "";
-    error($c, "You must specify a password.") if $password eq "";
+    badRequest($c, "You must specify a user name.") if $username eq "";
+    badRequest($c, "You must specify a password.") if $password eq "";
 
-    accessDenied($c, "Bad username or password.")
-        if !$c->authenticate({username => $username, password => $password});
+    if ($c->get_auth_realm('ldap') && $c->authenticate({username => $username, password => $password}, 'ldap')) {
+        doLDAPLogin($self, $c, $username);
+    } elsif ($c->authenticate({username => $username, password => $password})) {}
+    else {
+        accessDenied($c, "Bad username or password.")
+    }
 
-    currentUser_GET($self, $c);
+    $self->status_found(
+        $c,
+        location => $c->uri_for("current-user"),
+        entity => $c->model("DB::Users")->find($c->user->username)
+    );
 }
 
 
@@ -44,6 +55,41 @@ sub logout_POST {
     $self->status_no_content($c);
 }
 
+sub doLDAPLogin {
+    my ($self, $c, $username) = @_;
+    my $user = $c->find_user({ username => $username });
+    my $LDAPUser = $c->find_user({ username => $username }, 'ldap');
+    my @LDAPRoles = $LDAPUser->roles;
+    my $role_mapping = getLDAPConfigAmbient()->{"role_mapping"};
+
+    if (!$user) {
+        $c->model('DB::Users')->create(
+            { username => $username
+            , fullname => decode('UTF-8', $LDAPUser->cn)
+            , password => "!"
+            , emailaddress => $LDAPUser->mail
+            , type => "LDAP"
+        });
+        $user = $c->find_user({ username => $username }) or die;
+    } else {
+        $user->update(
+            { fullname => decode('UTF-8', $LDAPUser->cn)
+            , password => "!"
+            , emailaddress => $LDAPUser->mail
+            , type => "LDAP"
+        });
+    }
+    $user->userroles->delete;
+    foreach my $ldap_role (@LDAPRoles) {
+        if (defined($role_mapping->{$ldap_role})) {
+            my $roles = $role_mapping->{$ldap_role};
+            for my $mapped_role (@$roles) {
+                $user->userroles->create({ role => $mapped_role });
+            }
+        }
+    }
+    $c->set_authenticated($user);
+}
 
 sub doEmailLogin {
     my ($self, $c, $type, $email, $fullName) = @_;
@@ -103,7 +149,7 @@ sub google_login :Path('/google-login') Args(0) {
 
     error($c, "Logging in via Google is not enabled.") unless $c->config->{enable_google_login};
 
-    my $ua = new LWP::UserAgent;
+    my $ua = LWP::UserAgent->new();
     my $response = $ua->post(
         'https://www.googleapis.com/oauth2/v3/tokeninfo',
         { id_token => ($c->stash->{params}->{id_token} // die "No token."),
@@ -119,6 +165,67 @@ sub google_login :Path('/google-login') Args(0) {
     doEmailLogin($self, $c, "google", $data->{email}, $data->{name} // undef);
 }
 
+sub github_login :Path('/github-login') Args(0) {
+    my ($self, $c) = @_;
+
+    my $client_id = $c->config->{github_client_id} or die "github_client_id not configured.";
+    my $client_secret = $c->config->{github_client_secret} // do {
+        my $client_secret_file = $c->config->{github_client_secret_file} or die "github_client_secret nor github_client_secret_file is configured.";
+        my $client_secret = read_text($client_secret_file);
+        $client_secret =~ s/\s+//;
+        $client_secret;
+    };
+    die "No github secret configured" unless $client_secret;
+
+    my $ua = LWP::UserAgent->new();
+    my $response = $ua->post(
+        'https://github.com/login/oauth/access_token',
+        {
+            client_id => $client_id,
+            client_secret => $client_secret,
+            code => ($c->req->params->{code} // die "No token."),
+        }, Accept => 'application/json');
+    error($c, "Did not get a response from GitHub.") unless $response->is_success;
+
+    my $data = decode_json($response->decoded_content) or die;
+    my $access_token = $data->{access_token} // die "No access_token in response from GitHub.";
+
+    $response = $ua->get('https://api.github.com/user/emails', Accept => 'application/vnd.github.v3+json', Authorization => "token $access_token");
+    error($c, "Did not get a response from GitHub for email info.") unless $response->is_success;
+
+    $data = decode_json($response->decoded_content) or die;
+    my $email;
+
+    foreach my $eml (@{$data}) {
+        $email = $eml->{email} if $eml->{verified} && $eml->{primary};
+    }
+
+    die "No primary email for this GitHub profile" unless $email;
+
+    $response = $ua->get('https://api.github.com/user', Authorization => "token $access_token");
+    error($c, "Did not get a response from GitHub for user info.") unless $response->is_success;
+    $data = decode_json($response->decoded_content) or die;
+
+    doEmailLogin($self, $c, "github", $email, $data->{name} // undef);
+
+    $c->res->redirect($c->uri_for($c->res->cookies->{'after_github'}));
+}
+
+sub github_redirect :Path('/github-redirect') Args(0) {
+    my ($self, $c) = @_;
+
+    my $client_id = $c->config->{github_client_id} or die "github_client_id not configured.";
+
+    my $after = "/" . $c->req->params->{after};
+
+    $c->res->cookies->{'after_github'} = {
+        name => 'after_github',
+        value => $after,
+    };
+
+    $c->res->redirect("https://github.com/login/oauth/authorize?client_id=$client_id&scope=user:email");
+}
+
 
 sub captcha :Local Args(0) {
     my ($self, $c) = @_;
@@ -129,12 +236,6 @@ sub captcha :Local Args(0) {
 sub isValidPassword {
     my ($password) = @_;
     return length($password) >= 6;
-}
-
-
-sub setPassword {
-    my ($user, $password) = @_;
-    $user->update({ password => sha1_hex($password) });
 }
 
 
@@ -197,7 +298,7 @@ sub updatePreferences {
         error($c, "The passwords you specified did not match.")
             if $password ne trim $c->stash->{params}->{password2};
 
-        setPassword($user, $password);
+        $user->setPassword($password);
     }
 
     my $emailAddress = trim($c->stash->{params}->{emailaddress} // "");
@@ -297,7 +398,7 @@ sub reset_password :Chained('user') :PathPart('reset-password') :Args(0) {
         unless $user->emailaddress;
 
     my $password = Crypt::RandPasswd->word(8,10);
-    setPassword($user, $password);
+    $user->setPassword($password);
     sendEmail(
         $c->config,
         $user->emailaddress,
@@ -362,7 +463,7 @@ sub my_jobs_tab :Chained('dashboard_base') :PathPart('my-jobs-tab') :Args(0) {
         , "jobset.enabled" => 1
         },
         { order_by => ["project", "jobset", "job"]
-        , join => ["project", "jobset"]
+        , join => {"jobset" => "project"}
         })];
 }
 

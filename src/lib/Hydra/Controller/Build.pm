@@ -7,16 +7,17 @@ use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use File::Basename;
+use File::LibMagic;
 use File::stat;
-use File::Slurp;
 use Data::Dump qw(dump);
-use Nix::Store;
-use Nix::Config;
-use List::MoreUtils qw(all);
+use List::SomeUtils qw(all);
 use Encode;
-use MIME::Types;
 use JSON::PP;
+use IPC::Run qw(run);
+use IPC::Run3;
+use WWW::Form::UrlEncoded::PP qw();
 
+use feature 'state';
 
 sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     my ($self, $c, $id) = @_;
@@ -30,7 +31,6 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     notFound($c, "Build with ID $id doesn't exist.")
         if !defined $c->stash->{build};
 
-    $c->stash->{prevBuild} = getPreviousBuild($c->stash->{build});
     $c->stash->{prevSuccessfulBuild} = getPreviousSuccessfulBuild($c, $c->stash->{build});
     $c->stash->{firstBrokenBuild} = getNextBuild($c, $c->stash->{prevSuccessfulBuild});
 
@@ -39,6 +39,18 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
     $c->stash->{project} = $c->stash->{build}->project;
     $c->stash->{jobset} = $c->stash->{build}->jobset;
     $c->stash->{job} = $c->stash->{build}->job;
+    $c->stash->{runcommandlogs} = [$c->stash->{build}->runcommandlogs->search({}, {order_by => ["id DESC"]})];
+
+    $c->stash->{runcommandlogProblem} = undef;
+    if ($c->stash->{job} =~ qr/^runCommandHook\..*/) {
+        if (!$c->config->{dynamicruncommand}->{enable}) {
+            $c->stash->{runcommandlogProblem} = "disabled-server";
+        } elsif (!$c->stash->{project}->enable_dynamic_run_command) {
+            $c->stash->{runcommandlogProblem} = "disabled-project";
+        } elsif (!$c->stash->{jobset}->enable_dynamic_run_command) {
+            $c->stash->{runcommandlogProblem} = "disabled-jobset";
+        }
+    }
 }
 
 
@@ -67,39 +79,21 @@ sub build_GET {
 
     $c->stash->{template} = 'build.tt';
     $c->stash->{isLocalStore} = isLocalStore();
+    # XXX: If the derivation is content-addressed then this will always return
+    # false because `$_->path` will be empty
     $c->stash->{available} =
         $c->stash->{isLocalStore}
-        ? all { isValidPath($_->path) } $build->buildoutputs->all
+        ? all { $_->path && $MACHINE_LOCAL_STORE->isValidPath($_->path) } $build->buildoutputs->all
         : 1;
-    $c->stash->{drvAvailable} = isValidPath $build->drvpath;
+    $c->stash->{drvAvailable} = $MACHINE_LOCAL_STORE->isValidPath($build->drvpath);
 
     if ($build->finished && $build->iscachedbuild) {
-        my $path = ($build->buildoutputs)[0]->path or die;
+        my $path = ($build->buildoutputs)[0]->path or undef;
         my $cachedBuildStep = findBuildStepByOutPath($self, $c, $path);
         if (defined $cachedBuildStep) {
             $c->stash->{cachedBuild} = $cachedBuildStep->build;
             $c->stash->{cachedBuildStep} = $cachedBuildStep;
         }
-    }
-
-    if ($build->finished) {
-        $c->stash->{prevBuilds} = [$c->model('DB::Builds')->search(
-            { project => $c->stash->{project}->name
-            , jobset => $c->stash->{jobset}->name
-            , job => $c->stash->{job}
-            , 'me.system' => $build->system
-            , finished => 1
-            , buildstatus => 0
-            , 'me.id' =>  { '<=' => $build->id }
-            }
-          , { join => "actualBuildStep"
-            , "+select" => ["actualBuildStep.stoptime - actualBuildStep.starttime"]
-            , "+as" => ["actualBuildTime"]
-            , order_by => "me.id DESC"
-            , rows => 50
-            }
-          )
-        ];
     }
 
     # Get the first eval of which this build was a part.
@@ -125,6 +119,19 @@ sub build_GET {
     $c->stash->{binaryCachePublicUri} = $c->config->{binary_cache_public_uri};
 }
 
+sub constituents :Chained('buildChain') :PathPart('constituents') :Args(0) :ActionClass('REST') { }
+
+sub constituents_GET {
+    my ($self, $c) = @_;
+
+    my $build = $c->stash->{build};
+
+    $self->status_ok(
+        $c,
+        entity => [$build->constituents_->search({}, {order_by => ["job"]})]
+    );
+}
+
 
 sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
     my ($self, $c, $stepnr, $mode) = @_;
@@ -134,22 +141,34 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
 
     $c->stash->{step} = $step;
 
-    showLog($c, $mode, $step->busy == 0, $step->drvpath);
+    my $drvPath = $step->drvpath;
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
+    showLog($c, $mode, $log_uri);
 }
 
 
 sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
-    showLog($c, $mode, $c->stash->{build}->finished,
-            $c->stash->{build}->drvpath);
+
+    my $drvPath = $c->stash->{build}->drvpath;
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
+    showLog($c, $mode, $log_uri);
+}
+
+
+sub view_runcommandlog : Chained('buildChain') PathPart('runcommandlog') {
+    my ($self, $c, $uuid, $mode) = @_;
+
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("runcommandlog"), $uuid);
+    showLog($c, $mode, $log_uri);
+    $c->stash->{template} = 'runcommand-log.tt';
+    $c->stash->{runcommandlog} = $c->stash->{build}->runcommandlogs->find({ uuid => $uuid });
 }
 
 
 sub showLog {
-    my ($c, $mode, $finished, $drvPath) = @_;
+    my ($c, $mode, $log_uri) = @_;
     $mode //= "pretty";
-
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [basename($drvPath)]);
 
     if ($mode eq "pretty") {
         $c->stash->{log_uri} = $log_uri;
@@ -193,7 +212,7 @@ sub checkPath {
 sub serveFile {
     my ($c, $path) = @_;
 
-    my $res = run(cmd => ["nix", "--experimental-features", "nix-command",
+    my $res = runCommand(cmd => ["nix", "--experimental-features", "nix-command",
                           "ls-store", "--store", getStoreUri(), "--json", "$path"]);
 
     if ($res->{status}) {
@@ -217,17 +236,24 @@ sub serveFile {
     }
 
     elsif ($ls->{type} eq "regular") {
+        # Have the hosted data considered its own origin to avoid being a giant
+        # XSS hole.
+        $c->response->header('Content-Security-Policy' => 'sandbox allow-scripts');
 
-        $c->stash->{'plain'} = { data => grab(cmd => ["nix", "--experimental-features", "nix-command",
-                                                      "cat-store", "--store", getStoreUri(), "$path"]) };
+        $c->stash->{'plain'} = { data => readIntoSocket(cmd => ["nix", "--experimental-features", "nix-command",
+                                                      "store", "cat", "--store", getStoreUri(), "$path"]) };
 
-        # Detect MIME type. Borrowed from Catalyst::Plugin::Static::Simple.
+        # Detect MIME type.
         my $type = "text/plain";
         if ($path =~ /.*\.(\S{1,})$/xms) {
             my $ext = $1;
             my $mimeTypes = MIME::Types->new(only_complete => 1);
             my $t = $mimeTypes->mimeTypeOf($ext);
             $type = ref $t ? $t->type : $t if $t;
+        } else {
+            state $magic = File::LibMagic->new(follow_symlinks => 1);
+            my $info = $magic->info_from_filename($path);
+            $type = $info->{mime_with_encoding};
         }
         $c->response->content_type($type);
         $c->forward('Hydra::View::Plain');
@@ -273,29 +299,7 @@ sub download : Chained('buildChain') PathPart {
     my $path = $product->path;
     $path .= "/" . join("/", @path) if scalar @path > 0;
 
-    if (isLocalStore) {
-
-        notFound($c, "File '" . $product->path . "' does not exist.") unless -e $product->path;
-
-        # Make sure the file is in the Nix store.
-        $path = checkPath($self, $c, $path);
-
-        # If this is a directory but no "/" is attached, then redirect.
-        if (-d $path && substr($c->request->uri, -1) ne "/") {
-            return $c->res->redirect($c->request->uri . "/");
-        }
-
-        $path = "$path/index.html" if -d $path && -e "$path/index.html";
-
-        notFound($c, "File '$path' does not exist.") if !-e $path;
-
-        notFound($c, "Path '$path' is a directory.") if -d $path;
-
-        $c->serve_static_file($path);
-
-    } else {
-        serveFile($c, $path);
-    }
+    serveFile($c, $path);
 
     $c->response->headers->last_modified($c->stash->{build}->stoptime);
 }
@@ -308,7 +312,7 @@ sub output : Chained('buildChain') PathPart Args(1) {
     error($c, "This build is not finished yet.") unless $build->finished;
     my $output = $build->buildoutputs->find({name => $outputName});
     notFound($c, "This build has no output named ‘$outputName’") unless defined $output;
-    gone($c, "Output is no longer available.") unless isValidPath $output->path;
+    gone($c, "Output is no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($output->path);
 
     $c->response->header('Content-Disposition', "attachment; filename=\"build-${\$build->id}-${\$outputName}.nar.bz2\"");
     $c->stash->{current_view} = 'NixNAR';
@@ -346,19 +350,21 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 
     notFound($c, "Product $path has disappeared.") unless -e $path;
 
-    # Sanitize $path to prevent shell injection attacks.
-    $path =~ /^\/[\/[A-Za-z0-9_\-\.=+:]+$/ or die "Filename contains illegal characters.\n";
-
-    # FIXME: don't use shell invocations below.
-
-    # FIXME: use nix cat-store
+    # FIXME: use nix store cat
 
     my $res;
 
     if ($product->type eq "nix-build" && -d $path) {
         # FIXME: use nix ls-store -R --json
-        $res = `cd '$path' && find . -print0 | xargs -0 ls -ld --`;
-        error($c, "`ls -lR' error: $?") if $? != 0;
+        # We need to use a pipe between find and xargs, so we'll use IPC::Run
+        my $error;
+        # Run find with absolute path and post-process to get relative paths
+        my $success = run(['find', $path, '-print0'], '|', ['xargs', '-0', 'ls', '-ld', '--'], \$res, \$error);
+        error($c, "`find $path -print0 | xargs -0 ls -ld --' error: $error") unless $success;
+
+        # Strip the base path to show relative paths
+        my $escaped_path = quotemeta($path);
+        $res =~ s/^(.*\s)$escaped_path(\/|$)/$1.$2/mg;
 
         #my $baseuri = $c->uri_for('/build', $c->stash->{build}->id, 'download', $product->productnr);
         #$baseuri .= "/".$product->name if $product->name;
@@ -366,34 +372,59 @@ sub contents : Chained('buildChain') PathPart Args(1) {
     }
 
     elsif ($path =~ /\.rpm$/) {
-        $res = `rpm --query --info --package '$path'`;
-        error($c, "RPM error: $?") if $? != 0;
+        my ($stdout1, $stderr1);
+        run3(['rpm', '--query', '--info', '--package', $path], \undef, \$stdout1, \$stderr1);
+        error($c, "RPM error: $stderr1") if $? != 0;
+        $res = $stdout1;
+
         $res .= "===\n";
-        $res .= `rpm --query --list --verbose --package '$path'`;
-        error($c, "RPM error: $?") if $? != 0;
+
+        my ($stdout2, $stderr2);
+        run3(['rpm', '--query', '--list', '--verbose', '--package', $path], \undef, \$stdout2, \$stderr2);
+        error($c, "RPM error: $stderr2") if $? != 0;
+        $res .= $stdout2;
     }
 
     elsif ($path =~ /\.deb$/) {
-        $res = `dpkg-deb --info '$path'`;
-        error($c, "`dpkg-deb' error: $?") if $? != 0;
+        my ($stdout1, $stderr1);
+        run3(['dpkg-deb', '--info', $path], \undef, \$stdout1, \$stderr1);
+        error($c, "`dpkg-deb' error: $stderr1") if $? != 0;
+        $res = $stdout1;
+
         $res .= "===\n";
-        $res .= `dpkg-deb --contents '$path'`;
-        error($c, "`dpkg-deb' error: $?") if $? != 0;
+
+        my ($stdout2, $stderr2);
+        run3(['dpkg-deb', '--contents', $path], \undef, \$stdout2, \$stderr2);
+        error($c, "`dpkg-deb' error: $stderr2") if $? != 0;
+        $res .= $stdout2;
     }
 
     elsif ($path =~ /\.(tar(\.gz|\.bz2|\.xz|\.lzma)?|tgz)$/ ) {
-        $res = `tar tvfa '$path'`;
-        error($c, "`tar' error: $?") if $? != 0;
+        my ($stdout, $stderr);
+        run3(['tar', 'tvfa', $path], \undef, \$stdout, \$stderr);
+        error($c, "`tar' error: $stderr") if $? != 0;
+        $res = $stdout;
     }
 
     elsif ($path =~ /\.(zip|jar)$/ ) {
-        $res = `unzip -v '$path'`;
-        error($c, "`unzip' error: $?") if $? != 0;
+        my ($stdout, $stderr);
+        run3(['unzip', '-v', $path], \undef, \$stdout, \$stderr);
+        error($c, "`unzip' error: $stderr") if $? != 0;
+        $res = $stdout;
     }
 
     elsif ($path =~ /\.iso$/ ) {
-        $res = `isoinfo -d -i '$path' && isoinfo -l -R -i '$path'`;
-        error($c, "`isoinfo' error: $?") if $? != 0;
+        # Run first isoinfo command
+        my ($stdout1, $stderr1);
+        run3(['isoinfo', '-d', '-i', $path], \undef, \$stdout1, \$stderr1);
+        error($c, "`isoinfo' error: $stderr1") if $? != 0;
+        $res = $stdout1;
+
+        # Run second isoinfo command
+        my ($stdout2, $stderr2);
+        run3(['isoinfo', '-l', '-R', '-i', $path], \undef, \$stdout2, \$stderr2);
+        error($c, "`isoinfo' error: $stderr2") if $? != 0;
+        $res .= $stdout2;
     }
 
     else {
@@ -425,7 +456,7 @@ sub getDependencyGraph {
             };
         $$done{$path} = $node;
         my @refs;
-        foreach my $ref (queryReferences($path)) {
+        foreach my $ref ($MACHINE_LOCAL_STORE->queryReferences($path)) {
             next if $ref eq $path;
             next unless $runtime || $ref =~ /\.drv$/;
             getDependencyGraph($self, $c, $runtime, $done, $ref);
@@ -433,7 +464,7 @@ sub getDependencyGraph {
         }
         # Show in reverse topological order to flatten the graph.
         # Should probably do a proper BFS.
-        my @sorted = reverse topoSortPaths(@refs);
+        my @sorted = reverse $MACHINE_LOCAL_STORE->topoSortPaths(@refs);
         $node->{refs} = [map { $$done{$_} } @sorted];
     }
 
@@ -446,7 +477,7 @@ sub build_deps : Chained('buildChain') PathPart('build-deps') {
     my $build = $c->stash->{build};
     my $drvPath = $build->drvpath;
 
-    error($c, "Derivation no longer available.") unless isValidPath $drvPath;
+    error($c, "Derivation no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($drvPath);
 
     $c->stash->{buildTimeGraph} = getDependencyGraph($self, $c, 0, {}, $drvPath);
 
@@ -461,7 +492,7 @@ sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
 
     requireLocalStore($c);
 
-    error($c, "Build outputs no longer available.") unless all { isValidPath($_) } @outPaths;
+    error($c, "Build outputs no longer available.") unless all { $MACHINE_LOCAL_STORE->isValidPath($_) } @outPaths;
 
     my $done = {};
     $c->stash->{runtimeGraph} = [ map { getDependencyGraph($self, $c, 1, $done, $_) } @outPaths ];
@@ -481,7 +512,7 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
     if (isLocalStore) {
         foreach my $out ($build->buildoutputs) {
             notFound($c, "Path " . $out->path . " is no longer available.")
-                unless isValidPath($out->path);
+                unless $MACHINE_LOCAL_STORE->isValidPath($out->path);
         }
     }
 
@@ -496,7 +527,7 @@ sub restart : Chained('buildChain') PathPart Args(0) {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
     requireRestartPrivileges($c, $build->project);
-    my $n = restartBuilds($c->model('DB')->schema, $c->model('DB::Builds')->search({ id => $build->id }));
+    my $n = restartBuilds($c->model('DB')->schema, $c->model('DB::Builds')->search_rs({ id => $build->id }));
     error($c, "This build cannot be restarted.") if $n != 1;
     $c->flash->{successMsg} = "Build has been restarted.";
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
@@ -507,7 +538,7 @@ sub cancel : Chained('buildChain') PathPart Args(0) {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
     requireCancelBuildPrivileges($c, $build->project);
-    my $n = cancelBuilds($c->model('DB')->schema, $c->model('DB::Builds')->search({ id => $build->id }));
+    my $n = cancelBuilds($c->model('DB')->schema, $c->model('DB::Builds')->search_rs({ id => $build->id }));
     error($c, "This build cannot be cancelled.") if $n != 1;
     $c->flash->{successMsg} = "Build has been cancelled.";
     $c->res->redirect($c->uri_for($self->action_for("build"), $c->req->captures));
@@ -579,7 +610,7 @@ sub evals : Chained('buildChain') PathPart('evals') Args(0) {
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
-    $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
+    $c->stash->{evals} = getEvals($c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
 }
 
 

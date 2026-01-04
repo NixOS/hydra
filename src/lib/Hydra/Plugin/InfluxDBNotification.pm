@@ -1,11 +1,11 @@
 package Hydra::Plugin::InfluxDBNotification;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use HTTP::Request;
-# use JSON;
 use LWP::UserAgent;
-# use Hydra::Helper::CatalystUtils;
+use Sys::Hostname::Long;
 
 sub isEnabled {
     my ($self) = @_;
@@ -67,6 +67,11 @@ sub toBuildStatusClass {
     }
 }
 
+# Get the hostname. If we can't, we swallow the exception from hostname.
+my $hostname = eval {
+    hostname_long;
+};
+
 # Syntax
 # build_status,job=my-job status=failed,result=dependency-failed duration=123i
 #   |    -------------------- --------------  |
@@ -81,6 +86,8 @@ sub createLine {
     foreach my $tag (sort keys %$tagSet) {
         push @tags, "$tag=$tagSet->{$tag}";
     }
+    # we add host tag to all outputs
+    push @tags, "host=$hostname" if defined $hostname;
     my @fields = ();
     foreach my $field (sort keys %$fieldSet) {
         push @fields, "$field=$fieldSet->{$field}";
@@ -104,9 +111,9 @@ sub buildFinished {
         my $tagSet = {
             status  => toBuildStatusClass($b->buildstatus),
             result  => toBuildStatusDetailed($b->buildstatus),
-            project => $b->get_column('project'),
-            jobset  => $b->get_column('jobset'),
-            repo    => ($b->get_column('jobset') =~ /^(.*)\.pr-/) ? $1 : $b->get_column('jobset'),
+            project => $b->jobset->get_column('project'),
+            jobset  => $b->jobset->get_column('name'),
+            repo    => ($b->jobset->get_column('name') =~ /^(.*)\.pr-/) ? $1 : $b->jobset->get_column('name'),
             job     => $b->get_column('job'),
             system  => $b->system,
             cached  => $b->iscachedbuild ? "true" : "false",

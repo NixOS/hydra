@@ -12,12 +12,14 @@ sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
     my ($self, $c, $projectName) = @_;
     $c->stash->{params}->{name} //= $projectName;
 
+    my $isCreate = $c->action->name eq "project" && $c->request->method eq "PUT";
+
     $c->stash->{project} = $c->model('DB::Projects')->find($projectName);
 
-    $c->stash->{isProjectOwner} = isProjectOwner($c, $c->stash->{project});
+    $c->stash->{isProjectOwner} = !$isCreate && isProjectOwner($c, $c->stash->{project});
 
     notFound($c, "Project ‘$projectName’ doesn't exist.")
-        if !$c->stash->{project} && !($c->action->name eq "project" and $c->request->method eq "PUT");
+        if !$c->stash->{project} && !$isCreate;
 }
 
 
@@ -76,8 +78,8 @@ sub project_DELETE {
     requireProjectOwner($c, $c->stash->{project});
 
     $c->model('DB')->schema->txn_do(sub {
-        $c->stash->{project}->jobsetevals->delete;
         $c->stash->{project}->builds->delete;
+        $c->stash->{project}->jobsets->delete;
         $c->stash->{project}->delete;
     });
 
@@ -124,6 +126,7 @@ sub create_jobset : Chained('projectChain') PathPart('create-jobset') Args(0) {
     $c->stash->{template} = 'edit-jobset.tt';
     $c->stash->{create} = 1;
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
+    $c->stash->{emailNotification} = $c->config->{email_notification} // 0;
 }
 
 
@@ -133,7 +136,7 @@ sub updateProject {
     my $owner = $project->owner;
     if ($c->check_user_roles('admin') and defined $c->stash->{params}->{owner}) {
         $owner = trim $c->stash->{params}->{owner};
-        error($c, "The user name ‘$owner’ does not exist.")
+        badRequest($c, "The user name ‘$owner’ does not exist.")
             unless defined $c->model('DB::Users')->find($owner);
     }
 
@@ -146,6 +149,11 @@ sub updateProject {
     my $displayName = trim $c->stash->{params}->{displayname};
     error($c, "You must specify a display name.") if $displayName eq "";
 
+    my $enable_dynamic_run_command = defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
+    if ($enable_dynamic_run_command && !$c->config->{dynamicruncommand}->{enable}) {
+        badRequest($c, "Dynamic RunCommand is not enabled by the server.");
+    }
+
     $project->update(
         { name => $projectName
         , displayname => $displayName
@@ -154,17 +162,26 @@ sub updateProject {
         , enabled => defined $c->stash->{params}->{enabled} ? 1 : 0
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , owner => $owner
-        , declfile => trim($c->stash->{params}->{declfile})
-        , decltype => trim($c->stash->{params}->{decltype})
-        , declvalue => trim($c->stash->{params}->{declvalue})
+        , enable_dynamic_run_command => $enable_dynamic_run_command
+        , declfile => trim($c->stash->{params}->{declarative}->{file})
+        , decltype => trim($c->stash->{params}->{declarative}->{type})
+        , declvalue => trim($c->stash->{params}->{declarative}->{value})
         });
     if (length($project->declfile)) {
+        # This logic also exists in the DeclarativeJobets tests.
+        # TODO: refactor and deduplicate.
         $project->jobsets->update_or_create(
             { name=> ".jobsets"
             , nixexprinput => ""
             , nixexprpath => ""
             , emailoverride => ""
             , triggertime => time
+            });
+    } else {
+        $project->jobsets->search({ name => ".jobsets" })->delete;
+        $project->update(
+            { decltype => ""
+            , declvalue => ""
             });
     }
 }

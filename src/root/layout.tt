@@ -10,31 +10,7 @@
 
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-
-    <script type="text/javascript" src="[% c.uri_for("/static/js/jquery/jquery-1.12.3.min.js") %]"></script>
-    <script type="text/javascript" src="[% c.uri_for("/static/js/jquery/jquery-ui-1.10.4.min.js") %]"></script>
-    <script type="text/javascript" src="[% c.uri_for("/static/js/moment/moment-2.24.0.min.js") %]"></script>
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <script type="text/javascript" src="[% c.uri_for("/static/bootstrap/js/bootstrap.min.js") %]"></script>
-    <link href="[% c.uri_for("/static/bootstrap/css/bootstrap.min.css") %]" rel="stylesheet" />
-
-    <!-- hydra.css must be included before bootstrap-responsive to
-         make the @media rule work. -->
-    <link rel="stylesheet" href="[% c.uri_for("/static/css/hydra.css") %]" type="text/css" />
-    <link rel="stylesheet" href="[% c.uri_for("/static/css/rotated-th.css") %]" type="text/css" />
-    <link href="[% c.uri_for("/static/bootstrap/css/bootstrap-responsive.min.css") %]" rel="stylesheet" />
-
-    <style>
-      .popover { max-width: 40%; }
-    </style>
-
-    <script type="text/javascript" src="[% c.uri_for("/static/js/bootbox.min.js") %]"></script>
-
-    <link rel="stylesheet" href="[% c.uri_for("/static/css/tree.css") %]" type="text/css" />
-
-    <script type="text/javascript" src="[% c.uri_for("/static/js/common.js") %]"></script>
+    [% INCLUDE style.tt %]
 
     [% IF c.config.enable_google_login %]
       <meta name="google-signin-client_id" content="[% c.config.google_client_id %]">
@@ -46,27 +22,23 @@
 
   <body>
 
-    <div class="navbar navbar-fixed-top">
-      <div class="navbar-inner">
-        <div class="container">
-          <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-          </button>
-          <a class="brand" href="[% c.uri_for(c.controller('Root').action_for('index')) %]">
-            [% IF logo == "" %]
-              Hydra
-            [% ELSE %]
-              <img src="[% c.uri_for(logo) %]" alt="Hydra Logo" class="logo" />
-            [% END %]
-          </a>
-          <div class="nav-collapse collapse">
-            [% PROCESS topbar.tt %]
-          </div>
+    <nav class="navbar navbar-expand-md navbar-light bg-light">
+      <div class="container">
+        <a class="navbar-brand" [% HTML.attributes(href => c.uri_for(c.controller('Root').action_for('index'))) %]>
+          [% IF logo == "" %]
+            Hydra
+          [% ELSE %]
+            <img src="[% c.uri_for(logo) %]" alt="Hydra Logo" class="logo" />
+          [% END %]
+        </a>
+        <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbarSupportedContent">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+          [% PROCESS topbar.tt %]
         </div>
       </div>
-    </div>
+    </nav>
 
     <div class="container">
       <div class="skip-topbar"></div>
@@ -85,7 +57,8 @@
 
       [% IF !hideHeader %]
         <div class="page-header">
-          [% IF c.user_exists && starUri; INCLUDE makeStar; " "; END; HTML.escape(title) %]
+          [% IF c.user_exists && starUri; INCLUDE makeStar; " "; END %]
+          [% IF titleHTML != ""; titleHTML; ELSE; HTML.escape(title); END %]
         </div>
       [% ELSE %]
         [% IF first %]<br />[% first = 0; END; %]
@@ -96,7 +69,7 @@
       <footer class="navbar">
         <hr />
         <small>
-          <em><a href="http://nixos.org/hydra" target="_blank">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %]).</em>
+          <em><a href="http://nixos.org/hydra" target="_blank" class="squiggle">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %] and [% HTML.escape(nixEvalJobsVersion) %]).</em>
           [% IF c.user_exists %]
           You are signed in as <tt>[% HTML.escape(c.user.username) %]</tt>
             [%- IF c.user.type == 'google' %] via Google[% END %].

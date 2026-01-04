@@ -1,5 +1,6 @@
 [% WRAPPER layout.tt
-    title="Job $project.name:$jobset.name:$job"
+    title=makeNameTextForJob(jobset, job)
+    titleHTML=makeNameLinksForJob(jobset, job)
     starUri=c.uri_for(c.controller('Job').action_for('star'), c.req.captures)
 %]
 [% PROCESS common.tt %]
@@ -8,19 +9,19 @@
 [% INCLUDE includeFlot %]
 
 [% IF !jobExists(jobset, job) %]
-<div class="alert alert-warning">This job is not a member of the <a
-href="[%c.uri_for('/jobset' project.name jobset.name
-'evals')%]">latest evaluation</a> of its jobset. This means it was
+<div class="alert alert-warning">This job is not a member of the
+<a [% HTML.attributes(href => c.uri_for('/jobset' project.name jobset.name
+'evals')) %]>latest evaluation</a> of its jobset. This means it was
 removed or had an evaluation error.</div>
 [% END %]
 
 <ul class="nav nav-tabs">
-  <li class="active"><a href="#tabs-status" data-toggle="tab">Status</a></li>
+  <li class="nav-item"><a class="nav-link active" href="#tabs-status" data-toggle="tab">Status</a></li>
   [% IF constituentJobs.size > 0 %]
-    <li><a href="#tabs-constituents" data-toggle="tab">Constituents</a></li>
+    <li class="nav-item"><a class="nav-link" href="#tabs-constituents" data-toggle="tab">Constituents</a></li>
   [% END %]
-  <li><a href="#tabs-charts" data-toggle="tab">Charts</a></li>
-  <li><a href="#tabs-links" data-toggle="tab">Links</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-charts" data-toggle="tab">Charts</a></li>
+  <li class="nav-item"><a class="nav-link" href="#tabs-links" data-toggle="tab">Links</a></li>
 </ul>
 
 <div id="generic-tabs" class="tab-content">
@@ -45,7 +46,7 @@ removed or had an evaluation error.</div>
       its success or failure is determined entirely by the result of
       building its <em>constituent jobs</em>. The table below shows
       the status of each constituent job for the [%
-      aggregates.keys.size %] most recent builds of the
+      HTML.escape(aggregates.keys.size) %] most recent builds of the
       aggregate.</div>
 
       [% aggs = aggregates.keys.nsort.reverse %]
@@ -57,7 +58,7 @@ removed or had an evaluation error.</div>
               <th class="rotate-45">
                 [% agg_ = aggregates.$agg %]
                 <div><span class="[% agg_.build.finished == 0 ? "text-info" : (agg_.build.buildstatus == 0 ? "text-success" : "text-warning") %] override-link">
-                  <a href="[% c.uri_for('/build' agg) %]">[% agg %]</a>
+                  <a [% HTML.attributes(href => c.uri_for('/build' agg)) %]>[% agg %]</a>
                 </span></div></th>
             [% END %]
           </tr>
@@ -69,7 +70,7 @@ removed or had an evaluation error.</div>
               [% FOREACH agg IN aggs %]
                 <td>
                   [% r = aggregates.$agg.constituents.$j; IF r.id %]
-                    <a href="[% c.uri_for('/build' r.id) %]">
+                    <a [% HTML.attributes(href => c.uri_for('/build' r.id)) %]>
                       [% INCLUDE renderBuildStatusIcon size=16 build=r %]
                     </a>
                   [% END %]
@@ -84,12 +85,12 @@ removed or had an evaluation error.</div>
 
   [% END %]
 
-  [% INCLUDE makeLazyTab tabName="tabs-charts" uri=c.uri_for('/job' project.name jobset.name job 'metrics-tab') %]
+  [% INCLUDE makeLazyTab tabName="tabs-charts" uri=c.uri_for('/job' project.name jobset.name job 'metric-tab') %]
 
   <div id="tabs-links" class="tab-pane">
     <ul>
-      <li><a href="[% c.uri_for('/job' project.name jobset.name job 'latest') %]">Latest successful build</a></li>
-      <li><a href="[% c.uri_for('/job' project.name jobset.name job 'latest-finished') %]">Latest successful build from a finished evaluation</a></li>
+      <li><a [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job 'latest')) %]>Latest successful build</a></li>
+      <li><a [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job 'latest-finished')) %]>Latest successful build from a finished evaluation</a></li>
     </ul>
   </div>
 

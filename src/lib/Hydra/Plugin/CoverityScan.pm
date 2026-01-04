@@ -1,6 +1,7 @@
 package Hydra::Plugin::CoverityScan;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use File::Basename;
 use LWP::UserAgent;
@@ -12,19 +13,19 @@ sub isEnabled {
 }
 
 sub buildFinished {
-    my ($self, $b, $dependents) = @_;
+    my ($self, $build, $dependents) = @_;
 
     my $cfg = $self->{config}->{coverityscan};
     my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
 
     # Scan the job and see if it matches any of the Coverity Scan projects
     my $proj;
-    my $jobName = showJobName $b;
+    my $jobName = showJobName $build;
     foreach my $p (@config) {
         next unless $jobName =~ /^$p->{jobs}$/;
 
         # If build is cancelled or aborted, do not upload build
-        next if $b->buildstatus == 4 || $b->buildstatus == 3;
+        next if $build->buildstatus == 4 || $build->buildstatus == 3;
 
         # Otherwise, select this Coverity project
         $proj = $p; last;
@@ -47,16 +48,16 @@ sub buildFinished {
         unless defined $token;
 
     # Get tarball locations
-    my $storePath = ($b->buildoutputs)[0]->path;
+    my $storePath = ($build->buildoutputs)[0]->path;
     my $tarballs  = "$storePath/tarballs";
     my $covTarball;
 
-    opendir TARBALLS, $tarballs or die;
-    while (readdir TARBALLS) {
-        next unless $_ =~ /.*-coverity-int\.(tgz|lzma|xz|bz2|zip)$/;
-        $covTarball = "$tarballs/$_"; last;
+    opendir my $tarballs_handle, $tarballs or die;
+    while (my $file = readdir $tarballs_handle) {
+        next unless $file =~ /.*-coverity-int\.(tgz|lzma|xz|bz2|zip)$/;
+        $covTarball = "$tarballs/$file"; last;
     }
-    closedir TARBALLS;
+    closedir $tarballs_handle;
 
     unless (defined $covTarball) {
         print STDERR "CoverityScan.pm: Coverity tarball not found in $tarballs; skipping upload...\n";
@@ -81,13 +82,14 @@ sub buildFinished {
     my $versionRE = "(?:[A-Za-z0-9\.\-]+)";
 
     my $shortName = basename($covTarball);
-    my $version = $2 if $shortName =~ /^($pkgNameRE)-($versionRE)-coverity-int.*$/;
+    my $version;
+    $version = $2 if $shortName =~ /^($pkgNameRE)-($versionRE)-coverity-int.*$/;
 
     die "CoverityScan.pm: Couldn't parse build version for upload! ($shortName)"
         unless defined $version;
 
     # Submit build
-    my $jobid = $b->id;
+    my $jobid = $build->id;
     my $desc = "Hydra Coverity Build ($jobName) - $jobid:$version";
 
     print STDERR "uploading $desc ($shortName) to Coverity Scan\n";

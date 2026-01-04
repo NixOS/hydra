@@ -1,0 +1,24 @@
+{
+    "enabled": 1,
+    "hidden": false,
+    "description": "declarative-jobset-example",
+    "nixexprinput": "src",
+    "nixexprpath": "declarative/generator.nix",
+    "checkinterval": 300,
+    "schedulingshares": 100,
+    "enableemail": false,
+    "emailoverride": "",
+    "keepnr": 3,
+    "inputs": {
+        "src": {
+            "type": "path",
+            "value": "@jobsPath@",
+            "emailresponsible": false
+        },
+        "jobspath": {
+            "type": "string",
+            "value": "@jobsPath@",
+            "emailresponsible": false
+        }
+    }
+}

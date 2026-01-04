@@ -1,11 +1,13 @@
 package Hydra::Plugin::BitBucketPulls;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use HTTP::Request;
 use LWP::UserAgent;
-use JSON;
+use JSON::MaybeXS;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Nix;
 use File::Temp;
 use POSIX qw(strftime);
 
@@ -42,14 +44,11 @@ sub fetchInput {
     my $ua = LWP::UserAgent->new();
     _iterate("https://api.bitbucket.com/2.0/repositories/$owner/$repo/pullrequests?state=OPEN", $auth, \%pulls, $ua);
     my $tempdir = File::Temp->newdir("bitbucket-pulls" . "XXXXX", TMPDIR => 1);
-    my $filename = "$tempdir/bitbucket-pulls.json";
+    my $filename = "$tempdir/bitbucket-pulls-sorted.json";
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
-    print $fh encode_json \%pulls;
+    print $fh JSON::MaybeXS->new(canonical => 1, pretty => 1)->encode(\%pulls);
     close $fh;
-    system("jq -S . < $filename > $tempdir/bitbucket-pulls-sorted.json");
-    my $storePath = trim(`nix-store --add "$tempdir/bitbucket-pulls-sorted.json"`
-        or die "cannot copy path $filename to the Nix store.\n");
-    chomp $storePath;
+    my $storePath = addToStore($filename);
     my $timestamp = time;
     return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };
 }

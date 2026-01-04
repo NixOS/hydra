@@ -2,13 +2,14 @@
 
 #include <map>
 
-#include "util.hh"
+#include <nix/util/file-system.hh>
+#include <nix/util/util.hh>
 
-struct Config
+struct HydraConfig
 {
     std::map<std::string, std::string> options;
 
-    Config()
+    HydraConfig()
     {
         using namespace nix;
 
@@ -17,7 +18,7 @@ struct Config
         if (hydraConfigFile && pathExists(*hydraConfigFile)) {
 
             for (auto line : tokenizeString<Strings>(readFile(*hydraConfigFile), "\n")) {
-                line = trim(string(line, 0, line.find('#')));
+                line = trim(std::string(line, 0, line.find('#')));
 
                 auto eq = line.find('=');
                 if (eq == std::string::npos) continue;

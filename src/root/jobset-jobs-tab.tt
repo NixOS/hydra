@@ -1,12 +1,15 @@
 [% PROCESS common.tt; USE Math %]
 
-<form class="form-search" id="filter-jobs">
-  <div class="input-append">
-    <input name="filter" type="text" class="input-large search-query" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]/>
-    <button type="button" class="btn btn-info [% IF showInactive %]active[% END %]" id="active-toggle">Show inactive jobs</button>
+<form id="filter-jobs">
+  <div class="form-group input-group">
+    <input name="filter" type="search" class="form-control" placeholder="Search jobs by name..." [% HTML.attributes(value => filter) %]/>
+    <div class="input-group-append">
+      <button type="button" class="btn btn-info [% IF showInactive %]active[% END %]" id="active-toggle">
+        <span class="spinner-border spinner-border-sm" id="filter-loading" style="display:none"/>
+        Show inactive jobs
+      </button>
+    </div>
   </div>
-  &nbsp;
-  <img src="[% c.uri_for("/static/images/ajax-loader.gif") %]" alt="Loading..." style="display: none;" id="filter-loading" />
 </form>
 
 <script>
@@ -33,12 +36,12 @@
 
 [% IF jobs.size == 0 %]
 
-  <div class="alert">There are no matching jobs.</div>
+  <div class="alert alert-warning">There are no matching jobs.</div>
 
 [% ELSE %]
 
   [% IF nrJobs > jobs.size %]
-    <div class="alert">Showing the first [% jobs.size %] jobs.  <a href="javascript:setFilter('filter=%')">Show all [% nrJobs %] jobs...</a></div>
+    <div class="alert alert-info">Showing the first [% HTML.escape(jobs.size) %] jobs.  <a href="javascript:setFilter('filter=%')">Show all [% HTML.escape(nrJobs) %] jobs...</a></div>
   [% END %]
 
   [% evalIds = evals.keys.nsort.reverse %]
@@ -49,7 +52,7 @@
         [% FOREACH eval IN evalIds %]
           <th class="rotate-45">
             <div><span>
-              <a href="[% c.uri_for('/eval' eval) %]">[% INCLUDE renderRelativeDate timestamp=evals.$eval.timestamp %]</a>
+              <a [% HTML.attributes(href => c.uri_for('/eval' eval)) %]>[% INCLUDE renderRelativeDate timestamp=evals.$eval.timestamp %]</a>
             </span></div></th>
         [% END %]
       </tr>
@@ -59,7 +62,7 @@
         <tr>
           <th><span [% IF inactiveJobs.$j %]class="muted override-link"[% END %]>[% INCLUDE renderJobName project=project.name jobset=jobset.name job=j %]</span></th>
           [% FOREACH eval IN evalIds %]
-            <td>[% r = evals.$eval.builds.$j; IF r.id %]<a href="[% c.uri_for('/build' r.id) %]">[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
+            <td>[% r = evals.$eval.builds.$j; IF r.id %]<a [% HTML.attributes(href => c.uri_for('/build' r.id)) %]>[% INCLUDE renderBuildStatusIcon size=16 build=r %]</a>[% END %]</td>
           [% END %]
         </tr>
       [% END %]

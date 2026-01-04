@@ -6,7 +6,8 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
-use List::MoreUtils qw(uniq);
+use Hydra::Helper::BuildDiff;
+use List::SomeUtils qw(uniq);
 
 
 sub evalChain : Chained('/') PathPart('eval') CaptureArgs(1) {
@@ -16,8 +17,8 @@ sub evalChain : Chained('/') PathPart('eval') CaptureArgs(1) {
         or notFound($c, "Evaluation $evalId doesn't exist.");
 
     $c->stash->{eval} = $eval;
-    $c->stash->{project} = $eval->project;
     $c->stash->{jobset} = $eval->jobset;
+    $c->stash->{project} = $eval->jobset->project;
 }
 
 
@@ -63,63 +64,21 @@ sub view_GET {
 
     $c->stash->{otherEval} = $eval2 if defined $eval2;
 
-    sub cmpBuilds {
-        my ($a, $b) = @_;
-        return $a->get_column('job') cmp $b->get_column('job')
-            || $a->get_column('system') cmp $b->get_column('system')
-    }
-
     my @builds = $eval->builds->search($filter, { columns => [@buildListColumns] });
     my @builds2 = defined $eval2 ? $eval2->builds->search($filter, { columns => [@buildListColumns] }) : ();
 
-    @builds  = sort { cmpBuilds($a, $b) } @builds;
-    @builds2 = sort { cmpBuilds($a, $b) } @builds2;
-
-    $c->stash->{stillSucceed} = [];
-    $c->stash->{stillFail} = [];
-    $c->stash->{nowSucceed} = [];
-    $c->stash->{nowFail} = [];
-    $c->stash->{new} = [];
-    $c->stash->{removed} = [];
-    $c->stash->{unfinished} = [];
-    $c->stash->{aborted} = [];
-
-    my $n = 0;
-    foreach my $build (@builds) {
-        my $aborted = $build->finished != 0 && ($build->buildstatus == 3 || $build->buildstatus == 4);
-        my $d;
-        my $found = 0;
-        while ($n < scalar(@builds2)) {
-            my $build2 = $builds2[$n];
-            my $d = cmpBuilds($build, $build2);
-            last if $d == -1;
-            if ($d == 0) {
-                $n++;
-                $found = 1;
-                if ($aborted) {
-                    # do nothing
-                } elsif ($build->finished == 0 || $build2->finished == 0) {
-                    push @{$c->stash->{unfinished}}, $build;
-                } elsif ($build->buildstatus == 0 && $build2->buildstatus == 0) {
-                    push @{$c->stash->{stillSucceed}}, $build;
-                } elsif ($build->buildstatus != 0 && $build2->buildstatus != 0) {
-                    push @{$c->stash->{stillFail}}, $build;
-                } elsif ($build->buildstatus == 0 && $build2->buildstatus != 0) {
-                    push @{$c->stash->{nowSucceed}}, $build;
-                } elsif ($build->buildstatus != 0 && $build2->buildstatus == 0) {
-                    push @{$c->stash->{nowFail}}, $build;
-                } else { die; }
-                last;
-            }
-            push @{$c->stash->{removed}}, { job => $build2->get_column('job'), system => $build2->get_column('system') };
-            $n++;
-        }
-        if ($aborted) {
-            push @{$c->stash->{aborted}}, $build;
-        } else {
-            push @{$c->stash->{new}}, $build if !$found;
-        }
-    }
+    my $diff = buildDiff([@builds], [@builds2]);
+    $c->stash->{stillSucceed} = $diff->{stillSucceed};
+    $c->stash->{stillFail} = $diff->{stillFail};
+    $c->stash->{nowSucceed} = $diff->{nowSucceed};
+    $c->stash->{nowFail} = $diff->{nowFail};
+    $c->stash->{new} = $diff->{new};
+    $c->stash->{removed} = $diff->{removed};
+    $c->stash->{unfinished} = $diff->{unfinished};
+    $c->stash->{aborted} = $diff->{aborted};
+    $c->stash->{totalAborted} = $diff->{totalAborted};
+    $c->stash->{totalFailed} = $diff->{totalFailed};
+    $c->stash->{totalQueued} = $diff->{totalQueued};
 
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
 
@@ -129,6 +88,17 @@ sub view_GET {
     );
 }
 
+sub errors :Chained('evalChain') :PathPart('errors') :Args(0) :ActionClass('REST') { }
+
+sub errors_GET {
+    my ($self, $c) = @_;
+
+    $c->stash->{template} = 'eval-error.tt';
+
+    $c->stash->{eval} = $c->model('DB::JobsetEvals')->find($c->stash->{eval}->id, { prefetch => 'evaluationerror' });
+
+    $self->status_ok($c, entity => $c->stash->{eval});
+}
 
 sub create_jobset : Chained('evalChain') PathPart('create-jobset') Args(0) {
     my ($self, $c) = @_;
@@ -143,8 +113,8 @@ sub create_jobset : Chained('evalChain') PathPart('create-jobset') Args(0) {
 
 sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
     my ($self, $c) = @_;
-    requireCancelBuildPrivileges($c, $c->stash->{eval}->project);
-    my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->builds);
+    requireCancelBuildPrivileges($c, $c->stash->{project});
+    my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->builds->search_rs({}));
     $c->flash->{successMsg} = "$n builds have been cancelled.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
 }
@@ -152,8 +122,8 @@ sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
 
 sub restart {
     my ($self, $c, $condition) = @_;
-    requireRestartPrivileges($c, $c->stash->{eval}->project);
-    my $builds = $c->stash->{eval}->builds->search({ finished => 1, buildstatus => $condition });
+    requireRestartPrivileges($c, $c->stash->{project});
+    my $builds = $c->stash->{eval}->builds->search_rs({ finished => 1, buildstatus => $condition });
     my $n = restartBuilds($c->model('DB')->schema, $builds);
     $c->flash->{successMsg} = "$n builds have been restarted.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
@@ -174,7 +144,7 @@ sub restart_failed : Chained('evalChain') PathPart('restart-failed') Args(0) {
 
 sub bump : Chained('evalChain') PathPart('bump') Args(0) {
     my ($self, $c) = @_;
-    requireBumpPrivileges($c, $c->stash->{eval}->project); # FIXME: require admin?
+    requireBumpPrivileges($c, $c->stash->{project}); # FIXME: require admin?
     my $builds = $c->stash->{eval}->builds->search({ finished => 0 });
     my $n = $builds->count();
     $c->model('DB')->schema->txn_do(sub {

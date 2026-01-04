@@ -1,3 +1,18 @@
+-- Making a database change:
+--
+-- 1. Update this schema document to match what the end result should be.
+--
+-- 2. If you're making a new database table, edit `update-dbix.pl` and
+--    add a map of the lowercase name of your table to the CamelCase
+--    version of your table.
+--
+-- 3. Run `make -C src/sql update-dbix` in the root
+--    of the project directory, and git add / git commit the changed,
+--    generated files.
+--
+-- 4. Create a migration in this same directory, named `upgrade-N.sql`
+--
+
 -- Singleton table to keep track of the schema version.
 create table SchemaVersion (
     version       integer not null
@@ -10,7 +25,7 @@ create table Users (
     emailAddress  text not null,
     password      text not null, -- sha256 hash
     emailOnError  integer not null default 0,
-    type          text not null default 'hydra', -- either "hydra" or "google"
+    type          text not null default 'hydra', -- either "hydra", "google" or "github"
     publicDashboard boolean not null default false
 );
 
@@ -34,6 +49,7 @@ create table Projects (
     declfile      text, -- File containing declarative jobset specification
     decltype      text, -- Type of the input containing declarative jobset specification
     declvalue     text, -- Value of the input containing declarative jobset specification
+    enable_dynamic_run_command boolean not null default false,
     foreign key   (owner) references Users(userName) on update cascade
 );
 
@@ -73,9 +89,15 @@ create table Jobsets (
     startTime     integer, -- if jobset is currently running
     type          integer not null default 0, -- 0 == legacy, 1 == flake
     flake         text,
-    check (schedulingShares > 0),
-    check ((type = 0) = (nixExprInput is not null and nixExprPath is not null)),
-    check ((type = 1) = (flake is not null)),
+    enable_dynamic_run_command boolean not null default false,
+    constraint jobsets_schedulingshares_nonzero_check check (schedulingShares > 0),
+    constraint jobsets_type_known_check   check (type = 0 or type = 1),
+    -- If the type is 0, then nixExprInput and nixExprPath should be non-null and other type-specific fields should be null
+    -- Otherwise the check passes
+    constraint jobsets_legacy_paths_check check ((type = 0) = (nixExprInput is not null and nixExprPath is not null and flake is     null)),
+    -- If the type is 1, then flake should be non-null and other type-specific fields should be null
+    -- Otherwise the check passes
+    constraint jobsets_flake_paths_check  check ((type = 1) = (nixExprInput is     null and nixExprPath is     null and flake is not null)),
     primary key   (project, name),
     foreign key   (project) references Projects(name) on delete cascade on update cascade,
     constraint    Jobsets_id_unique UNIQUE(id)
@@ -142,8 +164,6 @@ create table Builds (
     timestamp     integer not null, -- time this build was added
 
     -- Info about the inputs.
-    project       text not null,
-    jobset        text not null,
     jobset_id     integer not null,
     job           text not null,
 
@@ -161,13 +181,6 @@ create table Builds (
 
     isChannel     integer not null default 0, -- meta.isHydraChannel
     isCurrent     integer default 0,
-
-    -- Copy of the nixExprInput/nixExprPath fields of the jobset that
-    -- instantiated this build.  Needed if we want to reproduce this
-    -- build.  FIXME: this should be stored in JobsetEvals, storing it
-    -- here is denormal.
-    nixExprInput  text,
-    nixExprPath   text,
 
     -- Priority within a jobset, set via meta.schedulingPriority.
     priority      integer not null default 0,
@@ -211,9 +224,7 @@ create table Builds (
     check (finished = 0 or (stoptime is not null and stoptime != 0)),
     check (finished = 0 or (starttime is not null and starttime != 0)),
 
-    foreign key (jobset_id) references Jobsets(id) on delete cascade,
-    foreign key (project) references Projects(name) on update cascade,
-    foreign key (project, jobset) references Jobsets(project, name) on update cascade
+    foreign key (jobset_id) references Jobsets(id) on delete cascade
 );
 
 
@@ -236,7 +247,7 @@ create trigger BuildBumped after update on Builds for each row
 create table BuildOutputs (
     build         integer not null,
     name          text not null,
-    path          text not null,
+    path          text,
     primary key   (build, name),
     foreign key   (build) references Builds(id) on delete cascade
 );
@@ -292,7 +303,7 @@ create table BuildStepOutputs (
     build         integer not null,
     stepnr        integer not null,
     name          text not null,
-    path          text not null,
+    path          text,
     primary key   (build, stepnr, name),
     foreign key   (build) references Builds(id) on delete cascade,
     foreign key   (build, stepnr) references BuildSteps(build, stepnr) on delete cascade
@@ -330,7 +341,6 @@ create table BuildProducts (
     type          text not null, -- "nix-build", "file", "doc", "report", ...
     subtype       text not null, -- "source-dist", "rpm", ...
     fileSize      bigint,
-    sha1hash      text,
     sha256hash    text,
     path          text,
     name          text not null, -- generally just the filename part of `path'
@@ -394,9 +404,10 @@ create table CachedGitInputs (
     uri           text not null,
     branch        text not null,
     revision      text not null,
+    isDeepClone   boolean not null,
     sha256hash    text not null,
     storePath     text not null,
-    primary key   (uri, branch, revision)
+    primary key   (uri, branch, revision, isDeepClone)
 );
 
 create table CachedDarcsInputs (
@@ -427,19 +438,17 @@ create table CachedCVSInputs (
     primary key   (uri, module, sha256hash)
 );
 
-
--- FIXME: remove
-create table SystemTypes (
-    system        text primary key not null,
-    maxConcurrent integer not null default 2
+create table EvaluationErrors (
+    id            serial primary key not null,
+    errorMsg      text,    -- error output from the evaluator
+    errorTime     integer  -- timestamp associated with errorMsg
 );
-
 
 create table JobsetEvals (
     id            serial primary key not null,
+    jobset_id     integer not null,
 
-    project       text not null,
-    jobset        text not null,
+    evaluationerror_id integer,
 
     timestamp     integer not null, -- when this entry was added
     checkoutTime  integer not null, -- how long obtaining the inputs took (in seconds)
@@ -464,9 +473,11 @@ create table JobsetEvals (
     nrSucceeded   integer, -- set lazily when all builds are finished
 
     flake         text, -- immutable flake reference
+    nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
+    nixExprPath   text, -- relative path of the Nix or Guix expression
 
-    foreign key   (project) references Projects(name) on delete cascade on update cascade,
-    foreign key   (project, jobset) references Jobsets(project, name) on delete cascade on update cascade
+    foreign key   (jobset_id) references Jobsets(id) on delete cascade,
+    foreign key   (evaluationerror_id) references EvaluationErrors(id) on delete set null
 );
 
 
@@ -533,6 +544,74 @@ create table StarredJobs (
     foreign key   (project, jobset) references Jobsets(project, name) on update cascade on delete cascade
 );
 
+-- Events processed by hydra-notify which have failed at least once
+--
+-- The payload field contains the original, unparsed payload.
+--
+-- One row is created for each plugin which fails to process the event,
+-- with an increasing retry_at and attempts field.
+create table TaskRetries (
+    id            serial primary key not null,
+    channel       text not null,
+    pluginname    text not null,
+    payload       text not null,
+    attempts      integer not null,
+    retry_at      integer not null
+);
+create index IndexTaskRetriesOrdered on TaskRetries(retry_at asc);
+
+
+-- Records of RunCommand executions
+--
+-- The intended flow is:
+--
+-- 1. Create a RunCommandLogs entry when the task is "queued" to run
+-- 2. Update the start_time when it begins
+-- 3. Update the end_time and exit_code when it completes
+create table RunCommandLogs (
+    id            serial primary key not null,
+    uuid          uuid not null,
+    job_matcher   text not null,
+    build_id      integer not null,
+    -- TODO: evaluation_id integer not null,
+    -- can we do this in a principled way? a build can be part of many evaluations
+    -- but a "bug" of RunCommand, imho, is that it should probably run per evaluation?
+    command         text not null,
+    start_time      integer,
+    end_time        integer,
+    error_number    integer,
+    exit_code       integer,
+    signal          integer,
+    core_dumped     boolean,
+
+    foreign key (build_id) references Builds(id) on delete cascade,
+    -- foreign key (evaluation_id) references Builds(id) on delete cascade,
+
+
+    constraint RunCommandLogs_not_started_no_exit_time_no_code check (
+        -- If start time is null, then end_time, exit_code, signal, and core_dumped should be null.
+        -- A logical implication operator would be nice :).
+        (start_time is not null) or (
+            end_time is null
+            and error_number is null
+            and exit_code is null
+            and signal is null
+            and core_dumped is null
+        )
+    ),
+    constraint RunCommandLogs_end_time_has_start_time check (
+        -- If end time is not null, then end_time, exit_code, and core_dumped should not be null
+        (end_time is null) or (start_time is not null)
+    ),
+    -- The uuid should be actually unique.
+    constraint RunCommandLogs_uuid_unique unique(uuid)
+
+    -- Note: if exit_code is not null then signal and core_dumped must be null.
+    -- Similarly, if signal is not null then exit_code must be null and
+    -- core_dumped must not be null. However, these semantics are tricky
+    -- to encode as constraints and probably provide limited actual value.
+);
+create index IndexRunCommandLogsOnBuildID on RunCommandLogs(build_id);
 
 -- The output paths that have permanently failed.
 create table FailedPaths (
@@ -595,15 +674,13 @@ create index IndexBuildStepsOnStopTime on BuildSteps(stopTime desc) where startT
 create index IndexBuildStepOutputsOnPath on BuildStepOutputs(path);
 create index IndexBuildsOnFinished on Builds(finished) where finished = 0;
 create index IndexBuildsOnIsCurrent on Builds(isCurrent) where isCurrent = 1;
-create index IndexBuildsOnJobsetIsCurrent on Builds(project, jobset, isCurrent) where isCurrent = 1;
-create index IndexBuildsOnJobIsCurrent on Builds(project, jobset, job, isCurrent) where isCurrent = 1;
-create index IndexBuildsOnJobset on Builds(project, jobset);
-create index IndexBuildsOnProject on Builds(project);
+create index IndexBuildsJobsetIdCurrentUnfinished on Builds(jobset_id) where isCurrent = 1 and finished = 0;
+create index IndexBuildsJobsetIdCurrentFinishedStatus on Builds(jobset_id, buildstatus) where isCurrent = 1 and finished = 1;
+create index IndexBuildsJobsetIdCurrent on Builds(jobset_id) where isCurrent = 1;
 create index IndexBuildsOnTimestamp on Builds(timestamp);
 create index IndexBuildsOnFinishedStopTime on Builds(finished, stoptime DESC);
-create index IndexBuildsOnJobFinishedId on builds(project, jobset, job, system, finished, id DESC);
-create index IndexBuildsOnJobsetIdFinishedId on Builds(id DESC, finished, job, jobset_id);
-create index IndexFinishedSuccessfulBuilds on Builds(id DESC, buildstatus, finished, job, jobset_id) where buildstatus = 0 and finished = 1;
+create index IndexBuildsOnJobsetIdFinishedId on Builds(jobset_id, job, finished, id DESC);
+create index IndexFinishedSuccessfulBuilds on Builds(jobset_id, job, finished, buildstatus, id DESC) where buildstatus = 0 and finished = 1;
 create index IndexBuildsOnDrvPath on Builds(drvPath);
 create index IndexCachedHgInputsOnHash on CachedHgInputs(uri, branch, sha256hash);
 create index IndexCachedGitInputsOnHash on CachedGitInputs(uri, branch, sha256hash);
@@ -614,12 +691,15 @@ create index IndexJobsetEvalMembersOnEval on JobsetEvalMembers(eval);
 create index IndexJobsetInputAltsOnInput on JobsetInputAlts(project, jobset, input);
 create index IndexJobsetInputAltsOnJobset on JobsetInputAlts(project, jobset);
 create index IndexProjectsOnEnabled on Projects(enabled);
+create index IndexBuildOutputsPath on BuildOutputs using hash(path);
+
 
 --  For hydra-update-gc-roots.
 create index IndexBuildsOnKeep on Builds(keep) where keep = 1;
 
 -- To get the most recent eval for a jobset.
-create index IndexJobsetEvalsOnJobsetId on JobsetEvals(project, jobset, id desc) where hasNewBuilds = 1;
+create index IndexJobsetEvalsOnJobsetId on JobsetEvals(jobset_id, id desc) where hasNewBuilds = 1;
+create index IndexJobsetIdEvals on JobsetEvals(jobset_id) where hasNewBuilds = 1;
 
 create index IndexBuildsOnNotificationPendingSince on Builds(notificationPendingSince) where notificationPendingSince is not null;
 

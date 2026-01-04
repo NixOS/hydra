@@ -1,7 +1,8 @@
 #include "db.hh"
 #include "hydra-config.hh"
-#include "pool.hh"
-#include "shared.hh"
+#include <nix/util/pool.hh>
+#include <nix/main/shared.hh>
+#include <nix/util/signals.hh>
 
 #include <algorithm>
 #include <thread>
@@ -15,6 +16,56 @@ using namespace nix;
 
 typedef std::pair<std::string, std::string> JobsetName;
 
+class JobsetId {
+    public:
+
+    std::string project;
+    std::string jobset;
+    int id;
+
+
+    JobsetId(const std::string & project, const std::string & jobset, int id)
+        : project{ project }, jobset{ jobset }, id{ id }
+    {
+    }
+
+    friend bool operator== (const JobsetId & lhs, const JobsetId & rhs);
+    friend bool operator!= (const JobsetId & lhs, const JobsetId & rhs);
+    friend bool operator< (const JobsetId & lhs, const JobsetId & rhs);
+
+
+    friend bool operator== (const JobsetId & lhs, const JobsetName & rhs);
+    friend bool operator!= (const JobsetId & lhs, const JobsetName & rhs);
+
+    std::string display() const {
+        return boost::str(boost::format("%1%:%2% (jobset#%3%)") % project % jobset % id);
+    }
+};
+bool operator==(const JobsetId & lhs, const JobsetId & rhs)
+{
+    return lhs.id == rhs.id;
+}
+
+bool operator!=(const JobsetId & lhs, const JobsetId & rhs)
+{
+    return lhs.id != rhs.id;
+}
+
+bool operator<(const JobsetId & lhs, const JobsetId & rhs)
+{
+    return lhs.id < rhs.id;
+}
+
+bool operator==(const JobsetId & lhs, const JobsetName & rhs)
+{
+    return lhs.project == rhs.first && lhs.jobset == rhs.second;
+}
+
+bool operator!=(const JobsetId & lhs, const JobsetName & rhs)
+{
+    return ! (lhs == rhs);
+}
+
 enum class EvaluationStyle
 {
     SCHEDULE = 1,
@@ -24,20 +75,20 @@ enum class EvaluationStyle
 
 struct Evaluator
 {
-    std::unique_ptr<Config> config;
+    std::unique_ptr<HydraConfig> config;
 
     nix::Pool<Connection> dbPool;
 
     struct Jobset
     {
-        JobsetName name;
+        JobsetId name;
         std::optional<EvaluationStyle> evaluation_style;
         time_t lastCheckedTime, triggerTime;
         int checkInterval;
         Pid pid;
     };
 
-    typedef std::map<JobsetName, Jobset> Jobsets;
+    typedef std::map<JobsetId, Jobset> Jobsets;
 
     std::optional<JobsetName> evalOne;
 
@@ -57,7 +108,7 @@ struct Evaluator
     const time_t notTriggered = std::numeric_limits<time_t>::max();
 
     Evaluator()
-        : config(std::make_unique<::Config>())
+        : config(std::make_unique<HydraConfig>())
         , maxEvals(std::max((size_t) 1, (size_t) config->getIntOption("max_concurrent_evals", 4)))
     { }
 
@@ -68,16 +119,18 @@ struct Evaluator
         pqxx::work txn(*conn);
 
         auto res = txn.exec
-            ("select project, j.name, lastCheckedTime, triggerTime, checkInterval, j.enabled as jobset_enabled from Jobsets j join Projects p on j.project = p.name "
+            ("select j.id as id, project, j.name, lastCheckedTime, triggerTime, checkInterval, j.enabled as jobset_enabled "
+             "from Jobsets j "
+             "join Projects p on j.project = p.name "
              "where j.enabled != 0 and p.enabled != 0");
 
 
         auto state(state_.lock());
 
-        std::set<JobsetName> seen;
+        std::set<JobsetId> seen;
 
         for (auto const & row : res) {
-            auto name = JobsetName{row["project"].as<std::string>(), row["name"].as<std::string>()};
+            auto name = JobsetId{row["project"].as<std::string>(), row["name"].as<std::string>(), row["id"].as<int>()};
 
             if (evalOne && name != *evalOne) continue;
 
@@ -111,7 +164,7 @@ struct Evaluator
             if (seen.count(i->first))
                 ++i;
             else {
-                printInfo("forgetting jobset ‘%s:%s’", i->first.first, i->first.second);
+                printInfo("forgetting jobset ‘%s’", i->first.display());
                 i = state->jobsets.erase(i);
             }
     }
@@ -120,27 +173,24 @@ struct Evaluator
     {
         time_t now = time(0);
 
-        printInfo("starting evaluation of jobset ‘%s:%s’ (last checked %d s ago)",
-            jobset.name.first, jobset.name.second,
+        printInfo("starting evaluation of jobset ‘%s’ (last checked %d s ago)",
+            jobset.name.display(),
             now - jobset.lastCheckedTime);
 
         {
             auto conn(dbPool.get());
             pqxx::work txn(*conn);
-            txn.exec_params0
-                ("update Jobsets set startTime = $1 where project = $2 and name = $3",
-                 now,
-                 jobset.name.first,
-                 jobset.name.second);
+            txn.exec("update Jobsets set startTime = $1 where id = $2",
+                 pqxx::params{now, jobset.name.id}).no_rows();
             txn.commit();
         }
 
         assert(jobset.pid == -1);
 
         jobset.pid = startProcess([&]() {
-            Strings args = { "hydra-eval-jobset", jobset.name.first, jobset.name.second };
+            Strings args = { "hydra-eval-jobset", jobset.name.project, jobset.name.jobset };
             execvp(args.front().c_str(), stringsToCharPtrs(args).data());
-            throw SysError(format("executing ‘%1%’") % args.front());
+            throw SysError("executing ‘%1%’", args.front());
         });
 
         state.runningEvals++;
@@ -152,23 +202,23 @@ struct Evaluator
     {
         if (jobset.pid != -1) {
             // Already running.
-            debug("shouldEvaluate %s:%s? no: already running",
-                  jobset.name.first, jobset.name.second);
+            debug("shouldEvaluate %s? no: already running",
+                  jobset.name.display());
             return false;
         }
 
         if (jobset.triggerTime != std::numeric_limits<time_t>::max()) {
             // An evaluation of this Jobset is requested
-            debug("shouldEvaluate %s:%s? yes: requested",
-                  jobset.name.first, jobset.name.second);
+            debug("shouldEvaluate %s? yes: requested",
+                  jobset.name.display());
             return true;
         }
 
         if (jobset.checkInterval <= 0) {
             // Automatic scheduling is disabled. We allow requested
             // evaluations, but never schedule start one.
-            debug("shouldEvaluate %s:%s? no: checkInterval <= 0",
-                  jobset.name.first, jobset.name.second);
+            debug("shouldEvaluate %s? no: checkInterval <= 0",
+                  jobset.name.display());
             return false;
         }
 
@@ -182,50 +232,49 @@ struct Evaluator
             pqxx::work txn(*conn);
 
             if (jobset.evaluation_style == EvaluationStyle::ONE_AT_A_TIME) {
-                auto evaluation_res = txn.parameterized
+                auto evaluation_res = txn.exec
                     ("select id from JobsetEvals "
-                     "where project = $1 and jobset = $2 "
-                     "order by id desc limit 1")
-                  (jobset.name.first)
-                  (jobset.name.second)
-                  .exec();
+                     "where jobset_id = $1 "
+                     "order by id desc limit 1"
+                    ,jobset.name.id
+                    );
 
                 if (evaluation_res.empty()) {
                     // First evaluation, so allow scheduling.
-                    debug("shouldEvaluate(one-at-a-time) %s:%s? yes: no prior eval",
-                          jobset.name.first, jobset.name.second);
+                    debug("shouldEvaluate(one-at-a-time) %s? yes: no prior eval",
+                          jobset.name.display());
                     return true;
                 }
 
                 auto evaluation_id = evaluation_res[0][0].as<int>();
 
-                auto unfinished_build_res = txn.parameterized
+                auto unfinished_build_res = txn.exec
                     ("select id from Builds "
                      "join JobsetEvalMembers "
                      "    on (JobsetEvalMembers.build = Builds.id) "
                      "where JobsetEvalMembers.eval = $1 "
                      "  and builds.finished = 0 "
-                     " limit 1")
-                  (evaluation_id)
-                  .exec();
+                     " limit 1"
+                    ,evaluation_id
+                    );
 
                 // If the previous evaluation has no unfinished builds
                 // schedule!
                 if (unfinished_build_res.empty()) {
-                    debug("shouldEvaluate(one-at-a-time) %s:%s? yes: no unfinished builds",
-                          jobset.name.first, jobset.name.second);
+                    debug("shouldEvaluate(one-at-a-time) %s? yes: no unfinished builds",
+                          jobset.name.display());
                     return true;
                 } else {
                     debug("shouldEvaluate(one-at-a-time) %s:%s? no: at least one unfinished build",
-                           jobset.name.first, jobset.name.second);
+                           jobset.name.display());
                     return false;
                 }
 
 
             } else {
                 // EvaluationStyle::ONESHOT, EvaluationStyle::SCHEDULED
-                debug("shouldEvaluate(oneshot/scheduled) %s:%s? yes: checkInterval elapsed",
-                      jobset.name.first, jobset.name.second);
+                debug("shouldEvaluate(oneshot/scheduled) %s? yes: checkInterval elapsed",
+                      jobset.name.display());
                 return true;
             }
         }
@@ -316,6 +365,9 @@ struct Evaluator
                     printInfo("received jobset event");
                 }
 
+            } catch (pqxx::broken_connection & e) {
+                printError("Database connection broken: %s", e.what());
+                std::_Exit(1);
             } catch (std::exception & e) {
                 printError("exception in database monitor thread: %s", e.what());
                 sleep(30);
@@ -350,8 +402,8 @@ struct Evaluator
                     auto & jobset(i.second);
 
                     if (jobset.pid == pid) {
-                        printInfo("evaluation of jobset ‘%s:%s’ %s",
-                            jobset.name.first, jobset.name.second, statusToString(status));
+                        printInfo("evaluation of jobset ‘%s’ %s",
+                            jobset.name.display(), statusToString(status));
 
                         auto now = time(0);
 
@@ -366,24 +418,18 @@ struct Evaluator
                             /* Clear the trigger time to prevent this
                                jobset from getting stuck in an endless
                                failing eval loop. */
-                            txn.exec_params0
-                                ("update Jobsets set triggerTime = null where project = $1 and name = $2 and startTime is not null and triggerTime <= startTime",
-                                 jobset.name.first,
-                                 jobset.name.second);
+                            txn.exec
+                                ("update Jobsets set triggerTime = null where id = $1 and startTime is not null and triggerTime <= startTime",
+                                 jobset.name.id).no_rows();
 
                             /* Clear the start time. */
-                            txn.exec_params0
-                                ("update Jobsets set startTime = null where project = $1 and name = $2",
-                                 jobset.name.first,
-                                 jobset.name.second);
+                            txn.exec
+                                ("update Jobsets set startTime = null where id = $1",
+                                 jobset.name.id).no_rows();
 
                             if (!WIFEXITED(status) || WEXITSTATUS(status) > 1) {
-                                txn.exec_params0
-                                    ("update Jobsets set errorMsg = $1, lastCheckedTime = $2, errorTime = $2, fetchErrorMsg = null where project = $3 and name = $4",
-                                     fmt("evaluation %s", statusToString(status)),
-                                     now,
-                                     jobset.name.first,
-                                     jobset.name.second);
+                                txn.exec("update Jobsets set errorMsg = $1, lastCheckedTime = $2, errorTime = $2, fetchErrorMsg = null where id = $3",
+                                     pqxx::params{fmt("evaluation %s", statusToString(status)), now, jobset.name.id}).no_rows();
                             }
 
                             txn.commit();
@@ -408,7 +454,7 @@ struct Evaluator
     {
         auto conn(dbPool.get());
         pqxx::work txn(*conn);
-        txn.exec("update Jobsets set startTime = null");
+        txn.exec("update Jobsets set startTime = null").no_rows();
         txn.commit();
     }
 
@@ -426,6 +472,9 @@ struct Evaluator
         while (true) {
             try {
                 loop();
+            } catch (pqxx::broken_connection & e) {
+                printError("Database connection broken: %s", e.what());
+                std::_Exit(1);
             } catch (std::exception & e) {
                 printError("exception in main loop: %s", e.what());
                 sleep(30);

@@ -6,18 +6,33 @@
 #include <map>
 #include <memory>
 #include <queue>
+#include <regex>
+#include <semaphore>
+
+#include <prometheus/counter.h>
+#include <prometheus/gauge.h>
+#include <prometheus/registry.h>
 
 #include "db.hh"
-#include "token-server.hh"
 
-#include "parsed-derivations.hh"
-#include "pathlocks.hh"
-#include "pool.hh"
-#include "store-api.hh"
-#include "sync.hh"
+#include <nix/store/derivations.hh>
+#include <nix/store/derivation-options.hh>
+#include <nix/store/pathlocks.hh>
+#include <nix/util/pool.hh>
+#include <nix/store/build-result.hh>
+#include <nix/store/store-api.hh>
+#include <nix/util/sync.hh>
+#include "nar-extractor.hh"
+#include <nix/store/serve-protocol.hh>
+#include <nix/store/serve-protocol-impl.hh>
+#include <nix/store/serve-protocol-connection.hh>
+#include <nix/store/machines.hh>
+#include <nix/store/globals.hh>
 
 
 typedef unsigned int BuildID;
+
+typedef unsigned int JobsetID;
 
 typedef std::chrono::time_point<std::chrono::system_clock> system_time;
 
@@ -46,6 +61,7 @@ typedef enum {
     ssConnecting = 10,
     ssSendingInputs = 20,
     ssBuilding = 30,
+    ssWaitingForLocalSlot = 35,
     ssReceivingOutputs = 40,
     ssPostProcessing = 50,
 } StepState;
@@ -65,13 +81,13 @@ struct RemoteResult
     time_t startTime = 0, stopTime = 0;
     unsigned int overhead = 0;
     nix::Path logFile;
-    std::unique_ptr<nix::TokenServer::Token> tokens;
-    std::shared_ptr<nix::FSAccessor> accessor;
 
     BuildStatus buildStatus() const
     {
         return stepStatus == bsCachedFailure ? bsFailed : stepStatus;
     }
+
+    void updateWithBuildResult(const nix::BuildResult &);
 };
 
 
@@ -125,6 +141,7 @@ struct Build
     BuildID id;
     nix::StorePath drvPath;
     std::map<std::string, nix::StorePath> outputs;
+    JobsetID jobsetId;
     std::string projectName, jobsetName, jobName;
     time_t timestamp;
     unsigned int maxSilentTime, buildTimeout;
@@ -155,8 +172,8 @@ struct Step
 
     nix::StorePath drvPath;
     std::unique_ptr<nix::Derivation> drv;
-    std::unique_ptr<nix::ParsedDerivation> parsedDrv;
-    std::set<std::string> requiredSystemFeatures;
+    std::unique_ptr<nix::DerivationOptions> drvOptions;
+    nix::StringSet requiredSystemFeatures;
     bool preferLocalBuild;
     bool isDeterministic;
     std::string systemType; // concatenation of drv.platform and requiredSystemFeatures
@@ -208,7 +225,7 @@ struct Step
 
     nix::Sync<State> state;
 
-    Step(nix::StorePath && drvPath) : drvPath(std::move(drvPath))
+    Step(const nix::StorePath & drvPath) : drvPath(drvPath)
     { }
 
     ~Step()
@@ -224,17 +241,9 @@ void getDependents(Step::ptr step, std::set<Build::ptr> & builds, std::set<Step:
 void visitDependencies(std::function<void(Step::ptr)> visitor, Step::ptr step);
 
 
-struct Machine
+struct Machine : nix::Machine
 {
     typedef std::shared_ptr<Machine> ptr;
-
-    bool enabled{true};
-
-    std::string sshName, sshKey;
-    std::set<std::string> systemTypes, supportedFeatures, mandatoryFeatures;
-    unsigned int maxJobs = 1;
-    float speedFactor = 1.0;
-    std::string sshPublicHostKey;
 
     struct State {
         typedef std::shared_ptr<State> ptr;
@@ -285,21 +294,24 @@ struct Machine
         return true;
     }
 
-    bool isLocalhost()
-    {
-        return sshName == "localhost";
-    }
+    bool isLocalhost() const;
+
+    // A connection to a machine
+    struct Connection : nix::ServeProto::BasicClientConnection {
+        // Backpointer to the machine
+        ptr machine;
+    };
 };
 
 
-class Config;
+class HydraConfig;
 
 
 class State
 {
 private:
 
-    std::unique_ptr<Config> config;
+    std::unique_ptr<HydraConfig> config;
 
     // FIXME: Make configurable.
     const unsigned int maxTries = 5;
@@ -341,8 +353,13 @@ private:
     nix::Pool<Connection> dbPool;
 
     /* The build machines. */
-    typedef std::map<std::string, Machine::ptr> Machines;
+    std::mutex machinesReadyLock;
+    typedef std::map<nix::StoreReference::Variant, Machine::ptr> Machines;
     nix::Sync<Machines> machines; // FIXME: use atomic_shared_ptr
+
+    /* Throttler for CPU-bound local work. */
+    static constexpr unsigned int maxSupportedLocalWorkers = 1024;
+    std::counting_semaphore<maxSupportedLocalWorkers> localWorkThrottler;
 
     /* Various stats. */
     time_t startedAt;
@@ -353,6 +370,7 @@ private:
     counter nrStepsDone{0};
     counter nrStepsBuilding{0};
     counter nrStepsCopyingTo{0};
+    counter nrStepsWaitingForDownloadSlot{0};
     counter nrStepsCopyingFrom{0};
     counter nrStepsWaiting{0};
     counter nrUnsupportedSteps{0};
@@ -369,6 +387,7 @@ private:
 
     /* Specific build to do for --build-one (testing only). */
     BuildID buildOne;
+    bool buildOneDone = false;
 
     /* Statistics per machine type for the Hydra auto-scaler. */
     struct MachineType
@@ -382,7 +401,6 @@ private:
 
     struct MachineReservation
     {
-        typedef std::shared_ptr<MachineReservation> ptr;
         State & state;
         Step::ptr step;
         Machine::ptr machine;
@@ -410,13 +428,6 @@ private:
     std::shared_ptr<nix::Store> localStore;
     std::shared_ptr<nix::Store> _destStore;
 
-    /* Token server to prevent threads from allocating too many big
-       strings concurrently while importing NARs from the build
-       machines. When a thread imports a NAR of size N, it will first
-       acquire N memory tokens, causing it to block until that many
-       tokens are available. */
-    nix::TokenServer memoryTokens;
-
     size_t maxOutputSize;
     size_t maxLogSize;
 
@@ -427,7 +438,7 @@ private:
 
     /* How often the build steps of a jobset should be repeated in
        order to detect non-determinism. */
-    std::map<std::pair<std::string, std::string>, unsigned int> jobsetRepeats;
+    std::map<std::pair<std::string, std::string>, size_t> jobsetRepeats;
 
     bool uploadLogsToBinaryCache;
 
@@ -436,8 +447,30 @@ private:
        via gc_roots_dir. */
     nix::Path rootsDir;
 
+    std::string metricsAddr;
+
+    struct PromMetrics
+    {
+        std::shared_ptr<prometheus::Registry> registry;
+
+        prometheus::Counter& queue_checks_started;
+        prometheus::Counter& queue_build_loads;
+        prometheus::Counter& queue_steps_created;
+        prometheus::Counter& queue_checks_early_exits;
+        prometheus::Counter& queue_checks_finished;
+
+        prometheus::Counter& dispatcher_time_spent_running;
+        prometheus::Counter& dispatcher_time_spent_waiting;
+
+        prometheus::Counter& queue_monitor_time_spent_running;
+        prometheus::Counter& queue_monitor_time_spent_waiting;
+
+        PromMetrics();
+    };
+    PromMetrics prom;
+
 public:
-    State();
+    State(std::optional<std::string> metricsAddrOpt);
 
 private:
 
@@ -465,23 +498,28 @@ private:
         const std::string & machine);
 
     int createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
-        Build::ptr build, const nix::StorePath & drvPath, const std::string & outputName, const nix::StorePath & storePath);
+        Build::ptr build, const nix::StorePath & drvPath, const nix::Derivation drv, const std::string & outputName, const nix::StorePath & storePath);
 
     void updateBuild(pqxx::work & txn, Build::ptr build, BuildStatus status);
 
     void queueMonitor();
 
-    void queueMonitorLoop();
+    void queueMonitorLoop(Connection & conn);
 
     /* Check the queue for new builds. */
-    bool getQueuedBuilds(Connection & conn,
-        nix::ref<nix::Store> destStore, unsigned int & lastBuildId);
+    bool getQueuedBuilds(Connection & conn, nix::ref<nix::Store> destStore);
 
     /* Handle cancellation, deletion and priority bumps. */
     void processQueueChange(Connection & conn);
 
     BuildOutput getBuildOutputCached(Connection & conn, nix::ref<nix::Store> destStore,
-        const nix::Derivation & drv);
+        const nix::StorePath & drvPath);
+
+    /* Returns paths missing from the remote store. Paths are processed in
+     * parallel to work around the possible latency of remote stores. */
+    std::map<nix::DrvOutput, std::optional<nix::StorePath>> getMissingRemotePaths(
+        nix::ref<nix::Store> destStore,
+        const std::map<nix::DrvOutput, std::optional<nix::StorePath>> & paths);
 
     Step::ptr createStep(nix::ref<nix::Store> store,
         Connection & conn, Build::ptr build, const nix::StorePath & drvPath,
@@ -494,11 +532,10 @@ private:
         BuildID buildId,
         const RemoteResult & result,
         Machine::ptr machine,
-        bool & stepFinished,
-        bool & quit);
+        bool & stepFinished);
 
     Jobset::ptr createJobset(pqxx::work & txn,
-        const std::string & projectName, const std::string & jobsetName);
+        const std::string & projectName, const std::string & jobsetName, const JobsetID);
 
     void processJobsetSharesChange(Connection & conn);
 
@@ -513,21 +550,22 @@ private:
 
     void abortUnsupported();
 
-    void builder(MachineReservation::ptr reservation);
+    void builder(std::unique_ptr<MachineReservation> reservation);
 
     /* Perform the given build step. Return true if the step is to be
        retried. */
     enum StepResult { sDone, sRetry, sMaybeCancelled };
     StepResult doBuildStep(nix::ref<nix::Store> destStore,
-        MachineReservation::ptr reservation,
+        std::unique_ptr<MachineReservation> reservation,
         std::shared_ptr<ActiveStep> activeStep);
 
     void buildRemote(nix::ref<nix::Store> destStore,
+        std::unique_ptr<MachineReservation> reservation,
         Machine::ptr machine, Step::ptr step,
-        unsigned int maxSilentTime, unsigned int buildTimeout,
-        unsigned int repeats,
+        const nix::ServeProto::BuildOptions & buildOptions,
         RemoteResult & result, std::shared_ptr<ActiveStep> activeStep,
-        std::function<void(StepState)> updateStep);
+        std::function<void(StepState)> updateStep,
+        NarMemberDatas & narMembers);
 
     void markSucceededBuild(pqxx::work & txn, Build::ptr build,
         const BuildOutput & res, bool isCachedBuild, time_t startTime, time_t stopTime);
@@ -546,6 +584,8 @@ private:
     void dumpStatus(Connection & conn);
 
     void addRoot(const nix::StorePath & storePath);
+
+    void runMetricsExporter();
 
 public:
 

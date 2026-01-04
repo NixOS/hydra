@@ -7,7 +7,7 @@ main() {
 
 set -e
 
-tmpDir=${TMPDIR:-/tmp}/build-[% build.id +%]
+tmpDir=$(realpath "${TMPDIR:-/tmp}")/build-[% build.id +%]
 declare -a args extraArgs
 
 
@@ -117,7 +117,7 @@ else
     revCount="$(cat "$tmpDir/[% input.name %]/rev-count")"
 fi
 
-args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; shortRev = \"[% input.revision.substr(0, 7) %]\"; revCount = \"$revCount\"; }")
+args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; shortRev = \"[% input.revision.substr(0, 7) %]\"; revCount = $revCount; }")
 
 [%+ ELSIF input.type == "hg" %]
 
@@ -139,7 +139,7 @@ else
     revCount="$(cat "$tmpDir/[% input.name %]/rev-count")"
 fi
 
-args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; revCount = \"$revCount\"; }")
+args+=(--arg '[% input.name %]' "{ outPath = $inputDir; rev = \"[% input.revision %]\"; revCount = $revCount; }")
 
 [%+ ELSIF input.type == "svn" %]
 
@@ -169,7 +169,7 @@ echo "$0: input ‘[% input.name %]’ has unsupported type ‘[% input.type %]�
 exit 1
 [% END %]
 
-[% IF input.name == build.nixexprinput +%]
+[% IF input.name == eval.nixexprinput +%]
 nixExprInputDir="$inputDir"
 [%+ END %]
 
@@ -197,7 +197,7 @@ args+=(--option extra-binary-caches '[% c.uri_for('/') %]')
 # when evaluating jobs that rely on builtins.currentSystem.
 args+=(--option system x86_64-linux)
 
-args+=("$nixExprInputDir/[% build.nixexprpath %]" -A '[% build.job.name %]')
+args+=("$nixExprInputDir/[% eval.nixexprpath %]" -A '[% build.job.name %]')
 
 if [ -n "$printFlags" ]; then
     first=1
@@ -210,10 +210,9 @@ if [ -n "$printFlags" ]; then
 fi
 
 info "running nix-build..."
-echo "using these flags: ${args[@]}" >&2
-
-exec nix-build "${args[@]}" "${extraArgs[@]}"
-
+echo "using the following invocation:" >&2
+set -x
+nix-build "${args[@]}" "${extraArgs[@]}"
 }
 
 main "$@"

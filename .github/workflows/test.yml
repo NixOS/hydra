@@ -1,22 +1,27 @@
 name: "Test"
 on:
   pull_request:
+  merge_group:
   push:
+    branches:
+      - master
 jobs:
   tests:
-    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
-    - uses: cachix/install-nix-action@v8
-    #- run: nix flake check
-    - run: nix-build -A checks.x86_64-linux.build
-  validate-openapi:
-    runs-on: ubuntu-18.04
-    steps:
-    - uses: actions/checkout@v2
+    - uses: cachix/install-nix-action@v31
       with:
-        fetch-depth: 0
-    - uses: cachix/install-nix-action@v8
-    - run: nix-shell -p openapi-generator-cli --run "openapi-generator-cli validate -i ./hydra-api.yaml"
+        extra_nix_config: |
+          extra-systems = ${{ matrix.system }}
+    - uses: DeterminateSystems/magic-nix-cache-action@main
+    - run: nix-build -A checks.${{ matrix.system }}.build -A checks.${{ matrix.system }}.validate-openapi

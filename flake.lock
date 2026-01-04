@@ -1,65 +1,63 @@
 {
   "nodes": {
     "nix": {
-      "info": {
-        "lastModified": 1588846396,
-        "narHash": "sha256-hUaWny0R5mBgHkP8Z+NBR7uBR7zp2FyxhcDi5LK4qxI="
-      },
-      "inputs": {
-        "nixpkgs": "nixpkgs"
-      },
+      "flake": false,
       "locked": {
+        "lastModified": 1767367029,
+        "narHash": "sha256-RsVlkBkxvPPePEo59AVolBFdayxny9FFv8X4aNq9qFc=",
         "owner": "NixOS",
         "repo": "nix",
-        "rev": "14a3a62bfca6c572b9a415cfa80cdbd7ad4326b3",
+        "rev": "394a8da9dd9c046de715e451a96b70e64ce4aa7a",
         "type": "github"
       },
       "original": {
-        "id": "nix",
-        "type": "indirect"
+        "owner": "NixOS",
+        "ref": "2.32-maintenance",
+        "repo": "nix",
+        "type": "github"
+      }
+    },
+    "nix-eval-jobs": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1760478325,
+        "narHash": "sha256-hA+NOH8KDcsuvH7vJqSwk74PyZP3MtvI/l+CggZcnTc=",
+        "owner": "nix-community",
+        "repo": "nix-eval-jobs",
+        "rev": "daa42f9e9c84aeff1e325dd50fda321f53dfd02c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "ref": "v2.32.1",
+        "repo": "nix-eval-jobs",
+        "type": "github"
       }
     },
     "nixpkgs": {
-      "info": {
-        "lastModified": 1585405475,
-        "narHash": "sha256-bESW0n4KgPmZ0luxvwJ+UyATrC6iIltVCsGdLiphVeE="
-      },
       "locked": {
+        "lastModified": 1767475907,
+        "narHash": "sha256-w10AFfl20h5MSBCsCegD4xtmcgDlQQeoFsOaIFwHOrE=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "b88ff468e9850410070d4e0ccd68c7011f15b2be",
+        "rev": "7a0d60a03534a2d14b0805616aa1fd403fccfa55",
         "type": "github"
       },
       "original": {
-        "id": "nixpkgs",
-        "ref": "nixos-20.03-small",
-        "type": "indirect"
-      }
-    },
-    "nixpkgs_2": {
-      "info": {
-        "lastModified": 1586219474,
-        "narHash": "sha256-fvfrMnEA2lDnXvH/eInGV5i0sO/EGLVHa4pOek8VG78="
-      },
-      "locked": {
         "owner": "NixOS",
+        "ref": "nixos-25.11-small",
         "repo": "nixpkgs",
-        "rev": "29eddfc36d720dcc4822581175217543b387b1e8",
         "type": "github"
-      },
-      "original": {
-        "id": "nixpkgs",
-        "ref": "nixos-20.03",
-        "type": "indirect"
       }
     },
     "root": {
       "inputs": {
         "nix": "nix",
-        "nixpkgs": "nixpkgs_2"
+        "nix-eval-jobs": "nix-eval-jobs",
+        "nixpkgs": "nixpkgs"
       }
     }
   },
   "root": "root",
-  "version": 5
+  "version": 7
 }

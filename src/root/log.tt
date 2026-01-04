@@ -1,4 +1,7 @@
-[% WRAPPER layout.tt title="Log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job $build.project.name:$build.jobset.name:$build.job.name" %]
+[% WRAPPER layout.tt
+  titleHTML="Log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ linkToJob(build.jobset, job)
+  title="Log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ makeNameTextForJob(build.jobset, job)
+%]
 [% PROCESS common.tt %]
 
 <p>
@@ -8,19 +11,20 @@
   [% ELSE %]
   is
   [% END %]
-  the build log of derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
+  the build log (<a [% HTML.attributes(href => step ? c.uri_for('/build' build.id 'nixlog' step.stepnr, 'raw')
+  : c.uri_for('/build' build.id 'log', 'raw')) %]>raw</a>) of derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
   [% IF step && step.machine %]
-    It was built on <tt>[% step.machine %]</tt>.
+    It was built on <tt>[% step.machine | html %]</tt>.
   [% END %]
   [% IF tail %]
-  The <a href="[% step ? c.uri_for('/build' build.id 'nixlog' step.stepnr)
-  : c.uri_for('/build' build.id 'log') %]">full log</a> is also available.
+  The <a [% HTML.attributes(href => step ? c.uri_for('/build' build.id 'nixlog' step.stepnr)
+  : c.uri_for('/build' build.id 'log')) %]>full log</a> is also available.
   [% END %]
 </p>
 
-<pre class="log" id="contents">
+<div class="card bg-light"><div class="card-body"><pre class="log" id="contents">
 <em>Loading...</em>
-</pre>
+</pre></div></div>
 
 <script type="text/javascript">
   $(document).ready(function() {
@@ -33,7 +37,7 @@
         [% IF tail %]
         /* The server may give us a full log (e.g. if the log is in
            S3). So extract the last lines. */
-        log_data = log_data.split("\n").slice(-[%tail%]).join("\n");
+        log_data = log_data.split("\n").slice(-[% HTML.escape(tail) %]).join("\n");
         [% END %]
 
         $("#contents").text(log_data);

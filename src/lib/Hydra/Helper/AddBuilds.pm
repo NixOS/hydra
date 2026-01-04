@@ -1,9 +1,10 @@
 package Hydra::Helper::AddBuilds;
 
 use strict;
+use warnings;
 use utf8;
 use Encode;
-use JSON;
+use JSON::MaybeXS;
 use Nix::Store;
 use Nix::Config;
 use Hydra::Model::DB;
@@ -14,18 +15,20 @@ use File::stat;
 use File::Path;
 use File::Temp;
 use File::Spec;
-use File::Slurp;
 use Hydra::Helper::CatalystUtils;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
+    validateDeclarativeJobset
+    createJobsetInputsRowAndData
     updateDeclarativeJobset
     handleDeclarativeJobsetBuild
+    handleDeclarativeJobsetJson
 );
 
 
-sub updateDeclarativeJobset {
-    my ($db, $project, $jobsetName, $declSpec) = @_;
+sub validateDeclarativeJobset {
+    my ($config, $project, $jobsetName, $declSpec) = @_;
 
     my @allowed_keys = qw(
         enabled
@@ -38,6 +41,7 @@ sub updateDeclarativeJobset {
         checkinterval
         schedulingshares
         enableemail
+        enable_dynamic_run_command
         emailoverride
         keepnr
     );
@@ -48,15 +52,52 @@ sub updateDeclarativeJobset {
         $update{$key} = $declSpec->{$key};
         delete $declSpec->{$key};
     }
+    # Ensure jobset constraints are met, only have nixexpr{path,input} or
+    # flakes set if the type is 0 or 1 respectively. So in the update we need
+    # to null the field of the other type.
+    if (defined $update{type}) {
+        if ($update{type} == 0) {
+            $update{flake} = undef;
+        } elsif ($update{type} == 1) {
+            $update{nixexprpath} = undef;
+            $update{nixexprinput} = undef;
+        }
+    }
+
+    my $enable_dynamic_run_command = defined $update{enable_dynamic_run_command} ? 1 : 0;
+    if ($enable_dynamic_run_command
+        && !($config->{dynamicruncommand}->{enable}
+            && $project->enable_dynamic_run_command))
+    {
+        die "Dynamic RunCommand is not enabled by the server or the parent project.";
+    }
+
+    return %update;
+}
+
+sub createJobsetInputsRowAndData {
+    my ($name, $declSpec) = @_;
+    my $data = $declSpec->{"inputs"}->{$name};
+    my $row = {
+        name => $name,
+        type => $data->{type}
+    };
+    $row->{emailresponsible} = $data->{emailresponsible} // 0;
+
+    return ($row, $data);
+}
+
+sub updateDeclarativeJobset {
+    my ($config, $db, $project, $jobsetName, $declSpec) = @_;
+
+    my %update = validateDeclarativeJobset($config, $project, $jobsetName, $declSpec);
+
     $db->txn_do(sub {
         my $jobset = $project->jobsets->update_or_create(\%update);
         $jobset->jobsetinputs->delete;
-        while ((my $name, my $data) = each %{$declSpec->{"inputs"}}) {
-            my $input = $jobset->jobsetinputs->create(
-                { name => $name,
-                  type => $data->{type},
-                  emailresponsible => $data->{emailresponsible}
-                });
+        foreach my $name (keys %{$declSpec->{"inputs"}}) {
+            my ($row, $data) = createJobsetInputsRowAndData($name, $declSpec);
+            my $input = $jobset->jobsetinputs->create($row);
             $input->jobsetinputalts->create({altnr => 0, value => $data->{value}});
         }
         delete $declSpec->{"inputs"};
@@ -64,6 +105,24 @@ sub updateDeclarativeJobset {
     });
 };
 
+sub handleDeclarativeJobsetJson {
+    my ($db, $project, $declSpec) = @_;
+    my $config = getHydraConfig();
+    $db->txn_do(sub {
+            my @kept = keys %$declSpec;
+            push @kept, ".jobsets";
+            $project->jobsets->search({ name => { "not in" => \@kept } })->update({ enabled => 0, hidden => 1 });
+            foreach my $jobsetName (keys %$declSpec) {
+                my $spec = $declSpec->{$jobsetName};
+                eval {
+                    updateDeclarativeJobset($config, $db, $project, $jobsetName, $spec);
+                    1;
+                } or do {
+                    print STDERR "ERROR: failed to process declarative jobset ", $project->name, ":${jobsetName}, ", $@, "\n";
+                }
+            }
+        });
+}
 
 sub handleDeclarativeJobsetBuild {
     my ($db, $project, $build) = @_;
@@ -81,19 +140,7 @@ sub handleDeclarativeJobsetBuild {
         };
 
         my $declSpec = decode_json($declText);
-        $db->txn_do(sub {
-            my @kept = keys %$declSpec;
-            push @kept, ".jobsets";
-            $project->jobsets->search({ name => { "not in" => \@kept } })->update({ enabled => 0, hidden => 1 });
-            while ((my $jobsetName, my $spec) = each %$declSpec) {
-                eval {
-                    updateDeclarativeJobset($db, $project, $jobsetName, $spec);
-                    1;
-                } or do {
-                    print STDERR "ERROR: failed to process declarative jobset ", $project->name, ":${jobsetName}, ", $@, "\n";
-                }
-            }
-        });
+        handleDeclarativeJobsetJson($db, $project, $declSpec);
         1;
     } or do {
         # note the error in the database in the case eval fails for whatever reason

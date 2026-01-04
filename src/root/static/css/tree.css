@@ -9,6 +9,7 @@ ul.tree, ul.subtree {
 ul.subtree > li {
     position: relative;
     padding-left: 2.0em;
+    line-height: 140%;
     border-left: 0.1em solid #6185a0;
 }
 

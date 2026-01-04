@@ -6,10 +6,10 @@
   <thead>
     <tr>
       <th>Job</th>
-      <th>System</th>
       <th>Build</th>
       <th>Step</th>
       <th>What</th>
+      <th>Status</th>
       <th>Since</th>
     </tr>
   </thead>
@@ -17,12 +17,48 @@
     [% name = m.key ? stripSSHUser(m.key) : "localhost" %]
     <thead>
       <tr>
-        <th colspan="6">
+        <th colspan="7">
           <tt [% IF m.value.disabled %]style="text-decoration: line-through;"[% END %]>[% INCLUDE renderMachineName machine=m.key %]</tt>
-          [% IF m.value.systemTypes %]
+          [% IF m.value.primarySystemType %]
             <span class="muted" style="font-weight: normal;">
-              ([% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system %]</tt>[% END %])
+              (<tt>[% m.value.primarySystemType | html %]</tt>)
             </span>
+            &nbsp;
+            [% WRAPPER makePopover title="Details" classes="btn-secondary btn-sm" %]
+              <ul class="list-unstyled mb-0">
+                <li><b>System types:&nbsp;</b>[% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system | html%]</tt>[% END %]</li>
+                <li><b>Supported Features:&nbsp;</b>[% comma=0; FOREACH feat IN m.value.supportedFeatures %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% feat| html %]</tt>[% END %]</li>
+                <li><b>Mandatory Features:&nbsp;</b>[% comma=0; FOREACH feat IN m.value.mandatoryFeatures %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% feat| html %]</tt>[% END %]</li>
+                <li><b>Capacity:&nbsp;</b>[% INCLUDE renderYesNo value=m.value.hasCapacity %]&nbsp;<b>Static:&nbsp;</b>[% INCLUDE renderYesNo value=m.value.hasStaticCapacity %]&nbsp;<b>Dynamic:&nbsp;</b>[% INCLUDE renderYesNo value=m.value.hasDynamicCapacity %]</li>
+                <li><b>Scheduling Score:&nbsp;</b>[% HTML.escape(m.value.score) %]</li>
+                <li><b>Load:&nbsp;</b><tt>[% pretty_load(m.value.stats.load1) | html %]</tt>&nbsp;&nbsp;&nbsp;<tt>[% pretty_load(m.value.stats.load5) | html %]</tt>&nbsp;&nbsp;&nbsp;<tt>[% pretty_load(m.value.stats.load15) | html %]</tt></li>
+                <li><b>Memory:&nbsp;</b><tt>[% human_bytes(m.value.stats.memUsage) | html %]</tt> of <tt>[% human_bytes(m.value.memTotal) | html %]</tt> used (<tt>[% human_bytes(m.value.memTotal - m.value.stats.memUsage) | html %]</tt> free)</li>
+                [% pressure = m.value.stats.pressure %]
+                [% MACRO render_pressure(title, pressure) BLOCK %]
+                    [% IF pressure %]
+                        <tr><td><b>[% HTML.escape(title) %]:</b></td><td><tt>[% pretty_percent(pressure.avg10) %]%</tt></td><td><td><tt>[% pretty_percent(pressure.avg60) %]%</tt></td><td><td><tt>[% pretty_percent(pressure.avg300) %]%</tt></td><td>
+                    [% END %]
+                [% END %]
+                [% IF pressure %]
+                    <li><b>Pressure:&nbsp;</b>
+                        <table class="pressureTable">
+                            [% render_pressure('Some CPU', pressure.cpuSome) %]
+                            [% render_pressure('Some IO', pressure.ioSome) %]
+                            [% render_pressure('Full IO', pressure.ioFull) %]
+                            [% render_pressure('Full IRQ', pressure.irqFull) %]
+                            [% render_pressure('Some Memory', pressure.memSome) %]
+                            [% render_pressure('Full Memory', pressure.memFull) %]
+                        </table>
+                    </li>
+                [% END %]
+              </ul>
+            [% END %]
+          [% ELSE %]
+            [% IF m.value.systemTypes %]
+              <span class="muted" style="font-weight: normal;">
+                ([% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system | html %]</tt>[% END %])
+              </span>
+            [% END %]
           [% END %]
           [% IF m.value.nrStepsDone %]
             <span class="muted" style="font-weight: normal;">
@@ -40,10 +76,10 @@
           [% idle = 0 %]
           <tr>
             <td><tt>[% INCLUDE renderFullJobName project=step.project jobset=step.jobset job=step.job %]</tt></td>
-            <td><tt>[% step.system %]</tt></td>
-            <td><a href="[% c.uri_for('/build' step.build) %]">[% step.build %]</a></td>
-            <td>[% IF step.busy >= 30 %]<a class="row-link" href="[% c.uri_for('/build' step.build 'nixlog' step.stepnr 'tail') %]">[% step.stepnr %]</a>[% ELSE; step.stepnr; END %]</td>
-            <td><tt>[% step.drvpath.match('-(.*)').0 %]</tt></td>
+            <td><a [% HTML.attributes(href => c.uri_for('/build' step.build)) %]>[% HTML.escape(step.build) %]</a></td>
+            <td>[% IF step.busy >= 30 %]<a class="row-link" [% HTML.attributes(href => c.uri_for('/build' step.build 'nixlog' step.stepnr 'tail')) %]>[% HTML.escape(step.stepnr) %]</a>[% ELSE; HTML.escape(step.stepnr); END %]</td>
+            <td><tt>[% step.drvpath.match('-(.*)').0 | html %]</tt></td>
+            <td>[% INCLUDE renderBusyStatus %]</td>
             <td style="width: 10em">[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
           </tr>
         [% END %]

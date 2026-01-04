@@ -2,7 +2,8 @@
 
 #include <pqxx/pqxx>
 
-#include "util.hh"
+#include <nix/util/environment-variables.hh>
+#include <nix/util/util.hh>
 
 
 struct Connection : pqxx::connection
@@ -13,27 +14,33 @@ struct Connection : pqxx::connection
     {
         using namespace nix;
         auto s = getEnv("HYDRA_DBI").value_or("dbi:Pg:dbname=hydra;");
-        std::string prefix = "dbi:Pg:";
-        if (std::string(s, 0, prefix.size()) != prefix)
-            throw Error("$HYDRA_DBI does not denote a PostgreSQL database");
-        return concatStringsSep(" ", tokenizeString<Strings>(string(s, prefix.size()), ";"));
+
+        std::string lower_prefix = "dbi:Pg:";
+        std::string upper_prefix = "DBI:Pg:";
+
+        if (hasPrefix(s, lower_prefix) || hasPrefix(s, upper_prefix)) {
+            return concatStringsSep(" ", tokenizeString<Strings>(std::string(s, lower_prefix.size()), ";"));
+        }
+
+        throw Error("$HYDRA_DBI does not denote a PostgreSQL database");
     }
 };
 
 
-class receiver : public pqxx::notification_receiver
+class receiver
 {
     std::optional<std::string> status;
+    pqxx::connection & conn;
 
 public:
 
     receiver(pqxx::connection_base & c, const std::string & channel)
-        : pqxx::notification_receiver(c, channel) { }
-
-    void operator() (const std::string & payload, int pid) override
+        : conn(static_cast<pqxx::connection &>(c))
     {
-        status = payload;
-    };
+        conn.listen(channel, [this](pqxx::notification n) {
+            status = std::string(n.payload);
+        });
+    }
 
     std::optional<std::string> get() {
         auto s = status;

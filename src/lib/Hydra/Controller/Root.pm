@@ -7,14 +7,23 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::View::TT;
-use Digest::SHA1 qw(sha1_hex);
 use Nix::Store;
 use Nix::Config;
+use Number::Bytes::Human qw(format_bytes);
 use Encode;
 use File::Basename;
-use JSON;
-use List::MoreUtils qw{any};
+use JSON::MaybeXS;
+use HTML::Entities;
+use IPC::Run3;
+use List::Util qw[min max];
+use List::SomeUtils qw{any};
 use Net::Prometheus;
+use Types::Standard qw/StrMatch/;
+use WWW::Form::UrlEncoded::PP qw();
+
+use constant NARINFO_REGEX => qr{^([a-z0-9]{32})\.narinfo$};
+# e.g.: https://hydra.example.com/realisations/sha256:a62128132508a3a32eef651d6467695944763602f226ac630543e947d9feb140!out.doi
+use constant REALISATIONS_REGEX => qr{^(sha256:[a-z0-9]{64}![a-z]+)\.doi$};
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -29,7 +38,10 @@ sub noLoginNeeded {
 
   return $whitelisted ||
          $c->request->path eq "api/push-github" ||
+         $c->request->path eq "api/push-gitea" ||
          $c->request->path eq "google-login" ||
+         $c->request->path eq "github-redirect" ||
+         $c->request->path eq "github-login" ||
          $c->request->path eq "login" ||
          $c->request->path eq "logo" ||
          $c->request->path =~ /^static\//;
@@ -42,11 +54,13 @@ sub begin :Private {
     $c->stash->{curUri} = $c->request->uri;
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
+    $c->stash->{nixEvalJobsVersion} = $ENV{"NIX_EVAL_JOBS_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
     $c->stash->{logo} = defined $c->config->{hydra_logo} ? "/logo" : "";
-    $c->stash->{tracker} = $ENV{"HYDRA_TRACKER"};
+    $c->stash->{tracker} = defined $c->config->{tracker} ? $c->config->{tracker} : "";
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
+    $c->stash->{localStore} = isLocalStore;
 
     $c->stash->{isPrivateHydra} = $c->config->{private} // "0" ne "0";
 
@@ -72,9 +86,9 @@ sub begin :Private {
     $_->supportedInputTypes($c->stash->{inputTypes}) foreach @{$c->hydra_plugins};
 
     # XSRF protection: require POST requests to have the same origin.
-    if ($c->req->method eq "POST" && $c->req->path ne "api/push-github") {
-        my $referer = $c->req->header('Origin');
-        $referer //= $c->req->header('Referer');
+    if ($c->req->method eq "POST" && $c->req->path ne "api/push-github" && $c->req->path ne "api/push-gitea") {
+        my $referer = $c->req->header('Referer');
+        $referer //= $c->req->header('Origin');
         my $base = $c->req->base;
         die unless $base =~ /\/$/;
         $referer .= "/";
@@ -101,7 +115,7 @@ sub deserialize :ActionClass('Deserialize') { }
 sub index :Path :Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'overview.tt';
-    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => 'name'})];
+    $c->stash->{projects} = [$c->model('DB::Projects')->search({}, {order_by => ['enabled DESC', 'name']})];
     $c->stash->{newsItems} = [$c->model('DB::NewsItems')->search({}, { order_by => ['createtime DESC'], rows => 5 })];
     $self->status_ok($c,
         entity => $c->stash->{projects}
@@ -131,8 +145,9 @@ sub queue_summary :Local :Path('queue-summary') :Args(0) {
     $c->stash->{template} = 'queue-summary.tt';
 
     $c->stash->{queued} = dbh($c)->selectall_arrayref(
-        "select project, jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from Builds " .
-        "where finished = 0 group by project, jobset order by queued desc",
+        "select jobsets.project as project, jobsets.name as jobset, count(*) as queued, min(timestamp) as oldest, max(timestamp) as newest from Builds " .
+        "join Jobsets jobsets on jobsets.id = builds.jobset_id " .
+        "where finished = 0 group by jobsets.project, jobsets.name order by queued desc",
         { Slice => {} });
 
     $c->stash->{systems} = dbh($c)->selectall_arrayref(
@@ -151,7 +166,7 @@ sub status_GET {
             { "buildsteps.busy" => { '!=', 0 } },
             { order_by => ["globalpriority DESC", "id"],
               join => "buildsteps",
-              columns => [@buildListColumns]
+              columns => [@buildListColumns, 'buildsteps.drvpath', 'buildsteps.type']
             })]
     );
 }
@@ -163,8 +178,14 @@ sub queue_runner_status_GET {
     my ($self, $c) = @_;
 
     #my $status = from_json($c->model('DB::SystemStatus')->find('queue-runner')->status);
-    my $status = from_json(`hydra-queue-runner --status`);
-    if ($?) { $status->{status} = "unknown"; }
+    my ($stdout, $stderr);
+    run3(['hydra-queue-runner', '--status'], \undef, \$stdout, \$stderr);
+    my $status;
+    if ($? != 0) {
+        $status = { status => "unknown" };
+    } else {
+        $status = decode_json($stdout);
+    }
     my $json = JSON->new->pretty()->canonical();
 
     $c->stash->{template} = 'queue-runner-status.tt';
@@ -177,8 +198,10 @@ sub machines :Local Args(0) {
     my ($self, $c) = @_;
     my $machines = getMachines;
 
-    # Add entry for localhost.
-    $machines->{''} //= {};
+    # Add entry for localhost. The implicit addition is not needed with queue runner v2
+    if (not $c->config->{'queue_runner_endpoint'}) {
+        $machines->{''} //= {};
+    }
     delete $machines->{'localhost'};
 
     my $status = $c->model('DB::SystemStatus')->find("queue-runner");
@@ -186,19 +209,36 @@ sub machines :Local Args(0) {
         my $ms = decode_json($status->status)->{"machines"};
         foreach my $name (keys %{$ms}) {
             $name = "" if $name eq "localhost";
-            $machines->{$name} //= {disabled => 1};
-            $machines->{$name}->{nrStepsDone} = $ms->{$name}->{nrStepsDone};
-            $machines->{$name}->{avgStepBuildTime} = $ms->{$name}->{avgStepBuildTime} // 0;
+            my $outName = $name;
+            $outName = "" if $name eq "ssh://localhost";
+            $machines->{$outName} //= {disabled => 1};
+            $machines->{$outName}->{nrStepsDone} = $ms->{$name}->{nrStepsDone};
+            $machines->{$outName}->{avgStepBuildTime} = $ms->{$name}->{avgStepBuildTime} // 0;
         }
     }
 
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = dbh($c)->selectall_arrayref(
-        "select build, stepnr, s.system as system, s.drvpath as drvpath, machine, s.starttime as starttime, project, jobset, job, s.busy as busy " .
-        "from BuildSteps s join Builds b on s.build = b.id " .
+        "select build, stepnr, s.system as system, s.drvpath as drvpath, machine, s.starttime as starttime, jobsets.project as project, jobsets.name as jobset, job, s.busy as busy " .
+        "from BuildSteps s " .
+        "join Builds b on s.build = b.id " .
+        "join Jobsets jobsets on jobsets.id = b.jobset_id " .
         "where busy != 0 order by machine, stepnr",
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
+    $c->stash->{human_bytes} = sub {
+        my ($bytes) = @_;
+        return format_bytes($bytes, si => 1);
+    };
+    $c->stash->{pretty_load} = sub {
+        my ($load) = @_;
+        return sprintf('%.2f', $load);
+    };
+    $c->stash->{pretty_percent} = sub {
+        my ($percent) = @_;
+        my $ret = sprintf('%.2f', $percent);
+        return ('&nbsp;' x (6 - length($ret))) . encode_entities($ret);
+    };
     $self->status_ok($c, entity => $c->stash->{machines});
 }
 
@@ -318,7 +358,7 @@ sub nar :Local :Args(1) {
     else {
         $path = $Nix::Config::storeDir . "/$path";
 
-        gone($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
+        gone($c, "Path " . $path . " is no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($path);
 
         $c->stash->{current_view} = 'NixNAR';
         $c->stash->{storePath} = $path;
@@ -347,18 +387,45 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
 }
 
 
-sub narinfo :LocalRegex('^([a-z0-9]+).narinfo$') :Args(0) {
-    my ($self, $c) = @_;
+sub realisations :Path('realisations') :Args(StrMatch[REALISATIONS_REGEX]) {
+    my ($self, $c, $realisation) = @_;
 
     if (!isLocalStore) {
         notFound($c, "There is no binary cache here.");
     }
 
     else {
-        my $hash = $c->req->captures->[0];
+        my ($rawDrvOutput) = $realisation =~ REALISATIONS_REGEX;
+        my $rawRealisation = $MACHINE_LOCAL_STORE->queryRawRealisation($rawDrvOutput);
 
-        die if length($hash) != 32;
-        my $path = queryPathFromHashPart($hash);
+        if (!$rawRealisation) {
+            $c->response->status(404);
+            $c->response->content_type('text/plain');
+            $c->stash->{plain}->{data} = "does not exist\n";
+            $c->forward('Hydra::View::Plain');
+            setCacheHeaders($c, 60 * 60);
+            return;
+        }
+
+        $c->response->content_type('text/plain');
+        $c->stash->{plain}->{data} = $rawRealisation;
+        $c->forward('Hydra::View::Plain');
+    }
+}
+
+
+sub narinfo :Path :Args(StrMatch[NARINFO_REGEX]) {
+    my ($self, $c, $narinfo) = @_;
+
+    if (!isLocalStore) {
+        notFound($c, "There is no binary cache here.");
+    }
+
+    else {
+        my ($hash) = $narinfo =~ NARINFO_REGEX;
+
+        die("Hash length was not 32") if length($hash) != 32;
+        my $path = $MACHINE_LOCAL_STORE->queryPathFromHashPart($hash);
 
         if (!$path) {
             $c->response->status(404);
@@ -396,7 +463,7 @@ sub evals :Local Args(0) {
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
     $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
-    $c->stash->{evals} = getEvals($self, $c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage);
+    $c->stash->{evals} = getEvals($c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage);
 
     $self->status_ok($c, entity => $c->stash->{evals});
 }
@@ -436,57 +503,58 @@ sub search :Local Args(0) {
     error($c, "Invalid character in query.")
         unless $query =~ /^[a-zA-Z0-9_\-\/.]+$/;
 
-    my $limit = trim $c->request->params->{"limit"};
-    if ($limit eq "") {
-        $c->stash->{limit} = 500;
-    } else {
-        $c->stash->{limit} = $limit;
-    }
+    my $limit = int(trim ($c->request->params->{"limit"} || "10"));
+    $c->stash->{limit} = min(50, max(1, $limit));
 
-    $c->stash->{projects} = [ $c->model('DB::Projects')->search(
-        { -and =>
-            [ { -or => [ name => { ilike => "%$query%" }, displayName => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] }
-            , { hidden => 0 }
-            ]
-        },
-        { order_by => ["name"] } ) ];
+    $c->model('DB')->schema->txn_do(sub {
+        $c->model('DB')->schema->storage->dbh->do("SET LOCAL statement_timeout = 20000");
+        $c->stash->{projects} = [ $c->model('DB::Projects')->search(
+            { -and =>
+                [ { -or => [ name => { ilike => "%$query%" }, displayName => { ilike => "%$query%" }, description => { ilike => "%$query%" } ] }
+                , { hidden => 0 }
+                ]
+            },
+            { order_by => ["name"] } ) ];
 
-    $c->stash->{jobsets} = [ $c->model('DB::Jobsets')->search(
-        { -and =>
-            [ { -or => [ "me.name" => { ilike => "%$query%" }, "me.description" => { ilike => "%$query%" } ] }
-            , { "project.hidden" => 0, "me.hidden" => 0 }
-            ]
-        },
-        { order_by => ["project", "name"], join => ["project"] } ) ];
+        $c->stash->{jobsets} = [ $c->model('DB::Jobsets')->search(
+            { -and =>
+                [ { -or => [ "me.name" => { ilike => "%$query%" }, "me.description" => { ilike => "%$query%" } ] }
+                , { "project.hidden" => 0, "me.hidden" => 0 }
+                ]
+            },
+            { order_by => ["project", "name"], join => ["project"] } ) ];
 
-    $c->stash->{jobs} = [ $c->model('DB::Builds')->search(
-        { "job" => { ilike => "%$query%" }
-        , "project.hidden" => 0
-        , "jobset.hidden" => 0
-        , iscurrent => 1
-        },
-        { order_by => ["project", "jobset", "job"], join => ["project", "jobset"]
-        , rows => $c->stash->{limit} + 1
-        } )
-    ];
+        $c->stash->{jobs} = [ $c->model('DB::Builds')->search(
+            { "job" => { ilike => "%$query%" }
+            , "project.hidden" => 0
+            , "jobset.hidden" => 0
+            , iscurrent => 1
+            },
+            {
+                order_by => ["jobset.project", "jobset.name", "job"],
+                join => { "jobset" => "project" },
+                rows => $c->stash->{limit} + 1
+            } )
+        ];
 
-    # Perform build search in separate queries to prevent seq scan on buildoutputs table.
-    $c->stash->{builds} = [ $c->model('DB::Builds')->search(
-        { "buildoutputs.path" => { ilike => "%$query%" } },
-        { order_by => ["id desc"], join => ["buildoutputs"]
-        , rows => $c->stash->{limit}
-        } ) ];
+        # Perform build search in separate queries to prevent seq scan on buildoutputs table.
+        $c->stash->{builds} = [ $c->model('DB::Builds')->search(
+            { "buildoutputs.path" => { ilike => "%$query%" } },
+            { order_by => ["id desc"], join => ["buildoutputs"]
+            , rows => $c->stash->{limit}
+            } ) ];
 
-    $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
-        { "drvpath" => { ilike => "%$query%" } },
-        { order_by => ["id desc"]
-        , rows => $c->stash->{limit}
-        } ) ];
+        $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
+            { "drvpath" => { ilike => "%$query%" } },
+            { order_by => ["id desc"]
+            , rows => $c->stash->{limit}
+            } ) ];
 
-    $c->stash->{resource} = { projects => $c->stash->{projects},
-                              jobsets  => $c->stash->{jobsets},
-                              builds  => $c->stash->{builds},
-                              buildsdrv  => $c->stash->{buildsdrv} };
+        $c->stash->{resource} = { projects => $c->stash->{projects},
+                                jobsets  => $c->stash->{jobsets},
+                                builds  => $c->stash->{builds},
+                                buildsdrv  => $c->stash->{buildsdrv} };
+    });
 }
 
 sub serveLogFile {
@@ -515,9 +583,28 @@ sub log :Local :Args(1) {
     my $logPrefix = $c->config->{log_prefix};
 
     if (defined $logPrefix) {
-        $c->res->redirect($logPrefix . "log/" . basename($drvPath));
+        $c->res->redirect($logPrefix . "log/" . WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath)));
     } else {
         notFound($c, "The build log of $drvPath is not available.");
+    }
+}
+
+sub runcommandlog :Local :Args(1) {
+    my ($self, $c, $uuid) = @_;
+
+    my $tail = $c->request->params->{"tail"};
+
+    die if defined $tail && $tail !~ /^[0-9]+$/;
+
+    my $runlog = $c->model('DB')->resultset('RunCommandLogs')->find({ uuid => $uuid })
+        or notFound($c, "The RunCommand log is not available.");
+
+    my $logFile = constructRunCommandLogPath($runlog);
+    if (-f $logFile) {
+        serveLogFile($c, $logFile, $tail);
+        return;
+    } else {
+        notFound($c, "The RunCommand log is not available.");
     }
 }
 

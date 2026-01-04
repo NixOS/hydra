@@ -1,11 +1,16 @@
-[% WRAPPER layout.tt title=
+[% WRAPPER layout.tt
+  title=
     (build ? "Evaluations containing build $build.id" :
-     jobset ? "Evaluations of jobset $project.name:$jobset.name" :
+     jobset ? "Evaluations of jobset " _ makeNameTextForJobset(jobset) :
+     "Latest evaluations")
+  titleHTML =
+    (build ? "Evaluations containing build $build.id" :
+     jobset ? "Evaluations of jobset " _ linkToJobset(jobset) :
      "Latest evaluations") %]
 [% PROCESS common.tt %]
 
 <p>Showing evaluations [% (page - 1) * resultsPerPage + 1 %] - [%
-(page - 1) * resultsPerPage + evals.size %] out of [% total %].</p>
+(page - 1) * resultsPerPage + evals.size %] out of [% HTML.escape(total) %].</p>
 
 [% INCLUDE renderEvals %]
 

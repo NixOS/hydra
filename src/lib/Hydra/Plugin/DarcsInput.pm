@@ -1,11 +1,13 @@
 package Hydra::Plugin::DarcsInput;
 
 use strict;
+use warnings;
 use parent 'Hydra::Plugin';
 use Digest::SHA qw(sha256_hex);
 use File::Path;
+use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
-use Nix::Store;
+use IPC::Run3;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -30,7 +32,7 @@ sub fetchInput {
     my $stdout = ""; my $stderr = ""; my $res;
     if (! -d $clonePath) {
         # Clone the repository.
-        $res = run(timeout => 600,
+        $res = runCommand(timeout => 600,
                    cmd => ["darcs", "get", "--lazy", $uri, $clonePath],
                    dir => $ENV{"TMPDIR"});
         die "Error getting darcs repo at `$uri':\n$stderr" if $res->{status};
@@ -56,7 +58,7 @@ sub fetchInput {
         {uri => $uri, revision => $revision},
         {rows => 1});
 
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
         $revision = $cachedInput->revision;
@@ -69,12 +71,15 @@ sub fetchInput {
         (system "darcs", "get", "--lazy", $clonePath, "$tmpDir/export", "--quiet",
                 "--to-match", "hash $revision") == 0
             or die "darcs export failed";
-        $revCount = `darcs changes --count --repodir $tmpDir/export`; chomp $revCount;
-        die "darcs changes --count failed" if $? != 0;
+        my ($stdout, $stderr);
+        run3(['darcs', 'changes', '--count', '--repodir', "$tmpDir/export"], \undef, \$stdout, \$stderr);
+        die "darcs changes --count failed: $stderr\n" if $? != 0;
+        $revCount = $stdout;
+        chomp $revCount;
 
         system "rm", "-rf", "$tmpDir/export/_darcs";
-        $storePath = addToStore("$tmpDir/export", 1, "sha256");
-        $sha256 = queryPathHash($storePath);
+        $storePath = $MACHINE_LOCAL_STORE->addToStore("$tmpDir/export", 1, "sha256");
+        $sha256 = $MACHINE_LOCAL_STORE->queryPathHash($storePath);
         $sha256 =~ s/sha256://;
 
         $self->{db}->txn_do(sub {

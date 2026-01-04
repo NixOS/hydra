@@ -2,7 +2,7 @@
 [% PROCESS common.tt %]
 
 <p>Showing steps [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1)
-* resultsPerPage + steps.size %] of about [% total %] in
+* resultsPerPage + steps.size %] of about [% HTML.escape(total) %] in
 order of descending finish time.</p>
 
 <table class="table table-striped table-condensed clickable-rows">
@@ -24,8 +24,8 @@ order of descending finish time.</p>
         <td>[% INCLUDE renderBuildStatusIcon buildstatus=step.status size=16 %]</td>
         <td><tt>[% step.drvpath.match('-(.*).drv').0 %]</tt></td>
         <td><tt>[% INCLUDE renderFullJobNameOfBuild build=step.build %]</tt></td>
-        <td><a href="[% c.uri_for('/build' step.build.id) %]">[% step.build.id %]</a></td>
-        <td><a class="row-link" href="[% c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail') %]">[% step.stepnr %]</a></td>
+        <td><a [% HTML.attributes(href => c.uri_for('/build' step.build.id)) %]>[% HTML.escape(step.build.id) %]</a></td>
+        <td><a class="row-link" [% HTML.attributes(href => c.uri_for('/build' step.build.id 'nixlog' step.stepnr 'tail')) %]>[% HTML.escape(step.stepnr) %]</a></td>
         <td>[% INCLUDE renderRelativeDate timestamp=step.stoptime %]</td>
         <td style="width: 10em">[% INCLUDE renderDuration duration = step.stoptime - step.starttime %] </td>
         <td><tt>[% INCLUDE renderMachineName machine=step.machine %]</tt></td>
