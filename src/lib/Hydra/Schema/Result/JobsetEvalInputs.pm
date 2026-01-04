@@ -183,4 +183,20 @@ sub json_hint {
     return \%hint;
 }
 
+# Revision to be rendered by the frontend
+sub frontend_revision() {
+    my ($self) = @_;
+    my $type = $self->get_column('type');
+    if ($type eq 'svn' or $type eq 'svn-checkout' or $type eq 'bzr' or $type eq 'bzr-checkout') {
+        return 'r' . $self->get_column('revision');
+    } elsif ($type eq 'git') {
+        return substr($self->get_column('revision'), 0, 12);
+    } elsif ($type eq 'bzr') {
+        return substr($self->get_column('revision'), 0, 12);
+    } else {
+        return $self->get_column('revision');
+    }
+
+}
+
 1;
