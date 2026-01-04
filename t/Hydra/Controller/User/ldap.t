@@ -24,6 +24,7 @@ $ldap->add_group("hydra_create-projects", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_restart-jobs", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_bump-to-front", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_cancel-build", $users->{"many_roles"}->{"username"});
+$ldap->add_group("hydra_eval-jobset", $users->{"many_roles"}->{"username"});
 
 
 my $ctx = test_context(
@@ -76,10 +77,12 @@ my $ctx = test_context(
                 hydra_cancel-build = cancel-build
                 hydra_bump-to-front = bump-to-front
                 hydra_restart-jobs = restart-jobs
+                hydra_eval-jobset = eval-jobset
 
                 hydra_one_group_many_roles = create-projects
                 hydra_one_group_many_roles = cancel-build
                 hydra_one_group_many_roles = bump-to-front
+                hydra_one_group_many-roles = eval-jobset
             </role_mapping>
         </ldap>
 CFG
@@ -92,7 +95,7 @@ subtest "Valid login attempts" => sub {
         unrelated => [],
         admin => ["admin"],
         not_admin => [],
-        many_roles => [ "create-projects", "restart-jobs", "bump-to-front", "cancel-build" ],
+        many_roles => [ "create-projects", "restart-jobs", "bump-to-front", "cancel-build", "eval-jobset" ],
         many_roles_one_group => [ "create-projects", "bump-to-front", "cancel-build" ],
     );
     for my $username (keys %users_to_roles) {

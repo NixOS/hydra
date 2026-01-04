@@ -51,10 +51,12 @@ base_uri example.com
 `base_uri` should be your hydra servers proxied URL. If you are using
 Hydra nixos module then setting `hydraURL` option should be enough.
 
-If you want to serve Hydra with a prefix path, for example
-[http://example.com/hydra]() then you need to configure your reverse
-proxy to pass `X-Request-Base` to hydra, with prefix path as value. For
-example if you are using nginx, then use configuration similar to
+You also need to configure your reverse proxy to pass `X-Request-Base`
+to hydra, with the same value as `base_uri`.
+This also covers the case of serving Hydra with a prefix path,
+as in [http://example.com/hydra]().
+
+For example if you are using nginx, then use configuration similar to
 following:
 
     server {
@@ -63,8 +65,7 @@ following:
         .. other configuration ..
         location /hydra/ {
 
-            proxy_pass     http://127.0.0.1:3000;
-            proxy_redirect http://127.0.0.1:3000 https://example.com/hydra;
+            proxy_pass http://127.0.0.1:3000/;
 
             proxy_set_header  Host              $host;
             proxy_set_header  X-Real-IP         $remote_addr;
@@ -73,6 +74,33 @@ following:
             proxy_set_header  X-Request-Base    /hydra;
         }
     }
+
+Note the trailing slash on the `proxy_pass` directive, which causes nginx to
+strip off the `/hydra/` part of the URL before passing it to hydra.
+
+Populating a Cache
+------------------
+
+A common use for Hydra is to pre-build and cache derivations which
+take a long time to build. While it is possible to direcly access the
+Hydra server's store over SSH, a more scalable option is to upload
+built derivations to a remote store like an [S3-compatible object
+store](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html#s3-binary-cache-store). Setting
+the `store_uri` parameter will cause Hydra to sign and upload
+derivations as they are built:
+
+```
+store_uri = s3://cache-bucket-name?compression=zstd&parallel-compression=true&write-nar-listing=1&ls-compression=br&log-compression=br&secret-key=/path/to/cache/private/key
+```
+
+This example uses [Zstandard](https://github.com/facebook/zstd)
+compression on derivations to reduce CPU usage on the server, but
+[Brotli](https://brotli.org/) compression for derivation listings and
+build logs because it has better browser support.
+
+See [`nix help
+stores`](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html)
+for a description of the store URI format.
 
 Statsd Configuration
 --------------------
@@ -184,7 +212,8 @@ Example configuration:
   <role_mapping>
     # Make all users in the hydra_admin group Hydra admins
     hydra_admin = admin
-    # Allow all users in the dev group to restart jobs and cancel builds
+    # Allow all users in the dev group to eval jobsets, restart jobs and cancel builds
+    dev = eval-jobset
     dev = restart-jobs
     dev = cancel-build
   </role_mapping>
@@ -236,6 +265,40 @@ default role mapping:
 
 Note that configuring both the LDAP parameters in the hydra.conf and via
 the environment variable is a fatal error.
+
+Webhook Authentication
+---------------------
+
+Hydra supports authenticating webhook requests from GitHub and Gitea to prevent unauthorized job evaluations.
+Webhook secrets should be stored in separate files outside the Nix store for security using Config::General's include mechanism.
+
+In your main `hydra.conf`:
+```apache
+<webhooks>
+  Include /var/lib/hydra/secrets/webhook-secrets.conf
+</webhooks>
+```
+
+Then create `/var/lib/hydra/secrets/webhook-secrets.conf` with your actual secrets:
+```apache
+<github>
+  secret = your-github-webhook-secret
+</github>
+<gitea>
+  secret = your-gitea-webhook-secret
+</gitea>
+```
+
+For multiple secrets (useful for rotation or multiple environments), use an array:
+```apache
+<github>
+  secret = your-github-webhook-secret-prod
+  secret = your-github-webhook-secret-staging
+</github>
+```
+
+**Important**: The secrets file should have restricted permissions (e.g., 0600) to prevent unauthorized access.
+See the [Webhooks documentation](webhooks.md) for detailed setup instructions.
 
 Embedding Extra HTML
 --------------------

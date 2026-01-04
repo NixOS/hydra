@@ -15,6 +15,7 @@ our @EXPORT = qw(
     forceLogin requireUser requireProjectOwner requireRestartPrivileges requireAdmin requirePost isAdmin isProjectOwner
     requireBumpPrivileges
     requireCancelBuildPrivileges
+    requireEvalJobsetPrivileges
     trim
     getLatestFinishedEval getFirstEval
     paramToList
@@ -186,6 +187,27 @@ sub isProjectOwner {
          defined $c->model('DB::ProjectMembers')->find({ project => $project, userName => $c->user->username }));
 }
 
+sub hasEvalJobsetRole {
+    my ($c) = @_;
+    return $c->user_exists && $c->check_user_roles("eval-jobset");
+}
+
+sub mayEvalJobset {
+    my ($c, $project) = @_;
+    return
+        $c->user_exists &&
+        (isAdmin($c) ||
+         hasEvalJobsetRole($c) ||
+         isProjectOwner($c, $project));
+}
+
+sub requireEvalJobsetPrivileges {
+    my ($c, $project) = @_;
+    requireUser($c);
+    accessDenied($c, "Only the project members, administrators, and accounts with eval-jobset privileges can perform this operation.")
+        unless mayEvalJobset($c, $project);
+}
+
 sub hasCancelBuildRole {
     my ($c) = @_;
     return $c->user_exists && $c->check_user_roles('cancel-build');
@@ -272,7 +294,7 @@ sub requireAdmin {
 
 sub requirePost {
     my ($c) = @_;
-    error($c, "Request must be POSTed.") if $c->request->method ne "POST";
+    error($c, "Request must be POSTed.", 405) if $c->request->method ne "POST";
 }
 
 

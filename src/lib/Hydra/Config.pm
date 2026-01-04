@@ -95,6 +95,7 @@ sub get_legacy_ldap_config {
             "hydra_bump-to-front" => [ "bump-to-front" ],
             "hydra_cancel-build" => [ "cancel-build" ],
             "hydra_create-projects" => [ "create-projects" ],
+            "hydra_eval-jobset" => [ "eval-jobset" ],
             "hydra_restart-jobs" => [ "restart-jobs" ],
         },
     };
@@ -159,6 +160,7 @@ sub valid_roles {
         "bump-to-front",
         "cancel-build",
         "create-projects",
+        "eval-jobset",
         "restart-jobs",
     ];
 }

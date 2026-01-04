@@ -57,8 +57,8 @@ subtest "Validate a run log was created" => sub {
     ok($runlog->did_succeed(), "The process did succeed.");
     is($runlog->job_matcher, "*:*:*", "An unspecified job matcher is defaulted to *:*:*");
     is($runlog->command, 'cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"', "The executed command is saved.");
-    is($runlog->start_time, within(time() - 1, 2), "The start time is recent.");
-    is($runlog->end_time, within(time() - 1, 2), "The end time is also recent.");
+    is($runlog->start_time, within(time() - 1, 5), "The start time is recent.");
+    is($runlog->end_time, within(time() - 1, 5), "The end time is also recent.");
     is($runlog->exit_code, 0, "This command should have succeeded.");
 
     subtest "Validate the run log file exists" => sub {

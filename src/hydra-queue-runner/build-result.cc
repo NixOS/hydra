@@ -1,7 +1,7 @@
 #include "hydra-build-result.hh"
-#include "store-api.hh"
-#include "util.hh"
-#include "fs-accessor.hh"
+#include <nix/store/store-api.hh>
+#include <nix/util/util.hh>
+#include <nix/util/source-accessor.hh>
 
 #include <regex>
 
@@ -11,18 +11,18 @@ using namespace nix;
 BuildOutput getBuildOutput(
     nix::ref<Store> store,
     NarMemberDatas & narMembers,
-    const Derivation & drv)
+    const OutputPathMap derivationOutputs)
 {
     BuildOutput res;
 
     /* Compute the closure size. */
     StorePathSet outputs;
     StorePathSet closure;
-    for (auto & i : drv.outputsAndOptPaths(*store))
-        if (i.second.second) {
-            store->computeFSClosure(*i.second.second, closure);
-            outputs.insert(*i.second.second);
-        }
+    for (auto& [outputName, outputPath] : derivationOutputs) {
+        store->computeFSClosure(outputPath, closure);
+        outputs.insert(outputPath);
+        res.outputs.insert({outputName, outputPath});
+    }
     for (auto & path : closure) {
         auto info = store->queryPathInfo(path);
         res.closureSize += info->narSize;
@@ -51,8 +51,8 @@ BuildOutput getBuildOutput(
         "[[:space:]]+"
         "([a-zA-Z0-9_-]+)" // subtype (e.g. "readme")
         "[[:space:]]+"
-        "(\"[^\"]+\"|[^[:space:]\"]+)" // path (may be quoted)
-        "([[:space:]]+([^[:space:]]+))?" // entry point
+        "(\"[^\"]+\"|[^[:space:]<>\"]+)" // path (may be quoted)
+        "([[:space:]]+([^[:space:]<>]+))?" // entry point
         , std::regex::extended);
 
     for (auto & output : outputs) {
@@ -63,7 +63,7 @@ BuildOutput getBuildOutput(
 
         auto productsFile = narMembers.find(outputS + "/nix-support/hydra-build-products");
         if (productsFile == narMembers.end() ||
-            productsFile->second.type != FSAccessor::Type::tRegular)
+            productsFile->second.type != SourceAccessor::Type::tRegular)
             continue;
         assert(productsFile->second.contents);
 
@@ -78,7 +78,7 @@ BuildOutput getBuildOutput(
             product.type = match[1];
             product.subtype = match[2];
             std::string s(match[3]);
-            product.path = s[0] == '"' ? std::string(s, 1, s.size() - 2) : s;
+            product.path = s[0] == '"' && s.back() == '"' ? std::string(s, 1, s.size() - 2) : s;
             product.defaultPath = match[5];
 
             /* Ensure that the path exists and points into the Nix
@@ -93,8 +93,10 @@ BuildOutput getBuildOutput(
             if (file == narMembers.end()) continue;
 
             product.name = product.path == store->printStorePath(output) ? "" : baseNameOf(product.path);
+            if (!std::regex_match(product.name, std::regex("[a-zA-Z0-9.@:_ -]*")))
+                product.name = "";
 
-            if (file->second.type == FSAccessor::Type::tRegular) {
+            if (file->second.type == SourceAccessor::Type::tRegular) {
                 product.isRegular = true;
                 product.fileSize = file->second.fileSize.value();
                 product.sha256hash = file->second.sha256.value();
@@ -107,17 +109,16 @@ BuildOutput getBuildOutput(
     /* If no build products were explicitly declared, then add all
        outputs as a product of type "nix-build". */
     if (!explicitProducts) {
-        for (auto & [name, output] : drv.outputs) {
+        for (auto & [name, output] : derivationOutputs) {
             BuildProduct product;
-            auto outPath = output.path(*store, drv.name, name);
-            product.path = store->printStorePath(*outPath);
+            product.path = store->printStorePath(output);
             product.type = "nix-build";
             product.subtype = name == "out" ? "" : name;
-            product.name = outPath->name();
+            product.name = output.name();
 
             auto file = narMembers.find(product.path);
             assert(file != narMembers.end());
-            if (file->second.type == FSAccessor::Type::tDirectory)
+            if (file->second.type == SourceAccessor::Type::tDirectory)
                 res.products.push_back(product);
         }
     }
@@ -126,25 +127,34 @@ BuildOutput getBuildOutput(
     for (auto & output : outputs) {
         auto file = narMembers.find(store->printStorePath(output) + "/nix-support/hydra-release-name");
         if (file == narMembers.end() ||
-            file->second.type != FSAccessor::Type::tRegular)
+            file->second.type != SourceAccessor::Type::tRegular)
             continue;
-        res.releaseName = trim(file->second.contents.value());
-        // FIXME: validate release name
+        auto contents = trim(file->second.contents.value());
+        if (std::regex_match(contents, std::regex("[a-zA-Z0-9.@:_-]+")))
+            res.releaseName = contents;
     }
 
     /* Get metrics. */
     for (auto & output : outputs) {
         auto file = narMembers.find(store->printStorePath(output) + "/nix-support/hydra-metrics");
         if (file == narMembers.end() ||
-            file->second.type != FSAccessor::Type::tRegular)
+            file->second.type != SourceAccessor::Type::tRegular)
             continue;
         for (auto & line : tokenizeString<Strings>(file->second.contents.value(), "\n")) {
             auto fields = tokenizeString<std::vector<std::string>>(line);
             if (fields.size() < 2) continue;
+            if (!std::regex_match(fields[0], std::regex("[a-zA-Z0-9._-]+")))
+                continue;
             BuildMetric metric;
-            metric.name = fields[0]; // FIXME: validate
-            metric.value = atof(fields[1].c_str()); // FIXME
+            metric.name = fields[0];
+            try {
+                metric.value = std::stod(fields[1]);
+            } catch (...) {
+                continue; // skip this metric
+            }
             metric.unit = fields.size() >= 3 ? fields[2] : "";
+            if (!std::regex_match(metric.unit, std::regex("[a-zA-Z0-9._%-]+")))
+                metric.unit = "";
             res.metrics[metric.name] = metric;
         }
     }

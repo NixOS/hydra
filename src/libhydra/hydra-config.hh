@@ -2,7 +2,8 @@
 
 #include <map>
 
-#include "util.hh"
+#include <nix/util/file-system.hh>
+#include <nix/util/util.hh>
 
 struct HydraConfig
 {

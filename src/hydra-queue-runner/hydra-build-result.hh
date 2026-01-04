@@ -2,9 +2,9 @@
 
 #include <memory>
 
-#include "hash.hh"
-#include "derivations.hh"
-#include "store-api.hh"
+#include <nix/util/hash.hh>
+#include <nix/store/derivations.hh>
+#include <nix/store/store-api.hh>
 #include "nar-extractor.hh"
 
 struct BuildProduct
@@ -36,10 +36,12 @@ struct BuildOutput
 
     std::list<BuildProduct> products;
 
+    std::map<std::string, nix::StorePath> outputs;
+
     std::map<std::string, BuildMetric> metrics;
 };
 
 BuildOutput getBuildOutput(
     nix::ref<nix::Store> store,
     NarMemberDatas & narMembers,
-    const nix::Derivation & drv);
+    const nix::OutputPathMap derivationOutputs);

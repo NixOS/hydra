@@ -15,11 +15,11 @@
         [% FOREACH m IN machines %]
         <tr>
             <td><input type="checkbox" name="enabled" [% IF m.value.maxJobs > 0  %]CHECKED[% END %] disabled="true" /></td>
-            <td>[% m.key %]</a></td>
-            <td>[% m.value.maxJobs %]</td>
-            <td>[% m.value.speedFactor %]</td>
+            <td>[% HTML.escape(m.key) %]</a></td>
+            <td>[% HTML.escape(m.value.maxJobs) %]</td>
+            <td>[% HTML.escape(m.value.speedFactor) %]</td>
             <td>
-                [% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END; system; END %]
+                [% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END; HTML.escape(system); END %]
             </td>
         </tr>
         [% END %]

@@ -76,7 +76,9 @@ sub view_GET {
     $c->stash->{removed} = $diff->{removed};
     $c->stash->{unfinished} = $diff->{unfinished};
     $c->stash->{aborted} = $diff->{aborted};
-    $c->stash->{failed} = $diff->{failed};
+    $c->stash->{totalAborted} = $diff->{totalAborted};
+    $c->stash->{totalFailed} = $diff->{totalFailed};
+    $c->stash->{totalQueued} = $diff->{totalQueued};
 
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
 
@@ -86,6 +88,17 @@ sub view_GET {
     );
 }
 
+sub errors :Chained('evalChain') :PathPart('errors') :Args(0) :ActionClass('REST') { }
+
+sub errors_GET {
+    my ($self, $c) = @_;
+
+    $c->stash->{template} = 'eval-error.tt';
+
+    $c->stash->{eval} = $c->model('DB::JobsetEvals')->find($c->stash->{eval}->id, { prefetch => 'evaluationerror' });
+
+    $self->status_ok($c, entity => $c->stash->{eval});
+}
 
 sub create_jobset : Chained('evalChain') PathPart('create-jobset') Args(0) {
     my ($self, $c) = @_;

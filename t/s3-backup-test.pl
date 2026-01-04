@@ -3,7 +3,6 @@ use warnings;
 use File::Basename;
 use Hydra::Model::DB;
 use Hydra::Helper::Nix;
-use Nix::Store;
 use Cwd;
 
 my $db = Hydra::Model::DB->new;
@@ -20,11 +19,11 @@ my $jobsetinput;
 
 $jobsetinput = $jobset->jobsetinputs->create({name => "jobs", type => "path"});
 $jobsetinput->jobsetinputalts->create({altnr => 0, value => getcwd . "/jobs"});
-system("hydra-eval-jobset " . $jobset->project->name . " " . $jobset->name);
+system("hydra-eval-jobset", $jobset->project->name, $jobset->name);
 
 my $successful_hash;
 foreach my $build ($jobset->builds->search({finished => 0})) {
-    system("hydra-build " . $build->id);
+    system("hydra-build", $build->id);
     my @outputs = $build->buildoutputs->all;
     my $hash = substr basename($outputs[0]->path), 0, 32;
     if ($build->job->name eq "job") {

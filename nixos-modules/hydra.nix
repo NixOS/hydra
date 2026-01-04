@@ -68,8 +68,6 @@ in
 
       package = mkOption {
         type = types.path;
-        default = pkgs.hydra;
-        defaultText = literalExpression "pkgs.hydra";
         description = "The Hydra package.";
       };
 
@@ -230,10 +228,10 @@ in
 
     nix.settings = {
       trusted-users = [ "hydra-queue-runner" ];
-      gc-keep-outputs = true;
-      gc-keep-derivations = true;
+      keep-outputs = true;
+      keep-derivations = true;
     };
-    
+
     services.hydra-dev.extraConfig =
       ''
         using_frontend_proxy = 1
@@ -340,8 +338,9 @@ in
     systemd.services.hydra-queue-runner =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
-        after = [ "hydra-init.service" "network.target" ];
-        path = [ cfg.package pkgs.nettools pkgs.openssh pkgs.bzip2 config.nix.package ];
+        wants = [ "network-online.target" ];
+        after = [ "hydra-init.service" "network.target" "network-online.target" ];
+        path = [ cfg.package pkgs.hostname-debian pkgs.openssh pkgs.bzip2 config.nix.package ];
         restartTriggers = [ hydraConf ];
         environment = env // {
           PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
@@ -365,7 +364,7 @@ in
         requires = [ "hydra-init.service" ];
         restartTriggers = [ hydraConf ];
         after = [ "hydra-init.service" "network.target" ];
-        path = with pkgs; [ nettools cfg.package jq ];
+        path = with pkgs; [ hostname-debian cfg.package ];
         environment = env // {
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-evaluator";
         };
@@ -408,6 +407,7 @@ in
         requires = [ "hydra-init.service" ];
         after = [ "hydra-init.service" ];
         restartTriggers = [ hydraConf ];
+        path = [ pkgs.zstd ];
         environment = env // {
           PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-notify";
@@ -458,10 +458,17 @@ in
     # logs automatically after a step finishes, but this doesn't work
     # if the queue runner is stopped prematurely.
     systemd.services.hydra-compress-logs =
-      { path = [ pkgs.bzip2 ];
+      { path = [ pkgs.bzip2 pkgs.zstd ];
         script =
           ''
-            find ${baseDir}/build-logs -type f -name "*.drv" -mtime +3 -size +0c | xargs -r bzip2 -v -f
+            set -eou pipefail
+            compression=$(sed -nr 's/compress_build_logs_compression = ()/\1/p' ${baseDir}/hydra.conf)
+            if [[ $compression == "" || $compression == bzip2 ]]; then
+              compressionCmd=(bzip2)
+            elif [[ $compression == zstd ]]; then
+              compressionCmd=(zstd --rm)
+            fi
+            find ${baseDir}/build-logs -ignore_readdir_race -type f -name "*.drv" -mtime +3 -size +0c -print0 | xargs -0 -r "''${compressionCmd[@]}" --force --quiet
           '';
         startAt = "Sun 01:45";
       };

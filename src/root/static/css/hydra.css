@@ -181,12 +181,20 @@ a.squiggle:hover {
     padding-bottom: 1px;
 }
 
+table.pressureTable {
+    margin-left: 2em;
+}
+
+table.pressureTable td {
+    padding: 0 .4em;
+}
+
 @media (prefers-color-scheme: dark) {
     /* Prevent some flickering */
     html {
         background-color: #1f1f1f;
     }
-    body, div.popover {
+    body, div.popover, div.popover-body {
         background-color: #1f1f1f;
         color: #fafafa !important;
     }

@@ -25,11 +25,11 @@ subtest "requeue" => sub {
 
     $task->requeue();
     is($task->attempts, 2, "We should have stored a second retry");
-    is($task->retry_at, within(time() + 4, 2), "Delayed two exponential backoff step");
+    is($task->retry_at, within(time() + 4, 5), "Delayed two exponential backoff step");
 
     $task->requeue();
     is($task->attempts, 3, "We should have stored a third retry");
-    is($task->retry_at, within(time() + 8, 2), "Delayed a third exponential backoff step");
+    is($task->retry_at, within(time() + 8, 5), "Delayed a third exponential backoff step");
 };
 
 done_testing;

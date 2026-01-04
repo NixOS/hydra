@@ -33,7 +33,6 @@ close $fh;
 is(Hydra::Helper::Nix::getMachines(), {
     'root@ip' => {
         'systemTypes' => ["x86_64-darwin"],
-        'sshKeys' => '/sshkey',
         'maxJobs' => 15,
         'speedFactor' => 15,
         'supportedFeatures' => ["big-parallel", "kvm", "nixos-test" ],
@@ -41,7 +40,6 @@ is(Hydra::Helper::Nix::getMachines(), {
     },
     'root@baz' => {
         'systemTypes' => [ "aarch64-darwin" ],
-        'sshKeys' => '/sshkey',
         'maxJobs' => 4,
         'speedFactor' => 1,
         'supportedFeatures' => ["big-parallel"],
@@ -49,7 +47,6 @@ is(Hydra::Helper::Nix::getMachines(), {
     },
     'root@bux' => {
         'systemTypes' => [ "i686-linux", "x86_64-linux" ],
-        'sshKeys' => '/var/sshkey',
         'maxJobs' => 1,
         'speedFactor' => 1,
         'supportedFeatures' => [ "kvm", "nixos-test", "benchmark" ],
@@ -57,7 +54,6 @@ is(Hydra::Helper::Nix::getMachines(), {
     },
     'root@lotsofspace' => {
         'systemTypes' => [ "i686-linux", "x86_64-linux" ],
-        'sshKeys' => '/var/sshkey',
         'maxJobs' => 1,
         'speedFactor' => 1,
         'supportedFeatures' => [ "kvm", "nixos-test", "benchmark" ],

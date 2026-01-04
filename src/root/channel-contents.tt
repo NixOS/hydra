@@ -7,7 +7,7 @@ href="http://nixos.org/">Nix package manager</a>.  If you have Nix
 installed, you can subscribe to this channel by once executing</p>
 
 <div class="card bg-light"><div class="card-body"><pre>
-<span class="shell-prompt">$ </span>nix-channel --add [% curUri +%]
+<span class="shell-prompt">$ </span>nix-channel --add [% HTML.escape(curUri) +%]
 <span class="shell-prompt">$ </span>nix-channel --update
 </pre></div></div>
 
@@ -49,9 +49,9 @@ installed, you can subscribe to this channel by once executing</p>
       [% b = pkg.build %]
 
       <tr>
-        <td><a href="[% c.uri_for('/build' b.id) %]">[% b.id %]</a></td>
-        <td><tt>[% b.get_column('releasename') || b.nixname %]</tt></td>
-        <td><tt>[% b.system %]</tt></td>
+        <td><a [% HTML.attributes(href => c.uri_for('/build' b.id)) %]>[% HTML.escape(b.id) %]</a></td>
+        <td><tt>[% b.get_column('releasename') || b.nixname | html %]</tt></td>
+        <td><tt>[% b.system | html %]</tt></td>
         <td>
           [% IF b.homepage %]
             <a [% HTML.attributes(href => b.homepage) %]>[% HTML.escape(b.description) %]</a>
