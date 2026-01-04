@@ -39,7 +39,7 @@
       [% FOREACH s IN systems %]
         <tr>
           <td><tt>[% HTML.escape(s.system) %]</tt></td>
-          <td>[% s.c %]</td>
+          <td>[% HTML.escape(s.c) %]</td>
         </tr>
       [% END %]
     </tdata>

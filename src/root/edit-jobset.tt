@@ -7,17 +7,17 @@
 [% USE format %]
 
 [% BLOCK renderJobsetInput %]
-  <tr class="input [% extraClass %]" [% IF id %]id="[% id %]"[% END %]>
+  <tr class="input [% extraClass %]" [% IF id %][% HTML.attributes(id => id) %][% END %]>
     <td>
       <button type="button" class="btn btn-warning" onclick='$(this).parents(".input").remove()'><i class="fas fa-trash"></i></button>
     </td>
     <td>
-      <input type="text" id="[% baseName %]-name" name="[% baseName %]-name" [% HTML.attributes(value => input.name) %]/>
+      <input type="text" [% HTML.attributes(id => baseName _ "-name", name => baseName _ "-name", value => input.name) %] />
     </td>
     <td>
       [% INCLUDE renderSelection curValue=input.type param="$baseName-type" options=inputTypes edit=1 %]
     </td>
-    <td id="[% baseName %]">
+    <td [% HTML.attributes(id => baseName) %]>
       [% IF createFromEval %]
         [% value = (input.uri or input.value); IF input.revision; value = value _ " " _ input.revision; END;
            warn = input.altnr != 0;
@@ -36,7 +36,7 @@
       <input style="width: 95%" type="text" [% HTML.attributes(value => value, id => "$baseName-value", name => "$baseName-value") %]/>
     </td>
     <td>
-      <input type="checkbox" id="[% baseName %]-emailresponsible" name="[% baseName %]-emailresponsible" [% IF input.emailresponsible; 'checked="checked"'; END %]/>
+      <input type="checkbox" [% HTML.attributes(id => "$baseName-emailresponsible", name => "$baseName-emailresponsible") %] [% IF input.emailresponsible; 'checked="checked"'; END %]/>
     </td>
   </tr>
 [% END %]
@@ -149,7 +149,7 @@
     <label class="col-sm-3" for="editjobsetschedulingshares">
       Scheduling shares
       [% IF totalShares %]
-        <small class="form-text text-muted">([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% totalShares %] shares)</small>
+        <small class="form-text text-muted">([% f = format("%.2f"); f(jobset.schedulingshares / totalShares * 100) %]% out of [% HTML.escape(totalShares) %] shares)</small>
       [% END %]
     </label>
     <div class="col-sm-9">
@@ -195,7 +195,7 @@
 
   [% INCLUDE renderJobsetInputs %]
 
-  <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="fas fa-check"></i> [%IF !edit %]Create jobset[% ELSE %]Apply changes[% END %]</button>
+  <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="fas fa-check"></i> [% IF !edit %]Create jobset[% ELSE %]Apply changes[% END %]</button>
 
   <table style="display: none">
     [% INCLUDE renderJobsetInput input="" extraClass="template" id="input-template" baseName="input-template" %]

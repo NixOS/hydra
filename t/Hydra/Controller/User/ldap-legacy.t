@@ -24,6 +24,7 @@ $ldap->add_group("hydra_create-projects", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_restart-jobs", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_bump-to-front", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_cancel-build", $users->{"many_roles"}->{"username"});
+$ldap->add_group("hydra_eval-jobset", $users->{"many_roles"}->{"username"});
 
 my $hydra_ldap_config = "${\$ldap->tmpdir()}/hydra_ldap_config.yaml";
 LDAPContext::write_file($hydra_ldap_config, <<YAML);
@@ -68,7 +69,7 @@ subtest "Valid login attempts" => sub {
         unrelated => [],
          admin => ["admin"],
          not_admin => [],
-         many_roles => [ "create-projects", "restart-jobs", "bump-to-front", "cancel-build" ],
+         many_roles => [ "create-projects", "restart-jobs", "bump-to-front", "cancel-build", "eval-jobset" ],
     );
     for my $username (keys %users_to_roles) {
         my $user = $users->{$username};

@@ -8,6 +8,7 @@ use MIME::Base64;
 use Nix::Manifest;
 use Nix::Store;
 use Nix::Utils;
+use Hydra::Helper::Nix;
 use base qw/Catalyst::View/;
 
 sub process {
@@ -17,7 +18,7 @@ sub process {
 
     $c->response->content_type('text/x-nix-narinfo'); # !!! check MIME type
 
-    my ($deriver, $narHash, $time, $narSize, $refs) = queryPathInfo($storePath, 1);
+    my ($deriver, $narHash, $time, $narSize, $refs) = $MACHINE_LOCAL_STORE->queryPathInfo($storePath, 1);
 
     my $info;
     $info .= "StorePath: $storePath\n";
@@ -28,8 +29,8 @@ sub process {
     $info .= "References: " . join(" ", map { basename $_ } @{$refs}) . "\n";
     if (defined $deriver) {
         $info .= "Deriver: " . basename $deriver . "\n";
-        if (isValidPath($deriver)) {
-            my $drv = derivationFromPath($deriver);
+        if ($MACHINE_LOCAL_STORE->isValidPath($deriver)) {
+            my $drv = $MACHINE_LOCAL_STORE->derivationFromPath($deriver);
             $info .= "System: $drv->{platform}\n";
         }
     }

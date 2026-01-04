@@ -21,7 +21,7 @@ if (defined($ENV{"NIX_BUILD_CORES"})
     print STDERR "test.pl: Defaulting \$YATH_JOB_COUNT to \$NIX_BUILD_CORES (${\$ENV{'NIX_BUILD_CORES'}})\n";
 }
 
-system($^X, find_yath(), '-D', 'test', '--default-search' => './', @ARGV);
+system($^X, find_yath(), '-D', 'test', '--qvf', '--event-timeout', 240, '--default-search' => './', @ARGV);
 my $exit = $?;
 
 # This makes sure it works with prove.

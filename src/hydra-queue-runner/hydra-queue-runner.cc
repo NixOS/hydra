@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <optional>
+#include <type_traits>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -8,27 +9,21 @@
 
 #include <prometheus/exposer.h>
 
+#include <nlohmann/json.hpp>
+
+#include <nix/util/signals.hh>
 #include "state.hh"
 #include "hydra-build-result.hh"
-#include "store-api.hh"
-#include "remote-store.hh"
+#include <nix/store/store-open.hh>
+#include <nix/store/remote-store.hh>
 
-#include "globals.hh"
+#include <nix/store/globals.hh>
 #include "hydra-config.hh"
-#include "json.hh"
-#include "s3-binary-cache-store.hh"
-#include "shared.hh"
+#include <nix/store/s3-binary-cache-store.hh>
+#include <nix/main/shared.hh>
 
 using namespace nix;
-
-
-namespace nix {
-
-template<> void toJSON<std::atomic<long>>(std::ostream & str, const std::atomic<long> & n) { str << n; }
-template<> void toJSON<std::atomic<uint64_t>>(std::ostream & str, const std::atomic<uint64_t> & n) { str << n; }
-template<> void toJSON<double>(std::ostream & str, const double & n) { str << n; }
-
-}
+using nlohmann::json;
 
 
 std::string getEnvOrDie(const std::string & key)
@@ -75,10 +70,31 @@ State::PromMetrics::PromMetrics()
             .Register(*registry)
             .Add({})
     )
-    , queue_max_id(
-        prometheus::BuildGauge()
-            .Name("hydraqueuerunner_queue_max_build_id_info")
-            .Help("Maximum build record ID in the queue")
+    , dispatcher_time_spent_running(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_dispatcher_time_spent_running")
+            .Help("Time (in micros) spent running the dispatcher")
+            .Register(*registry)
+            .Add({})
+    )
+    , dispatcher_time_spent_waiting(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_dispatcher_time_spent_waiting")
+            .Help("Time (in micros) spent waiting for the dispatcher to obtain work")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_monitor_time_spent_running(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_monitor_time_spent_running")
+            .Help("Time (in micros) spent running the queue monitor")
+            .Register(*registry)
+            .Add({})
+    )
+    , queue_monitor_time_spent_waiting(
+        prometheus::BuildCounter()
+            .Name("hydraqueuerunner_queue_monitor_time_spent_waiting")
+            .Help("Time (in micros) spent waiting for the queue monitor to obtain work")
             .Register(*registry)
             .Add({})
     )
@@ -90,6 +106,7 @@ State::State(std::optional<std::string> metricsAddrOpt)
     : config(std::make_unique<HydraConfig>())
     , maxUnsupportedTime(config->getIntOption("max_unsupported_time", 0))
     , dbPool(config->getIntOption("max_db_connections", 128))
+    , localWorkThrottler(config->getIntOption("max_local_worker_threads", std::min(maxSupportedLocalWorkers, std::max(4u, std::thread::hardware_concurrency()) - 2)))
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
     , maxLogSize(config->getIntOption("max_log_size", 64ULL << 20))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
@@ -140,50 +157,29 @@ void State::parseMachines(const std::string & contents)
         oldMachines = *machines_;
     }
 
-    for (auto line : tokenizeString<Strings>(contents, "\n")) {
-        line = trim(std::string(line, 0, line.find('#')));
-        auto tokens = tokenizeString<std::vector<std::string>>(line);
-        if (tokens.size() < 3) continue;
-        tokens.resize(8);
-
-        auto machine = std::make_shared<Machine>();
-        machine->sshName = tokens[0];
-        machine->systemTypes = tokenizeString<StringSet>(tokens[1], ",");
-        machine->sshKey = tokens[2] == "-" ? std::string("") : tokens[2];
-        if (tokens[3] != "")
-            machine->maxJobs = string2Int<decltype(machine->maxJobs)>(tokens[3]).value();
-        else
-            machine->maxJobs = 1;
-        machine->speedFactor = atof(tokens[4].c_str());
-        if (tokens[5] == "-") tokens[5] = "";
-        machine->supportedFeatures = tokenizeString<StringSet>(tokens[5], ",");
-        if (tokens[6] == "-") tokens[6] = "";
-        machine->mandatoryFeatures = tokenizeString<StringSet>(tokens[6], ",");
-        for (auto & f : machine->mandatoryFeatures)
-            machine->supportedFeatures.insert(f);
-        if (tokens[7] != "" && tokens[7] != "-")
-            machine->sshPublicHostKey = base64Decode(tokens[7]);
+    for (auto && machine_ : nix::Machine::parseConfig({}, contents)) {
+        auto machine = std::make_shared<::Machine>(std::move(machine_));
 
         /* Re-use the State object of the previous machine with the
            same name. */
-        auto i = oldMachines.find(machine->sshName);
+        auto i = oldMachines.find(machine->storeUri.variant);
         if (i == oldMachines.end())
-            printMsg(lvlChatty, format("adding new machine ‘%1%’") % machine->sshName);
+            printMsg(lvlChatty, "adding new machine ‘%1%’", machine->storeUri.render());
         else
-            printMsg(lvlChatty, format("updating machine ‘%1%’") % machine->sshName);
+            printMsg(lvlChatty, "updating machine ‘%1%’", machine->storeUri.render());
         machine->state = i == oldMachines.end()
-            ? std::make_shared<Machine::State>()
+            ? std::make_shared<::Machine::State>()
             : i->second->state;
-        newMachines[machine->sshName] = machine;
+        newMachines[machine->storeUri.variant] = machine;
     }
 
     for (auto & m : oldMachines)
         if (newMachines.find(m.first) == newMachines.end()) {
             if (m.second->enabled)
-                printMsg(lvlInfo, format("removing machine ‘%1%’") % m.first);
-            /* Add a disabled Machine object to make sure stats are
+                printInfo("removing machine ‘%1%’", m.second->storeUri.render());
+            /* Add a disabled ::Machine object to make sure stats are
                maintained. */
-            auto machine = std::make_shared<Machine>(*(m.second));
+            auto machine = std::make_shared<::Machine>(*(m.second));
             machine->enabled = false;
             newMachines[m.first] = machine;
         }
@@ -211,7 +207,7 @@ void State::monitorMachinesFile()
         parseMachines("localhost " +
             (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem.get())
             + " - " + std::to_string(settings.maxBuildJobs) + " 1 "
-            + concatStringsSep(",", settings.systemFeatures.get()));
+            + concatStringsSep(",", StoreConfig::getDefaultSystemFeatures()));
         machinesReadyLock.unlock();
         return;
     }
@@ -280,17 +276,16 @@ void State::monitorMachinesFile()
 void State::clearBusy(Connection & conn, time_t stopTime)
 {
     pqxx::work txn(conn);
-    txn.exec_params0
-        ("update BuildSteps set busy = 0, status = $1, stopTime = $2 where busy != 0",
-         (int) bsAborted,
-         stopTime != 0 ? std::make_optional(stopTime) : std::nullopt);
+    txn.exec("update BuildSteps set busy = 0, status = $1, stopTime = $2 where busy != 0",
+         pqxx::params{(int) bsAborted,
+         stopTime != 0 ? std::make_optional(stopTime) : std::nullopt}).no_rows();
     txn.commit();
 }
 
 
 unsigned int State::allocBuildStep(pqxx::work & txn, BuildID buildId)
 {
-    auto res = txn.exec_params1("select max(stepnr) from BuildSteps where build = $1", buildId);
+    auto res = txn.exec("select max(stepnr) from BuildSteps where build = $1", buildId).one_row();
     return res[0].is_null() ? 1 : res[0].as<int>() + 1;
 }
 
@@ -301,9 +296,8 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
  restart:
     auto stepNr = allocBuildStep(txn, buildId);
 
-    auto r = txn.exec_params
-        ("insert into BuildSteps (build, stepnr, type, drvPath, busy, startTime, system, status, propagatedFrom, errorMsg, stopTime, machine) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) on conflict do nothing",
-         buildId,
+    auto r = txn.exec("insert into BuildSteps (build, stepnr, type, drvPath, busy, startTime, system, status, propagatedFrom, errorMsg, stopTime, machine) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) on conflict do nothing",
+         pqxx::params{buildId,
          stepNr,
          0, // == build
          localStore->printStorePath(step->drvPath),
@@ -314,14 +308,16 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
          propagatedFrom != 0 ? std::make_optional(propagatedFrom) : std::nullopt, // internal::params
          errorMsg != "" ? std::make_optional(errorMsg) : std::nullopt,
          startTime != 0 && status != bsBusy ? std::make_optional(startTime) : std::nullopt,
-         machine);
+         machine});
 
     if (r.affected_rows() == 0) goto restart;
 
-    for (auto & [name, output] : step->drv->outputs)
-        txn.exec_params0
-            ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-            buildId, stepNr, name, localStore->printStorePath(*output.path(*localStore, step->drv->name, name)));
+    for (auto & [name, output] : getDestStore()->queryPartialDerivationOutputMap(step->drvPath, &*localStore))
+        txn.exec("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
+            pqxx::params{buildId, stepNr, name,
+            output
+                ? std::optional { localStore->printStorePath(*output)}
+                : std::nullopt}).no_rows();
 
     if (status == bsBusy)
         txn.exec(fmt("notify step_started, '%d\t%d'", buildId, stepNr));
@@ -332,11 +328,10 @@ unsigned int State::createBuildStep(pqxx::work & txn, time_t startTime, BuildID 
 
 void State::updateBuildStep(pqxx::work & txn, BuildID buildId, unsigned int stepNr, StepState stepState)
 {
-    if (txn.exec_params
-        ("update BuildSteps set busy = $1 where build = $2 and stepnr = $3 and busy != 0 and status is null",
-         (int) stepState,
+    if (txn.exec("update BuildSteps set busy = $1 where build = $2 and stepnr = $3 and busy != 0 and status is null",
+         pqxx::params{(int) stepState,
          buildId,
-         stepNr).affected_rows() != 1)
+         stepNr}).affected_rows() != 1)
         throw Error("step %d of build %d is in an unexpected state", stepNr, buildId);
 }
 
@@ -346,44 +341,52 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
 {
     assert(result.startTime);
     assert(result.stopTime);
-    txn.exec_params0
-        ("update BuildSteps set busy = 0, status = $1, errorMsg = $4, startTime = $5, stopTime = $6, machine = $7, overhead = $8, timesBuilt = $9, isNonDeterministic = $10 where build = $2 and stepnr = $3",
-         (int) result.stepStatus, buildId, stepNr,
+    txn.exec("update BuildSteps set busy = 0, status = $1, errorMsg = $4, startTime = $5, stopTime = $6, machine = $7, overhead = $8, timesBuilt = $9, isNonDeterministic = $10 where build = $2 and stepnr = $3",
+         pqxx::params{(int) result.stepStatus, buildId, stepNr,
          result.errorMsg != "" ? std::make_optional(result.errorMsg) : std::nullopt,
          result.startTime, result.stopTime,
          machine != "" ? std::make_optional(machine) : std::nullopt,
          result.overhead != 0 ? std::make_optional(result.overhead) : std::nullopt,
          result.timesBuilt > 0 ? std::make_optional(result.timesBuilt) : std::nullopt,
-         result.timesBuilt > 1 ? std::make_optional(result.isNonDeterministic) : std::nullopt);
+         result.timesBuilt > 1 ? std::make_optional(result.isNonDeterministic) : std::nullopt}).no_rows();
     assert(result.logFile.find('\t') == std::string::npos);
     txn.exec(fmt("notify step_finished, '%d\t%d\t%s'",
             buildId, stepNr, result.logFile));
+
+    if (result.stepStatus == bsSuccess) {
+        // Update the corresponding `BuildStepOutputs` row to add the output path
+        auto res = txn.exec("select drvPath from BuildSteps where build = $1 and stepnr = $2", pqxx::params{buildId, stepNr}).one_row();
+        assert(res.size());
+        StorePath drvPath = localStore->parseStorePath(res[0].as<std::string>());
+        // If we've finished building, all the paths should be known
+        for (auto & [name, output] : getDestStore()->queryDerivationOutputMap(drvPath, &*localStore))
+            txn.exec("update BuildStepOutputs set path = $4 where build = $1 and stepnr = $2 and name = $3",
+                  pqxx::params{buildId, stepNr, name, localStore->printStorePath(output)}).no_rows();
+    }
 }
 
 
 int State::createSubstitutionStep(pqxx::work & txn, time_t startTime, time_t stopTime,
-    Build::ptr build, const StorePath & drvPath, const std::string & outputName, const StorePath & storePath)
+    Build::ptr build, const StorePath & drvPath, const nix::Derivation drv, const std::string & outputName, const StorePath & storePath)
 {
  restart:
     auto stepNr = allocBuildStep(txn, build->id);
 
-    auto r = txn.exec_params
-        ("insert into BuildSteps (build, stepnr, type, drvPath, busy, status, startTime, stopTime) values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict do nothing",
-         build->id,
+    auto r = txn.exec("insert into BuildSteps (build, stepnr, type, drvPath, busy, status, startTime, stopTime) values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict do nothing",
+         pqxx::params{build->id,
          stepNr,
          1, // == substitution
          (localStore->printStorePath(drvPath)),
          0,
          0,
          startTime,
-         stopTime);
+         stopTime});
 
     if (r.affected_rows() == 0) goto restart;
 
-    txn.exec_params0
-        ("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
-         build->id, stepNr, outputName,
-         localStore->printStorePath(storePath));
+    txn.exec("insert into BuildStepOutputs (build, stepnr, name, path) values ($1, $2, $3, $4)",
+         pqxx::params{build->id, stepNr, outputName,
+         localStore->printStorePath(storePath)}).no_rows();
 
     return stepNr;
 }
@@ -450,49 +453,54 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
 {
     if (build->finishedInDB) return;
 
-    if (txn.exec_params("select 1 from Builds where id = $1 and finished = 0", build->id).empty()) return;
+    if (txn.exec("select 1 from Builds where id = $1 and finished = 0", pqxx::params{build->id}).empty()) return;
 
-    txn.exec_params0
-        ("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8, notificationPendingSince = $4 where id = $1",
-         build->id,
+    txn.exec("update Builds set finished = 1, buildStatus = $2, startTime = $3, stopTime = $4, size = $5, closureSize = $6, releaseName = $7, isCachedBuild = $8, notificationPendingSince = $4 where id = $1",
+         pqxx::params{build->id,
          (int) (res.failed ? bsFailedWithOutput : bsSuccess),
          startTime,
          stopTime,
          res.size,
          res.closureSize,
          res.releaseName != "" ? std::make_optional(res.releaseName) : std::nullopt,
-         isCachedBuild ? 1 : 0);
+         isCachedBuild ? 1 : 0}).no_rows();
 
-    txn.exec_params0("delete from BuildProducts where build = $1", build->id);
+    for (auto & [outputName, outputPath] : res.outputs) {
+        txn.exec("update BuildOutputs set path = $3 where build = $1 and name = $2",
+             pqxx::params{build->id,
+             outputName,
+             localStore->printStorePath(outputPath)}
+            ).no_rows();
+    }
+
+    txn.exec("delete from BuildProducts where build = $1", pqxx::params{build->id}).no_rows();
 
     unsigned int productNr = 1;
     for (auto & product : res.products) {
-        txn.exec_params0
-            ("insert into BuildProducts (build, productnr, type, subtype, fileSize, sha256hash, path, name, defaultPath) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-             build->id,
+        txn.exec("insert into BuildProducts (build, productnr, type, subtype, fileSize, sha256hash, path, name, defaultPath) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+             pqxx::params{build->id,
              productNr++,
              product.type,
              product.subtype,
              product.fileSize ? std::make_optional(*product.fileSize) : std::nullopt,
-             product.sha256hash ? std::make_optional(product.sha256hash->to_string(Base16, false)) : std::nullopt,
+             product.sha256hash ? std::make_optional(product.sha256hash->to_string(HashFormat::Base16, false)) : std::nullopt,
              product.path,
              product.name,
-             product.defaultPath);
+             product.defaultPath}).no_rows();
     }
 
-    txn.exec_params0("delete from BuildMetrics where build = $1", build->id);
+    txn.exec("delete from BuildMetrics where build = $1", pqxx::params{build->id}).no_rows();
 
     for (auto & metric : res.metrics) {
-        txn.exec_params0
-            ("insert into BuildMetrics (build, name, unit, value, project, jobset, job, timestamp) values ($1, $2, $3, $4, $5, $6, $7, $8)",
-             build->id,
+        txn.exec("insert into BuildMetrics (build, name, unit, value, project, jobset, job, timestamp) values ($1, $2, $3, $4, $5, $6, $7, $8)",
+             pqxx::params{build->id,
              metric.second.name,
              metric.second.unit != "" ? std::make_optional(metric.second.unit) : std::nullopt,
              metric.second.value,
              build->projectName,
              build->jobsetName,
              build->jobName,
-             build->timestamp);
+             build->timestamp}).no_rows();
     }
 
     nrBuildsDone++;
@@ -504,7 +512,7 @@ bool State::checkCachedFailure(Step::ptr step, Connection & conn)
     pqxx::work txn(conn);
     for (auto & i : step->drv->outputsAndOptPaths(*localStore))
         if (i.second.second)
-            if (!txn.exec_params("select 1 from FailedPaths where path = $1", localStore->printStorePath(*i.second.second)).empty())
+            if (!txn.exec("select 1 from FailedPaths where path = $1", pqxx::params{localStore->printStorePath(*i.second.second)}).empty())
                 return true;
     return false;
 }
@@ -542,190 +550,182 @@ std::shared_ptr<PathLocks> State::acquireGlobalLock()
 
 void State::dumpStatus(Connection & conn)
 {
-    std::ostringstream out;
+    time_t now = time(0);
+    json statusJson = {
+        {"status", "up"},
+        {"time", time(0)},
+        {"uptime", now - startedAt},
+        {"pid", getpid()},
 
+        {"nrQueuedBuilds", builds.lock()->size()},
+        {"nrActiveSteps", activeSteps_.lock()->size()},
+        {"nrStepsBuilding", nrStepsBuilding.load()},
+        {"nrStepsCopyingTo", nrStepsCopyingTo.load()},
+        {"nrStepsWaitingForDownloadSlot", nrStepsWaitingForDownloadSlot.load()},
+        {"nrStepsCopyingFrom", nrStepsCopyingFrom.load()},
+        {"nrStepsWaiting", nrStepsWaiting.load()},
+        {"nrUnsupportedSteps", nrUnsupportedSteps.load()},
+        {"bytesSent", bytesSent.load()},
+        {"bytesReceived", bytesReceived.load()},
+        {"nrBuildsRead", nrBuildsRead.load()},
+        {"buildReadTimeMs", buildReadTimeMs.load()},
+        {"buildReadTimeAvgMs", nrBuildsRead == 0 ? 0.0 : (float) buildReadTimeMs / nrBuildsRead},
+        {"nrBuildsDone", nrBuildsDone.load()},
+        {"nrStepsStarted", nrStepsStarted.load()},
+        {"nrStepsDone", nrStepsDone.load()},
+        {"nrRetries", nrRetries.load()},
+        {"maxNrRetries", maxNrRetries.load()},
+        {"nrQueueWakeups", nrQueueWakeups.load()},
+        {"nrDispatcherWakeups", nrDispatcherWakeups.load()},
+        {"dispatchTimeMs", dispatchTimeMs.load()},
+        {"dispatchTimeAvgMs", nrDispatcherWakeups == 0 ? 0.0 : (float) dispatchTimeMs / nrDispatcherWakeups},
+        {"nrDbConnections", dbPool.count()},
+        {"nrActiveDbUpdates", nrActiveDbUpdates.load()},
+    };
     {
-        JSONObject root(out);
-        time_t now = time(0);
-        root.attr("status", "up");
-        root.attr("time", time(0));
-        root.attr("uptime", now - startedAt);
-        root.attr("pid", getpid());
-        {
-            auto builds_(builds.lock());
-            root.attr("nrQueuedBuilds", builds_->size());
-        }
         {
             auto steps_(steps.lock());
             for (auto i = steps_->begin(); i != steps_->end(); )
                 if (i->second.lock()) ++i; else i = steps_->erase(i);
-            root.attr("nrUnfinishedSteps", steps_->size());
+            statusJson["nrUnfinishedSteps"] = steps_->size();
         }
         {
             auto runnable_(runnable.lock());
             for (auto i = runnable_->begin(); i != runnable_->end(); )
                 if (i->lock()) ++i; else i = runnable_->erase(i);
-            root.attr("nrRunnableSteps", runnable_->size());
+            statusJson["nrRunnableSteps"] = runnable_->size();
         }
-        root.attr("nrActiveSteps", activeSteps_.lock()->size());
-        root.attr("nrStepsBuilding", nrStepsBuilding);
-        root.attr("nrStepsCopyingTo", nrStepsCopyingTo);
-        root.attr("nrStepsCopyingFrom", nrStepsCopyingFrom);
-        root.attr("nrStepsWaiting", nrStepsWaiting);
-        root.attr("nrUnsupportedSteps", nrUnsupportedSteps);
-        root.attr("bytesSent", bytesSent);
-        root.attr("bytesReceived", bytesReceived);
-        root.attr("nrBuildsRead", nrBuildsRead);
-        root.attr("buildReadTimeMs", buildReadTimeMs);
-        root.attr("buildReadTimeAvgMs", nrBuildsRead == 0 ? 0.0 : (float) buildReadTimeMs / nrBuildsRead);
-        root.attr("nrBuildsDone", nrBuildsDone);
-        root.attr("nrStepsStarted", nrStepsStarted);
-        root.attr("nrStepsDone", nrStepsDone);
-        root.attr("nrRetries", nrRetries);
-        root.attr("maxNrRetries", maxNrRetries);
         if (nrStepsDone) {
-            root.attr("totalStepTime", totalStepTime);
-            root.attr("totalStepBuildTime", totalStepBuildTime);
-            root.attr("avgStepTime", (float) totalStepTime / nrStepsDone);
-            root.attr("avgStepBuildTime", (float) totalStepBuildTime / nrStepsDone);
+            statusJson["totalStepTime"] = totalStepTime.load();
+            statusJson["totalStepBuildTime"] = totalStepBuildTime.load();
+            statusJson["avgStepTime"] = (float) totalStepTime / nrStepsDone;
+            statusJson["avgStepBuildTime"] = (float) totalStepBuildTime / nrStepsDone;
         }
-        root.attr("nrQueueWakeups", nrQueueWakeups);
-        root.attr("nrDispatcherWakeups", nrDispatcherWakeups);
-        root.attr("dispatchTimeMs", dispatchTimeMs);
-        root.attr("dispatchTimeAvgMs", nrDispatcherWakeups == 0 ? 0.0 : (float) dispatchTimeMs / nrDispatcherWakeups);
-        root.attr("nrDbConnections", dbPool.count());
-        root.attr("nrActiveDbUpdates", nrActiveDbUpdates);
 
         {
-            auto nested = root.object("machines");
+            auto machines_json = json::object();
             auto machines_(machines.lock());
             for (auto & i : *machines_) {
                 auto & m(i.second);
                 auto & s(m->state);
-                auto nested2 = nested.object(m->sshName);
-                nested2.attr("enabled", m->enabled);
-
-                {
-                    auto list = nested2.list("systemTypes");
-                    for (auto & s : m->systemTypes)
-                        list.elem(s);
-                }
-
-                {
-                    auto list = nested2.list("supportedFeatures");
-                    for (auto & s : m->supportedFeatures)
-                        list.elem(s);
-                }
-
-                {
-                    auto list = nested2.list("mandatoryFeatures");
-                    for (auto & s : m->mandatoryFeatures)
-                        list.elem(s);
-                }
-
-                nested2.attr("currentJobs", s->currentJobs);
-                if (s->currentJobs == 0)
-                    nested2.attr("idleSince", s->idleSince);
-                nested2.attr("nrStepsDone", s->nrStepsDone);
-                if (m->state->nrStepsDone) {
-                    nested2.attr("totalStepTime", s->totalStepTime);
-                    nested2.attr("totalStepBuildTime", s->totalStepBuildTime);
-                    nested2.attr("avgStepTime", (float) s->totalStepTime / s->nrStepsDone);
-                    nested2.attr("avgStepBuildTime", (float) s->totalStepBuildTime / s->nrStepsDone);
-                }
-
                 auto info(m->state->connectInfo.lock());
-                nested2.attr("disabledUntil", std::chrono::system_clock::to_time_t(info->disabledUntil));
-                nested2.attr("lastFailure", std::chrono::system_clock::to_time_t(info->lastFailure));
-                nested2.attr("consecutiveFailures", info->consecutiveFailures);
 
+                json machine = {
+                    {"enabled",  m->enabled},
+                    {"systemTypes", m->systemTypes},
+                    {"supportedFeatures", m->supportedFeatures},
+                    {"mandatoryFeatures", m->mandatoryFeatures},
+                    {"nrStepsDone", s->nrStepsDone.load()},
+                    {"currentJobs", s->currentJobs.load()},
+                    {"disabledUntil", std::chrono::system_clock::to_time_t(info->disabledUntil)},
+                    {"lastFailure", std::chrono::system_clock::to_time_t(info->lastFailure)},
+                    {"consecutiveFailures", info->consecutiveFailures},
+                };
+
+                if (s->currentJobs == 0)
+                    machine["idleSince"] = s->idleSince.load();
+                if (m->state->nrStepsDone) {
+                    machine["totalStepTime"] = s->totalStepTime.load();
+                    machine["totalStepBuildTime"] = s->totalStepBuildTime.load();
+                    machine["avgStepTime"] = (float) s->totalStepTime / s->nrStepsDone;
+                    machine["avgStepBuildTime"] = (float) s->totalStepBuildTime / s->nrStepsDone;
+                }
+                machines_json[m->storeUri.render()] = machine;
             }
+            statusJson["machines"] = machines_json;
         }
 
         {
-            auto nested = root.object("jobsets");
+            auto jobsets_json = json::object();
             auto jobsets_(jobsets.lock());
             for (auto & jobset : *jobsets_) {
-                auto nested2 = nested.object(jobset.first.first + ":" + jobset.first.second);
-                nested2.attr("shareUsed", jobset.second->shareUsed());
-                nested2.attr("seconds", jobset.second->getSeconds());
+                jobsets_json[jobset.first.first + ":" + jobset.first.second] = {
+                    {"shareUsed", jobset.second->shareUsed()},
+                    {"seconds", jobset.second->getSeconds()},
+                };
             }
+            statusJson["jobsets"] = jobsets_json;
         }
 
         {
-            auto nested = root.object("machineTypes");
+            auto machineTypesJson = json::object();
             auto machineTypes_(machineTypes.lock());
             for (auto & i : *machineTypes_) {
-                auto nested2 = nested.object(i.first);
-                nested2.attr("runnable", i.second.runnable);
-                nested2.attr("running", i.second.running);
+                auto machineTypeJson = machineTypesJson[i.first] = {
+                    {"runnable", i.second.runnable},
+                    {"running", i.second.running},
+                };
                 if (i.second.runnable > 0)
-                    nested2.attr("waitTime", i.second.waitTime.count() +
-                        i.second.runnable * (time(0) - lastDispatcherCheck));
+                    machineTypeJson["waitTime"] = i.second.waitTime.count() +
+                        i.second.runnable * (time(0) - lastDispatcherCheck);
                 if (i.second.running == 0)
-                    nested2.attr("lastActive", std::chrono::system_clock::to_time_t(i.second.lastActive));
+                    machineTypeJson["lastActive"] = std::chrono::system_clock::to_time_t(i.second.lastActive);
             }
+            statusJson["machineTypes"] = machineTypesJson;
         }
 
         auto store = getDestStore();
 
-        auto nested = root.object("store");
-
         auto & stats = store->getStats();
-        nested.attr("narInfoRead", stats.narInfoRead);
-        nested.attr("narInfoReadAverted", stats.narInfoReadAverted);
-        nested.attr("narInfoMissing", stats.narInfoMissing);
-        nested.attr("narInfoWrite", stats.narInfoWrite);
-        nested.attr("narInfoCacheSize", stats.pathInfoCacheSize);
-        nested.attr("narRead", stats.narRead);
-        nested.attr("narReadBytes", stats.narReadBytes);
-        nested.attr("narReadCompressedBytes", stats.narReadCompressedBytes);
-        nested.attr("narWrite", stats.narWrite);
-        nested.attr("narWriteAverted", stats.narWriteAverted);
-        nested.attr("narWriteBytes", stats.narWriteBytes);
-        nested.attr("narWriteCompressedBytes", stats.narWriteCompressedBytes);
-        nested.attr("narWriteCompressionTimeMs", stats.narWriteCompressionTimeMs);
-        nested.attr("narCompressionSavings",
-            stats.narWriteBytes
-            ? 1.0 - (double) stats.narWriteCompressedBytes / stats.narWriteBytes
-            : 0.0);
-        nested.attr("narCompressionSpeed", // MiB/s
+        statusJson["store"] = {
+            {"narInfoRead", stats.narInfoRead.load()},
+            {"narInfoReadAverted", stats.narInfoReadAverted.load()},
+            {"narInfoMissing", stats.narInfoMissing.load()},
+            {"narInfoWrite", stats.narInfoWrite.load()},
+            {"narInfoCacheSize", stats.pathInfoCacheSize.load()},
+            {"narRead", stats.narRead.load()},
+            {"narReadBytes", stats.narReadBytes.load()},
+            {"narReadCompressedBytes", stats.narReadCompressedBytes.load()},
+            {"narWrite", stats.narWrite.load()},
+            {"narWriteAverted", stats.narWriteAverted.load()},
+            {"narWriteBytes", stats.narWriteBytes.load()},
+            {"narWriteCompressedBytes", stats.narWriteCompressedBytes.load()},
+            {"narWriteCompressionTimeMs", stats.narWriteCompressionTimeMs.load()},
+            {"narCompressionSavings",
+             stats.narWriteBytes
+             ? 1.0 - (double) stats.narWriteCompressedBytes / stats.narWriteBytes
+             : 0.0},
+            {"narCompressionSpeed", // MiB/s
             stats.narWriteCompressionTimeMs
             ? (double) stats.narWriteBytes / stats.narWriteCompressionTimeMs * 1000.0 / (1024.0 * 1024.0)
-            : 0.0);
+            : 0.0},
+        };
 
+#if NIX_WITH_S3_SUPPORT
         auto s3Store = dynamic_cast<S3BinaryCacheStore *>(&*store);
         if (s3Store) {
-            auto nested2 = nested.object("s3");
             auto & s3Stats = s3Store->getS3Stats();
-            nested2.attr("put", s3Stats.put);
-            nested2.attr("putBytes", s3Stats.putBytes);
-            nested2.attr("putTimeMs", s3Stats.putTimeMs);
-            nested2.attr("putSpeed",
-                s3Stats.putTimeMs
-                ? (double) s3Stats.putBytes / s3Stats.putTimeMs * 1000.0 / (1024.0 * 1024.0)
-                : 0.0);
-            nested2.attr("get", s3Stats.get);
-            nested2.attr("getBytes", s3Stats.getBytes);
-            nested2.attr("getTimeMs", s3Stats.getTimeMs);
-            nested2.attr("getSpeed",
-                s3Stats.getTimeMs
-                ? (double) s3Stats.getBytes / s3Stats.getTimeMs * 1000.0 / (1024.0 * 1024.0)
-                : 0.0);
-            nested2.attr("head", s3Stats.head);
-            nested2.attr("costDollarApprox",
-                (s3Stats.get + s3Stats.head) / 10000.0 * 0.004
-                + s3Stats.put / 1000.0 * 0.005 +
-                + s3Stats.getBytes / (1024.0 * 1024.0 * 1024.0) * 0.09);
+            auto jsonS3 = statusJson["s3"] = {
+                {"put", s3Stats.put.load()},
+                {"putBytes", s3Stats.putBytes.load()},
+                {"putTimeMs", s3Stats.putTimeMs.load()},
+                {"putSpeed",
+                 s3Stats.putTimeMs
+                 ? (double) s3Stats.putBytes / s3Stats.putTimeMs * 1000.0 / (1024.0 * 1024.0)
+                 : 0.0},
+                {"get", s3Stats.get.load()},
+                {"getBytes", s3Stats.getBytes.load()},
+                {"getTimeMs", s3Stats.getTimeMs.load()},
+                {"getSpeed",
+                 s3Stats.getTimeMs
+                 ? (double) s3Stats.getBytes / s3Stats.getTimeMs * 1000.0 / (1024.0 * 1024.0)
+                 : 0.0},
+                {"head", s3Stats.head.load()},
+                {"costDollarApprox",
+                        (s3Stats.get + s3Stats.head) / 10000.0 * 0.004
+                        + s3Stats.put / 1000.0 * 0.005 +
+                        + s3Stats.getBytes / (1024.0 * 1024.0 * 1024.0) * 0.09},
+            };
         }
+#endif
     }
 
     {
         auto mc = startDbUpdate();
         pqxx::work txn(conn);
         // FIXME: use PostgreSQL 9.5 upsert.
-        txn.exec("delete from SystemStatus where what = 'queue-runner'");
-        txn.exec_params0("insert into SystemStatus values ('queue-runner', $1)", out.str());
+        txn.exec("delete from SystemStatus where what = 'queue-runner'").no_rows();
+        txn.exec("insert into SystemStatus values ('queue-runner', $1)", pqxx::params{statusJson.dump()}).no_rows();
         txn.exec("notify status_dumped");
         txn.commit();
     }
@@ -790,7 +790,7 @@ void State::unlock()
 
     {
         pqxx::work txn(*conn);
-        txn.exec("delete from SystemStatus where what = 'queue-runner'");
+        txn.exec("delete from SystemStatus where what = 'queue-runner'").no_rows();
         txn.commit();
     }
 }
@@ -820,7 +820,7 @@ void State::run(BuildID buildOne)
         << metricsAddr << "/metrics (port " << exposerPort << ")"
         << std::endl;
 
-    Store::Params localParams;
+    Store::Config::Params localParams;
     localParams["max-connections"] = "16";
     localParams["max-connection-age"] = "600";
     localStore = openStore(getEnv("NIX_REMOTE").value_or(""), localParams);
@@ -868,11 +868,10 @@ void State::run(BuildID buildOne)
                 pqxx::work txn(*conn);
                 for (auto & step : steps) {
                     printMsg(lvlError, "cleaning orphaned step %d of build %d", step.second, step.first);
-                    txn.exec_params0
-                        ("update BuildSteps set busy = 0, status = $1 where build = $2 and stepnr = $3 and busy != 0",
-                         (int) bsAborted,
+                    txn.exec("update BuildSteps set busy = 0, status = $1 where build = $2 and stepnr = $3 and busy != 0",
+                         pqxx::params{(int) bsAborted,
                          step.first,
-                         step.second);
+                         step.second}).no_rows();
                 }
                 txn.commit();
             } catch (std::exception & e) {
@@ -902,10 +901,17 @@ void State::run(BuildID buildOne)
     while (true) {
         try {
             auto conn(dbPool.get());
-            receiver dumpStatus_(*conn, "dump_status");
-            while (true) {
-                conn->await_notification();
-                dumpStatus(*conn);
+            try {
+                receiver dumpStatus_(*conn, "dump_status");
+                while (true) {
+                    conn->await_notification();
+                    dumpStatus(*conn);
+                }
+            } catch (pqxx::broken_connection & connEx) {
+                printMsg(lvlError, "main thread: %s", connEx.what());
+                printMsg(lvlError, "main thread: Reconnecting in 10s");
+                conn.markBad();
+                sleep(10);
             }
         } catch (std::exception & e) {
             printMsg(lvlError, "main thread: %s", e.what());
@@ -950,7 +956,6 @@ int main(int argc, char * * argv)
         });
 
         settings.verboseBuild = true;
-        settings.lockCPU = false;
 
         State state{metricsAddrOpt};
         if (status)

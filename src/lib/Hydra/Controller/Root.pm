@@ -9,15 +9,21 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::View::TT;
 use Nix::Store;
 use Nix::Config;
+use Number::Bytes::Human qw(format_bytes);
 use Encode;
 use File::Basename;
 use JSON::MaybeXS;
+use HTML::Entities;
+use IPC::Run3;
 use List::Util qw[min max];
 use List::SomeUtils qw{any};
 use Net::Prometheus;
 use Types::Standard qw/StrMatch/;
+use WWW::Form::UrlEncoded::PP qw();
 
 use constant NARINFO_REGEX => qr{^([a-z0-9]{32})\.narinfo$};
+# e.g.: https://hydra.example.com/realisations/sha256:a62128132508a3a32eef651d6467695944763602f226ac630543e947d9feb140!out.doi
+use constant REALISATIONS_REGEX => qr{^(sha256:[a-z0-9]{64}![a-z]+)\.doi$};
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -32,6 +38,7 @@ sub noLoginNeeded {
 
   return $whitelisted ||
          $c->request->path eq "api/push-github" ||
+         $c->request->path eq "api/push-gitea" ||
          $c->request->path eq "google-login" ||
          $c->request->path eq "github-redirect" ||
          $c->request->path eq "github-login" ||
@@ -47,11 +54,13 @@ sub begin :Private {
     $c->stash->{curUri} = $c->request->uri;
     $c->stash->{version} = $ENV{"HYDRA_RELEASE"} || "<devel>";
     $c->stash->{nixVersion} = $ENV{"NIX_RELEASE"} || "<devel>";
+    $c->stash->{nixEvalJobsVersion} = $ENV{"NIX_EVAL_JOBS_RELEASE"} || "<devel>";
     $c->stash->{curTime} = time;
     $c->stash->{logo} = defined $c->config->{hydra_logo} ? "/logo" : "";
     $c->stash->{tracker} = defined $c->config->{tracker} ? $c->config->{tracker} : "";
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
+    $c->stash->{localStore} = isLocalStore;
 
     $c->stash->{isPrivateHydra} = $c->config->{private} // "0" ne "0";
 
@@ -77,7 +86,7 @@ sub begin :Private {
     $_->supportedInputTypes($c->stash->{inputTypes}) foreach @{$c->hydra_plugins};
 
     # XSRF protection: require POST requests to have the same origin.
-    if ($c->req->method eq "POST" && $c->req->path ne "api/push-github") {
+    if ($c->req->method eq "POST" && $c->req->path ne "api/push-github" && $c->req->path ne "api/push-gitea") {
         my $referer = $c->req->header('Referer');
         $referer //= $c->req->header('Origin');
         my $base = $c->req->base;
@@ -157,7 +166,7 @@ sub status_GET {
             { "buildsteps.busy" => { '!=', 0 } },
             { order_by => ["globalpriority DESC", "id"],
               join => "buildsteps",
-              columns => [@buildListColumns]
+              columns => [@buildListColumns, 'buildsteps.drvpath', 'buildsteps.type']
             })]
     );
 }
@@ -169,8 +178,14 @@ sub queue_runner_status_GET {
     my ($self, $c) = @_;
 
     #my $status = from_json($c->model('DB::SystemStatus')->find('queue-runner')->status);
-    my $status = decode_json(`hydra-queue-runner --status`);
-    if ($?) { $status->{status} = "unknown"; }
+    my ($stdout, $stderr);
+    run3(['hydra-queue-runner', '--status'], \undef, \$stdout, \$stderr);
+    my $status;
+    if ($? != 0) {
+        $status = { status => "unknown" };
+    } else {
+        $status = decode_json($stdout);
+    }
     my $json = JSON->new->pretty()->canonical();
 
     $c->stash->{template} = 'queue-runner-status.tt';
@@ -183,8 +198,10 @@ sub machines :Local Args(0) {
     my ($self, $c) = @_;
     my $machines = getMachines;
 
-    # Add entry for localhost.
-    $machines->{''} //= {};
+    # Add entry for localhost. The implicit addition is not needed with queue runner v2
+    if (not $c->config->{'queue_runner_endpoint'}) {
+        $machines->{''} //= {};
+    }
     delete $machines->{'localhost'};
 
     my $status = $c->model('DB::SystemStatus')->find("queue-runner");
@@ -192,9 +209,11 @@ sub machines :Local Args(0) {
         my $ms = decode_json($status->status)->{"machines"};
         foreach my $name (keys %{$ms}) {
             $name = "" if $name eq "localhost";
-            $machines->{$name} //= {disabled => 1};
-            $machines->{$name}->{nrStepsDone} = $ms->{$name}->{nrStepsDone};
-            $machines->{$name}->{avgStepBuildTime} = $ms->{$name}->{avgStepBuildTime} // 0;
+            my $outName = $name;
+            $outName = "" if $name eq "ssh://localhost";
+            $machines->{$outName} //= {disabled => 1};
+            $machines->{$outName}->{nrStepsDone} = $ms->{$name}->{nrStepsDone};
+            $machines->{$outName}->{avgStepBuildTime} = $ms->{$name}->{avgStepBuildTime} // 0;
         }
     }
 
@@ -207,6 +226,19 @@ sub machines :Local Args(0) {
         "where busy != 0 order by machine, stepnr",
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
+    $c->stash->{human_bytes} = sub {
+        my ($bytes) = @_;
+        return format_bytes($bytes, si => 1);
+    };
+    $c->stash->{pretty_load} = sub {
+        my ($load) = @_;
+        return sprintf('%.2f', $load);
+    };
+    $c->stash->{pretty_percent} = sub {
+        my ($percent) = @_;
+        my $ret = sprintf('%.2f', $percent);
+        return ('&nbsp;' x (6 - length($ret))) . encode_entities($ret);
+    };
     $self->status_ok($c, entity => $c->stash->{machines});
 }
 
@@ -326,7 +358,7 @@ sub nar :Local :Args(1) {
     else {
         $path = $Nix::Config::storeDir . "/$path";
 
-        gone($c, "Path " . $path . " is no longer available.") unless isValidPath($path);
+        gone($c, "Path " . $path . " is no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($path);
 
         $c->stash->{current_view} = 'NixNAR';
         $c->stash->{storePath} = $path;
@@ -355,6 +387,33 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
 }
 
 
+sub realisations :Path('realisations') :Args(StrMatch[REALISATIONS_REGEX]) {
+    my ($self, $c, $realisation) = @_;
+
+    if (!isLocalStore) {
+        notFound($c, "There is no binary cache here.");
+    }
+
+    else {
+        my ($rawDrvOutput) = $realisation =~ REALISATIONS_REGEX;
+        my $rawRealisation = $MACHINE_LOCAL_STORE->queryRawRealisation($rawDrvOutput);
+
+        if (!$rawRealisation) {
+            $c->response->status(404);
+            $c->response->content_type('text/plain');
+            $c->stash->{plain}->{data} = "does not exist\n";
+            $c->forward('Hydra::View::Plain');
+            setCacheHeaders($c, 60 * 60);
+            return;
+        }
+
+        $c->response->content_type('text/plain');
+        $c->stash->{plain}->{data} = $rawRealisation;
+        $c->forward('Hydra::View::Plain');
+    }
+}
+
+
 sub narinfo :Path :Args(StrMatch[NARINFO_REGEX]) {
     my ($self, $c, $narinfo) = @_;
 
@@ -366,7 +425,7 @@ sub narinfo :Path :Args(StrMatch[NARINFO_REGEX]) {
         my ($hash) = $narinfo =~ NARINFO_REGEX;
 
         die("Hash length was not 32") if length($hash) != 32;
-        my $path = queryPathFromHashPart($hash);
+        my $path = $MACHINE_LOCAL_STORE->queryPathFromHashPart($hash);
 
         if (!$path) {
             $c->response->status(404);
@@ -524,7 +583,7 @@ sub log :Local :Args(1) {
     my $logPrefix = $c->config->{log_prefix};
 
     if (defined $logPrefix) {
-        $c->res->redirect($logPrefix . "log/" . basename($drvPath));
+        $c->res->redirect($logPrefix . "log/" . WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath)));
     } else {
         notFound($c, "The build log of $drvPath is not available.");
     }

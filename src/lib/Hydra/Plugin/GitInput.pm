@@ -137,8 +137,8 @@ sub fetchInput {
     my $res;
     if (! -d $clonePath) {
         # Clone everything and fetch the branch.
-        $res = run(cmd => ["git", "init", $clonePath]);
-        $res = run(cmd => ["git", "remote", "add", "origin", "--", $uri], dir => $clonePath) unless $res->{status};
+        $res = runCommand(cmd => ["git", "init", $clonePath]);
+        $res = runCommand(cmd => ["git", "remote", "add", "origin", "--", $uri], dir => $clonePath) unless $res->{status};
         die "error creating git repo in `$clonePath':\n$res->{stderr}" if $res->{status};
     }
 
@@ -146,9 +146,9 @@ sub fetchInput {
     # the remote branch for whatever the repository state is.  This command mirrors
     # only one branch of the remote repository.
     my $localBranch = _isHash($branch) ? "_hydra_tmp" : $branch;
-    $res = run(cmd => ["git", "fetch", "-fu", "origin", "+$branch:$localBranch"], dir => $clonePath,
+    $res = runCommand(cmd => ["git", "fetch", "-fu", "origin", "+$branch:$localBranch"], dir => $clonePath,
                timeout => $cfg->{timeout});
-    $res = run(cmd => ["git", "fetch", "-fu", "origin"], dir => $clonePath, timeout => $cfg->{timeout}) if $res->{status};
+    $res = runCommand(cmd => ["git", "fetch", "-fu", "origin"], dir => $clonePath, timeout => $cfg->{timeout}) if $res->{status};
     die "error fetching latest change from git repo at `$uri':\n$res->{stderr}" if $res->{status};
 
     # If deepClone is defined, then we look at the content of the repository
@@ -156,16 +156,16 @@ sub fetchInput {
     if (defined $deepClone) {
 
         # Is the target branch a topgit branch?
-        $res = run(cmd => ["git", "ls-tree", "-r", "$branch", ".topgit"], dir => $clonePath);
+        $res = runCommand(cmd => ["git", "ls-tree", "-r", "$branch", ".topgit"], dir => $clonePath);
 
         if ($res->{stdout} ne "") {
             # Checkout the branch to look at its content.
-            $res = run(cmd => ["git", "checkout", "--force", "$branch"], dir => $clonePath);
+            $res = runCommand(cmd => ["git", "checkout", "--force", "$branch"], dir => $clonePath);
             die "error checking out Git branch '$branch' at `$uri':\n$res->{stderr}" if $res->{status};
 
             # This is a TopGit branch.  Fetch all the topic branches so
             # that builders can run "tg patch" and similar.
-            $res = run(cmd => ["tg", "remote", "--populate", "origin"], dir => $clonePath, timeout => $cfg->{timeout});
+            $res = runCommand(cmd => ["tg", "remote", "--populate", "origin"], dir => $clonePath, timeout => $cfg->{timeout});
             print STDERR "warning: `tg remote --populate origin' failed:\n$res->{stderr}" if $res->{status};
         }
     }
@@ -186,9 +186,9 @@ sub fetchInput {
         {uri => $uri, branch => $branch, revision => $revision, isdeepclone => defined($deepClone) ? 1 : 0},
         {rows => 1});
 
-    addTempRoot($cachedInput->storepath) if defined $cachedInput;
+    $MACHINE_LOCAL_STORE->addTempRoot($cachedInput->storepath) if defined $cachedInput;
 
-    if (defined $cachedInput && isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
         $revision = $cachedInput->revision;
@@ -217,7 +217,7 @@ sub fetchInput {
         ($sha256, $storePath) = split ' ', grab(cmd => ["nix-prefetch-git", $clonePath, $revision], chomp => 1);
 
         # FIXME: time window between nix-prefetch-git and addTempRoot.
-        addTempRoot($storePath);
+        $MACHINE_LOCAL_STORE->addTempRoot($storePath);
 
         $self->{db}->txn_do(sub {
             $self->{db}->resultset('CachedGitInputs')->update_or_create(

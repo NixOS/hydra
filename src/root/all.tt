@@ -11,7 +11,7 @@ titleHTML="Latest builds" _
      "") %]
 [% PROCESS common.tt %]
 
-<p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %] out of [% total %] in order of descending finish time.</p>
+<p>Showing builds [% (page - 1) * resultsPerPage + 1 %] - [% (page - 1) * resultsPerPage + builds.size %] out of [% HTML.escape(total) %] in order of descending finish time.</p>
 
 [% INCLUDE renderBuildList hideProjectName=project hideJobsetName=jobset hideJobName=job %]
 [% INCLUDE renderPager %]
