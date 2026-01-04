@@ -84,7 +84,7 @@ sub fetchInput {
     my $tempdir = File::Temp->newdir("gitlab-pulls" . "XXXXX", TMPDIR => 1);
     my $filename = "$tempdir/gitlab-pulls-sorted.json";
     open(my $fh, ">", $filename) or die "Cannot open $filename for writing: $!";
-    print $fh JSON::MaybeXS->new(canonical => 1, pretty => 1)->encode(\%pulls);
+    print $fh JSON::MaybeXS->new(canonical => 1, pretty => 1, utf8 => 1)->encode(\%pulls);
     close $fh;
     my $storePath = addToStore($filename);
     my $timestamp = time;
