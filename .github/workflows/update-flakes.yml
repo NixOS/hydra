@@ -11,7 +11,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - uses: cachix/install-nix-action@v31
     - name: Update flake inputs
       run: nix flake update
