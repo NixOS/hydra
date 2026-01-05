@@ -495,6 +495,9 @@ sub steps :Local Args(0) {
 
 sub search :Local Args(0) {
     my ($self, $c) = @_;
+
+    badRequest($c, "Search is disabled in this Hydra instance") if $c->config->{disable_search};
+
     $c->stash->{template} = 'search.tt';
 
     my $query = trim $c->request->params->{"query"};
