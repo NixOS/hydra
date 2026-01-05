@@ -220,11 +220,11 @@ sub scmdiff : Path('/api/scmdiff') Args(0) {
         my $clonePath = getSCMCacheDir . "/git/" . sha256_hex($uri);
         die if ! -d $clonePath;
         my ($stdout1, $stderr1);
-        run3(['git', '-C', $clonePath, 'log', "$rev1..$rev2"], \undef, \$stdout1, \$stderr1);
+        run3(['git', '--git-dir', '.git', '-C', $clonePath, 'log', "$rev1..$rev2"], \undef, \$stdout1, \$stderr1);
         $diff .= $stdout1 if $? == 0;
 
         my ($stdout2, $stderr2);
-        run3(['git', '-C', $clonePath, 'diff', "$rev1..$rev2"], \undef, \$stdout2, \$stderr2);
+        run3(['git', '--git-dir', '.git', '-C', $clonePath, 'diff', "$rev1..$rev2"], \undef, \$stdout2, \$stderr2);
         $diff .= $stdout2 if $? == 0;
     }
 
