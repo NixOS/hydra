@@ -152,10 +152,10 @@ sub jobsetOverview_ {
     return $jobsets->search({},
         { order_by => ["hidden ASC", "enabled DESC", "name"]
         , "+select" =>
-          [ "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 0 and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 1 and buildstatus <> 0 and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 1 and buildstatus = 0 and a.isCurrent = 1)"
-          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.isCurrent = 1)"
+          [ "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 0 and a.isCurrent = 1 and a.fodcheck = false)"
+          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 1 and buildstatus <> 0 and a.isCurrent = 1 and a.fodcheck = false)"
+          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.finished = 1 and buildstatus = 0 and a.isCurrent = 1 and a.fodcheck = false)"
+          , "(select count(*) from Builds as a where me.id = a.jobset_id and a.isCurrent = 1 and a.fodcheck = false)"
           ]
         , "+as" => ["nrscheduled", "nrfailed", "nrsucceeded", "nrtotal"]
         });
@@ -245,8 +245,8 @@ sub getEvalInfo {
     if (defined $nrSucceeded) {
         $nrScheduled = 0;
     } else {
-        $nrScheduled = $eval->builds->search({finished => 0})->count;
-        $nrSucceeded = $eval->builds->search({finished => 1, buildStatus => 0})->count;
+        $nrScheduled = $eval->builds->search({finished => 0, fodcheck => 0})->count;
+        $nrSucceeded = $eval->builds->search({finished => 1, buildStatus => 0, fodcheck => 0})->count;
         if ($nrScheduled == 0) {
             $eval->update({nrsucceeded => $nrSucceeded});
         }

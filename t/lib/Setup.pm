@@ -66,12 +66,12 @@ sub hydra_setup {
 
 sub nrBuildsForJobset {
     my ($jobset) = @_;
-    return $jobset->builds->search({},{})->count ;
+    return $jobset->builds->search({fodcheck => 0})->count ;
 }
 
 sub queuedBuildsForJobset {
     my ($jobset) = @_;
-    return $jobset->builds->search({finished => 0});
+    return $jobset->builds->search({finished => 0, fodcheck => 0});
 }
 
 sub nrQueuedBuildsForJobset {
