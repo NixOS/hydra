@@ -77,6 +77,7 @@ sub begin :Private {
     $c->stash->{localStore} = isLocalStore;
 
     $c->stash->{isPrivateHydra} = $c->config->{private} // "0" ne "0";
+    $c->stash->{enableSearch} = $c->config->{search_enable} // "1" ne "0";
 
     if ($c->stash->{isPrivateHydra} && ! noLoginNeeded($c)) {
         requireUser($c);
@@ -545,6 +546,11 @@ sub steps :Local Args(0) {
 
 sub search :Local Args(0) {
     my ($self, $c) = @_;
+
+    if (not ($c->config->{search_enable} // "1" ne "0")) {
+        badRequest($c, "Search is disabled in this Hydra instance");
+    }
+
     $c->stash->{template} = 'search.tt';
 
     my $query = trim $c->request->params->{"query"};
