@@ -487,11 +487,12 @@ create table JobsetEvalInputs (
     altNr         integer not null,
 
     -- Copied from the jobsetinputs from which the build was created.
-    type          text not null,
-    uri           text,
-    revision      text,
-    value         text,
-    dependency    integer, -- build ID of the input, for type == 'build'
+    type           text not null,
+    uri            text,
+    revision       text,
+    shortRevLength smallint, -- length of a short revision at the time this was checked out
+    value          text,
+    dependency     integer, -- build ID of the input, for type == 'build'
 
     path          text,
 

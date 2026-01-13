@@ -891,6 +891,7 @@ sub checkJobsetWrapped {
                         , type => $input->{type}
                         , uri => $input->{uri}
                         , revision => $input->{revision}
+                        , shortRevLength => length($input->{shortRev})
                         , value => $input->{value}
                         , dependency => $input->{id}
                         , path => $input->{storePath} || "" # !!! temporary hack
