@@ -85,6 +85,7 @@ sql_files = files(
   'upgrade-82.sql',
   'upgrade-83.sql',
   'upgrade-84.sql',
+  'upgrade-85.sql',
 )
 
 install_data(sql_files, install_dir: hydra_libexecdir / 'sql')
