@@ -25,6 +25,8 @@ sub login :Local :Args(0) :ActionClass('REST') { }
 sub login_POST {
     my ($self, $c) = @_;
 
+    badRequest($c, "Local authentication is disabled.") if $c->config->{disable_local_auth};
+
     my $username = $c->stash->{params}->{username} // "";
     my $password = $c->stash->{params}->{password} // "";
 
