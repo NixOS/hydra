@@ -3,7 +3,11 @@
 {
   hydra = { pkgs, lib,... }: {
     _file = ./default.nix;
-    imports = [ ./hydra.nix ];
+    imports = [
+      ./hydra.nix
+      ./linux-builder-module.nix
+      ./queue-runner-module.nix
+    ];
     services.hydra-dev.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.hydra;
   };
 

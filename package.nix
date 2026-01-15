@@ -54,6 +54,11 @@
 , rpm
 , dpkg
 , cdrkit
+
+, rustPackages
+, libsodium
+, zlib
+, protobuf
 }:
 
 let
@@ -135,26 +140,38 @@ let
 
   version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 (rawSrc.lastModifiedDate or "19700101")}.${rawSrc.shortRev or "DIRTY"}";
 in
-stdenv.mkDerivation (finalAttrs: {
+stdenv.mkDerivation {
   pname = "hydra";
   inherit version;
 
   src = fileset.toSource {
     root = ./.;
-    fileset = fileset.unions ([
+    fileset = fileset.unions [
+      ./.cargo
+      ./.perlcriticrc
+      ./.sqlx
+      ./Cargo.lock
+      ./Cargo.toml
       ./doc
       ./meson.build
+      ./meson_options.txt
       ./nixos-modules
       ./src
       ./t
       ./version.txt
-      ./.perlcriticrc
-    ]);
+    ];
   };
 
   outputs = [ "out" "doc" ];
 
   strictDeps = true;
+
+  cargoDeps = rustPackages.rustPlatform.importCargoLock {
+    lockFile = ./Cargo.lock;
+    outputHashes = {
+      "nix-diff-0.1.0" = "sha256-heUqcAnGmMogyVXskXc4FMORb8ZaK6vUX+mMOpbfSUw=";
+    };
+  };
 
   nativeBuildInputs = [
     makeWrapper
@@ -167,6 +184,12 @@ stdenv.mkDerivation (finalAttrs: {
     perlDeps
     perl
     unzip
+    protobuf
+    rustPackages.cargo
+    rustPackages.clippy
+    rustPackages.rustPlatform.cargoSetupHook
+    rustPackages.rustc
+    rustPackages.rustfmt
   ];
 
   buildInputs = [
@@ -181,6 +204,9 @@ stdenv.mkDerivation (finalAttrs: {
     boost
     nlohmann_json
     prometheus-cpp
+    libsodium
+    zlib
+    protobuf
   ];
 
   nativeCheckInputs = [
@@ -229,6 +255,7 @@ stdenv.mkDerivation (finalAttrs: {
   );
 
   OPENLDAP_ROOT = openldap;
+  NIX_CFLAGS_COMPILE = "-Wno-error";
 
   mesonBuildType = "release";
 
@@ -239,7 +266,7 @@ stdenv.mkDerivation (finalAttrs: {
   shellHook = ''
     pushd $(git rev-parse --show-toplevel) >/dev/null
 
-    PATH=$(pwd)/build/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/build/src/hydra-queue-runner:$PATH
+    PATH=$(pwd)/build/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/build/src:$PATH
     PERL5LIB=$(pwd)/src/lib:$PERL5LIB
     export HYDRA_HOME="$(pwd)/src/"
     mkdir -p .hydra-data
@@ -282,4 +309,4 @@ stdenv.mkDerivation (finalAttrs: {
     inherit perlDeps;
     nix = nixComponents.nix-cli;
   };
-})
+}

@@ -1,0 +1,85 @@
+[workspace]
+
+resolver = "2"
+members = ["src/builder", "src/queue-runner", "src/crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+rust-version = "1.91.0"
+
+[workspace.dependencies]
+anyhow = "1.0.98"
+arc-swap = "1.7"
+async-compression = { version = "0.4", default-features = false }
+async-stream = "0.3"
+atomic_float = "1.1.0"
+backon = "1.5.2"
+byte-unit = "5.1.6"
+bytes = "1"
+clap = "4"
+configparser = "3.1"
+cxx = "1"
+cxx-build = "1"
+digest = "0.10.7"
+foldhash = "0.2"
+fs-err = "3.0"
+futures = "0.3"
+futures-util = "0.3"
+gethostname = "1"
+h2 = "0.4"
+hashbrown = "0.16"
+http = "1.1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["full"] }
+hyper-util = "0.1.10"
+jiff = { version = "0.2", features = ["serde"] }
+listenfd = "1"
+moka = { version = "0.12", features = ["future"] }
+nix = { version = "0.30", default-features = false }
+nix-diff = { git = "https://github.com/mic92/nix-diff-rs.git", rev = "7b79a68963fd7fcb48a57071b52bc90bd8d60609" }
+object_store = "0.13.0"
+opentelemetry = "0.31.0"
+opentelemetry-http = "0.31.0"
+opentelemetry-otlp = "0.31.0"
+opentelemetry-semantic-conventions = "0.31.0"
+opentelemetry_sdk = "0.31.0"
+parking_lot = "0.12.4"
+pkg-config = "0.3"
+procfs = "0.18"
+procfs-core = "0.18"
+prometheus = { version = "0.14.0", default-features = false }
+prost = "0.14"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["http2", "charset", "rustls-tls-webpki-roots", "system-proxy"] }
+sd-notify = "0.4.5"
+secrecy = "0.10"
+serde = "1.0"
+serde_json = "1.0"
+sha2 = "0.10"
+smallvec = "1.15"
+sqlx = "0.8"
+sysinfo = "0.37.0"
+thiserror = "2.0"
+tikv-jemallocator = "0.6"
+tokio = { version = "1.34", features = ["full"] }
+tokio-stream = "0.1"
+tokio-util = "0.7"
+toml = "0.9.0"
+tonic = "0.14"
+tonic-health = { version = "0.14", default-features = false }
+tonic-prost = "0.14"
+tonic-prost-build = "0.14"
+tonic-reflection = "0.14"
+tower = "0.5"
+tower-http = "0.6"
+tracing = "0.1"
+tracing-log = "0.2.0"
+tracing-opentelemetry = "0.32.0"
+tracing-subscriber = "0.3.18"
+url = "2.5.4"
+uuid = "1.16"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3

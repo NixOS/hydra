@@ -1,7 +1,6 @@
 # Native code
 subdir('libhydra')
 subdir('hydra-evaluator')
-subdir('hydra-queue-runner')
 
 hydra_libexecdir = get_option('libexecdir') / 'hydra'
 
@@ -75,3 +74,60 @@ install_subdir('script',
   install_mode: 'rwxr-xr-x',
   strip_directory: true,
 )
+
+# Build rust workspace
+cargo_toml = files('../Cargo.toml')
+workspace_root = '..'
+
+otel_feature = get_option('otel').enabled()
+
+build_type = get_option('buildtype')
+if build_type == 'debug'
+  cargo_profile = 'debug'
+  cargo_build_args = ['build']
+else
+  cargo_profile = 'release'
+  cargo_build_args = ['build', '--release']
+endif
+
+if otel_feature
+  cargo_build_args += ['--features', 'otel']
+endif
+
+rust_build = custom_target(
+  'rust-workspace-build',
+  input: cargo_toml,
+  output: ['build-stamp'],
+  command: [
+    cargo,
+    cargo_build_args,
+    '--manifest-path', '@INPUT@',
+    '--workspace',
+    '--message-format=json-render-diagnostics'
+  ],
+  build_by_default: true,
+  install: false,
+  depends: [],
+)
+
+rust_binaries = {
+  'queue-runner': 'hydra-queue-runner-v2',
+  'builder': 'hydra-builder-v2',
+}
+
+rust_outputs = []
+foreach src_bin, dest_bin : rust_binaries
+  rust_outputs += custom_target(
+    'rust-' + src_bin,
+    input: rust_build,
+    output: dest_bin,
+    command: [
+      'cp',
+      workspace_root / 'target' / cargo_profile / src_bin,
+      '@OUTPUT@'
+    ],
+    install: true,
+    install_dir: get_option('bindir'),
+    depends: rust_build,
+  )
+endforeach
