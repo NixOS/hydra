@@ -106,11 +106,11 @@ sub doEmailLogin {
     my $allowed_domains = $c->config->{allowed_domains} // ($c->config->{persona_allowed_domains} // "");
     if ($allowed_domains ne "") {
         my $email_ok = 0;
-        my @domains = split ',', $allowed_domains;
+        my @domains = split /,/, $allowed_domains;
         map { $_ =~ s/^\s*(.*?)\s*$/$1/ } @domains;
 
         foreach my $domain (@domains) {
-            $email_ok = $email_ok || ((split '@', $email)[1] eq $domain);
+            $email_ok = $email_ok || ((split /@/, $email)[1] eq $domain);
         }
         error($c, "Your email address does not belong to a domain that is allowed to log in.\n")
             unless $email_ok;

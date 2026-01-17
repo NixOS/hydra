@@ -38,7 +38,7 @@ sub _parseValue {
         $start_options = 2;
     }
     foreach my $option (@parts[$start_options .. $#parts]) {
-        (my $key, my $value) = split('=', $option);
+        (my $key, my $value) = split(/=/, $option);
         $options->{$key} = $value;
     }
     return ($uri, $branch, $deepClone, $options);
@@ -265,7 +265,7 @@ sub getCommits {
 
     my $res = [];
     foreach my $line (split /\n/, $out) {
-        my ($revision, $author, $email, $date) = split "\t", $line;
+        my ($revision, $author, $email, $date) = split /\t/, $line;
         push @$res, { revision => $revision, author => decode("utf-8", $author), email => $email };
     }
 
