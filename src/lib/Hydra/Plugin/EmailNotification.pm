@@ -71,7 +71,7 @@ sub buildFinished {
 
         my $to = $build->jobset->emailoverride ne "" ? $build->jobset->emailoverride : $build->maintainers;
 
-        foreach my $address (split ",", ($to // "")) {
+        foreach my $address (split /,/, ($to // "")) {
             $address = trim $address;
 
             $addresses{$address} //= { builds => [] };

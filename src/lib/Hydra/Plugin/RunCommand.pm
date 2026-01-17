@@ -85,7 +85,7 @@ sub isBuildEligibleForDynamicRunCommand {
 sub configSectionMatches {
     my ($name, $project, $jobset, $job) = @_;
 
-    my @elems = split ':', $name;
+    my @elems = split /:/, $name;
 
     die "invalid section name '$name'\n" if scalar(@elems) > 3;
 
