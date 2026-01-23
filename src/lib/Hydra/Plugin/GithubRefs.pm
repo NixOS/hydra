@@ -83,10 +83,10 @@ sub _iterate {
         $refs->{$ref_name} = $ref;
     }
     # TODO Make Link header parsing more robust!!!
-    my @links = split ',', $res->header("Link");
+    my @links = split /,/, $res->header("Link");
     my $next = "";
     foreach my $link (@links) {
-        my ($url, $rel) = split ";", $link;
+        my ($url, $rel) = split /;/, $link;
         if (trim($rel) eq 'rel="next"') {
             $next = substr trim($url), 1, -1;
             last;
