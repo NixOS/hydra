@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM buildproducts WHERE build = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b600c93d66b45b9859173e0e0f7f36b29a641f881e3e61f728b39ddf068dddde"
+}

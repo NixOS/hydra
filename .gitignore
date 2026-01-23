@@ -11,3 +11,5 @@
 result
 result-*
 outputs
+/target
+/config.toml

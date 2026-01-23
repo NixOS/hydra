@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n              builds.id,\n              builds.jobset_id,\n              jobsets.project as project,\n              jobsets.name as jobset,\n              job,\n              drvPath,\n              maxsilent,\n              timeout,\n              timestamp,\n              globalPriority,\n              priority\n            FROM builds\n            INNER JOIN jobsets ON builds.jobset_id = jobsets.id\n            WHERE finished = 0 ORDER BY globalPriority desc, schedulingshares, random();",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "jobset_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "project",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "jobset",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "job",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "drvpath",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "maxsilent",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "timeout",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "timestamp",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "globalpriority",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "priority",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "05e4170e17728e552240a2474d97bdd750d7adc15ea27c0d7b10ba5330ca4f9e"
+}

@@ -1,0 +1,37 @@
+[package]
+name = "hydra-tracing"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+tracing.workspace = true
+tracing-log.workspace = true
+tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
+
+tonic = { workspace = true, optional = true }
+http = { workspace = true, optional = true }
+
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, features = [
+  "rt-tokio",
+], optional = true }
+opentelemetry-otlp = { workspace = true, optional = true, features = [
+  "grpc-tonic",
+] }
+opentelemetry-http = { workspace = true, optional = true }
+opentelemetry-semantic-conventions = { workspace = true, optional = true }
+tracing-opentelemetry = { workspace = true, optional = true }
+
+[features]
+otel = [
+  "opentelemetry",
+  "opentelemetry_sdk",
+  "opentelemetry-otlp",
+  "opentelemetry-http",
+  "opentelemetry-semantic-conventions",
+  "tracing-opentelemetry",
+]
+tonic = ["dep:tonic", "http"]

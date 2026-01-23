@@ -1,0 +1,52 @@
+[package]
+name = "builder"
+version.workspace = true
+edition = "2024"
+license = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+tracing.workspace = true
+sd-notify.workspace = true
+
+anyhow.workspace = true
+thiserror.workspace = true
+clap = { workspace = true, features = ["derive"] }
+uuid = { workspace = true, features = ["v4"] }
+hashbrown.workspace = true
+parking_lot.workspace = true
+fs-err = { workspace = true, features = ["tokio"] }
+
+tokio = { workspace = true, features = ["full"] }
+tokio-stream.workspace = true
+backon.workspace = true
+futures.workspace = true
+prost.workspace = true
+tonic = { workspace = true, features = ["zstd", "tls-webpki-roots"] }
+tonic-prost.workspace = true
+tower.workspace = true
+hyper-util.workspace = true
+async-stream.workspace = true
+
+gethostname.workspace = true
+procfs-core.workspace = true
+nix = { workspace = true, features = ["fs"] }
+
+nix-utils = { path = "../crates/nix-utils" }
+shared = { path = "../crates/shared" }
+hydra-tracing = { path = "../crates/tracing", features = ["tonic"] }
+binary-cache = { path = "../crates/binary-cache" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+sysinfo.workspace = true
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator.workspace = true
+
+[build-dependencies]
+tonic-prost-build.workspace = true
+sha2.workspace = true
+fs-err = { workspace = true }
+
+[features]
+otel = ["hydra-tracing/otel"]

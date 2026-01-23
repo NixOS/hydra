@@ -13,4 +13,4 @@ chdir($dirname) or die "Failed to enter $dirname\n";
 # Add src/lib to PERL5LIB so perlcritic can find our custom policies
 $ENV{PERL5LIB} = "src/lib" . ($ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : "");
 
-exec("perlcritic", "--quiet", ".") or die "Failed to execute perlcritic.";
+exec("perlcritic", "--quiet", "src/", "t/") or die "Failed to execute perlcritic.";

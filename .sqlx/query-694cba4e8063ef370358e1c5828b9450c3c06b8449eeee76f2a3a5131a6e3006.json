@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO systemstatus (\n              what, status\n            ) VALUES (\n              'queue-runner', $1\n            ) ON CONFLICT (what) DO UPDATE SET status = EXCLUDED.status;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Json"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "694cba4e8063ef370358e1c5828b9450c3c06b8449eeee76f2a3a5131a6e3006"
+}
