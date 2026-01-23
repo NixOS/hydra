@@ -537,12 +537,12 @@ void State::notifyBuildFinished(pqxx::work & txn, BuildID buildId,
 
 std::shared_ptr<PathLocks> State::acquireGlobalLock()
 {
-    Path lockPath = hydraData + "/queue-runner/lock";
+    auto lockPath = std::filesystem::path(hydraData) / "queue-runner/lock";
 
-    createDirs(dirOf(lockPath));
+    createDirs(lockPath.parent_path());
 
     auto lock = std::make_shared<PathLocks>();
-    if (!lock->lockPaths(PathSet({lockPath}), "", false)) return 0;
+    if (!lock->lockPaths({lockPath}, "", false)) return 0;
 
     return lock;
 }

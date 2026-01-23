@@ -273,7 +273,7 @@ static BuildResult performBuild(
                 auto drvOutput = DrvOutput { outputHash, outputName };
                 successP->builtOutputs.insert_or_assign(
                     std::move(outputName),
-                    Realisation { drvOutput, *outputPath });
+                    Realisation { {.outPath = *outputPath}, drvOutput });
             }
         }
     }
