@@ -1,5 +1,6 @@
 #include "state.hh"
 #include "hydra-build-result.hh"
+#include <nix/store/derived-path.hh>
 #include <nix/store/globals.hh>
 #include <nix/store/parsed-derivations.hh>
 #include <nix/util/thread-pool.hh>
@@ -487,24 +488,24 @@ Step::ptr State::createStep(ref<Store> destStore,
        it's not runnable yet, and other threads won't make it
        runnable while step->created == false. */
     step->drv = std::make_unique<Derivation>(localStore->readDerivation(drvPath));
-    {
-        try {
-            step->drvOptions = std::make_unique<DerivationOptions>(
-                DerivationOptions::fromStructuredAttrs(
-                    step->drv->env,
-                    step->drv->structuredAttrs ? &*step->drv->structuredAttrs : nullptr));
-        } catch (Error & e) {
-            e.addTrace({}, "while parsing derivation '%s'", localStore->printStorePath(drvPath));
-            throw;
-        }
+    DerivationOptions<nix::SingleDerivedPath> drvOptions;
+    try {
+        drvOptions = derivationOptionsFromStructuredAttrs(
+            *localStore,
+            step->drv->inputDrvs,
+            step->drv->env,
+            get(step->drv->structuredAttrs));
+    } catch (Error & e) {
+        e.addTrace({}, "while parsing derivation '%s'", localStore->printStorePath(drvPath));
+        throw;
     }
 
-    step->preferLocalBuild = step->drvOptions->willBuildLocally(*localStore, *step->drv);
+    step->preferLocalBuild = drvOptions.willBuildLocally(*localStore, *step->drv);
     step->isDeterministic = getOr(step->drv->env, "isDetermistic", "0") == "1";
 
     step->systemType = step->drv->platform;
     {
-        StringSet features = step->requiredSystemFeatures = step->drvOptions->getRequiredSystemFeatures(*step->drv);
+        StringSet features = step->requiredSystemFeatures = drvOptions.getRequiredSystemFeatures(*step->drv);
         if (step->preferLocalBuild)
             features.insert("local");
         if (!features.empty()) {
