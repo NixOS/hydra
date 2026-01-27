@@ -347,9 +347,10 @@ BLOCK renderDiffUri;
     url = res.0;
     branch = res.1;
     IF bi1.type == "hg" || bi1.type == "git" %]
-      [% IF url.substr(0, 19) == "https://github.com/" %]
+      [% IF url.substr(0, 19) == "https://github.com/";
+         github_url = url.replace('\.git$', '') %]
         <a target="_blank" [% HTML.attributes(href =>
-          url
+          github_url
           _ "/compare/"
           _ bi1.revision
           _ "..."
