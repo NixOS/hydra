@@ -24,6 +24,8 @@
   pixz,
   nix-eval-jobs,
   curl,
+  kanidm_1_10,
+  jq,
 
   cacert,
   glibcLocales,
@@ -73,6 +75,8 @@ stdenv.mkDerivation (finalAttrs: {
     pixz
     nix-eval-jobs
     curl
+    kanidm_1_10
+    jq
   ];
 
   buildInputs = [

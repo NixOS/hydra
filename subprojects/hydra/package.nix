@@ -126,6 +126,7 @@ let
         TextTable
         URIdb
         UUID4Tiny
+        WWWMechanize
         YAML
         XMLSimple
       ])
