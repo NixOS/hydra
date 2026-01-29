@@ -4,3 +4,4 @@ hydra-notify: ./foreman/start-notify.sh
 hydra-server: ./foreman/start-hydra.sh
 manual: ./foreman/start-manual.sh
 postgres: ./foreman/start-postgres.sh
+keycloak: ./foreman/start-keycloak.sh

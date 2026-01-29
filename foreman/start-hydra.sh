@@ -4,6 +4,9 @@ export PATH=$(pwd)/src/script:$PATH
 
 # wait for postgresql to listen
 while ! pg_isready -h $(pwd)/.hydra-data/postgres -p 64444; do sleep 1; done
+# We need to not only wait for keycloak to be up, but also for start-keycloak.sh to have created
+# the hydra-dev realm
+while ! curl -sf  "http://localhost:64446/realms/hydra-dev/.well-known/openid-configuration"; do sleep 1; done
 
 createdb -h $(pwd)/.hydra-data/postgres -p 64444 hydra
 
@@ -28,6 +31,15 @@ use-substitutes = true
     port = 64445
   </prometheus>
 </hydra_notify>
+
+<oidc>
+  <provider keycloak>
+    display_name = "Keycloak"
+    discovery_url = "http://localhost:64446/realms/hydra-dev/.well-known/openid-configuration"
+    client_id = "hydra-local"
+    client_secret = "hydra-local-secret"
+  </provider>
+</oidc>
 EOF
 fi
 HYDRA_CONFIG=$(pwd)/.hydra-data/hydra.conf exec hydra-dev-server --port 63333 --restart --debug
