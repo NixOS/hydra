@@ -122,6 +122,7 @@ let
         TextDiff
         TextTable
         UUID4Tiny
+        WWWMechanize
         YAML
         XMLSimple
       ]));
