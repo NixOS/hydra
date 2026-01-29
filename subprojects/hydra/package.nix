@@ -119,6 +119,7 @@ let
         TextTable
         URIdb
         UUIDURandom
+        WWWMechanize
         YAML
         XMLSimple
       ])

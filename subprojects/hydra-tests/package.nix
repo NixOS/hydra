@@ -27,6 +27,8 @@
   pixz,
   nix-eval-jobs,
   curl,
+  kanidm_1_10,
+  jq,
 
   cacert,
   glibcLocales,
@@ -79,6 +81,8 @@ stdenv.mkDerivation (finalAttrs: {
     nix-eval-jobs
     socat
     curl
+    kanidm_1_10
+    jq
   ];
 
   buildInputs = [
@@ -92,6 +96,7 @@ stdenv.mkDerivation (finalAttrs: {
   ];
 
   OPENLDAP_ROOT = openldap;
+  KANIDM_ROOT = kanidm_1_10;
 
   mesonBuildType = "release";
   mesonFlags = [
