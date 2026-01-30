@@ -271,6 +271,11 @@ sub setPasswordHash {
 
 sub usernameForDisplay {
     my ($self) = @_;
+    # The OIDC usernames will often look very silly (they just have a UUID in Keycloak, for example)
+    # Display the email address alongside the username in the templates.
+    if ($self->type eq "oidc") {
+        return "@{[$self->emailaddress]} (@{[$self->username]})";
+    }
     return $self->username;
 }
 

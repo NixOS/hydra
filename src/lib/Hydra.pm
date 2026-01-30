@@ -7,6 +7,7 @@ use Moose;
 use Hydra::Plugin;
 use Hydra::Model::DB;
 use Hydra::Config qw(getLDAPConfigAmbient);
+use Hydra::Helper::OIDC qw(resolveOIDCConfig);
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
                 Static::Simple
@@ -102,6 +103,14 @@ has 'hydra_plugins' => (
     is => 'ro',
     default => sub { return $plugins; }
 );
+
+# Resolve OIDC discovery URLs and materialize endpoints into config
+after setup_finalize => sub {
+    my $class = shift;
+    if ($class->config->{oidc}) {
+        resolveOIDCConfig($class->config->{oidc});
+    }
+};
 
 after setup_finalize => sub {
     my $class = shift;

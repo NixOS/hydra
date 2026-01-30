@@ -11,6 +11,7 @@ use Hydra::Config qw(getLDAPConfigAmbient);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
+use Hydra::Helper::OIDC;
 use LWP::UserAgent;
 use JSON::MaybeXS;
 use HTML::Entities;
@@ -234,6 +235,37 @@ sub github_redirect :Path('/github-redirect') Args(0) {
     };
 
     $c->res->redirect("https://github.com/login/oauth/authorize?client_id=$client_id&scope=user:email");
+}
+
+sub oidc_redirect :Path('/oidc-redirect') Args(1) {
+    my ($self, $c, $provider_name) = @_;
+
+    my $oidc = Hydra::Helper::OIDC->new($c,
+        provider_name => $provider_name,
+        after => "/" . $c->req->params->{after},
+        redirect_uri => $c->uri_for("/oidc-callback", $provider_name)->as_string,
+    );
+    $c->res->redirect($oidc->authorizationURL());
+}
+
+sub oidc_callback :Path('/oidc-callback') Args(1) {
+    my ($self, $c, $provider_name) = @_;
+
+    my $oidc = Hydra::Helper::OIDC->load($c, provider_name => $provider_name);
+    my $authorization_code = $oidc->validateAuthorizationCode($c->req->params);
+    my $token = $oidc->exchangeCodeForToken($authorization_code);
+    my $claims = $oidc->validateToken($token);
+
+    doEmailLogin($self, $c,
+        type => 'oidc',
+        email => $claims->{email},
+        fullName => $claims->{name},
+        username => $provider_name . ":" . $claims->{sub},
+    );
+
+
+    $oidc->clear_session();
+    $c->res->redirect($oidc->after());
 }
 
 
