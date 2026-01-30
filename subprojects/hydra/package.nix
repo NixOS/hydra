@@ -74,9 +74,11 @@ let
         CatalystViewTT
         CatalystXRoleApplicator
         CatalystXScriptServerStarman
+        CryptJWT
         CryptPassphrase
         CryptPassphraseArgon2
         CryptRandPasswd
+        CryptURandom
         DataDump
         DateTime
         DBDPg
