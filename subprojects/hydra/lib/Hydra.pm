@@ -17,10 +17,12 @@ use Catalyst qw/ConfigLoader
                 Session::Store::FastMmap
                 Session::State::Cookie
                 Captcha
+                Cache
                 PrometheusTiny/,
                 '-Log=warn,fatal,error';
 use CatalystX::RoleApplicator;
 use Path::Class 'file';
+use Cache::FastMmap;
 
 our $VERSION = '0.01';
 
@@ -64,6 +66,13 @@ __PACKAGE__->config(
         expires => 3600 * 24 * 7,
         storage => Hydra::Model::DB::getHydraPath . "/www/session_data",
         unlink_on_exit => 0
+    },
+    'Plugin::Cache' => {
+        backend => {
+            class => 'Cache::FastMmap',
+            unlink_on_exit => 1,
+            init_file => 1,
+        },
     },
     'Plugin::Captcha' => {
         session_name => 'hydra-captcha',
