@@ -279,4 +279,30 @@ sub usernameForDisplay {
     return $self->username;
 }
 
+sub setRoles {
+    my ($self, @roles) = @_;
+    my $schema = $self->result_source->schema;
+
+    # Add new roles we don't have
+    $schema->storage->dbh_do(sub {
+        my ($storage, $dbh) = @_;
+        my $userroles_table = $dbh->quote_identifier($self->userroles->result_source->from);
+        my @usernames = ($self->username) x @roles;
+
+        my $stmt = $dbh->prepare(qq{
+            INSERT INTO $userroles_table (username, role)
+            VALUES (?, ?)
+            ON CONFLICT (username, role) DO NOTHING;
+        });
+        $stmt->execute_array({}, \@usernames, \@roles);
+    });
+
+    # Delete surplus roles
+    if (@roles) {
+        $self->userroles->search({ role => { -not_in => \@roles } })->delete;
+    } else {
+        $self->userroles->delete;
+    }
+}
+
 1;

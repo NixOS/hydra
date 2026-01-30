@@ -12,6 +12,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
 use Hydra::Helper::OIDC;
+use Hydra::Config;
 use LWP::UserAgent;
 use JSON::MaybeXS;
 use HTML::Entities;
@@ -263,6 +264,20 @@ sub oidc_callback :Path('/oidc-callback') Args(1) {
         username => $provider_name . ":" . $claims->{sub},
     );
 
+    # If a hydra_roles claim was presented, set roles with it.
+    # We don't support any kind of role mapping other than this at the moment; you have to
+    # explicitly configure your IDP to present the hydra_roles claim in the ID token with the
+    # desired list of roles. I tested this with a couple of IDP's and it worked:
+    #  * Keycloak: You need to set up a "protocol mapper" to bind client-scoped role values to
+    #    ID token claims
+    #  * Kanidm: You have to use `kanidm system oauth2 update-claim-map`
+    if ($claims->{hydra_roles}) {
+        # Take the intersection of hydra_roles that are in valid_roles
+        my %valid_roles = map { $_ => 1 } @{Hydra::Config::valid_roles()};
+        my @normalized_roles = map { Hydra::Config::normalize_role_name($_) } @{$claims->{hydra_roles}};
+        my @roles = grep { $valid_roles{$_} } @normalized_roles;
+        $c->user->setRoles(@roles);
+    }
 
     $oidc->clear_session();
     $c->res->redirect($oidc->after());
@@ -356,9 +371,8 @@ sub updatePreferences {
         $user->update({ emailaddress => $emailAddress })
             if $user->type eq "hydra";
 
-        $user->userroles->delete;
-        $user->userroles->create({ role => $_ })
-            foreach paramToList($c, "roles");
+
+        $user->setRoles(paramToList($c, "roles"));
     }
 }
 
