@@ -92,7 +92,9 @@ sub doLDAPLogin {
 }
 
 sub doEmailLogin {
-    my ($self, $c, $type, $email, $fullName) = @_;
+    my ($self, $c, %args) = @_;
+    my ($type, $email, $fullName) = @args{qw(type email fullName)};
+    my $username = $args{username} // $email;
 
     die "No email address provided.\n" unless defined $email;
 
@@ -116,19 +118,19 @@ sub doEmailLogin {
             unless $email_ok;
     }
 
-    my $user = $c->find_user({ username => $email });
+    my $user = $c->find_user({ username => $username });
 
     if ($user) {
         die "You cannot login via login type '$type'.\n" if $user->type ne $type;
     } else {
         $c->model('DB::Users')->create(
-            { username => $email
+            { username => $username
             , fullname => $fullName,
             , password => "!"
             , emailaddress => $email,
             , type => $type
             });
-        $user = $c->find_user({ username => $email }) or die;
+        $user = $c->find_user({ username => $username }) or die;
     }
 
     $c->set_authenticated($user);
@@ -178,7 +180,11 @@ sub github_login :Path('/github-login') Args(0) {
     error($c, "Did not get a response from GitHub for user info.") unless $response->is_success;
     $data = decode_json($response->decoded_content) or die;
 
-    doEmailLogin($self, $c, "github", $email, $data->{name} // undef);
+    doEmailLogin($self, $c,
+        type => "github",
+        email => $email,
+        fullName => $data->{name} // undef,
+    );
 
     $c->res->redirect($c->uri_for($c->res->cookies->{'after_github'}));
 }
