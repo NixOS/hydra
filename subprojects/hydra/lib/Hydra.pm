@@ -7,6 +7,7 @@ use Moose;
 use Hydra::Plugin;
 use Hydra::Model::DB;
 use Hydra::Config qw(getLDAPConfigAmbient);
+use Hydra::Helper::OIDC qw(resolveOIDCConfig);
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
                 Static::Simple
@@ -102,6 +103,15 @@ has 'hydra_plugins' => (
     is => 'ro',
     default => sub { return $plugins; }
 );
+
+# Load OIDC secrets from disk and validate static config. Discovery
+# endpoints are resolved lazily on first login (see Hydra::Helper::OIDC),
+# so this does no network I/O and a misconfiguration here is a genuine
+# deployment error worth dying for.
+after setup_finalize => sub {
+    my $class = shift;
+    resolveOIDCConfig($class->config->{oidc});
+};
 
 after setup_finalize => sub {
     my $class = shift;
