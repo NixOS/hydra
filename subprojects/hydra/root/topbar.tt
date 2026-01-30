@@ -146,6 +146,14 @@
         <a class="dropdown-item" href="/github-redirect?after=[% c.req.path | uri %]">Sign in with GitHub</a>
         <div class="dropdown-divider"></div>
       [% END %]
+      [% IF c.config.oidc.provider %]
+        [% FOREACH provider_name IN c.config.oidc.provider.keys.sort %]
+          [% provider = c.config.oidc.provider.$provider_name %]
+          [% display_name = provider.display_name || "OIDC ($provider_name)" %]
+          <a class="dropdown-item" href="/oidc-redirect/[% provider_name | uri %]?after=[% c.req.path | uri %]">Sign in with [% HTML.escape(display_name) %]</a>
+        [% END %]
+        <div class="dropdown-divider"></div>
+      [% END %]
       <a class="dropdown-item" href="#hydra-signin" data-toggle="modal">Sign in with a Hydra account</a>
     [% END %]
   [% END %]
