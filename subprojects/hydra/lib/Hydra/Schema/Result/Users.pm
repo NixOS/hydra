@@ -269,4 +269,9 @@ sub setPasswordHash {
     }
 }
 
+sub usernameForDisplay {
+    my ($self) = @_;
+    return $self->username;
+}
+
 1;
