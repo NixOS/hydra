@@ -68,6 +68,7 @@ let
         git
       ] ++ (with perlPackages; [
         AuthenSASL
+        CacheFastMmap
         CatalystActionREST
         CatalystAuthenticationStoreDBIxClass
         CatalystAuthenticationStoreLDAP
@@ -75,6 +76,7 @@ let
         CatalystPluginAccessLog
         CatalystPluginAuthorizationRoles
         CatalystPluginCaptcha
+        CatalystPluginCache
         CatalystPluginPrometheusTiny
         CatalystPluginSessionStateCookie
         CatalystPluginSessionStoreFastMmap
