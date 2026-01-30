@@ -12,6 +12,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
 use Hydra::Helper::OIDC;
+use Hydra::Config;
 use LWP::UserAgent;
 use JSON::MaybeXS;
 use HTML::Entities;
@@ -263,6 +264,17 @@ sub oidc_callback :Path('/oidc-callback') Args(1) {
         username => $provider_name . ":" . $claims->{sub},
     );
 
+    # If a hydra_roles claim was presented, set roles with it.
+    # We don't support any kind of role mapping other than this at the moment; you have to
+    # explicitly configure your IDP to present the hydra_roles claim in the ID token with the
+    # desired list of roles. Keycloak at least seems to make this pretty easy to do (see
+    # foreman/start-keycloak.sh for an example of how to configure it, under "protocolMappers").
+    if ($claims->{hydra_roles}) {
+        # Take the intersection of hydra_roles that are in valid_roles
+        my %valid_roles = map { $_ => 1 } @{Hydra::Config::valid_roles()};
+        my @roles = grep { $valid_roles{$_} } @{$claims->{hydra_roles}};
+        $c->user->setRoles(@roles);
+    }
 
     $oidc->clear_session();
     $c->res->redirect($oidc->after());
@@ -356,9 +368,8 @@ sub updatePreferences {
         $user->update({ emailaddress => $emailAddress })
             if $user->type eq "hydra";
 
-        $user->userroles->delete;
-        $user->userroles->create({ role => $_ })
-            foreach paramToList($c, "roles");
+
+        $user->setRoles(paramToList($c, "roles"));
     }
 }
 
