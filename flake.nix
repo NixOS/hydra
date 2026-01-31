@@ -19,11 +19,33 @@
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
+
+      pkgsBySystem = forEachSystem (system: import nixpkgs {
+        inherit system;
+        overlays = [ self.overlays.default ];
+      });
     in
     rec {
 
       # A Nixpkgs overlay that provides a 'hydra' package.
       overlays.default = final: prev: {
+        # Perl packages that are not yet in nixpkgs
+        perlPackages = prev.perlPackages // {
+          CryptURandomToken = final.perlPackages.buildPerlPackage {
+            pname = "Crypt-URandom-Token";
+            version = "0.005";
+            src = prev.fetchurl {
+              url = "mirror://cpan/authors/id/S/ST/STIGTSP/Crypt-URandom-Token-0.005.tar.gz";
+              hash = "sha256-3OGOqMkgmF6IfdQdmMlsKFoXRwMhqrxKdXHHEIHj1nk=";
+            };
+            buildInputs = with final.perlPackages; [ CryptURandom TestException ];
+            meta = {
+              homepage = "https://github.com/stigtsp/Crypt-URandom-Token";
+              description = "Password generator using Crypt::URandom";
+              license = with final.lib.licenses; [ artistic1 gpl1Plus ];
+            };
+          };
+        };
         nixDependenciesForHydra = final.lib.makeScope final.newScope
           (import (nix + "/packaging/dependencies.nix") {
             pkgs = final;
@@ -85,7 +107,7 @@
 
       packages = forEachSystem (system: let
         inherit (nixpkgs) lib;
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = pkgsBySystem.${system};
         nixDependencies = lib.makeScope pkgs.newScope
           (import (nix + "/packaging/dependencies.nix") {
             inherit pkgs;

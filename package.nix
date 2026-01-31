@@ -1,6 +1,7 @@
 { stdenv
 , lib
 , fileset
+, pkgs
 
 , rawSrc
 
@@ -34,6 +35,8 @@
 , postgresql_17
 , nlohmann_json
 , prometheus-cpp
+, keycloak
+, jq
 
 , cacert
 , foreman
@@ -65,6 +68,7 @@ let
         git
       ] ++ (with perlPackages; [
         AuthenSASL
+        CacheFastMmap
         CatalystActionREST
         CatalystAuthenticationStoreDBIxClass
         CatalystAuthenticationStoreLDAP
@@ -72,6 +76,7 @@ let
         CatalystPluginAccessLog
         CatalystPluginAuthorizationRoles
         CatalystPluginCaptcha
+        CatalystPluginCache
         CatalystPluginPrometheusTiny
         CatalystPluginSessionStateCookie
         CatalystPluginSessionStoreFastMmap
@@ -82,9 +87,12 @@ let
         CatalystViewTT
         CatalystXRoleApplicator
         CatalystXScriptServerStarman
+        CryptJWT
         CryptPassphrase
         CryptPassphraseArgon2
         CryptRandPasswd
+        CryptURandom
+        CryptURandomToken
         DataDump
         DateTime
         DBDPg
@@ -131,6 +139,16 @@ let
         YAML
         XMLSimple
       ]));
+  };
+
+  # Need to do a keycloak "build" with db set to postgres so we can connect
+  # to the postgres in the tests.
+  keycloak-build = keycloak.override {
+    confFile = pkgs.writeText "keycloak.conf" ''
+      db = postgres
+      health-enabled = true
+      http-management-health-enabled = true
+    '';
   };
 
   version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 (rawSrc.lastModifiedDate or "19700101")}.${rawSrc.shortRev or "DIRTY"}";
@@ -195,6 +213,7 @@ stdenv.mkDerivation (finalAttrs: {
     postgresql_17
     pixz
     nix-eval-jobs
+    keycloak-build
   ];
 
   checkInputs = [

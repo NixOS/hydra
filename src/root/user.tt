@@ -1,4 +1,4 @@
-[% WRAPPER layout.tt title=(create ? "Add new user" : "Editing user $user.username") %]
+[% WRAPPER layout.tt title=(create ? "Add new user" : "Editing user $user.usernameForDisplay") %]
 [% PROCESS common.tt %]
 
 [% BLOCK roleoption %]

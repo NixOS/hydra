@@ -11,6 +11,8 @@ use Hydra::Config qw(getLDAPConfigAmbient);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
+use Hydra::Helper::OIDC;
+use Hydra::Config;
 use LWP::UserAgent;
 use JSON::MaybeXS;
 use HTML::Entities;
@@ -92,7 +94,9 @@ sub doLDAPLogin {
 }
 
 sub doEmailLogin {
-    my ($self, $c, $type, $email, $fullName) = @_;
+    my ($self, $c, %args) = @_;
+    my ($type, $email, $fullName) = @args{qw(type email fullName)};
+    my $username = $args{username} // $email;
 
     die "No email address provided.\n" unless defined $email;
 
@@ -116,7 +120,7 @@ sub doEmailLogin {
             unless $email_ok;
     }
 
-    my $user = $c->find_user({ username => $email });
+    my $user = $c->find_user({ username => $username });
 
     if ($user) {
         # Automatically upgrade legacy Persona accounts to Google accounts.
@@ -127,13 +131,13 @@ sub doEmailLogin {
         die "You cannot login via login type '$type'.\n" if $user->type ne $type;
     } else {
         $c->model('DB::Users')->create(
-            { username => $email
+            { username => $username
             , fullname => $fullName,
             , password => "!"
             , emailaddress => $email,
             , type => $type
             });
-        $user = $c->find_user({ username => $email }) or die;
+        $user = $c->find_user({ username => $username }) or die;
     }
 
     $c->set_authenticated($user);
@@ -162,7 +166,11 @@ sub google_login :Path('/google-login') Args(0) {
     die "Email address is not verified" unless $data->{email_verified};
     # FIXME: verify hosted domain claim?
 
-    doEmailLogin($self, $c, "google", $data->{email}, $data->{name} // undef);
+    doEmailLogin($self, $c,
+        type => "google",
+        email => $data->{email},
+        fullName => $data->{name} // undef,
+    );
 }
 
 sub github_login :Path('/github-login') Args(0) {
@@ -206,7 +214,11 @@ sub github_login :Path('/github-login') Args(0) {
     error($c, "Did not get a response from GitHub for user info.") unless $response->is_success;
     $data = decode_json($response->decoded_content) or die;
 
-    doEmailLogin($self, $c, "github", $email, $data->{name} // undef);
+    doEmailLogin($self, $c,
+        type => "github",
+        email => $email,
+        fullName => $data->{name} // undef,
+    );
 
     $c->res->redirect($c->uri_for($c->res->cookies->{'after_github'}));
 }
@@ -224,6 +236,48 @@ sub github_redirect :Path('/github-redirect') Args(0) {
     };
 
     $c->res->redirect("https://github.com/login/oauth/authorize?client_id=$client_id&scope=user:email");
+}
+
+sub oidc_redirect :Path('/oidc-redirect') Args(1) {
+    my ($self, $c, $provider_name) = @_;
+
+    my $oidc = Hydra::Helper::OIDC->new($c,
+        provider_name => $provider_name,
+        after => "/" . $c->req->params->{after},
+        redirect_uri => $c->uri_for("/oidc-callback", $provider_name)->as_string,
+    );
+    $c->res->redirect($oidc->authorizationURL());
+}
+
+sub oidc_callback :Path('/oidc-callback') Args(1) {
+    my ($self, $c, $provider_name) = @_;
+
+    my $oidc = Hydra::Helper::OIDC->load($c, provider_name => $provider_name);
+    my $authorization_code = $oidc->validateAuthorizationCode($c->req->params);
+    my $token = $oidc->exchangeCodeForToken($authorization_code);
+    my $claims = $oidc->validateToken($token);
+
+    doEmailLogin($self, $c,
+        type => 'oidc',
+        email => $claims->{email},
+        fullName => $claims->{name},
+        username => $provider_name . ":" . $claims->{sub},
+    );
+
+    # If a hydra_roles claim was presented, set roles with it.
+    # We don't support any kind of role mapping other than this at the moment; you have to
+    # explicitly configure your IDP to present the hydra_roles claim in the ID token with the
+    # desired list of roles. Keycloak at least seems to make this pretty easy to do (see
+    # foreman/start-keycloak.sh for an example of how to configure it, under "protocolMappers").
+    if ($claims->{hydra_roles}) {
+        # Take the intersection of hydra_roles that are in valid_roles
+        my %valid_roles = map { $_ => 1 } @{Hydra::Config::valid_roles()};
+        my @roles = grep { $valid_roles{$_} } @{$claims->{hydra_roles}};
+        $c->user->setRoles(@roles);
+    }
+
+    $oidc->clear_session();
+    $c->res->redirect($oidc->after());
 }
 
 
@@ -314,9 +368,8 @@ sub updatePreferences {
         $user->update({ emailaddress => $emailAddress })
             if $user->type eq "hydra";
 
-        $user->userroles->delete;
-        $user->userroles->create({ role => $_ })
-            foreach paramToList($c, "roles");
+
+        $user->setRoles(paramToList($c, "roles"));
     }
 }
 

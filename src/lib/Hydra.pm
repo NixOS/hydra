@@ -7,6 +7,7 @@ use Moose;
 use Hydra::Plugin;
 use Hydra::Model::DB;
 use Hydra::Config qw(getLDAPConfigAmbient);
+use Hydra::Helper::OIDC qw(resolveOIDCConfig);
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
                 Static::Simple
@@ -17,10 +18,12 @@ use Catalyst qw/ConfigLoader
                 Session::Store::FastMmap
                 Session::State::Cookie
                 Captcha
+                Cache
                 PrometheusTiny/,
                 '-Log=warn,fatal,error';
 use CatalystX::RoleApplicator;
 use Path::Class 'file';
+use Cache::FastMmap;
 
 our $VERSION = '0.01';
 
@@ -65,6 +68,13 @@ __PACKAGE__->config(
         storage => Hydra::Model::DB::getHydraPath . "/www/session_data",
         unlink_on_exit => 0
     },
+    'Plugin::Cache' => {
+        backend => {
+            class => 'Cache::FastMmap',
+            unlink_on_exit => 1,
+            init_file => 1,
+        },
+    },
     'Plugin::Captcha' => {
         session_name => 'hydra-captcha',
         new => {
@@ -93,6 +103,14 @@ has 'hydra_plugins' => (
     is => 'ro',
     default => sub { return $plugins; }
 );
+
+# Resolve OIDC discovery URLs and materialize endpoints into config
+after setup_finalize => sub {
+    my $class = shift;
+    if ($class->config->{oidc}) {
+        resolveOIDCConfig($class->config->{oidc});
+    }
+};
 
 after setup_finalize => sub {
     my $class = shift;

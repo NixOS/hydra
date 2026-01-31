@@ -86,7 +86,7 @@
       </tr>
       <tr>
         <th>Owner:</th>
-        <td><tt>[% HTML.escape(project.owner.username) %]</tt></td>
+        <td><tt>[% HTML.escape(project.owner.usernameForDisplay) %]</tt></td>
       </tr>
       <tr>
         <th>Enabled:</th>
