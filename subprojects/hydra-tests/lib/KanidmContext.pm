@@ -511,6 +511,36 @@ sub allow_passwords {
     $res->is_success or die "failed to allow passwords: " . $res->status_line;
 }
 
+sub discovery_url {
+    my ($self, $client) = @_;
+    return $self->url("/oauth2/openid/$client/.well-known/openid-configuration");
+}
+
+sub issuer {
+    my ($self, $client) = @_;
+    return $self->url("/oauth2/openid/$client");
+}
+
+sub authorization_url {
+    my ($self, $client) = @_;
+    return $self->url("/ui/oauth2");
+}
+
+sub token_url {
+    my ($self, $client) = @_;
+    return $self->url("/oauth2/token");
+}
+
+sub ca_file {
+    my ($self) = @_;
+    return "$self->{kanidm_dir}/ca.pem";
+}
+
+sub working_dir {
+    my ($self) = @_;
+    return $self->{kanidm_dir};
+}
+
 sub DESTROY {
     my ($self) = @_;
     $self->kill();

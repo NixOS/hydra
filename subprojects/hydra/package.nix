@@ -96,6 +96,7 @@ let
         FileLibMagic
         FileSlurper
         FileWhich
+        HTTPCookieJar
         IOCompress
         IPCRun
         IPCRun3
@@ -123,7 +124,10 @@ let
         TermSizeAny
         TermReadKey
         Test2Harness
+        TestLongString
         TestPostgreSQL
+        TestWWWMechanize
+        TestWWWMechanizeCatalyst
         TextDiff
         TextTable
         UUID4Tiny
