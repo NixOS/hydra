@@ -129,8 +129,8 @@ mod ffi {
         fn init_nix();
         fn init(uri: &str) -> UniquePtr<StoreWrapper>;
 
-        fn get_nix_prefix() -> String;
         fn get_store_dir() -> String;
+        fn get_store_dir_for(store: &StoreWrapper) -> String;
         fn get_build_dir() -> String;
         fn get_log_dir() -> String;
         fn get_state_dir() -> String;
@@ -248,12 +248,6 @@ pub fn is_subpath(base: &std::path::Path, path: &std::path::Path) -> bool {
 #[inline]
 pub fn init_nix() {
     ffi::init_nix();
-}
-
-#[inline]
-#[must_use]
-pub fn get_nix_prefix() -> String {
-    ffi::get_nix_prefix()
 }
 
 #[inline]
@@ -509,9 +503,10 @@ pub struct BaseStoreImpl {
 
 impl BaseStoreImpl {
     fn new(store: cxx::UniquePtr<ffi::StoreWrapper>) -> Self {
+        let store_path_prefix = ffi::get_store_dir_for(&store);
         Self {
             wrapper: std::sync::Arc::new(FFIStore(std::cell::UnsafeCell::new(store))),
-            store_path_prefix: get_store_dir(),
+            store_path_prefix,
         }
     }
 }

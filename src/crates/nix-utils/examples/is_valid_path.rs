@@ -3,11 +3,11 @@ use nix_utils::{self, BaseStore as _};
 #[tokio::main]
 async fn main() {
     let store = nix_utils::LocalStore::init();
-    let nix_prefix = nix_utils::get_nix_prefix();
+    let store_dir = nix_utils::get_store_dir();
     println!(
-        "storepath={nix_prefix} valid={}",
+        "storepath={store_dir} valid={}",
         store
-            .is_valid_path(&nix_utils::StorePath::new(&nix_prefix))
+            .is_valid_path(&nix_utils::StorePath::new(&store_dir))
             .await
     );
 }

@@ -1,7 +1,9 @@
 #include "nix-utils/include/realisation.h"
 #include "nix-utils/include/utils.h"
 
+#include "nix/store/globals.hh"
 #include "nix/store/nar-info-disk-cache.hh"
+#include "nix/store/sqlite.hh"
 #include "nix/store/store-api.hh"
 #include "nix/util/json-utils.hh"
 
@@ -20,22 +22,11 @@ InternalRealisation::to_rust(const nix_utils::StoreWrapper &wrapper) const {
 
   rust::Vec<rust::String> signatures;
   signatures.reserve(_realisation->signatures.size());
-  for (const std::string &sig : _realisation->signatures) {
-    signatures.push_back(sig);
+  for (const auto &sig : _realisation->signatures) {
+    signatures.push_back(sig.to_string());
   }
 
   rust::Vec<DrvOutputPathTuple> dependent;
-  dependent.reserve(_realisation->dependentRealisations.size());
-  for (auto const &[drv_output, store_path] :
-       _realisation->dependentRealisations) {
-    dependent.push_back(DrvOutputPathTuple{
-        DrvOutput{
-            drv_output.strHash(),
-            drv_output.outputName,
-        },
-        store->printStorePath(store_path),
-    });
-  }
 
   return SharedRealisation{
       DrvOutput{
@@ -68,13 +59,11 @@ void InternalRealisation::clear_signatures() {
 
 void InternalRealisation::write_to_disk_cache(
     const nix_utils::StoreWrapper &wrapper) const {
-  auto disk_cache = nix::getNarInfoDiskCache();
-
-  if (disk_cache.get_ptr()) {
-    auto store = wrapper._store;
-    disk_cache->upsertRealisation(store->config.getHumanReadableURI(),
-                                  *_realisation.get_ptr());
-  }
+  auto store = wrapper._store;
+  auto disk_cache = nix::NarInfoDiskCache::get(
+      nix::settings.getNarInfoDiskCacheSettings(), nix::SQLiteSettings{});
+  disk_cache->upsertRealisation(store->config.getHumanReadableURI(),
+                                *_realisation.get_ptr());
 }
 
 std::shared_ptr<InternalRealisation>

@@ -20,8 +20,8 @@ namespace nix_utils {
 void init_nix();
 std::unique_ptr<StoreWrapper> init(rust::Str uri);
 
-rust::String get_nix_prefix();
 rust::String get_store_dir();
+rust::String get_store_dir_for(const StoreWrapper &wrapper);
 rust::String get_build_dir();
 rust::String get_log_dir();
 rust::String get_state_dir();
