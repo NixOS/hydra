@@ -110,7 +110,7 @@ State::State(std::optional<std::string> metricsAddrOpt)
     , maxOutputSize(config->getIntOption("max_output_size", 2ULL << 30))
     , maxLogSize(config->getIntOption("max_log_size", 64ULL << 20))
     , uploadLogsToBinaryCache(config->getBoolOption("upload_logs_to_binary_cache", false))
-    , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir, getEnvOrDie("LOGNAME"))))
+    , rootsDir(config->getStrOption("gc_roots_dir", fmt("%s/gcroots/per-user/%s/hydra-roots", settings.nixStateDir.string(), getEnvOrDie("LOGNAME"))))
     , metricsAddr(config->getStrOption("queue_runner_metrics_address", std::string{"127.0.0.1:9198"}))
 {
     hydraData = getEnvOrDie("HYDRA_DATA");
@@ -200,13 +200,13 @@ void State::parseMachines(const std::string & contents)
 void State::monitorMachinesFile()
 {
     std::string defaultMachinesFile = "/etc/nix/machines";
-    auto machinesFiles = tokenizeString<std::vector<Path>>(
+    auto machinesFiles = tokenizeString<std::vector<std::string>>(
         getEnv("NIX_REMOTE_SYSTEMS").value_or(pathExists(defaultMachinesFile) ? defaultMachinesFile : ""), ":");
 
     if (machinesFiles.empty()) {
         parseMachines("localhost " +
             (settings.thisSystem == "x86_64-linux" ? "x86_64-linux,i686-linux" : settings.thisSystem.get())
-            + " - " + std::to_string(settings.maxBuildJobs) + " 1 "
+            + " - " + std::to_string(settings.getWorkerSettings().maxBuildJobs) + " 1 "
             + concatStringsSep(",", StoreConfig::getDefaultSystemFeatures()));
         machinesReadyLock.unlock();
         return;
@@ -224,11 +224,11 @@ void State::monitorMachinesFile()
         /* Check if any of the machines files changed. */
         bool anyChanged = false;
         for (unsigned int n = 0; n < machinesFiles.size(); ++n) {
-            Path machinesFile = machinesFiles[n];
+            auto machinesFile = std::filesystem::path(machinesFiles[n]);
             struct stat st;
             if (stat(machinesFile.c_str(), &st) != 0) {
                 if (errno != ENOENT)
-                    throw SysError("getting stats about ‘%s’", machinesFile);
+                    throw SysError("getting stats about ‘%s’", machinesFile.string());
                 st.st_ino = st.st_mtime = 0;
             }
             auto & old(fileStats[n]);
@@ -349,9 +349,9 @@ void State::finishBuildStep(pqxx::work & txn, const RemoteResult & result,
          result.overhead != 0 ? std::make_optional(result.overhead) : std::nullopt,
          result.timesBuilt > 0 ? std::make_optional(result.timesBuilt) : std::nullopt,
          result.timesBuilt > 1 ? std::make_optional(result.isNonDeterministic) : std::nullopt}).no_rows();
-    assert(result.logFile.find('\t') == std::string::npos);
+    assert(result.logFile.string().find('\t') == std::string::npos);
     txn.exec(fmt("notify step_finished, '%d\t%d\t%s'",
-            buildId, stepNr, result.logFile));
+            buildId, stepNr, result.logFile.string()));
 
     if (result.stepStatus == bsSuccess) {
         // Update the corresponding `BuildStepOutputs` row to add the output path
@@ -484,9 +484,9 @@ void State::markSucceededBuild(pqxx::work & txn, Build::ptr build,
              product.subtype,
              product.fileSize ? std::make_optional(*product.fileSize) : std::nullopt,
              product.sha256hash ? std::make_optional(product.sha256hash->to_string(HashFormat::Base16, false)) : std::nullopt,
-             product.path,
+             product.path.string(),
              product.name,
-             product.defaultPath}).no_rows();
+             product.defaultPath.string()}).no_rows();
     }
 
     txn.exec("delete from BuildMetrics where build = $1", pqxx::params{build->id}).no_rows();

@@ -80,7 +80,7 @@ struct RemoteResult
 
     time_t startTime = 0, stopTime = 0;
     unsigned int overhead = 0;
-    nix::Path logFile;
+    std::filesystem::path logFile;
 
     BuildStatus buildStatus() const
     {
@@ -321,7 +321,7 @@ private:
     /* Time in seconds before unsupported build steps are aborted. */
     const unsigned int maxUnsupportedTime = 0;
 
-    nix::Path hydraData, logDir;
+    std::filesystem::path hydraData, logDir;
 
     bool useSubstitutes = false;
 
@@ -444,7 +444,7 @@ private:
     /* Where to store GC roots. Defaults to
        /nix/var/nix/gcroots/per-user/$USER/hydra-roots, overridable
        via gc_roots_dir. */
-    nix::Path rootsDir;
+    std::filesystem::path rootsDir;
 
     std::string metricsAddr;
 

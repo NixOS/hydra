@@ -142,15 +142,15 @@ static StorePaths reverseTopoSortPaths(const std::map<StorePath, UnkeyedValidPat
     return sorted;
 }
 
-static std::pair<Path, AutoCloseFD> openLogFile(const std::string & logDir, const StorePath & drvPath)
+static std::pair<std::filesystem::path, AutoCloseFD> openLogFile(const std::filesystem::path & logDir, const StorePath & drvPath)
 {
     std::string base(drvPath.to_string());
-    auto logFile = logDir + "/" + std::string(base, 0, 2) + "/" + std::string(base, 2);
+    auto logFile = logDir / std::string(base, 0, 2) / std::string(base, 2);
 
-    createDirs(dirOf(logFile));
+    createDirs(logFile.parent_path());
 
     AutoCloseFD logFD = open(logFile.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0666);
-    if (!logFD) throw SysError("creating log file ‘%s’", logFile);
+    if (!logFD) throw SysError("creating log file ‘%s’", logFile.string());
 
     return {std::move(logFile), std::move(logFD)};
 }
@@ -254,7 +254,7 @@ static BuildResult performBuild(
 
     // If the protocol was too old to give us `builtOutputs`, initialize
     // it manually by introspecting the derivation.
-    if (GET_PROTOCOL_MINOR(conn.remoteVersion) < 6)
+    if (conn.remoteVersion.minor < 6)
     {
         // If the remote is too old to handle CA derivations, we can’t get this
         // far anyways
@@ -356,7 +356,7 @@ void RemoteResult::updateWithBuildResult(const nix::BuildResult & buildResult)
             }
         },
         [&](const BuildResult::Failure & failure) {
-            errorMsg = failure.errorMsg;
+            errorMsg = failure.msg();
             isNonDeterministic = failure.isNonDeterministic;
             switch (failure.status) {
                 case BuildResult::Failure::PermanentFailure:
@@ -422,8 +422,6 @@ void State::buildRemote(ref<Store> destStore,
     std::function<void(StepState)> updateStep,
     NarMemberDatas & narMembers)
 {
-    assert(BuildResult::Failure::TimedOut == 8);
-
     auto [logFile, logFD] = build_remote::openLogFile(logDir, step->drvPath);
     AutoDelete logFileDel(logFile, false);
     result.logFile = logFile;
@@ -440,9 +438,8 @@ void State::buildRemote(ref<Store> destStore,
         }
 
         LegacySSHStoreConfig storeConfig {
-            pSpecified->scheme,
-            pSpecified->authority,
-            storeRef.params
+            ParsedURL::Authority::parse(pSpecified->authority),
+            storeRef.params,
         };
 
         auto master = storeConfig.createSSHMaster(
@@ -475,7 +472,7 @@ void State::buildRemote(ref<Store> destStore,
                 .to = child->in.get(),
                 .from = child->out.get(),
                 /* Handshake. */
-                .remoteVersion = 0xdadbeef, // FIXME avoid dummy initialize
+                .remoteVersion = {},
             },
             /*.machine =*/ machine,
         };
@@ -485,7 +482,10 @@ void State::buildRemote(ref<Store> destStore,
             bytesSent += conn.to.written;
         });
 
-        constexpr ServeProto::Version our_version = 0x206;
+        constexpr ServeProto::Version our_version {
+                .major = 2,
+                .minor = 6,
+        };
 
         try {
             conn.remoteVersion = decltype(conn)::handshake(
@@ -517,10 +517,10 @@ void State::buildRemote(ref<Store> destStore,
         /* Truncate the log to get rid of messages about substitutions
             etc. on the remote system. */
         if (lseek(logFD.get(), SEEK_SET, 0) != 0)
-            throw SysError("seeking to the start of log file ‘%s’", result.logFile);
+            throw SysError("seeking to the start of log file ‘%s’", result.logFile.string());
 
         if (ftruncate(logFD.get(), 0) == -1)
-            throw SysError("truncating log file ‘%s’", result.logFile);
+            throw SysError("truncating log file ‘%s’", result.logFile.string());
 
         logFD = -1;
 
