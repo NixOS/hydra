@@ -47,7 +47,7 @@ struct NarMemberConstructor : CreateRegularFileSink
 
 struct Extractor : FileSystemObjectSink
 {
-    std::unordered_set<Path> filesToKeep {
+    std::unordered_set<std::filesystem::path> filesToKeep {
         "/nix-support/hydra-build-products",
         "/nix-support/hydra-release-name",
         "/nix-support/hydra-metrics",
@@ -56,7 +56,7 @@ struct Extractor : FileSystemObjectSink
     NarMemberDatas & members;
     std::filesystem::path prefix;
 
-    Path toKey(const CanonPath & path)
+    std::filesystem::path toKey(const CanonPath & path)
     {
         std::filesystem::path p = prefix;
         // Conditional to avoid trailing slash
@@ -64,7 +64,7 @@ struct Extractor : FileSystemObjectSink
         return p;
     }
 
-    Extractor(NarMemberDatas & members, const Path & prefix)
+    Extractor(NarMemberDatas & members, const std::filesystem::path & prefix)
         : members(members), prefix(prefix)
     { }
 
@@ -73,7 +73,7 @@ struct Extractor : FileSystemObjectSink
         members.insert_or_assign(toKey(path), NarMemberData { .type = SourceAccessor::Type::tDirectory });
     }
 
-    void createRegularFile(const CanonPath & path, std::function<void(CreateRegularFileSink &)> func) override
+    void createRegularFile(const CanonPath & path, fun<void(CreateRegularFileSink &)> func) override
     {
         NarMemberConstructor nmc {
             members.insert_or_assign(toKey(path), NarMemberData {
@@ -94,7 +94,7 @@ struct Extractor : FileSystemObjectSink
 
 void extractNarData(
     Source & source,
-    const Path & prefix,
+    const std::filesystem::path & prefix,
     NarMemberDatas & members)
 {
     Extractor extractor(members, prefix);

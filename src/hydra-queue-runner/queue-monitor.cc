@@ -500,7 +500,21 @@ Step::ptr State::createStep(ref<Store> destStore,
         throw;
     }
 
-    step->preferLocalBuild = drvOptions.willBuildLocally(*localStore, *step->drv);
+    bool canBuildLocally = [&]() {
+        if (step->drv->platform != settings.thisSystem.get() && !settings.extraPlatforms.get().count(step->drv->platform)
+            && !step->drv->isBuiltin())
+            return false;
+
+        if (settings.getWorkerSettings().maxBuildJobs.get() == 0 && !step->drv->isBuiltin())
+            return false;
+
+        for (auto & feature : drvOptions.getRequiredSystemFeatures(*step->drv))
+            if (!localStore->config.systemFeatures.get().count(feature))
+                return false;
+        return true;
+    }();
+
+    step->preferLocalBuild = drvOptions.preferLocalBuild && canBuildLocally;
     step->isDeterministic = getOr(step->drv->env, "isDetermistic", "0") == "1";
 
     step->systemType = step->drv->platform;

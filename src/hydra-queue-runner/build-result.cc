@@ -85,14 +85,14 @@ BuildOutput getBuildOutput(
                store. */
             // FIXME: should we disallow products referring to other
             // store paths, or that are outside the input closure?
-            if (product.path == "" || product.path[0] != '/') continue;
+            if (product.path.empty() || !product.path.is_absolute()) continue;
             product.path = canonPath(product.path);
-            if (!store->isInStore(product.path)) continue;
+            if (!store->isInStore(product.path.string())) continue;
 
             auto file = narMembers.find(product.path);
             if (file == narMembers.end()) continue;
 
-            product.name = product.path == store->printStorePath(output) ? "" : baseNameOf(product.path);
+            product.name = product.path == store->printStorePath(output) ? "" : baseNameOf(product.path.string());
             if (!std::regex_match(product.name, std::regex("[a-zA-Z0-9.@:_ -]*")))
                 product.name = "";
 

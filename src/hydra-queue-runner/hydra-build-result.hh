@@ -9,7 +9,7 @@
 
 struct BuildProduct
 {
-    nix::Path path, defaultPath;
+    std::filesystem::path path, defaultPath;
     std::string type, subtype, name;
     bool isRegular = false;
     std::optional<nix::Hash> sha256hash;
