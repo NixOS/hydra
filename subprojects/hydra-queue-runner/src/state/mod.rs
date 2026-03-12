@@ -871,14 +871,23 @@ impl State {
             tx.commit().await?;
         }
 
-        let _ = match listener.try_next().await {
-            Ok(Some(v)) => v,
-            Ok(None) => return Ok(()),
-            Err(e) => {
+        let notification =
+            tokio::time::timeout(tokio::time::Duration::from_secs(5), listener.try_next()).await;
+
+        match notification {
+            Ok(Ok(Some(_))) => {}
+            Ok(Ok(None)) => return Ok(()),
+            Ok(Err(e)) => {
                 tracing::warn!("PgListener failed with e={e}");
                 return Ok(());
             }
-        };
+            Err(_) => {
+                // No response from queue-runner daemon — print a down status.
+                println!(r#"{{"status":"down"}}"#);
+                return Ok(());
+            }
+        }
+
         if let Some(status) = db.get_status().await? {
             // we want a println! here so it can be consumed by other tools
             println!("{}", serde_json::to_string_pretty(&status)?);

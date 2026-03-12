@@ -333,7 +333,9 @@ impl TryFrom<AppConfig> for PreparedApp {
             hydra_data_dir: val.hydra_data_dir,
             hydra_log_dir,
             lockfile,
-            db_url: val.db_url,
+            db_url: std::env::var("HYDRA_DATABASE_URL")
+                .map(secrecy::SecretString::from)
+                .unwrap_or(val.db_url),
             max_db_connections: val.max_db_connections,
             machine_sort_fn: val.machine_sort_fn,
             machine_free_fn: val.machine_free_fn,

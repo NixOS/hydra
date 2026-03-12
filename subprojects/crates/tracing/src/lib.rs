@@ -76,7 +76,9 @@ pub fn init() -> anyhow::Result<TracingGuard> {
     let (log_env_filter, reload_handle) = tracing_subscriber::reload::Layer::new(
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
     );
-    let fmt_layer = tracing_subscriber::fmt::layer().compact();
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stderr)
+        .compact();
     let subscriber = tracing_subscriber::Registry::default()
         .with(log_env_filter)
         .with(fmt_layer);
