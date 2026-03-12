@@ -37,7 +37,13 @@ subtest "Building, caching, and then garbage collecting the underlying job" => s
 
     my $path = $builds->{"underlyingJob"}->buildoutputs->find({ name => "out" })->path;
 
-    ok(unlink(Hydra::Helper::Nix::gcRootFor($path)), "Unlinking the GC root for underlying Dependency succeeds");
+    # The old C++ hydra-queue-runner would copy built objects from the builder to the central queue runner,
+    # then create a garbage collector root.
+    # The new Rust queue-runner does not do so, as the builder is intended to copy the outputs to a remote store.
+    # The builder cleans up its gcroots — including all outputs — at shutdown,
+    # so there is no need to manually delete such a gcroot.
+
+    # ok(unlink(Hydra::Helper::Nix::gcRootFor($path)), "Unlinking the GC root for underlying Dependency succeeds");
 
     (my $ret, my $stdout, my $stderr) = captureStdoutStderr(15, "nix-store", "--delete", $path);
     is($ret, 0, "Deleting the underlying dependency should succeed");

@@ -141,7 +141,7 @@ impl State {
         let gcroots = std::path::PathBuf::from(nix_state_dir)
             .join("gcroots/per-user")
             .join(logname)
-            .join("hydra-roots");
+            .join("hydra-roots/builder");
         fs_err::tokio::create_dir_all(&gcroots).await?;
 
         let state = Arc::new(Self {
