@@ -1060,8 +1060,11 @@ impl PromMetrics {
             self.s3_uploads_pending.set(v);
         }
 
-        let s3_backends = state.remote_stores.read();
-        for remote_store in s3_backends.iter() {
+        let backends = state.remote_stores.read();
+        for remote_store in backends.iter().filter_map(|s| match s {
+            super::RemoteStoreBackend::S3(s) => Some(s),
+            _ => None,
+        }) {
             let backend_name = &remote_store.cfg.client_config.bucket;
             let s3_stats = remote_store.s3_stats();
             let labels = &[backend_name.as_str()];

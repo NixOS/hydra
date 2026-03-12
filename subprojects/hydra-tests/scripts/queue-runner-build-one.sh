@@ -40,14 +40,16 @@ CONFIG_DIR="${T2_HARNESS_TEMP_DIR:-${HYDRA_DATA:?}}"
 CONFIG_FILE="${CONFIG_DIR}/config.toml"
 
 # Read store settings from the Apache-style HYDRA_CONFIG if present.
-USE_SUBSTITUTES=""
+DEST_STORE_URI="" USE_SUBSTITUTES=""
 if [[ -n "${HYDRA_CONFIG:-}" && -f "${HYDRA_CONFIG}" ]]; then
+    DEST_STORE_URI=$(sed -n 's/^\s*store_uri\s*=\s*//p' "${HYDRA_CONFIG}" | head -1 | xargs || true)
     USE_SUBSTITUTES=$(sed -n 's/^\s*use-substitutes\s*=\s*//p' "${HYDRA_CONFIG}" | head -1 | xargs || true)
 fi
 
 {
     echo "dbUrl = \"${HYDRA_DATABASE_URL:?}\""
     echo "hydraDataDir = \"${CONFIG_DIR}/data\""
+    [[ -n "${DEST_STORE_URI}" ]] && echo "remoteStoreAddr = [\"${DEST_STORE_URI}\"]"
     [[ "${USE_SUBSTITUTES}" == "1" ]] && echo "useSubstitutes = true"
 } > "${CONFIG_FILE}"
 

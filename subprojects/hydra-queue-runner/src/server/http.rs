@@ -208,16 +208,22 @@ mod handler {
                 })
                 .collect();
             let jobsets = state.jobsets.clone_as_io();
-            let remote_stores = {
+            let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                 let stores = state.remote_stores.read();
-                stores.clone()
+                stores
+                    .iter()
+                    .filter_map(|s| match s {
+                        crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+                        _ => None,
+                    })
+                    .collect()
             };
             construct_json_ok_response(&io::DumpResponse::new(
                 queue_stats,
                 machines,
                 jobsets,
                 &state.store,
-                &remote_stores,
+                &s3_stores,
             ))
         }
 

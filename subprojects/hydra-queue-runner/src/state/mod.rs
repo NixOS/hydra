@@ -52,9 +52,15 @@ enum RealiseStepResult {
 }
 
 #[allow(missing_debug_implementations)]
+pub enum RemoteStoreBackend {
+    S3(binary_cache::S3BinaryCacheClient),
+    Nix(nix_utils::RemoteStore),
+}
+
+#[allow(missing_debug_implementations)]
 pub struct State {
     pub store: nix_utils::LocalStore,
-    pub remote_stores: parking_lot::RwLock<Vec<binary_cache::S3BinaryCacheClient>>,
+    pub remote_stores: parking_lot::RwLock<Vec<RemoteStoreBackend>>,
     pub config: App,
     pub cli: Cli,
     pub db: db::Database,
@@ -104,7 +110,19 @@ impl State {
 
         let mut remote_stores = vec![];
         for uri in config.get_remote_store_addrs() {
-            remote_stores.push(binary_cache::S3BinaryCacheClient::new(uri.parse()?).await?);
+            match uri.parse::<binary_cache::S3CacheConfig>() {
+                Ok(cfg) => {
+                    remote_stores.push(RemoteStoreBackend::S3(
+                        binary_cache::S3BinaryCacheClient::new(cfg).await?,
+                    ));
+                }
+                Err(_) => {
+                    tracing::info!("Opening FFI store for: {uri}");
+                    remote_stores.push(RemoteStoreBackend::Nix(
+                        nix_utils::RemoteStore::init(&uri),
+                    ));
+                }
+            }
         }
 
         Ok(Arc::new(Self {
@@ -151,7 +169,19 @@ impl State {
         let mut new_remote_stores = vec![];
         if curr_remote_stores != new_config.remote_store_addr {
             for uri in &new_config.remote_store_addr {
-                new_remote_stores.push(binary_cache::S3BinaryCacheClient::new(uri.parse()?).await?);
+                match uri.parse::<binary_cache::S3CacheConfig>() {
+                    Ok(cfg) => {
+                        new_remote_stores.push(RemoteStoreBackend::S3(
+                            binary_cache::S3BinaryCacheClient::new(cfg).await?,
+                        ));
+                    }
+                    Err(_) => {
+                        tracing::info!("Opening FFI store for: {uri}");
+                        new_remote_stores.push(RemoteStoreBackend::Nix(
+                            nix_utils::RemoteStore::init(uri),
+                        ));
+                    }
+                }
             }
         }
 
@@ -166,8 +196,7 @@ impl State {
             self.queues.sort_queues(curr_step_sort_fn).await;
         }
         if curr_remote_stores != new_config.remote_store_addr {
-            let mut remote_stores = self.remote_stores.write();
-            *remote_stores = new_remote_stores;
+            *self.remote_stores.write() = new_remote_stores;
         }
 
         if curr_enable_fod_checker != new_config.enable_fod_checker {
@@ -363,8 +392,11 @@ impl State {
                 // TODO: cleanup
                 if self.config.use_presigned_uploads() {
                     let remote_stores = self.remote_stores.read();
-                    remote_stores.first().map(|s| machine::PresignedUrlOpts {
-                        upload_debug_info: s.cfg.write_debug_info,
+                    remote_stores.iter().find_map(|s| match s {
+                        RemoteStoreBackend::S3(s) => Some(machine::PresignedUrlOpts {
+                            upload_debug_info: s.cfg.write_debug_info,
+                        }),
+                        _ => None,
                     })
                 } else {
                     None
@@ -784,16 +816,22 @@ impl State {
                 })
                 .collect();
             let jobsets = self.jobsets.clone_as_io();
-            let remote_stores = {
+            let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                 let stores = state.remote_stores.read();
-                stores.clone()
+                stores
+                    .iter()
+                    .filter_map(|s| match s {
+                        RemoteStoreBackend::S3(s) => Some(s.clone()),
+                        _ => None,
+                    })
+                    .collect()
             };
             let dump_status = crate::io::DumpResponse::new(
                 queue_stats,
                 machines,
                 jobsets,
                 &state.store,
-                &remote_stores,
+                &s3_stores,
             );
             {
                 let Ok(mut db) = self.db.get().await else {
@@ -842,16 +880,21 @@ impl State {
             async move {
                 loop {
                     let local_store = nix_utils::LocalStore::init();
-                    let remote_stores = {
+                    let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                         let r = self.remote_stores.read();
-                        r.clone()
+                        r.iter()
+                            .filter_map(|s| match s {
+                                RemoteStoreBackend::S3(s) => Some(s.clone()),
+                                _ => None,
+                            })
+                            .collect()
                     };
                     let limit = self.config.get_concurrent_upload_limit();
                     if limit < 2 {
-                        self.uploader.upload_once(local_store, remote_stores).await;
+                        self.uploader.upload_once(local_store, s3_stores).await;
                     } else {
                         self.uploader
-                            .upload_many(local_store, remote_stores, limit)
+                            .upload_many(local_store, s3_stores, limit)
                             .await;
                     }
                 }
@@ -1038,11 +1081,43 @@ impl State {
         )
         .await?;
 
-        let has_stores = {
+        // Copy outputs to non-S3 (FFI) stores so that
+        // hydra-notify plugins (e.g. DeclarativeJobsets) can read them.
+        {
+            let ffi_base_stores: Vec<(String, nix_utils::BaseStoreImpl)> = {
+                let stores = self.remote_stores.read();
+                stores
+                    .iter()
+                    .filter_map(|s| match s {
+                        RemoteStoreBackend::Nix(s) => {
+                            Some((s.uri.clone(), s.as_base_store().clone()))
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            };
+            let outputs_to_copy = output.outputs.values().cloned().collect::<Vec<_>>();
+            for (uri, base_store) in &ffi_base_stores {
+                if let Err(e) = nix_utils::copy_paths(
+                    self.store.as_base_store(),
+                    base_store,
+                    &outputs_to_copy,
+                    false,
+                    false,
+                    false,
+                )
+                .await
+                {
+                    tracing::error!("Failed to copy outputs to store {uri}: {e}");
+                }
+            }
+        }
+
+        let has_s3_stores = {
             let r = self.remote_stores.read();
-            !r.is_empty()
+            r.iter().any(|s| matches!(s, RemoteStoreBackend::S3(_)))
         };
-        if has_stores {
+        if has_s3_stores {
             // Only upload outputs if presigned uploads are NOT enabled
             // When presigned uploads are enabled, builder handles NAR uploads directly
             if !self.config.use_presigned_uploads() {
@@ -1681,9 +1756,12 @@ impl State {
 
         let use_substitutes = self.config.get_use_substitutes();
         // TODO: check all remote stores
-        let remote_store = {
+        let remote_store: Option<binary_cache::S3BinaryCacheClient> = {
             let r = self.remote_stores.read();
-            r.first().cloned()
+            r.iter().find_map(|s| match s {
+                RemoteStoreBackend::S3(s) => Some(s.clone()),
+                _ => None,
+            })
         };
         let missing_outputs = if let Some(ref remote_store) = remote_store {
             let mut missing = remote_store

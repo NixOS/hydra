@@ -623,8 +623,11 @@ impl RunnerService for Server {
         let remote_store = {
             let remote_stores = _state.remote_stores.read();
             remote_stores
-                .first()
-                .cloned()
+                .iter()
+                .find_map(|s| match s {
+                    crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+                    _ => None,
+                })
                 .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
         };
 
@@ -720,8 +723,11 @@ impl RunnerService for Server {
         let remote_store = {
             let remote_stores = state.remote_stores.read();
             remote_stores
-                .first()
-                .cloned()
+                .iter()
+                .find_map(|s| match s {
+                    crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+                    _ => None,
+                })
                 .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
         };
 
