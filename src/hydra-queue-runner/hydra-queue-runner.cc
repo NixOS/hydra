@@ -829,6 +829,7 @@ void State::run(BuildID buildOne)
     _destStore = storeUri == "" ? localStore : openStore(storeUri);
 
     useSubstitutes = config->getBoolOption("use-substitutes", false);
+    useSubstitutesOnRemoteBuilders = config->getBoolOption("use_substitutes_on_remote_builders", true);
 
     // FIXME: hacky mechanism for configuring determinism checks.
     for (auto & s : tokenizeString<Strings>(config->getStrOption("xxx-jobset-repeats"))) {
