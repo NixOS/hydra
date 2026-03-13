@@ -26,7 +26,6 @@ You start a local database, the webserver, and other components with
 foreman:
 
 ```console
-$ ninja -C build
 $ foreman start
 ```
 
@@ -83,10 +82,25 @@ Assuming you're running the default configuration with `foreman start`,
 open an interactive session with Postgres via:
 
 ```console
-$ psql --host localhost --port 64444 hydra
+$ psql -h localhost -p 64444 hydra
 ```
 
-### Runinng the builder locally
+### Running the builder locally
+
+To build and test the queue-runner:
+
+```console
+$ cargo build -p hydra-queue-runner
+$ cargo test -p hydra-queue-runner
+```
+
+`foreman start` launches the queue-runner automatically with the right
+config and environment. If a previous instance crashed, you may need to
+remove the stale lock file:
+
+```console
+$ rm .hydra-data/queue-runner/lock
+```
 
 For `hydra-queue-runner` to successfully build locally, your
 development user will need to be "trusted" by your Nix store.

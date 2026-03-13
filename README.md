@@ -77,14 +77,11 @@ $ nix build
 
 ### Development Environment
 
-You can use the provided shell.nix to get a working development environment:
+You can use the provided flake to get a working development environment:
 ```
 $ nix develop
-$ ln -svf ../../../build/src/bootstrap src/root/static/bootstrap
-$ ln -svf ../../../build/src/fontawesome src/root/static/fontawesome
-$ ln -svf ../../../../build/src/flot src/root/static/js/flot
-$ meson setup build
-$ ninja -C build
+$ mesonConfigurePhase
+$ ninja
 ```
 
 The development environment can also automatically be established using [nix-direnv](https://github.com/nix-community/nix-direnv).
@@ -116,14 +113,14 @@ After making your changes, verify the test suite passes and perlcritic is still 
 
 Start by following the steps in [Development Environment](#development-environment).
 
-Then, you can run the tests and the perlcritic linter together with:
+Then, you can run the Perl tests and perlcritic together with:
 
-```console
+```
 $ nix develop
-$ ninja -C build test
+$ meson test -C build
 ```
 
-You can run a single test with:
+You can run a single Perl test with:
 
 ```
 $ nix develop
@@ -131,12 +128,19 @@ $ cd build
 $ meson test --test-args=../t/Hydra/Event.t testsuite
 ```
 
-And you can run just perlcritic with:
+And run just perlcritic with:
 
 ```
 $ nix develop
 $ cd build
 $ meson test perlcritic
+```
+
+And run the Rust tests with:
+
+```
+$ nix develop
+$ cargo test
 ```
 
 ### JSON API
