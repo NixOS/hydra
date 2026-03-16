@@ -121,9 +121,11 @@
 [% END %]
 
 [% IF showPrivate %]
-  <form class="form-inline" action="[% c.uri_for('/search') %]">
-    <input name="query" type="text" class="form-control" placeholder="Search" [% HTML.attributes(value => c.req.params.query) %]/>
-  </form>
+  [% UNLESS c.config.disable_search %]
+    <form class="form-inline" action="[% c.uri_for('/search') %]">
+      <input name="query" type="text" class="form-control" placeholder="Search" [% HTML.attributes(value => c.req.params.query) %]/>
+    </form>
+  [% END %]
 [% END %]
 
 <ul class="navbar-nav">
