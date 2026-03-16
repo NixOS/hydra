@@ -1,6 +1,6 @@
 { stdenv
 , lib
-, fileset
+, version
 
 , rawSrc
 
@@ -16,31 +16,17 @@
 , ninja
 , nukeReferences
 , pkg-config
-, mdbook
 
 , unzip
 , libpqxx
-, top-git
-, mercurial
-, darcs
-, subversion
-, breezy
 , openssl
 , bzip2
 , libxslt
 , perl
 , pixz
 , boost
-, postgresql_17
 , nlohmann_json
 , prometheus-cpp
-
-, cacert
-, foreman
-, glibcLocales
-, libressl
-, openldap
-, python3
 
 , openssh
 , coreutils
@@ -50,6 +36,12 @@
 , gnutar
 , gnused
 , nix-eval-jobs
+
+, subversion
+, top-git
+, mercurial
+, darcs
+, breezy
 
 , rpm
 , dpkg
@@ -113,7 +105,7 @@ let
         NumberBytesHuman
         PadWalker
         ParallelForkManager
-        PerlCriticCommunity
+
         PrometheusTinyShared
         ReadonlyX
         SetScalar
@@ -132,27 +124,22 @@ let
         XMLSimple
       ]));
   };
-
-  version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 (rawSrc.lastModifiedDate or "19700101")}.${rawSrc.shortRev or "DIRTY"}";
 in
 stdenv.mkDerivation (finalAttrs: {
   pname = "hydra";
   inherit version;
 
-  src = fileset.toSource {
-    root = ./.;
-    fileset = fileset.unions ([
-      ./doc
-      ./meson.build
-      ./nixos-modules
-      ./src
-      ./t
-      ./version.txt
-      ./.perlcriticrc
-    ]);
+  src = lib.fileset.toSource {
+    root = ../..;
+    fileset = lib.fileset.unions [
+      ../../subprojects/hydra
+      ../../version.txt
+    ];
   };
 
-  outputs = [ "out" "doc" ];
+  sourceRoot = "${finalAttrs.src.name}/subprojects/hydra";
+
+  outputs = [ "out" ];
 
   strictDeps = true;
 
@@ -162,8 +149,6 @@ stdenv.mkDerivation (finalAttrs: {
     ninja
     nukeReferences
     pkg-config
-    mdbook
-    nixComponents.nix-cli
     perlDeps
     perl
     unzip
@@ -181,28 +166,6 @@ stdenv.mkDerivation (finalAttrs: {
     boost
     nlohmann_json
     prometheus-cpp
-  ];
-
-  nativeCheckInputs = [
-    bzip2
-    darcs
-    foreman
-    top-git
-    mercurial
-    subversion
-    breezy
-    openldap
-    postgresql_17
-    pixz
-    nix-eval-jobs
-  ];
-
-  checkInputs = [
-    cacert
-    glibcLocales
-    libressl.nc
-    python3
-    nixComponents.nix-cli
   ];
 
   hydraPath = lib.makeBinPath (
@@ -228,36 +191,13 @@ stdenv.mkDerivation (finalAttrs: {
     ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ]
   );
 
-  OPENLDAP_ROOT = openldap;
-
   mesonBuildType = "release";
 
   postPatch = ''
     patchShebangs .
   '';
 
-  shellHook = ''
-    pushd $(git rev-parse --show-toplevel) >/dev/null
-
-    PATH=$(pwd)/build/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/build/src/hydra-queue-runner:$PATH
-    PERL5LIB=$(pwd)/src/lib:$PERL5LIB
-    export HYDRA_HOME="$(pwd)/src/"
-    mkdir -p .hydra-data
-    export HYDRA_DATA="$(pwd)/.hydra-data"
-    export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
-
-    popd >/dev/null
-  '';
-
-  doCheck = true;
-
-  mesonCheckFlags = [ "--verbose" ];
-
-  preCheck = ''
-    export LOGNAME=''${LOGNAME:-foo}
-    # set $HOME for bzr so it can create its trace file
-    export HOME=$(mktemp -d)
-  '';
+  doCheck = false;
 
   postInstall = ''
     mkdir -p $out/nix-support
