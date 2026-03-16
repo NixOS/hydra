@@ -10,15 +10,26 @@ nix = find_program('nix')
 hydra_evaluator = find_program('hydra-evaluator')
 hydra_queue_runner = find_program('hydra-queue-runner')
 
+exe_path = [
+  fs.parent(nix.full_path()),
+  fs.parent(hydra_evaluator.full_path()),
+  fs.parent(hydra_queue_runner.full_path()),
+]
+
 if meson.is_subproject()
   hydra_source_root = meson.global_source_root()
   hydra_home = hydra_source_root / 'subprojects' / 'hydra'
   hydra_perl5lib = hydra_home / 'lib'
-  hydra_scripts = hydra_home / 'script'
+  exe_path += hydra_home / 'script'
 else
+  hydra_init = find_program('hydra-init')
+  hydra_notify = find_program('hydra-notify')
+
   hydra_home = get_option('hydra_home')
   hydra_perl5lib = hydra_home / 'lib'
-  hydra_scripts = fs.parent(hydra_evaluator.full_path())
+
+  exe_path += fs.parent(hydra_init.full_path())
+  exe_path += fs.parent(hydra_notify.full_path())
 endif
 
 testenv = environment(
@@ -40,13 +51,9 @@ testenv.prepend('PERL5LIB',
   hydra_perl5lib,
   separator: ':'
 )
-testenv.prepend('PATH',
-  fs.parent(nix.full_path()),
-  fs.parent(hydra_evaluator.full_path()),
-  fs.parent(hydra_queue_runner.full_path()),
-  hydra_scripts,
-  separator: ':'
-)
+foreach p : exe_path
+  testenv.prepend('PATH', p)
+endforeach
 
 test('testsuite',
   perl,
