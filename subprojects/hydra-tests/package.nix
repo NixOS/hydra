@@ -44,6 +44,10 @@ stdenv.mkDerivation (finalAttrs: {
 
   sourceRoot = "${finalAttrs.src.name}/subprojects/hydra-tests";
 
+  postPatch = ''
+    patchShebangs .
+  '';
+
   dontBuild = true;
 
   strictDeps = true;

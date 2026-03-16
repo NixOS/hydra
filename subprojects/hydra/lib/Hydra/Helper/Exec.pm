@@ -47,7 +47,7 @@ sub captureStdoutStderrWithStdin {
         alarm 0;
         1;
     } or do {
-        die unless $@ eq "timeout\n"; # propagate unexpected errors
+        die "exec @$cmd: $@" unless $@ eq "timeout\n"; # propagate unexpected errors
         return (-1, $stdout, ($stderr // "") . "timeout\n");
     };
 
