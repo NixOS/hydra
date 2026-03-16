@@ -1,0 +1,5 @@
+option('hydra_home',
+  type: 'string',
+  value: '',
+  description: 'Path to installed Hydra libexec directory (only needed for standalone builds)',
+)

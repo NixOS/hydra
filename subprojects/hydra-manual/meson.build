@@ -1,3 +1,10 @@
+project('hydra-manual',
+  version: files('version.txt'),
+  meson_version: '>= 1.1',
+)
+
+mdbook = find_program('mdbook', native: true)
+
 srcs = files(
   'src/SUMMARY.md',
   'src/about.md',
@@ -21,7 +28,7 @@ manual = custom_target(
   command: [
     mdbook,
     'build',
-    '@SOURCE_ROOT@/doc/manual',
+    meson.project_source_root(),
     '-d', meson.current_build_dir() / 'html'
   ],
   depend_files: srcs,
