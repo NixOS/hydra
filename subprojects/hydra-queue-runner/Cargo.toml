@@ -1,5 +1,5 @@
 [package]
-name = "queue-runner"
+name = "hydra-queue-runner"
 version.workspace = true
 edition = "2024"
 license = "GPL-3.0"

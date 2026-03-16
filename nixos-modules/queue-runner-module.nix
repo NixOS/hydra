@@ -5,13 +5,13 @@
   ...
 }:
 let
-  cfg = config.services.queue-runner-dev;
+  cfg = config.services.hydra-queue-runner-dev;
 
   format = pkgs.formats.toml { };
 in
 {
   options = {
-    services.queue-runner-dev = {
+    services.hydra-queue-runner-dev = {
       enable = lib.mkEnableOption "QueueRunner";
 
       settings = lib.mkOption {
@@ -219,8 +219,8 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    systemd.services.queue-runner-dev = {
-      description = "queue-runner main service";
+    systemd.services.hydra-queue-runner-dev = {
+      description = "Hydra Queue Runner main service";
 
       requires = [ "nix-daemon.socket" ];
       after = [
@@ -238,7 +238,7 @@ in
         # Note: it's important to set this for nix-store, because it wants to use
         # $HOME in order to use a temporary cache dir. bizarre failures will occur
         # otherwise
-        HOME = "/run/queue-runner";
+        HOME = "/run/hydra-queue-runner";
       };
 
       serviceConfig = {
@@ -248,7 +248,7 @@ in
 
         ExecStart = lib.escapeShellArgs (
           [
-            "${cfg.package}/bin/queue-runner"
+            "${cfg.package}/bin/hydra-queue-runner"
             "--rest-bind"
             "${cfg.rest.address}:${toString cfg.rest.port}"
             "--grpc-bind"
@@ -285,7 +285,7 @@ in
           "/var/lib/hydra/build-logs/"
         ];
         ReadOnlyPaths = [ "/nix/" ];
-        RuntimeDirectory = "queue-runner";
+        RuntimeDirectory = "hydra-queue-runner";
 
         ProtectSystem = "strict";
         ProtectHome = true;

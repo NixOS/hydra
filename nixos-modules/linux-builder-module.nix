@@ -5,11 +5,11 @@
   ...
 }:
 let
-  cfg = config.services.queue-builder-dev;
+  cfg = config.services.hydra-queue-builder-dev;
 in
 {
   options = {
-    services.queue-builder-dev = {
+    services.hydra-queue-builder-dev = {
       enable = lib.mkEnableOption "QueueBuilder";
 
       queueRunnerAddr = lib.mkOption {
@@ -139,8 +139,8 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    systemd.services.queue-builder-dev = {
-      description = "queue-builder main service";
+    systemd.services.hydra-queue-builder-dev = {
+      description = "Hydra Queue Builder main service";
 
       requires = [ "nix-daemon.socket" ];
       after = [ "network.target" ];
@@ -154,7 +154,7 @@ in
         # Note: it's important to set this for nix-store, because it wants to use
         # $HOME in order to use a temporary cache dir. bizarre failures will occur
         # otherwise
-        HOME = "/run/queue-builder";
+        HOME = "/run/hydra-queue-builder";
       };
 
       serviceConfig = {
@@ -164,7 +164,7 @@ in
 
         ExecStart = lib.escapeShellArgs (
           [
-            "${cfg.package}/bin/builder"
+            "${cfg.package}/bin/hydra-builder"
             "--gateway-endpoint"
             cfg.queueRunnerAddr
             "--ping-interval"
@@ -234,7 +234,7 @@ in
           "/nix/var/nix/daemon-socket/socket"
         ];
         ReadOnlyPaths = [ "/nix/" ];
-        RuntimeDirectory = "queue-builder";
+        RuntimeDirectory = "hydra-queue-builder";
 
         ProtectSystem = "strict";
         ProtectHome = true;

@@ -63,7 +63,7 @@ in
                 su - hydra -c "hydra-create-user root --email-address 'alice@example.org' --password foobar --role admin"
                 mkdir /run/jobset
                 chmod 755 /run/jobset
-                cp ${./t/jobs/api-test.nix} /run/jobset/default.nix
+                cp ${./subprojects/hydra-tests/jobs/api-test.nix} /run/jobset/default.nix
                 chmod 644 /run/jobset/default.nix
                 chown -R hydra /run/jobset
         """
@@ -85,7 +85,7 @@ in
 
         # Setup the project and jobset
         machine.succeed(
-            "su - hydra -c 'perl -I ${nodes.machine.services.hydra-dev.package.perlDeps}/lib/perl5/site_perl ${./t/setup-notifications-jobset.pl}' >&2"
+            "su - hydra -c 'perl -I ${nodes.machine.services.hydra-dev.package.perlDeps}/lib/perl5/site_perl ${./subprojects/hydra-tests/setup-notifications-jobset.pl}' >&2"
         )
 
         # Wait until hydra has build the job and

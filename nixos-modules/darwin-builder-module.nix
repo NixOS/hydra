@@ -5,12 +5,12 @@
   ...
 }:
 let
-  cfg = config.services.queue-builder-dev;
+  cfg = config.services.hydra-queue-builder-dev;
   user = config.users.users.hydra-queue-builder;
 in
 {
   options = {
-    services.queue-builder-dev = {
+    services.hydra-queue-builder-dev = {
       enable = lib.mkEnableOption "QueueBuilder";
 
       queueRunnerAddr = lib.mkOption {
@@ -146,12 +146,12 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    launchd.daemons.queue-builder-dev = {
+    launchd.daemons.hydra-queue-builder-dev = {
       script = ''
         exec ${
           lib.escapeShellArgs (
             [
-              "${cfg.package}/bin/builder"
+              "${cfg.package}/bin/hydra-builder"
               "--gateway-endpoint"
               cfg.queueRunnerAddr
               "--ping-interval"

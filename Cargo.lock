@@ -393,43 +393,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "builder"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-stream",
- "backon",
- "binary-cache",
- "clap",
- "fs-err",
- "futures",
- "gethostname",
- "hashbrown 0.16.1",
- "hydra-tracing",
- "hyper-util",
- "nix",
- "nix-utils",
- "parking_lot",
- "procfs-core 0.18.0",
- "prost",
- "sd-notify",
- "sha2",
- "shared",
- "sysinfo",
- "thiserror",
- "tikv-jemallocator",
- "tokio",
- "tokio-stream",
- "tonic",
- "tonic-prost",
- "tonic-prost-build",
- "tower",
- "tracing",
- "url",
- "uuid",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1322,6 +1285,95 @@ name = "humantime"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "135b12329e5e3ce057a9f972339ea52bc954fe1e9358ef27f95e89716fbc5424"
+
+[[package]]
+name = "hydra-builder"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "backon",
+ "binary-cache",
+ "clap",
+ "fs-err",
+ "futures",
+ "gethostname",
+ "hashbrown 0.16.1",
+ "hydra-tracing",
+ "hyper-util",
+ "nix",
+ "nix-utils",
+ "parking_lot",
+ "procfs-core 0.18.0",
+ "prost",
+ "sd-notify",
+ "sha2",
+ "shared",
+ "sysinfo",
+ "thiserror",
+ "tikv-jemallocator",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+ "tower",
+ "tracing",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "hydra-queue-runner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "atomic_float",
+ "backon",
+ "binary-cache",
+ "byte-unit",
+ "bytes",
+ "clap",
+ "db",
+ "fs-err",
+ "futures",
+ "futures-util",
+ "h2",
+ "hashbrown 0.16.1",
+ "http-body-util",
+ "hydra-tracing",
+ "hyper",
+ "hyper-util",
+ "jiff",
+ "listenfd",
+ "nix-utils",
+ "parking_lot",
+ "procfs 0.18.0",
+ "prometheus",
+ "prost",
+ "sd-notify",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha2",
+ "shared",
+ "smallvec",
+ "thiserror",
+ "tikv-jemallocator",
+ "tokio",
+ "tokio-stream",
+ "toml",
+ "tonic",
+ "tonic-health",
+ "tonic-prost",
+ "tonic-prost-build",
+ "tonic-reflection",
+ "tower",
+ "tower-http",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "hydra-tracing"
@@ -2492,58 +2544,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50793def1b900256624a709439404384204a5dc3a6ec580281bfaac35e882e90"
 dependencies = [
  "pulldown-cmark",
-]
-
-[[package]]
-name = "queue-runner"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arc-swap",
- "atomic_float",
- "backon",
- "binary-cache",
- "byte-unit",
- "bytes",
- "clap",
- "db",
- "fs-err",
- "futures",
- "futures-util",
- "h2",
- "hashbrown 0.16.1",
- "http-body-util",
- "hydra-tracing",
- "hyper",
- "hyper-util",
- "jiff",
- "listenfd",
- "nix-utils",
- "parking_lot",
- "procfs 0.18.0",
- "prometheus",
- "prost",
- "sd-notify",
- "secrecy",
- "serde",
- "serde_json",
- "sha2",
- "shared",
- "smallvec",
- "thiserror",
- "tikv-jemallocator",
- "tokio",
- "tokio-stream",
- "toml",
- "tonic",
- "tonic-health",
- "tonic-prost",
- "tonic-prost-build",
- "tonic-reflection",
- "tower",
- "tower-http",
- "tracing",
- "uuid",
 ]
 
 [[package]]

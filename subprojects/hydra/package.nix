@@ -1,6 +1,6 @@
 { stdenv
 , lib
-, fileset
+, version
 
 , rawSrc
 
@@ -16,32 +16,17 @@
 , ninja
 , nukeReferences
 , pkg-config
-, mdbook
 
 , unzip
 , libpqxx
-, top-git
-, mercurial
-, darcs
-, subversion
-, breezy
 , openssl
 , bzip2
 , libxslt
 , perl
 , pixz
 , boost
-, postgresql_17
 , nlohmann_json
 , prometheus-cpp
-
-, cacert
-, foreman
-, glibcLocales
-, libressl
-, openldap
-, python3
-, curl
 
 , openssh
 , coreutils
@@ -52,14 +37,16 @@
 , gnused
 , nix-eval-jobs
 
+, subversion
+, top-git
+, mercurial
+, darcs
+, breezy
+
 , rpm
 , dpkg
 , cdrkit
 
-, rustPackages
-, libsodium
-, zlib
-, protobuf
 }:
 
 let
@@ -119,7 +106,7 @@ let
         NumberBytesHuman
         PadWalker
         ParallelForkManager
-        PerlCriticCommunity
+
         PrometheusTinyShared
         ReadonlyX
         SetScalar
@@ -138,41 +125,24 @@ let
         XMLSimple
       ]));
   };
-
-  version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 (rawSrc.lastModifiedDate or "19700101")}.${rawSrc.shortRev or "DIRTY"}";
 in
-stdenv.mkDerivation {
+stdenv.mkDerivation (finalAttrs: {
   pname = "hydra";
   inherit version;
 
-  src = fileset.toSource {
-    root = ./.;
-    fileset = fileset.unions [
-      ./.cargo
-      ./.perlcriticrc
-      ./.sqlx
-      ./Cargo.lock
-      ./Cargo.toml
-      ./doc
-      ./meson.build
-      ./meson_options.txt
-      ./nixos-modules
-      ./src
-      ./t
-      ./version.txt
+  src = lib.fileset.toSource {
+    root = ../..;
+    fileset = lib.fileset.unions [
+      ../../subprojects/hydra
+      ../../version.txt
     ];
   };
 
-  outputs = [ "out" "doc" ];
+  sourceRoot = "${finalAttrs.src.name}/subprojects/hydra";
+
+  outputs = [ "out" ];
 
   strictDeps = true;
-
-  cargoDeps = rustPackages.rustPlatform.importCargoLock {
-    lockFile = ./Cargo.lock;
-    outputHashes = {
-      "nix-diff-0.1.0" = "sha256-heUqcAnGmMogyVXskXc4FMORb8ZaK6vUX+mMOpbfSUw=";
-    };
-  };
 
   nativeBuildInputs = [
     makeWrapper
@@ -180,17 +150,9 @@ stdenv.mkDerivation {
     ninja
     nukeReferences
     pkg-config
-    mdbook
-    nixComponents.nix-cli
     perlDeps
     perl
     unzip
-    protobuf
-    rustPackages.cargo
-    rustPackages.clippy
-    rustPackages.rustPlatform.cargoSetupHook
-    rustPackages.rustc
-    rustPackages.rustfmt
   ];
 
   buildInputs = [
@@ -205,32 +167,6 @@ stdenv.mkDerivation {
     boost
     nlohmann_json
     prometheus-cpp
-    libsodium
-    zlib
-    protobuf
-  ];
-
-  nativeCheckInputs = [
-    bzip2
-    darcs
-    foreman
-    top-git
-    mercurial
-    subversion
-    breezy
-    openldap
-    postgresql_17
-    pixz
-    nix-eval-jobs
-    curl
-  ];
-
-  checkInputs = [
-    cacert
-    glibcLocales
-    libressl.nc
-    python3
-    nixComponents.nix-cli
   ];
 
   hydraPath = lib.makeBinPath (
@@ -256,37 +192,13 @@ stdenv.mkDerivation {
     ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ]
   );
 
-  OPENLDAP_ROOT = openldap;
-  NIX_CFLAGS_COMPILE = "-Wno-error";
-
   mesonBuildType = "release";
 
   postPatch = ''
     patchShebangs .
   '';
 
-  shellHook = ''
-    pushd $(git rev-parse --show-toplevel) >/dev/null
-
-    PATH=$(pwd)/build/src/hydra-evaluator:$(pwd)/src/script:$(pwd)/build/src:$PATH
-    PERL5LIB=$(pwd)/src/lib:$PERL5LIB
-    export HYDRA_HOME="$(pwd)/src/"
-    mkdir -p .hydra-data
-    export HYDRA_DATA="$(pwd)/.hydra-data"
-    export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
-
-    popd >/dev/null
-  '';
-
-  doCheck = true;
-
-  mesonCheckFlags = [ "--verbose" ];
-
-  preCheck = ''
-    export LOGNAME=''${LOGNAME:-foo}
-    # set $HOME for bzr so it can create its trace file
-    export HOME=$(mktemp -d)
-  '';
+  doCheck = false;
 
   postInstall = ''
     mkdir -p $out/nix-support
@@ -311,4 +223,4 @@ stdenv.mkDerivation {
     inherit perlDeps;
     nix = nixComponents.nix-cli;
   };
-}
+})

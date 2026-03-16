@@ -1,6 +1,28 @@
+project('hydra', 'cpp',
+  version: files('version.txt'),
+  license: 'GPL-3.0',
+  default_options: [
+    'debug=true',
+    'optimization=2',
+    'cpp_std=c++23',
+  ],
+)
+
+nix_util_dep = dependency('nix-util', required: true)
+nix_store_dep = dependency('nix-store', required: true)
+nix_main_dep = dependency('nix-main', required: true)
+
+pqxx_dep = dependency('libpqxx', required: true)
+
+prom_cpp_core_dep = dependency('prometheus-cpp-core', required: true)
+prom_cpp_pull_dep = dependency('prometheus-cpp-pull', required: true)
+
 # Native code
 subdir('libhydra')
 subdir('hydra-evaluator')
+
+# Make executables available to sibling subprojects (e.g. hydra-tests)
+meson.override_find_program('hydra-evaluator', hydra_evaluator)
 
 hydra_libexecdir = get_option('libexecdir') / 'hydra'
 
@@ -74,60 +96,3 @@ install_subdir('script',
   install_mode: 'rwxr-xr-x',
   strip_directory: true,
 )
-
-# Build rust workspace
-cargo_toml = files('../Cargo.toml')
-workspace_root = '..'
-
-otel_feature = get_option('otel').enabled()
-
-build_type = get_option('buildtype')
-if build_type == 'debug'
-  cargo_profile = 'debug'
-  cargo_build_args = ['build']
-else
-  cargo_profile = 'release'
-  cargo_build_args = ['build', '--release']
-endif
-
-if otel_feature
-  cargo_build_args += ['--features', 'otel']
-endif
-
-rust_build = custom_target(
-  'rust-workspace-build',
-  input: cargo_toml,
-  output: ['build-stamp'],
-  command: [
-    cargo,
-    cargo_build_args,
-    '--manifest-path', '@INPUT@',
-    '--workspace',
-    '--message-format=json-render-diagnostics'
-  ],
-  build_by_default: true,
-  install: false,
-  depends: [],
-)
-
-rust_binaries = {
-  'queue-runner': 'hydra-queue-runner',
-  'builder': 'hydra-builder',
-}
-
-rust_outputs = []
-foreach src_bin, dest_bin : rust_binaries
-  rust_outputs += custom_target(
-    'rust-' + src_bin,
-    input: rust_build,
-    output: dest_bin,
-    command: [
-      'cp',
-      workspace_root / 'target' / cargo_profile / src_bin,
-      '@OUTPUT@'
-    ],
-    install: true,
-    install_dir: get_option('bindir'),
-    depends: rust_build,
-  )
-endforeach

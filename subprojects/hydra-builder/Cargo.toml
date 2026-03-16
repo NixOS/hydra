@@ -1,5 +1,5 @@
 [package]
-name = "builder"
+name = "hydra-builder"
 version.workspace = true
 edition = "2024"
 license = "GPL-3.0"

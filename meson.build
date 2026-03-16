@@ -1,4 +1,7 @@
-project('hydra', 'cpp',
+# This is just a stub project to include all the others as subprojects
+# for development shell purposes
+
+project('hydra-dev-shell', 'cpp',
   version: files('version.txt'),
   license: 'GPL-3.0',
   default_options: [
@@ -8,22 +11,36 @@ project('hydra', 'cpp',
   ],
 )
 
-nix_util_dep = dependency('nix-util', required: true)
-nix_store_dep = dependency('nix-store', required: true)
-nix_main_dep = dependency('nix-main', required: true)
+subproject('hydra')
+subproject('hydra-linters')
+subproject('hydra-manual')
 
-pqxx_dep = dependency('libpqxx', required: true)
+# Build rust workspace (dev build only; in Nix release builds, Rust is built separately)
+cargo = find_program('cargo', native: true)
+cargo_toml = files('Cargo.toml')
 
-prom_cpp_core_dep = dependency('prometheus-cpp-core', required: true)
-prom_cpp_pull_dep = dependency('prometheus-cpp-pull', required: true)
+build_type = get_option('buildtype')
+if build_type == 'debug'
+  cargo_profile = 'debug'
+  cargo_build_args = ['build']
+else
+  cargo_profile = 'release'
+  cargo_build_args = ['build', '--release']
+endif
 
-mdbook = find_program('mdbook', native: true)
-perl = find_program('perl', native: true)
+rust_build = custom_target(
+  'rust-workspace-build',
+  input: cargo_toml,
+  output: ['build-stamp'],
+  command: [
+    cargo,
+    cargo_build_args,
+    '--manifest-path', '@INPUT@',
+    '--workspace',
+    '--message-format=json-render-diagnostics'
+  ],
+  build_by_default: true,
+  install: false,
+)
 
-cargo = find_program('cargo', native: true, required: true)
-rustc = find_program('rustc', native: true, required: true)
-
-subdir('doc/manual')
-subdir('nixos-modules')
-subdir('src')
-subdir('t')
+subproject('hydra-tests')
