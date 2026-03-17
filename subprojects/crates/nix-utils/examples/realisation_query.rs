@@ -11,8 +11,7 @@ async fn main() {
             .into_hash(),
         output_name: "debug".parse().unwrap(),
     };
-    let raw = local.query_raw_realisation(&id).unwrap();
-    let mut realisation = raw.as_rust().unwrap();
+    let mut realisation = local.query_realisation(&id).unwrap();
 
     println!("json: {}", serde_json::to_string(&realisation).unwrap());
     println!("realisation: {realisation:?}");
