@@ -2,6 +2,7 @@ use std::fmt::Write as _;
 
 use harmonia_store_core::signature::{SecretKey, fingerprint_path};
 use harmonia_store_core::store_path::StoreDir;
+use harmonia_utils_hash::fmt::CommonHash as _;
 use secrecy::ExposeSecret as _;
 
 use crate::Compression;
@@ -32,19 +33,10 @@ impl NarInfo {
         compression: Compression,
         signing_keys: &[secrecy::SecretString],
     ) -> Self {
-        let nar_hash = if path_info.nar_hash.len() == 71 {
-            nix_utils::convert_hash(
-                &path_info.nar_hash[7..],
-                Some(nix_utils::HashAlgorithm::SHA256),
-                nix_utils::HashFormat::Nix32,
-            )
-            .unwrap_or(path_info.nar_hash)
-        } else {
-            path_info.nar_hash
-        };
+        let nar_hash = normalize_nar_hash(path_info.nar_hash);
         let nar_hash_url = nar_hash
             .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), |h| h.to_owned());
+            .map_or_else(|| path.hash_part(), ToOwned::to_owned);
 
         let narinfo = Self {
             store_path: path.clone(),
@@ -74,19 +66,10 @@ impl NarInfo {
         path_info: nix_utils::PathInfo,
         compression: Compression,
     ) -> Self {
-        let nar_hash = if path_info.nar_hash.len() == 71 {
-            nix_utils::convert_hash(
-                &path_info.nar_hash[7..],
-                Some(nix_utils::HashAlgorithm::SHA256),
-                nix_utils::HashFormat::Nix32,
-            )
-            .unwrap_or(path_info.nar_hash)
-        } else {
-            path_info.nar_hash
-        };
+        let nar_hash = normalize_nar_hash(path_info.nar_hash);
         let nar_hash_url = nar_hash
             .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), |h| h.to_owned());
+            .map_or_else(|| path.hash_part(), ToOwned::to_owned);
 
         Self {
             store_path: path.clone(),
@@ -104,10 +87,7 @@ impl NarInfo {
     }
 
     #[must_use]
-    pub fn clear_sigs_and_sign(
-        mut self,
-        signing_keys: &[secrecy::SecretString],
-    ) -> Self {
+    pub fn clear_sigs_and_sign(mut self, signing_keys: &[secrecy::SecretString]) -> Self {
         self.sigs.clear();
         if !signing_keys.is_empty()
             && let Some(fp) = self.fingerprint()
@@ -159,7 +139,7 @@ impl NarInfo {
             "References: {}",
             self.references
                 .iter()
-                .map(|r| r.base_name())
+                .map(nix_utils::StorePathExt::base_name)
                 .collect::<Vec<_>>()
                 .join(" ")
         )?;
@@ -176,6 +156,19 @@ impl NarInfo {
         }
         Ok(o)
     }
+}
+
+/// Normalize a nar hash from the C++ FFI format (`sha256:base16`, 71 chars)
+/// to the narinfo format (`sha256:nix32`, 59 chars). Passes through hashes
+/// already in the correct format.
+fn normalize_nar_hash(raw: String) -> String {
+    // C++ nix returns "sha256:<64 hex chars>" = 71 bytes; convert to "sha256:<52 nix32 chars>"
+    if raw.len() == 71 && raw.starts_with("sha256:") {
+        if let Ok(hash) = raw.parse::<harmonia_utils_hash::fmt::Any<harmonia_utils_hash::Hash>>() {
+            return format!("{}", hash.into_hash().as_base32());
+        }
+    }
+    raw
 }
 
 #[derive(Debug, thiserror::Error)]

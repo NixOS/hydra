@@ -52,7 +52,7 @@ mod ffi {
     }
 }
 
-fn parse_drv_output(ffi: ffi::FfiDrvOutput) -> DrvOutput {
+fn parse_drv_output(ffi: &ffi::FfiDrvOutput) -> DrvOutput {
     let s = format!("{}!{}", ffi.drv_hash, ffi.output_name);
     s.parse()
         .unwrap_or_else(|e| panic!("invalid DrvOutput from FFI '{s}': {e}"))
@@ -78,7 +78,7 @@ impl FfiRealisation {
 
     #[must_use]
     pub fn get_id(&self) -> DrvOutput {
-        parse_drv_output(self.inner.get_drv_output())
+        parse_drv_output(&self.inner.get_drv_output())
     }
 
     #[must_use]
@@ -104,7 +104,7 @@ impl FfiRealisation {
 impl From<ffi::SharedRealisation> for Realisation {
     fn from(value: ffi::SharedRealisation) -> Self {
         Self {
-            id: parse_drv_output(value.id),
+            id: parse_drv_output(&value.id),
             out_path: crate::parse_store_path(&value.out_path),
             signatures: value
                 .signatures
@@ -114,7 +114,7 @@ impl From<ffi::SharedRealisation> for Realisation {
             dependent_realisations: value
                 .dependent_realisations
                 .into_iter()
-                .map(|v| (parse_drv_output(v.id), crate::parse_store_path(&v.path)))
+                .map(|v| (parse_drv_output(&v.id), crate::parse_store_path(&v.path)))
                 .collect::<BTreeMap<_, _>>(),
         }
     }
@@ -128,10 +128,7 @@ pub trait RealisationOperations {
 impl RealisationOperations for crate::BaseStoreImpl {
     fn query_raw_realisation(&self, id: &DrvOutput) -> Result<FfiRealisation, crate::Error> {
         Ok(FfiRealisation {
-            inner: ffi::query_raw_realisation(
-                self.wrapper.as_raw(),
-                &id.to_string(),
-            )?,
+            inner: ffi::query_raw_realisation(self.wrapper.as_raw(), &id.to_string())?,
         })
     }
 

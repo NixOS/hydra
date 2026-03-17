@@ -13,7 +13,6 @@
 #![allow(clippy::missing_errors_doc)]
 
 mod drv;
-mod hash;
 mod realisation;
 mod realise;
 mod store_path;
@@ -42,13 +41,9 @@ pub enum Error {
 
     #[error("anyhow error: `{0}`")]
     Anyhow(#[from] anyhow::Error),
-
-    #[error("hash parse error: `{0}`")]
-    HashParseError(#[from] hash::ParseError),
 }
 
 pub use drv::{Derivation, DerivationEnv, Output as DerivationOutput, query_drv};
-pub use hash::{HashAlgorithm, HashFormat, convert_hash};
 pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
 pub use store_path::{

@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use harmonia_utils_hash::fmt::CommonHash as _;
 use smallvec::SmallVec;
 
 use crate::BaseStore as _;
@@ -23,11 +24,12 @@ pub struct CAOutput {
 impl CAOutput {
     pub fn get_sri_hash(&self) -> Result<String, super::Error> {
         let algo = self.hash_algo.strip_prefix("r:").unwrap_or(&self.hash_algo);
-        Ok(super::convert_hash(
-            &self.hash,
-            Some(algo.parse()?),
-            super::HashFormat::SRI,
-        )?)
+        let prefixed = format!("{algo}:{}", self.hash);
+        let hash = prefixed
+            .parse::<harmonia_utils_hash::fmt::Any<harmonia_utils_hash::Hash>>()
+            .map(harmonia_utils_hash::fmt::Any::into_hash)
+            .map_err(|e| anyhow::anyhow!("hash parse error: {e}"))?;
+        Ok(format!("{}", hash.as_sri()))
     }
 }
 
@@ -186,7 +188,7 @@ pub async fn query_drv(
 mod tests {
     #![allow(clippy::unwrap_used)]
 
-    use crate::{StorePath, drv::parse_drv};
+    use crate::drv::parse_drv;
 
     #[test]
     fn test_ca_derivation() {
@@ -214,6 +216,10 @@ mod tests {
             String::from("1a4be2fe6b5246aa4ac8987a8a4af34c42a8dd7d08b46ab48516bcc1befbcd83")
         );
         assert_eq!(o.hash_algo, String::from("sha256"));
+        assert_eq!(
+            o.get_sri_hash().unwrap(),
+            "sha256-Gkvi/mtSRqpKyJh6ikrzTEKo3X0ItGq0hRa8wb77zYM="
+        );
     }
 
     #[test]

@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use backon::Retryable;
 
 use bytes::Bytes;
+use harmonia_utils_hash::fmt::CommonHash as _;
 use nix_utils::{BaseStore as _, LocalStore};
 
 use tokio_util::io::StreamReader;
@@ -286,14 +287,13 @@ impl PresignedUploadClient {
 
         let (file_hash, file_size) = reader.finalize()?;
 
-        let file_hash = nix_utils::convert_hash(
-            &format!("{file_hash:x}"),
-            Some(nix_utils::HashAlgorithm::SHA256),
-            nix_utils::HashFormat::Nix32,
+        let file_hash = harmonia_utils_hash::Hash::from_slice(
+            harmonia_utils_hash::Algorithm::SHA256,
+            file_hash.as_slice(),
         )
         .map_or_else(
             |_| format!("sha256:{file_hash:x}"),
-            |converted_hash| format!("sha256:{converted_hash}"),
+            |h| format!("{}", h.as_base32()),
         );
 
         // Update metrics

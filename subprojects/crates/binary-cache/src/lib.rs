@@ -23,6 +23,8 @@ use object_store::{ObjectStore as _, ObjectStoreExt as _, signer::Signer as _};
 use secrecy::ExposeSecret;
 use smallvec::SmallVec;
 
+use harmonia_utils_hash::fmt::CommonHash as _;
+
 use nix_utils::BaseStore as _;
 use nix_utils::RealisationOperations as _;
 use nix_utils::StorePathExt as _;
@@ -546,12 +548,7 @@ impl S3BinaryCacheClient {
                 path: path.to_string(),
             });
         };
-        let narinfo = NarInfo::new(
-            path,
-            path_info,
-            self.cfg.compression,
-            &self.signing_keys,
-        );
+        let narinfo = NarInfo::new(path, path_info, self.cfg.compression, &self.signing_keys);
         let queried_references = store
             .query_path_infos(&narinfo.references.iter().collect::<Vec<_>>())
             .await;
@@ -621,12 +618,12 @@ impl S3BinaryCacheClient {
 
         let (file_hash, file_size) = hashing_reader.finalize()?;
 
-        if let Ok(file_hash) = nix_utils::convert_hash(
-            &format!("{file_hash:x}"),
-            Some(nix_utils::HashAlgorithm::SHA256),
-            nix_utils::HashFormat::Nix32,
-        ) {
-            narinfo.file_hash = Some(format!("sha256:{file_hash}"));
+        let file_hash = harmonia_utils_hash::Hash::from_slice(
+            harmonia_utils_hash::Algorithm::SHA256,
+            file_hash.as_slice(),
+        );
+        if let Ok(file_hash) = file_hash {
+            narinfo.file_hash = Some(format!("{}", file_hash.as_base32()));
             narinfo.file_size = Some(file_size as u64);
         }
 
@@ -635,7 +632,8 @@ impl S3BinaryCacheClient {
             && let Ok(hashes) = store.static_output_hashes(deriver).await
         {
             for (output_name, drv_hash) in hashes {
-                let Ok(id) = format!("{drv_hash}!{output_name}").parse::<nix_utils::DrvOutput>() else {
+                let Ok(id) = format!("{drv_hash}!{output_name}").parse::<nix_utils::DrvOutput>()
+                else {
                     continue;
                 };
                 self.copy_realisation(store, &id, repair).await?;
@@ -831,7 +829,7 @@ impl S3BinaryCacheClient {
     ) -> Result<PresignedUploadResponse, CacheError> {
         let nar_hash_url = nix32_nar_hash
             .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), |h| h.to_owned());
+            .map_or_else(|| path.hash_part(), ToOwned::to_owned);
 
         let nar_url = format!("nar/{}.{}", nar_hash_url, self.cfg.compression.ext());
         let url = self

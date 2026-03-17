@@ -39,6 +39,7 @@ serde_json.workspace = true
 
 nix-utils = { path = "../nix-utils" }
 harmonia-store-core.workspace = true
+harmonia-utils-hash.workspace = true
 
 [dev-dependencies]
 hydra-tracing = { path = "../tracing" }
