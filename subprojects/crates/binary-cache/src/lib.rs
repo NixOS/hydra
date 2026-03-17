@@ -692,7 +692,7 @@ impl S3BinaryCacheClient {
         }
 
         let raw_realisation = store.query_raw_realisation(id)?;
-        let mut realisation = raw_realisation.as_rust(store.as_base_store())?;
+        let mut realisation = raw_realisation.as_rust()?;
         sign_realisation(&mut realisation, &self.signing_keys);
 
         let json = serde_json::to_string(&realisation)?;

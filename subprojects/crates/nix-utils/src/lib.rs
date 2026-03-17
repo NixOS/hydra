@@ -41,6 +41,9 @@ pub enum Error {
 
     #[error("anyhow error: `{0}`")]
     Anyhow(#[from] anyhow::Error),
+
+    #[error("json error: `{0}`")]
+    Json(#[from] serde_json::Error),
 }
 
 pub use drv::{Derivation, DerivationEnv, Output as DerivationOutput, query_drv};

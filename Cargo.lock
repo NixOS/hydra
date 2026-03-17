@@ -2130,6 +2130,7 @@ dependencies = [
  "nix-diff",
  "pkg-config",
  "serde",
+ "serde_json",
  "smallvec",
  "thiserror",
  "tokio",
