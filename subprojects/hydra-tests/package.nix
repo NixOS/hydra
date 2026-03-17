@@ -3,6 +3,7 @@
 , version
 
 , hydra
+, hydra-queue-runner
 
 , meson
 , ninja
@@ -23,6 +24,7 @@
 , pixz
 , nix-eval-jobs
 , foreman
+, curl
 
 , cacert
 , glibcLocales
@@ -56,6 +58,7 @@ stdenv.mkDerivation (finalAttrs: {
     meson
     ninja
     hydra
+    hydra-queue-runner
     hydra.perlDeps
     perl
     nixComponents.nix-cli
@@ -70,6 +73,7 @@ stdenv.mkDerivation (finalAttrs: {
     postgresql_17
     pixz
     nix-eval-jobs
+    curl
   ];
 
   buildInputs = [

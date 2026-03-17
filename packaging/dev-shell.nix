@@ -3,12 +3,13 @@
 , hydra-tests
 , hydra-manual
 , hydra-linters
+, hydra-queue-runner
 }:
 
 let
   lib = pkgs.lib;
 
-  components = [ hydra hydra-tests hydra-manual hydra-linters ];
+  components = [ hydra hydra-tests hydra-manual hydra-linters hydra-queue-runner ];
 
   # Collect and deduplicate build inputs from all components,
   # filtering out the components themselves.
@@ -46,7 +47,7 @@ hydra.overrideAttrs (finalAttrs: prevAttrs: {
   shellHook = ''
     pushd $(git rev-parse --show-toplevel) >/dev/null
 
-    PATH=$(pwd)/build/subprojects/hydra/hydra-evaluator:$(pwd)/subprojects/hydra/script:$(pwd)/build/subprojects/hydra/hydra-queue-runner:$PATH
+    PATH=$(pwd)/build/subprojects/hydra/hydra-evaluator:$(pwd)/subprojects/hydra/script:$PATH
     PERL5LIB=$(pwd)/subprojects/hydra/lib:$PERL5LIB
     export HYDRA_HOME="$(pwd)/subprojects/hydra/"
     mkdir -p .hydra-data

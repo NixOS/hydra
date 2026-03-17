@@ -39,6 +39,9 @@
           };
           hydra-linters = self'.callPackage ./subprojects/hydra-linters/package.nix {
           };
+          hydra-queue-runner = self'.callPackage ./subprojects/hydra-queue-runner/package.nix {
+            inherit nixComponents;
+          };
         });
     in
     rec {
@@ -62,17 +65,19 @@
           pkgs = final;
           nixComponents = final.nixComponentsForHydra;
         };
-        inherit (final.hydraComponents) hydra hydra-tests hydra-manual hydra-linters;
+        inherit (final.hydraComponents) hydra hydra-tests hydra-manual hydra-linters hydra-queue-runner;
       };
 
       hydraJobs = {
         build = forEachSystem (system: packages.${system}.hydra);
 
-        unitTests = forEachSystem (system: packages.${system}.hydra-tests);
+        systemTests = forEachSystem (system: packages.${system}.hydra-tests);
 
         manual = forEachSystem (system: packages.${system}.hydra-manual);
 
         linters = forEachSystem (system: packages.${system}.hydra-linters);
+
+        queueRunner = forEachSystem (system: packages.${system}.hydra-queue-runner);
 
         nixosTests = import ./nixos-tests.nix {
           inherit forEachSystem nixpkgs nixosModules;
@@ -82,7 +87,7 @@
       };
 
       checks = forEachSystem (system: {
-        build = hydraJobs.build.${system};
+        systemTests = hydraJobs.systemTests.${system};
         install = hydraJobs.nixosTests.install.${system};
         validate-openapi = hydraJobs.nixosTests.validate-openapi.${system};
       });
@@ -111,7 +116,7 @@
       devShells = forEachSystem (system: {
         default = import ./packaging/dev-shell.nix {
           pkgs = nixpkgs.legacyPackages.${system};
-          inherit (self.packages.${system}) hydra hydra-tests hydra-manual hydra-linters;
+          inherit (self.packages.${system}) hydra hydra-tests hydra-manual hydra-linters hydra-queue-runner;
         };
       });
 

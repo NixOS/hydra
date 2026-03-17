@@ -14,4 +14,33 @@ project('hydra-dev-shell', 'cpp',
 subproject('hydra')
 subproject('hydra-linters')
 subproject('hydra-manual')
+
+# Build rust workspace (dev build only; in Nix release builds, Rust is built separately)
+cargo = find_program('cargo', native: true)
+cargo_toml = files('Cargo.toml')
+
+build_type = get_option('buildtype')
+if build_type == 'debug'
+  cargo_profile = 'debug'
+  cargo_build_args = ['build']
+else
+  cargo_profile = 'release'
+  cargo_build_args = ['build', '--release']
+endif
+
+rust_build = custom_target(
+  'rust-workspace-build',
+  input: cargo_toml,
+  output: ['build-stamp'],
+  command: [
+    cargo,
+    cargo_build_args,
+    '--manifest-path', '@INPUT@',
+    '--workspace',
+    '--message-format=json-render-diagnostics'
+  ],
+  build_by_default: true,
+  install: false,
+)
+
 subproject('hydra-tests')

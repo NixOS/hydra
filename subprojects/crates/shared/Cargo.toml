@@ -1,0 +1,16 @@
+[package]
+name = "shared"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+tracing.workspace = true
+anyhow.workspace = true
+tokio = { workspace = true, features = ["full"] }
+fs-err = { workspace = true, features = ["tokio"] }
+regex.workspace = true
+sha2.workspace = true
+
+nix-utils = { path = "../nix-utils" }

@@ -20,11 +20,9 @@ prom_cpp_pull_dep = dependency('prometheus-cpp-pull', required: true)
 # Native code
 subdir('libhydra')
 subdir('hydra-evaluator')
-subdir('hydra-queue-runner')
 
 # Make executables available to sibling subprojects (e.g. hydra-tests)
 meson.override_find_program('hydra-evaluator', hydra_evaluator)
-meson.override_find_program('hydra-queue-runner', hydra_queue_runner)
 
 hydra_libexecdir = get_option('libexecdir') / 'hydra'
 

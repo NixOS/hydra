@@ -13,4 +13,4 @@ chdir($dirname) or die "Failed to enter $dirname\n";
 # Add subprojects/hydra/lib to PERL5LIB so perlcritic can find our custom policies
 $ENV{PERL5LIB} = "subprojects/hydra/lib" . ($ENV{PERL5LIB} ? ":$ENV{PERL5LIB}" : "");
 
-exec("perlcritic", "--quiet", ".") or die "Failed to execute perlcritic.";
+exec("perlcritic", "--quiet", "subprojects/hydra/", "subprojects/hydra-tests/") or die "Failed to execute perlcritic.";

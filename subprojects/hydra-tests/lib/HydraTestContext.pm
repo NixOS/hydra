@@ -78,6 +78,9 @@ sub new {
         extra_initdb_args => "--locale C.UTF-8"
     );
     $ENV{'HYDRA_DBI'} = $pgsql->dsn;
+    # $ENV{'HYDRA_DATABASE_URL'} = "postgres://" . $pgsql->user() . '@' . $pgsql->host() . ':' . $pgsql->port() . '/' $pgsql->;
+    $ENV{'HYDRA_DATABASE_URL'} = $pgsql->uri;
+    # 'HYDRA_DATABASE_URL': 'postgres://hydra@localhost:6433/hydra-test-suite',
 
     my $jobsdir = "$dir/jobs";
     rcopy(abs_path(dirname(__FILE__) . "/../jobs"), $jobsdir);
