@@ -12,7 +12,6 @@ use crate::{
     state::{Machine, MachineMessage, State},
 };
 use nix_utils::BaseStore as _;
-use nix_utils::StorePathExt as _;
 
 include!(concat!(env!("OUT_DIR"), "/proto_version.rs"));
 use runner_v1::runner_service_server::{RunnerService, RunnerServiceServer};
@@ -521,7 +520,7 @@ impl RunnerService for Server {
                 tonic::Status::internal("failed to toposort drv.")
             })?
             .into_iter()
-            .map(nix_utils::StorePath::into_base_name)
+            .map(|p| p.to_string())
             .collect();
 
         Ok(tonic::Response::new(runner_v1::DrvRequisitesMessage {
@@ -649,7 +648,7 @@ impl RunnerService for Server {
                 })?;
 
             responses.push(runner_v1::PresignedNarResponse {
-                store_path: store_path.base_name().to_owned(),
+                store_path: store_path.to_string().to_owned(),
                 nar_url: presigned_response.nar_url,
                 nar_upload: Some(runner_v1::PresignedUpload {
                     compression_level: presigned_response.nar_upload.get_compression_level_as_i32(),

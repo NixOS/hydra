@@ -13,7 +13,6 @@ use crate::grpc::{BuilderClient, runner_v1};
 use crate::types::BuildTimings;
 use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
 use nix_utils::BaseStore as _;
-use nix_utils::StorePathExt as _;
 use runner_v1::{
     AbortMessage, BuildMessage, BuildMetric, BuildProduct, BuildResultInfo, BuildResultState,
     FetchRequisitesRequest, JoinMessage, LogChunk, NarData, NixSupport, Output, OutputNameOnly,
@@ -413,7 +412,7 @@ impl State {
             .await;
         let requisites = client
             .fetch_drv_requisites(FetchRequisitesRequest {
-                path: resolved_drv.as_ref().unwrap_or(&drv).base_name().to_owned(),
+                path: resolved_drv.as_ref().unwrap_or(&drv).to_string().to_owned(),
                 include_outputs: false,
             })
             .await
@@ -464,7 +463,7 @@ impl State {
             while let Some(chunk) = log_output.next().await {
                 match chunk {
                     Ok(chunk) => yield LogChunk {
-                        drv: drv2.base_name().to_owned(),
+                        drv: drv2.to_string().to_owned(),
                         data: format!("{chunk}\n").into(),
                     },
                     Err(e) => {
@@ -568,7 +567,7 @@ impl State {
             let builds = self.active_builds.read();
             builds
                 .values()
-                .map(|b| b.drv_path.base_name().to_owned())
+                .map(|b| b.drv_path.to_string().to_owned())
                 .collect::<Vec<_>>()
         };
 
@@ -689,7 +688,7 @@ async fn import_paths(
     tracing::debug!("Start importing paths");
     let stream = client
         .stream_files(StorePaths {
-            paths: paths.iter().map(|p| p.base_name().to_owned()).collect(),
+            paths: paths.iter().map(|p| p.to_string().to_owned()).collect(),
         })
         .await?
         .into_inner();
@@ -737,7 +736,7 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     .await;
 
     let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
-        requisites.into_iter().partition(|p| p.is_drv());
+        requisites.into_iter().partition(|p| p.is_derivation());
 
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
@@ -768,7 +767,7 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     let full_requisites = client
         .clone()
         .fetch_drv_requisites(FetchRequisitesRequest {
-            path: drv.base_name().to_owned(),
+            path: drv.to_string().to_owned(),
             include_outputs: true,
         })
         .await?
@@ -817,7 +816,7 @@ async fn upload_nars_regular(
             async move {
                 if client
                     .has_path(runner_v1::StorePath {
-                        path: p.base_name().to_owned(),
+                        path: p.to_string().to_owned(),
                     })
                     .await
                     .is_ok_and(|r| r.into_inner().has_path)
@@ -1021,7 +1020,7 @@ async fn upload_single_nar_presigned(
         let completion_msg = runner_v1::PresignedUploadComplete {
             build_id: build_id.to_owned(),
             machine_id: machine_id.to_owned(),
-            store_path: nar_path.base_name().to_owned(),
+            store_path: nar_path.to_string().to_owned(),
             url: updated_narinfo.url.clone(),
             compression: updated_narinfo.compression.as_str().to_owned(),
             file_hash: file_hash.clone(),
@@ -1031,9 +1030,9 @@ async fn upload_single_nar_presigned(
             references: updated_narinfo
                 .references
                 .iter()
-                .map(|p| p.base_name().to_owned())
+                .map(|p| p.to_string().to_owned())
                 .collect(),
-            deriver: updated_narinfo.deriver.map(|p| p.base_name().to_owned()),
+            deriver: updated_narinfo.deriver.map(|p| p.to_string().to_owned()),
             ca: updated_narinfo.ca,
         };
 

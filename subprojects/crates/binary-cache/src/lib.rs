@@ -27,7 +27,6 @@ use harmonia_utils_hash::fmt::CommonHash as _;
 
 use nix_utils::BaseStore as _;
 use nix_utils::RealisationOperations as _;
-use nix_utils::StorePathExt as _;
 
 mod cfg;
 mod compression;
@@ -542,7 +541,7 @@ impl S3BinaryCacheClient {
         store: &nix_utils::LocalStore,
         narinfo: NarInfo,
     ) -> Result<String, CacheError> {
-        let base = narinfo.store_path.hash_part();
+        let base = narinfo.store_path.hash().to_string();
         let info_key = format!("{base}.narinfo");
         self.upsert_file(&info_key, narinfo.render(store)?, "text/x-nix-narinfo")
             .await?;
@@ -712,7 +711,7 @@ impl S3BinaryCacheClient {
         }
 
         match self
-            .get_object(&format!("{}.narinfo", store_path.hash_part()))
+            .get_object(&format!("{}.narinfo", store_path.hash().to_string()))
             .await?
         {
             Some(v) => {
@@ -809,7 +808,7 @@ impl S3BinaryCacheClient {
     ) -> Result<PresignedUploadResponse, CacheError> {
         let nar_hash_url = nix32_nar_hash
             .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), ToOwned::to_owned);
+            .map_or_else(|| path.hash().to_string(), ToOwned::to_owned);
 
         let nar_url = format!("nar/{}.{}", nar_hash_url, self.cfg.compression.ext());
         let url = self
@@ -825,7 +824,7 @@ impl S3BinaryCacheClient {
                 reason: format!("Failed to generate presigned URL for NAR: {e}"),
             })?;
         let ls_upload = if self.cfg.write_nar_listing {
-            let s3_file_path = format!("{}.ls", path.hash_part());
+            let s3_file_path = format!("{}.ls", path.hash().to_string());
             Some(PresignedUpload {
                 url: self
                     .s3

@@ -49,9 +49,7 @@ pub enum Error {
 pub use drv::{Derivation, DerivationEnv, Output as DerivationOutput, query_drv};
 pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
-pub use store_path::{
-    StoreDir, StorePath, StorePathExt, StorePathHash, StorePathName, parse_store_path,
-};
+pub use store_path::{StoreDir, StorePath, StorePathHash, StorePathName, parse_store_path};
 
 pub fn validate_statuscode(status: std::process::ExitStatus) -> Result<(), Error> {
     if status.success() {
@@ -62,7 +60,7 @@ pub fn validate_statuscode(status: std::process::ExitStatus) -> Result<(), Error
 }
 
 pub fn add_root(store: &LocalStore, root_dir: &std::path::Path, store_path: &StorePath) {
-    let path = root_dir.join(store_path.base_name());
+    let path = root_dir.join(store_path.to_string());
     // force create symlink
     if fs_err::exists(&path).unwrap_or_default() {
         let _ = fs_err::remove_file(&path);
@@ -782,7 +780,7 @@ impl BaseStore for BaseStoreImpl {
 
     #[inline]
     fn print_store_path(&self, path: &StorePath) -> String {
-        format!("{}/{}", self.store_path_prefix, path.base_name())
+        format!("{}/{}", self.store_path_prefix, path.to_string())
     }
 }
 

@@ -29,7 +29,6 @@ use secrecy::ExposeSecret as _;
 use db::models::{BuildID, BuildStatus};
 use inspectable_channel::InspectableChannel;
 use nix_utils::BaseStore as _;
-use nix_utils::StorePathExt as _;
 
 use crate::config::{App, Cli};
 use crate::state::build::get_mark_build_sccuess_data;
@@ -415,7 +414,7 @@ impl State {
         drv: &nix_utils::StorePath,
     ) -> anyhow::Result<std::path::PathBuf> {
         let mut log_file = self.log_dir.clone();
-        let base = drv.base_name();
+        let base = drv.to_string();
         let (dir, file) = base.split_at(2);
         log_file.push(format!("{dir}/"));
         let _ = fs_err::tokio::create_dir_all(&log_file).await; // create dir
@@ -1132,7 +1131,7 @@ impl State {
                 self.uploader
                     .schedule_upload(
                         outputs_to_upload,
-                        format!("log/{}", job.path.base_name()),
+                        format!("log/{}", job.path.to_string()),
                         job.result.log_file.clone(),
                     )
                     .await;
@@ -1783,7 +1782,7 @@ impl State {
                     self.uploader
                         .schedule_upload(
                             missing_paths,
-                            format!("log/{}", drv_path.base_name()),
+                            format!("log/{}", drv_path.to_string()),
                             log_file.to_string_lossy().to_string(),
                         )
                         .await;

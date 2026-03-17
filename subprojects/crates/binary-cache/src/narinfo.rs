@@ -8,7 +8,6 @@ use secrecy::ExposeSecret as _;
 use crate::Compression;
 
 use nix_utils::BaseStore as _;
-use nix_utils::StorePathExt as _;
 
 #[derive(Debug, Clone)]
 pub struct NarInfo {
@@ -36,7 +35,7 @@ impl NarInfo {
         let nar_hash = normalize_nar_hash(path_info.nar_hash);
         let nar_hash_url = nar_hash
             .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), ToOwned::to_owned);
+            .map_or_else(|| path.hash().to_string(), ToOwned::to_owned);
 
         let narinfo = Self {
             store_path: path.clone(),
@@ -69,7 +68,7 @@ impl NarInfo {
         let nar_hash = normalize_nar_hash(path_info.nar_hash);
         let nar_hash_url = nar_hash
             .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), ToOwned::to_owned);
+            .map_or_else(|| path.hash().to_string(), ToOwned::to_owned);
 
         Self {
             store_path: path.clone(),
@@ -117,7 +116,7 @@ impl NarInfo {
 
     #[must_use]
     pub fn get_ls_path(&self) -> String {
-        format!("{}.ls", self.store_path.hash_part())
+        format!("{}.ls", self.store_path.hash().to_string())
     }
 
     pub fn render(&self, store: &nix_utils::LocalStore) -> Result<String, std::fmt::Error> {
@@ -139,13 +138,13 @@ impl NarInfo {
             "References: {}",
             self.references
                 .iter()
-                .map(nix_utils::StorePathExt::base_name)
+                .map(nix_utils::StorePath::to_string)
                 .collect::<Vec<_>>()
                 .join(" ")
         )?;
 
         if let Some(d) = &self.deriver {
-            writeln!(o, "Deriver: {}", d.base_name())?;
+            writeln!(o, "Deriver: {}", d.to_string())?;
         }
         if let Some(ca) = &self.ca {
             writeln!(o, "CA: {ca}")?;
