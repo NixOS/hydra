@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
 
@@ -27,7 +28,7 @@ impl PartialEq for Jobset {
 
 impl Eq for Jobset {}
 
-impl std::hash::Hash for Jobset {
+impl Hash for Jobset {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.id.hash(state);
         self.project_name.hash(state);

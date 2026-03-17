@@ -113,7 +113,9 @@ impl Derivation {
                         path: if v.path.is_empty() {
                             None
                         } else {
-                            String::from_utf8(v.path).ok().map(|p| StorePath::new(&p))
+                            String::from_utf8(v.path)
+                                .ok()
+                                .map(|p| crate::parse_store_path(&p))
                         },
                         hash: v
                             .hash
@@ -167,7 +169,7 @@ pub async fn query_drv(
     store: &crate::LocalStore,
     drv: &StorePath,
 ) -> Result<Option<Derivation>, crate::Error> {
-    if !drv.is_drv() {
+    if !drv.is_derivation() {
         return Ok(None);
     }
 
@@ -189,7 +191,8 @@ mod tests {
     #[test]
     fn test_ca_derivation() {
         let drv_str = r#"Derive([("out","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-linux-6.16.tar.xz","sha256","1a4be2fe6b5246aa4ac8987a8a4af34c42a8dd7d08b46ab48516bcc1befbcd83")],[],[],"builtin","builtin:fetchurl",[],[("builder","builtin:fetchurl"),("executable",""),("impureEnvVars","http_proxy https_proxy ftp_proxy all_proxy no_proxy"),("name","linux-6.16.tar.xz"),("out","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-linux-6.16.tar.xz"),("outputHash","sha256-Gkvi/mtSRqpKyJh6ikrzTEKo3X0ItGq0hRa8wb77zYM="),("outputHashAlgo",""),("outputHashMode","flat"),("preferLocalBuild","1"),("system","builtin"),("unpack",""),("url","https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.16.tar.xz"),("urls","https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.16.tar.xz")])"#;
-        let drv_path = StorePath::new("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-linux-6.16.tar.xz.drv");
+        let drv_path =
+            crate::parse_store_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-linux-6.16.tar.xz.drv");
         let drv = parse_drv(&drv_path, drv_str).unwrap();
         assert_eq!(drv.name, drv_path);
         assert_eq!(drv.env.get_name(), Some("linux-6.16.tar.xz"));
@@ -203,7 +206,7 @@ mod tests {
         let o = drv.get_ca_output().unwrap();
         assert_eq!(
             o.path,
-            StorePath::new("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-linux-6.16.tar.xz")
+            crate::parse_store_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-linux-6.16.tar.xz")
         );
         assert_eq!(o.name, String::from("out"));
         assert_eq!(
@@ -216,7 +219,8 @@ mod tests {
     #[test]
     fn test_no_ca_derivation() {
         let drv_str = r#"Derive([("info","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gnused-4.9-info","",""),("out","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gnused-4.9","","")],[("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaawbootstrap-tools.drv",["out"]),("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bootstrap-stage4-stdenv-linux.drv",["out"]),("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-update-autotools-gnu-config-scripts-hook.drv",["out"]),("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-perl-5.40.0.drv",["out"]),("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sed-4.9.tar.xz.drv",["out"])],["/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source-stdenv.sh","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-default-builder.sh"],"x86_64-linux","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bootstrap-tools/bin/bash",["-e","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source-stdenv.sh","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-default-builder.sh"],[("NIX_MAIN_PROGRAM","sed"),("__structuredAttrs",""),("buildInputs",""),("builder","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bootstrap-tools/bin/bash"),("cmakeFlags",""),("configureFlags",""),("depsBuildBuild",""),("depsBuildBuildPropagated",""),("depsBuildTarget",""),("depsBuildTargetPropagated",""),("depsHostHost",""),("depsHostHostPropagated",""),("depsTargetTarget",""),("depsTargetTargetPropagated",""),("doCheck",""),("doInstallCheck",""),("info","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gnused-4.9-info"),("mesonFlags",""),("name","gnused-4.9"),("nativeBuildInputs","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-update-autotools-gnu-config-scripts-hook /nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-perl-5.40.0"),("out","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gnused-4.9"),("outputs","out info"),("patches",""),("pname","gnused"),("preConfigure","patchShebangs ./build-aux/help2man"),("propagatedBuildInputs",""),("propagatedNativeBuildInputs",""),("src","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-sed-4.9.tar.xz"),("stdenv","/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bootstrap-stage4-stdenv-linux"),("strictDeps",""),("system","x86_64-linux"),("version","4.9")])"#;
-        let drv_path = StorePath::new("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gnused-4.9.drv");
+        let drv_path =
+            crate::parse_store_path("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gnused-4.9.drv");
         let drv = parse_drv(&drv_path, drv_str).unwrap();
         assert_eq!(drv.name, drv_path);
         assert!(!drv.is_ca());

@@ -41,7 +41,7 @@ async fn collect_ca_derivations(
         futures::StreamExt::map(tokio_stream::iter(parsed.input_drvs.clone()), |i| {
             let processed = processed.clone();
             async move {
-                let i = StorePath::new(&i);
+                let i = nix_utils::parse_store_path(&i);
                 Box::pin(collect_ca_derivations(store, &i, processed)).await
             }
         })
@@ -168,7 +168,7 @@ mod tests {
     async fn test_traverse() {
         let store = nix_utils::LocalStore::init();
         let hello_drv =
-            nix_utils::StorePath::new("rl5m4zxd24mkysmpbp4j9ak6q7ia6vj8-hello-2.12.2.drv");
+            nix_utils::parse_store_path("rl5m4zxd24mkysmpbp4j9ak6q7ia6vj8-hello-2.12.2.drv");
         store.ensure_path(&hello_drv).await.unwrap();
 
         let fod = FodChecker::new(None);

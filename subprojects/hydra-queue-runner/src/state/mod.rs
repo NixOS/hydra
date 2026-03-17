@@ -29,6 +29,7 @@ use secrecy::ExposeSecret as _;
 use db::models::{BuildID, BuildStatus};
 use inspectable_channel::InspectableChannel;
 use nix_utils::BaseStore as _;
+use nix_utils::StorePathExt as _;
 
 use crate::config::{App, Cli};
 use crate::state::build::get_mark_build_sccuess_data;
@@ -414,7 +415,8 @@ impl State {
         drv: &nix_utils::StorePath,
     ) -> anyhow::Result<std::path::PathBuf> {
         let mut log_file = self.log_dir.clone();
-        let (dir, file) = drv.base_name().split_at(2);
+        let base = drv.base_name();
+        let (dir, file) = base.split_at(2);
         log_file.push(format!("{dir}/"));
         let _ = fs_err::tokio::create_dir_all(&log_file).await; // create dir
         log_file.push(file);
@@ -1863,7 +1865,7 @@ impl State {
             let new_steps = new_steps.clone();
             let new_runnable = new_runnable.clone();
             async move {
-                let path = nix_utils::StorePath::new(&i);
+                let path = nix_utils::parse_store_path(&i);
                 Box::pin(self.create_step(
                     // conn,
                     build,

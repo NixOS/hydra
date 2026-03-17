@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use anyhow::Context as _;
+use nix_utils::StorePathExt as _;
 use tonic::{Request, service::interceptor::InterceptedService, transport::Channel};
 
 use runner_v1::{

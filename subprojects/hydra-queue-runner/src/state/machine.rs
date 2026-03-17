@@ -567,8 +567,8 @@ impl Message {
                 presigned_url_opts,
             } => runner_request::Message::Build(BuildMessage {
                 build_id: build_id.to_string(),
-                drv: drv.into_base_name(),
-                resolved_drv: resolved_drv.map(nix_utils::StorePath::into_base_name),
+                drv: drv.to_string(),
+                resolved_drv: resolved_drv.map(|p| p.to_string()),
                 max_log_size,
                 max_silent_time,
                 build_timeout,

@@ -13,6 +13,7 @@ use crate::grpc::{BuilderClient, runner_v1};
 use crate::types::BuildTimings;
 use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
 use nix_utils::BaseStore as _;
+use nix_utils::StorePathExt as _;
 use runner_v1::{
     AbortMessage, BuildMessage, BuildMetric, BuildProduct, BuildResultInfo, BuildResultState,
     FetchRequisitesRequest, JoinMessage, LogChunk, NarData, NixSupport, Output, OutputNameOnly,
@@ -262,7 +263,7 @@ impl State {
             return Err(anyhow::anyhow!("State set to halt."));
         }
 
-        let drv = nix_utils::StorePath::new(&m.drv);
+        let drv = nix_utils::parse_store_path(&m.drv);
         if self.contains_build(&drv) {
             return Ok(());
         }
@@ -390,11 +391,11 @@ impl State {
         let store = nix_utils::LocalStore::init();
 
         let machine_id = self.id;
-        let drv = nix_utils::StorePath::new(&m.drv);
+        let drv = nix_utils::parse_store_path(&m.drv);
         let resolved_drv = m
             .resolved_drv
             .as_ref()
-            .map(|v| nix_utils::StorePath::new(v));
+            .map(|v| nix_utils::parse_store_path(v));
 
         let before_import = Instant::now();
         let gcroot_prefix = uuid::Uuid::new_v4().to_string();
@@ -428,7 +429,7 @@ impl State {
             resolved_drv.as_ref().unwrap_or(&drv),
             requisites
                 .into_iter()
-                .map(|s| nix_utils::StorePath::new(&s)),
+                .map(|s| nix_utils::parse_store_path(&s)),
             usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
             self.config.use_substitutes,
         )
@@ -735,9 +736,8 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     .collect::<Vec<_>>()
     .await;
 
-    let (input_drvs, input_srcs): (Vec<_>, Vec<_>) = requisites
-        .into_iter()
-        .partition(nix_utils::StorePath::is_drv);
+    let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
+        requisites.into_iter().partition(|p| p.is_drv());
 
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
@@ -775,7 +775,7 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
         .into_inner()
         .requisites
         .into_iter()
-        .map(|s| nix_utils::StorePath::new(&s))
+        .map(|s| nix_utils::parse_store_path(&s))
         .collect::<Vec<_>>();
     let full_requisites = futures::StreamExt::map(tokio_stream::iter(full_requisites), |p| {
         filter_missing(&store, gcroot, p)
@@ -941,7 +941,7 @@ async fn upload_nars_presigned(
     for presigned_response in presigned_responses {
         upload_single_nar_presigned(
             &store,
-            &nix_utils::StorePath::new(&presigned_response.store_path),
+            &nix_utils::parse_store_path(&presigned_response.store_path),
             build_id,
             machine_id,
             &presigned_response,
@@ -1075,7 +1075,7 @@ async fn new_success_build_result_info(
                         output::Output::Withpath(OutputWithPath {
                             name: o.name,
                             closure_size: store.compute_closure_size(&p).await,
-                            path: p.into_base_name(),
+                            path: p.to_string(),
                             nar_size: info.nar_size,
                             nar_hash: info.nar_hash.clone(),
                         })

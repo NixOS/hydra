@@ -125,12 +125,12 @@ impl From<ffi::SharedRealisation> for Realisation {
     fn from(value: ffi::SharedRealisation) -> Self {
         Self {
             id: value.id.into(),
-            out_path: crate::StorePath::new(&value.out_path),
+            out_path: crate::parse_store_path(&value.out_path),
             signatures: value.signatures,
             dependent_realisations: value
                 .dependent_realisations
                 .into_iter()
-                .map(|v| (v.id.into(), crate::StorePath::new(&v.path)))
+                .map(|v| (v.id.into(), crate::parse_store_path(&v.path)))
                 .collect(),
         }
     }

@@ -1,89 +1,51 @@
-const HASH_LEN: usize = 32;
+#[allow(unreachable_pub)]
+pub use harmonia_store_core::store_path::{StoreDir, StorePath, StorePathHash, StorePathName};
 
-static STORE_DIR: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-    let dir = crate::get_store_dir();
-    if dir.ends_with('/') {
-        dir
-    } else {
-        format!("{dir}/")
-    }
-});
+/// Extension methods on [`StorePath`] for backward compatibility with
+/// the old string-wrapper `StorePath` used throughout Hydra.
+pub trait StorePathExt {
+    /// The hash-name base name, e.g. `abc123-foo`.
+    fn base_name(&self) -> String;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct StorePath {
-    base_name: String,
+    /// Consume and return the base name.
+    fn into_base_name(self) -> String;
+
+    /// The hash part as a nix-base32 string.
+    fn hash_part(&self) -> String;
+
+    /// Whether this is a `.drv` path.
+    fn is_drv(&self) -> bool;
 }
 
-impl StorePath {
-    #[must_use]
-    pub fn new(p: &str) -> Self {
-        p.strip_prefix(STORE_DIR.as_str()).map_or_else(
-            || {
-                debug_assert!(p.len() > HASH_LEN + 1);
-                Self {
-                    base_name: p.strip_prefix('/').unwrap_or(p).to_string(),
-                }
-            },
-            |postfix| {
-                debug_assert!(postfix.len() > HASH_LEN + 1);
-                Self {
-                    base_name: postfix.strip_prefix('/').unwrap_or(postfix).to_string(),
-                }
-            },
-        )
+impl StorePathExt for StorePath {
+    #[inline]
+    fn base_name(&self) -> String {
+        self.to_string()
     }
 
-    #[must_use]
-    pub fn into_base_name(self) -> String {
-        self.base_name
+    #[inline]
+    fn into_base_name(self) -> String {
+        self.to_string()
     }
 
-    #[must_use]
-    pub fn base_name(&self) -> &str {
-        &self.base_name
+    #[inline]
+    fn hash_part(&self) -> String {
+        self.hash().to_string()
     }
 
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.base_name[HASH_LEN + 1..]
-    }
-
-    #[must_use]
-    pub fn hash_part(&self) -> &str {
-        &self.base_name[..HASH_LEN]
-    }
-
-    #[must_use]
-    pub fn is_drv(&self) -> bool {
-        std::path::Path::new(&self.base_name)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("drv"))
+    #[inline]
+    fn is_drv(&self) -> bool {
+        self.is_derivation()
     }
 }
 
-impl serde::Serialize for StorePath {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.base_name())
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for StorePath {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Ok(StorePath::new(&s))
-    }
-}
-
-impl std::fmt::Display for StorePath {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{}", self.base_name)
-    }
+/// Parse a store path from a string that may or may not have the store dir prefix.
+/// Handles paths inside store outputs (e.g. `/nix/store/hash-name/subdir/file`).
+pub fn parse_store_path(s: &str) -> StorePath {
+    let after_store = s.find("/store/").map_or(s, |i| &s[i + 7..]);
+    let base = after_store.split('/').next().unwrap_or(after_store);
+    base.parse()
+        .unwrap_or_else(|e| panic!("invalid store path '{s}': {e}"))
 }
 
 #[cfg(test)]
@@ -91,64 +53,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_store_path_creation() {
-        let path_str = "abc123def45678901234567890123456-package-name";
-        let store_path = StorePath::new(path_str);
-
-        assert_eq!(store_path.base_name(), path_str);
-        assert_eq!(store_path.name(), "package-name");
-        assert_eq!(store_path.hash_part(), "abc123def45678901234567890123456");
-    }
-
-    #[test]
-    fn test_store_path_with_prefix() {
-        let store_path = StorePath::new("abc123def45678901234567890123456-package-name");
-
+    fn test_parse_base_name() {
+        let sp = parse_store_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name");
         assert_eq!(
-            store_path.base_name(),
-            "abc123def45678901234567890123456-package-name"
+            sp.base_name(),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name"
         );
-        assert_eq!(store_path.name(), "package-name");
-        assert_eq!(store_path.hash_part(), "abc123def45678901234567890123456");
+        assert_eq!(sp.name().as_ref(), "package-name");
     }
 
     #[test]
-    fn test_store_path_is_drv() {
-        let drv_path = StorePath::new("abc123def45678901234567890123456-package.drv");
-        let regular_path = StorePath::new("abc123def45678901234567890123456-package");
-
-        assert!(drv_path.is_drv());
-        assert!(!regular_path.is_drv());
+    fn test_parse_with_store_prefix() {
+        let sp = parse_store_path("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name");
+        assert_eq!(
+            sp.base_name(),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name"
+        );
     }
 
     #[test]
-    fn test_store_path_display() {
-        let path_str = "abc123def45678901234567890123456-package-name";
-        let store_path = StorePath::new(path_str);
-
-        assert_eq!(format!("{store_path}"), path_str);
-    }
-
-    // #[test]
-    // TODO: we cant write tests accessing ffi: https://github.com/dtolnay/cxx/issues/1318
-    // fn test_local_store_print_store_path() {
-    //     let store = crate::LocalStore::init();
-    //     let path_str = "abc123def45678901234567890123456-package-name";
-    //     let store_path = StorePath::new(path_str);
-    //
-    //     let printed_path = store.print_store_path(&store_path);
-    //     let expected_prefix = crate::get_store_dir();
-    //     let expected_path = format!("{}/{}", expected_prefix, path_str);
-    //
-    //     assert_eq!(printed_path, expected_path);
-    // }
-
-    #[test]
-    fn test_store_path_into_base_name() {
-        let path_str = "abc123def45678901234567890123456-package-name";
-        let store_path = StorePath::new(path_str);
-
-        let base_name = store_path.into_base_name();
-        assert_eq!(base_name, path_str);
+    fn test_is_drv() {
+        let drv = parse_store_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package.drv");
+        let regular = parse_store_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package");
+        assert!(drv.is_drv());
+        assert!(!regular.is_drv());
     }
 }

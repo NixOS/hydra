@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
@@ -36,11 +37,11 @@ impl PartialEq for Build {
 
 impl Eq for Build {}
 
-impl std::hash::Hash for Build {
+impl Hash for Build {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // ensure that drv_path is never mutable
         // as we set Build as ignore-interior-mutability
-        self.drv_path.hash(state);
+        Hash::hash(&self.drv_path, state);
     }
 }
 
@@ -68,7 +69,7 @@ impl Build {
     pub fn new(v: db::models::Build, jobset: Arc<Jobset>) -> anyhow::Result<Arc<Self>> {
         Ok(Arc::new(Self {
             id: v.id,
-            drv_path: nix_utils::StorePath::new(&v.drvpath),
+            drv_path: nix_utils::parse_store_path(&v.drvpath),
             outputs: HashMap::with_capacity(6),
             jobset_id: v.jobset_id,
             name: v.job,
@@ -335,7 +336,9 @@ impl RemoteBuild {
 
 #[derive(Debug, Clone)]
 pub struct BuildProduct {
-    pub path: Option<nix_utils::StorePath>,
+    /// Full path including sub-paths inside store outputs (e.g. /nix/store/hash-name/file.txt).
+    /// Not a StorePath because it may contain paths inside store outputs.
+    pub path: Option<String>,
     pub default_path: Option<String>,
 
     pub r#type: String,
@@ -351,7 +354,7 @@ pub struct BuildProduct {
 impl From<db::models::OwnedBuildProduct> for BuildProduct {
     fn from(v: db::models::OwnedBuildProduct) -> Self {
         Self {
-            path: v.path.map(|v| nix_utils::StorePath::new(&v)),
+            path: v.path,
             default_path: v.defaultpath,
             r#type: v.r#type,
             subtype: v.subtype,
@@ -367,7 +370,7 @@ impl From<db::models::OwnedBuildProduct> for BuildProduct {
 impl From<crate::server::grpc::runner_v1::BuildProduct> for BuildProduct {
     fn from(v: crate::server::grpc::runner_v1::BuildProduct) -> Self {
         Self {
-            path: Some(nix_utils::StorePath::new(&v.path)),
+            path: Some(v.path),
             default_path: Some(v.default_path),
             r#type: v.r#type,
             subtype: v.subtype,
@@ -382,7 +385,7 @@ impl From<crate::server::grpc::runner_v1::BuildProduct> for BuildProduct {
 impl From<shared::BuildProduct> for BuildProduct {
     fn from(v: shared::BuildProduct) -> Self {
         Self {
-            path: Some(nix_utils::StorePath::new(&v.path)),
+            path: Some(v.path),
             default_path: Some(v.default_path),
             r#type: v.r#type,
             subtype: v.subtype,
@@ -484,7 +487,7 @@ impl From<crate::server::grpc::runner_v1::BuildResultInfo> for BuildOutput {
                     // We dont care about outputs that dont have a path,
                 }
                 Some(crate::server::grpc::runner_v1::output::Output::Withpath(o)) => {
-                    outputs.insert(o.name, nix_utils::StorePath::new(&o.path));
+                    outputs.insert(o.name, nix_utils::parse_store_path(&o.path));
                     closure_size += o.closure_size;
                     nar_size += o.nar_size;
                 }
@@ -599,7 +602,7 @@ pub(super) fn get_mark_build_sccuess_data<'a>(
                 subtype: &v.subtype,
                 filesize: v.file_size.and_then(|v| i64::try_from(v).ok()),
                 sha256hash: v.sha256hash.as_deref(),
-                path: v.path.as_ref().map(|p| store.print_store_path(p)),
+                path: v.path.clone(),
                 name: &v.name,
                 defaultpath: v.default_path.as_deref(),
             })

@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let paths_to_copy = store
         .query_requisites(
-            &[&nix_utils::StorePath::new(
+            &[&nix_utils::parse_store_path(
                 "/nix/store/m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1",
             )],
             true,

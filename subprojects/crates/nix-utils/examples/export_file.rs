@@ -19,7 +19,7 @@ async fn main() {
     tokio::task::spawn_blocking(move || async move {
         store
             .export_paths(
-                &[nix_utils::StorePath::new(
+                &[nix_utils::parse_store_path(
                     "5g60vyp4cbgwl12pav5apyi571smp62s-hello-2.12.2.drv",
                 )],
                 closure,

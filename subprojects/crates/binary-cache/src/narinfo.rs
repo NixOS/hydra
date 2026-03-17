@@ -5,6 +5,7 @@ use secrecy::ExposeSecret as _;
 use crate::Compression;
 
 use nix_utils::BaseStore as _;
+use nix_utils::StorePathExt as _;
 
 #[derive(Debug, Clone)]
 pub struct NarInfo {
@@ -42,7 +43,7 @@ impl NarInfo {
         };
         let nar_hash_url = nar_hash
             .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), |h| h);
+            .map_or_else(|| path.hash_part(), |h| h.to_owned());
 
         let narinfo = Self {
             store_path: path.clone(),
@@ -84,7 +85,7 @@ impl NarInfo {
         };
         let nar_hash_url = nar_hash
             .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), |h| h);
+            .map_or_else(|| path.hash_part(), |h| h.to_owned());
 
         Self {
             store_path: path.clone(),
@@ -177,7 +178,7 @@ impl NarInfo {
             "References: {}",
             self.references
                 .iter()
-                .map(nix_utils::StorePath::base_name)
+                .map(|r| r.base_name())
                 .collect::<Vec<_>>()
                 .join(" ")
         )?;
@@ -218,7 +219,7 @@ impl std::str::FromStr for NarInfo {
     #[allow(clippy::too_many_lines)]
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let mut out = Self {
-            store_path: nix_utils::StorePath::new("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bla"),
+            store_path: nix_utils::parse_store_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bla"),
             url: String::new(),
             compression: Compression::None,
             file_hash: None,
@@ -259,7 +260,7 @@ impl std::str::FromStr for NarInfo {
 
             match key {
                 "StorePath" => {
-                    out.store_path = nix_utils::StorePath::new(val);
+                    out.store_path = nix_utils::parse_store_path(val);
                     have_store_path = true;
                 }
                 "URL" => {
@@ -297,7 +298,7 @@ impl std::str::FromStr for NarInfo {
                     let refs = val
                         .split_whitespace()
                         .filter(|s| !s.is_empty())
-                        .map(nix_utils::StorePath::new)
+                        .map(nix_utils::parse_store_path)
                         .collect::<Vec<_>>();
                     out.references = refs;
                 }
@@ -305,7 +306,7 @@ impl std::str::FromStr for NarInfo {
                     out.deriver = if val.is_empty() {
                         None
                     } else {
-                        Some(nix_utils::StorePath::new(val))
+                        Some(nix_utils::parse_store_path(val))
                     };
                 }
                 "CA" => {

@@ -374,7 +374,7 @@ mod handler {
             let data: io::BuildPayload = serde_json::from_reader(whole_body.reader())?;
 
             state
-                .queue_one_build(data.jobset_id, &nix_utils::StorePath::new(&data.drv))
+                .queue_one_build(data.jobset_id, &nix_utils::parse_store_path(&data.drv))
                 .await?;
             construct_json_ok_response(&io::Empty {})
         }

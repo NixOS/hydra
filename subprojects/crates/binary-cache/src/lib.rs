@@ -25,6 +25,7 @@ use smallvec::SmallVec;
 
 use nix_utils::BaseStore as _;
 use nix_utils::RealisationOperations as _;
+use nix_utils::StorePathExt as _;
 
 mod cfg;
 mod compression;
@@ -836,7 +837,7 @@ impl S3BinaryCacheClient {
     ) -> Result<PresignedUploadResponse, CacheError> {
         let nar_hash_url = nix32_nar_hash
             .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), |h| h);
+            .map_or_else(|| path.hash_part(), |h| h.to_owned());
 
         let nar_url = format!("nar/{}.{}", nar_hash_url, self.cfg.compression.ext());
         let url = self

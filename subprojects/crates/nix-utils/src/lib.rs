@@ -51,7 +51,9 @@ pub use drv::{Derivation, DerivationEnv, Output as DerivationOutput, query_drv};
 pub use hash::{HashAlgorithm, HashFormat, convert_hash};
 pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
-pub use store_path::StorePath;
+pub use store_path::{
+    StoreDir, StorePath, StorePathExt, StorePathHash, StorePathName, parse_store_path,
+};
 
 pub fn validate_statuscode(status: std::process::ExitStatus) -> Result<(), Error> {
     if status.success() {
@@ -381,12 +383,12 @@ impl From<ffi::InternalPathInfo> for PathInfo {
             deriver: if val.deriver.is_empty() {
                 None
             } else {
-                Some(StorePath::new(&val.deriver))
+                Some(parse_store_path(&val.deriver))
             },
             nar_hash: val.nar_hash,
             registration_time: val.registration_time,
             nar_size: val.nar_size,
-            refs: val.refs.iter().map(|v| StorePath::new(v)).collect(),
+            refs: val.refs.iter().map(|v| parse_store_path(v)).collect(),
             sigs: val.sigs,
             ca: if val.ca.is_empty() {
                 None
@@ -651,7 +653,7 @@ impl BaseStore for BaseStoreImpl {
                 toposort,
             )?
             .into_iter()
-            .map(|v| StorePath::new(&v))
+            .map(|v| parse_store_path(&v))
             .collect())
         })
         .await
@@ -767,7 +769,7 @@ impl BaseStore for BaseStoreImpl {
         let path = self.print_store_path(path);
         asyncify(move || {
             let v = ffi::try_resolve_drv(store.as_raw(), &path)?;
-            Ok(v.is_empty().then_some(v).map(|v| StorePath::new(&v)))
+            Ok(v.is_empty().then_some(v).map(|v| parse_store_path(&v)))
         })
         .await
         .ok()

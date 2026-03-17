@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 
@@ -99,11 +100,11 @@ impl PartialEq for Step {
 
 impl Eq for Step {}
 
-impl std::hash::Hash for Step {
+impl Hash for Step {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // ensure that drv_path is never mutable
         // as we set Step as ignore-interior-mutability
-        self.drv_path.hash(state);
+        Hash::hash(&self.drv_path, state);
     }
 }
 
