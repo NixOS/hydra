@@ -236,7 +236,7 @@ mod tests {
             .unwrap();
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_path_prefix(store_prefix.as_path().to_string_lossy().to_string());
+        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("test.nar", &local, &store_path, mock_client.clone())
             .await
@@ -378,7 +378,7 @@ mod tests {
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_path_prefix(store_prefix.as_path().to_string_lossy().to_string());
+        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("test.nar", &local, &store_path, mock_client.clone())
             .await
@@ -405,7 +405,7 @@ mod tests {
         fs_err::tokio::create_dir_all(&build_id_dir).await.unwrap();
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_path_prefix(store_prefix.as_path().to_string_lossy().to_string());
+        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("test.nar", &local, &store_path, mock_client.clone())
             .await
@@ -446,7 +446,7 @@ mod tests {
         }
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_path_prefix(store_prefix.as_path().to_string_lossy().to_string());
+        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("multi.nar", &local, &store_path, mock_client.clone())
             .await

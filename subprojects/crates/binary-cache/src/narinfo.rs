@@ -7,8 +7,6 @@ use secrecy::ExposeSecret as _;
 
 use crate::Compression;
 
-use nix_utils::BaseStore as _;
-
 #[derive(Debug, Clone)]
 pub struct NarInfo {
     pub store_path: nix_utils::StorePath,
@@ -119,9 +117,9 @@ impl NarInfo {
         format!("{}.ls", self.store_path.hash().to_string())
     }
 
-    pub fn render(&self, store: &nix_utils::LocalStore) -> Result<String, std::fmt::Error> {
+    pub fn render(&self, store_dir: &StoreDir) -> Result<String, std::fmt::Error> {
         let mut o = String::with_capacity(200);
-        writeln!(o, "StorePath: {}", store.print_store_path(&self.store_path))?;
+        writeln!(o, "StorePath: {}", store_dir.display(&self.store_path))?;
         writeln!(o, "URL: {}", self.url)?;
         writeln!(o, "Compression: {}", self.compression.as_str())?;
         if let Some(h) = &self.file_hash {

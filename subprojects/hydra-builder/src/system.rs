@@ -190,9 +190,10 @@ impl SystemLoad {
         let meminfo = procfs_core::Meminfo::from_file("/proc/meminfo")?;
         let load = procfs_core::LoadAverage::from_file("/proc/loadavg")?;
 
-        // TODO: prefix
-        let nix_store_dir =
-            std::env::var("NIX_STORE_DIR").unwrap_or_else(|_| "/nix/store".to_owned());
+        let store_dir = nix_utils::StoreDir::new(
+            std::env::var("NIX_STORE_DIR").unwrap_or_else(|_| "/nix/store".to_owned()),
+        )
+        .unwrap_or_default();
 
         Ok(Self {
             load_avg_1: load.one,
@@ -201,7 +202,7 @@ impl SystemLoad {
             mem_usage: meminfo.mem_total - meminfo.mem_available.unwrap_or(0),
             pressure: PressureState::new(),
             build_dir_free_percent: get_mount_free_percent(build_dir).unwrap_or(100.),
-            store_free_percent: get_mount_free_percent(&nix_store_dir).unwrap_or(100.),
+            store_free_percent: get_mount_free_percent(store_dir.to_str()).unwrap_or(100.),
         })
     }
 
@@ -212,8 +213,10 @@ impl SystemLoad {
         sys.refresh_memory();
         let load = sysinfo::System::load_average();
 
-        // TODO: prefix
-        let nix_store_dir = std::env::var("NIX_STORE_DIR").unwrap_or("/nix/store".to_owned());
+        let store_dir = nix_utils::StoreDir::new(
+            std::env::var("NIX_STORE_DIR").unwrap_or_else(|_| "/nix/store".to_owned()),
+        )
+        .unwrap_or_default();
 
         Ok(Self {
             load_avg_1: load.one as f32,
@@ -222,7 +225,7 @@ impl SystemLoad {
             mem_usage: sys.used_memory(),
             pressure: None,
             build_dir_free_percent: get_mount_free_percent(build_dir).unwrap_or(0.),
-            store_free_percent: get_mount_free_percent(&nix_store_dir).unwrap_or(0.),
+            store_free_percent: get_mount_free_percent(store_dir.to_str()).unwrap_or(0.),
         })
     }
 }

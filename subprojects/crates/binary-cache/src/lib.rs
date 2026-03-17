@@ -535,15 +535,15 @@ impl S3BinaryCacheClient {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, store, narinfo), err)]
+    #[tracing::instrument(skip(self, store_dir, narinfo), err)]
     async fn upload_narinfo(
         &self,
-        store: &nix_utils::LocalStore,
+        store_dir: &nix_utils::StoreDir,
         narinfo: NarInfo,
     ) -> Result<String, CacheError> {
         let base = narinfo.store_path.hash().to_string();
         let info_key = format!("{base}.narinfo");
-        self.upsert_file(&info_key, narinfo.render(store)?, "text/x-nix-narinfo")
+        self.upsert_file(&info_key, narinfo.render(store_dir)?, "text/x-nix-narinfo")
             .await?;
         Ok(info_key)
     }
@@ -651,7 +651,7 @@ impl S3BinaryCacheClient {
             }
         }
 
-        self.upload_narinfo(store, narinfo).await?;
+        self.upload_narinfo(store.get_store_dir(), narinfo).await?;
 
         Ok(())
     }
@@ -921,7 +921,7 @@ impl S3BinaryCacheClient {
 
         let narinfo = narinfo.clear_sigs_and_sign(&self.signing_keys);
         // TODO: we also need to integarte realisation into this!
-        self.upload_narinfo(store, narinfo).await
+        self.upload_narinfo(store.get_store_dir(), narinfo).await
     }
 }
 

@@ -91,20 +91,20 @@ trait FsOperations {
 
 #[derive(Debug, Clone)]
 struct FilesystemOperations {
-    nix_store_dir: std::sync::Arc<String>,
+    store_dir: nix_utils::StoreDir,
 }
 
 impl FilesystemOperations {
     fn new() -> Self {
         Self {
-            nix_store_dir: std::sync::Arc::new(nix_utils::get_store_dir()),
+            store_dir: nix_utils::StoreDir::new(nix_utils::get_store_dir()).unwrap_or_default(),
         }
     }
 }
 
 impl FsOperations for FilesystemOperations {
     fn is_inside_store(&self, path: &std::path::Path) -> bool {
-        nix_utils::is_subpath(std::path::Path::new(self.nix_store_dir.as_str()), path)
+        nix_utils::is_subpath(self.store_dir.to_path(), path)
     }
 
     #[tracing::instrument(skip(self), err)]

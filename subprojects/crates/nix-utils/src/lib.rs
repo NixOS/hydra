@@ -49,7 +49,9 @@ pub enum Error {
 pub use drv::{Derivation, DerivationEnv, Output as DerivationOutput, query_drv};
 pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
-pub use store_path::{StoreDir, StorePath, StorePathHash, StorePathName, parse_store_path};
+pub use store_path::{
+    StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName, parse_store_path,
+};
 
 pub fn validate_statuscode(status: std::process::ExitStatus) -> Result<(), Error> {
     if status.success() {
@@ -66,7 +68,8 @@ pub fn add_root(store: &LocalStore, root_dir: &std::path::Path, store_path: &Sto
         let _ = fs_err::remove_file(&path);
     }
     if !fs_err::exists(&path).unwrap_or_default() {
-        let _ = fs_err::os::unix::fs::symlink(store.print_store_path(store_path), path);
+        let target = store.get_store_dir().display(store_path).to_string();
+        let _ = fs_err::os::unix::fs::symlink(target, path);
     }
 }
 
@@ -465,7 +468,12 @@ pub trait BaseStore {
     ) -> impl Future<Output = Result<HashMap<String, String>, Error>>;
 
     #[must_use]
-    fn print_store_path(&self, path: &StorePath) -> String;
+    fn store_dir(&self) -> &StoreDir;
+
+    #[must_use]
+    fn print_store_path(&self, path: &StorePath) -> String {
+        self.store_dir().display(path).to_string()
+    }
 }
 
 struct FFIStore(std::cell::UnsafeCell<cxx::UniquePtr<ffi::StoreWrapper>>);
@@ -488,15 +496,16 @@ impl FFIStore {
 #[allow(missing_debug_implementations)]
 pub struct BaseStoreImpl {
     wrapper: std::sync::Arc<FFIStore>,
-    store_path_prefix: String,
+    store_dir: StoreDir,
 }
 
 impl BaseStoreImpl {
     fn new(store: cxx::UniquePtr<ffi::StoreWrapper>) -> Self {
-        let store_path_prefix = ffi::get_store_dir_for(&store);
+        let store_dir = StoreDir::new(ffi::get_store_dir_for(&store))
+            .unwrap_or_default();
         Self {
             wrapper: std::sync::Arc::new(FFIStore(std::cell::UnsafeCell::new(store))),
-            store_path_prefix,
+            store_dir,
         }
     }
 }
@@ -779,8 +788,8 @@ impl BaseStore for BaseStoreImpl {
     }
 
     #[inline]
-    fn print_store_path(&self, path: &StorePath) -> String {
-        format!("{}/{}", self.store_path_prefix, path.to_string())
+    fn store_dir(&self) -> &StoreDir {
+        &self.store_dir
     }
 }
 
@@ -862,12 +871,12 @@ impl LocalStore {
     }
 
     #[must_use]
-    pub const fn get_store_path_prefix(&self) -> &str {
-        self.base.store_path_prefix.as_str()
+    pub fn get_store_dir(&self) -> &StoreDir {
+        &self.base.store_dir
     }
 
-    pub fn unsafe_set_store_path_prefix(&mut self, prefix: String) {
-        self.base.store_path_prefix = prefix;
+    pub fn unsafe_set_store_dir(&mut self, store_dir: StoreDir) {
+        self.base.store_dir = store_dir;
     }
 }
 
@@ -1010,8 +1019,8 @@ impl BaseStore for LocalStore {
     }
 
     #[inline]
-    fn print_store_path(&self, path: &StorePath) -> String {
-        self.base.print_store_path(path)
+    fn store_dir(&self) -> &StoreDir {
+        self.base.store_dir()
     }
 }
 
@@ -1245,7 +1254,7 @@ impl BaseStore for RemoteStore {
     }
 
     #[inline]
-    fn print_store_path(&self, path: &StorePath) -> String {
-        self.base.print_store_path(path)
+    fn store_dir(&self) -> &StoreDir {
+        self.base.store_dir()
     }
 }
