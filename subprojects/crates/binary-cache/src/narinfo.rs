@@ -1,5 +1,6 @@
 use std::fmt::Write as _;
 
+use harmonia_store_core::signature::SecretKey;
 use secrecy::ExposeSecret as _;
 
 use crate::Compression;
@@ -113,8 +114,9 @@ impl NarInfo {
             && let Some(fp) = self.fingerprint_path(store)
         {
             for s in signing_keys {
-                self.sigs
-                    .push(nix_utils::sign_string(s.expose_secret(), &fp));
+                if let Ok(sk) = s.expose_secret().parse::<SecretKey>() {
+                    self.sigs.push(sk.sign(&fp).to_string());
+                }
             }
         }
         self

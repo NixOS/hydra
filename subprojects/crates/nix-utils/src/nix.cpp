@@ -106,10 +106,6 @@ bool get_use_cgroups() {
 }
 void set_verbosity(int32_t level) { nix::verbosity = (nix::Verbosity)level; }
 
-rust::String sign_string(rust::Str secret_key, rust::Str msg) {
-  return nix::SecretKey(AS_VIEW(secret_key)).signDetached(AS_VIEW(msg)).to_string();
-}
-
 bool is_valid_path(const StoreWrapper &wrapper, rust::Str path) {
   auto store = wrapper._store;
   return store->isValidPath(store->parseStorePath(AS_VIEW(path)));

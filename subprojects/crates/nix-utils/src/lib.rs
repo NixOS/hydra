@@ -144,8 +144,6 @@ mod ffi {
 
         fn get_use_cgroups() -> bool;
         fn set_verbosity(level: i32);
-        fn sign_string(secret_key: &str, msg: &str) -> String;
-
         fn is_valid_path(store: &StoreWrapper, path: &str) -> Result<bool>;
         fn query_path_info(store: &StoreWrapper, path: &str) -> Result<InternalPathInfo>;
         fn compute_closure_size(store: &StoreWrapper, path: &str) -> Result<u64>;
@@ -316,12 +314,6 @@ pub fn get_use_cgroups() -> bool {
 /// Set the loglevel.
 pub fn set_verbosity(level: i32) {
     ffi::set_verbosity(level);
-}
-
-#[inline]
-#[must_use]
-pub fn sign_string(secret_key: &str, msg: &str) -> String {
-    ffi::sign_string(secret_key, msg)
 }
 
 pub(crate) async fn asyncify<F, T>(f: F) -> Result<T, Error>

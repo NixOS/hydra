@@ -289,6 +289,7 @@ dependencies = [
  "foldhash 0.2.0",
  "fs-err",
  "futures",
+ "harmonia-store-core",
  "hashbrown 0.16.1",
  "hydra-tracing",
  "moka",
