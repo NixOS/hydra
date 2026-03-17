@@ -138,23 +138,6 @@ mod ffi {
         fn query_path_info(store: &StoreWrapper, path: &str) -> Result<InternalPathInfo>;
         fn compute_closure_size(store: &StoreWrapper, path: &str) -> Result<u64>;
         fn clear_path_info_cache(store: &StoreWrapper) -> Result<()>;
-        #[allow(clippy::fn_params_excessive_bools)]
-        fn compute_fs_closure(
-            store: &StoreWrapper,
-            path: &str,
-            flip_direction: bool,
-            include_outputs: bool,
-            include_derivers: bool,
-        ) -> Result<Vec<String>>;
-        #[allow(clippy::fn_params_excessive_bools)]
-        fn compute_fs_closures(
-            store: &StoreWrapper,
-            paths: &[&str],
-            flip_direction: bool,
-            include_outputs: bool,
-            include_derivers: bool,
-            toposort: bool,
-        ) -> Result<Vec<String>>;
         fn upsert_file(store: &StoreWrapper, path: &str, data: &str, mime_type: &str)
         -> Result<()>;
         fn get_store_stats(store: &StoreWrapper) -> Result<StoreStats>;
@@ -359,6 +342,17 @@ where
     }
 }
 
+pub(crate) async fn asyncify_anyhow<F, T>(f: F) -> Result<T, Error>
+where
+    F: FnOnce() -> Result<T, Error> + Send + 'static,
+    T: Send + 'static,
+{
+    match tokio::task::spawn_blocking(f).await {
+        Ok(res) => res,
+        Err(_) => Err(std::io::Error::other("background task failed"))?,
+    }
+}
+
 #[inline]
 pub async fn copy_paths(
     src: &BaseStoreImpl,
@@ -444,7 +438,7 @@ pub trait BaseStore {
         flip_direction: bool,
         include_outputs: bool,
         include_derivers: bool,
-    ) -> Result<Vec<String>, cxx::Exception>;
+    ) -> Result<Vec<String>, Error>;
 
     #[allow(clippy::fn_params_excessive_bools)]
     fn compute_fs_closures(
@@ -530,15 +524,24 @@ impl FFIStore {
 pub struct BaseStoreImpl {
     wrapper: std::sync::Arc<FFIStore>,
     store_dir: StoreDir,
+    /// URI used to open this store, passed through to nbs for equivalent access.
+    uri: String,
 }
 
 impl BaseStoreImpl {
-    fn new(store: cxx::UniquePtr<ffi::StoreWrapper>) -> Self {
+    fn new(store: cxx::UniquePtr<ffi::StoreWrapper>, uri: &str) -> Self {
         let store_dir = StoreDir::new(ffi::get_store_dir_for(&store)).unwrap_or_default();
         Self {
             wrapper: std::sync::Arc::new(FFIStore(std::cell::UnsafeCell::new(store))),
             store_dir,
+            uri: uri.to_owned(),
         }
+    }
+
+    /// Open an nbs Store matching this store's URI.
+    fn open_nbs_store(&self) -> Result<nix_bindings_store::store::Store, Error> {
+        let uri = if self.uri.is_empty() { None } else { Some(self.uri.as_str()) };
+        Ok(nix_bindings_store::store::Store::open(uri, std::iter::empty::<(&str, &str)>())?)
     }
 }
 
@@ -645,14 +648,11 @@ impl BaseStore for BaseStoreImpl {
         flip_direction: bool,
         include_outputs: bool,
         include_derivers: bool,
-    ) -> Result<Vec<String>, cxx::Exception> {
-        ffi::compute_fs_closure(
-            self.wrapper.as_raw(),
-            path,
-            flip_direction,
-            include_outputs,
-            include_derivers,
-        )
+    ) -> Result<Vec<String>, Error> {
+        let mut nbs = self.open_nbs_store()?;
+        let nbs_path = nbs.parse_store_path(path)?;
+        let closure = nbs.get_fs_closure(&nbs_path, flip_direction, include_outputs, include_derivers)?;
+        closure.iter().map(|p| nbs.real_path(p).map_err(Error::from)).collect()
     }
 
     #[inline]
@@ -663,27 +663,34 @@ impl BaseStore for BaseStoreImpl {
         flip_direction: bool,
         include_outputs: bool,
         include_derivers: bool,
-        toposort: bool,
+        _toposort: bool, // TODO: nix C API doesn't expose topoSortPaths; ignored for now
     ) -> Result<Vec<StorePath>, Error> {
-        let store = self.wrapper.clone();
-        let paths = paths
+        let paths: Vec<String> = paths
             .iter()
             .map(|v| self.print_store_path(v))
-            .collect::<Vec<_>>();
+            .collect();
+        let uri = self.uri.clone();
 
-        asyncify(move || {
-            let slice = paths.iter().map(String::as_str).collect::<Vec<_>>();
-            Ok(ffi::compute_fs_closures(
-                store.as_raw(),
-                &slice,
-                flip_direction,
-                include_outputs,
-                include_derivers,
-                toposort,
-            )?
-            .into_iter()
-            .map(|v| parse_store_path(&v))
-            .collect())
+        asyncify_anyhow(move || -> Result<Vec<StorePath>, Error> {
+            let store_uri = if uri.is_empty() { None } else { Some(uri.as_str()) };
+            let mut nbs = nix_bindings_store::store::Store::open(
+                store_uri,
+                std::iter::empty::<(&str, &str)>(),
+            )?;
+            let mut seen = std::collections::HashSet::new();
+            let mut result = Vec::new();
+            for path_str in &paths {
+                let nbs_path = nbs.parse_store_path(path_str)?;
+                let closure = nbs.get_fs_closure(&nbs_path, flip_direction, include_outputs, include_derivers)?;
+                for p in closure {
+                    let path_str = nbs.real_path(&p)?;
+                    let sp = parse_store_path(&path_str);
+                    if seen.insert(sp.clone()) {
+                        result.push(sp);
+                    }
+                }
+            }
+            Ok(result)
         })
         .await
     }
@@ -869,7 +876,7 @@ impl LocalStore {
     /// Initialise a new store
     #[must_use]
     pub fn init() -> Self {
-        let base = BaseStoreImpl::new(ffi::init(""));
+        let base = BaseStoreImpl::new(ffi::init(""), "");
         Self { base }
     }
 
@@ -946,7 +953,7 @@ impl BaseStore for LocalStore {
         flip_direction: bool,
         include_outputs: bool,
         include_derivers: bool,
-    ) -> Result<Vec<String>, cxx::Exception> {
+    ) -> Result<Vec<String>, Error> {
         self.base
             .compute_fs_closure(path, flip_direction, include_outputs, include_derivers)
     }
@@ -1076,7 +1083,7 @@ impl RemoteStore {
             .unwrap_or_default();
 
         Self {
-            base: BaseStoreImpl::new(ffi::init(uri)),
+            base: BaseStoreImpl::new(ffi::init(uri), uri),
             uri: uri.into(),
             base_uri,
         }
@@ -1181,7 +1188,7 @@ impl BaseStore for RemoteStore {
         flip_direction: bool,
         include_outputs: bool,
         include_derivers: bool,
-    ) -> Result<Vec<String>, cxx::Exception> {
+    ) -> Result<Vec<String>, Error> {
         self.base
             .compute_fs_closure(path, flip_direction, include_outputs, include_derivers)
     }

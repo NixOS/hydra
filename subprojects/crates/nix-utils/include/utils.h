@@ -10,5 +10,3 @@ rust::String extract_opt_path(const nix::Store &store,
                               const std::optional<nix::StorePath> &v);
 rust::Vec<rust::String> extract_path_set(const nix::Store &store,
                                          const nix::StorePathSet &set);
-rust::Vec<rust::String> extract_paths(const nix::Store &store,
-                                      const nix::StorePaths &set);
