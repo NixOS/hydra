@@ -28,6 +28,7 @@ impl NarInfo {
         path: &nix_utils::StorePath,
         path_info: nix_utils::PathInfo,
         compression: Compression,
+        store_dir: &StoreDir,
         signing_keys: &[secrecy::SecretString],
     ) -> Self {
         let nar_hash = normalize_nar_hash(path_info.nar_hash);
@@ -49,7 +50,7 @@ impl NarInfo {
             sigs: vec![],
         };
 
-        let mut narinfo = narinfo.clear_sigs_and_sign(signing_keys);
+        let mut narinfo = narinfo.clear_sigs_and_sign(store_dir, signing_keys);
         if narinfo.sigs.is_empty() && !path_info.sigs.is_empty() {
             narinfo.sigs = path_info.sigs;
         }
@@ -84,10 +85,14 @@ impl NarInfo {
     }
 
     #[must_use]
-    pub fn clear_sigs_and_sign(mut self, signing_keys: &[secrecy::SecretString]) -> Self {
+    pub fn clear_sigs_and_sign(
+        mut self,
+        store_dir: &StoreDir,
+        signing_keys: &[secrecy::SecretString],
+    ) -> Self {
         self.sigs.clear();
         if !signing_keys.is_empty()
-            && let Some(fp) = self.fingerprint()
+            && let Some(fp) = self.fingerprint(store_dir)
         {
             for s in signing_keys {
                 if let Ok(sk) = s.expose_secret().parse::<SecretKey>() {
@@ -99,11 +104,10 @@ impl NarInfo {
     }
 
     #[must_use]
-    fn fingerprint(&self) -> Option<Vec<u8>> {
-        let store_dir = StoreDir::default();
+    fn fingerprint(&self, store_dir: &StoreDir) -> Option<Vec<u8>> {
         let refs = self.references.iter().cloned().collect();
         fingerprint_path(
-            &store_dir,
+            store_dir,
             &self.store_path,
             self.nar_hash.as_bytes(),
             self.nar_size,

@@ -559,7 +559,13 @@ impl S3BinaryCacheClient {
                 path: path.to_string(),
             });
         };
-        let narinfo = NarInfo::new(path, path_info, self.cfg.compression, &self.signing_keys);
+        let narinfo = NarInfo::new(
+            path,
+            path_info,
+            self.cfg.compression,
+            store.get_store_dir(),
+            &self.signing_keys,
+        );
         let queried_references = store
             .query_path_infos(&narinfo.references.iter().collect::<Vec<_>>())
             .await;
@@ -919,7 +925,7 @@ impl S3BinaryCacheClient {
                 path: narinfo.url.clone(),
             })?;
 
-        let narinfo = narinfo.clear_sigs_and_sign(&self.signing_keys);
+        let narinfo = narinfo.clear_sigs_and_sign(store.get_store_dir(), &self.signing_keys);
         // TODO: we also need to integarte realisation into this!
         self.upload_narinfo(store.get_store_dir(), narinfo).await
     }
