@@ -29,7 +29,7 @@ InternalRealisation::to_rust(const nix_utils::StoreWrapper &wrapper) const {
   rust::Vec<DrvOutputPathTuple> dependent;
 
   return SharedRealisation{
-      DrvOutput{
+      FfiDrvOutput{
           _realisation->id.strHash(),
           _realisation->id.outputName,
       },
@@ -39,8 +39,8 @@ InternalRealisation::to_rust(const nix_utils::StoreWrapper &wrapper) const {
   };
 }
 
-DrvOutput InternalRealisation::get_drv_output() const {
-  return DrvOutput{_realisation->id.strHash(), _realisation->id.outputName};
+FfiDrvOutput InternalRealisation::get_drv_output() const {
+  return FfiDrvOutput{_realisation->id.strHash(), _realisation->id.outputName};
 }
 
 rust::String InternalRealisation::fingerprint() const {

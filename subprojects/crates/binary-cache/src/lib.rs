@@ -636,15 +636,10 @@ impl S3BinaryCacheClient {
             && let Ok(hashes) = store.static_output_hashes(deriver).await
         {
             for (output_name, drv_hash) in hashes {
-                self.copy_realisation(
-                    store,
-                    &nix_utils::DrvOutput {
-                        drv_hash,
-                        output_name,
-                    },
-                    repair,
-                )
-                .await?;
+                let Ok(id) = format!("{drv_hash}!{output_name}").parse::<nix_utils::DrvOutput>() else {
+                    continue;
+                };
+                self.copy_realisation(store, &id, repair).await?;
             }
         }
 
@@ -687,7 +682,7 @@ impl S3BinaryCacheClient {
             return Ok(());
         }
 
-        let mut raw_realisation = store.query_raw_realisation(&id.drv_hash, &id.output_name)?;
+        let mut raw_realisation = store.query_raw_realisation(id)?;
         if !self.signing_keys.is_empty() {
             for s in &self.signing_keys {
                 raw_realisation.sign(s.expose_secret())?;

@@ -4,12 +4,10 @@ use nix_utils::RealisationOperations as _;
 #[tokio::main]
 async fn main() {
     let local = nix_utils::LocalStore::init();
-    let mut realisation = local
-        .query_raw_realisation(
-            "sha256:6e46b9cf4fecaeab4b3c0578f4ab99e89d2f93535878c4ac69b5d5c4eb3a3db9",
-            "debug",
-        )
+    let id = "sha256:6e46b9cf4fecaeab4b3c0578f4ab99e89d2f93535878c4ac69b5d5c4eb3a3db9!debug"
+        .parse::<nix_utils::DrvOutput>()
         .unwrap();
+    let mut realisation = local.query_raw_realisation(&id).unwrap();
 
     println!("json: {}", realisation.as_json());
     println!("fingerprint: {}", realisation.fingerprint());

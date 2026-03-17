@@ -49,7 +49,7 @@ pub enum Error {
 
 pub use drv::{Derivation, DerivationEnv, Output as DerivationOutput, query_drv};
 pub use hash::{HashAlgorithm, HashFormat, convert_hash};
-pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations};
+pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
 pub use store_path::{
     StoreDir, StorePath, StorePathExt, StorePathHash, StorePathName, parse_store_path,

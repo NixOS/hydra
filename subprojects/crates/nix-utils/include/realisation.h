@@ -9,7 +9,7 @@
 
 namespace nix_utils {
 struct SharedRealisation;
-struct DrvOutput;
+struct FfiDrvOutput;
 
 class InternalRealisation {
 public:
@@ -17,7 +17,7 @@ public:
 
   rust::String as_json() const;
   SharedRealisation to_rust(const nix_utils::StoreWrapper &wrapper) const;
-  DrvOutput get_drv_output() const;
+  FfiDrvOutput get_drv_output() const;
 
   rust::String fingerprint() const;
   void sign(rust::Str secret_key);
