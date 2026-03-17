@@ -547,7 +547,6 @@ impl S3BinaryCacheClient {
             });
         };
         let narinfo = NarInfo::new(
-            store,
             path,
             path_info,
             self.cfg.compression,
@@ -943,7 +942,7 @@ impl S3BinaryCacheClient {
                 path: narinfo.url.clone(),
             })?;
 
-        let narinfo = narinfo.clear_sigs_and_sign(store, &self.signing_keys);
+        let narinfo = narinfo.clear_sigs_and_sign(&self.signing_keys);
         // TODO: we also need to integarte realisation into this!
         self.upload_narinfo(store, narinfo).await
     }

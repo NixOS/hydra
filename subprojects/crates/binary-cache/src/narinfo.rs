@@ -1,6 +1,7 @@
 use std::fmt::Write as _;
 
-use harmonia_store_core::signature::SecretKey;
+use harmonia_store_core::signature::{SecretKey, fingerprint_path};
+use harmonia_store_core::store_path::StoreDir;
 use secrecy::ExposeSecret as _;
 
 use crate::Compression;
@@ -26,7 +27,6 @@ pub struct NarInfo {
 impl NarInfo {
     #[must_use]
     pub fn new(
-        store: &nix_utils::LocalStore,
         path: &nix_utils::StorePath,
         path_info: nix_utils::PathInfo,
         compression: Compression,
@@ -60,7 +60,7 @@ impl NarInfo {
             sigs: vec![],
         };
 
-        let mut narinfo = narinfo.clear_sigs_and_sign(store, signing_keys);
+        let mut narinfo = narinfo.clear_sigs_and_sign(signing_keys);
         if narinfo.sigs.is_empty() && !path_info.sigs.is_empty() {
             narinfo.sigs = path_info.sigs;
         }
@@ -106,12 +106,11 @@ impl NarInfo {
     #[must_use]
     pub fn clear_sigs_and_sign(
         mut self,
-        store: &nix_utils::LocalStore,
         signing_keys: &[secrecy::SecretString],
     ) -> Self {
-        self.sigs.clear(); // if we call this sign, we dont trust the signatures
+        self.sigs.clear();
         if !signing_keys.is_empty()
-            && let Some(fp) = self.fingerprint_path(store)
+            && let Some(fp) = self.fingerprint()
         {
             for s in signing_keys {
                 if let Ok(sk) = s.expose_secret().parse::<SecretKey>() {
@@ -123,37 +122,17 @@ impl NarInfo {
     }
 
     #[must_use]
-    fn fingerprint_path(&self, store: &nix_utils::LocalStore) -> Option<String> {
-        let root_store_dir = nix_utils::get_store_dir();
-        let abs_path = store.print_store_path(&self.store_path);
-
-        if abs_path[0..root_store_dir.len()] != root_store_dir || &self.nar_hash[0..7] != "sha256:"
-        {
-            return None;
-        }
-
-        if self.nar_hash.len() != 59 {
-            return None;
-        }
-
-        let refs = self
-            .references
-            .iter()
-            .map(|r| store.print_store_path(r))
-            .collect::<Vec<_>>();
-        for r in &refs {
-            if r[0..root_store_dir.len()] != root_store_dir {
-                return None;
-            }
-        }
-
-        Some(format!(
-            "1;{};{};{};{}",
-            abs_path,
-            self.nar_hash,
+    fn fingerprint(&self) -> Option<Vec<u8>> {
+        let store_dir = StoreDir::default();
+        let refs = self.references.iter().cloned().collect();
+        fingerprint_path(
+            &store_dir,
+            &self.store_path,
+            self.nar_hash.as_bytes(),
             self.nar_size,
-            refs.join(",")
-        ))
+            &refs,
+        )
+        .ok()
     }
 
     #[must_use]
