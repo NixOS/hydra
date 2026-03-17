@@ -1,33 +1,4 @@
-#[cxx::bridge(namespace = "nix_utils::hash")]
-mod ffi {
-    #![allow(unreachable_pub, unused_qualifications)]
-
-    enum HashFormat {
-        Base64,
-        Nix32,
-        Base16,
-        SRI,
-    }
-
-    enum OptionalHashAlgorithm {
-        None,
-        MD5,
-        SHA1,
-        SHA256,
-        SHA512,
-        BLAKE3,
-    }
-
-    unsafe extern "C++" {
-        include!("nix-utils/include/hash.h");
-
-        fn convert_hash(
-            s: &str,
-            algo: OptionalHashAlgorithm,
-            out_format: HashFormat,
-        ) -> Result<String>;
-    }
-}
+use harmonia_utils_hash::fmt::{Any, CommonHash as _};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HashFormat {
@@ -35,17 +6,6 @@ pub enum HashFormat {
     Nix32,
     Base16,
     SRI,
-}
-
-impl From<HashFormat> for ffi::HashFormat {
-    fn from(value: HashFormat) -> Self {
-        match value {
-            HashFormat::Base64 => Self::Base64,
-            HashFormat::Nix32 => Self::Nix32,
-            HashFormat::Base16 => Self::Base16,
-            HashFormat::SRI => Self::SRI,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,15 +17,15 @@ pub enum HashAlgorithm {
     BLAKE3,
 }
 
-impl From<Option<HashAlgorithm>> for ffi::OptionalHashAlgorithm {
-    fn from(value: Option<HashAlgorithm>) -> Self {
-        value.map_or(Self::None, |v| match v {
+impl From<HashAlgorithm> for harmonia_utils_hash::Algorithm {
+    fn from(value: HashAlgorithm) -> Self {
+        match value {
             HashAlgorithm::MD5 => Self::MD5,
             HashAlgorithm::SHA1 => Self::SHA1,
             HashAlgorithm::SHA256 => Self::SHA256,
             HashAlgorithm::SHA512 => Self::SHA512,
-            HashAlgorithm::BLAKE3 => Self::BLAKE3,
-        })
+            HashAlgorithm::BLAKE3 => panic!("BLAKE3 not supported by harmonia"),
+        }
     }
 }
 
@@ -73,6 +33,9 @@ impl From<Option<HashAlgorithm>> for ffi::OptionalHashAlgorithm {
 pub enum ParseError {
     #[error("Invalid Algorithm passed: {0}")]
     InvalidAlgorithm(String),
+
+    #[error("Hash parse error: {0}")]
+    HashParse(String),
 }
 
 impl std::str::FromStr for HashAlgorithm {
@@ -90,11 +53,33 @@ impl std::str::FromStr for HashAlgorithm {
     }
 }
 
-#[inline]
+/// Convert a hash string from one format to another.
+///
+/// When `algo` is [`Some`], the input string is parsed as a bare hash in that algorithm.
+/// When `algo` is [`None`], the input must include the algorithm prefix (e.g. `sha256:...`).
 pub fn convert_hash(
     s: &str,
     algo: Option<HashAlgorithm>,
     out_format: HashFormat,
-) -> Result<String, cxx::Exception> {
-    ffi::convert_hash(s, algo.into(), out_format.into())
+) -> Result<String, ParseError> {
+    let hash = if let Some(algo) = algo {
+        let algo = harmonia_utils_hash::Algorithm::from(algo);
+        // Try parsing as "algo:hash" first, then as bare hash with known algo
+        let prefixed = format!("{algo}:{s}");
+        prefixed
+            .parse::<Any<harmonia_utils_hash::Hash>>()
+            .map(Any::into_hash)
+            .map_err(|e| ParseError::HashParse(e.to_string()))?
+    } else {
+        s.parse::<Any<harmonia_utils_hash::Hash>>()
+            .map(Any::into_hash)
+            .map_err(|e| ParseError::HashParse(e.to_string()))?
+    };
+
+    Ok(match out_format {
+        HashFormat::Base16 => format!("{}", hash.as_base16()),
+        HashFormat::Nix32 => format!("{}", hash.as_base32()),
+        HashFormat::Base64 => format!("{}", hash.as_base64()),
+        HashFormat::SRI => format!("{}", hash.as_sri()),
+    })
 }
