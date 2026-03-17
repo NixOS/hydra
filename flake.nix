@@ -71,7 +71,7 @@
       hydraJobs = {
         build = forEachSystem (system: packages.${system}.hydra);
 
-        unitTests = forEachSystem (system: packages.${system}.hydra-tests);
+        systemTests = forEachSystem (system: packages.${system}.hydra-tests);
 
         manual = forEachSystem (system: packages.${system}.hydra-manual);
 
@@ -87,7 +87,7 @@
       };
 
       checks = forEachSystem (system: {
-        build = hydraJobs.build.${system};
+        systemTests = hydraJobs.systemTests.${system};
         install = hydraJobs.nixosTests.install.${system};
         validate-openapi = hydraJobs.nixosTests.validate-openapi.${system};
       });
