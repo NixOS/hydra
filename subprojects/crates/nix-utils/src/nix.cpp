@@ -66,11 +66,6 @@ rust::String get_log_dir() { return nix::settings.getLogFileSettings().nixLogDir
 rust::String get_state_dir() { return nix::settings.nixStateDir.string(); }
 
 
-bool is_valid_path(const StoreWrapper &wrapper, rust::Str path) {
-  auto store = wrapper._store;
-  return store->isValidPath(store->parseStorePath(AS_VIEW(path)));
-}
-
 InternalPathInfo query_path_info(const StoreWrapper &wrapper, rust::Str path) {
   auto store = wrapper._store;
   auto info = store->queryPathInfo(store->parseStorePath(AS_VIEW(path)));

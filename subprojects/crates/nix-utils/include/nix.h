@@ -25,7 +25,6 @@ rust::String get_build_dir();
 rust::String get_log_dir();
 rust::String get_state_dir();
 
-bool is_valid_path(const StoreWrapper &wrapper, rust::Str path);
 InternalPathInfo query_path_info(const StoreWrapper &wrapper, rust::Str path);
 void clear_path_info_cache(const StoreWrapper &wrapper);
 uint64_t compute_closure_size(const StoreWrapper &wrapper, rust::Str path);
