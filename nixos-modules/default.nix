@@ -8,6 +8,8 @@ rec {
       lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra;
   };
 
+  postgresql = ./postgresql.nix;
+
   queue-runner = { pkgs, lib, ... }: {
     _file = ./default.nix;
     imports = [ ./queue-runner-module.nix ];
@@ -42,6 +44,12 @@ rec {
     services.hydra-dev.enable = true;
     services.hydra-dev.hydraURL = "http://hydra.example.org";
     services.hydra-dev.notificationSender = "admin@hydra.example.org";
+
+    services.hydra-queue-runner-dev.enable = true;
+
+    services.hydra-queue-builder-dev.enable = true;
+    services.hydra-queue-builder-dev.queueRunnerAddr = "http://[::1]:50051";
+    systemd.services.hydra-queue-builder-dev.after = [ "hydra-queue-runner-dev.service" ];
 
     systemd.services.hydra-send-stats.enable = false;
 

@@ -211,6 +211,14 @@ in
         );
       };
 
+      minimumDiskFree = lib.mkOption {
+        type = lib.types.int;
+        default = 0;
+        description = ''
+          Threshold of minimum disk space (GiB) to determine if the queue runner should run or not.
+        '';
+      };
+
       package = lib.mkOption {
         type = lib.types.package;
         default = pkgs.callPackage ./. { };
@@ -224,8 +232,10 @@ in
 
       requires = [ "nix-daemon.socket" ];
       after = [
+        # sets up database, queue-runner crashes if schema is incorrect
+        "hydra-init.service"
+        # queue-runner may need to connect to another machine
         "network.target"
-        "postgresql.service"
       ];
       wantedBy = [ "multi-user.target" ];
       reloadTriggers = [ config.environment.etc."hydra/queue-runner.toml".source ];
@@ -317,6 +327,20 @@ in
       };
     };
 
+    # If there is less than a certain amount of free disk space, stop
+    # the queue to prevent builds from failing or aborting.
+    # Leaves a tag file indicating this reason; if the tag file exists
+    # and disk space is above the threshold + 10GB, the queue will be
+    # restarted; starting it if it is already started is not harmful.
+    systemd.services.hydra-queue-runner-check-space =
+      { script =
+          ''
+            ${builtins.readFile ./check-space.sh}
+            spacestopstart hydra-queue-runner-dev ${toString cfg.minimumDiskFree}
+          '';
+        startAt = "*:0/5";
+      };
+
     environment.etc."hydra/queue-runner.toml".source = format.generate "queue-runner.toml" (
       lib.filterAttrsRecursive (_: v: v != null) cfg.settings
     );
@@ -324,6 +348,10 @@ in
       "d /nix/var/nix/gcroots/per-user/hydra-queue-runner 0755 hydra-queue-runner hydra -"
       "d /var/lib/hydra/build-logs/ 0755 hydra-queue-runner hydra -"
     ];
+
+    services.postgresql.identMap = ''
+      hydra-users hydra-queue-runner hydra
+    '';
 
     users = {
       groups.hydra = { };

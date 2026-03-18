@@ -157,6 +157,8 @@ in
         HOME = "/run/hydra-queue-builder";
       };
 
+      path = [ config.nix.package ];
+
       serviceConfig = {
         Type = "notify";
         Restart = "always";
@@ -271,7 +273,6 @@ in
     ];
     nix = {
       settings = {
-        allowed-users = [ "hydra-queue-builder" ];
         trusted-users = [ "hydra-queue-builder" ];
         experimental-features = [ "nix-command" ];
       };
