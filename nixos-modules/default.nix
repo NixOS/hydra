@@ -1,14 +1,41 @@
-{ self }:
+{ flakePackages }:
 
-{
-  hydra = { pkgs, lib,... }: {
+rec {
+  web-app = { pkgs, lib, ... }: {
+    _file = ./default.nix;
+    imports = [ ./web-app.nix ];
+    services.hydra-dev.package =
+      lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra;
+  };
+
+  queue-runner = { pkgs, lib, ... }: {
+    _file = ./default.nix;
+    imports = [ ./queue-runner-module.nix ];
+    services.hydra-queue-runner-dev.package =
+      lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
+  };
+
+  linux-builder = { pkgs, lib, ... }: {
+    _file = ./default.nix;
+    imports = [ ./linux-builder-module.nix ];
+    services.hydra-queue-builder-dev.package =
+      lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
+  };
+
+  darwin-builder = { pkgs, lib, ... }: {
+    _file = ./default.nix;
+    imports = [ ./darwin-builder-module.nix ];
+    services.hydra-queue-builder-dev.package =
+      lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
+  };
+
+  hydra = { ... }: {
     _file = ./default.nix;
     imports = [
-      ./hydra.nix
-      ./linux-builder-module.nix
-      ./queue-runner-module.nix
+      web-app
+      queue-runner
+      linux-builder
     ];
-    services.hydra-dev.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.hydra;
   };
 
   hydraTest = { pkgs, ... }: {
