@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use backon::Retryable;
 
 use bytes::Bytes;
-use harmonia_utils_hash::fmt::CommonHash as _;
 use nix_utils::{BaseStore as _, LocalStore};
 
 use tokio_util::io::StreamReader;
@@ -76,9 +75,9 @@ pub struct PresignedUploadMetrics {
     pub put_time_ms: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct PresignedUploadResult {
-    pub file_hash: String,
+    pub file_hash: harmonia_utils_hash::Hash,
     pub file_size: u64,
 }
 
@@ -291,10 +290,7 @@ impl PresignedUploadClient {
             harmonia_utils_hash::Algorithm::SHA256,
             file_hash.as_slice(),
         )
-        .map_or_else(
-            |_| format!("sha256:{file_hash:x}"),
-            |h| format!("{}", h.as_base32()),
-        );
+        .map_err(|e| CacheError::Signing(format!("invalid file hash: {e}")))?;
 
         // Update metrics
         self.metrics

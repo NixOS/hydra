@@ -5,6 +5,7 @@ use std::time::Instant;
 use anyhow::Context as _;
 use backon::RetryableWithContext as _;
 use futures::TryFutureExt as _;
+use binary_cache::harmonia_utils_hash::fmt::CommonHash as _;
 use hashbrown::HashMap;
 use tonic::Request;
 use tracing::Instrument as _;
@@ -1023,9 +1024,9 @@ async fn upload_single_nar_presigned(
             store_path: nar_path.to_string().to_owned(),
             url: updated_narinfo.url.clone(),
             compression: updated_narinfo.compression.as_str().to_owned(),
-            file_hash: file_hash.clone(),
+            file_hash: format!("{}", file_hash.as_base32()),
             file_size,
-            nar_hash: updated_narinfo.nar_hash,
+            nar_hash: format!("{}", updated_narinfo.nar_hash.as_base32()),
             nar_size: updated_narinfo.nar_size,
             references: updated_narinfo
                 .references

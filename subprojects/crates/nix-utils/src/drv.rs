@@ -23,12 +23,16 @@ pub struct CAOutput {
 
 impl CAOutput {
     pub fn get_sri_hash(&self) -> Result<String, super::Error> {
-        let algo = self.hash_algo.strip_prefix("r:").unwrap_or(&self.hash_algo);
-        let prefixed = format!("{algo}:{}", self.hash);
-        let hash = prefixed
-            .parse::<harmonia_utils_hash::fmt::Any<harmonia_utils_hash::Hash>>()
-            .map(harmonia_utils_hash::fmt::Any::into_hash)
-            .map_err(|e| anyhow::anyhow!("hash parse error: {e}"))?;
+        let algo = self
+            .hash_algo
+            .strip_prefix("r:")
+            .unwrap_or(&self.hash_algo)
+            .parse::<harmonia_utils_hash::Algorithm>()
+            .map_err(|e| anyhow::anyhow!("unknown hash algorithm: {e}"))?;
+        let hash = harmonia_utils_hash::fmt::Any::<harmonia_utils_hash::Hash>::parse(
+            algo, &self.hash,
+        )
+        .map_err(|e| anyhow::anyhow!("hash parse error: {e}"))?;
         Ok(format!("{}", hash.as_sri()))
     }
 }

@@ -2,6 +2,7 @@ use std::fmt::Write as _;
 
 use harmonia_store_core::signature::{SecretKey, fingerprint_path};
 use harmonia_store_core::store_path::StoreDir;
+use harmonia_utils_hash::Hash;
 use harmonia_utils_hash::fmt::CommonHash as _;
 use secrecy::ExposeSecret as _;
 
@@ -12,9 +13,9 @@ pub struct NarInfo {
     pub store_path: nix_utils::StorePath,
     pub url: String,
     pub compression: Compression,
-    pub file_hash: Option<String>,
+    pub file_hash: Option<Hash>,
     pub file_size: Option<u64>,
-    pub nar_hash: String,
+    pub nar_hash: Hash,
     pub nar_size: u64,
     pub references: Vec<nix_utils::StorePath>,
     pub deriver: Option<nix_utils::StorePath>,
@@ -31,10 +32,11 @@ impl NarInfo {
         store_dir: &StoreDir,
         signing_keys: &[secrecy::SecretString],
     ) -> Self {
-        let nar_hash = normalize_nar_hash(path_info.nar_hash);
-        let nar_hash_url = nar_hash
-            .strip_prefix("sha256:")
-            .map_or_else(|| path.hash().to_string(), ToOwned::to_owned);
+        let nar_hash = parse_hash(&path_info.nar_hash);
+        let nar_hash_url = nar_hash.as_ref().map_or_else(
+            || path.hash().to_string(),
+            |h| format!("{:#}", h.as_base32()),
+        );
 
         let narinfo = Self {
             store_path: path.clone(),
@@ -42,7 +44,10 @@ impl NarInfo {
             compression,
             file_hash: None,
             file_size: None,
-            nar_hash,
+            nar_hash: nar_hash.unwrap_or_else(|| {
+                Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &[0; 32])
+                    .expect("sha256 zero hash")
+            }),
             nar_size: path_info.nar_size,
             references: path_info.refs,
             deriver: path_info.deriver,
@@ -64,10 +69,11 @@ impl NarInfo {
         path_info: nix_utils::PathInfo,
         compression: Compression,
     ) -> Self {
-        let nar_hash = normalize_nar_hash(path_info.nar_hash);
-        let nar_hash_url = nar_hash
-            .strip_prefix("sha256:")
-            .map_or_else(|| path.hash().to_string(), ToOwned::to_owned);
+        let nar_hash = parse_hash(&path_info.nar_hash);
+        let nar_hash_url = nar_hash.as_ref().map_or_else(
+            || path.hash().to_string(),
+            |h| format!("{:#}", h.as_base32()),
+        );
 
         Self {
             store_path: path.clone(),
@@ -75,7 +81,10 @@ impl NarInfo {
             compression,
             file_hash: None,
             file_size: None,
-            nar_hash,
+            nar_hash: nar_hash.unwrap_or_else(|| {
+                Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &[0; 32])
+                    .expect("sha256 zero hash")
+            }),
             nar_size: path_info.nar_size,
             references: path_info.refs,
             deriver: path_info.deriver,
@@ -106,10 +115,11 @@ impl NarInfo {
     #[must_use]
     fn fingerprint(&self, store_dir: &StoreDir) -> Option<Vec<u8>> {
         let refs = self.references.iter().cloned().collect();
+        let nar_hash_str = format!("{}", self.nar_hash.as_base32());
         fingerprint_path(
             store_dir,
             &self.store_path,
-            self.nar_hash.as_bytes(),
+            nar_hash_str.as_bytes(),
             self.nar_size,
             &refs,
         )
@@ -127,12 +137,12 @@ impl NarInfo {
         writeln!(o, "URL: {}", self.url)?;
         writeln!(o, "Compression: {}", self.compression.as_str())?;
         if let Some(h) = &self.file_hash {
-            writeln!(o, "FileHash: {h}")?;
+            writeln!(o, "FileHash: {}", h.as_base32())?;
         }
         if let Some(s) = self.file_size {
             writeln!(o, "FileSize: {s}")?;
         }
-        writeln!(o, "NarHash: {}", self.nar_hash)?;
+        writeln!(o, "NarHash: {}", self.nar_hash.as_base32())?;
         writeln!(o, "NarSize: {}", self.nar_size)?;
 
         writeln!(
@@ -159,17 +169,11 @@ impl NarInfo {
     }
 }
 
-/// Normalize a nar hash from the C++ FFI format (`sha256:base16`, 71 chars)
-/// to the narinfo format (`sha256:nix32`, 59 chars). Passes through hashes
-/// already in the correct format.
-fn normalize_nar_hash(raw: String) -> String {
-    // C++ nix returns "sha256:<64 hex chars>" = 71 bytes; convert to "sha256:<52 nix32 chars>"
-    if raw.len() == 71 && raw.starts_with("sha256:") {
-        if let Ok(hash) = raw.parse::<harmonia_utils_hash::fmt::Any<harmonia_utils_hash::Hash>>() {
-            return format!("{}", hash.into_hash().as_base32());
-        }
-    }
-    raw
+/// Parse a hash string (in any format: hex, nix32, sri) into a typed `Hash`.
+pub fn parse_hash(raw: &str) -> Option<Hash> {
+    raw.parse::<harmonia_utils_hash::fmt::Any<Hash>>()
+        .map(harmonia_utils_hash::fmt::Any::into_hash)
+        .ok()
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -199,7 +203,8 @@ impl std::str::FromStr for NarInfo {
             compression: Compression::None,
             file_hash: None,
             file_size: None,
-            nar_hash: String::new(),
+            nar_hash: Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &[0; 32])
+                .expect("sha256 zero hash"),
             nar_size: 0,
             references: vec![],
             deriver: None,
@@ -250,7 +255,7 @@ impl std::str::FromStr for NarInfo {
                     have_compression = true;
                 }
                 "FileHash" => {
-                    out.file_hash = Some(val.to_string());
+                    out.file_hash = parse_hash(val);
                 }
                 "FileSize" => {
                     out.file_size = Some(val.parse::<u64>().map_err(|e| NarInfoError::Int {
@@ -259,8 +264,10 @@ impl std::str::FromStr for NarInfo {
                     })?);
                 }
                 "NarHash" => {
-                    out.nar_hash = val.to_string();
-                    have_nar_hash = true;
+                    if let Some(h) = parse_hash(val) {
+                        out.nar_hash = h;
+                        have_nar_hash = true;
+                    }
                 }
                 "NarSize" => {
                     out.nar_size = val.parse::<u64>().map_err(|e| NarInfoError::Int {
