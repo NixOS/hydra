@@ -121,7 +121,7 @@
       });
 
       nixosModules = import ./nixos-modules {
-        inherit self;
+        flakePackages = packages;
       };
 
       nixosConfigurations.container = nixpkgs.lib.nixosSystem {
