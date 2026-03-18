@@ -1987,8 +1987,8 @@ impl State {
                     .get_build_products_for_build_id(build_id)
                     .await?
                     .into_iter()
-                    .map(Into::into)
-                    .collect();
+                    .map(|p| build::BuildProduct::from_db(self.store.store_dir(), p))
+                    .collect::<anyhow::Result<Vec<_>>>()?;
                 res.metrics = db
                     .get_build_metrics_for_build_id(build_id)
                     .await?
