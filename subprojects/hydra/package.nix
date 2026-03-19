@@ -1,6 +1,7 @@
 { stdenv
 , lib
 , version
+, releaseVersion
 
 , rawSrc
 
@@ -128,7 +129,7 @@ let
 in
 stdenv.mkDerivation (finalAttrs: {
   pname = "hydra";
-  inherit version;
+  version = releaseVersion;
 
   src = lib.fileset.toSource {
     root = ../..;
@@ -209,7 +210,7 @@ stdenv.mkDerivation (finalAttrs: {
         wrapProgram $i \
             --prefix PERL5LIB ':' $out/libexec/hydra/lib:$PERL5LIB \
             --prefix PATH ':' $out/bin:$hydraPath \
-            --set HYDRA_RELEASE ${version} \
+            --set HYDRA_RELEASE ${releaseVersion} \
             --set HYDRA_HOME $out/libexec/hydra \
             --set NIX_RELEASE ${nixComponents.nix-cli.name or "unknown"} \
             --set NIX_EVAL_JOBS_RELEASE ${nix-eval-jobs.name or "unknown"}
