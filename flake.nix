@@ -20,11 +20,13 @@
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
 
-      version = "${builtins.readFile ./version.txt}.${builtins.substring 0 8 (self.lastModifiedDate or "19700101")}.${self.shortRev or "DIRTY"}";
+      version = nixpkgs.lib.strings.trim (builtins.readFile ./version.txt);
+
+      releaseVersion = "${version}.${builtins.substring 0 8 (self.lastModifiedDate or "19700101")}.${self.shortRev or "DIRTY"}";
 
       mkHydraComponents = { pkgs, nixComponents }:
         pkgs.lib.makeScope pkgs.newScope (self': {
-          inherit version;
+          inherit version releaseVersion;
           nix-eval-jobs = self'.callPackage nix-eval-jobs {
             inherit nixComponents;
           };
