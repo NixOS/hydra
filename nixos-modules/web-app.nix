@@ -39,6 +39,7 @@ let
 in
 
 {
+  imports = [ ./postgresql.nix ];
   ###### interface
   options = {
 
@@ -93,14 +94,6 @@ in
         default = 3000;
         description = ''
           TCP port the web server should listen to.
-        '';
-      };
-
-      minimumDiskFree = mkOption {
-        type = types.int;
-        default = 0;
-        description = ''
-          Threshold of minimum disk space (GiB) to determine if the queue runner should run or not.
         '';
       };
 
@@ -199,38 +192,30 @@ in
 
     systemd.tmpfiles.rules = [
       "d ${baseDir} 0750 hydra hydra"
+      "d ${baseDir}/www 0700 hydra-www hydra"
+      "d ${baseDir}/runcommand-logs 0750 hydra hydra"
+      "L+ ${baseDir}/hydra.conf - - - - ${hydraConf}"
     ];
 
-    users.extraGroups.hydra = { };
-
-    users.extraUsers.hydra =
-      { description = "Hydra";
-        group = "hydra";
-        home = baseDir;
-        isSystemUser = true;
-        useDefaultShell = true;
-      };
-
-    users.extraUsers.hydra-queue-runner =
-      { description = "Hydra queue runner";
-        group = "hydra";
-        useDefaultShell = true;
-        isSystemUser = true;
-        home = "${baseDir}/queue-runner"; # really only to keep SSH happy
-      };
-
-    users.extraUsers.hydra-www =
+    users.users.hydra-www =
       { description = "Hydra web server";
         group = "hydra";
         isSystemUser = true;
         useDefaultShell = true;
       };
 
-    nix.settings = {
-      trusted-users = [ "hydra-queue-runner" ];
-      keep-outputs = true;
-      keep-derivations = true;
-    };
+    users.users.hydra-notify =
+      { description = "Hydra notify";
+        group = "hydra";
+        isSystemUser = true;
+        useDefaultShell = true;
+      };
+
+    services.postgresql.identMap = optionalString haveLocalDB
+      ''
+        hydra-users hydra-www hydra
+        hydra-users hydra-notify hydra
+      '';
 
     services.hydra-dev.extraConfig =
       ''
@@ -258,64 +243,6 @@ in
 
     environment.variables = hydraEnv;
 
-    systemd.services.hydra-init =
-      { wantedBy = [ "multi-user.target" ];
-        requires = optional haveLocalDB "postgresql.service";
-        after = optional haveLocalDB "postgresql.service";
-        environment = env // {
-          HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-init";
-        };
-        path = [ pkgs.util-linux ];
-        preStart = ''
-          ln -sf ${hydraConf} ${baseDir}/hydra.conf
-
-          mkdir -m 0700 -p ${baseDir}/www
-          chown hydra-www:hydra ${baseDir}/www
-
-          mkdir -m 0700 -p ${baseDir}/queue-runner
-          mkdir -m 0750 -p ${baseDir}/build-logs
-          mkdir -m 0750 -p ${baseDir}/runcommand-logs
-          chown hydra-queue-runner:hydra \
-            ${baseDir}/queue-runner \
-            ${baseDir}/build-logs \
-            ${baseDir}/runcommand-logs
-
-          ${optionalString haveLocalDB ''
-            if ! [ -e ${baseDir}/.db-created ]; then
-              runuser -u ${config.services.postgresql.superUser} -- ${config.services.postgresql.package}/bin/createuser hydra
-              runuser -u ${config.services.postgresql.superUser} -- ${config.services.postgresql.package}/bin/createdb -O hydra hydra
-              touch ${baseDir}/.db-created
-            fi
-            echo "create extension if not exists pg_trgm" | runuser -u ${config.services.postgresql.superUser} -- ${config.services.postgresql.package}/bin/psql hydra
-          ''}
-
-          if [ ! -e ${cfg.gcRootsDir} ]; then
-
-            # Move legacy roots directory.
-            if [ -e /nix/var/nix/gcroots/per-user/hydra/hydra-roots ]; then
-              mv /nix/var/nix/gcroots/per-user/hydra/hydra-roots ${cfg.gcRootsDir}
-            fi
-
-            mkdir -p ${cfg.gcRootsDir}
-          fi
-
-          # Move legacy hydra-www roots.
-          if [ -e /nix/var/nix/gcroots/per-user/hydra-www/hydra-roots ]; then
-            find /nix/var/nix/gcroots/per-user/hydra-www/hydra-roots/ -type f \
-              | xargs -r mv -f -t ${cfg.gcRootsDir}/
-            rmdir /nix/var/nix/gcroots/per-user/hydra-www/hydra-roots
-          fi
-
-          chown hydra:hydra ${cfg.gcRootsDir}
-          chmod 2775 ${cfg.gcRootsDir}
-        '';
-        serviceConfig.ExecStart = "${cfg.package}/bin/hydra-init";
-        serviceConfig.PermissionsStartOnly = true;
-        serviceConfig.User = "hydra";
-        serviceConfig.Type = "oneshot";
-        serviceConfig.RemainAfterExit = true;
-      };
-
     systemd.services.hydra-server =
       { wantedBy = [ "multi-user.target" ];
         requires = [ "hydra-init.service" ];
@@ -332,30 +259,6 @@ in
             User = "hydra-www";
             PermissionsStartOnly = true;
             Restart = "always";
-          };
-      };
-
-    systemd.services.hydra-queue-runner =
-      { wantedBy = [ "multi-user.target" ];
-        requires = [ "hydra-init.service" ];
-        wants = [ "network-online.target" ];
-        after = [ "hydra-init.service" "network.target" "network-online.target" ];
-        path = [ cfg.package pkgs.hostname-debian pkgs.openssh pkgs.bzip2 config.nix.package ];
-        restartTriggers = [ hydraConf ];
-        environment = env // {
-          PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
-          IN_SYSTEMD = "1"; # to get log severity levels
-          HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-queue-runner";
-        };
-        serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-queue-runner hydra-queue-runner -v";
-            ExecStopPost = "${cfg.package}/bin/hydra-queue-runner --unlock";
-            User = "hydra-queue-runner";
-            Restart = "always";
-
-            # Ensure we can get core dumps.
-            LimitCORE = "infinity";
-            WorkingDirectory = "${baseDir}/queue-runner";
           };
       };
 
@@ -409,46 +312,26 @@ in
         restartTriggers = [ hydraConf ];
         path = [ pkgs.zstd ];
         environment = env // {
-          PGPASSFILE = "${baseDir}/pgpass-queue-runner"; # grrr
+          PGPASSFILE = "${baseDir}/pgpass-notify";
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-notify";
         };
         serviceConfig =
           { ExecStart = "@${cfg.package}/bin/hydra-notify hydra-notify";
-            # FIXME: run this under a less privileged user?
-            User = "hydra-queue-runner";
+            User = "hydra-notify";
             Restart = "always";
             RestartSec = 5;
           };
       };
 
     # If there is less than a certain amount of free disk space, stop
-    # the queue/evaluator to prevent builds from failing or aborting.
+    # the evaluator to prevent builds from failing or aborting.
     # Leaves a tag file indicating this reason; if the tag file exists
-    # and disk space is above the threshold + 10GB, the queue/evaluator will be
+    # and disk space is above the threshold + 10GB, the evaluator will be
     # restarted; starting it if it is already started is not harmful.
-    systemd.services.hydra-check-space =
+    systemd.services.hydra-evaluator-check-space =
       { script =
           ''
-            spaceleft=$(($(stat -f -c '%a' /nix/store) * $(stat -f -c '%S' /nix/store)))
-            spacestopstart() {
-              service=$1
-              minFreeGB=$2
-              if [ $spaceleft -lt $(($minFreeGB * 1024**3)) ]; then
-                if [ $(systemctl is-active $service) == active ]; then
-                  echo "stopping $service due to lack of free space..."
-                  systemctl stop $service
-                  date > ${baseDir}/.$service-stopped-minspace
-                fi
-              else
-                if [ $spaceleft -gt $(( ($minFreeGB + 10) * 1024**3)) -a \
-                     -r ${baseDir}/.$service-stopped-minspace ] ; then
-                  rm ${baseDir}/.$service-stopped-minspace
-                  echo "restarting $service due to newly available free space..."
-                  systemctl start $service
-                fi
-              fi
-            }
-            spacestopstart hydra-queue-runner ${toString cfg.minimumDiskFree}
+            ${builtins.readFile ./check-space.sh}
             spacestopstart hydra-evaluator ${toString cfg.minimumDiskFreeEvaluator}
           '';
         startAt = "*:0/5";
@@ -472,23 +355,6 @@ in
           '';
         startAt = "Sun 01:45";
       };
-
-    services.postgresql.enable = mkIf haveLocalDB true;
-
-    services.postgresql.identMap = optionalString haveLocalDB
-      ''
-        hydra-users hydra hydra
-        hydra-users hydra-queue-runner hydra
-        hydra-users hydra-www hydra
-        hydra-users root hydra
-        # The postgres user is used to create the pg_trgm extension for the hydra database
-        hydra-users postgres postgres
-      '';
-
-    services.postgresql.authentication = optionalString haveLocalDB
-      ''
-        local hydra all ident map=hydra-users
-      '';
 
   };
 
