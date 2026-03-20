@@ -116,12 +116,6 @@ mod ffi {
         head: u64,
     }
 
-    #[derive(Debug)]
-    struct DerivationHash {
-        output_name: String,
-        drv_hash: String,
-    }
-
     unsafe extern "C++" {
         include!("nix-utils/include/nix.h");
 
@@ -133,7 +127,6 @@ mod ffi {
         fn get_store_dir() -> String;
         fn get_store_dir_for(store: &StoreWrapper) -> String;
         fn get_build_dir() -> String;
-        fn get_log_dir() -> String;
         fn get_state_dir() -> String;
         fn get_nix_version() -> String;
         fn get_this_system() -> String;
@@ -207,10 +200,6 @@ mod ffi {
 
         fn ensure_path(store: &StoreWrapper, path: &str) -> Result<()>;
         fn try_resolve_drv(store: &StoreWrapper, path: &str) -> Result<String>;
-        fn static_output_hashes(
-            store: &StoreWrapper,
-            drv_path: &str,
-        ) -> Result<Vec<DerivationHash>>;
     }
 }
 
@@ -259,12 +248,6 @@ pub fn get_store_dir() -> String {
 #[must_use]
 pub fn get_build_dir() -> String {
     ffi::get_build_dir()
-}
-
-#[inline]
-#[must_use]
-pub fn get_log_dir() -> String {
-    ffi::get_log_dir()
 }
 
 #[inline]
@@ -462,10 +445,6 @@ pub trait BaseStore {
 
     fn ensure_path(&self, path: &StorePath) -> impl Future<Output = Result<(), Error>>;
     fn try_resolve_drv(&self, path: &StorePath) -> impl Future<Output = Option<StorePath>>;
-    fn static_output_hashes(
-        &self,
-        drv_path: &StorePath,
-    ) -> impl Future<Output = Result<HashMap<String, String>, Error>>;
 
     #[must_use]
     fn store_dir(&self) -> &StoreDir;
@@ -774,20 +753,6 @@ impl BaseStore for BaseStoreImpl {
     }
 
     #[inline]
-    async fn static_output_hashes(
-        &self,
-        drv_path: &StorePath,
-    ) -> Result<HashMap<String, String>, Error> {
-        let store = self.wrapper.clone();
-        let drv_path = self.print_store_path(drv_path);
-        asyncify(move || {
-            let o = ffi::static_output_hashes(store.as_raw(), &drv_path)?;
-            Ok(o.into_iter().map(|v| (v.output_name, v.drv_hash)).collect())
-        })
-        .await
-    }
-
-    #[inline]
     fn store_dir(&self) -> &StoreDir {
         &self.store_dir
     }
@@ -1008,14 +973,6 @@ impl BaseStore for LocalStore {
     #[inline]
     async fn try_resolve_drv(&self, path: &StorePath) -> Option<StorePath> {
         self.base.try_resolve_drv(path).await
-    }
-
-    #[inline]
-    async fn static_output_hashes(
-        &self,
-        drv_path: &StorePath,
-    ) -> Result<HashMap<String, String>, Error> {
-        self.base.static_output_hashes(drv_path).await
     }
 
     #[inline]
@@ -1243,14 +1200,6 @@ impl BaseStore for RemoteStore {
     #[inline]
     async fn try_resolve_drv(&self, path: &StorePath) -> Option<StorePath> {
         self.base.try_resolve_drv(path).await
-    }
-
-    #[inline]
-    async fn static_output_hashes(
-        &self,
-        drv_path: &StorePath,
-    ) -> Result<HashMap<String, String>, Error> {
-        self.base.static_output_hashes(drv_path).await
     }
 
     #[inline]

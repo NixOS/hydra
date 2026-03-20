@@ -23,8 +23,8 @@ use object_store::{ObjectStore as _, ObjectStoreExt as _, signer::Signer as _};
 use secrecy::ExposeSecret;
 use smallvec::SmallVec;
 
-use nix_utils::BaseStore as _;
 use nix_utils::RealisationOperations as _;
+use nix_utils::{BaseStore as _, query_drv};
 
 mod cfg;
 mod compression;
@@ -36,14 +36,14 @@ mod streaming_hash;
 pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme};
 pub use crate::compression::Compression;
 pub use crate::debug_info::get_debug_info_build_ids;
-pub use crate::narinfo::{NarInfo, parse_hash};
-pub use harmonia_utils_hash::{self as harmonia_utils_hash, Hash};
 use crate::narinfo::NarInfoError;
+pub use crate::narinfo::{NarInfo, parse_hash};
 pub use crate::presigned::{
     PresignedUpload, PresignedUploadClient, PresignedUploadMetrics, PresignedUploadResponse,
     PresignedUploadResult,
 };
 pub use async_compression::Level as CompressionLevel;
+pub use harmonia_utils_hash::{self as harmonia_utils_hash, Hash};
 
 pub async fn path_to_narinfo(
     store: &nix_utils::LocalStore,
@@ -631,20 +631,15 @@ impl S3BinaryCacheClient {
 
         if self.cfg.write_realisation
             && let Some(deriver) = narinfo.deriver.as_ref()
-            && let Ok(hashes) = store.static_output_hashes(deriver).await
+            && let Some(drv) = query_drv(store, deriver).await?
         {
-            for (output_name, drv_hash) in hashes {
-                let Ok(drv_hash) =
-                    drv_hash.parse::<harmonia_utils_hash::fmt::Any<Hash>>()
-                else {
-                    continue;
-                };
-                let Ok(output_name) = output_name.parse() else {
+            for output in drv.outputs {
+                let Ok(output_name) = output.name.parse() else {
                     continue;
                 };
                 let id = nix_utils::DrvOutput {
-                    drv_hash: drv_hash.into_hash(),
                     output_name,
+                    drv_path: deriver.to_owned(),
                 };
                 self.copy_realisation(store, &id, repair).await?;
             }
@@ -696,14 +691,13 @@ impl S3BinaryCacheClient {
             .iter()
             .filter_map(|s| s.expose_secret().parse().ok())
             .collect::<SmallVec<[harmonia_store_core::signature::SecretKey; 4]>>();
-        realisation.sign(&keys);
+        realisation.value.sign_mut(&realisation.key, &keys);
 
         let json = serde_json::to_string(&realisation)?;
         self.upsert_file(&format!("realisations/{id}.doi"), json, "application/json")
             .await?;
         Ok(())
     }
-
 
     #[tracing::instrument(skip(self), err)]
     pub async fn download_narinfo(

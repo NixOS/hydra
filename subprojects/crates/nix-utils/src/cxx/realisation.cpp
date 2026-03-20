@@ -19,7 +19,7 @@ query_raw_realisation(const nix_utils::StoreWrapper &wrapper,
                       rust::Str output_id) {
   auto store = wrapper._store;
   auto realisation =
-      store->queryRealisation(nix::DrvOutput::parse(AS_STRING(output_id)));
+      store->queryRealisation(nix::DrvOutput::parse(*store, AS_STRING(output_id)));
   if (!realisation) {
     throw nix::Error("output_id '%s' isn't found", output_id);
   }
