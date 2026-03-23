@@ -36,7 +36,8 @@ mod streaming_hash;
 pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme};
 pub use crate::compression::Compression;
 pub use crate::debug_info::get_debug_info_build_ids;
-pub use crate::narinfo::NarInfo;
+pub use crate::narinfo::{NarInfo, parse_hash};
+pub use harmonia_utils_hash::{self as harmonia_utils_hash, Hash};
 use crate::narinfo::NarInfoError;
 pub use crate::presigned::{
     PresignedUpload, PresignedUploadClient, PresignedUploadMetrics, PresignedUploadResponse,
@@ -521,15 +522,15 @@ impl S3BinaryCacheClient {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, store, narinfo), err)]
+    #[tracing::instrument(skip(self, store_dir, narinfo), err)]
     async fn upload_narinfo(
         &self,
-        store: &nix_utils::LocalStore,
+        store_dir: &nix_utils::StoreDir,
         narinfo: NarInfo,
     ) -> Result<String, CacheError> {
-        let base = narinfo.store_path.hash_part();
+        let base = narinfo.store_path.hash().to_string();
         let info_key = format!("{base}.narinfo");
-        self.upsert_file(&info_key, narinfo.render(store)?, "text/x-nix-narinfo")
+        self.upsert_file(&info_key, narinfo.render(store_dir)?, "text/x-nix-narinfo")
             .await?;
         Ok(info_key)
     }
@@ -546,10 +547,10 @@ impl S3BinaryCacheClient {
             });
         };
         let narinfo = NarInfo::new(
-            store,
             path,
             path_info,
             self.cfg.compression,
+            store.get_store_dir(),
             &self.signing_keys,
         );
         let queried_references = store
@@ -621,12 +622,10 @@ impl S3BinaryCacheClient {
 
         let (file_hash, file_size) = hashing_reader.finalize()?;
 
-        if let Ok(file_hash) = nix_utils::convert_hash(
-            &format!("{file_hash:x}"),
-            Some(nix_utils::HashAlgorithm::SHA256),
-            nix_utils::HashFormat::Nix32,
-        ) {
-            narinfo.file_hash = Some(format!("sha256:{file_hash}"));
+        if let Ok(file_hash) =
+            Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, file_hash.as_slice())
+        {
+            narinfo.file_hash = Some(file_hash);
             narinfo.file_size = Some(file_size as u64);
         }
 
@@ -635,19 +634,23 @@ impl S3BinaryCacheClient {
             && let Ok(hashes) = store.static_output_hashes(deriver).await
         {
             for (output_name, drv_hash) in hashes {
-                self.copy_realisation(
-                    store,
-                    &nix_utils::DrvOutput {
-                        drv_hash,
-                        output_name,
-                    },
-                    repair,
-                )
-                .await?;
+                let Ok(drv_hash) =
+                    drv_hash.parse::<harmonia_utils_hash::fmt::Any<Hash>>()
+                else {
+                    continue;
+                };
+                let Ok(output_name) = output_name.parse() else {
+                    continue;
+                };
+                let id = nix_utils::DrvOutput {
+                    drv_hash: drv_hash.into_hash(),
+                    output_name,
+                };
+                self.copy_realisation(store, &id, repair).await?;
             }
         }
 
-        self.upload_narinfo(store, narinfo).await?;
+        self.upload_narinfo(store.get_store_dir(), narinfo).await?;
 
         Ok(())
     }
@@ -686,48 +689,21 @@ impl S3BinaryCacheClient {
             return Ok(());
         }
 
-        let mut raw_realisation = store.query_raw_realisation(&id.drv_hash, &id.output_name)?;
-        if !self.signing_keys.is_empty() {
-            for s in &self.signing_keys {
-                raw_realisation.sign(s.expose_secret())?;
-            }
-        }
+        let raw_realisation = store.query_raw_realisation(id)?;
+        let mut realisation = raw_realisation.as_rust()?;
+        let keys = self
+            .signing_keys
+            .iter()
+            .filter_map(|s| s.expose_secret().parse().ok())
+            .collect::<SmallVec<[harmonia_store_core::signature::SecretKey; 4]>>();
+        realisation.sign(&keys);
 
-        self.upsert_file(
-            &format!("realisations/{id}.doi"),
-            raw_realisation.as_json(),
-            "application/json",
-        )
-        .await?;
+        let json = serde_json::to_string(&realisation)?;
+        self.upsert_file(&format!("realisations/{id}.doi"), json, "application/json")
+            .await?;
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, realisation), err)]
-    pub async fn upload_realisation(
-        &self,
-        mut realisation: nix_utils::FfiRealisation,
-        repair: bool,
-    ) -> Result<(), CacheError> {
-        let id = realisation.get_id();
-        if !repair && self.has_realisation(&id).await? {
-            return Ok(());
-        }
-
-        realisation.clear_signatures();
-        if !self.signing_keys.is_empty() {
-            for s in &self.signing_keys {
-                realisation.sign(s.expose_secret())?;
-            }
-        }
-
-        self.upsert_file(
-            &format!("realisations/{id}.doi"),
-            realisation.as_json(),
-            "application/json",
-        )
-        .await?;
-        Ok(())
-    }
 
     #[tracing::instrument(skip(self), err)]
     pub async fn download_narinfo(
@@ -739,7 +715,7 @@ impl S3BinaryCacheClient {
         }
 
         match self
-            .get_object(&format!("{}.narinfo", store_path.hash_part()))
+            .get_object(&format!("{}.narinfo", store_path.hash().to_string()))
             .await?
         {
             Some(v) => {
@@ -836,7 +812,7 @@ impl S3BinaryCacheClient {
     ) -> Result<PresignedUploadResponse, CacheError> {
         let nar_hash_url = nix32_nar_hash
             .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), |h| h);
+            .map_or_else(|| path.hash().to_string(), ToOwned::to_owned);
 
         let nar_url = format!("nar/{}.{}", nar_hash_url, self.cfg.compression.ext());
         let url = self
@@ -852,7 +828,7 @@ impl S3BinaryCacheClient {
                 reason: format!("Failed to generate presigned URL for NAR: {e}"),
             })?;
         let ls_upload = if self.cfg.write_nar_listing {
-            let s3_file_path = format!("{}.ls", path.hash_part());
+            let s3_file_path = format!("{}.ls", path.hash().to_string());
             Some(PresignedUpload {
                 url: self
                     .s3
@@ -947,9 +923,9 @@ impl S3BinaryCacheClient {
                 path: narinfo.url.clone(),
             })?;
 
-        let narinfo = narinfo.clear_sigs_and_sign(store, &self.signing_keys);
+        let narinfo = narinfo.clear_sigs_and_sign(store.get_store_dir(), &self.signing_keys);
         // TODO: we also need to integarte realisation into this!
-        self.upload_narinfo(store, narinfo).await
+        self.upload_narinfo(store.get_store_dir(), narinfo).await
     }
 }
 

@@ -1,6 +1,8 @@
+use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
+use anyhow::Context;
 use hashbrown::{HashMap, HashSet};
 
 use super::{Jobset, JobsetID, Step};
@@ -36,11 +38,11 @@ impl PartialEq for Build {
 
 impl Eq for Build {}
 
-impl std::hash::Hash for Build {
+impl Hash for Build {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // ensure that drv_path is never mutable
         // as we set Build as ignore-interior-mutability
-        self.drv_path.hash(state);
+        Hash::hash(&self.drv_path, state);
     }
 }
 
@@ -68,7 +70,7 @@ impl Build {
     pub fn new(v: db::models::Build, jobset: Arc<Jobset>) -> anyhow::Result<Arc<Self>> {
         Ok(Arc::new(Self {
             id: v.id,
-            drv_path: nix_utils::StorePath::new(&v.drvpath),
+            drv_path: nix_utils::parse_store_path(&v.drvpath),
             outputs: HashMap::with_capacity(6),
             jobset_id: v.jobset_id,
             name: v.job,
@@ -333,9 +335,41 @@ impl RemoteBuild {
     }
 }
 
+/// Store path with an optional relative path from the store object directory.
+///
+/// Build products can reference files inside store outputs (e.g. `/nix/store/hash-name/bin/foo`),
+/// so we separate the base `StorePath` from the trailing sub-path.
+#[derive(Debug, Clone)]
+pub struct RelativeStorePath {
+    pub base_path: nix_utils::StorePath,
+    pub relative_path: Box<str>,
+}
+
+impl RelativeStorePath {
+    pub fn from_path(store_dir: &nix_utils::StoreDir, path: &str) -> anyhow::Result<Self> {
+        let stripped = store_dir
+            .strip_prefix(path)
+            .with_context(|| format!("stripping store dir from '{path}'"))?;
+        let (base_str, remaining_str) = stripped.split_once('/').unwrap_or((stripped, ""));
+        Ok(Self {
+            base_path: nix_utils::StorePath::from_base_path(base_str)
+                .with_context(|| format!("parsing store path from '{base_str}'"))?,
+            relative_path: remaining_str.into(),
+        })
+    }
+
+    pub fn print(&self, store_dir: &nix_utils::StoreDir) -> String {
+        if self.relative_path.is_empty() {
+            store_dir.display(&self.base_path).to_string()
+        } else {
+            format!("{}/{}", store_dir.display(&self.base_path), self.relative_path)
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BuildProduct {
-    pub path: Option<nix_utils::StorePath>,
+    pub path: Option<RelativeStorePath>,
     pub default_path: Option<String>,
 
     pub r#type: String,
@@ -348,10 +382,16 @@ pub struct BuildProduct {
     pub file_size: Option<u64>,
 }
 
-impl From<db::models::OwnedBuildProduct> for BuildProduct {
-    fn from(v: db::models::OwnedBuildProduct) -> Self {
-        Self {
-            path: v.path.map(|v| nix_utils::StorePath::new(&v)),
+impl BuildProduct {
+    pub fn from_db(
+        store_dir: &nix_utils::StoreDir,
+        v: db::models::OwnedBuildProduct,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            path: v
+                .path
+                .map(|p| RelativeStorePath::from_path(store_dir, &p))
+                .transpose()?,
             default_path: v.defaultpath,
             r#type: v.r#type,
             subtype: v.subtype,
@@ -360,14 +400,15 @@ impl From<db::models::OwnedBuildProduct> for BuildProduct {
             sha256hash: v.sha256hash,
             #[allow(clippy::cast_sign_loss)]
             file_size: v.filesize.map(|v| v as u64),
-        }
+        })
     }
-}
 
-impl From<crate::server::grpc::runner_v1::BuildProduct> for BuildProduct {
-    fn from(v: crate::server::grpc::runner_v1::BuildProduct) -> Self {
-        Self {
-            path: Some(nix_utils::StorePath::new(&v.path)),
+    pub fn from_grpc(
+        store_dir: &nix_utils::StoreDir,
+        v: crate::server::grpc::runner_v1::BuildProduct,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            path: Some(RelativeStorePath::from_path(store_dir, &v.path)?),
             default_path: Some(v.default_path),
             r#type: v.r#type,
             subtype: v.subtype,
@@ -375,14 +416,15 @@ impl From<crate::server::grpc::runner_v1::BuildProduct> for BuildProduct {
             is_regular: v.is_regular,
             sha256hash: v.sha256hash,
             file_size: v.file_size,
-        }
+        })
     }
-}
 
-impl From<shared::BuildProduct> for BuildProduct {
-    fn from(v: shared::BuildProduct) -> Self {
-        Self {
-            path: Some(nix_utils::StorePath::new(&v.path)),
+    pub fn from_shared(
+        store_dir: &nix_utils::StoreDir,
+        v: shared::BuildProduct,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            path: Some(RelativeStorePath::from_path(store_dir, &v.path)?),
             default_path: Some(v.default_path),
             r#type: v.r#type,
             subtype: v.subtype,
@@ -390,7 +432,7 @@ impl From<shared::BuildProduct> for BuildProduct {
             is_regular: v.is_regular,
             sha256hash: v.sha256hash,
             file_size: v.file_size,
-        }
+        })
     }
 }
 
@@ -472,8 +514,11 @@ impl TryFrom<db::models::BuildOutput> for BuildOutput {
     }
 }
 
-impl From<crate::server::grpc::runner_v1::BuildResultInfo> for BuildOutput {
-    fn from(v: crate::server::grpc::runner_v1::BuildResultInfo) -> Self {
+impl BuildOutput {
+    pub fn from_grpc(
+        store_dir: &nix_utils::StoreDir,
+        v: crate::server::grpc::runner_v1::BuildResultInfo,
+    ) -> anyhow::Result<Self> {
         let mut outputs = HashMap::with_capacity(6);
         let mut closure_size = 0;
         let mut nar_size = 0;
@@ -484,7 +529,7 @@ impl From<crate::server::grpc::runner_v1::BuildResultInfo> for BuildOutput {
                     // We dont care about outputs that dont have a path,
                 }
                 Some(crate::server::grpc::runner_v1::output::Output::Withpath(o)) => {
-                    outputs.insert(o.name, nix_utils::StorePath::new(&o.path));
+                    outputs.insert(o.name, nix_utils::parse_store_path(&o.path));
                     closure_size += o.closure_size;
                     nar_size += o.nar_size;
                 }
@@ -502,13 +547,16 @@ impl From<crate::server::grpc::runner_v1::BuildResultInfo> for BuildOutput {
             (false, None, vec![], vec![])
         };
 
-        Self {
+        Ok(Self {
             failed,
             timings: BuildTimings::new(v.import_time_ms, v.build_time_ms, v.upload_time_ms),
             release_name,
             closure_size,
             size: nar_size,
-            products: products.into_iter().map(Into::into).collect(),
+            products: products
+                .into_iter()
+                .map(|p| BuildProduct::from_grpc(store_dir, p))
+                .collect::<anyhow::Result<Vec<_>>>()?,
             outputs,
             metrics: metrics
                 .into_iter()
@@ -518,7 +566,7 @@ impl From<crate::server::grpc::runner_v1::BuildResultInfo> for BuildOutput {
                     value: v.value,
                 })
                 .collect(),
-        }
+        })
     }
 }
 
@@ -555,7 +603,11 @@ impl BuildOutput {
             release_name: nix_support.hydra_release_name,
             closure_size,
             size: nar_size,
-            products: nix_support.products.into_iter().map(Into::into).collect(),
+            products: nix_support
+                .products
+                .into_iter()
+                .map(|p| BuildProduct::from_shared(store.store_dir(), p))
+                .collect::<anyhow::Result<Vec<_>>>()?,
             outputs: outputs_map,
             metrics: nix_support
                 .metrics
@@ -599,7 +651,7 @@ pub(super) fn get_mark_build_sccuess_data<'a>(
                 subtype: &v.subtype,
                 filesize: v.file_size.and_then(|v| i64::try_from(v).ok()),
                 sha256hash: v.sha256hash.as_deref(),
-                path: v.path.as_ref().map(|p| store.print_store_path(p)),
+                path: v.path.as_ref().map(|p| p.print(store.store_dir())),
                 name: &v.name,
                 defaultpath: v.default_path.as_deref(),
             })

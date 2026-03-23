@@ -5,6 +5,7 @@ use std::time::Instant;
 use anyhow::Context as _;
 use backon::RetryableWithContext as _;
 use futures::TryFutureExt as _;
+use binary_cache::harmonia_utils_hash::fmt::CommonHash as _;
 use hashbrown::HashMap;
 use tonic::Request;
 use tracing::Instrument as _;
@@ -262,7 +263,7 @@ impl State {
             return Err(anyhow::anyhow!("State set to halt."));
         }
 
-        let drv = nix_utils::StorePath::new(&m.drv);
+        let drv = nix_utils::parse_store_path(&m.drv);
         if self.contains_build(&drv) {
             return Ok(());
         }
@@ -390,11 +391,11 @@ impl State {
         let store = nix_utils::LocalStore::init();
 
         let machine_id = self.id;
-        let drv = nix_utils::StorePath::new(&m.drv);
+        let drv = nix_utils::parse_store_path(&m.drv);
         let resolved_drv = m
             .resolved_drv
             .as_ref()
-            .map(|v| nix_utils::StorePath::new(v));
+            .map(|v| nix_utils::parse_store_path(v));
 
         let before_import = Instant::now();
         let gcroot_prefix = uuid::Uuid::new_v4().to_string();
@@ -412,7 +413,7 @@ impl State {
             .await;
         let requisites = client
             .fetch_drv_requisites(FetchRequisitesRequest {
-                path: resolved_drv.as_ref().unwrap_or(&drv).base_name().to_owned(),
+                path: resolved_drv.as_ref().unwrap_or(&drv).to_string().to_owned(),
                 include_outputs: false,
             })
             .await
@@ -428,7 +429,7 @@ impl State {
             resolved_drv.as_ref().unwrap_or(&drv),
             requisites
                 .into_iter()
-                .map(|s| nix_utils::StorePath::new(&s)),
+                .map(|s| nix_utils::parse_store_path(&s)),
             usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
             self.config.use_substitutes,
         )
@@ -463,7 +464,7 @@ impl State {
             while let Some(chunk) = log_output.next().await {
                 match chunk {
                     Ok(chunk) => yield LogChunk {
-                        drv: drv2.base_name().to_owned(),
+                        drv: drv2.to_string().to_owned(),
                         data: format!("{chunk}\n").into(),
                     },
                     Err(e) => {
@@ -567,7 +568,7 @@ impl State {
             let builds = self.active_builds.read();
             builds
                 .values()
-                .map(|b| b.drv_path.base_name().to_owned())
+                .map(|b| b.drv_path.to_string().to_owned())
                 .collect::<Vec<_>>()
         };
 
@@ -688,7 +689,7 @@ async fn import_paths(
     tracing::debug!("Start importing paths");
     let stream = client
         .stream_files(StorePaths {
-            paths: paths.iter().map(|p| p.base_name().to_owned()).collect(),
+            paths: paths.iter().map(|p| p.to_string().to_owned()).collect(),
         })
         .await?
         .into_inner();
@@ -735,9 +736,8 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     .collect::<Vec<_>>()
     .await;
 
-    let (input_drvs, input_srcs): (Vec<_>, Vec<_>) = requisites
-        .into_iter()
-        .partition(nix_utils::StorePath::is_drv);
+    let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
+        requisites.into_iter().partition(|p| p.is_derivation());
 
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
@@ -768,14 +768,14 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     let full_requisites = client
         .clone()
         .fetch_drv_requisites(FetchRequisitesRequest {
-            path: drv.base_name().to_owned(),
+            path: drv.to_string().to_owned(),
             include_outputs: true,
         })
         .await?
         .into_inner()
         .requisites
         .into_iter()
-        .map(|s| nix_utils::StorePath::new(&s))
+        .map(|s| nix_utils::parse_store_path(&s))
         .collect::<Vec<_>>();
     let full_requisites = futures::StreamExt::map(tokio_stream::iter(full_requisites), |p| {
         filter_missing(&store, gcroot, p)
@@ -817,7 +817,7 @@ async fn upload_nars_regular(
             async move {
                 if client
                     .has_path(runner_v1::StorePath {
-                        path: p.base_name().to_owned(),
+                        path: p.to_string().to_owned(),
                     })
                     .await
                     .is_ok_and(|r| r.into_inner().has_path)
@@ -941,7 +941,7 @@ async fn upload_nars_presigned(
     for presigned_response in presigned_responses {
         upload_single_nar_presigned(
             &store,
-            &nix_utils::StorePath::new(&presigned_response.store_path),
+            &nix_utils::parse_store_path(&presigned_response.store_path),
             build_id,
             machine_id,
             &presigned_response,
@@ -1021,19 +1021,19 @@ async fn upload_single_nar_presigned(
         let completion_msg = runner_v1::PresignedUploadComplete {
             build_id: build_id.to_owned(),
             machine_id: machine_id.to_owned(),
-            store_path: nar_path.base_name().to_owned(),
+            store_path: nar_path.to_string().to_owned(),
             url: updated_narinfo.url.clone(),
             compression: updated_narinfo.compression.as_str().to_owned(),
-            file_hash: file_hash.clone(),
+            file_hash: format!("{}", file_hash.as_base32()),
             file_size,
-            nar_hash: updated_narinfo.nar_hash,
+            nar_hash: format!("{}", updated_narinfo.nar_hash.as_base32()),
             nar_size: updated_narinfo.nar_size,
             references: updated_narinfo
                 .references
                 .iter()
-                .map(|p| p.base_name().to_owned())
+                .map(|p| p.to_string().to_owned())
                 .collect(),
-            deriver: updated_narinfo.deriver.map(|p| p.base_name().to_owned()),
+            deriver: updated_narinfo.deriver.map(|p| p.to_string().to_owned()),
             ca: updated_narinfo.ca,
         };
 
@@ -1075,7 +1075,7 @@ async fn new_success_build_result_info(
                         output::Output::Withpath(OutputWithPath {
                             name: o.name,
                             closure_size: store.compute_closure_size(&p).await,
-                            path: p.into_base_name(),
+                            path: p.to_string(),
                             nar_size: info.nar_size,
                             nar_hash: info.nar_hash.clone(),
                         })

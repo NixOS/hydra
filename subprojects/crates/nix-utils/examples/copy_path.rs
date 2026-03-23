@@ -12,7 +12,7 @@ async fn main() {
     let res = copy_paths(
         local.as_base_store(),
         remote.as_base_store(),
-        &[nix_utils::StorePath::new(
+        &[nix_utils::parse_store_path(
             "1r5zv195y7b7b5q2daf5p82s2m6r4rg4-CVE-2024-56406.patch",
         )],
         false,

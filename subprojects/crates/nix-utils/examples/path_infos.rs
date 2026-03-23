@@ -4,9 +4,9 @@ use nix_utils::BaseStore as _;
 async fn main() {
     let local = nix_utils::LocalStore::init();
 
-    let p1 = nix_utils::StorePath::new("ihl4ya67glh9815v1lanyqph0p7hdzfb-hdf5-cpp-1.14.6-bin");
-    let p2 = nix_utils::StorePath::new("sgv5w811jvvxpjgmyw1n6l8hwfilha7x-hdf5-cpp-1.14.6-dev");
-    let p3 = nix_utils::StorePath::new("vb6yrzk31ng8s6nzs4y4jq6qsjab3gxv-hdf5-cpp-1.14.6");
+    let p1 = nix_utils::parse_store_path("ihl4ya67glh9815v1lanyqph0p7hdzfb-hdf5-cpp-1.14.6-bin");
+    let p2 = nix_utils::parse_store_path("sgv5w811jvvxpjgmyw1n6l8hwfilha7x-hdf5-cpp-1.14.6-dev");
+    let p3 = nix_utils::parse_store_path("vb6yrzk31ng8s6nzs4y4jq6qsjab3gxv-hdf5-cpp-1.14.6");
 
     let infos = local.query_path_infos(&[&p1, &p2, &p3]).await;
 

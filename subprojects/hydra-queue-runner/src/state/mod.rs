@@ -414,7 +414,8 @@ impl State {
         drv: &nix_utils::StorePath,
     ) -> anyhow::Result<std::path::PathBuf> {
         let mut log_file = self.log_dir.clone();
-        let (dir, file) = drv.base_name().split_at(2);
+        let base = drv.to_string();
+        let (dir, file) = base.split_at(2);
         log_file.push(format!("{dir}/"));
         let _ = fs_err::tokio::create_dir_all(&log_file).await; // create dir
         log_file.push(file);
@@ -1130,7 +1131,7 @@ impl State {
                 self.uploader
                     .schedule_upload(
                         outputs_to_upload,
-                        format!("log/{}", job.path.base_name()),
+                        format!("log/{}", job.path.to_string()),
                         job.result.log_file.clone(),
                     )
                     .await;
@@ -1781,7 +1782,7 @@ impl State {
                     self.uploader
                         .schedule_upload(
                             missing_paths,
-                            format!("log/{}", drv_path.base_name()),
+                            format!("log/{}", drv_path.to_string()),
                             log_file.to_string_lossy().to_string(),
                         )
                         .await;
@@ -1863,7 +1864,7 @@ impl State {
             let new_steps = new_steps.clone();
             let new_runnable = new_runnable.clone();
             async move {
-                let path = nix_utils::StorePath::new(&i);
+                let path = nix_utils::parse_store_path(&i);
                 Box::pin(self.create_step(
                     // conn,
                     build,
@@ -1986,8 +1987,8 @@ impl State {
                     .get_build_products_for_build_id(build_id)
                     .await?
                     .into_iter()
-                    .map(Into::into)
-                    .collect();
+                    .map(|p| build::BuildProduct::from_db(self.store.store_dir(), p))
+                    .collect::<anyhow::Result<Vec<_>>>()?;
                 res.metrics = db
                     .get_build_metrics_for_build_id(build_id)
                     .await?

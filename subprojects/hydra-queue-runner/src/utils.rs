@@ -48,7 +48,7 @@ pub async fn finish_build_step(
         if let Some(drv_path) = drv_path {
             // If we've finished building, all the paths should be known
             if let Some(drv) =
-                nix_utils::query_drv(store, &nix_utils::StorePath::new(&drv_path)).await?
+                nix_utils::query_drv(store, &nix_utils::parse_store_path(&drv_path)).await?
             {
                 for o in drv.outputs {
                     if let Some(path) = o.path {

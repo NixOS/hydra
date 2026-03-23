@@ -13,7 +13,6 @@
 #![allow(clippy::missing_errors_doc)]
 
 mod drv;
-mod hash;
 mod realisation;
 mod realise;
 mod store_path;
@@ -43,15 +42,16 @@ pub enum Error {
     #[error("anyhow error: `{0}`")]
     Anyhow(#[from] anyhow::Error),
 
-    #[error("hash parse error: `{0}`")]
-    HashParseError(#[from] hash::ParseError),
+    #[error("json error: `{0}`")]
+    Json(#[from] serde_json::Error),
 }
 
 pub use drv::{Derivation, DerivationEnv, Output as DerivationOutput, query_drv};
-pub use hash::{HashAlgorithm, HashFormat, convert_hash};
-pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations};
+pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
-pub use store_path::StorePath;
+pub use store_path::{
+    StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName, parse_store_path,
+};
 
 pub fn validate_statuscode(status: std::process::ExitStatus) -> Result<(), Error> {
     if status.success() {
@@ -62,13 +62,14 @@ pub fn validate_statuscode(status: std::process::ExitStatus) -> Result<(), Error
 }
 
 pub fn add_root(store: &LocalStore, root_dir: &std::path::Path, store_path: &StorePath) {
-    let path = root_dir.join(store_path.base_name());
+    let path = root_dir.join(store_path.to_string());
     // force create symlink
     if fs_err::exists(&path).unwrap_or_default() {
         let _ = fs_err::remove_file(&path);
     }
     if !fs_err::exists(&path).unwrap_or_default() {
-        let _ = fs_err::os::unix::fs::symlink(store.print_store_path(store_path), path);
+        let target = store.get_store_dir().display(store_path).to_string();
+        let _ = fs_err::os::unix::fs::symlink(target, path);
     }
 }
 
@@ -142,8 +143,6 @@ mod ffi {
 
         fn get_use_cgroups() -> bool;
         fn set_verbosity(level: i32);
-        fn sign_string(secret_key: &str, msg: &str) -> String;
-
         fn is_valid_path(store: &StoreWrapper, path: &str) -> Result<bool>;
         fn query_path_info(store: &StoreWrapper, path: &str) -> Result<InternalPathInfo>;
         fn compute_closure_size(store: &StoreWrapper, path: &str) -> Result<u64>;
@@ -316,12 +315,6 @@ pub fn set_verbosity(level: i32) {
     ffi::set_verbosity(level);
 }
 
-#[inline]
-#[must_use]
-pub fn sign_string(secret_key: &str, msg: &str) -> String {
-    ffi::sign_string(secret_key, msg)
-}
-
 pub(crate) async fn asyncify<F, T>(f: F) -> Result<T, Error>
 where
     F: FnOnce() -> Result<T, cxx::Exception> + Send + 'static,
@@ -381,12 +374,12 @@ impl From<ffi::InternalPathInfo> for PathInfo {
             deriver: if val.deriver.is_empty() {
                 None
             } else {
-                Some(StorePath::new(&val.deriver))
+                Some(parse_store_path(&val.deriver))
             },
             nar_hash: val.nar_hash,
             registration_time: val.registration_time,
             nar_size: val.nar_size,
-            refs: val.refs.iter().map(|v| StorePath::new(v)).collect(),
+            refs: val.refs.iter().map(|v| parse_store_path(v)).collect(),
             sigs: val.sigs,
             ca: if val.ca.is_empty() {
                 None
@@ -475,7 +468,12 @@ pub trait BaseStore {
     ) -> impl Future<Output = Result<HashMap<String, String>, Error>>;
 
     #[must_use]
-    fn print_store_path(&self, path: &StorePath) -> String;
+    fn store_dir(&self) -> &StoreDir;
+
+    #[must_use]
+    fn print_store_path(&self, path: &StorePath) -> String {
+        self.store_dir().display(path).to_string()
+    }
 }
 
 struct FFIStore(std::cell::UnsafeCell<cxx::UniquePtr<ffi::StoreWrapper>>);
@@ -498,15 +496,16 @@ impl FFIStore {
 #[allow(missing_debug_implementations)]
 pub struct BaseStoreImpl {
     wrapper: std::sync::Arc<FFIStore>,
-    store_path_prefix: String,
+    store_dir: StoreDir,
 }
 
 impl BaseStoreImpl {
     fn new(store: cxx::UniquePtr<ffi::StoreWrapper>) -> Self {
-        let store_path_prefix = ffi::get_store_dir_for(&store);
+        let store_dir = StoreDir::new(ffi::get_store_dir_for(&store))
+            .unwrap_or_default();
         Self {
             wrapper: std::sync::Arc::new(FFIStore(std::cell::UnsafeCell::new(store))),
-            store_path_prefix,
+            store_dir,
         }
     }
 }
@@ -651,7 +650,7 @@ impl BaseStore for BaseStoreImpl {
                 toposort,
             )?
             .into_iter()
-            .map(|v| StorePath::new(&v))
+            .map(|v| parse_store_path(&v))
             .collect())
         })
         .await
@@ -767,7 +766,7 @@ impl BaseStore for BaseStoreImpl {
         let path = self.print_store_path(path);
         asyncify(move || {
             let v = ffi::try_resolve_drv(store.as_raw(), &path)?;
-            Ok(v.is_empty().then_some(v).map(|v| StorePath::new(&v)))
+            Ok(v.is_empty().then_some(v).map(|v| parse_store_path(&v)))
         })
         .await
         .ok()
@@ -789,8 +788,8 @@ impl BaseStore for BaseStoreImpl {
     }
 
     #[inline]
-    fn print_store_path(&self, path: &StorePath) -> String {
-        format!("{}/{}", self.store_path_prefix, path.base_name())
+    fn store_dir(&self) -> &StoreDir {
+        &self.store_dir
     }
 }
 
@@ -872,12 +871,12 @@ impl LocalStore {
     }
 
     #[must_use]
-    pub const fn get_store_path_prefix(&self) -> &str {
-        self.base.store_path_prefix.as_str()
+    pub fn get_store_dir(&self) -> &StoreDir {
+        &self.base.store_dir
     }
 
-    pub fn unsafe_set_store_path_prefix(&mut self, prefix: String) {
-        self.base.store_path_prefix = prefix;
+    pub fn unsafe_set_store_dir(&mut self, store_dir: StoreDir) {
+        self.base.store_dir = store_dir;
     }
 }
 
@@ -1020,8 +1019,8 @@ impl BaseStore for LocalStore {
     }
 
     #[inline]
-    fn print_store_path(&self, path: &StorePath) -> String {
-        self.base.print_store_path(path)
+    fn store_dir(&self) -> &StoreDir {
+        self.base.store_dir()
     }
 }
 
@@ -1255,7 +1254,7 @@ impl BaseStore for RemoteStore {
     }
 
     #[inline]
-    fn print_store_path(&self, path: &StorePath) -> String {
-        self.base.print_store_path(path)
+    fn store_dir(&self) -> &StoreDir {
+        self.base.store_dir()
     }
 }

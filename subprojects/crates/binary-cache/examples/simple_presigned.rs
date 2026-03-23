@@ -1,6 +1,7 @@
 use futures::stream::StreamExt as _;
 
 use binary_cache::{PresignedUploadClient, S3BinaryCacheClient, path_to_narinfo};
+use harmonia_utils_hash::fmt::CommonHash as _;
 use nix_utils::BaseStore as _;
 
 #[tokio::main]
@@ -21,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let paths_to_copy = store
         .query_requisites(
-            &[&nix_utils::StorePath::new(
+            &[&nix_utils::parse_store_path(
                 "/nix/store/m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1",
             )],
             true,
@@ -40,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let presigned_request = client
                     .generate_nar_upload_presigned_url(
                         &narinfo.store_path,
-                        &narinfo.nar_hash,
+                        &format!("{}", narinfo.nar_hash.as_base32()),
                         binary_cache::get_debug_info_build_ids(&store, &p).await?,
                     )
                     .await?;

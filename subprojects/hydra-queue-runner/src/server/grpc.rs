@@ -376,7 +376,7 @@ impl RunnerService for Server {
                 file.write_all(&chunk.data).await?;
             } else {
                 let mut file = state
-                    .new_log_file(&nix_utils::StorePath::new(&chunk.drv))
+                    .new_log_file(&nix_utils::parse_store_path(&chunk.drv))
                     .await
                     .map_err(|_| tonic::Status::internal("Failed to create log file."))?;
                 file.write_all(&chunk.data).await?;
@@ -471,7 +471,14 @@ impl RunnerService for Server {
         tokio::spawn({
             async move {
                 if req.result_state() == BuildResultState::Success {
-                    let build_output = crate::state::BuildOutput::from(req);
+                    let build_output =
+                        match crate::state::BuildOutput::from_grpc(state.store.store_dir(), req) {
+                            Ok(output) => output,
+                            Err(e) => {
+                                tracing::error!("Failed to parse build output: {e}");
+                                return;
+                            }
+                        };
                     if let Err(e) = state
                         .succeed_step_by_uuid(build_id, machine_id, build_output)
                         .await
@@ -509,7 +516,7 @@ impl RunnerService for Server {
     ) -> BuilderResult<runner_v1::DrvRequisitesMessage> {
         let state = self.state.clone();
         let req = req.into_inner();
-        let drv = nix_utils::StorePath::new(&req.path);
+        let drv = nix_utils::parse_store_path(&req.path);
 
         let requisites = state
             .store
@@ -520,7 +527,7 @@ impl RunnerService for Server {
                 tonic::Status::internal("failed to toposort drv.")
             })?
             .into_iter()
-            .map(nix_utils::StorePath::into_base_name)
+            .map(|p| p.to_string())
             .collect();
 
         Ok(tonic::Response::new(runner_v1::DrvRequisitesMessage {
@@ -533,7 +540,7 @@ impl RunnerService for Server {
         &self,
         req: tonic::Request<StorePath>,
     ) -> BuilderResult<runner_v1::HasPathResponse> {
-        let path = nix_utils::StorePath::new(&req.into_inner().path);
+        let path = nix_utils::parse_store_path(&req.into_inner().path);
         let state = self.state.clone();
         let has_path = state.store.is_valid_path(&path).await;
 
@@ -547,7 +554,7 @@ impl RunnerService for Server {
         &self,
         req: tonic::Request<StorePath>,
     ) -> BuilderResult<Self::StreamFileStream> {
-        let path = nix_utils::StorePath::new(&req.into_inner().path);
+        let path = nix_utils::parse_store_path(&req.into_inner().path);
         let store = nix_utils::LocalStore::init();
         let (tx, rx) = mpsc::unbounded_channel::<Result<NarData, tonic::Status>>();
 
@@ -575,7 +582,7 @@ impl RunnerService for Server {
         let paths = req
             .paths
             .into_iter()
-            .map(|p| nix_utils::StorePath::new(&p))
+            .map(|p| nix_utils::parse_store_path(&p))
             .collect::<Vec<_>>();
 
         let store = nix_utils::LocalStore::init();
@@ -633,7 +640,7 @@ impl RunnerService for Server {
 
         let mut responses = Vec::new();
         for presigned_request in req.request {
-            let store_path = nix_utils::StorePath::new(&presigned_request.store_path);
+            let store_path = nix_utils::parse_store_path(&presigned_request.store_path);
 
             let presigned_response = remote_store
                 .generate_nar_upload_presigned_url(
@@ -648,7 +655,7 @@ impl RunnerService for Server {
                 })?;
 
             responses.push(runner_v1::PresignedNarResponse {
-                store_path: store_path.base_name().to_owned(),
+                store_path: store_path.to_string().to_owned(),
                 nar_url: presigned_response.nar_url,
                 nar_upload: Some(runner_v1::PresignedUpload {
                     compression_level: presigned_response.nar_upload.get_compression_level_as_i32(),
@@ -732,19 +739,21 @@ impl RunnerService for Server {
         };
 
         let narinfo = binary_cache::NarInfo {
-            store_path: nix_utils::StorePath::new(&req.store_path),
+            store_path: nix_utils::parse_store_path(&req.store_path),
             url: req.url.clone(),
             compression: remote_store.cfg.compression,
-            file_hash: Some(req.file_hash),
+            file_hash: binary_cache::parse_hash(&req.file_hash),
             file_size: Some(req.file_size),
-            nar_hash: req.nar_hash,
+            nar_hash: binary_cache::parse_hash(&req.nar_hash).ok_or_else(|| {
+                tonic::Status::invalid_argument(format!("invalid nar hash: {}", req.nar_hash))
+            })?,
             nar_size: req.nar_size,
             references: req
                 .references
                 .into_iter()
-                .map(|p| nix_utils::StorePath::new(&p))
+                .map(|p| nix_utils::parse_store_path(&p))
                 .collect(),
-            deriver: req.deriver.map(|p| nix_utils::StorePath::new(&p)),
+            deriver: req.deriver.map(|p| nix_utils::parse_store_path(&p)),
             ca: req.ca,
             sigs: vec![],
         };

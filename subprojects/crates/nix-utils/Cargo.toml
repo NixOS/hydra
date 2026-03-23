@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 tracing.workspace = true
 serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }
@@ -21,6 +22,8 @@ bytes.workspace = true
 smallvec.workspace = true
 
 cxx.workspace = true
+harmonia-store-core.workspace = true
+harmonia-utils-hash.workspace = true
 
 nix-diff.workspace = true
 

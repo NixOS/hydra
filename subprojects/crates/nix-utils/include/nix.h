@@ -33,7 +33,6 @@ rust::Vec<rust::String> get_substituters();
 
 bool get_use_cgroups();
 void set_verbosity(int32_t level);
-rust::String sign_string(rust::Str secret_key, rust::Str msg);
 
 bool is_valid_path(const StoreWrapper &wrapper, rust::Str path);
 InternalPathInfo query_path_info(const StoreWrapper &wrapper, rust::Str path);

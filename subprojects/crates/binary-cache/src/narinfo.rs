@@ -1,19 +1,21 @@
 use std::fmt::Write as _;
 
+use harmonia_store_core::signature::{SecretKey, fingerprint_path};
+use harmonia_store_core::store_path::StoreDir;
+use harmonia_utils_hash::Hash;
+use harmonia_utils_hash::fmt::CommonHash as _;
 use secrecy::ExposeSecret as _;
 
 use crate::Compression;
-
-use nix_utils::BaseStore as _;
 
 #[derive(Debug, Clone)]
 pub struct NarInfo {
     pub store_path: nix_utils::StorePath,
     pub url: String,
     pub compression: Compression,
-    pub file_hash: Option<String>,
+    pub file_hash: Option<Hash>,
     pub file_size: Option<u64>,
-    pub nar_hash: String,
+    pub nar_hash: Hash,
     pub nar_size: u64,
     pub references: Vec<nix_utils::StorePath>,
     pub deriver: Option<nix_utils::StorePath>,
@@ -24,25 +26,17 @@ pub struct NarInfo {
 impl NarInfo {
     #[must_use]
     pub fn new(
-        store: &nix_utils::LocalStore,
         path: &nix_utils::StorePath,
         path_info: nix_utils::PathInfo,
         compression: Compression,
+        store_dir: &StoreDir,
         signing_keys: &[secrecy::SecretString],
     ) -> Self {
-        let nar_hash = if path_info.nar_hash.len() == 71 {
-            nix_utils::convert_hash(
-                &path_info.nar_hash[7..],
-                Some(nix_utils::HashAlgorithm::SHA256),
-                nix_utils::HashFormat::Nix32,
-            )
-            .unwrap_or(path_info.nar_hash)
-        } else {
-            path_info.nar_hash
-        };
-        let nar_hash_url = nar_hash
-            .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), |h| h);
+        let nar_hash = parse_hash(&path_info.nar_hash);
+        let nar_hash_url = nar_hash.as_ref().map_or_else(
+            || path.hash().to_string(),
+            |h| format!("{:#}", h.as_base32()),
+        );
 
         let narinfo = Self {
             store_path: path.clone(),
@@ -50,7 +44,10 @@ impl NarInfo {
             compression,
             file_hash: None,
             file_size: None,
-            nar_hash,
+            nar_hash: nar_hash.unwrap_or_else(|| {
+                Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &[0; 32])
+                    .expect("sha256 zero hash")
+            }),
             nar_size: path_info.nar_size,
             references: path_info.refs,
             deriver: path_info.deriver,
@@ -58,7 +55,7 @@ impl NarInfo {
             sigs: vec![],
         };
 
-        let mut narinfo = narinfo.clear_sigs_and_sign(store, signing_keys);
+        let mut narinfo = narinfo.clear_sigs_and_sign(store_dir, signing_keys);
         if narinfo.sigs.is_empty() && !path_info.sigs.is_empty() {
             narinfo.sigs = path_info.sigs;
         }
@@ -72,19 +69,11 @@ impl NarInfo {
         path_info: nix_utils::PathInfo,
         compression: Compression,
     ) -> Self {
-        let nar_hash = if path_info.nar_hash.len() == 71 {
-            nix_utils::convert_hash(
-                &path_info.nar_hash[7..],
-                Some(nix_utils::HashAlgorithm::SHA256),
-                nix_utils::HashFormat::Nix32,
-            )
-            .unwrap_or(path_info.nar_hash)
-        } else {
-            path_info.nar_hash
-        };
-        let nar_hash_url = nar_hash
-            .strip_prefix("sha256:")
-            .map_or_else(|| path.hash_part(), |h| h);
+        let nar_hash = parse_hash(&path_info.nar_hash);
+        let nar_hash_url = nar_hash.as_ref().map_or_else(
+            || path.hash().to_string(),
+            |h| format!("{:#}", h.as_base32()),
+        );
 
         Self {
             store_path: path.clone(),
@@ -92,7 +81,10 @@ impl NarInfo {
             compression,
             file_hash: None,
             file_size: None,
-            nar_hash,
+            nar_hash: nar_hash.unwrap_or_else(|| {
+                Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &[0; 32])
+                    .expect("sha256 zero hash")
+            }),
             nar_size: path_info.nar_size,
             references: path_info.refs,
             deriver: path_info.deriver,
@@ -104,72 +96,53 @@ impl NarInfo {
     #[must_use]
     pub fn clear_sigs_and_sign(
         mut self,
-        store: &nix_utils::LocalStore,
+        store_dir: &StoreDir,
         signing_keys: &[secrecy::SecretString],
     ) -> Self {
-        self.sigs.clear(); // if we call this sign, we dont trust the signatures
+        self.sigs.clear();
         if !signing_keys.is_empty()
-            && let Some(fp) = self.fingerprint_path(store)
+            && let Some(fp) = self.fingerprint(store_dir)
         {
             for s in signing_keys {
-                self.sigs
-                    .push(nix_utils::sign_string(s.expose_secret(), &fp));
+                if let Ok(sk) = s.expose_secret().parse::<SecretKey>() {
+                    self.sigs.push(sk.sign(&fp).to_string());
+                }
             }
         }
         self
     }
 
     #[must_use]
-    fn fingerprint_path(&self, store: &nix_utils::LocalStore) -> Option<String> {
-        let root_store_dir = nix_utils::get_store_dir();
-        let abs_path = store.print_store_path(&self.store_path);
-
-        if abs_path[0..root_store_dir.len()] != root_store_dir || &self.nar_hash[0..7] != "sha256:"
-        {
-            return None;
-        }
-
-        if self.nar_hash.len() != 59 {
-            return None;
-        }
-
-        let refs = self
-            .references
-            .iter()
-            .map(|r| store.print_store_path(r))
-            .collect::<Vec<_>>();
-        for r in &refs {
-            if r[0..root_store_dir.len()] != root_store_dir {
-                return None;
-            }
-        }
-
-        Some(format!(
-            "1;{};{};{};{}",
-            abs_path,
-            self.nar_hash,
+    fn fingerprint(&self, store_dir: &StoreDir) -> Option<Vec<u8>> {
+        let refs = self.references.iter().cloned().collect();
+        let nar_hash_str = format!("{}", self.nar_hash.as_base32());
+        fingerprint_path(
+            store_dir,
+            &self.store_path,
+            nar_hash_str.as_bytes(),
             self.nar_size,
-            refs.join(",")
-        ))
+            &refs,
+        )
+        .ok()
     }
 
     #[must_use]
     pub fn get_ls_path(&self) -> String {
-        format!("{}.ls", self.store_path.hash_part())
+        format!("{}.ls", self.store_path.hash().to_string())
     }
 
-    pub fn render(&self, store: &nix_utils::LocalStore) -> Result<String, std::fmt::Error> {
+    pub fn render(&self, store_dir: &StoreDir) -> Result<String, std::fmt::Error> {
         let mut o = String::with_capacity(200);
-        writeln!(o, "StorePath: {}", store.print_store_path(&self.store_path))?;
+        writeln!(o, "StorePath: {}", store_dir.display(&self.store_path))?;
         writeln!(o, "URL: {}", self.url)?;
         writeln!(o, "Compression: {}", self.compression.as_str())?;
         if let Some(h) = &self.file_hash {
-            writeln!(o, "FileHash: {h}")?;
+            writeln!(o, "FileHash: {}", h.as_base32())?;
         }
         if let Some(s) = self.file_size {
             writeln!(o, "FileSize: {s}")?;
         }
-        writeln!(o, "NarHash: {}", self.nar_hash)?;
+        writeln!(o, "NarHash: {}", self.nar_hash.as_base32())?;
         writeln!(o, "NarSize: {}", self.nar_size)?;
 
         writeln!(
@@ -177,13 +150,13 @@ impl NarInfo {
             "References: {}",
             self.references
                 .iter()
-                .map(nix_utils::StorePath::base_name)
+                .map(nix_utils::StorePath::to_string)
                 .collect::<Vec<_>>()
                 .join(" ")
         )?;
 
         if let Some(d) = &self.deriver {
-            writeln!(o, "Deriver: {}", d.base_name())?;
+            writeln!(o, "Deriver: {}", d.to_string())?;
         }
         if let Some(ca) = &self.ca {
             writeln!(o, "CA: {ca}")?;
@@ -194,6 +167,13 @@ impl NarInfo {
         }
         Ok(o)
     }
+}
+
+/// Parse a hash string (in any format: hex, nix32, sri) into a typed `Hash`.
+pub fn parse_hash(raw: &str) -> Option<Hash> {
+    raw.parse::<harmonia_utils_hash::fmt::Any<Hash>>()
+        .map(harmonia_utils_hash::fmt::Any::into_hash)
+        .ok()
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -218,12 +198,13 @@ impl std::str::FromStr for NarInfo {
     #[allow(clippy::too_many_lines)]
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let mut out = Self {
-            store_path: nix_utils::StorePath::new("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bla"),
+            store_path: nix_utils::parse_store_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bla"),
             url: String::new(),
             compression: Compression::None,
             file_hash: None,
             file_size: None,
-            nar_hash: String::new(),
+            nar_hash: Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &[0; 32])
+                .expect("sha256 zero hash"),
             nar_size: 0,
             references: vec![],
             deriver: None,
@@ -259,7 +240,7 @@ impl std::str::FromStr for NarInfo {
 
             match key {
                 "StorePath" => {
-                    out.store_path = nix_utils::StorePath::new(val);
+                    out.store_path = nix_utils::parse_store_path(val);
                     have_store_path = true;
                 }
                 "URL" => {
@@ -274,7 +255,7 @@ impl std::str::FromStr for NarInfo {
                     have_compression = true;
                 }
                 "FileHash" => {
-                    out.file_hash = Some(val.to_string());
+                    out.file_hash = parse_hash(val);
                 }
                 "FileSize" => {
                     out.file_size = Some(val.parse::<u64>().map_err(|e| NarInfoError::Int {
@@ -283,8 +264,10 @@ impl std::str::FromStr for NarInfo {
                     })?);
                 }
                 "NarHash" => {
-                    out.nar_hash = val.to_string();
-                    have_nar_hash = true;
+                    if let Some(h) = parse_hash(val) {
+                        out.nar_hash = h;
+                        have_nar_hash = true;
+                    }
                 }
                 "NarSize" => {
                     out.nar_size = val.parse::<u64>().map_err(|e| NarInfoError::Int {
@@ -297,7 +280,7 @@ impl std::str::FromStr for NarInfo {
                     let refs = val
                         .split_whitespace()
                         .filter(|s| !s.is_empty())
-                        .map(nix_utils::StorePath::new)
+                        .map(nix_utils::parse_store_path)
                         .collect::<Vec<_>>();
                     out.references = refs;
                 }
@@ -305,7 +288,7 @@ impl std::str::FromStr for NarInfo {
                     out.deriver = if val.is_empty() {
                         None
                     } else {
-                        Some(nix_utils::StorePath::new(val))
+                        Some(nix_utils::parse_store_path(val))
                     };
                 }
                 "CA" => {

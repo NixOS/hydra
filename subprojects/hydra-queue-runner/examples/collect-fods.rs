@@ -1,9 +1,9 @@
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let p = nix_utils::StorePath::new("dzgpbp0vp7lj7lgj26rjgmnjicq2wf4k-hello-2.12.2.drv");
+    let p = nix_utils::parse_store_path("dzgpbp0vp7lj7lgj26rjgmnjicq2wf4k-hello-2.12.2.drv");
     let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(4);
 
-    let fod = std::sync::Arc::new(queue_runner::state::FodChecker::new(Some(tx)));
+    let fod = std::sync::Arc::new(hydra_queue_runner::state::FodChecker::new(Some(tx)));
     fod.clone().start_traverse_loop();
     fod.to_traverse(&p);
     fod.trigger_traverse();

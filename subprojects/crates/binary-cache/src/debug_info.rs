@@ -220,8 +220,8 @@ mod tests {
 
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
-        let store_path_str = "1234567890123456789012345678901234-debug-output";
-        let store_path = nix_utils::StorePath::new(store_path_str);
+        let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-debug-output";
+        let store_path = nix_utils::parse_store_path(store_path_str);
         let full_path = store_prefix.join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
@@ -236,7 +236,7 @@ mod tests {
             .unwrap();
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_path_prefix(store_prefix.as_path().to_string_lossy().to_string());
+        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("test.nar", &local, &store_path, mock_client.clone())
             .await
@@ -371,14 +371,14 @@ mod tests {
 
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
-        let store_path_str = "1234567890123456789012345678901234-no-debug";
-        let store_path = nix_utils::StorePath::new(store_path_str);
+        let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-no-debug";
+        let store_path = nix_utils::parse_store_path(store_path_str);
         let full_path = temp_dir.join("nix/store").join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_path_prefix(store_prefix.as_path().to_string_lossy().to_string());
+        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("test.nar", &local, &store_path, mock_client.clone())
             .await
@@ -396,8 +396,8 @@ mod tests {
 
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
-        let store_path_str = "1234567890123456789012345678901234-empty-debug";
-        let store_path = nix_utils::StorePath::new(store_path_str);
+        let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-empty-debug";
+        let store_path = nix_utils::parse_store_path(store_path_str);
         let full_path = temp_dir.join("nix/store").join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
@@ -405,7 +405,7 @@ mod tests {
         fs_err::tokio::create_dir_all(&build_id_dir).await.unwrap();
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_path_prefix(store_prefix.as_path().to_string_lossy().to_string());
+        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("test.nar", &local, &store_path, mock_client.clone())
             .await
@@ -423,8 +423,8 @@ mod tests {
 
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
-        let store_path_str = "1234567890123456789012345678901234-multi-debug";
-        let store_path = nix_utils::StorePath::new(store_path_str);
+        let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-multi-debug";
+        let store_path = nix_utils::parse_store_path(store_path_str);
         let full_path = temp_dir.join("nix/store").join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
@@ -446,7 +446,7 @@ mod tests {
         }
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_path_prefix(store_prefix.as_path().to_string_lossy().to_string());
+        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("multi.nar", &local, &store_path, mock_client.clone())
             .await

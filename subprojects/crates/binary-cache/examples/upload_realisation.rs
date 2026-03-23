@@ -15,8 +15,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let id = nix_utils::DrvOutput {
         drv_hash: "sha256:6e46b9cf4fecaeab4b3c0578f4ab99e89d2f93535878c4ac69b5d5c4eb3a3db9"
-            .to_string(),
-        output_name: "debug".to_string(),
+            .parse::<harmonia_utils_hash::fmt::Any<harmonia_utils_hash::Hash>>()
+            .unwrap()
+            .into_hash(),
+        output_name: "debug".parse().unwrap(),
     };
     tracing::info!(
         "has realisation before: {}",

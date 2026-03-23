@@ -148,7 +148,7 @@ mod tests {
         lowest_share_used: f64,
         rdeps_len: u64,
     ) -> StepInfo {
-        let step = Step::new(nix_utils::StorePath::new(
+        let step = Step::new(nix_utils::parse_store_path(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test.drv",
         ));
 

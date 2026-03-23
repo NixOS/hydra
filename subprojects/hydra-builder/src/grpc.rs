@@ -53,7 +53,7 @@ impl BuilderClient {
         let request = store_paths
             .into_iter()
             .map(|(path, nar_hash, build_ids)| PresignedNarRequest {
-                store_path: path.base_name().to_owned(),
+                store_path: path.to_string().to_owned(),
                 nar_hash,
                 debug_info_build_ids: build_ids,
             })
