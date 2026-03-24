@@ -21,9 +21,8 @@ my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
 ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 
-for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with return code 0");
-}
+my @builds = queuedBuildsForJobset($jobset);
+ok(runBuilds(@builds), "Building jobs/basic.nix should exit with return code 0");
 
 
 

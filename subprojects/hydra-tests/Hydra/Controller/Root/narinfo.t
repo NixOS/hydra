@@ -27,9 +27,8 @@ my $project = $db->resultset('Projects')->create({name => "tests", displayname =
 my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset), "Evaluating jobs/basic.nix should exit with return code 0");
-for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with return code 0");
-}
+my @builds = queuedBuildsForJobset($jobset);
+ok(runBuilds(@builds), "Building jobs/basic.nix should exit with return code 0");
 
 subtest "/HASH.narinfo" => sub {
     my $build_redirect = request(GET '/job/tests/basic/empty_dir/latest-finished');

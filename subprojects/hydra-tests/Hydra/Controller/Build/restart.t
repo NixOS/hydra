@@ -33,16 +33,16 @@ my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
 ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 
+my @builds = queuedBuildsForJobset($jobset);
+ok(runBuilds(@builds), "Building jobs/basic.nix should exit with return code 0");
 my $failing;
-for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job."' from jobs/basic.nix should exit with return code 0");
+for my $build (@builds) {
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build '".$build->job."' from jobs/basic.nix should be finished.");
 
     if ($build->job eq "fails") {
         is($newbuild->buildstatus, 1, "Build 'fails' from jobs/basic.nix should have buildstatus 1.");
         $failing = $build;
-        last;
     }
 }
 

@@ -208,12 +208,14 @@ sub evaluateJobset {
 
     my $should_build = $opts{'build'};
 
-    for my $build ($jobset->builds) {
-        if ($should_build) {
-            runBuild($build) or die "Build '".$build->job."' from jobs/$expression should exit with return code 0.\n";
-            $build->discard_changes();
-        }
+    my @all_builds = $jobset->builds;
 
+    if ($should_build) {
+        runBuilds(@all_builds) or die "Building jobs/$expression should exit with return code 0.\n";
+    }
+
+    for my $build (@all_builds) {
+        $build->discard_changes() if $should_build;
         $builds->{$build->job} = $build;
     }
 
