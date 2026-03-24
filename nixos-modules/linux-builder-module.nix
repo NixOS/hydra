@@ -6,6 +6,7 @@
 }:
 let
   cfg = config.services.hydra-queue-builder-dev;
+  user = "hydra-queue-builder";
 in
 {
   options = {
@@ -221,7 +222,7 @@ in
           ]
         );
 
-        User = "hydra-queue-builder";
+        User = user;
         Group = "hydra";
 
         PrivateNetwork = false;
@@ -269,18 +270,19 @@ in
     };
 
     systemd.tmpfiles.rules = [
-      "d /nix/var/nix/gcroots/per-user/hydra-queue-builder 0755 hydra-queue-builder hydra -"
+      "d /nix/var/nix/gcroots/per-user/${user} 0755 ${user} hydra -"
     ];
+
     nix = {
       settings = {
-        trusted-users = [ "hydra-queue-builder" ];
+        trusted-users = [ user ];
         experimental-features = [ "nix-command" ];
       };
     };
 
     users = {
       groups.hydra = { };
-      users.hydra-queue-builder = {
+      users.${user} = {
         group = "hydra";
         isSystemUser = true;
       };

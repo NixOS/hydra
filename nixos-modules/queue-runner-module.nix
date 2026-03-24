@@ -7,6 +7,8 @@
 let
   cfg = config.services.hydra-queue-runner-dev;
 
+  user = "hydra-queue-runner";
+
   format = pkgs.formats.toml { };
 in
 {
@@ -277,7 +279,7 @@ in
         );
         ExecReload = "${pkgs.util-linux}/bin/kill -HUP $MAINPID";
 
-        User = "hydra-queue-runner";
+        User = user;
         Group = "hydra";
 
         PrivateNetwork = false;
@@ -345,18 +347,22 @@ in
       lib.filterAttrsRecursive (_: v: v != null) cfg.settings
     );
     systemd.tmpfiles.rules = [
-      "d /nix/var/nix/gcroots/per-user/hydra-queue-runner 0755 hydra-queue-runner hydra -"
+      "d /nix/var/nix/gcroots/per-user/${user} 0755 ${user} hydra -"
       "d /var/lib/hydra/build-logs/ 0755 hydra-queue-runner hydra -"
       "d /var/lib/hydra/queue-runner 0700 hydra-queue-runner hydra -"
     ];
 
     services.postgresql.identMap = ''
-      hydra-users hydra-queue-runner hydra
+      hydra-users ${user} hydra
     '';
+
+    nix.settings = {
+      trusted-users = [ user ];
+    };
 
     users = {
       groups.hydra = { };
-      users.hydra-queue-runner = {
+      users.${user} = {
         group = "hydra";
         isSystemUser = true;
         home = "/var/lib/hydra/queue-runner";
