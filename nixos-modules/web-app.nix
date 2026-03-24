@@ -193,6 +193,7 @@ in
     systemd.tmpfiles.rules = [
       "d ${baseDir} 0750 hydra hydra"
       "d ${baseDir}/www 0700 hydra-www hydra"
+      "d ${baseDir}/notify 0700 hydra-notify hydra"
       "d ${baseDir}/runcommand-logs 0750 hydra hydra"
       "L+ ${baseDir}/hydra.conf - - - - ${hydraConf}"
     ];
@@ -202,6 +203,7 @@ in
         group = "hydra";
         isSystemUser = true;
         useDefaultShell = true;
+        home = "${baseDir}/www";
       };
 
     users.users.hydra-notify =
@@ -209,6 +211,7 @@ in
         group = "hydra";
         isSystemUser = true;
         useDefaultShell = true;
+        home = "${baseDir}/notify";
       };
 
     services.postgresql.identMap = optionalString haveLocalDB
