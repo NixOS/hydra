@@ -221,6 +221,17 @@ in
         '';
       };
 
+      awsCredentialsFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to an AWS credentials file. When set, the
+          `AWS_SHARED_CREDENTIALS_FILE` environment variable is passed to the
+          queue runner so that the AWS SDK finds credentials without relying
+          on the EC2 instance metadata service (IMDS).
+        '';
+      };
+
       package = lib.mkOption {
         type = lib.types.package;
         default = pkgs.callPackage ./. { };
@@ -251,6 +262,9 @@ in
         # $HOME in order to use a temporary cache dir. bizarre failures will occur
         # otherwise
         HOME = "/run/hydra-queue-runner";
+      }
+      // lib.optionalAttrs (cfg.awsCredentialsFile != null) {
+        AWS_SHARED_CREDENTIALS_FILE = cfg.awsCredentialsFile;
       };
 
       serviceConfig = {
@@ -334,14 +348,13 @@ in
     # Leaves a tag file indicating this reason; if the tag file exists
     # and disk space is above the threshold + 10GB, the queue will be
     # restarted; starting it if it is already started is not harmful.
-    systemd.services.hydra-queue-runner-check-space =
-      { script =
-          ''
-            ${builtins.readFile ./check-space.sh}
-            spacestopstart hydra-queue-runner-dev ${toString cfg.minimumDiskFree}
-          '';
-        startAt = "*:0/5";
-      };
+    systemd.services.hydra-queue-runner-check-space = {
+      script = ''
+        ${builtins.readFile ./check-space.sh}
+        spacestopstart hydra-queue-runner-dev ${toString cfg.minimumDiskFree}
+      '';
+      startAt = "*:0/5";
+    };
 
     environment.etc."hydra/queue-runner.toml".source = format.generate "queue-runner.toml" (
       lib.filterAttrsRecursive (_: v: v != null) cfg.settings
