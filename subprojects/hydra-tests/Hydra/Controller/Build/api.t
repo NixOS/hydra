@@ -21,13 +21,9 @@ my $jobset = createBaseJobset("aggregate", "aggregate.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset),               "Evaluating jobs/aggregate.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/aggregate.nix should result in 3 builds");
-my $aggregateBuild;
-for my $build (queuedBuildsForJobset($jobset)) {
-    if ($build->nixname eq "aggregate") {
-        $aggregateBuild = $build;
-    }
-    ok(runBuild($build), "Build '".$build->job."' from jobs/aggregate.nix should exit with return code 0");
-}
+my @builds = queuedBuildsForJobset($jobset);
+ok(runBuilds(@builds), "Building jobs/aggregate.nix should exit with return code 0");
+my ($aggregateBuild) = grep { $_->nixname eq "aggregate" } @builds;
 $aggregateBuild->discard_changes();
 
 my $build_redirect = request(GET '/job/tests/aggregate/aggregate/latest-finished');

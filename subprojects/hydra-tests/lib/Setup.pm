@@ -22,6 +22,7 @@ our @EXPORT = qw(
     nrQueuedBuildsForJobset
     queuedBuildsForJobset
     runBuild
+    runBuilds
     sendNotifications
     test_context
     test_init

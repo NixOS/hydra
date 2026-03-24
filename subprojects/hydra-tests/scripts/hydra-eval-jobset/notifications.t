@@ -101,10 +101,8 @@ subtest "on a fresh evaluation with changed sources" => sub {
     say $fh "\n";
     close $fh;
 
-    ok(runBuild($builds->{"stable-job-passing"}), "building the stable passing job");
+    ok(runBuilds($builds->{"stable-job-passing"}, $builds->{"stable-job-failing"}), "building the stable jobs");
     $builds->{"stable-job-passing"}->discard_changes();
-
-    ok(runBuild($builds->{"stable-job-failing"}), "building the stable failing job");
     $builds->{"stable-job-failing"}->discard_changes();
 
     ok(evalSucceeds($builds->{"variable-job"}->jobset), "evaluating for the third time");
