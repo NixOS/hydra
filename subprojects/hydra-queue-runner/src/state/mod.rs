@@ -568,7 +568,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub(crate) async fn manually_add_queue_build(&self, build_id: BuildID) -> anyhow::Result<bool> {
+    pub(crate) async fn manually_add_queue_build(&self, build_id: BuildID) -> anyhow::Result<()> {
         let mut new_ids = Vec::<BuildID>::new();
         let mut new_builds_by_id = HashMap::<BuildID, Arc<Build>>::new();
         let mut new_builds_by_path = HashMap::<nix_utils::StorePath, HashSet<BuildID>>::new();
@@ -599,12 +599,12 @@ impl State {
         tracing::debug!("new_builds_by_path: {new_builds_by_path:?}");
 
         if new_ids.is_empty() {
-            return Ok(false);
+            return Ok(());
         }
 
         let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
         Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await;
-        Ok(true)
+        Ok(())
     }
 
     #[tracing::instrument(skip(self), err)]

@@ -395,11 +395,8 @@ mod handler {
             let whole_body = req.collect().await?.aggregate();
             let data: io::BuildOnePayload = serde_json::from_reader(whole_body.reader())?;
 
-            if state.manually_add_queue_build(data.build_id).await? {
-                construct_json_ok_response(&io::Empty {})
-            } else {
-                return Err(Error::NotFound);
-            }
+            state.manually_add_queue_build(data.build_id).await?;
+            construct_json_ok_response(&io::Empty {})
         }
     }
 

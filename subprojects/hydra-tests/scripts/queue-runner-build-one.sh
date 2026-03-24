@@ -75,7 +75,7 @@ for _ in $(seq 1 30); do
     sleep 0.5
 done
 
-# Submit all builds.
+# Submit all builds. Returns 200 even if a build is already finished.
 for bid in "${BUILD_IDS[@]}"; do
     curl -s --fail -X POST \
         --json "{\"buildId\": ${bid}}" \
