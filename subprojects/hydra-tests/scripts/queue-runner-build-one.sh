@@ -24,11 +24,11 @@ cleanup() {
 }
 
 if [[ $# -eq 0 ]]; then
-    echo "Usage: $0 <build_id>"
+    echo "Usage: $0 <build_id> [build_id ...]"
     exit 1
 fi
 
-BUILD_ID="$1"
+BUILD_IDS=("$@")
 
 trap cleanup EXIT INT TERM
 
@@ -75,14 +75,23 @@ for _ in $(seq 1 30); do
     sleep 0.5
 done
 
-# Submit build and poll until it finishes.
-curl -s --fail -X POST \
-    --json "{\"buildId\": ${BUILD_ID}}" \
-    "http://[::1]:${HTTP_PORT}/build_one"
-sleep 2
+# Submit all builds.
+for bid in "${BUILD_IDS[@]}"; do
+    curl -s --fail -X POST \
+        --json "{\"buildId\": ${bid}}" \
+        "http://[::1]:${HTTP_PORT}/build_one"
+done
 
+# Poll until every build is no longer active.
 while true; do
-    status=$(curl -s "http://[::1]:${HTTP_PORT}/status/build/${BUILD_ID}/active")
-    [[ "${status}" == *"true"* ]] || break
+    all_done=true
+    for bid in "${BUILD_IDS[@]}"; do
+        status=$(curl -s "http://[::1]:${HTTP_PORT}/status/build/${bid}/active")
+        if [[ "${status}" == *"true"* ]]; then
+            all_done=false
+            break
+        fi
+    done
+    "${all_done}" && break
     sleep 2
 done
