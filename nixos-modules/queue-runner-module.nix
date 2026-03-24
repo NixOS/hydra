@@ -347,6 +347,7 @@ in
     systemd.tmpfiles.rules = [
       "d /nix/var/nix/gcroots/per-user/hydra-queue-runner 0755 hydra-queue-runner hydra -"
       "d /var/lib/hydra/build-logs/ 0755 hydra-queue-runner hydra -"
+      "d /var/lib/hydra/queue-runner 0700 hydra-queue-runner hydra -"
     ];
 
     services.postgresql.identMap = ''
@@ -358,6 +359,7 @@ in
       users.hydra-queue-runner = {
         group = "hydra";
         isSystemUser = true;
+        home = "/var/lib/hydra/queue-runner";
       };
     };
   };
