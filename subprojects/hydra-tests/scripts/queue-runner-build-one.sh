@@ -84,6 +84,17 @@ done
 
 # Poll until every build is no longer active.
 while true; do
+    # If the builder crashed, fail fast with its exit code instead of
+    # waiting for the queue-runner to time out the orphaned builds.
+    if ! kill -0 "${BUILDER_PID}" 2>/dev/null; then
+        wait "${BUILDER_PID}" 2>/dev/null && builder_rc=0 || builder_rc=$?
+        echo >&2 "builder (pid ${BUILDER_PID}) exited unexpectedly (exit code ${builder_rc})"
+        if (( builder_rc > 128 )); then
+            echo >&2 "builder was killed by signal $(( builder_rc - 128 ))"
+        fi
+        exit 1
+    fi
+
     all_done=true
     for bid in "${BUILD_IDS[@]}"; do
         status=$(curl -s "http://[::1]:${HTTP_PORT}/status/build/${bid}/active")
