@@ -348,7 +348,7 @@ in
     );
     systemd.tmpfiles.rules = [
       "d /nix/var/nix/gcroots/per-user/${user} 0755 ${user} hydra -"
-      "d /var/lib/hydra/build-logs/ 0755 hydra-queue-runner hydra -"
+      "d /var/lib/hydra/build-logs/ 0775 hydra-queue-runner hydra -"
       "d /var/lib/hydra/queue-runner 0700 hydra-queue-runner hydra -"
     ];
 
