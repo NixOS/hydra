@@ -50,12 +50,12 @@ pub async fn finish_build_step(
             if let Some(drv) =
                 nix_utils::query_drv(store, &nix_utils::parse_store_path(&drv_path)).await?
             {
-                for o in drv.outputs {
-                    if let Some(path) = o.path {
+                for (name, path) in nix_utils::output_paths(&drv, store.store_dir()) {
+                    if let Some(path) = path {
                         tx.update_build_step_output(
                             build_id,
                             step_nr,
-                            &o.name,
+                            name.as_ref(),
                             &store.print_store_path(&path),
                         )
                         .await?;
@@ -69,27 +69,28 @@ pub async fn finish_build_step(
     Ok(())
 }
 
-#[tracing::instrument(skip(db, store, o, remote_store), fields(%drv_path), err(level=tracing::Level::WARN))]
+#[tracing::instrument(skip(db, store, remote_store), fields(%drv_path), err(level=tracing::Level::WARN))]
 pub async fn substitute_output(
     db: db::Database,
     store: nix_utils::LocalStore,
-    o: nix_utils::DerivationOutput,
+    o: (nix_utils::OutputName, Option<nix_utils::StorePath>),
     build_id: BuildID,
     drv_path: &nix_utils::StorePath,
     remote_store: Option<&binary_cache::S3BinaryCacheClient>,
 ) -> anyhow::Result<bool> {
-    let Some(path) = &o.path else {
+    let (name, path) = o;
+    let Some(path) = path else {
         return Ok(false);
     };
 
     let starttime = i32::try_from(jiff::Timestamp::now().as_second())?; // TODO
-    if let Err(e) = store.ensure_path(path).await {
+    if let Err(e) = store.ensure_path(&path).await {
         tracing::debug!("Path not found, can't import={e}");
         return Ok(false);
     }
     if let Some(remote_store) = remote_store {
         let paths_to_copy = store
-            .query_requisites(&[path], false)
+            .query_requisites(&[&path], false)
             .await
             .unwrap_or_default();
         let paths_to_copy = remote_store.query_missing_paths(paths_to_copy).await;
@@ -109,7 +110,7 @@ pub async fn substitute_output(
         stoptime,
         build_id,
         &store.print_store_path(drv_path),
-        (o.name.clone(), o.path.map(|p| store.print_store_path(&p))),
+        (name.to_string(), Some(store.print_store_path(&path))),
     )
     .await?;
     tx.commit().await?;

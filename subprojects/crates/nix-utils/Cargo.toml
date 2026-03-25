@@ -22,10 +22,9 @@ bytes.workspace = true
 smallvec.workspace = true
 
 cxx.workspace = true
+harmonia-store-aterm.workspace = true
 harmonia-store-core.workspace = true
 harmonia-utils-hash.workspace = true
-
-nix-diff.workspace = true
 
 [build-dependencies]
 cxx-build.workspace = true
