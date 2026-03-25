@@ -3,7 +3,7 @@ use nix_utils::{self, BaseStore as _};
 #[tokio::main]
 async fn main() {
     let store = nix_utils::LocalStore::init();
-    let store_dir = nix_utils::get_store_dir();
+    let store_dir = store.store_dir().to_string();
     println!(
         "storepath={store_dir} valid={}",
         store

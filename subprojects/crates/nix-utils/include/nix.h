@@ -20,19 +20,10 @@ namespace nix_utils {
 void init_nix();
 std::unique_ptr<StoreWrapper> init(rust::Str uri);
 
-rust::String get_store_dir();
 rust::String get_store_dir_for(const StoreWrapper &wrapper);
 rust::String get_build_dir();
 rust::String get_log_dir();
 rust::String get_state_dir();
-rust::String get_nix_version();
-rust::String get_this_system();
-rust::Vec<rust::String> get_extra_platforms();
-rust::Vec<rust::String> get_system_features();
-rust::Vec<rust::String> get_substituters();
-
-bool get_use_cgroups();
-void set_verbosity(int32_t level);
 
 bool is_valid_path(const StoreWrapper &wrapper, rust::Str path);
 InternalPathInfo query_path_info(const StoreWrapper &wrapper, rust::Str path);

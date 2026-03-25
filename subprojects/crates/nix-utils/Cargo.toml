@@ -25,6 +25,8 @@ cxx.workspace = true
 harmonia-store-core.workspace = true
 harmonia-utils-hash.workspace = true
 
+nix-bindings-store.workspace = true
+nix-bindings-util.workspace = true
 nix-diff.workspace = true
 
 [build-dependencies]

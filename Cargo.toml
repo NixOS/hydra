@@ -42,6 +42,8 @@ harmonia-store-core = { git = "https://github.com/nix-community/harmonia.git", b
 harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git", branch = "nix-2.34" }
 harmonia-utils-hash = { git = "https://github.com/nix-community/harmonia.git", branch = "nix-2.34" }
 md5 = "0.7"
+nix-bindings-store = { git = "https://github.com/amaanq/nix-bindings-rust.git", branch = "hydra-store-ops" }
+nix-bindings-util = { git = "https://github.com/amaanq/nix-bindings-rust.git", branch = "hydra-store-ops" }
 nix-diff = { git = "https://github.com/mic92/nix-diff-rs.git", rev = "7b79a68963fd7fcb48a57071b52bc90bd8d60609" }
 num_enum = "0.7"
 ring = "0.17"

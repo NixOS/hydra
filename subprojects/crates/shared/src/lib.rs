@@ -95,10 +95,8 @@ struct FilesystemOperations {
 }
 
 impl FilesystemOperations {
-    fn new() -> Self {
-        Self {
-            store_dir: nix_utils::StoreDir::new(nix_utils::get_store_dir()).unwrap_or_default(),
-        }
+    fn new(store_dir: nix_utils::StoreDir) -> Self {
+        Self { store_dir }
     }
 }
 
@@ -309,7 +307,7 @@ pub async fn parse_nix_support_from_outputs(
 
         let reader = BufReader::new(file);
         let mut lines = reader.lines();
-        let fsop = FilesystemOperations::new();
+        let fsop = FilesystemOperations::new(store.store_dir().clone());
         while let Some(line) = lines.next_line().await? {
             if let Some(o) = Box::pin(parse_build_product(store, fsop.clone(), output, &line)).await
             {

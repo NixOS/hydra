@@ -52,10 +52,6 @@ std::unique_ptr<StoreWrapper> init(rust::Str uri) {
   }
 }
 
-rust::String get_store_dir() {
-  init_nix();
-  return nix::openStore()->storeDir;
-}
 rust::String get_store_dir_for(const StoreWrapper &wrapper) {
   return wrapper._store->storeDir;
 }
@@ -68,43 +64,7 @@ rust::String get_build_dir() {
 }
 rust::String get_log_dir() { return nix::settings.getLogFileSettings().nixLogDir.string(); }
 rust::String get_state_dir() { return nix::settings.nixStateDir.string(); }
-rust::String get_nix_version() { return nix::nixVersion; }
-rust::String get_this_system() { return nix::settings.thisSystem.get(); }
-rust::Vec<rust::String> get_extra_platforms() {
-  auto set = nix::settings.extraPlatforms.get();
-  rust::Vec<rust::String> data;
-  data.reserve(set.size());
-  for (const auto &val : set) {
-    data.emplace_back(val);
-  }
-  return data;
-}
-rust::Vec<rust::String> get_system_features() {
-  auto set = nix::settings.systemFeatures.get();
-  rust::Vec<rust::String> data;
-  data.reserve(set.size());
-  for (const auto &val : set) {
-    data.emplace_back(val);
-  }
-  return data;
-}
-rust::Vec<rust::String> get_substituters() {
-  auto refs = nix::settings.getWorkerSettings().substituters.get();
-  rust::Vec<rust::String> data;
-  data.reserve(refs.size());
-  for (const auto &val : refs) {
-    data.emplace_back(val.render());
-  }
-  return data;
-}
 
-bool get_use_cgroups() {
-#ifdef __linux__
-  return nix::settings.getLocalSettings().useCgroups;
-#endif
-  return false;
-}
-void set_verbosity(int32_t level) { nix::verbosity = (nix::Verbosity)level; }
 
 bool is_valid_path(const StoreWrapper &wrapper, rust::Str path) {
   auto store = wrapper._store;

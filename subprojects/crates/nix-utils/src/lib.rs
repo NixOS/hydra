@@ -130,19 +130,10 @@ mod ffi {
         fn init_nix();
         fn init(uri: &str) -> UniquePtr<StoreWrapper>;
 
-        fn get_store_dir() -> String;
         fn get_store_dir_for(store: &StoreWrapper) -> String;
         fn get_build_dir() -> String;
         fn get_log_dir() -> String;
         fn get_state_dir() -> String;
-        fn get_nix_version() -> String;
-        fn get_this_system() -> String;
-        fn get_extra_platforms() -> Vec<String>;
-        fn get_system_features() -> Vec<String>;
-        fn get_substituters() -> Vec<String>;
-
-        fn get_use_cgroups() -> bool;
-        fn set_verbosity(level: i32);
         fn is_valid_path(store: &StoreWrapper, path: &str) -> Result<bool>;
         fn query_path_info(store: &StoreWrapper, path: &str) -> Result<InternalPathInfo>;
         fn compute_closure_size(store: &StoreWrapper, path: &str) -> Result<u64>;
@@ -249,10 +240,34 @@ pub fn init_nix() {
     ffi::init_nix();
 }
 
-#[inline]
-#[must_use]
-pub fn get_store_dir() -> String {
-    ffi::get_store_dir()
+/// Ensure the Nix C API (libutil) is initialized. Safe to call multiple times.
+fn ensure_nix_c_api_init() {
+    static INIT: std::sync::Once = std::sync::Once::new();
+    INIT.call_once(|| {
+        let mut ctx = nix_bindings_util::context::Context::new();
+        unsafe {
+            nix_bindings_util::check_call!(nix_bindings_util::raw_sys::libutil_init(&mut ctx))
+                .expect("nix_libutil_init failed");
+        }
+    });
+}
+
+/// Read a Nix setting string via the C API. Returns `Err` for unknown keys.
+fn nix_setting(key: &str) -> anyhow::Result<String> {
+    ensure_nix_c_api_init();
+    Ok(nix_bindings_util::settings::get(key)?)
+}
+
+/// Read a space-separated Nix list setting via the C API.
+fn nix_setting_list(key: &str) -> Vec<String> {
+    nix_setting(key)
+        .unwrap_or_else(|e| {
+            tracing::warn!("failed to read nix setting '{key}': {e}");
+            String::new()
+        })
+        .split_whitespace()
+        .map(String::from)
+        .collect()
 }
 
 #[inline]
@@ -276,43 +291,61 @@ pub fn get_state_dir() -> String {
 #[inline]
 #[must_use]
 pub fn get_nix_version() -> String {
-    ffi::get_nix_version()
+    nix_setting("version").unwrap_or_else(|e| {
+        tracing::warn!("failed to read nix setting 'version': {e}");
+        String::new()
+    })
 }
 
 #[inline]
 #[must_use]
 pub fn get_this_system() -> String {
-    ffi::get_this_system()
+    nix_setting("system").unwrap_or_else(|e| {
+        tracing::warn!("failed to read nix setting 'system': {e}");
+        String::new()
+    })
 }
 
 #[inline]
 #[must_use]
 pub fn get_extra_platforms() -> Vec<String> {
-    ffi::get_extra_platforms()
+    nix_setting_list("extra-platforms")
 }
 
 #[inline]
 #[must_use]
 pub fn get_system_features() -> Vec<String> {
-    ffi::get_system_features()
+    nix_setting_list("system-features")
 }
 
 #[inline]
 #[must_use]
 pub fn get_substituters() -> Vec<String> {
-    ffi::get_substituters()
+    nix_setting_list("substituters")
 }
 
 #[inline]
 #[must_use]
 pub fn get_use_cgroups() -> bool {
-    ffi::get_use_cgroups()
+    #[cfg(not(target_os = "linux"))]
+    { false }
+    #[cfg(target_os = "linux")]
+    {
+        nix_setting("use-cgroups")
+            .map(|v| v == "true")
+            .unwrap_or_else(|e| {
+                tracing::warn!("failed to read nix setting 'use-cgroups': {e}");
+                false
+            })
+    }
 }
 
 #[inline]
-/// Set the loglevel.
 pub fn set_verbosity(level: i32) {
-    ffi::set_verbosity(level);
+    ensure_nix_c_api_init();
+    if let Err(e) = nix_bindings_util::settings::set("verbosity", &level.to_string()) {
+        tracing::warn!("failed to set verbosity to {level}: {e}");
+    }
 }
 
 pub(crate) async fn asyncify<F, T>(f: F) -> Result<T, Error>
@@ -501,8 +534,7 @@ pub struct BaseStoreImpl {
 
 impl BaseStoreImpl {
     fn new(store: cxx::UniquePtr<ffi::StoreWrapper>) -> Self {
-        let store_dir = StoreDir::new(ffi::get_store_dir_for(&store))
-            .unwrap_or_default();
+        let store_dir = StoreDir::new(ffi::get_store_dir_for(&store)).unwrap_or_default();
         Self {
             wrapper: std::sync::Arc::new(FFIStore(std::cell::UnsafeCell::new(store))),
             store_dir,
@@ -1256,5 +1288,24 @@ impl BaseStore for RemoteStore {
     #[inline]
     fn store_dir(&self) -> &StoreDir {
         self.base.store_dir()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nix_c_api_errors_on_invalid_setting_key() {
+        ensure_nix_c_api_init();
+        assert!(nix_bindings_util::settings::get("this-key-does-not-exist").is_err());
+    }
+
+    #[test]
+    fn nix_c_api_returns_known_settings() {
+        ensure_nix_c_api_init();
+        let system = nix_bindings_util::settings::get("system");
+        assert!(system.is_ok());
+        assert!(!system.unwrap_or_default().is_empty());
     }
 }
