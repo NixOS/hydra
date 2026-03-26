@@ -1,6 +1,6 @@
 #[allow(unreachable_pub)]
 pub use harmonia_store_core::store_path::{
-    StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName,
+    ParseStorePathError, StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName,
 };
 
 /// Parse a store path from a string that may or may not have the store dir prefix.

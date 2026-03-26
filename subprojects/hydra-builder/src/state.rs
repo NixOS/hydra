@@ -1,11 +1,12 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Instant;
 
 use anyhow::Context as _;
 use backon::RetryableWithContext as _;
-use futures::TryFutureExt as _;
 use binary_cache::harmonia_utils_hash::fmt::CommonHash as _;
+use futures::TryFutureExt as _;
 use hashbrown::HashMap;
 use tonic::Request;
 use tracing::Instrument as _;
@@ -13,7 +14,7 @@ use tracing::Instrument as _;
 use crate::grpc::{BuilderClient, runner_v1};
 use crate::types::BuildTimings;
 use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
-use nix_utils::BaseStore as _;
+use nix_utils::{BaseStore as _, OutputName};
 use runner_v1::{
     AbortMessage, BuildMessage, BuildMetric, BuildProduct, BuildResultInfo, BuildResultState,
     FetchRequisitesRequest, JoinMessage, LogChunk, NarData, NixSupport, Output, OutputNameOnly,
@@ -44,6 +45,13 @@ pub enum JobFailure {
     Upload(anyhow::Error),
     #[error("Post processing failure: `{0}`")]
     PostProcessing(anyhow::Error),
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NixBuildOutputs {
+    drv_path: String,
+    outputs: BTreeMap<OutputName, String>,
 }
 
 impl From<JobFailure> for BuildResultState {
@@ -396,6 +404,7 @@ impl State {
             .resolved_drv
             .as_ref()
             .map(|v| nix_utils::parse_store_path(v));
+        let maybe_resolved_drv = resolved_drv.as_ref().unwrap_or(&drv);
 
         let before_import = Instant::now();
         let gcroot_prefix = uuid::Uuid::new_v4().to_string();
@@ -413,7 +422,7 @@ impl State {
             .await;
         let requisites = client
             .fetch_drv_requisites(FetchRequisitesRequest {
-                path: resolved_drv.as_ref().unwrap_or(&drv).to_string().to_owned(),
+                path: maybe_resolved_drv.to_string().to_owned(),
                 include_outputs: false,
             })
             .await
@@ -426,7 +435,7 @@ impl State {
             store.clone(),
             self.metrics.clone(),
             &gcroot,
-            resolved_drv.as_ref().unwrap_or(&drv),
+            maybe_resolved_drv,
             requisites
                 .into_iter()
                 .map(|s| nix_utils::parse_store_path(&s)),
@@ -437,12 +446,6 @@ impl State {
         .map_err(JobFailure::Import)?;
         timings.import_elapsed = before_import.elapsed();
 
-        // Resolved drv and drv output paths are the same
-        let drv_info = nix_utils::query_drv(&store, &drv)
-            .await
-            .map_err(|e| JobFailure::Import(e.into()))?
-            .ok_or(JobFailure::Import(anyhow::anyhow!("drv not found")))?;
-
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {
                 build_id: m.build_id.clone(),
@@ -451,9 +454,9 @@ impl State {
             })
             .await;
         let before_build = Instant::now();
-        let (mut child, mut log_output) = nix_utils::realise_drv(
+        let (mut child, stdout, mut stderr) = nix_utils::realise_drv(
             &store,
-            resolved_drv.as_ref().unwrap_or(&drv),
+            maybe_resolved_drv,
             &nix_utils::BuildOptions::complete(m.max_log_size, m.max_silent_time, m.build_timeout),
             true,
         )
@@ -461,7 +464,7 @@ impl State {
         .map_err(|e| JobFailure::Build(e.into()))?;
         let drv2 = drv.clone();
         let log_stream = async_stream::stream! {
-            while let Some(chunk) = log_output.next().await {
+            while let Some(chunk) = stderr.next().await {
                 match chunk {
                     Ok(chunk) => yield LogChunk {
                         drv: drv2.to_string().to_owned(),
@@ -478,10 +481,7 @@ impl State {
             .build_log(Request::new(log_stream))
             .await
             .map_err(|e| JobFailure::Build(e.into()))?;
-        let output_paths = nix_utils::output_paths(&drv_info, store.store_dir())
-            .into_values()
-            .flatten()
-            .collect::<Vec<_>>();
+
         nix_utils::validate_statuscode(
             child
                 .wait()
@@ -489,6 +489,58 @@ impl State {
                 .map_err(|e| JobFailure::Build(e.into()))?,
         )
         .map_err(|e| JobFailure::Build(e.into()))?;
+
+        // The process has already finished by this point, so if it takes more than 100ms
+        // then there probably was no line.
+        // No need for a loop, since `nix build` only ever prints one line.
+        let outputs_line = std::pin::pin!(stdout.timeout(tokio::time::Duration::from_millis(100)))
+            .next()
+            .await
+            .ok_or_else(|| {
+                JobFailure::PostProcessing(anyhow::anyhow!("Child did not print outputs"))
+            })?
+            .map_err(|e| JobFailure::PostProcessing(e.into()))?
+            .map_err(|e| JobFailure::PostProcessing(e.into()))?;
+
+        let mut output_raw: Vec<NixBuildOutputs> = serde_json::from_str(&outputs_line)
+            .map_err(|e| JobFailure::PostProcessing(e.into()))?;
+
+        if output_raw.len() != 1 {
+            return Err(JobFailure::PostProcessing(anyhow::anyhow!(
+                "nix built {} derivations, expecting 1",
+                output_raw.len()
+            )));
+        };
+
+        let actual_out_drv: nix_utils::StorePath = store
+            .store_dir()
+            .parse(&output_raw[0].drv_path)
+            .map_err(|e: nix_utils::ParseStorePathError| JobFailure::PostProcessing(e.into()))?;
+        if &actual_out_drv != maybe_resolved_drv {
+            return Err(JobFailure::PostProcessing(anyhow::anyhow!(
+                "Nix returned outputs for {actual_out_drv} when we expected {drv}"
+            )));
+        };
+
+        let outputs = output_raw
+            .pop()
+            .unwrap()
+            .outputs
+            .into_iter()
+            .map(|(name, path)| {
+                Ok((
+                    name,
+                    store.store_dir().parse::<nix_utils::StorePath>(&path)?,
+                ))
+            })
+            .collect::<anyhow::Result<Vec<(OutputName, nix_utils::StorePath)>>>()
+            .map_err(|e| JobFailure::PostProcessing(e))?;
+
+        let output_paths = outputs
+            .iter()
+            .map(|(_, path)| path.clone())
+            .collect::<Vec<_>>();
+
         for o in &output_paths {
             nix_utils::add_root(&store, &gcroot.root, o);
         }
@@ -527,7 +579,7 @@ impl State {
             store.clone(),
             machine_id,
             &drv,
-            drv_info,
+            &outputs,
             *timings,
             m.build_id.clone(),
         ))
@@ -1044,42 +1096,32 @@ async fn upload_single_nar_presigned(
     Ok(())
 }
 
-#[tracing::instrument(skip(store, drv_info), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
+#[tracing::instrument(skip(store, outputs), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
 async fn new_success_build_result_info(
     store: nix_utils::LocalStore,
     machine_id: uuid::Uuid,
     drv: &nix_utils::StorePath,
-    drv_info: nix_utils::Derivation,
+    outputs: &[(OutputName, nix_utils::StorePath)],
     timings: BuildTimings,
     build_id: String,
 ) -> anyhow::Result<BuildResultInfo> {
-    let store_dir = store.store_dir();
-    let resolved: Vec<_> = drv_info
-        .outputs
-        .iter()
-        .filter_map(|(name, output)| {
-            Some((name.clone(), output.path(store_dir, &drv_info.name, name).ok()??))
-        })
-        .collect();
-    let flat_outputs = resolved.iter().map(|(_, path)| path).collect::<Vec<_>>();
+    let flat_outputs = outputs.iter().map(|(_, path)| path).collect::<Vec<_>>();
     let pathinfos = store.query_path_infos(&flat_outputs).await;
     let nix_support = Box::pin(shared::parse_nix_support_from_outputs(
         &store,
-        &resolved,
+        &outputs,
     ))
     .await?;
 
     let mut build_outputs = vec![];
-    for (name, output) in &drv_info.outputs {
-        let path = output.path(store_dir, &drv_info.name, name).ok().flatten();
+    for (name, path) in outputs {
         build_outputs.push(Output {
-            output: Some(match path.as_ref().and_then(|p| pathinfos.get(p)) {
+            output: Some(match pathinfos.get(path) {
                 Some(info) => {
-                    let p = path.as_ref().unwrap();
                     output::Output::Withpath(OutputWithPath {
                         name: name.to_string(),
-                        closure_size: store.compute_closure_size(p).await,
-                        path: p.to_string(),
+                        closure_size: store.compute_closure_size(path).await,
+                        path: path.to_string(),
                         nar_size: info.nar_size,
                         nar_hash: info.nar_hash.clone(),
                     })
