@@ -72,6 +72,9 @@
           hydra-builder = self'.callPackage ./subprojects/hydra-builder/package.nix {
             inherit nixComponents;
           };
+          hydra-evaluator = self'.callPackage ./subprojects/hydra-evaluator/package.nix {
+            inherit nixComponents;
+          };
         });
       mkHydraBuilder =
         { pkgs, nixComponents }:
@@ -126,6 +129,7 @@
           hydra-linters
           hydra-queue-runner
           hydra-builder
+          hydra-evaluator
           ;
       };
 
@@ -238,6 +242,7 @@
             hydra-linters
             hydra-queue-runner
             hydra-builder
+            hydra-evaluator
             ;
         };
       });
