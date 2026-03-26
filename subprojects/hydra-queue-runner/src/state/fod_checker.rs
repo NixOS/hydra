@@ -34,14 +34,21 @@ async fn collect_ca_derivations(
         return HashMap::new();
     };
 
-    let is_ca = parsed.is_ca();
-    let mut out = if parsed.input_drvs.is_empty() {
+    let ca_fixed_hash = parsed.outputs.values().find_map(|o| match o {
+        nix_utils::DerivationOutput::CAFixed(ca) => Some(ca.hash()),
+        _ => None,
+    });
+    let input_drvs: Vec<StorePath> =
+        harmonia_store_core::derivation::DerivationInputs::from(&parsed.inputs)
+            .drvs
+            .into_keys()
+            .collect();
+    let mut out = if input_drvs.is_empty() {
         HashMap::new()
     } else {
-        futures::StreamExt::map(tokio_stream::iter(parsed.input_drvs.clone()), |i| {
+        futures::StreamExt::map(tokio_stream::iter(input_drvs), |i| {
             let processed = processed.clone();
             async move {
-                let i = nix_utils::parse_store_path(&i);
                 Box::pin(collect_ca_derivations(store, &i, processed)).await
             }
         })
@@ -50,7 +57,7 @@ async fn collect_ca_derivations(
         .collect::<HashMap<_, _>>()
         .await
     };
-    if is_ca {
+    if ca_fixed_hash.is_some() {
         out.insert(drv.clone(), parsed);
     }
 
@@ -70,7 +77,11 @@ impl FodChecker {
     }
 
     pub(super) fn add_ca_drv_parsed(&self, drv: &StorePath, parsed: &Derivation) {
-        if parsed.is_ca() {
+        let ca_fixed_hash = parsed.outputs.values().find_map(|o| match o {
+            nix_utils::DerivationOutput::CAFixed(ca) => Some(ca.hash()),
+            _ => None,
+        });
+        if ca_fixed_hash.is_some() {
             let mut ca = self.ca_derivations.write();
             ca.insert(drv.clone(), parsed.clone());
         }

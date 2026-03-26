@@ -13,6 +13,7 @@
 )]
 #![allow(clippy::missing_errors_doc)]
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -782,19 +783,15 @@ impl S3BinaryCacheClient {
     #[tracing::instrument(skip(self, outputs))]
     pub async fn query_missing_remote_outputs(
         &self,
-        outputs: Vec<nix_utils::DerivationOutput>,
-    ) -> Vec<nix_utils::DerivationOutput> {
+        outputs: BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>,
+    ) -> BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>> {
         use futures::stream::StreamExt as _;
 
         tokio_stream::iter(outputs)
-            .map(|o| async move {
-                let Some(path) = &o.path else {
-                    return None;
-                };
-                if self.has_narinfo(path).await.unwrap_or_default() {
-                    None
-                } else {
-                    Some(o)
+            .map(|(name, path)| async move {
+                match path {
+                    Some(p) if self.has_narinfo(&p).await.unwrap_or_default() => None,
+                    other => Some((name, other)),
                 }
             })
             .buffered(50)

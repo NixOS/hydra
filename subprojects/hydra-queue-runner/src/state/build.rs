@@ -574,26 +574,26 @@ impl BuildOutput {
     #[tracing::instrument(skip(store, outputs), err)]
     pub async fn new(
         store: &nix_utils::LocalStore,
-        outputs: Vec<nix_utils::DerivationOutput>,
+        outputs: std::collections::BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>,
     ) -> anyhow::Result<Self> {
-        let flat_outputs = outputs
+        let resolved: Vec<_> = outputs
             .iter()
-            .filter_map(|o| o.path.as_ref())
-            .collect::<Vec<_>>();
+            .filter_map(|(name, path)| Some((name.clone(), path.as_ref()?.clone())))
+            .collect();
+        let flat_outputs = resolved.iter().map(|(_, path)| path).collect::<Vec<_>>();
         let pathinfos = store.query_path_infos(&flat_outputs).await;
-        let nix_support = Box::pin(shared::parse_nix_support_from_outputs(store, &outputs)).await?;
+        let nix_support =
+            Box::pin(shared::parse_nix_support_from_outputs(store, &resolved)).await?;
 
         let mut outputs_map = HashMap::with_capacity(outputs.len());
         let mut closure_size = 0;
         let mut nar_size = 0;
 
-        for o in outputs {
-            if let Some(path) = o.path
-                && let Some(info) = pathinfos.get(&path)
-            {
+        for (name, path) in resolved {
+            if let Some(info) = pathinfos.get(&path) {
                 closure_size += store.compute_closure_size(&path).await;
                 nar_size += info.nar_size;
-                outputs_map.insert(o.name, path);
+                outputs_map.insert(name.to_string(), path);
             }
         }
 

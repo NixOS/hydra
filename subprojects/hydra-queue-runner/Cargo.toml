@@ -54,6 +54,7 @@ db = { path = "../crates/db" }
 nix-utils = { path = "../crates/nix-utils" }
 binary-cache = { path = "../crates/binary-cache" }
 shared = { path = "../crates/shared" }
+harmonia-store-core.workspace = true
 hydra-tracing = { path = "../crates/tracing", features = ["tonic"] }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]

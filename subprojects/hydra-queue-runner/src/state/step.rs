@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
@@ -161,12 +162,18 @@ impl Step {
 
     pub fn get_system(&self) -> Option<String> {
         let drv = self.drv.load_full();
-        drv.as_ref().map(|drv| drv.system.clone())
+        drv.as_ref()
+            .map(|drv| std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8").to_owned())
     }
 
-    pub fn get_input_drvs(&self) -> Option<Vec<String>> {
+    pub fn get_input_drvs(&self) -> Option<Vec<nix_utils::StorePath>> {
         let drv = self.drv.load_full();
-        drv.as_ref().map(|drv| drv.input_drvs.to_vec())
+        drv.as_ref().map(|drv| {
+            harmonia_store_core::derivation::DerivationInputs::from(&drv.inputs)
+                .drvs
+                .into_keys()
+                .collect::<Vec<_>>()
+        })
     }
 
     pub fn get_after(&self) -> jiff::Timestamp {
@@ -191,20 +198,29 @@ impl Step {
             .store(jiff::Timestamp::now());
     }
 
-    pub fn get_outputs(&self) -> Option<Vec<nix_utils::DerivationOutput>> {
+    pub fn get_output_paths(
+        &self,
+        store_dir: &nix_utils::StoreDir,
+    ) -> Option<BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>> {
         let drv = self.drv.load_full();
-        drv.as_ref().map(|drv| drv.outputs.to_vec())
+        drv.as_ref().map(|drv| nix_utils::output_paths(&drv, store_dir))
     }
 
+    // TODO: properly parse derivation options instead of reading env vars directly
     pub fn get_required_features(&self) -> Vec<String> {
         let drv = self.drv.load_full();
         drv.as_ref()
             .map(|drv| {
                 drv.env
-                    .get_required_system_features()
-                    .into_iter()
-                    .map(ToOwned::to_owned)
-                    .collect()
+                    .get(b"requiredSystemFeatures".as_slice())
+                    .and_then(|v| std::str::from_utf8(v).ok())
+                    .map(|v| {
+                        v.split(' ')
+                            .filter(|s| !s.is_empty())
+                            .map(ToOwned::to_owned)
+                            .collect()
+                    })
+                    .unwrap_or_default()
             })
             .unwrap_or_default()
     }
