@@ -1,6 +1,9 @@
-#include "db.hh"
-#include "hydra-config.hh"
+#include <pqxx/pqxx>
+
+#include <nix/util/environment-variables.hh>
+#include <nix/util/file-system.hh>
 #include <nix/util/pool.hh>
+#include <nix/util/util.hh>
 #include <nix/main/shared.hh>
 #include <nix/util/signals.hh>
 
@@ -13,6 +16,94 @@
 #include <sys/wait.h>
 
 using namespace nix;
+
+struct Connection : pqxx::connection
+{
+    Connection() : pqxx::connection(getFlags()) { };
+
+    std::string getFlags()
+    {
+        auto s = getEnv("HYDRA_DBI").value_or("dbi:Pg:dbname=hydra;");
+
+        std::string lower_prefix = "dbi:Pg:";
+        std::string upper_prefix = "DBI:Pg:";
+
+        if (hasPrefix(s, lower_prefix) || hasPrefix(s, upper_prefix)) {
+            return concatStringsSep(" ", tokenizeString<Strings>(std::string(s, lower_prefix.size()), ";"));
+        }
+
+        throw Error("$HYDRA_DBI does not denote a PostgreSQL database");
+    }
+};
+
+
+class receiver
+{
+    std::optional<std::string> status;
+    pqxx::connection & conn;
+
+public:
+
+    receiver(pqxx::connection_base & c, const std::string & channel)
+        : conn(static_cast<pqxx::connection &>(c))
+    {
+        conn.listen(channel, [this](pqxx::notification n) {
+            status = std::string(n.payload);
+        });
+    }
+
+    std::optional<std::string> get() {
+        auto s = status;
+        status = std::nullopt;
+        return s;
+    }
+};
+
+
+struct HydraConfig
+{
+    std::map<std::string, std::string> options;
+
+    HydraConfig()
+    {
+        /* Read hydra.conf. */
+        auto hydraConfigFile = getEnv("HYDRA_CONFIG");
+        if (hydraConfigFile && pathExists(*hydraConfigFile)) {
+
+            for (auto line : tokenizeString<Strings>(readFile(*hydraConfigFile), "\n")) {
+                line = trim(std::string(line, 0, line.find('#')));
+
+                auto eq = line.find('=');
+                if (eq == std::string::npos) continue;
+
+                auto key = trim(std::string(line, 0, eq));
+                auto value = trim(std::string(line, eq + 1));
+
+                if (key == "") continue;
+
+                options[key] = value;
+            }
+        }
+    }
+
+    std::string getStrOption(const std::string & key, const std::string & def = "")
+    {
+        auto i = options.find(key);
+        return i == options.end() ? def : i->second;
+    }
+
+    uint64_t getIntOption(const std::string & key, uint64_t def = 0)
+    {
+        auto i = options.find(key);
+        return i == options.end() ? def : std::stoll(i->second);
+    }
+
+    bool getBoolOption(const std::string & key, bool def = false)
+    {
+        auto i = options.find(key);
+        return i == options.end() ? def : (i->second == "true" || i->second == "1");
+    }
+};
 
 typedef std::pair<std::string, std::string> JobsetName;
 
