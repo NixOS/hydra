@@ -29,6 +29,11 @@ tower.workspace = true
 hyper-util.workspace = true
 async-stream.workspace = true
 
+serde.workspace = true
+serde_json.workspace = true
+
+harmonia-store-core.workspace = true
+
 gethostname.workspace = true
 procfs-core.workspace = true
 nix = { workspace = true, features = ["fs"] }
