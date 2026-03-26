@@ -72,6 +72,11 @@ in
         description = "The Hydra package.";
       };
 
+      evaluatorExecutable = mkOption {
+        type = types.path;
+        description = "Path to the hydra-evaluator executable.";
+      };
+
       hydraURL = mkOption {
         type = types.str;
         description = ''
@@ -261,13 +266,13 @@ in
         requires = [ "hydra-init.service" ];
         restartTriggers = [ hydraConf ];
         after = [ "hydra-init.service" "network.target" ];
-        path = with pkgs; [ hostname-debian cfg.package ];
+        path = with pkgs; [ hostname-debian ];
         environment = env // {
           HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-evaluator";
         };
         serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-evaluator hydra-evaluator";
-            ExecStopPost = "${cfg.package}/bin/hydra-evaluator --unlock";
+          { ExecStart = "@${cfg.evaluatorExecutable} hydra-evaluator";
+            ExecStopPost = "${cfg.evaluatorExecutable} --unlock";
             User = "hydra";
             Restart = "always";
             WorkingDirectory = baseDir;

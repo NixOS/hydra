@@ -1,7 +1,7 @@
 [workspace]
 
 resolver = "2"
-members = ["subprojects/hydra-builder", "subprojects/hydra-queue-runner", "subprojects/crates/*"]
+members = ["subprojects/hydra-builder", "subprojects/hydra-evaluator", "subprojects/hydra-queue-runner", "subprojects/crates/*"]
 
 [workspace.package]
 version = "0.1.0"

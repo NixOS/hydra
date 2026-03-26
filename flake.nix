@@ -41,9 +41,12 @@
           };
           hydra-linters = self'.callPackage ./subprojects/hydra-linters/package.nix {
           };
-          hydra-queue-runner = self'.callPackage ./subprojects/hydra-queue-runner/package.nix {
+          hydra-rust = self'.callPackage ./subprojects/rust-package.nix {
             inherit nixComponents;
           };
+          hydra-queue-runner = self'.hydra-rust.queue_runner;
+          hydra-builder = self'.hydra-rust.builder;
+          hydra-evaluator = self'.hydra-rust.evaluator;
         });
     in
     rec {
